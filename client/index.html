@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Airport Chaos</title>
+  </head>
+  <body>
+    <div id="hud">
+      <div class="title">AIRPORT CHAOS</div>
+      <div id="flight-test-mode" class="flight-test-mode hidden">FLIGHT TEST MODE</div>
+      <div class="primary-stat timer-row" hidden>Time <strong id="timer">12.0</strong>s</div>
+      <div class="primary-stat score-row">Score <strong id="score">0</strong></div>
+      <div hidden>Multiplier <strong id="multiplier">x1</strong></div>
+      <div>Best Score <strong id="best-score">0</strong></div>
+      <div>Speed <strong id="speed">0</strong> knots</div>
+      <div>Altitude <strong id="altitude">0</strong> ft</div>
+      <div class="heading-row">Heading <strong id="heading">N 000°</strong></div>
+      <div class="health-row">Health <strong id="health">100</strong></div>
+      <div class="flight-state-row">State <strong id="flight-state">TAXI</strong></div>
+      <div class="secondary-stat">Throttle <strong id="throttle">0</strong>%</div>
+      <label class="aircraft-selector">
+        Aircraft
+        <select id="aircraft-select">
+          <option value="trainer">Trainer — Free</option>
+          <option value="privateJet">Private Jet — 500 credits</option>
+          <option value="cargo">Cargo Plane — 1,000 credits</option>
+          <option value="fighter">Fighter-Style Jet — 2,000 credits</option>
+        </select>
+      </label>
+      <div class="progress-stats">
+        <span>Credits <strong id="credits">0</strong></span>
+        <span>Distance <strong id="distance-flown">0</strong></span>
+        <span>Landings <strong id="successful-landings">0</strong></span>
+        <span>Regions <strong id="regions-discovered">0</strong></span>
+      </div>
+      <div class="airport-navigation">
+        <span>Nearest Airport: <strong id="nearest-airport">Central International</strong></span>
+        <span>Distance: <strong id="airport-distance">45</strong></span>
+      </div>
+      <div id="world-status" class="world-status hidden">Leaving City 1</div>
+      <div id="active-contract" class="active-contract hidden"></div>
+      <div class="pilot-name">Player <strong id="player-name"></strong></div>
+      <div id="connection" class="offline">Server: connecting…</div>
+      <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>
+      <div class="controls">W/S or ↑/↓ pitch · A/D roll · Q/E or ←/→ turn · X/C or Shift/Ctrl throttle · Space fire</div>
+    </div>
+    <aside id="leaderboard">
+      <div class="leaderboard-title">LEADERBOARD</div>
+      <ol id="leaderboard-list"></ol>
+    </aside>
+    <aside id="radar-panel" aria-label="Navigation radar">
+      <div class="radar-title">RADAR <span>3,000</span></div>
+      <canvas id="radar" width="180" height="180"></canvas>
+      <div class="radar-legend"><span class="airport-key">◆ Airport</span><span class="player-key">● Player</span></div>
+    </aside>
+    <aside id="contract-panel">
+      <div class="contract-label">AVAILABLE CONTRACT</div>
+      <strong id="contract-type">SIGHTSEEING</strong>
+      <div id="contract-detail" class="contract-detail"></div>
+      <div class="contract-meta">
+        <span id="contract-aircraft"></span>
+        <span id="contract-reward"></span>
+      </div>
+      <div class="contract-actions">
+        <button id="contract-accept" type="button">Accept</button>
+        <button id="contract-skip" type="button">Skip</button>
+      </div>
+    </aside>
+    <div id="leader-message" class="hidden">YOU'RE #1</div>
+    <div id="near-miss-message" class="hidden">+250 NEAR MISS</div>
+    <div id="checkpoint-message" class="hidden">+100 CHECKPOINT</div>
+    <div id="progress-message" class="hidden"></div>
+    <div id="combat-message" class="hidden"></div>
+    <div id="hit-marker" aria-hidden="true"></div>
+    <div id="damage-flash" aria-hidden="true"></div>
+    <a id="osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
+    <div id="how-to-play" class="how-to-play" role="dialog" aria-labelledby="how-to-title">
+      <div class="how-to-card">
+        <div id="how-to-title" class="how-to-title">HOW TO PLAY</div>
+        <div><strong>W / S</strong> — Pitch up / down</div>
+        <div><strong>↑ / ↓</strong> — Pitch up / down</div>
+        <div><strong>← / →</strong> — Turn left / right</div>
+        <div><strong>A / D</strong> — Roll left / right</div>
+        <div><strong>Q / E</strong> — Turn left / right</div>
+        <div><strong>X / C or SHIFT / CTRL</strong> — Speed up / slow down</div>
+        <div><strong>SPACE</strong> — Fire</div>
+        <div class="how-to-objectives">
+          <div>Take off, explore, and land back on the runway</div>
+          <div>Avoid terrain, buildings, water, and other planes</div>
+        </div>
+        <div><strong>R</strong> — Restart after crash</div>
+        <div class="how-to-start">Press any flight control to start</div>
+      </div>
+    </div>
+    <div id="crash-overlay" class="hidden">
+      <div class="crash-card">
+        <div id="end-title" class="crash-title">CRASHED</div>
+        <div>Final Score: <strong id="final-score">0</strong></div>
+        <div class="restart">Press R to Restart</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
