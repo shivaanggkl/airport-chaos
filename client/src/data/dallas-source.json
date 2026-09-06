@@ -1,0 +1,8 @@
+{
+  "name": "Dallas-Fort Worth, Texas, USA",
+  "origin": { "lat": 32.7767, "lon": -96.797 },
+  "target": { "x": 0, "z": 0 },
+  "worldHalfSize": 25000,
+  "chunkSize": 2000,
+  "bounds": { "south": 32.5506, "west": -97.064, "north": 33.0028, "east": -96.53 }
+}

@@ -1,28 +1,30 @@
 import * as THREE from 'three';
 import './style.css';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
-import {
-  airports,
-  centralAirport,
-  createWorld,
-  getTerrainHeight,
-  regionBounds,
-  WORLD_METERS_PER_UNIT,
-  WORLD_SIZE,
-  type AirportDefinition,
-  type AirportId,
-  type RegionName,
+import { CITY_QUERY_PARAM, activeCityFromUrl, type CityId } from './cities';
+import { updateOsmCityChunks } from './osm-city';
+import { WorldMap, type WorldMapLayer } from './world-map';
+import type {
+  AirportDefinition,
+  AirportId,
+  RegionName,
 } from './world';
 
 const flightTestMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('flighttest') === '1';
+const activeCity = activeCityFromUrl();
+if (!activeCity || activeCity.status !== 'available') throw new Error('A playable city is required before starting the game.');
+const cityId = activeCity.id;
+const cityWorld = await activeCity.loadWorld!();
+const { airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = cityWorld;
+const visualQaMode = import.meta.env.DEV && cityId === 'dallas' && new URLSearchParams(window.location.search).get('visualqa') === '1' && Boolean(cityWorld.visualQaPresets?.length);
 const PLANE_GROUND_Y = 1.2;
 const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = 1.94384 * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const SKY_COLOR = 0x78bfe3;
 const CAMERA_NEAR = 2;
-const CAMERA_BASE_FAR = 22_000;
-const CAMERA_HIGH_FAR = 32_000;
+const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
+const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
 const SKY_DOME_RADIUS = 18_000;
 
 function groundPlaneY(x: number, z: number): number {
@@ -35,7 +37,7 @@ function altitudeAboveTerrain(): number {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY_COLOR);
-scene.fog = new THREE.Fog(SKY_COLOR, 4500, 15_000);
+scene.fog = new THREE.Fog(SKY_COLOR, WORLD_SIZE > 20_000 ? 7000 : 4500, WORLD_SIZE > 20_000 ? 28_000 : 15_000);
 
 const camera = new THREE.PerspectiveCamera(
   65,
@@ -52,6 +54,17 @@ renderer.toneMappingExposure = 1.08;
 renderer.setClearColor(SKY_COLOR, 1);
 document.body.appendChild(renderer.domElement);
 preloadAircraftAssets();
+
+function resizeRenderer(): void {
+  const width = document.documentElement.clientWidth;
+  const height = document.documentElement.clientHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+
+resizeRenderer();
 
 scene.add(new THREE.HemisphereLight(0xe6f7ff, 0x596a3f, 2.35));
 const sun = new THREE.DirectionalLight(0xfff0d2, 3.1);
@@ -161,9 +174,15 @@ type AircraftDefinition = {
   drag: number;
   groundAcceleration: number;
   groundDrag: number;
+  idleThrottle: number;
+  throttleResponse: number;
+  throttleDecay: number;
   lift: number;
   stallSpeed: number;
   pitchRate: number;
+  maxClimbPitch: number;
+  pitchReturnRate: number;
+  climbLiftBoost: number;
   rollRate: number;
   yawRate: number;
   groundSteering: number;
@@ -193,13 +212,19 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
     creditsRequired: 0,
     maxSpeed: 52,
     groundMaxSpeed: 40,
-    acceleration: 7.6,
-    drag: 5.4,
+    acceleration: 7.2,
+    drag: 5.8,
     groundAcceleration: 13.5,
     groundDrag: 12,
+    idleThrottle: 0.02,
+    throttleResponse: 0.42,
+    throttleDecay: 0.1,
     lift: 1.2,
     stallSpeed: 16.5,
     pitchRate: 0.92,
+    maxClimbPitch: 0.27,
+    pitchReturnRate: 1.5,
+    climbLiftBoost: 1.1,
     rollRate: 6.1,
     yawRate: 1.24,
     groundSteering: 1.3,
@@ -209,9 +234,9 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
     alignmentRate: 1.25,
     cameraDamping: 4.7,
     takeoffSpeed: 24,
-    safeLandingSpeed: 43,
-    safeDescentRate: 6.5,
-    landingTilt: 0.5,
+    safeLandingSpeed: 48,
+    safeDescentRate: 8.5,
+    landingTilt: 0.62,
     bodyColor: 0xf2f4f7,
     accentColor: 0x145da0,
     bodyLength: 5.2,
@@ -225,15 +250,21 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
   privateJet: {
     name: 'PRIVATE JET',
     creditsRequired: 500,
-    maxSpeed: 82,
-    groundMaxSpeed: 60,
-    acceleration: 6.4,
-    drag: 3.1,
+    maxSpeed: 90,
+    groundMaxSpeed: 66,
+    acceleration: 10.5,
+    drag: 2.5,
     groundAcceleration: 9.5,
     groundDrag: 6.2,
+    idleThrottle: 0.025,
+    throttleResponse: 0.38,
+    throttleDecay: 0.075,
     lift: 1.02,
     stallSpeed: 27,
     pitchRate: 0.62,
+    maxClimbPitch: 0.22,
+    pitchReturnRate: 1.2,
+    climbLiftBoost: 1.03,
     rollRate: 3.9,
     yawRate: 0.78,
     groundSteering: 0.86,
@@ -243,9 +274,9 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
     alignmentRate: 0.68,
     cameraDamping: 3.7,
     takeoffSpeed: 38,
-    safeLandingSpeed: 52,
-    safeDescentRate: 5.2,
-    landingTilt: 0.36,
+    safeLandingSpeed: 62,
+    safeDescentRate: 7.2,
+    landingTilt: 0.46,
     bodyColor: 0xf4f1ea,
     accentColor: 0x7b4fc9,
     bodyLength: 7,
@@ -259,15 +290,21 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
   cargo: {
     name: 'CARGO PLANE',
     creditsRequired: 1000,
-    maxSpeed: 68,
-    groundMaxSpeed: 55,
-    acceleration: 4.2,
-    drag: 2.5,
+    maxSpeed: 64,
+    groundMaxSpeed: 54,
+    acceleration: 3.5,
+    drag: 1.9,
     groundAcceleration: 6.2,
     groundDrag: 3.6,
+    idleThrottle: 0.04,
+    throttleResponse: 0.24,
+    throttleDecay: 0.055,
     lift: 1.1,
     stallSpeed: 31,
     pitchRate: 0.42,
+    maxClimbPitch: 0.18,
+    pitchReturnRate: 1.05,
+    climbLiftBoost: 1.05,
     rollRate: 2.65,
     yawRate: 0.62,
     groundSteering: 0.72,
@@ -277,9 +314,9 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
     alignmentRate: 0.34,
     cameraDamping: 2.9,
     takeoffSpeed: 46,
-    safeLandingSpeed: 56,
-    safeDescentRate: 5.4,
-    landingTilt: 0.34,
+    safeLandingSpeed: 66,
+    safeDescentRate: 7,
+    landingTilt: 0.44,
     bodyColor: 0xc8d0d6,
     accentColor: 0x355d3f,
     bodyLength: 7.2,
@@ -293,15 +330,21 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
   fighter: {
     name: 'FIGHTER-STYLE JET',
     creditsRequired: 2000,
-    maxSpeed: 116,
-    groundMaxSpeed: 74,
-    acceleration: 17,
-    drag: 7.6,
-    groundAcceleration: 20,
+    maxSpeed: 140,
+    groundMaxSpeed: 82,
+    acceleration: 23,
+    drag: 6.3,
+    groundAcceleration: 25,
     groundDrag: 8.5,
+    idleThrottle: 0.01,
+    throttleResponse: 0.72,
+    throttleDecay: 0.16,
     lift: 1.35,
     stallSpeed: 36,
     pitchRate: 1.3,
+    maxClimbPitch: 0.32,
+    pitchReturnRate: 1.6,
+    climbLiftBoost: 1,
     rollRate: 9.2,
     yawRate: 1.5,
     groundSteering: 1.04,
@@ -311,9 +354,9 @@ const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
     alignmentRate: 1.55,
     cameraDamping: 5.8,
     takeoffSpeed: 37,
-    safeLandingSpeed: 48,
-    safeDescentRate: 3.8,
-    landingTilt: 0.24,
+    safeLandingSpeed: 54,
+    safeDescentRate: 5,
+    landingTilt: 0.32,
     bodyColor: 0x727d86,
     accentColor: 0xb52a2a,
     bodyLength: 6,
@@ -622,6 +665,8 @@ let lastSuccessfulAirportId: AirportId = centralAirport.id;
 let contractSequence = 0;
 let availableContract: ContractDefinition | null = null;
 let activeContract: ActiveContract | null = null;
+type Waypoint = { x: number; z: number; label?: string };
+let waypoint: Waypoint | null = null;
 let cameraShakeTime = 0;
 let checkpointPulseTime = 0;
 let checkpointFlashIndex = -1;
@@ -639,7 +684,10 @@ const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-mis
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const playerNameElement = document.querySelector<HTMLSpanElement>('#player-name')!;
 const audioToggleElement = document.querySelector<HTMLButtonElement>('#audio-toggle')!;
+const citiesButtonElement = document.querySelector<HTMLButtonElement>('#cities-button')!;
 const altitudeElement = document.querySelector<HTMLSpanElement>('#altitude')!;
+const verticalSpeedElement = document.querySelector<HTMLSpanElement>('#vertical-speed')!;
+const verticalSpeedIndicator = document.querySelector<HTMLSpanElement>('#vsi-indicator')!;
 const flightStateElement = document.querySelector<HTMLSpanElement>('#flight-state')!;
 const aircraftSelectElement = document.querySelector<HTMLSelectElement>('#aircraft-select')!;
 const flightTestIndicator = document.querySelector<HTMLDivElement>('#flight-test-mode')!;
@@ -649,10 +697,16 @@ const successfulLandingsElement = document.querySelector<HTMLSpanElement>('#succ
 const regionsDiscoveredElement = document.querySelector<HTMLSpanElement>('#regions-discovered')!;
 const nearestAirportElement = document.querySelector<HTMLSpanElement>('#nearest-airport')!;
 const airportDistanceElement = document.querySelector<HTMLSpanElement>('#airport-distance')!;
+const waypointNavigationElement = document.querySelector<HTMLDivElement>('#waypoint-navigation')!;
+const waypointBearingElement = document.querySelector<HTMLSpanElement>('#waypoint-bearing')!;
+const waypointDistanceElement = document.querySelector<HTMLSpanElement>('#waypoint-distance')!;
 const headingElement = document.querySelector<HTMLSpanElement>('#heading')!;
 const worldStatusElement = document.querySelector<HTMLDivElement>('#world-status')!;
 const radarCanvas = document.querySelector<HTMLCanvasElement>('#radar')!;
 const radarContext = radarCanvas.getContext('2d')!;
+const worldMapOverlayElement = document.querySelector<HTMLElement>('#world-map-overlay')!;
+const worldMapCanvas = document.querySelector<HTMLCanvasElement>('#world-map-canvas')!;
+const worldMapRecenterElement = document.querySelector<HTMLButtonElement>('#world-map-recenter')!;
 const progressMessageElement = document.querySelector<HTMLDivElement>('#progress-message')!;
 const combatMessageElement = document.querySelector<HTMLDivElement>('#combat-message')!;
 const hitMarkerElement = document.querySelector<HTMLDivElement>('#hit-marker')!;
@@ -667,6 +721,8 @@ const contractAircraftElement = document.querySelector<HTMLSpanElement>('#contra
 const contractRewardElement = document.querySelector<HTMLSpanElement>('#contract-reward')!;
 const contractAcceptElement = document.querySelector<HTMLButtonElement>('#contract-accept')!;
 const contractSkipElement = document.querySelector<HTMLButtonElement>('#contract-skip')!;
+const visualQaPanelElement = document.querySelector<HTMLElement>('#visual-qa-panel')!;
+const visualQaPresetsElement = document.querySelector<HTMLDivElement>('#visual-qa-presets')!;
 let nearMissMessageTimer: number | undefined;
 let checkpointMessageTimer: number | undefined;
 let progressMessageTimer: number | undefined;
@@ -925,6 +981,10 @@ function updateFlightHud(): void {
   speedElement.textContent = Math.round(currentSpeed * METERS_PER_SECOND_TO_KNOTS).toString();
   throttleElement.textContent = Math.round(throttle * 100).toString();
   altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
+  const feetPerMinute = Math.round(verticalSpeed * METERS_TO_FEET * 60);
+  verticalSpeedElement.textContent = `${feetPerMinute >= 0 ? '+' : ''}${feetPerMinute}`;
+  verticalSpeedIndicator.style.setProperty('--vsi-offset', `${THREE.MathUtils.clamp(-feetPerMinute / 2400, -1, 1) * 23}px`);
+  verticalSpeedIndicator.classList.toggle('descending', feetPerMinute < -40);
 }
 
 function updateAirportNavigation(): void {
@@ -969,7 +1029,7 @@ function drawRadarMarker(
   direction: THREE.Vector3,
   targetX: number,
   targetZ: number,
-  kind: 'airport' | 'player',
+  kind: 'airport' | 'player' | 'waypoint',
   label = '',
 ): void {
   const center = radarCanvas.width / 2;
@@ -997,6 +1057,16 @@ function drawRadarMarker(
     radarContext.beginPath();
     radarContext.arc(x, y, 3.5, 0, Math.PI * 2);
     radarContext.fill();
+    return;
+  }
+
+  if (kind === 'waypoint') {
+    radarContext.strokeStyle = '#ffd865';
+    radarContext.lineWidth = 2;
+    radarContext.beginPath();
+    radarContext.moveTo(x - 4, y); radarContext.lineTo(x + 4, y);
+    radarContext.moveTo(x, y - 4); radarContext.lineTo(x, y + 4);
+    radarContext.stroke();
     return;
   }
 
@@ -1037,6 +1107,7 @@ function updateRadar(direction: THREE.Vector3): void {
   for (const remote of remotePlayers.values()) {
     drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'player');
   }
+  if (waypoint) drawRadarMarker(direction, waypoint.x, waypoint.z, 'waypoint');
 
   radarContext.fillStyle = '#f8fbff';
   radarContext.beginPath();
@@ -1052,6 +1123,15 @@ function updateNavigationHud(): void {
   updateHeadingDisplay(direction);
   updateAirportNavigation();
   updateRadar(direction);
+  if (waypoint) {
+    const dx = waypoint.x - airplane.position.x;
+    const dz = waypoint.z - airplane.position.z;
+    const bearing = (THREE.MathUtils.radToDeg(Math.atan2(dx, -dz)) + 360) % 360;
+    waypointBearingElement.textContent = `${Math.round(bearing).toString().padStart(3, '0')}°`;
+    waypointDistanceElement.textContent = Math.round(Math.hypot(dx, dz)).toString();
+  }
+  waypointNavigationElement.classList.toggle('hidden', waypoint === null);
+  updateWorldMap(direction);
   const outsideCity =
     Math.abs(airplane.position.x) > WORLD_SIZE / 2 || Math.abs(airplane.position.z) > WORLD_SIZE / 2;
   worldStatusElement.classList.toggle('hidden', !outsideCity);
@@ -1348,6 +1428,7 @@ function checkRegionDiscovery(): void {
 }
 
 function updateAirborneProgress(delta: number): void {
+  if (visualQaMode) return;
   const traveled = currentSpeed * delta;
   if (traveled <= 0) return;
   distanceFlown += traveled;
@@ -1373,6 +1454,7 @@ function setRestartAirport(airport: AirportDefinition): void {
 
 function rewardLanding(airport: AirportDefinition): void {
   setRestartAirport(airport);
+  if (visualQaMode) return;
   if (flightDistanceSinceTakeoff < MIN_REWARDED_FLIGHT_DISTANCE) return;
   successfulLandings += 1;
   resetRegionsOnNextTakeoff = true;
@@ -1489,12 +1571,6 @@ const flightControlCodes = new Set([
   'ArrowDown',
   'ArrowLeft',
   'ArrowRight',
-  'KeyX',
-  'KeyC',
-  'ShiftLeft',
-  'ShiftRight',
-  'ControlLeft',
-  'ControlRight',
   'Space',
 ]);
 const howToPlayElement = document.querySelector<HTMLDivElement>('#how-to-play')!;
@@ -1503,18 +1579,6 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     runStarted = true;
     howToPlayElement.classList.add('hidden');
-  }
-  if (!event.repeat && (event.code === 'KeyX' || event.code === 'ShiftLeft' || event.code === 'ShiftRight')) {
-    throttle = Math.min(1, throttle + 0.04);
-  }
-  if (!event.repeat && (event.code === 'KeyC' || event.code === 'ControlLeft' || event.code === 'ControlRight')) {
-    throttle = Math.max(0, throttle - 0.04);
-  }
-  if (!event.repeat && (event.code === 'KeyW' || event.code === 'ArrowUp')) {
-    pitch = Math.min(0.65, pitch + currentAircraft.pitchRate * 0.045);
-  }
-  if (!event.repeat && (event.code === 'KeyS' || event.code === 'ArrowDown')) {
-    pitch = Math.max(-0.65, pitch - currentAircraft.pitchRate * 0.045);
   }
   if (!event.repeat && (event.code === 'KeyQ' || event.code === 'ArrowLeft')) {
     heading += currentAircraft.yawRate * 0.055;
@@ -1559,6 +1623,7 @@ type NetworkTransform = {
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
   aircraftType: AircraftType;
+  cityId: CityId;
 };
 
 type NetworkPlayer = NetworkTransform & { playerId: string };
@@ -1575,6 +1640,7 @@ type ServerMessage =
   | {
       type: 'welcome';
       playerId: string;
+      cityId: CityId;
       spawnPosition: { x: number; y: number; z: number };
       health: number;
       players: NetworkPlayer[];
@@ -1637,6 +1703,51 @@ type DestructionEffect = {
 };
 
 const remotePlayers = new Map<string, RemotePlayer>();
+const fallbackMapLayer: WorldMapLayer = {
+  bounds: { minX: -WORLD_SIZE / 2, maxX: WORLD_SIZE / 2, minZ: -WORLD_SIZE / 2, maxZ: WORLD_SIZE / 2 },
+};
+const worldMap = new WorldMap(
+  worldMapOverlayElement,
+  worldMapCanvas,
+  worldMapRecenterElement,
+  cityWorld.mapLayer ?? fallbackMapLayer,
+  airports,
+  (nextWaypoint) => {
+    waypoint = nextWaypoint;
+    updateNavigationHud();
+  },
+);
+
+function contractMapTarget(): Waypoint | null {
+  if (!activeContract) return null;
+  const airport = airportById(activeContract.definition.destinationAirportId);
+  return { x: airport.x, z: airport.z, label: airport.name };
+}
+
+function updateWorldMap(direction: THREE.Vector3): void {
+  const mapPlayers = [...remotePlayers.entries()].map(([id, remote]) => ({
+    id,
+    x: remote.plane.position.x,
+    z: remote.plane.position.z,
+  }));
+  worldMap.update({
+    position: airplane.position,
+    forward: { x: direction.x, z: direction.z },
+    players: mapPlayers,
+    waypoint,
+    contractTarget: contractMapTarget(),
+  });
+}
+
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'KeyM') {
+    event.preventDefault();
+    worldMap.toggle();
+  } else if (event.code === 'Escape' && worldMap.isOpen()) {
+    event.preventDefault();
+    worldMap.setOpen(false);
+  }
+});
 const projectileGeometry = new THREE.BoxGeometry(0.3, 0.3, 9);
 const projectileGlowGeometry = new THREE.BoxGeometry(0.78, 0.78, 11.5);
 const projectileMaterial = new THREE.MeshBasicMaterial({
@@ -1688,6 +1799,47 @@ const collisionRadius = 2.5;
 const nearMissRadius = 12;
 const collisionRadiusSquared = collisionRadius * collisionRadius;
 const nearMissRadiusSquared = nearMissRadius * nearMissRadius;
+
+function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPresets>[number]): void {
+  keys.clear();
+  crashed = false;
+  health = 100;
+  throttle = preset.onGround ? 0 : 0.62;
+  currentSpeed = preset.onGround ? 0 : Math.min(currentAircraft.maxSpeed * 0.62, 58);
+  verticalSpeed = 0;
+  heading = preset.heading;
+  pitch = preset.pitch ?? 0;
+  roll = 0;
+  airplane.position.set(preset.x, groundPlaneY(preset.x, preset.z) + preset.altitude, preset.z);
+  airplane.rotation.set(pitch, heading, roll, 'YXZ');
+  forward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();
+  velocity.copy(forward).multiplyScalar(currentSpeed);
+  onGround = Boolean(preset.onGround);
+  landedFeedbackTime = 0;
+  cameraShakeTime = 0;
+  runStarted = true;
+  crashOverlay.classList.add('hidden');
+  howToPlayElement.classList.add('hidden');
+  setFlightState(onGround ? 'TAXI' : 'FLYING');
+  updateHealthDisplay();
+  updateFlightHud();
+  updateNavigationHud();
+  updateOsmCityChunks(airplane.position);
+  cityWorld.updateWorldStreaming?.(airplane.position);
+  updateCamera(1);
+  sendLocalState();
+}
+
+if (visualQaMode && cityWorld.visualQaPresets) {
+  visualQaPanelElement.hidden = false;
+  for (const preset of cityWorld.visualQaPresets) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = preset.label;
+    button.addEventListener('click', () => applyVisualQaPreset(preset));
+    visualQaPresetsElement.append(button);
+  }
+}
 
 function createProjectileVisual(): ClientProjectile {
   const mesh = new THREE.Group();
@@ -2060,6 +2212,29 @@ function getAirportAtPosition(position: THREE.Vector3): AirportDefinition | null
   return null;
 }
 
+function runwayHeadingError(airport: AirportDefinition): number {
+  const direct = Math.abs(THREE.MathUtils.euclideanModulo(heading - airport.heading + Math.PI, Math.PI * 2) - Math.PI);
+  const reciprocal = Math.abs(THREE.MathUtils.euclideanModulo(heading - airport.heading, Math.PI * 2) - Math.PI);
+  return Math.min(direct, reciprocal);
+}
+
+function getLandingAssistAirport(position: THREE.Vector3): AirportDefinition | null {
+  for (const airport of airports) {
+    const offsetX = position.x - airport.x;
+    const offsetZ = position.z - airport.z;
+    const cosine = Math.cos(airport.heading);
+    const sine = Math.sin(airport.heading);
+    const lateral = offsetX * cosine - offsetZ * sine;
+    const longitudinal = offsetX * sine + offsetZ * cosine;
+    if (
+      Math.abs(lateral) <= airport.runwayWidth * 1.6 + 36 &&
+      Math.abs(longitudinal) <= airport.runwayLength / 2 + 180 &&
+      runwayHeadingError(airport) <= 0.72
+    ) return airport;
+  }
+  return null;
+}
+
 function pointInWorldPolygon(x: number, z: number, polygon: ReadonlyArray<readonly [number, number]>): boolean {
   let inside = false;
   for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
@@ -2113,17 +2288,16 @@ function hitsWorldObstacle(): boolean {
 }
 
 function updateFlight(delta: number): void {
-  if (keys.has('KeyX') || keys.has('ShiftLeft') || keys.has('ShiftRight')) throttle += delta * 0.28;
-  if (keys.has('KeyC') || keys.has('ControlLeft') || keys.has('ControlRight')) throttle -= delta * 0.28;
+  if (keys.has('KeyW')) throttle += delta * currentAircraft.throttleResponse;
+  else if (keys.has('KeyS')) throttle -= delta * currentAircraft.throttleResponse * 2.1;
+  else throttle = moveToward(throttle, currentAircraft.idleThrottle, delta * currentAircraft.throttleDecay);
   throttle = THREE.MathUtils.clamp(throttle, 0, 1);
 
   const rollInput = Number(keys.has('KeyA')) - Number(keys.has('KeyD'));
   const yawInput =
     Number(keys.has('KeyQ') || keys.has('ArrowLeft')) -
     Number(keys.has('KeyE') || keys.has('ArrowRight'));
-  const pitchInput =
-    Number(keys.has('KeyW') || keys.has('ArrowUp')) -
-    Number(keys.has('KeyS') || keys.has('ArrowDown'));
+  const pitchInput = Number(keys.has('ArrowUp')) - Number(keys.has('ArrowDown'));
 
   if (onGround) {
     const groundTargetSpeed = throttle * currentAircraft.groundMaxSpeed;
@@ -2177,8 +2351,18 @@ function updateFlight(delta: number): void {
   const steeringAuthority =
     (0.42 + speedRatio * 0.5) * currentAircraft.yawRate / currentAircraft.inertia;
   roll = THREE.MathUtils.lerp(roll, targetRoll, Math.min(1, delta * currentAircraft.rollRate));
-  pitch = THREE.MathUtils.clamp(pitch + pitchInput * delta * currentAircraft.pitchRate, -0.65, 0.65);
-  if (pitchInput === 0) pitch = THREE.MathUtils.lerp(pitch, 0, Math.min(1, delta * currentAircraft.stability * 0.8));
+  // Pitch input commands an aircraft-specific attitude target. It must not wind the nose
+  // continuously toward a stall angle while a player holds the climb key.
+  const targetPitch = pitchInput > 0 ? currentAircraft.maxClimbPitch : pitchInput < 0 ? -0.38 : 0;
+  const pitchResponse = pitchInput === 0 ? currentAircraft.pitchReturnRate : currentAircraft.pitchRate * 1.15;
+  pitch = moveToward(pitch, targetPitch, delta * pitchResponse);
+  const landingAssistAirport = getLandingAssistAirport(airplane.position);
+  const approachHeight = airplane.position.y - groundPlaneY(airplane.position.x, airplane.position.z);
+  const landingAssistActive = landingAssistAirport !== null && approachHeight <= 52 && velocity.y <= 2;
+  if (landingAssistActive) {
+    roll = THREE.MathUtils.lerp(roll, 0, Math.min(1, delta * 1.55));
+    pitch = THREE.MathUtils.lerp(pitch, THREE.MathUtils.clamp(pitch, -0.12, 0.16), Math.min(1, delta * 1.1));
+  }
   heading += yawInput * delta * steeringAuthority;
   heading += Math.sin(roll) * speedRatio * currentAircraft.bankTurn * delta;
 
@@ -2189,23 +2373,40 @@ function updateFlight(delta: number): void {
   const forwardSpeed = Math.max(0, velocity.dot(forward));
   const airspeed = velocity.length();
   const flightPathAngle = airspeed > 0.01 ? Math.asin(THREE.MathUtils.clamp(velocity.y / airspeed, -1, 1)) : 0;
-  const angleOfAttack = THREE.MathUtils.clamp(pitch - flightPathAngle, -0.35, 0.45);
-  const liftFactor = THREE.MathUtils.clamp(
-    0.62 + angleOfAttack * 3.1,
+  const angleOfAttack = THREE.MathUtils.clamp(pitch - flightPathAngle, -0.28, 0.32);
+  const stallFactor = THREE.MathUtils.clamp(
+    (forwardSpeed - currentAircraft.stallSpeed * 0.62) / (currentAircraft.stallSpeed * 0.38),
     0.08,
-    1.3,
-  ) * Math.min(1.45, (forwardSpeed / currentAircraft.takeoffSpeed) ** 2) * currentAircraft.lift;
+    1,
+  );
+  const liftFactor = THREE.MathUtils.clamp(
+    0.74 + angleOfAttack * 1.75,
+    0.2,
+    1.28,
+  ) * Math.min(1.28, (forwardSpeed / currentAircraft.takeoffSpeed) ** 2) * stallFactor * currentAircraft.lift * (1 + throttle * currentAircraft.climbLiftBoost * 0.08);
   const thrust = throttle * currentAircraft.acceleration / currentAircraft.inertia;
-  const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.32;
+  const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.13;
   const drag = (currentAircraft.drag * (airspeed / currentAircraft.maxSpeed) ** 2 + inducedDrag) / currentAircraft.inertia;
 
   velocity.addScaledVector(forward, thrust * delta);
   velocity.addScaledVector(liftDirection, 9.81 * liftFactor * delta);
   velocity.y -= 9.81 * delta;
+  if (landingAssistActive && approachHeight < 14 && velocity.y < 0) {
+    const groundEffect = 1 - THREE.MathUtils.clamp(approachHeight / 14, 0, 1);
+    velocity.y += groundEffect * 2.2 * delta;
+    const softenedDescent = -currentAircraft.safeDescentRate * 0.9;
+    if (velocity.y < softenedDescent) velocity.y = THREE.MathUtils.lerp(velocity.y, softenedDescent, Math.min(1, delta * 2.4));
+  }
+  if (forwardSpeed < currentAircraft.stallSpeed) {
+    // A gentle aerodynamic nose drop keeps stalls recoverable with the existing
+    // nose-down + throttle controls instead of allowing an implausible hover.
+    pitch = Math.max(-0.38, pitch - delta * (1 - stallFactor) * 0.42);
+  }
   if (airspeed > 0.01) velocity.addScaledVector(velocity, -Math.min(0.85, drag * delta / airspeed));
 
   // Gentle aerodynamic alignment preserves momentum while allowing banked turns to curve the flight path.
   sideSlip.copy(forward).multiplyScalar(velocity.dot(forward)).sub(velocity);
+  sideSlip.y *= 0.25;
   velocity.addScaledVector(sideSlip, Math.min(1, delta * currentAircraft.alignmentRate * (0.42 + speedRatio * 0.58)));
   const maxAirSpeed = currentAircraft.maxSpeed * 1.22 + speedBonus;
   if (velocity.lengthSq() > maxAirSpeed * maxAirSpeed) velocity.setLength(maxAirSpeed);
@@ -2226,10 +2427,11 @@ function updateFlight(delta: number): void {
     const landingAirport = getAirportAtPosition(airplane.position);
     const safeLanding =
       landingAirport !== null &&
-      currentSpeed <= currentAircraft.safeLandingSpeed &&
-      verticalSpeed >= -currentAircraft.safeDescentRate &&
-      Math.abs(pitch) <= currentAircraft.landingTilt &&
-      Math.abs(roll) <= currentAircraft.landingTilt;
+      currentSpeed <= currentAircraft.safeLandingSpeed * (landingAssistActive ? 1.18 : 1) &&
+      verticalSpeed >= -currentAircraft.safeDescentRate * (landingAssistActive ? 1.4 : 1) &&
+      Math.abs(pitch) <= currentAircraft.landingTilt + (landingAssistActive ? 0.12 : 0) &&
+      Math.abs(roll) <= currentAircraft.landingTilt + (landingAssistActive ? 0.14 : 0) &&
+      runwayHeadingError(landingAirport) <= (landingAssistActive ? 0.72 : 0.52);
     if (!safeLanding) {
       endRun('CRASHED');
       return;
@@ -2294,8 +2496,12 @@ function updateCamera(delta: number): void {
   const altitudeFactor = THREE.MathUtils.clamp(altitudeAboveTerrain() / 6000, 0, 1);
   const targetFar = THREE.MathUtils.lerp(CAMERA_BASE_FAR, CAMERA_HIGH_FAR, altitudeFactor);
   if (scene.fog instanceof THREE.Fog) {
-    const targetFogNear = THREE.MathUtils.lerp(4500, 9000, altitudeFactor);
-    const targetFogFar = THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
+    const targetFogNear = WORLD_SIZE > 20_000
+      ? THREE.MathUtils.lerp(7000, 11_000, altitudeFactor)
+      : THREE.MathUtils.lerp(4500, 9000, altitudeFactor);
+    const targetFogFar = WORLD_SIZE > 20_000
+      ? THREE.MathUtils.lerp(28_000, 38_000, altitudeFactor)
+      : THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
     if (Math.abs(scene.fog.near - targetFogNear) >= 10) scene.fog.near = targetFogNear;
     if (Math.abs(scene.fog.far - targetFogFar) >= 10) scene.fog.far = targetFogFar;
     scene.fog.color.setRGB(0.62 + altitudeFactor * 0.12, 0.76 + altitudeFactor * 0.09, 0.81 + altitudeFactor * 0.1);
@@ -2363,6 +2569,8 @@ function animate(): void {
   updateFlashEffects(muzzleFlashes, muzzleFlashPool, delta);
   updateFlashEffects(impactFlashes, impactFlashPool, delta);
   updateDestructionEffects(delta);
+  updateOsmCityChunks(airplane.position);
+  cityWorld.updateWorldStreaming?.(airplane.position);
   updateWeapons(delta);
   if (!crashed && runStarted) updatePlayerInteractions();
   if (challengeModeEnabled) updateCheckpointFeedback(delta);
@@ -2384,17 +2592,25 @@ function animate(): void {
 }
 
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  resizeRenderer();
+  worldMap.resize();
 });
 
 const connectionElement = document.querySelector<HTMLDivElement>('#connection')!;
 const defaultSocketUrl = import.meta.env.DEV
   ? 'ws://localhost:8091'
   : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
-const socketUrl = import.meta.env.VITE_WS_URL ?? defaultSocketUrl;
+const socketUrl = new URL(import.meta.env.VITE_WS_URL ?? defaultSocketUrl);
+socketUrl.searchParams.set(CITY_QUERY_PARAM, cityId);
 const socket = new WebSocket(socketUrl);
+
+citiesButtonElement.addEventListener('click', () => {
+  cityWorld.disposeWorldStreaming?.();
+  socket.close();
+  const url = new URL(window.location.href);
+  url.searchParams.delete(CITY_QUERY_PARAM);
+  window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+});
 
 function sendLocalState(): void {
   if (!localPlayerId || socket.readyState !== WebSocket.OPEN) return;
@@ -2404,6 +2620,7 @@ function sendLocalState(): void {
       position: { x: airplane.position.x, y: airplane.position.y, z: airplane.position.z },
       rotation: { x: airplane.rotation.x, y: airplane.rotation.y, z: airplane.rotation.z },
       aircraftType,
+      cityId,
     }),
   );
 }
@@ -2436,7 +2653,17 @@ socket.addEventListener('message', (event) => {
     localPlayerId = message.playerId;
     health = message.health;
     updateHealthDisplay();
-    spawnPosition.set(message.spawnPosition.x, message.spawnPosition.y, message.spawnPosition.z);
+    if (cityId === 'milwaukee') {
+      spawnPosition.set(message.spawnPosition.x, message.spawnPosition.y, message.spawnPosition.z);
+    } else {
+      const airport = airports.find((candidate) => candidate.id === activeCity.spawn.airportId) ?? centralAirport;
+      const slotOffset = airport.spawnOffset + message.spawnPosition.z - 45;
+      spawnPosition.set(
+        airport.x + Math.sin(airport.heading) * slotOffset,
+        message.spawnPosition.y,
+        airport.z + Math.cos(airport.heading) * slotOffset,
+      );
+    }
     spawnPosition.y = groundPlaneY(spawnPosition.x, spawnPosition.z);
     airplane.position.copy(spawnPosition);
     altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();

@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket, { WebSocketServer } from 'ws';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
+type CityId = 'milwaukee' | 'dallas';
 
 type Transform = {
   position: { x: number; y: number; z: number };
@@ -15,6 +16,7 @@ type Transform = {
 };
 
 type PlayerState = Transform & {
+  cityId: CityId;
   displayName: string;
   score: number;
   health: number;
@@ -27,6 +29,7 @@ type Vector3 = { x: number; y: number; z: number };
 type ProjectileState = {
   projectileId: string;
   ownerId: string;
+  cityId: CityId;
   position: Vector3;
   direction: Vector3;
   traveled: number;
@@ -34,7 +37,9 @@ type ProjectileState = {
 
 const players = new Map<string, PlayerState>();
 const projectiles = new Map<string, ProjectileState>();
-const usedSpawnSlots = new Set<number>();
+const playerSockets = new Map<WebSocket, string>();
+const usedSpawnSlots = new Map<CityId, Set<number>>();
+const cityIds = new Set<CityId>(['milwaukee', 'dallas']);
 const aircraftTypes = new Set<AircraftType>(['trainer', 'privateJet', 'cargo', 'fighter']);
 const aircraftHitRadii: Record<AircraftType, number> = {
   trainer: 2.4,
@@ -113,10 +118,20 @@ httpServer.listen(port, '0.0.0.0', () => {
   console.log(`[server] healthy and listening on http://0.0.0.0:${port}`);
 });
 
-function broadcastLeaderboard(): void {
+function broadcastToCity(cityId: CityId, message: object, except?: WebSocket): void {
+  const encoded = JSON.stringify(message);
+  for (const client of server.clients) {
+    const playerId = playerSockets.get(client);
+    const player = playerId ? players.get(playerId) : undefined;
+    if (client !== except && player?.cityId === cityId && client.readyState === WebSocket.OPEN) client.send(encoded);
+  }
+}
+
+function broadcastLeaderboard(cityId: CityId): void {
   const message = JSON.stringify({
     type: 'leaderboard',
     players: [...players.entries()]
+      .filter(([, player]) => player.cityId === cityId)
       .map(([playerId, player]) => ({
         playerId,
         displayName: player.displayName,
@@ -127,20 +142,16 @@ function broadcastLeaderboard(): void {
   });
 
   for (const client of server.clients) {
-    if (client.readyState === WebSocket.OPEN) client.send(message);
-  }
-}
-
-function broadcast(message: object): void {
-  const encoded = JSON.stringify(message);
-  for (const client of server.clients) {
-    if (client.readyState === WebSocket.OPEN) client.send(encoded);
+    const playerId = playerSockets.get(client);
+    const player = playerId ? players.get(playerId) : undefined;
+    if (player?.cityId === cityId && client.readyState === WebSocket.OPEN) client.send(message);
   }
 }
 
 function removeProjectile(projectileId: string): void {
-  if (!projectiles.delete(projectileId)) return;
-  broadcast({ type: 'projectileRemove', projectileId });
+  const projectile = projectiles.get(projectileId);
+  if (!projectile || !projectiles.delete(projectileId)) return;
+  broadcastToCity(projectile.cityId, { type: 'projectileRemove', projectileId });
 }
 
 function distanceToSegmentSquared(
@@ -197,6 +208,7 @@ function createProjectile(playerId: string, player: PlayerState): void {
   const projectile: ProjectileState = {
     projectileId: randomUUID(),
     ownerId: playerId,
+    cityId: player.cityId,
     position: {
       x: player.position.x + direction.x * muzzleOffset,
       y: player.position.y + direction.y * muzzleOffset,
@@ -206,7 +218,7 @@ function createProjectile(playerId: string, player: PlayerState): void {
     traveled: 0,
   };
   projectiles.set(projectile.projectileId, projectile);
-  broadcast({
+  broadcastToCity(projectile.cityId, {
     type: 'projectileSpawn',
     projectileId: projectile.projectileId,
     ownerId: projectile.ownerId,
@@ -232,6 +244,7 @@ function updateProjectiles(deltaSeconds: number): void {
     for (const [playerId, player] of players) {
       if (
         playerId === projectile.ownerId ||
+        player.cityId !== projectile.cityId ||
         player.health <= 0 ||
         now < player.spawnProtectedUntil
       ) {
@@ -256,7 +269,7 @@ function updateProjectiles(deltaSeconds: number): void {
       const victim = players.get(hitPlayerId);
       if (!victim) continue;
       victim.health = Math.max(0, victim.health - projectileDamage);
-      broadcast({
+      broadcastToCity(projectile.cityId, {
         type: 'damage',
         playerId: hitPlayerId,
         shooterId: projectile.ownerId,
@@ -269,14 +282,14 @@ function updateProjectiles(deltaSeconds: number): void {
         const killer = players.get(projectile.ownerId);
         if (killer) {
           killer.score += 500;
-          broadcast({
+          broadcastToCity(projectile.cityId, {
             type: 'destroyed',
             playerId: hitPlayerId,
             killerId: projectile.ownerId,
             killerDisplayName: killer.displayName,
             killerScore: killer.score,
           });
-          broadcastLeaderboard();
+          broadcastLeaderboard(projectile.cityId);
         }
       }
       continue;
@@ -294,38 +307,32 @@ setInterval(() => {
   updateProjectiles(deltaSeconds);
 }, 50);
 
-function reserveSpawnSlot(): number {
+function cityFromRequest(request: IncomingMessage): CityId {
+  const cityId = new URL(request.url ?? '/', 'http://localhost').searchParams.get('city');
+  return cityIds.has(cityId as CityId) ? cityId as CityId : 'milwaukee';
+}
+
+function reserveSpawnSlot(cityId: CityId): number {
+  const slots = usedSpawnSlots.get(cityId) ?? new Set<number>();
+  usedSpawnSlots.set(cityId, slots);
   for (let slot = 0; slot < 10; slot += 1) {
-    if (!usedSpawnSlots.has(slot)) {
-      usedSpawnSlots.add(slot);
+    if (!slots.has(slot)) {
+      slots.add(slot);
       return slot;
     }
   }
   return 0;
 }
 
-server.on('connection', (socket) => {
+server.on('connection', (socket, request) => {
   const playerId = randomUUID();
-  const spawnSlot = reserveSpawnSlot();
+  const cityId = cityFromRequest(request);
+  const spawnSlot = reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
   console.log(`[server] player connected: ${playerId} (${server.clients.size} online)`);
 
-  socket.send(
-    JSON.stringify({
-      type: 'welcome',
-      playerId,
-      spawnPosition,
-      health: 100,
-      players: [...players.entries()].map(([existingPlayerId, transform]) => ({
-        playerId: existingPlayerId,
-        position: transform.position,
-        rotation: transform.rotation,
-        aircraftType: transform.aircraftType,
-      })),
-    }),
-  );
-
   players.set(playerId, {
+    cityId,
     position: spawnPosition,
     rotation: { x: 0, y: 0, z: 0 },
     aircraftType: 'trainer',
@@ -335,7 +342,27 @@ server.on('connection', (socket) => {
     lastFireAt: 0,
     spawnProtectedUntil: Date.now() + spawnProtectionMs,
   });
-  broadcastLeaderboard();
+  playerSockets.set(socket, playerId);
+
+  socket.send(
+    JSON.stringify({
+      type: 'welcome',
+      playerId,
+      cityId,
+      spawnPosition,
+      health: 100,
+      players: [...players.entries()]
+        .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && player.cityId === cityId)
+        .map(([existingPlayerId, player]) => ({
+          playerId: existingPlayerId,
+          cityId: player.cityId,
+          position: player.position,
+          rotation: player.rotation,
+          aircraftType: player.aircraftType,
+        })),
+    }),
+  );
+  broadcastLeaderboard(cityId);
 
   socket.on('message', (data) => {
     try {
@@ -354,7 +381,7 @@ server.on('connection', (socket) => {
         if (typeof message.score === 'number' && Number.isFinite(message.score)) {
           player.score = Math.max(0, Math.floor(message.score));
         }
-        broadcastLeaderboard();
+        broadcastLeaderboard(player.cityId);
         return;
       }
 
@@ -366,7 +393,7 @@ server.on('connection', (socket) => {
       if (message.type === 'respawn') {
         player.health = 100;
         player.spawnProtectedUntil = Date.now() + spawnProtectionMs;
-        broadcast({ type: 'respawn', playerId, health: player.health });
+        broadcastToCity(player.cityId, { type: 'respawn', playerId, health: player.health });
         return;
       }
 
@@ -386,16 +413,15 @@ server.on('connection', (socket) => {
       player.rotation = message.rotation;
       if (aircraftTypes.has(message.aircraftType as AircraftType)) player.aircraftType = message.aircraftType as AircraftType;
 
-      const update = JSON.stringify({
+      const update = {
         type: 'state',
         playerId,
         position: player.position,
         rotation: player.rotation,
         aircraftType: player.aircraftType,
-      });
-      for (const client of server.clients) {
-        if (client !== socket && client.readyState === WebSocket.OPEN) client.send(update);
-      }
+        cityId: player.cityId,
+      };
+      broadcastToCity(player.cityId, update, socket);
     } catch {
       // Ignore malformed client messages.
     }
@@ -406,12 +432,10 @@ server.on('connection', (socket) => {
       if (projectile.ownerId === playerId) removeProjectile(projectile.projectileId);
     }
     players.delete(playerId);
-    usedSpawnSlots.delete(spawnSlot);
-    const removal = JSON.stringify({ type: 'remove', playerId });
-    for (const client of server.clients) {
-      if (client !== socket && client.readyState === WebSocket.OPEN) client.send(removal);
-    }
-    broadcastLeaderboard();
+    playerSockets.delete(socket);
+    usedSpawnSlots.get(cityId)?.delete(spawnSlot);
+    broadcastToCity(cityId, { type: 'remove', playerId }, socket);
+    broadcastLeaderboard(cityId);
     console.log(`[server] player disconnected: ${playerId} (${server.clients.size} online)`);
   });
 });

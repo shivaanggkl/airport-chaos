@@ -6,45 +6,63 @@
     <title>Airport Chaos</title>
   </head>
   <body>
-    <div id="hud">
-      <div class="title">AIRPORT CHAOS</div>
-      <div id="flight-test-mode" class="flight-test-mode hidden">FLIGHT TEST MODE</div>
-      <div class="primary-stat timer-row" hidden>Time <strong id="timer">12.0</strong>s</div>
-      <div class="primary-stat score-row">Score <strong id="score">0</strong></div>
-      <div hidden>Multiplier <strong id="multiplier">x1</strong></div>
-      <div>Best Score <strong id="best-score">0</strong></div>
-      <div>Speed <strong id="speed">0</strong> knots</div>
-      <div>Altitude <strong id="altitude">0</strong> ft</div>
-      <div class="heading-row">Heading <strong id="heading">N 000°</strong></div>
-      <div class="health-row">Health <strong id="health">100</strong></div>
-      <div class="flight-state-row">State <strong id="flight-state">TAXI</strong></div>
-      <div class="secondary-stat">Throttle <strong id="throttle">0</strong>%</div>
-      <label class="aircraft-selector">
-        Aircraft
-        <select id="aircraft-select">
-          <option value="trainer">Trainer — Free</option>
-          <option value="privateJet">Private Jet — 500 credits</option>
-          <option value="cargo">Cargo Plane — 1,000 credits</option>
-          <option value="fighter">Fighter-Style Jet — 2,000 credits</option>
-        </select>
-      </label>
-      <div class="progress-stats">
-        <span>Credits <strong id="credits">0</strong></span>
-        <span>Distance <strong id="distance-flown">0</strong></span>
-        <span>Landings <strong id="successful-landings">0</strong></span>
-        <span>Regions <strong id="regions-discovered">0</strong></span>
+    <main id="city-selector" class="city-selector" hidden>
+      <div class="city-select-card">
+        <div class="city-select-kicker">AIRPORT CHAOS</div>
+        <h1>Choose a city</h1>
+        <p>Pick a flight sandbox to enter.</p>
+        <div id="city-options" class="city-options"></div>
+        <div id="city-selection-error" class="city-selection-error" hidden></div>
       </div>
-      <div class="airport-navigation">
-        <span>Nearest Airport: <strong id="nearest-airport">Central International</strong></span>
-        <span>Distance: <strong id="airport-distance">45</strong></span>
-      </div>
-      <div id="world-status" class="world-status hidden">Leaving City 1</div>
-      <div id="active-contract" class="active-contract hidden"></div>
-      <div class="pilot-name">Player <strong id="player-name"></strong></div>
-      <div id="connection" class="offline">Server: connecting…</div>
-      <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>
-      <div class="controls">W/S or ↑/↓ pitch · A/D roll · Q/E or ←/→ turn · X/C or Shift/Ctrl throttle · Space fire</div>
+    </main>
+    <div id="game-root" hidden>
+    <div id="flight-hud" aria-label="Flight instruments">
+      <section id="heading-tape" class="glass-instrument">
+        <span>NW</span><span>N</span><span>NE</span><span>E</span><strong id="heading">N 000°</strong><span>SE</span><span>S</span><span>SW</span>
+      </section>
+      <section id="airspeed-tape" class="flight-tape glass-instrument">
+        <span class="instrument-label">AIRSPEED</span>
+        <strong id="speed">0</strong><span class="instrument-unit">KT</span>
+        <span class="throttle-readout">THR <strong id="throttle">0</strong>%</span>
+      </section>
+      <section id="altitude-tape" class="flight-tape glass-instrument">
+        <span class="instrument-label">ALTITUDE</span>
+        <strong id="altitude">0</strong><span class="instrument-unit">FT</span>
+        <span class="vsi-readout">V/S <strong id="vertical-speed">0</strong> FPM</span>
+        <span id="vsi-indicator" aria-hidden="true"></span>
+      </section>
+      <div id="flight-reference" aria-hidden="true"><span></span><i></i><span></span></div>
+      <section id="flight-status" class="glass-instrument">
+        <div class="flight-state-row">STATE <strong id="flight-state">TAXI</strong></div>
+        <div class="health-row">HP <strong id="health">100</strong></div>
+        <div class="airport-navigation"><span>NEAREST <strong id="nearest-airport">Central International</strong></span><span><strong id="airport-distance">45</strong> M</span></div>
+        <div id="waypoint-navigation" class="airport-navigation hidden"><span>WAYPOINT <strong id="waypoint-bearing">000°</strong></span><span><strong id="waypoint-distance">0</strong> M</span></div>
+        <div id="world-status" class="world-status hidden">Leaving City 1</div>
+      </section>
     </div>
+    <aside id="hud" class="utility-hud">
+      <div class="utility-bar"><span class="title">AIRPORT CHAOS</span><span id="connection" class="offline">Server: connecting…</span></div>
+      <div id="flight-test-mode" class="flight-test-mode hidden">FLIGHT TEST MODE</div>
+      <details class="utility-details">
+        <summary>FLIGHT SYSTEMS</summary>
+        <div class="score-row">Score <strong id="score">0</strong> <small>Best <strong id="best-score">0</strong></small></div>
+        <div class="timer-row" hidden>Time <strong id="timer">12.0</strong>s</div>
+        <div hidden>Multiplier <strong id="multiplier">x1</strong></div>
+        <label class="aircraft-selector">Aircraft
+          <select id="aircraft-select">
+            <option value="trainer">Trainer — Free</option>
+            <option value="privateJet">Private Jet — 500 credits</option>
+            <option value="cargo">Cargo Plane — 1,000 credits</option>
+            <option value="fighter">Fighter-Style Jet — 2,000 credits</option>
+          </select>
+        </label>
+        <div class="progress-stats"><span>Credits <strong id="credits">0</strong></span><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span></div>
+        <div class="pilot-name">Pilot <strong id="player-name"></strong></div>
+        <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>
+        <button id="cities-button" class="cities-button" type="button">Cities</button>
+        <div class="controls">W/S throttle · arrows fly · M map · Space fire</div>
+      </details>
+    </aside>
     <aside id="leaderboard">
       <div class="leaderboard-title">LEADERBOARD</div>
       <ol id="leaderboard-list"></ol>
@@ -54,8 +72,18 @@
       <canvas id="radar" width="180" height="180"></canvas>
       <div class="radar-legend"><span class="airport-key">◆ Airport</span><span class="player-key">● Player</span></div>
     </aside>
-    <aside id="contract-panel">
-      <div class="contract-label">AVAILABLE CONTRACT</div>
+    <section id="world-map-overlay" class="world-map-overlay hidden" aria-label="World map">
+      <div class="world-map-card">
+        <header><strong>CITY MAP</strong><span>M close · drag pan · wheel zoom · click waypoint</span><button id="world-map-recenter" type="button">Recenter</button></header>
+        <canvas id="world-map-canvas" aria-label="Interactive world map"></canvas>
+      </div>
+    </section>
+    <aside id="visual-qa-panel" class="visual-qa-panel" hidden>
+      <strong>VISUAL QA</strong>
+      <div id="visual-qa-presets"></div>
+    </aside>
+    <details id="contract-panel">
+      <summary class="contract-label">AVAILABLE CONTRACT</summary>
       <strong id="contract-type">SIGHTSEEING</strong>
       <div id="contract-detail" class="contract-detail"></div>
       <div class="contract-meta">
@@ -66,7 +94,8 @@
         <button id="contract-accept" type="button">Accept</button>
         <button id="contract-skip" type="button">Skip</button>
       </div>
-    </aside>
+    </details>
+    <div id="active-contract" class="active-contract hidden"></div>
     <div id="leader-message" class="hidden">YOU'RE #1</div>
     <div id="near-miss-message" class="hidden">+250 NEAR MISS</div>
     <div id="checkpoint-message" class="hidden">+100 CHECKPOINT</div>
@@ -78,13 +107,13 @@
     <div id="how-to-play" class="how-to-play" role="dialog" aria-labelledby="how-to-title">
       <div class="how-to-card">
         <div id="how-to-title" class="how-to-title">HOW TO PLAY</div>
-        <div><strong>W / S</strong> — Pitch up / down</div>
+        <div><strong>W / S</strong> — Speed up / slow down</div>
         <div><strong>↑ / ↓</strong> — Pitch up / down</div>
         <div><strong>← / →</strong> — Turn left / right</div>
         <div><strong>A / D</strong> — Roll left / right</div>
         <div><strong>Q / E</strong> — Turn left / right</div>
-        <div><strong>X / C or SHIFT / CTRL</strong> — Speed up / slow down</div>
         <div><strong>SPACE</strong> — Fire</div>
+        <div><strong>M</strong> — World map</div>
         <div class="how-to-objectives">
           <div>Take off, explore, and land back on the runway</div>
           <div>Avoid terrain, buildings, water, and other planes</div>
@@ -100,6 +129,7 @@
         <div class="restart">Press R to Restart</div>
       </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    </div>
+    <script type="module" src="/src/bootstrap.ts"></script>
   </body>
 </html>

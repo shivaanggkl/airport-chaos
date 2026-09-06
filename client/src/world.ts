@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { addSceneryAsset, replaceTreesWithInstancedAsset } from './assets';
-import { addOsmCity, type ImportedRoadSegment } from './osm-city';
+import { addOsmCity, type ImportedRoadSegment } from './city1-osm';
 import { addCloudLayer, createTerrainHeightSampler, createTerrainMesh } from './terrain';
 
 export const WORLD_METERS_PER_UNIT = 1;
@@ -16,7 +16,7 @@ const SCALE = {
   airport: { centralHalfWidth: 1250, regionalHalfWidth: 380, airfieldHalfWidth: 270 },
 } as const;
 
-export type AirportId = 'central' | 'coast' | 'mountain' | 'countryside';
+export type AirportId = string;
 export type AirportDefinition = {
   id: AirportId;
   name: string;
@@ -49,7 +49,7 @@ export const getTerrainHeight = createTerrainHeightSampler(
 export type ObstacleBounds = { x: number; z: number; halfX: number; halfZ: number; height: number; baseY?: number; polygon?: ReadonlyArray<readonly [number, number]> };
 export type MountainBounds = { x: number; z: number; radius: number; height: number; baseY?: number };
 export type WaterBounds = { minX: number; maxX: number; minZ: number; maxZ: number; surfaceY: number; polygon?: ReadonlyArray<readonly [number, number]> };
-export type RegionName = 'CITY' | 'MOUNTAINS' | 'COAST' | 'COUNTRYSIDE';
+export type RegionName = string;
 export const regionBounds: ReadonlyArray<{ name: RegionName; minX: number; maxX: number; minZ: number; maxZ: number }> = [
   { name: 'CITY', minX: -3100, maxX: 2200, minZ: -4300, maxZ: 1700 },
   { name: 'MOUNTAINS', minX: -6000, maxX: -1500, minZ: -6000, maxZ: -2200 },
