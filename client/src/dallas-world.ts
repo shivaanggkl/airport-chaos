@@ -912,6 +912,10 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   addTrinityRiver(scene, waterBounds);
   dallasStreamer?.dispose();
   dallasStreamer = new DallasChunkStreamer(scene, {
+    // The runtime chunks are already LOD-specific and collision grids are
+    // static gameplay data. Avoid building throwaway duplicate arrays while
+    // parsing a streamed render chunk.
+    collectCollisionData: false,
     roadMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection }),
     buildingMaterials: [
       new THREE.MeshStandardMaterial({ color: 0xc0b5a7, roughness: 0.9 }),
@@ -940,7 +944,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   return { obstacleBounds, mountainBounds, waterBounds };
 }
 
-export function updateWorldStreaming(position: THREE.Vector3): void { dallasStreamer?.update(position); }
+export function updateWorldStreaming(position: THREE.Vector3, velocity?: THREE.Vector3): void { dallasStreamer?.update(position, velocity); }
 export function getWorldStreamingStats(): import('./dallas-streamer').DallasStreamingStats | undefined { return dallasStreamer?.getStats(); }
 export function disposeWorldStreaming(): void { dallasStreamer?.dispose(); dallasStreamer = undefined; }
 

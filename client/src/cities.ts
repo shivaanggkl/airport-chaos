@@ -19,7 +19,7 @@ export type CityWorldModule = Omit<typeof import('./world'), 'WORLD_SIZE'> & {
   skyChallenges?: ReadonlyArray<import('./sky-challenges').SkyChallengeDefinition>;
   stuntZones?: ReadonlyArray<import('./stunt-combo').StuntZone>;
   discoveries?: ReadonlyArray<import('./discoveries').DiscoveryDefinition>;
-  updateWorldStreaming?: (position: import('three').Vector3) => void;
+  updateWorldStreaming?: (position: import('three').Vector3, velocity?: import('three').Vector3) => void;
   getWorldStreamingStats?: () => import('./dallas-streamer').DallasStreamingStats | undefined;
   disposeWorldStreaming?: () => void;
 };

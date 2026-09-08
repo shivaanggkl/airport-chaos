@@ -59,6 +59,7 @@ type ProfileRow = {
   challenge_completions: number;
   event_completions: number;
   legacy_imported: number;
+  owned_aircraft: string;
 };
 
 function boundedInteger(value: unknown, maximum: number): number {
@@ -77,6 +78,27 @@ function profileAircraft(value: unknown, credits: number): AircraftType {
   return typeof value === 'string' && aircraftTypes.has(value as AircraftType) && aircraftUnlocks[value as AircraftType] <= credits
     ? value as AircraftType
     : 'trainer';
+}
+
+function parseOwnedAircraft(value: unknown, credits: number): AircraftType[] {
+  let stored: unknown;
+  try { stored = typeof value === 'string' ? JSON.parse(value) : value; } catch { stored = []; }
+  const owned = new Set<AircraftType>(['trainer']);
+  if (Array.isArray(stored)) {
+    for (const type of stored) {
+      if (typeof type !== 'string' || !aircraftTypes.has(type as AircraftType)) continue;
+      const aircraft = type as AircraftType;
+      if (aircraftUnlocks[aircraft] <= credits) owned.add(aircraft);
+    }
+  }
+  // Credits are the existing progression rule. Reconcile them into durable
+  // ownership every time a profile is read, including old migrated rows.
+  for (const type of aircraftTypes) if (aircraftUnlocks[type] <= credits) owned.add(type);
+  return (Object.keys(aircraftUnlocks) as AircraftType[]).filter((type) => owned.has(type));
+}
+
+function selectedOwnedAircraft(value: unknown, owned: readonly AircraftType[]): AircraftType {
+  return typeof value === 'string' && owned.includes(value as AircraftType) ? value as AircraftType : 'trainer';
 }
 
 function parseDiscoveries(value: unknown): Partial<Record<CityId, string[]>> {
@@ -113,7 +135,8 @@ export class PlayerProfileStore {
         discoveries TEXT NOT NULL DEFAULT '{}',
         challenge_completions INTEGER NOT NULL DEFAULT 0,
         event_completions INTEGER NOT NULL DEFAULT 0,
-        legacy_imported INTEGER NOT NULL DEFAULT 0
+        legacy_imported INTEGER NOT NULL DEFAULT 0,
+        owned_aircraft TEXT NOT NULL DEFAULT '["trainer"]'
       );
       CREATE TABLE IF NOT EXISTS profile_reward_receipts (
         pilot_id TEXT NOT NULL,
@@ -122,6 +145,9 @@ export class PlayerProfileStore {
         PRIMARY KEY (pilot_id, reward_id)
       );
     `);
+    // Existing SQLite MVP profiles predate durable ownership. SQLite has no
+    // portable ADD COLUMN IF NOT EXISTS, so tolerate the one expected error.
+    try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN owned_aircraft TEXT NOT NULL DEFAULT '["trainer"]'`); } catch { /* already migrated */ }
   }
 
   getOrCreate(pilotId: string, pilotName: string): PlayerProfile {
@@ -136,7 +162,7 @@ export class PlayerProfileStore {
   importLegacy(pilotId: string, legacy: LegacyProfileImport): PlayerProfile {
     const row = this.getRow(pilotId);
     if (!row || row.legacy_imported) return row ? this.toProfile(row) : this.getOrCreate(pilotId, 'Pilot');
-    const credits = boundedInteger(legacy.credits, 10_000);
+    const credits = Math.max(boundedInteger(row.credits, 1_000_000), boundedInteger(legacy.credits, 10_000));
     const discoveries = parseDiscoveries(legacy.discoveries);
     const selectedAircraft = profileAircraft(legacy.selectedAircraft, credits);
     this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, credits = ?, selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
@@ -161,14 +187,18 @@ export class PlayerProfileStore {
     const discoveries = parseDiscoveries(progress.discoveries);
     const mergedDiscoveries = rowDiscoveries(row);
     for (const cityId of cityIds) mergedDiscoveries[cityId] = [...new Set([...(mergedDiscoveries[cityId] ?? []), ...(discoveries[cityId] ?? [])])].slice(0, 512);
-    const currentAircraft = profileAircraft(row.selected_aircraft, credits);
-    const selectedAircraft = progress.selectedAircraft === undefined
-      ? currentAircraft
-      : typeof progress.selectedAircraft === 'string' && aircraftTypes.has(progress.selectedAircraft as AircraftType) && aircraftUnlocks[progress.selectedAircraft as AircraftType] <= credits
-        ? progress.selectedAircraft as AircraftType
-        : currentAircraft;
+    const currentAircraft = selectedOwnedAircraft(row.selected_aircraft, parseOwnedAircraft(row.owned_aircraft, credits));
     this.database.prepare(`UPDATE player_profiles SET selected_aircraft = ?, total_distance = MAX(total_distance, ?), successful_landings = MAX(successful_landings, ?), discoveries = ? WHERE pilot_id = ?`)
-      .run(selectedAircraft, boundedNumber(progress.totalDistance, 10_000_000), boundedInteger(progress.successfulLandings, 100_000), JSON.stringify(mergedDiscoveries), pilotId);
+      .run(currentAircraft, boundedNumber(progress.totalDistance, 10_000_000), boundedInteger(progress.successfulLandings, 100_000), JSON.stringify(mergedDiscoveries), pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  equipAircraft(pilotId: string, requestedAircraft: unknown): PlayerProfile | undefined {
+    const row = this.getRow(pilotId);
+    if (!row || typeof requestedAircraft !== 'string' || !aircraftTypes.has(requestedAircraft as AircraftType)) return row ? this.toProfile(row) : undefined;
+    const profile = this.toProfile(row);
+    if (!profile.unlockedAircraft.includes(requestedAircraft as AircraftType)) return profile;
+    this.database.prepare('UPDATE player_profiles SET selected_aircraft = ? WHERE pilot_id = ?').run(requestedAircraft, pilotId);
     return this.toProfile(this.getRow(pilotId)!);
   }
 
@@ -198,12 +228,19 @@ export class PlayerProfileStore {
 
   private toProfile(row: ProfileRow): PlayerProfile {
     const credits = boundedInteger(row.credits, 1_000_000);
+    const unlockedAircraft = parseOwnedAircraft(row.owned_aircraft, credits);
+    const selectedAircraft = selectedOwnedAircraft(row.selected_aircraft, unlockedAircraft);
+    const encodedOwnedAircraft = JSON.stringify(unlockedAircraft);
+    if (row.owned_aircraft !== encodedOwnedAircraft || row.selected_aircraft !== selectedAircraft) {
+      this.database.prepare('UPDATE player_profiles SET owned_aircraft = ?, selected_aircraft = ? WHERE pilot_id = ?')
+        .run(encodedOwnedAircraft, selectedAircraft, row.pilot_id);
+    }
     return {
       pilotId: row.pilot_id,
       pilotName: profileName(row.pilot_name, 'Pilot'),
       credits,
-      selectedAircraft: profileAircraft(row.selected_aircraft, credits),
-      unlockedAircraft: (Object.keys(aircraftUnlocks) as AircraftType[]).filter((type) => aircraftUnlocks[type] <= credits),
+      selectedAircraft,
+      unlockedAircraft,
       totalDistance: boundedNumber(row.total_distance, 10_000_000),
       successfulLandings: boundedInteger(row.successful_landings, 100_000),
       kills: boundedInteger(row.kills, 1_000_000),

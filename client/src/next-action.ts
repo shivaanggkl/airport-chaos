@@ -45,20 +45,18 @@ export class NextActionSystem {
       candidate,
       score: this.score(context, candidate, now),
     })).sort((left, right) => right.score - left.score || left.candidate.id.localeCompare(right.candidate.id));
-    const usedKinds = new Set<NextActionKind>();
     const selected: NextActionCandidate[] = [];
     const addCandidates = (allowRecentAction: boolean): void => {
       for (const { candidate } of ranked) {
         const actionedAt = this.actionedAt.get(candidate.id);
         if (!allowRecentAction && actionedAt !== undefined && now - actionedAt < 45_000) continue;
-        if (selected.length >= 3 || usedKinds.has(candidate.kind)) continue;
+        if (selected.length >= 1) continue;
         selected.push(candidate);
-        usedKinds.add(candidate.kind);
         this.lastShownAt.set(candidate.id, now);
       }
     };
     // A selected action should make room for something fresh. Fall back only
-    // when there are not enough alternatives to keep the HUD useful.
+    // when there is no alternative to keep the HUD useful.
     addCandidates(false);
     if (selected.length < 3) {
       addCandidates(true);

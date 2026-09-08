@@ -1,48 +1,48 @@
 export const contextualHintDefinitions = {
   runwayControls: {
     title: 'READY TO TAXI',
-    body: 'Hold W to add power; hold S to brake, stop, then reverse taxi. ↑/↓ pitch, ←/→ roll, and A/D turns.',
-    durationMs: 7_500,
+    body: 'Hold W for power; S brakes and reverses after stopping. ↑/↓ pitch, ←/→ roll, A/D turn.',
+    durationMs: 5_500,
   },
   worldMap: {
     title: 'NAVIGATE THE CITY',
-    body: 'Press M for the world map. Pick any airport, landmark, or open point to set a waypoint.',
-    durationMs: 6_500,
+    body: 'Press M to open the map and set a waypoint anywhere.',
+    durationMs: 5_000,
   },
   stunt: {
     title: 'SKILL OPPORTUNITY',
-    body: 'This area supports a stunt. Fly it cleanly for score, then chain a different stunt for a combo.',
-    durationMs: 6_500,
+    body: 'Fly this opportunity cleanly for score; chain a different stunt for a combo.',
+    durationMs: 5_000,
   },
   liveEvent: {
     title: 'LIVE EVENT',
-    body: 'This optional city activity is shared with nearby pilots. Follow the orange marker, join if you want, or keep free-flying.',
-    durationMs: 7_000,
+    body: 'This optional city activity is shared with pilots. Follow the orange marker or keep free-flying.',
+    durationMs: 5_500,
   },
   discovery: {
     title: 'DISCOVERY LOGGED',
-    body: 'Discoveries build your city progress and unlock credits once. Open M to see subtle ? markers for places still unknown.',
-    durationMs: 6_500,
+    body: 'This counts once toward city progress. M shows subtle ? markers for unknown places.',
+    durationMs: 5_000,
   },
   garage: {
     title: 'GARAGE AVAILABLE',
-    body: 'You can compare and equip unlocked aircraft while safely landed. Open Pilot Menu with TAB, then choose Garage.',
-    durationMs: 6_500,
+    body: 'You are safely landed. Press TAB, then open Garage to compare and equip aircraft.',
+    durationMs: 5_000,
   },
   combat: {
     title: 'COMBAT LOCK',
-    body: 'Keep a real pilot inside the center lock circle to lock on and guide rounds. Outside it, gunfire travels straight.',
-    durationMs: 6_500,
+    body: 'Keep a real pilot inside the center circle to lock; outside it, gunfire travels straight.',
+    durationMs: 5_500,
   },
   formation: {
     title: 'FORMATION',
-    body: 'Stay near allied pilots with a similar heading and speed to build a formation bonus together.',
-    durationMs: 6_000,
+    body: 'Stay near pilots with similar heading and speed to build a formation bonus.',
+    durationMs: 5_000,
   },
   mostWanted: {
     title: 'MOST WANTED',
-    body: 'The marked pilot earns a bounty by surviving. Bring them down for the reward, or stay alive if the marker is yours.',
-    durationMs: 7_000,
+    body: 'The marked pilot earns a bounty by surviving; bringing them down earns the reward.',
+    durationMs: 5_500,
   },
 } as const;
 

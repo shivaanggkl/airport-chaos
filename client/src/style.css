@@ -276,24 +276,24 @@ body {
   font-size: 11px;
 }
 
-.next-actions { position: fixed; z-index: 2; right: 18px; bottom: 220px; width: min(276px, calc(100vw - 36px)); display: grid; gap: 6px; pointer-events: auto; }
+.next-actions { position: fixed; z-index: 2; right: 18px; bottom: 198px; width: min(252px, calc(100vw - 36px)); display: grid; gap: 6px; pointer-events: auto; }
 .next-actions:empty { display: none; }
-.next-actions-title { margin: 0 0 2px 2px; color: rgb(220 244 248 / 82%); font: 800 9px ui-monospace, monospace; letter-spacing: .14em; text-shadow: 0 1px 3px #000; }
-.next-action { padding: 8px 9px; border: 1px solid rgb(142 205 216 / 27%); border-radius: 5px; background: rgb(5 18 31 / 78%); box-shadow: 0 6px 20px rgb(0 0 0 / 16%); }
+.next-actions-title { display: none; }
+.next-action { padding: 7px 9px; border: 1px solid rgb(142 205 216 / 27%); border-left: 2px solid #77d8e3; border-radius: 5px; background: rgb(5 18 31 / 78%); box-shadow: 0 6px 20px rgb(0 0 0 / 16%); }
 .next-action strong, .next-action span { display: block; }
 .next-action strong { color: #f5e3a4; font: 800 10px ui-monospace, monospace; letter-spacing: .04em; }
-.next-action span { margin-top: 3px; color: #bfdae1; font-size: 10px; line-height: 1.35; }
+.next-action span { margin-top: 3px; color: #bfdae1; font-size: 10px; line-height: 1.3; }
 .next-action-meta { color: #83c9d8 !important; font: 800 9px ui-monospace, monospace; }
 .next-action-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .next-action-actions button { padding: 3px 6px; color: #e2f7fa; border: 1px solid rgb(120 205 222 / 42%); border-radius: 3px; background: rgb(47 120 139 / 58%); font: 800 8px ui-monospace, monospace; cursor: pointer; }
 .next-action-actions button:hover:not(:disabled), .next-action-actions button:focus-visible:not(:disabled) { background: rgb(69 155 174 / 78%); }
 .next-action-actions button:disabled { opacity: .5; cursor: not-allowed; }
 
-.contextual-hint { position: fixed; z-index: 4; left: 18px; bottom: 24px; width: min(320px, calc(100vw - 36px)); padding: 10px 12px; color: #dceff3; border: 1px solid rgb(124 202 220 / 38%); border-left: 3px solid #77d8e3; border-radius: 5px; background: rgb(5 18 31 / 86%); box-shadow: 0 8px 28px rgb(0 0 0 / 28%); font-size: 11px; line-height: 1.4; pointer-events: auto; }
+.contextual-hint { position: fixed; z-index: 4; left: 18px; bottom: 24px; width: min(292px, calc(100vw - 36px)); padding: 8px 10px; color: #dceff3; border: 1px solid rgb(124 202 220 / 38%); border-left: 3px solid #77d8e3; border-radius: 5px; background: rgb(5 18 31 / 86%); box-shadow: 0 8px 28px rgb(0 0 0 / 28%); font-size: 10px; line-height: 1.35; pointer-events: auto; }
 .contextual-hint.hidden { display: none; }
 .contextual-hint strong { display: block; color: #bcebf0; font: 800 10px ui-monospace, monospace; letter-spacing: .13em; }
 .contextual-hint span { display: block; margin-top: 4px; }
-.contextual-hint button { margin-top: 8px; padding: 3px 7px; color: #dff7fa; border: 1px solid rgb(120 205 222 / 42%); border-radius: 3px; background: rgb(47 120 139 / 58%); font: 800 9px ui-monospace, monospace; cursor: pointer; }
+.contextual-hint button { margin-top: 6px; padding: 3px 7px; color: #dff7fa; border: 1px solid rgb(120 205 222 / 42%); border-radius: 3px; background: rgb(47 120 139 / 58%); font: 800 9px ui-monospace, monospace; cursor: pointer; }
 .contextual-hint button:hover, .contextual-hint button:focus-visible { background: rgb(69 155 174 / 78%); }
 @media (max-width: 680px) { .contextual-hint { left: 10px; bottom: 12px; width: min(300px, calc(100vw - 20px)); } }
 
@@ -474,6 +474,18 @@ body {
   cursor: pointer;
 }
 .dynamic-event button:disabled { color: #d6b98d; background: rgb(255 255 255 / 12%); cursor: default; }
+
+/* Activity detail belongs in the optional TAB Pilot Menu. During flight the
+   one compact Next Action card is the only persistent activity prompt. */
+#leaderboard,
+#contract-panel,
+.active-contract,
+.sky-challenge,
+.dynamic-event,
+.social-panel,
+.how-to-play {
+  display: none !important;
+}
 
 .chaos-qa-panel {
   position: fixed;

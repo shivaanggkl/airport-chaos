@@ -16,8 +16,22 @@ export type PilotMenuEvent = {
 
 export type PilotMenuStunt = { name: string; how: string; where: string; reward: number };
 
+export type PilotMenuPlayer = {
+  name: string;
+  aircraft: string;
+  distance: number;
+  lifecycle: string;
+  score: number;
+  kills?: number;
+  isLocal: boolean;
+  mostWanted: boolean;
+  king: boolean;
+  setWaypoint?: () => void;
+};
+
 export type PilotMenuData = {
   status: readonly string[];
+  players: { city: string; entries: readonly PilotMenuPlayer[] };
   activities: readonly PilotMenuActivity[];
   liveEvent?: PilotMenuEvent;
   stunts: readonly PilotMenuStunt[];
@@ -72,6 +86,32 @@ export class PilotMenu {
     status.append(...data.status.map((line) => textElement('div', line, 'pilot-menu-status')));
     card.append(status);
 
+    const players = section(`${data.players.city} — ${data.players.entries.length} Pilots Online`);
+    if (!data.players.entries.length) {
+      players.append(textElement('p', 'No pilots are currently connected to this city.', 'pilot-menu-muted'));
+    }
+    for (const player of data.players.entries) {
+      const badges = [
+        player.mostWanted ? 'MOST WANTED' : '',
+        player.king ? '♛ KING' : '',
+      ].filter(Boolean).join(' · ');
+      const meta = [
+        `${player.lifecycle} · ${Math.round(player.distance)}m`,
+        `Score ${player.score}`,
+        player.kills === undefined ? '' : `Kills ${player.kills}`,
+        badges,
+      ].filter(Boolean).join(' · ');
+      players.append(this.createCard({
+        name: `${player.name}${player.isLocal ? ' (You)' : ''} · ${player.aircraft}`,
+        detail: meta,
+        meta: player.isLocal
+          ? 'Your current aircraft and city session.'
+          : 'Live position from this city. Waypoint marks their last reported position.',
+        actions: player.setWaypoint ? [{ label: 'Set Waypoint', run: player.setWaypoint }] : undefined,
+      }));
+    }
+    card.append(players);
+
     const activities = section('Activities');
     if (!data.activities.length) activities.append(textElement('p', 'No local activities are available in this city yet.', 'pilot-menu-muted'));
     for (const activity of data.activities) activities.append(this.createCard(activity));
@@ -116,7 +156,7 @@ export class PilotMenu {
     card.append(hints);
 
     const controls = section('Controls');
-    controls.append(textElement('p', 'W throttle up · S reduce power / brake / reverse taxi · ↑ / ↓ pitch · A / D or Q / E turn · ← / → roll · Space fire · M world map · R restart after crash · TAB Pilot Menu', 'pilot-menu-controls'));
+    controls.append(textElement('p', 'W throttle up · S reduce power / brake / reverse taxi · ↑ / ↓ pitch · A / D turn · ← / → roll · Space fire · M world map · R restart after crash · TAB Pilot Menu', 'pilot-menu-controls'));
     card.append(controls);
 
     this.element.replaceChildren(card);

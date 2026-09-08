@@ -236,6 +236,7 @@ function createAirframe(type: AircraftAssetType | undefined): { detail: THREE.Gr
 function createHelicopter(): { detail: THREE.Group; silhouette: THREE.Mesh; rotor: THREE.Object3D } {
   const detail = new THREE.Group();
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 7), helicopterMaterial);
+  body.userData.ambientOwnedGeometry = true;
   body.scale.set(1.1, 0.72, 1.9);
   detail.add(body);
   const tail = new THREE.Mesh(trafficWingGeometry, helicopterMaterial);
@@ -355,7 +356,7 @@ export class AmbientTrafficSystem {
     const index = this.actors.findIndex((actor) => actor.route.id === routeId);
     if (index < 0) return;
     const [actor] = this.actors.splice(index, 1);
-    this.scene.remove(actor.root);
+    this.disposeActor(actor);
   }
 
   syncEventRoutes(states: readonly EventTrafficVisualState[]): void {
@@ -383,9 +384,23 @@ export class AmbientTrafficSystem {
   }
 
   dispose(): void {
-    for (const actor of this.actors) this.scene.remove(actor.root);
+    for (const actor of this.actors) this.disposeActor(actor);
     this.scene.remove(this.cloudGroup);
+    for (const cell of this.stormCells) {
+      if (cell.zone.type === 'storm') {
+        cell.lightning.geometry.dispose();
+        (cell.lightning.material as THREE.Material).dispose();
+      } else {
+        cell.group.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.geometry.dispose();
+          (object.material as THREE.Material).dispose();
+        });
+      }
+    }
     this.actors.length = 0;
+    this.stormCells.length = 0;
+    this.cloudClusters.length = 0;
   }
 
   private createActor(route: AmbientTrafficRoute, index: number): Actor {
@@ -534,6 +549,7 @@ export class AmbientTrafficSystem {
     contrail.name = 'ambient-soft-contrail';
     for (const [offset, width] of [[-12, 42], [12, 34]] as const) {
       const streak = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), contrailMaterial);
+      streak.userData.ambientOwnedGeometry = true;
       // Local +Z is behind the aircraft because the shared aircraft forward axis is -Z.
       streak.rotation.y = Math.PI / 2;
       streak.position.set(offset, 0, 480);
@@ -541,6 +557,23 @@ export class AmbientTrafficSystem {
       contrail.add(streak);
     }
     return contrail;
+  }
+
+  private disposeActor(actor: Actor): void {
+    this.scene.remove(actor.root);
+    actor.silhouetteMaterial.dispose();
+    actor.impostorMaterial.dispose();
+    if (actor.eventMarker) {
+      const material = actor.eventMarker.material;
+      material.map?.dispose();
+      material.dispose();
+    }
+    actor.root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.userData.ambientOwnedGeometry) return;
+      object.geometry.dispose();
+    });
+    if (actor.contrail) actor.contrail.clear();
+    actor.root.clear();
   }
 
   private addClouds(clouds: ReadonlyArray<AmbientCloud>): void {

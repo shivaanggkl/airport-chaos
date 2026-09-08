@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket, { WebSocketServer } from 'ws';
 import { PlayerProfileStore, type LegacyProfileImport, type PlayerProfile, type ProfileProgress } from './player-profiles.js';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
+import { LOCK_ANGLE, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -37,7 +38,7 @@ type PlayerState = Transform & {
 };
 
 type Vector3 = { x: number; y: number; z: number };
-type ProjectileMode = 'ballistic' | 'homing';
+type ProjectileMode = 'ballistic';
 type DynamicEventType = 'skyRush' | 'supplyDrop' | 'emergencyEscort' | 'cargoConvoy' | 'riskZone' | 'mostWanted';
 type DynamicEventLifecycle = 'available' | 'active' | 'completed' | 'failed' | 'cooldown';
 type EventRoutePoint = Vector3;
@@ -76,8 +77,6 @@ type ProjectileState = {
   direction: Vector3;
   traveled: number;
   mode: ProjectileMode;
-  targetId?: string;
-  guidanceTurnRate: number;
   clientShotId?: string;
 };
 
@@ -93,14 +92,13 @@ const aircraftHitRadii: Record<AircraftType, number> = {
   cargo: 3.6,
   fighter: 2.4,
 };
-const projectileHitRadiusMultiplier = 1.5;
-const aimAssistByAircraft: Record<AircraftType, { selectionCone: number; assistRange: number; turnRate: number }> = {
-  trainer: { selectionCone: 0.15, assistRange: 1000, turnRate: 5.5 },
-  privateJet: { selectionCone: 0.15, assistRange: 1000, turnRate: 5.0 },
-  cargo: { selectionCone: 0.15, assistRange: 1000, turnRate: 4.4 },
-  fighter: { selectionCone: 0.15, assistRange: 1000, turnRate: 7.0 },
-};
-const projectileSpeed = 420;
+// This only widens projectile-vs-aircraft hit tests.  It intentionally does
+// not affect aircraft collision, which remains calibrated separately.
+const projectileHitRadiusMultiplier = 1.6;
+const projectileVisualRadius = 0.65;
+const lockRange = 1000;
+// Straight, unlocked rounds remain fast enough to be readable at flight speed.
+const projectileSpeed = 520;
 const projectileRange = 1000;
 const projectileDamage = 25;
 const fireCooldownMs = 250;
@@ -115,6 +113,7 @@ const eventActiveMs = 90_000;
 const eventTerminalMs = 5_000;
 const eventCooldownMinMs = 24_000;
 const eventCooldownMaxMs = 48_000;
+const wantedTransformFreshMs = 1_500;
 const cityEvents = new Map<CityId, CityEvent>();
 const lastEventTypes = new Map<CityId, DynamicEventType>();
 const profileStore = new PlayerProfileStore(process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url))));
@@ -190,6 +189,8 @@ const httpServer = createServer(async (request, response) => {
       const payload = await readJson(request);
       const profile = payload?.legacy
         ? profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport)
+        : payload?.equipAircraft !== undefined
+          ? profileStore.equipAircraft(identity.pilotId, payload.equipAircraft)
         : payload ? profileStore.updateProgress(identity.pilotId, payload.progress ?? {}) : undefined;
       response.writeHead(profile ? 200 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(profile ?? { error: 'Invalid profile update' }));
@@ -262,6 +263,15 @@ function setServerLock(playerId: string, player: PlayerState, targetId?: string,
 function clearLocksForTarget(targetId: string): void {
   for (const [playerId, player] of players) {
     if (player.lockedTargetId === targetId) setServerLock(playerId, player);
+  }
+}
+
+// Locks are state, not a one-off client request. Re-evaluate every affected
+// city transform so a target leaving the shared cone is cleared immediately.
+function refreshCityLocks(cityId: CityId, now: number): void {
+  for (const [playerId, player] of players) {
+    if (player.cityId !== cityId || !player.lockedTargetId) continue;
+    if (!currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
   }
 }
 
@@ -497,6 +507,10 @@ function eventAircraftStates(event: CityEvent, now: number): Array<{ routeId: st
 
 function eventSnapshot(event: CityEvent): object {
   const template = eventTemplateFor(event);
+  const wantedPlayerId = event.type === 'mostWanted' && event.wantedPlayerId &&
+    isWantedEligible(event.wantedPlayerId, players.get(event.wantedPlayerId), event.cityId, Date.now())
+    ? event.wantedPlayerId
+    : undefined;
   return {
     type: 'eventState',
     event: {
@@ -515,7 +529,7 @@ function eventSnapshot(event: CityEvent): object {
         .slice(0, 3)
         .map(([playerId, progress]) => ({ playerId, progress })),
       eventAircraft: eventAircraftStates(event, Date.now()),
-      wantedPlayerId: event.wantedPlayerId,
+      wantedPlayerId,
       riskMode: event.riskMode,
       riskRadius: event.riskRadius,
       goldenDrop: event.goldenDrop,
@@ -546,6 +560,57 @@ function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: strin
 function broadcastEvent(event: CityEvent): void {
   broadcastToCity(event.cityId, eventSnapshot(event));
   event.lastBroadcastAt = Date.now();
+}
+
+function hasOpenPlayerSocket(playerId: string): boolean {
+  for (const [socket, socketPlayerId] of playerSockets) {
+    if (socketPlayerId === playerId && socket.readyState === WebSocket.OPEN) return true;
+  }
+  return false;
+}
+
+function isWantedEligible(playerId: string, player: PlayerState | undefined, cityId: CityId, now: number): player is PlayerState {
+  if (!player || player.entityType !== 'player' || player.cityId !== cityId) return false;
+  if (player.lifeState !== 'alive' || !player.hasRespawnTransform || now < player.spawnProtectedUntil) return false;
+  if (now - player.lastStateAt > wantedTransformFreshMs || !hasOpenPlayerSocket(playerId)) return false;
+  const values = [
+    player.position.x, player.position.y, player.position.z,
+    player.rotation.x, player.rotation.y, player.rotation.z,
+  ];
+  return values.every(Number.isFinite);
+}
+
+function selectMostWanted(cityId: CityId, now: number): [string, PlayerState] | undefined {
+  return [...players.entries()]
+    .filter(([playerId, player]) => isWantedEligible(playerId, player, cityId, now))
+    .sort((left, right) =>
+      (playerHeat.get(right[0])?.value ?? right[1].score * 0.05) -
+      (playerHeat.get(left[0])?.value ?? left[1].score * 0.05),
+    )[0];
+}
+
+function refreshMostWantedTarget(event: CityEvent, now: number): boolean {
+  const current = event.wantedPlayerId ? players.get(event.wantedPlayerId) : undefined;
+  if (event.wantedPlayerId && isWantedEligible(event.wantedPlayerId, current, event.cityId, now)) {
+    event.objective = { ...current.position };
+    return true;
+  }
+  const replacement = selectMostWanted(event.cityId, now);
+  if (!replacement) {
+    event.wantedPlayerId = undefined;
+    setEventTerminal(event, 'failed', now);
+    return false;
+  }
+  event.wantedPlayerId = replacement[0];
+  event.objective = { ...replacement[1].position };
+  return true;
+}
+
+function reconcileMostWanted(cityId: CityId, now: number): void {
+  const event = cityEvents.get(cityId);
+  if (!event || event.lifecycle !== 'active' || event.type !== 'mostWanted') return;
+  const previousTargetId = event.wantedPlayerId;
+  if (refreshMostWantedTarget(event, now) && event.wantedPlayerId !== previousTargetId) broadcastEvent(event);
 }
 
 function awardEventPlayer(event: CityEvent, playerId: string, score: number, credits: number, reason: string): void {
@@ -656,10 +721,9 @@ function activateEvent(event: CityEvent, now: number): void {
     event.riskMode = (['storm', 'lowAltitude', 'highAltitude', 'downtownDanger'] as const)[Math.floor(Math.random() * 4)];
   }
   if (event.type === 'mostWanted') {
-    const candidates = [...players.entries()]
-      .filter(([, player]) => player.cityId === event.cityId && player.lifeState === 'alive')
-      .sort((left, right) => (playerHeat.get(right[0])?.value ?? right[1].score * 0.05) - (playerHeat.get(left[0])?.value ?? left[1].score * 0.05));
-    event.wantedPlayerId = candidates[0]?.[0];
+    // Do not announce a bounty until it has a connected, transformed, and
+    // attackable real player behind it.
+    if (!refreshMostWantedTarget(event, now)) return;
   }
   const template = eventTemplateFor(event);
   if (!template) {
@@ -678,12 +742,9 @@ function updateActiveEvent(event: CityEvent, now: number): void {
   }
   if (event.type === 'emergencyEscort' || event.type === 'cargoConvoy') event.objective = eventRoutePosition(event, now);
   if (event.type === 'mostWanted') {
-    const target = event.wantedPlayerId ? players.get(event.wantedPlayerId) : undefined;
-    if (!target || target.cityId !== event.cityId) {
-      setEventTerminal(event, 'failed', now);
-      return;
-    }
-    event.objective = { ...target.position };
+    const previousTargetId = event.wantedPlayerId;
+    if (!refreshMostWantedTarget(event, now)) return;
+    if (event.wantedPlayerId !== previousTargetId) broadcastEvent(event);
     if (now >= event.expiresAt) {
       awardEventPlayer(event, event.wantedPlayerId!, template.rewardScore, template.rewardCredits, 'BOUNTY SURVIVED');
       setEventTerminal(event, 'completed', now);
@@ -892,6 +953,30 @@ function distanceToSegmentSquared(
   return dx * dx + dy * dy + dz * dz;
 }
 
+// A projectile advances 26m per 50Hz tick at combat speed while a Fighter can
+// move several metres.  Sample the target's short predicted sweep against the
+// projectile segment so a valid hit cannot tunnel between transform updates.
+function sweptProjectileHit(
+  player: PlayerState,
+  startX: number,
+  startY: number,
+  startZ: number,
+  end: Vector3,
+  deltaSeconds: number,
+): boolean {
+  const hitRadius = aircraftHitRadii[player.aircraftType] * projectileHitRadiusMultiplier + projectileVisualRadius;
+  const hitRadiusSquared = hitRadius * hitRadius;
+  for (const fraction of [0, 1 / 3, 2 / 3, 1]) {
+    const projectedPosition = {
+      x: player.position.x + player.velocity.x * deltaSeconds * fraction,
+      y: player.position.y + player.velocity.y * deltaSeconds * fraction,
+      z: player.position.z + player.velocity.z * deltaSeconds * fraction,
+    };
+    if (distanceToSegmentSquared(projectedPosition, startX, startY, startZ, end) <= hitRadiusSquared) return true;
+  }
+  return false;
+}
+
 function normalize(vector: Vector3): Vector3 {
   const length = Math.hypot(vector.x, vector.y, vector.z) || 1;
   return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
@@ -961,20 +1046,7 @@ function dot(left: Vector3, right: Vector3): number {
   return left.x * right.x + left.y * right.y + left.z * right.z;
 }
 
-function steerToward(direction: Vector3, targetDirection: Vector3, turnAngle: number): Vector3 {
-  const cosine = Math.max(-1, Math.min(1, dot(direction, targetDirection)));
-  const angle = Math.acos(cosine);
-  if (angle < 0.0001 || turnAngle <= 0) return direction;
-  const amount = Math.min(1, turnAngle / angle);
-  return normalize({
-    x: direction.x + (targetDirection.x - direction.x) * amount,
-    y: direction.y + (targetDirection.y - direction.y) * amount,
-    z: direction.z + (targetDirection.z - direction.z) * amount,
-  });
-}
-
 function closestLockTarget(ownerId: string, player: PlayerState, direction: Vector3, now: number): [string, PlayerState] | undefined {
-  const tuning = aimAssistByAircraft[player.aircraftType];
   let closest: [string, PlayerState] | undefined;
   let closestAngle = Number.POSITIVE_INFINITY;
   let closestDistance = Number.POSITIVE_INFINITY;
@@ -992,9 +1064,9 @@ function closestLockTarget(ownerId: string, player: PlayerState, direction: Vect
       z: target.position.z - player.position.z,
     };
     const distance = Math.hypot(offset.x, offset.y, offset.z);
-    if (distance < 1 || distance > tuning.assistRange) continue;
+    if (distance < 1 || distance > lockRange) continue;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot(direction, normalize(offset)))));
-    if (angle > tuning.selectionCone) continue;
+    if (angle > LOCK_ANGLE) continue;
     if (angle < closestAngle || (angle === closestAngle && distance < closestDistance)) {
       closest = [targetId, target];
       closestAngle = angle;
@@ -1010,54 +1082,32 @@ function validLockTarget(ownerId: string, player: PlayerState, direction: Vector
   return closest?.[0] === targetId ? closest[1] : undefined;
 }
 
-function validGuidanceTarget(projectile: ProjectileState, owner: PlayerState, now: number): PlayerState | undefined {
-  const targetId = projectile.targetId;
+// The lock displayed to the shooter and the eligibility check at trigger time
+// share one authoritative predicate.
+function currentLockedTarget(ownerId: string, owner: PlayerState, targetId: string | undefined, now: number): PlayerState | undefined {
   if (!targetId || owner.lockedTargetId !== targetId) return undefined;
-  const target = players.get(targetId);
-  if (
-    !target ||
-    targetId === projectile.ownerId ||
-    target.entityType !== 'player' ||
-    target.cityId !== projectile.cityId ||
-    target.lifeState !== 'alive' ||
-    now < target.spawnProtectedUntil
-  ) return undefined;
-  const ownerDistance = Math.hypot(
-    target.position.x - owner.position.x,
-    target.position.y - owner.position.y,
-    target.position.z - owner.position.z,
-  );
-  const tuning = aimAssistByAircraft[owner.aircraftType];
-  if (ownerDistance > tuning.assistRange) return undefined;
-  const targetDirection = normalize({
-    x: target.position.x - owner.position.x,
-    y: target.position.y - owner.position.y,
-    z: target.position.z - owner.position.z,
-  });
-  // Guidance is valid only while the actual aircraft remains inside the same
-  // server-validated lock circle. Predicted intercept never controls locking.
-  return dot(forwardDirection(owner), targetDirection) >= Math.cos(tuning.selectionCone) ? target : undefined;
+  return validLockTarget(ownerId, owner, forwardDirection(owner), now, targetId);
 }
 
-function createProjectile(playerId: string, player: PlayerState, preferredTargetId?: string, clientShotId?: string, fireTransform?: Transform): void {
+function canFire(player: PlayerState, now: number): boolean {
+  return player.entityType === 'player' &&
+    player.lifeState === 'alive' &&
+    now - player.lastFireAt >= fireCooldownMs;
+}
+
+function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform): boolean {
   const now = Date.now();
   if (
-    player.entityType !== 'player' ||
-    player.lifeState !== 'alive' ||
-    now - player.lastFireAt < fireCooldownMs ||
+    !canFire(player, now) ||
     projectiles.size >= maxProjectiles
   ) {
-    return;
+    return false;
   }
   player.lastFireAt = now;
 
   const transform = fireTransform ?? player;
   const muzzle = muzzleTransform(transform);
   const direction = muzzle.direction;
-  const targetId = preferredTargetId && preferredTargetId === player.lockedTargetId &&
-    validLockTarget(playerId, player, direction, now, preferredTargetId)
-    ? preferredTargetId
-    : undefined;
   const projectile: ProjectileState = {
     projectileId: randomUUID(),
     ownerId: playerId,
@@ -1065,9 +1115,7 @@ function createProjectile(playerId: string, player: PlayerState, preferredTarget
     position: muzzle.position,
     direction,
     traveled: 0,
-    mode: targetId ? 'homing' : 'ballistic',
-    targetId,
-    guidanceTurnRate: targetId ? aimAssistByAircraft[player.aircraftType].turnRate : 0,
+    mode: 'ballistic',
     clientShotId,
   };
   projectiles.set(projectile.projectileId, projectile);
@@ -1078,48 +1126,8 @@ function createProjectile(playerId: string, player: PlayerState, preferredTarget
     position: projectile.position,
     direction: projectile.direction,
     mode: projectile.mode,
-    targetId: projectile.targetId,
     clientShotId: projectile.clientShotId,
   });
-}
-
-function updateProjectileGuidance(projectile: ProjectileState, owner: PlayerState, now: number, deltaSeconds: number): boolean {
-  if (projectile.mode !== 'homing' || !projectile.targetId) return false;
-  const targetId = projectile.targetId;
-  const target = validGuidanceTarget(projectile, owner, now);
-  if (!target) {
-    projectile.mode = 'ballistic';
-    if (owner.lockedTargetId === targetId) setServerLock(projectile.ownerId, owner);
-    return true;
-  }
-
-  const distance = Math.hypot(
-    target.position.x - projectile.position.x,
-    target.position.y - projectile.position.y,
-    target.position.z - projectile.position.z,
-  );
-  if (distance < 1 || distance > projectileRange) {
-    projectile.mode = 'ballistic';
-    if (owner.lockedTargetId === targetId) setServerLock(projectile.ownerId, owner);
-    return true;
-  }
-
-  let interceptSeconds = Math.min(2.2, distance / projectileSpeed);
-  const firstOffset = {
-    x: target.position.x + target.velocity.x * interceptSeconds - projectile.position.x,
-    y: target.position.y + target.velocity.y * interceptSeconds - projectile.position.y,
-    z: target.position.z + target.velocity.z * interceptSeconds - projectile.position.z,
-  };
-  interceptSeconds = Math.min(2.2, Math.hypot(firstOffset.x, firstOffset.y, firstOffset.z) / projectileSpeed);
-  const interceptDirection = normalize({
-    x: target.position.x + target.velocity.x * interceptSeconds - projectile.position.x,
-    y: target.position.y + target.velocity.y * interceptSeconds - projectile.position.y,
-    z: target.position.z + target.velocity.z * interceptSeconds - projectile.position.z,
-  });
-  const angle = Math.acos(Math.max(-1, Math.min(1, dot(projectile.direction, interceptDirection))));
-  const turn = Math.min(angle, projectile.guidanceTurnRate * deltaSeconds);
-  if (turn < 0.0001) return false;
-  projectile.direction = steerToward(projectile.direction, interceptDirection, turn);
   return true;
 }
 
@@ -1133,7 +1141,6 @@ function broadcastProjectileStates(now: number): void {
     position: Vector3;
     direction: Vector3;
     mode: ProjectileMode;
-    targetId?: string;
   }>>();
   for (const projectile of projectiles.values()) {
     const states = statesByCity.get(projectile.cityId) ?? [];
@@ -1142,13 +1149,77 @@ function broadcastProjectileStates(now: number): void {
       position: projectile.position,
       direction: projectile.direction,
       mode: projectile.mode,
-      targetId: projectile.targetId,
     });
     statesByCity.set(projectile.cityId, states);
   }
   for (const [cityId, projectiles] of statesByCity) {
     broadcastToCity(cityId, { type: 'projectileStates', projectiles });
   }
+}
+
+function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number): boolean {
+  const victim = players.get(victimId);
+  if (
+    !victim || victimId === ownerId || victim.entityType !== 'player' ||
+    victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil
+  ) return false;
+
+  victim.health = Math.max(0, victim.health - projectileDamage);
+  broadcastToCity(cityId, {
+    type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health, damage: projectileDamage,
+  });
+  if (victim.health !== 0) return true;
+
+  // Mark destruction before later shots can inspect this player.
+  victim.lifeState = 'destroyed';
+  playerChaos.delete(victimId);
+  const activeRiskZone = cityEvents.get(victim.cityId);
+  if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
+    activeRiskZone.progress.delete(victimId);
+    activeRiskZone.participants.delete(victimId);
+  }
+  const victimProfile = profileStore.awardServerReward(victim.pilotId, 0, { deaths: 1 });
+  if (victimProfile) sendProfile(victimId, victimProfile);
+  clearLocksForTarget(victimId);
+  removePlayerProjectiles(victimId);
+  const killer = players.get(ownerId);
+  if (killer?.entityType !== 'player') return true;
+  killer.score += 500;
+  addHeat(ownerId, 45, now);
+  registerChaosAction(ownerId, 'hit', now);
+  const killerProfile = profileStore.awardServerReward(killer.pilotId, 200, { kills: 1 });
+  if (killerProfile) sendProfile(ownerId, killerProfile);
+  broadcastToCity(cityId, {
+    type: 'destroyed', playerId: victimId, killerId: ownerId, killerDisplayName: killer.displayName, killerScore: killer.score,
+  });
+  broadcastLeaderboard(cityId);
+  updateKing(cityId, cityKings.get(cityId) === victimId ? ownerId : undefined);
+  handleWantedDestruction(ownerId, victimId, now);
+  return true;
+}
+
+function createAssistedShot(
+  playerId: string,
+  player: PlayerState,
+  targetId: string,
+  clientShotId: string | undefined,
+  fireTransform: Transform | undefined,
+): boolean {
+  const now = Date.now();
+  const target = currentLockedTarget(playerId, player, targetId, now);
+  if (!target || !canFire(player, now)) return false;
+  player.lastFireAt = now;
+  const muzzle = muzzleTransform(fireTransform ?? player);
+  broadcastToCity(player.cityId, {
+    type: 'assistedShot',
+    shotId: randomUUID(),
+    ownerId: playerId,
+    targetId,
+    origin: muzzle.position,
+    targetPosition: target.position,
+    clientShotId,
+  });
+  return applyCombatHit(playerId, targetId, player.cityId, now);
 }
 
 function updateProjectiles(deltaSeconds: number): void {
@@ -1162,7 +1233,6 @@ function updateProjectiles(deltaSeconds: number): void {
       removeProjectile(projectile.projectileId);
       continue;
     }
-    updateProjectileGuidance(projectile, owner, now, deltaSeconds);
     const previousX = projectile.position.x;
     const previousY = projectile.position.y;
     const previousZ = projectile.position.z;
@@ -1182,71 +1252,15 @@ function updateProjectiles(deltaSeconds: number): void {
       ) {
         continue;
       }
-      const hitRadius = aircraftHitRadii[player.aircraftType] * projectileHitRadiusMultiplier;
-      if (
-        distanceToSegmentSquared(
-          player.position,
-          previousX,
-          previousY,
-          previousZ,
-          projectile.position,
-        ) <= hitRadius * hitRadius
-      ) {
+      if (sweptProjectileHit(player, previousX, previousY, previousZ, projectile.position, deltaSeconds)) {
         hitPlayerId = playerId;
         break;
       }
     }
 
     if (hitPlayerId) {
-      const victim = players.get(hitPlayerId);
-      if (!victim) continue;
-      if (victim.lifeState !== 'alive') {
-        removeProjectile(projectile.projectileId);
-        continue;
-      }
-      victim.health = Math.max(0, victim.health - projectileDamage);
-      broadcastToCity(projectile.cityId, {
-        type: 'damage',
-        playerId: hitPlayerId,
-        shooterId: projectile.ownerId,
-        health: victim.health,
-        damage: projectileDamage,
-      });
       removeProjectile(projectile.projectileId);
-
-      if (victim.health === 0) {
-        // This must happen before any later projectile can evaluate the same
-        // player in this tick, preventing duplicate kills and rewards.
-        victim.lifeState = 'destroyed';
-        playerChaos.delete(hitPlayerId);
-        const activeRiskZone = cityEvents.get(victim.cityId);
-        if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
-          activeRiskZone.progress.delete(hitPlayerId);
-          activeRiskZone.participants.delete(hitPlayerId);
-        }
-        const victimProfile = profileStore.awardServerReward(victim.pilotId, 0, { deaths: 1 });
-        if (victimProfile) sendProfile(hitPlayerId, victimProfile);
-        clearLocksForTarget(hitPlayerId);
-        removePlayerProjectiles(hitPlayerId);
-        const killer = players.get(projectile.ownerId);
-        if (killer?.entityType === 'player') {
-          killer.score += 500;
-          addHeat(projectile.ownerId, 45, now);
-          registerChaosAction(projectile.ownerId, 'hit', now);
-          const killerProfile = profileStore.awardServerReward(killer.pilotId, 200, { kills: 1 });
-          if (killerProfile) sendProfile(projectile.ownerId, killerProfile);
-          broadcastToCity(projectile.cityId, {
-            type: 'destroyed',
-            playerId: hitPlayerId,
-            killerId: projectile.ownerId,
-            killerDisplayName: killer.displayName,
-            killerScore: killer.score,
-          });
-          broadcastLeaderboard(projectile.cityId);
-          updateKing(projectile.cityId, cityKings.get(projectile.cityId) === hitPlayerId ? projectile.ownerId : undefined);
-          handleWantedDestruction(projectile.ownerId, hitPlayerId, now);
-        }
-      }
+      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now);
       continue;
     }
 
@@ -1279,6 +1293,11 @@ function chaosQaFromRequest(request: IncomingMessage): boolean {
     new URL(request.url ?? '/', 'http://localhost').searchParams.get('chaosqa') === '1';
 }
 
+function protocolMatchesRequest(request: IncomingMessage): boolean {
+  const requested = new URL(request.url ?? '/', 'http://localhost').searchParams.get('protocol');
+  return requested === String(PROTOCOL_VERSION);
+}
+
 function identityFromRequest(request: IncomingMessage): { pilotId: string; pilotName: string } {
   const url = new URL(request.url ?? '/', 'http://localhost');
   const requestedId = url.searchParams.get('pilotId') ?? '';
@@ -1300,6 +1319,11 @@ function reserveSpawnSlot(cityId: CityId): number {
 }
 
 server.on('connection', (socket, request) => {
+  if (!protocolMatchesRequest(request)) {
+    socket.send(JSON.stringify({ type: 'protocolMismatch', expectedProtocolVersion: PROTOCOL_VERSION }));
+    socket.close(4002, 'Protocol mismatch');
+    return;
+  }
   const playerId = randomUUID();
   const cityId = cityFromRequest(request);
   const chaosQaEnabled = chaosQaFromRequest(request);
@@ -1333,6 +1357,7 @@ server.on('connection', (socket, request) => {
   socket.send(
     JSON.stringify({
       type: 'welcome',
+      protocolVersion: PROTOCOL_VERSION,
       playerId,
       pilotId: profile.pilotId,
       cityId,
@@ -1372,6 +1397,7 @@ server.on('connection', (socket, request) => {
         qaEvent?: unknown;
         legacy?: LegacyProfileImport;
         progress?: ProfileProgress;
+        aircraftType?: unknown;
         rewardId?: unknown;
         credits?: unknown;
         transform?: unknown;
@@ -1394,13 +1420,36 @@ server.on('connection', (socket, request) => {
 
       if (message.type === 'profileImport') {
         const profile = profileStore.importLegacy(player.pilotId, message.legacy ?? {});
+        // The first legacy hydration is also an explicit server-side profile
+        // reconciliation. Keep the active player transform aligned with that
+        // persisted selection before any later transform can be broadcast.
+        player.aircraftType = profile.selectedAircraft;
         sendProfile(playerId, profile);
+        broadcastToCity(player.cityId, {
+          type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
+          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+          cityId: player.cityId, displayName: player.displayName,
+        });
         return;
       }
 
       if (message.type === 'profileProgress') {
         const profile = profileStore.updateProgress(player.pilotId, message.progress ?? {});
         if (profile) sendProfile(playerId, profile);
+        return;
+      }
+
+      if (message.type === 'equipAircraft') {
+        const profile = profileStore.equipAircraft(player.pilotId, message.aircraftType);
+        if (!profile) return;
+        player.profile = profile;
+        player.aircraftType = profile.selectedAircraft;
+        sendProfile(playerId, profile);
+        broadcastToCity(player.cityId, {
+          type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
+          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+          cityId: player.cityId, displayName: player.displayName,
+        });
         return;
       }
 
@@ -1437,13 +1486,11 @@ server.on('connection', (socket, request) => {
           ? message.clientShotId
           : undefined;
         const requestedTargetId = typeof message.targetId === 'string' ? message.targetId : undefined;
-        createProjectile(
-          playerId,
-          player,
-          requestedTargetId && requestedTargetId === player.lockedTargetId ? requestedTargetId : undefined,
-          clientShotId,
-          validFireTransform(player, message.transform),
-        );
+        const fireTransform = validFireTransform(player, message.transform);
+        const assisted = requestedTargetId && requestedTargetId === player.lockedTargetId
+          ? createAssistedShot(playerId, player, requestedTargetId, clientShotId, fireTransform)
+          : false;
+        if (!assisted) createProjectile(playerId, player, clientShotId, fireTransform);
         return;
       }
 
@@ -1464,6 +1511,7 @@ server.on('connection', (socket, request) => {
           activeRiskZone.participants.delete(playerId);
         }
         setServerLock(playerId, player);
+        reconcileMostWanted(player.cityId, Date.now());
         broadcastToCity(player.cityId, {
           type: 'respawn',
           playerId,
@@ -1500,12 +1548,10 @@ server.on('connection', (socket, request) => {
       player.lastStateAt = stateNow;
       player.position = message.position;
       player.rotation = message.rotation;
-      if (aircraftTypes.has(message.aircraftType as AircraftType) && player.aircraftType !== message.aircraftType && player.profile.unlockedAircraft.includes(message.aircraftType as AircraftType)) {
-        player.aircraftType = message.aircraftType as AircraftType;
-        const profile = profileStore.updateProgress(player.pilotId, { selectedAircraft: player.aircraftType });
-        if (profile) player.profile = profile;
-      }
+      // Transform packets never equip aircraft. Explicit equipAircraft above
+      // is the only selection path accepted by the server profile.
       player.hasRespawnTransform = true;
+      refreshCityLocks(player.cityId, stateNow);
 
       const update = {
         type: 'state',
@@ -1538,6 +1584,7 @@ server.on('connection', (socket, request) => {
     playerHeat.delete(playerId);
     if (cityKings.get(cityId) === playerId) updateKing(cityId);
     usedSpawnSlots.get(cityId)?.delete(spawnSlot);
+    reconcileMostWanted(cityId, Date.now());
     broadcastToCity(cityId, { type: 'remove', playerId }, socket);
     broadcastLeaderboard(cityId);
     console.log(`[server] player disconnected: ${playerId} (${server.clients.size} online)`);

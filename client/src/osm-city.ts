@@ -190,6 +190,10 @@ export function addOsmCityData(
     landMaterials: ReadonlyArray<THREE.Material>;
     isExcluded: (x: number, z: number, padding: number) => boolean;
     heightAt: (x: number, z: number) => number;
+    // Dallas already streams separately preprocessed NEAR/MID/FAR chunks.
+    // Callers that only render one of those files must not allocate the
+    // legacy derived LODs or collision return arrays just to discard them.
+    collectCollisionData?: boolean;
     streamRadius?: number;
     midRadius?: number;
     farRadius?: number;
@@ -202,6 +206,8 @@ export function addOsmCityData(
   const obstacleBounds: ImportedObstacle[] = [];
   const waterBounds: ImportedWater[] = [];
   const groups: THREE.Group[] = [];
+  const collectCollisionData = options.collectCollisionData !== false;
+  const buildDerivedLods = options.streamRadius !== undefined;
 
   for (const chunk of cityData.chunks) {
     const chunkGroup = new THREE.Group();
@@ -255,9 +261,9 @@ export function addOsmCityData(
           pushTriangle(highwayAccentBuffers, [x1 + stripeX + innerX, ay, z1 + stripeZ + innerZ], [x2 + stripeX - innerX, by, z2 + stripeZ - innerZ], [x2 + stripeX + innerX, by, z2 + stripeZ + innerZ], [0, 1, 0]);
         }
       }
-      if (classification >= 2) addRoadSurface(midRoadBuffers, a, b, c, d);
-      if (classification >= 3) addRoadSurface(farRoadBuffers, a, b, c, d);
-      roadSegments.push({ x1, z1, x2, z2, width });
+      if (buildDerivedLods && classification >= 2) addRoadSurface(midRoadBuffers, a, b, c, d);
+      if (buildDerivedLods && classification >= 3) addRoadSurface(farRoadBuffers, a, b, c, d);
+      if (collectCollisionData) roadSegments.push({ x1, z1, x2, z2, width });
     }
     if (roadBuffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(roadBuffers), options.roadMaterial));
     if (highwayAccentBuffers.positions.length && options.highwayAccentMaterial) chunkGroup.add(new THREE.Mesh(createGeometry(highwayAccentBuffers), options.highwayAccentMaterial));
@@ -298,9 +304,11 @@ export function addOsmCityData(
       if (options.isExcluded(box.x, box.z, Math.max(box.maxX - box.minX, box.maxZ - box.minZ) / 2 + 8)) continue;
       const baseY = (cityData.v >= 3 ? building[3] : options.heightAt(box.x, box.z)) + 0.08;
       addBuilding(buildingBuffers[family] ?? buildingBuffers[2], points, baseY, height);
-      addMassing(midMasses, box, height, 360);
-      addMassing(farMasses, box, height, 1000);
-      obstacleBounds.push({ x: box.x, z: box.z, halfX: (box.maxX - box.minX) / 2, halfZ: (box.maxZ - box.minZ) / 2, height, baseY, polygon: points });
+      if (buildDerivedLods) {
+        addMassing(midMasses, box, height, 360);
+        addMassing(farMasses, box, height, 1000);
+      }
+      if (collectCollisionData) obstacleBounds.push({ x: box.x, z: box.z, halfX: (box.maxX - box.minX) / 2, halfZ: (box.maxZ - box.minZ) / 2, height, baseY, polygon: points });
     }
     buildingBuffers.forEach((buffers, family) => {
       if (buffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(buffers), options.buildingMaterials[family]));
@@ -313,7 +321,7 @@ export function addOsmCityData(
       if (options.isExcluded(box.x, box.z, Math.max(box.maxX - box.minX, box.maxZ - box.minZ) / 2 + 4)) continue;
       const surfaceY = options.heightAt(box.x, box.z) + 0.16;
       addSurfacePolygon(waterBuffers, points, surfaceY);
-      waterBounds.push({ ...box, surfaceY, polygon: points });
+      if (collectCollisionData) waterBounds.push({ ...box, surfaceY, polygon: points });
     }
     if (waterBuffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(waterBuffers), options.waterMaterial));
 
@@ -329,8 +337,8 @@ export function addOsmCityData(
       if (buffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(buffers), options.landMaterials[family]));
     });
 
-    if (midRoadBuffers.positions.length) midGroup.add(new THREE.Mesh(createGeometry(midRoadBuffers), options.roadMaterial));
-    if (farRoadBuffers.positions.length) farGroup.add(new THREE.Mesh(createGeometry(farRoadBuffers), options.roadMaterial));
+    if (buildDerivedLods && midRoadBuffers.positions.length) midGroup.add(new THREE.Mesh(createGeometry(midRoadBuffers), options.roadMaterial));
+    if (buildDerivedLods && farRoadBuffers.positions.length) farGroup.add(new THREE.Mesh(createGeometry(farRoadBuffers), options.roadMaterial));
     const addMassesToGroup = (group: THREE.Group, masses: ReadonlyMap<string, BuildingMassing>, material: THREE.Material, heightScale: number, heightBias: number): void => {
       const buffers: GeometryBuffers = { positions: [], normals: [] };
       for (const mass of masses.values()) {
@@ -346,9 +354,9 @@ export function addOsmCityData(
       }
       if (buffers.positions.length) group.add(new THREE.Mesh(createGeometry(buffers), material));
     };
-    addMassesToGroup(midGroup, midMasses, options.buildingMaterials[2], 0.72, 7);
-    addMassesToGroup(farGroup, farMasses, options.buildingMaterials[1], 0.5, 9);
-    if (waterBuffers.positions.length) {
+    if (buildDerivedLods) addMassesToGroup(midGroup, midMasses, options.buildingMaterials[2], 0.72, 7);
+    if (buildDerivedLods) addMassesToGroup(farGroup, farMasses, options.buildingMaterials[1], 0.5, 9);
+    if (buildDerivedLods && waterBuffers.positions.length) {
       const farWater = new THREE.Mesh(createGeometry(waterBuffers), options.waterMaterial);
       farGroup.add(farWater);
     }
