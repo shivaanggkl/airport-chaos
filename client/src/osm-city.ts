@@ -66,7 +66,7 @@ type BuildingMassing = {
 
 const streamedChunkGroups: StreamedChunkGroups[] = [];
 const roadWidths = [9, 11, 14, 18, 30, 4] as const;
-const roadColors = [0x4d5051, 0x484b4d, 0x414548, 0x393e42, 0x30363a, 0x6a6258] as const;
+const roadColors = [0x41484c, 0x3c4347, 0x363d42, 0x30383d, 0x293238, 0x665f55] as const;
 const color = new THREE.Color();
 
 function pushTriangle(buffers: GeometryBuffers, a: readonly number[], b: readonly number[], c: readonly number[], normal: readonly number[], uv?: readonly number[]): void {
@@ -385,6 +385,16 @@ export function addOsmCityData(
 }
 
 export function disposeOsmGroups(groups: ReadonlyArray<THREE.Group>): void {
+  const disposed = new Set(groups);
+  // `streamedChunkGroups` is module-scoped for the legacy static streamer.
+  // Remove evicted groups from it too, otherwise city switches can retain
+  // stale group references indefinitely even after scene removal.
+  for (let index = streamedChunkGroups.length - 1; index >= 0; index -= 1) {
+    const chunk = streamedChunkGroups[index];
+    if (disposed.has(chunk.detail) || (chunk.mid && disposed.has(chunk.mid)) || (chunk.far && disposed.has(chunk.far))) {
+      streamedChunkGroups.splice(index, 1);
+    }
+  }
   for (const group of groups) {
     group.removeFromParent();
     group.traverse((object) => {

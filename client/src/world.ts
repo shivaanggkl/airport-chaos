@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { addSceneryAsset, replaceTreesWithInstancedAsset } from './assets';
 import { addOsmCity, type ImportedRoadSegment } from './city1-osm';
 import { addCloudLayer, createTerrainHeightSampler, createTerrainMesh } from './terrain';
+import type { StuntZone } from './stunt-combo';
+import type { DiscoveryDefinition } from './discoveries';
 
 export const WORLD_METERS_PER_UNIT = 1;
 export const WORLD_SIZE = 12_000;
@@ -55,6 +57,24 @@ export const regionBounds: ReadonlyArray<{ name: RegionName; minX: number; maxX:
   { name: 'MOUNTAINS', minX: -6000, maxX: -1500, minZ: -6000, maxZ: -2200 },
   { name: 'COAST', minX: 2200, maxX: 6000, minZ: -2700, maxZ: 5000 },
   { name: 'COUNTRYSIDE', minX: -6000, maxX: -1500, minZ: 1700, maxZ: 6000 },
+];
+
+export const stuntZones: ReadonlyArray<StuntZone> = [
+  { id: 'coast-highway-bridge', kind: 'bridge', x: 3500, z: 500, radius: 1180, minAltitude: 8, maxAltitude: 62 },
+  { id: 'downtown-skyline', kind: 'landmark', x: -1525, z: -2820, radius: 950, minAltitude: 0, maxAltitude: 280 },
+];
+
+export const discoveries: ReadonlyArray<DiscoveryDefinition> = [
+  { id: 'central-international', name: 'Central International', type: 'airport', x: 0, z: 0, radius: 820, minAltitude: 0, maxAltitude: 260, credits: 75, setId: 'airport-tour', setBonus: 250 },
+  { id: 'coast-airport', name: 'Coast Airport', type: 'airport', x: 5100, z: 3550, radius: 560, minAltitude: 0, maxAltitude: 220, credits: 75, setId: 'airport-tour', setBonus: 250 },
+  { id: 'mountain-airfield', name: 'Mountain Airfield', type: 'airstrip', x: -2300, z: -5000, radius: 420, minAltitude: 0, maxAltitude: 190, credits: 100, setId: 'airport-tour', setBonus: 250 },
+  { id: 'countryside-airstrip', name: 'Countryside Airstrip', type: 'airstrip', x: -4300, z: 3800, radius: 360, minAltitude: 0, maxAltitude: 170, credits: 125, setId: 'airport-tour', setBonus: 250 },
+  { id: 'downtown-landmark-a', name: 'Downtown Tower', type: 'downtown', x: -1525, z: -2820, radius: 210, minAltitude: 90, maxAltitude: 460, credits: 100, setId: 'skyline-tour', setBonus: 225 },
+  { id: 'downtown-landmark-b', name: 'Riverfront Tower', type: 'landmark', x: -1778, z: -2400, radius: 220, minAltitude: 100, maxAltitude: 460, credits: 100, setId: 'skyline-tour', setBonus: 225 },
+  { id: 'downtown-landmark-c', name: 'Civic Spire', type: 'rooftop', x: -895, z: -2400, radius: 170, minAltitude: 100, maxAltitude: 410, credits: 125, setId: 'skyline-tour', setBonus: 225 },
+  { id: 'coast-highway-bridge', name: 'Coast Highway Bridge', type: 'bridge', x: 3500, z: 500, radius: 240, minAltitude: 10, maxAltitude: 100, credits: 125 },
+  { id: 'coast-lake', name: 'Coast Lake', type: 'water', x: 3500, z: 0, radius: 700, minAltitude: 20, maxAltitude: 280, credits: 75 },
+  { id: 'mountain-ridge', name: 'Mountain Ridge', type: 'secret', x: -4300, z: -4300, radius: 300, minAltitude: 300, maxAltitude: 950, credits: 300, mapVisible: false },
 ];
 
 type BoxPlacement = { x: number; y: number; z: number; width: number; height: number; depth: number; rotation?: number; color?: number };
@@ -291,12 +311,12 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): {
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
   const facadeBox = createFacadeBoxGeometry();
 
-  const grassTexture = createSurfaceTexture('#697a53', '#849068', '#536444', 96);
-  const developedTexture = createSurfaceTexture('#777b79', '#929492', '#606564', 42);
-  const pavementTexture = createSurfaceTexture('#777978', '#929392', '#5f6262', 22);
-  const asphaltTexture = createSurfaceTexture('#303335', '#444749', '#202325', 48);
-  const soilTexture = createSurfaceTexture('#93815a', '#ad996e', '#756744', 18);
-  const fieldTexture = createSurfaceTexture('#74804d', '#87925b', '#606b3e', 20);
+  const grassTexture = createSurfaceTexture('#597446', '#789159', '#405b36', 96);
+  const developedTexture = createSurfaceTexture('#687176', '#858d8d', '#505b60', 42);
+  const pavementTexture = createSurfaceTexture('#697173', '#858d8c', '#50595c', 22);
+  const asphaltTexture = createSurfaceTexture('#242d32', '#3b464b', '#182025', 48);
+  const soilTexture = createSurfaceTexture('#9b8351', '#b89c64', '#77653e', 18);
+  const fieldTexture = createSurfaceTexture('#657a42', '#829957', '#4b6234', 20);
   const downtownFacadeTextures = [
     createFacadeTexture('#b7b8b4', '#868b8b', '#34464e', 14, 18),
     createFacadeTexture('#aeb8bb', '#708087', '#263e49', 16, 34, true),
@@ -317,14 +337,14 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): {
     new THREE.MeshStandardMaterial({ color: 0x8fa2a8, map: downtownFacadeTextures[2], roughness: 0.38, metalness: 0.2 }),
     new THREE.MeshStandardMaterial({ color: 0xa8acab, map: industrialFacadeTexture, roughness: 0.9, metalness: 0.08 }),
   ];
-  const osmWaterMaterial = new THREE.MeshStandardMaterial({ color: 0x247d98, roughness: 0.34, metalness: 0.08 });
+  const osmWaterMaterial = new THREE.MeshStandardMaterial({ color: 0x126f98, emissive: 0x05263a, emissiveIntensity: 0.18, roughness: 0.2, metalness: 0.18 });
   const osmLandMaterials = [
-    new THREE.MeshStandardMaterial({ color: 0x657d55, map: grassTexture, roughness: 1 }),
-    new THREE.MeshStandardMaterial({ color: 0x405f43, map: grassTexture, roughness: 1 }),
-    new THREE.MeshStandardMaterial({ color: 0x666b69, map: developedTexture, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0x4f7b4d, map: grassTexture, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0x2e603d, map: grassTexture, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0x58666b, map: developedTexture, roughness: 1 }),
   ];
 
-  const horizonGround = new THREE.Mesh(new THREE.PlaneGeometry(60_000, 60_000), new THREE.MeshStandardMaterial({ color: 0x526b42, roughness: 1, depthWrite: false }));
+  const horizonGround = new THREE.Mesh(new THREE.PlaneGeometry(60_000, 60_000), new THREE.MeshStandardMaterial({ color: 0x47663d, roughness: 1, depthWrite: false }));
   horizonGround.rotation.x = -Math.PI / 2;
   horizonGround.position.y = -90;
   horizonGround.renderOrder = -3;
@@ -453,9 +473,9 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): {
   addBoxes(scene, unitBox, new THREE.MeshStandardMaterial({ color: 0xffffff, map: grassTexture, roughness: 1 }), airportGrounds, transform, -1);
   addBoxes(scene, unitBox, new THREE.MeshStandardMaterial({ color: 0x777b7b, map: asphaltTexture, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection * 2 }), runways, transform, 1);
   addBoxes(scene, unitBox, new THREE.MeshStandardMaterial({ color: 0xffffff, map: pavementTexture, roughness: 1 }), pavements, transform, 1);
-  addBoxes(scene, unitBox, new THREE.MeshBasicMaterial({ color: 0xf4f0dc, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection * 2 }), markings, transform, 2);
-  addBoxes(scene, unitBox, new THREE.MeshBasicMaterial({ color: 0xe5c14f, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection * 2 }), taxiMarkings, transform, 2);
-  addBoxes(scene, unitBox, new THREE.MeshBasicMaterial({ color: 0xffe49a }), lights, transform, 2);
+  addBoxes(scene, unitBox, new THREE.MeshBasicMaterial({ color: 0xfff4d1, toneMapped: false, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection * 2 }), markings, transform, 2);
+  addBoxes(scene, unitBox, new THREE.MeshBasicMaterial({ color: 0xf1bd3e, toneMapped: false, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection * 2 }), taxiMarkings, transform, 2);
+  addBoxes(scene, unitBox, new THREE.MeshBasicMaterial({ color: 0xffdc88, toneMapped: false }), lights, transform, 2);
   addBoxes(scene, facadeBox, new THREE.MeshStandardMaterial({ color: 0xffffff, map: industrialFacadeTexture, roughness: 0.82, metalness: 0.04 }), hangars, transform);
   addBoxes(scene, facadeBox, new THREE.MeshStandardMaterial({ color: 0xffffff, map: terminalFacadeTexture, roughness: 0.36, metalness: 0.18 }), terminals, transform);
   addBoxes(scene, unitBox, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.68, metalness: 0.08 }), towers, transform);
@@ -981,7 +1001,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): {
   ];
   addBoxes(scene, unitBox, new THREE.MeshStandardMaterial({ color: 0x798257, map: fieldTexture, roughness: 1 }), outerShore, transform);
   addBoxes(scene, unitBox, new THREE.MeshStandardMaterial({ color: 0xb8ad7d, map: soilTexture, roughness: 1 }), shore, transform);
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(SCALE.water.width, SCALE.water.depth), new THREE.MeshStandardMaterial({ color: 0x247d98, roughness: 0.34, metalness: 0.08 }));
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(SCALE.water.width, SCALE.water.depth), new THREE.MeshStandardMaterial({ color: 0x126f98, emissive: 0x05263a, emissiveIntensity: 0.18, roughness: 0.2, metalness: 0.18 }));
   water.rotation.x = -Math.PI / 2;
   water.position.set(SCALE.water.x, 0.13, SCALE.water.z);
   scene.add(water);

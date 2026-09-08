@@ -12,6 +12,7 @@
         <h1>Choose a city</h1>
         <p>Pick a flight sandbox to enter.</p>
         <div id="city-options" class="city-options"></div>
+        <button id="garage-entry" class="garage-entry" type="button">Aircraft Garage</button>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
       </div>
     </main>
@@ -32,9 +33,11 @@
         <span id="vsi-indicator" aria-hidden="true"></span>
       </section>
       <div id="flight-reference" aria-hidden="true"><span></span><i></i><span></span></div>
+      <div id="acquisition-circle" aria-hidden="true"></div>
       <section id="flight-status" class="glass-instrument">
         <div class="flight-state-row">STATE <strong id="flight-state">TAXI</strong></div>
         <div class="health-row">HP <strong id="health">100</strong></div>
+        <div id="target-feedback" class="target-feedback hidden">TGT <strong id="target-distance">0</strong>M <b id="target-range">SEARCHING</b></div>
         <div class="airport-navigation"><span>NEAREST <strong id="nearest-airport">Central International</strong></span><span><strong id="airport-distance">45</strong> M</span></div>
         <div id="waypoint-navigation" class="airport-navigation hidden"><span>WAYPOINT <strong id="waypoint-bearing">000°</strong></span><span><strong id="waypoint-distance">0</strong> M</span></div>
         <div id="world-status" class="world-status hidden">Leaving City 1</div>
@@ -56,11 +59,13 @@
             <option value="fighter">Fighter-Style Jet — 2,000 credits</option>
           </select>
         </label>
-        <div class="progress-stats"><span>Credits <strong id="credits">0</strong></span><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span></div>
+        <div class="progress-stats"><span>Credits <strong id="credits">0</strong></span><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span><span id="discovery-progress">Discoveries 0 / 0 — 0%</span></div>
         <div class="pilot-name">Pilot <strong id="player-name"></strong></div>
         <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>
         <button id="cities-button" class="cities-button" type="button">Cities</button>
-        <div class="controls">W/S throttle · arrows fly · M map · Space fire</div>
+        <button id="garage-button" class="cities-button" type="button">Garage</button>
+        <button id="pilot-menu-button" class="cities-button" type="button">Pilot Menu</button>
+        <div class="controls">W/S throttle · A/D or Q/E turn · ←/→ roll · ↑/↓ pitch · M map · TAB menu · Space fire</div>
       </details>
     </aside>
     <aside id="leaderboard">
@@ -71,6 +76,12 @@
       <div class="radar-title">RADAR <span>3,000</span></div>
       <canvas id="radar" width="180" height="180"></canvas>
       <div class="radar-legend"><span class="airport-key">◆ Airport</span><span class="player-key">● Player</span></div>
+    </aside>
+    <aside id="next-actions" class="next-actions" aria-label="Suggested activities"></aside>
+    <aside id="contextual-hint" class="contextual-hint hidden" aria-live="polite">
+      <strong id="contextual-hint-title"></strong>
+      <span id="contextual-hint-body"></span>
+      <button id="contextual-hint-dismiss" type="button">Got it</button>
     </aside>
     <section id="world-map-overlay" class="world-map-overlay hidden" aria-label="World map">
       <div class="world-map-card">
@@ -96,8 +107,17 @@
       </div>
     </details>
     <div id="active-contract" class="active-contract hidden"></div>
+    <div id="sky-challenge" class="sky-challenge hidden"></div>
+    <aside id="dynamic-event" class="dynamic-event hidden">
+      <strong id="dynamic-event-name">SKY EVENT</strong>
+      <span id="dynamic-event-objective"></span>
+      <button id="dynamic-event-join" type="button">JOIN</button>
+    </aside>
+    <aside id="social-panel" class="social-panel">
+      <strong id="formation-status">SOCIAL SKY</strong>
+    </aside>
     <div id="leader-message" class="hidden">YOU'RE #1</div>
-    <div id="near-miss-message" class="hidden">+250 NEAR MISS</div>
+    <div id="near-miss-message" class="hidden">NEAR MISS</div>
     <div id="checkpoint-message" class="hidden">+100 CHECKPOINT</div>
     <div id="progress-message" class="hidden"></div>
     <div id="combat-message" class="hidden"></div>
@@ -107,10 +127,10 @@
     <div id="how-to-play" class="how-to-play" role="dialog" aria-labelledby="how-to-title">
       <div class="how-to-card">
         <div id="how-to-title" class="how-to-title">HOW TO PLAY</div>
-        <div><strong>W / S</strong> — Speed up / slow down</div>
+        <div><strong>W / S</strong> — Speed up / brake / reverse taxi</div>
         <div><strong>↑ / ↓</strong> — Pitch up / down</div>
-        <div><strong>← / →</strong> — Turn left / right</div>
-        <div><strong>A / D</strong> — Roll left / right</div>
+        <div><strong>← / →</strong> — Roll left / right</div>
+        <div><strong>A / D</strong> — Turn left / right</div>
         <div><strong>Q / E</strong> — Turn left / right</div>
         <div><strong>SPACE</strong> — Fire</div>
         <div><strong>M</strong> — World map</div>
@@ -129,6 +149,8 @@
         <div class="restart">Press R to Restart</div>
       </div>
     </div>
+    <div id="garage-overlay" class="garage-overlay" hidden></div>
+    <div id="pilot-menu-overlay" class="pilot-menu-overlay" hidden></div>
     </div>
     <script type="module" src="/src/bootstrap.ts"></script>
   </body>

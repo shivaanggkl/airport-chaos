@@ -105,8 +105,8 @@ function createCloudTexture(): THREE.CanvasTexture {
   canvas.height = 128;
   const context = canvas.getContext('2d')!;
   const gradient = context.createRadialGradient(64, 64, 6, 64, 64, 62);
-  gradient.addColorStop(0, 'rgba(255,255,255,0.62)');
-  gradient.addColorStop(0.48, 'rgba(248,252,255,0.32)');
+  gradient.addColorStop(0, 'rgba(255,255,255,0.72)');
+  gradient.addColorStop(0.48, 'rgba(230,244,255,0.4)');
   gradient.addColorStop(1, 'rgba(235,245,255,0)');
   context.fillStyle = gradient;
   context.fillRect(0, 0, 128, 128);
@@ -118,7 +118,7 @@ function createCloudTexture(): THREE.CanvasTexture {
 export function addCloudLayer(scene: THREE.Scene): void {
   const clouds = new THREE.InstancedMesh(
     new THREE.PlaneGeometry(1, 1),
-    new THREE.MeshBasicMaterial({ map: createCloudTexture(), transparent: true, depthWrite: false, opacity: 0.52 }),
+    new THREE.MeshBasicMaterial({ map: createCloudTexture(), transparent: true, depthWrite: false, opacity: 0.6, toneMapped: false }),
     24,
   );
   const transform = new THREE.Object3D();

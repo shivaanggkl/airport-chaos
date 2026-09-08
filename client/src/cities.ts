@@ -14,7 +14,13 @@ export type CityWorldModule = Omit<typeof import('./world'), 'WORLD_SIZE'> & {
   WORLD_SIZE: number;
   visualQaPresets?: ReadonlyArray<VisualQaPreset>;
   mapLayer?: import('./world-map').WorldMapLayer;
+  adPlacements?: ReadonlyArray<import('./ad-placement').AdPlacement>;
+  ambientTrafficConfig?: import('./ambient-traffic').AmbientTrafficConfig;
+  skyChallenges?: ReadonlyArray<import('./sky-challenges').SkyChallengeDefinition>;
+  stuntZones?: ReadonlyArray<import('./stunt-combo').StuntZone>;
+  discoveries?: ReadonlyArray<import('./discoveries').DiscoveryDefinition>;
   updateWorldStreaming?: (position: import('three').Vector3) => void;
+  getWorldStreamingStats?: () => import('./dallas-streamer').DallasStreamingStats | undefined;
   disposeWorldStreaming?: () => void;
 };
 

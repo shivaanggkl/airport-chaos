@@ -23,16 +23,25 @@ type MapAirport = {
   runwayLength: number;
 };
 
-type MapPlayer = { id: string; x: number; z: number };
+type MapPlayer = { id: string; x: number; z: number; king?: boolean };
 type MapTarget = { x: number; z: number; label?: string };
+export type MapChallenge = { id: string; x: number; z: number; label: string; active: boolean };
+export type MapEvent = { id: string; x: number; z: number; label: string; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
+export type MapDiscovery = { id: string; label: string; x: number; z: number; discovered: boolean; secret: boolean };
+export type MapDiscoveryProgress = { cityName: string; discovered: number; total: number; percent: number };
 type StaticMapData = { roads?: number[]; water?: number[][] };
 
 export type WorldMapState = {
   position: { x: number; z: number };
   forward: { x: number; z: number };
+  king?: boolean;
   players: readonly MapPlayer[];
   waypoint: MapTarget | null;
   contractTarget: MapTarget | null;
+  challenges?: readonly MapChallenge[];
+  events?: readonly MapEvent[];
+  discoveries?: readonly MapDiscovery[];
+  discoveryProgress?: MapDiscoveryProgress;
 };
 
 const CLICK_DISTANCE = 18;
@@ -65,6 +74,7 @@ export class WorldMap {
     private readonly layer: WorldMapLayer,
     private readonly airports: readonly MapAirport[],
     private readonly onWaypoint: (position: MapTarget | null) => void,
+    private readonly onChallenge?: (challengeId: string) => void,
   ) {
     this.context = canvas.getContext('2d')!;
     this.staticContext = this.staticCanvas.getContext('2d')!;
@@ -191,6 +201,13 @@ export class WorldMap {
 
   private click(event: PointerEvent): void {
     const click = this.eventToCanvas(event);
+    for (const challenge of this.state?.challenges ?? []) {
+      const marker = this.worldToScreen(challenge.x, challenge.z);
+      if (Math.hypot(click.x - marker.x, click.y - marker.y) <= CLICK_DISTANCE) {
+        this.onChallenge?.(challenge.id);
+        return;
+      }
+    }
     if (this.state?.waypoint) {
       const waypoint = this.worldToScreen(this.state.waypoint.x, this.state.waypoint.z);
       if (Math.hypot(click.x - waypoint.x, click.y - waypoint.y) <= CLICK_DISTANCE) {
@@ -344,14 +361,56 @@ export class WorldMap {
     if (!this.state) return;
     if (this.state.contractTarget) this.drawTarget(this.state.contractTarget, '#b57cff', 'CONTRACT');
     if (this.state.waypoint) this.drawTarget(this.state.waypoint, '#ffd865', 'WAYPOINT');
+    for (const challenge of this.state.challenges ?? []) this.drawChallenge(challenge);
+    for (const event of this.state.events ?? []) this.drawEvent(event);
+    for (const discovery of this.state.discoveries ?? []) this.drawDiscovery(discovery);
     for (const player of this.state.players) {
       const point = this.worldToScreen(player.x, player.z);
       this.context.fillStyle = '#ff6d70'; this.context.beginPath(); this.context.arc(point.x, point.y, 4, 0, Math.PI * 2); this.context.fill();
+      if (player.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 7); }
     }
     const point = this.worldToScreen(this.state.position.x, this.state.position.z);
     const rotation = Math.atan2(this.state.forward.x, -this.state.forward.z);
     this.context.save(); this.context.translate(point.x, point.y); this.context.rotate(rotation);
     this.context.fillStyle = '#ecfbff'; this.context.beginPath(); this.context.moveTo(0, -8); this.context.lineTo(-5, 6); this.context.lineTo(5, 6); this.context.closePath(); this.context.fill(); this.context.restore();
+    if (this.state.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 10); }
+    if (this.state.discoveryProgress) this.drawDiscoveryProgress(this.state.discoveryProgress);
+  }
+
+  private drawDiscoveryProgress(progress: MapDiscoveryProgress): void {
+    const label = `${progress.cityName.toUpperCase()} DISCOVERY: ${progress.discovered} / ${progress.total} — ${progress.percent}%`;
+    this.context.fillStyle = 'rgba(4, 14, 21, 0.76)';
+    this.context.fillRect(10, this.canvas.height - 28, Math.min(this.canvas.width - 20, 250), 18);
+    this.context.fillStyle = '#b9e5df';
+    this.context.font = '700 10px ui-monospace, monospace';
+    this.context.textAlign = 'left';
+    this.context.fillText(label, 16, this.canvas.height - 15);
+  }
+
+  private drawDiscovery(discovery: MapDiscovery): void {
+    const point = this.worldToScreen(discovery.x, discovery.z);
+    if (!discovery.discovered) {
+      this.context.strokeStyle = 'rgba(184, 209, 219, 0.68)';
+      this.context.lineWidth = 1.5;
+      this.context.beginPath();
+      this.context.arc(point.x, point.y, 6, 0, Math.PI * 2);
+      this.context.stroke();
+      this.context.fillStyle = '#d3e2e7';
+      this.context.font = '700 10px ui-monospace, monospace';
+      this.context.textAlign = 'center';
+      this.context.fillText('?', point.x, point.y + 3.5);
+      return;
+    }
+    this.context.save();
+    this.context.translate(point.x, point.y);
+    this.context.rotate(Math.PI / 4);
+    this.context.fillStyle = discovery.secret ? '#d9a4ff' : '#77d8d2';
+    this.context.fillRect(-3.5, -3.5, 7, 7);
+    this.context.restore();
+    this.context.fillStyle = discovery.secret ? '#ebcfff' : '#a9f1e9';
+    this.context.font = '700 9px ui-monospace, monospace';
+    this.context.textAlign = 'center';
+    this.context.fillText(discovery.label.toUpperCase(), point.x, point.y - 8);
   }
 
   private drawTarget(target: MapTarget, color: string, label: string): void {
@@ -360,5 +419,32 @@ export class WorldMap {
     this.context.beginPath(); this.context.arc(point.x, point.y, 8, 0, Math.PI * 2); this.context.stroke();
     this.context.fillStyle = color; this.context.font = '700 10px ui-monospace, monospace'; this.context.textAlign = 'center';
     this.context.fillText(target.label ?? label, point.x, point.y - 12);
+  }
+
+  private drawChallenge(challenge: MapChallenge): void {
+    const point = this.worldToScreen(challenge.x, challenge.z);
+    const color = challenge.active ? '#63e8ff' : '#65bad0';
+    this.context.strokeStyle = color;
+    this.context.lineWidth = challenge.active ? 2.5 : 1.5;
+    this.context.beginPath();
+    this.context.moveTo(point.x, point.y - 7); this.context.lineTo(point.x + 6, point.y + 5);
+    this.context.lineTo(point.x - 6, point.y + 5); this.context.closePath(); this.context.stroke();
+    this.context.fillStyle = color;
+    this.context.font = '700 9px ui-monospace, monospace';
+    this.context.textAlign = 'center';
+    this.context.fillText(challenge.label, point.x, point.y - 11);
+  }
+
+  private drawEvent(event: MapEvent): void {
+    if (event.lifecycle !== 'available' && event.lifecycle !== 'active') return;
+    const point = this.worldToScreen(event.x, event.z);
+    const color = event.lifecycle === 'active' ? '#ffb34f' : '#efcf87';
+    this.context.strokeStyle = color;
+    this.context.lineWidth = 2;
+    this.context.beginPath(); this.context.arc(point.x, point.y, 8, 0, Math.PI * 2); this.context.stroke();
+    this.context.fillStyle = color;
+    this.context.font = '700 9px ui-monospace, monospace';
+    this.context.textAlign = 'center';
+    this.context.fillText(event.label, point.x, point.y - 12);
   }
 }

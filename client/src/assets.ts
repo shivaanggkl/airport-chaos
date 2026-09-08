@@ -122,9 +122,16 @@ export function attachAircraftAsset(
   void loadAsset(type)
     .then((source) => {
       const model = normalizedClone(source, { x: targetSpan, y: targetSpan, z: targetLength }, true, true);
-      model.rotation.y = Math.PI;
+      // The Trainer source already faces local -Z (propeller at -Z), matching
+      // the flight model. The other sourced aircraft require the legacy flip.
+      model.rotation.y = type === 'trainer' ? 0 : Math.PI;
       model.name = `aircraft-asset-${type}`;
       plane.add(model);
+      if (type === 'trainer') {
+        // This node is authored at the GLB's local nose and therefore follows
+        // the normalized model through every aircraft transform.
+        plane.userData.assetPropeller = model.getObjectByName('Propeller_Cone') ?? null;
+      }
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
     })

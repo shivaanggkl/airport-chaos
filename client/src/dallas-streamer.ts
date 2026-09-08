@@ -6,6 +6,16 @@ type ManifestEntry = { id: string; lod: Lod; x: number; z: number; minX: number;
 type Manifest = Omit<CompactCityData, 'chunks'> & { chunks: ManifestEntry[] };
 type Loaded = { entry: ManifestEntry; groups: THREE.Group[]; lastUsed: number };
 type Options = Parameters<typeof addOsmCityData>[2];
+export type DallasStreamingStats = {
+  loaded: Record<Lod, number>;
+  loadedBytes: number;
+  cacheLimitBytes: number;
+  queued: number;
+  pending: number;
+  loadedChunks: number;
+  evictedChunks: number;
+  discardedLoads: number;
+};
 const ranges: Record<Lod, number> = { near: 5_000, mid: 15_000, far: 35_000 };
 const order: Lod[] = ['near', 'mid', 'far'];
 const enterRanges: Record<Lod, number> = { near: 4_600, mid: 14_200, far: 35_000 };
@@ -14,7 +24,8 @@ const exitRanges: Record<Lod, number> = { near: 5_900, mid: 16_200, far: 36_250 
 export class DallasChunkStreamer {
   private manifest?: Manifest;
   private readonly loaded = new Map<string, Loaded>();
-  private readonly requested = new Set<string>();
+  private readonly desired = new Set<string>();
+  private readonly pending = new Set<string>();
   private readonly visibleLod = new Map<string, Lod>();
   private queue: ManifestEntry[] = [];
   private active = 0;
@@ -23,6 +34,9 @@ export class DallasChunkStreamer {
   private lastPosition = new THREE.Vector3(Infinity, 0, Infinity);
   private readonly maxConcurrency = 5;
   private readonly maxBytes = 128 * 1024 * 1024;
+  private loadedChunks = 0;
+  private evictedChunks = 0;
+  private discardedLoads = 0;
 
   constructor(private readonly scene: THREE.Scene, private readonly options: Options) {
     void fetch('/data/dallas/manifest.json').then((response) => response.json()).then((manifest: Manifest) => { if (this.alive) this.manifest = manifest; });
@@ -40,11 +54,21 @@ export class DallasChunkStreamer {
       if (distance <= ranges[entry.lod] + 1_250) required.push({ entry, distance });
     }
     required.sort((a, b) => a.distance - b.distance || order.indexOf(a.entry.lod) - order.indexOf(b.entry.lod));
+    this.desired.clear();
+    for (const { entry } of required) this.desired.add(this.keyFor(entry));
+    // A flight update can move the desired window kilometres before the
+    // bounded loader drains it. Never retain a cross-city backlog: queued
+    // chunks outside the latest window are neither useful nor cacheable.
+    this.queue = this.queue.filter((entry) => {
+      const keep = this.desired.has(this.keyFor(entry));
+      if (!keep) this.pending.delete(this.keyFor(entry));
+      return keep;
+    });
     for (const { entry } of required) {
-      const key = `${entry.lod}:${entry.id}`;
+      const key = this.keyFor(entry);
       const loaded = this.loaded.get(key);
       if (loaded) { loaded.lastUsed = performance.now(); continue; }
-      if (!this.requested.has(key)) { this.requested.add(key); this.queue.push(entry); }
+      if (!this.pending.has(key)) { this.pending.add(key); this.queue.push(entry); }
     }
     this.queue.sort((a, b) => Math.hypot(position.x - (a.minX + a.maxX) / 2, position.z - (a.minZ + a.maxZ) / 2) - Math.hypot(position.x - (b.minX + b.maxX) / 2, position.z - (b.minZ + b.maxZ) / 2));
     this.pump();
@@ -55,19 +79,28 @@ export class DallasChunkStreamer {
   private pump(): void {
     while (this.alive && this.active < this.maxConcurrency && this.queue.length) {
       const entry = this.queue.shift()!;
+      const key = this.keyFor(entry);
+      if (!this.desired.has(key) || this.loaded.has(key)) {
+        this.pending.delete(key);
+        continue;
+      }
       this.active += 1;
       void fetch(`/data/dallas/${entry.filename}`).then((response) => response.json()).then((chunk: CompactChunk) => {
-        if (!this.alive || !this.manifest) return;
+        // Fetches cannot be cancelled reliably after dispatch, but obsolete
+        // responses must be discarded before they allocate Three.js geometry.
+        if (!this.alive || !this.manifest || !this.desired.has(key) || this.loaded.has(key)) {
+          this.discardedLoads += 1;
+          return;
+        }
         const city: CompactCityData = { v: this.manifest.v, source: this.manifest.source, attribution: this.manifest.attribution, license: this.manifest.license, chunkSize: this.manifest.chunkSize, chunks: [chunk] };
         const result = addOsmCityData(this.scene, city, this.options);
-        const key = `${entry.lod}:${entry.id}`;
         this.loaded.set(key, { entry, groups: result.groups, lastUsed: performance.now() });
         this.loadedBytes += entry.bytes;
+        this.loadedChunks += 1;
         this.applyLodVisibility(entry.id, this.lastPosition);
       }).catch(() => {
         // Failed chunk requests must remain retryable as the player approaches again.
-        this.requested.delete(`${entry.lod}:${entry.id}`);
-      }).finally(() => { this.active -= 1; this.pump(); });
+      }).finally(() => { this.pending.delete(key); this.active -= 1; this.pump(); });
     }
   }
 
@@ -116,10 +149,10 @@ export class DallasChunkStreamer {
       if (!distant && this.loadedBytes <= this.maxBytes) continue;
       const replacementReady = order.some((lod) => lod !== loaded.entry.lod && this.loaded.has(`${lod}:${loaded.entry.id}`));
       if (!replacementReady && this.loadedBytes <= this.maxBytes) continue;
-      this.loaded.delete(`${loaded.entry.lod}:${loaded.entry.id}`);
-      this.requested.delete(`${loaded.entry.lod}:${loaded.entry.id}`);
+      this.loaded.delete(this.keyFor(loaded.entry));
       this.loadedBytes -= loaded.entry.bytes;
       disposeOsmGroups(loaded.groups);
+      this.evictedChunks += 1;
       this.applyLodVisibility(loaded.entry.id, position);
     }
   }
@@ -127,6 +160,23 @@ export class DallasChunkStreamer {
   dispose(): void {
     this.alive = false;
     for (const loaded of this.loaded.values()) disposeOsmGroups(loaded.groups);
-    this.loaded.clear(); this.queue = []; this.requested.clear(); this.visibleLod.clear(); this.loadedBytes = 0;
+    this.loaded.clear(); this.queue = []; this.desired.clear(); this.pending.clear(); this.visibleLod.clear(); this.loadedBytes = 0;
   }
+
+  getStats(): DallasStreamingStats {
+    const loaded: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
+    for (const value of this.loaded.values()) loaded[value.entry.lod] += 1;
+    return {
+      loaded,
+      loadedBytes: this.loadedBytes,
+      cacheLimitBytes: this.maxBytes,
+      queued: this.queue.length,
+      pending: this.pending.size,
+      loadedChunks: this.loadedChunks,
+      evictedChunks: this.evictedChunks,
+      discardedLoads: this.discardedLoads,
+    };
+  }
+
+  private keyFor(entry: ManifestEntry): string { return `${entry.lod}:${entry.id}`; }
 }
