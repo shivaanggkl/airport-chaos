@@ -28,10 +28,19 @@ export type PilotMenuPlayer = {
   king: boolean;
   setWaypoint?: () => void;
 };
+export type PilotMenuTerritory = {
+  name: string;
+  controller: string;
+  contested: boolean;
+  progress: number;
+  distance: number;
+  setWaypoint: () => void;
+};
 
 export type PilotMenuData = {
   status: readonly string[];
   players: { city: string; entries: readonly PilotMenuPlayer[] };
+  territories: { city: string; entries: readonly PilotMenuTerritory[] };
   activities: readonly PilotMenuActivity[];
   liveEvent?: PilotMenuEvent;
   stunts: readonly PilotMenuStunt[];
@@ -111,6 +120,20 @@ export class PilotMenu {
       }));
     }
     card.append(players);
+
+    const territories = section('Territories');
+    if (!data.territories.entries.length) territories.append(textElement('p', 'No territory control is active in this city.', 'pilot-menu-muted'));
+    for (const territory of data.territories.entries) {
+      territories.append(this.createCard({
+        name: `${territory.name}${territory.contested ? ' · CONTESTED' : ''}`,
+        detail: territory.contested
+          ? `Contested · capture paused · ${Math.round(territory.distance)}m away`
+          : `${territory.controller} · ${territory.progress > 0 ? `Capture ${territory.progress}% · ` : ''}${Math.round(territory.distance)}m away`,
+        meta: 'Stay meaningfully active in the zone to capture or hold it. Idling does not count.',
+        actions: [{ label: 'Set Waypoint', run: territory.setWaypoint }],
+      }));
+    }
+    card.append(territories);
 
     const activities = section('Activities');
     if (!data.activities.length) activities.append(textElement('p', 'No local activities are available in this city yet.', 'pilot-menu-muted'));

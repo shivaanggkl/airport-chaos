@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket, { WebSocketServer } from 'ws';
 import { PlayerProfileStore, type LegacyProfileImport, type PlayerProfile, type ProfileProgress } from './player-profiles.js';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
+import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { LOCK_ANGLE, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
@@ -35,6 +36,7 @@ type PlayerState = Transform & {
   velocity: Vector3;
   lastStateAt: number;
   chaosQaEnabled: boolean;
+  territoryIds: Set<string>;
 };
 
 type Vector3 = { x: number; y: number; z: number };
@@ -135,8 +137,40 @@ const chaosActionValues: Record<string, number> = {
   risk: 50,
 };
 const playerChaos = new Map<string, { multiplier: number; lastAction?: string; lastAt: number; pendingCredits: number }>();
-const playerHeat = new Map<string, { value: number; updatedAt: number }>();
+type PlayerHeat = { value: number; level: number; updatedAt: number; lastBroadcastAt: number; lastDangerAt: number };
+const heatTiers = [0, 20, 45, 75, 110, 150] as const;
+const heatMultipliers = [1, 1.05, 1.10, 1.20, 1.35, 1.50] as const;
+const heatGains = {
+  kill: 36,
+  stunt: 7,
+  nearMiss: 9,
+  eventWin: 22,
+  riskBank: 16,
+  dangerousFlight: 4,
+} as const;
+const heatDecayPerMinute = 5;
+const heatDangerCooldownMs = 10_000;
+const heatKillCooldownMs = 120_000;
+const playerHeat = new Map<string, PlayerHeat>();
 const recentBountyKills = new Map<string, number>();
+const recentHeatKills = new Map<string, number>();
+
+type TerritoryRuntime = {
+  definition: CityTerritory;
+  controllerId?: string;
+  capturingPlayerId?: string;
+  captureProgress: number;
+  contested: boolean;
+  lastRewardAt: number;
+  lastBroadcastAt: number;
+  lastContestedHeatAt: Map<string, number>;
+};
+const territoryTickMs = 400;
+const territoryCaptureSeconds = 24;
+const territoryCaptureRewardCooldownMs = 120_000;
+const territoryControlRewardMs = 45_000;
+const territoryRewardCooldown = new Map<string, number>();
+const cityTerritoryState = new Map<CityId, Map<string, TerritoryRuntime>>();
 
 const port = Number(process.env.PORT ?? 8091);
 const clientDist = resolve(fileURLToPath(new URL('../../client/dist/', import.meta.url)));
@@ -318,10 +352,11 @@ function updateKing(cityId: CityId, preferredId?: string): void {
 function awardSocialPlayer(playerId: string, score: number, credits: number, reason: string): void {
   const player = players.get(playerId);
   if (!player) return;
-  player.score += score;
-  const profile = profileStore.awardServerReward(player.pilotId, credits, { challengeCompletions: reason.includes('CHALLENGE WON') ? 1 : 0 });
+  const reward = rewardWithHeat(playerId, score, credits);
+  player.score += reward.score;
+  const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { challengeCompletions: reason.includes('CHALLENGE WON') ? 1 : 0 });
   if (profile) sendProfile(playerId, profile);
-  sendToPlayer(playerId, { type: 'socialReward', score, credits, reason });
+  sendToPlayer(playerId, { type: 'socialReward', score: reward.score, credits: reward.credits, reason });
   broadcastLeaderboard(player.cityId);
   updateKing(player.cityId);
 }
@@ -463,6 +498,12 @@ function eventName(event: Pick<CityEvent, 'cityId' | 'type' | 'goldenDrop'>): st
   return event.goldenDrop ? name.replace('SUPPLY DROP', 'GOLDEN DROP') : name;
 }
 
+function bountyMultiplier(event: Pick<CityEvent, 'type' | 'wantedPlayerId'>): number {
+  return event.type === 'mostWanted' && event.wantedPlayerId
+    ? heatMultiplier(currentHeat(event.wantedPlayerId).level)
+    : 1;
+}
+
 function qaEventSpec(forced: ChaosQaEvent): { type: DynamicEventType; riskMode?: CityEvent['riskMode']; goldenDrop: boolean } {
   switch (forced) {
     case 'goldenDrop': return { type: 'supplyDrop', goldenDrop: true };
@@ -533,7 +574,7 @@ function eventSnapshot(event: CityEvent): object {
       riskMode: event.riskMode,
       riskRadius: event.riskRadius,
       goldenDrop: event.goldenDrop,
-      rewardCredits: (template?.rewardCredits ?? 0) * (event.goldenDrop ? 2 : 1),
+      rewardCredits: Math.round((template?.rewardCredits ?? 0) * (event.goldenDrop ? 2 : 1) * bountyMultiplier(event)),
     },
   };
 }
@@ -584,8 +625,8 @@ function selectMostWanted(cityId: CityId, now: number): [string, PlayerState] | 
   return [...players.entries()]
     .filter(([playerId, player]) => isWantedEligible(playerId, player, cityId, now))
     .sort((left, right) =>
-      (playerHeat.get(right[0])?.value ?? right[1].score * 0.05) -
-      (playerHeat.get(left[0])?.value ?? left[1].score * 0.05),
+      currentHeat(right[0], now).value - currentHeat(left[0], now).value ||
+      right[1].score - left[1].score,
     )[0];
 }
 
@@ -618,11 +659,16 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
   const player = players.get(playerId);
   if (!player || player.cityId !== event.cityId) return;
   event.rewardsGiven.add(playerId);
-  player.score += score;
-  addHeat(playerId, 22);
-  const profile = profileStore.awardServerReward(player.pilotId, credits, { eventCompletions: 1 });
+  addHeat(playerId, reason.includes('RISK ZONE')
+    ? heatGains.riskBank
+    : reason.includes('WON') || reason.includes('BOUNTY') || reason.includes('SURVIVED')
+      ? heatGains.eventWin
+      : 5);
+  const reward = rewardWithHeat(playerId, score, credits);
+  player.score += reward.score;
+  const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { eventCompletions: 1 });
   if (profile) sendProfile(playerId, profile);
-  sendToPlayer(playerId, { type: 'eventReward', eventId: event.id, score, credits, reason });
+  sendToPlayer(playerId, { type: 'eventReward', eventId: event.id, score: reward.score, credits: reward.credits, reason });
   broadcastLeaderboard(event.cityId);
 }
 
@@ -637,28 +683,254 @@ function registerChaosAction(playerId: string, action: keyof typeof chaosActionV
   if (previous.lastAction === action && now - previous.lastAt < chaosActionCooldownMs) return;
   const chained = previous.lastAction !== undefined && now - previous.lastAt <= 10_000;
   const multiplier = chained && previous.lastAction !== action ? Math.min(5, previous.multiplier + 1) : 1;
-  const score = chaosActionValues[action] * multiplier;
+  const baseScore = chaosActionValues[action] * multiplier;
   previous.multiplier = multiplier;
   previous.lastAction = action;
   previous.lastAt = now;
-  previous.pendingCredits += Math.max(1, Math.floor(score / 50));
-  player.score += score;
+  const heatGain = action === 'nearMiss' ? heatGains.nearMiss : action === 'stunt' ? heatGains.stunt : 0;
+  if (heatGain > 0) addHeat(playerId, heatGain, now);
+  const reward = rewardWithHeat(playerId, baseScore, 0, now);
+  previous.pendingCredits += Math.max(1, Math.floor(reward.score / 50));
+  player.score += reward.score;
   playerChaos.set(playerId, previous);
-  sendToPlayer(playerId, { type: 'chaosState', multiplier, action, score, pendingCredits: previous.pendingCredits });
+  sendToPlayer(playerId, { type: 'chaosState', multiplier, action, score: reward.score, pendingCredits: previous.pendingCredits });
   broadcastLeaderboard(player.cityId);
 }
 
+function heatLevel(value: number): number {
+  for (let level = heatTiers.length - 1; level > 0; level -= 1) if (value >= heatTiers[level]) return level;
+  return 0;
+}
+
+function heatMultiplier(level: number): number {
+  return heatMultipliers[Math.max(0, Math.min(heatMultipliers.length - 1, level))];
+}
+
+function currentHeat(playerId: string, now = Date.now()): PlayerHeat {
+  const player = players.get(playerId);
+  const existing = playerHeat.get(playerId);
+  if (!existing) {
+    const initial: PlayerHeat = { value: 0, level: 0, updatedAt: now, lastBroadcastAt: 0, lastDangerAt: 0 };
+    playerHeat.set(playerId, initial);
+    return initial;
+  }
+  const elapsed = Math.max(0, now - existing.updatedAt);
+  if (elapsed > 0) {
+    existing.value = Math.max(0, existing.value - elapsed / 60_000 * heatDecayPerMinute);
+    existing.updatedAt = now;
+    existing.level = heatLevel(existing.value);
+  }
+  if (player?.cityId !== 'dallas') {
+    existing.value = 0;
+    existing.level = 0;
+  }
+  return existing;
+}
+
+function heatSnapshot(playerId: string, now = Date.now()): { playerId: string; value: number; level: number; multiplier: number } {
+  const heat = currentHeat(playerId, now);
+  return { playerId, value: Math.round(heat.value), level: heat.level, multiplier: heatMultiplier(heat.level) };
+}
+
+function broadcastHeat(playerId: string, levelChanged = false, now = Date.now()): void {
+  const player = players.get(playerId);
+  if (!player) return;
+  const heat = currentHeat(playerId, now);
+  heat.lastBroadcastAt = now;
+  broadcastToCity(player.cityId, { type: 'heatState', ...heatSnapshot(playerId, now), levelChanged });
+}
+
 function addHeat(playerId: string, amount: number, now = Date.now()): void {
-  const current = playerHeat.get(playerId);
-  const decayed = current ? Math.max(0, current.value - (now - current.updatedAt) / 60_000 * 5) : 0;
-  playerHeat.set(playerId, { value: Math.min(250, decayed + amount), updatedAt: now });
+  const player = players.get(playerId);
+  if (!player || player.cityId !== 'dallas' || amount <= 0) return;
+  const heat = currentHeat(playerId, now);
+  const priorLevel = heat.level;
+  heat.value = Math.min(200, heat.value + amount);
+  heat.level = heatLevel(heat.value);
+  heat.updatedAt = now;
+  broadcastHeat(playerId, heat.level !== priorLevel, now);
+}
+
+function reduceHeatAfterDestruction(playerId: string, now = Date.now()): void {
+  const heat = currentHeat(playerId, now);
+  const priorLevel = heat.level;
+  heat.value *= 0.35;
+  heat.level = heatLevel(heat.value);
+  heat.updatedAt = now;
+  broadcastHeat(playerId, heat.level !== priorLevel, now);
+}
+
+function rewardWithHeat(playerId: string, score: number, credits: number, now = Date.now()): { score: number; credits: number; multiplier: number } {
+  const multiplier = heatMultiplier(currentHeat(playerId, now).level);
+  return { score: Math.round(score * multiplier), credits: Math.round(credits * multiplier), multiplier };
+}
+
+function updateCityHeat(now: number): void {
+  for (const [pair, lastKillAt] of recentHeatKills) if (now - lastKillAt > heatKillCooldownMs) recentHeatKills.delete(pair);
+  for (const [playerId, player] of players) {
+    const previousLevel = playerHeat.get(playerId)?.level ?? 0;
+    const heat = currentHeat(playerId, now);
+    if (previousLevel !== heat.level || now - heat.lastBroadcastAt >= 5_000) broadcastHeat(playerId, previousLevel !== heat.level, now);
+    if (player.cityId !== 'dallas' || player.lifeState !== 'alive') continue;
+    const speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
+    const dangerous = speed >= 90 && player.position.y <= 220;
+    if (dangerous && now - heat.lastDangerAt >= heatDangerCooldownMs) {
+      heat.lastDangerAt = now;
+      addHeat(playerId, heatGains.dangerousFlight, now);
+    }
+  }
+}
+
+function territoryStates(cityId: CityId): TerritoryRuntime[] {
+  let states = cityTerritoryState.get(cityId);
+  if (!states) {
+    states = new Map(territoriesForCity(cityId).map((definition) => [definition.id, {
+      definition,
+      captureProgress: 0,
+      contested: false,
+      lastRewardAt: 0,
+      lastBroadcastAt: 0,
+      lastContestedHeatAt: new Map<string, number>(),
+    }]));
+    cityTerritoryState.set(cityId, states);
+  }
+  return [...states.values()];
+}
+
+function territorySnapshot(cityId: CityId): Array<{ id: string; controllerId?: string; controllerName?: string; capturingPlayerId?: string; captureProgress: number; contested: boolean }> {
+  return territoryStates(cityId).map((territory) => ({
+    id: territory.definition.id,
+    controllerId: territory.controllerId,
+    controllerName: territory.controllerId ? players.get(territory.controllerId)?.displayName : undefined,
+    capturingPlayerId: territory.capturingPlayerId,
+    captureProgress: Math.round(territory.captureProgress),
+    contested: territory.contested,
+  }));
+}
+
+function broadcastTerritories(cityId: CityId, now = Date.now()): void {
+  const territories = territoryStates(cityId);
+  if (!territories.length) return;
+  if (territories.every((territory) => now - territory.lastBroadcastAt < 1_000)) return;
+  for (const territory of territories) territory.lastBroadcastAt = now;
+  broadcastToCity(cityId, { type: 'territoryState', cityId, territories: territorySnapshot(cityId) });
+}
+
+function territoryContains(definition: CityTerritory, position: Vector3): boolean {
+  return position.x >= definition.bounds.minX && position.x <= definition.bounds.maxX &&
+    position.z >= definition.bounds.minZ && position.z <= definition.bounds.maxZ;
+}
+
+function isTerritoryActive(playerId: string, player: PlayerState, now: number): boolean {
+  if (player.lifeState !== 'alive' || !player.hasRespawnTransform || now - player.lastStateAt > 1_500) return false;
+  const speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
+  const chaos = playerChaos.get(playerId);
+  const event = cityEvents.get(player.cityId);
+  const activeEventParticipant = event?.lifecycle === 'active' && event.participants.has(playerId) && speed >= 6;
+  // Meaningful movement/firing/event participation count; a parked player never does.
+  return speed >= 12 || now - player.lastFireAt < 3_000 || Boolean(chaos && now - chaos.lastAt < 8_000) || activeEventParticipant;
+}
+
+function awardTerritory(playerId: string, territory: TerritoryRuntime, kind: 'capture' | 'control', now: number): void {
+  const player = players.get(playerId);
+  if (!player) return;
+  const key = `${player.cityId}:${territory.definition.id}:${playerId}:${kind}`;
+  const cooldown = kind === 'capture' ? territoryCaptureRewardCooldownMs : territoryControlRewardMs;
+  if ((territoryRewardCooldown.get(key) ?? 0) > now - cooldown) return;
+  territoryRewardCooldown.set(key, now);
+  const reward = rewardWithHeat(playerId, kind === 'capture' ? 125 : 35, kind === 'capture' ? 250 : 15, now);
+  player.score += reward.score;
+  const profile = profileStore.awardServerReward(player.pilotId, reward.credits);
+  if (profile) sendProfile(playerId, profile);
+  sendToPlayer(playerId, { type: 'territoryReward', territoryId: territory.definition.id, score: reward.score, credits: reward.credits, kind });
+  broadcastLeaderboard(player.cityId);
+}
+
+function removeTerritoryContribution(playerId: string): void {
+  const touched = new Set<CityId>();
+  for (const [cityId, states] of cityTerritoryState) for (const territory of states.values()) {
+    if (territory.capturingPlayerId === playerId) {
+      territory.capturingPlayerId = undefined;
+      territory.captureProgress = 0;
+      territory.lastBroadcastAt = 0;
+      touched.add(cityId);
+    }
+    if (territory.controllerId === playerId) {
+      territory.controllerId = undefined;
+      territory.captureProgress = 0;
+      territory.lastBroadcastAt = 0;
+      touched.add(cityId);
+    }
+  }
+  for (const cityId of touched) broadcastTerritories(cityId);
+}
+
+function updateTerritories(now: number): void {
+  for (const cityId of cityIds) {
+    const cityTerritories = territoryStates(cityId);
+    for (const [playerId, player] of players) {
+      if (player.cityId !== cityId) continue;
+      if (!player.hasRespawnTransform) {
+        player.territoryIds.clear();
+        continue;
+      }
+      const memberships = new Set(cityTerritories.filter((territory) => territoryContains(territory.definition, player.position)).map((territory) => territory.definition.id));
+      for (const territoryId of memberships) if (!player.territoryIds.has(territoryId)) {
+        sendToPlayer(playerId, { type: 'territoryNotice', territoryId, kind: 'enter' });
+      }
+      player.territoryIds = memberships;
+    }
+    const activePlayers = [...players.entries()].filter(([playerId, player]) => player.cityId === cityId && isTerritoryActive(playerId, player, now));
+    let changed = false;
+    for (const territory of cityTerritories) {
+      const inside = activePlayers.filter(([, player]) => territoryContains(territory.definition, player.position));
+      const contested = inside.length > 1;
+      if (territory.contested !== contested) { territory.contested = contested; changed = true; }
+      if (contested) {
+        for (const [playerId] of inside) {
+          if (now - (territory.lastContestedHeatAt.get(playerId) ?? 0) >= 15_000) {
+            territory.lastContestedHeatAt.set(playerId, now);
+            addHeat(playerId, 2, now);
+          }
+        }
+        continue;
+      }
+      const contributor = inside[0];
+      if (!contributor) continue;
+      const [playerId] = contributor;
+      if (territory.controllerId === playerId) {
+        if (now - territory.lastRewardAt >= territoryControlRewardMs) {
+          territory.lastRewardAt = now;
+          awardTerritory(playerId, territory, 'control', now);
+        }
+        continue;
+      }
+      if (territory.capturingPlayerId !== playerId) {
+        territory.capturingPlayerId = playerId;
+        territory.captureProgress = 0;
+        changed = true;
+      }
+      territory.captureProgress = Math.min(100, territory.captureProgress + 100 / (territoryCaptureSeconds * 1000 / territoryTickMs) * territory.definition.captureWeight);
+      changed = true;
+      if (territory.captureProgress >= 100) {
+        territory.controllerId = playerId;
+        territory.capturingPlayerId = undefined;
+        territory.lastRewardAt = now;
+        awardTerritory(playerId, territory, 'capture', now);
+        sendToPlayer(playerId, { type: 'territoryNotice', territoryId: territory.definition.id, kind: 'captured' });
+        changed = true;
+      }
+    }
+    if (changed) broadcastTerritories(cityId, now);
+  }
 }
 
 function bankChaos(playerId: string, reason: string): void {
   const state = playerChaos.get(playerId);
   const player = players.get(playerId);
   if (!state || !player || state.pendingCredits <= 0) return;
-  const credits = state.pendingCredits;
+  const reward = rewardWithHeat(playerId, 0, state.pendingCredits);
+  const credits = reward.credits;
   state.pendingCredits = 0;
   const profile = profileStore.awardServerReward(player.pilotId, credits);
   if (profile) sendProfile(playerId, profile);
@@ -679,9 +951,12 @@ function createCityEvent(cityId: CityId, now: number, forced?: ChaosQaEvent): Ci
   const forcedSpec = forced ? qaEventSpec(forced) : undefined;
   const previousType = lastEventTypes.get(cityId);
   const candidates = templates.filter((template) => template.type !== previousType);
+  const hasHighHeatPilot = cityId === 'dallas' && [...players.entries()].some(([playerId, player]) => player.cityId === cityId && currentHeat(playerId, now).level >= 4);
   const template = forcedSpec
     ? templates.find((candidate) => candidate.type === forcedSpec.type)
-    : candidates[Math.floor(Math.random() * candidates.length)] ?? templates[0];
+    : hasHighHeatPilot && candidates.some((candidate) => candidate.type === 'mostWanted') && Math.random() < 0.65
+      ? candidates.find((candidate) => candidate.type === 'mostWanted')
+      : candidates[Math.floor(Math.random() * candidates.length)] ?? templates[0];
   if (!template) return undefined;
   lastEventTypes.set(cityId, template.type);
   const activeAt = now + randomBetween(eventAvailableMinMs, eventAvailableMaxMs);
@@ -730,7 +1005,7 @@ function activateEvent(event: CityEvent, now: number): void {
     setEventTerminal(event, 'failed', now);
     return;
   }
-  broadcastToCity(event.cityId, { type: 'eventAnnouncement', eventId: event.id, name: eventName(event), reward: template.rewardCredits * (event.goldenDrop ? 2 : 1), expiresAt: event.expiresAt });
+  broadcastToCity(event.cityId, { type: 'eventAnnouncement', eventId: event.id, name: eventName(event), reward: Math.round(template.rewardCredits * (event.goldenDrop ? 2 : 1) * bountyMultiplier(event)), expiresAt: event.expiresAt });
   broadcastEvent(event);
 }
 
@@ -746,7 +1021,8 @@ function updateActiveEvent(event: CityEvent, now: number): void {
     if (!refreshMostWantedTarget(event, now)) return;
     if (event.wantedPlayerId !== previousTargetId) broadcastEvent(event);
     if (now >= event.expiresAt) {
-      awardEventPlayer(event, event.wantedPlayerId!, template.rewardScore, template.rewardCredits, 'BOUNTY SURVIVED');
+      const bounty = bountyMultiplier(event);
+      awardEventPlayer(event, event.wantedPlayerId!, template.rewardScore * bounty, template.rewardCredits * bounty, 'BOUNTY SURVIVED');
       setEventTerminal(event, 'completed', now);
     }
     return;
@@ -882,7 +1158,8 @@ function handleWantedDestruction(killerId: string, victimId: string, now: number
   recentBountyKills.set(pairKey, now);
   const template = eventTemplateFor(event);
   if (!template) return;
-  awardEventPlayer(event, killerId, template.rewardScore, template.rewardCredits, 'MOST WANTED BOUNTY');
+  const bounty = bountyMultiplier(event);
+  awardEventPlayer(event, killerId, template.rewardScore * bounty, template.rewardCredits * bounty, 'MOST WANTED BOUNTY');
   event.winnerId = killerId;
   setEventTerminal(event, 'completed', now);
 }
@@ -1172,7 +1449,9 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
 
   // Mark destruction before later shots can inspect this player.
   victim.lifeState = 'destroyed';
+  reduceHeatAfterDestruction(victimId, now);
   playerChaos.delete(victimId);
+  removeTerritoryContribution(victimId);
   const activeRiskZone = cityEvents.get(victim.cityId);
   if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
     activeRiskZone.progress.delete(victimId);
@@ -1184,13 +1463,19 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   removePlayerProjectiles(victimId);
   const killer = players.get(ownerId);
   if (killer?.entityType !== 'player') return true;
-  killer.score += 500;
-  addHeat(ownerId, 45, now);
-  registerChaosAction(ownerId, 'hit', now);
-  const killerProfile = profileStore.awardServerReward(killer.pilotId, 200, { kills: 1 });
+  const heatKillKey = `${ownerId}:${victimId}`;
+  const eligibleForReward = (recentHeatKills.get(heatKillKey) ?? 0) <= now - heatKillCooldownMs;
+  if (eligibleForReward) {
+    recentHeatKills.set(heatKillKey, now);
+    addHeat(ownerId, heatGains.kill, now);
+    registerChaosAction(ownerId, 'hit', now);
+  }
+  const killReward = eligibleForReward ? rewardWithHeat(ownerId, 500, 200, now) : { score: 0, credits: 0, multiplier: 1 };
+  killer.score += killReward.score;
+  const killerProfile = profileStore.awardServerReward(killer.pilotId, killReward.credits, { kills: 1 });
   if (killerProfile) sendProfile(ownerId, killerProfile);
   broadcastToCity(cityId, {
-    type: 'destroyed', playerId: victimId, killerId: ownerId, killerDisplayName: killer.displayName, killerScore: killer.score,
+    type: 'destroyed', playerId: victimId, killerId: ownerId, killerDisplayName: killer.displayName, killerScore: killer.score, killerReward: killReward.score,
   });
   broadcastLeaderboard(cityId);
   updateKing(cityId, cityKings.get(cityId) === victimId ? ownerId : undefined);
@@ -1278,6 +1563,8 @@ setInterval(() => {
 }, 50);
 
 setInterval(() => updateDynamicEvents(Date.now()), eventTickMs);
+setInterval(() => updateCityHeat(Date.now()), 1_000);
+setInterval(() => updateTerritories(Date.now()), territoryTickMs);
 setInterval(() => {
   const now = Date.now();
   updateFormations(now);
@@ -1351,6 +1638,7 @@ server.on('connection', (socket, request) => {
     velocity: { x: 0, y: 0, z: 0 },
     lastStateAt: Date.now(),
     chaosQaEnabled,
+    territoryIds: new Set(),
   });
   playerSockets.set(socket, playerId);
 
@@ -1366,6 +1654,10 @@ server.on('connection', (socket, request) => {
       lifeState: 'respawning',
       event: cityEvents.get(cityId) ? (eventSnapshot(cityEvents.get(cityId)!) as { event?: unknown }).event : undefined,
       social: socialSnapshot(cityId),
+      heatStates: [...players.entries()]
+        .filter(([, existing]) => existing.cityId === cityId)
+        .map(([existingPlayerId]) => heatSnapshot(existingPlayerId)),
+      territories: territorySnapshot(cityId),
       profile,
       players: [...players.entries()]
         .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && player.cityId === cityId)
@@ -1505,6 +1797,7 @@ server.on('connection', (socket, request) => {
         player.hasRespawnTransform = false;
         player.spawnProtectedUntil = Date.now() + spawnProtectionMs;
         playerChaos.delete(playerId);
+        removeTerritoryContribution(playerId);
         const activeRiskZone = cityEvents.get(player.cityId);
         if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
           activeRiskZone.progress.delete(playerId);
@@ -1582,6 +1875,7 @@ server.on('connection', (socket, request) => {
     playerSockets.delete(socket);
     playerChaos.delete(playerId);
     playerHeat.delete(playerId);
+    removeTerritoryContribution(playerId);
     if (cityKings.get(cityId) === playerId) updateKing(cityId);
     usedSpawnSlots.get(cityId)?.delete(spawnSlot);
     reconcileMostWanted(cityId, Date.now());

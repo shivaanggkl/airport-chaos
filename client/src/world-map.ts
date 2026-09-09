@@ -23,12 +23,21 @@ type MapAirport = {
   runwayLength: number;
 };
 
-type MapPlayer = { id: string; x: number; z: number; king?: boolean };
+type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number };
 type MapTarget = { x: number; z: number; label?: string };
 export type MapChallenge = { id: string; x: number; z: number; label: string; active: boolean };
 export type MapEvent = { id: string; x: number; z: number; label: string; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
 export type MapDiscovery = { id: string; label: string; x: number; z: number; discovered: boolean; secret: boolean };
 export type MapDiscoveryProgress = { cityName: string; discovered: number; total: number; percent: number };
+export type MapTerritory = {
+  id: string;
+  label: string;
+  bounds: WorldMapBounds;
+  color?: string;
+  controllerName?: string;
+  captureProgress: number;
+  contested: boolean;
+};
 type StaticMapData = { roads?: number[]; water?: number[][] };
 
 export type WorldMapState = {
@@ -42,6 +51,7 @@ export type WorldMapState = {
   events?: readonly MapEvent[];
   discoveries?: readonly MapDiscovery[];
   discoveryProgress?: MapDiscoveryProgress;
+  territories?: readonly MapTerritory[];
 };
 
 const CLICK_DISTANCE = 18;
@@ -359,6 +369,7 @@ export class WorldMap {
     this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.context.drawImage(this.staticCanvas, 0, 0);
     if (!this.state) return;
+    for (const territory of this.state.territories ?? []) this.drawTerritory(territory);
     if (this.state.contractTarget) this.drawTarget(this.state.contractTarget, '#b57cff', 'CONTRACT');
     if (this.state.waypoint) this.drawTarget(this.state.waypoint, '#ffd865', 'WAYPOINT');
     for (const challenge of this.state.challenges ?? []) this.drawChallenge(challenge);
@@ -367,6 +378,9 @@ export class WorldMap {
     for (const player of this.state.players) {
       const point = this.worldToScreen(player.x, player.z);
       this.context.fillStyle = '#ff6d70'; this.context.beginPath(); this.context.arc(point.x, point.y, 4, 0, Math.PI * 2); this.context.fill();
+      if ((player.heatLevel ?? 0) >= 4) {
+        this.context.strokeStyle = '#ffbe61'; this.context.lineWidth = 2; this.context.beginPath(); this.context.arc(point.x, point.y, 7, 0, Math.PI * 2); this.context.stroke();
+      }
       if (player.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 7); }
     }
     const point = this.worldToScreen(this.state.position.x, this.state.position.z);
@@ -375,6 +389,34 @@ export class WorldMap {
     this.context.fillStyle = '#ecfbff'; this.context.beginPath(); this.context.moveTo(0, -8); this.context.lineTo(-5, 6); this.context.lineTo(5, 6); this.context.closePath(); this.context.fill(); this.context.restore();
     if (this.state.king) { this.context.fillStyle = '#ffd96d'; this.context.font = '700 11px ui-monospace, monospace'; this.context.textAlign = 'center'; this.context.fillText('♛', point.x, point.y - 10); }
     if (this.state.discoveryProgress) this.drawDiscoveryProgress(this.state.discoveryProgress);
+  }
+
+  private drawTerritory(territory: MapTerritory): void {
+    const a = this.worldToScreen(territory.bounds.minX, territory.bounds.minZ);
+    const b = this.worldToScreen(territory.bounds.maxX, territory.bounds.maxZ);
+    const width = b.x - a.x;
+    const height = b.y - a.y;
+    const color = territory.contested ? '#ffb34f' : territory.color ?? '#75a9bd';
+    this.context.save();
+    this.context.fillStyle = territory.contested ? 'rgba(255, 179, 79, 0.16)' : `${color}24`;
+    this.context.fillRect(a.x, a.y, width, height);
+    this.context.strokeStyle = territory.contested ? '#ffbd66' : color;
+    this.context.lineWidth = territory.contested ? 2 : 1;
+    this.context.strokeRect(a.x, a.y, width, height);
+    const centerX = a.x + width / 2;
+    const centerY = a.y + height / 2;
+    this.context.fillStyle = territory.contested ? '#ffd08b' : '#c5e4eb';
+    this.context.font = '700 9px ui-monospace, monospace';
+    this.context.textAlign = 'center';
+    this.context.fillText(territory.contested ? `${territory.label.toUpperCase()} · CONTESTED` : territory.label.toUpperCase(), centerX, centerY - 2);
+    if (territory.controllerName) {
+      this.context.font = '600 8px ui-monospace, monospace';
+      this.context.fillText(`CTRL · ${territory.controllerName}`, centerX, centerY + 9);
+    } else if (territory.captureProgress > 0) {
+      this.context.font = '600 8px ui-monospace, monospace';
+      this.context.fillText(`CAPTURE ${Math.round(territory.captureProgress)}%`, centerX, centerY + 9);
+    }
+    this.context.restore();
   }
 
   private drawDiscoveryProgress(progress: MapDiscoveryProgress): void {

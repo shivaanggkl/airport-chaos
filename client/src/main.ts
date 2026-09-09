@@ -16,6 +16,7 @@ import { NextActionSystem, type NextActionCandidate } from './next-action';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { LOCK_ANGLE, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import type {
   AirportDefinition,
   AirportId,
@@ -789,6 +790,9 @@ const hitMarkerElement = document.querySelector<HTMLDivElement>('#hit-marker')!;
 const damageFlashElement = document.querySelector<HTMLDivElement>('#damage-flash')!;
 const healthElement = document.querySelector<HTMLSpanElement>('#health')!;
 const healthRowElement = document.querySelector<HTMLDivElement>('.health-row')!;
+const heatRowElement = document.querySelector<HTMLDivElement>('#heat-row')!;
+const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!;
+const heatMultiplierElement = document.querySelector<HTMLSpanElement>('#heat-multiplier')!;
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetDistanceElement = document.querySelector<HTMLSpanElement>('#target-distance')!;
@@ -1142,13 +1146,14 @@ function drawRadarMarker(
   kind: 'airport' | 'player' | 'ambient' | 'event' | 'challenge' | 'waypoint',
   label = '',
   king = false,
+  hot = false,
 ): void {
   const center = radarCanvas.width / 2;
   const radarRadius = center - 13;
   const offsetX = targetX - airplane.position.x;
   const offsetZ = targetZ - airplane.position.z;
   const distance = Math.hypot(offsetX, offsetZ);
-  if ((kind === 'player' || kind === 'ambient' || kind === 'challenge') && distance > radarRange) return;
+  if ((kind === 'player' || kind === 'ambient' || kind === 'challenge') && distance > (kind === 'player' && hot ? radarRange * 2 : radarRange)) return;
 
   const rightX = -direction.z;
   const rightZ = direction.x;
@@ -1168,6 +1173,13 @@ function drawRadarMarker(
     radarContext.beginPath();
     radarContext.arc(x, y, 3.5, 0, Math.PI * 2);
     radarContext.fill();
+    if (hot) {
+      radarContext.strokeStyle = '#ffbd5c';
+      radarContext.lineWidth = 1.5;
+      radarContext.beginPath();
+      radarContext.arc(x, y, 6, 0, Math.PI * 2);
+      radarContext.stroke();
+    }
     if (king) {
       radarContext.fillStyle = '#ffd96d';
       radarContext.font = '10px ui-monospace, monospace';
@@ -1252,7 +1264,7 @@ function updateRadar(direction: THREE.Vector3): void {
     drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
   }
   for (const remote of remotePlayers.values()) {
-    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, entityCapabilities(remote.entityType).radarMarker, '', remote.playerId === kingPlayerId);
+    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, entityCapabilities(remote.entityType).radarMarker, '', remote.playerId === kingPlayerId, remote.heatLevel >= 4);
   }
   for (const ambient of ambientTraffic?.getRadarEntities(airplane.position, radarRange) ?? []) {
     drawRadarMarker(direction, ambient.x, ambient.z, entityCapabilities(ambient.entityType, ambient.eventCombatMode).radarMarker);
@@ -1338,6 +1350,18 @@ let cityEvent: NetworkCityEvent | null = null;
 let joinedEventId: string | null = null;
 let kingPlayerId: string | undefined;
 const formationMembers = new Set<string>();
+const territoryDefinitions = territoriesForCity(cityId);
+const territoryState = new Map<string, NetworkTerritoryState>();
+
+function applyTerritoryState(states: readonly NetworkTerritoryState[]): void {
+  territoryState.clear();
+  for (const state of states) territoryState.set(state.id, state);
+  refreshPilotMenu();
+}
+
+function territoryDefinition(id: string): CityTerritory | undefined {
+  return territoryDefinitions.find((territory) => territory.id === id);
+}
 
 function updateSocialHud(): void {
   const inFormation = localPlayerId !== null && formationMembers.has(localPlayerId);
@@ -1735,6 +1759,22 @@ function updateHealthDisplay(damaged = false): void {
   }
 }
 
+function applyHeatState(state: NetworkHeatState): void {
+  const level = THREE.MathUtils.clamp(Math.round(state.level), 0, 5);
+  if (state.playerId === localPlayerId) {
+    const levelRaised = level > localHeat;
+    localHeat = level;
+    localHeatMultiplier = state.multiplier;
+    heatLevelElement.textContent = level.toString();
+    heatMultiplierElement.textContent = `×${state.multiplier.toFixed(2)}`;
+    heatRowElement.dataset.level = level.toString();
+    if (state.levelChanged && levelRaised) showProgressMessage(`HEAT ${level} — ${level >= 4 ? 'BOUNTY RISING' : 'RISK RISING'}`);
+    return;
+  }
+  const remote = remotePlayers.get(state.playerId);
+  if (remote) remote.heatLevel = level;
+}
+
 function updateAircraftOptions(): void {
   for (const option of aircraftSelectElement.options) {
     if (!isAircraftType(option.value)) continue;
@@ -2106,6 +2146,7 @@ type LeaderboardPlayer = {
 
 type NetworkVector = { x: number; y: number; z: number };
 type ProjectileMode = 'ballistic';
+type NetworkHeatState = { playerId: string; value: number; level: number; multiplier: number; levelChanged?: boolean };
 type DynamicEventType = 'skyRush' | 'supplyDrop' | 'emergencyEscort' | 'cargoConvoy' | 'riskZone' | 'mostWanted';
 type DynamicEventLifecycle = 'available' | 'active' | 'completed' | 'failed' | 'cooldown';
 type NetworkCityEvent = {
@@ -2128,6 +2169,14 @@ type NetworkCityEvent = {
   rewardCredits?: number;
 };
 type NetworkSocialState = { kingPlayerId?: string };
+type NetworkTerritoryState = {
+  id: string;
+  controllerId?: string;
+  controllerName?: string;
+  capturingPlayerId?: string;
+  captureProgress: number;
+  contested: boolean;
+};
 type NetworkProfile = {
   pilotId: string;
   pilotName: string;
@@ -2157,6 +2206,8 @@ type ServerMessage =
       players: NetworkPlayer[];
       event?: NetworkCityEvent;
       social?: NetworkSocialState;
+      heatStates?: NetworkHeatState[];
+      territories?: NetworkTerritoryState[];
       profile: NetworkProfile;
     }
   | { type: 'protocolMismatch'; expectedProtocolVersion: number }
@@ -2191,6 +2242,10 @@ type ServerMessage =
       clientShotId?: string;
     }
   | { type: 'lockState'; targetId?: string }
+  | ({ type: 'heatState' } & NetworkHeatState)
+  | { type: 'territoryState'; cityId: CityId; territories: NetworkTerritoryState[] }
+  | { type: 'territoryNotice'; territoryId: string; kind: 'enter' | 'captured' }
+  | { type: 'territoryReward'; territoryId: string; score: number; credits: number; kind: 'capture' | 'control' }
   | { type: 'projectileRemove'; projectileId: string }
   | { type: 'damage'; playerId: string; shooterId: string; health: number; damage: number }
   | {
@@ -2199,6 +2254,7 @@ type ServerMessage =
       killerId: string;
       killerDisplayName: string;
       killerScore: number;
+      killerReward?: number;
     }
   | { type: 'respawn'; playerId: string; health: number; lifeState?: PlayerLifeState }
   | ({ type: 'playerState'; health: number; lifeState: PlayerLifeState } & NetworkPlayer)
@@ -2275,6 +2331,7 @@ type RemotePlayer = {
   nearMissActive: boolean;
   aircraftType: AircraftType;
   lifeState: PlayerLifeState;
+  heatLevel: number;
 };
 
 type ClientProjectile = {
@@ -2446,6 +2503,8 @@ type CombatLockState = 'SEARCHING' | 'LOCKED';
 let selectedCombatTarget: { remote: RemotePlayer; distance: number; locked: boolean } | null = null;
 let lockedTargetId: string | null = null;
 let serverLockedTargetId: string | null = null;
+let localHeat = 0;
+let localHeatMultiplier = 1;
 let combatLockState: CombatLockState = 'SEARCHING';
 let requestedLockTargetId: string | null = null;
 let lockValidationElapsed = Number.POSITIVE_INFINITY;
@@ -2498,6 +2557,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
     x: remote.plane.position.x,
     z: remote.plane.position.z,
     king: id === kingPlayerId,
+    heatLevel: remote.heatLevel,
   }));
   worldMap.update({
     position: airplane.position,
@@ -2515,6 +2575,18 @@ function updateWorldMap(direction: THREE.Vector3): void {
       const progress = discoverySystem?.getProgress();
       return progress ? { cityName: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', ...progress } : undefined;
     })(),
+    territories: territoryDefinitions.map((definition) => {
+      const state = territoryState.get(definition.id);
+      return {
+        id: definition.id,
+        label: definition.displayName,
+        bounds: definition.bounds,
+        color: definition.mapColor,
+        controllerName: state?.controllerName,
+        captureProgress: state?.captureProgress ?? 0,
+        contested: state?.contested ?? false,
+      };
+    }),
   });
 }
 
@@ -2884,6 +2956,17 @@ function pilotMenuData(): PilotMenuData {
     if (left.mostWanted !== right.mostWanted) return left.mostWanted ? -1 : 1;
     return left.distance - right.distance;
   });
+  const territories = territoryDefinitions.map((definition) => {
+    const state = territoryState.get(definition.id);
+    return {
+      name: definition.displayName,
+      controller: state?.controllerName ? `Controlled by ${state.controllerName}` : 'Uncontrolled',
+      contested: state?.contested ?? false,
+      progress: state?.captureProgress ?? 0,
+      distance: Math.hypot(airplane.position.x - definition.center.x, airplane.position.z - definition.center.z),
+      setWaypoint: () => setWaypoint(definition.center.x, definition.center.z, definition.displayName),
+    };
+  }).sort((left, right) => left.distance - right.distance);
 
   return {
     status: [
@@ -2893,6 +2976,7 @@ function pilotMenuData(): PilotMenuData {
       `NEAREST · ${nearestAirport.name} · ${Math.round(nearestDistance)}m`,
     ],
     players: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: players },
+    territories: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: territories },
     activities,
     liveEvent,
     stunts: stuntGuide,
@@ -3509,6 +3593,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
       nearMissActive: false,
       aircraftType: player.aircraftType,
       lifeState,
+      heatLevel: 0,
     };
     plane.visible = lifeState === 'alive';
     playerProxy.visible = lifeState === 'alive';
@@ -4679,6 +4764,8 @@ socket.addEventListener('message', (event) => {
     }
     applySocialState(message.social);
     for (const player of message.players) updateRemotePlayer(player);
+    for (const heat of message.heatStates ?? []) applyHeatState(heat);
+    applyTerritoryState(message.territories ?? []);
     applyCityEvent(message.event);
     flushProfileRewards();
     sendLocalState();
@@ -4752,6 +4839,18 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'lockState') {
     serverLockedTargetId = message.targetId && message.targetId === lockedTargetId ? message.targetId : null;
     if (!message.targetId && requestedLockTargetId === lockedTargetId) lockedTargetId = null;
+  } else if (message.type === 'heatState') {
+    applyHeatState(message);
+  } else if (message.type === 'territoryState') {
+    if (message.cityId === cityId) applyTerritoryState(message.territories);
+  } else if (message.type === 'territoryNotice') {
+    const territory = territoryDefinition(message.territoryId);
+    if (territory) showProgressMessage(message.kind === 'captured'
+      ? `${territory.displayName.toUpperCase()} CAPTURED +250`
+      : `ENTERING ${territory.displayName.toUpperCase()}`);
+  } else if (message.type === 'territoryReward') {
+    const territory = territoryDefinition(message.territoryId);
+    showProgressMessage(`${territory?.displayName.toUpperCase() ?? 'TERRITORY'} ${message.kind === 'capture' ? 'CAPTURED' : 'HELD'} +${message.credits} CREDITS`);
   } else if (message.type === 'projectileRemove') {
     removeClientProjectile(message.projectileId);
   } else if (message.type === 'damage') {
@@ -4795,7 +4894,7 @@ socket.addEventListener('message', (event) => {
       recordBestScore(score);
       handleContractKill();
       updateScoreDisplay();
-      showCombatMessage('DESTROYED +500', true);
+      showCombatMessage(message.killerReward ? `DESTROYED +${message.killerReward}` : 'DESTROYED · NO HEAT REWARD', true);
       playDestructionSound();
     }
   } else if (message.type === 'respawn') {

@@ -983,6 +983,19 @@ body {
   color: #d7edf1;
 }
 
+.heat-row {
+  color: #ffc46e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.72;
+}
+
+.heat-row strong { color: #ffe0a2; }
+.heat-row span { margin-left: 3px; color: #ffad55; font-size: 8px; }
+.heat-row[data-level="4"], .heat-row[data-level="5"] { opacity: 1; color: #ff7862; }
+.heat-row[data-level="4"] strong, .heat-row[data-level="5"] strong { color: #ffb19f; }
+
 .health-row.damaged {
   padding: 2px 5px;
   color: #fff2e8;
