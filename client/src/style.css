@@ -135,11 +135,13 @@ body {
 .garage-entry { width: 100%; margin-top: 12px; padding: 9px; color: #cdebf4; background: rgb(115 216 237 / 12%); border: 1px solid rgb(115 216 237 / 46%); border-radius: 5px; font: 800 11px ui-monospace, monospace; letter-spacing: .08em; cursor: pointer; }
 .garage-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(2 10 17 / 88%); color: #e5f4f8; }
 .garage-overlay[hidden] { display: none; }
-.pilot-menu-overlay { position: fixed; z-index: 32; inset: 0; display: grid; place-items: center; padding: 18px; overflow: auto; background: rgb(2 10 17 / 82%); color: #e5f4f8; }
+.pilot-menu-overlay { position: fixed; z-index: 32; inset: 0; display: grid; place-items: center; padding: 18px; overflow: hidden; background: rgb(2 10 17 / 82%); color: #e5f4f8; }
 .pilot-menu-overlay[hidden] { display: none; }
 .stability-qa-panel { position: fixed; z-index: 40; top: 12px; left: 12px; margin: 0; padding: 9px 10px; color: #d8f5ff; border: 1px solid rgb(112 216 239 / 48%); border-radius: 5px; background: rgb(2 15 24 / 84%); font: 700 10px/1.4 ui-monospace, monospace; pointer-events: none; }
-.pilot-menu-card { width: min(880px, 100%); max-height: calc(100vh - 36px); overflow: auto; padding: 20px; border: 1px solid rgb(123 202 222 / 42%); border-radius: 10px; background: linear-gradient(145deg, #102634, #07131e 72%); box-shadow: 0 22px 80px rgb(0 0 0 / 58%); }
+#marker-qa { top: auto; bottom: 8px; max-height: 190px; max-width: 330px; overflow: auto; }
+.pilot-menu-card { width: min(880px, 100%); height: min(800px, calc(100vh - 36px)); display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 20px; border: 1px solid rgb(123 202 222 / 42%); border-radius: 10px; background: linear-gradient(145deg, #102634, #07131e 72%); box-shadow: 0 22px 80px rgb(0 0 0 / 58%); }
 .pilot-menu-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 13px; border-bottom: 1px solid rgb(160 222 235 / 22%); }
+.pilot-menu-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable; touch-action: pan-y; }
 .pilot-menu-kicker { color: #ffd36a; font: 800 10px ui-monospace, monospace; letter-spacing: .18em; }
 .pilot-menu-card h1 { margin: 4px 0 0; color: #f3fbff; font-size: 23px; letter-spacing: .06em; }
 .pilot-menu-card button { padding: 7px 10px; border: 1px solid rgb(116 202 223 / 50%); border-radius: 4px; color: #e7f8fc; background: rgb(34 91 109 / 62%); font: 800 10px ui-monospace, monospace; letter-spacing: .04em; cursor: pointer; }
@@ -162,7 +164,7 @@ body {
 .pilot-menu-stunt small { margin-top: 5px; color: #83b3bf; font: 800 8px ui-monospace, monospace; letter-spacing: .06em; }
 .pilot-menu-discovered { color: #9fe8da; font-size: 11px; line-height: 1.5; }
 .pilot-menu-controls { color: #d9edf1 !important; font: 700 11px/1.6 ui-monospace, monospace !important; }
-@media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { max-height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts { grid-template-columns: 1fr; } }
 .garage-card { width: min(940px, 100%); max-height: min(760px, 94vh); overflow: auto; padding: 18px; border: 1px solid rgb(115 216 237 / 45%); border-radius: 10px; background: linear-gradient(145deg, #102534, #07131e); box-shadow: 0 22px 80px rgb(0 0 0 / 55%); }
 .garage-card header { display: flex; justify-content: space-between; align-items: center; } .garage-card header span { color: #ffd36a; font-size: 10px; font-weight: 800; letter-spacing: .16em; } .garage-card h1,.garage-card h2 { margin: 3px 0 0; letter-spacing: .08em; } .garage-card header button,.garage-details button { padding: 7px 10px; border: 1px solid #5d9bae; border-radius: 4px; color: #dff7ff; background: #163746; font: 800 11px ui-monospace, monospace; cursor: pointer; } .garage-details button:disabled { opacity: .52; cursor: default; }
 .garage-layout { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(230px, .75fr); gap: 18px; margin-top: 14px; } .garage-preview { min-height: 330px; position: relative; border: 1px solid rgb(132 202 220 / 28%); background: radial-gradient(circle at 50% 38%, #264e62, #07131e 70%); } .garage-preview canvas { width: 100%; height: 330px; display: block; touch-action: none; } .garage-preview-hint { position: absolute; bottom: 8px; left: 0; right: 0; color: #9fceda; text-align: center; font-size: 9px; letter-spacing: .08em; pointer-events: none; }
@@ -268,13 +270,17 @@ body {
   display: none;
 }
 
-.controls {
-  margin-top: 7px;
-  padding-top: 7px;
-  color: #c5d3df;
-  border-top: 1px solid rgb(255 255 255 / 16%);
-  font-size: 11px;
-}
+.controls-card { padding: 8px 9px; color: #dceff3; border: 1px solid rgb(142 205 216 / 28%); border-radius: 6px; background: rgb(5 18 31 / 72%); box-shadow: 0 7px 22px rgb(0 0 0 / 14%); }
+.controls-card header { display: flex; align-items: center; justify-content: space-between; color: #a9dce5; font: 800 9px ui-monospace, monospace; letter-spacing: .13em; }
+.controls-card header button { width: 19px; height: 18px; padding: 0; color: #caedf3; border: 1px solid rgb(142 205 216 / 33%); border-radius: 3px; background: rgb(90 163 180 / 14%); font: 800 14px/14px ui-monospace, monospace; cursor: pointer; }
+.controls-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 9px; }
+.controls-grid > div { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; row-gap: 3px; align-items: baseline; }
+.controls-grid span { grid-column: 1 / -1; margin-bottom: 1px; color: #ffd56d; font: 800 8px ui-monospace, monospace; letter-spacing: .1em; }
+.controls-grid b { color: #eafaff; font: 800 11px ui-monospace, monospace; white-space: nowrap; }
+.controls-grid small { color: #bcd5db; font: 700 11px/1.35 ui-monospace, monospace; }
+.controls-grid > .controls-shortcuts { grid-template-columns: repeat(3, auto 1fr); gap: 4px; border-top: 1px solid rgb(142 205 216 / 20%); padding-top: 7px; }
+.controls-card.collapsed { width: auto; min-width: 100px; }
+.controls-card.collapsed .controls-grid { display: none; }
 
 .next-actions { position: fixed; z-index: 2; right: 18px; bottom: 198px; width: min(252px, calc(100vw - 36px)); display: grid; gap: 6px; pointer-events: auto; }
 .next-actions:empty { display: none; }
@@ -482,8 +488,7 @@ body {
 .active-contract,
 .sky-challenge,
 .dynamic-event,
-.social-panel,
-.how-to-play {
+.social-panel {
   display: none !important;
 }
 
@@ -654,6 +659,8 @@ body {
 }
 
 .world-map-card {
+  display: flex;
+  flex-direction: column;
   width: min(1080px, calc(100vw - 48px));
   height: min(760px, calc(100vh - 64px));
   overflow: hidden;
@@ -669,7 +676,7 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
-  height: 43px;
+  min-height: 43px;
   padding: 0 12px;
   border-bottom: 1px solid rgb(124 203 218 / 22%);
   font-size: 11px;
@@ -691,7 +698,9 @@ body {
 #world-map-canvas {
   display: block;
   width: 100%;
-  height: calc(100% - 43px);
+  flex: 1;
+  min-height: 0;
+  height: 0;
   cursor: crosshair;
   touch-action: none;
   pointer-events: auto;
@@ -833,6 +842,7 @@ body {
   position: absolute;
   top: 50%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: center;
   width: 118px;
   min-height: 122px;
@@ -870,6 +880,7 @@ body {
 
 .instrument-unit,
 .throttle-readout,
+.boost-readout,
 .vsi-readout {
   color: #9fb9c3;
   font-size: 10px;
@@ -877,16 +888,36 @@ body {
 }
 
 .throttle-readout,
+.boost-readout,
 .vsi-readout {
   margin-top: 11px;
   padding-top: 6px;
   border-top: 1px solid rgb(151 206 219 / 18%);
   white-space: nowrap;
 }
+.vsi-readout { white-space: normal; line-height: 1.35; }
 
 .throttle-readout strong,
+.boost-readout strong,
 .vsi-readout strong {
   color: #d9f0f5;
+}
+
+.boost-readout.active {
+  color: #ffd27a;
+  text-shadow: 0 0 8px rgb(255 174 66 / 65%);
+}
+
+.boost-readout.active strong {
+  color: #fff2c5;
+}
+
+.boost-readout.active::after {
+  content: ' ACTIVE';
+  color: #fff2c5;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
 }
 
 #vsi-indicator {
@@ -935,18 +966,40 @@ body {
   border-radius: 50%;
 }
 
-#acquisition-circle {
+#acquisition-circle, .acquisition-circle {
   position: fixed;
   z-index: 3;
   top: 50%;
   left: 50%;
   width: var(--acquisition-size, 180px);
   aspect-ratio: 1;
-  border: 1px solid rgb(221 239 242 / 31%);
+  border: 1px solid rgb(8 21 29 / 72%);
   border-radius: 50%;
-  box-shadow: inset 0 0 20px rgb(145 211 220 / 4%);
+  box-shadow:
+    inset 0 0 0 1px rgb(190 225 231 / 42%),
+    inset 0 0 10px rgb(145 211 220 / 3%);
+  opacity: 0.4;
   pointer-events: none;
   transform: translate(-50%, -50%);
+  transition: opacity 1.35s ease, border-color 220ms ease, border-width 220ms ease, box-shadow 220ms ease;
+}
+
+#acquisition-circle.target-near, .acquisition-circle.target-near {
+  border-color: rgb(7 23 32 / 82%);
+  box-shadow:
+    inset 0 0 0 1px rgb(198 238 245 / 74%),
+    inset 0 0 12px rgb(123 207 222 / 10%);
+  opacity: 0.72;
+  transition-duration: 220ms;
+}
+
+#acquisition-circle.locked, .acquisition-circle.locked {
+  border-width: 2px;
+  border-color: rgb(38 10 10 / 84%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 111 91 / 94%),
+    inset 0 0 14px rgb(255 91 74 / 12%);
+  opacity: 0.94;
 }
 
 #flight-status {
@@ -976,12 +1029,38 @@ body {
 }
 
 .health-row {
-  opacity: 0.58;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.92;
 }
 
 .health-row strong {
   color: #d7edf1;
 }
+
+.hull-meter {
+  width: 104px;
+  height: 7px;
+  overflow: hidden;
+  border: 1px solid rgb(184 229 210 / 55%);
+  border-radius: 2px;
+  background: rgb(5 15 18 / 74%);
+  box-shadow: inset 0 0 5px rgb(0 0 0 / 48%);
+}
+
+.hull-meter i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #79d99c;
+  box-shadow: 0 0 6px rgb(109 232 152 / 42%);
+  transition: width 140ms ease-out, background-color 140ms linear;
+}
+
+.health-row.warning .hull-meter i { background: #f7c864; box-shadow: 0 0 7px rgb(247 200 100 / 48%); }
+.health-row.critical .hull-meter i { background: #fa6d65; box-shadow: 0 0 9px rgb(250 109 101 / 64%); }
+.health-row.critical strong { color: #ff9289; }
 
 .heat-row {
   color: #ffc46e;
@@ -1010,6 +1089,10 @@ body {
 }
 
 .target-feedback {
+  position: fixed;
+  z-index: 15;
+  transform: translateX(-50%);
+  pointer-events: none;
   color: #a9c4cc;
   font-size: 9px;
   white-space: nowrap;
@@ -1022,11 +1105,34 @@ body {
 .target-feedback b {
   margin-left: 3px;
   color: #ff856e;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .target-feedback.locked b {
   color: #ff6654;
+}
+.target-feedback.hidden { display: none; }
+
+.landing-speed-cue {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: rgb(8 24 33 / 84%);
+  border: 1px solid rgb(170 209 224 / 25%);
+  border-radius: 6px;
+  color: #ffb5ae;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  padding: 8px;
+}
+
+.landing-speed-cue.hidden { display: none; }
+#airspeed-tape .landing-risk,
+#altitude-tape .landing-risk,
+.help-landing-example .landing-risk {
+  color: #ff756e;
 }
 
 .airport-navigation {
@@ -1046,11 +1152,60 @@ body {
   font-size: 9px;
 }
 
-#hud.utility-hud {
+.left-hud-stack {
+  position: fixed;
+  z-index: 1;
   top: 14px;
   left: 14px;
+  width: 234px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: max(120px, calc(50vh - 90px));
+  max-height: max(120px, calc(50dvh - 90px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+.left-hud-stack > aside { flex-shrink: 0; box-sizing: border-box; min-width: 0; }
+.left-hud-stack { overflow-x: hidden; }
+.progression-readout { position: sticky; top: 0; z-index: 2; padding: 10px 12px; background: #101e2bee; border: 1px solid #ffd86555; border-radius: 7px; color: var(--identity-credits); font: 700 12px/1.6 system-ui, sans-serif; }
+.progression-readout strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.progression-readout small { color: #bbcdd7; font-size: 11px; }
+.progression-readout small strong { font-size: 12px; }
+.progression-readout.earned { animation: credit-earned .7s ease-out; }
+@keyframes credit-earned { from { background: #665225; } to { background: #101e2bee; } }
+.reward-feedback,
+.progression-readout #progress-message {
+  position: static;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 4px 6px;
+  border: 1px solid rgb(255 216 101 / 28%);
+  border-radius: 4px;
+  transform: none;
+  box-shadow: none;
+  font: 800 11px/1.25 system-ui, sans-serif;
+  letter-spacing: .025em;
+}
+.reward-feedback { color: #ffe18b; background: rgb(76 59 15 / 72%); }
+.reward-feedback.show { animation: reward-feedback-in .2s ease-out; }
+.reward-feedback.hidden { display: none; }
+.progression-readout #progress-message { color: #cdeff2; background: rgb(7 28 39 / 78%); }
+@keyframes reward-feedback-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px; background: #101e29; font: 700 11px system-ui, sans-serif; }
+.radar-legend { flex-wrap: wrap; gap: 4px; }
+#flight-status { width: max-content; max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; font-family: system-ui, sans-serif; gap: 10px 16px; }
+#flight-status .airport-navigation { white-space: normal; }
+#flight-status .airport-navigation strong { max-width: 170px; }
+#hud.utility-hud {
+  position: static;
   min-width: 0;
-  width: 214px;
+  width: 100%;
   padding: 7px 9px;
   line-height: 1.35;
 }
@@ -1139,18 +1294,13 @@ body {
   border-color: rgb(151 206 219 / 16%);
 }
 
-.pilot-name,
-.controls {
+.pilot-name {
   color: #92aeb7;
   font-size: 10px;
 }
 
-.controls {
-  margin-top: 6px;
-  padding-top: 5px;
-  border-color: rgb(151 206 219 / 16%);
-  line-height: 1.35;
-}
+@media (max-height: 700px) { .contextual-hint { bottom: 166px; } }
+@media (max-width: 560px) { .left-hud-stack { top: 8px; left: 8px; width: 210px; } .controls-grid { gap: 6px; } }
 
 .audio-toggle,
 .cities-button {
@@ -1326,7 +1476,6 @@ body {
   .flight-tape > strong { font-size: 25px; }
   #airspeed-tape { left: 8px; }
   #altitude-tape { right: 8px; }
-  #hud.utility-hud { top: 8px; left: 8px; width: 172px; }
   #leaderboard { display: none; }
   #radar-panel { right: 8px; bottom: 8px; transform: scale(0.86); transform-origin: bottom right; }
   #contract-panel { left: 8px; bottom: 8px; }
@@ -1334,6 +1483,50 @@ body {
   #flight-status { top: 55px; gap: 7px; }
   .airport-navigation span:first-child { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
 }
+@media (max-width: 600px) {
+  .world-map-overlay { padding: 8px; }
+  #heading-tape { top: 8px; width: 220px; }
+  #flight-status { top: 48px; width: calc(100vw - 16px); gap: 6px 10px; font-size: 10px; padding: 7px; }
+  #flight-status .airport-navigation { flex-basis: 100%; justify-content: center; }
+  .left-hud-stack { top: 123px; width: 190px; max-height: max(100px, calc(50dvh - 170px)); }
+  .progression-readout { padding: 7px 9px; }
+  .progression-readout strong { font-size: 15px; }
+  .world-map-card { width: calc(100vw - 16px); max-width: 100%; min-width: 0; height: calc(100dvh - 24px); }
+  #altitude-tape { padding-right: 15px; }
+  .world-map-card header { flex-wrap: wrap; gap: 6px; padding: 9px; }
+  .world-map-card header span { order: 3; flex-basis: 100%; }
+  .map-legend { gap: 5px 10px; padding: 8px; font-size: 10px; }
+}
+
+#real-players {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 14px;
+  width: 235px;
+  padding: 8px 10px;
+  border: 1px solid rgb(147 203 220 / 26%);
+  border-radius: 5px;
+  background: rgb(4 14 23 / 78%);
+  color: #eaf6fb;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+}
+.human-player-header { display: flex; align-items: center; justify-content: space-between; font-weight: 800; font-size: 10px; letter-spacing: .08em; }
+.human-player-header button { padding: 0 6px; color: #eaf6fb; background: transparent; border: 1px solid #96c5d750; border-radius: 3px; cursor: pointer; font: inherit; font-size: 16px; }
+#human-player-rows { max-height: max(40px, calc(50dvh - 130px)); overflow-y: auto; overscroll-behavior: contain; }
+.human-player-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 2px 8px; align-items: center; min-height: 36px; padding: 2px 0; transition: opacity 160ms ease; }
+.human-player-row[hidden], #human-player-rows[hidden] { display: none; }
+.human-player-row > span:first-child { color: var(--identity-player, #ff6262); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.human-player-row.you > span:first-child { color: #fff; }
+.human-player-row > span:last-child { color: #abc3cc; text-align: right; }
+.human-player-status { grid-column: 1 / -1; color: #bcd0d7 !important; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-align: left !important; }
+.human-player-row.destroyed { opacity: .5; }
+#human-player-rows small { display: block; color: #abc3cc; font-size: 10px; }
+#human-player-rows small:empty { display: none; }
+@media (max-width: 1000px) { #real-players { top: 113px; right: 8px; width: 205px; } #human-player-rows { max-height: max(32px, calc(50dvh - 225px)); } }
+@media (max-width: 600px) { #real-players { top: 123px; width: min(180px, calc(100vw - 216px)); padding: 6px; } .human-player-row { gap: 4px; font-size: 10px; } }
 
 .leaderboard-entry {
   display: flex;
@@ -1486,53 +1679,118 @@ body {
   transition-duration: 40ms;
 }
 
-.how-to-play {
-  position: fixed;
-  z-index: 2;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #f8fbff;
-  background: rgb(5 18 31 / 16%);
-  pointer-events: none;
+.flight-tutorial { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; color: #eef7fc; background: radial-gradient(ellipse at 50% 20%, #17415b, #040d17 80%); }
+.flight-tutorial[hidden] { display: none; }
+.tutorial-open #contextual-hint { display: none; }
+.tutorial-card { width: min(700px, 100%); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; border: 1px solid #426177; border-radius: 18px; background: #0b1e2d; box-shadow: 0 20px 80px #0006; overflow: hidden; }
+.tutorial-card header, .tutorial-card footer { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 22px; }
+.tutorial-card header { font: 700 10px ui-monospace, monospace; letter-spacing: .13em; color: #aac8d9; }
+.tutorial-card button { border: 1px solid #68879a; border-radius: 6px; background: #163245; color: #dfedf5; padding: 10px 17px; cursor: pointer; font: 800 11px ui-monospace, monospace; }
+.tutorial-card button:disabled { opacity: .3; cursor: default; }
+.tutorial-card button:focus-visible { outline: 3px solid #f2cf76; outline-offset: 3px; }
+.tutorial-card [data-next] { background: #a6e5ed; color: #092536; border-color: #a6e5ed; }
+.tutorial-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 22px; text-align: center; }
+.tutorial-content h1 { margin: 5px 0 20px; font-size: clamp(18px, 3.5vw, 27px); font-weight: 900; letter-spacing: .025em; }
+.tutorial-content p { font-size: 13px; color: #c3d7e4; line-height: 1.5; margin: 16px auto; max-width: 590px; }
+.tutorial-visual svg { display: block; width: 100%; max-height: 270px; }
+.tutorial-keys { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.tutorial-key { display: grid; gap: 5px; min-width: 82px; font-size: 10px; color: #a9c9d9; }
+.tutorial-key kbd { background: #203d51; border: 1px solid #577388; border-bottom-width: 3px; border-radius: 5px; padding: 7px; color: #edf9ff; font: 800 13px ui-monospace, monospace; }
+.tutorial-dots { display: flex; gap: 6px; }
+.tutorial-dots .filled { background: #aedbe8; }
+.tutorial-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tutorial-tile { display: grid; place-content: center; gap: 10px; min-height: 114px; background: #142e41; border-radius: 10px; color: var(--tile-color); }
+.tutorial-tile b { font-size: 35px; }
+.tutorial-tile strong { font-size: 11px; }
+.game-identity { white-space: nowrap; font-weight: 750; }
+.game-identity b { font-style: normal; font-family: Arial, sans-serif; }
+.help-shot { position: relative; margin: 0; overflow: hidden; border: 1px solid #456072; border-radius: 12px; background: #123047; }
+.help-shot img { display: block; width: 100%; aspect-ratio: 1.84; object-fit: cover; }
+.help-callout { position: absolute; transform: translate(-50%, -50%); padding: 6px 10px; background: #061723e8; border: 1px solid #a7dce8; border-radius: 4px; color: #effaff; font: 800 10px ui-monospace, monospace; white-space: nowrap; }
+.help-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px 18px; margin: 14px 0; font-size: 12px; }
+.help-home { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding-bottom: 8px; }
+.help-home button { display: grid; gap: 12px; text-align: left; min-height: 128px; padding: 14px; }
+.help-home button > span { font-size: 26px; }
+.help-home button strong { font-size: 14px; }
+.help-home button small { color: #a5c4d4; font: 600 9px/1.4 ui-monospace, monospace; }
+.tutorial-dots button { width: 8px; height: 8px; min-width: 8px; border: 0; padding: 0; border-radius: 50%; background: #405668; }
+.tutorial-dots button.filled { background: #aedbe8; box-shadow: 0 0 0 3px #aedbe825; }
+.tutorial-card [data-home] { margin-left: auto; padding: 7px; font-size: 9px; }
+.tutorial-tile { min-height: 90px; padding: 12px 6px; gap: 8px; }
+.tutorial-tile .game-identity { font-size: 12px; }
+.tutorial-tile .game-identity b { display: block; font-size: 28px; margin-bottom: 8px; }
+.tutorial-tile small { font-size: 10px; color: #c2d5e2; }
+.help-combat-scene { position: relative; }
+.help-combat-scene .help-shot { filter: brightness(.6); }
+.help-combat-example { position: absolute; inset: 0; }
+.help-combat-example .acquisition-circle { position: absolute; width: 14.4%; top: 35%; }
+.help-example-label { position: absolute; top: 12px; left: 12px; color: #d2e5ec; font: 700 9px ui-monospace, monospace; }
+.help-enemy-brackets { position: absolute; left: 50%; top: 35%; transform: translate(-50%,-50%); width: 8%; aspect-ratio: 1; color: var(--identity-player); }
+.help-enemy-brackets i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; }
+.help-map-shot .help-shot img { aspect-ratio: auto; object-fit: contain; }
+.help-map-notes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; font: 800 12px ui-sans-serif, system-ui, sans-serif; }
+.heat-row strong, .heat-row span { color: var(--identity-heat); }
+.help-locked { position: absolute; top: 53%; left: 50%; transform: translateX(-50%); color: var(--identity-player); font: 800 12px ui-monospace, monospace; }
+.help-pilot-label { position: absolute; right: 14px; bottom: 12px; text-align: right; color: #ffb0b0; font: 700 10px/1.6 ui-monospace, monospace; }
+.help-hull { display: flex; justify-content: center; gap: 10px; margin: 14px; font-size: 12px; }
+.help-hull .hull-meter i { display: block; height: 100%; background: #79d99c; }
+.help-landing-example { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; padding: 14px 0 0; }
+.help-landing-example .flight-tape { position: static; display: grid; gap: 4px; width: auto; min-height: 0; transform: none; text-align: center; }
+.help-landing-example .flight-tape span { color: #bad7e1; font-size: 9px; }
+.help-landing-example strong { font-size: 16px; }
+.help-landing-example .landing-speed-cue { position: static; }
+.help-heat-scene { padding: 30px 12px; background: radial-gradient(ellipse at 50% 0, #6d302533, #102839); border: 1px solid #684035; border-radius: 12px; }
+.help-heat-scene .heat-row { display: flex; justify-content: center; align-items: center; font-size: 28px; gap: 12px; }
+.help-heat-scene .heat-row .game-identity { font-size: 24px; }
+.tutorial-tiles { grid-template-columns: repeat(4, 1fr); }
+.help-heat-scale { display: flex; gap: 8px; margin: 25px auto; max-width: 410px; }
+.help-heat-scale > span { flex: 1; padding: 16px 0; color: #adc8d6; background: #263e50; border-radius: 6px; font-weight: 800; }
+.help-heat-scale .hot { background: #833b32; color: #ffe3d4; }
+.help-heat-path { display: flex; justify-content: space-around; gap: 10px; font-size: 11px; line-height: 1.7; }
+.help-heat-path small { color: #b1cbd9; }
+.help-aircraft-roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding-top: 14px; }
+.help-aircraft-roles span { display: grid; gap: 6px; text-transform: capitalize; }
+.help-aircraft-roles b { font-size: 12px; }
+.help-aircraft-roles small { font: 700 9px ui-monospace, monospace; color: #ffd865; }
+.help-control-groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: left; }
+.help-control-groups section { background: #122c40; padding: 14px 12px; border-radius: 10px; }
+.help-control-groups h2 { color: #a8dbe7; font-size: 11px; margin: 0 0 12px; }
+.help-control-groups section > div { display: grid; gap: 5px; margin-bottom: 14px; }
+.help-control-groups kbd { width: fit-content; background: #29485d; border: 1px solid #6b8799; border-bottom-width: 3px; padding: 6px 9px; border-radius: 5px; font: 800 13px ui-monospace, monospace; }
+.help-control-groups span { color: #c1d6e2; font-size: 11px; }
+@media (max-width: 520px) {
+  .help-home { grid-template-columns: repeat(2, 1fr); }
+  .help-home button { min-height: 96px; gap: 7px; }
+  .tutorial-card header > span { font-size: 8px; max-width: 110px; }
+  .help-control-groups { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .help-control-groups section:last-child { grid-column: 1 / -1; }
+  .help-legend { font-size: 10px; gap: 10px; }
+  .help-shot img { aspect-ratio: 1.65; }
+  .help-combat-scene .help-shot img { aspect-ratio: 1.84; }
+  .help-pilot-label { font-size: 8px; }
+  .help-heat-scene .heat-row { font-size: 22px; gap: 6px; }
+  .help-heat-path { flex-wrap: wrap; }
+  .help-aircraft-roles { grid-template-columns: repeat(2, 1fr); row-gap: 12px; }
+}
+.tutorial-help { position: fixed; z-index: 31; bottom: 23px; left: 16px; width: 28px; height: 28px; border: 1px solid #96c5d77a; border-radius: 50%; background: #102c3edb; color: #d5ecf5; font: 800 16px ui-monospace, monospace; cursor: pointer; }
+.tutorial-open .tutorial-help { visibility: hidden; }
+@media (max-width: 520px) {
+  .flight-tutorial { padding: 8px; }
+  .tutorial-card { max-height: calc(100dvh - 16px); }
+  .tutorial-card header, .tutorial-card footer { padding: 12px; gap: 8px; }
+  .tutorial-content { padding: 0 12px; }
+  .tutorial-content h1 { margin-bottom: 12px; }
+  .tutorial-keys { gap: 6px; }
+  .tutorial-key { min-width: 68px; }
+  .tutorial-tiles { grid-template-columns: repeat(2, 1fr); }
+  .tutorial-tile { min-height: 94px; }
 }
 
-.how-to-play.hidden {
-  display: none;
-}
+.sky-nav-labels { position: fixed; z-index: 1; inset: 0; pointer-events: none; overflow: hidden; }
+.sky-nav-label { position: absolute; padding: 2px 4px; color: rgb(226 246 251 / 88%); background: rgb(3 20 29 / 46%); border: 1px solid rgb(101 200 230 / 26%); border-radius: 3px; box-shadow: 0 2px 8px rgb(0 0 0 / 14%); font: 800 8px ui-monospace, monospace; letter-spacing: .045em; white-space: nowrap; transition: opacity 180ms ease; }
+.sky-nav-label.waypoint { color: rgb(255 240 191 / 92%); border-color: rgb(255 201 89 / 44%); background: rgb(45 29 6 / 52%); }
 
-.how-to-card {
-  width: min(390px, calc(100vw - 32px));
-  padding: 20px 24px;
-  background: rgb(5 18 31 / 90%);
-  border: 1px solid rgb(255 255 255 / 28%);
-  border-radius: 9px;
-  line-height: 1.7;
-  box-shadow: 0 12px 40px rgb(0 0 0 / 28%);
-}
-
-.how-to-title {
-  margin-bottom: 8px;
-  color: #ffd34d;
-  font-size: 20px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-align: center;
-}
-
-.how-to-objectives {
-  margin: 11px 0;
-  padding: 9px 0;
-  color: #c5d3df;
-  border-top: 1px solid rgb(255 255 255 / 14%);
-  border-bottom: 1px solid rgb(255 255 255 / 14%);
-}
-
-.how-to-start {
-  margin-top: 12px;
-  color: #74e89a;
-  font-weight: 800;
-  text-align: center;
+@media (max-width: 560px) {
 }
 
 #crash-overlay {

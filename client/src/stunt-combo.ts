@@ -74,14 +74,14 @@ const STUNT_LABELS: Record<StuntType, string> = {
 };
 
 export const stuntGuide: ReadonlyArray<{ type: StuntType; name: string; how: string; where: string; reward: number }> = [
-  { type: 'barrelRoll', name: STUNT_LABELS.barrelRoll, how: 'Hold roll through one complete 360° rotation.', where: 'Open air', reward: STUNT_POINTS.barrelRoll },
-  { type: 'invertedFlight', name: STUNT_LABELS.invertedFlight, how: 'Hold roughly 180° roll while maintaining safe airspeed.', where: 'Open air', reward: STUNT_POINTS.invertedFlight },
+  { type: 'barrelRoll', name: STUNT_LABELS.barrelRoll, how: 'Tilt your plane all the way around once.', where: 'Open sky', reward: STUNT_POINTS.barrelRoll },
+  { type: 'invertedFlight', name: STUNT_LABELS.invertedFlight, how: 'Fly upside down for a few seconds without slowing too much.', where: 'Open sky', reward: STUNT_POINTS.invertedFlight },
   { type: 'lowPass', name: STUNT_LABELS.lowPass, how: 'Fly fast and safely close to terrain without touching it.', where: 'Open ground or water corridors', reward: STUNT_POINTS.lowPass },
   { type: 'nearMiss', name: STUNT_LABELS.nearMiss, how: 'Pass close to another real pilot without colliding.', where: 'Multiplayer airspace', reward: STUNT_POINTS.nearMiss },
   { type: 'bridgeRun', name: STUNT_LABELS.bridgeRun, how: 'Fly through a designated bridge corridor at low altitude.', where: 'Marked bridge corridors', reward: STUNT_POINTS.bridgeRun },
   { type: 'highSpeedPass', name: STUNT_LABELS.highSpeedPass, how: 'Sustain high speed near terrain or a stunt landmark.', where: 'Low routes and landmark zones', reward: STUNT_POINTS.highSpeedPass },
   { type: 'diveRecovery', name: STUNT_LABELS.diveRecovery, how: 'Commit to a steep dive, then recover well above terrain.', where: 'Open air with clear recovery room', reward: STUNT_POINTS.diveRecovery },
-  { type: 'precisionLanding', name: STUNT_LABELS.precisionLanding, how: 'Touch down gently, aligned and within the safe landing envelope.', where: 'Any configured runway', reward: STUNT_POINTS.precisionLanding },
+  { type: 'precisionLanding', name: STUNT_LABELS.precisionLanding, how: 'Land gently and straight, with no red speed warning.', where: 'Any runway', reward: STUNT_POINTS.precisionLanding },
 ];
 
 const comboTimeout = 9;

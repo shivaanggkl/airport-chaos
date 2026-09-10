@@ -265,8 +265,16 @@ export function addOsmCityData(
       if (buildDerivedLods && classification >= 3) addRoadSurface(farRoadBuffers, a, b, c, d);
       if (collectCollisionData) roadSegments.push({ x1, z1, x2, z2, width });
     }
-    if (roadBuffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(roadBuffers), options.roadMaterial));
-    if (highwayAccentBuffers.positions.length && options.highwayAccentMaterial) chunkGroup.add(new THREE.Mesh(createGeometry(highwayAccentBuffers), options.highwayAccentMaterial));
+    if (roadBuffers.positions.length) {
+      const roadMesh = new THREE.Mesh(createGeometry(roadBuffers), options.roadMaterial);
+      roadMesh.name = 'osm-road';
+      chunkGroup.add(roadMesh);
+    }
+    if (highwayAccentBuffers.positions.length && options.highwayAccentMaterial) {
+      const accentMesh = new THREE.Mesh(createGeometry(highwayAccentBuffers), options.highwayAccentMaterial);
+      accentMesh.name = 'osm-highway-accent';
+      chunkGroup.add(accentMesh);
+    }
 
     const aerowayBuffers = (options.aerowayMaterials ?? []).map((): GeometryBuffers => ({ positions: [], normals: [] }));
     for (let index = 0; index < (chunk.a?.length ?? 0); index += 6) {
@@ -289,7 +297,11 @@ export function addOsmCityData(
       );
     }
     aerowayBuffers.forEach((buffers, kind) => {
-      if (buffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(buffers), options.aerowayMaterials![kind]));
+      if (buffers.positions.length) {
+        const aerowayMesh = new THREE.Mesh(createGeometry(buffers), options.aerowayMaterials![kind]);
+        aerowayMesh.name = `osm-aeroway-${kind}`;
+        chunkGroup.add(aerowayMesh);
+      }
     });
 
     const buildingBuffers = options.buildingMaterials.map((): GeometryBuffers => ({ positions: [], normals: [], uvs: [] }));
@@ -311,7 +323,11 @@ export function addOsmCityData(
       if (collectCollisionData) obstacleBounds.push({ x: box.x, z: box.z, halfX: (box.maxX - box.minX) / 2, halfZ: (box.maxZ - box.minZ) / 2, height, baseY, polygon: points });
     }
     buildingBuffers.forEach((buffers, family) => {
-      if (buffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(buffers), options.buildingMaterials[family]));
+      if (buffers.positions.length) {
+        const buildingMesh = new THREE.Mesh(createGeometry(buffers), options.buildingMaterials[family]);
+        buildingMesh.name = `osm-building-${family}`;
+        chunkGroup.add(buildingMesh);
+      }
     });
 
     const waterBuffers: GeometryBuffers = { positions: [], normals: [] };
@@ -323,7 +339,11 @@ export function addOsmCityData(
       addSurfacePolygon(waterBuffers, points, surfaceY);
       if (collectCollisionData) waterBounds.push({ ...box, surfaceY, polygon: points });
     }
-    if (waterBuffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(waterBuffers), options.waterMaterial));
+    if (waterBuffers.positions.length) {
+      const waterMesh = new THREE.Mesh(createGeometry(waterBuffers), options.waterMaterial);
+      waterMesh.name = 'osm-water';
+      chunkGroup.add(waterMesh);
+    }
 
     const landBuffers = options.landMaterials.map((): GeometryBuffers => ({ positions: [], normals: [] }));
     for (const land of chunk.p) {
@@ -334,7 +354,11 @@ export function addOsmCityData(
       addSurfacePolygon(landBuffers[family] ?? landBuffers[0], points, (x, z) => options.heightAt(x, z) + 0.045 + family * 0.004);
     }
     landBuffers.forEach((buffers, family) => {
-      if (buffers.positions.length) chunkGroup.add(new THREE.Mesh(createGeometry(buffers), options.landMaterials[family]));
+      if (buffers.positions.length) {
+        const landMesh = new THREE.Mesh(createGeometry(buffers), options.landMaterials[family]);
+        landMesh.name = `osm-land-${family}`;
+        chunkGroup.add(landMesh);
+      }
     });
 
     if (buildDerivedLods && midRoadBuffers.positions.length) midGroup.add(new THREE.Mesh(createGeometry(midRoadBuffers), options.roadMaterial));

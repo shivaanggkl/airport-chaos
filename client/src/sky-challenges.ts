@@ -51,6 +51,9 @@ type ChallengeCallbacks = {
   onCredits: (credits: number) => void;
   onMessage: (message: string) => void;
   onStateChange: () => void;
+  onStarted?: (id: string) => void;
+  onGate?: (id: string, gateIndex: number) => void;
+  onComplete?: (id: string) => void;
 };
 
 type ChallengeRuntime = {
@@ -154,6 +157,7 @@ export class SkyChallengeSystem {
     const runtime = this.runtimes.find((candidate) => candidate.definition.id === id);
     if (!runtime) return false;
     this.active = { runtime, gateIndex: 0, combo: 1, elapsed: 0 };
+    this.callbacks.onStarted?.(id);
     this.nearbyStart = null;
     this.refreshGateVisuals();
     this.callbacks.onMessage(`${typeLabel(runtime.definition.type)} STARTED`);
@@ -249,6 +253,7 @@ export class SkyChallengeSystem {
     const active = this.active;
     if (!active) return;
     const definition = active.runtime.definition;
+    this.callbacks.onGate?.(definition.id, active.gateIndex);
     const points = gateReward(definition.type) * active.combo;
     this.callbacks.onScore(points);
     const skill = definition.type === 'inverted' ? 'INVERTED' : definition.type === 'lowAltitude' ? 'LOW PASS' : typeLabel(definition.type);
@@ -263,6 +268,7 @@ export class SkyChallengeSystem {
     const finishBonus = Math.max(0, Math.round((definition.timeLimit - active.elapsed) * 12));
     const totalReward = definition.reward + finishBonus;
     this.callbacks.onCredits(totalReward);
+    this.callbacks.onComplete?.(definition.id);
     this.callbacks.onMessage(`${typeLabel(definition.type)} COMPLETE +${totalReward} CREDITS`);
     this.active = null;
     this.refreshGateVisuals();

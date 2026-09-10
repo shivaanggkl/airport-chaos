@@ -4,18 +4,60 @@ import { addOsmCityData, disposeOsmGroups, type CompactChunk, type CompactCityDa
 type Lod = 'near' | 'mid' | 'far';
 type ManifestEntry = { id: string; lod: Lod; x: number; z: number; minX: number; maxX: number; minZ: number; maxZ: number; filename: string; bytes: number };
 type Manifest = Omit<CompactCityData, 'chunks'> & { chunks: ManifestEntry[] };
-type Loaded = { entry: ManifestEntry; groups: THREE.Group[]; bytes: number; lastUsed: number };
+type FeatureCounts = { roads: number; buildings: number; water: number; landuse: number; aeroways: number };
+type Loaded = { entry: ManifestEntry; groups: THREE.Group[]; bytes: number; lastUsed: number; features: FeatureCounts };
 type CellEntries = Partial<Record<Lod, ManifestEntry>>;
+type ActiveRequest = { entry: ManifestEntry; controller: AbortController; startedAt: number };
+type BuildJob = { entry: ManifestEntry; payload: string; fetchedAt: number; fetchMs: number };
 type Options = Parameters<typeof addOsmCityData>[2];
 export type DallasStreamingStats = {
   loaded: Record<Lod, number>;
+  visible: Record<Lod, number>;
+  desired: Record<Lod, number>;
+  requested: Record<Lod, number>;
   loadedBytes: number;
   cacheLimitBytes: number;
   queued: number;
   pending: number;
+  activeFetches: number;
+  queuedBuilds: number;
+  abortedFetches: number;
+  protectedCells: { visible: number; ahead: number; immediateFallback: number };
   loadedChunks: number;
   evictedChunks: number;
   discardedLoads: number;
+  failedFetches: number;
+  missingImmediateCells: number;
+  averageFetchMs: number;
+  maxFetchMs: number;
+  averageParseMs: number;
+  maxParseMs: number;
+  averageBuildMs: number;
+  maxBuildMs: number;
+  maxBuildFilename: string;
+  speed: number;
+  preloadDistance: number;
+};
+export type DallasChunkVisualDebug = {
+  id: string;
+  lod: Lod;
+  desiredLod: Lod;
+  lifecycle: 'attached' | 'building' | 'fetching' | 'queued' | 'absent';
+  source: FeatureCounts | undefined;
+  attached: boolean;
+  groupVisible: boolean;
+  meshVisible: number;
+  meshes: number;
+  buildingMeshes: number;
+  roadMeshes: number;
+  vertices: number;
+  indices: number;
+  bounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number } | undefined;
+  cameraDistance: number | undefined;
+  frustumIntersects: boolean | undefined;
+  groupLayers: number;
+  cameraLayers: number;
+  material: { opacity: number; transparent: boolean; depthTest: boolean; depthWrite: boolean } | undefined;
 };
 const ranges: Record<Lod, number> = { near: 5_000, mid: 15_000, far: 35_000 };
 const order: Lod[] = ['near', 'mid', 'far'];
@@ -23,9 +65,14 @@ const enterRanges: Record<Lod, number> = { near: 4_600, mid: 14_200, far: 35_000
 const exitRanges: Record<Lod, number> = { near: 5_900, mid: 16_200, far: 36_250 };
 const desiredMargin = 1_250;
 const farRetentionMargin = 2_000;
-const preloadSeconds = 3.5;
-const maxPreloadDistance = 3_000;
-const lodLoadPriority: Record<Lod, number> = { far: 0, mid: 1, near: 2 };
+const preloadSeconds = 6;
+const maxPreloadDistance = 6_000;
+// A cell may only advance one stage at a time (FAR → MID → NEAR), but a
+// completed coarse cell close to the aircraft must advance before we spend
+// the initial load budget on coarse cells at the edge of the 35 km window.
+// The previous order did the opposite: it drained hundreds of FAR requests
+// first, leaving DFW/Downtown visibly sparse for a long time after boot.
+const lodLoadPriority: Record<Lod, number> = { near: 0, mid: 1, far: 2 };
 
 function distanceToBounds(position: THREE.Vector3, entry: ManifestEntry): number {
   const x = THREE.MathUtils.clamp(position.x, entry.minX, entry.maxX);
@@ -56,6 +103,16 @@ function geometryBytes(groups: ReadonlyArray<THREE.Group>): number {
   return bytes;
 }
 
+function featureCounts(chunk: CompactChunk): FeatureCounts {
+  return {
+    roads: chunk.r.length / 6,
+    buildings: chunk.b.length,
+    water: chunk.w.length,
+    landuse: chunk.p.length,
+    aeroways: (chunk.a?.length ?? 0) / 6,
+  };
+}
+
 export class DallasChunkStreamer {
   private manifest?: Manifest;
   private readonly cells = new Map<string, CellEntries>();
@@ -64,7 +121,8 @@ export class DallasChunkStreamer {
   private readonly pending = new Set<string>();
   private readonly visibleLod = new Map<string, Lod>();
   private queue: ManifestEntry[] = [];
-  private active = 0;
+  private readonly activeRequests = new Map<string, ActiveRequest>();
+  private buildQueue: BuildJob[] = [];
   private alive = true;
   private loadedBytes = 0;
   private lastPosition = new THREE.Vector3(Infinity, 0, Infinity);
@@ -73,12 +131,33 @@ export class DallasChunkStreamer {
   private lastStreamUpdateAt = 0;
   private readonly maxConcurrency = 4;
   private readonly maxBytes = 128 * 1024 * 1024;
+  private pumpScheduled = false;
   private loadedChunks = 0;
   private evictedChunks = 0;
   private discardedLoads = 0;
+  private failedFetches = 0;
+  private lastMissingWarningAt = -Infinity;
+  private abortedFetches = 0;
+  private needsRebalance = false;
+  private buildScheduled = false;
+  private fetchTotalMs = 0;
+  private fetchCount = 0;
+  private maxFetchMs = 0;
+  private parseTotalMs = 0;
+  private parseCount = 0;
+  private maxParseMs = 0;
+  private buildTotalMs = 0;
+  private buildCount = 0;
+  private maxBuildMs = 0;
+  private maxBuildFilename = 'n/a';
+  private currentSpeed = 0;
+  private currentPreloadDistance = 0;
 
   constructor(private readonly scene: THREE.Scene, private readonly options: Options) {
-    void fetch('/data/dallas/manifest.json').then((response) => response.json()).then((manifest: Manifest) => {
+    void fetch('/data/dallas/manifest.json').then((response) => {
+      if (!response.ok) throw new Error(`Dallas manifest returned ${response.status}`);
+      return response.json() as Promise<Manifest>;
+    }).then((manifest) => {
       if (!this.alive) return;
       this.manifest = manifest;
       this.cells.clear();
@@ -87,7 +166,7 @@ export class DallasChunkStreamer {
         cell[entry.lod] = entry;
         this.cells.set(entry.id, cell);
       }
-    });
+    }).catch(() => { this.failedFetches += 1; });
   }
 
   update(position: THREE.Vector3, velocity?: THREE.Vector3): void {
@@ -98,11 +177,17 @@ export class DallasChunkStreamer {
     if (this.lastPosition.distanceToSquared(position) < 140 * 140 && now - this.lastStreamUpdateAt < 120) return;
     this.lastPosition.copy(position);
     this.lastStreamUpdateAt = now;
-    this.preloadDirection.copy(velocity ?? this.preloadDirection).setY(0);
-    const speed = this.preloadDirection.length();
-    if (speed > 1) this.preloadDirection.multiplyScalar(1 / speed);
-    else this.preloadDirection.set(0, 0, 0);
+    // Async build completion rebalances without a new velocity sample. Retain
+    // its magnitude: preloadDirection is already normalized, not a velocity.
+    if (velocity) {
+      this.preloadDirection.copy(velocity).setY(0);
+      this.currentSpeed = this.preloadDirection.length();
+      if (this.currentSpeed > 1) this.preloadDirection.multiplyScalar(1 / this.currentSpeed);
+      else this.preloadDirection.set(0, 0, 0);
+    }
+    const speed = this.currentSpeed;
     const preloadDistance = THREE.MathUtils.clamp(speed * preloadSeconds, 0, maxPreloadDistance);
+    this.currentPreloadDistance = preloadDistance;
     this.preloadPosition.copy(position).addScaledVector(this.preloadDirection, preloadDistance);
     const required: Array<{ entry: ManifestEntry; distance: number }> = [];
     for (const entries of this.cells.values()) {
@@ -136,59 +221,174 @@ export class DallasChunkStreamer {
       if (loaded) { loaded.lastUsed = performance.now(); continue; }
       if (!this.pending.has(key)) { this.pending.add(key); this.queue.push(entry); }
     }
-    this.queue.sort((a, b) => {
-      const aDistance = distanceToBounds(position, a);
-      const bDistance = distanceToBounds(position, b);
-      // Current cells always win. Within the same useful band, look-ahead
-      // cells win over side/behind cells so a Fighter does not outrun its
-      // next replacement, while FAR still precedes MID/NEAR for one cell.
-      const aPreloadOnly = aDistance > ranges[a.lod] + desiredMargin;
-      const bPreloadOnly = bDistance > ranges[b.lod] + desiredMargin;
-      if (aPreloadOnly !== bPreloadOnly) return aPreloadOnly ? 1 : -1;
-      const aAhead = isAhead(position, this.preloadDirection, a) ? 0 : 1;
-      const bAhead = isAhead(position, this.preloadDirection, b) ? 0 : 1;
-      if (aAhead !== bAhead && Math.abs(aDistance - bDistance) < 5_000) return aAhead - bAhead;
-      return aDistance - bDistance || lodLoadPriority[a.lod] - lodLoadPriority[b.lod];
-    });
+    this.sortQueue(this.queue, position);
+    this.cancelLowerPriorityFetches(position);
     this.pump();
     this.refreshLodVisibility(position);
     this.evict(position);
   }
 
   private pump(): void {
-    while (this.alive && this.active < this.maxConcurrency && this.queue.length) {
+    while (this.alive && this.activeRequests.size < this.maxConcurrency && this.queue.length) {
       const entry = this.queue.shift()!;
       const key = this.keyFor(entry);
       if ((!this.desired.has(key) && !this.needsVisibleReplacement(entry, this.lastPosition)) || this.loaded.has(key)) {
         this.pending.delete(key);
         continue;
       }
-      this.active += 1;
-      void fetch(`/data/dallas/${entry.filename}`).then((response) => response.json()).then((chunk: CompactChunk) => {
-        // Fetches cannot be cancelled reliably after dispatch, but obsolete
-        // responses must be discarded before they allocate Three.js geometry.
+      const controller = new AbortController();
+      const startedAt = performance.now();
+      this.activeRequests.set(key, { entry, controller, startedAt });
+      const url = `/data/dallas/${entry.filename}`;
+      void fetch(url, { signal: controller.signal }).then((response) => {
+        if (import.meta.env.DEV && response.status === 404 &&
+            distanceToBounds(this.lastPosition, entry) <= ranges.near &&
+            performance.now() - this.lastMissingWarningAt >= 5000) {
+          this.lastMissingWarningAt = performance.now();
+          console.error('DALLAS_CHUNK_MISSING', { city: 'dallas', cellId: entry.id, lod: entry.lod, url });
+        }
+        if (!response.ok) throw new Error(`Dallas chunk ${entry.filename} returned ${response.status}`);
+        return response.text();
+      }).then((payload) => {
+        const fetchMs = performance.now() - startedAt;
+        this.fetchTotalMs += fetchMs;
+        this.fetchCount += 1;
+        this.maxFetchMs = Math.max(this.maxFetchMs, fetchMs);
+        // Obsolete responses are discarded before parse/build allocation.
         if (!this.alive || !this.manifest || (!this.desired.has(key) && !this.needsVisibleReplacement(entry, this.lastPosition)) || this.loaded.has(key)) {
           this.discardedLoads += 1;
           return;
         }
-        const city: CompactCityData = { v: this.manifest.v, source: this.manifest.source, attribution: this.manifest.attribution, license: this.manifest.license, chunkSize: this.manifest.chunkSize, chunks: [chunk] };
-        const result = addOsmCityData(this.scene, city, this.options);
-        // Groups are attached atomically within this promise continuation.
-        // Hide them until applyLodVisibility chooses the replacement so a
-        // renderer frame can never see both LODs or a blank handoff.
-        for (const group of result.groups) group.visible = false;
-        // Manifest bytes only measure compact JSON on disk. Cache pressure is
-        // caused by the expanded GPU buffers, which are often several times
-        // larger; count those so the 128 MiB LRU is a real resource ceiling.
-        const bytes = Math.max(entry.bytes, geometryBytes(result.groups));
-        this.loaded.set(key, { entry, groups: result.groups, bytes, lastUsed: performance.now() });
-        this.loadedBytes += bytes;
-        this.loadedChunks += 1;
-        this.applyLodVisibility(entry.id, this.lastPosition);
-      }).catch(() => {
+        this.buildQueue.push({ entry, payload, fetchedAt: performance.now(), fetchMs });
+        this.sortBuildQueue();
+        this.scheduleBuild();
+      }).catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) this.failedFetches += 1;
         // Failed chunk requests must remain retryable as the player approaches again.
-      }).finally(() => { this.pending.delete(key); this.active -= 1; this.pump(); });
+      }).finally(() => {
+        this.activeRequests.delete(key);
+        // A job remains pending while its parse/build work waits. This prevents
+        // duplicate fetches for the same cell and preserves exact queue state.
+        if (!this.buildQueue.some((job) => this.keyFor(job.entry) === key)) this.pending.delete(key);
+        // A local/static response can resolve synchronously enough that calling
+        // pump() here recursively drains hundreds of FAR chunks in microtasks.
+        // That starves rendering, so no attached FAR can advance to local
+        // MID/NEAR detail. Yield between batches instead of recursively
+        // draining the entire manifest in one task.
+        this.schedulePump();
+      });
     }
+  }
+
+  private processBuildQueue(): void {
+    this.buildScheduled = false;
+    if (!this.alive || !this.manifest || !this.buildQueue.length) return;
+    this.sortBuildQueue();
+    // One bounded parse/build per task keeps a 600–900 KB dense NEAR cell
+    // from monopolising the main thread while an urgent local replacement is
+    // waiting behind it.
+    const job = this.buildQueue.shift()!;
+    const key = this.keyFor(job.entry);
+    if ((!this.desired.has(key) && !this.needsVisibleReplacement(job.entry, this.lastPosition)) || this.loaded.has(key)) {
+      this.pending.delete(key);
+      this.discardedLoads += 1;
+      this.scheduleBuild();
+      return;
+    }
+    let chunk: CompactChunk;
+    const parseStartedAt = performance.now();
+    try {
+      chunk = JSON.parse(job.payload) as CompactChunk;
+    } catch {
+      this.pending.delete(key);
+      this.failedFetches += 1;
+      this.scheduleBuild();
+      return;
+    }
+    const parseMs = performance.now() - parseStartedAt;
+    this.parseTotalMs += parseMs;
+    this.parseCount += 1;
+    this.maxParseMs = Math.max(this.maxParseMs, parseMs);
+    const buildStartedAt = performance.now();
+    const city: CompactCityData = { v: this.manifest.v, source: this.manifest.source, attribution: this.manifest.attribution, license: this.manifest.license, chunkSize: this.manifest.chunkSize, chunks: [chunk] };
+    const result = addOsmCityData(this.scene, city, this.options);
+    const buildMs = performance.now() - buildStartedAt;
+    this.buildTotalMs += buildMs;
+    this.buildCount += 1;
+    if (buildMs >= this.maxBuildMs) {
+      this.maxBuildMs = buildMs;
+      this.maxBuildFilename = job.entry.filename;
+    }
+    // Attach first, then allow the visibility handoff to replace the prior
+    // FAR/MID representation atomically; no required cell goes blank.
+    for (const group of result.groups) group.visible = false;
+    const bytes = Math.max(job.entry.bytes, geometryBytes(result.groups));
+    this.loaded.set(key, { entry: job.entry, groups: result.groups, bytes, lastUsed: performance.now(), features: featureCounts(chunk) });
+    this.loadedBytes += bytes;
+    this.loadedChunks += 1;
+    this.pending.delete(key);
+    this.applyLodVisibility(job.entry.id, this.lastPosition);
+    this.needsRebalance = true;
+    this.scheduleBuild();
+    this.schedulePump();
+  }
+
+  private scheduleBuild(): void {
+    if (!this.alive || this.buildScheduled || !this.buildQueue.length) return;
+    this.buildScheduled = true;
+    window.setTimeout(() => this.processBuildQueue(), 0);
+  }
+
+  private priorityScore(entry: ManifestEntry, position: THREE.Vector3): number {
+    const distance = distanceToBounds(position, entry);
+    const distanceBand = distance <= ranges.near + desiredMargin ? 0
+      : distance <= ranges.mid + desiredMargin ? 1
+        : distance <= ranges.far + desiredMargin ? 2 : 3;
+    const aheadPenalty = isAhead(position, this.preloadDirection, entry) ? 0 : 1;
+    // LOD is deliberately the first sort key: an available NEAR replacement
+    // always beats a MID/FAR request, even when a fast aircraft has moved far
+    // enough that the older request is marginally closer.
+    return lodLoadPriority[entry.lod] * 100_000_000 + distanceBand * 10_000_000 + aheadPenalty * 1_000_000 + distance;
+  }
+
+  private sortQueue(entries: ManifestEntry[], position: THREE.Vector3): void {
+    entries.sort((a, b) => this.priorityScore(a, position) - this.priorityScore(b, position));
+  }
+
+  private sortBuildQueue(): void {
+    this.buildQueue.sort((a, b) => this.priorityScore(a.entry, this.lastPosition) - this.priorityScore(b.entry, this.lastPosition));
+  }
+
+  private cancelLowerPriorityFetches(position: THREE.Vector3): void {
+    if (!this.queue.length || !this.activeRequests.size) return;
+    const bestQueued = this.queue[0];
+    const bestScore = this.priorityScore(bestQueued, position);
+    for (const request of [...this.activeRequests.values()].sort((a, b) => this.priorityScore(b.entry, position) - this.priorityScore(a.entry, position))) {
+      const requestDistance = distanceToBounds(position, request.entry);
+      const requestScore = this.priorityScore(request.entry, position);
+      // Preserve a just-in-time coarse bootstrap for the immediate area; it is
+      // the only possible visible fallback. Older/outside work yields a slot
+      // when a local NEAR/MID replacement arrives.
+      const bootstrapCritical = request.entry.lod === 'far' && requestDistance <= ranges.near + desiredMargin && !this.hasVisibleFallback(request.entry.id, position);
+      if (bootstrapCritical || request.entry.lod === 'near' || request.controller.signal.aborted || requestScore <= bestScore) continue;
+      this.abortedFetches += 1;
+      request.controller.abort();
+    }
+  }
+
+  private schedulePump(): void {
+    if (!this.alive || this.pumpScheduled) return;
+    this.pumpScheduled = true;
+    window.setTimeout(() => {
+      this.pumpScheduled = false;
+      if (this.needsRebalance && Number.isFinite(this.lastPosition.x)) {
+        this.needsRebalance = false;
+        this.lastStreamUpdateAt = 0;
+        this.update(this.lastPosition);
+      } else {
+        this.pump();
+      }
+    }, 16);
   }
 
   private applyLodVisibility(id: string, position: THREE.Vector3): void {
@@ -239,10 +439,16 @@ export class DallasChunkStreamer {
       const replacementReady = order.some((lod) => lod !== loaded.entry.lod && this.loaded.has(`${lod}:${loaded.entry.id}`));
       const visible = this.visibleLod.get(loaded.entry.id) === loaded.entry.lod;
       const retained = distance <= exitRanges.far + farRetentionMargin;
+      const velocityAheadProtected = (
+        isAhead(position, this.preloadDirection, loaded.entry) &&
+        distanceToBounds(this.preloadPosition, loaded.entry) <= ranges[loaded.entry.lod] + desiredMargin
+      );
+      const immediateFallbackProtected = loaded.entry.lod === 'far' &&
+        distance <= ranges.near + desiredMargin && !replacementReady;
       // Never use cache pressure as permission to delete the only rendered
       // cell. It may briefly exceed the nominal cache cap; a non-visible or
       // already-replaced chunk is evicted on a later pass instead.
-      if (visible || (retained && !replacementReady)) continue;
+      if (visible || velocityAheadProtected || immediateFallbackProtected || (retained && !replacementReady)) continue;
       if (!distant && this.loadedBytes <= this.maxBytes) continue;
       this.loaded.delete(this.keyFor(loaded.entry));
       this.loadedBytes -= loaded.bytes;
@@ -291,23 +497,147 @@ export class DallasChunkStreamer {
 
   dispose(): void {
     this.alive = false;
+    for (const request of this.activeRequests.values()) request.controller.abort();
     for (const loaded of this.loaded.values()) disposeOsmGroups(loaded.groups);
-    this.loaded.clear(); this.cells.clear(); this.queue = []; this.desired.clear(); this.pending.clear(); this.visibleLod.clear(); this.loadedBytes = 0;
+    this.loaded.clear(); this.cells.clear(); this.queue = []; this.buildQueue = []; this.activeRequests.clear(); this.desired.clear(); this.pending.clear(); this.visibleLod.clear(); this.loadedBytes = 0;
   }
 
   getStats(): DallasStreamingStats {
     const loaded: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
     for (const value of this.loaded.values()) loaded[value.entry.lod] += 1;
+    const visible: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
+    for (const [id, lod] of this.visibleLod) {
+      if (this.loaded.has(`${lod}:${id}`)) visible[lod] += 1;
+    }
+    const desired: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
+    const requested: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
+    for (const key of this.desired) desired[key.slice(0, key.indexOf(':')) as Lod] += 1;
+    for (const entry of this.queue) requested[entry.lod] += 1;
+    for (const request of this.activeRequests.values()) requested[request.entry.lod] += 1;
+    for (const job of this.buildQueue) requested[job.entry.lod] += 1;
+    let missingImmediateCells = 0;
+    const protectedCells = { visible: 0, ahead: 0, immediateFallback: 0 };
+    for (const [id, entries] of this.cells) {
+      const representative = entries.far ?? entries.mid ?? entries.near;
+      if (representative && distanceToBounds(this.lastPosition, representative) <= ranges.near && !this.hasVisibleFallback(id, this.lastPosition)) missingImmediateCells += 1;
+    }
+    for (const loadedEntry of this.loaded.values()) {
+      const distance = distanceToBounds(this.lastPosition, loadedEntry.entry);
+      const replacementReady = order.some((lod) => lod !== loadedEntry.entry.lod && this.loaded.has(`${lod}:${loadedEntry.entry.id}`));
+      if (this.visibleLod.get(loadedEntry.entry.id) === loadedEntry.entry.lod) protectedCells.visible += 1;
+      if (isAhead(this.lastPosition, this.preloadDirection, loadedEntry.entry) &&
+          distanceToBounds(this.preloadPosition, loadedEntry.entry) <= ranges[loadedEntry.entry.lod] + desiredMargin) protectedCells.ahead += 1;
+      if (loadedEntry.entry.lod === 'far' && distance <= ranges.near + desiredMargin && !replacementReady) protectedCells.immediateFallback += 1;
+    }
     return {
       loaded,
+      visible,
+      desired,
+      requested,
       loadedBytes: this.loadedBytes,
       cacheLimitBytes: this.maxBytes,
       queued: this.queue.length,
       pending: this.pending.size,
+      activeFetches: this.activeRequests.size,
+      queuedBuilds: this.buildQueue.length,
+      abortedFetches: this.abortedFetches,
+      protectedCells,
       loadedChunks: this.loadedChunks,
       evictedChunks: this.evictedChunks,
       discardedLoads: this.discardedLoads,
+      failedFetches: this.failedFetches,
+      missingImmediateCells,
+      averageFetchMs: this.fetchCount ? this.fetchTotalMs / this.fetchCount : 0,
+      maxFetchMs: this.maxFetchMs,
+      averageParseMs: this.parseCount ? this.parseTotalMs / this.parseCount : 0,
+      maxParseMs: this.maxParseMs,
+      averageBuildMs: this.buildCount ? this.buildTotalMs / this.buildCount : 0,
+      maxBuildMs: this.maxBuildMs,
+      maxBuildFilename: this.maxBuildFilename,
+      speed: this.currentSpeed,
+      preloadDistance: this.currentPreloadDistance,
     };
+  }
+
+  // DEV diagnostics call this at low frequency only. It deliberately inspects
+  // the attached scene objects instead of treating a completed HTTP request as
+  // a successful visual cell.
+  getVisualDebug(position: THREE.Vector3, camera: THREE.Camera): DallasChunkVisualDebug[] {
+    if (!this.manifest) return [];
+    const frustum = new THREE.Frustum();
+    const projection = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projection);
+    const candidates = [...this.cells.values()]
+      .map((entries) => entries.near ?? entries.mid ?? entries.far)
+      .filter((entry): entry is ManifestEntry => Boolean(entry) && distanceToBounds(position, entry!) <= 2_000)
+      .sort((a, b) => distanceToBounds(position, a) - distanceToBounds(position, b));
+    return candidates.map((representative) => {
+      const desiredLod = this.targetLodFor(representative, position);
+      const visibleLod = this.visibleLod.get(representative.id);
+      const loaded = (visibleLod && this.loaded.get(`${visibleLod}:${representative.id}`))
+        ?? order.map((lod) => this.loaded.get(`${lod}:${representative.id}`)).find(Boolean);
+      const entry = loaded?.entry ?? representative;
+      const key = this.keyFor(entry);
+      const inBuild = this.buildQueue.some((job) => this.keyFor(job.entry) === key);
+      const inFetch = this.activeRequests.has(key);
+      const queued = this.queue.some((queuedEntry) => this.keyFor(queuedEntry) === key);
+      const lifecycle: DallasChunkVisualDebug['lifecycle'] = loaded ? 'attached' : inBuild ? 'building' : inFetch ? 'fetching' : queued ? 'queued' : 'absent';
+      const worldBounds = new THREE.Box3();
+      let hasBounds = false;
+      let meshes = 0;
+      let meshVisible = 0;
+      let buildingMeshes = 0;
+      let roadMeshes = 0;
+      let vertices = 0;
+      let indices = 0;
+      let material: DallasChunkVisualDebug['material'];
+      for (const group of loaded?.groups ?? []) {
+        group.updateWorldMatrix(true, true);
+        group.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          meshes += 1;
+          if (object.visible && group.visible && object.parent) meshVisible += 1;
+          if (object.name.startsWith('osm-building')) buildingMeshes += 1;
+          if (object.name === 'osm-road') roadMeshes += 1;
+          vertices += object.geometry.getAttribute('position')?.count ?? 0;
+          indices += object.geometry.index?.count ?? 0;
+          if (!material) {
+            const candidate = Array.isArray(object.material) ? object.material[0] : object.material;
+            material = { opacity: candidate.opacity, transparent: candidate.transparent, depthTest: candidate.depthTest, depthWrite: candidate.depthWrite };
+          }
+          object.geometry.computeBoundingBox();
+          if (object.geometry.boundingBox) {
+            worldBounds.union(object.geometry.boundingBox.clone().applyMatrix4(object.matrixWorld));
+            hasBounds = true;
+          }
+        });
+      }
+      const bounds = hasBounds ? {
+        minX: worldBounds.min.x, minY: worldBounds.min.y, minZ: worldBounds.min.z,
+        maxX: worldBounds.max.x, maxY: worldBounds.max.y, maxZ: worldBounds.max.z,
+      } : undefined;
+      return {
+        id: representative.id,
+        lod: entry.lod,
+        desiredLod,
+        lifecycle,
+        source: loaded?.features,
+        attached: Boolean(loaded?.groups.length && loaded.groups.every((group) => group.parent === this.scene)),
+        groupVisible: Boolean(loaded?.groups.some((group) => group.visible)),
+        meshVisible,
+        meshes,
+        buildingMeshes,
+        roadMeshes,
+        vertices,
+        indices,
+        bounds,
+        cameraDistance: bounds ? camera.position.distanceTo(worldBounds.getCenter(new THREE.Vector3())) : undefined,
+        frustumIntersects: bounds ? frustum.intersectsBox(worldBounds) : undefined,
+        groupLayers: loaded?.groups[0]?.layers.mask ?? 0,
+        cameraLayers: camera.layers.mask,
+        material,
+      };
+    });
   }
 
   private keyFor(entry: ManifestEntry): string { return `${entry.lod}:${entry.id}`; }

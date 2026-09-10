@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'node:path';
+import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 export type CityId = 'milwaukee' | 'dallas';
@@ -18,8 +19,15 @@ export type PlayerProfile = {
   discoveries: Partial<Record<CityId, string[]>>;
   challengeCompletions: number;
   eventCompletions: number;
+  objectives: Partial<Record<CityId, ObjectiveCycleState>>;
+  mastery: Partial<Record<CityId, CityMastery>>;
   legacyImportPending: boolean;
 };
+
+export type ObjectiveActivity = 'stunt' | 'territoryCapture' | 'event' | 'discovery' | 'kill' | 'heat3' | 'challenge' | 'distance' | 'landing';
+export type ObjectiveItem = { id: string; label: string; activity: ObjectiveActivity; target: number; progress: number; reward: number; completed: boolean; rewarded: boolean };
+export type ObjectiveCycleState = { dailyId: string; weeklyId: string; daily: ObjectiveItem[]; weekly: ObjectiveItem[]; landingAirportIds?: string[]; dailyBonusAwarded: boolean; weeklyBonusAwarded: boolean };
+export type CityMastery = { xp: number; level: number; unlockedRewards: string[] };
 
 export type LegacyProfileImport = {
   credits?: unknown;
@@ -45,6 +53,10 @@ const aircraftUnlocks: Record<AircraftType, number> = {
 };
 const aircraftTypes = new Set<AircraftType>(Object.keys(aircraftUnlocks) as AircraftType[]);
 const cityIds = new Set<CityId>(['milwaukee', 'dallas']);
+const MASTERY_MAX_LEVEL = 25;
+export function masteryXpForLevel(level: number): number { const step = Math.max(0, Math.min(MASTERY_MAX_LEVEL, level) - 1); return step * 100 + step * step * 25; }
+const masteryRewards: Record<number, string> = { 3: 'City Badge', 5: 'City Livery', 8: 'Garage Cosmetic', 10: 'City Pilot Title', 15: 'Premium Livery Effect', 20: 'Elite Title', 25: 'City Master Badge' };
+function emptyMastery(): CityMastery { return { xp: 0, level: 1, unlockedRewards: [] }; }
 
 type ProfileRow = {
   pilot_id: string;
@@ -60,6 +72,8 @@ type ProfileRow = {
   event_completions: number;
   legacy_imported: number;
   owned_aircraft: string;
+  objectives: string;
+  mastery: string;
 };
 
 function boundedInteger(value: unknown, maximum: number): number {
@@ -68,6 +82,19 @@ function boundedInteger(value: unknown, maximum: number): number {
 
 function boundedNumber(value: unknown, maximum: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.min(maximum, value) : 0;
+}
+
+function parseMastery(value: unknown): Partial<Record<CityId, CityMastery>> {
+  let raw: unknown = value;
+  try { if (typeof value === 'string') raw = JSON.parse(value); } catch { raw = {}; }
+  const result: Partial<Record<CityId, CityMastery>> = {};
+  for (const cityId of cityIds) {
+    const entry = (raw as Record<string, unknown>)?.[cityId] as Partial<CityMastery> | undefined;
+    const xp = boundedInteger(entry?.xp, 10_000_000);
+    let level = 1; while (level < MASTERY_MAX_LEVEL && xp >= masteryXpForLevel(level + 1)) level += 1;
+    result[cityId] = { xp, level, unlockedRewards: Array.isArray(entry?.unlockedRewards) ? entry.unlockedRewards.filter((reward): reward is string => typeof reward === 'string').slice(0, 32) : [] };
+  }
+  return result;
 }
 
 function profileName(value: unknown, fallback: string): string {
@@ -116,6 +143,59 @@ function rowDiscoveries(row: ProfileRow): Partial<Record<CityId, string[]>> {
   try { return parseDiscoveries(JSON.parse(row.discoveries)); } catch { return {}; }
 }
 
+const objectiveDefinitions: Record<ObjectiveActivity, { label: string; dailyTarget: number; weeklyTarget: number; dailyReward: number; weeklyReward: number }> = {
+  stunt: { label: 'Complete stunt actions', dailyTarget: 2, weeklyTarget: 8, dailyReward: 55, weeklyReward: 180 },
+  territoryCapture: { label: 'Capture territories', dailyTarget: 1, weeklyTarget: 5, dailyReward: 90, weeklyReward: 260 },
+  event: { label: 'Complete Chaos Events', dailyTarget: 1, weeklyTarget: 3, dailyReward: 70, weeklyReward: 210 },
+  discovery: { label: 'Discover new locations', dailyTarget: 1, weeklyTarget: 5, dailyReward: 65, weeklyReward: 190 },
+  kill: { label: 'Destroy real players', dailyTarget: 1, weeklyTarget: 3, dailyReward: 80, weeklyReward: 230 },
+  heat3: { label: 'Reach Heat 3', dailyTarget: 1, weeklyTarget: 3, dailyReward: 60, weeklyReward: 175 },
+  challenge: { label: 'Complete Sky Challenges', dailyTarget: 1, weeklyTarget: 5, dailyReward: 70, weeklyReward: 220 },
+  distance: { label: 'Fly meaningful distance', dailyTarget: 12_000, weeklyTarget: 75_000, dailyReward: 60, weeklyReward: 240 },
+  landing: { label: 'Land at different airports', dailyTarget: 2, weeklyTarget: 4, dailyReward: 75, weeklyReward: 250 },
+};
+
+function dayId(now = new Date()): string { return now.toISOString().slice(0, 10); }
+export function weekId(now = new Date()): string { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); }
+export type WeeklyLeaderboardCategory = 'stunt' | 'kills' | 'wantedSurvival' | 'events' | 'territories' | 'precisionLanding' | 'mastery';
+function objectiveItem(activity: ObjectiveActivity, weekly: boolean, cityId?: CityId): ObjectiveItem {
+  const definition = objectiveDefinitions[activity];
+  const target = activity === 'landing' && weekly && cityId ? capabilitiesForCity(cityId).airportCount : weekly ? definition.weeklyTarget : definition.dailyTarget;
+  return { id: `${weekly ? 'weekly' : 'daily'}-${activity}`, label: definition.label, activity, target, progress: 0, reward: weekly ? definition.weeklyReward : definition.dailyReward, completed: false, rewarded: false };
+}
+function freshObjectives(cityId: CityId, discoveredCount = 0, now = new Date()): ObjectiveCycleState {
+  const capabilities = capabilitiesForCity(cityId);
+  const supported = new Set(capabilities.objectiveSupportedTypes as ObjectiveActivity[]);
+  if (discoveredCount >= capabilities.discoveryTotal) supported.delete('discovery');
+  if (capabilities.airportCount >= 2) supported.add('landing');
+  const dailyPool = ['stunt', 'territoryCapture', 'event', 'discovery', 'kill', 'heat3', 'distance', 'landing'].filter((activity): activity is ObjectiveActivity => supported.has(activity as ObjectiveActivity));
+  const weeklyPool = ['territoryCapture', 'stunt', 'event', 'discovery', 'kill', 'heat3', 'distance', 'landing'].filter((activity): activity is ObjectiveActivity => supported.has(activity as ObjectiveActivity));
+  const salt = (value: string) => value.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const rotate = <T>(items: T[], key: string, count: number) => items.slice(salt(key) % items.length).concat(items.slice(0, salt(key) % items.length)).slice(0, count);
+  return { dailyId: dayId(now), weeklyId: weekId(now), daily: rotate(dailyPool, dayId(now), 3).map((activity) => objectiveItem(activity, false, cityId)), weekly: rotate(weeklyPool, weekId(now), 4).map((activity) => objectiveItem(activity, true, cityId)), landingAirportIds: [], dailyBonusAwarded: false, weeklyBonusAwarded: false };
+}
+function parseObjectives(value: unknown, cityId: CityId, discoveredCount = 0): ObjectiveCycleState {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    const state = (parsed?.[cityId] ?? parsed) as ObjectiveCycleState | undefined;
+    if (state && state.dailyId === dayId() && state.weeklyId === weekId() && Array.isArray(state.daily) && Array.isArray(state.weekly)) {
+      const capabilities = capabilitiesForCity(cityId);
+      if (discoveredCount < capabilities.discoveryTotal) return state;
+      const supported = capabilities.objectiveSupportedTypes.filter((activity) => activity !== 'discovery') as ObjectiveActivity[];
+      const replace = (items: ObjectiveItem[], weekly: boolean) => items.map((item, index) => {
+        if (item.activity !== 'discovery') return item;
+        const used = new Set(items.filter((candidate) => candidate !== item).map((candidate) => candidate.activity));
+        const replacement = supported.find((activity) => !used.has(activity)) ?? 'distance';
+        return objectiveItem(replacement, weekly);
+      });
+      state.daily = replace(state.daily, false);
+      state.weekly = replace(state.weekly, true);
+      return state;
+    }
+  } catch { /* regenerate */ }
+  return freshObjectives(cityId, discoveredCount);
+}
+
 export class PlayerProfileStore {
   private readonly database: DatabaseSync;
 
@@ -136,7 +216,9 @@ export class PlayerProfileStore {
         challenge_completions INTEGER NOT NULL DEFAULT 0,
         event_completions INTEGER NOT NULL DEFAULT 0,
         legacy_imported INTEGER NOT NULL DEFAULT 0,
-        owned_aircraft TEXT NOT NULL DEFAULT '["trainer"]'
+        owned_aircraft TEXT NOT NULL DEFAULT '["trainer"]',
+        objectives TEXT NOT NULL DEFAULT '{}',
+        mastery TEXT NOT NULL DEFAULT '{}'
       );
       CREATE TABLE IF NOT EXISTS profile_reward_receipts (
         pilot_id TEXT NOT NULL,
@@ -144,10 +226,17 @@ export class PlayerProfileStore {
         created_at INTEGER NOT NULL,
         PRIMARY KEY (pilot_id, reward_id)
       );
+      CREATE TABLE IF NOT EXISTS weekly_leaderboard (
+        city_id TEXT NOT NULL, week_id TEXT NOT NULL, category TEXT NOT NULL, pilot_id TEXT NOT NULL,
+        pilot_name TEXT NOT NULL, value REAL NOT NULL DEFAULT 0, achieved_at INTEGER NOT NULL,
+        PRIMARY KEY (city_id, week_id, category, pilot_id)
+      );
     `);
     // Existing SQLite MVP profiles predate durable ownership. SQLite has no
     // portable ADD COLUMN IF NOT EXISTS, so tolerate the one expected error.
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN owned_aircraft TEXT NOT NULL DEFAULT '["trainer"]'`); } catch { /* already migrated */ }
+    try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN objectives TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
+    try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN mastery TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
   }
 
   getOrCreate(pilotId: string, pilotName: string): PlayerProfile {
@@ -222,6 +311,81 @@ export class PlayerProfileStore {
     return this.toProfile(this.getRow(pilotId)!);
   }
 
+  objectivesForCity(pilotId: string, cityId: CityId): PlayerProfile | undefined {
+    const row = this.getRow(pilotId);
+    if (!row) return undefined;
+    const state = parseObjectives(row.objectives, cityId, (rowDiscoveries(row)[cityId] ?? []).length);
+    const all = this.objectiveStates(row);
+    all[cityId] = state;
+    this.database.prepare('UPDATE player_profiles SET objectives = ? WHERE pilot_id = ?').run(JSON.stringify(all), pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  recordObjectiveActivity(pilotId: string, cityId: CityId, activity: ObjectiveActivity, amount = 1, airportId?: string): { profile: PlayerProfile; completed: ObjectiveItem[]; bonusCredits: number } | undefined {
+    const row = this.getRow(pilotId);
+    if (!row || amount <= 0 || !Number.isFinite(amount)) return undefined;
+    const all = this.objectiveStates(row);
+    const state = parseObjectives(all[cityId], cityId, (rowDiscoveries(row)[cityId] ?? []).length);
+    all[cityId] = state;
+    if (activity === 'landing') {
+      const capabilities = capabilitiesForCity(cityId);
+      if (!airportId || !capabilities.landableAirportIds.includes(airportId)) return { profile: this.toProfile(row), completed: [], bonusCredits: 0 };
+      const landed = new Set(state.landingAirportIds ?? []);
+      if (landed.has(airportId)) return { profile: this.toProfile(row), completed: [], bonusCredits: 0 };
+      landed.add(airportId);
+      state.landingAirportIds = [...landed];
+      amount = 1;
+    }
+    const completed: ObjectiveItem[] = [];
+    let credits = 0;
+    for (const item of [...state.daily, ...state.weekly]) {
+      if (item.activity !== activity || item.completed) continue;
+      item.progress = Math.min(item.target, item.progress + Math.floor(amount));
+      if (item.progress >= item.target) {
+        item.completed = true;
+        if (!item.rewarded) { item.rewarded = true; credits += item.reward; completed.push(item); }
+      }
+    }
+    let bonusCredits = 0;
+    if (!state.dailyBonusAwarded && state.daily.every((item) => item.completed)) { state.dailyBonusAwarded = true; bonusCredits += 100; }
+    if (!state.weeklyBonusAwarded && state.weekly.every((item) => item.completed)) { state.weeklyBonusAwarded = true; bonusCredits += 300; }
+    this.database.prepare('UPDATE player_profiles SET objectives = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?')
+      .run(JSON.stringify(all), credits + bonusCredits, pilotId);
+    return { profile: this.toProfile(this.getRow(pilotId)!), completed, bonusCredits };
+  }
+
+  awardMasteryXp(pilotId: string, cityId: CityId, amount: number): { profile: PlayerProfile; gained: number; levelUp?: number; rewards: string[] } | undefined {
+    const row = this.getRow(pilotId);
+    if (!row || !Number.isFinite(amount) || amount <= 0) return undefined;
+    const mastery = parseMastery(row.mastery);
+    const state = mastery[cityId] ?? emptyMastery();
+    const previousLevel = state.level;
+    state.xp = Math.min(10_000_000, state.xp + Math.floor(amount));
+    while (state.level < MASTERY_MAX_LEVEL && state.xp >= masteryXpForLevel(state.level + 1)) state.level += 1;
+    const rewards: string[] = [];
+    for (let level = previousLevel + 1; level <= state.level; level += 1) {
+      const reward = masteryRewards[level];
+      if (reward && !state.unlockedRewards.includes(reward)) { state.unlockedRewards.push(reward); rewards.push(reward); }
+    }
+    mastery[cityId] = state;
+    this.database.prepare('UPDATE player_profiles SET mastery = ? WHERE pilot_id = ?').run(JSON.stringify(mastery), pilotId);
+    return { profile: this.toProfile(this.getRow(pilotId)!), gained: Math.floor(amount), levelUp: state.level > previousLevel ? state.level : undefined, rewards };
+  }
+
+  recordWeeklyLeaderboard(pilotId: string, cityId: CityId, category: WeeklyLeaderboardCategory, amount: number, highest = false): void {
+    const profile = this.getRow(pilotId); if (!profile || amount <= 0) return;
+    const now = Date.now(); const week = weekId();
+    this.database.prepare(`INSERT INTO weekly_leaderboard (city_id, week_id, category, pilot_id, pilot_name, value, achieved_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(city_id, week_id, category, pilot_id) DO UPDATE SET value = ${highest ? 'MAX(value, excluded.value)' : 'value + excluded.value'}, achieved_at = CASE WHEN excluded.value >= value THEN excluded.achieved_at ELSE achieved_at END, pilot_name = excluded.pilot_name`)
+      .run(cityId, week, category, pilotId, profile.pilot_name, amount, now);
+  }
+
+  weeklyLeaderboard(cityId: CityId, category: WeeklyLeaderboardCategory, pilotId?: string): { weekId: string; top: Array<{ pilotId: string; pilotName: string; value: number }>; localRank?: number } {
+    const week = weekId();
+    const rows = this.database.prepare('SELECT pilot_id, pilot_name, value FROM weekly_leaderboard WHERE city_id = ? AND week_id = ? AND category = ? ORDER BY value DESC, achieved_at ASC, pilot_name ASC').all(cityId, week, category) as Array<{ pilot_id: string; pilot_name: string; value: number }>;
+    const index = pilotId ? rows.findIndex((row) => row.pilot_id === pilotId) : -1;
+    return { weekId: week, top: rows.slice(0, 10).map((row) => ({ pilotId: row.pilot_id, pilotName: row.pilot_name, value: row.value })), localRank: index >= 0 ? index + 1 : undefined };
+  }
+
   private getRow(pilotId: string): ProfileRow | undefined {
     return this.database.prepare('SELECT * FROM player_profiles WHERE pilot_id = ?').get(pilotId) as ProfileRow | undefined;
   }
@@ -235,6 +399,8 @@ export class PlayerProfileStore {
       this.database.prepare('UPDATE player_profiles SET owned_aircraft = ?, selected_aircraft = ? WHERE pilot_id = ?')
         .run(encodedOwnedAircraft, selectedAircraft, row.pilot_id);
     }
+    const objectives = this.objectiveStates(row);
+    const mastery = parseMastery(row.mastery);
     return {
       pilotId: row.pilot_id,
       pilotName: profileName(row.pilot_name, 'Pilot'),
@@ -248,7 +414,18 @@ export class PlayerProfileStore {
       discoveries: rowDiscoveries(row),
       challengeCompletions: boundedInteger(row.challenge_completions, 1_000_000),
       eventCompletions: boundedInteger(row.event_completions, 1_000_000),
+      objectives,
+      mastery,
       legacyImportPending: row.legacy_imported === 0,
     };
+  }
+
+  private objectiveStates(row: ProfileRow): Partial<Record<CityId, ObjectiveCycleState>> {
+    let parsed: unknown = {};
+    try { parsed = JSON.parse(row.objectives); } catch { /* recover */ }
+    const states: Partial<Record<CityId, ObjectiveCycleState>> = {};
+    const discoveries = rowDiscoveries(row);
+    for (const cityId of cityIds) states[cityId] = parseObjectives((parsed as Record<string, unknown>)[cityId], cityId, (discoveries[cityId] ?? []).length);
+    return states;
   }
 }

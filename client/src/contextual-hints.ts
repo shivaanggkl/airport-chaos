@@ -1,12 +1,28 @@
+import { actionKeyLabel, menuKeyLabel } from './flight-input';
 export const contextualHintDefinitions = {
   runwayControls: {
-    title: 'READY TO TAXI',
-    body: 'Hold W for power; S brakes and reverses after stopping. ↑/↓ pitch, ←/→ roll, A/D turn.',
+    title: 'LET’S FLY',
+    body: `Hold ${actionKeyLabel('throttleUp')} to go faster, then ${actionKeyLabel('pitchUp')} to lift the nose.`,
     durationMs: 5_500,
   },
   worldMap: {
-    title: 'NAVIGATE THE CITY',
-    body: 'Press M to open the map and set a waypoint anywhere.',
+    title: 'FIND A PLACE TO GO',
+    body: `Press ${menuKeyLabel('map')} to open the map and set a waypoint anywhere.`,
+    durationMs: 5_000,
+  },
+  firstDestination: {
+    title: 'PICK A DESTINATION',
+    body: 'Use the bright sky markers or the map to fly toward an airport, Downtown, or a landmark.',
+    durationMs: 5_000,
+  },
+  boost: {
+    title: 'BOOST READY',
+    body: `Hold ${actionKeyLabel('boost')} in the air for a short speed surge. Release it to recharge the meter.`,
+    durationMs: 4_800,
+  },
+  repair: {
+    title: 'HULL DAMAGED',
+    body: 'Fly through a green repair beacon, or stop safely at an airport for a full repair.',
     durationMs: 5_000,
   },
   stunt: {
@@ -31,7 +47,7 @@ export const contextualHintDefinitions = {
   },
   combat: {
     title: 'COMBAT LOCK',
-    body: 'Keep a real pilot inside the center circle to lock; outside it, gunfire travels straight.',
+    body: 'Get another plane near the circle. Press Space to shoot; LOCKED helps you hit.',
     durationMs: 5_500,
   },
   formation: {
@@ -85,6 +101,9 @@ export class ContextualHintSystem {
   }
 
   trigger(id: ContextualHintId): void {
+    // The visual tutorial covers the other systems. Keep only timely prompts;
+    // landing risk already has its own single-warning HUD path.
+    if (id !== 'runwayControls' && id !== 'worldMap' && id !== 'boost' && id !== 'repair') return;
     if (!this.enabled || this.dismissed.has(id) || this.active?.id === id || this.queued.includes(id)) return;
     this.queued.push(id);
     this.advance();

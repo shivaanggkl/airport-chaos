@@ -10,6 +10,7 @@ import type { DiscoveryDefinition } from './discoveries';
 import { DallasChunkStreamer } from './dallas-streamer';
 import type { ImportedObstacle, ImportedRoadSegment, ImportedWater } from './osm-city';
 import type { WorldMapLayer } from './world-map';
+import type { NavigationDestination } from './navigation-beacons';
 
 export const WORLD_METERS_PER_UNIT = 1;
 export const WORLD_SIZE = 50_000;
@@ -78,6 +79,14 @@ export const dallasLocations = {
   i35eCrossing: { x: -9100, z: -7000 },
   lasColinas: { x: -13_500, z: -9350 },
 } as const;
+export const navigationDestinations: readonly NavigationDestination[] = [
+  { id: 'dfw', label: 'DFW AIRPORT', ...dallasLocations.dfw, kind: 'airport' },
+  { id: 'love', label: 'LOVE FIELD', ...dallasLocations.loveField, kind: 'airport' },
+  { id: 'addison', label: 'ADDISON', ...dallasLocations.addison, kind: 'airport' },
+  { id: 'executive', label: 'DALLAS EXECUTIVE', ...dallasLocations.dallasExecutive, kind: 'airport' },
+  { id: 'downtown', label: 'DOWNTOWN', ...dallasLocations.downtown, kind: 'district' },
+  { id: 'reunion', label: 'REUNION TOWER', ...dallasLocations.reunionTower, kind: 'landmark' },
+];
 export const stuntZones: ReadonlyArray<StuntZone> = [
   { id: 'trinity-crossing', kind: 'bridge', ...dallasLocations.trinity, radius: 165, minAltitude: 16, maxAltitude: 92 },
   { id: 'downtown-dallas', kind: 'landmark', ...dallasLocations.downtown, radius: 900, minAltitude: 0, maxAltitude: 360 },
@@ -405,9 +414,17 @@ export const ambientTrafficConfig: AmbientTrafficConfig = {
     { x: -8_500, z: 14_000, altitude: 2_750, width: 2_000, depth: 1_040 },
     { x: 14_000, z: 12_000, altitude: 1_650, width: 1_550, depth: 820 },
     { x: -23_000, z: -15_000, altitude: 2_600, width: 1_800, depth: 960 },
+    { x: -23_500, z: 4_800, altitude: 2_460, width: 2_150, depth: 1_040 },
+    { x: -16_200, z: 17_300, altitude: 1_760, width: 1_420, depth: 740 },
+    { x: -4_500, z: 18_600, altitude: 2_520, width: 1_920, depth: 980 },
+    { x: 6_800, z: 16_100, altitude: 1_560, width: 1_480, depth: 790 },
+    { x: 17_800, z: 7_400, altitude: 2_860, width: 2_240, depth: 1_120 },
+    { x: 21_000, z: -5_200, altitude: 1_730, width: 1_560, depth: 830 },
+    { x: 9_300, z: -16_800, altitude: 2_380, width: 1_860, depth: 930 },
+    { x: -8_400, z: -20_400, altitude: 1_620, width: 1_460, depth: 770 },
   ],
   atmosphereZones: [
-    { id: 'white-rock-storm', type: 'storm', x: 6_400, z: -8_900, radius: 1_050, altitude: 2_200, strength: 0.42, active: true },
+    { id: 'white-rock-storm', type: 'storm', x: 6_400, z: -8_900, radius: 1_050, altitude: 2_200, strength: 0.42, active: false },
     { id: 'trinity-thermal', type: 'thermal', x: -2_400, z: 1_100, radius: 720, altitude: 0, strength: 0.18, active: true },
     { id: 'dfw-west-wind', type: 'wind', x: -20_400, z: -12_300, radius: 1_600, altitude: 0, strength: 0.12, active: true },
   ],
@@ -611,7 +628,7 @@ function makeTerrain(): THREE.Mesh {
     const variation = Math.sin(x * 0.0017 + z * 0.0009) * 0.024 + Math.cos(z * 0.0023) * 0.015;
     // Land-use polygons from the offline OSM dataset add the actual developed, airport,
     // park, industrial, and farm surfaces. This is only an unobtrusive base for gaps.
-    terrainColor.setRGB(0.36 + variation, 0.45 + variation, 0.30 + variation);
+    terrainColor.setRGB(0.34 + variation, 0.5 + variation, 0.27 + variation * 0.75);
     colors.push(terrainColor.r, terrainColor.g, terrainColor.b);
   }
   positions.needsUpdate = true;
@@ -621,16 +638,16 @@ function makeTerrain(): THREE.Mesh {
 }
 
 const airportMaterials = {
-  airportGround: new THREE.MeshStandardMaterial({ color: 0x667651, roughness: 1 }),
-  runway: new THREE.MeshStandardMaterial({ color: 0x20282d, roughness: 0.92 }),
-  taxiway: new THREE.MeshStandardMaterial({ color: 0x3d484d, roughness: 0.94 }),
-  apron: new THREE.MeshStandardMaterial({ color: 0x4d585d, roughness: 0.9 }),
-  terminal: new THREE.MeshStandardMaterial({ color: 0xaab5b4, roughness: 0.52, metalness: 0.18 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0x286378, roughness: 0.18, metalness: 0.34 }),
-  hangar: new THREE.MeshStandardMaterial({ color: 0x687476, roughness: 0.7, metalness: 0.16 }),
-  marking: new THREE.MeshBasicMaterial({ color: 0xfff4d1, depthWrite: false, toneMapped: false }),
-  taxiLine: new THREE.MeshBasicMaterial({ color: 0xf1bd3e, depthWrite: false, toneMapped: false }),
-  light: new THREE.MeshBasicMaterial({ color: 0xffd881, depthWrite: false, toneMapped: false }),
+  airportGround: new THREE.MeshStandardMaterial({ color: 0x718650, roughness: 1 }),
+  runway: new THREE.MeshStandardMaterial({ color: 0x18252b, roughness: 0.92 }),
+  taxiway: new THREE.MeshStandardMaterial({ color: 0x34454c, roughness: 0.94 }),
+  apron: new THREE.MeshStandardMaterial({ color: 0x45565e, roughness: 0.9 }),
+  terminal: new THREE.MeshStandardMaterial({ color: 0xb8b9ad, roughness: 0.5, metalness: 0.2 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x26758d, roughness: 0.17, metalness: 0.38 }),
+  hangar: new THREE.MeshStandardMaterial({ color: 0x718186, roughness: 0.68, metalness: 0.18 }),
+  marking: new THREE.MeshBasicMaterial({ color: 0xffffe2, depthWrite: false, toneMapped: false }),
+  taxiLine: new THREE.MeshBasicMaterial({ color: 0xffc94d, depthWrite: false, toneMapped: false }),
+  light: new THREE.MeshBasicMaterial({ color: 0xffe09a, depthWrite: false, toneMapped: false }),
 };
 
 function localPosition(airport: AirportDefinition, lateral: number, longitudinal: number): THREE.Vector3 {
@@ -777,12 +794,12 @@ function addAirport(scene: THREE.Scene, airport: AirportDefinition, obstacles: O
 }
 
 const landmarkMaterials = {
-  glassDark: new THREE.MeshStandardMaterial({ color: 0x173f50, roughness: 0.18, metalness: 0.44 }),
-  glassBlue: new THREE.MeshStandardMaterial({ color: 0x3e91aa, roughness: 0.16, metalness: 0.36 }),
-  concrete: new THREE.MeshStandardMaterial({ color: 0xb0ada4, roughness: 0.7, metalness: 0.06 }),
+  glassDark: new THREE.MeshStandardMaterial({ color: 0x174d63, roughness: 0.17, metalness: 0.46 }),
+  glassBlue: new THREE.MeshStandardMaterial({ color: 0x3396b5, roughness: 0.15, metalness: 0.38 }),
+  concrete: new THREE.MeshStandardMaterial({ color: 0xc0b7a9, roughness: 0.68, metalness: 0.06 }),
   steel: new THREE.MeshStandardMaterial({ color: 0x778589, roughness: 0.4, metalness: 0.38 }),
   reunion: new THREE.MeshStandardMaterial({ color: 0xa7dae0, roughness: 0.24, metalness: 0.44 }),
-  river: new THREE.MeshStandardMaterial({ color: 0x176f91, emissive: 0x052433, emissiveIntensity: 0.22, roughness: 0.2, metalness: 0.18, transparent: true, opacity: 0.94 }),
+  river: new THREE.MeshStandardMaterial({ color: 0x0a83b5, emissive: 0x04384f, emissiveIntensity: 0.26, roughness: 0.18, metalness: 0.2, transparent: true, opacity: 0.95 }),
 };
 
 function addCityBox(
@@ -901,7 +918,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   const obstacleBounds: ObstacleBounds[] = [];
   const mountainBounds: MountainBounds[] = [];
   const waterBounds: WaterBounds[] = [];
-  const horizon = new THREE.Mesh(new THREE.PlaneGeometry(120_000, 120_000), new THREE.MeshStandardMaterial({ color: 0x506c45, roughness: 1, depthWrite: false }));
+  const horizon = new THREE.Mesh(new THREE.PlaneGeometry(120_000, 120_000), new THREE.MeshStandardMaterial({ color: 0x51763e, roughness: 1, depthWrite: false }));
   horizon.rotation.x = -Math.PI / 2;
   horizon.position.y = dallasElevation.baseElevation - 8;
   horizon.renderOrder = -3;
@@ -918,26 +935,26 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     collectCollisionData: false,
     roadMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection }),
     buildingMaterials: [
-      new THREE.MeshStandardMaterial({ color: 0xc0b5a7, roughness: 0.9 }),
-      new THREE.MeshStandardMaterial({ color: 0xa6afb0, roughness: 0.74 }),
-      new THREE.MeshStandardMaterial({ color: 0xaab0ad, roughness: 0.62, metalness: 0.06 }),
-      new THREE.MeshStandardMaterial({ color: 0x4f8fa4, roughness: 0.24, metalness: 0.26 }),
-      new THREE.MeshStandardMaterial({ color: 0x8c918d, roughness: 0.82, metalness: 0.1 }),
+      new THREE.MeshStandardMaterial({ color: 0xcfb79f, roughness: 0.88 }),
+      new THREE.MeshStandardMaterial({ color: 0xa4b6ba, roughness: 0.72 }),
+      new THREE.MeshStandardMaterial({ color: 0xb6aea1, roughness: 0.6, metalness: 0.07 }),
+      new THREE.MeshStandardMaterial({ color: 0x357f9d, roughness: 0.22, metalness: 0.3 }),
+      new THREE.MeshStandardMaterial({ color: 0x858d87, roughness: 0.8, metalness: 0.1 }),
     ],
-    waterMaterial: new THREE.MeshStandardMaterial({ color: 0x126f98, emissive: 0x05263a, emissiveIntensity: 0.2, roughness: 0.17, metalness: 0.24 }),
+    waterMaterial: new THREE.MeshStandardMaterial({ color: 0x087fb2, emissive: 0x043950, emissiveIntensity: 0.28, roughness: 0.16, metalness: 0.26 }),
     landMaterials: [
-      new THREE.MeshStandardMaterial({ color: 0x4d7d4e, roughness: 1 }), // parks/open green
-      new THREE.MeshStandardMaterial({ color: 0x2f613e, roughness: 1 }), // woodland
-      new THREE.MeshStandardMaterial({ color: 0x536367, roughness: 0.94 }), // industrial
-      new THREE.MeshStandardMaterial({ color: 0x737968, roughness: 1 }), // residential
-      new THREE.MeshStandardMaterial({ color: 0x746d64, roughness: 0.96 }), // commercial
-      new THREE.MeshStandardMaterial({ color: 0x9e8a55, roughness: 1 }), // farmland
-      new THREE.MeshStandardMaterial({ color: 0x637452, roughness: 1 }), // airport/open transport
-      new THREE.MeshStandardMaterial({ color: 0x48545a, roughness: 0.94 }), // apron
+      new THREE.MeshStandardMaterial({ color: 0x43874a, roughness: 1 }), // parks/open green
+      new THREE.MeshStandardMaterial({ color: 0x2d6b42, roughness: 1 }), // woodland
+      new THREE.MeshStandardMaterial({ color: 0x4e6269, roughness: 0.94 }), // industrial
+      new THREE.MeshStandardMaterial({ color: 0x778568, roughness: 1 }), // residential
+      new THREE.MeshStandardMaterial({ color: 0x856f58, roughness: 0.94 }), // commercial
+      new THREE.MeshStandardMaterial({ color: 0xaa8f50, roughness: 1 }), // farmland
+      new THREE.MeshStandardMaterial({ color: 0x708653, roughness: 1 }), // airport/open transport
+      new THREE.MeshStandardMaterial({ color: 0x3c5059, roughness: 0.94 }), // apron
     ],
     aerowayMaterials: [airportMaterials.runway, airportMaterials.taxiway],
     majorHighwayWidth: 38,
-    highwayAccentMaterial: new THREE.MeshBasicMaterial({ color: 0xf1e0a4, depthWrite: false, toneMapped: false }),
+    highwayAccentMaterial: new THREE.MeshBasicMaterial({ color: 0xffe3a0, depthWrite: false, toneMapped: false }),
     heightAt: getTerrainHeight,
     isExcluded: (x, z, padding) => airports.some((airport) => Math.abs(x - airport.x) < airportSafetyWidth[airport.id] + padding && Math.abs(z - airport.z) < airport.runwayLength / 2 + 500 + padding),
   });
@@ -946,6 +963,9 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
 
 export function updateWorldStreaming(position: THREE.Vector3, velocity?: THREE.Vector3): void { dallasStreamer?.update(position, velocity); }
 export function getWorldStreamingStats(): import('./dallas-streamer').DallasStreamingStats | undefined { return dallasStreamer?.getStats(); }
+export function getWorldStreamingVisualDebug(position: THREE.Vector3, camera: THREE.Camera): import('./dallas-streamer').DallasChunkVisualDebug[] | undefined {
+  return dallasStreamer?.getVisualDebug(position, camera);
+}
 export function disposeWorldStreaming(): void { dallasStreamer?.dispose(); dallasStreamer = undefined; }
 
 export type { ImportedRoadSegment };

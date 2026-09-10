@@ -36,6 +36,8 @@ export type EventTrafficVisualState = {
   routeId: string;
   position: { x: number; y: number; z: number };
   direction: { x: number; y: number; z: number };
+  aircraftType?: AircraftAssetType;
+  eventCombatMode?: EventCombatMode;
 };
 
 type CloudCluster = { group: THREE.Group; cloud: AmbientCloud; distance: number };
@@ -89,7 +91,7 @@ const highAltitudeDistance = 34_000;
 const visibilityHysteresis = 1_000;
 const maxDetailedActors = 10;
 const maxSilhouetteActors = 22;
-const maxCloudClusters = 5;
+const maxCloudClusters = 7;
 const cloudPatternSpan = 30_000;
 const midSilhouetteStart = 3_000;
 const farImpostorStart = 7_500;
@@ -183,7 +185,7 @@ const contrailTexture = softTexture(512, 64, (context) => {
   context.fillRect(0, 0, 512, 64);
 });
 const cloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, color: 0xf4fbff, transparent: true, opacity: 0.7, depthWrite: false });
-const stormCloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, color: 0x425d70, transparent: true, opacity: 0.68, depthWrite: false });
+const stormCloudMaterial = new THREE.SpriteMaterial({ map: cloudTexture, color: 0xd4dbe0, transparent: true, opacity: 0.68, depthWrite: false });
 const contrailMaterial = new THREE.MeshBasicMaterial({ map: contrailTexture, color: 0xf8fcff, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
 const impostorTexture = softTexture(96, 64, (context) => {
   context.clearRect(0, 0, 96, 64);
@@ -260,6 +262,7 @@ export class AmbientTrafficSystem {
   private readonly stormCells: StormCell[] = [];
   private readonly eventRoutes: ReadonlyArray<AmbientTrafficRoute>;
   private readonly atmosphereZones: ReadonlyArray<AtmosphereZone>;
+  private eventStormActive = false;
   private simulationAccumulator = 0;
   private elapsed = 0;
 
@@ -326,6 +329,10 @@ export class AmbientTrafficSystem {
     return this.atmosphereZones;
   }
 
+  setStormEvent(active: boolean): void {
+    this.eventStormActive = active;
+  }
+
   getStats(): { actors: number; clouds: number; storms: number } {
     return { actors: this.actors.length, clouds: this.cloudClusters.length, storms: this.stormCells.length };
   }
@@ -365,9 +372,24 @@ export class AmbientTrafficSystem {
       if (!wanted.has(actor.route.id)) this.deactivateEvent(actor.route.id);
     }
     for (const state of states) {
-      this.activateEvent(state.routeId, 'noncombat');
-      const actor = this.actors.find((candidate) => candidate.route.id === state.routeId);
-      if (!actor) continue;
+      let actor = this.actors.find((candidate) => candidate.route.id === state.routeId);
+      if (!actor) {
+        const configured = this.eventRoutes.find((candidate) => candidate.id === state.routeId);
+        const route: AmbientTrafficRoute = configured
+          ? { ...configured, entityType: 'event', eventCombatMode: state.eventCombatMode ?? 'noncombat' }
+          : {
+            id: state.routeId, kind: 'privateJet', aircraftType: state.aircraftType ?? 'privateJet', speed: 0,
+            points: [
+              { x: state.position.x, z: state.position.z, altitude: state.position.y - this.heightAt(state.position.x, state.position.z) },
+              { x: state.position.x + state.direction.x, z: state.position.z + state.direction.z, altitude: state.position.y - this.heightAt(state.position.x, state.position.z) },
+            ],
+            entityType: 'event', eventCombatMode: state.eventCombatMode ?? 'noncombat',
+          };
+        actor = this.createActor(route, this.actors.length);
+        this.actors.push(actor);
+      }
+      actor.eventCombatMode = state.eventCombatMode ?? 'noncombat';
+      actor.root.userData.eventCombatMode = actor.eventCombatMode;
       const wasServerControlled = actor.serverControlled;
       actor.serverControlled = true;
       actor.previousPosition.copy(wasServerControlled ? actor.targetPosition : state.position);
@@ -596,7 +618,9 @@ export class AmbientTrafficSystem {
 
   private addAtmosphereZones(zones: ReadonlyArray<AtmosphereZone>): void {
     for (const zone of zones) {
-      if (!zone.active) continue;
+      // Keep an inactive storm cell built but hidden: an active storm event
+      // can reveal the existing lightweight visual without affecting normal sky.
+      if (!zone.active && zone.type !== 'storm') continue;
       if (zone.type === 'storm') {
         const group = new THREE.Group();
         group.name = `atmosphere-storm-${zone.id}`;
@@ -656,7 +680,7 @@ export class AmbientTrafficSystem {
   private updateAtmosphere(playerPosition: THREE.Vector3): void {
     for (const cell of this.stormCells) {
       cell.distance = Math.hypot(cell.zone.x - playerPosition.x, cell.zone.z - playerPosition.z);
-      cell.group.visible = cell.distance <= 18_000;
+      cell.group.visible = (cell.zone.type === 'storm' ? this.eventStormActive : cell.zone.active) && cell.distance <= 18_000;
       if (cell.zone.type !== 'storm') continue;
       // Deterministic, sparse flashes give a localized storm read without a
       // weather simulation or a per-frame random effect.

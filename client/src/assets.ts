@@ -117,6 +117,7 @@ export function attachAircraftAsset(
   type: AircraftAssetType,
   targetLength: number,
   targetSpan: number,
+  onLoaded?: () => void,
 ): void {
   plane.userData.assetStatus = 'loading';
   void loadAsset(type)
@@ -134,6 +135,7 @@ export function attachAircraftAsset(
       }
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
+      onLoaded?.();
     })
     .catch(() => {
       fallback.visible = true;

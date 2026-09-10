@@ -2,6 +2,7 @@ import './style.css';
 import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from './cities';
 import { AircraftGarage, type GarageProfile } from './garage';
 import type { AircraftType } from './aircraft';
+import { flightTutorial } from './tutorial';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
@@ -25,6 +26,12 @@ function identity(): GarageIdentity {
 const garageIdentity = identity();
 const profileOrigin = import.meta.env.DEV ? 'http://localhost:8091' : window.location.origin;
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
+// The landing page has its own small, explicit modal router.  Keeping NONE
+// distinct from CITIES prevents an in-flight profile request from reopening a
+// start-screen overlay after the player has entered a city.
+type StartModalState = 'NONE' | 'CITIES' | 'GARAGE';
+let startModalState: StartModalState = 'CITIES';
+let garageOpenRequest = 0;
 async function loadGarageProfile(): Promise<GarageProfile> {
   const url = new URL('/api/profile', profileOrigin);
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
@@ -36,23 +43,52 @@ async function loadGarageProfile(): Promise<GarageProfile> {
     if (!imported.ok) throw new Error('Profile migration unavailable');
     profile = await imported.json() as GarageProfile;
   }
-  garageProfile = profile;
-  return profile;
+  garageProfile = normalizeGarageProfile(profile);
+  return garageProfile;
+}
+function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
+  const aircraftTypes: AircraftType[] = ['trainer', 'privateJet', 'cargo', 'fighter'];
+  const selectedAircraft = aircraftTypes.includes(profile.selectedAircraft) ? profile.selectedAircraft : 'trainer';
+  const unlockedAircraft = Array.isArray(profile.unlockedAircraft)
+    ? [...new Set(profile.unlockedAircraft.filter((type): type is AircraftType => aircraftTypes.includes(type)))]
+    : [];
+  if (!unlockedAircraft.includes('trainer')) unlockedAircraft.unshift('trainer');
+  return { credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0, selectedAircraft, unlockedAircraft };
 }
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   const url = new URL('/api/profile', profileOrigin);
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ equipAircraft: selectedAircraft }) });
   if (!response.ok) return;
-  garageProfile = await response.json() as GarageProfile;
+  garageProfile = normalizeGarageProfile(await response.json() as GarageProfile);
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* server profile remains authoritative */ }
-  garage.open(garageProfile);
+  if (garage.isOpen()) garage.open(garageProfile);
+}, undefined, () => {
+  if (startModalState === 'GARAGE') startModalState = 'CITIES';
+  garageOpenRequest += 1;
 });
 garageEntry.addEventListener('click', async () => {
-  try { garage.open(await loadGarageProfile()); } catch { citySelectionError.textContent = 'Garage profile unavailable. Start the server and try again.'; citySelectionError.hidden = false; }
+  if (startModalState === 'GARAGE') return;
+  startModalState = 'GARAGE';
+  const request = ++garageOpenRequest;
+  // Browsing is always available at the start screen. Render the complete
+  // cached catalog immediately, then replace only profile state when ready.
+  garage.open(garageProfile, true);
+  try {
+    const profile = await loadGarageProfile();
+    if (startModalState !== 'GARAGE' || request !== garageOpenRequest) return;
+    garage.open(profile);
+  } catch {
+    if (startModalState !== 'GARAGE' || request !== garageOpenRequest) return;
+    garage.open(garageProfile);
+    citySelectionError.textContent = 'Garage profile unavailable. Start the server and try again.';
+    citySelectionError.hidden = false;
+  }
 });
 
 function showSelector(message = ''): void {
+  startModalState = 'CITIES';
+  garage.close();
   gameRoot.hidden = true;
   citySelector.hidden = false;
   citySelectionError.textContent = message;
@@ -62,6 +98,8 @@ function showSelector(message = ''): void {
 async function enterCity(city: CityDefinition): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
 
+  startModalState = 'NONE';
+  garage.close();
   citySelector.hidden = true;
   citySelectionError.hidden = true;
   const url = new URL(window.location.href);
@@ -86,9 +124,10 @@ for (const city of cities) {
   cityOptions.append(option);
 }
 
-const requestedCity = activeCityFromUrl();
-if (requestedCity?.status === 'available') {
-  void enterCity(requestedCity).catch(() => showSelector('Unable to load this city.'));
-} else {
-  showSelector(requestedCity ? `${requestedCity.displayName} is coming soon.` : '');
+async function start(): Promise<void> {
+  await flightTutorial.firstVisit(garageIdentity.pilotId);
+  const requestedCity = activeCityFromUrl();
+  if (requestedCity?.status === 'available') await enterCity(requestedCity);
+  else showSelector(requestedCity ? `${requestedCity.displayName} is coming soon.` : '');
 }
+void start().catch(() => showSelector('Unable to load this city.'));

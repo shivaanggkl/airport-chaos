@@ -65,6 +65,7 @@ export class DiscoverySystem {
   }
 
   hydrate(ids: Iterable<string>): void {
+    if (ids === this.discoveredIds) return;
     this.discoveredIds.clear();
     for (const id of ids) this.discoveredIds.add(id);
   }

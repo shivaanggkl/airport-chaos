@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Airport Chaos</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='27'%3E%E2%9C%88%3C/text%3E%3C/svg%3E" />
   </head>
   <body>
     <main id="city-selector" class="city-selector" hidden>
@@ -19,37 +20,45 @@
     <div id="game-root" hidden>
     <div id="flight-hud" aria-label="Flight instruments">
       <section id="heading-tape" class="glass-instrument">
-        <span>NW</span><span>N</span><span>NE</span><span>E</span><strong id="heading">N 000°</strong><span>SE</span><span>S</span><span>SW</span>
+        <span>NW</span><span>N</span><span>NE</span><span>E</span><strong id="heading">N</strong><span>SE</span><span>S</span><span>SW</span>
       </section>
       <section id="airspeed-tape" class="flight-tape glass-instrument">
-        <span class="instrument-label">AIRSPEED</span>
+        <span class="instrument-label">SPEED</span>
         <strong id="speed">0</strong><span class="instrument-unit">KT</span>
-        <span class="throttle-readout">THR <strong id="throttle">0</strong>%</span>
+        <span class="throttle-readout">POWER <strong id="throttle">0</strong>%</span>
+        <span id="boost-readout" class="boost-readout">BOOST <strong id="boost">100</strong>%</span>
       </section>
       <section id="altitude-tape" class="flight-tape glass-instrument">
         <span class="instrument-label">ALTITUDE</span>
         <strong id="altitude">0</strong><span class="instrument-unit">FT</span>
-        <span class="vsi-readout">V/S <strong id="vertical-speed">0</strong> FPM</span>
+        <span class="vsi-readout">UP / DOWN <strong id="vertical-speed">0</strong> ft/min</span>
         <span id="vsi-indicator" aria-hidden="true"></span>
       </section>
       <div id="flight-reference" aria-hidden="true"><span></span><i></i><span></span></div>
       <div id="acquisition-circle" aria-hidden="true"></div>
       <section id="flight-status" class="glass-instrument">
-        <div class="flight-state-row">STATE <strong id="flight-state">TAXI</strong></div>
-        <div class="health-row">HP <strong id="health">100</strong></div>
-        <div id="heat-row" class="heat-row">HEAT <strong id="heat-level">0</strong><span id="heat-multiplier">×1.00</span></div>
-        <div id="target-feedback" class="target-feedback hidden">TGT <strong id="target-distance">0</strong>M <b id="target-range">SEARCHING</b></div>
-        <div class="airport-navigation"><span>NEAREST <strong id="nearest-airport">Central International</strong></span><span><strong id="airport-distance">45</strong> M</span></div>
-        <div id="waypoint-navigation" class="airport-navigation hidden"><span>WAYPOINT <strong id="waypoint-bearing">000°</strong></span><span><strong id="waypoint-distance">0</strong> M</span></div>
+        <div class="flight-state-row"><strong id="flight-state">ON RUNWAY</strong></div>
+        <div class="health-row"><span>HULL</span><span class="hull-meter"><i id="hull-fill"></i></span><strong id="health">100/100</strong></div>
+        <div id="heat-row" class="heat-row" title="More Danger means more attention and better rewards.">DANGER <strong id="heat-level">0</strong></div>
+        <div id="landing-speed-cue" class="landing-speed-cue hidden" role="status"></div>
+        <div class="airport-navigation"><span>NEAREST <strong id="nearest-airport">Airport</strong></span><span id="airport-distance"></span></div>
         <div id="world-status" class="world-status hidden">Leaving City 1</div>
       </section>
+      <div id="target-feedback" class="target-feedback hidden"><b id="target-range">LOCKED</b></div>
     </div>
+    <div class="left-hud-stack">
+    <aside id="progression-readout" class="progression-readout" aria-label="Credits and Score">
+      <div><span id="credits-icon"></span> <strong id="credits">0</strong> Credits</div>
+      <small>★ <strong id="score">0</strong> Score</small>
+      <div id="reward-feedback" class="reward-feedback hidden" aria-live="polite"></div>
+      <div id="progress-message" class="hidden" aria-live="polite"></div>
+    </aside>
     <aside id="hud" class="utility-hud">
       <div class="utility-bar"><span class="title">AIRPORT CHAOS</span><span id="connection" class="offline">Server: connecting…</span></div>
       <div id="flight-test-mode" class="flight-test-mode hidden">FLIGHT TEST MODE</div>
-      <details class="utility-details">
+      <details class="utility-details" open>
         <summary>FLIGHT SYSTEMS</summary>
-        <div class="score-row">Score <strong id="score">0</strong> <small>Best <strong id="best-score">0</strong></small></div>
+        <div class="score-row"><small>Best Score <strong id="best-score">0</strong></small></div>
         <div class="timer-row" hidden>Time <strong id="timer">12.0</strong>s</div>
         <div hidden>Multiplier <strong id="multiplier">x1</strong></div>
         <label class="aircraft-selector">Aircraft
@@ -60,23 +69,25 @@
             <option value="fighter">Fighter-Style Jet — 2,000 credits</option>
           </select>
         </label>
-        <div class="progress-stats"><span>Credits <strong id="credits">0</strong></span><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span><span id="discovery-progress">Discoveries 0 / 0 — 0%</span></div>
+        <div class="progress-stats"><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span><span id="discovery-progress">Discoveries 0 / 0 — 0%</span></div>
         <div class="pilot-name">Pilot <strong id="player-name"></strong></div>
         <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>
         <button id="cities-button" class="cities-button" type="button">Cities</button>
         <button id="garage-button" class="cities-button" type="button">Garage</button>
         <button id="pilot-menu-button" class="cities-button" type="button">Pilot Menu</button>
-        <div class="controls">W/S throttle · A/D turn · ←/→ roll · ↑/↓ pitch · M map · TAB menu · Space fire</div>
       </details>
     </aside>
-    <aside id="leaderboard">
-      <div class="leaderboard-title">LEADERBOARD</div>
-      <ol id="leaderboard-list"></ol>
+    <aside id="controls-card" class="controls-card" aria-label="Flight controls">
+      <header><strong>CONTROLS</strong><button id="controls-toggle" type="button" aria-expanded="true" aria-label="Hide controls">−</button></header>
+      <div id="controls-content" class="controls-grid">
+      </div>
     </aside>
+    </div>
+    <aside id="real-players" aria-label="Human players"></aside>
     <aside id="radar-panel" aria-label="Navigation radar">
       <div class="radar-title">RADAR <span>3,000</span></div>
       <canvas id="radar" width="180" height="180"></canvas>
-      <div class="radar-legend"><span class="airport-key">◆ Airport</span><span class="player-key">● Player</span></div>
+      <div class="radar-legend" id="radar-legend"></div>
     </aside>
     <aside id="next-actions" class="next-actions" aria-label="Suggested activities"></aside>
     <aside id="contextual-hint" class="contextual-hint hidden" aria-live="polite">
@@ -86,7 +97,8 @@
     </aside>
     <section id="world-map-overlay" class="world-map-overlay hidden" aria-label="World map">
       <div class="world-map-card">
-        <header><strong>CITY MAP</strong><span>M close · drag pan · wheel zoom · click waypoint</span><button id="world-map-recenter" type="button">Recenter</button></header>
+        <header><strong>CITY MAP</strong><span>M close · drag to move · scroll to zoom · click to Set Waypoint</span><button id="world-map-recenter" type="button">Recenter Me</button></header>
+        <div id="map-legend" class="map-legend"></div>
         <canvas id="world-map-canvas" aria-label="Interactive world map"></canvas>
       </div>
     </section>
@@ -120,28 +132,10 @@
     <div id="leader-message" class="hidden">YOU'RE #1</div>
     <div id="near-miss-message" class="hidden">NEAR MISS</div>
     <div id="checkpoint-message" class="hidden">+100 CHECKPOINT</div>
-    <div id="progress-message" class="hidden"></div>
     <div id="combat-message" class="hidden"></div>
     <div id="hit-marker" aria-hidden="true"></div>
     <div id="damage-flash" aria-hidden="true"></div>
     <a id="osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
-    <div id="how-to-play" class="how-to-play" role="dialog" aria-labelledby="how-to-title">
-      <div class="how-to-card">
-        <div id="how-to-title" class="how-to-title">HOW TO PLAY</div>
-        <div><strong>W / S</strong> — Speed up / brake / reverse taxi</div>
-        <div><strong>↑ / ↓</strong> — Pitch up / down</div>
-        <div><strong>← / →</strong> — Roll left / right</div>
-        <div><strong>A / D</strong> — Turn left / right</div>
-        <div><strong>SPACE</strong> — Fire</div>
-        <div><strong>M</strong> — World map</div>
-        <div class="how-to-objectives">
-          <div>Take off, explore, and land back on the runway</div>
-          <div>Avoid terrain, buildings, water, and other planes</div>
-        </div>
-        <div><strong>R</strong> — Restart after crash</div>
-        <div class="how-to-start">Press any flight control to start</div>
-      </div>
-    </div>
     <div id="crash-overlay" class="hidden">
       <div class="crash-card">
         <div id="end-title" class="crash-title">CRASHED</div>
@@ -149,9 +143,10 @@
         <div class="restart">Press R to Restart</div>
       </div>
     </div>
-    <div id="garage-overlay" class="garage-overlay" hidden></div>
     <div id="pilot-menu-overlay" class="pilot-menu-overlay" hidden></div>
     </div>
+    <div id="garage-overlay" class="garage-overlay" hidden></div>
+    <button id="tutorial-help" class="tutorial-help" type="button" aria-label="Tutorial / Help" title="Tutorial / Help">?</button>
     <script type="module" src="/src/bootstrap.ts"></script>
   </body>
 </html>
