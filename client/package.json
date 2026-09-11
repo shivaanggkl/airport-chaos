@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:aircraft": "node scripts/generate-airport-chaos-aircraft.mjs"
   },
   "dependencies": {
     "three": "^0.179.1"

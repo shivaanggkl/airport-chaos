@@ -1,12 +1,9 @@
 Airport Chaos third-party 3D assets
 
-Aircraft (GLB, runtime scale/pivot normalization only)
-- trainer.glb: “Small Airplane” by Vojtěch Balák — https://poly.pizza/m/7cvx6ex-xfL
-- private-jet.glb: “Airplane” by Poly by Google — https://poly.pizza/m/8ciDd9k8wha
-- cargo.glb: “Airplane” by Poly by Google — https://poly.pizza/m/a3XrQkLNna9
-- fighter.glb: “Jet” by Poly by Google — https://poly.pizza/m/dukcCKsLDrS
-License: Creative Commons Attribution 3.0 (CC BY 3.0)
-https://creativecommons.org/licenses/by/3.0/
+Aircraft GLBs
+- Skyrift Scout, Gravitas Cargo, Wayfarer Jet and Redspear Fighter are original
+  Airport Chaos assets generated from project-owned procedural source geometry.
+- No third-party aircraft geometry, textures, branding or registrations are used.
 
 Airport terminal/control-tower and downtown landmark GLBs
 - Kenney City Kit (Commercial) 2.1 — https://kenney.nl/assets/city-kit-commercial

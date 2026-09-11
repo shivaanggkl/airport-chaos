@@ -48,6 +48,7 @@ const urls: Record<AssetKey, string> = {
 
 const loader = new GLTFLoader();
 const cache = new Map<AssetKey, Promise<THREE.Group>>();
+const aircraftAssetVersion = 'airport-chaos-original-v1';
 const bounds = new THREE.Box3();
 const size = new THREE.Vector3();
 const center = new THREE.Vector3();
@@ -65,7 +66,10 @@ function markSharedAsset(root: THREE.Object3D): void {
 function loadAsset(key: AssetKey): Promise<THREE.Group> {
   const cached = cache.get(key);
   if (cached) return cached;
-  const request = loader.loadAsync(urls[key]).then((gltf) => {
+  const assetUrl = key === 'trainer' || key === 'privateJet' || key === 'cargo' || key === 'fighter'
+    ? `${urls[key]}?v=${aircraftAssetVersion}`
+    : urls[key];
+  const request = loader.loadAsync(assetUrl).then((gltf) => {
     markSharedAsset(gltf.scene);
     gltf.scene.updateMatrixWorld(true);
     return gltf.scene;
@@ -123,16 +127,14 @@ export function attachAircraftAsset(
   void loadAsset(type)
     .then((source) => {
       const model = normalizedClone(source, { x: targetSpan, y: targetSpan, z: targetLength }, true, true);
-      // The Trainer source already faces local -Z (propeller at -Z), matching
-      // the flight model. The other sourced aircraft require the legacy flip.
-      model.rotation.y = type === 'trainer' ? 0 : Math.PI;
+      // Every original Airport Chaos airframe is authored nose-forward on -Z,
+      // matching the shared flight, muzzle, exhaust and remote-render roots.
+      model.rotation.y = 0;
       model.name = `aircraft-asset-${type}`;
       plane.add(model);
-      if (type === 'trainer') {
-        // This node is authored at the GLB's local nose and therefore follows
-        // the normalized model through every aircraft transform.
-        plane.userData.assetPropeller = model.getObjectByName('Propeller_Cone') ?? null;
-      }
+      const propellers: THREE.Object3D[] = [];
+      model.traverse((object) => { if (object.name.startsWith('Propeller_') && !object.name.endsWith('_Blades')) propellers.push(object); });
+      plane.userData.assetPropellers = propellers;
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
       onLoaded?.();

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -13,6 +13,7 @@ import { airportForCity, cityAirports } from '../../shared/city-airports.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
+import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, aimTargetScore, aimGoal, biasAimVertically, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
@@ -51,6 +52,7 @@ type PlayerState = Transform & {
   spawnSlot?: number;
   lastEquipRequestId?: number;
   territoryIds: Set<string>;
+  distanceRewardMeters?: number;
   bot?: BotRuntime;
 };
 
@@ -213,13 +215,30 @@ const wantedTransformFreshMs = 1_500;
 const cityEvents = new Map<CityId, CityEvent>();
 const lastEventTypes = new Map<CityId, DynamicEventType>();
 const profileStore = new PlayerProfileStore(process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url))));
+const testerCodeHash = /^[a-f0-9]{64}$/i.test(process.env.REDSPEAR_TESTER_CODE_HASH ?? '')
+  ? Buffer.from(process.env.REDSPEAR_TESTER_CODE_HASH!, 'hex')
+  : undefined;
+const testerCodeEnabled = Boolean(testerCodeHash);
+const testerAttempts = new Map<string, number[]>();
+function redeemTesterCode(pilotId: string, value: unknown): { ok: boolean; reason: string; profile?: PlayerProfile } {
+  if (!testerCodeEnabled || !testerCodeHash) return { ok: false, reason: 'Access code redemption unavailable.' };
+  const now = Date.now();
+  const recent = (testerAttempts.get(pilotId) ?? []).filter((at) => now - at < 10 * 60_000);
+  if (recent.length >= 5) return { ok: false, reason: 'Too many attempts. Try again later.' };
+  recent.push(now); testerAttempts.set(pilotId, recent);
+  const supplied = typeof value === 'string' ? value.trim() : '';
+  const digest = createHash('sha256').update(supplied).digest();
+  if (digest.length !== testerCodeHash.length || !timingSafeEqual(digest, testerCodeHash)) return { ok: false, reason: 'Invalid access code' };
+  const profile = profileStore.grantAircraftEntitlements(pilotId, ['fighter']);
+  return profile ? { ok: true, reason: 'Redspear Fighter Unlocked', profile } : { ok: false, reason: 'Profile unavailable.' };
+}
 type FormationState = { memberIds: [string, string]; qualifiedAt: number; active: boolean; lastRewardAt: number };
 const cityKings = new Map<CityId, string>();
 const formations = new Map<CityId, Map<string, FormationState>>();
 const formationDelayMs = 5_000;
 const formationRewardMs = 15_000;
 const socialRewards = {
-  formation: { score: 40, credits: 8 },
+  formation: { score: 40, credits: 5 },
 } as const;
 
 const chaosActionCooldownMs = 8_000;
@@ -348,13 +367,19 @@ const httpServer = createServer(async (request, response) => {
     }
     if (request.method === 'POST') {
       const payload = await readJson(request);
-      const profile = payload?.legacy
-        ? profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport)
-        : payload?.equipAircraft !== undefined
-          ? profileStore.equipAircraft(identity.pilotId, payload.equipAircraft)
-        : payload ? profileStore.updateProgress(identity.pilotId, payload.progress ?? {}) : undefined;
-      response.writeHead(profile ? 200 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      response.end(JSON.stringify(profile ?? { error: 'Invalid profile update' }));
+      let profile: PlayerProfile | undefined;
+      let error: string | undefined;
+      if (payload?.legacy) profile = profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
+      else if (payload?.equipAircraft !== undefined) profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
+      else if (payload?.purchaseAircraft !== undefined) {
+        const result = profileStore.purchaseAircraft(identity.pilotId, payload.purchaseAircraft);
+        profile = result.profile; error = result.ok ? undefined : result.reason;
+      } else if (payload?.testerCode !== undefined) {
+        const result = redeemTesterCode(identity.pilotId, payload.testerCode);
+        profile = result.profile; error = result.ok ? undefined : result.reason;
+      } else if (payload) profile = profileStore.updateProgress(identity.pilotId, payload.progress ?? {});
+      response.writeHead(profile && !error ? 200 : error?.startsWith('Too many') ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(JSON.stringify(profile && !error ? profile : { error: error ?? 'Invalid profile update' }));
       return;
     }
     response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return;
@@ -934,11 +959,12 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   active.rewarded = true;
   activeChallenges.delete(playerId);
   player.score += challenge.reward;
-  const profile = profileStore.awardServerReward(player.pilotId, challenge.reward, { challengeCompletions: 1 });
+  const challengeCredits = challengeCreditReward(challenge.reward);
+  const profile = profileStore.awardServerReward(player.pilotId, challengeCredits, { challengeCompletions: 1 });
   if (profile) sendProfile(playerId, profile);
   recordObjectiveActivity(playerId, 'challenge');
   awardMastery(playerId, 'challenge');
-  sendToPlayer(playerId, { type: 'challengeComplete', challengeId: challenge.id, score: challenge.reward, credits: challenge.reward });
+  sendToPlayer(playerId, { type: 'challengeComplete', challengeId: challenge.id, score: challenge.reward, credits: challengeCredits });
   broadcastLeaderboard(player.cityId);
 }
 
@@ -980,11 +1006,13 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   const aircraft = aircraftFlightEnvelope[player.aircraftType];
   const envelope = { speed: aircraft.safeLandingSpeed, descent: aircraft.safeDescentRate, tilt: aircraft.landingTilt };
   // Match the maximum assisted touchdown envelope accepted by flight/HUD.
-  if (!flight?.airborne || telemetry.speed > envelope.speed * 1.25 || Math.abs(telemetry.descentRate) > envelope.descent * 1.55 || telemetry.bankAngle > envelope.tilt + 0.18 || Math.abs(telemetry.pitch) > envelope.tilt + 0.15 || telemetry.headingError > 0.76) return;
+  if (!flight?.airborne || telemetry.speed > envelope.speed * 1.32 || Math.abs(telemetry.descentRate) > envelope.descent * 1.7 || telemetry.bankAngle > envelope.tilt + 0.22 || Math.abs(telemetry.pitch) > envelope.tilt + 0.18 || telemetry.headingError > 0.82) return;
   // Taxi/parked contacts cannot satisfy the runway, speed, fresh-transform,
   // and telemetry-consistency requirements together.
   landingReceipts.set(receiptKey, now);
   landingFlightState.set(playerId, { baselineY: player.position.y, airborne: false });
+  const landingProfile = profileStore.awardServerReward(player.pilotId, economyRewards.landing);
+  if (landingProfile) sendProfile(playerId, landingProfile);
   recordObjectiveActivity(playerId, 'landing', 1, airport.id);
   recordWeeklyActivity(playerId, 'precisionLanding', precisionLandingScore(telemetry, envelope), true);
 }
@@ -1681,8 +1709,8 @@ function distanceToSegmentSquared(
   return dx * dx + dy * dy + dz * dz;
 }
 
-// A projectile advances 26m per 50Hz tick at combat speed while a Fighter can
-// move several metres.  Sample the target's short predicted sweep against the
+// A projectile can advance roughly 37m per 50Hz tick at Redspear Boost speed.
+// Sample the target's short predicted sweep against the
 // projectile segment so a valid hit cannot tunnel between transform updates.
 function sweptProjectileHit(
   player: PlayerState,
@@ -2403,17 +2431,17 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
   const cruiseSpeed = envelope.maxSpeed * botCruiseFactor(bot.personality);
   // Induced drag during a bank forces a wide, energy-losing turn instead of a
   // full-speed orbit.  The cap is the normal player aircraft maximum, not a bot bonus.
-  bot.desiredSpeed = Math.max(envelope.stallSpeed * 1.16, cruiseSpeed * (1 - hardTurn * 0.28));
+  bot.desiredSpeed = Math.max(envelope.stallSpeed * 1.1, cruiseSpeed * (1 - hardTurn * 0.16));
   const airspeed = Math.max(0.01, bot.speed);
-  const drag = (envelope.drag * (airspeed / envelope.maxSpeed) ** 2 * (1 + hardTurn * 0.45)) / envelope.inertia;
+  const drag = (envelope.drag * (airspeed / envelope.maxSpeed) ** 2 * (1 + hardTurn * 0.25)) / envelope.inertia;
   const acceleration = envelope.acceleration / envelope.inertia;
   const speedDelta = bot.desiredSpeed >= bot.speed ? Math.max(0, acceleration - drag) * delta : drag * delta;
   bot.speed = Math.min(envelope.maxSpeed, moveTowardBot(bot.speed, bot.desiredSpeed, speedDelta));
 
   const pitchTarget = Math.max(-envelope.maxDivePitch, Math.min(envelope.maxClimbPitch, Math.atan2(dy, Math.max(1, horizontal))));
   player.rotation.x = moveTowardBot(player.rotation.x, pitchTarget, envelope.pitchRate * 0.72 * delta);
-  const stallFactor = Math.max(0.08, Math.min(1, (bot.speed - envelope.stallSpeed * 0.62) / (envelope.stallSpeed * 0.38)));
-  const desiredVerticalSpeed = Math.sin(player.rotation.x) * bot.speed * 0.58 - (1 - stallFactor) * 7;
+  const stallFactor = Math.max(0.18, Math.min(1, (bot.speed - envelope.stallSpeed * 0.48) / (envelope.stallSpeed * 0.52)));
+  const desiredVerticalSpeed = Math.sin(player.rotation.x) * bot.speed * 0.58 - (1 - stallFactor) * 4.5;
   const verticalResponse = Math.max(2.5, Math.min(18, acceleration * 0.55));
   player.velocity.y = moveTowardBot(player.velocity.y, desiredVerticalSpeed, verticalResponse * delta);
   const forward = hunterForward(player);
@@ -2766,6 +2794,10 @@ function pruneEphemeralRuntimeState(now: number): void {
   for (const [key, receivedAt] of masteryCooldowns) if (now - receivedAt > heatKillCooldownMs) masteryCooldowns.delete(key);
   for (const [key, receivedAt] of territoryRewardCooldown) if (now - receivedAt > territoryCaptureRewardCooldownMs) territoryRewardCooldown.delete(key);
   for (const [key, receivedAt] of fireBlockedDebugAt) if (now - receivedAt > 1_000) fireBlockedDebugAt.delete(key);
+  for (const [pilotId, attempts] of testerAttempts) {
+    const recent = attempts.filter((at) => now - at < 10 * 60_000);
+    if (recent.length) testerAttempts.set(pilotId, recent); else testerAttempts.delete(pilotId);
+  }
   for (const territories of cityTerritoryState.values()) {
     for (const territory of territories.values()) {
       for (const [playerId, lastAt] of territory.lastContestedHeatAt) {
@@ -2961,6 +2993,7 @@ server.on('connection', (socket, request) => {
     lastStateAt: Date.now(),
     chaosQaEnabled,
     territoryIds: new Set(),
+    distanceRewardMeters: 0,
     spawnSlot,
   });
   playerSockets.set(socket, playerId);
@@ -3033,11 +3066,13 @@ server.on('connection', (socket, request) => {
         legacy?: LegacyProfileImport;
         progress?: ProfileProgress;
         aircraftType?: unknown;
+        purchaseRequestId?: unknown;
+        testerCode?: unknown;
         equipRequestId?: unknown;
         airportId?: unknown;
         telemetry?: unknown;
         rewardId?: unknown;
-        credits?: unknown;
+        rewardSource?: unknown;
         boostActive?: unknown;
         transform?: unknown;
       } & Partial<Transform>;
@@ -3122,9 +3157,25 @@ server.on('connection', (socket, request) => {
         return;
       }
 
+      if (message.type === 'purchaseAircraft') {
+        const requestId = message.purchaseRequestId;
+        if (typeof requestId !== 'number' || !Number.isSafeInteger(requestId) || requestId <= 0) return;
+        const result = profileStore.purchaseAircraft(player.pilotId, message.aircraftType);
+        if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
+        sendToPlayer(playerId, { type: 'aircraftPurchaseResult', purchaseRequestId: requestId, aircraftType: message.aircraftType, ok: result.ok, reason: result.reason });
+        return;
+      }
+
+      if (message.type === 'redeemTesterCode') {
+        const result = redeemTesterCode(player.pilotId, message.testerCode);
+        if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
+        sendToPlayer(playerId, { type: 'testerCodeResult', ok: result.ok, reason: result.reason });
+        return;
+      }
+
       if (message.type === 'profileReward') {
         const rewardId = typeof message.rewardId === 'string' ? message.rewardId : '';
-        const profile = profileStore.applyClientReward(player.pilotId, rewardId, typeof message.credits === 'number' ? message.credits : 0);
+        const profile = profileStore.applyClientReward(player.pilotId, rewardId, message.rewardSource);
         if (profile) sendProfile(playerId, profile, rewardId);
         return;
       }
@@ -3250,6 +3301,11 @@ server.on('connection', (socket, request) => {
 
       const stateNow = Date.now();
       const stateSeconds = Math.min(0.35, Math.max(0.08, (stateNow - player.lastStateAt) / 1000));
+      const traveled = Math.hypot(
+        message.position.x - player.position.x,
+        message.position.y - player.position.y,
+        message.position.z - player.position.z,
+      );
       const nextVelocity = {
         x: (message.position.x - player.position.x) / stateSeconds,
         y: (message.position.y - player.position.y) / stateSeconds,
@@ -3274,6 +3330,16 @@ server.on('connection', (socket, request) => {
       const flight = landingFlightState.get(playerId);
       if (!flight) landingFlightState.set(playerId, { baselineY: player.position.y, airborne: false });
       else if (player.position.y >= flight.baselineY + 8) flight.airborne = true;
+      if (isHumanPilot(player) && flight?.airborne && player.lifeState === 'alive') {
+        const acceptedTravel = Math.min(traveled, velocityCap * stateSeconds * 1.15);
+        player.distanceRewardMeters = (player.distanceRewardMeters ?? 0) + acceptedTravel;
+        const batches = Math.floor(player.distanceRewardMeters / economyRewards.distanceBatchMeters);
+        if (batches > 0) {
+          player.distanceRewardMeters -= batches * economyRewards.distanceBatchMeters;
+          const rewarded = profileStore.awardServerReward(player.pilotId, batches * economyRewards.distanceBatchCredits);
+          if (rewarded) sendProfile(playerId, rewarded);
+        }
+      }
       refreshCityLocks(player.cityId, stateNow);
 
       const update = {

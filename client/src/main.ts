@@ -3,8 +3,8 @@ import { keyboardActionBindings, controlGroups, controlKeyLabel, menuBindings, m
 import { visualLanguage, identityText, targetBracketPath, playerFacingText } from './visual-language';
 import { flightTutorial } from './tutorial';
 import './style.css';
-import { AdPlacementManager, attachAircraftLivery, getAircraftLivery } from './ad-placement';
-import { aircraftDefinitions, aircraftMuzzleSockets, type AircraftDefinition, type AircraftType } from './aircraft';
+import { AdPlacementManager } from './ad-placement';
+import { aircraftDefinitions, aircraftEffectAnchors, aircraftMuzzleSockets, type AircraftDefinition, type AircraftType } from './aircraft';
 import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
@@ -24,6 +24,7 @@ import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, aimTargetScore, stepAim, i
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
+import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import type {
   AirportDefinition,
   AirportId,
@@ -221,181 +222,6 @@ type ActiveContract = {
   killCompleted: boolean;
 };
 
-const legacyAircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
-  trainer: {
-    name: 'TRAINER',
-    creditsRequired: 0,
-    maxSpeed: 52,
-    groundMaxSpeed: 40,
-    acceleration: 8.2,
-    drag: 5.5,
-    groundAcceleration: 14.5,
-    groundDrag: 12,
-    idleThrottle: 0.02,
-    throttleResponse: 0.42,
-    throttleDecay: 0.1,
-    lift: 1.28,
-    stallSpeed: 15,
-    pitchRate: 1,
-    maxClimbPitch: 0.25,
-    pitchReturnRate: 1.35,
-    climbLiftBoost: 1.16,
-    rollRate: 1.05,
-    rollInputResponse: 4.5,
-    yawRate: 1.3,
-    groundSteering: 1.3,
-    stability: 0.48,
-    inertia: 0.88,
-    bankTurn: 0.95,
-    alignmentRate: 1.12,
-    cameraDamping: 4.7,
-    cameraFrameScale: 0.94,
-    cameraHeight: 3.7,
-    takeoffSpeed: 24,
-    safeLandingSpeed: 48,
-    safeDescentRate: 8.5,
-    landingTilt: 0.62,
-    bodyColor: 0xf2f4f7,
-    accentColor: 0x145da0,
-    bodyLength: 5.2,
-    bodyRadius: 0.68,
-    noseLength: 1.4,
-    wingSpan: 8.4,
-    wingDepth: 1.45,
-    tailSpan: 3.4,
-    enginePods: 0,
-  },
-  privateJet: {
-    name: 'PRIVATE JET',
-    creditsRequired: 500,
-    maxSpeed: 94,
-    groundMaxSpeed: 66,
-    acceleration: 12,
-    drag: 2.35,
-    groundAcceleration: 10.5,
-    groundDrag: 6.2,
-    idleThrottle: 0.025,
-    throttleResponse: 0.38,
-    throttleDecay: 0.075,
-    lift: 1.13,
-    stallSpeed: 25.5,
-    pitchRate: 0.7,
-    maxClimbPitch: 0.23,
-    pitchReturnRate: 1.05,
-    climbLiftBoost: 1.08,
-    rollRate: 1.8,
-    rollInputResponse: 5.2,
-    yawRate: 0.86,
-    groundSteering: 0.92,
-    stability: 0.58,
-    inertia: 1.45,
-    bankTurn: 0.74,
-    alignmentRate: 0.76,
-    cameraDamping: 3.7,
-    cameraFrameScale: 1.03,
-    cameraHeight: 4.0,
-    takeoffSpeed: 38,
-    safeLandingSpeed: 62,
-    safeDescentRate: 7.2,
-    landingTilt: 0.46,
-    bodyColor: 0xf4f1ea,
-    accentColor: 0x7b4fc9,
-    bodyLength: 7,
-    bodyRadius: 0.72,
-    noseLength: 2,
-    wingSpan: 7.2,
-    wingDepth: 1.15,
-    tailSpan: 3.2,
-    enginePods: 2,
-  },
-  cargo: {
-    name: 'CARGO PLANE',
-    creditsRequired: 1000,
-    maxSpeed: 68,
-    groundMaxSpeed: 56,
-    acceleration: 5.4,
-    drag: 2.15,
-    groundAcceleration: 8.2,
-    groundDrag: 4.6,
-    idleThrottle: 0.04,
-    throttleResponse: 0.3,
-    throttleDecay: 0.055,
-    lift: 1.24,
-    stallSpeed: 29,
-    pitchRate: 0.56,
-    maxClimbPitch: 0.21,
-    pitchReturnRate: 0.9,
-    climbLiftBoost: 1.13,
-    rollRate: 1.15,
-    rollInputResponse: 2.5,
-    yawRate: 0.78,
-    groundSteering: 0.82,
-    stability: 0.68,
-    inertia: 1.9,
-    bankTurn: 0.54,
-    alignmentRate: 0.52,
-    cameraDamping: 3.15,
-    cameraFrameScale: 1.08,
-    cameraHeight: 4.6,
-    takeoffSpeed: 44,
-    safeLandingSpeed: 70,
-    safeDescentRate: 8.2,
-    landingTilt: 0.5,
-    bodyColor: 0xc8d0d6,
-    accentColor: 0x355d3f,
-    bodyLength: 7.2,
-    bodyRadius: 1,
-    noseLength: 1.7,
-    wingSpan: 11.5,
-    wingDepth: 1.8,
-    tailSpan: 4.5,
-    enginePods: 4,
-  },
-  fighter: {
-    name: 'FIGHTER-STYLE JET',
-    creditsRequired: 2000,
-    maxSpeed: 145,
-    groundMaxSpeed: 82,
-    acceleration: 27,
-    drag: 5.7,
-    groundAcceleration: 27,
-    groundDrag: 8.5,
-    idleThrottle: 0.01,
-    throttleResponse: 0.72,
-    throttleDecay: 0.16,
-    lift: 1.4,
-    stallSpeed: 34,
-    pitchRate: 1.3,
-    maxClimbPitch: 0.3,
-    pitchReturnRate: 1.6,
-    climbLiftBoost: 1.08,
-    rollRate: 3.1,
-    rollInputResponse: 7,
-    yawRate: 1.5,
-    groundSteering: 1.04,
-    stability: 0.22,
-    inertia: 0.62,
-    bankTurn: 1.62,
-    alignmentRate: 1.65,
-    cameraDamping: 5.8,
-    cameraFrameScale: 0.91,
-    cameraHeight: 3.5,
-    takeoffSpeed: 37,
-    safeLandingSpeed: 54,
-    safeDescentRate: 5,
-    landingTilt: 0.32,
-    bodyColor: 0x727d86,
-    accentColor: 0xb52a2a,
-    bodyLength: 6,
-    bodyRadius: 0.58,
-    noseLength: 2.5,
-    wingSpan: 6.8,
-    wingDepth: 2.2,
-    tailSpan: 2.8,
-    enginePods: 2,
-  },
-};
-
 const aircraftBodyGeometry = new THREE.CylinderGeometry(0.82, 1, 1, 14);
 const aircraftNoseGeometry = new THREE.ConeGeometry(1, 1, 14);
 const aircraftCockpitGeometry = new THREE.SphereGeometry(1, 14, 8);
@@ -481,10 +307,8 @@ function loadPlayerProgress(): PersistedPlayer {
     const storedCredits = typeof value.credits === 'number' && Number.isFinite(value.credits) && value.credits >= 0
       ? Math.floor(value.credits)
       : fallbackCredits;
-    const storedAircraft = isAircraftType(value.selectedAircraft) &&
-      (flightTestMode || aircraftDefinitions[value.selectedAircraft].creditsRequired <= storedCredits)
-      ? value.selectedAircraft
-      : 'trainer';
+    // Local storage is a cache, never aircraft entitlement authority.
+    const storedAircraft = flightTestMode && isAircraftType(value.selectedAircraft) ? value.selectedAircraft : 'trainer';
     const discoveries: Partial<Record<CityId, string[]>> = {};
     if (value.discoveries && typeof value.discoveries === 'object') {
       for (const city of ['milwaukee', 'dallas'] as const) {
@@ -594,12 +418,15 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
     pod.scale.set(radius, length, radius);
     pod.position.set(x, y, z);
     fallback.add(pod);
+  };
+
+  const addExhaustEffect = (x: number, y: number, z: number, radius: number): void => {
     const baseLength = type === 'fighter' ? 2.1 : 1.45;
     if (exhaustMaterial) {
       const exhaust = new THREE.Mesh(aircraftExhaustGeometry, exhaustMaterial);
       exhaust.rotation.x = Math.PI / 2;
       exhaust.scale.set(radius * 0.34, baseLength, radius * 0.34);
-      exhaust.position.set(x, y, z + length / 2 + baseLength * 0.46);
+      exhaust.position.set(x, y, z + baseLength * 0.46);
       exhaust.userData.baseLength = baseLength;
       plane.add(exhaust);
       visuals.exhausts.push(exhaust);
@@ -611,7 +438,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
     const boostLength = baseLength * (type === 'fighter' ? 2.4 : 1.9);
     boostTrail.rotation.x = Math.PI / 2;
     boostTrail.scale.set(radius * 0.52, boostLength, radius * 0.52);
-    boostTrail.position.set(x, y, z + length / 2 + boostLength * 0.46);
+    boostTrail.position.set(x, y, z + boostLength * 0.46);
     boostTrail.userData.baseLength = boostLength;
     boostTrail.visible = false;
     plane.add(boostTrail);
@@ -691,9 +518,10 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
     addBox(1.35, 0.13, 2.5, 0.78, 0.02, -1.25, accentMaterial, 0.24);
     addBox(0.14, 1.5, 0.9, -0.62, 0.72, 1.75, accentMaterial, 0, -0.18);
     addBox(0.14, 1.5, 0.9, 0.62, 0.72, 1.75, accentMaterial, 0, 0.18);
-    addEngine(-0.58, -0.25, 1.55, 2.45, 0.34);
-    addEngine(0.58, -0.25, 1.55, 2.45, 0.34);
+    addEngine(0, -0.18, 1.55, 2.7, 0.46);
   }
+
+  for (const anchor of aircraftEffectAnchors[type]) addExhaustEffect(anchor.x, anchor.y, anchor.z, anchor.radius);
 
   plane.traverse((part) => {
     if (part instanceof THREE.Mesh) {
@@ -713,7 +541,6 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   plane.add(muzzleAnchor);
   plane.userData.muzzleAnchor = muzzleAnchor;
   attachAircraftAsset(plane, fallback, type, definition.bodyLength + definition.noseLength, definition.wingSpan);
-  attachAircraftLivery(plane, getAircraftLivery(cityId, adPlacements, type), definition);
 
   return plane;
 }
@@ -849,6 +676,7 @@ const aircraftSelectElement = document.querySelector<HTMLSelectElement>('#aircra
 let aircraftOptionsKey = '';
 let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
+let purchaseSequence = 0;
 const flightTestIndicator = document.querySelector<HTMLDivElement>('#flight-test-mode')!;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
 const distanceFlownElement = document.querySelector<HTMLSpanElement>('#distance-flown')!;
@@ -1693,7 +1521,7 @@ stuntCombo = new StuntComboSystem(cityWorld.stuntZones ?? [], {
     updateScoreDisplay();
     sendPlayerUpdate();
   },
-  onCredits: (creditsReward) => { addCredits(creditsReward); },
+  onCredits: () => { /* stunt Credits are banked by the server Chaos path */ },
   onMessage: showProgressMessage,
   onStunt: (type) => {
     if (!localPlayerId || !connectionReady()) return;
@@ -1706,9 +1534,8 @@ if (cityWorld.discoveries?.length) {
     onDiscover: (definition) => {
       discoveredLocationsByCity[cityId] = [...discoveredLocationIds];
       savePlayerProgress();
-      addCredits(definition.credits);
       queueProfileProgress();
-      showProgressMessage(`DISCOVERED: ${definition.name} +${definition.credits}`);
+      showProgressMessage(`DISCOVERED: ${definition.name}`);
       updateProgressHud();
       contextualHints.trigger('discovery');
     },
@@ -1716,9 +1543,8 @@ if (cityWorld.discoveries?.length) {
       if (bonus <= 0) return;
       discoveredLocationsByCity[cityId] = [...discoveredLocationIds];
       savePlayerProgress();
-      addCredits(bonus);
       queueProfileProgress();
-      showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE +${bonus}`);
+      showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE`);
     },
   });
 }
@@ -1731,10 +1557,7 @@ const contractAircraft: Record<ContractType, AircraftType> = {
   intercept: 'fighter',
 };
 const contractRewards: Record<ContractType, number> = {
-  passenger: 250,
-  cargo: 350,
-  sightseeing: 300,
-  intercept: 400,
+  ...economyRewards.contractCredits,
 };
 
 function airportById(id: AirportId): AirportDefinition {
@@ -1743,6 +1566,18 @@ function airportById(id: AirportId): AirportDefinition {
 
 function contractTitle(type: ContractType): string {
   return type.toUpperCase();
+}
+
+function ownsAircraft(type: AircraftType): boolean {
+  return flightTestMode || (profileHydrated && serverProfile.unlockedAircraft.includes(type));
+}
+
+function aircraftAccessReason(type: AircraftType): string | undefined {
+  if (ownsAircraft(type)) return undefined;
+  const definition = aircraftDefinitions[type];
+  if (definition.access === 'premium') return `${definition.name} requires Premium access.`;
+  const needed = Math.max(0, definition.creditsRequired - credits);
+  return `Requires ${definition.name} — need ${needed.toLocaleString()} more Credits.`;
 }
 
 function generateContract(): void {
@@ -1784,16 +1619,15 @@ function contractDetail(contract: ContractDefinition): string {
 function updateContractPanel(): void {
   contractPanelElement.classList.toggle('hidden', availableContract === null);
   if (!availableContract) return;
-  const requiredCredits = aircraftDefinitions[availableContract.aircraftType].creditsRequired;
-  const creditsNeeded = Math.max(0, requiredCredits - credits);
+  const accessReason = aircraftAccessReason(availableContract.aircraftType);
   contractTypeElement.textContent = contractTitle(availableContract.type);
   contractDetailElement.textContent = contractDetail(availableContract);
-  contractAircraftElement.textContent = creditsNeeded > 0
+  contractAircraftElement.textContent = accessReason
     ? `${aircraftDefinitions[availableContract.aircraftType].name} · LOCKED`
     : aircraftDefinitions[availableContract.aircraftType].name;
   contractRewardElement.textContent = `+${availableContract.reward} credits`;
-  contractAcceptElement.disabled = creditsNeeded > 0;
-  contractAcceptElement.textContent = creditsNeeded > 0 ? `Need ${creditsNeeded}` : 'Accept';
+  contractAcceptElement.disabled = Boolean(accessReason);
+  contractAcceptElement.textContent = accessReason ? 'Aircraft Locked' : 'Accept';
 }
 
 function updateActiveContractHud(): void {
@@ -1840,9 +1674,9 @@ function updateActiveContractHud(): void {
 
 function acceptAvailableContract(): void {
   if (!availableContract) return;
-  const requiredCredits = aircraftDefinitions[availableContract.aircraftType].creditsRequired;
-  if (credits < requiredCredits) {
-    showProgressMessage(`Need ${requiredCredits - credits} more credits`);
+  const accessReason = aircraftAccessReason(availableContract.aircraftType);
+  if (accessReason) {
+    showProgressMessage(accessReason);
     return;
   }
   activeContract = {
@@ -1861,7 +1695,7 @@ function completeContract(): void {
   const { reward, type } = activeContract.definition;
   activeContract = null;
   updateActiveContractHud();
-  addCredits(reward);
+  addCredits(reward, type);
   showProgressMessage(`${contractTitle(type)} COMPLETE +${reward}`);
   generateContract();
 }
@@ -2029,37 +1863,22 @@ function updateAircraftOptions(): void {
     const definition = aircraftDefinitions[option.value];
     const owned = flightTestMode || (profileHydrated && serverProfile.unlockedAircraft.includes(option.value));
     if (option.disabled !== !owned) option.disabled = !owned;
-    const label = flightTestMode && definition.creditsRequired > 0
+    const label = flightTestMode && definition.access !== 'free'
       ? `${definition.name} — Flight test`
       :
-      definition.creditsRequired === 0
+      definition.access === 'free'
         ? `${definition.name} — Free`
-        : `${definition.name} — ${owned ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
+        : definition.access === 'premium'
+          ? `${definition.name} — ${owned ? 'Owned' : 'Premium'}`
+          : `${definition.name} — ${owned ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
     if (option.textContent !== label) option.textContent = label;
   }
 }
 
-function addCredits(amount: number): boolean {
+function addCredits(amount: number, source: ContractType): boolean {
   if (flightTestMode) return false;
-  const previousCredits = credits;
-  credits += amount;
-  queueProfileReward(amount);
-  savePlayerProgress();
-  let unlockedName = '';
-  for (const definition of Object.values(aircraftDefinitions)) {
-    if (
-      definition.creditsRequired > 0 &&
-      previousCredits < definition.creditsRequired &&
-      credits >= definition.creditsRequired
-    ) {
-      unlockedName = definition.name;
-    }
-  }
-  if (!unlockedName) return false;
-  updateAircraftOptions();
-  updateContractPanel();
-  showProgressMessage(`${unlockedName} UNLOCKED`);
-  return true;
+  queueProfileReward(source);
+  return false;
 }
 
 function checkRegionDiscovery(): void {
@@ -2074,8 +1893,7 @@ function checkRegionDiscovery(): void {
     if (visitedRegionsThisFlight.has(region.name)) continue;
     visitedRegionsThisFlight.add(region.name);
     regionsDiscovered += 1;
-    const unlocked = addCredits(50);
-    if (!unlocked) showProgressMessage(`+50 ${region.name} DISCOVERED`);
+    showProgressMessage(`${region.name.toUpperCase()} FOUND`);
   }
 }
 
@@ -2087,10 +1905,8 @@ function updateAirborneProgress(delta: number): void {
   totalDistance += traveled;
   flightDistanceSinceTakeoff += traveled;
   distanceCreditProgress += traveled;
-  const earnedCredits = Math.floor(distanceCreditProgress);
-  if (earnedCredits > 0) {
-    distanceCreditProgress -= earnedCredits;
-    addCredits(earnedCredits);
+  if (distanceCreditProgress >= 250) {
+    distanceCreditProgress %= 250;
     queueProfileProgress();
   }
   checkRegionDiscovery();
@@ -2116,11 +1932,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   resetRegionsOnNextTakeoff = true;
   const destinationBonus = !landedAirportIds.has(airport.id);
   landedAirportIds.add(airport.id);
-  const reward = 100 + (destinationBonus ? 100 : 0);
-  const unlocked = addCredits(reward);
-  if (!unlocked) {
-    showProgressMessage(destinationBonus ? `+200 ${airport.name.toUpperCase()}` : `+100 ${airport.name.toUpperCase()}`);
-  }
+  showProgressMessage(destinationBonus ? `${airport.name.toUpperCase()} DISCOVERED` : 'LANDING VERIFIED');
   if (localPlayerId && connectionReady() && landingQuality) {
     socket.send(JSON.stringify({ type: 'landingIntent', airportId: airport.id, telemetry: {
       speed: landingQuality.speed,
@@ -2250,8 +2062,7 @@ function selectAircraft(nextType: AircraftType): void {
   }
   if (!profileHydrated || !serverProfile.unlockedAircraft.includes(nextType)) {
     aircraftSelectElement.value = aircraftType;
-    const needed = Math.max(0, aircraftDefinitions[nextType].creditsRequired - credits);
-    showProgressMessage(needed > 0 ? `Need ${needed} more credits` : 'WAITING FOR SERVER PROFILE');
+    showProgressMessage(!profileHydrated ? 'WAITING FOR SERVER PROFILE' : (aircraftAccessReason(nextType) ?? 'AIRCRAFT NOT OWNED'));
     return;
   }
   if (!connectionReady()) {
@@ -2275,7 +2086,15 @@ aircraftSelectElement.addEventListener('change', () => {
 const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
   selectAircraft(nextType);
   aircraftGarage.close();
-}, (plane, type) => attachAircraftLivery(plane, getAircraftLivery(cityId, adPlacements, type), aircraftDefinitions[type]));
+}, undefined, undefined, (nextType) => {
+  if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER REQUIRED TO BUY AIRCRAFT'); return; }
+  try { socket.send(JSON.stringify({ type: 'purchaseAircraft', aircraftType: nextType, purchaseRequestId: ++purchaseSequence })); }
+  catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — PURCHASE NOT CHANGED'); }
+}, (code) => {
+  if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER REQUIRED FOR TESTER CODE'); return; }
+  try { socket.send(JSON.stringify({ type: 'redeemTesterCode', testerCode: code })); }
+  catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
+});
 function openGarage(): boolean {
   if (!onGround || crashed) {
     showProgressMessage('GARAGE AVAILABLE WHEN SAFELY ON GROUND');
@@ -2290,6 +2109,9 @@ function openGarage(): boolean {
     credits,
     selectedAircraft: aircraftType,
     unlockedAircraft: flightTestMode ? (Object.keys(aircraftDefinitions) as AircraftType[]) : serverProfile.unlockedAircraft,
+    economyVersion: serverProfile.economyVersion,
+    aircraftEntitlements: serverProfile.aircraftEntitlements,
+    testerCodeEnabled: serverProfile.testerCodeEnabled,
   });
   return true;
 }
@@ -2507,6 +2329,9 @@ type NetworkProfile = {
   pilotId: string;
   pilotName: string;
   credits: number;
+  economyVersion: number;
+  aircraftEntitlements: string[];
+  testerCodeEnabled: boolean;
   selectedAircraft: AircraftType;
   unlockedAircraft: AircraftType[];
   totalDistance: number;
@@ -2543,6 +2368,8 @@ type ServerMessage =
     }
   | { type: 'protocolMismatch'; expectedProtocolVersion: number }
   | { type: 'equipRejected'; reason: string; equipRequestId: number }
+  | { type: 'aircraftPurchaseResult'; purchaseRequestId: number; aircraftType?: unknown; ok: boolean; reason?: string }
+  | { type: 'testerCodeResult'; ok: boolean; reason: string }
   | { type: 'weeklyLeaderboards'; weeklyLeaderboards: NetworkWeeklyLeaderboard[] }
   | ({ type: 'state' } & NetworkPlayer)
   | { type: 'remove'; playerId: string }
@@ -2614,6 +2441,9 @@ function createSafeNetworkProfile(): NetworkProfile {
     pilotId: persistedPlayer.pilotId,
     pilotName: persistedPlayer.displayName,
     credits: persistedPlayer.credits,
+    economyVersion: 0,
+    aircraftEntitlements: [],
+    testerCodeEnabled: false,
     selectedAircraft: 'trainer',
     unlockedAircraft: ['trainer'],
     totalDistance: persistedPlayer.totalDistance,
@@ -2637,6 +2467,9 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
   return typeof profile.pilotId === 'string' &&
     typeof profile.pilotName === 'string' &&
     typeof profile.credits === 'number' && Number.isFinite(profile.credits) && profile.credits >= 0 &&
+    typeof profile.economyVersion === 'number' && Number.isSafeInteger(profile.economyVersion) && profile.economyVersion >= 0 &&
+    Array.isArray(profile.aircraftEntitlements) && profile.aircraftEntitlements.every((entry) => typeof entry === 'string') &&
+    typeof profile.testerCodeEnabled === 'boolean' &&
     isAircraftType(profile.selectedAircraft) &&
     Array.isArray(profile.unlockedAircraft) && profile.unlockedAircraft.every(isAircraftType) &&
     typeof profile.totalDistance === 'number' && Number.isFinite(profile.totalDistance) && profile.totalDistance >= 0 &&
@@ -3043,9 +2876,9 @@ let nextActionRenderAt = 0;
 let nextActionSignature = '';
 
 function pilotChallengeSuitability(type: string): string {
-  if (type === 'precision' || type === 'lowAltitude') return 'Trainer-friendly';
-  if (type === 'inverted' || type === 'corkscrew' || type === 'dive') return 'Fighter-friendly';
-  if (type === 'speed' || type === 'climb') return 'Private Jet or Fighter';
+  if (type === 'precision' || type === 'lowAltitude') return 'Skyrift Scout friendly';
+  if (type === 'inverted' || type === 'corkscrew' || type === 'dive') return 'Redspear Fighter friendly';
+  if (type === 'speed' || type === 'climb') return 'Wayfarer Jet or Redspear Fighter';
   return 'Any aircraft';
 }
 
@@ -3140,17 +2973,16 @@ function updateNextActions(force = false): void {
   const contract = activeContract?.definition ?? availableContract;
   if (contract) {
     const destination = airportById(contract.destinationAirportId);
-    const requiredCredits = aircraftDefinitions[contract.aircraftType].creditsRequired;
-    const creditsNeeded = Math.max(0, requiredCredits - credits);
+    const accessReason = aircraftAccessReason(contract.aircraftType);
     const aircraftRequirement = aircraftType === contract.aircraftType ? '' : ` Requires ${aircraftDefinitions[contract.aircraftType].name}.`;
     candidates.push({
       id: `${activeContract ? 'active' : 'available'}-contract:${contract.id}`,
       kind: 'contract',
       title: `${activeContract ? 'CONTRACT' : 'ACTIVITY'}: ${contractTitle(contract.type)}`,
-      detail: creditsNeeded > 0 ? `Requires ${aircraftDefinitions[contract.aircraftType].name} — need ${creditsNeeded} more credits.` : `${contractDetail(contract)}${aircraftRequirement}`,
+      detail: accessReason ?? `${contractDetail(contract)}${aircraftRequirement}`,
       distance: distanceTo(destination.x, destination.z),
       relevance: activeContract ? 18 : 0,
-      lockedReason: creditsNeeded > 0 ? `Locked aircraft: ${aircraftDefinitions[contract.aircraftType].name}` : undefined,
+      lockedReason: accessReason ? `Locked aircraft: ${aircraftDefinitions[contract.aircraftType].name}` : undefined,
       actions: [{ label: 'Set Waypoint', run: () => setActivityWaypoint(destination.x, destination.z, destination.name) }],
     });
   }
@@ -3161,9 +2993,9 @@ function updateNextActions(force = false): void {
     .sort((left, right) => left.distance - right.distance)[0];
   if (nearestChallenge) {
     const required = nearestChallenge.challenge.requiredAircraftType;
-    const creditsNeeded = required ? Math.max(0, aircraftDefinitions[required].creditsRequired - credits) : 0;
-    const challengeUnavailableReason = creditsNeeded > 0
-      ? `Requires ${aircraftDefinitions[required!].name} — need ${creditsNeeded} more credits.`
+    const accessReason = required ? aircraftAccessReason(required) : undefined;
+    const challengeUnavailableReason = accessReason
+      ? accessReason
       : required && aircraftType !== required
         ? `Requires ${aircraftDefinitions[required].name} — equip it in Garage.`
         : undefined;
@@ -3172,7 +3004,7 @@ function updateNextActions(force = false): void {
       id: `challenge:${nearestChallenge.challenge.id}`,
       kind: 'challenge',
       title: `SKILL: ${nearestChallenge.challenge.name}`,
-      detail: challengeUnavailableReason ?? `${pilotChallengeSuitability(nearestChallenge.challenge.type)} · +${nearestChallenge.challenge.reward} credits`,
+      detail: challengeUnavailableReason ?? `${pilotChallengeSuitability(nearestChallenge.challenge.type)} · +${challengeCreditReward(nearestChallenge.challenge.reward)} credits`,
       distance: nearestChallenge.distance,
       lockedReason: challengeUnavailableReason,
       actions: [{
@@ -3338,8 +3170,8 @@ function pilotMenuData(): PilotMenuData {
       actions: [
         { label: 'Set Waypoint', run: () => setWaypoint(destination.x, destination.z, destination.name) },
         ...(!activeContract ? [{
-          label: Math.max(0, aircraftDefinitions[contract.aircraftType].creditsRequired - credits) > 0 ? 'Aircraft Locked' : 'Accept',
-          disabled: Math.max(0, aircraftDefinitions[contract.aircraftType].creditsRequired - credits) > 0,
+          label: aircraftAccessReason(contract.aircraftType) ? 'Aircraft Locked' : 'Accept',
+          disabled: Boolean(aircraftAccessReason(contract.aircraftType)),
           run: () => { acceptAvailableContract(); openPilotMenu(); },
         }] : []),
       ],
@@ -3348,16 +3180,16 @@ function pilotMenuData(): PilotMenuData {
   for (const challenge of cityWorld.skyChallenges ?? []) {
     const gate = challenge.gates[0];
     const required = challenge.requiredAircraftType;
-    const creditsNeeded = required ? Math.max(0, aircraftDefinitions[required].creditsRequired - credits) : 0;
-    const unavailableReason = creditsNeeded > 0
-      ? `Requires ${aircraftDefinitions[required!].name} — need ${creditsNeeded} more credits.`
+    const accessReason = required ? aircraftAccessReason(required) : undefined;
+    const unavailableReason = accessReason
+      ? accessReason
       : required && aircraftType !== required
         ? `Requires ${aircraftDefinitions[required].name} — equip it in Garage.`
         : undefined;
     activities.push({
       name: challenge.name,
       detail: unavailableReason ?? `${challenge.type.replace(/([A-Z])/g, ' $1')} skill route. Fly its gates before time expires.`,
-      meta: `+${challenge.reward} credits · ${Math.round(Math.hypot(airplane.position.x - gate.x, airplane.position.z - gate.z))}m · ${pilotChallengeSuitability(challenge.type)}`,
+      meta: `+${challengeCreditReward(challenge.reward)} credits · ${Math.round(Math.hypot(airplane.position.x - gate.x, airplane.position.z - gate.z))}m · ${pilotChallengeSuitability(challenge.type)}`,
       actions: [
         { label: 'Set Waypoint', run: () => setWaypoint(gate.x, gate.z, challenge.name) },
         { label: 'Start', disabled: Boolean(unavailableReason), title: unavailableReason, run: () => { if (skyChallenges?.activate(challenge.id)) updateSkyChallengeHud(); } },
@@ -3706,7 +3538,26 @@ const collisionRadius = 2.5;
 const nearMissRadius = 12;
 const collisionRadiusSquared = collisionRadius * collisionRadius;
 const nearMissRadiusSquared = nearMissRadius * nearMissRadius;
+const previousInteractionPosition = new THREE.Vector3();
+const interactionSweepStart = new THREE.Vector3();
+let interactionSweepReady = false;
 let lastCollisionIntentAt = 0;
+
+function interactionSegmentDistanceSquared(point: THREE.Vector3, start: THREE.Vector3, end: THREE.Vector3): number {
+  const segmentX = end.x - start.x;
+  const segmentY = end.y - start.y;
+  const segmentZ = end.z - start.z;
+  const lengthSquared = segmentX * segmentX + segmentY * segmentY + segmentZ * segmentZ;
+  const projection = lengthSquared <= 0.000001 ? 0 : THREE.MathUtils.clamp(
+    ((point.x - start.x) * segmentX + (point.y - start.y) * segmentY + (point.z - start.z) * segmentZ) / lengthSquared,
+    0,
+    1,
+  );
+  const dx = point.x - (start.x + segmentX * projection);
+  const dy = point.y - (start.y + segmentY * projection);
+  const dz = point.z - (start.z + segmentZ * projection);
+  return dx * dx + dy * dy + dz * dz;
+}
 
 function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPresets>[number]): void {
   heldActions.clear();
@@ -4487,8 +4338,9 @@ function updateCombatTarget(delta = 0): void {
 function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: number, delta: number): void {
   const visuals = plane.userData.visuals as AircraftVisuals | undefined;
   if (!visuals) return;
-  const propeller = (plane.userData.assetPropeller as THREE.Object3D | null | undefined) ?? visuals.propeller;
-  if (propeller) propeller.rotation.z += delta * (7 + power * 34);
+  const assetPropellers = plane.userData.assetPropellers as THREE.Object3D[] | undefined;
+  const propellers = assetPropellers?.length ? assetPropellers : visuals.propeller ? [visuals.propeller] : [];
+  for (const propeller of propellers) propeller.rotation.z += delta * (7 + power * 34);
   const isFighter = plane.userData.aircraftType === 'fighter';
   if (visuals.exhaustMaterial) {
     visuals.exhaustMaterial.opacity = (isFighter ? 0.025 : 0.012) + power * (isFighter ? 0.18 : 0.085);
@@ -4523,13 +4375,21 @@ function awardNearMiss(): void {
 
 function updatePlayerInteractions(): void {
   if (localLifeState !== 'alive') return;
+  const maximumFrameTravel = Math.max(12, currentSpeed * 0.06 + 8);
+  if (!interactionSweepReady || previousInteractionPosition.distanceToSquared(airplane.position) > maximumFrameTravel * maximumFrameTravel) {
+    previousInteractionPosition.copy(airplane.position);
+    interactionSweepReady = true;
+  }
+  interactionSweepStart.copy(previousInteractionPosition);
+  previousInteractionPosition.copy(airplane.position);
   for (const remote of remotePlayers.values()) {
     if (remote.lifeState !== 'alive' || !entityCapabilities(remote.entityType).collidable) {
       remote.nearMissActive = false;
       continue;
     }
     const distanceSquared = airplane.position.distanceToSquared(remote.plane.position);
-    if (distanceSquared <= collisionRadiusSquared) {
+    const sweptDistanceSquared = interactionSegmentDistanceSquared(remote.plane.position, interactionSweepStart, airplane.position);
+    if (Math.min(distanceSquared, sweptDistanceSquared) <= collisionRadiusSquared) {
       // Ordered state + collision intent lets the server validate one shared
       // pair and authoritatively destroy each pilot exactly once.
       const now = performance.now();
@@ -4541,7 +4401,7 @@ function updatePlayerInteractions(): void {
       return;
     }
 
-    if (distanceSquared <= nearMissRadiusSquared) {
+    if (Math.min(distanceSquared, sweptDistanceSquared) <= nearMissRadiusSquared) {
       if (!remote.nearMissActive) {
         remote.nearMissActive = true;
         awardNearMiss();
@@ -4592,7 +4452,7 @@ function getLandingAssistAirport(position: THREE.Vector3, requireAlignment = tru
     if (
       Math.abs(lateral) <= airport.runwayWidth * 2 + 44 &&
       Math.abs(longitudinal) <= airport.runwayLength / 2 + 420 &&
-      (!requireAlignment || runwayHeadingError(airport) <= 0.62)
+      (!requireAlignment || runwayHeadingError(airport) <= 0.72)
     ) return airport;
   }
   return null;
@@ -4603,11 +4463,11 @@ function getLandingAssistAirport(position: THREE.Vector3, requireAlignment = tru
 function evaluateLanding(airport: AirportDefinition | null, result: typeof landingStatus): void {
   result.bankAngle = Math.abs(THREE.MathUtils.euclideanModulo(roll + Math.PI, Math.PI * 2) - Math.PI);
   result.headingError = airport ? runwayHeadingError(airport) : Math.PI;
-  result.speedSafe = currentSpeed <= currentAircraft.safeLandingSpeed * (landingAssistActive ? 1.25 : 1);
-  result.descentSafe = verticalSpeed >= -currentAircraft.safeDescentRate * (landingAssistActive ? 1.55 : 1);
-  result.pitchSafe = Math.abs(pitch) <= currentAircraft.landingTilt + (landingAssistActive ? 0.15 : 0);
-  result.bankSafe = result.bankAngle <= currentAircraft.landingTilt + (landingAssistActive ? 0.18 : 0);
-  result.alignmentSafe = result.headingError <= (landingAssistActive ? 0.76 : 0.52);
+  result.speedSafe = currentSpeed <= currentAircraft.safeLandingSpeed * (landingAssistActive ? 1.32 : 1);
+  result.descentSafe = verticalSpeed >= -currentAircraft.safeDescentRate * (landingAssistActive ? 1.7 : 1);
+  result.pitchSafe = Math.abs(pitch) <= currentAircraft.landingTilt + (landingAssistActive ? 0.18 : 0);
+  result.bankSafe = result.bankAngle <= currentAircraft.landingTilt + (landingAssistActive ? 0.22 : 0);
+  result.alignmentSafe = result.headingError <= (landingAssistActive ? 0.82 : 0.52);
   result.reason = !airport ? 'OFF RUNWAY' : !result.speedSafe ? 'TOO FAST' : !result.descentSafe ? 'HARD DESCENT' :
     !result.bankSafe ? 'WINGS NOT LEVEL' : !result.pitchSafe ? 'NOSE ANGLE' : !result.alignmentSafe ? 'RUNWAY MISALIGNED' : '';
 }
@@ -4842,6 +4702,13 @@ function updateFlight(delta: number): void {
     // an artificial extra revolution on release.
     const bankFromLevel = Math.atan2(Math.sin(roll), Math.cos(roll));
     roll -= bankFromLevel * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? currentAircraft.rollRate * 0.75) * delta));
+    if (landingAssistActive) {
+      // The approach helper only levels the wings; it never changes heading.
+      // A second, gentle damping pass makes reasonable runway corrections
+      // forgiving without turning the feature into an automatic landing.
+      const approachBank = Math.atan2(Math.sin(roll), Math.cos(roll));
+      roll -= approachBank * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? 0.7) * 0.55 * delta));
+    }
   }
   // The eased control command sets a bounded attitude target. Pitch only rotates the
   // aircraft; lift and gravity below remain the sole source of vertical movement.
@@ -4892,13 +4759,13 @@ function updateFlight(delta: number): void {
   const flightPathAngle = airspeed > 0.01 ? Math.asin(THREE.MathUtils.clamp(velocity.y / airspeed, -1, 1)) : 0;
   const angleOfAttack = THREE.MathUtils.clamp(pitch - flightPathAngle, -0.28, 0.32);
   const stallFactor = THREE.MathUtils.clamp(
-    (forwardSpeed - currentAircraft.stallSpeed * 0.62) / (currentAircraft.stallSpeed * 0.38),
-    0.08,
+    (forwardSpeed - currentAircraft.stallSpeed * 0.48) / (currentAircraft.stallSpeed * 0.52),
+    0.18,
     1,
   );
   const liftFactor = THREE.MathUtils.clamp(
     0.74 + angleOfAttack * 1.75,
-    0.2,
+    0.34,
     1.28,
   ) * Math.min(1.28, (forwardSpeed / currentAircraft.takeoffSpeed) ** 2) * stallFactor * currentAircraft.lift * (1 + throttle * currentAircraft.climbLiftBoost * 0.08);
   const boostThrust = boostActive
@@ -4906,9 +4773,9 @@ function updateFlight(delta: number): void {
     : 0;
   const thrust = (throttle * currentAircraft.acceleration + boostThrust) / currentAircraft.inertia;
   const baseDrag = currentAircraft.drag * (airspeed / currentAircraft.maxSpeed) ** 2;
-  const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.13;
+  const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.07;
   const airbrakeDrag = baseDrag * speedBrakeStrength * (currentAircraft.airbrakeDrag ?? 2);
-  const approachDrag = landingAssistActive ? baseDrag * 0.28 : 0;
+  const approachDrag = landingAssistActive ? baseDrag * 0.75 : 0;
   const drag = (baseDrag + inducedDrag + airbrakeDrag + approachDrag) / currentAircraft.inertia;
 
   velocity.addScaledVector(forward, thrust * delta);
@@ -4916,14 +4783,14 @@ function updateFlight(delta: number): void {
   velocity.y -= 9.81 * delta;
   if (landingAssistActive && approachHeight < 14 && velocity.y < 0) {
     const groundEffect = 1 - THREE.MathUtils.clamp(approachHeight / 14, 0, 1);
-    velocity.y += groundEffect * 2.2 * delta;
+    velocity.y += groundEffect * 2.8 * delta;
     const softenedDescent = -currentAircraft.safeDescentRate * 0.9;
     if (velocity.y < softenedDescent) velocity.y = THREE.MathUtils.lerp(velocity.y, softenedDescent, Math.min(1, delta * 2.4));
   }
   if (forwardSpeed < currentAircraft.stallSpeed) {
     // A gentle aerodynamic nose drop keeps stalls recoverable with the existing
     // nose-down + throttle controls instead of allowing an implausible hover.
-    pitch = Math.max(-0.38, pitch - delta * (1 - stallFactor) * 0.42);
+    pitch = Math.max(-0.3, pitch - delta * (1 - stallFactor) * 0.24);
   }
   if (airspeed > 0.01) velocity.addScaledVector(velocity, -Math.min(0.85, drag * delta / airspeed));
 
@@ -5458,15 +5325,13 @@ if (chaosQaMode) {
   });
   document.body.append(panel);
 }
-const pendingProfileRewards = new Map<string, number>();
+const pendingProfileRewards = new Map<string, ContractType>();
 let inFlightProfileReward: { id: string; sentAt: number } | undefined;
 let profileProgressTimer: number | undefined;
 let profileSyncUnavailableNotified = false;
 
 function pendingProfileCredits(): number {
-  let total = 0;
-  for (const amount of pendingProfileRewards.values()) total += amount;
-  return total;
+  return 0;
 }
 
 function flushProfileRewards(): void {
@@ -5476,17 +5341,17 @@ function flushProfileRewards(): void {
   if (inFlightProfileReward && performance.now() - inFlightProfileReward.sentAt < 5000) return;
   const next = pendingProfileRewards.entries().next();
   if (next.done) return;
-  const [rewardId, amount] = next.value;
-  socket.send(JSON.stringify({ type: 'profileReward', rewardId, credits: amount }));
+  const [rewardId, rewardSource] = next.value;
+  socket.send(JSON.stringify({ type: 'profileReward', rewardId, rewardSource }));
   inFlightProfileReward = { id: rewardId, sentAt: performance.now() };
 }
 
-function queueProfileReward(amount: number): void {
-  if (flightTestMode || amount <= 0 || !Number.isFinite(amount)) return;
+function queueProfileReward(source: ContractType): void {
+  if (flightTestMode) return;
   const rewardId = typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `reward-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-  pendingProfileRewards.set(rewardId, Math.min(500, Math.floor(amount)));
+  pendingProfileRewards.set(rewardId, source);
   if (!localPlayerId || !connectionReady()) {
     if (!profileSyncUnavailableNotified) {
       profileSyncUnavailableNotified = true;
@@ -5554,6 +5419,14 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   discoverySystem?.hydrate(discoveredLocationIds);
   if (!flightTestMode && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft);
   updateAircraftOptions();
+  if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
+    credits: profile.credits,
+    selectedAircraft: profile.selectedAircraft,
+    unlockedAircraft: profile.unlockedAircraft,
+    economyVersion: profile.economyVersion,
+    aircraftEntitlements: profile.aircraftEntitlements,
+    testerCodeEnabled: profile.testerCodeEnabled,
+  });
   updateProgressHud();
   savePlayerProgress();
   if (equipConfirmed) showProgressMessage(`${aircraftDefinitions[profile.selectedAircraft].name} EQUIPPED`);
@@ -5775,6 +5648,10 @@ socket.addEventListener('message', (event) => {
       updateAircraftOptions();
       showProgressMessage(message.reason);
     }
+  } else if (message.type === 'aircraftPurchaseResult') {
+    aircraftGarage.showActionResult(message.ok ? 'AIRCRAFT PURCHASED — NOW OWNED' : (message.reason ?? 'PURCHASE FAILED'));
+  } else if (message.type === 'testerCodeResult') {
+    aircraftGarage.showActionResult(message.reason);
   } else if (message.type === 'projectileSpawn') {
     addProjectile(message);
   } else if (message.type === 'projectileStates') {

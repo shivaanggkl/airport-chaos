@@ -1,5 +1,6 @@
 import { actionKeyLabel, controlGroups, controlKeyLabel, menuKeyLabel, type FlightAction } from './flight-input';
 import { aircraftRoles, targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
+import { aircraftDefinitions, type AircraftType } from './aircraft';
 import runwayImage from './help-assets/runway.avif';
 import mapImage from './help-assets/map.avif';
 import garageImage from './help-assets/garage.avif';
@@ -24,7 +25,7 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; descripti
   {
     nav: 'Fly', icon: 'you', title: 'TAKE OFF AND FLY.',
     description: `Hold ${actionKeyLabel('throttleUp')} to go faster, then ${actionKeyLabel('pitchUp')} to lift the nose. In the air, hold ${actionKeyLabel('boost')} for Boost.`,
-    visual: shot(runwayImage, 'Actual Trainer on the DFW runway, looking forward over its wings', callout(`${actionKeyLabel('pitchUp')} NOSE UP`, 50, 18) + callout('YOUR AIRCRAFT', 50, 82)),
+    visual: shot(runwayImage, 'Skyrift Scout on the DFW runway, looking forward over its wings', callout(`${actionKeyLabel('pitchUp')} NOSE UP`, 50, 18) + callout('YOUR AIRCRAFT', 50, 82)),
     controls: flightKeys,
   },
   {
@@ -36,7 +37,7 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; descripti
   {
     nav: 'Fight', icon: 'player', title: 'GET A PLANE NEAR THE CIRCLE.',
     description: `Press ${actionKeyLabel('fire')} to shoot; LOCKED helps you hit. HULL is your plane’s life.`,
-    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Actual chase view and runway behind a demonstration of the live combat indicators')}<div class="help-combat-example"><span class="help-example-label">COMBAT HUD EXAMPLE</span><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong><span class="help-pilot-label"><span style="color:${visualLanguage.player.color}">${visualLanguage.player.icon} Pilot · Trainer</span><br/><span style="color:${visualLanguage.ai.color}">${visualLanguage.ai.icon} Raven · AI Pilot</span></span></div></div><div class="help-hull health-row"><span>HULL = LIFE</span><span class="hull-meter"><i style="width:75%"></i></span><strong>75/100</strong></div>` + legend(['player', 'ai']),
+    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Actual chase view and runway behind a demonstration of the live combat indicators')}<div class="help-combat-example"><span class="help-example-label">COMBAT HUD EXAMPLE</span><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong><span class="help-pilot-label"><span style="color:${visualLanguage.player.color}">${visualLanguage.player.icon} Pilot · ${aircraftDefinitions.trainer.name}</span><br/><span style="color:${visualLanguage.ai.color}">${visualLanguage.ai.icon} Raven · AI Pilot</span></span></div></div><div class="help-hull health-row"><span>HULL = LIFE</span><span class="hull-meter"><i style="width:75%"></i></span><strong>75/100</strong></div>` + legend(['player', 'ai']),
     controls: key('Shoot', 'fire') + key('Move Aim Up / Down', 'aimUp', 'aimDown'),
   },
   {
@@ -61,8 +62,8 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; descripti
   {
     nav: 'Progress', icon: 'mastery', title: 'PLAY. EARN. UNLOCK PLANES.',
     description: 'Earn Credits to unlock planes in Garage. Finish activities to grow your city Mastery.',
-    visual: shot(garageImage, 'Actual Garage with existing Trainer model, comparison stats and four aircraft choices') +
-      `<div class="help-aircraft-roles">${Object.entries(aircraftRoles).map(([type,role]) => `<span><b>${type === 'privateJet' ? 'Private Jet' : type}</b><small>${role}</small></span>`).join('')}</div>` + legend(['credits', 'mastery', 'objectives']),
+    visual: shot(garageImage, 'Aircraft Garage with comparison stats and four aircraft choices') +
+      `<div class="help-aircraft-roles">${(Object.entries(aircraftRoles) as Array<[AircraftType, string]>).map(([type,role]) => `<span><b>${aircraftDefinitions[type].name}</b><small>${role}</small></span>`).join('')}</div>` + legend(['credits', 'mastery', 'objectives']),
     controls: `<span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Garage / Progress</span></span>`,
   },
   {

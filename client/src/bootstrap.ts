@@ -53,7 +53,14 @@ function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
     ? [...new Set(profile.unlockedAircraft.filter((type): type is AircraftType => aircraftTypes.includes(type)))]
     : [];
   if (!unlockedAircraft.includes('trainer')) unlockedAircraft.unshift('trainer');
-  return { credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0, selectedAircraft, unlockedAircraft };
+  return {
+    credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0,
+    selectedAircraft,
+    unlockedAircraft,
+    economyVersion: profile.economyVersion,
+    aircraftEntitlements: profile.aircraftEntitlements,
+    testerCodeEnabled: profile.testerCodeEnabled === true,
+  };
 }
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   const url = new URL('/api/profile', profileOrigin);
@@ -66,6 +73,24 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
 }, undefined, () => {
   if (startModalState === 'GARAGE') startModalState = 'CITIES';
   garageOpenRequest += 1;
+}, async (aircraftType) => {
+  try {
+    const url = new URL('/api/profile', profileOrigin);
+    url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseAircraft: aircraftType }) });
+    const result = await response.json() as GarageProfile & { error?: string };
+    if (!response.ok) { garage.showActionResult(result.error ?? 'PURCHASE FAILED'); return; }
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
+  } catch { garage.showActionResult('SERVER UNAVAILABLE — PURCHASE NOT CHANGED'); }
+}, async (code) => {
+  try {
+    const url = new URL('/api/profile', profileOrigin);
+    url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testerCode: code }) });
+    const result = await response.json() as GarageProfile & { error?: string };
+    if (!response.ok) { garage.showActionResult(result.error ?? 'CODE REJECTED'); return; }
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('Redspear Fighter Unlocked');
+  } catch { garage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
 });
 garageEntry.addEventListener('click', async () => {
   if (startModalState === 'GARAGE') return;

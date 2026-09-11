@@ -31,4 +31,9 @@ export function identityMarkup(kind: VisualIdentity): string {
   const item = visualLanguage[kind];
   return `<span class="game-identity" style="color:${item.color}"><b aria-hidden="true">${item.icon}</b> ${item.label}</span>`;
 }
-export const aircraftRoles = { trainer: 'EASY', cargo: 'TOUGH', privateJet: 'FAST', fighter: 'FASTEST / COMBAT' } as const;
+export const aircraftRoles = {
+  trainer: 'Easy • Stable • Explore',
+  cargo: 'Heavy • Tough • Cargo',
+  privateJet: 'Fast • Smooth • Travel',
+  fighter: 'Fastest • Agile • Combat',
+} as const;

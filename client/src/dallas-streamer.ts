@@ -66,7 +66,9 @@ const exitRanges: Record<Lod, number> = { near: 5_900, mid: 16_200, far: 36_250 
 const desiredMargin = 1_250;
 const farRetentionMargin = 2_000;
 const preloadSeconds = 6;
-const maxPreloadDistance = 6_000;
+// Redspear + Boost reaches 1,330m/s. Preserve the existing six-second
+// velocity lookahead instead of silently clipping it to 4.5 seconds.
+const maxPreloadDistance = 8_000;
 // A cell may only advance one stage at a time (FAR → MID → NEAR), but a
 // completed coarse cell close to the aircraft must advance before we spend
 // the initial load budget on coarse cells at the edge of the 35 km window.

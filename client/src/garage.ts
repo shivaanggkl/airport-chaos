@@ -2,8 +2,16 @@ import { aircraftRoles, identityText } from './visual-language';
 import * as THREE from 'three';
 import { aircraftDefinitions, aircraftPitch, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
+import { REDSPEAR_PRICE_USD } from '../../shared/aircraft-economy.mjs';
 
-export type GarageProfile = { credits: number; selectedAircraft: AircraftType; unlockedAircraft: AircraftType[] };
+export type GarageProfile = {
+  credits: number;
+  selectedAircraft: AircraftType;
+  unlockedAircraft: AircraftType[];
+  economyVersion?: number;
+  aircraftEntitlements?: string[];
+  testerCodeEnabled?: boolean;
+};
 
 export class AircraftGarage {
   private readonly renderer: THREE.WebGLRenderer;
@@ -25,6 +33,9 @@ export class AircraftGarage {
   private userAdjustedZoom = false;
   private raf = 0;
   private loadingProfile = false;
+  private actionPending = false;
+  private actionMessage = '';
+  private testerOpen = false;
   private readonly previewBounds = new THREE.Box3();
   private readonly previewSize = new THREE.Vector3();
   private readonly previewCenter = new THREE.Vector3();
@@ -35,8 +46,10 @@ export class AircraftGarage {
     private readonly onEquip: (type: AircraftType) => void,
     private readonly decoratePreview?: (plane: THREE.Group, type: AircraftType) => void,
     private readonly onClose?: () => void,
+    private readonly onPurchase?: (type: AircraftType) => void,
+    private readonly onRedeemTesterCode?: (code: string) => void,
   ) {
-    element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><button type="button" data-garage-close>Close</button></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details"><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><button type="button" data-garage-equip></button></div></div><div class="garage-list"></div></section>`;
+    element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details"><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -45,13 +58,25 @@ export class AircraftGarage {
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
     for (const type of Object.keys(aircraftDefinitions) as AircraftType[]) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
-      card.addEventListener('click', () => { this.selected = type; this.renderDetails(); this.loadPreview(); });
+      card.addEventListener('click', () => { this.selected = type; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); });
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
     }
     element.querySelector('[data-garage-close]')!.addEventListener('click', () => this.close());
     element.querySelector('[data-garage-equip]')!.addEventListener('click', () => {
-      if (!this.profile.unlockedAircraft.includes(this.selected)) return;
-      this.onEquip(this.selected);
+      if (this.actionPending) return;
+      if (this.profile.unlockedAircraft.includes(this.selected)) this.onEquip(this.selected);
+      else if (aircraftDefinitions[this.selected].access === 'credits') {
+        this.actionPending = true; this.actionMessage = 'PURCHASE PENDING…'; this.renderDetails(); this.onPurchase?.(this.selected);
+      }
+    });
+    const tester = element.querySelector<HTMLElement>('[data-garage-tester]')!;
+    const testerInput = tester.querySelector<HTMLInputElement>('input')!;
+    element.querySelector('[data-garage-redeem-open]')!.addEventListener('click', () => {
+      this.testerOpen = true; this.renderDetails(); testerInput.focus();
+    });
+    tester.querySelector('button')!.addEventListener('click', () => {
+      const code = testerInput.value.trim(); if (!code || this.actionPending) return;
+      this.actionPending = true; this.actionMessage = 'CHECKING CODE…'; this.renderDetails(); this.onRedeemTesterCode?.(code); testerInput.value = '';
     });
     canvas.addEventListener('pointerdown', (event) => { this.dragging = true; this.pointerX = event.clientX; this.pointerY = event.clientY; canvas.setPointerCapture(event.pointerId); });
     canvas.addEventListener('pointermove', (event) => {
@@ -73,6 +98,9 @@ export class AircraftGarage {
     cancelAnimationFrame(this.raf);
     this.profile = this.normalizeProfile(profile);
     this.loadingProfile = loadingProfile;
+    this.actionPending = false;
+    this.actionMessage = '';
+    this.testerOpen = false;
     this.selected = this.profile.selectedAircraft;
     this.element.hidden = false;
     this.resize();
@@ -87,6 +115,20 @@ export class AircraftGarage {
     this.onClose?.();
   }
   isOpen(): boolean { return !this.element.hidden; }
+
+  updateProfile(profile: GarageProfile): void {
+    this.profile = this.normalizeProfile(profile);
+    this.loadingProfile = false;
+    this.actionPending = false;
+    this.actionMessage = '';
+    this.renderDetails();
+  }
+
+  showActionResult(message: string): void {
+    this.actionPending = false;
+    this.actionMessage = message;
+    this.renderDetails();
+  }
 
   private loadPreview(): void {
     this.preview.clear();
@@ -108,18 +150,31 @@ export class AircraftGarage {
   private renderDetails(): void {
     const definition = aircraftDefinitions[this.selected];
     const owned = this.profile.unlockedAircraft.includes(this.selected);
-    this.element.querySelector('[data-garage-status]')!.textContent = this.loadingProfile
+    const price = definition.access === 'credits' ? definition.creditsRequired : undefined;
+    const ownership = this.loadingProfile
       ? 'SYNCING PROFILE…'
-      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : owned ? 'OWNED' : `LOCKED · ${definition.creditsRequired.toLocaleString()} ${identityText('credits')}`;
+      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : owned ? 'OWNED' : definition.access === 'premium' ? `Premium Aircraft · ${REDSPEAR_PRICE_USD}` : `${price!.toLocaleString()} ${identityText('credits')}`;
+    this.element.querySelector('[data-garage-status]')!.textContent = `${ownership} · ${definition.livery.name}`;
+    this.element.querySelector('[data-garage-credits]')!.textContent = `${this.profile.credits.toLocaleString()} ${identityText('credits')}`;
     this.element.querySelector('[data-garage-name]')!.textContent = definition.name;
     this.element.querySelector('[data-garage-pitch]')!.textContent = `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)}`;
     this.element.querySelector('[data-garage-stats]')!.replaceChildren(...garageStats(definition).map(({ label, value }) => {
       const row = document.createElement('div'); row.innerHTML = `<span>${label}</span><b>${'■'.repeat(value)}${'□'.repeat(5 - value)}</b>`; return row;
     }));
     const equip = this.element.querySelector<HTMLButtonElement>('[data-garage-equip]')!;
-    equip.disabled = this.loadingProfile || !owned || this.selected === this.profile.selectedAircraft;
-    equip.textContent = this.selected === this.profile.selectedAircraft ? 'EQUIPPED' : owned ? 'EQUIP AIRCRAFT' : `NEED ${Math.max(0, definition.creditsRequired - this.profile.credits)} CREDITS`;
-    for (const [type, card] of this.cards) { const data = aircraftDefinitions[type]; card.classList.toggle('selected', type === this.selected); card.textContent = `${data.name} · ${this.profile.unlockedAircraft.includes(type) ? 'OWNED' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`}`; }
+    const insufficient = price !== undefined && this.profile.credits < price;
+    equip.disabled = this.loadingProfile || this.actionPending || this.selected === this.profile.selectedAircraft || (!owned && (definition.access === 'premium' || insufficient));
+    equip.textContent = this.selected === this.profile.selectedAircraft ? 'EQUIPPED' : owned ? 'EQUIP AIRCRAFT' : definition.access === 'premium' ? 'Purchase Coming Soon' : insufficient ? `NEED ${(price! - this.profile.credits).toLocaleString()} MORE CREDITS` : `BUY · ${price!.toLocaleString()} CREDITS`;
+    this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
+    const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
+    const canRedeem = this.selected === 'fighter' && !owned && this.profile.testerCodeEnabled === true;
+    this.element.querySelector<HTMLElement>('[data-garage-redeem-open]')!.hidden = !canRedeem || this.testerOpen;
+    tester.hidden = !canRedeem || !this.testerOpen;
+    for (const [type, card] of this.cards) {
+      const data = aircraftDefinitions[type]; const typeOwned = this.profile.unlockedAircraft.includes(type);
+      const access = typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${REDSPEAR_PRICE_USD}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
+      card.classList.toggle('selected', type === this.selected); card.textContent = `${data.name} · ${access}`;
+    }
   }
 
   private normalizeProfile(profile: GarageProfile): GarageProfile {
@@ -133,6 +188,9 @@ export class AircraftGarage {
       credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0,
       selectedAircraft,
       unlockedAircraft,
+      economyVersion: profile.economyVersion,
+      aircraftEntitlements: Array.isArray(profile.aircraftEntitlements) ? profile.aircraftEntitlements.filter((value): value is string => typeof value === 'string') : [],
+      testerCodeEnabled: profile.testerCodeEnabled === true,
     };
   }
 
