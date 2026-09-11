@@ -1,6 +1,9 @@
 // This number is intentionally shared by the browser and the Node server.
 // Increment it whenever a websocket payload changes incompatibly.
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 24;
+// One authoritative range drives client acquisition, server assisted-hit
+// validation, unlocked projectile travel, and Hunter firing eligibility.
+export const COMBAT_RANGE = 2000;
 // Muzzle speed is relative to the firing aircraft, not a fixed world speed
 // that a boosted aircraft can overtake. Keep the validated aim unchanged.
 export function ballisticShotSpeed(velocity, direction) {

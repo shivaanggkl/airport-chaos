@@ -14,7 +14,7 @@ import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, aimTargetScore, aimGoal, biasAimVertically, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAimVertically, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -79,6 +79,7 @@ type BotRuntime = {
   attackShots?: number;
   noFireReason?: string;
   noFireLoggedAt?: number;
+  blindZoneEscapeUntil: number;
 };
 
 type Vector3 = { x: number; y: number; z: number };
@@ -175,11 +176,15 @@ const maxBotsPerCity = 7;
 const botKillRewardMultiplier = 0.35;
 const hunterDetectionRange = 4_500;
 const hunterPursuitRange = 6_500;
-const hunterFireRange = 950;
+const hunterFireRange = COMBAT_RANGE;
 const hunterFireCone = 0.20;
 const hunterReactionDelayMs = 480;
 const hunterShotIntervalMinMs = 560;
 const hunterShotIntervalJitterMs = 360;
+const hunterMinimumHorizontalSeparation = 1_100;
+const hunterVerticalBlindHorizontal = 500;
+const hunterVerticalBlindMinimum = 60;
+const hunterBlindZoneEscapeMs = 3_600;
 let nextBotSerial = 1;
 const aircraftTypes = new Set<AircraftType>(['trainer', 'privateJet', 'cargo', 'fighter']);
 const aircraftHitRadii: Record<AircraftType, number> = {
@@ -192,12 +197,10 @@ const aircraftHitRadii: Record<AircraftType, number> = {
 // not affect aircraft collision, which remains calibrated separately.
 const projectileHitRadiusMultiplier = 1.6;
 const projectileVisualRadius = 0.65;
-const lockRange = 1000;
 const combatTransformFreshMs = 1_500;
 const aircraftCollisionRadius = 2.5;
 const respawnClearance = 24;
 // Straight, unlocked rounds remain fast enough to be readable at flight speed.
-const projectileRange = 1000;
 const projectileDamage = 25;
 const fireCooldownMs = 250;
 const spawnProtectionMs = 3000;
@@ -533,6 +536,10 @@ function broadcastLeaderboard(cityId: CityId): void {
         lifeState: player.lifeState,
         status: playerRosterStatus(playerId, player, now),
         masteryLevel: player.profile.mastery[player.cityId]?.level ?? 1,
+        // The compact human roster is the authoritative radar-presence source.
+        // Position keeps connected pilots trackable when their 3D render state
+        // is culled or high-rate browser transforms are temporarily throttled.
+        position: player.position,
       }))
       .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName)),
   };
@@ -1829,7 +1836,7 @@ function closestLockTarget(
       z: target.position.z - origin.z,
     };
     const distance = Math.hypot(offset.x, offset.y, offset.z);
-    if (distance > lockRange) continue;
+    if (distance > COMBAT_RANGE) continue;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot(direction, normalize(offset)))));
     if (distance < 0.000001 || angle > AIM_ENVELOPE) continue;
     const score = aimTargetScore(angle, distance);
@@ -1876,7 +1883,7 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
       !target || targetId === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
       target.lifeState !== 'alive' || now < target.spawnProtectedUntil || now - target.lastStateAt > combatTransformFreshMs) return undefined;
   const local = targetInAircraftSpace(transform, target);
-  if (Math.hypot(local.x, local.y, local.z) > lockRange || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
+  if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
   return target;
 }
 
@@ -2173,7 +2180,7 @@ function updateProjectiles(deltaSeconds: number): void {
     const previousX = projectile.position.x;
     const previousY = projectile.position.y;
     const previousZ = projectile.position.z;
-    const step = Math.min(projectile.speed * deltaSeconds, projectileRange - projectile.traveled);
+    const step = Math.min(projectile.speed * deltaSeconds, COMBAT_RANGE - projectile.traveled);
     projectile.position.x += projectile.direction.x * step;
     projectile.position.y += projectile.direction.y * step;
     projectile.position.z += projectile.direction.z * step;
@@ -2207,7 +2214,7 @@ function updateProjectiles(deltaSeconds: number): void {
       continue;
     }
 
-    if (projectile.traveled >= projectileRange) removeProjectile(projectile.projectileId);
+    if (projectile.traveled >= COMBAT_RANGE) removeProjectile(projectile.projectileId);
   }
   broadcastProjectileStates(now);
 }
@@ -2268,6 +2275,7 @@ function createBot(cityId: CityId): void {
     personality, phase: 'taxi', route: airportRoute(cityId, homeAirportIndex, personality), routeIndex: 0,
     speed: 0, desiredSpeed: 0, nextDecisionAt: 0, nextFireAt: Date.now() + 1_200,
     respawnAt: 0, homeAirportIndex, combatPhaseUntil: 0, combatWaypointRefreshAt: 0, attackFireAfter: 0, combatTurnSign: 1, bankControl: 0,
+    blindZoneEscapeUntil: 0,
   };
   const player: PlayerState = {
     pilotId: id, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
@@ -2341,6 +2349,18 @@ function hunterTarget(botId: string, player: PlayerState, bot: BotRuntime, now: 
   const target = targetId ? players.get(targetId) : undefined;
   if (!targetId || !target || targetId === botId || target.isBot || target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil) return undefined;
   return [targetId, target];
+}
+
+function hunterHorizontalSeparation(player: PlayerState, target: PlayerState): number {
+  return Math.hypot(target.position.x - player.position.x, target.position.z - player.position.z);
+}
+
+function hunterInVerticalBlindZone(player: PlayerState, target: PlayerState): boolean {
+  const horizontal = hunterHorizontalSeparation(player, target);
+  const vertical = Math.abs(target.position.y - player.position.y);
+  return horizontal < hunterVerticalBlindHorizontal &&
+    vertical >= hunterVerticalBlindMinimum &&
+    vertical > horizontal * 0.6;
 }
 
 function hunterInterceptWaypoint(player: PlayerState, bot: BotRuntime, target: PlayerState): Vector3 {
@@ -2461,6 +2481,7 @@ function beginHunterApproach(player: PlayerState, bot: BotRuntime, targetId: str
   bot.combatTurnSign = cross >= 0 ? 1 : -1;
   bot.combatWaypoint = hunterInterceptWaypoint(player, bot, target);
   bot.combatWaypointRefreshAt = now + 1_100;
+  bot.blindZoneEscapeUntil = 0;
   const distance = Math.hypot(target.position.x - player.position.x, target.position.y - player.position.y, target.position.z - player.position.z);
   bot.combatPhaseUntil = now + Math.min(25_000, Math.max(8_000, distance / Math.max(70, bot.speed) * 1_400));
   bot.attackFireAfter = now + hunterReactionDelayMs + Math.random() * 320;
@@ -2501,18 +2522,72 @@ function beginHunterExtend(player: PlayerState, bot: BotRuntime, now: number): v
   player.lockedTargetId = undefined;
 }
 
-function beginHunterReposition(player: PlayerState, bot: BotRuntime, now: number): void {
+function beginHunterBlindZoneExtend(
+  player: PlayerState,
+  bot: BotRuntime,
+  target: PlayerState,
+  now: number,
+  reason: 'vertical_blind_zone' | 'insufficient_horizontal' = 'vertical_blind_zone',
+): void {
+  const horizontal = hunterHorizontalSeparation(player, target);
+  const vertical = Math.abs(target.position.y - player.position.y);
   const forward = hunterForward(player);
   const side = { x: -forward.z * bot.combatTurnSign, z: forward.x * bot.combatTurnSign };
-  // A broad offset forces real separation and a flyable turn radius before
-  // another approach is considered.
-  const radius = botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2));
+  let escapeX = player.position.x - target.position.x;
+  let escapeZ = player.position.z - target.position.z;
+  const escapeLength = Math.hypot(escapeX, escapeZ);
+  if (escapeLength >= 40) {
+    escapeX /= escapeLength;
+    escapeZ /= escapeLength;
+  } else {
+    // With no useful horizontal bearing, commit forward and sideways. This
+    // creates separation without an impossible pivot or vertical-only orbit.
+    escapeX = forward.x * 0.75 + side.x * 0.66;
+    escapeZ = forward.z * 0.75 + side.z * 0.66;
+    const length = Math.hypot(escapeX, escapeZ);
+    escapeX /= length;
+    escapeZ /= length;
+  }
+  const separation = Math.max(
+    hunterMinimumHorizontalSeparation * 1.2,
+    botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 2,
+  );
   bot.combatWaypoint = {
-    x: player.position.x + forward.x * radius * 0.8 + side.x * radius,
-    y: Math.max(210, player.position.y + 70),
-    z: player.position.z + forward.z * radius * 0.8 + side.z * radius,
+    x: target.position.x + escapeX * separation,
+    y: Math.max(180, target.position.y + Math.max(-90, Math.min(90, player.position.y - target.position.y))),
+    z: target.position.z + escapeZ * separation,
   };
-  bot.combatPhaseUntil = now + Math.max(5_200, radius / Math.max(1, bot.speed) * 2_000);
+  bot.combatPhaseUntil = now + Math.max(hunterBlindZoneEscapeMs, separation / Math.max(1, bot.speed) * 1_200);
+  bot.blindZoneEscapeUntil = bot.combatPhaseUntil;
+  bot.phase = 'extend';
+  player.lockedTargetId = undefined;
+  if (stabilityDiagnosticsEnabled) {
+    console.log(`HUNTER_REPOSITION reason=${reason} horiz=${Math.round(horizontal)}m vertical=${Math.round(vertical)}m target=${bot.combatTargetId ?? 'none'}`);
+  }
+}
+
+function beginHunterReposition(player: PlayerState, bot: BotRuntime, target: PlayerState | undefined, now: number): void {
+  const forward = target ? hunterForward(target) : hunterForward(player);
+  const side = { x: -forward.z * bot.combatTurnSign, z: forward.x * bot.combatTurnSign };
+  // A broad offset forces real separation and a flyable turn radius before
+  // another approach is considered. Anchor it around the target so a vertical
+  // stack cannot satisfy repositioning through altitude difference alone.
+  const radius = Math.max(
+    hunterMinimumHorizontalSeparation,
+    botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 1.35,
+  );
+  const origin = target?.position ?? player.position;
+  bot.combatWaypoint = {
+    x: origin.x - forward.x * radius * 0.7 + side.x * radius,
+    y: Math.max(210, origin.y + (bot.combatTurnSign > 0 ? 70 : -70)),
+    z: origin.z - forward.z * radius * 0.7 + side.z * radius,
+  };
+  const waypointDistance = Math.hypot(
+    bot.combatWaypoint.x - player.position.x,
+    bot.combatWaypoint.y - player.position.y,
+    bot.combatWaypoint.z - player.position.z,
+  );
+  bot.combatPhaseUntil = now + Math.max(5_200, waypointDistance / Math.max(1, bot.speed) * 1_500);
   bot.phase = 'reposition';
 }
 
@@ -2522,6 +2597,7 @@ function clearHunterCombat(player: PlayerState, bot: BotRuntime): void {
   bot.combatPhaseUntil = 0;
   bot.combatWaypointRefreshAt = 0;
   bot.attackFireAfter = 0;
+  bot.blindZoneEscapeUntil = 0;
   if (isHunterCombatPhase(bot.phase)) bot.phase = 'cruise';
   player.lockedTargetId = undefined;
 }
@@ -2541,17 +2617,22 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
       clearHunterCombat(player, bot);
       return undefined;
     }
-    const distance = Math.hypot(target[1].position.x - player.position.x, target[1].position.y - player.position.y, target[1].position.z - player.position.z);
-    const offset = normalize({ x: target[1].position.x - player.position.x, y: target[1].position.y - player.position.y, z: target[1].position.z - player.position.z });
-    if (distance <= hunterFireRange && dot(hunterForward(player), offset) >= Math.cos(hunterFireCone)) {
-      beginHunterAttackPass(player, bot, target[1], now);
-    } else if (now >= bot.combatPhaseUntil) {
-      // A timeout is not a firing solution. Make a wide reposition instead.
-      beginHunterReposition(player, bot, now);
-    } else if (now >= bot.combatWaypointRefreshAt) {
-      // Intercept updates are deliberately sparse and retain the same target.
-      bot.combatWaypoint = hunterInterceptWaypoint(player, bot, target[1]);
-      bot.combatWaypointRefreshAt = now + 1_100;
+    if (hunterInVerticalBlindZone(player, target[1])) {
+      beginHunterBlindZoneExtend(player, bot, target[1], now);
+      target = undefined;
+    } else {
+      const distance = Math.hypot(target[1].position.x - player.position.x, target[1].position.y - player.position.y, target[1].position.z - player.position.z);
+      const offset = normalize({ x: target[1].position.x - player.position.x, y: target[1].position.y - player.position.y, z: target[1].position.z - player.position.z });
+      if (distance <= hunterFireRange && dot(hunterForward(player), offset) >= Math.cos(hunterFireCone)) {
+        beginHunterAttackPass(player, bot, target[1], now);
+      } else if (now >= bot.combatPhaseUntil) {
+        // A timeout is not a firing solution. Make a wide reposition instead.
+        beginHunterReposition(player, bot, target[1], now);
+      } else if (now >= bot.combatWaypointRefreshAt) {
+        // Intercept updates are deliberately sparse and retain the same target.
+        bot.combatWaypoint = hunterInterceptWaypoint(player, bot, target[1]);
+        bot.combatWaypointRefreshAt = now + 1_100;
+      }
     }
   } else if (bot.phase === 'attackPass') {
     if (now >= bot.combatPhaseUntil || (bot.combatWaypoint && Math.hypot(bot.combatWaypoint.x - player.position.x, bot.combatWaypoint.y - player.position.y, bot.combatWaypoint.z - player.position.z) < 100)) {
@@ -2560,12 +2641,26 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     }
   } else if (bot.phase === 'extend') {
     if (now >= bot.combatPhaseUntil || (bot.combatWaypoint && Math.hypot(bot.combatWaypoint.x - player.position.x, bot.combatWaypoint.y - player.position.y, bot.combatWaypoint.z - player.position.z) < 130)) {
-      beginHunterReposition(player, bot, now);
+      beginHunterReposition(player, bot, target?.[1], now);
       target = undefined;
     }
   } else if (bot.phase === 'reposition' && (now >= bot.combatPhaseUntil || (bot.combatWaypoint && Math.hypot(bot.combatWaypoint.x - player.position.x, bot.combatWaypoint.y - player.position.y, bot.combatWaypoint.z - player.position.z) < 140))) {
     if (target && Math.hypot(target[1].position.x - player.position.x, target[1].position.z - player.position.z) < hunterPursuitRange) {
-      beginHunterApproach(player, bot, target[0], target[1], now);
+      const horizontal = hunterHorizontalSeparation(player, target[1]);
+      if (horizontal < hunterMinimumHorizontalSeparation || now < bot.blindZoneEscapeUntil) {
+        beginHunterBlindZoneExtend(
+          player,
+          bot,
+          target[1],
+          now,
+          hunterInVerticalBlindZone(player, target[1]) || now < bot.blindZoneEscapeUntil
+            ? 'vertical_blind_zone'
+            : 'insufficient_horizontal',
+        );
+      } else {
+        bot.blindZoneEscapeUntil = 0;
+        beginHunterApproach(player, bot, target[0], target[1], now);
+      }
     } else {
       clearHunterCombat(player, bot);
       return undefined;
@@ -2597,6 +2692,7 @@ function updateBots(now: number): void {
       bot.combatPhaseUntil = 0;
       bot.combatWaypointRefreshAt = 0;
       bot.attackFireAfter = 0;
+      bot.blindZoneEscapeUntil = 0;
       bot.bankControl = 0;
       bot.route = airportRoute(player.cityId, bot.homeAirportIndex, bot.personality);
       bot.routeIndex = 0;

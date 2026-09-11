@@ -20,7 +20,7 @@ import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-men
 import { PlayersPanel, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
-import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
@@ -1129,7 +1129,9 @@ function drawRadarMarker(
   const offsetX = targetX - airplane.position.x;
   const offsetZ = targetZ - airplane.position.z;
   const distance = Math.hypot(offsetX, offsetZ);
-  if ((kind === 'player' || kind === 'ai' || kind === 'ambient' || kind === 'challenge' || kind === 'repair') && distance > ((kind === 'player' || kind === 'ai') && hot ? radarRange * 2 : radarRange)) return;
+  // Connected humans remain trackable at any distance and pin to the radar
+  // edge. Other world entities keep their existing local-range filtering.
+  if ((kind === 'ai' || kind === 'ambient' || kind === 'challenge' || kind === 'repair') && distance > (kind === 'ai' && hot ? radarRange * 2 : radarRange)) return;
 
   const rightX = -direction.z;
   const rightZ = direction.x;
@@ -1252,9 +1254,19 @@ function updateRadar(direction: THREE.Vector3): void {
   for (const beacon of repairsForCity(cityId)) {
     drawRadarMarker(direction, beacon.x, beacon.z, 'repair');
   }
+  // Human radar presence comes from the authoritative same-city roster, not
+  // the optional 3D remote-aircraft lifecycle. The last server position stays
+  // stable while browser transform/render delivery is briefly throttled.
+  for (const human of cityHumanRoster.values()) {
+    if (human.playerId === localPlayerId) continue;
+    const track = humanRadarTracks.get(human.playerId);
+    if (!track) continue;
+    const remote = remotePlayers.get(human.playerId);
+    drawRadarMarker(direction, track.x, track.z, 'player', '', human.playerId === kingPlayerId, (remote?.heatLevel ?? 0) >= 4);
+  }
   for (const remote of remotePlayers.values()) {
-    if (!remoteIdentityVisible(remote)) continue;
-    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, remote.isBot ? 'ai' : entityCapabilities(remote.entityType).radarMarker, '', remote.playerId === kingPlayerId, remote.heatLevel >= 4);
+    if (!remote.isBot || !remoteIdentityVisible(remote)) continue;
+    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', '', false, remote.heatLevel >= 4);
   }
   for (const ambient of ambientTraffic?.getRadarEntities(airplane.position, radarRange) ?? []) {
     drawRadarMarker(direction, ambient.x, ambient.z, entityCapabilities(ambient.entityType, ambient.eventCombatMode).radarMarker);
@@ -2276,6 +2288,7 @@ type LeaderboardPlayer = HumanRosterEntry & {
   isBot: boolean;
   aircraftType: AircraftType;
   lifeState: PlayerLifeState;
+  position: NetworkVector;
 };
 
 function updateHumanRosterStatus(playerId: string, status: HumanRosterEntry['status']): void {
@@ -2766,7 +2779,6 @@ let visualAimBlend = 1;
 const neutralAim = { x: 0, y: 0 };
 let serverAimTargetId: string | null = null;
 let serverAimReceivedAt = -Infinity;
-const combatLockRange = 1_000;
 const lockBoresightPoint = new THREE.Vector3();
 const lockCircleEdgePoint = new THREE.Vector3();
 const lockCameraRight = new THREE.Vector3();
@@ -3497,7 +3509,7 @@ function showAimQaRay(origin: THREE.Vector3Like, direction: THREE.Vector3Like): 
   if (!aimQaRay) return;
   const points = aimQaRay.geometry.getAttribute('position') as THREE.BufferAttribute;
   points.setXYZ(0, origin.x, origin.y, origin.z);
-  points.setXYZ(1, origin.x + direction.x * combatLockRange, origin.y + direction.y * combatLockRange, origin.z + direction.z * combatLockRange);
+  points.setXYZ(1, origin.x + direction.x * COMBAT_RANGE, origin.y + direction.y * COMBAT_RANGE, origin.z + direction.z * COMBAT_RANGE);
   points.needsUpdate = true;
   aimQaRay.visible = true;
   aimQaRayUntil = performance.now() + 250;
@@ -3534,6 +3546,8 @@ let leaderMessageTimer: number | undefined;
 const playersPanel = new PlayersPanel(document.querySelector<HTMLElement>('#real-players')!);
 const leaderMessageElement = document.querySelector<HTMLDivElement>('#leader-message')!;
 const cityHumanRoster = new Map<string, LeaderboardPlayer>();
+type HumanRadarTrack = { x: number; z: number };
+const humanRadarTracks = new Map<string, HumanRadarTrack>();
 const collisionRadius = 2.5;
 const nearMissRadius = 12;
 const collisionRadiusSquared = collisionRadius * collisionRadius;
@@ -3801,7 +3815,7 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     targetId: message.targetId,
     ownerId: message.ownerId,
     elapsed: 0,
-    duration: Math.max(0.001, Math.min(0.08 + THREE.MathUtils.clamp(distance / 1_000, 0, 1) * 0.07, distance / visualSpeed)),
+    duration: Math.max(0.001, Math.min(0.08 + THREE.MathUtils.clamp(distance / COMBAT_RANGE, 0, 1) * 0.07, distance / visualSpeed)),
   });
 }
 
@@ -3992,7 +4006,20 @@ function updateDestructionEffects(delta: number): void {
 function updateLeaderboard(players: LeaderboardPlayer[]): void {
   cityHumanRoster.clear();
   for (const player of players) {
-    if (player.cityId === cityId && player.entityType === 'player' && player.isBot === false) cityHumanRoster.set(player.playerId, player);
+    if (player.cityId !== cityId || player.entityType !== 'player' || player.isBot !== false) continue;
+    cityHumanRoster.set(player.playerId, player);
+    if ([player.position?.x, player.position?.z].every(Number.isFinite)) {
+      const track = humanRadarTracks.get(player.playerId);
+      if (track) {
+        track.x = player.position.x;
+        track.z = player.position.z;
+      } else {
+        humanRadarTracks.set(player.playerId, { x: player.position.x, z: player.position.z });
+      }
+    }
+  }
+  for (const playerId of humanRadarTracks.keys()) {
+    if (!cityHumanRoster.has(playerId)) humanRadarTracks.delete(playerId);
   }
   playersPanel.update([...cityHumanRoster.values()], localPlayerId);
   for (const remote of remotePlayers.values()) {
@@ -4014,6 +4041,16 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   if (player.cityId !== cityId || ![player.position.x, player.position.y, player.position.z, player.rotation.x, player.rotation.y, player.rotation.z].every(Number.isFinite)) {
     removeRemotePlayer(player.playerId);
     return;
+  }
+
+  if (player.isBot !== true) {
+    const track = humanRadarTracks.get(player.playerId);
+    if (track) {
+      track.x = player.position.x;
+      track.z = player.position.z;
+    } else {
+      humanRadarTracks.set(player.playerId, { x: player.position.x, z: player.position.z });
+    }
   }
 
   const lifeState = networkLifeState(player.lifeState);
@@ -4167,7 +4204,7 @@ function updateLockCircle(): void {
   combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(airplane.quaternion);
   // Project at target depth so close-range parallax does not leave the
   // displayed reticle pointing beside the rendered aircraft.
-  const depth = selectedCombatTarget?.distance ?? combatLockRange;
+  const depth = selectedCombatTarget?.distance ?? COMBAT_RANGE;
   lockBoresightPoint.copy(airplane.position).addScaledVector(combatAimForward, depth);
   lockProjectedCenter.copy(lockBoresightPoint).project(camera);
   lockCameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
@@ -4255,7 +4292,7 @@ function updateCombatTarget(delta = 0): void {
     if (remote.cityId !== cityId || remote.entityType !== 'player' || remote.timeSinceUpdate > 0.5 || remote.lifeState !== 'alive' || !remote.plane.visible || !entityCapabilities(remote.entityType).targetable) continue;
     combatOffset.copy(remote.plane.position).sub(airplane.position);
     const distance = combatOffset.length();
-    if (distance < 0.000001 || distance > combatLockRange) continue;
+    if (distance < 0.000001 || distance > COMBAT_RANGE) continue;
     combatOffset.multiplyScalar(1 / distance);
     const forwardDot = THREE.MathUtils.clamp(combatForward.dot(combatOffset), -1, 1);
     if (forwardDot < minimumForwardDot) continue;
@@ -5598,6 +5635,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'remove') {
     removeRemotePlayer(message.playerId);
     cityHumanRoster.delete(message.playerId);
+    humanRadarTracks.delete(message.playerId);
     playersPanel.update([...cityHumanRoster.values()], localPlayerId);
   } else if (message.type === 'leaderboard') {
     if (message.cityId === cityId) updateLeaderboard(message.players);
@@ -5816,6 +5854,7 @@ socket.addEventListener('message', (event) => {
 socket.addEventListener('close', (event) => {
   window.clearInterval(stateSendTimer);
   cityHumanRoster.clear();
+  humanRadarTracks.clear();
   playersPanel.update([], null);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
   pendingEquip = undefined;
