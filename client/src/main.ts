@@ -1255,10 +1255,11 @@ function updateRadar(direction: THREE.Vector3): void {
     drawRadarMarker(direction, beacon.x, beacon.z, 'repair');
   }
   // Human radar presence comes from the authoritative same-city roster, not
-  // the optional 3D remote-aircraft lifecycle. The last server position stays
-  // stable while browser transform/render delivery is briefly throttled.
+  // the optional 3D remote-aircraft lifecycle. Last-known positions remain
+  // stable through brief transform throttling, but never outlive an active
+  // aircraft lifecycle (destroyed/respawning pilots stay in PLAYERS only).
   for (const human of cityHumanRoster.values()) {
-    if (human.playerId === localPlayerId) continue;
+    if (human.playerId === localPlayerId || !humanHasActiveAircraft(human)) continue;
     const track = humanRadarTracks.get(human.playerId);
     if (!track) continue;
     const remote = remotePlayers.get(human.playerId);
@@ -2298,6 +2299,10 @@ function updateHumanRosterStatus(playerId: string, status: HumanRosterEntry['sta
   playersPanel.update([...cityHumanRoster.values()], localPlayerId);
 }
 
+function humanHasActiveAircraft(player: HumanRosterEntry): boolean {
+  return player.status === 'flying' || player.status === 'onGround' || player.status === 'spawnSafe';
+}
+
 type NetworkVector = { x: number; y: number; z: number };
 type ProjectileMode = 'ballistic';
 type NetworkHeatState = { playerId: string; value: number; level: number; multiplier: number; levelChanged?: boolean };
@@ -2842,14 +2847,31 @@ function contractMapTarget(): Waypoint | null {
 
 function updateWorldMap(direction: THREE.Vector3): void {
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
-  const mapPlayers = [...remotePlayers.entries()].filter(([, remote]) => remoteIdentityVisible(remote)).map(([id, remote]) => ({
-    id,
-    x: remote.plane.position.x,
-    z: remote.plane.position.z,
-    king: id === kingPlayerId,
-    heatLevel: remote.heatLevel,
-    isBot: remote.isBot,
-  }));
+  const mapPlayers: Array<{ id: string; x: number; z: number; king: boolean; heatLevel: number; isBot: boolean }> = [];
+  for (const human of cityHumanRoster.values()) {
+    if (human.playerId === localPlayerId || !humanHasActiveAircraft(human)) continue;
+    const track = humanRadarTracks.get(human.playerId);
+    if (!track) continue;
+    mapPlayers.push({
+      id: human.playerId,
+      x: track.x,
+      z: track.z,
+      king: human.playerId === kingPlayerId,
+      heatLevel: remotePlayers.get(human.playerId)?.heatLevel ?? 0,
+      isBot: false,
+    });
+  }
+  for (const [id, remote] of remotePlayers) {
+    if (!remote.isBot || !remoteIdentityVisible(remote)) continue;
+    mapPlayers.push({
+      id,
+      x: remote.plane.position.x,
+      z: remote.plane.position.z,
+      king: false,
+      heatLevel: remote.heatLevel,
+      isBot: true,
+    });
+  }
   worldMap.update({
     position: airplane.position,
     forward: { x: direction.x, z: direction.z },
@@ -5796,6 +5818,7 @@ socket.addEventListener('message', (event) => {
         remote.hullTag.visible = false;
         remote.targetBrackets.visible = false;
         remote.playerProxy.visible = false;
+        if (selectedCombatTarget?.remote === remote) clearCombatTarget();
       }
     }
     if (message.killerId === localPlayerId && message.cause !== 'collision') {
