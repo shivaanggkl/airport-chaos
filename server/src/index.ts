@@ -2810,6 +2810,7 @@ function pruneEphemeralRuntimeState(now: number): void {
 function logStabilityDiagnostics(): void {
   if (!stabilityDiagnosticsEnabled) return;
   const memory = process.memoryUsage();
+  const receipts = profileStore.rewardReceiptDiagnostics();
   const humans = [...players.values()].filter((player) => !player.isBot).length;
   const bots = players.size - humans;
   const eventMembers = [...cityEvents.values()].reduce((count, event) => count + event.participants.size + event.progress.size + event.damageContribution.size, 0);
@@ -2820,6 +2821,7 @@ function logStabilityDiagnostics(): void {
     `[stability] heap=${Math.round(memory.heapUsed / 1024 / 1024)}/${Math.round(memory.heapTotal / 1024 / 1024)}MB rss=${Math.round(memory.rss / 1024 / 1024)}MB ` +
     `humans=${humans} bots=${bots} projectiles=${projectiles.size} events=${cityEvents.size}/${eventMembers} ` +
     `maps=repair:${repairCooldowns.size},landing:${landingReceipts.size},challenge:${activeChallenges.size},mastery:${masteryCooldowns.size},territory:${territoryRewardCooldown.size}/${territoryHeatEntries},heat:${recentHeatKills.size}/${recentBountyKills.size} ` +
+    `receipts=${receipts.rows},dbBytes:${receipts.databaseBytes},lastPrune:${receipts.lastPruneCount}@${receipts.lastPruneAt || 0} ` +
     `ws=max:${maxBuffered},total:${buffered},payload=${wsPayloadWindow.largestType}:${wsPayloadWindow.largestBytes}B,avg:${wsPayloadWindow.sentMessages ? Math.round(wsPayloadWindow.sentBytes / wsPayloadWindow.sentMessages) : 0}B,dropped:${wsPayloadWindow.droppedBackpressureFrames}`,
   );
   wsPayloadWindow.largestBytes = 0;
@@ -2894,6 +2896,10 @@ setInterval(() => {
   pruneEphemeralRuntimeState(now);
   logStabilityDiagnostics();
 }, 30_000);
+setInterval(() => {
+  try { profileStore.pruneRewardReceipts(); }
+  catch (error) { console.error('[profiles] reward receipt prune failed', error); }
+}, 6 * 60 * 60_000);
 
 function cityFromRequest(request: IncomingMessage): CityId {
   const cityId = new URL(request.url ?? '/', 'http://localhost').searchParams.get('city');

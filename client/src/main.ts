@@ -5348,9 +5348,12 @@ function flushProfileRewards(): void {
 
 function queueProfileReward(source: ContractType): void {
   if (flightTestMode) return;
-  const rewardId = typeof crypto.randomUUID === 'function'
+  // The timestamp makes a reward receipt self-expiring: after the server's
+  // retention window it cannot be replayed even though its row was pruned.
+  const nonce = typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
-    : `reward-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    : Math.random().toString(36).slice(2, 18);
+  const rewardId = `reward-${Date.now().toString(36)}-${nonce}`;
   pendingProfileRewards.set(rewardId, source);
   if (!localPlayerId || !connectionReady()) {
     if (!profileSyncUnavailableNotified) {

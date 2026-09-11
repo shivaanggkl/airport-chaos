@@ -2,6 +2,16 @@ services:
   - type: web
     name: airport-chaos
     runtime: node
+    plan: starter
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: AIRPORT_CHAOS_PROFILE_DB
+        value: /var/data/player-profiles.sqlite
+    disk:
+      name: airport-chaos-data
+      mountPath: /var/data
+      sizeGB: 1

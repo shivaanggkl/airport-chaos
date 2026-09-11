@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'node:path';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
@@ -55,6 +55,11 @@ const aircraftTypes = new Set<AircraftType>(aircraftOrder);
 const newPilotCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_STARTING_CREDITS, 750, 10_000);
 const migratedDevCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_MIGRATED_DEV_CREDITS, 1_000, 10_000);
 const legacyDevCreditThreshold = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_LEGACY_DEV_CREDIT_THRESHOLD, 100_000, 1_000_000);
+const rewardReceiptFormatVersion = '2';
+const rewardReceiptRetentionMs = 7 * 24 * 60 * 60 * 1_000;
+const rewardReceiptFutureToleranceMs = 5 * 60 * 1_000;
+const rewardReceiptPerPilotLimit = 2_048;
+const rewardReceiptGlobalLimit = 100_000;
 const cityIds = new Set<CityId>(['milwaukee', 'dallas']);
 const MASTERY_MAX_LEVEL = 25;
 export function masteryXpForLevel(level: number): number { const step = Math.max(0, Math.min(MASTERY_MAX_LEVEL, level) - 1); return step * 100 + step * step * 25; }
@@ -92,6 +97,13 @@ function boundedInteger(value: unknown, maximum: number): number {
 
 function boundedNumber(value: unknown, maximum: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.min(maximum, value) : 0;
+}
+
+function rewardReceiptIssuedAt(rewardId: string): number | undefined {
+  const match = /^reward-([a-z0-9]{8,12})-[a-z0-9-]{8,64}$/i.exec(rewardId);
+  if (!match) return undefined;
+  const issuedAt = Number.parseInt(match[1], 36);
+  return Number.isSafeInteger(issuedAt) ? issuedAt : undefined;
 }
 
 function parseMastery(value: unknown): Partial<Record<CityId, CityMastery>> {
@@ -212,9 +224,13 @@ function parseObjectives(value: unknown, cityId: CityId, discoveredCount = 0): O
 
 export class PlayerProfileStore {
   private readonly database: DatabaseSync;
+  private readonly databasePath: string;
+  private lastReceiptPruneAt = 0;
+  private lastReceiptPruneCount = 0;
 
   constructor(filePath: string) {
     mkdirSync(dirname(filePath), { recursive: true });
+    this.databasePath = filePath;
     this.database = new DatabaseSync(filePath);
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS player_profiles (
@@ -242,6 +258,10 @@ export class PlayerProfileStore {
         created_at INTEGER NOT NULL,
         PRIMARY KEY (pilot_id, reward_id)
       );
+      CREATE TABLE IF NOT EXISTS profile_store_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS weekly_leaderboard (
         city_id TEXT NOT NULL, week_id TEXT NOT NULL, category TEXT NOT NULL, pilot_id TEXT NOT NULL,
         pilot_name TEXT NOT NULL, value REAL NOT NULL DEFAULT 0, achieved_at INTEGER NOT NULL,
@@ -255,6 +275,74 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN mastery TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN economy_version INTEGER NOT NULL DEFAULT 0`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN aircraft_entitlements TEXT NOT NULL DEFAULT '[]'`); } catch { /* already migrated */ }
+    this.pruneRewardReceipts();
+    this.database.exec(`
+      CREATE INDEX IF NOT EXISTS profile_reward_receipts_pilot_created ON profile_reward_receipts (pilot_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS profile_reward_receipts_created ON profile_reward_receipts (created_at DESC);
+    `);
+    this.compactRewardReceiptsOnce(process.env.AIRPORT_CHAOS_PROFILE_DB_COMPACT_ONCE);
+  }
+
+  pruneRewardReceipts(now = Date.now()): { deleted: number; at: number } {
+    let deleted = 0;
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const format = this.metadata('reward_receipt_format_version');
+      if (format !== rewardReceiptFormatVersion) {
+        // Receipt format v2 prefixes every currently valid receipt with its
+        // server-validated reward class. Legacy UUID/reward-* rows cannot be
+        // replayed by a protocol-compatible client and are safe to discard.
+        deleted += Number(this.database.prepare("DELETE FROM profile_reward_receipts WHERE reward_id NOT LIKE 'contract:%'").run().changes);
+        this.setMetadata('reward_receipt_format_version', rewardReceiptFormatVersion);
+      }
+      deleted += Number(this.database.prepare('DELETE FROM profile_reward_receipts WHERE created_at < ?').run(now - rewardReceiptRetentionMs).changes);
+      deleted += Number(this.database.prepare(`DELETE FROM profile_reward_receipts WHERE rowid IN (
+        SELECT rowid FROM (
+          SELECT rowid, ROW_NUMBER() OVER (PARTITION BY pilot_id ORDER BY created_at DESC, rowid DESC) AS receipt_rank
+          FROM profile_reward_receipts
+        ) WHERE receipt_rank > ?
+      )`).run(rewardReceiptPerPilotLimit).changes);
+      deleted += Number(this.database.prepare(`DELETE FROM profile_reward_receipts WHERE rowid IN (
+        SELECT rowid FROM profile_reward_receipts ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET ?
+      )`).run(rewardReceiptGlobalLimit).changes);
+      this.lastReceiptPruneAt = now;
+      this.lastReceiptPruneCount = deleted;
+      this.setMetadata('reward_receipt_last_prune_at', String(now));
+      this.setMetadata('reward_receipt_last_prune_count', String(deleted));
+      this.database.exec('COMMIT');
+      return { deleted, at: now };
+    } catch (error) {
+      try { this.database.exec('ROLLBACK'); } catch { /* transaction already closed */ }
+      throw error;
+    }
+  }
+
+  rewardReceiptDiagnostics(): { rows: number; databaseBytes: number; lastPruneAt: number; lastPruneCount: number } {
+    const row = this.database.prepare('SELECT COUNT(*) AS count FROM profile_reward_receipts').get() as { count: number };
+    let databaseBytes = 0;
+    try { databaseBytes = statSync(this.databasePath).size; } catch { /* database may not be materialized yet */ }
+    return {
+      rows: Number(row.count) || 0,
+      databaseBytes,
+      lastPruneAt: this.lastReceiptPruneAt || Number(this.metadata('reward_receipt_last_prune_at')) || 0,
+      lastPruneCount: this.lastReceiptPruneCount || Number(this.metadata('reward_receipt_last_prune_count')) || 0,
+    };
+  }
+
+  private metadata(key: string): string | undefined {
+    return (this.database.prepare('SELECT value FROM profile_store_metadata WHERE key = ?').get(key) as { value?: string } | undefined)?.value;
+  }
+
+  private setMetadata(key: string, value: string): void {
+    this.database.prepare(`INSERT INTO profile_store_metadata (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, value);
+  }
+
+  private compactRewardReceiptsOnce(token: string | undefined): void {
+    const normalized = token?.trim();
+    if (!normalized || normalized.length > 64 || this.metadata('reward_receipt_compaction_token') === normalized) return;
+    this.database.exec('VACUUM');
+    this.setMetadata('reward_receipt_compaction_token', normalized);
   }
 
   getOrCreate(pilotId: string, pilotName: string): PlayerProfile {
@@ -359,9 +447,10 @@ export class PlayerProfileStore {
 
   applyClientReward(pilotId: string, rewardId: string, source: unknown): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
-    if (!row || !/^[a-zA-Z0-9_-]{8,96}$/.test(rewardId) || typeof source !== 'string' || !(source in economyRewards.contractCredits)) return undefined;
-    const credits = economyRewards.contractCredits[source as keyof typeof economyRewards.contractCredits];
     const now = Date.now();
+    const issuedAt = rewardReceiptIssuedAt(rewardId);
+    if (!row || issuedAt === undefined || now - issuedAt > rewardReceiptRetentionMs || issuedAt - now > rewardReceiptFutureToleranceMs || typeof source !== 'string' || !(source in economyRewards.contractCredits)) return undefined;
+    const credits = economyRewards.contractCredits[source as keyof typeof economyRewards.contractCredits];
     const prior = this.database.prepare('SELECT MAX(created_at) AS created_at FROM profile_reward_receipts WHERE pilot_id = ? AND reward_id LIKE ?')
       .get(pilotId, 'contract:%') as { created_at?: number } | undefined;
     if (prior?.created_at && now - prior.created_at < economyRewards.contractClaimCooldownMs) return this.toProfile(row);
