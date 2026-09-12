@@ -12,7 +12,7 @@ export type AircraftDefinition = {
   rollRate: number; rollInputResponse: number; rollInputRelease?: number; rollLevelRate?: number;
   yawRate: number; groundSteering: number; stability: number; inertia: number;
   bankTurn: number; alignmentRate: number; cameraDamping: number; cameraFrameScale: number; cameraHeight: number;
-  boostDrain?: number; boostRegen?: number; boostThrust?: number; boostMaxSpeed?: number;
+  boostDrain?: number; boostRegen?: number; boostThrust?: number; boostMaxSpeed?: number; overspeedDecaySeconds: number;
   airbrakeDrag?: number; airbrakeResponse?: number;
   takeoffSpeed: number; safeLandingSpeed: number; safeDescentRate: number; landingTilt: number;
   bodyColor: number; accentColor: number; bodyLength: number; bodyRadius: number; noseLength: number; wingSpan: number;

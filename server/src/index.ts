@@ -1684,6 +1684,7 @@ function updateRespawningPlayers(now: number): void {
   }
 }
 
+// The event-boss test still uses its current point against the projectile segment.
 function distanceToSegmentSquared(
   point: Vector3,
   startX: number,
@@ -1716,9 +1717,9 @@ function distanceToSegmentSquared(
   return dx * dx + dy * dy + dz * dz;
 }
 
-// A projectile can advance roughly 37m per 50Hz tick at Redspear Boost speed.
-// Sample the target's short predicted sweep against the
-// projectile segment so a valid hit cannot tunnel between transform updates.
+// Test both moving objects over the same server tick. At Redspear Boost speeds
+// a four-point target sample can skip a crossing between samples. Relative-
+// motion closest approach is continuous and keeps the existing hit radius.
 function sweptProjectileHit(
   player: PlayerState,
   startX: number,
@@ -1728,16 +1729,20 @@ function sweptProjectileHit(
   deltaSeconds: number,
 ): boolean {
   const hitRadius = aircraftHitRadii[player.aircraftType] * projectileHitRadiusMultiplier + projectileVisualRadius;
-  const hitRadiusSquared = hitRadius * hitRadius;
-  for (const fraction of [0, 1 / 3, 2 / 3, 1]) {
-    const projectedPosition = {
-      x: player.position.x + player.velocity.x * deltaSeconds * fraction,
-      y: player.position.y + player.velocity.y * deltaSeconds * fraction,
-      z: player.position.z + player.velocity.z * deltaSeconds * fraction,
-    };
-    if (distanceToSegmentSquared(projectedPosition, startX, startY, startZ, end) <= hitRadiusSquared) return true;
-  }
-  return false;
+  const relativeX = startX - player.position.x;
+  const relativeY = startY - player.position.y;
+  const relativeZ = startZ - player.position.z;
+  const motionX = end.x - startX - player.velocity.x * deltaSeconds;
+  const motionY = end.y - startY - player.velocity.y * deltaSeconds;
+  const motionZ = end.z - startZ - player.velocity.z * deltaSeconds;
+  const motionSquared = motionX * motionX + motionY * motionY + motionZ * motionZ;
+  const closestTime = motionSquared > 0
+    ? Math.max(0, Math.min(1, -(relativeX * motionX + relativeY * motionY + relativeZ * motionZ) / motionSquared))
+    : 0;
+  const dx = relativeX + motionX * closestTime;
+  const dy = relativeY + motionY * closestTime;
+  const dz = relativeZ + motionZ * closestTime;
+  return dx * dx + dy * dy + dz * dz <= hitRadius * hitRadius;
 }
 
 function normalize(vector: Vector3): Vector3 {

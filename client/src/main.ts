@@ -23,6 +23,7 @@ import { NavigationBeaconSystem, type NavigationDestination } from './navigation
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
+import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import type {
@@ -45,7 +46,7 @@ const visualQaMode = import.meta.env.DEV && cityId === 'dallas' && new URLSearch
 const adDebugMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('addebug') === '1';
 const PLANE_GROUND_Y = 1.2;
 const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
-const METERS_PER_SECOND_TO_KNOTS = 1.94384 * WORLD_METERS_PER_UNIT;
+const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
 const SKY_COLOR = isDallas ? 0x5aaee0 : 0x76c9ed;
@@ -4835,7 +4836,17 @@ function updateFlight(delta: number): void {
   const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.07;
   const airbrakeDrag = baseDrag * speedBrakeStrength * (currentAircraft.airbrakeDrag ?? 2);
   const approachDrag = landingAssistActive ? baseDrag * 0.75 : 0;
-  const drag = (baseDrag + inducedDrag + airbrakeDrag + approachDrag) / currentAircraft.inertia;
+  const normalDrag = (baseDrag + inducedDrag + airbrakeDrag + approachDrag) / currentAircraft.inertia;
+  const normalSpeedLimit = currentAircraft.maxSpeed + speedBonus;
+  const overspeed = Math.max(0, airspeed - normalSpeedLimit);
+  // Boost thrust stops at release, but the speed it already earned is momentum.
+  // Above normal max, aerodynamic drag first cancels any remaining engine
+  // surplus, then bleeds excess speed over the aircraft's coasting time.
+  // Airbrake/approach drag remains additive and intentionally slows it faster.
+  const coastDrag = !boostActive && overspeed > 0
+    ? Math.max(0, thrust - normalDrag) + overspeed / currentAircraft.overspeedDecaySeconds
+    : 0;
+  const drag = normalDrag + coastDrag;
 
   velocity.addScaledVector(forward, thrust * delta);
   velocity.addScaledVector(liftDirection, 9.81 * liftFactor * delta);
@@ -4857,7 +4868,11 @@ function updateFlight(delta: number): void {
   sideSlip.copy(forward).multiplyScalar(velocity.dot(forward)).sub(velocity);
   sideSlip.y *= 0.25;
   velocity.addScaledVector(sideSlip, Math.min(1, delta * currentAircraft.alignmentRate * (0.42 + speedRatio * 0.58)));
-  const maxAirSpeed = currentAircraft.maxSpeed * (boostActive ? (currentAircraft.boostMaxSpeed ?? 1.15) : 1) + speedBonus;
+  // A normal acceleration still obeys the base cap. An aircraft already above
+  // it after Boost release retains the Boost ceiling while drag winds it down.
+  const maxAirSpeed = boostActive || overspeed > 0
+    ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.15) + speedBonus
+    : normalSpeedLimit;
   if (velocity.lengthSq() > maxAirSpeed * maxAirSpeed) velocity.setLength(maxAirSpeed);
   airplane.position.addScaledVector(velocity, delta);
   currentSpeed = velocity.length();
