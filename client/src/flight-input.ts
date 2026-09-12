@@ -1,11 +1,11 @@
-export type FlightAction = 'throttleUp' | 'throttleDown' | 'pitchUp' | 'pitchDown' | 'rollLeft' | 'rollRight' | 'yawLeft' | 'yawRight' | 'boost' | 'fire' | 'aimUp' | 'aimDown';
+export type FlightAction = 'throttleUp' | 'throttleDown' | 'pitchUp' | 'pitchDown' | 'rollLeft' | 'rollRight' | 'yawLeft' | 'yawRight' | 'boost' | 'fire' | 'aimUp' | 'aimDown' | 'stunt';
 export const keyboardActionBindings: Readonly<Record<string, FlightAction>> = {
   KeyW: 'throttleUp', KeyS: 'throttleDown',
   KeyA: 'rollLeft', KeyD: 'rollRight',
   KeyQ: 'aimUp', KeyE: 'aimDown',
   ArrowUp: 'pitchUp', ArrowDown: 'pitchDown',
   ArrowLeft: 'yawLeft', ArrowRight: 'yawRight',
-  ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'fire',
+  ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'fire', KeyX: 'stunt',
 };
 
 // Presentation reads the binding, while flight consumes platform-neutral actions.
@@ -28,5 +28,11 @@ export const controlGroups = [
     { label: 'Shoot', actions: ['fire'] }, { label: 'Aim Up / Down', actions: ['aimUp', 'aimDown'] },
     { label: 'Boost', actions: ['boost'] },
   ] },
+  { label: 'TRICKS', rows: [
+    { label: 'Barrel Roll', actions: ['stunt', 'rollLeft', 'rollRight'] },
+    { label: 'Quick Dodge', actions: ['stunt', 'yawLeft', 'yawRight'] },
+  ] },
 ] satisfies Array<{ label: string; rows: Array<{ label: string; actions: FlightAction[] }> }>;
-export const controlKeyLabel = (actions: readonly FlightAction[]): string => actions.map(actionKeyLabel).join(' / ');
+export const controlKeyLabel = (actions: readonly FlightAction[]): string => actions[0] === 'stunt'
+  ? `${actionKeyLabel('stunt')} + ${actions.slice(1).map(actionKeyLabel).join(' / ')}`
+  : actions.map(actionKeyLabel).join(' / ');

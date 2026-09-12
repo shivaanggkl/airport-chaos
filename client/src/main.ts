@@ -12,7 +12,7 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, type CityId } from './cities';
 import { entityCapabilities, type EntityType } from './entity-types';
 import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
-import { StuntComboSystem, stuntGuide, type LandingQuality } from './stunt-combo';
+import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { NextActionSystem, type NextActionCandidate } from './next-action';
@@ -938,7 +938,7 @@ function updateEngineAudio(): void {
   if (!audioContext || !engineOscillator || !engineGain) return;
   const now = audioContext.currentTime;
   const speedAmount = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
-  const engineAmount = Math.max(speedAmount, throttle * 0.72);
+  const engineAmount = Math.max(speedAmount, throttle * 0.72) + boostVisualStrength * 0.12;
   engineOscillator.frequency.setTargetAtTime(55 + engineAmount * 75, now, 0.08);
   engineGain.gain.setTargetAtTime(crashed ? 0.0001 : 0.006 + engineAmount * 0.02, now, 0.1);
 }
@@ -1384,6 +1384,10 @@ function queueRewardFeedback(creditDelta = 0, scoreDelta = 0): void {
 
 let skyChallenges: SkyChallengeSystem | undefined;
 let stuntCombo: StuntComboSystem | undefined;
+const stuntFrame: StuntFrame = {
+  delta: 0, airborne: false, position: airplane.position, altitude: 0, speed: 0,
+  maxSpeed: 0, stallSpeed: 0, verticalSpeed: 0, roll: 0, aircraftType,
+};
 let discoverySystem: DiscoverySystem | undefined;
 let cityEvent: NetworkCityEvent | null = null;
 let joinedEventId: string | null = null;
@@ -1969,6 +1973,7 @@ function endRun(message: EndReason, title: string = message): void {
   verticalSpeedElement.classList.remove('landing-risk');
   boostActive = false;
   boostVisualStrength = 0;
+  activeStuntManeuver = null;
   resetRegionsOnNextTakeoff = true;
   failActiveContract();
   skyChallenges?.fail(message);
@@ -2006,6 +2011,8 @@ function restartGame(): void {
   boostMeter = 100;
   boostActive = false;
   boostVisualStrength = 0;
+  activeStuntManeuver = null;
+  stuntCooldown = 0;
   speedBrakeStrength = 0;
   landingAssistActive = false;
   score = 0;
@@ -2132,6 +2139,30 @@ function openGarage(): boolean {
 garageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
+type StuntManeuver = { kind: 'barrelRoll' | 'quickDodge'; direction: 1 | -1; elapsed: number; duration: number };
+let activeStuntManeuver: StuntManeuver | null = null;
+let stuntCooldown = 0;
+function tryStartStunt(): void {
+  if (!heldActions.has('stunt') || activeStuntManeuver || stuntCooldown > 0 ||
+      onGround || crashed || !runStarted ||
+      altitudeAboveTerrain() < 8 || currentSpeed < currentAircraft.stallSpeed * 1.2) return;
+  const rollDirection = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
+  const yawDirection = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
+  if (Math.abs(rollDirection) === 1) {
+    // Smoothstep reaches exactly one revolution, with no one-frame rotation.
+    // Existing per-aircraft roll rates set the maneuver duration.
+    activeStuntManeuver = {
+      kind: 'barrelRoll', direction: rollDirection as 1 | -1, elapsed: 0,
+      duration: 3 * Math.PI / (2.2 * currentAircraft.rollRate),
+    };
+    rollControlStrength = 0;
+  } else if (Math.abs(yawDirection) === 1) {
+    activeStuntManeuver = {
+      kind: 'quickDodge', direction: yawDirection as 1 | -1, elapsed: 0,
+      duration: THREE.MathUtils.clamp(0.45 + currentAircraft.inertia * 0.18, 0.55, 0.85),
+    };
+  }
+}
 let runStarted = false;
 const flightControlCodes = new Set(Object.keys(keyboardActionBindings));
 function showFirstRunGuide(): void {
@@ -2186,7 +2217,10 @@ window.addEventListener('keydown', (event) => {
     restartGame();
     return;
   }
-  if (action) heldActions.add(action);
+  if (action) {
+    heldActions.add(action);
+    if (!event.repeat && (action === 'stunt' || action === 'rollLeft' || action === 'rollRight' || action === 'yawLeft' || action === 'yawRight')) tryStartStunt();
+  }
 });
 window.addEventListener('keyup', (event) => {
   if (event.target !== aircraftSelectElement && (flightControlCodes.has(event.code) || (aircraftGarage.isOpen() && (event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu)))) event.preventDefault();
@@ -2194,9 +2228,8 @@ window.addEventListener('keyup', (event) => {
   if (action) heldActions.delete(action);
 });
 window.addEventListener('blur', () => {
-  // A keyup outside the window must not leave temporary aim latched.
-  heldActions.delete('aimUp');
-  heldActions.delete('aimDown');
+  // Browser focus loss must not leave any flight or stunt input latched.
+  heldActions.clear();
 });
 
 let throttle = 0;
@@ -2221,10 +2254,15 @@ const forward = new THREE.Vector3();
 const velocity = new THREE.Vector3();
 const liftDirection = new THREE.Vector3();
 const sideSlip = new THREE.Vector3();
+const dodgeSide = new THREE.Vector3();
 const targetCameraPosition = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 const cameraOrbitOffset = new THREE.Vector3();
 const cameraOrbitYawQuaternion = new THREE.Quaternion();
+const cameraChaseQuaternion = new THREE.Quaternion();
+const cameraNoRollQuaternion = new THREE.Quaternion();
+const cameraNoRollEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+let cameraRollSuppression = 0;
 const cameraOrbitInverseYawQuaternion = new THREE.Quaternion();
 const cameraAircraftForward = new THREE.Vector3();
 const cameraWorldUp = new THREE.Vector3(0, 1, 0);
@@ -3540,6 +3578,7 @@ function showAimQaRay(origin: THREE.Vector3Like, direction: THREE.Vector3Like): 
 let localPlayerId: string | null = null;
 let localLifeState: PlayerLifeState = 'respawning';
 let navigationTimer = 0;
+let progressionHudTimer = 0;
 let fireCooldown = 0;
 let clientShotSequence = 0;
 type FireBlockedReason = 'menu' | 'protection' | 'lifecycle' | 'cooldown' | 'socket' | 'invalid_state';
@@ -4160,11 +4199,22 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   remote.velocity.lerp(combatOffset, 0.55);
   remote.targetPosition.set(player.position.x, player.position.y, player.position.z);
   remote.targetQuaternion.setFromEuler(remoteEuler);
-  remote.interpolationDuration = THREE.MathUtils.clamp(remote.timeSinceUpdate, 0.08, 0.18);
+  // Smooth packet-interval jitter without increasing the 10Hz network rate.
+  const observedBlend = THREE.MathUtils.clamp(remote.timeSinceUpdate * 1.08, 0.09, 0.2);
+  remote.interpolationDuration = THREE.MathUtils.lerp(remote.interpolationDuration, observedBlend, 0.35);
   remote.interpolationElapsed = 0;
   remote.timeSinceUpdate = 0;
   const lifeStateChanged = remote.lifeState !== lifeState;
   remote.lifeState = lifeState;
+  if (lifeStateChanged && lifeState === 'alive') {
+    // The aircraft was hidden while destroyed/respawning. Reveal it at its
+    // authoritative spawn, not along a false cross-city interpolation path.
+    remote.plane.position.copy(remote.targetPosition);
+    remote.plane.quaternion.copy(remote.targetQuaternion);
+    remote.previousPosition.copy(remote.targetPosition);
+    remote.previousQuaternion.copy(remote.targetQuaternion);
+    remote.interpolationElapsed = remote.interpolationDuration;
+  }
   remote.cityId = player.cityId;
   remote.boostActive = Boolean(player.boostActive);
   if (typeof player.maxHealth === 'number') remote.maxHealth = player.maxHealth;
@@ -4585,6 +4635,7 @@ function hitsWorldObstacle(): boolean {
 }
 
 function updateFlight(delta: number): void {
+  stuntCooldown = Math.max(0, stuntCooldown - delta);
   const throttleUp = heldActions.has('throttleUp');
   const throttleDown = heldActions.has('throttleDown');
   if (!onGround) {
@@ -4644,10 +4695,10 @@ function updateFlight(delta: number): void {
     boostMeter = Math.min(100, boostMeter + delta * (currentAircraft.boostRegen ?? 12));
   }
 
-  const rollInput = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
+  const stuntOwnsSteering = heldActions.has('stunt') || activeStuntManeuver !== null;
+  const rollInput = stuntOwnsSteering ? 0 : Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
   const yawInput =
-    Number(heldActions.has('yawLeft')) -
-    Number(heldActions.has('yawRight'));
+    stuntOwnsSteering ? 0 : Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
   // Turn is an abstract control command, not an instant heading change.  Its
   // response is derived from the existing yaw/inertia envelope, so Cargo
   // settles deliberately while the Fighter remains crisp without keeping a
@@ -4672,6 +4723,7 @@ function updateFlight(delta: number): void {
   );
 
   if (onGround) {
+    activeStuntManeuver = null;
     rollControlStrength = 0;
     const reverseSpeed = Math.min(10, currentAircraft.groundMaxSpeed * 0.17);
     const brakeRate = currentAircraft.groundDrag * 2.6;
@@ -4741,6 +4793,23 @@ function updateFlight(delta: number): void {
     return;
   }
 
+  const maneuver = activeStuntManeuver;
+  let maneuverPhase = 0;
+  let maneuverRollAdvance = 0;
+  let maneuverComplete = false;
+  if (maneuver) {
+    const from = maneuver.elapsed / maneuver.duration;
+    maneuver.elapsed = Math.min(maneuver.duration, maneuver.elapsed + delta);
+    const to = maneuver.elapsed / maneuver.duration;
+    maneuverComplete = to >= 1;
+    if (maneuver.kind === 'barrelRoll') {
+      const smoothFrom = from * from * (3 - 2 * from);
+      const smoothTo = to * to * (3 - 2 * to);
+      maneuverRollAdvance = maneuver.direction * Math.PI * 2 * (smoothTo - smoothFrom);
+    } else {
+      maneuverPhase = Math.sin(Math.PI * (from + to) * 0.5);
+    }
+  }
   const speedRatio = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   const steeringAuthority =
     (0.42 + speedRatio * 0.5) * currentAircraft.yawRate / currentAircraft.inertia;
@@ -4756,7 +4825,11 @@ function updateFlight(delta: number): void {
     1 - Math.exp(-rollResponse * delta),
   );
   roll += rollControlStrength * delta * currentAircraft.rollRate;
-  if (rollInput === 0) {
+  roll += maneuverRollAdvance;
+  if (maneuver?.kind === 'quickDodge') {
+    roll += maneuver.direction * currentAircraft.rollRate * 0.3 * maneuverPhase * delta;
+  }
+  if (rollInput === 0 && maneuver?.kind !== 'barrelRoll') {
     // Roll is intentionally unbounded while commanded. Use the shortest
     // equivalent angle when leveling so a completed 360° roll does not cause
     // an artificial extra revolution on release.
@@ -4795,6 +4868,9 @@ function updateFlight(delta: number): void {
   const pitchYawLeak = heading - pitchStageHeading;
   heading += yawControlStrength * delta * steeringAuthority;
   heading += Math.sin(roll) * speedRatio * currentAircraft.bankTurn * delta;
+  if (maneuver?.kind === 'quickDodge') {
+    heading += maneuver.direction * currentAircraft.yawRate / currentAircraft.inertia * 0.16 * maneuverPhase * delta;
+  }
 
   airplane.rotation.set(pitch, heading, roll, 'YXZ');
   if (import.meta.env.DEV) pitchBeforeQuaternion.copy(airplane.quaternion);
@@ -4868,6 +4944,15 @@ function updateFlight(delta: number): void {
   sideSlip.copy(forward).multiplyScalar(velocity.dot(forward)).sub(velocity);
   sideSlip.y *= 0.25;
   velocity.addScaledVector(sideSlip, Math.min(1, delta * currentAircraft.alignmentRate * (0.42 + speedRatio * 0.58)));
+  if (maneuver) {
+    // Dodge bends the existing velocity vector; it never teleports or grants
+    // invulnerability. Both maneuvers spend a little kinetic energy.
+    if (maneuver.kind === 'quickDodge') {
+      dodgeSide.set(1, 0, 0).applyQuaternion(airplane.quaternion);
+      velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(130, currentAircraft.acceleration / currentAircraft.inertia * 0.8) * maneuverPhase * delta);
+    }
+    velocity.multiplyScalar(Math.max(0, 1 - delta * (maneuver.kind === 'barrelRoll' ? 0.025 : 0.018) / maneuver.duration));
+  }
   // A normal acceleration still obeys the base cap. An aircraft already above
   // it after Boost release retains the Boost ceiling while drag winds it down.
   const maxAirSpeed = boostActive || overspeed > 0
@@ -4917,6 +5002,14 @@ function updateFlight(delta: number): void {
     setFlightState('LANDED');
     rewardLanding(landingAirport, landingQuality);
     handleContractLanding(landingAirport);
+  }
+
+  if (maneuverComplete) {
+    activeStuntManeuver = null;
+    stuntCooldown = 2.2;
+    if (!onGround && maneuver?.kind === 'quickDodge') stuntCombo?.notifyQuickDodge(aircraftType);
+  } else if (onGround) {
+    activeStuntManeuver = null;
   }
 
 }
@@ -5004,18 +5097,28 @@ function updateCamera(delta: number): void {
     if (cameraOrbitBlend === 0) cameraOrbitRecenterAt = null;
   }
   cameraAircraftForward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
+  const aircraftPitch = Math.atan2(cameraAircraftForward.y, Math.hypot(cameraAircraftForward.x, cameraAircraftForward.z));
   cameraAircraftForward.y = 0;
   if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1);
   else cameraAircraftForward.normalize();
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
+  // Keep the chase view readable through a full roll without spinning it
+  // around the fuselage. Ease suppression in/out; manual camera orbit stays owned.
+  cameraRollSuppression += ((activeStuntManeuver?.kind === 'barrelRoll' ? 0.9 : 0) - cameraRollSuppression) *
+    (1 - Math.exp(-6 * delta));
+  cameraChaseQuaternion.copy(airplane.quaternion);
+  if (cameraRollSuppression > 0.001) {
+    cameraNoRollQuaternion.setFromEuler(cameraNoRollEuler.set(aircraftPitch, aircraftYaw, 0));
+    cameraChaseQuaternion.slerp(cameraNoRollQuaternion, cameraRollSuppression);
+  }
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
       defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18) + cameraSpeedOffset * 0.05,
       smoothedChaseDistance,
     )
-    .applyQuaternion(airplane.quaternion))
+    .applyQuaternion(cameraChaseQuaternion))
     .add(airplane.position);
   chaseCameraPosition.y = Math.max(
     chaseCameraPosition.y,
@@ -5023,7 +5126,7 @@ function updateCamera(delta: number): void {
   );
   chaseLookTarget
     .set(0, 0.7 + cameraSpeedOffset * 0.03, -cameraFocusAhead)
-    .applyQuaternion(airplane.quaternion)
+    .applyQuaternion(cameraChaseQuaternion)
     .add(airplane.position);
 
   if (cameraOrbitBlend > 0) {
@@ -5189,18 +5292,17 @@ function animate(): void {
   ambientTraffic?.update(delta, airplane.position, camera);
   if (!crashed && runStarted) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
   if (!crashed && runStarted) {
-    stuntCombo?.update({
-      delta,
-      airborne: !onGround,
-      position: airplane.position,
-      altitude: altitudeAboveTerrain(),
-      speed: currentSpeed,
-      maxSpeed: currentAircraft.maxSpeed,
-      stallSpeed: currentAircraft.stallSpeed,
-      verticalSpeed,
-      roll,
-      aircraftType,
-    });
+    stuntFrame.delta = delta;
+    stuntFrame.airborne = !onGround;
+    stuntFrame.position = airplane.position;
+    stuntFrame.altitude = altitudeAboveTerrain();
+    stuntFrame.speed = currentSpeed;
+    stuntFrame.maxSpeed = currentAircraft.maxSpeed;
+    stuntFrame.stallSpeed = currentAircraft.stallSpeed;
+    stuntFrame.verticalSpeed = verticalSpeed;
+    stuntFrame.roll = roll;
+    stuntFrame.aircraftType = aircraftType;
+    stuntCombo?.update(stuntFrame);
     discoverySystem?.update(delta, airplane.position, altitudeAboveTerrain());
   }
   updateWeapons(delta);
@@ -5211,11 +5313,15 @@ function animate(): void {
   updateLockCircle();
   adPlacementManager.update(camera, delta, airplane);
   navigationTimer += delta;
+  progressionHudTimer += delta;
+  if (progressionHudTimer >= 1) {
+    progressionHudTimer %= 1;
+    updateProgressHud();
+  }
   if (navigationTimer >= 0.1) {
     navigationTimer %= 0.1;
     updateFlightHud();
     updateAircraftOptions();
-    updateProgressHud();
     updateSkyChallengeHud();
     updateDynamicEventHud();
     updateNavigationHud();

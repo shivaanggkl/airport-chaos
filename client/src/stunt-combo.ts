@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 export type StuntType =
   | 'barrelRoll'
+  | 'quickDodge'
   | 'invertedFlight'
   | 'lowPass'
   | 'nearMiss'
@@ -53,6 +54,7 @@ type StuntCallbacks = {
 
 const STUNT_POINTS: Record<StuntType, number> = {
   barrelRoll: 150,
+  quickDodge: 180,
   invertedFlight: 200,
   lowPass: 250,
   nearMiss: 300,
@@ -64,6 +66,7 @@ const STUNT_POINTS: Record<StuntType, number> = {
 
 const STUNT_LABELS: Record<StuntType, string> = {
   barrelRoll: 'BARREL ROLL',
+  quickDodge: 'QUICK DODGE',
   invertedFlight: 'INVERTED FLIGHT',
   lowPass: 'LOW PASS',
   nearMiss: 'NEAR MISS',
@@ -74,7 +77,8 @@ const STUNT_LABELS: Record<StuntType, string> = {
 };
 
 export const stuntGuide: ReadonlyArray<{ type: StuntType; name: string; how: string; where: string; reward: number }> = [
-  { type: 'barrelRoll', name: STUNT_LABELS.barrelRoll, how: 'Tilt your plane all the way around once.', where: 'Open sky', reward: STUNT_POINTS.barrelRoll },
+  { type: 'barrelRoll', name: STUNT_LABELS.barrelRoll, how: 'Hold X + A / D for one full roll.', where: 'Open sky', reward: STUNT_POINTS.barrelRoll },
+  { type: 'quickDodge', name: STUNT_LABELS.quickDodge, how: 'Hold X + ← / → to break sideways.', where: 'Open sky or combat', reward: STUNT_POINTS.quickDodge },
   { type: 'invertedFlight', name: STUNT_LABELS.invertedFlight, how: 'Fly upside down for a few seconds without slowing too much.', where: 'Open sky', reward: STUNT_POINTS.invertedFlight },
   { type: 'lowPass', name: STUNT_LABELS.lowPass, how: 'Fly fast and safely close to terrain without touching it.', where: 'Open ground or water corridors', reward: STUNT_POINTS.lowPass },
   { type: 'nearMiss', name: STUNT_LABELS.nearMiss, how: 'Pass close to another real pilot without colliding.', where: 'Multiplayer airspace', reward: STUNT_POINTS.nearMiss },
@@ -136,6 +140,10 @@ export class StuntComboSystem {
 
   notifyNearMiss(aircraftType: StuntFrame['aircraftType']): void {
     this.award('nearMiss', aircraftType);
+  }
+
+  notifyQuickDodge(aircraftType: StuntFrame['aircraftType']): void {
+    this.award('quickDodge', aircraftType);
   }
 
   notifyLanding(quality: LandingQuality): void {

@@ -3291,7 +3291,6 @@ server.on('connection', (socket, request) => {
         const action = message.action;
         if (action === 'stunt' || action === 'nearMiss') {
           registerChaosAction(playerId, action, Date.now());
-          addHeat(playerId, action === 'nearMiss' ? 5 : 3);
         }
         return;
       }
