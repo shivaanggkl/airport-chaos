@@ -2159,7 +2159,7 @@ function tryStartStunt(): void {
   } else if (Math.abs(yawDirection) === 1) {
     activeStuntManeuver = {
       kind: 'quickDodge', direction: yawDirection as 1 | -1, elapsed: 0,
-      duration: THREE.MathUtils.clamp(0.45 + currentAircraft.inertia * 0.18, 0.55, 0.85),
+      duration: THREE.MathUtils.clamp(0.68 + currentAircraft.inertia * 0.12, 0.72, 0.94),
     };
   }
 }
@@ -2263,6 +2263,7 @@ const cameraChaseQuaternion = new THREE.Quaternion();
 const cameraNoRollQuaternion = new THREE.Quaternion();
 const cameraNoRollEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let cameraRollSuppression = 0;
+let cameraDodgeLag = 0;
 const cameraOrbitInverseYawQuaternion = new THREE.Quaternion();
 const cameraAircraftForward = new THREE.Vector3();
 const cameraWorldUp = new THREE.Vector3(0, 1, 0);
@@ -4807,7 +4808,12 @@ function updateFlight(delta: number): void {
       const smoothTo = to * to * (3 - 2 * to);
       maneuverRollAdvance = maneuver.direction * Math.PI * 2 * (smoothTo - smoothFrom);
     } else {
-      maneuverPhase = Math.sin(Math.PI * (from + to) * 0.5);
+      // Build the break early, hold it briefly, then ease out. The old sine
+      // spent half the short maneuver building toward its first useful shove.
+      const midpoint = (from + to) * 0.5;
+      const entry = THREE.MathUtils.clamp(midpoint / 0.16, 0, 1);
+      const exit = THREE.MathUtils.clamp((1 - midpoint) / 0.32, 0, 1);
+      maneuverPhase = entry * entry * (3 - 2 * entry) * exit * exit * (3 - 2 * exit);
     }
   }
   const speedRatio = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
@@ -4827,7 +4833,7 @@ function updateFlight(delta: number): void {
   roll += rollControlStrength * delta * currentAircraft.rollRate;
   roll += maneuverRollAdvance;
   if (maneuver?.kind === 'quickDodge') {
-    roll += maneuver.direction * currentAircraft.rollRate * 0.3 * maneuverPhase * delta;
+    roll += maneuver.direction * currentAircraft.rollRate * 0.6 * maneuverPhase * delta;
   }
   if (rollInput === 0 && maneuver?.kind !== 'barrelRoll') {
     // Roll is intentionally unbounded while commanded. Use the shortest
@@ -4869,7 +4875,7 @@ function updateFlight(delta: number): void {
   heading += yawControlStrength * delta * steeringAuthority;
   heading += Math.sin(roll) * speedRatio * currentAircraft.bankTurn * delta;
   if (maneuver?.kind === 'quickDodge') {
-    heading += maneuver.direction * currentAircraft.yawRate / currentAircraft.inertia * 0.16 * maneuverPhase * delta;
+    heading += maneuver.direction * currentAircraft.yawRate / currentAircraft.inertia * 0.18 * maneuverPhase * delta;
   }
 
   airplane.rotation.set(pitch, heading, roll, 'YXZ');
@@ -4949,7 +4955,7 @@ function updateFlight(delta: number): void {
     // invulnerability. Both maneuvers spend a little kinetic energy.
     if (maneuver.kind === 'quickDodge') {
       dodgeSide.set(1, 0, 0).applyQuaternion(airplane.quaternion);
-      velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(130, currentAircraft.acceleration / currentAircraft.inertia * 0.8) * maneuverPhase * delta);
+      velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(340, currentAircraft.acceleration / currentAircraft.inertia * 2.25) * maneuverPhase * delta);
     }
     velocity.multiplyScalar(Math.max(0, 1 - delta * (maneuver.kind === 'barrelRoll' ? 0.025 : 0.018) / maneuver.duration));
   }
@@ -5105,8 +5111,13 @@ function updateCamera(delta: number): void {
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
   // Keep the chase view readable through a full roll without spinning it
   // around the fuselage. Ease suppression in/out; manual camera orbit stays owned.
-  cameraRollSuppression += ((activeStuntManeuver?.kind === 'barrelRoll' ? 0.9 : 0) - cameraRollSuppression) *
+  cameraRollSuppression += ((activeStuntManeuver?.kind === 'barrelRoll' ? 0.9 : activeStuntManeuver?.kind === 'quickDodge' ? 0.35 : 0) - cameraRollSuppression) *
     (1 - Math.exp(-6 * delta));
+  const dodgeCameraPhase = activeStuntManeuver?.kind === 'quickDodge'
+    ? Math.sin(Math.PI * activeStuntManeuver.elapsed / activeStuntManeuver.duration) : 0;
+  const dodgeCameraTarget = activeStuntManeuver?.kind === 'quickDodge'
+    ? activeStuntManeuver.direction * Math.min(2.4, defaultChaseDistance * 0.12) * dodgeCameraPhase : 0;
+  cameraDodgeLag += (dodgeCameraTarget - cameraDodgeLag) * (1 - Math.exp(-8 * delta));
   cameraChaseQuaternion.copy(airplane.quaternion);
   if (cameraRollSuppression > 0.001) {
     cameraNoRollQuaternion.setFromEuler(cameraNoRollEuler.set(aircraftPitch, aircraftYaw, 0));
@@ -5114,7 +5125,7 @@ function updateCamera(delta: number): void {
   }
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
-      0,
+      cameraDodgeLag,
       defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18) + cameraSpeedOffset * 0.05,
       smoothedChaseDistance,
     )
