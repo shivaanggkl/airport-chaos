@@ -2,7 +2,7 @@ import { aircraftRoles, identityText } from './visual-language';
 import * as THREE from 'three';
 import { aircraftDefinitions, aircraftDisplayName, aircraftPitch, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
-import { REDSPEAR_PRICE_USD } from '../../shared/aircraft-economy.mjs';
+import { REDSPEAR_PRICE_USD, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 
 export type GarageProfile = {
   credits: number;
@@ -56,7 +56,7 @@ export class AircraftGarage {
     this.scene.add(new THREE.HemisphereLight(0xc9edff, 0x14222b, 2.2), this.preview);
     const key = new THREE.DirectionalLight(0xffffff, 2.8); key.position.set(5, 8, 7); this.scene.add(key);
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
-    for (const type of Object.keys(aircraftDefinitions) as AircraftType[]) {
+    for (const type of aircraftDisplayOrder) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
       card.addEventListener('click', () => { this.selected = type; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); });
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
@@ -178,7 +178,7 @@ export class AircraftGarage {
   }
 
   private normalizeProfile(profile: GarageProfile): GarageProfile {
-    const types = Object.keys(aircraftDefinitions) as AircraftType[];
+    const types = aircraftDisplayOrder;
     const selectedAircraft = types.includes(profile.selectedAircraft) ? profile.selectedAircraft : 'trainer';
     const unlockedAircraft = Array.isArray(profile.unlockedAircraft)
       ? [...new Set(profile.unlockedAircraft.filter((type): type is AircraftType => types.includes(type)))]

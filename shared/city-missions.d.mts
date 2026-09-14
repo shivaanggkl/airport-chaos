@@ -4,9 +4,9 @@ export type CityMission = {
   displayName: string; description: string; difficulty: string;
   creditReward: number; scoreReward: number; replayCooldownMs: number;
   requirements: {
-    airportId?: string; airportIds?: readonly string[]; territoryIds?: readonly string[];
+    airportId?: string; airportIds?: readonly string[]; territoryIds?: readonly string[]; requiredTerritoryIds?: readonly string[];
     challengeId?: string; gateCount?: number; eventType?: string; result?: string; personality?: string;
-    durationSeconds?: number; meters?: number; maxHeadingErrorRadians?: number;
+    durationSeconds?: number; holdDurationSeconds?: number; meters?: number; maxHeadingErrorRadians?: number;
     maneuvers?: readonly string[]; kills?: number; uniqueKills?: number;
     heatLevel?: number; minimumScore?: number; allCityTerritories?: boolean; rank?: number;
   };

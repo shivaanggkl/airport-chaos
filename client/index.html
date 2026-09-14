@@ -10,9 +10,11 @@
     <main id="city-selector" class="city-selector" hidden>
       <div class="city-select-card">
         <div class="city-select-kicker">AIRPORT CHAOS</div>
-        <h1>Choose a city</h1>
-        <p>Pick a flight sandbox to enter.</p>
+        <h1 id="city-select-title">Choose a city</h1>
+        <p id="city-select-description">Pick a flight sandbox to enter.</p>
         <div id="city-options" class="city-options"></div>
+        <div id="time-options" class="city-options" hidden></div>
+        <button id="city-back" class="garage-entry" type="button" hidden>Back to cities</button>
         <button id="garage-entry" class="garage-entry" type="button">Aircraft Garage</button>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
       </div>
@@ -38,13 +40,13 @@
       <div id="acquisition-circle" aria-hidden="true"></div>
       <section id="flight-status" class="glass-instrument">
         <div class="flight-state-row"><strong id="flight-state">ON RUNWAY</strong></div>
-        <div class="health-row"><span>PLANE LIFE</span><span class="hull-meter"><i id="hull-fill"></i></span><strong id="health">100/100</strong></div>
+        <div class="health-row"><span>PLANE LIFE</span><span class="hull-meter"><i id="hull-fill"></i></span><strong id="health">100/100</strong><span id="repair-feedback" class="repair-feedback" role="status" aria-live="polite">♥ FULL REPAIR · 100%</span></div>
         <div id="heat-row" class="heat-row" title="More Danger means more attention and better rewards.">DANGER <strong id="heat-level">0</strong></div>
         <div id="landing-speed-cue" class="landing-speed-cue hidden" role="status"></div>
         <div class="airport-navigation"><span>NEAREST PLACE <strong id="nearest-airport">Airport</strong></span><span id="airport-distance"></span></div>
         <div id="world-status" class="world-status hidden">Leaving City 1</div>
       </section>
-      <div id="target-feedback" class="target-feedback hidden"><b id="target-range">LOCKED</b></div>
+      <div id="target-feedback" class="target-feedback hidden"><b id="target-range">LOCKED</b><span id="target-name-distance"></span></div>
     </div>
     <div class="left-hud-stack">
     <aside id="progression-readout" class="progression-readout" aria-label="Credits and Score">
@@ -67,11 +69,12 @@
         <label class="aircraft-selector">Aircraft
           <select id="aircraft-select">
             <option value="trainer">Skyrift Scout — Free</option>
-            <option value="privateJet">Wayfarer Jet — 500 credits</option>
-            <option value="cargo">Gravitas Cargo — 1,000 credits</option>
-            <option value="fighter">Redspear Fighter — 2,000 credits</option>
+            <option value="cargo">Gravitas Cargo — 12,000 Credits</option>
+            <option value="privateJet">Wayfarer Jet — 30,000 Credits</option>
+            <option value="fighter">Redspear Fighter — Premium</option>
           </select>
         </label>
+        <small id="aircraft-switch-hint" class="aircraft-switch-hint" hidden>✈ LAND AT AN AIRPORT TO CHANGE AIRCRAFT</small>
         <div class="progress-stats"><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span><span id="discovery-progress">Discoveries 0 / 0 — 0%</span></div>
         <div class="pilot-name">Pilot <strong id="player-name"></strong></div>
         <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>

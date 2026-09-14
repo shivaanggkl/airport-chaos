@@ -145,9 +145,11 @@ type ActiveChallenge = { challengeId: string; cityId: CityId; startedAt: number;
 
 const players = new Map<string, PlayerState>();
 const repairCooldowns = new Map<string, number>();
+const repairLastPosition = new Map<string, { x: number; y: number; z: number }>();
 const airportRepairStays = new Map<string, { airportId: string; since: number }>();
 const repairCheckMs = 500;
 const repairBeaconCooldownMs = 90_000;
+const repairHeartCooldownMs = 60_000;
 const repairBeaconFraction = 0.45;
 const airportRepairDelayMs = 4_000;
 const repairAirportGroundSpeed = 8;
@@ -957,7 +959,7 @@ function missionSignal(playerId: string, signal: MissionSignal): void {
   if (!definition) return;
   // "Every territory" is resolved from the active city's actual manifest.
   const mission = definition.requirements.allCityTerritories
-    ? { ...definition, requirements: { ...definition.requirements, territoryIds: territoriesForCity(player.cityId).map((item) => item.id) } }
+    ? { ...definition, requirements: { ...definition.requirements, requiredTerritoryIds: territoriesForCity(player.cityId).map((item) => item.id) } }
     : definition;
   const result = advanceMission(mission, active, signal);
   if (!result.changed && !result.completed) return;
@@ -1379,12 +1381,13 @@ function territoryStates(cityId: CityId): TerritoryRuntime[] {
   return [...states.values()];
 }
 
-function territorySnapshot(cityId: CityId): Array<{ id: string; controllerId?: string; controllerName?: string; capturingPlayerId?: string; captureProgress: number; contested: boolean }> {
+function territorySnapshot(cityId: CityId): Array<{ id: string; controllerId?: string; controllerName?: string; capturingPlayerId?: string; defenderBotId?: string; captureProgress: number; contested: boolean }> {
   return territoryStates(cityId).map((territory) => ({
     id: territory.definition.id,
     controllerId: territory.controllerId,
     controllerName: territory.controllerId ? players.get(territory.controllerId)?.displayName : undefined,
     capturingPlayerId: territory.capturingPlayerId,
+    defenderBotId: territory.defenderBotId,
     captureProgress: Math.round(territory.captureProgress),
     contested: territory.contested || Boolean(territory.controllerId && territory.capturingPlayerId && territory.capturingPlayerId !== territory.controllerId),
   }));
@@ -1401,6 +1404,12 @@ function broadcastTerritories(cityId: CityId, now = Date.now(), force = false): 
 function territoryContains(definition: CityTerritory, position: Vector3): boolean {
   return position.x >= definition.bounds.minX && position.x <= definition.bounds.maxX &&
     position.z >= definition.bounds.minZ && position.z <= definition.bounds.maxZ;
+}
+
+const territoryCaptureCeilingAgl = 10_000 * 0.3048;
+function territoryCaptureAltitudeEligible(player: PlayerState): boolean {
+  const agl = player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z);
+  return agl >= 0 && agl <= territoryCaptureCeilingAgl;
 }
 
 function isTerritoryActive(playerId: string, player: PlayerState, now: number): boolean {
@@ -1614,9 +1623,11 @@ function updateTerritories(now: number): void {
       }
       player.territoryIds = memberships;
     }
-    const activePlayers = [...players.entries()].filter(([playerId, player]) => player.cityId === cityId && isTerritoryActive(playerId, player, now));
+    const activePlayers = [...players.entries()].filter(([playerId, player]) => player.cityId === cityId &&
+      territoryCaptureAltitudeEligible(player) && isTerritoryActive(playerId, player, now));
     let changed = false;
     let urgentChanged = false;
+    let ownershipChanged = false;
     for (const territory of cityTerritories) {
       // A summoned defender is a combat threat, not a second capture
       // contributor; its arrival must not freeze the invader's progress.
@@ -1663,13 +1674,23 @@ function updateTerritories(now: number): void {
         changed = true;
         urgentChanged = true;
       }
-      territory.captureProgress = Math.min(100, territory.captureProgress + 100 / (territoryCaptureSeconds * 1000 / territoryTickMs) * territory.definition.captureWeight);
+      const defender = territory.defenderBotId ? players.get(territory.defenderBotId) : undefined;
+      const owner = territory.controllerId ? players.get(territory.controllerId) : undefined;
+      const ownerDefending = owner && !owner.isBot && owner.cityId === cityId && owner.lifeState === 'alive' &&
+        isTerritoryActive(territory.controllerId!, owner, now) && now - owner.lastFireAt < 4_000 &&
+        Math.hypot(owner.position.x - contributor[1].position.x, owner.position.y - contributor[1].position.y, owner.position.z - contributor[1].position.z) <=
+          Math.min(territoryDefenderOwnerRange, COMBAT_RANGE);
+      const defenderActive = defender?.lifeState === 'alive' && defender.bot?.defenseTerritoryId === territory.definition.id &&
+        defender.bot.defenseTargetId === playerId;
+      const captureLimit = territory.controllerId && (defenderActive || ownerDefending) ? 95 : 100;
+      territory.captureProgress = Math.min(captureLimit, territory.captureProgress + 100 / (territoryCaptureSeconds * 1000 / territoryTickMs) * territory.definition.captureWeight);
       changed = true;
       if (territory.captureProgress >= 100) {
         releaseTerritoryDefender(territory);
         territory.defenseAttackerId = undefined;
         territory.defenderLostForAttackerId = undefined;
         territory.controllerId = playerId;
+        ownershipChanged = true;
         territory.capturingPlayerId = undefined;
         territory.lastRewardAt = now;
         awardTerritory(playerId, territory, 'capture', now);
@@ -1680,6 +1701,7 @@ function updateTerritories(now: number): void {
       }
     }
     if (changed) broadcastTerritories(cityId, now, urgentChanged);
+    if (ownershipChanged) tickMissions(now);
   }
 }
 
@@ -2061,9 +2083,12 @@ function sweptProjectileHit(
   deltaSeconds: number,
 ): boolean {
   const hitRadius = aircraftHitRadii[player.aircraftType] * projectileHitRadiusMultiplier + projectileVisualRadius;
-  const relativeX = startX - player.position.x;
-  const relativeY = startY - player.position.y;
-  const relativeZ = startZ - player.position.z;
+  // The stored transform is the target's end-of-tick position. Rewind it to
+  // the segment start before testing relative swept motion; otherwise fast
+  // targets are offset by an extra tick of travel and clean shots can miss.
+  const relativeX = startX - (player.position.x - player.velocity.x * deltaSeconds);
+  const relativeY = startY - (player.position.y - player.velocity.y * deltaSeconds);
+  const relativeZ = startZ - (player.position.z - player.velocity.z * deltaSeconds);
   const motionX = end.x - startX - player.velocity.x * deltaSeconds;
   const motionY = end.y - startY - player.velocity.y * deltaSeconds;
   const motionZ = end.z - startZ - player.velocity.z * deltaSeconds;
@@ -2365,6 +2390,9 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   ) return false;
 
   victim.health = Math.max(0, victim.health - projectileDamage);
+  if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
+    console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
+  }
   airportRepairStays.delete(victimId);
   broadcastToCity(cityId, {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health, maxHealth: maxHealthForAircraft(victim.aircraftType), damage: projectileDamage,
@@ -2780,21 +2808,48 @@ function hunterInterceptWaypoint(player: PlayerState, bot: BotRuntime, target: P
 }
 
 function botFireSolution(shooter: PlayerState, target: PlayerState, defender: boolean): { distance: number; vertical: number; angle: number; aimX: number; aimY: number; reason?: string } {
-  const local = targetInAircraftSpace(shooter, target);
+  const muzzle = muzzleTransform(shooter).position;
+  const actualDistance = Math.hypot(target.position.x - muzzle.x, target.position.y - muzzle.y, target.position.z - muzzle.z);
+  const envelope = aircraftFlightEnvelope[target.aircraftType];
+  const targetCap = envelope.maxSpeed * (target.boostActive ? envelope.boostMaxSpeed : 1);
+  const targetSpeed = Math.hypot(target.velocity.x, target.velocity.y, target.velocity.z);
+  const scale = targetSpeed > targetCap ? targetCap / targetSpeed : 1;
+  let leadTime = 0;
+  let aimPoint = target.position;
+  if (defender) {
+    // Projectile velocity is fixed at launch. Estimate its intercept in a few
+    // bounded iterations, then use that one point for the entire ballistic shot.
+    for (let iteration = 0; iteration < 3; iteration += 1) {
+      const offset = { x: aimPoint.x - muzzle.x, y: aimPoint.y - muzzle.y, z: aimPoint.z - muzzle.z };
+      const direction = normalize(offset);
+      leadTime = Math.min(2.5, Math.hypot(offset.x, offset.y, offset.z) / ballisticShotSpeed(shooter.velocity, direction));
+      aimPoint = {
+        x: target.position.x + target.velocity.x * scale * leadTime,
+        y: target.position.y + target.velocity.y * scale * leadTime,
+        z: target.position.z + target.velocity.z * scale * leadTime,
+      };
+    }
+  }
+  const offset = { x: aimPoint.x - muzzle.x, y: aimPoint.y - muzzle.y, z: aimPoint.z - muzzle.z };
+  const local = {
+    x: dot(offset, rotateLocalYxz({ x: 1, y: 0, z: 0 }, shooter.rotation)),
+    y: dot(offset, rotateLocalYxz({ x: 0, y: 1, z: 0 }, shooter.rotation)),
+    z: -dot(offset, hunterForward(shooter)),
+  };
   const distance = Math.hypot(local.x, local.y, local.z);
   const vertical = target.position.y - shooter.position.y;
   const horizontal = Math.hypot(local.x, local.z);
-  const angle = Math.acos(Math.max(-1, Math.min(1, dot(hunterForward(shooter), normalize({ x: target.position.x - shooter.position.x, y: vertical, z: target.position.z - shooter.position.z })))));
+  const angle = Math.acos(Math.max(-1, Math.min(1, dot(hunterForward(shooter), normalize(offset)))));
   const yaw = Math.atan2(local.x, -local.z);
   const pitch = Math.atan2(local.y, horizontal);
   const downwardLimit = defender && vertical < 0 ? defenderDownwardFireAngle : hunterFireCone;
   const reason = local.z >= 0 ? 'NO_FORWARD_SOLUTION'
-    : distance > hunterFireRange ? 'OUT_OF_RANGE'
+    : actualDistance > hunterFireRange || distance > hunterFireRange ? 'OUT_OF_RANGE'
     : !defender && angle > hunterFireCone ? 'NO_FORWARD_SOLUTION'
     : Math.abs(yaw) > hunterFireCone ? 'NO_FORWARD_SOLUTION'
     : pitch < -downwardLimit ? 'TOO_VERTICAL'
     : pitch > hunterFireCone ? 'TOO_VERTICAL' : undefined;
-  return { distance, vertical, angle, aimX: local.x / Math.max(1, -local.z), aimY: local.y / Math.max(1, -local.z), reason };
+  return { distance: actualDistance, vertical, angle, aimX: local.x / Math.max(1, -local.z), aimY: local.y / Math.max(1, -local.z), reason };
 }
 
 function moveTowardBot(value: number, target: number, maximumDelta: number): number {
@@ -3175,8 +3230,8 @@ function updateBots(now: number): void {
       // without granting a bot the player's assisted LOCKED-hit contract.
       const canShoot = !target.isBot && target.lifeState === 'alive' && now >= target.spawnProtectedUntil &&
         !solution.reason;
-      if (canShoot && Math.random() < 0.72) {
-        const variance = (Math.random() - 0.5) * 0.052;
+      if (canShoot && Math.random() < (bot.defenseTerritoryId ? 0.9 : 0.72)) {
+        const variance = (Math.random() - 0.5) * (bot.defenseTerritoryId ? 0.01 : 0.052);
         if (createProjectile(botId, player, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + variance * 0.45 })) {
           bot.attackShots = (bot.attackShots ?? 0) + 1;
           bot.noFireReason = undefined;
@@ -3269,9 +3324,10 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   return fallback ?? { position: { ...player.position }, heading: player.rotation.y };
 }
 
-function broadcastRepair(playerId: string, player: PlayerState, sourceId: string, full: boolean): void {
+function broadcastRepair(playerId: string, player: PlayerState, sourceId: string, full: boolean, cooldownMs?: number): void {
   broadcastToCity(player.cityId, {
     type: 'repair', playerId, sourceId, full,
+    cooldownMs,
     health: player.health,
     maxHealth: maxHealthForAircraft(player.aircraftType),
   });
@@ -3279,9 +3335,9 @@ function broadcastRepair(playerId: string, player: PlayerState, sourceId: string
 
 function clearRepairState(playerId: string): void {
   airportRepairStays.delete(playerId);
-  for (const key of repairCooldowns.keys()) {
-    if (key.startsWith(`${playerId}:`)) repairCooldowns.delete(key);
-  }
+  repairLastPosition.delete(playerId);
+  // Cooldowns belong to the pilot, not the ephemeral socket. Expiry pruning
+  // below clears them; a reconnect cannot collect the same Heart early.
 }
 
 // All of these maps are keyed by an ephemeral connection/bot id.  A bot can
@@ -3369,20 +3425,40 @@ function updateRepairStations(now: number): void {
   for (const [playerId, player] of players) {
     if (player.lifeState !== 'alive' || !player.hasRespawnTransform || now - player.lastStateAt > 1_500) {
       airportRepairStays.delete(playerId);
+      repairLastPosition.delete(playerId);
       continue;
     }
+    const previous = repairLastPosition.get(playerId);
+    const priorX = previous?.x ?? player.position.x, priorY = previous?.y ?? player.position.y, priorZ = previous?.z ?? player.position.z;
+    const travel = previous ? Math.hypot(player.position.x - previous.x, player.position.y - previous.y, player.position.z - previous.z) : 0;
+    const maxTravel = aircraftFlightEnvelope[player.aircraftType].maxSpeed * aircraftFlightEnvelope[player.aircraftType].boostMaxSpeed * 0.9 + 150;
+    const swept = previous && travel <= maxTravel && travel > 0.001;
+    if (previous) {
+      previous.x = player.position.x; previous.y = player.position.y; previous.z = player.position.z;
+    } else repairLastPosition.set(playerId, { x: player.position.x, y: player.position.y, z: player.position.z });
     const maxHealth = maxHealthForAircraft(player.aircraftType);
     if (player.health < maxHealth) {
       for (const beacon of repairsForCity(player.cityId)) {
-        if (player.position.y > beacon.maxAltitude) continue;
-        if (Math.hypot(player.position.x - beacon.x, player.position.z - beacon.z) > beacon.radius) continue;
-        const cooldownKey = `${playerId}:${beacon.id}`;
-        if ((repairCooldowns.get(cooldownKey) ?? 0) > now) break;
-        const repaired = Math.min(maxHealth - player.health, Math.max(1, Math.round(maxHealth * repairBeaconFraction)));
+        if (beacon.kind === 'heart') {
+          const heartY = botTerrainHeight(player.cityId, beacon.x, beacon.z) + beacon.altitudeAgl;
+          let distance = Math.hypot(player.position.x - beacon.x, player.position.y - heartY, player.position.z - beacon.z);
+          if (swept) {
+            const dx = player.position.x - priorX, dy = player.position.y - priorY, dz = player.position.z - priorZ;
+            const t = Math.max(0, Math.min(1, ((beacon.x - priorX) * dx + (heartY - priorY) * dy + (beacon.z - priorZ) * dz) / (travel * travel)));
+            distance = Math.min(distance, Math.hypot(priorX + dx * t - beacon.x, priorY + dy * t - heartY, priorZ + dz * t - beacon.z));
+          }
+          if (distance > beacon.radius) continue;
+        } else {
+          if (player.position.y > beacon.maxAltitude || Math.hypot(player.position.x - beacon.x, player.position.z - beacon.z) > beacon.radius) continue;
+        }
+        const cooldownKey = `${player.pilotId}:${beacon.id}`;
+        if ((repairCooldowns.get(cooldownKey) ?? 0) > now) continue;
+        const repaired = beacon.kind === 'heart' ? maxHealth - player.health :
+          Math.min(maxHealth - player.health, Math.max(1, Math.round(maxHealth * repairBeaconFraction)));
         player.health += repaired;
-        repairCooldowns.set(cooldownKey, now + repairBeaconCooldownMs);
+        repairCooldowns.set(cooldownKey, now + (beacon.kind === 'heart' ? repairHeartCooldownMs : repairBeaconCooldownMs));
         airportRepairStays.delete(playerId);
-        broadcastRepair(playerId, player, beacon.id, false);
+        broadcastRepair(playerId, player, beacon.id, beacon.kind === 'heart', beacon.kind === 'heart' ? repairHeartCooldownMs : undefined);
         break;
       }
     }
@@ -3569,6 +3645,10 @@ server.on('connection', (socket, request) => {
       territories: territorySnapshot(cityId),
       weeklyLeaderboards: weeklyLeaderboardSnapshot(cityId, playerId),
       profile,
+      repairCooldowns: repairsForCity(cityId).filter((beacon) => beacon.kind === 'heart').flatMap((beacon) => {
+        const remainingMs = (repairCooldowns.get(`${profile.pilotId}:${beacon.id}`) ?? 0) - Date.now();
+        return remainingMs > 0 ? [{ id: beacon.id, remainingMs }] : [];
+      }),
       players: [...players.entries()]
         .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && player.cityId === cityId)
         .map(([existingPlayerId, player]) => ({
@@ -3632,7 +3712,7 @@ server.on('connection', (socket, request) => {
           const profile = profileStore.setPilotName(player.pilotId, message.displayName);
           if (profile) {
             player.profile = profile;
-            player.displayName = message.displayName.trim().slice(0, 20);
+            player.displayName = profile.pilotName;
           }
         }
         broadcastLeaderboard(player.cityId);
@@ -3755,6 +3835,9 @@ server.on('connection', (socket, request) => {
         sendProfile(playerId, profile);
         if (process.env.AIRPORT_CHAOS_MISSION_DEBUG === '1') console.log('[mission-issued]', profile.missions[player.cityId]?.active?.attemptId);
         sendToPlayer(playerId, { type: 'missionResult', ok: true, missionId: definition.id, attemptId: profile.missions[player.cityId]?.active?.attemptId });
+        // Existing server ownership counts on the accepted attempt immediately;
+        // no new capture event is required to initialize its checklist/timer.
+        tickMissions(Date.now());
         return;
       }
 

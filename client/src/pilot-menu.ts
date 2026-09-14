@@ -65,7 +65,7 @@ export type PilotMenuData = {
   garage: { available: boolean; reason?: string; open: () => void; setAirportWaypoint: () => void };
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
-  audio: { muted: boolean; toggle: () => void };
+  audio: { muted: boolean; toggle: () => void; levels: { master: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'engine' | 'combat' | 'ui', value: number) => void };
   guide: { open: () => void };
 };
 
@@ -506,6 +506,23 @@ export class PilotMenu {
     if (this.activeSection === 'SETTINGS') {
     const audio = section('Audio');
     audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: data.audio.toggle }));
+    for (const category of ['master', 'engine', 'combat', 'ui'] as const) {
+      const row = document.createElement('label');
+      row.className = 'pilot-menu-audio-row';
+      const title = textElement('span', category.toUpperCase());
+      const value = textElement('output', `${data.audio.levels[category]}%`);
+      const slider = document.createElement('input');
+      slider.type = 'range'; slider.min = '0'; slider.max = '100'; slider.step = '1';
+      slider.value = String(data.audio.levels[category]);
+      slider.setAttribute('aria-label', `${category} volume`);
+      slider.addEventListener('input', () => {
+        const level = Number(slider.value);
+        value.textContent = `${level}%`;
+        data.audio.setLevel(category, level);
+      });
+      row.append(title, slider, value);
+      audio.append(row);
+    }
     content.append(audio);
     const hints = section('Hints');
     hints.append(

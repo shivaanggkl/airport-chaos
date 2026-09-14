@@ -2,6 +2,7 @@
 // spend Credits or grant aircraft entitlements.
 export const ECONOMY_VERSION = 2;
 export const REDSPEAR_PRICE_USD = '$18.99';
+export const aircraftDisplayOrder = Object.freeze(['trainer', 'cargo', 'privateJet', 'fighter']);
 export const aircraftEconomy = Object.freeze({
   trainer: Object.freeze({ access: 'free', credits: 0 }),
   cargo: Object.freeze({ access: 'credits', credits: 12_000 }),

@@ -39,9 +39,14 @@ function resetFlight(attempt: MissionAttempt): void {
 }
 
 export function advanceMission(mission: CityMission, original: MissionAttempt, signal: MissionSignal): MissionStep {
-  const attempt: MissionAttempt = { ...original, completedIds: [...original.completedIds] };
+  const attempt: MissionAttempt = { ...original, completedIds: [...original.completedIds], ownedTerritoryIds: original.ownedTerritoryIds ? [...original.ownedTerritoryIds] : undefined };
   const before = JSON.stringify(attempt);
   const requirements = mission.requirements;
+  const requiredTerritoryIds = requirements.requiredTerritoryIds ?? requirements.territoryIds ?? [];
+  const holdDurationSeconds = requirements.holdDurationSeconds ?? requirements.durationSeconds;
+  if (signal.type === 'tick' && requiredTerritoryIds.length) {
+    attempt.ownedTerritoryIds = requiredTerritoryIds.filter((id) => signal.controlledTerritories.has(id));
+  }
   let completed = false;
   if (signal.type === 'disconnect' || signal.type === 'lostFlight') {
     if (mission.type === 'airborneHold' || mission.type === 'straightDistance' || mission.type === 'stuntPair' || mission.type === 'destinationLanding') resetFlight(attempt);
@@ -102,20 +107,20 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
       break;
     case 'territoryHold':
       if (signal.type === 'tick') {
-        const owned = signal.alive && signal.connected && sameSet(signal.controlledTerritories, requirements.territoryIds ?? []);
+        const owned = signal.alive && signal.connected && sameSet(signal.controlledTerritories, requiredTerritoryIds);
         if (!owned) { attempt.holdStartedAt = undefined; attempt.progress = 0; }
         else {
           attempt.holdStartedAt ??= signal.at;
-          attempt.progress = Math.min(requirements.durationSeconds ?? 0, Math.floor((signal.at - attempt.holdStartedAt) / 1000));
-          completed = attempt.progress >= (requirements.durationSeconds ?? Infinity);
+          attempt.progress = Math.min(holdDurationSeconds ?? 0, Math.floor((signal.at - attempt.holdStartedAt) / 1000));
+          completed = attempt.progress >= (holdDurationSeconds ?? Infinity);
         }
       }
       break;
     case 'territoryOwn':
       if (signal.type === 'tick' && signal.alive && signal.connected) {
-        attempt.completedIds = (requirements.territoryIds ?? []).filter((id) => signal.controlledTerritories.has(id));
+        attempt.completedIds = [...(attempt.ownedTerritoryIds ?? [])];
         attempt.progress = attempt.completedIds.length;
-        completed = sameSet(signal.controlledTerritories, requirements.territoryIds ?? []);
+        completed = sameSet(signal.controlledTerritories, requiredTerritoryIds);
       }
       break;
     case 'event':
@@ -132,21 +137,21 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
       break;
     case 'territorySequence':
       if (signal.type === 'tick' && attempt.completedIds.some((id) => !signal.controlledTerritories.has(id))) { attempt.completedIds = []; attempt.sequenceIndex = 0; attempt.progress = 0; }
-      if (signal.type === 'territoryCapture' && signal.territoryId === requirements.territoryIds?.[attempt.sequenceIndex ?? 0]) {
+      if (signal.type === 'territoryCapture' && signal.territoryId === requiredTerritoryIds[attempt.sequenceIndex ?? 0]) {
         attempt.completedIds.push(signal.territoryId); attempt.sequenceIndex = attempt.completedIds.length; attempt.progress = attempt.sequenceIndex;
-        completed = attempt.sequenceIndex >= (requirements.territoryIds?.length ?? Infinity);
+        completed = attempt.sequenceIndex >= requiredTerritoryIds.length;
       }
       break;
     case 'territoryUniqueKills':
-      if (signal.type === 'tick' && !sameSet(signal.controlledTerritories, requirements.territoryIds ?? [])) { attempt.completedIds = []; attempt.progress = 0; }
-      if (signal.type === 'kill' && signal.valid && sameSet(signal.controlledTerritories, requirements.territoryIds ?? []) && !attempt.completedIds.includes(signal.targetId)) {
+      if (signal.type === 'tick' && !sameSet(signal.controlledTerritories, requiredTerritoryIds)) { attempt.completedIds = []; attempt.progress = 0; }
+      if (signal.type === 'kill' && signal.valid && sameSet(signal.controlledTerritories, requiredTerritoryIds) && !attempt.completedIds.includes(signal.targetId)) {
         attempt.completedIds.push(signal.targetId); attempt.progress = attempt.completedIds.length;
         completed = attempt.progress >= (requirements.uniqueKills ?? Infinity);
       }
       break;
     case 'airportEmpire':
-      if (signal.type === 'tick' && !sameSet(signal.controlledTerritories, requirements.territoryIds ?? [])) { attempt.completedIds = []; attempt.progress = 0; }
-      if (signal.type === 'landing' && sameSet(signal.controlledTerritories, requirements.territoryIds ?? []) && requirements.airportIds?.includes(signal.airportId) && !attempt.completedIds.includes(signal.airportId)) {
+      if (signal.type === 'tick' && !sameSet(signal.controlledTerritories, requiredTerritoryIds)) { attempt.completedIds = []; attempt.progress = 0; }
+      if (signal.type === 'landing' && sameSet(signal.controlledTerritories, requiredTerritoryIds) && requirements.airportIds?.includes(signal.airportId) && !attempt.completedIds.includes(signal.airportId)) {
         attempt.completedIds.push(signal.airportId); attempt.progress = attempt.completedIds.length;
         completed = requirements.airportIds.every((id) => attempt.completedIds.includes(id));
       }

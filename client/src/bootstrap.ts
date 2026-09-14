@@ -4,10 +4,15 @@ import { AircraftGarage, type GarageProfile } from './garage';
 import type { AircraftType } from './aircraft';
 import { flightTutorial } from './tutorial';
 import { mountAirportChaosLogo } from './brand';
+import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
 const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
+const timeOptions = document.querySelector<HTMLElement>('#time-options')!;
+const cityBack = document.querySelector<HTMLButtonElement>('#city-back')!;
+const citySelectTitle = document.querySelector<HTMLElement>('#city-select-title')!;
+const citySelectDescription = document.querySelector<HTMLElement>('#city-select-description')!;
 const citySelectionError = document.querySelector<HTMLElement>('#city-selection-error')!;
 const garageEntry = document.querySelector<HTMLButtonElement>('#garage-entry')!;
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
@@ -20,7 +25,7 @@ function identity(): GarageIdentity {
   try { value = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Partial<GarageIdentity>; } catch { /* use defaults */ }
   const pilotId = typeof value.pilotId === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(value.pilotId)
     ? value.pilotId : (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `pilot-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const displayName = typeof value.displayName === 'string' && value.displayName.trim() ? value.displayName.slice(0, 20) : `Pilot-${Math.floor(100 + Math.random() * 900)}`;
+  const displayName = typeof value.displayName === 'string' && value.displayName.trim() ? value.displayName.slice(0, 20) : 'Pilot';
   const result: GarageIdentity = { pilotId, displayName, credits: typeof value.credits === 'number' ? value.credits : 0, selectedAircraft: value.selectedAircraft ?? 'trainer' };
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...value, version: 1, ...result })); } catch { /* profile fetch will still work for this session */ }
   return result;
@@ -46,10 +51,11 @@ async function loadGarageProfile(): Promise<GarageProfile> {
     profile = await imported.json() as GarageProfile;
   }
   garageProfile = normalizeGarageProfile(profile);
+  garageIdentity.displayName = (profile as GarageProfile & { pilotName?: string }).pilotName ?? garageIdentity.displayName;
   return garageProfile;
 }
 function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
-  const aircraftTypes: AircraftType[] = ['trainer', 'privateJet', 'cargo', 'fighter'];
+  const aircraftTypes = aircraftDisplayOrder;
   const selectedAircraft = aircraftTypes.includes(profile.selectedAircraft) ? profile.selectedAircraft : 'trainer';
   const unlockedAircraft = Array.isArray(profile.unlockedAircraft)
     ? [...new Set(profile.unlockedAircraft.filter((type): type is AircraftType => aircraftTypes.includes(type)))]
@@ -118,11 +124,16 @@ function showSelector(message = ''): void {
   garage.close();
   gameRoot.hidden = true;
   citySelector.hidden = false;
+  cityOptions.hidden = false;
+  timeOptions.hidden = true;
+  cityBack.hidden = true;
+  citySelectTitle.textContent = 'Choose a city';
+  citySelectDescription.textContent = 'Pick a flight sandbox to enter.';
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
 }
 
-async function enterCity(city: CityDefinition): Promise<void> {
+async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day'): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
 
   startModalState = 'NONE';
@@ -131,12 +142,41 @@ async function enterCity(city: CityDefinition): Promise<void> {
   citySelectionError.hidden = true;
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
+  url.searchParams.set('time', city.timePresets.includes(timePreset) ? timePreset : 'day');
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 
   await city.loadWorld();
   await import('./main');
   gameRoot.hidden = false;
 }
+
+function chooseCity(city: CityDefinition): void {
+  if (city.status !== 'available') return;
+  cityOptions.hidden = true;
+  timeOptions.replaceChildren();
+  timeOptions.hidden = false;
+  cityBack.hidden = false;
+  citySelectTitle.textContent = 'Choose time';
+  citySelectDescription.textContent = city.displayName;
+  let preferred = 'day';
+  try { preferred = localStorage.getItem(`airport-chaos-time-${city.id}`) ?? 'day'; } catch { /* default day */ }
+  for (const preset of city.timePresets) {
+    const option = document.createElement('article');
+    option.className = 'city-option';
+    const label = document.createElement('strong');
+    label.textContent = preset.toUpperCase();
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = preset === preferred ? 'Play (preferred)' : 'Play';
+    button.addEventListener('click', () => {
+      try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
+      void enterCity(city, preset);
+    });
+    option.append(label, button);
+    timeOptions.append(option);
+  }
+}
+cityBack.addEventListener('click', () => showSelector());
 
 for (const city of cities) {
   const option = document.createElement('article');
@@ -146,7 +186,7 @@ for (const city of cities) {
   button.type = 'button';
   button.textContent = city.status === 'available' ? 'Play' : 'Coming soon';
   button.disabled = city.status !== 'available';
-  button.addEventListener('click', () => void enterCity(city));
+  button.addEventListener('click', () => chooseCity(city));
   option.append(button);
   cityOptions.append(option);
 }
@@ -154,7 +194,10 @@ for (const city of cities) {
 async function start(): Promise<void> {
   await flightTutorial.firstVisit(garageIdentity.pilotId);
   const requestedCity = activeCityFromUrl();
-  if (requestedCity?.status === 'available') await enterCity(requestedCity);
+  if (requestedCity?.status === 'available') {
+    const requestedTime = new URLSearchParams(window.location.search).get('time');
+    await enterCity(requestedCity, requestedTime === 'dusk' ? 'dusk' : 'day');
+  }
   else showSelector(requestedCity ? `${requestedCity.displayName} is coming soon.` : '');
 }
 void start().catch(() => showSelector('Unable to load this city.'));

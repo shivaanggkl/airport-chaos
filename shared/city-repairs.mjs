@@ -11,12 +11,18 @@ export const cityRepairBeacons = Object.freeze({
     { id: 'white-rock-service', x: 4_900, z: -7_700, radius: 100, maxAltitude: 210 },
     { id: 'north-dallas-service', x: -1_050, z: -15_300, radius: 95, maxAltitude: 200 },
     { id: 'south-industrial-service', x: -10_900, z: 4_650, radius: 95, maxAltitude: 190 },
+    { id: 'outer-northwest-heart', kind: 'heart', x: -23_500, z: -23_000, radius: 115, altitudeAgl: 381 },
+    { id: 'outer-northeast-heart', kind: 'heart', x: 18_000, z: -20_000, radius: 115, altitudeAgl: 381 },
+    { id: 'outer-southeast-heart', kind: 'heart', x: 18_000, z: 18_000, radius: 115, altitudeAgl: 381 },
+    { id: 'outer-southwest-heart', kind: 'heart', x: -21_000, z: 18_000, radius: 115, altitudeAgl: 381 },
   ],
   milwaukee: [
     { id: 'central-service', x: 640, z: 420, radius: 95, maxAltitude: 170 },
     { id: 'coast-service', x: 4_600, z: 3_120, radius: 90, maxAltitude: 170 },
     { id: 'mountain-service', x: -2_900, z: -4_350, radius: 85, maxAltitude: 170 },
     { id: 'countryside-service', x: -3_900, z: 3_300, radius: 85, maxAltitude: 170 },
+    { id: 'west-corridor-heart', kind: 'heart', x: -4_500, z: -3_900, radius: 105, altitudeAgl: 381 },
+    { id: 'east-corridor-heart', kind: 'heart', x: 4_500, z: 3_700, radius: 105, altitudeAgl: 381 },
   ],
 });
 

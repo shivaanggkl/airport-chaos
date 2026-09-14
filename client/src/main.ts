@@ -3,7 +3,7 @@ import { keyboardActionBindings, controlGroups, controlKeyLabel, menuBindings, m
 import { visualLanguage, identityText, targetBracketPath, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
 import { flightTutorial } from './tutorial';
 import './style.css';
-import { AdPlacementManager, attachAircraftLivery, createRingSponsor, eventSponsorFor, getAircraftLivery, sponsorCreative } from './ad-placement';
+import { AdPlacementManager, attachAircraftLivery, createRingSponsor, eventSponsorFor, getAircraftLivery, resolveAdPlacement, sponsorCreative } from './ad-placement';
 import { aircraftDefinitions, aircraftDisplayName, aircraftEffectAnchors, aircraftMuzzleSockets, type AircraftDefinition, type AircraftType } from './aircraft';
 import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
@@ -25,6 +25,7 @@ import { territoriesForCity, type CityTerritory } from '../../shared/city-territ
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
+import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import type {
@@ -46,7 +47,17 @@ if (!activeCity || activeCity.status !== 'available') throw new Error('A playabl
 const cityId = activeCity.id;
 const cityWorld = await activeCity.loadWorld!();
 const { airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = cityWorld;
-const adPlacements = cityWorld.adPlacements ?? [];
+const spawnBrand = activeCity.spawnBrandPlacement;
+const spawnAirport = airports.find((airport) => airport.id === activeCity.spawn.airportId) ?? centralAirport;
+const brandX = spawnBrand ? spawnAirport.x + Math.sin(spawnAirport.heading) * (spawnAirport.spawnOffset - spawnBrand.forwardDistance) : 0;
+const brandZ = spawnBrand ? spawnAirport.z + Math.cos(spawnAirport.heading) * (spawnAirport.spawnOffset - spawnBrand.forwardDistance) : 0;
+const adPlacements = spawnBrand ? [...(cityWorld.adPlacements ?? []), resolveAdPlacement({
+  id: `${cityId}-spawn-brand`, cityId, type: 'SKYBOARD',
+  position: { x: brandX, y: getTerrainHeight(brandX, brandZ) + spawnBrand.clearanceAgl + spawnBrand.height * 0.5, z: brandZ },
+  rotation: { x: 0, y: spawnAirport.heading, z: 0 },
+  size: { x: spawnBrand.width, y: spawnBrand.height, z: 0.5 },
+  campaignId: spawnBrand.campaignId,
+})] : cityWorld.adPlacements ?? [];
 const visualQaMode = localQaEnabled && cityId === 'dallas' && new URLSearchParams(window.location.search).get('visualqa') === '1' && Boolean(cityWorld.visualQaPresets?.length);
 const adDebugMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('addebug') === '1';
 const PLANE_GROUND_Y = 1.2;
@@ -136,7 +147,48 @@ const { obstacleBounds, mountainBounds, waterBounds } = createWorld(scene, depth
 const repairBeaconGroup = new THREE.Group();
 const repairBeaconGeometry = new THREE.TorusGeometry(22, 1.8, 8, 28);
 const repairBeaconMaterial = new THREE.MeshBasicMaterial({ color: visualLanguage.repair.color, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false });
+const repairHeartCanvas = document.createElement('canvas');
+repairHeartCanvas.width = repairHeartCanvas.height = 256;
+const repairHeartContext = repairHeartCanvas.getContext('2d')!;
+repairHeartContext.shadowColor = '#ff5c77';
+repairHeartContext.shadowBlur = 25;
+repairHeartContext.fillStyle = visualLanguage.repairHeart.color;
+repairHeartContext.font = 'bold 200px sans-serif';
+repairHeartContext.textAlign = 'center';
+repairHeartContext.textBaseline = 'middle';
+repairHeartContext.strokeStyle = '#fff0f5';
+repairHeartContext.lineWidth = 6;
+repairHeartContext.strokeText('♥', 128, 134);
+repairHeartContext.fillText('♥', 128, 134);
+const repairHeartMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(repairHeartCanvas), transparent: true, depthWrite: false, toneMapped: false });
+const repairHeartSprites = new Map<string, THREE.Sprite>();
+const repairHeartTimers = new Map<string, number>();
+const repairMapMarkers = repairsForCity(cityId).map((beacon) => ({ ...beacon, cooldownUntil: 0 }));
+const repairMapMarkerById = new Map(repairMapMarkers.map((beacon) => [beacon.id, beacon]));
+function setHeartCooldown(id: string, remainingMs: number): void {
+  const heart = repairHeartSprites.get(id);
+  const marker = repairMapMarkerById.get(id);
+  if (!heart || !marker) return;
+  const oldTimer = repairHeartTimers.get(id);
+  if (oldTimer !== undefined) window.clearTimeout(oldTimer);
+  marker.cooldownUntil = Date.now() + remainingMs;
+  heart.visible = remainingMs <= 0;
+  if (remainingMs > 0) repairHeartTimers.set(id, window.setTimeout(() => {
+    heart.visible = true;
+    marker.cooldownUntil = 0;
+    repairHeartTimers.delete(id);
+  }, remainingMs));
+  else repairHeartTimers.delete(id);
+}
 for (const beacon of repairsForCity(cityId)) {
+  if (beacon.kind === 'heart') {
+    const heart = new THREE.Sprite(repairHeartMaterial);
+    heart.position.set(beacon.x, groundPlaneY(beacon.x, beacon.z) + beacon.altitudeAgl, beacon.z);
+    heart.scale.set(128, 128, 1);
+    repairBeaconGroup.add(heart);
+    repairHeartSprites.set(beacon.id, heart);
+    continue;
+  }
   const ring = new THREE.Mesh(repairBeaconGeometry, repairBeaconMaterial);
   ring.rotation.x = Math.PI * 0.5;
   ring.position.set(beacon.x, groundPlaneY(beacon.x, beacon.z) + 2.5, beacon.z);
@@ -297,7 +349,7 @@ function createPilotId(): string {
 
 function loadPlayerProgress(): PersistedPlayer {
   const fallbackCredits = 0;
-  const fallbackName = `Pilot-${Math.floor(100 + Math.random() * 900)}`;
+  const fallbackName = 'Pilot';
   const fallback: PersistedPlayer = {
     version: 1,
     pilotId: createPilotId(),
@@ -738,6 +790,16 @@ const verticalSpeedElement = document.querySelector<HTMLSpanElement>('#vertical-
 const verticalSpeedIndicator = document.querySelector<HTMLSpanElement>('#vsi-indicator')!;
 const flightStateElement = document.querySelector<HTMLSpanElement>('#flight-state')!;
 const aircraftSelectElement = document.querySelector<HTMLSelectElement>('#aircraft-select')!;
+const aircraftSwitchHintElement = document.querySelector<HTMLElement>('#aircraft-switch-hint')!;
+let aircraftSwitchHintTimer: number | undefined;
+function canSwitchAircraft(): boolean {
+  return onGround && !crashed && currentSpeed <= 8 && Boolean(getAirportAtPosition(airplane.position));
+}
+function showAircraftSwitchHint(): void {
+  aircraftSwitchHintElement.hidden = false;
+  window.clearTimeout(aircraftSwitchHintTimer);
+  aircraftSwitchHintTimer = window.setTimeout(() => { aircraftSwitchHintElement.hidden = true; }, 2_500);
+}
 let aircraftOptionsKey = '';
 let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
@@ -795,6 +857,8 @@ const damageFlashElement = document.querySelector<HTMLDivElement>('#damage-flash
 const healthElement = document.querySelector<HTMLSpanElement>('#health')!;
 const healthRowElement = document.querySelector<HTMLDivElement>('.health-row')!;
 const hullFillElement = document.querySelector<HTMLSpanElement>('#hull-fill')!;
+const repairFeedbackElement = document.querySelector<HTMLSpanElement>('#repair-feedback')!;
+let repairFeedbackTimer = 0;
 const heatRowElement = document.querySelector<HTMLDivElement>('#heat-row')!;
 heatRowElement.firstChild!.textContent = `${identityText('heat').toUpperCase()} `;
 heatRowElement.style.color = visualLanguage.heat.color;
@@ -810,6 +874,7 @@ for (const id of ['radar-legend', 'map-legend']) {
 }
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
+const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
 const activeContractElement = document.querySelector<HTMLDivElement>('#active-contract')!;
 const contractPanelElement = document.querySelector<HTMLElement>('#contract-panel')!;
@@ -843,9 +908,42 @@ if (flightTestMode) flightTestIndicator.classList.remove('hidden');
 
 let audioContext: AudioContext | null = null;
 let audioMaster: GainNode | null = null;
+let audioLimiter: DynamicsCompressorNode | null = null;
+let engineBus: GainNode | null = null;
+let combatBus: GainNode | null = null;
+let uiBus: GainNode | null = null;
 let engineOscillator: OscillatorNode | null = null;
 let engineGain: GainNode | null = null;
 let audioMuted = persistedPlayer.muted;
+type AudioCategory = 'engine' | 'combat' | 'ui';
+type AudioLevels = { master: number; engine: number; combat: number; ui: number };
+const audioLevelsKey = 'airport-chaos-audio-levels-v1';
+const defaultAudioLevels: AudioLevels = { master: 100, engine: 95, combat: 100, ui: 80 };
+function readAudioLevels(): AudioLevels {
+  try {
+    const value = JSON.parse(localStorage.getItem(audioLevelsKey) ?? '{}') as Partial<AudioLevels>;
+    return {
+      master: Number.isFinite(value.master) ? THREE.MathUtils.clamp(value.master!, 0, 100) : defaultAudioLevels.master,
+      engine: Number.isFinite(value.engine) ? THREE.MathUtils.clamp(value.engine!, 0, 100) : defaultAudioLevels.engine,
+      combat: Number.isFinite(value.combat) ? THREE.MathUtils.clamp(value.combat!, 0, 100) : defaultAudioLevels.combat,
+      ui: Number.isFinite(value.ui) ? THREE.MathUtils.clamp(value.ui!, 0, 100) : defaultAudioLevels.ui,
+    };
+  } catch { return { ...defaultAudioLevels }; }
+}
+const audioLevels = readAudioLevels();
+function applyAudioLevels(): void {
+  if (!audioContext) return;
+  const now = audioContext.currentTime;
+  audioMaster?.gain.setTargetAtTime(audioMuted ? 0 : audioLevels.master / 100 * 1.25, now, 0.02);
+  engineBus?.gain.setTargetAtTime(audioLevels.engine / 100, now, 0.02);
+  combatBus?.gain.setTargetAtTime(audioLevels.combat / 100 * 1.05, now, 0.02);
+  uiBus?.gain.setTargetAtTime(audioLevels.ui / 100, now, 0.02);
+}
+function setAudioLevel(category: keyof AudioLevels, value: number): void {
+  audioLevels[category] = THREE.MathUtils.clamp(Math.round(value), 0, 100);
+  try { localStorage.setItem(audioLevelsKey, JSON.stringify(audioLevels)); } catch { /* Optional local preference. */ }
+  applyAudioLevels();
+}
 let progressSaveTimer: number | undefined;
 audioToggleElement.textContent = audioMuted ? 'Unmute' : 'Mute';
 audioToggleElement.setAttribute('aria-pressed', String(audioMuted));
@@ -926,8 +1024,20 @@ function activateAudio(): void {
   if (!audioContext) {
     audioContext = new AudioContext();
     audioMaster = audioContext.createGain();
-    audioMaster.gain.value = audioMuted ? 0 : 1;
-    audioMaster.connect(audioContext.destination);
+    audioLimiter = audioContext.createDynamicsCompressor();
+    audioLimiter.threshold.value = -12;
+    audioLimiter.knee.value = 8;
+    audioLimiter.ratio.value = 12;
+    audioLimiter.attack.value = 0.003;
+    audioLimiter.release.value = 0.16;
+    audioMaster.connect(audioLimiter).connect(audioContext.destination);
+    engineBus = audioContext.createGain();
+    combatBus = audioContext.createGain();
+    uiBus = audioContext.createGain();
+    engineBus.connect(audioMaster);
+    combatBus.connect(audioMaster);
+    uiBus.connect(audioMaster);
+    applyAudioLevels();
 
     engineOscillator = audioContext.createOscillator();
     engineOscillator.type = 'sawtooth';
@@ -936,7 +1046,7 @@ function activateAudio(): void {
     engineFilter.frequency.value = 180;
     engineGain = audioContext.createGain();
     engineGain.gain.value = 0.0001;
-    engineOscillator.connect(engineFilter).connect(engineGain).connect(audioMaster);
+    engineOscillator.connect(engineFilter).connect(engineGain).connect(engineBus);
     engineOscillator.start();
     audioToggleElement.dataset.active = 'true';
   }
@@ -951,6 +1061,7 @@ function playTone(
   volume: number,
   endFrequency = frequency,
   delay = 0,
+  category: AudioCategory = 'ui',
 ): void {
   if (!audioContext || !audioMaster || audioMuted || audioContext.state !== 'running') return;
   const start = audioContext.currentTime + delay;
@@ -962,9 +1073,10 @@ function playTone(
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(gain).connect(audioMaster);
+  oscillator.connect(gain).connect(category === 'combat' ? combatBus! : category === 'engine' ? engineBus! : uiBus!);
   oscillator.start(start);
   oscillator.stop(start + duration + 0.02);
+  oscillator.addEventListener('ended', () => { oscillator.disconnect(); gain.disconnect(); }, { once: true });
 }
 
 function playCheckpointSound(): void {
@@ -973,22 +1085,22 @@ function playCheckpointSound(): void {
 }
 
 function playNearMissSound(): void {
-  playTone(260, 0.24, 'sawtooth', 0.06, 820);
+  playTone(260, 0.24, 'sawtooth', 0.06, 820, 0, 'combat');
 }
 
 function playFireSound(): void {
-  playTone(150, 0.075, 'sawtooth', 0.06, 68);
-  playTone(360, 0.045, 'square', 0.028, 145);
+  playTone(150, 0.075, 'sawtooth', 0.06, 68, 0, 'combat');
+  playTone(360, 0.045, 'square', 0.028, 145, 0, 'combat');
 }
 
 function playHitSound(): void {
-  playTone(1100, 0.09, 'square', 0.065, 640);
-  playTone(240, 0.08, 'sawtooth', 0.035, 110);
+  playTone(1100, 0.09, 'square', 0.065, 640, 0, 'combat');
+  playTone(240, 0.08, 'sawtooth', 0.035, 110, 0, 'combat');
 }
 
 function playDestructionSound(): void {
-  playTone(145, 0.34, 'sawtooth', 0.075, 42);
-  playTone(72, 0.5, 'triangle', 0.055, 35, 0.06);
+  playTone(145, 0.27, 'sawtooth', 0.092, 42, 0, 'combat');
+  playTone(72, 0.44, 'triangle', 0.068, 35, 0.04, 'combat');
 }
 
 type EndReason = 'CRASHED' | 'TIME UP' | 'MID-AIR COLLISION' | 'DESTROYED';
@@ -999,11 +1111,11 @@ function playEndSound(message: EndReason): void {
     playTone(280, 0.24, 'square', 0.05, 150, 0.18);
     return;
   }
-  if (message === 'DESTROYED') {
+  if (message === 'DESTROYED' || message === 'MID-AIR COLLISION') {
     playDestructionSound();
     return;
   }
-  playTone(message === 'MID-AIR COLLISION' ? 150 : 120, 0.42, 'sawtooth', 0.075, 48);
+  playTone(120, 0.42, 'sawtooth', 0.075, 48, 0, 'combat');
 }
 
 function playLeaderSound(): void {
@@ -1018,7 +1130,7 @@ function updateEngineAudio(): void {
   const speedAmount = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   const engineAmount = Math.max(speedAmount, throttle * 0.72) + boostVisualStrength * 0.12;
   engineOscillator.frequency.setTargetAtTime(55 + engineAmount * 75, now, 0.08);
-  engineGain.gain.setTargetAtTime(crashed ? 0.0001 : 0.006 + engineAmount * 0.02, now, 0.1);
+  engineGain.gain.setTargetAtTime(crashed ? 0.0001 : (0.006 + engineAmount * 0.02) * (boostVisualStrength > 0.1 ? 1 + boostVisualStrength * 0.35 : 1), now, 0.1);
 }
 
 window.addEventListener('pointerdown', activateAudio);
@@ -1026,9 +1138,7 @@ window.addEventListener('keydown', activateAudio);
 audioToggleElement.addEventListener('click', () => {
   activateAudio();
   audioMuted = !audioMuted;
-  if (audioContext && audioMaster) {
-    audioMaster.gain.setTargetAtTime(audioMuted ? 0 : 1, audioContext.currentTime, 0.02);
-  }
+  applyAudioLevels();
   audioToggleElement.textContent = audioMuted ? 'Unmute' : 'Mute';
   audioToggleElement.setAttribute('aria-pressed', String(audioMuted));
   savePlayerProgress(true);
@@ -1198,7 +1308,7 @@ function drawRadarMarker(
   direction: THREE.Vector3,
   targetX: number,
   targetZ: number,
-  kind: 'airport' | 'player' | 'ai' | 'ambient' | 'event' | 'wanted' | 'challenge' | 'waypoint' | 'repair',
+  kind: 'airport' | 'player' | 'ai' | 'ambient' | 'event' | 'wanted' | 'challenge' | 'waypoint' | 'repair' | 'repairHeart',
   label = '',
   king = false,
   hot = false,
@@ -1213,7 +1323,7 @@ function drawRadarMarker(
   const distance = Math.hypot(offsetX, offsetZ);
   // Connected humans remain trackable at any distance and pin to the radar
   // edge. Other world entities keep their existing local-range filtering.
-  if ((kind === 'ai' || kind === 'ambient' || kind === 'challenge' || kind === 'repair') && distance > (kind === 'ai' && hot ? radarRange * 2 : radarRange)) return;
+  if ((kind === 'ai' || kind === 'ambient' || kind === 'challenge' || kind === 'repair' || kind === 'repairHeart') && distance > (kind === 'ai' && hot ? radarRange * 2 : radarRange)) return;
 
   const rightX = -direction.z;
   const rightZ = direction.x;
@@ -1269,6 +1379,13 @@ function drawRadarMarker(
     return;
   }
 
+  if (kind === 'repairHeart') {
+    radarContext.fillStyle = visualLanguage.repairHeart.color;
+    radarContext.font = 'bold 16px sans-serif';
+    radarContext.textAlign = 'center';
+    radarContext.fillText('♥', x, y + 5);
+    return;
+  }
   if (kind === 'repair' || kind === 'ai') {
     radarContext.save();
     radarContext.translate(x, y);
@@ -1360,7 +1477,7 @@ function updateRadar(direction: THREE.Vector3): void {
     drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
   }
   for (const beacon of repairsForCity(cityId)) {
-    drawRadarMarker(direction, beacon.x, beacon.z, 'repair');
+    drawRadarMarker(direction, beacon.x, beacon.z, beacon.kind === 'heart' ? 'repairHeart' : 'repair');
   }
   // Human radar presence comes from the authoritative same-city roster, not
   // the optional 3D remote-aircraft lifecycle. Last-known positions remain
@@ -1761,7 +1878,8 @@ function updateCaptureHud(): void {
   }) : undefined;
   territoryCaptureElement.classList.toggle('hidden', !capturing);
   if (capturing) {
-    const text = `${capturing.displayName.toUpperCase()} · CAPTURING ${Math.min(100, Math.max(0, territoryState.get(capturing.id)?.captureProgress ?? 0))}%`;
+    const state = territoryState.get(capturing.id);
+    const text = `${capturing.displayName.toUpperCase()} · CAPTURING ${Math.min(100, Math.max(0, state?.captureProgress ?? 0))}%${state?.defenderBotId ? '\n⚠ DEFENDER INBOUND' : ''}`;
     if (territoryCaptureElement.textContent !== text) territoryCaptureElement.textContent = text;
   }
 }
@@ -2242,8 +2360,9 @@ function updateAircraftOptions(): void {
     aircraftSelectElement.value = aircraftType;
     showProgressMessage('AIRCRAFT SWITCH NOT CONFIRMED — TRY AGAIN');
   }
-  const switchingAllowed = onGround && !crashed && currentSpeed <= 8 && Boolean(getAirportAtPosition(airplane.position));
-  const disabled = !switchingAllowed || Boolean(pendingEquip) || (!flightTestMode && (!profileHydrated || !connectionReady()));
+  const switchingAllowed = canSwitchAircraft();
+  const disabled = crashed || Boolean(pendingEquip) || (!flightTestMode && (!profileHydrated || !connectionReady()));
+  if (switchingAllowed && !aircraftSwitchHintElement.hidden) aircraftSwitchHintElement.hidden = true;
   const title = pendingEquip ? 'SWITCHING AIRCRAFT…' : !switchingAllowed ? 'STOP AT AN AIRPORT TO CHANGE AIRCRAFT' : '';
   if (aircraftSelectElement.disabled !== disabled) aircraftSelectElement.disabled = disabled;
   if (aircraftSelectElement.title !== title) aircraftSelectElement.title = title;
@@ -2449,9 +2568,9 @@ function applyServerSelectedAircraft(nextType: AircraftType): void {
 function selectAircraft(nextType: AircraftType): void {
   if (pendingEquip) { updateAircraftOptions(); return; }
   if (nextType === aircraftType) return;
-  if (!onGround || crashed || currentSpeed > 8 || !getAirportAtPosition(airplane.position)) {
+  if (!canSwitchAircraft()) {
     aircraftSelectElement.value = aircraftType;
-    showProgressMessage('STOP AT AN AIRPORT TO CHANGE AIRCRAFT');
+    showAircraftSwitchHint();
     return;
   }
   if (flightTestMode) {
@@ -2479,6 +2598,16 @@ function selectAircraft(nextType: AircraftType): void {
 
 aircraftSelectElement.addEventListener('change', () => {
   if (isAircraftType(aircraftSelectElement.value)) selectAircraft(aircraftSelectElement.value);
+});
+aircraftSelectElement.addEventListener('pointerdown', (event) => {
+  if (canSwitchAircraft()) return;
+  event.preventDefault();
+  showAircraftSwitchHint();
+});
+aircraftSelectElement.addEventListener('keydown', (event) => {
+  if (canSwitchAircraft()) return;
+  event.preventDefault();
+  showAircraftSwitchHint();
 });
 
 const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
@@ -2516,7 +2645,7 @@ function openGarage(): boolean {
 garageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
-type StuntManeuver = { kind: 'barrelRoll' | 'quickDodge'; direction: 1 | -1; elapsed: number; duration: number };
+type StuntManeuver = { kind: 'barrelRoll' | 'quickDodge'; direction: 1 | -1; elapsed: number; duration: number; sideX?: number; sideZ?: number; lateralDistance?: number };
 let activeStuntManeuver: StuntManeuver | null = null;
 let stuntCooldown = 0;
 function tryStartStunt(): void {
@@ -2531,6 +2660,8 @@ function tryStartStunt(): void {
     activeStuntManeuver = {
       kind: 'barrelRoll', direction: rollDirection as 1 | -1, elapsed: 0,
       duration: 3 * Math.PI / (2.2 * currentAircraft.rollRate),
+      sideX: Math.cos(heading), sideZ: -Math.sin(heading),
+      lateralDistance: THREE.MathUtils.clamp(45 + currentAircraft.rollRate * 22 - currentAircraft.inertia * 4, 45, 115),
     };
     rollControlStrength = 0;
   } else if (Math.abs(yawDirection) === 1) {
@@ -2755,7 +2886,7 @@ type NetworkSocialState = { kingPlayerId?: string };
 type NetworkObjectiveItem = { id: string; label: string; activity: string; target: number; progress: number; reward: number; completed: boolean; rewarded: boolean };
 type NetworkObjectiveCycle = { dailyId: string; weeklyId: string; daily: NetworkObjectiveItem[]; weekly: NetworkObjectiveItem[]; dailyBonusAwarded: boolean; weeklyBonusAwarded: boolean };
 type NetworkMastery = { xp: number; level: number; unlockedRewards: string[] };
-type NetworkMissionAttempt = { missionId: string; attemptId: string; startedAt: number; updatedAt: number; progress: number; holdStartedAt?: number; flightStartedAt?: number; heading?: number; distanceMeters?: number; completedIds: string[]; targetId?: string; eventId?: string; sequenceIndex?: number; challengeEndsAt?: number };
+type NetworkMissionAttempt = { missionId: string; attemptId: string; startedAt: number; updatedAt: number; progress: number; holdStartedAt?: number; flightStartedAt?: number; heading?: number; distanceMeters?: number; completedIds: string[]; ownedTerritoryIds?: string[]; targetId?: string; eventId?: string; sequenceIndex?: number; challengeEndsAt?: number };
 type NetworkMissionCityState = { active?: NetworkMissionAttempt; completions: Record<string, { count: number; lastCompletedAt: number }> };
 type NetworkWeeklyLeaderboard = { category: string; weekId: string; top: Array<{ pilotId: string; pilotName: string; value: number }>; localRank?: number };
 type NetworkTerritoryState = {
@@ -2763,6 +2894,7 @@ type NetworkTerritoryState = {
   controllerId?: string;
   controllerName?: string;
   capturingPlayerId?: string;
+  defenderBotId?: string;
   captureProgress: number;
   contested: boolean;
 };
@@ -2806,6 +2938,7 @@ type ServerMessage =
       heatStates?: NetworkHeatState[];
       territories?: NetworkTerritoryState[];
       weeklyLeaderboards?: NetworkWeeklyLeaderboard[];
+      repairCooldowns?: Array<{ id: string; remainingMs: number }>;
       profile: NetworkProfile;
     }
   | { type: 'protocolMismatch'; expectedProtocolVersion: number }
@@ -2859,7 +2992,7 @@ type ServerMessage =
   | { type: 'challengeComplete'; challengeId: string; score: number; credits: number }
   | { type: 'projectileRemove'; projectileId: string }
   | { type: 'damage'; playerId: string; shooterId: string; health: number; maxHealth: number; damage: number }
-  | { type: 'repair'; playerId: string; sourceId: string; full: boolean; health: number; maxHealth: number }
+  | { type: 'repair'; playerId: string; sourceId: string; full: boolean; health: number; maxHealth: number; cooldownMs?: number }
   | {
       type: 'destroyed';
       playerId: string;
@@ -3191,9 +3324,14 @@ type DestructionEffect = {
   group: THREE.Group;
   flash: THREE.Mesh;
   flashMaterial: THREE.MeshBasicMaterial;
+  fire: THREE.Mesh;
+  fireMaterial: THREE.MeshBasicMaterial;
+  smoke: THREE.Mesh;
+  smokeMaterial: THREE.MeshBasicMaterial;
   debrisMaterial: THREE.MeshBasicMaterial;
   debris: Array<{ mesh: THREE.Mesh; velocity: THREE.Vector3 }>;
   elapsed: number;
+  scale: number;
 };
 
 const remotePlayers = new Map<string, RemotePlayer>();
@@ -3262,11 +3400,17 @@ const lockCameraRight = new THREE.Vector3();
 const lockProjectedCenter = new THREE.Vector3();
 const lockProjectedEdge = new THREE.Vector3();
 const lockTargetProjected = new THREE.Vector3();
+const outOfRangeLocalOffset = new THREE.Vector3();
 let lockCircleCenterX = window.innerWidth * 0.5;
 let lockCircleCenterY = window.innerHeight * 0.5;
 let lockCircleRadius = 90;
 type CombatLockState = 'SEARCHING' | 'LOCKED';
 let selectedCombatTarget: { remote: RemotePlayer; distance: number; locked: boolean } | null = null;
+let rangeFeedbackTargetId: string | null = null;
+let rangeFeedbackWasInRange = false;
+let rangeFeedbackTransition: 'in' | 'out' | null = null;
+let rangeFeedbackTransitionUntil = 0;
+let rangeFeedbackRenderedAt = -Infinity;
 let lockedTargetId: string | null = null;
 let serverLockedTargetId: string | null = null;
 let localHeat = 0;
@@ -3379,7 +3523,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
         contested: state?.contested ?? false,
       };
     }),
-    repairs: repairsForCity(cityId),
+    repairs: repairMapMarkers,
   });
 }
 
@@ -3656,26 +3800,28 @@ function localPilotLifecycle(): string {
 function missionRequirements(definition: CityMission): readonly string[] {
   return definition.requirements.allCityTerritories
     ? territoryDefinitions.map((item) => item.id)
-    : definition.requirements.territoryIds ?? [];
+    : definition.requirements.requiredTerritoryIds ?? definition.requirements.territoryIds ?? [];
 }
 
 function missionProgress(definition: CityMission, attempt: NetworkMissionAttempt): { text: string; value: number; target: number } {
   const requirements = definition.requirements;
   const territoryIds = missionRequirements(definition);
+  const ownedIds = attempt.ownedTerritoryIds ?? territoryIds.filter((id) => territoryState.get(id)?.controllerId === localPlayerId);
   if (definition.type === 'territoryHold') {
     const places = territoryIds.map((id) => `${territoryState.get(id)?.controllerId === localPlayerId ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`);
-    return { text: `${places.join(' · ')} · Hold ${Math.floor(attempt.progress / 60)}:${String(attempt.progress % 60).padStart(2, '0')} / ${Math.floor((requirements.durationSeconds ?? 0) / 60)}:00`, value: attempt.progress, target: requirements.durationSeconds ?? 1 };
+    const duration = requirements.holdDurationSeconds ?? requirements.durationSeconds ?? 0;
+    return { text: `${places.join(' · ')}\nOWNED ${ownedIds.length} / ${territoryIds.length}\nHOLD ${Math.floor(attempt.progress / 60)}:${String(attempt.progress % 60).padStart(2, '0')} / ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`, value: attempt.progress, target: duration || 1 };
   }
   if (definition.type === 'airborneHold') return { text: `Airborne ${Math.floor(attempt.progress)} / ${requirements.durationSeconds ?? 60} seconds`, value: attempt.progress, target: requirements.durationSeconds ?? 60 };
   if (definition.type === 'straightDistance') return { text: `${((attempt.distanceMeters ?? 0) / 1000).toFixed(1)} / ${((requirements.meters ?? 0) / 1000).toFixed(0)} km straight`, value: attempt.progress, target: requirements.meters ?? 1 };
   if (definition.type === 'airportLandings' || definition.type === 'airportEmpire') {
     const names = (requirements.airportIds ?? []).map((id) => `${attempt.completedIds.includes(id) ? '✓' : '○'} ${airports.find((airport) => airport.id === id)?.name ?? id}`);
-    const ownership = definition.type === 'airportEmpire' ? `Own: ${territoryIds.map((id) => `${territoryState.get(id)?.controllerId === localPlayerId ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`).join(' · ')} · ` : '';
+    const ownership = definition.type === 'airportEmpire' ? `OWNED ${ownedIds.length} / ${territoryIds.length}\n${territoryIds.map((id) => `${territoryState.get(id)?.controllerId === localPlayerId ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`).join(' · ')}\n` : '';
     return { text: `${ownership}Land: ${names.join(' · ')}`, value: attempt.progress, target: requirements.airportIds?.length ?? 1 };
   }
   if (definition.type === 'territoryOwn' || definition.type === 'territorySequence') {
     const checklist = territoryIds.map((id) => `${(definition.type === 'territorySequence' ? attempt.completedIds.includes(id) : territoryState.get(id)?.controllerId === localPlayerId) ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`);
-    return { text: checklist.join(' · '), value: attempt.progress, target: territoryIds.length || 1 };
+    return { text: `OWNED ${ownedIds.length} / ${territoryIds.length}\n${checklist.join(' · ')}`, value: attempt.progress, target: territoryIds.length || 1 };
   }
   if (definition.type === 'stuntPair') return { text: `${attempt.completedIds.includes('barrelRoll') ? '✓' : '○'} Barrel Roll · ${attempt.completedIds.includes('quickDodge') ? '✓' : '○'} Quick Dodge`, value: attempt.progress, target: 2 };
   if (definition.type === 'challenge') {
@@ -3703,7 +3849,7 @@ function missionProgress(definition: CityMission, attempt: NetworkMissionAttempt
     const passed = Math.min(gates, Math.floor(event.rankings.find((entry) => entry.playerId === localPlayerId)?.progress ?? 0));
     return { text: `GOLD GATES ${passed}/${gates} · ${seconds}s left`, value: passed, target: gates || 1 };
   }
-  if (definition.type === 'territoryUniqueKills') return { text: `${attempt.completedIds.length} / ${requirements.uniqueKills ?? 3} different pilots while controlling ${territoryDefinitions.find((item) => item.id === territoryIds[0])?.displayName ?? 'the area'}`, value: attempt.progress, target: requirements.uniqueKills ?? 3 };
+  if (definition.type === 'territoryUniqueKills') return { text: `OWNED ${ownedIds.length} / ${territoryIds.length}\n${attempt.completedIds.length} / ${requirements.uniqueKills ?? 3} different pilots while controlling ${territoryDefinitions.find((item) => item.id === territoryIds[0])?.displayName ?? 'the area'}`, value: attempt.progress, target: requirements.uniqueKills ?? 3 };
   if (definition.type === 'precisionLanding') {
     const guidance = landingAssistActive ? ` · SPEED ${landingStatus.speedSafe ? 'GOOD' : 'TOO FAST'} · DESCENT ${landingStatus.descentSafe ? 'GOOD' : 'TOO HARD'} · LEVEL ${landingStatus.bankSafe ? 'GOOD' : 'WINGS'}` : '';
     return { text: `Land smoothly at ${airports.find((item) => item.id === requirements.airportId)?.name ?? 'the marked airport'}${guidance}`, value: attempt.progress, target: requirements.minimumScore ?? 1 };
@@ -3992,7 +4138,7 @@ function pilotMenuData(): PilotMenuData {
     },
     progression: {
       credits, score,
-      aircraft: (['trainer', 'cargo', 'privateJet', 'fighter'] as const).map((type) => ({
+      aircraft: aircraftDisplayOrder.map((type) => ({
         name: aircraftDefinitions[type].callsign,
         owned: flightTestMode || serverProfile.unlockedAircraft.includes(type),
         premium: aircraftDefinitions[type].access === 'premium',
@@ -4040,7 +4186,7 @@ function pilotMenuData(): PilotMenuData {
         savePlayerProgress();
       },
     },
-    audio: { muted: audioMuted, toggle: () => audioToggleElement.click() },
+    audio: { muted: audioMuted, toggle: () => audioToggleElement.click(), levels: audioLevels, setLevel: setAudioLevel },
     guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); } },
   };
 }
@@ -4200,6 +4346,8 @@ const maxFlashEffects = 12;
 const destructionFlashGeometry = new THREE.SphereGeometry(1, 10, 7);
 const destructionDebrisGeometry = new THREE.BoxGeometry(1, 1, 1);
 const destructionEffects: DestructionEffect[] = [];
+const destructionEffectPool: DestructionEffect[] = [];
+const recentDestructionIds = new Map<string, number>();
 const remoteEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const projectileDirection = new THREE.Vector3();
 const projectileOrigin = new THREE.Vector3();
@@ -4652,10 +4800,35 @@ function updateProjectiles(delta: number): void {
   }
 }
 
-function createDestructionEffect(position: THREE.Vector3): void {
+function createDestructionEffect(position: THREE.Vector3, type: AircraftType): void {
   if (destructionEffects.length >= 6) {
     const oldest = destructionEffects.shift();
-    if (oldest) disposeDestructionEffect(oldest);
+    if (oldest) recycleDestructionEffect(oldest);
+  }
+  let effect = destructionEffectPool.pop();
+  if (effect) {
+    effect.group.position.copy(position);
+    effect.group.visible = true;
+    effect.elapsed = 0;
+    effect.scale = type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9;
+    effect.flashMaterial.opacity = 0.98;
+    effect.fireMaterial.opacity = 0.8;
+    effect.fireMaterial.color.setHex(type === 'fighter' ? 0xff4b19 : 0xff7925);
+    effect.smokeMaterial.opacity = 0.42;
+    effect.debrisMaterial.opacity = 0.9;
+    effect.flash.scale.setScalar(1.4 * effect.scale);
+    effect.fire.scale.setScalar(2.4 * effect.scale);
+    effect.smoke.scale.setScalar(2 * effect.scale);
+    for (let index = 0; index < effect.debris.length; index += 1) {
+      const piece = effect.debris[index];
+      const angle = index / effect.debris.length * Math.PI * 2;
+      piece.mesh.position.set(0, 0, 0);
+      piece.mesh.rotation.set(0, 0, 0);
+      piece.velocity.set(Math.cos(angle) * (5 + index % 3), 2.5 + index % 4, Math.sin(angle) * (5 + index % 3));
+    }
+    scene.add(effect.group);
+    destructionEffects.push(effect);
+    return;
   }
   const group = new THREE.Group();
   group.position.copy(position);
@@ -4667,9 +4840,17 @@ function createDestructionEffect(position: THREE.Vector3): void {
     depthWrite: false,
   });
   const debrisMaterial = new THREE.MeshBasicMaterial({ color: 0xff6338, transparent: true, opacity: 0.92 });
+  const fireMaterial = new THREE.MeshBasicMaterial({ color: type === 'fighter' ? 0xff4b19 : 0xff7925, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
+  const smokeMaterial = new THREE.MeshBasicMaterial({ color: 0x242932, transparent: true, opacity: 0.42, depthWrite: false });
   const flash = new THREE.Mesh(destructionFlashGeometry, flashMaterial);
-  flash.scale.setScalar(1.3);
+  const fire = new THREE.Mesh(destructionFlashGeometry, fireMaterial);
+  const smoke = new THREE.Mesh(destructionFlashGeometry, smokeMaterial);
+  const scale = type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9;
+  flash.scale.setScalar(1.4 * scale);
+  fire.scale.setScalar(2.4 * scale);
+  smoke.scale.setScalar(2 * scale);
   group.add(flash);
+  group.add(fire, smoke);
   const debris: DestructionEffect['debris'] = [];
   for (let index = 0; index < 8; index += 1) {
     const angle = index / 8 * Math.PI * 2;
@@ -4682,13 +4863,12 @@ function createDestructionEffect(position: THREE.Vector3): void {
     });
   }
   scene.add(group);
-  destructionEffects.push({ group, flash, flashMaterial, debrisMaterial, debris, elapsed: 0 });
+  destructionEffects.push({ group, flash, flashMaterial, fire, fireMaterial, smoke, smokeMaterial, debrisMaterial, debris, elapsed: 0, scale });
 }
 
-function disposeDestructionEffect(effect: DestructionEffect): void {
+function recycleDestructionEffect(effect: DestructionEffect): void {
   scene.remove(effect.group);
-  effect.flashMaterial.dispose();
-  effect.debrisMaterial.dispose();
+  destructionEffectPool.push(effect);
 }
 
 function updateDestructionEffects(delta: number): void {
@@ -4696,9 +4876,13 @@ function updateDestructionEffects(delta: number): void {
     const effect = destructionEffects[effectIndex];
     effect.elapsed += delta;
     const progress = effect.elapsed / 1.2;
-    effect.flash.scale.setScalar(1.3 + progress * 10);
-    effect.flashMaterial.opacity = Math.max(0, 0.9 * (1 - progress));
-    effect.debrisMaterial.opacity = Math.max(0, 0.92 * (1 - progress));
+    effect.flash.scale.setScalar(effect.scale * (1.4 + progress * 8));
+    effect.fire.scale.setScalar(effect.scale * (2.4 + progress * 13));
+    effect.smoke.scale.setScalar(effect.scale * (2 + progress * 17));
+    effect.flashMaterial.opacity = Math.max(0, 0.98 * (1 - progress * 3));
+    effect.fireMaterial.opacity = Math.max(0, 0.8 * (1 - progress * 1.5));
+    effect.smokeMaterial.opacity = Math.max(0, 0.42 * Math.sin(Math.PI * progress));
+    effect.debrisMaterial.opacity = Math.max(0, 0.9 * (1 - progress));
     for (const piece of effect.debris) {
       piece.mesh.position.addScaledVector(piece.velocity, delta);
       piece.velocity.y -= delta * 7;
@@ -4706,7 +4890,7 @@ function updateDestructionEffects(delta: number): void {
       piece.mesh.rotation.z += delta * 5;
     }
     if (effect.elapsed < 1.2) continue;
-    disposeDestructionEffect(effect);
+    recycleDestructionEffect(effect);
     destructionEffects.splice(effectIndex, 1);
   }
 }
@@ -4976,8 +5160,12 @@ function updateLockCircle(): void {
   acquisitionCircleElement.style.left = `${Math.round(centerX)}px`;
   acquisitionCircleElement.style.top = `${Math.round(centerY)}px`;
   acquisitionCircleElement.style.visibility = lockProjectedCenter.z >= -1 && lockProjectedCenter.z <= 1 ? '' : 'hidden';
-  targetFeedbackElement.style.left = `${Math.round(centerX)}px`;
-  targetFeedbackElement.style.top = `${Math.round(centerY + derivedRadius + 9)}px`;
+  const feedbackBelow = centerY + derivedRadius + 28;
+  const feedbackAbove = feedbackBelow + 42 > window.innerHeight;
+  targetFeedbackElement.classList.toggle('above', feedbackAbove);
+  targetFeedbackElement.style.left = `${Math.round(THREE.MathUtils.clamp(centerX, 82, Math.max(82, window.innerWidth - 82)))}px`;
+  targetFeedbackElement.style.top = `${Math.round(feedbackAbove ? centerY - derivedRadius - 28 : feedbackBelow)}px`;
+  targetFeedbackElement.style.visibility = lockProjectedCenter.z >= -1 && lockProjectedCenter.z <= 1 ? '' : 'hidden';
 }
 
 function clearCombatTarget(): void {
@@ -4993,8 +5181,44 @@ function clearCombatTarget(): void {
   requestedLockTargetId = null;
   lockValidationElapsed = Number.POSITIVE_INFINITY;
   targetFeedbackElement.classList.add('hidden');
-  targetFeedbackElement.classList.remove('locked');
+  targetFeedbackElement.classList.remove('locked', 'out-of-range', 'in-range');
+  rangeFeedbackTargetId = null;
+  rangeFeedbackTransition = null;
   for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
+}
+
+function showTargetRangeFeedback(remote: RemotePlayer | null, distance: number, inRange: boolean, locked: boolean): void {
+  if (!remote) {
+    rangeFeedbackTargetId = null;
+    rangeFeedbackTransition = null;
+    targetFeedbackElement.classList.add('hidden');
+    targetFeedbackElement.classList.remove('locked', 'out-of-range', 'in-range');
+    return;
+  }
+  const now = performance.now();
+  if (remote.playerId === rangeFeedbackTargetId && inRange !== rangeFeedbackWasInRange) {
+    rangeFeedbackTransition = inRange ? 'in' : 'out';
+    rangeFeedbackTransitionUntil = now + 850;
+    rangeFeedbackRenderedAt = -Infinity;
+  } else if (remote.playerId !== rangeFeedbackTargetId) {
+    rangeFeedbackTransition = null;
+    rangeFeedbackRenderedAt = -Infinity;
+  }
+  rangeFeedbackTargetId = remote.playerId;
+  rangeFeedbackWasInRange = inRange;
+  const transition = rangeFeedbackTransition && now < rangeFeedbackTransitionUntil ? rangeFeedbackTransition : null;
+  if (now - rangeFeedbackRenderedAt < 100) return;
+  rangeFeedbackRenderedAt = now;
+  const label = remote.isBot ? 'AI PILOT' : remote.displayName;
+  const distanceText = distance < 1_000 ? `${Math.round(distance / 10) * 10} M` : `${(distance / 1_000).toFixed(1)} KM`;
+  const status = !inRange ? transition === 'out' ? 'OUT OF RANGE' : 'GET CLOSER'
+    : transition === 'in' ? 'IN RANGE' : locked ? 'LOCKED' : '';
+  if (targetNameDistanceElement.textContent !== `${distanceText} · ${label}`) targetNameDistanceElement.textContent = `${distanceText} · ${label}`;
+  if (targetRangeElement.textContent !== status) targetRangeElement.textContent = status;
+  targetFeedbackElement.classList.remove('hidden');
+  targetFeedbackElement.classList.toggle('locked', locked && !transition);
+  targetFeedbackElement.classList.toggle('out-of-range', !inRange);
+  targetFeedbackElement.classList.toggle('in-range', transition === 'in');
 }
 
 function validateServerLock(targetId: string | null, delta: number): void {
@@ -5037,11 +5261,25 @@ function updateCombatTarget(delta = 0): void {
   let candidateAngle = Number.POSITIVE_INFINITY;
   let candidateScore = Number.POSITIVE_INFINITY;
   let serverCandidate: RemotePlayer | null = null;
+  let outOfRangeCandidate: RemotePlayer | null = null;
+  let outOfRangeDistance = Number.POSITIVE_INFINITY;
+  let outOfRangeScore = Number.POSITIVE_INFINITY;
   for (const remote of remotePlayers.values()) {
     if (remote.cityId !== cityId || remote.entityType !== 'player' || remote.timeSinceUpdate > 0.5 || remote.lifeState !== 'alive' || !remote.plane.visible || !entityCapabilities(remote.entityType).targetable) continue;
+    if (!remote.isBot && cityHumanRoster.get(remote.playerId)?.status === 'spawnSafe') continue;
     combatOffset.copy(remote.plane.position).sub(airplane.position);
     const distance = combatOffset.length();
-    if (distance < 0.000001 || distance > COMBAT_RANGE) continue;
+    if (distance < 0.000001) continue;
+    if (distance > COMBAT_RANGE) {
+      if (distance > COMBAT_RANGE * 2) continue;
+      outOfRangeLocalOffset.copy(combatOffset).applyQuaternion(combatInverseQuaternion);
+      if (!insideDynamicLock(outOfRangeLocalOffset.x, outOfRangeLocalOffset.y, outOfRangeLocalOffset.z, visualAim)) continue;
+      const aimCosine = THREE.MathUtils.clamp((outOfRangeLocalOffset.x * visualAim.x + outOfRangeLocalOffset.y * visualAim.y - outOfRangeLocalOffset.z) /
+        (distance * Math.hypot(visualAim.x, visualAim.y, 1)), -1, 1);
+      const score = aimTargetScore(Math.acos(aimCosine), distance) - (remote.playerId === rangeFeedbackTargetId ? AIM_SWITCH_MARGIN : 0);
+      if (score < outOfRangeScore) { outOfRangeCandidate = remote; outOfRangeDistance = distance; outOfRangeScore = score; }
+      continue;
+    }
     combatOffset.multiplyScalar(1 / distance);
     const forwardDot = THREE.MathUtils.clamp(combatForward.dot(combatOffset), -1, 1);
     if (forwardDot < minimumForwardDot) continue;
@@ -5078,8 +5316,7 @@ function updateCombatTarget(delta = 0): void {
     updateLockCircle();
     combatLockState = 'SEARCHING';
     acquisitionCircleElement.classList.remove('target-near', 'locked');
-    targetFeedbackElement.classList.add('hidden');
-    targetFeedbackElement.classList.remove('locked');
+    showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
     for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
     if (combatQaElement) combatQaElement.textContent = `COMBAT QA\ntarget: none\nlock: ${serverLockedTargetId ?? 'none'}\n${combatQaDetail}`;
     return;
@@ -5088,8 +5325,8 @@ function updateCombatTarget(delta = 0): void {
   contextualHints.trigger('combat');
 
   combatOffset.copy(candidate.plane.position).sub(airplane.position).applyQuaternion(combatInverseQuaternion);
-  const locked = assisted && serverLockedTargetId === targetId &&
-    insideDynamicLock(combatOffset.x, combatOffset.y, combatOffset.z, visualAim);
+  const nearReticle = insideDynamicLock(combatOffset.x, combatOffset.y, combatOffset.z, visualAim);
+  const locked = assisted && serverLockedTargetId === targetId && nearReticle;
   if (selectedCombatTarget) {
     selectedCombatTarget.remote = candidate;
     selectedCombatTarget.distance = candidateDistance;
@@ -5099,9 +5336,7 @@ function updateCombatTarget(delta = 0): void {
   combatLockState = locked ? 'LOCKED' : 'SEARCHING';
   acquisitionCircleElement.classList.toggle('target-near', assisted);
   acquisitionCircleElement.classList.toggle('locked', locked);
-  targetRangeElement.textContent = 'LOCKED';
-  targetFeedbackElement.classList.toggle('hidden', !locked);
-  targetFeedbackElement.classList.toggle('locked', locked);
+  showTargetRangeFeedback(nearReticle ? candidate : null, candidateDistance, true, locked);
   for (const remote of remotePlayers.values()) {
     remote.targetBrackets.visible = remote === candidate && remote.plane.visible;
     if (remote.targetBrackets.visible) (remote.targetBrackets.material as THREE.SpriteMaterial).opacity = locked ? 1 : 0.58;
@@ -5648,6 +5883,19 @@ function updateFlight(delta: number): void {
     if (maneuver.kind === 'quickDodge') {
       dodgeSide.set(1, 0, 0).applyQuaternion(airplane.quaternion);
       velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(680, currentAircraft.acceleration / currentAircraft.inertia * 4.5) * maneuverPhase * delta);
+    } else {
+      // A smooth lateral-velocity arch moves the entire aircraft through a
+      // helical track while its body rolls. The target returns to zero side
+      // speed, never to the starting line; existing collision checks sample
+      // each new position and remote pilots receive ordinary transforms.
+      const phase = maneuver.elapsed / maneuver.duration;
+      const targetSideSpeed = -maneuver.direction * (maneuver.lateralDistance ?? 0) / maneuver.duration * 6 * phase * (1 - phase);
+      const sideX = maneuver.sideX ?? 0, sideZ = maneuver.sideZ ?? 0;
+      const currentSideSpeed = velocity.x * sideX + velocity.z * sideZ;
+      const maxSideChange = currentAircraft.acceleration / currentAircraft.inertia * 2.5 * delta;
+      const sideChange = THREE.MathUtils.clamp(targetSideSpeed - currentSideSpeed, -maxSideChange, maxSideChange);
+      velocity.x += sideX * sideChange;
+      velocity.z += sideZ * sideChange;
     }
     velocity.multiplyScalar(Math.max(0, 1 - delta * (maneuver.kind === 'barrelRoll' ? 0.025 : 0.025) / maneuver.duration));
   }
@@ -6362,6 +6610,11 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
 }
 
 citiesButtonElement.addEventListener('click', () => {
+  const activeMission = profileActiveMissionAttempt(serverProfile);
+  if (!window.confirm(activeMission ? 'Leave this flight? Your active mission will end.' : 'Leave this flight and choose a city or time?')) return;
+  if (activeMission && connectionReady()) socket.send(JSON.stringify({
+    type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMission.attemptId,
+  }));
   // Cities is an explicit route transition, never a Garage action. Close any
   // independent overlay first because the Garage is shared with the start UI.
   aircraftGarage.close();
@@ -6467,6 +6720,8 @@ socket.addEventListener('message', (event) => {
     if (aircraftSelectElement.value !== aircraftType) aircraftSelectElement.value = aircraftType;
     selectionRevision = message.selectionRevision;
     localPlayerId = message.playerId;
+    for (const id of repairHeartSprites.keys()) setHeartCooldown(id, 0);
+    for (const cooldown of message.repairCooldowns ?? []) setHeartCooldown(cooldown.id, cooldown.remainingMs);
     fireCooldown = 0;
     applyLocalHull(message.health, message.maxHealth, message.profile.selectedAircraft);
     localLifeState = networkLifeState(message.lifeState);
@@ -6534,6 +6789,13 @@ socket.addEventListener('message', (event) => {
     weeklyLeaderboards = message.weeklyLeaderboards;
   } else if (message.type === 'missionState') {
     if (message.cityId === cityId) {
+      const previous = serverProfile.missions[cityId]?.active;
+      const next = message.state.active;
+      const required = previous ? missionForCity(cityId, previous.missionId) : undefined;
+      if (previous && previous.attemptId === next?.attemptId && previous.holdStartedAt && previous.progress > 0 && next.progress === 0 && !next.holdStartedAt &&
+        required && (next.ownedTerritoryIds?.length ?? 0) < missionRequirements(required).length) {
+        showProgressMessage('TERRITORY LOST · HOLD RESET TO 00:00');
+      }
       serverProfile.missions[cityId] = message.state;
       activeMissionAttemptId = profileActiveMissionAttempt(serverProfile)?.attemptId;
       refreshTerritoryBorders();
@@ -6673,7 +6935,7 @@ socket.addEventListener('message', (event) => {
       updateHealthDisplay(true);
       showCombatMessage(`-${message.damage} DAMAGE`);
       showDamageFeedback();
-      playTone(150, 0.13, 'sawtooth', 0.05, 80);
+      playTone(150, 0.13, 'sawtooth', 0.05, 80, 0, 'combat');
     } else {
       const remote = remotePlayers.get(message.playerId);
       if (remote) {
@@ -6685,9 +6947,21 @@ socket.addEventListener('message', (event) => {
     }
   } else if (message.type === 'repair') {
     if (message.playerId === localPlayerId) {
+      const isHeart = repairHeartSprites.has(message.sourceId);
+      if (isHeart) healthRowElement.classList.add('repaired');
       applyLocalHull(message.health, message.maxHealth);
       updateHealthDisplay();
-      showProgressMessage(message.full ? 'AIRPORT REPAIR COMPLETE' : 'REPAIR BEACON · PLANE LIFE RESTORED');
+      if (isHeart) {
+        setHeartCooldown(message.sourceId, message.cooldownMs ?? 60_000);
+        repairFeedbackElement.classList.add('visible');
+        window.clearTimeout(repairFeedbackTimer);
+        repairFeedbackTimer = window.setTimeout(() => {
+          repairFeedbackElement.classList.remove('visible');
+          healthRowElement.classList.remove('repaired');
+        }, 2_000);
+      } else {
+        showProgressMessage(message.full ? 'AIRPORT REPAIR COMPLETE' : 'REPAIR BEACON · PLANE LIFE RESTORED');
+      }
     } else {
       const remote = remotePlayers.get(message.playerId);
       if (remote) {
@@ -6697,11 +6971,19 @@ socket.addEventListener('message', (event) => {
       }
     }
   } else if (message.type === 'destroyed') {
+    const lastDestructionAt = recentDestructionIds.get(message.playerId) ?? -Infinity;
+    if (performance.now() - lastDestructionAt < 1_500) return;
+    recentDestructionIds.set(message.playerId, performance.now());
+    if (recentDestructionIds.size > 32) recentDestructionIds.delete(recentDestructionIds.keys().next().value!);
     updateHumanRosterStatus(message.playerId, 'destroyed');
     const destroyedPlane = message.playerId === localPlayerId
       ? airplane
       : remotePlayers.get(message.playerId)?.plane;
-    if (destroyedPlane) createDestructionEffect(destroyedPlane.position);
+    const destroyedType = message.playerId === localPlayerId ? aircraftType : remotePlayers.get(message.playerId)?.aircraftType;
+    if (destroyedPlane && destroyedType) {
+      createDestructionEffect(destroyedPlane.position, destroyedType);
+      if (message.playerId !== localPlayerId && destroyedPlane.position.distanceTo(airplane.position) < 2_500) playDestructionSound();
+    }
     if (message.playerId === localPlayerId) {
       localLifeState = 'destroyed';
       health = 0;
@@ -6729,7 +7011,6 @@ socket.addEventListener('message', (event) => {
       updateScoreDisplay();
       showCombatMessage(destroyedHuman ? `💥 ${destroyedHuman} DESTROYED` :
         message.killerReward ? `DESTROYED +${message.killerReward} Credits` : 'DESTROYED · NO DANGER BONUS', true);
-      playDestructionSound();
     }
   } else if (message.type === 'respawn') {
     const lifeState = networkLifeState(message.lifeState);

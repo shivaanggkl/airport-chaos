@@ -99,16 +99,52 @@ test('challenge gates, Wanted start, and controlled-kill requirements stay attem
   assert.equal(kills.progress, 3);
 });
 
-test('ordered capture resets on loss, airport empire requires controlled landings, conquest needs every configured territory', () => {
+test('current ownership initializes immediately and three-territory hold resets on loss', () => {
   const sequence = missionForCity('dallas', 'three-territory-offensive')!;
-  const capture = (territoryId: string) => ({ type: 'territoryCapture' as const, at: 2_000, territoryId });
-  const tick = (controlledTerritories: ReadonlySet<string>) => ({ type: 'tick' as const, at: 3_000, alive: true, connected: true, airborne: true, controlledTerritories, scoreRank: 1, humanCount: 2, score: 20 });
-  let chain = advanceMission(sequence, attempt(sequence.id), capture('dallas-executive')).attempt;
-  chain = advanceMission(sequence, chain, capture('las-colinas')).attempt;
-  assert.equal(chain.progress, 2);
-  chain = advanceMission(sequence, chain, tick(new Set(['las-colinas']))).attempt;
+  const required = sequence.requirements.requiredTerritoryIds!;
+  const tick = (controlledTerritories: ReadonlySet<string>, at = 3_000) => ({ type: 'tick' as const, at, alive: true, connected: true, airborne: true, controlledTerritories, scoreRank: 1, humanCount: 2, score: 20 });
+  for (let owned = 0; owned <= 3; owned += 1) {
+    const initial = advanceMission(sequence, attempt(sequence.id), tick(new Set(required.slice(0, owned)))).attempt;
+    assert.equal(initial.ownedTerritoryIds?.length, owned);
+    assert.equal(initial.holdStartedAt, owned === 3 ? 3_000 : undefined);
+  }
+  let chain = advanceMission(sequence, attempt(sequence.id), tick(new Set(required))).attempt;
+  chain = advanceMission(sequence, chain, tick(new Set(required), 423_000)).attempt;
+  assert.equal(chain.progress, 420);
+  chain = advanceMission(sequence, chain, tick(new Set(required.slice(0, 2)), 424_000)).attempt;
   assert.equal(chain.progress, 0);
-  assert.equal(advanceMission(sequence, chain, capture('downtown')).completed, false);
+  assert.equal(chain.holdStartedAt, undefined);
+  chain = advanceMission(sequence, chain, tick(new Set(required), 425_000)).attempt;
+  assert.equal(chain.progress, 0);
+  assert.equal(advanceMission(sequence, chain, tick(new Set(required), 1_024_000)).completed, false);
+  assert.equal(advanceMission(sequence, chain, tick(new Set(required), 1_025_000)).completed, true);
+});
+
+test('hold attempt persists, but disconnect cannot accrue offline time', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-chaos-hold-'));
+  try {
+    const path = join(directory, 'profiles.sqlite');
+    const store = new PlayerProfileStore(path);
+    const pilot = store.getOrCreate('pilot-hold-owner-00001', 'Hold Owner');
+    const accepted = store.acceptMission(pilot.pilotId, 'dallas', 'three-territory-offensive', false, undefined, 1_000).profile!.missions.dallas!.active!;
+    const mission = missionForCity('dallas', accepted.missionId)!;
+    const owned = new Set(mission.requirements.requiredTerritoryIds);
+    const tick = (at: number) => ({ type: 'tick' as const, at, alive: true, connected: true, airborne: true, controlledTerritories: owned, scoreRank: 1, humanCount: 2, score: 20 });
+    const started = advanceMission(mission, accepted, tick(2_000)).attempt;
+    const progressed = advanceMission(mission, started, tick(122_000)).attempt;
+    store.updateMissionAttempt(pilot.pilotId, 'dallas', progressed);
+    const restored = new PlayerProfileStore(path).getOrCreate(pilot.pilotId, 'Hold Owner').missions.dallas!.active!;
+    assert.equal(restored.attemptId, accepted.attemptId);
+    assert.equal(restored.progress, 120);
+    assert.deepEqual(restored.ownedTerritoryIds, [...owned]);
+    const disconnected = advanceMission(mission, restored, { type: 'disconnect', at: 123_000 }).attempt;
+    assert.equal(disconnected.progress, 0);
+    assert.equal(disconnected.holdStartedAt, undefined);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('airport empire requires controlled landings and conquest needs every configured territory', () => {
+  const tick = (controlledTerritories: ReadonlySet<string>) => ({ type: 'tick' as const, at: 3_000, alive: true, connected: true, airborne: true, controlledTerritories, scoreRank: 1, humanCount: 2, score: 20 });
 
   const empire = missionForCity('dallas', 'airport-empire')!;
   const airportsOwned = new Set(empire.requirements.territoryIds);
@@ -123,7 +159,7 @@ test('ordered capture resets on loss, airport empire requires controlled landing
 
   const conquestSource = missionForCity('dallas', 'dallas-conquest')!;
   const required = territoriesForCity('dallas').map((territory) => territory.id);
-  const conquest = { ...conquestSource, requirements: { ...conquestSource.requirements, territoryIds: required } };
+  const conquest = { ...conquestSource, requirements: { ...conquestSource.requirements, requiredTerritoryIds: required } };
   assert.equal(advanceMission(conquest, attempt(conquest.id), tick(new Set(required.slice(0, -1)))).completed, false);
   assert.equal(advanceMission(conquest, attempt(conquest.id), tick(new Set(required))).completed, true);
 });

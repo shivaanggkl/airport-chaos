@@ -30,7 +30,7 @@ export type MapChallenge = { id: string; x: number; z: number; label: string; ac
 export type MapEvent = { id: string; x: number; z: number; label: string; mostWanted?: boolean; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
 export type MapDiscovery = { id: string; label: string; x: number; z: number; discovered: boolean; secret: boolean };
 export type MapDiscoveryProgress = { cityName: string; discovered: number; total: number; percent: number };
-export type MapRepair = { id: string; x: number; z: number };
+export type MapRepair = { id: string; x: number; z: number; kind?: string; cooldownUntil?: number };
 export type MapTerritory = {
   id: string;
   label: string;
@@ -243,6 +243,14 @@ export class WorldMap {
       }
     }
     const position = this.screenToWorld(click.x, click.y);
+    for (const repair of this.state?.repairs ?? []) {
+      if (repair.kind !== 'heart') continue;
+      const marker = this.worldToScreen(repair.x, repair.z);
+      if (Math.hypot(click.x - marker.x, click.y - marker.y) <= CLICK_DISTANCE) {
+        this.onWaypoint({ x: repair.x, z: repair.z, label: '♥ REPAIR' });
+        return;
+      }
+    }
     for (const destination of this.airports) {
       const marker = this.worldToScreen(destination.x, destination.z);
       if (Math.hypot(click.x - marker.x, click.y - marker.y) <= CLICK_DISTANCE) {
@@ -603,6 +611,19 @@ export class WorldMap {
 
   private drawRepair(repair: MapRepair): void {
     const point = this.worldToScreen(repair.x, repair.z);
+    if (repair.kind === 'heart') {
+      const remaining = Math.max(0, (repair.cooldownUntil ?? 0) - Date.now());
+      const waypointed = this.state?.waypoint?.x === repair.x && this.state?.waypoint?.z === repair.z;
+      if (remaining > 0 && !waypointed) return;
+      const color = remaining > 0 ? '#a88b92' : visualLanguage.repairHeart.color;
+      this.context.fillStyle = color;
+      this.context.font = 'bold 19px sans-serif';
+      this.context.textAlign = 'center';
+      this.context.fillText('♥', point.x, point.y + 6);
+      const seconds = Math.ceil(remaining / 1000);
+      if (this.scale > 0.04 || waypointed) this.label(remaining > 0 ? `♥ REPAIR · Available in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '♥ REPAIR', point.x, point.y - 13, color);
+      return;
+    }
     this.context.save();
     this.context.translate(point.x, point.y);
     this.context.rotate(Math.PI / 4);

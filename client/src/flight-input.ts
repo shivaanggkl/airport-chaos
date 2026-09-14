@@ -2,7 +2,7 @@ export type FlightAction = 'throttleUp' | 'throttleDown' | 'pitchUp' | 'pitchDow
 export const keyboardActionBindings: Readonly<Record<string, FlightAction>> = {
   KeyW: 'throttleUp', KeyS: 'throttleDown',
   KeyA: 'rollLeft', KeyD: 'rollRight',
-  KeyQ: 'aimLeft', KeyE: 'aimRight', KeyZ: 'aimUp', KeyC: 'aimDown',
+  KeyQ: 'aimUp', KeyE: 'aimDown', KeyZ: 'aimLeft', KeyC: 'aimRight',
   ArrowUp: 'pitchUp', ArrowDown: 'pitchDown',
   ArrowLeft: 'yawLeft', ArrowRight: 'yawRight',
   ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'fire', KeyX: 'stunt',

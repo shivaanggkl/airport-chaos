@@ -86,6 +86,7 @@ body {
   display: grid;
   gap: 10px;
 }
+.city-options[hidden], #city-back[hidden] { display: none; }
 
 .city-option {
   display: flex;
@@ -415,6 +416,16 @@ body {
   font: inherit;
 }
 
+.aircraft-switch-hint {
+  display: block;
+  margin: 5px 0 0;
+  color: #ffd28a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.aircraft-switch-hint[hidden] { display: none; }
+
 .progress-stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -584,6 +595,18 @@ body {
 .audio-toggle:focus-visible {
   background: rgb(255 255 255 / 16%);
 }
+
+.pilot-menu-audio-row {
+  display: grid;
+  grid-template-columns: 72px minmax(100px, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  color: #dce8f2;
+  font-size: 11px;
+}
+.pilot-menu-audio-row input { width: 100%; accent-color: #73cbe3; }
+.pilot-menu-audio-row output { text-align: right; }
 
 .cities-button {
   margin: 5px 0 0 5px;
@@ -901,16 +924,19 @@ body {
 #airspeed-tape {
   left: 18px;
   top: auto;
-  bottom: 18px;
+  bottom: 148px;
   transform: none;
   border-left: 2px solid rgb(115 216 237 / 72%);
 }
 
 #altitude-tape {
-  right: 18px;
-  padding-right: 27px;
-  border-right: 2px solid rgb(115 216 237 / 72%);
-  text-align: right;
+  left: 18px;
+  top: auto;
+  bottom: 18px;
+  padding-right: 13px;
+  border-left: 2px solid rgb(115 216 237 / 72%);
+  text-align: left;
+  transform: none;
 }
 
 .instrument-label {
@@ -1082,6 +1108,7 @@ body {
 
 .health-row {
   display: inline-flex;
+  position: relative;
   align-items: center;
   gap: 6px;
   opacity: 0.92;
@@ -1109,6 +1136,28 @@ body {
   box-shadow: 0 0 6px rgb(109 232 152 / 42%);
   transition: width 140ms ease-out, background-color 140ms linear;
 }
+.health-row.repaired .hull-meter i { transition-duration: 420ms; }
+.health-row.repaired { color: #eafff3; }
+.repair-feedback {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 4;
+  width: max-content;
+  max-width: min(230px, 80vw);
+  padding: 5px 8px;
+  color: #fff5f7;
+  background: rgb(43 8 20 / 89%);
+  border: 1px solid var(--identity-repairHeart);
+  border-radius: 4px;
+  box-shadow: 0 0 9px rgb(171 14 47 / 32%);
+  font: 800 11px/1.2 system-ui, sans-serif;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.repair-feedback.visible { opacity: 1; }
 
 .health-row.warning .hull-meter i { background: var(--meaning-warning); box-shadow: 0 0 7px rgb(247 200 100 / 48%); }
 .health-row.critical .hull-meter i { background: var(--meaning-danger); box-shadow: 0 0 9px rgb(250 109 101 / 64%); }
@@ -1143,26 +1192,38 @@ body {
 .target-feedback {
   position: fixed;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   transform: translateX(-50%);
   pointer-events: none;
   color: #a9c4cc;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: center;
+  text-shadow: 0 1px 3px #06101c, 0 0 5px #06101c;
   white-space: nowrap;
 }
+.target-feedback.above { transform: translate(-50%, -100%); }
 
 .target-feedback strong {
   color: #edf8fa;
 }
 
 .target-feedback b {
-  margin-left: 3px;
+  margin-left: 0;
   color: #ff856e;
-  font-size: 11px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
 }
 
 .target-feedback.locked b {
   color: #ff6654;
 }
+.target-feedback.out-of-range b { color: #ffc36b; }
+.target-feedback.in-range b { color: #9de0ad; }
+.target-feedback span { color: #eef8fa; font-size: 10px; font-weight: 600; }
 .target-feedback.hidden { display: none; }
 
 .landing-speed-cue {
@@ -1213,7 +1274,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: max(120px, calc(100dvh - 200px));
+  max-height: max(120px, calc(100dvh - 310px));
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-padding-top: 210px;
@@ -1229,11 +1290,11 @@ body {
 .progression-readout small strong { font-size: 12px; }
 .mission-card { position: sticky; top: 68px; z-index: 4; padding: 10px 11px; border: 1px solid var(--mission-accent, var(--meaning-mission)); border-radius: 7px; background: rgb(7 27 40 / 94%); color: #e9faff; font: 700 11px/1.4 system-ui, sans-serif; box-shadow: 0 8px 20px rgb(0 0 0 / 20%); }
 .mission-card.hidden { display: none; }
-.territory-capture { padding: 7px 10px; border: 1px solid rgb(255 184 73 / 65%); border-radius: 6px; background: rgb(38 28 10 / 88%); color: #ffda91; font: 800 11px/1.35 system-ui, sans-serif; letter-spacing: .04em; }
+.territory-capture { padding: 7px 10px; border: 1px solid rgb(255 184 73 / 65%); border-radius: 6px; background: rgb(38 28 10 / 88%); color: #ffda91; font: 800 11px/1.35 system-ui, sans-serif; letter-spacing: .04em; white-space: pre-line; }
 .territory-capture.hidden { display: none; }
 .mission-card small { display: block; color: var(--meaning-mission); font: 800 9px ui-monospace, monospace; letter-spacing: .13em; }
 .mission-card strong { display: block; margin-top: 3px; font-size: 12px; }
-.mission-card p { margin: 5px 0; color: #d3e9ee; font-size: 10px; }
+.mission-card p { margin: 5px 0; color: #d3e9ee; font-size: 10px; white-space: pre-line; }
 .mission-card progress { width: 100%; height: 7px; accent-color: var(--mission-accent, var(--meaning-mission)); }
 .mission-territories[hidden] { display: none; }
 .mission-territories { display: flex; flex-wrap: wrap; gap: 4px 7px; margin: 5px 0; color: #dceaf0; font-size: 9px; }
@@ -1562,7 +1623,7 @@ body {
   .flight-tape { width: 94px; min-height: 102px; padding: 9px; }
   .flight-tape > strong { font-size: 25px; }
   #airspeed-tape { left: 8px; }
-  #altitude-tape { right: 8px; }
+  #altitude-tape { left: 8px; }
   #leaderboard { display: none; }
   #radar-panel { right: 8px; bottom: 8px; transform: scale(0.86); transform-origin: bottom right; }
   #contract-panel { left: 8px; bottom: 8px; }
@@ -1575,11 +1636,12 @@ body {
   #heading-tape { top: 8px; width: 220px; }
   #flight-status { top: 48px; width: calc(100vw - 16px); gap: 6px 10px; font-size: 10px; padding: 7px; }
   #flight-status .airport-navigation { flex-basis: 100%; justify-content: center; }
-  .left-hud-stack { top: 123px; width: 190px; max-height: max(100px, calc(100dvh - 275px)); }
+  .left-hud-stack { top: 123px; width: 190px; max-height: max(100px, calc(100dvh - 360px)); }
   .progression-readout { padding: 7px 9px; }
   .progression-readout strong { font-size: 15px; }
   .world-map-card { width: calc(100vw - 16px); max-width: 100%; min-width: 0; height: calc(100dvh - 24px); }
-  #altitude-tape { padding-right: 15px; }
+  #airspeed-tape { bottom: 130px; }
+  #altitude-tape { padding-right: 9px; }
   .world-map-card header { flex-wrap: wrap; gap: 6px; padding: 9px; }
   .world-map-card header span { order: 3; flex-basis: 100%; }
   .map-legend { gap: 5px 10px; padding: 8px; font-size: 10px; }

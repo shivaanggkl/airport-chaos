@@ -56,8 +56,8 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; descripti
   },
   {
     nav: 'Repair', icon: 'repair', title: 'HEAL YOUR PLANE.',
-    description: 'Fly through a green Repair marker. Stop safely at an airport for full PLANE LIFE.',
-    visual: shot(mapImage, 'Real city map showing the green Repair marker', mapNotes) + legend(['repair', 'airport']),
+    description: '♥ REPAIR — fly through it to fully restore Plane Life. Stop safely at an airport for full repair.',
+    visual: shot(mapImage, 'Real city map showing Repair markers', mapNotes) + legend(['repairHeart', 'repair', 'airport']),
     controls: '',
   },
   {

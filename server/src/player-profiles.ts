@@ -4,8 +4,9 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 import { missionForCity } from '../../shared/city-missions.mjs';
-import { ECONOMY_VERSION, aircraftCreditPrice, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
+import { ECONOMY_VERSION, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
 import { economyRewards } from '../../shared/reward-economy.mjs';
+import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 export type CityId = 'milwaukee' | 'dallas';
@@ -36,7 +37,7 @@ export type MissionAttempt = {
   missionId: string; attemptId: string; startedAt: number; updatedAt: number;
   progress: number; holdStartedAt?: number; flightStartedAt?: number;
   heading?: number; distanceMeters?: number; completedIds: string[];
-  targetId?: string; eventId?: string; sequenceIndex?: number;
+  targetId?: string; eventId?: string; sequenceIndex?: number; ownedTerritoryIds?: string[];
   challengeEndsAt?: number;
 };
 export type MissionCityState = {
@@ -65,7 +66,7 @@ export type ProfileProgress = {
   discoveries?: unknown;
 };
 
-const aircraftOrder: AircraftType[] = ['trainer', 'privateJet', 'cargo', 'fighter'];
+const aircraftOrder = aircraftDisplayOrder;
 const aircraftTypes = new Set<AircraftType>(aircraftOrder);
 const newPilotCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_STARTING_CREDITS, 750, 10_000);
 const migratedDevCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_MIGRATED_DEV_CREDITS, 1_000, 10_000);
@@ -157,6 +158,13 @@ function parseMastery(value: unknown): Partial<Record<CityId, CityMastery>> {
 
 function profileName(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim().slice(0, 20) : fallback;
+}
+
+function assignedPilotName(value: unknown, pilotId: string): string {
+  const name = profileName(value, 'Pilot');
+  const automatic = /^Pilot-(\d{3})$/i.exec(name);
+  if (automatic) return isValidPilotNumber(Number(automatic[1])) ? name : `Pilot-${pilotNumberForId(pilotId)}`;
+  return name.toLowerCase() === 'pilot' ? `Pilot-${pilotNumberForId(pilotId)}` : name;
 }
 
 function parseEntitlements(value: unknown): string[] {
@@ -387,8 +395,14 @@ export class PlayerProfileStore {
     let row = this.getRow(pilotId);
     if (!row) {
       this.database.prepare('INSERT INTO player_profiles (pilot_id, pilot_name, credits, economy_version) VALUES (?, ?, ?, ?)')
-        .run(pilotId, profileName(pilotName, 'Pilot'), newPilotCredits, ECONOMY_VERSION);
+        .run(pilotId, assignedPilotName(pilotName, pilotId), newPilotCredits, ECONOMY_VERSION);
       row = this.getRow(pilotId)!;
+    } else {
+      const assigned = assignedPilotName(row.pilot_name, pilotId);
+      if (assigned !== row.pilot_name) {
+        this.database.prepare('UPDATE player_profiles SET pilot_name = ? WHERE pilot_id = ?').run(assigned, pilotId);
+        row = this.getRow(pilotId)!;
+      }
     }
     return this.toProfile(row);
   }
@@ -405,7 +419,7 @@ export class PlayerProfileStore {
     const selectedAircraft = selectedOwnedAircraft(legacy.selectedAircraft, owned);
     this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, credits = ?, selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
       .run(
-        profileName(legacy.pilotName, row.pilot_name), credits, selectedAircraft,
+        assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), credits, selectedAircraft,
         boundedNumber(legacy.totalDistance, 10_000_000), boundedInteger(legacy.successfulLandings, 100_000), JSON.stringify(discoveries), pilotId,
       );
     return this.toProfile(this.getRow(pilotId)!);
@@ -414,6 +428,9 @@ export class PlayerProfileStore {
   setPilotName(pilotId: string, pilotName: string): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
+    // A cached browser-generated Pilot-### must not overwrite the server's
+    // durable number on every reconnect.
+    if (/^Pilot(?:-\d{3})?$/i.test(pilotName.trim())) return this.toProfile(row);
     this.database.prepare('UPDATE player_profiles SET pilot_name = ? WHERE pilot_id = ?').run(profileName(pilotName, row.pilot_name), pilotId);
     return this.toProfile(this.getRow(pilotId)!);
   }

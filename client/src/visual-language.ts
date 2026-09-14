@@ -14,6 +14,7 @@ export const visualLanguage = {
   discovery: { icon: '◈', label: 'Discovery', color: '#77d8d2' },
   objectives: { icon: '✓', label: 'Objectives', color: '#ffd865' },
   repair: { icon: '◇', label: 'Repair', color: '#66edc0' },
+  repairHeart: { icon: '♥', label: 'Repair', color: '#bb173f' },
   heat: { icon: '🔥', label: 'Danger', color: '#ff7862' },
   wanted: { icon: '🔥', label: 'Most Wanted', color: '#ff7862' },
   credits: { icon: '🪙', label: 'Credits', color: '#ffd865' },

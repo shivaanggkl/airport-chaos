@@ -35,7 +35,9 @@ export type CityDefinition = {
   displayName: string;
   status: CityStatus;
   spawn: { airportId: string };
+  spawnBrandPlacement?: { forwardDistance: number; clearanceAgl: number; width: number; height: number; campaignId: import('./ad-placement').SponsorCampaignId };
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  timePresets: readonly ('day' | 'dusk')[];
   loadWorld?: () => Promise<CityWorldModule>;
 };
 
@@ -47,7 +49,9 @@ export const cities: readonly CityDefinition[] = [
     displayName: 'Milwaukee',
     status: 'available',
     spawn: { airportId: 'central' },
+    spawnBrandPlacement: { forwardDistance: 650, clearanceAgl: 50, width: 400, height: 136, campaignId: 'airport-chaos' },
     bounds: { minX: -6000, maxX: 6000, minZ: -6000, maxZ: 6000 },
+    timePresets: ['day'],
     loadWorld: () => import('./world'),
   },
   {
@@ -55,7 +59,9 @@ export const cities: readonly CityDefinition[] = [
     displayName: 'Dallas',
     status: 'available',
     spawn: { airportId: 'dfw' },
+    spawnBrandPlacement: { forwardDistance: 700, clearanceAgl: 50, width: 420, height: 144, campaignId: 'airport-chaos' },
     bounds: { minX: -25_000, maxX: 25_000, minZ: -25_000, maxZ: 25_000 },
+    timePresets: ['day', 'dusk'],
     loadWorld: () => import('./dallas-world'),
   },
 ];
