@@ -1,5 +1,10 @@
 import { actionKeyLabel, menuKeyLabel } from './flight-input';
 export const contextualHintDefinitions = {
+  missionBoard: {
+    title: 'CHOOSE A MISSION',
+    body: `Press ${menuKeyLabel('menu')} → MISSIONS. Finish one mission to earn Credits and Score.`,
+    durationMs: 5_500,
+  },
   runwayControls: {
     title: 'LET’S FLY',
     body: `Hold ${actionKeyLabel('throttleUp')} to go faster, then ${actionKeyLabel('pitchUp')} to lift the nose.`,
@@ -12,7 +17,7 @@ export const contextualHintDefinitions = {
   },
   firstDestination: {
     title: 'PICK A DESTINATION',
-    body: 'Use the bright sky markers or the map to fly toward an airport, Downtown, or a landmark.',
+    body: 'Use the bright sky markers or the map to fly toward an airport, the city center, or a landmark.',
     durationMs: 5_000,
   },
   boost: {
@@ -21,8 +26,8 @@ export const contextualHintDefinitions = {
     durationMs: 4_800,
   },
   repair: {
-    title: 'HULL DAMAGED',
-    body: 'Fly through a green repair beacon, or stop safely at an airport for a full repair.',
+    title: 'PLANE LIFE LOW',
+    body: 'Fly through a green Repair marker, or stop safely at an airport to heal fully.',
     durationMs: 5_000,
   },
   stunt: {
@@ -103,7 +108,7 @@ export class ContextualHintSystem {
   trigger(id: ContextualHintId): void {
     // The visual tutorial covers the other systems. Keep only timely prompts;
     // landing risk already has its own single-warning HUD path.
-    if (id !== 'runwayControls' && id !== 'worldMap' && id !== 'boost' && id !== 'repair') return;
+    if (id !== 'missionBoard' && id !== 'runwayControls' && id !== 'worldMap' && id !== 'boost' && id !== 'repair') return;
     if (!this.enabled || this.dismissed.has(id) || this.active?.id === id || this.queued.includes(id)) return;
     this.queued.push(id);
     this.advance();

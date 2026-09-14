@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createRingSponsor, type RingSponsorship } from './ad-placement';
 
 export type SkyChallengeType =
   | 'speed'
@@ -28,6 +29,7 @@ export type SkyChallengeDefinition = {
   reward: number;
   timeLimit: number;
   requiredAircraftType?: 'trainer' | 'privateJet' | 'cargo' | 'fighter';
+  sponsor?: RingSponsorship;
 };
 
 export type SkyChallengeMarker = {
@@ -214,7 +216,10 @@ export class SkyChallengeSystem {
   }
 
   dispose(): void {
-    for (const runtime of this.runtimes) for (const gate of runtime.gates) this.scene.remove(gate);
+    for (const runtime of this.runtimes) for (const gate of runtime.gates) {
+      this.scene.remove(gate);
+      (gate.material as THREE.Material).dispose();
+    }
   }
 
   private createRuntime(definition: SkyChallengeDefinition): ChallengeRuntime {
@@ -223,6 +228,7 @@ export class SkyChallengeSystem {
       mesh.name = `sky-challenge-${definition.id}-${index}`;
       mesh.scale.setScalar(gate.radius);
       mesh.position.set(gate.x, this.heightAt(gate.x, gate.z) + gate.altitude, gate.z);
+      if (definition.sponsor) mesh.add(createRingSponsor(definition.sponsor, 1));
       const next = definition.gates[index + 1];
       if (next) mesh.lookAt(next.x, this.heightAt(next.x, next.z) + next.altitude, next.z);
       mesh.visible = false;

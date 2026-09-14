@@ -1,9 +1,12 @@
 import { actionKeyLabel, controlGroups, controlKeyLabel, menuKeyLabel, type FlightAction } from './flight-input';
 import { aircraftRoles, targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
-import { aircraftDefinitions, type AircraftType } from './aircraft';
+import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
+import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
 import mapImage from './help-assets/map.avif';
 import garageImage from './help-assets/garage.avif';
+import { mountAirportChaosLogo } from './brand';
+import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 
 const key = (label: string, ...actions: FlightAction[]) => `<span class="tutorial-key"><kbd>${actions.map(actionKeyLabel).join(' / ')}</kbd><span>${label}</span></span>`;
 const navigationKeys = () => `<span class="tutorial-key"><kbd>${menuKeyLabel('map')}</kbd><span>World Map</span></span><span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Pilot Menu / Help</span></span>`;
@@ -11,7 +14,7 @@ const callout = (label: string, x: number, y: number) => `<span class="help-call
 const shot = (src: string, alt: string, callouts = '') => `<figure class="help-shot"><img src="${src}" alt="${alt}" decoding="async"/>${callouts}</figure>`;
 const legend = (kinds: VisualIdentity[]) => `<div class="help-legend">${kinds.map(kind => identityMarkup(kind)).join('')}</div>`;
 const tile = (kind: VisualIdentity, action: string) => `<div class="tutorial-tile" style="--tile-color:${visualLanguage[kind].color}">${identityMarkup(kind)}<small>${action}</small></div>`;
-const flightKeys = controlGroups[0].rows.map(row => key(row.label, ...row.actions)).join('') + key('Boost', 'boost');
+const flightKeys = controlGroups[0].rows.map(row => key(row.label, ...row.actions)).join('');
 const groupedControls = () => `<div class="help-control-groups">${controlGroups.map(group => `<section><h2>${group.label}</h2>${group.rows.map(row => `<div><kbd>${controlKeyLabel(row.actions)}</kbd><span>${row.label}</span></div>`).join('')}</section>`).join('')}<section><h2>NAVIGATION</h2><div><kbd>${menuKeyLabel('map')}</kbd><span>World Map</span></div><div><kbd>${menuKeyLabel('menu')}</kbd><span>Pilot Menu</span></div><div><kbd>${menuKeyLabel('restart')}</kbd><span>Restart after crash</span></div><div><kbd>DRAG</kbd><span>Orbit camera</span></div><div><kbd>WHEEL</kbd><span>Camera / map zoom</span></div></section></div>`;
 // Labels point to observed symbols in the actual map capture, not invented map entities.
 const mapNote = (kind: VisualIdentity, x: number, y: number, targetX: number, targetY: number) => {
@@ -19,57 +22,79 @@ const mapNote = (kind: VisualIdentity, x: number, y: number, targetX: number, ta
   const width = identity.label.length * 7.5 + 18;
   return `<g stroke="${identity.color}"><path d="M${x} ${y}L${targetX} ${targetY}" fill="none" stroke-width="1.5"/><circle cx="${targetX}" cy="${targetY}" r="7" fill="none"/><rect x="${x - width / 2}" y="${y - 12}" width="${width}" height="24" rx="4" fill="#07121c"/><text x="${x}" y="${y + 4}" fill="${identity.color}" stroke="none" text-anchor="middle">${identity.label.toUpperCase()}</text></g>`;
 };
-const mapNotes = `<svg class="help-map-notes" viewBox="0 0 700 520" aria-hidden="true">${mapNote('you', 48, 210, 76, 161)}${mapNote('airport', 98, 91, 76, 126)}${mapNote('event', 83, 255, 106, 188)}${mapNote('ai', 183, 285, 210, 237)}${mapNote('player', 377, 379, 274, 250)}${mapNote('repair', 372, 171, 306, 228)}${mapNote('waypoint', 448, 282, 335, 294)}</svg>`;
+// The compact map capture predates the fictional display names. Re-label its
+// five visible landmarks in the same overlay used by the live-identity notes.
+const mapPlaceLabel = (label: string, x: number, y: number, width: number) => `<g><rect x="${x}" y="${y - 13}" width="${width}" height="19" rx="3" fill="#07121c"/><text x="${x + 5}" y="${y}" fill="#c8e9f1" font-size="11" font-weight="700">${label}</text></g>`;
+const mapPlaces = mapPlaceLabel(place.dfw, 20, 135, 195) + mapPlaceLabel(place.addison, 263, 40, 170) + mapPlaceLabel(`${place.lasColinas} · CONTESTED`, 108, 198, 225) + mapPlaceLabel(place.downtown, 317, 302, 165) + mapPlaceLabel(place.executive, 221, 438, 197);
+const mapNotes = `<svg class="help-map-notes" viewBox="0 0 700 520" aria-hidden="true">${mapPlaces}${mapNote('you', 48, 210, 76, 161)}${mapNote('airport', 98, 91, 76, 126)}${mapNote('event', 83, 255, 106, 188)}${mapNote('ai', 183, 285, 210, 237)}${mapNote('player', 377, 379, 274, 250)}${mapNote('repair', 372, 171, 306, 228)}${mapNote('waypoint', 448, 282, 335, 294)}</svg>`;
 
 const pages: Array<{ nav: string; icon: VisualIdentity; title: string; description: string; visual: string; controls: string }> = [
   {
     nav: 'Fly', icon: 'you', title: 'TAKE OFF AND FLY.',
-    description: `Hold ${actionKeyLabel('throttleUp')} to go faster, then ${actionKeyLabel('pitchUp')} to lift the nose. In the air, hold ${actionKeyLabel('boost')} for Boost.`,
-    visual: shot(runwayImage, 'Skyrift Scout on the DFW runway, looking forward over its wings', callout(`${actionKeyLabel('pitchUp')} NOSE UP`, 50, 18) + callout('YOUR AIRCRAFT', 50, 82)),
+    description: `${actionKeyLabel('throttleUp')} = Faster. ${actionKeyLabel('throttleDown')} = Slow. Use the arrows and A/D to steer.`,
+    visual: shot(runwayImage, 'Skyrift Scout on the Metroplex International runway, looking forward over its wings', callout(`${actionKeyLabel('pitchUp')} NOSE UP`, 50, 18) + callout('YOUR AIRCRAFT', 50, 82)),
     controls: flightKeys,
   },
   {
+    nav: 'Fight', icon: 'player', title: 'GET A PLANE IN YOUR AIM AREA.',
+    description: `${actionKeyLabel('fire')} = Shoot. PLANE LIFE is how much damage you can take.`,
+    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Chase view and runway behind the live-style combat indicators')}<div class="help-combat-example"><span class="help-example-label">FIGHT</span><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong><span class="help-pilot-label"><span style="color:${visualLanguage.player.color}">${visualLanguage.player.icon} Pilot · ${aircraftDefinitions.trainer.name}</span><br/><span style="color:${visualLanguage.ai.color}">${visualLanguage.ai.icon} Raven · AI Pilot</span></span></div></div><div class="help-hull health-row"><span>PLANE LIFE</span><span class="hull-meter"><i style="width:75%"></i></span><strong>75/100</strong></div>` + legend(['player', 'ai']),
+    controls: key('Shoot', 'fire') + key('Aim Left / Right', 'aimLeft', 'aimRight') + key('Aim Up / Down', 'aimUp', 'aimDown'),
+  },
+  {
     nav: 'Map', icon: 'waypoint', title: 'FIND WHERE TO GO',
-    description: `Press ${menuKeyLabel('map')} to open the map. Pick a place and set a waypoint.`,
-    visual: `<div class="help-map-shot">${shot(mapImage, 'Actual city map with YOU, airports, waypoint, event, repairs and pilot identities', mapNotes)}</div>` + legend(['you', 'airport', 'waypoint', 'event', 'repair', 'ai', 'player']),
+    description: `Press ${menuKeyLabel('map')}. Pick a place and set a waypoint.`,
+    visual: `<div class="help-map-shot">${shot(mapImage, 'Actual city map with YOU, airports, waypoint, event, repairs and pilot identities', mapNotes)}</div>` + legend(['you', 'airport', 'waypoint', 'mission', 'event', 'repair', 'ai', 'player']),
     controls: '',
   },
   {
-    nav: 'Fight', icon: 'player', title: 'GET A PLANE NEAR THE CIRCLE.',
-    description: `Press ${actionKeyLabel('fire')} to shoot; LOCKED helps you hit. HULL is your plane’s life.`,
-    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Actual chase view and runway behind a demonstration of the live combat indicators')}<div class="help-combat-example"><span class="help-example-label">COMBAT HUD EXAMPLE</span><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong><span class="help-pilot-label"><span style="color:${visualLanguage.player.color}">${visualLanguage.player.icon} Pilot · ${aircraftDefinitions.trainer.name}</span><br/><span style="color:${visualLanguage.ai.color}">${visualLanguage.ai.icon} Raven · AI Pilot</span></span></div></div><div class="help-hull health-row"><span>HULL = LIFE</span><span class="hull-meter"><i style="width:75%"></i></span><strong>75/100</strong></div>` + legend(['player', 'ai']),
-    controls: key('Shoot', 'fire') + key('Move Aim Up / Down', 'aimUp', 'aimDown'),
+    nav: 'Land', icon: 'airport', title: 'RED? SLOW DOWN.',
+    description: `Hold ${actionKeyLabel('throttleDown')} until SPEED is not red. Come down gently.`,
+    visual: shot(runwayImage, 'Metroplex International runway: fly along the white line', callout('KEEP STRAIGHT ↓', 50, 28)) +
+      `<div class="help-landing-example"><div class="flight-tape"><span>SPEED</span><strong class="landing-risk">TOO FAST</strong></div><div class="flight-tape"><span>COMING DOWN</span><strong class="landing-risk">TOO FAST</strong></div><div class="landing-speed-cue">TOO FAST — HOLD S</div></div>`,
+    controls: key('Slow Down', 'throttleDown'),
   },
   {
-    nav: 'Land', icon: 'repair', title: 'RED? SLOW DOWN.',
-    description: `Find a runway; hold ${actionKeyLabel('throttleDown')} until SPEED is not red. Come down gently and keep the plane straight.`,
-    visual: shot(runwayImage, 'Actual DFW runway: fly along the white line', callout('KEEP STRAIGHT ↓', 50, 28)) +
-      `<div class="help-landing-example"><div class="flight-tape"><span>SPEED</span><strong class="landing-risk">TOO FAST</strong></div><div class="flight-tape"><span>UP / DOWN</span><strong class="landing-risk">TOO FAST</strong></div><div class="landing-speed-cue">TOO FAST — HOLD S</div></div>` + legend(['repair']),
-    controls: key('Slow Down', 'throttleDown') + '<span class="tutorial-key">Green Repair → heal</span><span class="tutorial-key">Airport stop → full life</span>',
+    nav: 'Repair', icon: 'repair', title: 'HEAL YOUR PLANE.',
+    description: 'Fly through a green Repair marker. Stop safely at an airport for full PLANE LIFE.',
+    visual: shot(mapImage, 'Real city map showing the green Repair marker', mapNotes) + legend(['repair', 'airport']),
+    controls: '',
   },
   {
-    nav: 'Danger', icon: 'heat', title: 'MORE DANGER. BETTER REWARDS.',
-    description: '🔥 Danger = how much trouble you are causing. More Danger = more enemies and better rewards.',
+    nav: 'Danger', icon: 'heat', title: 'DANGER = TROUBLE LEVEL.',
+    description: 'Cause trouble and Danger rises. More Danger means more enemies and better rewards.',
     visual: `<div class="help-heat-scene"><div class="heat-row" data-level="4">${identityMarkup('heat')} <strong>4</strong></div><div class="help-heat-scale">${[0,1,2,3,4,5].map(level => `<span class="${level >= 4 ? 'hot' : ''}">${level}</span>`).join('')}</div><div class="help-heat-path"><span>FLY CALMLY<br/><small>Danger falls</small></span><span>TAKE RISKS<br/><small>Danger rises</small></span><span>${identityMarkup('wanted')}<br/><small>Survive — or be hunted</small></span></div></div>`,
     controls: '',
   },
   {
-    nav: 'Activities', icon: 'event', title: 'YOUR SKY. YOUR CHOICE.',
-    description: `Pick something fun in ${menuKeyLabel('menu')} Menu, or just fly. AI Pilots are computer-controlled planes.`,
-    visual: `<div class="tutorial-tiles">${tile('territory', 'Fly here to claim')}${tile('challenge', 'Fly through gates')}${tile('event', 'Join the action')}${tile('stunt', 'Try a flying trick')}${tile('discovery', 'Find new places')}${tile('objectives', 'Finish small goals')}${tile('wanted', 'Hunt or survive')}${tile('repair', 'Heal your plane')}</div>`,
+    nav: 'Missions', icon: 'mission', title: 'CHOOSE ONE MISSION.',
+    description: `Press ${menuKeyLabel('menu')} → MISSIONS. Finish it for the full reward.`,
+    visual: `<div class="tutorial-tiles">${tile('mission', 'Choose one')}${tile('territory', 'Capture a place')}${tile('challenge', 'Fly through gates')}${tile('event', 'Join an event')}</div>`,
     controls: navigationKeys(),
   },
   {
-    nav: 'Progress', icon: 'mastery', title: 'PLAY. EARN. UNLOCK PLANES.',
-    description: 'Earn Credits to unlock planes in Garage. Finish activities to grow your city Mastery.',
+    nav: 'Territories', icon: 'territory', title: 'CAPTURE THE CITY.',
+    description: 'Fly inside a colored area to claim it. Check CITY TERRITORIES to see who owns each one.',
+    visual: `<div class="help-map-shot">${shot(mapImage, 'Real city map showing territory areas and ownership colors', mapNotes)}</div>` + legend(['territory', 'you']),
+    controls: '',
+  },
+  {
+    nav: 'Progress', icon: 'credits', title: 'PLAY. EARN. UNLOCK PLANES.',
+    description: 'Credits unlock planes. Score is for rankings. City Level shows long-term progress.',
     visual: shot(garageImage, 'Aircraft Garage with comparison stats and four aircraft choices') +
-      `<div class="help-aircraft-roles">${(Object.entries(aircraftRoles) as Array<[AircraftType, string]>).map(([type,role]) => `<span><b>${aircraftDefinitions[type].name}</b><small>${role}</small></span>`).join('')}</div>` + legend(['credits', 'mastery', 'objectives']),
+      `<div class="help-aircraft-roles">${(Object.entries(aircraftRoles) as Array<[AircraftType, string]>).map(([type,role]) => `<span><b>${aircraftDisplayName(type)}</b><small>${role}</small></span>`).join('')}</div>` + legend(['credits', 'score', 'mastery']),
     controls: `<span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Garage / Progress</span></span>`,
   },
   {
     nav: 'Controls', icon: 'you', title: 'PICK A KEY. TRY IT.',
-    description: `${actionKeyLabel('aimUp')} / ${actionKeyLabel('aimDown')} move your aim, not your plane. Let go to bring your aim back.`,
+    description: 'Use CORE keys first. ADVANCED keys help with aim and flying tricks.',
     visual: groupedControls(), controls: '',
+  },
+  {
+    nav: 'Contact', icon: 'contact', title: 'CONTACT & ADVERTISE.',
+    description: 'Need help? Want to advertise in Airport Chaos?',
+    visual: `<div class="help-contact-card"><strong>${companyContact.companyName}</strong><span>Advertise on ${sponsorLocations.toLowerCase()}.</span>${contactLinks()}</div>`,
+    controls: '',
   },
 ];
 
@@ -96,8 +121,9 @@ class FlightTutorial {
     this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-modal', 'true');
     this.root.setAttribute('aria-labelledby', 'tutorial-title');
-    this.root.innerHTML = '<section class="tutorial-card"><header><span>AIRPORT CHAOS · PILOT GUIDE</span><button type="button" data-home>ALL TOPICS</button><button type="button" data-skip>SKIP</button></header><div class="tutorial-content"></div><footer><button type="button" data-back>BACK</button><div class="tutorial-dots"></div><button type="button" data-next>NEXT</button></footer></section>';
+    this.root.innerHTML = '<section class="tutorial-card"><header><span>AIRPORT CHAOS</span><span>PILOT GUIDE</span><button type="button" data-home>ALL TOPICS</button><button type="button" data-skip>SKIP</button></header><div class="tutorial-content"></div><footer><button type="button" data-back>BACK</button><div class="tutorial-dots"></div><button type="button" data-next>NEXT</button></footer></section>';
     document.body.append(this.root);
+    void mountAirportChaosLogo(this.root.querySelector<HTMLElement>('.tutorial-card header > span')!, 'brand-logo-help');
     document.querySelector<HTMLButtonElement>('#tutorial-help')!.onclick = () => this.helpAction ? this.helpAction() : this.open();
     this.content = this.root.querySelector('.tutorial-content')!;
     this.back = this.root.querySelector('[data-back]')!;

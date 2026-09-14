@@ -1,7 +1,9 @@
 import { mkdirSync, statSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
+import { missionForCity } from '../../shared/city-missions.mjs';
 import { ECONOMY_VERSION, aircraftCreditPrice, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
 import { economyRewards } from '../../shared/reward-economy.mjs';
 
@@ -26,7 +28,20 @@ export type PlayerProfile = {
   eventCompletions: number;
   objectives: Partial<Record<CityId, ObjectiveCycleState>>;
   mastery: Partial<Record<CityId, CityMastery>>;
+  missions: Partial<Record<CityId, MissionCityState>>;
   legacyImportPending: boolean;
+};
+
+export type MissionAttempt = {
+  missionId: string; attemptId: string; startedAt: number; updatedAt: number;
+  progress: number; holdStartedAt?: number; flightStartedAt?: number;
+  heading?: number; distanceMeters?: number; completedIds: string[];
+  targetId?: string; eventId?: string; sequenceIndex?: number;
+  challengeEndsAt?: number;
+};
+export type MissionCityState = {
+  active?: MissionAttempt;
+  completions: Record<string, { count: number; lastCompletedAt: number }>;
 };
 
 export type ObjectiveActivity = 'stunt' | 'territoryCapture' | 'event' | 'discovery' | 'kill' | 'heat3' | 'challenge' | 'distance' | 'landing';
@@ -84,7 +99,28 @@ type ProfileRow = {
   mastery: string;
   economy_version: number;
   aircraft_entitlements: string;
+  missions: string;
 };
+
+function parseMissionStates(value: unknown): Partial<Record<CityId, MissionCityState>> {
+  let raw: Record<string, unknown> = {};
+  try { raw = typeof value === 'string' ? JSON.parse(value) : (value as Record<string, unknown>); } catch { /* invalid legacy state */ }
+  const result: Partial<Record<CityId, MissionCityState>> = {};
+  for (const cityId of cityIds) {
+    const source = raw?.[cityId] as Partial<MissionCityState> | undefined;
+    const completions: MissionCityState['completions'] = {};
+    for (const [id, item] of Object.entries(source?.completions ?? {}).slice(0, 128)) {
+      if (!missionForCity(cityId, id)) continue;
+      completions[id] = { count: boundedInteger(item?.count, 1_000_000), lastCompletedAt: boundedInteger(item?.lastCompletedAt, Number.MAX_SAFE_INTEGER) };
+    }
+    const attempt = source?.active;
+    const active = attempt && missionForCity(cityId, attempt.missionId) && typeof attempt.attemptId === 'string' && /^[a-f0-9-]{36}$/i.test(attempt.attemptId)
+      ? { ...attempt, completedIds: [...new Set(Array.isArray(attempt.completedIds) ? attempt.completedIds.filter((id): id is string => typeof id === 'string').slice(0, 32) : [])] }
+      : undefined;
+    result[cityId] = { active, completions };
+  }
+  return result;
+}
 
 function boundedConfiguredInteger(value: string | undefined, fallback: number, maximum: number): number {
   const parsed = Number(value);
@@ -251,6 +287,7 @@ export class PlayerProfileStore {
         mastery TEXT NOT NULL DEFAULT '{}',
         economy_version INTEGER NOT NULL DEFAULT 0,
         aircraft_entitlements TEXT NOT NULL DEFAULT '[]'
+        ,missions TEXT NOT NULL DEFAULT '{}'
       );
       CREATE TABLE IF NOT EXISTS profile_reward_receipts (
         pilot_id TEXT NOT NULL,
@@ -275,6 +312,7 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN mastery TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN economy_version INTEGER NOT NULL DEFAULT 0`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN aircraft_entitlements TEXT NOT NULL DEFAULT '[]'`); } catch { /* already migrated */ }
+    try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN missions TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
     this.pruneRewardReceipts();
     this.database.exec(`
       CREATE INDEX IF NOT EXISTS profile_reward_receipts_pilot_created ON profile_reward_receipts (pilot_id, created_at DESC);
@@ -546,6 +584,68 @@ export class PlayerProfileStore {
     return { weekId: week, top: rows.slice(0, 10).map((row) => ({ pilotId: row.pilot_id, pilotName: row.pilot_name, value: row.value })), localRank: index >= 0 ? index + 1 : undefined };
   }
 
+  missionState(pilotId: string, cityId: CityId): MissionCityState | undefined {
+    const row = this.getRow(pilotId);
+    return row ? parseMissionStates(row.missions)[cityId] : undefined;
+  }
+
+  acceptMission(pilotId: string, cityId: CityId, missionId: string, replace: boolean, expectedAttemptId?: string, now = Date.now()): { ok: boolean; reason?: string; confirmationRequired?: boolean; profile?: PlayerProfile } {
+    const row = this.getRow(pilotId);
+    const mission = missionForCity(cityId, missionId);
+    if (!row || !mission) return { ok: false, reason: 'MISSION UNAVAILABLE' };
+    const all = parseMissionStates(row.missions);
+    const state = all[cityId]!;
+    const current = [...cityIds].find((id) => all[id]?.active);
+    const currentAttempt = current ? all[current]?.active : undefined;
+    if (replace && (!currentAttempt || currentAttempt.attemptId !== expectedAttemptId)) return { ok: false, reason: 'MISSION CHANGED — PLEASE TRY AGAIN' };
+    if (currentAttempt && !replace) return { ok: false, confirmationRequired: true, reason: 'LEAVE CURRENT MISSION?' };
+    if (current === cityId && currentAttempt?.missionId === missionId) return { ok: false, reason: 'MISSION ALREADY ACTIVE' };
+    const lastCompleted = state.completions[missionId]?.lastCompletedAt ?? 0;
+    if (lastCompleted && now < lastCompleted + mission.replayCooldownMs) return { ok: false, reason: 'REPLAY COOLDOWN ACTIVE' };
+    if (current) all[current]!.active = undefined;
+    state.active = { missionId, attemptId: randomUUID(), startedAt: now, updatedAt: now, progress: 0, completedIds: [] };
+    this.database.prepare('UPDATE player_profiles SET missions = ? WHERE pilot_id = ?').run(JSON.stringify(all), pilotId);
+    return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+  }
+
+  abandonMission(pilotId: string, cityId: CityId, expectedAttemptId?: string): PlayerProfile | undefined {
+    const row = this.getRow(pilotId);
+    if (!row) return undefined;
+    const all = parseMissionStates(row.missions);
+    if (!all[cityId]?.active || all[cityId]!.active!.attemptId !== expectedAttemptId) return undefined;
+    all[cityId]!.active = undefined;
+    this.database.prepare('UPDATE player_profiles SET missions = ? WHERE pilot_id = ?').run(JSON.stringify(all), pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  updateMissionAttempt(pilotId: string, cityId: CityId, attempt: MissionAttempt): PlayerProfile | undefined {
+    const row = this.getRow(pilotId);
+    if (!row) return undefined;
+    const all = parseMissionStates(row.missions);
+    if (all[cityId]?.active?.attemptId !== attempt.attemptId) return undefined;
+    all[cityId]!.active = attempt;
+    this.database.prepare('UPDATE player_profiles SET missions = ? WHERE pilot_id = ?').run(JSON.stringify(all), pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  completeMission(pilotId: string, cityId: CityId, attemptId: string, now = Date.now()): { profile: PlayerProfile; credits: number; score: number; missionId: string } | undefined {
+    const row = this.getRow(pilotId);
+    if (!row) return undefined;
+    const all = parseMissionStates(row.missions);
+    const active = all[cityId]?.active;
+    if (!active || active.attemptId !== attemptId) return undefined;
+    const mission = missionForCity(cityId, active.missionId);
+    if (!mission) return undefined;
+    const previous = all[cityId]!.completions[mission.id];
+    all[cityId]!.completions[mission.id] = { count: Math.min(1_000_000, (previous?.count ?? 0) + 1), lastCompletedAt: now };
+    all[cityId]!.active = undefined;
+    // Credits, attempt removal and replay cooldown commit in ONE SQLite row
+    // update. A repeated completion cannot pay or advance Score again.
+    this.database.prepare('UPDATE player_profiles SET missions = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?')
+      .run(JSON.stringify(all), mission.creditReward, pilotId);
+    return { profile: this.toProfile(this.getRow(pilotId)!), credits: mission.creditReward, score: mission.scoreReward, missionId: mission.id };
+  }
+
   private getRow(pilotId: string): ProfileRow | undefined {
     return this.database.prepare('SELECT * FROM player_profiles WHERE pilot_id = ?').get(pilotId) as ProfileRow | undefined;
   }
@@ -594,6 +694,7 @@ export class PlayerProfileStore {
       eventCompletions: boundedInteger(row.event_completions, 1_000_000),
       objectives,
       mastery,
+      missions: parseMissionStates(row.missions),
       legacyImportPending: row.legacy_imported === 0,
     };
   }

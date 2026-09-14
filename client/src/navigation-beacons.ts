@@ -33,6 +33,11 @@ export class NavigationBeaconSystem {
   private readonly waypointMesh: THREE.Mesh;
   private readonly waypointLabel = document.createElement('div');
   private readonly projected = new THREE.Vector3();
+  private readonly leftHud = document.querySelector<HTMLElement>('.left-hud-stack');
+  private readonly rightHud = document.querySelector<HTMLElement>('#right-hud-stack');
+  private leftHudBounds: DOMRect | undefined;
+  private rightHudBounds: DOMRect | undefined;
+  private nextHudBoundsAt = 0;
   private enabled = true;
 
   constructor(
@@ -58,7 +63,7 @@ export class NavigationBeaconSystem {
     this.waypointLabel.className = 'sky-nav-label waypoint';
     this.labels.append(this.waypointLabel);
     this.labels.className = 'sky-nav-labels';
-    document.body.append(this.labels);
+    document.querySelector('#game-root')!.append(this.labels);
     scene.add(this.group);
   }
 
@@ -80,6 +85,12 @@ export class NavigationBeaconSystem {
     combatExclusion: CombatExclusion,
   ): void {
     if (!this.enabled) return;
+    const now = performance.now();
+    if (now >= this.nextHudBoundsAt) {
+      this.nextHudBoundsAt = now + 500;
+      this.leftHudBounds = this.leftHud?.getBoundingClientRect();
+      this.rightHudBounds = this.rightHud?.getBoundingClientRect();
+    }
     const candidates = this.entries
       .map((entry) => ({ entry, distance: Math.hypot(entry.destination.x - playerPosition.x, entry.destination.z - playerPosition.z) }))
       .filter((candidate) => candidate.distance >= NEAR_HIDE_DISTANCE && candidate.distance <= FAR_HIDE_DISTANCE)
@@ -133,7 +144,7 @@ export class NavigationBeaconSystem {
     // combat acquisition area or cover a target at the centre of the view.
     const inCombatArea = combatDistance < combatExclusion.radius + 72;
     const nearCenter = screenCenterDistance < Math.min(window.innerWidth, window.innerHeight) * 0.18;
-    label.hidden = !visible || inCombatArea || (combatExclusion.active && nearCenter);
+    label.hidden = !visible || inCombatArea || (combatExclusion.active && nearCenter) || this.isHudArea(screenX, screenY);
     if (!visible) return;
     label.textContent = text;
     label.style.opacity = nearCenter ? '0.18' : screenCenterDistance < Math.min(window.innerWidth, window.innerHeight) * 0.3 ? '0.42' : '0.72';
@@ -142,5 +153,14 @@ export class NavigationBeaconSystem {
 
   private formatDistance(distance: number): string {
     return distance >= 1_000 ? `${(distance / 1_000).toFixed(1)} km` : `${Math.round(distance)} m`;
+  }
+
+  isHudArea(x: number, y: number): boolean {
+    return this.overlapsHudPanel(this.leftHudBounds, x, y) || this.overlapsHudPanel(this.rightHudBounds, x, y);
+  }
+
+  private overlapsHudPanel(bounds: DOMRect | undefined, x: number, y: number): boolean {
+    return Boolean(bounds && x >= bounds.left - 85 && x <= bounds.right + 85 &&
+      y >= bounds.top - 20 && y <= bounds.bottom + 20);
   }
 }

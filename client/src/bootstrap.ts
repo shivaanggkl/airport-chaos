@@ -3,6 +3,7 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from
 import { AircraftGarage, type GarageProfile } from './garage';
 import type { AircraftType } from './aircraft';
 import { flightTutorial } from './tutorial';
+import { mountAirportChaosLogo } from './brand';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
@@ -10,6 +11,7 @@ const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
 const citySelectionError = document.querySelector<HTMLElement>('#city-selection-error')!;
 const garageEntry = document.querySelector<HTMLButtonElement>('#garage-entry')!;
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
+void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kicker')!, 'brand-logo-home');
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
 type GarageIdentity = { pilotId: string; displayName: string; credits: number; selectedAircraft: AircraftType };

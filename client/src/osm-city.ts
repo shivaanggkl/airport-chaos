@@ -43,6 +43,7 @@ type GeometryBuffers = {
   normals: number[];
   colors?: number[];
   uvs?: number[];
+  indices?: number[];
 };
 
 type StreamedChunkGroups = {
@@ -70,17 +71,33 @@ const roadColors = [0x41484c, 0x3c4347, 0x363d42, 0x30383d, 0x293238, 0x665f55] 
 const color = new THREE.Color();
 
 function pushTriangle(buffers: GeometryBuffers, a: readonly number[], b: readonly number[], c: readonly number[], normal: readonly number[], uv?: readonly number[]): void {
+  const first = buffers.indices ? buffers.positions.length / 3 : 0;
   buffers.positions.push(...a, ...b, ...c);
   buffers.normals.push(...normal, ...normal, ...normal);
   if (buffers.uvs) buffers.uvs.push(...(uv ?? [0, 0, 1, 0, 1, 1]));
+  if (buffers.indices) buffers.indices.push(first, first + 1, first + 2);
 }
 
 function createGeometry(buffers: GeometryBuffers): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(buffers.positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(buffers.normals, 3));
-  if (buffers.colors) geometry.setAttribute('color', new THREE.Float32BufferAttribute(buffers.colors, 3));
+  // Unit normals and vertex colors do not need 32-bit components. Packing
+  // them cuts the resident Dallas NEAR working set without changing meshes,
+  // chunk radii or LOD handoff behavior.
+  const normals = new Int8Array(buffers.normals.length);
+  for (let index = 0; index < normals.length; index += 1) {
+    normals[index] = Math.round(THREE.MathUtils.clamp(buffers.normals[index], -1, 1) * 127);
+  }
+  geometry.setAttribute('normal', new THREE.Int8BufferAttribute(normals, 3, true));
+  if (buffers.colors) {
+    const colors = new Uint8Array(buffers.colors.length);
+    for (let index = 0; index < colors.length; index += 1) {
+      colors[index] = Math.round(THREE.MathUtils.clamp(buffers.colors[index], 0, 1) * 255);
+    }
+    geometry.setAttribute('color', new THREE.Uint8BufferAttribute(colors, 3, true));
+  }
   if (buffers.uvs) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(buffers.uvs, 2));
+  if (buffers.indices) geometry.setIndex(buffers.indices);
   geometry.computeBoundingSphere();
   return geometry;
 }
@@ -141,8 +158,16 @@ function addBuilding(buffers: GeometryBuffers, points: ReadonlyArray<readonly [n
     const normal = [dz / length, 0, -dx / length] as const;
     const u = Math.max(1, length / 5);
     const v = Math.max(1, height / 3.4);
-    pushTriangle(buffers, [x1, baseY, z1], [x2, baseY, z2], [x2, baseY + height, z2], normal, [0, 0, u, 0, u, v]);
-    pushTriangle(buffers, [x1, baseY, z1], [x2, baseY + height, z2], [x1, baseY + height, z1], normal, [0, 0, u, v, 0, v]);
+    if (buffers.indices) {
+      const first = buffers.positions.length / 3;
+      buffers.positions.push(x1, baseY, z1, x2, baseY, z2, x2, baseY + height, z2, x1, baseY + height, z1);
+      for (let vertex = 0; vertex < 4; vertex += 1) buffers.normals.push(...normal);
+      if (buffers.uvs) buffers.uvs.push(0, 0, u, 0, u, v, 0, v);
+      buffers.indices.push(first, first + 1, first + 2, first, first + 2, first + 3);
+    } else {
+      pushTriangle(buffers, [x1, baseY, z1], [x2, baseY, z2], [x2, baseY + height, z2], normal, [0, 0, u, 0, u, v]);
+      pushTriangle(buffers, [x1, baseY, z1], [x2, baseY + height, z2], [x1, baseY + height, z1], normal, [0, 0, u, v, 0, v]);
+    }
   }
 }
 
@@ -304,7 +329,12 @@ export function addOsmCityData(
       }
     });
 
-    const buildingBuffers = options.buildingMaterials.map((): GeometryBuffers => ({ positions: [], normals: [], uvs: [] }));
+    const buildingBuffers = options.buildingMaterials.map((material): GeometryBuffers => ({
+      positions: [], normals: [], indices: [],
+      // Dallas's streamed building materials are untextured. Milwaukee's
+      // mapped facades retain UVs; unused UV arrays cost many MiB downtown.
+      ...((material as THREE.MeshStandardMaterial).map ? { uvs: [] } : {}),
+    }));
     const midMasses = new Map<string, BuildingMassing>();
     const farMasses = new Map<string, BuildingMassing>();
     for (const building of chunk.b) {

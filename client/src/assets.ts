@@ -48,7 +48,7 @@ const urls: Record<AssetKey, string> = {
 
 const loader = new GLTFLoader();
 const cache = new Map<AssetKey, Promise<THREE.Group>>();
-const aircraftAssetVersion = 'airport-chaos-original-v1';
+const aircraftAssetVersion = 'airport-chaos-original-v2';
 const bounds = new THREE.Box3();
 const size = new THREE.Vector3();
 const center = new THREE.Vector3();
@@ -121,7 +121,7 @@ export function attachAircraftAsset(
   type: AircraftAssetType,
   targetLength: number,
   targetSpan: number,
-  onLoaded?: () => void,
+  onLoaded?: (model: THREE.Group) => void,
 ): void {
   plane.userData.assetStatus = 'loading';
   void loadAsset(type)
@@ -137,7 +137,7 @@ export function attachAircraftAsset(
       plane.userData.assetPropellers = propellers;
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
-      onLoaded?.();
+      onLoaded?.(model);
     })
     .catch(() => {
       fallback.visible = true;

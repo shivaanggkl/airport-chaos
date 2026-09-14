@@ -10,6 +10,6 @@ export type AimOffset = { x: number; y: number };
 export function interpolateAim(from: AimOffset, to: AimOffset, blend: number, out: AimOffset): AimOffset;
 export function aimTargetScore(angle: number, distance: number): number;
 export function aimGoal(x: number, y: number, z: number, out: AimOffset): boolean;
-export function biasAimVertically(goal: AimOffset, input: unknown): void;
+export function biasAim(goal: AimOffset, horizontalInput: unknown, verticalInput: unknown): void;
 export function stepAim(aim: AimOffset, goal: AimOffset, delta: number, maxOffset?: number): void;
 export function insideDynamicLock(x: number, y: number, z: number, aim: AimOffset): boolean;

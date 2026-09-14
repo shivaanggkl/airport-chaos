@@ -1,4 +1,4 @@
-import { visualLanguage, identityText } from './visual-language';
+import { visualLanguage, identityText, territoryOwnershipColors } from './visual-language';
 export type WorldMapBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 
 export type WorldMapLandmark = {
@@ -24,7 +24,7 @@ type MapAirport = {
   runwayLength: number;
 };
 
-type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean };
+type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string };
 type MapTarget = { x: number; z: number; label?: string };
 export type MapChallenge = { id: string; x: number; z: number; label: string; active: boolean };
 export type MapEvent = { id: string; x: number; z: number; label: string; mostWanted?: boolean; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
@@ -36,6 +36,7 @@ export type MapTerritory = {
   label: string;
   bounds: WorldMapBounds;
   color?: string;
+  missionTarget?: boolean;
   controllerName?: string;
   captureProgress: number;
   contested: boolean;
@@ -435,7 +436,7 @@ export class WorldMap {
     reserved.x = point.x; reserved.y = point.y + 12; reserved.w = 58; reserved.h = 60;
     this.labelCount = 1;
     for (const territory of this.state.territories ?? []) this.drawTerritory(territory);
-    if (this.state.contractTarget) this.drawTarget(this.state.contractTarget, '#b57cff', 'CONTRACT');
+    // Legacy contracts are not a second player-facing journey beside Missions.
     if (this.state.waypoint) this.drawTarget(this.state.waypoint, visualLanguage.waypoint.color, 'WAYPOINT');
     for (const challenge of this.state.challenges ?? []) this.drawChallenge(challenge);
     for (const event of this.state.events ?? []) this.drawEvent(event);
@@ -454,11 +455,17 @@ export class WorldMap {
       this.context.fillStyle = visualLanguage[player.isBot ? 'ai' : 'player'].color;
       this.context.beginPath();
       if (player.isBot) {
-        this.context.moveTo(point.x, point.y - 4); this.context.lineTo(point.x + 4, point.y); this.context.lineTo(point.x, point.y + 4); this.context.lineTo(point.x - 4, point.y);
+        this.context.moveTo(point.x, point.y - 5); this.context.lineTo(point.x + 5, point.y); this.context.lineTo(point.x, point.y + 5); this.context.lineTo(point.x - 5, point.y);
       } else {
-        this.context.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+        this.context.arc(point.x, point.y, 5.5, 0, Math.PI * 2);
       }
       this.context.fill();
+      this.context.strokeStyle = '#0b1823'; this.context.lineWidth = 1.5; this.context.stroke();
+      if (player.ownershipAccent) {
+        this.context.strokeStyle = '#081722'; this.context.lineWidth = 5;
+        this.context.beginPath(); this.context.arc(point.x, point.y, 10.5, 0, Math.PI * 2); this.context.stroke();
+        this.context.strokeStyle = player.ownershipAccent; this.context.lineWidth = 3; this.context.stroke();
+      }
       if ((player.heatLevel ?? 0) >= 4) {
         this.context.fillStyle = visualLanguage.heat.color; this.context.font = '11px sans-serif'; this.context.fillText(visualLanguage.heat.icon, point.x + 7, point.y);
       }
@@ -467,11 +474,12 @@ export class WorldMap {
     const rotation = Math.atan2(this.state.forward.x, -this.state.forward.z);
     const pulse = 0.42 + Math.sin(performance.now() * 0.006) * 0.18;
     this.context.save();
-    this.context.strokeStyle = `rgba(142, 236, 255, ${pulse})`; this.context.lineWidth = 2;
+    this.context.strokeStyle = visualLanguage.you.color; this.context.globalAlpha = pulse; this.context.lineWidth = 2;
     this.context.beginPath(); this.context.arc(point.x, point.y, 17, 0, Math.PI * 2); this.context.stroke();
     this.context.translate(point.x, point.y); this.context.rotate(rotation);
-    this.context.fillStyle = 'rgba(112, 222, 244, 0.2)'; this.context.beginPath(); this.context.moveTo(0, -31); this.context.lineTo(-11, -4); this.context.lineTo(11, -4); this.context.closePath(); this.context.fill();
-    this.context.fillStyle = '#f5fdff'; this.context.strokeStyle = '#17697d'; this.context.lineWidth = 1.5;
+    this.context.globalAlpha = 1;
+    this.context.fillStyle = 'rgba(236, 251, 255, 0.2)'; this.context.beginPath(); this.context.moveTo(0, -31); this.context.lineTo(-11, -4); this.context.lineTo(11, -4); this.context.closePath(); this.context.fill();
+    this.context.fillStyle = visualLanguage.you.color; this.context.strokeStyle = '#17697d'; this.context.lineWidth = 1.5;
     this.context.beginPath(); this.context.moveTo(0, -13); this.context.lineTo(-8, 9); this.context.lineTo(0, 5); this.context.lineTo(8, 9); this.context.closePath(); this.context.fill(); this.context.stroke();
     this.context.restore();
     this.context.fillStyle = '#07121c'; this.context.fillRect(point.x - 20, point.y + 18, 40, 17);
@@ -485,25 +493,39 @@ export class WorldMap {
     const b = this.worldToScreen(territory.bounds.maxX, territory.bounds.maxZ);
     const width = b.x - a.x;
     const height = b.y - a.y;
-    const color = territory.contested ? '#ffb34f' : territory.color ?? '#75a9bd';
+    const color = territory.color ?? territoryOwnershipColors.neutral;
     this.context.save();
-    this.context.fillStyle = territory.contested ? 'rgba(255, 179, 79, 0.09)' : `${color}09`;
+    this.context.fillStyle = `${color}${territory.missionTarget ? '24' : '14'}`;
     this.context.fillRect(a.x, a.y, width, height);
-    this.context.strokeStyle = territory.contested ? '#ffbd66' : `${color}55`;
-    this.context.lineWidth = territory.contested ? 2 : 1;
+    this.context.strokeStyle = color;
+    this.context.lineWidth = territory.missionTarget ? 3 : territory.contested ? 2.5 : 2;
     this.context.strokeRect(a.x, a.y, width, height);
     const centerX = a.x + width / 2;
     const centerY = a.y + height / 2;
-    this.context.fillStyle = territory.contested ? '#ffd08b' : '#c5e4eb';
+    if (territory.missionTarget) {
+      this.context.strokeStyle = visualLanguage.mission.color;
+      this.context.lineWidth = 2;
+      this.context.strokeRect(a.x - 4, a.y - 4, width + 8, height + 8);
+    }
+    this.context.fillStyle = territory.contested ? territoryOwnershipColors.contested : '#c5e4eb';
     this.context.font = '700 9px ui-monospace, monospace';
     this.context.textAlign = 'center';
-    if (territory.contested) this.label(`${territory.label} · CONTESTED`, centerX, centerY - 2, '#ffd08b');
-    if (territory.controllerName) {
+    this.label(`${territory.missionTarget ? visualLanguage.mission.icon + ' ' : ''}${territory.label}`, centerX, centerY - 12, territory.missionTarget ? visualLanguage.mission.color : color);
+    if (territory.contested) {
+      this.context.setLineDash([6, 4]);
+      this.context.strokeStyle = territoryOwnershipColors.contested;
+      this.context.lineWidth = 1.5;
+      this.context.strokeRect(a.x + 3, a.y + 3, width - 6, height - 6);
+      this.context.setLineDash([]);
+      if (this.scale > 0.035) this.label('CONTESTED', centerX, centerY + 12, territoryOwnershipColors.contested);
+    } else if (territory.controllerName) {
       this.context.font = '600 8px ui-monospace, monospace';
-      if (this.scale > 0.05) this.label(`Held by ${territory.controllerName}`, centerX, centerY + 9, '#c5e4eb');
+      if (this.scale > 0.035) this.label(`Owned by ${territory.controllerName}`, centerX, centerY + 12, '#c5e4eb');
     } else if (territory.captureProgress > 0) {
       this.context.font = '600 8px ui-monospace, monospace';
-      this.context.fillText(`CAPTURE ${Math.round(territory.captureProgress)}%`, centerX, centerY + 9);
+      this.context.fillText(`CAPTURE ${Math.round(territory.captureProgress)}%`, centerX, centerY + 12);
+    } else if (this.scale > 0.05) {
+      this.label('NEUTRAL', centerX, centerY + 12, color);
     }
     this.context.restore();
   }

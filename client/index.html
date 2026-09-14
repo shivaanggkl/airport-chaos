@@ -38,10 +38,10 @@
       <div id="acquisition-circle" aria-hidden="true"></div>
       <section id="flight-status" class="glass-instrument">
         <div class="flight-state-row"><strong id="flight-state">ON RUNWAY</strong></div>
-        <div class="health-row"><span>HULL</span><span class="hull-meter"><i id="hull-fill"></i></span><strong id="health">100/100</strong></div>
+        <div class="health-row"><span>PLANE LIFE</span><span class="hull-meter"><i id="hull-fill"></i></span><strong id="health">100/100</strong></div>
         <div id="heat-row" class="heat-row" title="More Danger means more attention and better rewards.">DANGER <strong id="heat-level">0</strong></div>
         <div id="landing-speed-cue" class="landing-speed-cue hidden" role="status"></div>
-        <div class="airport-navigation"><span>NEAREST <strong id="nearest-airport">Airport</strong></span><span id="airport-distance"></span></div>
+        <div class="airport-navigation"><span>NEAREST PLACE <strong id="nearest-airport">Airport</strong></span><span id="airport-distance"></span></div>
         <div id="world-status" class="world-status hidden">Leaving City 1</div>
       </section>
       <div id="target-feedback" class="target-feedback hidden"><b id="target-range">LOCKED</b></div>
@@ -52,12 +52,15 @@
       <small>★ <strong id="score">0</strong> Score</small>
       <div id="reward-feedback" class="reward-feedback hidden" aria-live="polite"></div>
       <div id="progress-message" class="hidden" aria-live="polite"></div>
+      <div id="territory-defense-alert" class="territory-defense-alert hidden" role="status"><span id="territory-defense-text"></span><button id="territory-defense-waypoint" type="button">Set Waypoint</button></div>
     </aside>
+    <aside id="mission-card" class="mission-card hidden" aria-label="Active mission"></aside>
+    <aside id="territory-capture" class="territory-capture hidden" role="status" aria-live="polite"></aside>
     <aside id="hud" class="utility-hud">
       <div class="utility-bar"><span class="title">AIRPORT CHAOS</span><span id="connection" class="offline">Server: connecting…</span></div>
       <div id="flight-test-mode" class="flight-test-mode hidden">FLIGHT TEST MODE</div>
       <details class="utility-details" open>
-        <summary>FLIGHT SYSTEMS</summary>
+        <summary>AIRPORT / PLANE</summary>
         <div class="score-row"><small>Best Score <strong id="best-score">0</strong></small></div>
         <div class="timer-row" hidden>Time <strong id="timer">12.0</strong>s</div>
         <div hidden>Multiplier <strong id="multiplier">x1</strong></div>
@@ -83,7 +86,10 @@
       </div>
     </aside>
     </div>
-    <aside id="real-players" aria-label="Human players"></aside>
+    <div id="right-hud-stack">
+      <aside id="real-players" aria-label="Human players"></aside>
+      <aside id="city-territories" aria-label="City territories"></aside>
+    </div>
     <aside id="radar-panel" aria-label="Navigation radar">
       <div class="radar-title">RADAR <span>3,000</span></div>
       <canvas id="radar" width="180" height="180"></canvas>
@@ -106,7 +112,7 @@
       <strong>VISUAL QA</strong>
       <div id="visual-qa-presets"></div>
     </aside>
-    <details id="contract-panel">
+    <details id="contract-panel" class="hidden">
       <summary class="contract-label">AVAILABLE CONTRACT</summary>
       <strong id="contract-type">SIGHTSEEING</strong>
       <div id="contract-detail" class="contract-detail"></div>
@@ -124,6 +130,7 @@
     <aside id="dynamic-event" class="dynamic-event hidden">
       <strong id="dynamic-event-name">SKY EVENT</strong>
       <span id="dynamic-event-objective"></span>
+      <small id="dynamic-event-sponsor"></small>
       <button id="dynamic-event-join" type="button">JOIN</button>
     </aside>
     <aside id="social-panel" class="social-panel">

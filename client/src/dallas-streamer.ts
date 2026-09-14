@@ -16,13 +16,18 @@ export type DallasStreamingStats = {
   desired: Record<Lod, number>;
   requested: Record<Lod, number>;
   loadedBytes: number;
+  bytesByLod: Record<Lod, number>;
   cacheLimitBytes: number;
   queued: number;
   pending: number;
   activeFetches: number;
   queuedBuilds: number;
+  queuedBuildBytes: number;
   abortedFetches: number;
   protectedCells: { visible: number; ahead: number; immediateFallback: number };
+  protectedBytes: { current: number; visible: number; ahead: number; fallback: number; handoff: number; overlap: number };
+  evictionCandidates: { cells: number; bytes: number };
+  duplicateLodBytes: number;
   loadedChunks: number;
   evictedChunks: number;
   discardedLoads: number;
@@ -169,6 +174,12 @@ export class DallasChunkStreamer {
         this.cells.set(entry.id, cell);
       }
     }).catch(() => { this.failedFetches += 1; });
+  }
+
+  hasNearDetailAt(x: number, z: number): boolean {
+    const size = this.manifest?.chunkSize;
+    if (!size) return false;
+    return this.visibleLod.get(`${Math.floor(x / size)}_${Math.floor(z / size)}`) === 'near';
   }
 
   update(position: THREE.Vector3, velocity?: THREE.Vector3): void {
@@ -436,10 +447,14 @@ export class DallasChunkStreamer {
       return aVisible - bVisible || a.lastUsed - b.lastUsed;
     });
     for (const loaded of candidates) {
+      const key = this.keyFor(loaded.entry);
       const distance = distanceToBounds(position, loaded.entry);
       const distant = distance > ranges[loaded.entry.lod] + 4_000;
       const replacementReady = order.some((lod) => lod !== loaded.entry.lod && this.loaded.has(`${lod}:${loaded.entry.id}`));
       const visible = this.visibleLod.get(loaded.entry.id) === loaded.entry.lod;
+      // The replacement is already attached. An obsolete hidden LOD is no
+      // longer a fallback, even if it happens to lie in the ahead window.
+      const obsoleteFallback = !visible && replacementReady && !this.desired.has(key);
       const retained = distance <= exitRanges.far + farRetentionMargin;
       const velocityAheadProtected = (
         isAhead(position, this.preloadDirection, loaded.entry) &&
@@ -450,9 +465,9 @@ export class DallasChunkStreamer {
       // Never use cache pressure as permission to delete the only rendered
       // cell. It may briefly exceed the nominal cache cap; a non-visible or
       // already-replaced chunk is evicted on a later pass instead.
-      if (visible || velocityAheadProtected || immediateFallbackProtected || (retained && !replacementReady)) continue;
-      if (!distant && this.loadedBytes <= this.maxBytes) continue;
-      this.loaded.delete(this.keyFor(loaded.entry));
+      if (!obsoleteFallback && (visible || velocityAheadProtected || immediateFallbackProtected || (retained && !replacementReady))) continue;
+      if (!obsoleteFallback && !distant && this.loadedBytes <= this.maxBytes) continue;
+      this.loaded.delete(key);
       this.loadedBytes -= loaded.bytes;
       disposeOsmGroups(loaded.groups);
       this.evictedChunks += 1;
@@ -506,7 +521,11 @@ export class DallasChunkStreamer {
 
   getStats(): DallasStreamingStats {
     const loaded: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
-    for (const value of this.loaded.values()) loaded[value.entry.lod] += 1;
+    const bytesByLod: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
+    for (const value of this.loaded.values()) {
+      loaded[value.entry.lod] += 1;
+      bytesByLod[value.entry.lod] += value.bytes;
+    }
     const visible: Record<Lod, number> = { near: 0, mid: 0, far: 0 };
     for (const [id, lod] of this.visibleLod) {
       if (this.loaded.has(`${lod}:${id}`)) visible[lod] += 1;
@@ -519,6 +538,9 @@ export class DallasChunkStreamer {
     for (const job of this.buildQueue) requested[job.entry.lod] += 1;
     let missingImmediateCells = 0;
     const protectedCells = { visible: 0, ahead: 0, immediateFallback: 0 };
+    const protectedBytes = { current: 0, visible: 0, ahead: 0, fallback: 0, handoff: 0, overlap: 0 };
+    const evictionCandidates = { cells: 0, bytes: 0 };
+    let duplicateLodBytes = 0;
     for (const [id, entries] of this.cells) {
       const representative = entries.far ?? entries.mid ?? entries.near;
       if (representative && distanceToBounds(this.lastPosition, representative) <= ranges.near && !this.hasVisibleFallback(id, this.lastPosition)) missingImmediateCells += 1;
@@ -526,10 +548,27 @@ export class DallasChunkStreamer {
     for (const loadedEntry of this.loaded.values()) {
       const distance = distanceToBounds(this.lastPosition, loadedEntry.entry);
       const replacementReady = order.some((lod) => lod !== loadedEntry.entry.lod && this.loaded.has(`${lod}:${loadedEntry.entry.id}`));
-      if (this.visibleLod.get(loadedEntry.entry.id) === loadedEntry.entry.lod) protectedCells.visible += 1;
-      if (isAhead(this.lastPosition, this.preloadDirection, loadedEntry.entry) &&
-          distanceToBounds(this.preloadPosition, loadedEntry.entry) <= ranges[loadedEntry.entry.lod] + desiredMargin) protectedCells.ahead += 1;
-      if (loadedEntry.entry.lod === 'far' && distance <= ranges.near + desiredMargin && !replacementReady) protectedCells.immediateFallback += 1;
+      const visible = this.visibleLod.get(loadedEntry.entry.id) === loadedEntry.entry.lod;
+      const current = distance <= ranges.near + desiredMargin;
+      const ahead = isAhead(this.lastPosition, this.preloadDirection, loadedEntry.entry) &&
+        distanceToBounds(this.preloadPosition, loadedEntry.entry) <= ranges[loadedEntry.entry.lod] + desiredMargin;
+      const fallback = loadedEntry.entry.lod === 'far' && current && !replacementReady;
+      const handoff = visible && this.targetLodFor(loadedEntry.entry, this.lastPosition) !== loadedEntry.entry.lod;
+      const reasons = Number(current) + Number(visible) + Number(ahead) + Number(fallback) + Number(handoff);
+      if (visible) protectedCells.visible += 1;
+      if (ahead) protectedCells.ahead += 1;
+      if (fallback) protectedCells.immediateFallback += 1;
+      if (current) protectedBytes.current += loadedEntry.bytes;
+      if (visible) protectedBytes.visible += loadedEntry.bytes;
+      if (ahead) protectedBytes.ahead += loadedEntry.bytes;
+      if (fallback) protectedBytes.fallback += loadedEntry.bytes;
+      if (handoff) protectedBytes.handoff += loadedEntry.bytes;
+      if (reasons > 1) protectedBytes.overlap += loadedEntry.bytes;
+      if (!visible && replacementReady) duplicateLodBytes += loadedEntry.bytes;
+      if (!visible && !ahead && !fallback && (!current || replacementReady)) {
+        evictionCandidates.cells += 1;
+        evictionCandidates.bytes += loadedEntry.bytes;
+      }
     }
     return {
       loaded,
@@ -537,13 +576,18 @@ export class DallasChunkStreamer {
       desired,
       requested,
       loadedBytes: this.loadedBytes,
+      bytesByLod,
       cacheLimitBytes: this.maxBytes,
       queued: this.queue.length,
       pending: this.pending.size,
       activeFetches: this.activeRequests.size,
       queuedBuilds: this.buildQueue.length,
+      queuedBuildBytes: this.buildQueue.reduce((total, job) => total + job.payload.length * 2, 0),
       abortedFetches: this.abortedFetches,
       protectedCells,
+      protectedBytes,
+      evictionCandidates,
+      duplicateLodBytes,
       loadedChunks: this.loadedChunks,
       evictedChunks: this.evictedChunks,
       discardedLoads: this.discardedLoads,

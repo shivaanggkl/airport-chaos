@@ -5,7 +5,10 @@ export type CityTerritory = {
   center: { x: number; z: number };
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   captureWeight: number;
-  mapColor?: string;
+  fixedColor: string;
+  colorName?: string;
+  boundaryHeight?: number;
+  botObstacleClearance?: number;
 };
 export const cityTerritories: Record<'milwaukee' | 'dallas', readonly CityTerritory[]>;
 export function territoriesForCity(cityId: string): readonly CityTerritory[];

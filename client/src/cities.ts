@@ -8,6 +8,7 @@ export type VisualQaPreset = {
   altitude: number;
   heading: number;
   pitch?: number;
+  speed?: number;
   onGround?: boolean;
 };
 export type CityWorldModule = Omit<typeof import('./world'), 'WORLD_SIZE'> & {
@@ -21,8 +22,11 @@ export type CityWorldModule = Omit<typeof import('./world'), 'WORLD_SIZE'> & {
   discoveries?: ReadonlyArray<import('./discoveries').DiscoveryDefinition>;
   navigationDestinations?: ReadonlyArray<import('./navigation-beacons').NavigationDestination>;
   updateWorldStreaming?: (position: import('three').Vector3, velocity?: import('three').Vector3) => void;
+  hasWorldBuildingDetailAt?: (x: number, z: number) => boolean;
   getWorldStreamingStats?: () => import('./dallas-streamer').DallasStreamingStats | undefined;
   getWorldStreamingVisualDebug?: (position: import('three').Vector3, camera: import('three').Camera) => import('./dallas-streamer').DallasChunkVisualDebug[] | undefined;
+  configureWorldVisuals?: (options: { quality: import('./city-visuals').CityVisualQuality; timeOfDay: import('./city-visuals').CityTimeOfDay }) => void;
+  updateWorldVisuals?: (delta: number) => void;
   disposeWorldStreaming?: () => void;
 };
 

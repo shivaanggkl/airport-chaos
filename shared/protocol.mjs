@@ -1,6 +1,6 @@
 // This number is intentionally shared by the browser and the Node server.
 // Increment it whenever a websocket payload changes incompatibly.
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 // One authoritative range drives client acquisition, server assisted-hit
 // validation, unlocked projectile travel, and Hunter firing eligibility.
 export const COMBAT_RANGE = 2000;
@@ -14,8 +14,8 @@ export function ballisticShotSpeed(velocity, direction) {
 // ~4.3° half-angle: roughly half the former on-screen lock-circle diameter.
 export const LOCK_ANGLE = 0.075;
 
-// Search is wider than the lock itself. Automatic assistance travels 6.6°;
-// temporary vertical input can extend it, but never beyond the search envelope.
+// Search is wider than the lock itself. Manual and automatic aim remain
+// bounded inside this forward-only cone.
 export const AIM_ENVELOPE = 0.20;
 export const AIM_MAX_OFFSET = 0.115;
 export const AIM_MANUAL_OFFSET = 0.10;
@@ -42,9 +42,10 @@ export function aimGoal(x, y, z, out) {
   return true;
 }
 
-export function biasAimVertically(goal, input) {
-  const axis = typeof input === 'number' && Number.isFinite(input) && Math.abs(input) <= 1 ? input : 0;
-  goal.y += Math.tan(AIM_MANUAL_OFFSET) * axis;
+export function biasAim(goal, horizontalInput, verticalInput) {
+  const axis = input => typeof input === 'number' && Number.isFinite(input) && Math.abs(input) <= 1 ? input : 0;
+  goal.x += Math.tan(AIM_MANUAL_OFFSET) * axis(horizontalInput);
+  goal.y += Math.tan(AIM_MANUAL_OFFSET) * axis(verticalInput);
   const radius = Math.hypot(goal.x, goal.y);
   const limit = Math.tan(AIM_ENVELOPE);
   if (radius > limit) { goal.x *= limit / radius; goal.y *= limit / radius; }

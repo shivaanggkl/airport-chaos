@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { keyboardActionBindings, controlGroups, controlKeyLabel, menuBindings, menuKeyLabel, type FlightAction } from './flight-input';
-import { visualLanguage, identityText, targetBracketPath, playerFacingText } from './visual-language';
+import { visualLanguage, identityText, targetBracketPath, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
 import { flightTutorial } from './tutorial';
 import './style.css';
-import { AdPlacementManager } from './ad-placement';
-import { aircraftDefinitions, aircraftEffectAnchors, aircraftMuzzleSockets, type AircraftDefinition, type AircraftType } from './aircraft';
+import { AdPlacementManager, attachAircraftLivery, createRingSponsor, eventSponsorFor, getAircraftLivery, sponsorCreative } from './ad-placement';
+import { aircraftDefinitions, aircraftDisplayName, aircraftEffectAnchors, aircraftMuzzleSockets, type AircraftDefinition, type AircraftType } from './aircraft';
 import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
@@ -17,11 +17,12 @@ import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { NextActionSystem, type NextActionCandidate } from './next-action';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
-import { PlayersPanel, type HumanRosterEntry } from './players-panel';
+import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
+import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
@@ -32,9 +33,13 @@ import type {
   RegionName,
 } from './world';
 
-const flightTestMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('flighttest') === '1';
+// Local production-build QA uses the same diagnostics as Vite DEV without
+// exposing transform presets or telemetry on a deployed beta hostname.
+const localQaEnabled = import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const flightTestMode = localQaEnabled && new URLSearchParams(window.location.search).get('flighttest') === '1';
 const chaosQaMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('chaosqa') === '1';
-const stabilityQaMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('stabilityqa') === '1';
+const stabilityQaMode = localQaEnabled && new URLSearchParams(window.location.search).get('stabilityqa') === '1';
+let stabilityQaFrames = 0;
 const combatQaMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('combatqa') === '1';
 const activeCity = activeCityFromUrl();
 if (!activeCity || activeCity.status !== 'available') throw new Error('A playable city is required before starting the game.');
@@ -42,14 +47,17 @@ const cityId = activeCity.id;
 const cityWorld = await activeCity.loadWorld!();
 const { airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = cityWorld;
 const adPlacements = cityWorld.adPlacements ?? [];
-const visualQaMode = import.meta.env.DEV && cityId === 'dallas' && new URLSearchParams(window.location.search).get('visualqa') === '1' && Boolean(cityWorld.visualQaPresets?.length);
+const visualQaMode = localQaEnabled && cityId === 'dallas' && new URLSearchParams(window.location.search).get('visualqa') === '1' && Boolean(cityWorld.visualQaPresets?.length);
 const adDebugMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('addebug') === '1';
 const PLANE_GROUND_Y = 1.2;
 const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
-const SKY_COLOR = isDallas ? 0x5aaee0 : 0x76c9ed;
+const worldTimeOfDay = isDallas && new URLSearchParams(window.location.search).get('time') === 'dusk' ? 'dusk' : 'day';
+const worldVisualQuality = new URLSearchParams(window.location.search).get('visualquality') === 'low' ? 'low' : 'high';
+cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
+const SKY_COLOR = worldTimeOfDay === 'dusk' ? 0x596d94 : isDallas ? 0x5aaee0 : 0x76c9ed;
 const CAMERA_NEAR = 2;
 const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
 const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
@@ -96,8 +104,8 @@ function resizeRenderer(): void {
 
 resizeRenderer();
 
-scene.add(new THREE.HemisphereLight(isDallas ? 0xd4efff : 0xd9f3ff, isDallas ? 0x587443 : 0x5d764a, isDallas ? 2.78 : 2.55));
-const sun = new THREE.DirectionalLight(isDallas ? 0xffd39a : 0xffe2ae, isDallas ? 3.72 : 3.45);
+scene.add(new THREE.HemisphereLight(worldTimeOfDay === 'dusk' ? 0xb8c8e8 : isDallas ? 0xd4efff : 0xd9f3ff, worldTimeOfDay === 'dusk' ? 0x53604e : isDallas ? 0x587443 : 0x5d764a, worldTimeOfDay === 'dusk' ? 1.4 : isDallas ? 2.78 : 2.55));
+const sun = new THREE.DirectionalLight(worldTimeOfDay === 'dusk' ? 0xffae78 : isDallas ? 0xffd39a : 0xffe2ae, worldTimeOfDay === 'dusk' ? 1.68 : isDallas ? 3.72 : 3.45);
 sun.position.set(-2400, 4200, 1800);
 sun.castShadow = false;
 scene.add(sun);
@@ -111,11 +119,11 @@ const skyDome = new THREE.Mesh(
     fog: false,
     toneMapped: false,
     uniforms: {
-      horizonColor: { value: new THREE.Color(isDallas ? 0xaedcf0 : 0xc4e8f4) },
-      zenithColor: { value: new THREE.Color(isDallas ? 0x217fbe : 0x2d9dd4) },
+      horizonColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x907c91 : isDallas ? 0xaedcf0 : 0xc4e8f4) },
+      zenithColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x1b3258 : isDallas ? 0x217fbe : 0x2d9dd4) },
     },
     vertexShader: 'varying float vHeight; void main() { vHeight = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform vec3 horizonColor; uniform vec3 zenithColor; varying float vHeight; void main() { float t = smoothstep(-0.18, 0.82, vHeight); gl_FragColor = vec4(mix(horizonColor, zenithColor, t), 1.0); }',
+    fragmentShader: `uniform vec3 horizonColor; uniform vec3 zenithColor; varying float vHeight; void main() { float t = smoothstep(${worldTimeOfDay === 'dusk' ? '-0.10, 0.34' : '-0.18, 0.82'}, vHeight); gl_FragColor = vec4(mix(horizonColor, zenithColor, t), 1.0); }`,
   }),
 );
 skyDome.renderOrder = -10;
@@ -135,7 +143,7 @@ for (const beacon of repairsForCity(cityId)) {
   repairBeaconGroup.add(ring);
 }
 scene.add(repairBeaconGroup);
-const adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight);
+const adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight, cityWorld.hasWorldBuildingDetailAt, worldVisualQuality);
 const ambientTraffic = cityWorld.ambientTrafficConfig
   ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight)
   : undefined;
@@ -149,6 +157,7 @@ scene.add(eventCrate);
 const chaosGateMaterial = new THREE.MeshBasicMaterial({ color: 0xffaa42, transparent: true, opacity: 0.88, depthWrite: false, toneMapped: false });
 const chaosGates = Array.from({ length: 6 }, () => {
   const gate = new THREE.Mesh(new THREE.TorusGeometry(78, 4.5, 8, 30), chaosGateMaterial);
+  gate.add(createRingSponsor({ type: 'RING_SPONSOR', campaignId: 'airport-chaos' }, 78));
   gate.visible = false;
   scene.add(gate);
   return gate;
@@ -231,6 +240,9 @@ const aircraftEngineGeometry = new THREE.CylinderGeometry(1, 1, 1, 12);
 // Wide end at the engine nozzle, point trailing aft after the X rotation.
 // This reads as a faint heat plume rather than a projectile-shaped blob.
 const aircraftExhaustGeometry = new THREE.ConeGeometry(1, 1, 8);
+// Fighter plume geometry has its wide/base end at local zero, so changing its
+// length never pulls the source away from the authored rear-nozzle socket.
+const fighterExhaustGeometry = new THREE.ConeGeometry(1, 1, 10).translate(0, 0.5, 0);
 const aircraftHubGeometry = new THREE.SphereGeometry(1, 10, 6);
 const fighterWingGeometry = new THREE.BufferGeometry();
 fighterWingGeometry.setAttribute(
@@ -249,6 +261,9 @@ type AircraftVisuals = {
   exhausts: THREE.Mesh[];
   boostMaterial: THREE.MeshBasicMaterial;
   boostTrails: THREE.Mesh[];
+  fighterBoostCoreMaterial: THREE.MeshBasicMaterial | null;
+  fighterBoostCore: THREE.Mesh | null;
+  fighterBoostEnvelope: number;
 };
 
 function isAircraftType(value: unknown): value is AircraftType {
@@ -380,7 +395,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
         blending: THREE.AdditiveBlending,
       });
   const boostMaterial = new THREE.MeshBasicMaterial({
-    color: type === 'fighter' ? 0xffd39a : type === 'trainer' ? 0xd8f4ff : 0x9eeaff,
+    color: type === 'fighter' ? 0xff4d1f : type === 'trainer' ? 0xd8f4ff : 0x9eeaff,
     transparent: true,
     opacity: 0,
     depthWrite: false,
@@ -392,7 +407,15 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
     exhausts: [],
     boostMaterial,
     boostTrails: [],
+    fighterBoostCoreMaterial: null,
+    fighterBoostCore: null,
+    fighterBoostEnvelope: 0,
   };
+  const fighterExhaustSocket = type === 'fighter' ? new THREE.Group() : null;
+  if (fighterExhaustSocket) {
+    fighterExhaustSocket.name = 'fighter-exhaust-effects';
+    plane.add(fighterExhaustSocket);
+  }
 
   const addBox = (
     width: number,
@@ -422,7 +445,36 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   };
 
   const addExhaustEffect = (x: number, y: number, z: number, radius: number): void => {
-    const baseLength = type === 'fighter' ? 2.1 : 1.45;
+    const baseLength = type === 'fighter' ? 1.25 : 1.45;
+    if (fighterExhaustSocket) {
+      fighterExhaustSocket.position.set(x, y, z);
+      const exhaust = new THREE.Mesh(fighterExhaustGeometry, exhaustMaterial!);
+      exhaust.rotation.x = Math.PI / 2;
+      exhaust.scale.set(radius * 0.58, baseLength, radius * 0.58);
+      exhaust.userData.baseLength = baseLength;
+      fighterExhaustSocket.add(exhaust);
+      visuals.exhausts.push(exhaust);
+
+      const boostLength = baseLength * 4;
+      const outer = new THREE.Mesh(fighterExhaustGeometry, boostMaterial);
+      outer.rotation.x = Math.PI / 2;
+      outer.scale.set(radius * 1.05, boostLength, radius * 1.05);
+      outer.userData.baseLength = boostLength;
+      outer.visible = false;
+      fighterExhaustSocket.add(outer);
+      visuals.boostTrails.push(outer);
+
+      const coreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe49a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+      const core = new THREE.Mesh(fighterExhaustGeometry, coreMaterial);
+      core.rotation.x = Math.PI / 2;
+      core.scale.set(radius * 0.5, boostLength * 0.74, radius * 0.5);
+      core.userData.baseLength = boostLength * 0.74;
+      core.visible = false;
+      fighterExhaustSocket.add(core);
+      visuals.fighterBoostCoreMaterial = coreMaterial;
+      visuals.fighterBoostCore = core;
+      return;
+    }
     if (exhaustMaterial) {
       const exhaust = new THREE.Mesh(aircraftExhaustGeometry, exhaustMaterial);
       exhaust.rotation.x = Math.PI / 2;
@@ -541,7 +593,17 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   muzzleAnchor.position.set(muzzle.position.x, muzzle.position.y, muzzle.position.z);
   plane.add(muzzleAnchor);
   plane.userData.muzzleAnchor = muzzleAnchor;
-  attachAircraftAsset(plane, fallback, type, definition.bodyLength + definition.noseLength, definition.wingSpan);
+  attachAircraftAsset(plane, fallback, type, definition.bodyLength + definition.noseLength, definition.wingSpan, (model) => {
+    if (!fighterExhaustSocket) return;
+    const nozzle = model.getObjectByName('ExhaustSocket_Main');
+    if (!nozzle) {
+      if (import.meta.env.DEV) console.warn('Redspear GLB missing ExhaustSocket_Main; using fallback exhaust origin');
+      return;
+    }
+    nozzle.add(fighterExhaustSocket);
+    fighterExhaustSocket.position.set(0, 0, 0);
+  });
+  if (adDebugMode && !remote) attachAircraftLivery(plane, getAircraftLivery(cityId, adPlacements, type), definition);
 
   return plane;
 }
@@ -615,6 +677,7 @@ let verticalSpeed = 0;
 type FlightState = 'TAXI' | 'TAKEOFF' | 'FLYING' | 'LANDED' | 'CRASHED';
 let flightState: FlightState = 'TAXI';
 let onGround = true;
+let takeoffRollMeters = 0;
 let landedFeedbackTime = 0;
 let credits = persistedPlayer.credits;
 let distanceFlown = 0;
@@ -654,6 +717,7 @@ const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challen
 const dynamicEventElement = document.querySelector<HTMLElement>('#dynamic-event')!;
 const dynamicEventNameElement = document.querySelector<HTMLElement>('#dynamic-event-name')!;
 const dynamicEventObjectiveElement = document.querySelector<HTMLElement>('#dynamic-event-objective')!;
+const dynamicEventSponsorElement = document.querySelector<HTMLElement>('#dynamic-event-sponsor')!;
 const dynamicEventJoinElement = document.querySelector<HTMLButtonElement>('#dynamic-event-join')!;
 const formationStatusElement = document.querySelector<HTMLElement>('#formation-status')!;
 const playerNameElement = document.querySelector<HTMLSpanElement>('#player-name')!;
@@ -716,6 +780,14 @@ const worldMapOverlayElement = document.querySelector<HTMLElement>('#world-map-o
 const worldMapCanvas = document.querySelector<HTMLCanvasElement>('#world-map-canvas')!;
 const worldMapRecenterElement = document.querySelector<HTMLButtonElement>('#world-map-recenter')!;
 const progressMessageElement = document.querySelector<HTMLDivElement>('#progress-message')!;
+const territoryDefenseAlertElement = document.querySelector<HTMLDivElement>('#territory-defense-alert')!;
+const territoryDefenseTextElement = document.querySelector<HTMLSpanElement>('#territory-defense-text')!;
+const territoryDefenseWaypointElement = document.querySelector<HTMLButtonElement>('#territory-defense-waypoint')!;
+let territoryDefenseAlertId: string | null = null;
+territoryDefenseWaypointElement.addEventListener('click', () => {
+  const territory = territoryDefenseAlertId ? territoryDefinition(territoryDefenseAlertId) : undefined;
+  if (territory) setActivityWaypoint(territory.center.x, territory.center.z, territory.displayName);
+});
 const rewardFeedbackElement = document.querySelector<HTMLDivElement>('#reward-feedback')!;
 const combatMessageElement = document.querySelector<HTMLDivElement>('#combat-message')!;
 const hitMarkerElement = document.querySelector<HTMLDivElement>('#hit-marker')!;
@@ -730,15 +802,20 @@ document.querySelector('#controls-content')!.innerHTML = controlGroups.map(group
 const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!;
 document.querySelector('#credits-icon')!.textContent = visualLanguage.credits.icon;
 for (const id of ['radar-legend', 'map-legend']) {
-  document.getElementById(id)!.innerHTML = (id === 'map-legend'
-    ? ['you', 'airport', 'waypoint', 'event', 'repair', 'ai', 'player'] as const
+  const entries = (id === 'map-legend'
+    ? ['you', 'player', 'ai', 'mission', 'airport', 'territory', 'repair', 'event', 'waypoint'] as const
     : ['airport', 'ai', 'player'] as const).map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
+  document.getElementById(id)!.innerHTML = id === 'map-legend'
+    ? `<details class="map-symbol-legend"><summary>LEGEND</summary><div>${entries}</div></details>` : entries;
 }
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
 const activeContractElement = document.querySelector<HTMLDivElement>('#active-contract')!;
 const contractPanelElement = document.querySelector<HTMLElement>('#contract-panel')!;
+const missionCardElement = document.querySelector<HTMLElement>('#mission-card')!;
+const territoryCaptureElement = document.querySelector<HTMLElement>('#territory-capture')!;
+contractPanelElement.classList.add('hidden');
 const contractTypeElement = document.querySelector<HTMLElement>('#contract-type')!;
 const contractDetailElement = document.querySelector<HTMLDivElement>('#contract-detail')!;
 const contractAircraftElement = document.querySelector<HTMLSpanElement>('#contract-aircraft')!;
@@ -752,9 +829,9 @@ let checkpointMessageTimer: number | undefined;
 let progressMessageTimer: number | undefined;
 let rewardBatchTimer: number | undefined;
 let rewardHideTimer: number | undefined;
-let rewardBatchCredits = 0;
+const rewardBatchCredits = new Map<string, number>();
 let rewardBatchScore = 0;
-let displayedRewardCredits = 0;
+const displayedRewardCredits = new Map<string, number>();
 let displayedRewardScore = 0;
 let lastRewardFlushAt = 0;
 let combatMessageTimer: number | undefined;
@@ -836,6 +913,7 @@ const contextualHints = new ContextualHintSystem(
 contextualHintDismissElement.addEventListener('click', () => contextualHints.dismiss());
 // Returning pilots receive the compact runway reminder; first-time pilots see
 // the visual guide first, then enter the same contextual hint sequence.
+contextualHints.trigger('missionBoard');
 contextualHints.trigger('runwayControls');
 
 function recordBestScore(candidate: number): void {
@@ -1067,9 +1145,9 @@ function updateFlightHud(): void {
     const dx = airplane.position.x - approachAirport.x;
     const dz = airplane.position.z - approachAirport.z;
     const centered = Math.abs(dx * Math.cos(approachAirport.heading) - dz * Math.sin(approachAirport.heading)) <= approachAirport.runwayWidth / 2;
-    warning = speedRisk ? 'TOO FAST — HOLD S' : descentRisk ? 'DESCENT TOO FAST' :
+    warning = speedRisk ? 'TOO FAST — HOLD S' : descentRisk ? 'COMING DOWN TOO FAST' :
       !landingStatus.bankSafe ? 'LEVEL WINGS' : !landingStatus.pitchSafe ? 'CRASH RISK — ADJUST NOSE' :
-      !landingStatus.alignmentSafe || !centered ? 'ALIGN WITH RUNWAY' : '';
+      !landingStatus.alignmentSafe || !centered ? 'LINE UP WITH RUNWAY' : '';
   }
   if (landingSpeedCueElement.textContent !== warning) landingSpeedCueElement.textContent = warning;
   landingSpeedCueElement.classList.toggle('hidden', !warning);
@@ -1124,6 +1202,9 @@ function drawRadarMarker(
   label = '',
   king = false,
   hot = false,
+  targeted = false,
+  locked = false,
+  ownershipAccent?: string,
 ): void {
   const center = radarCanvas.width / 2;
   const radarRadius = center - 13;
@@ -1150,8 +1231,20 @@ function drawRadarMarker(
   if (kind === 'player') {
     radarContext.fillStyle = visualLanguage.player.color;
     radarContext.beginPath();
-    radarContext.arc(x, y, 3.5, 0, Math.PI * 2);
+    radarContext.arc(x, y, 5, 0, Math.PI * 2);
     radarContext.fill();
+    radarContext.strokeStyle = '#101d27'; radarContext.lineWidth = 1.5; radarContext.stroke();
+    if (ownershipAccent) {
+      radarContext.strokeStyle = '#081722'; radarContext.lineWidth = 5;
+      radarContext.beginPath(); radarContext.arc(x, y, 9.5, 0, Math.PI * 2); radarContext.stroke();
+      radarContext.strokeStyle = ownershipAccent; radarContext.lineWidth = 3;
+      radarContext.stroke();
+    }
+    if (targeted) {
+      radarContext.strokeStyle = locked ? '#ffffff' : visualLanguage.player.color;
+      radarContext.lineWidth = locked ? 2 : 1.5;
+      radarContext.beginPath(); radarContext.arc(x, y, locked ? 12 : 11, 0, Math.PI * 2); radarContext.stroke();
+    }
     if (hot) {
       radarContext.strokeStyle = visualLanguage.heat.color;
       radarContext.lineWidth = 1.5;
@@ -1181,7 +1274,21 @@ function drawRadarMarker(
     radarContext.translate(x, y);
     radarContext.rotate(Math.PI / 4);
     radarContext.fillStyle = visualLanguage[kind].color;
-    radarContext.fillRect(-3.5, -3.5, 7, 7);
+    radarContext.fillRect(-4.5, -4.5, 9, 9);
+    if (kind === 'ai') {
+      radarContext.strokeStyle = '#10222b'; radarContext.lineWidth = 1.5;
+      radarContext.strokeRect(-4.5, -4.5, 9, 9);
+      if (ownershipAccent) {
+        radarContext.strokeStyle = '#081722'; radarContext.lineWidth = 5;
+        radarContext.beginPath(); radarContext.arc(0, 0, 10, 0, Math.PI * 2); radarContext.stroke();
+        radarContext.strokeStyle = ownershipAccent; radarContext.lineWidth = 3; radarContext.stroke();
+      }
+      if (targeted) {
+        radarContext.strokeStyle = locked ? '#ffffff' : visualLanguage.ai.color;
+        radarContext.lineWidth = locked ? 2 : 1.5;
+        radarContext.strokeRect(-7, -7, 14, 14);
+      }
+    }
     radarContext.restore();
     return;
   }
@@ -1264,11 +1371,15 @@ function updateRadar(direction: THREE.Vector3): void {
     const track = humanRadarTracks.get(human.playerId);
     if (!track) continue;
     const remote = remotePlayers.get(human.playerId);
-    drawRadarMarker(direction, track.x, track.z, 'player', '', human.playerId === kingPlayerId, (remote?.heatLevel ?? 0) >= 4);
+    drawRadarMarker(direction, track.x, track.z, 'player', '', human.playerId === kingPlayerId, (remote?.heatLevel ?? 0) >= 4,
+      selectedCombatTarget?.remote.playerId === human.playerId, selectedCombatTarget?.remote.playerId === human.playerId && selectedCombatTarget.locked,
+      primaryTerritoryColorForPlayer(human.playerId));
   }
   for (const remote of remotePlayers.values()) {
     if (!remote.isBot || !remoteIdentityVisible(remote)) continue;
-    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', '', false, remote.heatLevel >= 4);
+    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', '', false, remote.heatLevel >= 4,
+      selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
+      primaryTerritoryColorForPlayer(remote.playerId));
   }
   for (const ambient of ambientTraffic?.getRadarEntities(airplane.position, radarRange) ?? []) {
     drawRadarMarker(direction, ambient.x, ambient.z, entityCapabilities(ambient.entityType, ambient.eventCombatMode).radarMarker);
@@ -1309,6 +1420,8 @@ function updateNavigationHud(): void {
     radius: lockCircleRadius,
     active: selectedCombatTarget !== null,
   });
+  updateTerritoryLabels();
+  updateCaptureHud();
   updateSocialHud();
   const outsideCity =
     Math.abs(airplane.position.x) > WORLD_SIZE / 2 || Math.abs(airplane.position.z) > WORLD_SIZE / 2;
@@ -1344,27 +1457,27 @@ function showProgressMessage(message: string): void {
   progressMessageTimer = window.setTimeout(() => progressMessageElement.classList.add('hidden'), 1400);
 }
 
-function queueRewardFeedback(creditDelta = 0, scoreDelta = 0): void {
-  rewardBatchCredits += Math.max(0, Math.round(creditDelta));
+function queueRewardFeedback(creditDelta = 0, scoreDelta = 0, creditReason = 'Gameplay Reward'): void {
+  if (creditDelta > 0) rewardBatchCredits.set(creditReason, (rewardBatchCredits.get(creditReason) ?? 0) + Math.round(creditDelta));
   rewardBatchScore += Math.max(0, Math.round(scoreDelta));
-  if (rewardBatchCredits === 0 && rewardBatchScore === 0) return;
+  if (rewardBatchCredits.size === 0 && rewardBatchScore === 0) return;
   if (rewardBatchTimer !== undefined) return;
   rewardBatchTimer = window.setTimeout(() => {
     rewardBatchTimer = undefined;
     const now = performance.now();
     if (now - lastRewardFlushAt > 900) {
-      displayedRewardCredits = 0;
+      displayedRewardCredits.clear();
       displayedRewardScore = 0;
     }
-    displayedRewardCredits += rewardBatchCredits;
+    for (const [reason, amount] of rewardBatchCredits) displayedRewardCredits.set(reason, (displayedRewardCredits.get(reason) ?? 0) + amount);
     displayedRewardScore += rewardBatchScore;
-    rewardBatchCredits = 0;
+    rewardBatchCredits.clear();
     rewardBatchScore = 0;
     lastRewardFlushAt = now;
     const parts: string[] = [];
-    if (displayedRewardCredits > 0) parts.push(`+${displayedRewardCredits.toLocaleString()} Credits`);
+    for (const [reason, amount] of displayedRewardCredits) parts.push(`+${amount.toLocaleString()} Credits · ${reason}`);
     if (displayedRewardScore > 0) parts.push(`+${displayedRewardScore.toLocaleString()} Score`);
-    rewardFeedbackElement.textContent = parts.join('  ·  ');
+    rewardFeedbackElement.textContent = parts.join('\n');
     const wasHidden = rewardFeedbackElement.classList.contains('hidden');
     rewardFeedbackElement.classList.remove('hidden');
     if (wasHidden) {
@@ -1376,7 +1489,7 @@ function queueRewardFeedback(creditDelta = 0, scoreDelta = 0): void {
     rewardHideTimer = window.setTimeout(() => {
       rewardFeedbackElement.classList.add('hidden');
       rewardFeedbackElement.classList.remove('show');
-      displayedRewardCredits = 0;
+      displayedRewardCredits.clear();
       displayedRewardScore = 0;
     }, 1400);
   }, 180);
@@ -1395,12 +1508,273 @@ let kingPlayerId: string | undefined;
 const formationMembers = new Set<string>();
 const territoryDefinitions = territoriesForCity(cityId);
 const territoryState = new Map<string, NetworkTerritoryState>();
+const neutralTerritoryColor: string = territoryOwnershipColors.neutral;
+const mapTerritoryLegend = document.createElement('details');
+mapTerritoryLegend.className = 'map-territory-legend territory-color-legend';
+const MAP_TERRITORY_LEGEND_KEY = 'airport-chaos-map-territory-legend-collapsed-v1';
+const MAP_SYMBOL_LEGEND_KEY = 'airport-chaos-map-symbol-legend-collapsed-v1';
+const mapSymbolLegend = document.querySelector<HTMLDetailsElement>('#map-legend .map-symbol-legend')!;
+try {
+  mapSymbolLegend.open = localStorage.getItem(MAP_SYMBOL_LEGEND_KEY) !== '1';
+  mapTerritoryLegend.open = localStorage.getItem(MAP_TERRITORY_LEGEND_KEY) !== '1';
+} catch { mapSymbolLegend.open = true; mapTerritoryLegend.open = true; }
+for (const [legend, key] of [[mapSymbolLegend, MAP_SYMBOL_LEGEND_KEY], [mapTerritoryLegend, MAP_TERRITORY_LEGEND_KEY]] as const) {
+  legend.addEventListener('toggle', () => {
+    if (!legend.isConnected) return;
+    try { localStorage.setItem(key, legend.open ? '0' : '1'); } catch { /* optional UI preference */ }
+  });
+}
+mapTerritoryLegend.append(document.createElement('summary'));
+mapTerritoryLegend.querySelector('summary')!.textContent = 'TERRITORY COLORS';
+const mapTerritoryLegendItems = document.createElement('div');
+mapTerritoryLegendItems.className = 'territory-color-legend-items';
+for (const definition of territoryDefinitions) {
+  const item = document.createElement('span');
+  const dot = document.createElement('i'); dot.className = 'territory-color-dot'; dot.style.backgroundColor = definition.fixedColor;
+  item.append(dot, document.createTextNode(`${definition.colorName ? `${definition.colorName} — ` : ''}${definition.displayName}`));
+  mapTerritoryLegendItems.append(item);
+}
+if (territoryDefinitions.length) {
+  const neutralItem = document.createElement('span');
+  const dot = document.createElement('i'); dot.className = 'territory-color-dot'; dot.style.backgroundColor = neutralTerritoryColor;
+  neutralItem.append(dot, document.createTextNode('Silver / White — Neutral'));
+  mapTerritoryLegendItems.append(neutralItem);
+  mapTerritoryLegend.append(mapTerritoryLegendItems);
+  document.querySelector('#map-legend .map-symbol-legend')!.append(mapTerritoryLegend);
+}
+function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; color: string }> {
+  const owned: Array<{ name: string; color: string }> = [];
+  for (const definition of territoryDefinitions) {
+    if (territoryState.get(definition.id)?.controllerId !== playerId) continue;
+    owned.push({ name: definition.displayName, color: definition.fixedColor });
+  }
+  return owned;
+}
+function primaryTerritoryColorForPlayer(playerId: string): string | undefined {
+  // One deterministic accent per human prevents multi-territory rainbow clutter.
+  for (const definition of territoryDefinitions) if (territoryState.get(definition.id)?.controllerId === playerId) return definition.fixedColor;
+  return undefined;
+}
 let weeklyLeaderboards: NetworkWeeklyLeaderboard[] = [];
+
+// Shared ownership colors match the world map. Every strip vertex follows the
+// terrain, including the outer edge, so wide glow cannot vanish under slopes.
+const territoryMaterialColors = [...new Set([...territoryDefinitions.map(({ fixedColor }) => fixedColor), neutralTerritoryColor])];
+const borderMaterials = Object.fromEntries(territoryMaterialColors.map((fixedColor) => [fixedColor, {
+  core: new THREE.MeshBasicMaterial({ color: fixedColor, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 1 : 0.96, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+  halo: new THREE.MeshBasicMaterial({ color: fixedColor, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.52 : 0.39, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
+  missionHalo: new THREE.MeshBasicMaterial({ color: fixedColor, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.72 : 0.56, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
+}])) as Record<string, { core: THREE.MeshBasicMaterial; halo: THREE.MeshBasicMaterial; missionHalo: THREE.MeshBasicMaterial }>;
+const contestedBorderHalo = new THREE.MeshBasicMaterial({ color: territoryOwnershipColors.contested, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.65 : 0.5, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+const borderUnderlayMaterial = new THREE.MeshBasicMaterial({ color: 0x102330, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.82 : 0.78, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+const territoryCurtainHeight = 220;
+const curtainVisuals = {
+  day: { full: 0.34, far: 0.11, missionFull: 0.44, missionFar: 0.17 },
+  dusk: { full: 0.43, far: 0.15, missionFull: 0.54, missionFar: 0.22 },
+  night: { full: 0.48, far: 0.18, missionFull: 0.6, missionFar: 0.26 },
+} as const;
+type CurtainLod = keyof typeof curtainVisuals.day;
+const curtainLods: readonly CurtainLod[] = ['full', 'far', 'missionFull', 'missionFar'];
+const curtainStrength = curtainVisuals[worldTimeOfDay];
+const curtainMaterials = Object.fromEntries(territoryMaterialColors.map((fixedColor) => [fixedColor,
+  Object.fromEntries(curtainLods.map((lod) => [lod, new THREE.ShaderMaterial({
+    uniforms: {
+      tint: { value: new THREE.Color(fixedColor) },
+      strength: { value: curtainStrength[lod] },
+    },
+    vertexShader: 'attribute float fade; varying float vFade; void main() { vFade = fade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 tint; uniform float strength; varying float vFade; void main() { gl_FragColor = vec4(tint, strength * vFade); }',
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  })])) as Record<CurtainLod, THREE.ShaderMaterial>,
+])) as Record<string, Record<CurtainLod, THREE.ShaderMaterial>>;
+const territoryLabelLayer = document.createElement('div');
+territoryLabelLayer.className = 'territory-world-labels';
+document.querySelector('#game-root')!.append(territoryLabelLayer);
+const territoryLabelProjection = new THREE.Vector3();
+const territoryBorders = territoryDefinitions.map((definition) => {
+  const { minX, maxX, minZ, maxZ } = definition.bounds;
+  const corners: Array<[number, number]> = [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ], [minX, minZ]];
+  const border = new THREE.Group();
+  for (const [width, layer] of [[34, 'underlay'], [80, 'halo'], [16, 'core']] as const) {
+    const vertices: number[] = [];
+    for (let edge = 0; edge < 4; edge += 1) {
+      const [x0, z0] = corners[edge], [x1, z1] = corners[edge + 1];
+      const length = Math.hypot(x1 - x0, z1 - z0);
+      const steps = Math.max(1, Math.ceil(length / 60));
+      const nx = -(z1 - z0) / length * width * 0.5;
+      const nz = (x1 - x0) / length * width * 0.5;
+      for (let step = 0; step < steps; step += 1) {
+        const a = step / steps, b = (step + 1) / steps;
+        const ax = x0 + (x1 - x0) * a, az = z0 + (z1 - z0) * a;
+        const bx = x0 + (x1 - x0) * b, bz = z0 + (z1 - z0) * b;
+        const lift = layer === 'core' ? 1.7 : layer === 'halo' ? 1.5 : 1.35;
+        vertices.push(ax + nx, groundPlaneY(ax + nx, az + nz) + lift, az + nz,
+          ax - nx, groundPlaneY(ax - nx, az - nz) + lift, az - nz,
+          bx + nx, groundPlaneY(bx + nx, bz + nz) + lift, bz + nz,
+          ax - nx, groundPlaneY(ax - nx, az - nz) + lift, az - nz,
+          bx - nx, groundPlaneY(bx - nx, bz - nz) + lift, bz - nz,
+          bx + nx, groundPlaneY(bx + nx, bz + nz) + lift, bz + nz);
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry, layer === 'underlay' ? borderUnderlayMaterial : borderMaterials[neutralTerritoryColor][layer]);
+    mesh.renderOrder = layer === 'core' ? 12 : layer === 'halo' ? 11 : 10;
+    border.add(mesh);
+  }
+  const curtainVertices: number[] = [];
+  const curtainFade: number[] = [];
+  const height = THREE.MathUtils.clamp(definition.boundaryHeight ?? territoryCurtainHeight, 150, 300);
+  for (let edge = 0; edge < 4; edge += 1) {
+    const [x0, z0] = corners[edge], [x1, z1] = corners[edge + 1];
+    const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 120));
+    for (let step = 0; step < steps; step += 1) {
+      const a = step / steps, b = (step + 1) / steps;
+      const ax = x0 + (x1 - x0) * a, az = z0 + (z1 - z0) * a;
+      const bx = x0 + (x1 - x0) * b, bz = z0 + (z1 - z0) * b;
+      const ay = groundPlaneY(ax, az) + 1.4, by = groundPlaneY(bx, bz) + 1.4;
+      curtainVertices.push(ax, ay, az, ax, ay + height, az, bx, by, bz,
+        ax, ay + height, az, bx, by + height, bz, bx, by, bz);
+      curtainFade.push(1, 0, 1, 0, 0, 1);
+    }
+  }
+  const curtainGeometry = new THREE.BufferGeometry();
+  curtainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(curtainVertices, 3));
+  curtainGeometry.setAttribute('fade', new THREE.Float32BufferAttribute(curtainFade, 1));
+  curtainGeometry.computeBoundingSphere();
+  const curtain = new THREE.Mesh(curtainGeometry, curtainMaterials[neutralTerritoryColor].full);
+  curtain.name = `territory-curtain-${definition.id}`;
+  curtain.renderOrder = 9;
+  border.add(curtain);
+  const label = document.createElement('div');
+  const title = document.createElement('strong');
+  const owner = document.createElement('span');
+  label.className = 'territory-world-label';
+  label.hidden = true;
+  title.textContent = definition.displayName.toUpperCase();
+  label.append(title, owner);
+  territoryLabelLayer.append(label);
+  scene.add(border);
+  return { definition, border, curtain, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, farCurtain: false };
+});
+let territoryBorderRefreshAt = 0;
+function refreshTerritoryBorders(): void {
+  const active = serverProfile.missions[cityId]?.active;
+  const mission = active && missionForCity(cityId, active.missionId);
+  const missionTerritories = mission ? missionRequirements(mission) : [];
+  for (const entry of territoryBorders) {
+    const { definition, border } = entry;
+    const state = territoryState.get(definition.id);
+    const appearance: TerritoryAppearance = state?.contested ? 'contested' : !state?.controllerId ? 'neutral' : state.controllerId === localPlayerId ? 'own' : 'enemy';
+    entry.appearance = appearance;
+    entry.displayColor = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
+    entry.missionTarget = missionTerritories.includes(definition.id);
+    const materials = borderMaterials[entry.displayColor];
+    (border.children[1] as THREE.Mesh).material = appearance === 'contested' ? contestedBorderHalo : entry.missionTarget ? materials.missionHalo : materials.halo;
+    (border.children[2] as THREE.Mesh).material = materials.core;
+    entry.curtain.material = curtainMaterials[entry.displayColor][entry.missionTarget ? entry.farCurtain ? 'missionFar' : 'missionFull' : entry.farCurtain ? 'far' : 'full'];
+    entry.owner.textContent = state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
+    entry.label.style.setProperty('--territory-accent', entry.displayColor);
+    entry.label.classList.toggle('mission', entry.missionTarget);
+    entry.label.classList.toggle('contested', appearance === 'contested');
+  }
+}
+function updateTerritoryBorderVisibility(now: number): void {
+  if (now < territoryBorderRefreshAt) return;
+  territoryBorderRefreshAt = now + 500;
+  let contestedVisible = false;
+  for (const entry of territoryBorders) {
+    const { definition, border } = entry;
+    const dx = Math.max(definition.bounds.minX - airplane.position.x, 0, airplane.position.x - definition.bounds.maxX);
+    const dz = Math.max(definition.bounds.minZ - airplane.position.z, 0, airplane.position.z - definition.bounds.maxZ);
+    const distanceSquared = dx * dx + dz * dz;
+    border.visible = distanceSquared < 12_000 * 12_000;
+    const far = distanceSquared > 7_000 * 7_000;
+    if (entry.farCurtain !== far) {
+      entry.farCurtain = far;
+      entry.curtain.material = curtainMaterials[entry.displayColor][entry.missionTarget ? far ? 'missionFar' : 'missionFull' : far ? 'far' : 'full'];
+    }
+    if (border.visible && territoryState.get(definition.id)?.contested) contestedVisible = true;
+  }
+  if (contestedVisible) {
+    const pulse = Math.sin(now * 0.0022) * 0.08;
+    contestedBorderHalo.opacity = (worldTimeOfDay === 'dusk' ? 0.65 : 0.5) + pulse;
+  }
+}
+
+function updateTerritoryLabels(): void {
+  let first = -1, second = -1, firstPriority = Infinity, secondPriority = Infinity;
+  for (let index = 0; index < territoryBorders.length; index += 1) {
+    const entry = territoryBorders[index];
+    const dx = entry.definition.center.x - airplane.position.x;
+    const dz = entry.definition.center.z - airplane.position.z;
+    const distanceSquared = dx * dx + dz * dz;
+    if (distanceSquared > 7_000 * 7_000 || !entry.border.visible) continue;
+    const priority = entry.missionTarget ? distanceSquared * 0.25 : distanceSquared;
+    if (priority < firstPriority) { second = first; secondPriority = firstPriority; first = index; firstPriority = priority; }
+    else if (priority < secondPriority) { second = index; secondPriority = priority; }
+  }
+  for (let index = 0; index < territoryBorders.length; index += 1) {
+    const entry = territoryBorders[index];
+    if (index !== first && index !== second) { entry.label.hidden = true; continue; }
+    territoryLabelProjection.set(entry.definition.center.x,
+      groundPlaneY(entry.definition.center.x, entry.definition.center.z) + Math.max(450, (entry.definition.boundaryHeight ?? territoryCurtainHeight) + 220),
+      entry.definition.center.z).project(camera);
+    const x = (territoryLabelProjection.x + 1) * window.innerWidth * 0.5;
+    const y = (1 - territoryLabelProjection.y) * window.innerHeight * 0.5;
+    const nearReticle = Math.hypot(x - lockCircleCenterX, y - lockCircleCenterY) < lockCircleRadius + 95;
+    entry.label.hidden = territoryLabelProjection.z < -1 || territoryLabelProjection.z > 1 ||
+      Math.abs(territoryLabelProjection.x) > 0.92 || Math.abs(territoryLabelProjection.y) > 0.88 || nearReticle || navigationBeacons.isHudArea(x, y) ||
+      (selectedCombatTarget !== null && Math.hypot(x - window.innerWidth * 0.5, y - window.innerHeight * 0.5) < 260);
+    if (!entry.label.hidden) entry.label.style.transform = `translate(-50%, -100%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+  }
+}
 
 function applyTerritoryState(states: readonly NetworkTerritoryState[]): void {
   territoryState.clear();
   for (const state of states) territoryState.set(state.id, state);
+  if (territoryDefenseAlertId) {
+    const attacked = territoryState.get(territoryDefenseAlertId);
+    if (!attacked || attacked.controllerId !== localPlayerId || (!attacked.contested && !attacked.capturingPlayerId)) {
+      territoryDefenseAlertId = null;
+      territoryDefenseAlertElement.classList.add('hidden');
+    }
+  }
+  refreshTerritoryBorders();
+  for (const remote of remotePlayers.values()) {
+    if (remote.ownershipSignature !== ownedTerritoriesForPlayer(remote.playerId).map(({ color }) => color).join('|')) refreshPlayerIdentityTag(remote);
+  }
+  playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
+  cityTerritoriesPanel.update(cityTerritoryEntries(), localPlayerId);
+  updateCaptureHud();
+  updateMissionHud();
   refreshPilotMenu();
+}
+
+function updateCaptureHud(): void {
+  const capturing = localPlayerId ? territoryDefinitions.find((definition) => {
+    const state = territoryState.get(definition.id);
+    return state?.capturingPlayerId === localPlayerId &&
+      airplane.position.x >= definition.bounds.minX && airplane.position.x <= definition.bounds.maxX &&
+      airplane.position.z >= definition.bounds.minZ && airplane.position.z <= definition.bounds.maxZ;
+  }) : undefined;
+  territoryCaptureElement.classList.toggle('hidden', !capturing);
+  if (capturing) {
+    const text = `${capturing.displayName.toUpperCase()} · CAPTURING ${Math.min(100, Math.max(0, territoryState.get(capturing.id)?.captureProgress ?? 0))}%`;
+    if (territoryCaptureElement.textContent !== text) territoryCaptureElement.textContent = text;
+  }
+}
+
+function cityTerritoryEntries(): CityTerritoryEntry[] {
+  return territoryDefinitions.map((definition) => {
+    const state = territoryState.get(definition.id);
+    return {
+      name: definition.displayName, color: definition.fixedColor,
+      controllerId: state?.controllerId, controllerName: state?.controllerName,
+      contested: state?.contested ?? false,
+    };
+  });
 }
 
 function territoryDefinition(id: string): CityTerritory | undefined {
@@ -1458,6 +1832,8 @@ function updateDynamicEventHud(): void {
   const mode = (event.eventType === 'riskZone' || event.eventType === 'cityEmergency') && event.riskMode ? ` · ${event.riskMode.replace(/([A-Z])/g, ' $1').toUpperCase()}` : '';
   const boss = event.eventType === 'aceIntercept' && event.bossHealth !== undefined ? ` · ACE ${event.bossHealth}/${event.bossMaxHealth}` : '';
   dynamicEventObjectiveElement.textContent = `${event.lifecycle === 'available' ? 'NEXT' : 'ACTIVE'}${mode}${boss} · ${objectiveDistance}M · ${remaining}s${progress ? ` · ${progress.toFixed(1)}s` : ''}`;
+  const sponsor = eventSponsorFor(event.eventType);
+  dynamicEventSponsorElement.textContent = sponsor ? `PRESENTED BY ${sponsorCreative(sponsor.campaignId).headline.toUpperCase()}` : '';
   const joined = joinedEventId === event.id;
   dynamicEventJoinElement.disabled = joined || !localPlayerId;
   dynamicEventJoinElement.textContent = joined ? 'JOINED' : 'JOIN';
@@ -1882,13 +2258,13 @@ function updateAircraftOptions(): void {
     const owned = flightTestMode || (profileHydrated && serverProfile.unlockedAircraft.includes(option.value));
     if (option.disabled !== !owned) option.disabled = !owned;
     const label = flightTestMode && definition.access !== 'free'
-      ? `${definition.name} — Flight test`
+      ? `${aircraftDisplayName(option.value)} — Flight test`
       :
       definition.access === 'free'
-        ? `${definition.name} — Free`
+        ? `${aircraftDisplayName(option.value)} — Free`
         : definition.access === 'premium'
-          ? `${definition.name} — ${owned ? 'Owned' : 'Premium'}`
-          : `${definition.name} — ${owned ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
+          ? `${aircraftDisplayName(option.value)} — ${owned ? 'Owned' : 'Premium'}`
+          : `${aircraftDisplayName(option.value)} — ${owned ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
     if (option.textContent !== label) option.textContent = label;
   }
 }
@@ -1940,7 +2316,7 @@ function setRestartAirport(airport: AirportDefinition): void {
   spawnHeading = airport.heading;
 }
 
-function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuality): void {
+function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuality, rough = false): void {
   setRestartAirport(airport);
   if (visualQaMode) return;
   if (flightDistanceSinceTakeoff < MIN_REWARDED_FLIGHT_DISTANCE) return;
@@ -1950,7 +2326,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   resetRegionsOnNextTakeoff = true;
   const destinationBonus = !landedAirportIds.has(airport.id);
   landedAirportIds.add(airport.id);
-  showProgressMessage(destinationBonus ? `${airport.name.toUpperCase()} DISCOVERED` : 'LANDING VERIFIED');
+  showProgressMessage(rough ? 'ROUGH LANDING' : destinationBonus ? `${airport.name.toUpperCase()} DISCOVERED` : 'LANDING VERIFIED');
   if (localPlayerId && connectionReady() && landingQuality) {
     socket.send(JSON.stringify({ type: 'landingIntent', airportId: airport.id, telemetry: {
       speed: landingQuality.speed,
@@ -2024,6 +2400,7 @@ function restartGame(): void {
   verticalSpeed = 0;
   velocity.set(0, 0, 0);
   onGround = true;
+  takeoffRollMeters = 0;
   landedFeedbackTime = 0;
   cameraShakeTime = 0;
   checkpointFlashIndex = -1;
@@ -2162,6 +2539,10 @@ function tryStartStunt(): void {
       duration: THREE.MathUtils.clamp(0.68 + currentAircraft.inertia * 0.12, 0.72, 0.94),
     };
   }
+  if (activeStuntManeuver && connectionReady()) {
+    sendLocalState();
+    socket.send(JSON.stringify({ type: 'stuntStart', maneuver: activeStuntManeuver.kind }));
+  }
 }
 let runStarted = false;
 const flightControlCodes = new Set(Object.keys(keyboardActionBindings));
@@ -2209,7 +2590,7 @@ window.addEventListener('keydown', (event) => {
   if (event.target === aircraftSelectElement) return;
   if (flightControlCodes.has(event.code)) {
     event.preventDefault();
-    if (keyboardActionBindings[event.code] !== 'aimUp' && keyboardActionBindings[event.code] !== 'aimDown') runStarted = true;
+    if (!['aimLeft', 'aimRight', 'aimUp', 'aimDown'].includes(keyboardActionBindings[event.code])) runStarted = true;
   }
   const action = keyboardActionBindings[event.code];
   if (!event.repeat && action === 'fire') fireWeaponOnce();
@@ -2305,7 +2686,7 @@ const throttleElement = document.querySelector<HTMLSpanElement>('#throttle')!;
 const boostElement = document.querySelector<HTMLSpanElement>('#boost')!;
 const boostReadoutElement = document.querySelector<HTMLSpanElement>('#boost-readout')!;
 const landingSpeedCueElement = document.querySelector<HTMLDivElement>('#landing-speed-cue')!;
-const landingStatus = { speedSafe: true, descentSafe: true, bankSafe: true, pitchSafe: true, alignmentSafe: true, bankAngle: 0, headingError: 0, reason: '' };
+const landingStatus = { speedSafe: true, descentSafe: true, bankSafe: true, pitchSafe: true, alignmentSafe: true, bankAngle: 0, headingError: 0, reason: '', rough: false };
 
 type NetworkTransform = {
   position: { x: number; y: number; z: number };
@@ -2336,7 +2717,7 @@ function updateHumanRosterStatus(playerId: string, status: HumanRosterEntry['sta
   const player = cityHumanRoster.get(playerId);
   if (!player || player.status === status) return;
   player.status = status;
-  playersPanel.update([...cityHumanRoster.values()], localPlayerId);
+  playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
 }
 
 function humanHasActiveAircraft(player: HumanRosterEntry): boolean {
@@ -2374,6 +2755,8 @@ type NetworkSocialState = { kingPlayerId?: string };
 type NetworkObjectiveItem = { id: string; label: string; activity: string; target: number; progress: number; reward: number; completed: boolean; rewarded: boolean };
 type NetworkObjectiveCycle = { dailyId: string; weeklyId: string; daily: NetworkObjectiveItem[]; weekly: NetworkObjectiveItem[]; dailyBonusAwarded: boolean; weeklyBonusAwarded: boolean };
 type NetworkMastery = { xp: number; level: number; unlockedRewards: string[] };
+type NetworkMissionAttempt = { missionId: string; attemptId: string; startedAt: number; updatedAt: number; progress: number; holdStartedAt?: number; flightStartedAt?: number; heading?: number; distanceMeters?: number; completedIds: string[]; targetId?: string; eventId?: string; sequenceIndex?: number; challengeEndsAt?: number };
+type NetworkMissionCityState = { active?: NetworkMissionAttempt; completions: Record<string, { count: number; lastCompletedAt: number }> };
 type NetworkWeeklyLeaderboard = { category: string; weekId: string; top: Array<{ pilotId: string; pilotName: string; value: number }>; localRank?: number };
 type NetworkTerritoryState = {
   id: string;
@@ -2401,6 +2784,7 @@ type NetworkProfile = {
   eventCompletions: number;
   objectives: Partial<Record<CityId, NetworkObjectiveCycle>>;
   mastery: Partial<Record<CityId, NetworkMastery>>;
+  missions: Partial<Record<CityId, NetworkMissionCityState>>;
   legacyImportPending: boolean;
 };
 
@@ -2428,6 +2812,10 @@ type ServerMessage =
   | { type: 'equipRejected'; reason: string; equipRequestId: number }
   | { type: 'aircraftPurchaseResult'; purchaseRequestId: number; aircraftType?: unknown; ok: boolean; reason?: string }
   | { type: 'testerCodeResult'; ok: boolean; reason: string }
+  | { type: 'missionState'; cityId: CityId; state: NetworkMissionCityState }
+  | { type: 'missionResult'; missionId: string; ok: boolean; reason?: string; confirmationRequired?: boolean; attemptId?: string }
+  | { type: 'missionCompleted'; missionId: string; credits: number; score: number }
+  | { type: 'missionFailed'; missionId: string; reason: string }
   | { type: 'weeklyLeaderboards'; weeklyLeaderboards: NetworkWeeklyLeaderboard[] }
   | ({ type: 'state' } & NetworkPlayer)
   | { type: 'remove'; playerId: string }
@@ -2463,7 +2851,7 @@ type ServerMessage =
   | { type: 'lockState'; targetId?: string; candidateId?: string; aimX: number; aimY: number; aimId: number }
   | ({ type: 'heatState' } & NetworkHeatState)
   | { type: 'territoryState'; cityId: CityId; territories: NetworkTerritoryState[] }
-  | { type: 'territoryNotice'; territoryId: string; kind: 'enter' | 'captured' }
+  | { type: 'territoryNotice'; territoryId: string; kind: 'enter' | 'captured' | 'underAttack' | 'defenderInbound'; attackerName?: string }
   | { type: 'territoryReward'; territoryId: string; score: number; credits: number; kind: 'capture' | 'control' }
   | { type: 'objectiveComplete'; objectiveId: string; label: string; credits: number }
   | { type: 'objectiveProgress'; label: string; progress: number; target: number }
@@ -2492,7 +2880,7 @@ type ServerMessage =
   | { type: 'socialReward'; score: number; credits: number; reason: string }
   | { type: 'chaosState'; multiplier: number; action: string; score: number; pendingCredits: number }
   | { type: 'chaosReward'; credits: number; reason: string }
-  | { type: 'profile'; profile: NetworkProfile; rewardId?: string; selectionRevision: number; equipRequestId?: number };
+  | { type: 'profile'; profile: NetworkProfile; rewardId?: string; selectionRevision: number; equipRequestId?: number; creditReason?: string };
 
 function createSafeNetworkProfile(): NetworkProfile {
   return {
@@ -2513,6 +2901,7 @@ function createSafeNetworkProfile(): NetworkProfile {
     eventCompletions: 0,
     objectives: {},
     mastery: {},
+    missions: {},
     // This local placeholder is never awarded from. It keeps the profile
     // session structurally safe until a version-validated server welcome.
     legacyImportPending: true,
@@ -2539,10 +2928,16 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
     typeof profile.eventCompletions === 'number' && Number.isFinite(profile.eventCompletions) && profile.eventCompletions >= 0 &&
     !!profile.objectives && typeof profile.objectives === 'object' &&
     !!profile.mastery && typeof profile.mastery === 'object' &&
+    !!profile.missions && typeof profile.missions === 'object' &&
     typeof profile.legacyImportPending === 'boolean';
 }
 
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
+let activeMissionAttemptId: string | undefined;
+const profileActiveMissionCity = (profile: NetworkProfile): CityId | undefined =>
+  profile.missions[cityId]?.active ? cityId : (['dallas', 'milwaukee'] as const).find((id) => profile.missions[id]?.active);
+const profileActiveMissionAttempt = (profile: NetworkProfile): NetworkMissionAttempt | undefined =>
+  profile.missions[profileActiveMissionCity(profile) ?? cityId]?.active;
 let profileHydrated = false;
 let selectionRevision = 0;
 let legacyImportSent = false;
@@ -2553,6 +2948,8 @@ type RemotePlayer = {
   entityType: EntityType;
   isBot: boolean;
   displayName: string;
+  ownershipAccent?: string;
+  ownershipSignature?: string;
   identityTag: THREE.Sprite;
   hullTag: THREE.Sprite;
   targetBrackets: THREE.Sprite;
@@ -2598,23 +2995,55 @@ type AssistedShotVisual = {
   duration: number;
 };
 
-function createPlayerIdentityTag(name: string, type: AircraftType, king = false, isBot = false): THREE.Sprite {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 32;
+function paintPlayerIdentityTag(label: THREE.Sprite, name: string, type: AircraftType, king: boolean, isBot: boolean,
+  ownershipColors: readonly string[], distance = 0, targeted = false, locked = false, missionTarget = false): void {
+  const canvas = label.userData.canvas as HTMLCanvasElement;
+  const band = distance <= 900 ? 'close' : distance <= 3_000 ? 'mid' : 'far';
+  const distanceText = distance < 1_000 ? `${Math.round(distance / 10) * 10}m` : `${(distance / 1_000).toFixed(1)} km`;
+  const signature = `${name}|${type}|${king}|${isBot}|${ownershipColors.join(',')}|${band}|${distanceText}|${targeted}|${locked}|${missionTarget}`;
+  if (label.userData.signature === signature) return;
+  label.userData.signature = signature;
   const context = canvas.getContext('2d')!;
   context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = visualLanguage[isBot ? 'ai' : 'player'].color;
-  context.font = '700 17px ui-sans-serif, system-ui, sans-serif';
+  const identityColor = visualLanguage[isBot ? 'ai' : 'player'].color;
+  context.fillStyle = 'rgba(6, 20, 30, 0.84)';
+  context.fillRect(2, 2, 316, 76);
+  context.strokeStyle = missionTarget ? visualLanguage.mission.color : identityColor;
+  context.lineWidth = locked ? 5 : targeted || missionTarget ? 4 : 3;
+  context.strokeRect(3, 3, 314, 74);
+  for (let index = 0; index < Math.min(3, ownershipColors.length); index += 1) {
+    context.beginPath(); context.arc(23 + index * 20, 29, 7, 0, Math.PI * 2);
+    context.fillStyle = ownershipColors[index]; context.fill();
+    context.strokeStyle = '#06141e'; context.lineWidth = 2; context.stroke();
+  }
+  context.fillStyle = '#f3fbff';
+  context.font = '800 27px ui-sans-serif, system-ui, sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(isBot ? `${visualLanguage.ai.icon} ${name.slice(0, 14)} · AI PILOT` : `${king ? '♛' : visualLanguage.player.icon} ${name.slice(0, 14)} · ${aircraftDefinitions[type].name}`, 128, 16);
+  const prefix = missionTarget ? '🎯 ' : king && !isBot ? '♛ ' : '';
+  const title = band === 'close' ? `${prefix}${name}` : `${prefix}${name} · ${distanceText}`;
+  context.fillText(title, ownershipColors.length ? 191 : 160, 29, ownershipColors.length ? 238 : 292);
+  context.fillStyle = identityColor;
+  context.font = '700 18px ui-sans-serif, system-ui, sans-serif';
+  context.fillText(band === 'close'
+    ? `${isBot ? 'AI · ' : ''}${aircraftDefinitions[type].callsign} · ${distanceText}`
+    : isBot ? 'AI PILOT' : locked ? 'LOCKED' : targeted ? 'TARGET' : 'REAL PLAYER', 160, 59, 292);
+  (label.material as THREE.SpriteMaterial).map!.needsUpdate = true;
+}
+
+function createPlayerIdentityTag(name: string, type: AircraftType, king = false, isBot = false, ownershipColors: readonly string[] = []): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 320;
+  canvas.height = 80;
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false });
   const label = new THREE.Sprite(material);
-  label.scale.set(11, 1.15, 1);
-  label.renderOrder = 4;
+  label.userData.canvas = canvas;
+  label.userData.ownershipColors = ownershipColors;
+  label.scale.set(12, 3, 1);
+  label.renderOrder = 7;
+  paintPlayerIdentityTag(label, name, type, king, isBot, ownershipColors);
   return label;
 }
 
@@ -2626,12 +3055,12 @@ function disposePlayerIdentityTag(label: THREE.Sprite): void {
 
 function createRemoteHullTag(): THREE.Sprite {
   const canvas = document.createElement('canvas');
-  canvas.width = 144;
+  canvas.width = 190;
   canvas.height = 22;
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-  label.scale.set(7.2, 1.1, 1);
+  label.scale.set(9.5, 1.1, 1);
   label.renderOrder = 5;
   label.userData.canvas = canvas;
   return label;
@@ -2651,7 +3080,7 @@ function paintRemoteHullTag(label: THREE.Sprite, value: number, maximum: number)
   context.fillStyle = '#e8f6f8';
   context.font = '700 11px ui-monospace, monospace';
   context.textBaseline = 'middle';
-  context.fillText(`HULL ${Math.round(value)}/${maximum}`, 77, 11);
+  context.fillText(`PLANE LIFE ${Math.round(value)}/${maximum}`, 77, 11);
   const texture = (label.material as THREE.SpriteMaterial).map;
   if (texture) texture.needsUpdate = true;
 }
@@ -2665,7 +3094,10 @@ function disposeRemoteHullTag(label: THREE.Sprite): void {
 function refreshPlayerIdentityTag(remote: RemotePlayer): void {
   scene.remove(remote.identityTag);
   disposePlayerIdentityTag(remote.identityTag);
-  remote.identityTag = createPlayerIdentityTag(remote.displayName, remote.aircraftType, remote.playerId === kingPlayerId, remote.isBot);
+  const ownershipColors = ownedTerritoriesForPlayer(remote.playerId).map(({ color }) => color);
+  remote.ownershipAccent = ownershipColors[0];
+  remote.ownershipSignature = ownershipColors.join('|');
+  remote.identityTag = createPlayerIdentityTag(remote.displayName, remote.aircraftType, remote.playerId === kingPlayerId, remote.isBot, ownershipColors);
   remote.identityTag.visible = false;
   remote.identityTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, 5.2);
   scene.add(remote.identityTag);
@@ -2675,12 +3107,12 @@ function refreshAllPlayerIdentityTags(): void {
   for (const remote of remotePlayers.values()) refreshPlayerIdentityTag(remote);
 }
 
-function createTargetBrackets(): THREE.Sprite {
+function createTargetBrackets(isBot: boolean): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
   const context = canvas.getContext('2d')!;
-  context.strokeStyle = visualLanguage.player.color;
+  context.strokeStyle = visualLanguage[isBot ? 'ai' : 'player'].color;
   context.lineWidth = 5;
   context.stroke(new Path2D(targetBracketPath));
   const texture = new THREE.CanvasTexture(canvas);
@@ -2720,11 +3152,11 @@ function createRemotePlayerProxy(isBot: boolean): THREE.Sprite {
   context.lineTo(5, 37);
   context.lineTo(37, 25);
   context.closePath();
-  context.fill();
   context.shadowBlur = 0;
-  context.strokeStyle = '#ffffff';
-  context.lineWidth = 2;
+  context.strokeStyle = '#10202b';
+  context.lineWidth = 8;
   context.stroke();
+  context.fill();
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({
@@ -2768,7 +3200,7 @@ const remotePlayers = new Map<string, RemotePlayer>();
 const remoteStateStaleSeconds = 3;
 function remoteIdentityVisible(remote: RemotePlayer): boolean {
   return remote.cityId === cityId && remote.entityType === 'player' && remote.lifeState === 'alive' &&
-    remote.timeSinceUpdate <= 0.5 && remote.plane.visible && remote.plane.parent === scene;
+    remote.timeSinceUpdate <= remoteStateStaleSeconds && remote.plane.visible && remote.plane.parent === scene;
 }
 const markerQa = import.meta.env.DEV && new URLSearchParams(location.search).get('markerqa') === '1'
   ? document.body.appendChild(document.createElement('pre')) : undefined;
@@ -2841,7 +3273,8 @@ let localHeat = 0;
 let localHeatMultiplier = 1;
 let combatLockState: CombatLockState = 'SEARCHING';
 let requestedLockTargetId: string | null = null;
-let requestedManualAim = 0;
+let requestedManualAimX = 0;
+let requestedManualAimY = 0;
 let lockValidationElapsed = Number.POSITIVE_INFINITY;
 let combatQaElement: HTMLPreElement | undefined;
 let combatQaDetail = 'awaiting target';
@@ -2887,7 +3320,10 @@ function contractMapTarget(): Waypoint | null {
 
 function updateWorldMap(direction: THREE.Vector3): void {
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
-  const mapPlayers: Array<{ id: string; x: number; z: number; king: boolean; heatLevel: number; isBot: boolean }> = [];
+  const activeMission = serverProfile.missions[cityId]?.active;
+  const activeMissionDefinition = activeMission && missionForCity(cityId, activeMission.missionId);
+  const missionTerritories = activeMissionDefinition ? missionRequirements(activeMissionDefinition) : [];
+  const mapPlayers: Array<{ id: string; x: number; z: number; king: boolean; heatLevel: number; isBot: boolean; ownershipAccent?: string }> = [];
   for (const human of cityHumanRoster.values()) {
     if (human.playerId === localPlayerId || !humanHasActiveAircraft(human)) continue;
     const track = humanRadarTracks.get(human.playerId);
@@ -2899,6 +3335,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
       king: human.playerId === kingPlayerId,
       heatLevel: remotePlayers.get(human.playerId)?.heatLevel ?? 0,
       isBot: false,
+      ownershipAccent: primaryTerritoryColorForPlayer(human.playerId),
     });
   }
   for (const [id, remote] of remotePlayers) {
@@ -2910,6 +3347,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
       king: false,
       heatLevel: remote.heatLevel,
       isBot: true,
+      ownershipAccent: primaryTerritoryColorForPlayer(id),
     });
   }
   worldMap.update({
@@ -2934,7 +3372,8 @@ function updateWorldMap(direction: THREE.Vector3): void {
         id: definition.id,
         label: definition.displayName,
         bounds: definition.bounds,
-        color: definition.mapColor,
+        color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
+        missionTarget: missionTerritories.includes(definition.id),
         controllerName: state?.controllerName,
         captureProgress: state?.captureProgress ?? 0,
         contested: state?.contested ?? false,
@@ -2965,7 +3404,7 @@ function playerFacingEventDetail(event: NetworkCityEvent): string {
     case 'emergencyEscort': return 'Fly near the event aircraft until it reaches its destination.';
     case 'cargoConvoy': return 'Escort the Dallas cargo convoy to build shared progress.';
     case 'aceIntercept': return 'Track and destroy the elite event aircraft; rewards scale with your contribution.';
-    case 'vipEscort': return 'Stay near the VIP aircraft until it reaches downtown for a shared reward.';
+    case 'vipEscort': return 'Stay near the VIP aircraft until it reaches the city center for a shared reward.';
     case 'goldenSkyRun': return 'Race the rare high-value gate route before time expires.';
     case 'cityEmergency': return 'Survive the temporary emergency corridor, then leave safely to collect your reward.';
   }
@@ -3214,6 +3653,176 @@ function localPilotLifecycle(): string {
   return onGround ? 'Taxi' : 'Flying';
 }
 
+function missionRequirements(definition: CityMission): readonly string[] {
+  return definition.requirements.allCityTerritories
+    ? territoryDefinitions.map((item) => item.id)
+    : definition.requirements.territoryIds ?? [];
+}
+
+function missionProgress(definition: CityMission, attempt: NetworkMissionAttempt): { text: string; value: number; target: number } {
+  const requirements = definition.requirements;
+  const territoryIds = missionRequirements(definition);
+  if (definition.type === 'territoryHold') {
+    const places = territoryIds.map((id) => `${territoryState.get(id)?.controllerId === localPlayerId ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`);
+    return { text: `${places.join(' · ')} · Hold ${Math.floor(attempt.progress / 60)}:${String(attempt.progress % 60).padStart(2, '0')} / ${Math.floor((requirements.durationSeconds ?? 0) / 60)}:00`, value: attempt.progress, target: requirements.durationSeconds ?? 1 };
+  }
+  if (definition.type === 'airborneHold') return { text: `Airborne ${Math.floor(attempt.progress)} / ${requirements.durationSeconds ?? 60} seconds`, value: attempt.progress, target: requirements.durationSeconds ?? 60 };
+  if (definition.type === 'straightDistance') return { text: `${((attempt.distanceMeters ?? 0) / 1000).toFixed(1)} / ${((requirements.meters ?? 0) / 1000).toFixed(0)} km straight`, value: attempt.progress, target: requirements.meters ?? 1 };
+  if (definition.type === 'airportLandings' || definition.type === 'airportEmpire') {
+    const names = (requirements.airportIds ?? []).map((id) => `${attempt.completedIds.includes(id) ? '✓' : '○'} ${airports.find((airport) => airport.id === id)?.name ?? id}`);
+    const ownership = definition.type === 'airportEmpire' ? `Own: ${territoryIds.map((id) => `${territoryState.get(id)?.controllerId === localPlayerId ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`).join(' · ')} · ` : '';
+    return { text: `${ownership}Land: ${names.join(' · ')}`, value: attempt.progress, target: requirements.airportIds?.length ?? 1 };
+  }
+  if (definition.type === 'territoryOwn' || definition.type === 'territorySequence') {
+    const checklist = territoryIds.map((id) => `${(definition.type === 'territorySequence' ? attempt.completedIds.includes(id) : territoryState.get(id)?.controllerId === localPlayerId) ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`);
+    return { text: checklist.join(' · '), value: attempt.progress, target: territoryIds.length || 1 };
+  }
+  if (definition.type === 'stuntPair') return { text: `${attempt.completedIds.includes('barrelRoll') ? '✓' : '○'} Barrel Roll · ${attempt.completedIds.includes('quickDodge') ? '✓' : '○'} Quick Dodge`, value: attempt.progress, target: 2 };
+  if (definition.type === 'challenge') {
+    const gateCount = cityWorld.skyChallenges?.find((item) => item.id === requirements.challengeId)?.gates.length ?? 4;
+    const remaining = attempt.challengeEndsAt ? ` · ${Math.max(0, Math.ceil((attempt.challengeEndsAt - Date.now()) / 1000))}s left` : ' · fly to the first gate';
+    return { text: `CYAN Speed Course · ${attempt.progress}/${gateCount} gates${remaining}`, value: attempt.progress, target: gateCount };
+  }
+  if (definition.type === 'event') {
+    const event = cityEvent?.eventType === requirements.eventType ? cityEvent : null;
+    if (!event || event.lifecycle === 'completed' || event.lifecycle === 'failed' || event.lifecycle === 'cooldown') {
+      return { text: `WAIT FOR ${definition.displayName} · then join the marked event`, value: 0, target: 1 };
+    }
+    const seconds = Math.max(0, Math.ceil((event.expiresAt - Date.now()) / 1000));
+    if (event.eventType === 'aceIntercept') {
+      return { text: `DESTROY THE ACE · ${event.bossHealth ?? event.bossMaxHealth ?? 0}/${event.bossMaxHealth ?? 0} HULL · ${seconds}s left`, value: 0, target: 1 };
+    }
+    if (event.eventType === 'vipEscort') {
+      const destinationPoint = event.route.at(-1);
+      const destination = destinationPoint && airports.reduce((best, airport) =>
+        Math.hypot(airport.x - destinationPoint.x, airport.z - destinationPoint.z) < Math.hypot(best.x - destinationPoint.x, best.z - destinationPoint.z) ? airport : best, airports[0]);
+      const distance = destinationPoint ? Math.hypot(event.objective.x - destinationPoint.x, event.objective.z - destinationPoint.z) : 0;
+      return { text: `PROTECT THE VIP PLANE · HULL ${event.bossHealth ?? 0}/${event.bossMaxHealth ?? 0} · ${destination?.name ?? 'destination'} · ${(distance / 1000).toFixed(1)} km · ${seconds}s left`, value: 0, target: 1 };
+    }
+    const gates = event.route.length;
+    const passed = Math.min(gates, Math.floor(event.rankings.find((entry) => entry.playerId === localPlayerId)?.progress ?? 0));
+    return { text: `GOLD GATES ${passed}/${gates} · ${seconds}s left`, value: passed, target: gates || 1 };
+  }
+  if (definition.type === 'territoryUniqueKills') return { text: `${attempt.completedIds.length} / ${requirements.uniqueKills ?? 3} different pilots while controlling ${territoryDefinitions.find((item) => item.id === territoryIds[0])?.displayName ?? 'the area'}`, value: attempt.progress, target: requirements.uniqueKills ?? 3 };
+  if (definition.type === 'precisionLanding') {
+    const guidance = landingAssistActive ? ` · SPEED ${landingStatus.speedSafe ? 'GOOD' : 'TOO FAST'} · DESCENT ${landingStatus.descentSafe ? 'GOOD' : 'TOO HARD'} · LEVEL ${landingStatus.bankSafe ? 'GOOD' : 'WINGS'}` : '';
+    return { text: `Land smoothly at ${airports.find((item) => item.id === requirements.airportId)?.name ?? 'the marked airport'}${guidance}`, value: attempt.progress, target: requirements.minimumScore ?? 1 };
+  }
+  if (definition.type === 'assignedHunter') {
+    const hunter = attempt.targetId ? remotePlayers.get(attempt.targetId) : undefined;
+    return { text: `Destroy ${hunter?.displayName ?? 'your marked Hunter'}`, value: attempt.progress, target: 1 };
+  }
+  if (definition.type === 'wantedSurvival') return { text: attempt.eventId ? 'MOST WANTED · survive until the timer ends' : `DANGER ${localHeat}/5 · cause trouble, then survive Most Wanted`, value: attempt.progress, target: 1 };
+  if (definition.type === 'liveScoreRank') {
+    const humans = [...cityHumanRoster.values()].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName));
+    const rank = humans.findIndex((entry) => entry.playerId === localPlayerId) + 1;
+    return { text: humans.length < 2 ? 'Compete with another real pilot to reach #1' : `Live Dallas Score rank #${rank || '—'} of ${humans.length} · reach #1`, value: attempt.progress, target: 1 };
+  }
+  return { text: definition.description, value: attempt.progress, target: 1 };
+}
+
+function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttempt): { x: number; z: number; label: string } | undefined {
+  const airportId = definition.requirements.airportId ?? definition.requirements.airportIds?.find((id) => !attempt?.completedIds.includes(id));
+  const airport = airports.find((item) => item.id === airportId);
+  if (airport) return { x: airport.x, z: airport.z, label: airport.name };
+  const territoryId = missionRequirements(definition).find((id) => territoryState.get(id)?.controllerId !== localPlayerId) ?? missionRequirements(definition)[0];
+  const territory = territoryDefinitions.find((item) => item.id === territoryId);
+  if (territory) return { x: territory.center.x, z: territory.center.z, label: territory.displayName };
+  const challenge = cityWorld.skyChallenges?.find((item) => item.id === definition.requirements.challengeId);
+  const currentGate = challenge?.gates[Math.min(challenge.gates.length - 1, Math.floor(attempt?.progress ?? 0))];
+  if (challenge && currentGate) return { x: currentGate.x, z: currentGate.z, label: challenge.name };
+  if (attempt?.targetId) {
+    const target = remotePlayers.get(attempt.targetId);
+    if (target) return { x: target.plane.position.x, z: target.plane.position.z, label: 'Marked Hunter' };
+  }
+  if (cityEvent && cityEvent.eventType === definition.requirements.eventType) {
+    const point = eventObjectiveForLocal(cityEvent);
+    if (point) return { x: point.x, z: point.z, label: cityEvent.name };
+  }
+  return undefined;
+}
+
+let completedMissionCard: { missionId: string; credits: number; score: number; until: number } | null = null;
+function updateMissionHud(): void {
+  const active = serverProfile.missions[cityId]?.active;
+  const definition = active && missionForCity(cityId, active.missionId);
+  const foreignCity = !active && profileActiveMissionCity(serverProfile);
+  const foreignAttempt = foreignCity ? serverProfile.missions[foreignCity]?.active : undefined;
+  const completed = !definition && completedMissionCard && Date.now() < completedMissionCard.until
+    ? completedMissionCard : null;
+  missionCardElement.classList.toggle('hidden', !definition && !completed && !foreignAttempt);
+  if (!definition && !completed && !foreignAttempt) return;
+  if (!missionCardElement.firstChild) {
+    const kicker = document.createElement('small'); kicker.className = 'mission-kicker';
+    const title = document.createElement('strong'); title.className = 'mission-title';
+    const detail = document.createElement('p'); detail.className = 'mission-detail';
+    const territory = document.createElement('div'); territory.className = 'mission-territories';
+    const progress = document.createElement('progress'); progress.className = 'mission-progress';
+    const reward = document.createElement('div'); reward.className = 'mission-reward';
+    const next = document.createElement('button'); next.className = 'mission-next'; next.type = 'button';
+    next.textContent = 'CHOOSE NEXT MISSION'; next.hidden = true;
+    next.addEventListener('click', openPilotMenu);
+    missionCardElement.append(kicker, title, detail, territory, progress, reward, next);
+  }
+  const meter = missionCardElement.querySelector<HTMLProgressElement>('.mission-progress')!;
+  const next = missionCardElement.querySelector<HTMLButtonElement>('.mission-next')!;
+  const territoryRow = missionCardElement.querySelector<HTMLDivElement>('.mission-territories')!;
+  territoryRow.hidden = true;
+  missionCardElement.style.removeProperty('--mission-accent');
+  if (completed) {
+    missionCardElement.querySelector('.mission-kicker')!.textContent = 'MISSION COMPLETE';
+    missionCardElement.querySelector('.mission-title')!.textContent = missionForCity(cityId, completed.missionId)?.displayName ?? 'MISSION';
+    missionCardElement.querySelector('.mission-detail')!.textContent = 'Well flown. Choose what to do next.';
+    missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} +${completed.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} +${completed.score.toLocaleString()} Score`;
+    meter.hidden = true; next.hidden = false;
+    return;
+  }
+  if (foreignAttempt && foreignCity) {
+    missionCardElement.querySelector('.mission-kicker')!.textContent = `MISSION · ${foreignCity.toUpperCase()}`;
+    missionCardElement.querySelector('.mission-title')!.textContent = missionForCity(foreignCity, foreignAttempt.missionId)?.displayName ?? 'ACTIVE MISSION';
+    missionCardElement.querySelector('.mission-detail')!.textContent = `Return to ${foreignCity === 'dallas' ? 'Dallas' : 'Milwaukee'} to continue.`;
+    missionCardElement.querySelector('.mission-reward')!.textContent = 'Only one mission can be active.';
+    meter.hidden = true; next.hidden = false; next.textContent = 'OPEN MISSIONS';
+    return;
+  }
+  if (!definition || !active) return;
+  completedMissionCard = null;
+  const progress = missionProgress(definition, active);
+  missionCardElement.querySelector('.mission-kicker')!.textContent = identityText('mission').toUpperCase();
+  missionCardElement.querySelector('.mission-title')!.textContent = definition.displayName;
+  missionCardElement.querySelector('.mission-detail')!.textContent = playerFacingText(progress.text);
+  const missionTerritoryIds = missionRequirements(definition);
+  if (missionTerritoryIds.length) {
+    const signature = missionTerritoryIds.map((id) => {
+      const state = territoryState.get(id);
+      return `${id}:${state?.controllerId ?? ''}:${state?.controllerName ?? ''}:${state?.contested ? 1 : 0}`;
+    }).join('|');
+    if (territoryRow.dataset.signature !== signature) {
+      territoryRow.dataset.signature = signature;
+      territoryRow.replaceChildren();
+      for (const id of missionTerritoryIds.slice(0, 3)) {
+        const territory = territoryDefinition(id);
+        if (!territory) continue;
+        const state = territoryState.get(id);
+        const color = state?.controllerId ? territory.fixedColor : neutralTerritoryColor;
+        const chip = document.createElement('span'); chip.className = 'mission-territory-chip';
+        const dot = document.createElement('i'); dot.className = 'territory-color-dot'; dot.style.backgroundColor = color;
+        const status = state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
+        chip.append(dot, document.createTextNode(`${territory.displayName} · ${status}`));
+        chip.classList.toggle('contested', Boolean(state?.contested));
+        territoryRow.append(chip);
+      }
+      if (missionTerritoryIds.length > 3) territoryRow.append(document.createTextNode(`+${missionTerritoryIds.length - 3} more in Missions`));
+    }
+    territoryRow.hidden = false;
+    const firstTerritory = territoryDefinition(missionTerritoryIds[0]);
+    if (firstTerritory) missionCardElement.style.setProperty('--mission-accent', firstTerritory.fixedColor);
+  }
+  meter.hidden = false; next.hidden = false; next.textContent = 'MISSIONS · TAB';
+  meter.max = Math.max(1, progress.target); meter.value = Math.max(0, Math.min(progress.target, progress.value));
+  missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} ${definition.creditReward.toLocaleString()} Credits · ${visualLanguage.score.icon} ${definition.scoreReward.toLocaleString()} Score`;
+}
+
 function pilotMenuData(): PilotMenuData {
   let nearestAirport = centralAirport;
   let nearestDistance = Number.POSITIVE_INFINITY;
@@ -3291,12 +3900,13 @@ function pilotMenuData(): PilotMenuData {
   const players = [
     {
       name: displayName,
-      aircraft: currentAircraft.name,
+      aircraft: aircraftDisplayName(aircraftType),
       distance: 0,
       lifecycle: localPilotLifecycle(),
       score: cityHumanRoster.get(localPlayerId ?? '')?.score ?? score,
       kills: profileHydrated ? serverProfile.kills : undefined,
       isLocal: true,
+      ownedTerritories: localPlayerId ? ownedTerritoriesForPlayer(localPlayerId) : [],
       mostWanted: wantedPlayerId === localPlayerId,
       king: kingPlayerId === localPlayerId,
     },
@@ -3304,12 +3914,13 @@ function pilotMenuData(): PilotMenuData {
       .filter((remote) => remote.entityType === 'player' && remote.cityId === cityId)
       .map((remote) => ({
         name: remote.displayName,
-        aircraft: aircraftDefinitions[remote.aircraftType].name,
+        aircraft: aircraftDisplayName(remote.aircraftType),
         distance: remote.plane.position.distanceTo(airplane.position),
         lifecycle: remotePilotLifecycle(remote),
         score: cityHumanRoster.get(remote.playerId)?.score ?? 0,
         isLocal: false,
         isBot: remote.isBot,
+        ownedTerritories: ownedTerritoriesForPlayer(remote.playerId),
         mostWanted: wantedPlayerId === remote.playerId,
         king: kingPlayerId === remote.playerId,
         setWaypoint: remote.lifeState === 'alive' ? () => setWaypoint(
@@ -3321,9 +3932,10 @@ function pilotMenuData(): PilotMenuData {
     // Online presence is not render visibility: background browsers may stop
     // transforms while their socket/profile remains connected.
     ...[...cityHumanRoster.values()].filter(player => player.playerId !== localPlayerId && !remotePlayers.has(player.playerId)).map(player => ({
-      name: player.displayName, aircraft: aircraftDefinitions[player.aircraftType].name,
+      name: player.displayName, aircraft: aircraftDisplayName(player.aircraftType),
       distance: undefined, lifecycle: player.lifeState === 'alive' ? 'Online' : player.lifeState === 'respawning' ? 'Respawning' : 'Destroyed',
       score: player.score, isLocal: false, isBot: false,
+      ownedTerritories: ownedTerritoriesForPlayer(player.playerId),
       mostWanted: wantedPlayerId === player.playerId, king: kingPlayerId === player.playerId,
     })),
   ].sort((left, right) => {
@@ -3333,11 +3945,15 @@ function pilotMenuData(): PilotMenuData {
   const territories = territoryDefinitions.map((definition) => {
     const state = territoryState.get(definition.id);
     return {
+      id: definition.id,
       name: definition.displayName,
-      controller: state?.controllerName ? `Controlled by ${state.controllerName}` : 'Uncontrolled',
+      controller: state?.controllerName ? `Owned by ${state.controllerName}` : 'NEUTRAL',
       contested: state?.contested ?? false,
+      color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
+      fixedColor: definition.fixedColor,
       progress: state?.captureProgress ?? 0,
       distance: Math.hypot(airplane.position.x - definition.center.x, airplane.position.z - definition.center.z),
+      ownedByYou: Boolean(localPlayerId && state?.controllerId === localPlayerId),
       setWaypoint: () => setWaypoint(definition.center.x, definition.center.z, definition.displayName),
     };
   }).sort((left, right) => left.distance - right.distance);
@@ -3353,17 +3969,44 @@ function pilotMenuData(): PilotMenuData {
   }));
 
   return {
-    status: [
-      `${identityText('heat')} ${localHeat}${localHeat > 0 ? ` · Danger Bonus +${Math.round((localHeatMultiplier - 1) * 100)}%` : ''}`,
-      `STATE · ${flightStateElement.textContent ?? 'TAXI'}`,
-      `AIRCRAFT · ${currentAircraft.name}`,
-      `${identityText('credits')} · ${credits.toLocaleString()}`,
-      `NEAREST · ${nearestAirport.name} · ${Math.round(nearestDistance)}m`,
-    ],
+    missions: {
+      activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
+      activeCity: profileActiveMissionCity(serverProfile),
+      entries: missionsForCity(cityId).map((definition) => {
+        const active = serverProfile.missions[cityId]?.active?.missionId === definition.id ? serverProfile.missions[cityId]?.active : undefined;
+        const completion = serverProfile.missions[cityId]?.completions[definition.id];
+        const target = missionWaypoint(definition, active);
+        const progress = active ? missionProgress(definition, active) : undefined;
+        return {
+          id: definition.id, name: definition.displayName, detail: definition.description, difficulty: definition.difficulty,
+          territoryIds: missionRequirements(definition),
+          credits: definition.creditReward, score: definition.scoreReward,
+          completions: completion?.count ?? 0, cooldownUntil: (completion?.lastCompletedAt ?? 0) + definition.replayCooldownMs,
+          progressText: progress?.text, progress: progress?.value, target: progress?.target,
+          setWaypoint: target ? () => setWaypoint(target.x, target.z, target.label) : undefined,
+        };
+      }),
+      accept: (missionId, replace) => socket.send(JSON.stringify({ type: 'missionAccept', missionId, replaceMission: replace,
+        expectedAttemptId: replace ? activeMissionAttemptId : undefined })),
+      abandon: () => socket.send(JSON.stringify({ type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMissionAttemptId })),
+    },
+    progression: {
+      credits, score,
+      aircraft: (['trainer', 'cargo', 'privateJet', 'fighter'] as const).map((type) => ({
+        name: aircraftDefinitions[type].callsign,
+        owned: flightTestMode || serverProfile.unlockedAircraft.includes(type),
+        premium: aircraftDefinitions[type].access === 'premium',
+        price: aircraftDefinitions[type].creditsRequired,
+        neededCredits: Math.max(0, aircraftDefinitions[type].creditsRequired - credits),
+      })),
+    },
     players: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: players },
-    territories: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: territories },
+    territories: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: territories,
+      legend: territoryDefinitions.map(({ displayName, fixedColor, colorName }) => ({ name: displayName, color: fixedColor, colorName })),
+      neutralColor: neutralTerritoryColor },
     objectives: { daily: objectiveItems(objectiveCycle?.daily), weekly: objectiveItems(objectiveCycle?.weekly), dailyId: objectiveCycle?.dailyId, weeklyId: objectiveCycle?.weeklyId },
-    mastery: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', level: mastery.level, xp: mastery.xp, nextXp: masteryThreshold(Math.min(25, mastery.level + 1)), rewards: mastery.unlockedRewards },
+    mastery: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', level: mastery.level, xp: mastery.xp,
+      levelStartXp: masteryThreshold(mastery.level), nextXp: masteryThreshold(Math.min(25, mastery.level + 1)), rewards: mastery.unlockedRewards },
     leaderboards: weeklyLeaderboards.map((board) => ({ category: board.category, weekId: board.weekId, localRank: board.localRank, entries: board.top.map((entry) => ({ name: entry.pilotName, value: entry.value, you: entry.pilotId === localPlayerId })) })),
     activities,
     liveEvent,
@@ -3386,7 +4029,6 @@ function pilotMenuData(): PilotMenuData {
       enabled: contextualHints.isEnabled(),
       toggle: () => {
         contextualHints.setEnabled(!contextualHints.isEnabled());
-        openPilotMenu();
       },
     },
     navigation: {
@@ -3396,9 +4038,9 @@ function pilotMenuData(): PilotMenuData {
         persistedPlayer.navigationMarkersEnabled = navigationMarkersEnabled;
         navigationBeacons.setEnabled(navigationMarkersEnabled);
         savePlayerProgress();
-        openPilotMenu();
       },
     },
+    audio: { muted: audioMuted, toggle: () => audioToggleElement.click() },
     guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); } },
   };
 }
@@ -3414,7 +4056,7 @@ function refreshPilotMenu(): void {
   if (!pilotMenu.isOpen() || aircraftGarage.isOpen() || worldMap.isOpen()) return;
   const now = performance.now();
   if (now < nextPilotMenuRefreshAt) return;
-  nextPilotMenuRefreshAt = now + 400;
+  nextPilotMenuRefreshAt = now + 1_000;
   renderPilotMenu();
 }
 
@@ -3607,6 +4249,8 @@ function localFireBlockReason(): FireBlockedReason | undefined {
 let wasFirstPlace = false;
 let leaderMessageTimer: number | undefined;
 const playersPanel = new PlayersPanel(document.querySelector<HTMLElement>('#real-players')!);
+const cityTerritoriesPanel = new CityTerritoriesPanel(document.querySelector<HTMLElement>('#city-territories')!);
+cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
 const leaderMessageElement = document.querySelector<HTMLDivElement>('#leader-message')!;
 const cityHumanRoster = new Map<string, LeaderboardPlayer>();
 type HumanRadarTrack = { x: number; z: number };
@@ -3640,8 +4284,8 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   heldActions.clear();
   crashed = false;
   health = maxHealth;
-  throttle = preset.onGround ? 0 : 0.62;
-  currentSpeed = preset.onGround ? 0 : Math.min(currentAircraft.maxSpeed * 0.62, 58);
+  throttle = preset.onGround || preset.speed === 0 ? 0 : 0.62;
+  currentSpeed = preset.onGround || preset.speed === 0 ? 0 : preset.speed && aircraftType === 'fighter' && flightTestMode ? preset.speed : Math.min(currentAircraft.maxSpeed * 0.62, 58);
   verticalSpeed = 0;
   heading = preset.heading;
   pitch = preset.pitch ?? 0;
@@ -3654,6 +4298,7 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   forward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();
   velocity.copy(forward).multiplyScalar(currentSpeed);
   onGround = Boolean(preset.onGround);
+  takeoffRollMeters = 0;
   landedFeedbackTime = 0;
   cameraShakeTime = 0;
   runStarted = true;
@@ -4084,7 +4729,7 @@ function updateLeaderboard(players: LeaderboardPlayer[]): void {
   for (const playerId of humanRadarTracks.keys()) {
     if (!cityHumanRoster.has(playerId)) humanRadarTracks.delete(playerId);
   }
-  playersPanel.update([...cityHumanRoster.values()], localPlayerId);
+  playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
   for (const remote of remotePlayers.values()) {
     if (!remote.isBot && !cityHumanRoster.has(remote.playerId)) removeRemotePlayer(remote.playerId);
   }
@@ -4124,9 +4769,11 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const targetPosition = new THREE.Vector3(player.position.x, player.position.y, player.position.z);
     const targetQuaternion = new THREE.Quaternion().setFromEuler(remoteEuler);
     const plane = createAirplane(player.aircraftType, true);
-    const identityTag = createPlayerIdentityTag(player.displayName ?? 'PLAYER', player.aircraftType, player.playerId === kingPlayerId, Boolean(player.isBot));
+    const ownershipColors = ownedTerritoriesForPlayer(player.playerId).map(({ color }) => color);
+    const ownershipAccent = ownershipColors[0];
+    const identityTag = createPlayerIdentityTag(player.displayName ?? 'PLAYER', player.aircraftType, player.playerId === kingPlayerId, Boolean(player.isBot), ownershipColors);
     const hullTag = createRemoteHullTag();
-    const targetBrackets = createTargetBrackets();
+    const targetBrackets = createTargetBrackets(Boolean(player.isBot));
     const playerProxy = createRemotePlayerProxy(Boolean(player.isBot));
     plane.position.copy(targetPosition);
     plane.quaternion.copy(targetQuaternion);
@@ -4142,6 +4789,8 @@ function updateRemotePlayer(player: NetworkPlayer): void {
       entityType: 'player',
       isBot: Boolean(player.isBot),
       displayName: player.displayName ?? 'PLAYER',
+      ownershipAccent,
+      ownershipSignature: ownershipColors.join('|'),
       identityTag,
       hullTag,
       targetBrackets,
@@ -4180,7 +4829,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const replacement = createAirplane(player.aircraftType, true);
     replacement.position.copy(remote.plane.position);
     replacement.quaternion.copy(remote.plane.quaternion);
-    remote.targetBrackets = createTargetBrackets();
+    remote.targetBrackets = createTargetBrackets(remote.isBot);
     replacement.add(remote.targetBrackets);
     scene.add(replacement);
     remote.plane = replacement;
@@ -4225,6 +4874,10 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     remote.isBot = Boolean(player.isBot);
     refreshPlayerIdentityTag(remote);
     (remote.playerProxy.material as THREE.SpriteMaterial).color.set(visualLanguage[remote.isBot ? 'ai' : 'player'].color);
+    remote.plane.remove(remote.targetBrackets);
+    disposeTargetBrackets(remote.targetBrackets);
+    remote.targetBrackets = createTargetBrackets(remote.isBot);
+    remote.plane.add(remote.targetBrackets);
   }
   if (lifeStateChanged) remote.nearMissActive = false;
   remote.plane.visible = lifeState === 'alive';
@@ -4232,6 +4885,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   if (lifeState !== 'alive') remote.identityTag.visible = remote.hullTag.visible = remote.targetBrackets.visible = false;
 }
 
+const identityLabelProjection = new THREE.Vector3();
 function updateRemotePlayers(delta: number): void {
   for (const remote of remotePlayers.values()) {
     remote.timeSinceUpdate += delta;
@@ -4247,24 +4901,43 @@ function updateRemotePlayers(delta: number): void {
     const interpolation = remote.interpolationElapsed / remote.interpolationDuration;
     remote.plane.position.lerpVectors(remote.previousPosition, remote.targetPosition, interpolation);
     remote.plane.quaternion.slerpQuaternions(remote.previousQuaternion, remote.targetQuaternion, interpolation);
-    remote.identityTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, 5.2);
     const identityVisible = remoteIdentityVisible(remote);
-    remote.identityTag.visible = identityVisible && remote.plane.position.distanceToSquared(airplane.position) <= 1_200 * 1_200;
     const distance = remote.plane.position.distanceTo(airplane.position);
+    const targeted = selectedCombatTarget?.remote === remote;
+    const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
+    identityLabelProjection.copy(remote.plane.position).project(camera);
+    const nearReticle = Math.abs(identityLabelProjection.x) < 0.18 && Math.abs(identityLabelProjection.y) < 0.24;
+    remote.identityTag.visible = identityVisible && distance > 35 && distance <= 7_000 &&
+      identityLabelProjection.z > -1 && identityLabelProjection.z < 1 && (targeted || !nearReticle);
+    if (remote.identityTag.visible) {
+      const locked = Boolean(targeted && selectedCombatTarget?.locked);
+      const missionTarget = serverProfile.missions[cityId]?.active?.targetId === remote.playerId;
+      const now = performance.now();
+      if (now >= (remote.identityTag.userData.nextPaintAt as number ?? 0)) {
+        paintPlayerIdentityTag(remote.identityTag, remote.displayName, remote.aircraftType,
+          remote.playerId === kingPlayerId, remote.isBot,
+          remote.identityTag.userData.ownershipColors as readonly string[] ?? [], distance,
+          targeted, locked, missionTarget);
+        remote.identityTag.userData.nextPaintAt = now + 500;
+      }
+      const widthPixels = locked ? 188 : targeted ? 176 : missionTarget ? 168 : distance <= 900 ? 155 : distance <= 3_000 ? 140 : 124;
+      remote.identityTag.scale.set(worldPerPixel * widthPixels, worldPerPixel * widthPixels * 0.25, 1);
+      remote.identityTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, worldPerPixel * (targeted ? 110 : 88));
+      (remote.identityTag.material as THREE.SpriteMaterial).opacity = targeted || missionTarget ? 1 : distance > 3_000 ? 0.82 : 0.94;
+    }
     remote.hullTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, 6.8);
     remote.hullTag.visible = identityVisible && (
       distance <= 320 || selectedCombatTarget?.remote === remote || performance.now() - remote.lastHitAt <= 2_000
     );
     const proxyMaterial = remote.playerProxy.material as THREE.SpriteMaterial;
-    const proxyBlend = THREE.MathUtils.smoothstep(distance, 700, 1_500);
-    remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, 2.8);
-    remote.playerProxy.visible = identityVisible && proxyBlend > 0.01 && distance <= 12_000;
-    proxyMaterial.opacity = proxyBlend;
+    remote.playerProxy.visible = identityVisible && distance <= 12_000;
     if (remote.playerProxy.visible) {
-      const targetPixels = distance <= 3_000 ? 14 : distance <= 8_000 ? 12 : 10;
-      const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
-      const width = THREE.MathUtils.clamp(worldPerPixel * targetPixels, 8, 220);
+      const targeted = selectedCombatTarget?.remote === remote;
+      const targetPixels = (distance <= 450 ? 20 : distance <= 1_100 ? 16 : 12) + (targeted ? selectedCombatTarget?.locked ? 4 : 2 : 0);
+      const width = worldPerPixel * targetPixels;
+      remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, worldPerPixel * (targetPixels * 0.7 + 8));
       remote.playerProxy.scale.set(width, width * (2 / 3), 1);
+      proxyMaterial.opacity = targeted ? 1 : distance <= COMBAT_RANGE ? 0.96 : 0.82;
     }
   }
 }
@@ -4325,23 +4998,25 @@ function clearCombatTarget(): void {
 }
 
 function validateServerLock(targetId: string | null, delta: number): void {
-  const manualAim = Number(heldActions.has('aimUp')) - Number(heldActions.has('aimDown'));
-  if (targetId !== requestedLockTargetId || manualAim !== requestedManualAim) {
+  const manualAimX = Number(heldActions.has('aimRight')) - Number(heldActions.has('aimLeft'));
+  const manualAimY = Number(heldActions.has('aimUp')) - Number(heldActions.has('aimDown'));
+  if (targetId !== requestedLockTargetId || manualAimX !== requestedManualAimX || manualAimY !== requestedManualAimY) {
     if (targetId !== requestedLockTargetId) serverLockedTargetId = null;
     requestedLockTargetId = targetId;
-    requestedManualAim = manualAim;
+    requestedManualAimX = manualAimX;
+    requestedManualAimY = manualAimY;
     lockValidationElapsed = Number.POSITIVE_INFINITY;
     if (localPlayerId && connectionReady()) {
-      socket.send(JSON.stringify({ type: 'lock', targetId, aimVertical: manualAim }));
+      socket.send(JSON.stringify({ type: 'lock', targetId, aimHorizontal: manualAimX, aimVertical: manualAimY }));
       lockValidationElapsed = 0;
     }
     return;
   }
-  if (!targetId && !serverAimTargetId && manualAim === 0 && Math.hypot(visualAim.x, visualAim.y) < 0.0001) return;
+  if (!targetId && !serverAimTargetId && manualAimX === 0 && manualAimY === 0 && Math.hypot(visualAim.x, visualAim.y) < 0.0001) return;
   lockValidationElapsed += delta;
   if (lockValidationElapsed < 0.1 || !localPlayerId || !connectionReady()) return;
   lockValidationElapsed = 0;
-  socket.send(JSON.stringify({ type: 'lock', targetId, aimVertical: manualAim }));
+  socket.send(JSON.stringify({ type: 'lock', targetId, aimHorizontal: manualAimX, aimVertical: manualAimY }));
 }
 
 function updateCombatTarget(delta = 0): void {
@@ -4428,7 +5103,8 @@ function updateCombatTarget(delta = 0): void {
   targetFeedbackElement.classList.toggle('hidden', !locked);
   targetFeedbackElement.classList.toggle('locked', locked);
   for (const remote of remotePlayers.values()) {
-    remote.targetBrackets.visible = locked && remote === candidate && remote.plane.visible;
+    remote.targetBrackets.visible = remote === candidate && remote.plane.visible;
+    if (remote.targetBrackets.visible) (remote.targetBrackets.material as THREE.SpriteMaterial).opacity = locked ? 1 : 0.58;
   }
   if (combatQaElement) {
     lockTargetProjected.copy(candidate.plane.position).project(camera);
@@ -4454,16 +5130,25 @@ function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: nu
   for (const propeller of propellers) propeller.rotation.z += delta * (7 + power * 34);
   const isFighter = plane.userData.aircraftType === 'fighter';
   if (visuals.exhaustMaterial) {
-    visuals.exhaustMaterial.opacity = (isFighter ? 0.025 : 0.012) + power * (isFighter ? 0.18 : 0.085);
+    visuals.exhaustMaterial.opacity = 0.012 + power * (isFighter ? 0.055 : 0.085);
     for (const exhaust of visuals.exhausts) {
-      exhaust.scale.y = (exhaust.userData.baseLength as number) * (0.72 + power * (isFighter ? 0.68 : 0.42));
+      exhaust.scale.y = (exhaust.userData.baseLength as number) * (0.72 + power * (isFighter ? 0.35 : 0.42));
     }
   }
-  const boost = THREE.MathUtils.clamp(boostStrength, 0, 1);
-  visuals.boostMaterial.opacity = boost * (isFighter ? 0.72 : plane.userData.aircraftType === 'trainer' ? 0.16 : 0.42);
+  const requestedBoost = THREE.MathUtils.clamp(boostStrength, 0, 1);
+  // Remote transforms carry only Boost's boolean. Give the same short visual
+  // envelope to local and remote Redspears without extra network traffic.
+  if (isFighter) visuals.fighterBoostEnvelope += (requestedBoost - visuals.fighterBoostEnvelope) * (1 - Math.exp(-(requestedBoost > visuals.fighterBoostEnvelope ? 15 : 10) * delta));
+  const boost = isFighter ? visuals.fighterBoostEnvelope : requestedBoost;
+  visuals.boostMaterial.opacity = boost * (isFighter ? 0.78 : plane.userData.aircraftType === 'trainer' ? 0.16 : 0.42);
   for (const trail of visuals.boostTrails) {
     trail.visible = boost > 0.015;
     trail.scale.y = (trail.userData.baseLength as number) * (0.62 + boost * 0.92);
+  }
+  if (visuals.fighterBoostCore && visuals.fighterBoostCoreMaterial) {
+    visuals.fighterBoostCore.visible = boost > 0.015;
+    visuals.fighterBoostCoreMaterial.opacity = boost * 0.9;
+    visuals.fighterBoostCore.scale.y = (visuals.fighterBoostCore.userData.baseLength as number) * (0.62 + boost * 0.92);
   }
 }
 
@@ -4574,13 +5259,16 @@ function getLandingAssistAirport(position: THREE.Vector3, requireAlignment = tru
 function evaluateLanding(airport: AirportDefinition | null, result: typeof landingStatus): void {
   result.bankAngle = Math.abs(THREE.MathUtils.euclideanModulo(roll + Math.PI, Math.PI * 2) - Math.PI);
   result.headingError = airport ? runwayHeadingError(airport) : Math.PI;
-  result.speedSafe = currentSpeed <= currentAircraft.safeLandingSpeed * (landingAssistActive ? 1.32 : 1);
-  result.descentSafe = verticalSpeed >= -currentAircraft.safeDescentRate * (landingAssistActive ? 1.7 : 1);
-  result.pitchSafe = Math.abs(pitch) <= currentAircraft.landingTilt + (landingAssistActive ? 0.18 : 0);
-  result.bankSafe = result.bankAngle <= currentAircraft.landingTilt + (landingAssistActive ? 0.22 : 0);
-  result.alignmentSafe = result.headingError <= (landingAssistActive ? 0.82 : 0.52);
-  result.reason = !airport ? 'OFF RUNWAY' : !result.speedSafe ? 'TOO FAST' : !result.descentSafe ? 'HARD DESCENT' :
-    !result.bankSafe ? 'WINGS NOT LEVEL' : !result.pitchSafe ? 'NOSE ANGLE' : !result.alignmentSafe ? 'RUNWAY MISALIGNED' : '';
+  result.speedSafe = currentSpeed <= currentAircraft.safeLandingSpeed * (landingAssistActive ? 1.18 : 1);
+  result.descentSafe = verticalSpeed >= -currentAircraft.safeDescentRate * (landingAssistActive ? 1.35 : 1);
+  result.pitchSafe = Math.abs(pitch) <= currentAircraft.landingTilt + (landingAssistActive ? 0.10 : 0);
+  result.bankSafe = result.bankAngle <= currentAircraft.landingTilt + (landingAssistActive ? 0.12 : 0);
+  result.alignmentSafe = result.headingError <= (landingAssistActive ? 0.62 : 0.52);
+  result.reason = !airport ? 'OFF RUNWAY' : !result.speedSafe ? 'TOO FAST' : !result.descentSafe ? 'CAME DOWN TOO HARD' :
+    !result.bankSafe ? 'WINGS NOT LEVEL' : !result.pitchSafe ? 'NOSE NOT LEVEL' : !result.alignmentSafe ? 'NOT LINED UP' : '';
+  result.rough = !result.reason && (currentSpeed > currentAircraft.safeLandingSpeed * 0.98 ||
+    verticalSpeed < -currentAircraft.safeDescentRate * 0.85 || result.bankAngle > currentAircraft.landingTilt * 0.72 ||
+    result.headingError > 0.38);
 }
 
 function pointInWorldPolygon(x: number, z: number, polygon: ReadonlyArray<readonly [number, number]>): boolean {
@@ -4744,6 +5432,10 @@ function updateFlight(delta: number): void {
     }
     currentSpeed = moveToward(currentSpeed, groundTargetSpeed, delta * groundSpeedChange);
     if (Math.abs(currentSpeed) < 0.04 && groundTargetSpeed === 0) currentSpeed = 0;
+    if (currentSpeed <= 2 || throttleDown) takeoffRollMeters = 0;
+    else if (currentSpeed >= currentAircraft.takeoffSpeed * 0.35 && throttle >= 0.5) {
+      takeoffRollMeters += currentSpeed * delta;
+    }
     const groundSteering = (0.12 + Math.min(1, currentSpeed / 20) * 0.72) * currentAircraft.groundSteering;
     heading += yawControlStrength * delta * groundSteering;
     roll = THREE.MathUtils.lerp(roll, 0, Math.min(1, delta * currentAircraft.rollRate));
@@ -4776,7 +5468,7 @@ function updateFlight(delta: number): void {
       setFlightState(currentSpeed >= currentAircraft.takeoffSpeed * 0.6 ? 'TAKEOFF' : 'TAXI');
     }
 
-    if (currentSpeed >= currentAircraft.takeoffSpeed && pitch >= 0.07) {
+    if (currentSpeed >= currentAircraft.takeoffSpeed && takeoffRollMeters >= currentAircraft.minimumTakeoffRoll && pitch >= 0.07) {
       if (resetRegionsOnNextTakeoff) {
         visitedRegionsThisFlight.clear();
         resetRegionsOnNextTakeoff = false;
@@ -4833,7 +5525,7 @@ function updateFlight(delta: number): void {
   roll += rollControlStrength * delta * currentAircraft.rollRate;
   roll += maneuverRollAdvance;
   if (maneuver?.kind === 'quickDodge') {
-    roll += maneuver.direction * currentAircraft.rollRate * 0.6 * maneuverPhase * delta;
+    roll += maneuver.direction * currentAircraft.rollRate * 0.92 * maneuverPhase * delta;
   }
   if (rollInput === 0 && maneuver?.kind !== 'barrelRoll') {
     // Roll is intentionally unbounded while commanded. Use the shortest
@@ -4875,7 +5567,7 @@ function updateFlight(delta: number): void {
   heading += yawControlStrength * delta * steeringAuthority;
   heading += Math.sin(roll) * speedRatio * currentAircraft.bankTurn * delta;
   if (maneuver?.kind === 'quickDodge') {
-    heading += maneuver.direction * currentAircraft.yawRate / currentAircraft.inertia * 0.18 * maneuverPhase * delta;
+    heading += maneuver.direction * currentAircraft.yawRate / currentAircraft.inertia * 0.28 * maneuverPhase * delta;
   }
 
   airplane.rotation.set(pitch, heading, roll, 'YXZ');
@@ -4955,9 +5647,9 @@ function updateFlight(delta: number): void {
     // invulnerability. Both maneuvers spend a little kinetic energy.
     if (maneuver.kind === 'quickDodge') {
       dodgeSide.set(1, 0, 0).applyQuaternion(airplane.quaternion);
-      velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(340, currentAircraft.acceleration / currentAircraft.inertia * 2.25) * maneuverPhase * delta);
+      velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(680, currentAircraft.acceleration / currentAircraft.inertia * 4.5) * maneuverPhase * delta);
     }
-    velocity.multiplyScalar(Math.max(0, 1 - delta * (maneuver.kind === 'barrelRoll' ? 0.025 : 0.018) / maneuver.duration));
+    velocity.multiplyScalar(Math.max(0, 1 - delta * (maneuver.kind === 'barrelRoll' ? 0.025 : 0.025) / maneuver.duration));
   }
   // A normal acceleration still obeys the base cap. An aircraft already above
   // it after Boost release retains the Boost ceiling while drag winds it down.
@@ -5004,15 +5696,20 @@ function updateFlight(delta: number): void {
     roll = 0;
     airplane.rotation.set(0, heading, 0, 'YXZ');
     onGround = true;
+    takeoffRollMeters = 0;
     landedFeedbackTime = 1.5;
     setFlightState('LANDED');
-    rewardLanding(landingAirport, landingQuality);
+    rewardLanding(landingAirport, landingQuality, landingStatus.rough);
     handleContractLanding(landingAirport);
   }
 
   if (maneuverComplete) {
     activeStuntManeuver = null;
     stuntCooldown = 2.2;
+    if (!onGround && maneuver && connectionReady()) {
+      sendLocalState();
+      socket.send(JSON.stringify({ type: 'stuntComplete', maneuver: maneuver.kind }));
+    }
     if (!onGround && maneuver?.kind === 'quickDodge') stuntCombo?.notifyQuickDodge(aircraftType);
   } else if (onGround) {
     activeStuntManeuver = null;
@@ -5210,7 +5907,8 @@ function updateCamera(delta: number): void {
       : THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
     if (Math.abs(scene.fog.near - targetFogNear) >= 10) scene.fog.near = targetFogNear;
     if (Math.abs(scene.fog.far - targetFogFar) >= 10) scene.fog.far = targetFogFar;
-    if (isDallas) scene.fog.color.setRGB(0.5 + altitudeFactor * 0.14, 0.71 + altitudeFactor * 0.11, 0.8 + altitudeFactor * 0.1);
+    if (worldTimeOfDay === 'dusk') scene.fog.color.setRGB(0.39 + altitudeFactor * 0.055, 0.43 + altitudeFactor * 0.06, 0.54 + altitudeFactor * 0.075);
+    else if (isDallas) scene.fog.color.setRGB(0.5 + altitudeFactor * 0.14, 0.71 + altitudeFactor * 0.11, 0.8 + altitudeFactor * 0.1);
     else scene.fog.color.setRGB(0.57 + altitudeFactor * 0.13, 0.76 + altitudeFactor * 0.1, 0.84 + altitudeFactor * 0.09);
   }
   const fovChanged = Number.isFinite(nextFov) && Math.abs(camera.fov - nextFov) >= 0.01;
@@ -5279,6 +5977,7 @@ function fireWeaponOnce(): boolean {
 
 function animate(): void {
   requestAnimationFrame(animate);
+  if (stabilityQaMode) stabilityQaFrames += 1;
   const delta = Math.min(clock.getDelta(), 0.05);
   if (!crashed && runStarted) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -5300,6 +5999,8 @@ function animate(): void {
   updateDestructionEffects(delta);
   updateOsmCityChunks(airplane.position);
   cityWorld.updateWorldStreaming?.(airplane.position, velocity);
+  cityWorld.updateWorldVisuals?.(delta);
+  updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
   if (!crashed && runStarted) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
   if (!crashed && runStarted) {
@@ -5322,12 +6023,13 @@ function animate(): void {
   updateEventVisual();
   updateCamera(delta);
   updateLockCircle();
-  adPlacementManager.update(camera, delta, airplane);
+  adPlacementManager.update(camera, delta, airplane, selectedCombatTarget !== null, lockCircleCenterX, lockCircleCenterY, lockCircleRadius);
   navigationTimer += delta;
   progressionHudTimer += delta;
   if (progressionHudTimer >= 1) {
     progressionHudTimer %= 1;
     updateProgressHud();
+    updateMissionHud();
   }
   if (navigationTimer >= 0.1) {
     navigationTimer %= 0.1;
@@ -5349,8 +6051,26 @@ if (stabilityQaMode) {
   let airborneSince: number | undefined;
   let takeoffSampleIndex = 0;
   let lastVisibilityFailureAt = -Infinity;
+  let lastSampleAt = performance.now();
+  let lastMaterialSampleAt = -Infinity;
+  let materialCount = 0;
   const takeoffSampleSeconds = [0, 2, 5, 10, 20] as const;
   const report = (): void => {
+    const sampleAt = performance.now();
+    const fps = Math.round(stabilityQaFrames * 1000 / Math.max(1, sampleAt - lastSampleAt));
+    stabilityQaFrames = 0;
+    lastSampleAt = sampleAt;
+    if (sampleAt - lastMaterialSampleAt >= 5_000) {
+      lastMaterialSampleAt = sampleAt;
+      const materials = new Set<number>();
+      scene.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const used = object.material;
+        if (Array.isArray(used)) for (const material of used) materials.add(material.id);
+        else materials.add(used.id);
+      });
+      materialCount = materials.size;
+    }
     const stream = cityWorld.getWorldStreamingStats?.();
     const visualCells = cityWorld.getWorldStreamingVisualDebug?.(airplane.position, camera) ?? [];
     const visibleCells = visualCells.filter((cell) => cell.attached && cell.groupVisible && cell.meshVisible > 0);
@@ -5366,11 +6086,18 @@ if (stabilityQaMode) {
       textures: renderer.info.memory.textures,
       calls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
+      fps,
+      materials: materialCount,
       chunks: stream?.loaded ?? { near: 0, mid: 0, far: 0 },
       visibleLods: stream?.visible ?? { near: 0, mid: 0, far: 0 },
       desired: stream?.desired ?? { near: 0, mid: 0, far: 0 },
       requested: stream?.requested ?? { near: 0, mid: 0, far: 0 },
       geometryCacheMiB: stream ? `${(stream.loadedBytes / 1048576).toFixed(1)}/${(stream.cacheLimitBytes / 1048576).toFixed(0)}` : 'n/a',
+      cacheBytesByLod: stream?.bytesByLod,
+      cacheProtectedBytes: stream?.protectedBytes,
+      cacheEvictionCandidates: stream?.evictionCandidates,
+      cacheDuplicateLodBytes: stream?.duplicateLodBytes ?? 0,
+      queuedBuildBytes: stream?.queuedBuildBytes ?? 0,
       queued: stream?.queued ?? 0,
       pending: stream?.pending ?? 0,
       activeFetches: stream?.activeFetches ?? 0,
@@ -5409,11 +6136,14 @@ if (stabilityQaMode) {
       contextEvents,
     };
     panel.textContent = [
-      'STABILITY QA · DEV ONLY',
-      `GPU geo ${snapshot.geometries} · tex ${snapshot.textures} · calls ${snapshot.calls} · tris ${snapshot.triangles}`,
+      'STABILITY QA · LOCAL ONLY',
+      `GPU geo ${snapshot.geometries} · tex ${snapshot.textures} · materials ${snapshot.materials} · calls ${snapshot.calls} · tris ${snapshot.triangles} · FPS ${snapshot.fps}`,
       `player ${Math.round(airplane.position.x)},${Math.round(airplane.position.z)} · speed ${Math.round(snapshot.streamSpeed)} · lookahead ${Math.round(snapshot.preloadDistance)}m · desired N/M/F ${snapshot.desired.near}/${snapshot.desired.mid}/${snapshot.desired.far} · requested ${snapshot.requested.near}/${snapshot.requested.mid}/${snapshot.requested.far}`,
       `state ${snapshot.flight.state} · alt ${Math.round(snapshot.flight.altitude)}m · velocity ${Math.round(snapshot.flight.velocity.x)},${Math.round(snapshot.flight.velocity.y)},${Math.round(snapshot.flight.velocity.z)} · camera/fog ${Math.round(snapshot.flight.cameraFar)}/${Math.round(snapshot.flight.fogNear ?? 0)}-${Math.round(snapshot.flight.fogFar ?? 0)}`,
       `Dallas attached N/M/F ${snapshot.chunks.near}/${snapshot.chunks.mid}/${snapshot.chunks.far} · visible ${snapshot.visibleLods.near}/${snapshot.visibleLods.mid}/${snapshot.visibleLods.far} · geometry cache ${snapshot.geometryCacheMiB} MiB`,
+      snapshot.cacheBytesByLod && snapshot.cacheProtectedBytes && snapshot.cacheEvictionCandidates
+        ? `cache N/M/F ${snapshot.cacheBytesByLod.near >> 20}/${snapshot.cacheBytesByLod.mid >> 20}/${snapshot.cacheBytesByLod.far >> 20} MiB · protected current/visible/ahead/fallback/handoff/overlap ${Object.values(snapshot.cacheProtectedBytes).map(bytes => (bytes / 1048576).toFixed(1)).join('/')} MiB · candidates ${snapshot.cacheEvictionCandidates.cells}/${(snapshot.cacheEvictionCandidates.bytes / 1048576).toFixed(1)} MiB · duplicate ${(snapshot.cacheDuplicateLodBytes / 1048576).toFixed(1)} MiB · builds ${(snapshot.queuedBuildBytes / 1048576).toFixed(1)} MiB`
+        : '',
       `queue ${snapshot.queued} · fetch ${snapshot.activeFetches} · build ${snapshot.queuedBuilds} · pending ${snapshot.pending} · aborted ${snapshot.abortedFetches} · protect V/A/F ${snapshot.protectedCells.visible}/${snapshot.protectedCells.ahead}/${snapshot.protectedCells.immediateFallback} · missing near ${snapshot.missingImmediate}`,
       `loaded ${snapshot.loaded} · evicted ${snapshot.evicted} · stale ${snapshot.discarded} · failed ${snapshot.failed} · fetch ms avg/max ${snapshot.fetchMs} · parse ${snapshot.parseMs} · build ${snapshot.buildMs}`,
       `visible cells ${snapshot.visualCells.visible}/${snapshot.visualCells.nearby} · nearby building meshes ${snapshot.visualCells.buildingMeshes} · roads ${snapshot.visualCells.roadMeshes}${snapshot.visualCells.nearest ? ` · nearest ${snapshot.visualCells.nearest.id}/${snapshot.visualCells.nearest.lod} ${snapshot.visualCells.nearest.lifecycle} visible=${snapshot.visualCells.nearest.groupVisible}/${snapshot.visualCells.nearest.meshVisible} frustum=${snapshot.visualCells.nearest.frustumIntersects}` : ''}`,
@@ -5572,7 +6302,7 @@ function queueProfileProgress(): void {
   }, 1000);
 }
 
-function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number): boolean {
+function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number, creditReason?: string): boolean {
   if (!isNetworkProfile(profile)) return false;
   if (!Number.isSafeInteger(revision) || revision < 0) return false;
   if (rewardId) {
@@ -5588,13 +6318,17 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   selectionRevision = revision;
   const earnedCredits = profileHydrated ? Math.max(0, profile.credits - serverProfile.credits) : 0;
   serverProfile = profile;
+  activeMissionAttemptId = profileActiveMissionAttempt(profile)?.attemptId;
+  refreshTerritoryBorders();
+  updateMissionHud();
   profileHydrated = true;
   profileSyncUnavailableNotified = false;
   persistedPlayer.pilotId = profile.pilotId;
   persistedPlayer.selectedAircraft = profile.selectedAircraft;
   credits = profile.credits + pendingProfileCredits();
   if (earnedCredits > 0) {
-    queueRewardFeedback(earnedCredits);
+    if (!creditReason && import.meta.env.DEV) console.warn(`CREDIT_REASON_MISSING amount=${earnedCredits}`);
+    queueRewardFeedback(earnedCredits, 0, creditReason ?? 'Profile Sync');
     document.querySelector('#progression-readout')!.classList.remove('earned');
     void creditsElement.offsetWidth;
     document.querySelector('#progression-readout')!.classList.add('earned');
@@ -5753,6 +6487,9 @@ socket.addEventListener('message', (event) => {
     altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
     connectionElement.textContent = 'Online';
     serverProfile = message.profile;
+    activeMissionAttemptId = profileActiveMissionAttempt(message.profile)?.attemptId;
+    refreshTerritoryBorders();
+    updateMissionHud();
     profileHydrated = true;
     if (message.profile.legacyImportPending && !legacyImportSent) {
       legacyImportSent = true;
@@ -5790,11 +6527,36 @@ socket.addEventListener('message', (event) => {
     removeRemotePlayer(message.playerId);
     cityHumanRoster.delete(message.playerId);
     humanRadarTracks.delete(message.playerId);
-    playersPanel.update([...cityHumanRoster.values()], localPlayerId);
+    playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
   } else if (message.type === 'leaderboard') {
     if (message.cityId === cityId) updateLeaderboard(message.players);
   } else if (message.type === 'weeklyLeaderboards') {
     weeklyLeaderboards = message.weeklyLeaderboards;
+  } else if (message.type === 'missionState') {
+    if (message.cityId === cityId) {
+      serverProfile.missions[cityId] = message.state;
+      activeMissionAttemptId = profileActiveMissionAttempt(serverProfile)?.attemptId;
+      refreshTerritoryBorders();
+      updateMissionHud();
+    }
+  } else if (message.type === 'missionResult') {
+    if (message.ok && message.attemptId) { activeMissionAttemptId = message.attemptId; completedMissionCard = null; }
+    showProgressMessage(message.ok ? 'MISSION ACCEPTED' : (message.reason ?? 'MISSION UNAVAILABLE'));
+    if (pilotMenu.isOpen()) renderPilotMenu();
+  } else if (message.type === 'missionCompleted') {
+    activeMissionAttemptId = undefined;
+    completedMissionCard = { missionId: message.missionId, credits: message.credits, score: message.score, until: Date.now() + 12_000 };
+    score += message.score;
+    recordBestScore(score);
+    updateScoreDisplay();
+    showProgressMessage(`MISSION COMPLETE · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · +${message.credits.toLocaleString()} Credits · +${message.score.toLocaleString()} Score`);
+    updateMissionHud();
+    sendPlayerUpdate();
+  } else if (message.type === 'missionFailed') {
+    activeMissionAttemptId = undefined;
+    completedMissionCard = null;
+    showProgressMessage(`MISSION FAILED · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · ${message.reason}`);
+    updateMissionHud();
   } else if (message.type === 'eventState') {
     applyCityEvent(message.event);
   } else if (message.type === 'eventClear') {
@@ -5833,7 +6595,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'chaosReward') {
     showProgressMessage(message.reason);
   } else if (message.type === 'profile') {
-    if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId)) {
+    if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason)) {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');
     }
   } else if (message.type === 'equipRejected') {
@@ -5870,10 +6632,16 @@ socket.addEventListener('message', (event) => {
     applyHeatState(message);
   } else if (message.type === 'territoryState') {
     if (message.cityId === cityId) applyTerritoryState(message.territories);
+    updateMissionHud();
   } else if (message.type === 'territoryNotice') {
     const territory = territoryDefinition(message.territoryId);
-    if (territory) showProgressMessage(message.kind === 'captured'
+    if (territory && message.kind === 'underAttack') {
+      territoryDefenseAlertId = territory.id;
+      territoryDefenseTextElement.textContent = `⚠ ${territory.displayName.toUpperCase()} UNDER ATTACK${message.attackerName ? ` · ${message.attackerName}` : ''}`;
+      territoryDefenseAlertElement.classList.remove('hidden');
+    } else if (territory) showProgressMessage(message.kind === 'captured'
       ? `${territory.displayName.toUpperCase()} CAPTURED +250`
+      : message.kind === 'defenderInbound' ? `${territory.displayName.toUpperCase()} · DEFENDER INBOUND`
       : `ENTERING ${territory.displayName.toUpperCase()}`);
   } else if (message.type === 'territoryReward') {
     const territory = territoryDefinition(message.territoryId);
@@ -5883,7 +6651,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'objectiveProgress') {
     showProgressMessage(`DAILY: ${message.label.toUpperCase()} ${message.progress}/${message.target}`);
   } else if (message.type === 'masteryLevel') {
-    if (message.cityId === cityId) showProgressMessage(`${cityId.toUpperCase()} MASTERY LEVEL ${message.level}`);
+    if (message.cityId === cityId) showProgressMessage(`${cityId.toUpperCase()} CITY LEVEL ${message.level}`);
   } else if (message.type === 'challengeComplete') {
     score += message.score;
     queueRewardFeedback(0, message.score);
@@ -5919,7 +6687,7 @@ socket.addEventListener('message', (event) => {
     if (message.playerId === localPlayerId) {
       applyLocalHull(message.health, message.maxHealth);
       updateHealthDisplay();
-      showProgressMessage(message.full ? 'AIRPORT REPAIR COMPLETE' : 'REPAIR BEACON · HULL RESTORED');
+      showProgressMessage(message.full ? 'AIRPORT REPAIR COMPLETE' : 'REPAIR BEACON · PLANE LIFE RESTORED');
     } else {
       const remote = remotePlayers.get(message.playerId);
       if (remote) {
@@ -6011,6 +6779,7 @@ socket.addEventListener('close', (event) => {
   cityHumanRoster.clear();
   humanRadarTracks.clear();
   playersPanel.update([], null);
+  cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
   pendingEquip = undefined;
   if (protocolBlocked) return;
@@ -6042,6 +6811,6 @@ updateHealthDisplay();
 updateAircraftOptions();
 aircraftSelectElement.value = aircraftType;
 updateNavigationHud();
-generateContract();
+// The legacy Contracts UI is retired; Missions are profile-owned on the server.
 savePlayerProgress(true);
 animate();

@@ -275,7 +275,14 @@ function buildRedspear() {
   }
   b.wing('primary', 1.8, 0.92, 0.32, 0.28, 0.09, vector(0, 0.02, 2.82));
   landingGear(b, 0.9, 0.72, -2.35, -0.78, 0.17);
-  return b.finish();
+  const airframe = b.finish();
+  // The effect origin is authored with the visible aft nozzle rim, not guessed
+  // later from the plane's normalized bounding box.
+  const exhaustSocket = new THREE.Object3D();
+  exhaustSocket.name = 'ExhaustSocket_Main';
+  exhaustSocket.position.set(0, -0.07, 4.22);
+  airframe.add(exhaustSocket);
+  return airframe;
 }
 
 const aircraft = [
@@ -297,6 +304,7 @@ async function exportBinary(root) {
 
 await fs.mkdir(outputDirectory, { recursive: true });
 for (const [filename, root] of aircraft) {
+  if (process.argv[2] && filename !== process.argv[2]) continue;
   const binary = await exportBinary(root);
   await fs.writeFile(path.join(outputDirectory, filename), Buffer.from(binary));
   const bounds = new THREE.Box3().setFromObject(root);

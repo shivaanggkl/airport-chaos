@@ -1,6 +1,6 @@
 import { aircraftRoles, identityText } from './visual-language';
 import * as THREE from 'three';
-import { aircraftDefinitions, aircraftPitch, garageStats, type AircraftType } from './aircraft';
+import { aircraftDefinitions, aircraftDisplayName, aircraftPitch, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
 import { REDSPEAR_PRICE_USD } from '../../shared/aircraft-economy.mjs';
 
@@ -156,7 +156,7 @@ export class AircraftGarage {
       : this.selected === this.profile.selectedAircraft ? 'SELECTED' : owned ? 'OWNED' : definition.access === 'premium' ? `Premium Aircraft · ${REDSPEAR_PRICE_USD}` : `${price!.toLocaleString()} ${identityText('credits')}`;
     this.element.querySelector('[data-garage-status]')!.textContent = `${ownership} · ${definition.livery.name}`;
     this.element.querySelector('[data-garage-credits]')!.textContent = `${this.profile.credits.toLocaleString()} ${identityText('credits')}`;
-    this.element.querySelector('[data-garage-name]')!.textContent = definition.name;
+    this.element.querySelector('[data-garage-name]')!.textContent = aircraftDisplayName(this.selected);
     this.element.querySelector('[data-garage-pitch]')!.textContent = `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)}`;
     this.element.querySelector('[data-garage-stats]')!.replaceChildren(...garageStats(definition).map(({ label, value }) => {
       const row = document.createElement('div'); row.innerHTML = `<span>${label}</span><b>${'■'.repeat(value)}${'□'.repeat(5 - value)}</b>`; return row;
@@ -173,7 +173,7 @@ export class AircraftGarage {
     for (const [type, card] of this.cards) {
       const data = aircraftDefinitions[type]; const typeOwned = this.profile.unlockedAircraft.includes(type);
       const access = typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${REDSPEAR_PRICE_USD}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
-      card.classList.toggle('selected', type === this.selected); card.textContent = `${data.name} · ${access}`;
+      card.classList.toggle('selected', type === this.selected); card.textContent = `${aircraftDisplayName(type)} · ${access}`;
     }
   }
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import dallasElevationJson from './data/dallas-elevation.json';
 import dallasSourceJson from './data/dallas-source.json';
 import { addSceneryAsset } from './assets';
-import type { AdPlacement } from './ad-placement';
+import { resolveAdPlacement, type AdPlacement, type AdPlacementSpec } from './ad-placement';
 import type { AmbientTrafficConfig } from './ambient-traffic';
 import type { SkyChallengeDefinition } from './sky-challenges';
 import type { StuntZone } from './stunt-combo';
@@ -11,6 +11,9 @@ import { DallasChunkStreamer } from './dallas-streamer';
 import type { ImportedObstacle, ImportedRoadSegment, ImportedWater } from './osm-city';
 import type { WorldMapLayer } from './world-map';
 import type { NavigationDestination } from './navigation-beacons';
+import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
+import { dfwSpeedGates } from '../../shared/city-challenges.mjs';
+import { CityVisualLayer, type CityVisualConfig, type CityVisualQuality, type CityTimeOfDay } from './city-visuals';
 
 export const WORLD_METERS_PER_UNIT = 1;
 export const WORLD_SIZE = 50_000;
@@ -34,6 +37,13 @@ export type MountainBounds = { x: number; z: number; radius: number; height: num
 export type WaterBounds = ImportedWater;
 
 let dallasStreamer: DallasChunkStreamer | undefined;
+let cityVisualLayer: CityVisualLayer | undefined;
+let visualQuality: CityVisualQuality = 'high';
+let timeOfDay: CityTimeOfDay = 'day';
+export function configureWorldVisuals(options: { quality: CityVisualQuality; timeOfDay: CityTimeOfDay }): void {
+  visualQuality = options.quality;
+  timeOfDay = options.timeOfDay;
+}
 type CompactElevationData = {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   width: number;
@@ -48,10 +58,10 @@ const elevationSamples = new Uint16Array(elevationBytes.buffer, elevationBytes.b
 const airportSafetyWidth: Record<string, number> = { dfw: 1500, love: 700, addison: 600, executive: 560 };
 
 export const airports: ReadonlyArray<AirportDefinition> = [
-  { id: 'dfw', name: 'DFW International', x: -22_800, z: -13_600, heading: 0, runwayWidth: 60, runwayLength: 4100, spawnOffset: 1300, accentColor: 0x31566b },
-  { id: 'love', name: 'Dallas Love Field', x: -5_140, z: -7_780, heading: 0, runwayWidth: 46, runwayLength: 2700, spawnOffset: 820, accentColor: 0x5a6f86 },
-  { id: 'addison', name: 'Addison Airport', x: -3_700, z: -21_100, heading: 0, runwayWidth: 38, runwayLength: 2200, spawnOffset: 670, accentColor: 0x617a87 },
-  { id: 'executive', name: 'Dallas Executive', x: -6_700, z: 10_600, heading: 0, runwayWidth: 38, runwayLength: 1800, spawnOffset: 540, accentColor: 0x718064 },
+  { id: 'dfw', name: place.dfw, x: -22_800, z: -13_600, heading: 0, runwayWidth: 60, runwayLength: 4100, spawnOffset: 1300, accentColor: 0x31566b },
+  { id: 'love', name: place.love, x: -5_140, z: -7_780, heading: 0, runwayWidth: 46, runwayLength: 2700, spawnOffset: 820, accentColor: 0x5a6f86 },
+  { id: 'addison', name: place.addison, x: -3_700, z: -21_100, heading: 0, runwayWidth: 38, runwayLength: 2200, spawnOffset: 670, accentColor: 0x617a87 },
+  { id: 'executive', name: place.executive, x: -6_700, z: 10_600, heading: 0, runwayWidth: 38, runwayLength: 1800, spawnOffset: 540, accentColor: 0x718064 },
 ];
 export const centralAirport = airports[0];
 // This is the Dallas-only source of truth for every local activity that needs
@@ -78,14 +88,16 @@ export const dallasLocations = {
   trinityNorth: { x: -4100, z: 2300 },
   i35eCrossing: { x: -9100, z: -7000 },
   lasColinas: { x: -13_500, z: -9350 },
+  metroArena: { x: -7_800, z: 2_800 },
 } as const;
 export const navigationDestinations: readonly NavigationDestination[] = [
-  { id: 'dfw', label: 'DFW AIRPORT', ...dallasLocations.dfw, kind: 'airport' },
-  { id: 'love', label: 'LOVE FIELD', ...dallasLocations.loveField, kind: 'airport' },
-  { id: 'addison', label: 'ADDISON', ...dallasLocations.addison, kind: 'airport' },
-  { id: 'executive', label: 'DALLAS EXECUTIVE', ...dallasLocations.dallasExecutive, kind: 'airport' },
-  { id: 'downtown', label: 'DOWNTOWN', ...dallasLocations.downtown, kind: 'district' },
-  { id: 'reunion', label: 'REUNION TOWER', ...dallasLocations.reunionTower, kind: 'landmark' },
+  { id: 'dfw', label: place.dfw, ...dallasLocations.dfw, kind: 'airport' },
+  { id: 'love', label: place.love, ...dallasLocations.loveField, kind: 'airport' },
+  { id: 'addison', label: place.addison, ...dallasLocations.addison, kind: 'airport' },
+  { id: 'executive', label: place.executive, ...dallasLocations.dallasExecutive, kind: 'airport' },
+  { id: 'downtown', label: place.downtown, ...dallasLocations.downtown, kind: 'district' },
+  { id: 'reunion', label: place.reunion, ...dallasLocations.reunionTower, kind: 'landmark' },
+  { id: 'metro-arena', label: 'METRO ARENA', ...dallasLocations.metroArena, kind: 'landmark' },
 ];
 export const stuntZones: ReadonlyArray<StuntZone> = [
   { id: 'trinity-crossing', kind: 'bridge', ...dallasLocations.trinity, radius: 165, minAltitude: 16, maxAltitude: 92 },
@@ -95,14 +107,14 @@ export const stuntZones: ReadonlyArray<StuntZone> = [
 export const discoveries: ReadonlyArray<DiscoveryDefinition> = [
   // Airport radii deliberately remain inside the associated spawn offset:
   // taking off cannot instantly discover the airport the player spawned at.
-  { id: 'dfw-international', name: 'DFW International', type: 'airport', ...dallasLocations.dfw, radius: 700, minAltitude: 0, maxAltitude: 280, credits: 75, setId: 'airport-tour', setBonus: 300 },
-  { id: 'love-field', name: 'Dallas Love Field', type: 'airport', ...dallasLocations.loveField, radius: 460, minAltitude: 0, maxAltitude: 240, credits: 100, setId: 'airport-tour', setBonus: 300 },
-  { id: 'addison-airport', name: 'Addison Airport', type: 'airport', ...dallasLocations.addison, radius: 380, minAltitude: 0, maxAltitude: 220, credits: 100, setId: 'airport-tour', setBonus: 300 },
-  { id: 'dallas-executive', name: 'Dallas Executive', type: 'airstrip', ...dallasLocations.dallasExecutive, radius: 320, minAltitude: 0, maxAltitude: 210, credits: 125, setId: 'airport-tour', setBonus: 300 },
-  { id: 'reunion-tower', name: 'Reunion Tower', type: 'downtown', ...dallasLocations.reunionTower, radius: 120, minAltitude: 110, maxAltitude: 300, credits: 125, setId: 'downtown-icons', setBonus: 275 },
-  { id: 'downtown-plaza', name: 'Downtown Plaza', type: 'landmark', ...dallasLocations.downtownPlaza, radius: 130, minAltitude: 130, maxAltitude: 400, credits: 100, setId: 'downtown-icons', setBonus: 275 },
+  { id: 'dfw-international', name: place.dfw, type: 'airport', ...dallasLocations.dfw, radius: 700, minAltitude: 0, maxAltitude: 280, credits: 75, setId: 'airport-tour', setBonus: 300 },
+  { id: 'love-field', name: place.love, type: 'airport', ...dallasLocations.loveField, radius: 460, minAltitude: 0, maxAltitude: 240, credits: 100, setId: 'airport-tour', setBonus: 300 },
+  { id: 'addison-airport', name: place.addison, type: 'airport', ...dallasLocations.addison, radius: 380, minAltitude: 0, maxAltitude: 220, credits: 100, setId: 'airport-tour', setBonus: 300 },
+  { id: 'dallas-executive', name: place.executive, type: 'airstrip', ...dallasLocations.dallasExecutive, radius: 320, minAltitude: 0, maxAltitude: 210, credits: 125, setId: 'airport-tour', setBonus: 300 },
+  { id: 'reunion-tower', name: place.reunion, type: 'downtown', ...dallasLocations.reunionTower, radius: 120, minAltitude: 110, maxAltitude: 300, credits: 125, setId: 'downtown-icons', setBonus: 275 },
+  { id: 'downtown-plaza', name: 'Central Plaza', type: 'landmark', ...dallasLocations.downtownPlaza, radius: 130, minAltitude: 130, maxAltitude: 400, credits: 100, setId: 'downtown-icons', setBonus: 275 },
   { id: 'fountain-district', name: 'Fountain District', type: 'rooftop', ...dallasLocations.fountainDistrict, radius: 120, minAltitude: 110, maxAltitude: 340, credits: 125, setId: 'downtown-icons', setBonus: 275 },
-  { id: 'las-colinas', name: 'Las Colinas', type: 'landmark', ...dallasLocations.lasColinas, radius: 340, minAltitude: 80, maxAltitude: 360, credits: 100 },
+  { id: 'las-colinas', name: place.lasColinas, type: 'landmark', ...dallasLocations.lasColinas, radius: 340, minAltitude: 80, maxAltitude: 360, credits: 100 },
   { id: 'white-rock-lake', name: 'White Rock Lake', type: 'water', ...dallasLocations.whiteRock, radius: 560, minAltitude: 20, maxAltitude: 350, credits: 100 },
   { id: 'trinity-corridor', name: 'Trinity River Corridor', type: 'water', ...dallasLocations.trinityNorth, radius: 320, minAltitude: 20, maxAltitude: 260, credits: 100 },
   { id: 'trinity-crossing', name: 'Trinity Crossing', type: 'bridge', ...dallasLocations.trinity, radius: 130, minAltitude: 18, maxAltitude: 105, credits: 150 },
@@ -434,16 +446,11 @@ export const ambientTrafficConfig: AmbientTrafficConfig = {
 // meter-space as airports, landmarks, radar, and the world map.
 export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
   {
-    id: 'dfw-speed', name: 'DFW OPEN CORRIDOR', type: 'speed', reward: 180, timeLimit: 62,
-    gates: [
-      { x: -20_400, z: -10_100, altitude: 380, radius: 82 },
-      { x: -16_600, z: -8_900, altitude: 510, radius: 82 },
-      { x: -12_900, z: -7_400, altitude: 540, radius: 82 },
-      { x: -9_400, z: -5_800, altitude: 500, radius: 82 },
-    ],
+    id: 'dfw-speed', name: `${place.dfw} OPEN CORRIDOR`, type: 'speed', reward: 180, timeLimit: 62, sponsor: { type: 'RING_SPONSOR', campaignId: 'available-premium' },
+    gates: dfwSpeedGates,
   },
   {
-    id: 'downtown-precision', name: 'DOWNTOWN PRECISION', type: 'precision', reward: 280, timeLimit: 72,
+    id: 'downtown-precision', name: `${place.downtown} PRECISION`, type: 'precision', reward: 280, timeLimit: 72, sponsor: { type: 'RING_SPONSOR', campaignId: 'airport-chaos' },
     gates: [
       { x: -2_400, z: -1_700, altitude: 390, radius: 42 },
       { x: -980, z: -720, altitude: 470, radius: 38 },
@@ -477,7 +484,7 @@ export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
     ],
   },
   {
-    id: 'addison-climb', name: 'ADDISON DEPARTURE CLIMB', type: 'climb', reward: 280, timeLimit: 66,
+    id: 'addison-climb', name: `${place.addison} DEPARTURE CLIMB`, type: 'climb', reward: 280, timeLimit: 66,
     gates: [
       { x: dallasLocations.addison.x - 180, z: dallasLocations.addison.z + 1_550, altitude: 310, radius: 76 },
       { x: dallasLocations.addison.x - 80, z: dallasLocations.addison.z + 3_100, altitude: 680, radius: 72 },
@@ -496,7 +503,7 @@ export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
     ],
   },
   {
-    id: 'las-colinas-flyby', name: 'LAS COLINAS FLYBY', type: 'flyby', reward: 230, timeLimit: 64,
+    id: 'las-colinas-flyby', name: `${place.lasColinas} FLYBY`, type: 'flyby', reward: 230, timeLimit: 64,
     gates: [
       { x: -15_400, z: -10_200, altitude: 330, radius: 70 },
       { x: -13_700, z: -9_400, altitude: 360, radius: 68 },
@@ -508,31 +515,70 @@ export const mapLayer: WorldMapLayer = {
   bounds: { minX: -25_000, maxX: 25_000, minZ: -25_000, maxZ: 25_000 },
   staticUrl: '/data/dallas/map.json',
   landmarks: [
-    { id: 'downtown', label: 'DOWNTOWN', ...dallasLocations.downtown },
-    { id: 'las-colinas', label: 'LAS COLINAS', ...dallasLocations.lasColinas },
+    { id: 'downtown', label: place.downtown, ...dallasLocations.downtown },
+    { id: 'las-colinas', label: place.lasColinas, ...dallasLocations.lasColinas },
     { id: 'white-rock', label: 'WHITE ROCK LAKE', ...dallasLocations.whiteRock },
     { id: 'trinity', label: 'TRINITY CORRIDOR', ...dallasLocations.trinity },
+    { id: 'metro-arena', label: 'METRO ARENA', ...dallasLocations.metroArena },
   ],
 };
+function qaFlightLeg(id: string, label: string, from: { x: number; z: number }, to: { x: number; z: number }, speed: number) {
+  return { id, label, x: from.x, z: from.z, altitude: 1_150, heading: Math.atan2(from.x - to.x, from.z - to.z), speed };
+}
+
 export const visualQaPresets = [
-  { id: 'DFW_RUNWAY', label: 'DFW RUNWAY', x: centralAirport.x, z: centralAirport.z + centralAirport.spawnOffset, altitude: 0, heading: centralAirport.heading, onGround: true },
-  { id: 'DFW_500M', label: 'DFW 500M', x: centralAirport.x - 260, z: centralAirport.z, altitude: 500, heading: -Math.PI / 2 },
-  { id: 'DOWNTOWN_300M', label: 'DOWNTOWN 300M', x: dallasLocations.downtown.x + 520, z: dallasLocations.downtown.z + 420, altitude: 300, heading: 0.89 },
-  { id: 'DOWNTOWN_800M', label: 'DOWNTOWN 800M', x: dallasLocations.downtown.x + 700, z: dallasLocations.downtown.z + 560, altitude: 800, heading: 0.89 },
+  // Localhost-only production soak launch points. The aircraft then moves
+  // under normal flight physics and streamer updates between each waypoint.
+  qaFlightLeg('SOAK_DFW_CANAL', 'SOAK DFW → CANAL', centralAirport, dallasLocations.lasColinas, 1_035),
+  qaFlightLeg('SOAK_CANAL_CENTRAL', 'SOAK CANAL → CENTRAL', dallasLocations.lasColinas, dallasLocations.downtown, 1_420),
+  qaFlightLeg('SOAK_CENTRAL_LOVE', 'SOAK CENTRAL → LOVE', dallasLocations.downtown, airports[1], 1_035),
+  qaFlightLeg('SOAK_LOVE_ADDISON', 'SOAK LOVE → ADDISON', airports[1], airports[2], 1_420),
+  qaFlightLeg('SOAK_ADDISON_EXECUTIVE', 'SOAK ADDISON → EXECUTIVE', airports[2], airports[3], 1_035),
+  qaFlightLeg('SOAK_EXECUTIVE_DFW', 'SOAK EXECUTIVE → DFW', airports[3], centralAirport, 1_420),
+  { id: 'DFW_RUNWAY', label: `${place.dfw} RUNWAY`, x: centralAirport.x, z: centralAirport.z + centralAirport.spawnOffset, altitude: 0, heading: centralAirport.heading, onGround: true },
+  { id: 'DFW_500M', label: `${place.dfw} 500M`, x: centralAirport.x - 260, z: centralAirport.z, altitude: 500, heading: -Math.PI / 2 },
+  { id: 'DOWNTOWN_300M', label: `${place.downtown} 300M`, x: dallasLocations.downtown.x + 520, z: dallasLocations.downtown.z + 420, altitude: 300, heading: 0.89 },
+  { id: 'DOWNTOWN_800M', label: `${place.downtown} 800M`, x: dallasLocations.downtown.x + 700, z: dallasLocations.downtown.z + 560, altitude: 800, heading: 0.89 },
+  { id: 'DOWNTOWN_CACHE_STATIC', label: 'CENTRAL CACHE STATIC', x: dallasLocations.downtown.x + 700, z: dallasLocations.downtown.z + 560, altitude: 800, heading: 0.89, speed: 0 },
+  { id: 'CENTRAL_SILHOUETTE', label: 'CENTRAL SILHOUETTE', x: -3_100, z: -3_750, altitude: 160, heading: -2.48 },
+  { id: 'REDSPEAR_BOOST_STREAM', label: 'REDSPEAR BOOST STREAM', x: -18_000, z: -10_500, altitude: 900, heading: -2.08, speed: 1_420 },
   { id: 'DALLAS_1500M', label: 'DALLAS 1500M', x: dallasLocations.lasColinas.x + 1800, z: dallasLocations.lasColinas.z + 1200, altitude: 1500, heading: 0.98 },
   { id: 'WHITE_ROCK_500M', label: 'WHITE ROCK 500M', x: dallasLocations.whiteRock.x - 350, z: dallasLocations.whiteRock.z + 300, altitude: 500, heading: -0.86 },
   { id: 'TRINITY_500M', label: 'TRINITY 500M', x: dallasLocations.trinity.x - 350, z: dallasLocations.trinity.z + 480, altitude: 500, heading: -0.63 },
-  { id: 'LAS_COLINAS_500M', label: 'LAS COLINAS 500M', x: dallasLocations.lasColinas.x + 360, z: dallasLocations.lasColinas.z + 420, altitude: 500, heading: 0.71 },
+  { id: 'LAS_COLINAS_500M', label: `${place.lasColinas} 500M`, x: dallasLocations.lasColinas.x + 360, z: dallasLocations.lasColinas.z + 420, altitude: 500, heading: 0.71 },
+  { id: 'METRO_ARENA_300M', label: 'METRO ARENA 300M', x: dallasLocations.metroArena.x + 650, z: dallasLocations.metroArena.z + 520, altitude: 300, heading: 0.92, pitch: -0.12 },
+  { id: 'ADS_DFW_RING', label: 'ADS DFW RING', x: -21_400, z: -10_420, altitude: 380, heading: -1.88 },
+  { id: 'ADS_I35E_SIGN', label: 'ADS I-35E SIGN', x: -9_145, z: -6_560, altitude: 100, heading: 0 },
+  { id: 'ADS_DFW_TERMINAL', label: 'ADS DFW TERMINAL', x: -22_650, z: -13_600, altitude: 20, heading: -Math.PI / 2 },
+  { id: 'QA_LOGO_DFW_TERMINAL', label: 'QA LOGO DFW TERMINAL', x: -22_520, z: -14_095, altitude: 27, heading: -Math.PI / 2, speed: 0 },
+  { id: 'ADS_LOVE_TERMINAL', label: 'ADS LOVE TERMINAL', x: -5_400, z: -7_780, altitude: 50, heading: -Math.PI / 2 },
+  { id: 'ADS_ADDISON_TERMINAL', label: 'ADS ADDISON TERMINAL', x: -3_950, z: -21_100, altitude: 45, heading: -Math.PI / 2 },
+  { id: 'ADS_EXECUTIVE_TERMINAL', label: 'ADS EXECUTIVE TERMINAL', x: -6_950, z: 10_600, altitude: 45, heading: -Math.PI / 2 },
+  { id: 'ADS_LAS_WRAP', label: 'ADS LAS WRAP', x: -13_353, z: -9_200, altitude: 120, heading: 0 },
+  { id: 'ADS_DOWNTOWN_ROOF', label: 'ADS DOWNTOWN ROOF', x: -650, z: -150, altitude: 145, heading: -0.64 },
+  { id: 'QA_LOGO_ROOFTOP', label: 'QA LOGO ROOFTOP', x: -420, z: 360, altitude: 330, heading: 0, speed: 0 },
+  { id: 'ADS_HERO_CORNER', label: 'ADS HERO CORNER', x: -610, z: -655, altitude: 250, heading: -2.32 },
+  { id: 'ADS_LAS_GROUND', label: 'ADS LAS GROUND', x: -13_255, z: -9_950, altitude: 360, heading: 0, pitch: -0.16 },
+  { id: 'ADS_DFW_GROUND', label: 'ADS DFW GROUND', x: -23_320, z: -12_350, altitude: 330, heading: 0, pitch: -0.14 },
+  { id: 'ADS_EXEC_GROUND', label: 'ADS EXEC GROUND', x: -6_845, z: 11_250, altitude: 310, heading: 0, pitch: -0.14 },
+  { id: 'ADS_I35_ROOF', label: 'ADS I-35 ROOF', x: -9_480, z: -6_560, altitude: 240, heading: -0.35 },
+  { id: 'ADS_DFW_RING_ENTRY', label: 'ADS DFW RING ENTRY', x: -20_600, z: -10_160, altitude: 380, heading: -1.88 },
+  { id: 'ADS_SKYBOARD_DFW_LAS', label: 'ADS SKYBOARD DFW-LAS', x: -19_750, z: -11_750, altitude: 780, heading: -1.88 },
+  { id: 'QA_LOGO_SKYBOARD', label: 'QA LOGO SKYBOARD', x: -24_150, z: -10_000, altitude: 850, heading: 1.08, speed: 0 },
+  { id: 'ADS_SKYGATE_DFW_LAS', label: 'ADS SKYGATE DFW-LAS', x: -17_550, z: -9_900, altitude: 650, heading: -2.12 },
+  { id: 'ADS_SKYBOARD_DOWNTOWN', label: 'ADS SKYBOARD DOWNTOWN', x: -4_600, z: -3_300, altitude: 1_200, heading: -2.19 },
+  { id: 'ADS_BLIMP_LAS', label: 'ADS BLIMP LAS', x: -7_500, z: -8_100, altitude: 1_180, heading: Math.PI },
+  { id: 'ADS_SKYBOARD_EXEC', label: 'ADS SKYBOARD EXEC', x: -9_100, z: 6_300, altitude: 780, heading: -2.14 },
 ] as const;
 export const regionBounds: ReadonlyArray<{ name: RegionName; minX: number; maxX: number; minZ: number; maxZ: number }> = [
   // These areas drive exploration credits and sightseeing contracts.  They
   // intentionally exclude DFW's spawn corridor; an airport takeoff is not a
   // discovery of an unrelated fictional biome.
-  { name: 'DOWNTOWN / UPTOWN', minX: -3_500, maxX: 1_800, minZ: -3_100, maxZ: 2_500 },
-  { name: 'LAS COLINAS / IRVING', minX: -17_000, maxX: -10_000, minZ: -12_000, maxZ: -5_000 },
+  { name: place.downtown, minX: -3_500, maxX: 1_800, minZ: -3_100, maxZ: 2_500 },
+  { name: place.lasColinas, minX: -17_000, maxX: -10_000, minZ: -12_000, maxZ: -5_000 },
   { name: 'WHITE ROCK LAKE', minX: 3_000, maxX: 8_500, minZ: -11_500, maxZ: -5_000 },
   { name: 'TRINITY CORRIDOR', minX: -6_000, maxX: 1_500, minZ: 0, maxZ: 4_500 },
-  { name: 'SOUTH DALLAS / EXECUTIVE', minX: -9_500, maxX: -4_000, minZ: 7_000, maxZ: 13_500 },
+  { name: place.executive, minX: -9_500, maxX: -4_000, minZ: 7_000, maxZ: 13_500 },
 ];
 
 function smoothstep(edge0: number, edge1: number, value: number): number {
@@ -588,32 +634,174 @@ const adPosition = (x: number, z: number, height: number): { x: number; y: numbe
   z,
 });
 const adRotation = (y: number): { x: number; y: number; z: number } => ({ x: 0, y, z: 0 });
-const advertiseHere = { reference: 'builtin:advertise-here', headline: 'ADVERTISE HERE', subline: 'Premium Dallas airspace', background: '#173348' };
-const poweredByVaden = { reference: 'builtin:powered-by-vaden', headline: 'POWERED BY', subline: 'Vaden Software', background: '#123a42' };
-const activeCampaignWindow = { startAt: '2025-01-01T00:00:00.000Z', endAt: '2035-12-31T23:59:59.000Z', enabled: true };
+const terminalWallSign = (airportId: AirportId, lateral: number, height: number, longitudinal = 0): { x: number; y: number; z: number } => {
+  const airport = airports.find((candidate) => candidate.id === airportId)!;
+  const wall = localPosition(airport, lateral, longitudinal);
+  return { x: wall.x - 0.16, y: wall.y + height, z: wall.z };
+};
+const airportRoofSign = (airportId: AirportId, lateral: number, longitudinal: number, roofHeight: number, signHeight: number) => {
+  const airport = airports.find((candidate) => candidate.id === airportId)!;
+  const roof = localPosition(airport, lateral, longitudinal);
+  const supportBaseY = roof.y + roofHeight;
+  return { position: { x: roof.x, y: supportBaseY + signHeight * 0.5 + 3, z: roof.z }, supportBaseY };
+};
+const approachSign = (airportId: AirportId, lateral: number, longitudinal: number, height: number) => {
+  const airport = airports.find((candidate) => candidate.id === airportId)!;
+  const location = localPosition(airport, lateral, longitudinal);
+  return adPosition(location.x, location.z, height);
+};
+const airportGroundAd = (airportId: AirportId, lateral: number, longitudinal: number) => {
+  const airport = airports.find((candidate) => candidate.id === airportId)!;
+  const location = localPosition(airport, lateral, longitudinal);
+  return adPosition(location.x, location.z, 0);
+};
+const groundAdRotation = { x: -Math.PI / 2, y: 0, z: 0 };
+const highwayAdSize = { x: 68, y: 21, z: 1 };
+const skyboardSize = { x: 380, y: 115, z: 0.4 };
+const skyGateSize = { x: 230, y: 150, z: 1 };
+const sponsorBlimpSize = { x: 310, y: 88, z: 82 };
+// Endpoints are measured OSM wall edges, not bounding-box approximations.
+// The normal is chosen away from the footprint center so the impression
+// facing test and the visible creative agree on angled buildings.
+function heroWall(
+  center: readonly [number, number],
+  start: readonly [number, number],
+  end: readonly [number, number],
+  baseY: number,
+  height: number,
+  widthCoverage = 0.82,
+  heightCoverage = 0.76,
+) {
+  const dx = end[0] - start[0];
+  const dz = end[1] - start[1];
+  const length = Math.hypot(dx, dz);
+  const midpointX = (start[0] + end[0]) * 0.5;
+  const midpointZ = (start[1] + end[1]) * 0.5;
+  let normalX = -dz / length;
+  let normalZ = dx / length;
+  if ((midpointX - center[0]) * normalX + (midpointZ - center[1]) * normalZ < 0) {
+    normalX = -normalX;
+    normalZ = -normalZ;
+  }
+  return {
+    position: { x: midpointX + normalX * 0.18, y: baseY + height * 0.5, z: midpointZ + normalZ * 0.18 },
+    rotation: adRotation(Math.atan2(normalX, normalZ)),
+    size: { x: length * widthCoverage, y: height * heightCoverage, z: 0.4 },
+  };
+}
 
-// Static, city-scoped inventory. Positions are derived from existing airport and landmark
-// coordinates, keeping signage outside active runways and clear of landmark footprints.
-export const adPlacements: ReadonlyArray<AdPlacement> = [
-  { id: 'dallas-dfw-north-arrival', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(-20_950, -11_050, 20), rotation: adRotation(Math.PI), size: { x: 34, y: 12, z: 1 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-dfw-west-corridor', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(-24_750, -13_200, 20), rotation: adRotation(Math.PI / 2), size: { x: 34, y: 12, z: 1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-dfw-terminal-sign', cityId: 'dallas', type: 'AIRPORT_SIGN', position: adPosition(-20_900, -15_800, 13), rotation: adRotation(Math.PI), size: { x: 48, y: 10, z: 0.5 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-i35e-corridor', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(-9_100, -7_000, 19), rotation: adRotation(0.6), size: { x: 32, y: 11, z: 1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-i30-corridor', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(2_300, -1_600, 18), rotation: adRotation(-1.05), size: { x: 32, y: 11, z: 1 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-us75-corridor', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(1_450, -6_300, 19), rotation: adRotation(-0.35), size: { x: 32, y: 11, z: 1 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-downtown-plaza-screen', cityId: 'dallas', type: 'BUILDING_SCREEN', position: adPosition(-330, -318, 136), rotation: adRotation(0.05), size: { x: 74, y: 32, z: 0.4 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-downtown-faceted-screen', cityId: 'dallas', type: 'BUILDING_SCREEN', position: adPosition(-742, -195, 112), rotation: adRotation(Math.PI / 4), size: { x: 62, y: 27, z: 0.4 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-reunion-screen', cityId: 'dallas', type: 'BUILDING_SCREEN', position: adPosition(-1_092, 130, 109), rotation: adRotation(Math.PI / 2), size: { x: 52, y: 23, z: 0.4 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-las-colinas-east', cityId: 'dallas', type: 'BUILDING_SCREEN', position: adPosition(-13_462, -9_315, 72), rotation: adRotation(0.12), size: { x: 54, y: 23, z: 0.4 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-las-colinas-west', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(-14_250, -9_900, 19), rotation: adRotation(-0.75), size: { x: 32, y: 11, z: 1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-white-rock-recreation', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(4_730, -8_000, 18), rotation: adRotation(0.8), size: { x: 30, y: 10, z: 1 }, creative: advertiseHere, sponsorName: 'Available', ...activeCampaignWindow },
-  { id: 'dallas-trinity-premium', cityId: 'dallas', type: 'BILLBOARD', position: adPosition(-3_050, 1_500, 19), rotation: adRotation(-0.6), size: { x: 32, y: 11, z: 1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-executive-premium', cityId: 'dallas', type: 'AIRPORT_SIGN', position: adPosition(-6_050, 9_450, 12), rotation: adRotation(Math.PI), size: { x: 42, y: 9, z: 0.5 }, creative: poweredByVaden, sponsorName: 'Vaden Software', ...activeCampaignWindow },
-  { id: 'dallas-trainer-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 4.6, y: 0.9, z: 0.1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', targetAircraftType: 'trainer', ...activeCampaignWindow },
-  { id: 'dallas-private-jet-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 5.8, y: 0.9, z: 0.1 }, creative: advertiseHere, sponsorName: 'Available', targetAircraftType: 'privateJet', ...activeCampaignWindow },
-  { id: 'dallas-cargo-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 6.2, y: 1.2, z: 0.1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', targetAircraftType: 'cargo', ...activeCampaignWindow },
-  { id: 'dallas-fighter-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 5, y: 0.8, z: 0.1 }, creative: poweredByVaden, sponsorName: 'Vaden Software', targetAircraftType: 'fighter', ...activeCampaignWindow },
-];
+// Dallas OSM near-chunk building footprints and the authored airport boxes were
+// checked against these mounts. Facade/screen Y values are absolute world Y,
+// not terrain-relative "height above ground" (which floated the old screens).
+export const adPlacements: ReadonlyArray<AdPlacement> = ([
+  { id: 'dallas-dfw-north-arrival', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-20_950, -11_130, 31), rotation: adRotation(Math.PI), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-dfw-west-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-24_830, -13_160, 31), rotation: adRotation(Math.PI / 2), size: highwayAdSize, campaignId: 'airport-chaos' },
+  // DFW's separate glass strip sits in front of the terminal box; mount on
+  // that outward face or the upper creative is hidden behind the glass mesh.
+  { id: 'dallas-dfw-terminal-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: terminalWallSign('dfw', 664, 23, 105), rotation: adRotation(-Math.PI / 2), size: { x: 130, y: 16, z: 0.5 }, campaignId: 'available-premium' },
+  { id: 'dallas-dfw-airport-chaos-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: terminalWallSign('dfw', 664, 23, -495), rotation: adRotation(-Math.PI / 2), size: { x: 155, y: 19, z: 0.5 }, campaignId: 'airport-chaos' },
+  { id: 'dallas-love-terminal-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: terminalWallSign('love', 132, 12), rotation: adRotation(-Math.PI / 2), size: { x: 78, y: 16, z: 0.5 }, campaignId: 'available-premium' },
+  { id: 'dallas-addison-terminal-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: terminalWallSign('addison', 130, 8.5), rotation: adRotation(-Math.PI / 2), size: { x: 58, y: 12, z: 0.5 }, campaignId: 'vaden-software' },
+  { id: 'dallas-executive-terminal-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: terminalWallSign('executive', 130, 8.5), rotation: adRotation(-Math.PI / 2), size: { x: 58, y: 12, z: 0.5 }, campaignId: 'airport-chaos' },
+  { id: 'dallas-dfw-approach-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: approachSign('dfw', -1_720, 1_000, 29), rotation: adRotation(0), size: { x: 64, y: 20, z: 1 }, freestanding: true, campaignId: 'vaden-software' },
+  { id: 'dallas-love-approach-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: approachSign('love', -285, 710, 26), rotation: adRotation(0), size: { x: 54, y: 17, z: 1 }, freestanding: true, campaignId: 'airport-chaos' },
+  { id: 'dallas-addison-approach-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: approachSign('addison', -230, 520, 24), rotation: adRotation(0), size: { x: 48, y: 15, z: 1 }, freestanding: true, campaignId: 'available-premium' },
+  { id: 'dallas-executive-approach-sign', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: approachSign('executive', -230, 390, 24), rotation: adRotation(0), size: { x: 48, y: 15, z: 1 }, freestanding: true, campaignId: 'available-premium' },
+  { id: 'dallas-i35e-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-9_085, -6_980, 31), rotation: adRotation(0.6), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-us75-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(1_530, -6_420, 31), rotation: adRotation(-0.35), size: highwayAdSize, campaignId: 'vaden-software' },
+  // Each hero campaign covers two adjoining measured OSM wall edges. The
+  // previous axis-aligned bounding-box planes floated off angled facades.
+  { id: 'dallas-downtown-plaza-wrap-south', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-454, -414], [-498, -424], [-419, -444], 130.6, 136, 0.84, 0.76), streamedMount: true, campaignId: 'airport-chaos' },
+  { id: 'dallas-downtown-plaza-wrap-west', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-454, -414], [-487, -384], [-498, -424], 130.6, 136, 0.82, 0.76), streamedMount: true, campaignId: 'vaden-software' },
+  { id: 'dallas-downtown-tower-wrap-south', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-452, -508], [-487, -529], [-432, -543], 132.1, 270, 0.84, 0.78), streamedMount: true, campaignId: 'available-premium' },
+  { id: 'dallas-downtown-tower-wrap-west', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-452, -508], [-473, -474], [-487, -529], 132.1, 270, 0.84, 0.78), streamedMount: true, campaignId: 'available-premium' },
+  { id: 'dallas-downtown-rooftop', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -454, y: 283, z: -414 }, rotation: adRotation(0.5), size: { x: 72, y: 22, z: 0.4 }, supportBaseY: 266.6, streamedMount: true, campaignId: 'available-standard' },
+  { id: 'dallas-airport-chaos-rooftop', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: adPosition(-420, 20, 344), rotation: adRotation(0.4), size: { x: 80, y: 22, z: 0.4 }, supportBaseY: getTerrainHeight(-420, 20) + 330, campaignId: 'airport-chaos' },
+  { id: 'dallas-metro-arena-facade', cityId: 'dallas', type: 'AIRPORT_SPONSOR', position: adPosition(dallasLocations.metroArena.x + 221, dallasLocations.metroArena.z, 36), rotation: adRotation(Math.PI / 2), size: { x: 100, y: 25, z: 0.5 }, campaignId: 'available-premium' },
+  { id: 'dallas-las-colinas-wrap-north', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-13_353, -9_491], [-13_380, -9_475], [-13_330, -9_470], 130.9, 58.8, 0.84, 0.76), streamedMount: true, campaignId: 'available-premium' },
+  { id: 'dallas-las-colinas-wrap-east', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-13_353, -9_491], [-13_322, -9_477], [-13_320, -9_502], 130.9, 58.8, 0.82, 0.76), streamedMount: true, campaignId: 'available-premium' },
+  { id: 'dallas-las-colinas-rooftop', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -14_243, y: 161.6, z: -9_844 }, rotation: adRotation(-0.75), size: { x: 44, y: 15, z: 0.4 }, supportBaseY: 147.8, streamedMount: true, campaignId: 'airport-chaos' },
+  { id: 'dallas-dfw-hangar-rooftop', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', ...airportRoofSign('dfw', 1_250, 1_120, 25.08, 23), rotation: adRotation(0), size: { x: 78, y: 23, z: 0.4 }, campaignId: 'vaden-software' },
+  { id: 'dallas-love-hangar-rooftop', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', ...airportRoofSign('love', 46 * 5.4, 245, 22.06, 18), rotation: adRotation(0), size: { x: 60, y: 18, z: 0.4 }, campaignId: 'airport-chaos' },
+  { id: 'dallas-addison-hangar-rooftop', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', ...airportRoofSign('addison', 38 * 5.4, 150, 18.06, 14), rotation: adRotation(0), size: { x: 46, y: 14, z: 0.4 }, campaignId: 'vaden-software' },
+  { id: 'dallas-i35e-commercial-roof', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -9_358, y: 159, z: -6_889 }, rotation: adRotation(0), size: { x: 90, y: 24, z: 0.4 }, supportBaseY: 144, streamedMount: true, campaignId: 'available-standard' },
+  { id: 'dallas-addison-commercial-roof', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -6_451, y: 194.2, z: -19_231 }, rotation: adRotation(0), size: { x: 58, y: 17, z: 0.4 }, supportBaseY: 182.7, streamedMount: true, campaignId: 'airport-chaos' },
+  { id: 'dallas-trinity-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-3_080, 1_610, 31), rotation: adRotation(-0.6), size: highwayAdSize, campaignId: 'vaden-software' },
+  { id: 'dallas-las-interchange', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-11_200, -8_210, 31), rotation: adRotation(0.3), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-addison-commercial-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-7_000, -19_430, 31), rotation: adRotation(0), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-east-i30-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(2_460, 1_660, 31), rotation: adRotation(Math.PI), size: highwayAdSize, campaignId: 'airport-chaos' },
+  // Four authored airport grass corridors are outside runway, taxiway and
+  // apron widths. The three park sites were checked against OSM park polygons,
+  // water, buildings and road geometry; terrain is sampled by the renderer.
+  { id: 'dallas-dfw-grass-brand', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('dfw', -520, 500), rotation: groundAdRotation, size: { x: 250, y: 400, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-love-grass-brand', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('love', -180, 250), rotation: groundAdRotation, size: { x: 220, y: 300, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-addison-grass-brand', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('addison', -155, 100), rotation: groundAdRotation, size: { x: 190, y: 260, z: 0 }, campaignId: 'vaden-software' },
+  { id: 'dallas-executive-grass-brand', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('executive', -145, -80), rotation: groundAdRotation, size: { x: 185, y: 240, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-las-park-brand', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-13_245, -10_695, 0), rotation: groundAdRotation, size: { x: 120, y: 90, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-las-open-green-brand', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-11_760, -9_640, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-executive-open-green-brand', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-5_372, 10_187, 0), rotation: groundAdRotation, size: { x: 140, y: 100, z: 0 }, campaignId: 'airport-chaos' },
+  // Second airport grass strips stay on the non-terminal side, outside each
+  // authored runway/taxi box. Their longitudinal offsets separate campaigns.
+  { id: 'dallas-dfw-west-grass', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('dfw', -1_250, -500), rotation: groundAdRotation, size: { x: 230, y: 320, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-love-west-grass', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('love', -410, -400), rotation: groundAdRotation, size: { x: 210, y: 260, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-addison-west-grass', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('addison', -330, -400), rotation: groundAdRotation, size: { x: 180, y: 230, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-executive-west-grass', cityId: 'dallas', type: 'AIRPORT_GROUND_SPONSOR', position: airportGroundAd('executive', -320, 350), rotation: groundAdRotation, size: { x: 175, y: 210, z: 0 }, campaignId: 'available-premium' },
+  // Open-space footprints were checked against Dallas park polygons, nearby
+  // building footprints, water and road segments before placing these panels.
+  { id: 'dallas-las-south-park', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-12_440, -10_480, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-downtown-south-green', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-1_560, -2_560, 0), rotation: groundAdRotation, size: { x: 160, y: 110, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-trinity-open-green', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-2_160, 480, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-i35e-open-green', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-8_520, -6_600, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-love-south-green', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-4_760, -9_200, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'available-premium' },
+  { id: 'dallas-executive-south-green', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-5_340, 8_100, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'vaden-software' },
+  { id: 'dallas-las-east-open-green', cityId: 'dallas', type: 'GROUND_SPONSOR', position: adPosition(-11_880, -10_080, 0), rotation: groundAdRotation, size: { x: 220, y: 160, z: 0 }, campaignId: 'airport-chaos' },
+  // Compact commercial facades use actual OSM wall segments and roof bases.
+  { id: 'dallas-i35e-commercial-wall', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-9_358, -6_889], [-9_416, -6_932], [-9_416, -6_846], 126, 18, 0.78, 0.74), streamedMount: true, campaignId: 'available-premium' },
+  { id: 'dallas-addison-commercial-wall', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-6_451, -19_231], [-6_488, -19_252], [-6_488, -19_212], 168.7, 14, 0.78, 0.74), streamedMount: true, campaignId: 'available-premium' },
+  { id: 'dallas-downtown-edge-wall', cityId: 'dallas', type: 'PREMIUM_BUILDING_WRAP', ...heroWall([-941.5, -457.5], [-976, -465], [-915, -480], 130.7, 25.9, 0.78, 0.74), streamedMount: true, campaignId: 'vaden-software' },
+  // Flight-corridor sign sites are offset from major mapped roads and checked
+  // against building and water footprints; no posts intersect the carriageway.
+  { id: 'dallas-dfw-las-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-17_984, -11_282, 31), rotation: adRotation(-2.19), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-las-downtown-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-7_212, -4_848, 31), rotation: adRotation(-0.39), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-downtown-love-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-3_578, -3_184, 31), rotation: adRotation(-0.53), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-love-addison-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-4_138, -16_170, 31), rotation: adRotation(-2.72), size: highwayAdSize, campaignId: 'available-standard' },
+  { id: 'dallas-addison-east-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-2_215, -17_643, 31), rotation: adRotation(-1.57), size: highwayAdSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-executive-north-corridor', cityId: 'dallas', type: 'HIGHWAY_BILLBOARD', position: adPosition(-6_655, 9_556, 31), rotation: adRotation(Math.PI), size: highwayAdSize, campaignId: 'vaden-software' },
+  // These four roof levels and footprints come from the same OSM near chunks
+  // used by the streamer. Supports terminate at each measured roof level.
+  { id: 'dallas-love-commercial-roof', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -4_895, y: 183.2, z: -7_285.5 }, rotation: adRotation(0), size: { x: 90, y: 22, z: 0.4 }, supportBaseY: 169.2, streamedMount: true, campaignId: 'available-standard' },
+  { id: 'dallas-executive-commercial-roof', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -6_200, y: 211.8, z: 10_607.5 }, rotation: adRotation(0), size: { x: 75, y: 20, z: 0.4 }, supportBaseY: 198.8, streamedMount: true, campaignId: 'available-standard' },
+  { id: 'dallas-us75-commercial-roof', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: 1_793.5, y: 218.7, z: -6_462.5 }, rotation: adRotation(0), size: { x: 100, y: 24, z: 0.4 }, supportBaseY: 203.7, streamedMount: true, campaignId: 'airport-chaos' },
+  { id: 'dallas-trinity-commercial-roof', cityId: 'dallas', type: 'ROOFTOP_BILLBOARD', position: { x: -2_333, y: 160.6, z: 912.5 }, rotation: adRotation(0), size: { x: 75, y: 20, z: 0.4 }, supportBaseY: 147.6, streamedMount: true, campaignId: 'vaden-software' },
+  // The air routes and territory approaches below use the same Dallas anchors
+  // as player activities. Sky panels sit to one side of runway centerlines;
+  // no sky ad is added to the collision or network entity collections.
+  { id: 'dallas-skyboard-dfw-west', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-24_650, -10_300, 850), rotation: adRotation(1.12), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-dfw-las', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-18_350, -11_300, 820), rotation: adRotation(1.15), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-las-north', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-14_100, -7_050, 980), rotation: adRotation(1.2), size: skyboardSize, campaignId: 'available-standard' },
+  { id: 'dallas-skyboard-las-downtown', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-9_500, -6_850, 1_100), rotation: adRotation(1.0), size: skyboardSize, campaignId: 'vaden-software' },
+  { id: 'dallas-skyboard-downtown-west', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-3_550, -2_550, 1_250), rotation: adRotation(0.95), size: skyboardSize, campaignId: 'available-premium' },
+  { id: 'dallas-skyboard-downtown-love', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-2_800, -4_700, 860), rotation: adRotation(-2.45), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-love-north', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-6_200, -4_300, 760), rotation: adRotation(0.12), size: skyboardSize, campaignId: 'available-standard' },
+  { id: 'dallas-skyboard-love-addison', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-3_950, -14_500, 1_040), rotation: adRotation(Math.PI), size: skyboardSize, campaignId: 'vaden-software' },
+  { id: 'dallas-skyboard-addison-west', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-6_100, -18_100, 920), rotation: adRotation(-2.75), size: skyboardSize, campaignId: 'available-premium' },
+  { id: 'dallas-skyboard-executive-north', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-8_000, 7_000, 800), rotation: adRotation(2.9), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-executive-trinity', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-4_700, 3_800, 1_060), rotation: adRotation(-0.58), size: skyboardSize, campaignId: 'available-premium' },
+  { id: 'dallas-skygate-dfw-las', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-16_650, -9_350, 670), rotation: adRotation(1.18), size: skyGateSize, campaignId: 'available-premium' },
+  { id: 'dallas-skygate-las-east', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-11_250, -10_200, 720), rotation: adRotation(1.05), size: skyGateSize, campaignId: 'vaden-software' },
+  { id: 'dallas-skygate-downtown-west', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-2_450, -1_800, 720), rotation: adRotation(0.86), size: skyGateSize, campaignId: 'available-standard' },
+  { id: 'dallas-skygate-love-side', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-3_350, -6_700, 640), rotation: adRotation(-2.5), size: skyGateSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skygate-addison-west', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-5_650, -19_300, 740), rotation: adRotation(2.85), size: skyGateSize, campaignId: 'available-premium' },
+  { id: 'dallas-skygate-executive-north', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-7_350, 8_300, 650), rotation: adRotation(-0.52), size: skyGateSize, campaignId: 'vaden-software' },
+  // Two slow deterministic orbits: same UTC-derived position for every client,
+  // no AI, transform stream, combat presence, or blimp-vs-aircraft collision.
+  { id: 'dallas-blimp-las-downtown', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(-7_500, -5_850, 1_250), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 850, radiusZ: 430, periodSeconds: 900 }, campaignId: 'available-premium' },
+  { id: 'dallas-blimp-love-addison', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(-4_700, -15_600, 1_180), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 470, radiusZ: 1_050, periodSeconds: 1_050, phase: 0.31 }, campaignId: 'airport-chaos' },
+  { id: 'dallas-trainer-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'airport-chaos', targetAircraftType: 'trainer' },
+  { id: 'dallas-private-jet-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'vaden-software', targetAircraftType: 'privateJet' },
+  { id: 'dallas-cargo-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'airport-chaos', targetAircraftType: 'cargo' },
+  { id: 'dallas-fighter-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'vaden-software', targetAircraftType: 'fighter' },
+] satisfies AdPlacementSpec[]).map(resolveAdPlacement);
 
 function makeTerrain(): THREE.Mesh {
   const geometry = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, dallasElevation.width - 1, dallasElevation.height - 1);
@@ -647,7 +835,6 @@ const airportMaterials = {
   hangar: new THREE.MeshStandardMaterial({ color: 0x718186, roughness: 0.68, metalness: 0.18 }),
   marking: new THREE.MeshBasicMaterial({ color: 0xffffe2, depthWrite: false, toneMapped: false }),
   taxiLine: new THREE.MeshBasicMaterial({ color: 0xffc94d, depthWrite: false, toneMapped: false }),
-  light: new THREE.MeshBasicMaterial({ color: 0xffe09a, depthWrite: false, toneMapped: false }),
 };
 
 function localPosition(airport: AirportDefinition, lateral: number, longitudinal: number): THREE.Vector3 {
@@ -694,13 +881,7 @@ function addRunway(scene: THREE.Scene, airport: AirportDefinition, lateral: numb
       addAirportBox(scene, airport, lateral + stripe * (width * 0.07), side * (thresholdOffset - 22), width * 0.036, 0.025, 28, airportMaterials.marking, 0.217);
     }
   }
-  // Sparse inset edge lights read at approach altitude without adding a shadowed
-  // object field or affecting the already validated runway surface.
-  for (let longitudinal = -length * 0.46; longitudinal <= length * 0.46; longitudinal += 180) {
-    for (const edge of [-1, 1]) {
-      addAirportBox(scene, airport, lateral + edge * (width / 2 + 1.1), longitudinal, 0.7, 0.18, 0.7, airportMaterials.light, 0.24);
-    }
-  }
+  // The matching edge/approach lights are batched by CityVisualLayer.
 }
 
 function addObstacle(obstacles: ObstacleBounds[], mesh: THREE.Mesh, baseY: number): void {
@@ -796,11 +977,27 @@ function addAirport(scene: THREE.Scene, airport: AirportDefinition, obstacles: O
 const landmarkMaterials = {
   glassDark: new THREE.MeshStandardMaterial({ color: 0x174d63, roughness: 0.17, metalness: 0.46 }),
   glassBlue: new THREE.MeshStandardMaterial({ color: 0x3396b5, roughness: 0.15, metalness: 0.38 }),
+  glassGreen: new THREE.MeshStandardMaterial({ color: 0x327e77, roughness: 0.2, metalness: 0.36 }),
   concrete: new THREE.MeshStandardMaterial({ color: 0xc0b7a9, roughness: 0.68, metalness: 0.06 }),
   steel: new THREE.MeshStandardMaterial({ color: 0x778589, roughness: 0.4, metalness: 0.38 }),
   reunion: new THREE.MeshStandardMaterial({ color: 0xa7dae0, roughness: 0.24, metalness: 0.44 }),
-  river: new THREE.MeshStandardMaterial({ color: 0x0a83b5, emissive: 0x04384f, emissiveIntensity: 0.26, roughness: 0.18, metalness: 0.2, transparent: true, opacity: 0.95 }),
+  river: new THREE.MeshStandardMaterial({ color: 0x075e96, emissive: 0x032b48, emissiveIntensity: 0.24, roughness: 0.22, metalness: 0.22, transparent: true, opacity: 0.96 }),
+  windows: new THREE.MeshBasicMaterial({ color: 0xb7d9d5, toneMapped: false }),
 };
+const waterTimeUniform = { value: 0 };
+function enhanceWaterMaterial(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.visualWaterTime = waterTimeUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vVisualWaterWorld;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvVisualWaterWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vVisualWaterWorld;\nuniform float visualWaterTime;')
+      .replace('#include <output_fragment>', 'float visualFresnel = pow(1.0 - abs(dot(normalize(vViewPosition), normalize(normal))), 2.0);\nfloat visualRipple = sin(vVisualWaterWorld.x * 0.018 + vVisualWaterWorld.z * 0.014 + visualWaterTime * 0.72) * 0.012;\noutgoingLight = outgoingLight * (1.0 + visualRipple) + vec3(0.045, 0.105, 0.16) * visualFresnel;\n#include <output_fragment>');
+  };
+  material.customProgramCacheKey = () => 'airport-chaos-water-v1';
+  return material;
+}
 
 function addCityBox(
   scene: THREE.Scene,
@@ -833,6 +1030,45 @@ function addSteppedTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: num
   addCityBox(scene, obstacles, x, z, width * 0.72, crownHeight, depth * 0.72, material, rotation, true, podiumHeight + shaftHeight);
 }
 
+const signaturePrism = new THREE.CylinderGeometry(1, 1, 1, 6);
+const signatureTaper = new THREE.CylinderGeometry(0.58, 1, 1, 5);
+const signatureNeedle = new THREE.CylinderGeometry(0.25, 0.45, 1, 6);
+function addSignatureTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: number, z: number, width: number, depth: number, height: number, style: number): void {
+  const material = [landmarkMaterials.glassDark, landmarkMaterials.glassBlue, landmarkMaterials.glassGreen, landmarkMaterials.steel][style % 4];
+  const baseY = getTerrainHeight(x, z);
+  const plinth = addCityBox(scene, obstacles, x, z, width * 1.08, 15, depth * 1.08, landmarkMaterials.concrete, style * 0.09);
+  if (style % 4 === 0) {
+    const shaft = new THREE.Mesh(signaturePrism, material);
+    shaft.scale.set(width * 0.48, height - 30, depth * 0.48);
+    shaft.position.set(x, baseY + 15 + (height - 30) * 0.5, z);
+    shaft.rotation.y = Math.PI / 6;
+    scene.add(shaft);
+    addCityBox(scene, obstacles, x, z, width * 0.5, 15, depth * 0.5, landmarkMaterials.steel, 0, true, height - 15);
+  } else if (style % 4 === 1) {
+    addCityBox(scene, obstacles, x - width * 0.18, z, width * 0.47, height - 24, depth * 0.82, material, 0.07, true, 15);
+    addCityBox(scene, obstacles, x + width * 0.19, z, width * 0.42, height - 45, depth * 0.78, material, -0.07, true, 15);
+    addCityBox(scene, obstacles, x, z, width * 0.88, 9, depth * 0.72, landmarkMaterials.steel, 0, false, height - 60);
+  } else if (style % 4 === 2) {
+    addCityBox(scene, obstacles, x, z, width * 0.88, height * 0.72, depth * 0.88, material, style * 0.06, true, 15);
+    const crown = new THREE.Mesh(signatureTaper, material);
+    crown.scale.set(width * 0.43, height * 0.28, depth * 0.43);
+    crown.position.set(x, baseY + height * 0.86, z);
+    crown.rotation.y = Math.PI / 5;
+    scene.add(crown);
+  } else {
+    addCityBox(scene, obstacles, x, z, width * 0.94, height * 0.57, depth * 0.92, material, style * 0.05, true, 15);
+    addCityBox(scene, obstacles, x + width * 0.14, z - depth * 0.08, width * 0.58, height * 0.3, depth * 0.68, material, style * 0.05, true, height * 0.57 + 15);
+    const needle = new THREE.Mesh(signatureNeedle, landmarkMaterials.steel);
+    needle.scale.set(2.3, 27, 2.3);
+    needle.position.set(x + width * 0.14, baseY + height + 16, z - depth * 0.08);
+    scene.add(needle);
+  }
+  // One simple collision envelope covers faceted/tapered shapes without tiny
+  // collider fragments. The plinth already retains a ground obstruction.
+  obstacles.push({ x, z, halfX: width * 0.5, halfZ: depth * 0.5, height, baseY, polygon: [] });
+  void plinth;
+}
+
 function addReunionTower(scene: THREE.Scene, obstacles: ObstacleBounds[]): void {
   // Reunion Tower's real downtown location, represented with original primitive geometry.
   const x = -1120;
@@ -863,19 +1099,21 @@ function addDallasSkyline(scene: THREE.Scene, obstacles: ObstacleBounds[]): void
   addSteppedTower(scene, obstacles, -170, -700, 48, 58, 186, landmarkMaterials.glassDark, 0.18);
   addSteppedTower(scene, obstacles, -1050, -580, 52, 48, 164, landmarkMaterials.steel, -0.1);
   addSteppedTower(scene, obstacles, -1230, -370, 44, 50, 150, landmarkMaterials.glassBlue, 0.22);
-  const core: ReadonlyArray<readonly [number, number, number, number, number, number]> = [
-    [-420, 20, 48, 66, 126, 0.08], [-650, 50, 40, 45, 118, -0.1], [-900, 120, 45, 48, 105, 0.12],
-    [-250, 150, 38, 42, 98, 0.2], [-1340, 10, 42, 46, 96, -0.14], [-940, -790, 44, 50, 112, 0.08],
-    [-420, -980, 52, 48, 108, -0.18], [-170, -1030, 38, 42, 94, 0.1], [-1280, -760, 46, 44, 102, 0.18],
+  // Eight different crown/shaft combinations replace the old repetitive box
+  // cores at the same city anchors. They are original silhouettes, not copies.
+  const signatures: ReadonlyArray<readonly [number, number, number, number, number]> = [
+    [-420, 20, 48, 66, 330], [-650, 50, 40, 45, 275], [-900, 120, 45, 48, 300],
+    [-250, 150, 38, 42, 235], [-1340, 10, 42, 46, 260], [-940, -790, 44, 50, 310],
+    [-420, -980, 52, 48, 285], [-1280, -760, 46, 44, 245],
   ];
-  for (const [x, z, width, depth, height, rotation] of core) addSteppedTower(scene, obstacles, x, z, width, depth, height, landmarkMaterials.concrete, rotation);
+  signatures.forEach(([x, z, width, depth, height], index) => addSignatureTower(scene, obstacles, x, z, width, depth, height, index));
 
   // Las Colinas/Irving's lower but visible business cluster anchors the DFW-to-downtown route.
   const lasColinas: ReadonlyArray<readonly [number, number, number, number, number]> = [
     [dallasLocations.lasColinas.x, dallasLocations.lasColinas.z, 68, 62, 138], [-13270, -9180, 55, 48, 112], [-13740, -8990, 52, 48, 94],
     [-13080, -9570, 46, 48, 82], [-14000, -9560, 48, 44, 78],
   ];
-  for (const [x, z, width, depth, height] of lasColinas) addSteppedTower(scene, obstacles, x, z, width, depth, height, landmarkMaterials.glassBlue, 0.12);
+  lasColinas.forEach(([x, z, width, depth, height], index) => addSteppedTower(scene, obstacles, x, z, width, depth, height, index % 2 ? landmarkMaterials.glassGreen : landmarkMaterials.glassBlue, 0.12));
 }
 
 function addTrinityRiver(scene: THREE.Scene, waterBounds: WaterBounds[]): void {
@@ -884,6 +1122,7 @@ function addTrinityRiver(scene: THREE.Scene, waterBounds: WaterBounds[]): void {
     [-7800, -3100], [-6200, -2050], [-4700, -940], [-3300, -210], [-2380, 720], [-1640, 1660], [-620, 2600], [640, 3650], [1900, 4980], [3600, 6800],
   ];
   const positions: number[] = [];
+  const shore: number[] = [];
   for (let index = 0; index < points.length - 1; index += 1) {
     const [x1, z1] = points[index];
     const [x2, z2] = points[index + 1];
@@ -899,6 +1138,17 @@ function addTrinityRiver(scene: THREE.Scene, waterBounds: WaterBounds[]): void {
       x1 + offsetX, y1, z1 + offsetZ, x2 + offsetX, y2, z2 + offsetZ, x1 - offsetX, y1, z1 - offsetZ,
       x1 - offsetX, y1, z1 - offsetZ, x2 + offsetX, y2, z2 + offsetZ, x2 - offsetX, y2, z2 - offsetZ,
     );
+    for (const sign of [-1, 1]) {
+      const innerX1 = x1 + offsetX * sign;
+      const innerZ1 = z1 + offsetZ * sign;
+      const innerX2 = x2 + offsetX * sign;
+      const innerZ2 = z2 + offsetZ * sign;
+      const outerScale = 1.085;
+      shore.push(
+        innerX1, y1 + 0.04, innerZ1, innerX2, y2 + 0.04, innerZ2, x1 + offsetX * sign * outerScale, y1 + 0.06, z1 + offsetZ * sign * outerScale,
+        x1 + offsetX * sign * outerScale, y1 + 0.06, z1 + offsetZ * sign * outerScale, innerX2, y2 + 0.04, innerZ2, x2 + offsetX * sign * outerScale, y2 + 0.06, z2 + offsetZ * sign * outerScale,
+      );
+    }
     waterBounds.push({
       minX: Math.min(x1, x2) - width * 0.5,
       maxX: Math.max(x1, x2) + width * 0.5,
@@ -911,14 +1161,59 @@ function addTrinityRiver(scene: THREE.Scene, waterBounds: WaterBounds[]): void {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.computeVertexNormals();
+  const shoreGeometry = new THREE.BufferGeometry();
+  shoreGeometry.setAttribute('position', new THREE.Float32BufferAttribute(shore, 3));
+  shoreGeometry.computeVertexNormals();
   scene.add(new THREE.Mesh(geometry, landmarkMaterials.river));
+  scene.add(new THREE.Mesh(shoreGeometry, new THREE.MeshBasicMaterial({ color: 0x6da1a2, transparent: true, opacity: 0.54, depthWrite: false, side: THREE.DoubleSide })));
 }
+
+const cityVisualConfig: CityVisualConfig = {
+  airports: airports.map((airport) => ({
+    x: airport.x, z: airport.z, heading: airport.heading, runwayWidth: airport.runwayWidth,
+    runwayLength: airport.runwayLength, apronLateral: airport.id === 'dfw' ? 1020 : airport.runwayWidth * 3.2,
+    runwayLaterals: airport.id === 'dfw' ? [-1040, -690, 0, 690, 1040] : [0],
+  })),
+  // Measured major-road segments from the existing Dallas map; these are
+  // visual light tracks only and never become networked traffic entities.
+  trafficRoutes: [
+    { start: [-21_465, -6_664], end: [-19_994, -6_663] },
+    { start: [-19_607, -6_664], end: [-18_440, -6_666] },
+    { start: [-18_339, -10_950], end: [-17_691, -11_870] },
+    { start: [-8_279, -5_575], end: [-7_517, -4_975] },
+    { start: [-1_851, -4_968], end: [-1_729, -6_134] },
+    { start: [-6_163, 1_059], end: [-7_145, 1_025] },
+  ],
+  rooftopSites: [
+    { x: -420, z: 20, height: 330, width: 48, depth: 66 },
+    { x: -650, z: 50, height: 266, width: 40, depth: 45 },
+    { x: -1340, z: 10, height: 260, width: 42, depth: 46 },
+    { x: -940, z: -790, height: 301, width: 44, depth: 50 },
+    { x: -13_500, z: -9350, height: 138, width: 68, depth: 62 },
+    { x: -13_270, z: -9180, height: 112, width: 55, depth: 48 },
+  ],
+  arena: { ...dallasLocations.metroArena, radiusX: 220, radiusZ: 164 },
+  orientationSites: [
+    { x: 4_350, z: -11_200, kind: 'waterTower' },
+    { x: -10_600, z: -2_450, kind: 'crane' },
+    { x: -6_450, z: -19_350, kind: 'antenna' },
+  ],
+};
 
 export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { obstacleBounds: ObstacleBounds[]; mountainBounds: MountainBounds[]; waterBounds: WaterBounds[] } {
   const obstacleBounds: ObstacleBounds[] = [];
   const mountainBounds: MountainBounds[] = [];
   const waterBounds: WaterBounds[] = [];
-  const horizon = new THREE.Mesh(new THREE.PlaneGeometry(120_000, 120_000), new THREE.MeshStandardMaterial({ color: 0x51763e, roughness: 1, depthWrite: false }));
+  const dusk = timeOfDay === 'dusk';
+  airportMaterials.glass.emissive.setHex(dusk ? 0x9c6135 : 0x000000);
+  airportMaterials.glass.emissiveIntensity = dusk ? 0.38 : 0;
+  for (const glass of [landmarkMaterials.glassDark, landmarkMaterials.glassBlue, landmarkMaterials.glassGreen]) {
+    glass.emissive.setHex(dusk ? 0x315063 : 0x000000);
+    glass.emissiveIntensity = dusk ? 0.2 : 0;
+  }
+  landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : 0x075e96);
+  enhanceWaterMaterial(landmarkMaterials.river);
+  const horizon = new THREE.Mesh(new THREE.PlaneGeometry(120_000, 120_000), new THREE.MeshStandardMaterial({ color: dusk ? 0x3d5147 : 0x4c7847, roughness: 1, depthWrite: false }));
   horizon.rotation.x = -Math.PI / 2;
   horizon.position.y = dallasElevation.baseElevation - 8;
   horizon.renderOrder = -3;
@@ -927,6 +1222,13 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   for (const airport of airports) addAirport(scene, airport, obstacleBounds);
   addDallasSkyline(scene, obstacleBounds);
   addTrinityRiver(scene, waterBounds);
+  cityVisualLayer?.dispose();
+  cityVisualLayer = new CityVisualLayer(scene, cityVisualConfig, getTerrainHeight, visualQuality, timeOfDay === 'dusk');
+  const arena = cityVisualConfig.arena!;
+  obstacleBounds.push({ x: arena.x, z: arena.z, halfX: arena.radiusX, halfZ: arena.radiusZ, height: 76, baseY: getTerrainHeight(arena.x, arena.z), polygon: [] });
+  if (visualQuality === 'high') for (const site of cityVisualConfig.orientationSites ?? []) {
+    obstacleBounds.push({ x: site.x, z: site.z, halfX: site.kind === 'crane' ? 70 : 20, halfZ: 20, height: 92, baseY: getTerrainHeight(site.x, site.z), polygon: [] });
+  }
   dallasStreamer?.dispose();
   dallasStreamer = new DallasChunkStreamer(scene, {
     // The runtime chunks are already LOD-specific and collision grids are
@@ -935,19 +1237,19 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     collectCollisionData: false,
     roadMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection }),
     buildingMaterials: [
-      new THREE.MeshStandardMaterial({ color: 0xcfb79f, roughness: 0.88 }),
-      new THREE.MeshStandardMaterial({ color: 0xa4b6ba, roughness: 0.72 }),
-      new THREE.MeshStandardMaterial({ color: 0xb6aea1, roughness: 0.6, metalness: 0.07 }),
-      new THREE.MeshStandardMaterial({ color: 0x357f9d, roughness: 0.22, metalness: 0.3 }),
-      new THREE.MeshStandardMaterial({ color: 0x858d87, roughness: 0.8, metalness: 0.1 }),
+      new THREE.MeshStandardMaterial({ color: dusk ? 0xa79488 : 0xd0b69a, roughness: 0.88 }),
+      new THREE.MeshStandardMaterial({ color: dusk ? 0x829ba4 : 0xa7bbc0, roughness: 0.72 }),
+      new THREE.MeshStandardMaterial({ color: dusk ? 0x8f9394 : 0xb8b6ae, roughness: 0.6, metalness: 0.07 }),
+      new THREE.MeshStandardMaterial({ color: dusk ? 0x2e6681 : 0x3589aa, roughness: 0.22, metalness: 0.3, emissive: dusk ? 0x102b3c : 0x000000, emissiveIntensity: dusk ? 0.18 : 0 }),
+      new THREE.MeshStandardMaterial({ color: dusk ? 0x7c8178 : 0x8b998c, roughness: 0.8, metalness: 0.1 }),
     ],
-    waterMaterial: new THREE.MeshStandardMaterial({ color: 0x087fb2, emissive: 0x043950, emissiveIntensity: 0.28, roughness: 0.16, metalness: 0.26 }),
+    waterMaterial: enhanceWaterMaterial(new THREE.MeshStandardMaterial({ color: dusk ? 0x173e6f : 0x075f99, emissive: dusk ? 0x241f40 : 0x043950, emissiveIntensity: dusk ? 0.2 : 0.24, roughness: 0.2, metalness: 0.24 })),
     landMaterials: [
-      new THREE.MeshStandardMaterial({ color: 0x43874a, roughness: 1 }), // parks/open green
-      new THREE.MeshStandardMaterial({ color: 0x2d6b42, roughness: 1 }), // woodland
-      new THREE.MeshStandardMaterial({ color: 0x4e6269, roughness: 0.94 }), // industrial
-      new THREE.MeshStandardMaterial({ color: 0x778568, roughness: 1 }), // residential
-      new THREE.MeshStandardMaterial({ color: 0x856f58, roughness: 0.94 }), // commercial
+      new THREE.MeshStandardMaterial({ color: 0x3d8a51, roughness: 1 }), // parks/open green
+      new THREE.MeshStandardMaterial({ color: 0x256a48, roughness: 1 }), // woodland
+      new THREE.MeshStandardMaterial({ color: 0x4a565a, roughness: 0.94 }), // industrial
+      new THREE.MeshStandardMaterial({ color: 0x82916e, roughness: 1 }), // warmer, greener suburbs
+      new THREE.MeshStandardMaterial({ color: 0x917760, roughness: 0.94 }), // tan commercial
       new THREE.MeshStandardMaterial({ color: 0xaa8f50, roughness: 1 }), // farmland
       new THREE.MeshStandardMaterial({ color: 0x708653, roughness: 1 }), // airport/open transport
       new THREE.MeshStandardMaterial({ color: 0x3c5059, roughness: 0.94 }), // apron
@@ -956,12 +1258,18 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     majorHighwayWidth: 38,
     highwayAccentMaterial: new THREE.MeshBasicMaterial({ color: 0xffe3a0, depthWrite: false, toneMapped: false }),
     heightAt: getTerrainHeight,
-    isExcluded: (x, z, padding) => airports.some((airport) => Math.abs(x - airport.x) < airportSafetyWidth[airport.id] + padding && Math.abs(z - airport.z) < airport.runwayLength / 2 + 500 + padding),
+    isExcluded: (x, z, padding) => airports.some((airport) => Math.abs(x - airport.x) < airportSafetyWidth[airport.id] + padding && Math.abs(z - airport.z) < airport.runwayLength / 2 + 500 + padding)
+      || (Math.abs(x - arena.x) < arena.radiusX + 35 + padding && Math.abs(z - arena.z) < arena.radiusZ + 35 + padding),
   });
   return { obstacleBounds, mountainBounds, waterBounds };
 }
 
 export function updateWorldStreaming(position: THREE.Vector3, velocity?: THREE.Vector3): void { dallasStreamer?.update(position, velocity); }
+export function updateWorldVisuals(delta: number): void {
+  waterTimeUniform.value += delta;
+  cityVisualLayer?.update(delta);
+}
+export function hasWorldBuildingDetailAt(x: number, z: number): boolean { return dallasStreamer?.hasNearDetailAt(x, z) ?? false; }
 export function getWorldStreamingStats(): import('./dallas-streamer').DallasStreamingStats | undefined { return dallasStreamer?.getStats(); }
 export function getWorldStreamingVisualDebug(position: THREE.Vector3, camera: THREE.Camera): import('./dallas-streamer').DallasChunkVisualDebug[] | undefined {
   return dallasStreamer?.getVisualDebug(position, camera);
