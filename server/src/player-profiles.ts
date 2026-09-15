@@ -70,7 +70,7 @@ export type ProfileProgress = {
 
 const aircraftOrder = aircraftDisplayOrder;
 const aircraftTypes = new Set<AircraftType>(aircraftOrder);
-const newPilotCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_STARTING_CREDITS, 750, 10_000);
+const newPilotCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_STARTING_CREDITS, 0, 10_000);
 const migratedDevCredits = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_MIGRATED_DEV_CREDITS, 1_000, 10_000);
 const legacyDevCreditThreshold = boundedConfiguredInteger(process.env.AIRPORT_CHAOS_LEGACY_DEV_CREDIT_THRESHOLD, 100_000, 1_000_000);
 const rewardReceiptFormatVersion = '2';

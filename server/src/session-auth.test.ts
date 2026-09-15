@@ -21,3 +21,13 @@ test('legacy pilot identity can be bound once and cookie—not query ID—is aut
   assert.notEqual(lostCookieAttempt.pilotId, attacker.pilotId);
   assert.match(sessions.cookie(first.cookie, true), /HttpOnly; SameSite=Lax; Path=\/;.*; Secure/);
 });
+
+test('new profiles start at zero Credits while existing balances persist', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-credits-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  const pilot = profiles.getOrCreate('new-pilot-credits-00001', 'New Pilot');
+  assert.equal(pilot.credits, 0);
+  profiles.awardServerReward(pilot.pilotId, 75);
+  const reopened = new PlayerProfileStore(databasePath).getOrCreate(pilot.pilotId, 'New Pilot');
+  assert.equal(reopened.credits, 75);
+});

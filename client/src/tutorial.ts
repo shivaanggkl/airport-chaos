@@ -1,101 +1,54 @@
-import { actionKeyLabel, controlGroups, controlKeyLabel, menuKeyLabel, type FlightAction } from './flight-input';
-import { aircraftRoles, targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
-import { aircraftDefinitions, aircraftDisplayName } from './aircraft';
+import { actionKeyLabel, menuKeyLabel } from './flight-input';
+import { targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
-import mapImage from './help-assets/map.avif';
-import garageImage from './help-assets/garage.avif';
 import { mountAirportChaosLogo } from './brand';
-import { companyContact, contactLinks, sponsorLocations } from './company-contact';
-import { aircraftDisplayOrder, aircraftEconomy, REDSPEAR_PRICE_USD } from '../../shared/aircraft-economy.mjs';
 
-const key = (label: string, ...actions: FlightAction[]) => `<span class="tutorial-key"><kbd>${actions.map(actionKeyLabel).join(' / ')}</kbd><span>${label}</span></span>`;
-const navigationKeys = () => `<span class="tutorial-key"><kbd>${menuKeyLabel('map')}</kbd><span>World Map</span></span><span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Pilot Menu / Help</span></span>`;
 const callout = (label: string, x: number, y: number) => `<span class="help-callout" style="left:${x}%;top:${y}%">${label}</span>`;
 const shot = (src: string, alt: string, callouts = '') => `<figure class="help-shot"><img src="${src}" alt="${alt}" decoding="async"/>${callouts}</figure>`;
 const legend = (kinds: VisualIdentity[]) => `<div class="help-legend">${kinds.map(kind => identityMarkup(kind)).join('')}</div>`;
-const tile = (kind: VisualIdentity, action: string) => `<div class="tutorial-tile" style="--tile-color:${visualLanguage[kind].color}">${identityMarkup(kind)}<small>${action}</small></div>`;
-const flightKeys = controlGroups[0].rows.map(row => key(row.label, ...row.actions)).join('');
-const groupedControls = () => `<div class="help-control-groups">${controlGroups.map(group => `<section><h2>${group.label}</h2>${group.rows.map(row => `<div><kbd>${controlKeyLabel(row.actions)}</kbd><span>${row.label}</span></div>`).join('')}</section>`).join('')}<section><h2>NAVIGATION</h2><div><kbd>${menuKeyLabel('map')}</kbd><span>World Map</span></div><div><kbd>${menuKeyLabel('menu')}</kbd><span>Pilot Menu</span></div><div><kbd>${menuKeyLabel('restart')}</kbd><span>Restart after crash</span></div><div><kbd>DRAG</kbd><span>Orbit camera</span></div><div><kbd>WHEEL</kbd><span>Camera / map zoom</span></div></section></div>`;
-// Labels point to observed symbols in the actual map capture, not invented map entities.
-const mapNote = (kind: VisualIdentity, x: number, y: number, targetX: number, targetY: number) => {
-  const identity = visualLanguage[kind];
-  const width = identity.label.length * 7.5 + 18;
-  return `<g stroke="${identity.color}"><path d="M${x} ${y}L${targetX} ${targetY}" fill="none" stroke-width="1.5"/><circle cx="${targetX}" cy="${targetY}" r="7" fill="none"/><rect x="${x - width / 2}" y="${y - 12}" width="${width}" height="24" rx="4" fill="#07121c"/><text x="${x}" y="${y + 4}" fill="${identity.color}" stroke="none" text-anchor="middle">${identity.label.toUpperCase()}</text></g>`;
-};
-// The compact map capture predates the fictional display names. Re-label its
-// five visible landmarks in the same overlay used by the live-identity notes.
-const mapPlaceLabel = (label: string, x: number, y: number, width: number) => `<g><rect x="${x}" y="${y - 13}" width="${width}" height="19" rx="3" fill="#07121c"/><text x="${x + 5}" y="${y}" fill="#c8e9f1" font-size="11" font-weight="700">${label}</text></g>`;
-const mapPlaces = mapPlaceLabel(place.dfw, 20, 135, 195) + mapPlaceLabel(place.addison, 263, 40, 170) + mapPlaceLabel(`${place.lasColinas} · CONTESTED`, 108, 198, 225) + mapPlaceLabel(place.downtown, 317, 302, 165) + mapPlaceLabel(place.executive, 221, 438, 197);
-const mapNotes = `<svg class="help-map-notes" viewBox="0 0 700 520" aria-hidden="true">${mapPlaces}${mapNote('you', 48, 210, 76, 161)}${mapNote('airport', 98, 91, 76, 126)}${mapNote('event', 83, 255, 106, 188)}${mapNote('ai', 183, 285, 210, 237)}${mapNote('player', 377, 379, 274, 250)}${mapNote('repair', 372, 171, 306, 228)}${mapNote('waypoint', 448, 282, 335, 294)}</svg>`;
-
-const pages: Array<{ nav: string; icon: VisualIdentity; title: string; description: string; visual: string; controls: string }> = [
+const steps = (...items: string[]) => `<ol class="tutorial-steps">${items.map(item => `<li>${item}</li>`).join('')}</ol>`;
+const cleanMap = `<div class="help-simple-map"><svg viewBox="0 0 640 300" role="img" aria-label="Simple city map showing your plane, an airport, a waypoint and a Repair Heart"><path class="water" d="M0 230Q130 180 245 226T480 214T640 235V300H0Z"/><path class="road major" d="M20 75L610 240M82 270L565 42"/><path class="road" d="M35 170L585 140M210 25L290 282"/><g transform="translate(130 185)" class="map-you"><path d="M0-16L11 13L0 8L-11 13Z"/><text x="18" y="5">YOU</text></g><g transform="translate(500 82)" class="map-airport"><path d="M0-10L10 0L0 10L-10 0Z"/><text x="16" y="5">${place.dfw}</text></g><g transform="translate(356 115)" class="map-waypoint"><circle r="11"/><path d="M-17 0H17M0-17V17"/><text x="18" y="5">WAYPOINT</text></g><g transform="translate(225 228)" class="map-repair"><text x="0" y="7" text-anchor="middle">♥</text><text x="18" y="5">REPAIR</text></g></svg></div>`;
+const pages: Array<{ nav: string; icon: VisualIdentity; title: string; visual: string; instructions: string; controls?: string }> = [
   {
-    nav: 'Fly', icon: 'you', title: 'TAKE OFF AND FLY.',
-    description: `${actionKeyLabel('throttleUp')} = Faster. ${actionKeyLabel('throttleDown')} = Slow. Use the arrows and A/D to steer.`,
-    visual: shot(runwayImage, 'Skyrift Scout on the Metroplex International runway, looking forward over its wings', callout(`${actionKeyLabel('pitchUp')} NOSE UP`, 50, 18) + callout('YOUR AIRCRAFT', 50, 82)),
-    controls: flightKeys,
+    nav: 'Take Off', icon: 'airport', title: 'TAKE OFF',
+    visual: shot(runwayImage, 'Plane lined up on a runway for takeoff', callout('KEEP STRAIGHT', 50, 24) + callout(`${actionKeyLabel('pitchUp')} WHEN FAST`, 50, 72)),
+    instructions: steps(`Hold <kbd>${actionKeyLabel('throttleUp')}</kbd> to speed up`, 'Keep the plane straight', `Press <kbd>${actionKeyLabel('pitchUp')}</kbd> when fast enough`),
   },
   {
-    nav: 'Fight', icon: 'player', title: 'GET A PLANE IN YOUR AIM AREA.',
-    description: `${actionKeyLabel('fire')} = Shoot. GET CLOSER means the target is too far away; PLANE LIFE is your health.`,
-    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Chase view and runway behind the live-style combat indicators')}<div class="help-combat-example"><span class="help-example-label">FIGHT</span><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong><span class="help-pilot-label"><span style="color:${visualLanguage.player.color}">${visualLanguage.player.icon} Pilot · ${aircraftDefinitions.trainer.name}</span><br/><span style="color:${visualLanguage.ai.color}">${visualLanguage.ai.icon} Raven · AI Pilot</span></span></div></div><div class="help-hull health-row"><span>PLANE LIFE</span><span class="hull-meter"><i style="width:75%"></i></span><strong>75/100</strong></div>` + legend(['player', 'ai']),
-    controls: key('Shoot', 'fire') + key('Aim Left / Right', 'aimLeft', 'aimRight') + key('Aim Up / Down', 'aimUp', 'aimDown'),
+    nav: 'Fly', icon: 'you', title: 'FLY',
+    visual: `<div class="help-flight-visual"><span class="plane-icon">✈</span><span class="flight-path"></span></div>`,
+    instructions: steps(`<kbd>${actionKeyLabel('pitchUp')} / ${actionKeyLabel('pitchDown')}</kbd> Go Up / Down`, `<kbd>${actionKeyLabel('throttleUp')} / ${actionKeyLabel('throttleDown')}</kbd> Faster / Slower`, `<kbd>${actionKeyLabel('boost')}</kbd> Boost`),
   },
   {
-    nav: 'Map', icon: 'waypoint', title: 'FIND WHERE TO GO',
-    description: `Press ${menuKeyLabel('map')}. Pick a place and set a waypoint.`,
-    visual: `<div class="help-map-shot">${shot(mapImage, 'Actual city map with YOU, airports, waypoint, event, repairs and pilot identities', mapNotes)}</div>` + legend(['you', 'airport', 'waypoint', 'mission', 'event', 'repair', 'ai', 'player']),
-    controls: '',
+    nav: 'Turn', icon: 'you', title: 'TURN',
+    visual: `<div class="help-turn-visual"><span>←</span><b>✈</b><span>→</span></div>`,
+    instructions: steps(`<kbd>${actionKeyLabel('yawLeft')} / ${actionKeyLabel('yawRight')}</kbd> Turn`, `<kbd>${actionKeyLabel('rollLeft')} / ${actionKeyLabel('rollRight')}</kbd> Tilt Plane`),
   },
   {
-    nav: 'Land', icon: 'airport', title: 'RED? SLOW DOWN.',
-    description: `Hold ${actionKeyLabel('throttleDown')} until SPEED is not red. Come down gently.`,
-    visual: shot(runwayImage, 'Metroplex International runway: fly along the white line', callout('KEEP STRAIGHT ↓', 50, 28)) +
-      `<div class="help-landing-example"><div class="flight-tape"><span>SPEED</span><strong class="landing-risk">TOO FAST</strong></div><div class="flight-tape"><span>COMING DOWN</span><strong class="landing-risk">TOO FAST</strong></div><div class="landing-speed-cue">TOO FAST — HOLD S</div></div>`,
-    controls: key('Slow Down', 'throttleDown'),
+    nav: 'Land', icon: 'airport', title: 'LAND',
+    visual: shot(runwayImage, 'Plane lined up with a clear runway', callout('LINE UP', 50, 25) + callout('COME DOWN GENTLY', 50, 72)),
+    instructions: steps('Line up with the runway', `Hold <kbd>${actionKeyLabel('throttleDown')}</kbd> to slow down`, 'Come down gently'),
   },
   {
-    nav: 'Repair', icon: 'repair', title: 'HEAL YOUR PLANE.',
-    description: '♥ REPAIR — fly through it to fully restore Plane Life. Stop safely at an airport for full repair.',
-    visual: shot(mapImage, 'Real city map showing Repair markers', mapNotes) + legend(['repairHeart', 'repair', 'airport']),
-    controls: '',
+    nav: 'Map', icon: 'waypoint', title: 'MAP',
+    visual: cleanMap + legend(['you', 'airport', 'waypoint', 'repairHeart']),
+    instructions: steps(`Press <kbd>${menuKeyLabel('map')}</kbd>`, 'Pick where you want to go', 'Set a waypoint'),
   },
   {
-    nav: 'Danger', icon: 'heat', title: 'DANGER = TROUBLE LEVEL.',
-    description: 'Cause trouble and Danger rises. More Danger means more enemies and better rewards.',
-    visual: `<div class="help-heat-scene"><div class="heat-row" data-level="4">${identityMarkup('heat')} <strong>4</strong></div><div class="help-heat-scale">${[0,1,2,3,4,5].map(level => `<span class="${level >= 4 ? 'hot' : ''}">${level}</span>`).join('')}</div><div class="help-heat-path"><span>FLY CALMLY<br/><small>Danger falls</small></span><span>TAKE RISKS<br/><small>Danger rises</small></span><span>${identityMarkup('wanted')}<br/><small>Survive — or be hunted</small></span></div></div>`,
-    controls: '',
+    nav: 'Fight', icon: 'player', title: 'FIGHT',
+    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Target near the aiming circle')}<div class="help-combat-example"><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong></div></div>` + legend(['player', 'ai']),
+    instructions: steps('Put the target near the aiming circle', 'GET CLOSER means it is out of range', `Press <kbd>${actionKeyLabel('fire')}</kbd> to shoot`),
   },
   {
-    nav: 'Missions', icon: 'mission', title: 'CHOOSE ONE MISSION.',
-    description: `Press ${menuKeyLabel('menu')} → MISSIONS. Finish it for the full reward.`,
-    visual: `<div class="tutorial-tiles">${tile('mission', 'Choose one')}${tile('territory', 'Capture a place')}${tile('challenge', 'Fly through gates')}${tile('event', 'Join an event')}</div>`,
-    controls: navigationKeys(),
+    nav: 'Repair', icon: 'repairHeart', title: 'REPAIR YOUR PLANE',
+    visual: `<div class="help-repair-visual"><span>♥</span><b>PLANE LIFE</b><i><em></em></i><strong>100%</strong></div>`,
+    instructions: steps('Fly through a Repair Heart → Plane Life 100%', 'Or land and stop at an airport → Full Repair'),
   },
   {
-    nav: 'Territories', icon: 'territory', title: 'CAPTURE THE CITY.',
-    description: 'Fly inside a colored area to claim it. Check CITY TERRITORIES to see who owns each one.',
-    visual: `<div class="help-map-shot">${shot(mapImage, 'Real city map showing territory areas and ownership colors', mapNotes)}</div>` + legend(['territory', 'you']),
-    controls: '',
-  },
-  {
-    nav: 'Progress', icon: 'credits', title: 'PLAY. EARN. UNLOCK PLANES.',
-    description: 'Credits unlock planes. Score is for rankings. City Level shows long-term progress.',
-    visual: `<div class="help-garage-shot">${shot(garageImage, 'Aircraft Garage preview with comparison stats')}</div>` +
-      `<div class="help-aircraft-roles">${aircraftDisplayOrder.map((type) => `<span><b>${aircraftDisplayName(type)}</b><small>${aircraftRoles[type]} · ${aircraftEconomy[type].access === 'free' ? 'FREE' : aircraftEconomy[type].access === 'premium' ? `Premium ${REDSPEAR_PRICE_USD}` : `${aircraftEconomy[type].credits.toLocaleString()} Credits`}</small></span>`).join('')}</div>` + legend(['credits', 'score', 'mastery']),
-    controls: `<span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Garage / Progress</span></span>`,
-  },
-  {
-    nav: 'Controls', icon: 'you', title: 'PICK A KEY. TRY IT.',
-    description: 'Use CORE keys first. ADVANCED keys help with aim and flying tricks.',
-    visual: groupedControls(), controls: '',
-  },
-  {
-    nav: 'Contact', icon: 'contact', title: 'CONTACT & ADVERTISE.',
-    description: 'Need help? Want to advertise in Airport Chaos?',
-    visual: `<div class="help-contact-card"><strong>${companyContact.companyName}</strong><span>Advertise on ${sponsorLocations.toLowerCase()}.</span>${contactLinks()}</div>`,
-    controls: '',
+    nav: 'Missions', icon: 'mission', title: 'MISSIONS',
+    visual: `<div class="help-mission-visual"><b>MISSION</b><strong>FIRST FLIGHT</strong><span>Stay in the air</span><i>15 Credits</i></div>`,
+    instructions: steps(`Open <kbd>${menuKeyLabel('menu')}</kbd> → Missions`, 'Pick one mission', 'Follow the objective and earn Credits'),
   },
 ];
 
@@ -203,7 +156,7 @@ class FlightTutorial {
       this.dots.innerHTML = ''; this.content.scrollTop = 0; return;
     }
     const page = pages[this.page];
-    this.content.innerHTML = `<h1 id="tutorial-title">${page.title}</h1><div class="tutorial-visual">${page.visual}</div><p>${page.description}</p><div class="tutorial-keys">${page.controls}</div>`;
+    this.content.innerHTML = `<h1 id="tutorial-title">${page.title}</h1><div class="tutorial-visual">${page.visual}</div>${page.instructions}<div class="tutorial-keys">${page.controls ?? ''}</div>`;
     this.back.disabled = false;
     this.back.textContent = this.page === 0 ? 'HOME' : 'BACK';
     this.next.textContent = this.page === pages.length - 1 ? 'PLAY NOW' : 'NEXT';

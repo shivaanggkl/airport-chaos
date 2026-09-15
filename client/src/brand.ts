@@ -99,3 +99,18 @@ export function createGameBrandSignature(className = ''): HTMLElement {
 export function mountGameBrandSignature(container: HTMLElement, className = ''): void {
   container.replaceChildren(createGameBrandSignature(className));
 }
+
+export function mountCompactBrandFooter(container: HTMLElement): void {
+  const footer = document.createElement('div');
+  footer.className = 'intro-brand-footer';
+  const identity = document.createElement('span');
+  identity.textContent = `${gameBrand.gameName} • Built by ${gameBrand.studioName}`;
+  const links = document.createElement('nav');
+  for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund', legalConfig.policyRoutes.refund], ['Support', `mailto:${legalConfig.supportEmail}`]] as const) {
+    const link = document.createElement('a'); link.href = href; link.textContent = label;
+    if (!href.startsWith('mailto:')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    links.append(link);
+  }
+  footer.append(identity, links);
+  container.replaceChildren(footer);
+}

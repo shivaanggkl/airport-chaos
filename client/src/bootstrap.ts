@@ -3,8 +3,9 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from
 import { AircraftGarage, type GarageProfile } from './garage';
 import type { AircraftType } from './aircraft';
 import { flightTutorial } from './tutorial';
-import { mountAirportChaosLogo, mountGameBrandSignature } from './brand';
+import { mountAirportChaosLogo, mountCompactBrandFooter, mountGameBrandSignature } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { cityAirports } from '../../shared/city-airports.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
@@ -19,7 +20,7 @@ const citySelectionError = document.querySelector<HTMLElement>('#city-selection-
 const garageEntry = document.querySelector<HTMLButtonElement>('#garage-entry')!;
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kicker')!, 'brand-logo-home');
-mountGameBrandSignature(document.querySelector<HTMLElement>('#start-brand-signature')!, 'game-brand-signature-start');
+mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 mountGameBrandSignature(document.querySelector<HTMLElement>('#crash-brand-signature')!, 'game-brand-signature-crash');
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
@@ -168,8 +169,8 @@ function showSelector(message = ''): void {
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.hidden = true;
-  citySelectTitle.textContent = 'Choose a city';
-  citySelectDescription.textContent = 'Choose where to fly, fight, and complete missions.';
+  citySelectTitle.textContent = 'CHOOSE A CITY';
+  citySelectDescription.textContent = 'Pick your city and start flying.';
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
 }
@@ -217,7 +218,7 @@ function chooseCity(city: CityDefinition): void {
   try { preferred = localStorage.getItem(`airport-chaos-time-${city.id}`) ?? 'day'; } catch { /* default day */ }
   for (const preset of city.timePresets) {
     const option = document.createElement('article');
-    option.className = 'city-option';
+    option.className = 'city-option city-time-option';
     option.classList.add(`city-${city.id}`);
     const label = document.createElement('strong');
     label.textContent = preset.toUpperCase();
@@ -239,11 +240,12 @@ window.addEventListener('airport-chaos-open-city-selector', () => showSelector()
 for (const city of cities) {
   const option = document.createElement('article');
   option.className = 'city-option';
-  option.innerHTML = `<div><strong>${city.displayName}</strong><span>${city.status === 'available' ? 'AVAILABLE NOW' : 'COMING SOON'}</span></div>`;
+  const airportCount = cityAirports[city.id].length;
+  option.innerHTML = `<div class="city-option-copy"><strong>${city.displayName}</strong><span>${city.id === 'dallas' ? 'Huge city' : 'Open-world city'} • ${airportCount} airports</span><div class="city-time-list">${city.timePresets.map(preset => `<i>${preset.toUpperCase()}</i>`).join('')}</div></div>`;
   option.classList.add(`city-${city.id}`);
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = city.status === 'available' ? 'Play' : 'Coming soon';
+  button.textContent = city.status === 'available' ? 'PLAY →' : 'COMING SOON';
   button.disabled = city.status !== 'available';
   button.addEventListener('click', () => chooseCity(city));
   option.append(button);

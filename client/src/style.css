@@ -38,7 +38,7 @@ body {
   place-items: center;
   padding: 24px;
   color: #f8fbff;
-  background: radial-gradient(circle at 50% 25%, #315f78, #09141f 72%);
+  background: radial-gradient(circle at 50% 8%, #204f69, #07111c 66%);
 }
 
 .city-selector[hidden] {
@@ -46,10 +46,10 @@ body {
 }
 
 .city-select-card {
-  width: min(82vw, 1180px);
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: clamp(20px, 3vw, 42px);
+  width: min(92vw, 820px);
+  max-height: calc(100vh - 32px);
+  overflow: visible;
+  padding: clamp(18px, 2.5vw, 28px);
   background: rgb(5 18 31 / 90%);
   border: 1px solid rgb(115 216 237 / 42%);
   border-radius: 10px;
@@ -70,7 +70,7 @@ body {
 }
 
 .city-select-kicker.has-brand-logo { display: block; text-align: center; }
-.brand-logo-home { display: block; width: min(300px, 65vw); height: min(210px, 23vh); margin: 0 auto 8px; object-fit: contain; }
+.brand-logo-home { display: block; width: min(250px, 58vw); height: min(132px, 16vh); margin: 0 auto 2px; object-fit: contain; }
 .brand-logo-menu, .brand-logo-help { display: block; width: auto; height: 42px; max-width: 148px; object-fit: contain; object-position: left center; }
 .brand-logo-help { height: 36px; max-width: 130px; }
 .game-brand-signature { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; color: #a9c2ce; font: 700 10px/1.35 ui-monospace, monospace; letter-spacing: .02em; }
@@ -79,52 +79,71 @@ body {
 .game-brand-signature a:hover, .game-brand-signature a:focus-visible { color: #fff; text-decoration: underline; }
 .game-brand-policies { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; width: 100%; }
 .game-brand-legal { width: 100%; color: #7895a4; text-align: center; font-size: 8px; font-weight: 600; }
-.game-brand-signature-start { margin: 0 auto 15px; }
+.game-brand-signature-start { margin: 0 auto 10px; }
+.city-select-tagline { margin: 0 auto 16px; color: #a8dceb; text-align: center; font: 800 clamp(10px, 1.4vw, 13px)/1 ui-monospace, monospace; letter-spacing: .22em; }
+.intro-brand-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px 18px; margin-top: 14px; padding-top: 11px; border-top: 1px solid rgb(255 255 255 / 12%); color: #7897a7; font: 700 9px/1.4 ui-monospace, monospace; }
+.intro-brand-footer nav { display: flex; flex-wrap: wrap; gap: 12px; }
+.intro-brand-footer a { color: #91c7d5; text-decoration: none; }
+.intro-brand-footer a:hover, .intro-brand-footer a:focus-visible { color: #fff; text-decoration: underline; }
 
 .city-select-card h1 {
-  margin-top: 8px;
-  font-size: clamp(29px, 3vw, 42px);
+  margin-top: 0;
+  text-align: center;
+  font-size: clamp(22px, 2.6vw, 30px);
 }
 
 .city-select-card p {
-  margin: 9px 0 20px;
+  margin: 7px 0 16px;
   color: #c5d3df;
+  text-align: center;
 }
 
 .city-options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 .city-options[hidden], #city-back[hidden] { display: none; }
 
 .city-option {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 16px;
-  min-height: 190px;
-  padding: 20px;
-  background: rgb(255 255 255 / 6%);
+  align-items: center;
+  gap: 12px 20px;
+  min-height: 82px;
+  padding: 12px 16px;
+  overflow: hidden;
+  background: linear-gradient(105deg, #0d2638, #081b29);
   border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 6px;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 18%);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
+.city-option:hover, .city-option:focus-within { border-color: rgb(115 216 237 / 58%); box-shadow: 0 9px 24px rgb(16 156 191 / 16%); transform: translateY(-1px); }
 
 .city-option strong,
 .city-option span {
   display: block;
 }
-.city-option strong { font-size: clamp(19px, 2vw, 27px); }
-.city-option button { min-height: 40px; padding-inline: 18px; }
-.city-option.city-dallas { background: linear-gradient(0deg, rgb(4 20 34 / 89%), rgb(4 20 34 / 20%)), url('./help-assets/map.avif') center / cover; }
-.city-option.city-milwaukee { background: linear-gradient(0deg, rgb(4 20 34 / 91%), rgb(4 20 34 / 28%)), url('./help-assets/runway.avif') center / cover; }
+.city-option strong { font-size: clamp(18px, 2.2vw, 24px); letter-spacing: .06em; }
+.city-option button { min-height: 44px; min-width: 104px; padding-inline: 18px; }
+.city-option-copy { min-width: 0; }
+.city-time-list { display: flex; gap: 6px; margin-top: 10px; }
+.city-time-list i { padding: 3px 7px; border: 1px solid rgb(126 215 235 / 28%); border-radius: 3px; color: #a7dbe7; font: 800 9px ui-monospace, monospace; font-style: normal; }
+.city-time-option { min-height: 128px; padding: 18px; background: linear-gradient(145deg, rgb(22 61 80 / 90%), rgb(7 22 34 / 96%)); }
 .pilot-menu-header-actions { display: flex; align-items: center; gap: 8px; }
 .pilot-menu-city-status { color: #9fc8d5; font-size: 10px; font-weight: 700; white-space: nowrap; }
 @media (max-width: 680px) {
   .city-selector { padding: 10px; }
-  .city-select-card { width: 95vw; max-height: 92vh; padding: 16px; }
+  .city-select-card { width: 95vw; max-height: calc(100vh - 20px); padding: 14px; }
   .city-options { grid-template-columns: 1fr; gap: 10px; }
-  .city-option { min-height: 125px; padding: 14px; }
+  .brand-logo-home { height: min(100px, 13vh); }
+  .city-select-tagline { margin-bottom: 12px; }
+  .city-option { min-height: 82px; padding: 11px 12px; gap: 10px; }
+  .city-option button { min-width: 92px; padding-inline: 12px; }
+  .city-time-option { min-height: 105px; padding: 14px; }
+  .intro-brand-footer { display: grid; justify-content: center; text-align: center; }
+  .intro-brand-footer nav { justify-content: center; }
   .pilot-menu-header-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 
@@ -1907,6 +1926,10 @@ body {
 .tutorial-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 22px; text-align: center; }
 .tutorial-content h1 { margin: 5px 0 20px; font-size: clamp(18px, 3.5vw, 27px); font-weight: 900; letter-spacing: .025em; }
 .tutorial-content p { font-size: 13px; color: #c3d7e4; line-height: 1.5; margin: 16px auto; max-width: 590px; }
+.tutorial-steps { display: grid; gap: 8px; width: min(520px, 100%); margin: 14px auto 18px; padding-left: 30px; text-align: left; }
+.tutorial-steps li { min-height: 38px; padding: 10px 12px; border: 1px solid rgb(150 207 222 / 16%); border-radius: 6px; background: rgb(255 255 255 / 4%); color: #dcecf3; font: 750 12px/1.35 system-ui, sans-serif; }
+.tutorial-steps li::marker { color: #9cdae6; font: 900 12px ui-monospace, monospace; }
+.tutorial-steps kbd { padding: 3px 6px; border: 1px solid #66879a; border-bottom-width: 2px; border-radius: 4px; background: #203d51; color: #fff; font: 850 11px ui-monospace, monospace; }
 .tutorial-visual svg { display: block; width: 100%; max-height: 270px; }
 .tutorial-keys { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .tutorial-key { display: grid; gap: 5px; min-width: 82px; font-size: 10px; color: #a9c9d9; }
@@ -1945,6 +1968,18 @@ body {
 .help-enemy-brackets { position: absolute; left: 50%; top: 35%; transform: translate(-50%,-50%); width: 8%; aspect-ratio: 1; color: var(--identity-player); }
 .help-enemy-brackets i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; }
 .help-map-shot .help-shot img { aspect-ratio: auto; object-fit: contain; }
+.help-simple-map { overflow: hidden; border: 1px solid #456072; border-radius: 12px; background: #071824; }
+.help-simple-map svg { display: block; width: 100%; height: auto; }
+.help-simple-map .water { fill: #123d59; }.help-simple-map .road { fill: none; stroke: #456372; stroke-width: 4; }.help-simple-map .road.major { stroke: #b1a67f; stroke-width: 7; }
+.help-simple-map text { font: 800 11px ui-monospace, monospace; paint-order: stroke; stroke: #071824; stroke-width: 4px; }
+.help-simple-map .map-you { fill: var(--identity-you); color: var(--identity-you); }.help-simple-map .map-airport { fill: var(--identity-airport); color: var(--identity-airport); }.help-simple-map .map-waypoint { fill: none; stroke: var(--identity-waypoint); color: var(--identity-waypoint); }.help-simple-map .map-repair { fill: var(--identity-repairHeart); color: var(--identity-repairHeart); }
+.help-simple-map g text { fill: currentColor; stroke: #071824; }
+.help-flight-visual, .help-turn-visual, .help-repair-visual, .help-mission-visual { position: relative; display: grid; place-items: center; min-height: 190px; overflow: hidden; border: 1px solid #456072; border-radius: 12px; background: radial-gradient(circle at 50% 65%, #296278, #0a2334 68%); }
+.help-flight-visual .plane-icon { z-index: 1; color: #eefaff; font-size: 76px; transform: rotate(-12deg); text-shadow: 0 8px 22px #0008; }
+.help-flight-visual .flight-path { position: absolute; width: 340px; height: 120px; border-top: 4px dashed #9adceb88; border-radius: 50%; transform: rotate(-12deg); }
+.help-turn-visual { grid-template-columns: 1fr auto 1fr; color: #91dceb; font-size: 56px; }.help-turn-visual b { color: #fff; font-size: 82px; transform: rotate(-90deg); }.help-turn-visual span { font-weight: 900; }
+.help-repair-visual { grid-template-columns: auto auto; align-content: center; gap: 7px 16px; }.help-repair-visual > span { grid-row: 1 / 4; color: var(--identity-repairHeart); font-size: 100px; filter: drop-shadow(0 0 16px #bb173f88); }.help-repair-visual b { color: #ddecf3; font-size: 13px; }.help-repair-visual i { width: 180px; height: 13px; overflow: hidden; border: 1px solid #8ccfc1; border-radius: 7px; }.help-repair-visual em { display: block; width: 100%; height: 100%; background: #66edc0; }.help-repair-visual strong { color: #fff; }
+.help-mission-visual { align-content: center; gap: 8px; }.help-mission-visual b { color: var(--identity-mission); letter-spacing: .16em; }.help-mission-visual strong { color: #fff; font-size: 25px; }.help-mission-visual span { color: #bed3dc; }.help-mission-visual i { color: var(--identity-credits); font-style: normal; font-weight: 850; }
 .help-map-notes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; font: 800 12px ui-sans-serif, system-ui, sans-serif; }
 .heat-row strong, .heat-row span { color: var(--identity-heat); }
 .help-locked { position: absolute; top: 53%; left: 50%; transform: translateX(-50%); color: var(--identity-player); font: 800 12px ui-monospace, monospace; }
@@ -1983,6 +2018,9 @@ body {
   .help-control-groups section:last-child { grid-column: 1 / -1; }
   .help-legend { font-size: 10px; gap: 10px; }
   .help-shot img { aspect-ratio: 1.65; }
+  .help-flight-visual, .help-turn-visual, .help-repair-visual, .help-mission-visual { min-height: 150px; }
+  .help-turn-visual { font-size: 38px; }.help-turn-visual b { font-size: 58px; }
+  .help-repair-visual > span { font-size: 72px; }.help-repair-visual i { width: 125px; }
   .help-combat-scene .help-shot img { aspect-ratio: 1.84; }
   .help-pilot-label { font-size: 8px; }
   .help-heat-scene .heat-row { font-size: 22px; gap: 6px; }
