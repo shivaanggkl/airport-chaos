@@ -11,6 +11,7 @@ const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
 const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
 const timeOptions = document.querySelector<HTMLElement>('#time-options')!;
 const cityBack = document.querySelector<HTMLButtonElement>('#city-back')!;
+const cityClose = document.querySelector<HTMLButtonElement>('#city-close')!;
 const citySelectTitle = document.querySelector<HTMLElement>('#city-select-title')!;
 const citySelectDescription = document.querySelector<HTMLElement>('#city-select-description')!;
 const citySelectionError = document.querySelector<HTMLElement>('#city-selection-error')!;
@@ -122,19 +123,33 @@ garageEntry.addEventListener('click', async () => {
 function showSelector(message = ''): void {
   startModalState = 'CITIES';
   garage.close();
-  gameRoot.hidden = true;
+  cityClose.hidden = gameRoot.hidden;
   citySelector.hidden = false;
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.hidden = true;
   citySelectTitle.textContent = 'Choose a city';
-  citySelectDescription.textContent = 'Pick a flight sandbox to enter.';
+  citySelectDescription.textContent = 'Choose where to fly, fight, and complete missions.';
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
 }
 
 async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day'): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
+
+  if (!gameRoot.hidden) {
+    if (activeCityFromUrl()?.id !== city.id) {
+      window.dispatchEvent(new CustomEvent('airport-chaos-city-exit', { detail: { cityId: city.id, timePreset } }));
+      return;
+    }
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('time', timePreset);
+    window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+    citySelector.hidden = true;
+    startModalState = 'NONE';
+    window.dispatchEvent(new CustomEvent('airport-chaos-time-change', { detail: timePreset }));
+    return;
+  }
 
   startModalState = 'NONE';
   garage.close();
@@ -157,12 +172,13 @@ function chooseCity(city: CityDefinition): void {
   timeOptions.hidden = false;
   cityBack.hidden = false;
   citySelectTitle.textContent = 'Choose time';
-  citySelectDescription.textContent = city.displayName;
+  citySelectDescription.textContent = `${city.displayName} · Day and Dusk share the same pilots and city.`;
   let preferred = 'day';
   try { preferred = localStorage.getItem(`airport-chaos-time-${city.id}`) ?? 'day'; } catch { /* default day */ }
   for (const preset of city.timePresets) {
     const option = document.createElement('article');
     option.className = 'city-option';
+    option.classList.add(`city-${city.id}`);
     const label = document.createElement('strong');
     label.textContent = preset.toUpperCase();
     const button = document.createElement('button');
@@ -177,11 +193,14 @@ function chooseCity(city: CityDefinition): void {
   }
 }
 cityBack.addEventListener('click', () => showSelector());
+cityClose.addEventListener('click', () => { citySelector.hidden = true; startModalState = 'NONE'; });
+window.addEventListener('airport-chaos-open-city-selector', () => showSelector());
 
 for (const city of cities) {
   const option = document.createElement('article');
   option.className = 'city-option';
   option.innerHTML = `<div><strong>${city.displayName}</strong><span>${city.status === 'available' ? 'AVAILABLE NOW' : 'COMING SOON'}</span></div>`;
+  option.classList.add(`city-${city.id}`);
   const button = document.createElement('button');
   button.type = 'button';
   button.textContent = city.status === 'available' ? 'Play' : 'Coming soon';

@@ -1,12 +1,13 @@
 import { actionKeyLabel, controlGroups, controlKeyLabel, menuKeyLabel, type FlightAction } from './flight-input';
 import { aircraftRoles, targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
-import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
+import { aircraftDefinitions, aircraftDisplayName } from './aircraft';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
 import mapImage from './help-assets/map.avif';
 import garageImage from './help-assets/garage.avif';
 import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
+import { aircraftDisplayOrder, aircraftEconomy, REDSPEAR_PRICE_USD } from '../../shared/aircraft-economy.mjs';
 
 const key = (label: string, ...actions: FlightAction[]) => `<span class="tutorial-key"><kbd>${actions.map(actionKeyLabel).join(' / ')}</kbd><span>${label}</span></span>`;
 const navigationKeys = () => `<span class="tutorial-key"><kbd>${menuKeyLabel('map')}</kbd><span>World Map</span></span><span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Pilot Menu / Help</span></span>`;
@@ -37,7 +38,7 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; descripti
   },
   {
     nav: 'Fight', icon: 'player', title: 'GET A PLANE IN YOUR AIM AREA.',
-    description: `${actionKeyLabel('fire')} = Shoot. PLANE LIFE is how much damage you can take.`,
+    description: `${actionKeyLabel('fire')} = Shoot. GET CLOSER means the target is too far away; PLANE LIFE is your health.`,
     visual: `<div class="help-combat-scene">${shot(runwayImage, 'Chase view and runway behind the live-style combat indicators')}<div class="help-combat-example"><span class="help-example-label">FIGHT</span><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong><span class="help-pilot-label"><span style="color:${visualLanguage.player.color}">${visualLanguage.player.icon} Pilot · ${aircraftDefinitions.trainer.name}</span><br/><span style="color:${visualLanguage.ai.color}">${visualLanguage.ai.icon} Raven · AI Pilot</span></span></div></div><div class="help-hull health-row"><span>PLANE LIFE</span><span class="hull-meter"><i style="width:75%"></i></span><strong>75/100</strong></div>` + legend(['player', 'ai']),
     controls: key('Shoot', 'fire') + key('Aim Left / Right', 'aimLeft', 'aimRight') + key('Aim Up / Down', 'aimUp', 'aimDown'),
   },
@@ -81,8 +82,8 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; descripti
   {
     nav: 'Progress', icon: 'credits', title: 'PLAY. EARN. UNLOCK PLANES.',
     description: 'Credits unlock planes. Score is for rankings. City Level shows long-term progress.',
-    visual: shot(garageImage, 'Aircraft Garage with comparison stats and four aircraft choices') +
-      `<div class="help-aircraft-roles">${(Object.entries(aircraftRoles) as Array<[AircraftType, string]>).map(([type,role]) => `<span><b>${aircraftDisplayName(type)}</b><small>${role}</small></span>`).join('')}</div>` + legend(['credits', 'score', 'mastery']),
+    visual: `<div class="help-garage-shot">${shot(garageImage, 'Aircraft Garage preview with comparison stats')}</div>` +
+      `<div class="help-aircraft-roles">${aircraftDisplayOrder.map((type) => `<span><b>${aircraftDisplayName(type)}</b><small>${aircraftRoles[type]} · ${aircraftEconomy[type].access === 'free' ? 'FREE' : aircraftEconomy[type].access === 'premium' ? `Premium ${REDSPEAR_PRICE_USD}` : `${aircraftEconomy[type].credits.toLocaleString()} Credits`}</small></span>`).join('')}</div>` + legend(['credits', 'score', 'mastery']),
     controls: `<span class="tutorial-key"><kbd>${menuKeyLabel('menu')}</kbd><span>Garage / Progress</span></span>`,
   },
   {

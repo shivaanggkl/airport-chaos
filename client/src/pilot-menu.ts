@@ -51,6 +51,7 @@ export type PilotMenuMission = { id: string; name: string; detail: string; diffi
 export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium: boolean; price: number; neededCredits: number };
 
 export type PilotMenuData = {
+  city: { name: string; timePreset: string; changeCity: () => void };
   progression: { credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[] };
   missions: { activeId?: string; activeCity?: string; entries: readonly PilotMenuMission[]; accept: (id: string, replace: boolean) => void; abandon: () => void };
   players: { city: string; entries: readonly PilotMenuPlayer[] };
@@ -264,8 +265,12 @@ export class PilotMenu {
     const kicker = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
     heading.append(kicker, textElement('span', 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
     void mountAirportChaosLogo(kicker, 'brand-logo-menu');
+    const changeCity = actionButton({ label: 'CHANGE CITY', run: () => this.lastData?.city.changeCity() });
+    changeCity.title = 'Return to Choose a City';
+    const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const close = actionButton({ label: 'Close · TAB', run: () => this.close() });
-    header.append(heading, close);
+    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, changeCity, close);
+    header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
     // Preserve native wheel/trackpad scrolling here while preventing future
@@ -292,6 +297,8 @@ export class PilotMenu {
     this.lastData = data;
     this.lastSnapshot = this.snapshot(data);
     const content = this.ensureContent();
+    const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
+    if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
     for (const button of this.navigation?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
@@ -550,6 +557,7 @@ export class PilotMenu {
     if (this.activeSection === 'HELP') {
       const help = section('HELP');
       help.append(textElement('p', 'See the visual guide or check the keys below.', 'pilot-menu-muted'));
+      help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
       help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
       for (const group of controlGroups) {
         const controls = document.createElement('div'); controls.className = 'pilot-menu-control-group';

@@ -40,9 +40,23 @@ let dallasStreamer: DallasChunkStreamer | undefined;
 let cityVisualLayer: CityVisualLayer | undefined;
 let visualQuality: CityVisualQuality = 'high';
 let timeOfDay: CityTimeOfDay = 'day';
+let horizonMaterial: THREE.MeshStandardMaterial | undefined;
 export function configureWorldVisuals(options: { quality: CityVisualQuality; timeOfDay: CityTimeOfDay }): void {
   visualQuality = options.quality;
   timeOfDay = options.timeOfDay;
+}
+export function setTimeOfDay(preset: CityTimeOfDay): void {
+  timeOfDay = preset;
+  const dusk = preset === 'dusk';
+  airportMaterials.glass.emissive.setHex(dusk ? 0x9c6135 : 0x000000);
+  airportMaterials.glass.emissiveIntensity = dusk ? 0.38 : 0;
+  for (const glass of [landmarkMaterials.glassDark, landmarkMaterials.glassBlue, landmarkMaterials.glassGreen]) {
+    glass.emissive.setHex(dusk ? 0x315063 : 0x000000);
+    glass.emissiveIntensity = dusk ? 0.2 : 0;
+  }
+  landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : 0x075e96);
+  horizonMaterial?.color.setHex(dusk ? 0x3d5147 : 0x4c7847);
+  cityVisualLayer?.setDusk(dusk);
 }
 type CompactElevationData = {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -1214,6 +1228,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : 0x075e96);
   enhanceWaterMaterial(landmarkMaterials.river);
   const horizon = new THREE.Mesh(new THREE.PlaneGeometry(120_000, 120_000), new THREE.MeshStandardMaterial({ color: dusk ? 0x3d5147 : 0x4c7847, roughness: 1, depthWrite: false }));
+  horizonMaterial = horizon.material as THREE.MeshStandardMaterial;
   horizon.rotation.x = -Math.PI / 2;
   horizon.position.y = dallasElevation.baseElevation - 8;
   horizon.renderOrder = -3;

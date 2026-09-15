@@ -65,10 +65,10 @@ const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
-const worldTimeOfDay = isDallas && new URLSearchParams(window.location.search).get('time') === 'dusk' ? 'dusk' : 'day';
+let worldTimeOfDay: 'day' | 'dusk' = isDallas && new URLSearchParams(window.location.search).get('time') === 'dusk' ? 'dusk' : 'day';
 const worldVisualQuality = new URLSearchParams(window.location.search).get('visualquality') === 'low' ? 'low' : 'high';
 cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
-const SKY_COLOR = worldTimeOfDay === 'dusk' ? 0x596d94 : isDallas ? 0x5aaee0 : 0x76c9ed;
+let SKY_COLOR = worldTimeOfDay === 'dusk' ? 0x596d94 : isDallas ? 0x5aaee0 : 0x76c9ed;
 const CAMERA_NEAR = 2;
 const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
 const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
@@ -115,7 +115,8 @@ function resizeRenderer(): void {
 
 resizeRenderer();
 
-scene.add(new THREE.HemisphereLight(worldTimeOfDay === 'dusk' ? 0xb8c8e8 : isDallas ? 0xd4efff : 0xd9f3ff, worldTimeOfDay === 'dusk' ? 0x53604e : isDallas ? 0x587443 : 0x5d764a, worldTimeOfDay === 'dusk' ? 1.4 : isDallas ? 2.78 : 2.55));
+const skyAmbient = new THREE.HemisphereLight(worldTimeOfDay === 'dusk' ? 0xb8c8e8 : isDallas ? 0xd4efff : 0xd9f3ff, worldTimeOfDay === 'dusk' ? 0x53604e : isDallas ? 0x587443 : 0x5d764a, worldTimeOfDay === 'dusk' ? 1.4 : isDallas ? 2.78 : 2.55);
+scene.add(skyAmbient);
 const sun = new THREE.DirectionalLight(worldTimeOfDay === 'dusk' ? 0xffae78 : isDallas ? 0xffd39a : 0xffe2ae, worldTimeOfDay === 'dusk' ? 1.68 : isDallas ? 3.72 : 3.45);
 sun.position.set(-2400, 4200, 1800);
 sun.castShadow = false;
@@ -130,15 +131,72 @@ const skyDome = new THREE.Mesh(
     fog: false,
     toneMapped: false,
     uniforms: {
-      horizonColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x907c91 : isDallas ? 0xaedcf0 : 0xc4e8f4) },
+      horizonColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0xb46d79 : isDallas ? 0xaedcf0 : 0xc4e8f4) },
       zenithColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x1b3258 : isDallas ? 0x217fbe : 0x2d9dd4) },
+      gradientLow: { value: worldTimeOfDay === 'dusk' ? -0.10 : -0.18 },
+      gradientHigh: { value: worldTimeOfDay === 'dusk' ? 0.34 : 0.82 },
     },
     vertexShader: 'varying float vHeight; void main() { vHeight = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 horizonColor; uniform vec3 zenithColor; varying float vHeight; void main() { float t = smoothstep(${worldTimeOfDay === 'dusk' ? '-0.10, 0.34' : '-0.18, 0.82'}, vHeight); gl_FragColor = vec4(mix(horizonColor, zenithColor, t), 1.0); }`,
+    fragmentShader: 'uniform vec3 horizonColor; uniform vec3 zenithColor; uniform float gradientLow; uniform float gradientHigh; varying float vHeight; void main() { float t = smoothstep(gradientLow, gradientHigh, vHeight); gl_FragColor = vec4(mix(horizonColor, zenithColor, t), 1.0); }',
   }),
 );
 skyDome.renderOrder = -10;
 scene.add(skyDome);
+const duskSky = new THREE.Group();
+duskSky.visible = worldTimeOfDay === 'dusk';
+skyDome.add(duskSky);
+{
+  // One camera-following sky group: no per-star meshes, lights or updates.
+  const starPositions = new Float32Array(150 * 3);
+  for (let index = 0; index < 150; index += 1) {
+    const azimuth = index * 2.3999632297;
+    const elevation = 0.15 + ((index * 73) % 101) / 101 * 0.78;
+    const radius = SKY_DOME_RADIUS * 0.95;
+    starPositions[index * 3] = Math.cos(azimuth) * Math.cos(elevation) * radius;
+    starPositions[index * 3 + 1] = Math.sin(elevation) * radius;
+    starPositions[index * 3 + 2] = Math.sin(azimuth) * Math.cos(elevation) * radius;
+  }
+  const starsGeometry = new THREE.BufferGeometry();
+  starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ color: 0xf7f3ea, size: 2.8, sizeAttenuation: false, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false, fog: false }));
+  stars.renderOrder = -9;
+  duskSky.add(stars);
+  const moonDirection = new THREE.Vector3(-0.57, 0.16, -0.81).normalize();
+  const moonPosition = moonDirection.multiplyScalar(SKY_DOME_RADIUS * 0.9);
+  const moonHalo = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xdce8ff, transparent: true, opacity: 0.2, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+  moonHalo.position.copy(moonPosition);
+  moonHalo.scale.setScalar(1_150);
+  moonHalo.lookAt(0, 0, 0);
+  moonHalo.renderOrder = -8;
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xfff2d4, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+  moon.position.copy(moonPosition).multiplyScalar(0.999);
+  moon.scale.setScalar(620);
+  moon.lookAt(0, 0, 0);
+  moon.renderOrder = -7;
+  duskSky.add(moonHalo, moon);
+}
+
+function setLocalTimePreset(preset: 'day' | 'dusk'): void {
+  if (!isDallas || preset === worldTimeOfDay) return;
+  worldTimeOfDay = preset;
+  const dusk = preset === 'dusk';
+  SKY_COLOR = dusk ? 0x596d94 : 0x5aaee0;
+  (scene.background as THREE.Color).setHex(SKY_COLOR);
+  skyAmbient.color.setHex(dusk ? 0xb8c8e8 : 0xd4efff);
+  skyAmbient.groundColor.setHex(dusk ? 0x53604e : 0x587443);
+  skyAmbient.intensity = dusk ? 1.4 : 2.78;
+  sun.color.setHex(dusk ? 0xffae78 : 0xffd39a);
+  sun.intensity = dusk ? 1.68 : 3.72;
+  const uniforms = (skyDome.material as THREE.ShaderMaterial).uniforms;
+  (uniforms.horizonColor.value as THREE.Color).setHex(dusk ? 0xb46d79 : 0xaedcf0);
+  (uniforms.zenithColor.value as THREE.Color).setHex(dusk ? 0x1b3258 : 0x217fbe);
+  uniforms.gradientLow.value = dusk ? -0.10 : -0.18;
+  uniforms.gradientHigh.value = dusk ? 0.34 : 0.82;
+  duskSky.visible = dusk;
+  cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: preset });
+  cityWorld.setTimeOfDay?.(preset);
+}
+window.addEventListener('airport-chaos-time-change', (event) => setLocalTimePreset((event as CustomEvent<'day' | 'dusk'>).detail));
 
 const depthOffsetDirection = renderer.capabilities.reversedDepthBuffer ? 1 : -1;
 const { obstacleBounds, mountainBounds, waterBounds } = createWorld(scene, depthOffsetDirection);
@@ -775,6 +833,7 @@ const formationStatusElement = document.querySelector<HTMLElement>('#formation-s
 const playerNameElement = document.querySelector<HTMLSpanElement>('#player-name')!;
 const audioToggleElement = document.querySelector<HTMLButtonElement>('#audio-toggle')!;
 const citiesButtonElement = document.querySelector<HTMLButtonElement>('#cities-button')!;
+const citySelectorElement = document.querySelector<HTMLElement>('#city-selector')!;
 const garageButtonElement = document.querySelector<HTMLButtonElement>('#garage-button')!;
 const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuButtonElement = document.querySelector<HTMLButtonElement>('#pilot-menu-button')!;
@@ -1088,9 +1147,15 @@ function playNearMissSound(): void {
   playTone(260, 0.24, 'sawtooth', 0.06, 820, 0, 'combat');
 }
 
+let lastProjectileWhooshAt = -Infinity;
 function playFireSound(): void {
   playTone(150, 0.075, 'sawtooth', 0.06, 68, 0, 'combat');
   playTone(360, 0.045, 'square', 0.028, 145, 0, 'combat');
+  const now = performance.now();
+  if (now - lastProjectileWhooshAt >= 450) {
+    lastProjectileWhooshAt = now;
+    playTone(1_350, 0.19, 'triangle', 0.019, 420, 0.015, 'combat');
+  }
 }
 
 function playHitSound(): void {
@@ -2692,6 +2757,10 @@ flightTutorial.setVisibilityHandler(() => {
 });
 flightTutorial.setHelpAction(showFirstRunGuide);
 window.addEventListener('keydown', (event) => {
+  if (!citySelectorElement.hidden) {
+    if (flightControlCodes.has(event.code)) event.preventDefault();
+    return;
+  }
   if (aircraftGarage.isOpen()) {
     if (event.code === 'Escape') {
       event.preventDefault();
@@ -3983,29 +4052,12 @@ function pilotMenuData(): PilotMenuData {
     waypoint = { x, z, label };
     updateNavigationHud();
   };
-  const contract = activeContract?.definition ?? availableContract;
   const activities = [] as Array<{
     name: string;
     detail: string;
     meta: string;
     actions?: Array<PilotMenuAction>;
   }>;
-  if (contract) {
-    const destination = airportById(contract.destinationAirportId);
-    activities.push({
-      name: `${activeContract ? 'ACTIVE' : 'AVAILABLE'} CONTRACT · ${contractTitle(contract.type)}`,
-      detail: contractDetail(contract),
-      meta: `${aircraftDefinitions[contract.aircraftType].name} · +${contract.reward} credits · ${Math.round(Math.hypot(airplane.position.x - destination.x, airplane.position.z - destination.z))}m to ${destination.name}`,
-      actions: [
-        { label: 'Set Waypoint', run: () => setWaypoint(destination.x, destination.z, destination.name) },
-        ...(!activeContract ? [{
-          label: aircraftAccessReason(contract.aircraftType) ? 'Aircraft Locked' : 'Accept',
-          disabled: Boolean(aircraftAccessReason(contract.aircraftType)),
-          run: () => { acceptAvailableContract(); openPilotMenu(); },
-        }] : []),
-      ],
-    });
-  }
   for (const challenge of cityWorld.skyChallenges ?? []) {
     const gate = challenge.gates[0];
     const required = challenge.requiredAircraftType;
@@ -4115,6 +4167,7 @@ function pilotMenuData(): PilotMenuData {
   }));
 
   return {
+    city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: () => citiesButtonElement.click() },
     missions: {
       activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
       activeCity: profileActiveMissionCity(serverProfile),
@@ -6610,8 +6663,15 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
 }
 
 citiesButtonElement.addEventListener('click', () => {
+  pilotMenu.close();
+  heldActions.clear();
+  boostActive = false;
+  window.dispatchEvent(new Event('airport-chaos-open-city-selector'));
+});
+window.addEventListener('airport-chaos-city-exit', (event) => {
+  const destination = (event as CustomEvent<{ cityId: CityId; timePreset: 'day' | 'dusk' }>).detail;
   const activeMission = profileActiveMissionAttempt(serverProfile);
-  if (!window.confirm(activeMission ? 'Leave this flight? Your active mission will end.' : 'Leave this flight and choose a city or time?')) return;
+  if (!window.confirm(activeMission ? 'Change city? Your active mission will end.' : 'Leave this flight and change city?')) return;
   if (activeMission && connectionReady()) socket.send(JSON.stringify({
     type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMission.attemptId,
   }));
@@ -6627,7 +6687,8 @@ citiesButtonElement.addEventListener('click', () => {
   cityWorld.disposeWorldStreaming?.();
   socket.close();
   const url = new URL(window.location.href);
-  url.searchParams.delete(CITY_QUERY_PARAM);
+  url.searchParams.set(CITY_QUERY_PARAM, destination.cityId);
+  url.searchParams.set('time', destination.timePreset);
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 });
 

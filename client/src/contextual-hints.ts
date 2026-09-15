@@ -27,7 +27,7 @@ export const contextualHintDefinitions = {
   },
   repair: {
     title: 'PLANE LIFE LOW',
-    body: 'Fly through a green Repair marker, or stop safely at an airport to heal fully.',
+    body: 'Fly through a crimson ♥ Repair Heart to restore Plane Life, or stop safely at an airport.',
     durationMs: 5_000,
   },
   stunt: {

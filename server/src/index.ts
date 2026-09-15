@@ -321,9 +321,11 @@ type TerritoryRuntime = {
   defenseLastMoveAt?: number;
   defenseLastPosition?: { x: number; z: number };
   defenderLostForAttackerId?: string;
+  aiRecaptureBlockedUntil?: number;
 };
 const territoryTickMs = 400;
 const territoryCaptureSeconds = 24;
+const territoryAiRecaptureGraceMs = 60_000;
 const territoryCaptureRewardCooldownMs = 120_000;
 const territoryControlRewardMs = 45_000;
 const territoryRewardCooldown = new Map<string, number>();
@@ -1631,7 +1633,9 @@ function updateTerritories(now: number): void {
     for (const territory of cityTerritories) {
       // A summoned defender is a combat threat, not a second capture
       // contributor; its arrival must not freeze the invader's progress.
-      const inside = activePlayers.filter(([id, player]) => id !== territory.defenderBotId && territoryContains(territory.definition, player.position));
+      const inside = activePlayers.filter(([id, player]) => id !== territory.defenderBotId &&
+        (!player.isBot || !territory.controllerId || now >= (territory.aiRecaptureBlockedUntil ?? 0)) &&
+        territoryContains(territory.definition, player.position));
       const humansInside = inside.filter(([, pilot]) => !pilot.isBot);
       const intruder = territory.controllerId ? humansInside.find(([id]) => id !== territory.controllerId)?.[0] : undefined;
       updateTerritoryDefense(territory, intruder, now);
@@ -1690,6 +1694,7 @@ function updateTerritories(now: number): void {
         territory.defenseAttackerId = undefined;
         territory.defenderLostForAttackerId = undefined;
         territory.controllerId = playerId;
+        territory.aiRecaptureBlockedUntil = !contributor[1].isBot ? now + territoryAiRecaptureGraceMs : undefined;
         ownershipChanged = true;
         territory.capturingPlayerId = undefined;
         territory.lastRewardAt = now;

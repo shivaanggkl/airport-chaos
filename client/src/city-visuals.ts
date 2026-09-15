@@ -83,6 +83,13 @@ export class CityVisualLayer {
   private elapsed = 0;
   private updateTimer = 0;
 
+  setDusk(dusk: boolean): void {
+    const terminalWindows = this.group.getObjectByName('airport-terminal-window-glow') as THREE.InstancedMesh | undefined;
+    const towerWindows = this.group.getObjectByName('signature-tower-window-bands') as THREE.InstancedMesh | undefined;
+    if (terminalWindows) terminalWindows.material = dusk ? terminalWindowDusk : terminalWindowDay;
+    if (towerWindows) towerWindows.material = dusk ? towerWindowDusk : towerWindowDay;
+  }
+
   constructor(
     scene: THREE.Scene,
     private readonly config: CityVisualConfig,
