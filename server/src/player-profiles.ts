@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 import { missionForCity } from '../../shared/city-missions.mjs';
-import { ECONOMY_VERSION, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
+import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
 import { economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 
@@ -18,6 +18,7 @@ export type PlayerProfile = {
   economyVersion: number;
   aircraftEntitlements: string[];
   testerCodeEnabled: boolean;
+  fighterTrial: FighterTrialState;
   selectedAircraft: AircraftType;
   unlockedAircraft: AircraftType[];
   totalDistance: number;
@@ -32,6 +33,7 @@ export type PlayerProfile = {
   missions: Partial<Record<CityId, MissionCityState>>;
   legacyImportPending: boolean;
 };
+export type FighterTrialState = { status: 'available' | 'pending' | 'active' | 'consumed'; startedAt?: number; expiresAt?: number; completedReportedAt?: number };
 
 export type MissionAttempt = {
   missionId: string; attemptId: string; startedAt: number; updatedAt: number;
@@ -101,7 +103,19 @@ type ProfileRow = {
   economy_version: number;
   aircraft_entitlements: string;
   missions: string;
+  fighter_trial: string;
 };
+
+function parseFighterTrial(value: unknown): FighterTrialState {
+  let source: Partial<FighterTrialState> = {};
+  try { source = typeof value === 'string' ? JSON.parse(value) : (value as Partial<FighterTrialState>); } catch { /* legacy/default */ }
+  if (source.status === 'pending') return { status: 'pending' };
+  if (source.status === 'active' && Number.isFinite(source.startedAt) && Number.isFinite(source.expiresAt)) {
+    return { status: 'active', startedAt: Number(source.startedAt), expiresAt: Number(source.expiresAt), completedReportedAt: Number.isFinite(source.completedReportedAt) ? Number(source.completedReportedAt) : undefined };
+  }
+  if (source.status === 'consumed') return { status: 'consumed', startedAt: source.startedAt, expiresAt: source.expiresAt };
+  return { status: 'available' };
+}
 
 function parseMissionStates(value: unknown): Partial<Record<CityId, MissionCityState>> {
   let raw: Record<string, unknown> = {};
@@ -295,7 +309,8 @@ export class PlayerProfileStore {
         mastery TEXT NOT NULL DEFAULT '{}',
         economy_version INTEGER NOT NULL DEFAULT 0,
         aircraft_entitlements TEXT NOT NULL DEFAULT '[]'
-        ,missions TEXT NOT NULL DEFAULT '{}'
+        ,missions TEXT NOT NULL DEFAULT '{}',
+        fighter_trial TEXT NOT NULL DEFAULT '{"status":"available"}'
       );
       CREATE TABLE IF NOT EXISTS profile_reward_receipts (
         pilot_id TEXT NOT NULL,
@@ -321,6 +336,7 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN economy_version INTEGER NOT NULL DEFAULT 0`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN aircraft_entitlements TEXT NOT NULL DEFAULT '[]'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN missions TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
+    try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN fighter_trial TEXT NOT NULL DEFAULT '{"status":"available"}'`); } catch { /* already migrated */ }
     this.pruneRewardReceipts();
     this.database.exec(`
       CREATE INDEX IF NOT EXISTS profile_reward_receipts_pilot_created ON profile_reward_receipts (pilot_id, created_at DESC);
@@ -461,6 +477,44 @@ export class PlayerProfileStore {
     if (!profile.unlockedAircraft.includes(requestedAircraft as AircraftType)) return profile;
     this.database.prepare('UPDATE player_profiles SET selected_aircraft = ? WHERE pilot_id = ?').run(requestedAircraft, pilotId);
     return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  requestFighterTrial(pilotId: string): { ok: boolean; reason?: string; profile?: PlayerProfile } {
+    const row = this.getRow(pilotId);
+    if (!row) return { ok: false, reason: 'PROFILE NOT FOUND' };
+    const profile = this.toProfile(row);
+    if (profile.unlockedAircraft.includes('fighter') && profile.fighterTrial.status === 'available') return { ok: true, profile };
+    if (profile.aircraftEntitlements.includes(aircraftEntitlement('fighter')!)) return { ok: true, profile };
+    if (profile.fighterTrial.status !== 'available') return { ok: false, reason: 'FREE TEST FLIGHT ALREADY USED', profile };
+    this.database.prepare('UPDATE player_profiles SET fighter_trial = ? WHERE pilot_id = ?').run(JSON.stringify({ status: 'pending' }), pilotId);
+    return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+  }
+
+  activateFighterTrial(pilotId: string, now = Date.now()): PlayerProfile | undefined {
+    const row = this.getRow(pilotId); if (!row) return undefined;
+    const trial = parseFighterTrial(row.fighter_trial);
+    if (trial.status !== 'pending') return this.toProfile(row);
+    const active: FighterTrialState = { status: 'active', startedAt: now, expiresAt: now + REDSPEAR_TRIAL_DURATION_MS };
+    this.database.prepare('UPDATE player_profiles SET fighter_trial = ?, selected_aircraft = ? WHERE pilot_id = ?').run(JSON.stringify(active), 'fighter', pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  consumeExpiredFighterTrial(pilotId: string, now = Date.now()): PlayerProfile | undefined {
+    const row = this.getRow(pilotId); if (!row) return undefined;
+    const trial = parseFighterTrial(row.fighter_trial);
+    if (trial.status !== 'active' || (trial.expiresAt ?? Infinity) > now) return this.toProfile(row);
+    const consumed = { ...trial, status: 'consumed' } satisfies FighterTrialState;
+    this.database.prepare('UPDATE player_profiles SET fighter_trial = ?, selected_aircraft = CASE WHEN selected_aircraft = ? THEN ? ELSE selected_aircraft END WHERE pilot_id = ?')
+      .run(JSON.stringify(consumed), 'fighter', 'trainer', pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  markFighterTrialCompleted(pilotId: string, now = Date.now()): boolean {
+    const row = this.getRow(pilotId); if (!row) return false;
+    const trial = parseFighterTrial(row.fighter_trial);
+    if (trial.status !== 'active' || (trial.expiresAt ?? Infinity) > now || trial.completedReportedAt) return false;
+    this.database.prepare('UPDATE player_profiles SET fighter_trial = ? WHERE pilot_id = ?').run(JSON.stringify({ ...trial, completedReportedAt: now }), pilotId);
+    return true;
   }
 
   purchaseAircraft(pilotId: string, requestedAircraft: unknown): { ok: boolean; reason?: string; profile?: PlayerProfile } {
@@ -684,9 +738,12 @@ export class PlayerProfileStore {
     }
     const credits = boundedInteger(row.credits, 1_000_000);
     const aircraftEntitlements = parseEntitlements(row.aircraft_entitlements);
-    const unlockedAircraft = parseOwnedAircraft(row.owned_aircraft, aircraftEntitlements);
+    const fighterTrial = parseFighterTrial(row.fighter_trial);
+    const permanentlyUnlocked = parseOwnedAircraft(row.owned_aircraft, aircraftEntitlements);
+    const unlockedAircraft = [...permanentlyUnlocked];
+    if ((fighterTrial.status === 'pending' || fighterTrial.status === 'active') && !unlockedAircraft.includes('fighter')) unlockedAircraft.push('fighter');
     const selectedAircraft = selectedOwnedAircraft(row.selected_aircraft, unlockedAircraft);
-    const encodedOwnedAircraft = JSON.stringify(unlockedAircraft);
+    const encodedOwnedAircraft = JSON.stringify(permanentlyUnlocked);
     if (row.owned_aircraft !== encodedOwnedAircraft || row.selected_aircraft !== selectedAircraft) {
       this.database.prepare('UPDATE player_profiles SET owned_aircraft = ?, selected_aircraft = ? WHERE pilot_id = ?')
         .run(encodedOwnedAircraft, selectedAircraft, row.pilot_id);
@@ -700,6 +757,7 @@ export class PlayerProfileStore {
       economyVersion: ECONOMY_VERSION,
       aircraftEntitlements,
       testerCodeEnabled: /^[a-f0-9]{64}$/i.test(process.env.REDSPEAR_TESTER_CODE_HASH ?? ''),
+      fighterTrial,
       selectedAircraft,
       unlockedAircraft,
       totalDistance: boundedNumber(row.total_distance, 10_000_000),

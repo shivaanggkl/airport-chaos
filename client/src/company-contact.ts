@@ -1,10 +1,10 @@
 // Public sponsorship contact shared by Help and the in-game invitation.
-export const SPONSOR_CONTACT_EMAIL = 'support@wathansoftware.com';
+export const SPONSOR_CONTACT_EMAIL = 'support@vadensoftware.com';
 
 export const companyContact = {
   companyName: 'Vaden Software',
-  website: 'https://wathansoftware.com',
-  websiteLabel: 'WathanSoftware.com',
+  website: 'https://vadensoftware.com',
+  websiteLabel: 'VadenSoftware.com',
   contactEmail: SPONSOR_CONTACT_EMAIL,
 } as const;
 

@@ -19,6 +19,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
+import { FirehawkPayments } from './firehawk-payments.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -251,7 +252,14 @@ const lastEventTypes = new Map<CityId, DynamicEventType>();
 const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url)));
 const profileStore = new PlayerProfileStore(profileDatabasePath);
 const analyticsStore = new AnalyticsStore(profileDatabasePath);
+const firehawkPayments = new FirehawkPayments(profileDatabasePath);
 analyticsStore.prune();
+const checkoutAttempts = new Map<string, number[]>();
+function reconcilePaidFirehawk(profile: PlayerProfile): PlayerProfile {
+  return firehawkPayments.completedForPilot(profile.pilotId) && !profile.aircraftEntitlements.includes('REDSPEAR_FIGHTER_PREMIUM')
+    ? profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter']) ?? profile
+    : profile;
+}
 const analyticsContexts = new Map<string, AnalyticsContext>();
 const lastClientCrashAnalytics = new Map<string, number>();
 function recordAnalytics(playerId: string, eventName: AnalyticsEventName, details: { amount?: number; source?: string; metadata?: Record<string, string | number | boolean> } = {}, now = Date.now()): void {
@@ -406,6 +414,20 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   try { return JSON.parse(body) as Record<string, unknown>; } catch { return undefined; }
 }
 
+async function readRawBody(request: IncomingMessage, maximum = 1_048_576): Promise<Buffer | undefined> {
+  const chunks: Buffer[] = []; let size = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk); size += buffer.length;
+    if (size > maximum) return undefined; chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+function checkoutOrigin(request: IncomingMessage): string {
+  const host = (request.headers.host ?? '').toLowerCase();
+  return host.startsWith('localhost:') || host.startsWith('127.0.0.1:') ? `http://${host}` : 'https://fly.vadensoftware.com';
+}
+
 const httpServer = createServer(async (request, response) => {
   if (request.url === '/health') {
     response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -414,6 +436,53 @@ const httpServer = createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+  if (requestUrl.pathname === '/api/stripe/webhook') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    const rawBody = await readRawBody(request);
+    try {
+      if (!rawBody) throw new Error('INVALID_BODY');
+      const event = firehawkPayments.verifyEvent(rawBody, request.headers['stripe-signature'] as string | undefined);
+      const purchase = await firehawkPayments.recordPaidCheckout(event);
+      if (purchase) {
+        profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter']);
+        const host = analyticsHost(request.headers.host);
+        analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: 999, source: 'stripe' });
+      }
+      response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"received":true}');
+    } catch (error) {
+      console.warn('[stripe] webhook rejected', error instanceof Error ? error.message : 'invalid');
+      response.writeHead(400, { 'Content-Type': 'application/json' }); response.end('{"error":"Invalid webhook"}');
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/firehawk/checkout') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    const identity = identityFromRequest(request);
+    const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+    if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes('REDSPEAR_FIGHTER_PREMIUM')) {
+      response.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Firehawk already owned"}'); return;
+    }
+    const now = Date.now(); const attempts = (checkoutAttempts.get(identity.pilotId) ?? []).filter(at => now - at < 10 * 60_000);
+    if (attempts.length >= 5) { response.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Too many attempts. Try again later."}'); return; }
+    attempts.push(now); checkoutAttempts.set(identity.pilotId, attempts);
+    try {
+      const checkout = await firehawkPayments.createCheckout(identity.pilotId, checkoutOrigin(request));
+      const host = analyticsHost(request.headers.host);
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe' });
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(checkout));
+    } catch (error) {
+      console.warn('[stripe] checkout unavailable', error instanceof Error ? error.message : 'unknown');
+      response.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Checkout is not available yet"}');
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/firehawk/purchase-status') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    const identity = identityFromRequest(request); const sessionId = requestUrl.searchParams.get('sessionId') ?? '';
+    const status = firehawkPayments.status(identity.pilotId, sessionId);
+    if (status.status === 'completed') reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+    response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(status)); return;
+  }
   if (requestUrl.pathname === '/admin/analytics') {
     if (!validAdminPassword(request.headers.authorization, process.env.AIRPORT_CHAOS_ADMIN_PASSWORD_HASH)) {
       response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Airport Chaos Analytics"', 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -421,21 +490,29 @@ const httpServer = createServer(async (request, response) => {
     }
     const includeDevelopment = requestUrl.searchParams.get('environment') === 'all';
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
-    response.end(analyticsStore.dashboardHtml(!includeDevelopment)); return;
+    response.end(analyticsStore.dashboardHtml(!includeDevelopment, Date.now(), firehawkPayments.metrics())); return;
   }
   if (requestUrl.pathname === '/api/profile') {
     const identity = identityFromRequest(request);
     if (request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      response.end(JSON.stringify(profileStore.getOrCreate(identity.pilotId, identity.pilotName)));
+      response.end(JSON.stringify(reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName))));
       return;
     }
     if (request.method === 'POST') {
       const payload = await readJson(request);
       let profile: PlayerProfile | undefined;
       let error: string | undefined;
-      if (payload?.legacy) profile = profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
+      if (payload?.analyticsEvent === 'fighter_modal_viewed' || payload?.analyticsEvent === 'fighter_purchase_clicked') {
+        profile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
+        const host = analyticsHost(request.headers.host);
+        analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host }, payload.analyticsEvent, { source: 'start_garage' });
+      } else if (payload?.legacy) profile = profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
       else if (payload?.equipAircraft !== undefined) profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
+      else if (payload?.startFighterTrial === true) {
+        const result = profileStore.requestFighterTrial(identity.pilotId);
+        profile = result.profile; error = result.ok ? undefined : result.reason;
+      }
       else if (payload?.purchaseAircraft !== undefined) {
         const before = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
         const result = profileStore.purchaseAircraft(identity.pilotId, payload.purchaseAircraft);
@@ -454,7 +531,7 @@ const httpServer = createServer(async (request, response) => {
         }
       } else if (payload) profile = profileStore.updateProgress(identity.pilotId, payload.progress ?? {});
       response.writeHead(profile && !error ? 200 : error?.startsWith('Too many') ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      response.end(JSON.stringify(profile && !error ? profile : { error: error ?? 'Invalid profile update' }));
+      response.end(JSON.stringify(profile && !error ? reconcilePaidFirehawk(profile) : { error: error ?? 'Invalid profile update' }));
       return;
     }
     response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return;
@@ -965,7 +1042,7 @@ function isHumanPilot(player: PlayerState | undefined): player is PlayerState & 
 function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string): void {
   const player = players.get(playerId);
   if (!isHumanPilot(player)) return;
-  const current = profile ?? player.profile;
+  const current = reconcilePaidFirehawk(profile ?? player.profile);
   player.profile = current;
   player.displayName = current.pilotName;
   player.aircraftType = current.selectedAircraft;
@@ -1202,7 +1279,11 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   const quality = precisionLandingScore(telemetry, envelope);
   missionSignal(playerId, { type: 'landing', at: now, airportId: airport.id, quality, controlledTerritories: controlledTerritoryIds(playerId, player.cityId) });
   const landingProfile = profileStore.awardServerReward(player.pilotId, economyRewards.landing);
-  if (landingProfile) sendProfile(playerId, landingProfile, undefined, undefined, 'Safe Landing');
+  if (landingProfile) {
+    const boundaryProfile = profileStore.consumeExpiredFighterTrial(player.pilotId, now) ?? landingProfile;
+    player.profile = boundaryProfile;
+    sendProfile(playerId, boundaryProfile, undefined, undefined, 'Safe Landing');
+  }
   recordAnalytics(playerId, 'successful_landing', { source: airport.id, metadata: { quality } }, now);
   recordAnalytics(playerId, 'credits_earned', { amount: economyRewards.landing, source: 'landing' }, now);
   recordObjectiveActivity(playerId, 'landing', 1, airport.id);
@@ -2497,7 +2578,11 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
   if (isHumanPilot(victim)) {
     recordAnalytics(victimId, 'crash', { source: 'destruction' }, now);
     const victimProfile = profileStore.awardServerReward(victim.pilotId, 0, { deaths: 1 });
-    if (victimProfile) sendProfile(victimId, victimProfile);
+    if (victimProfile) {
+      const boundaryProfile = profileStore.consumeExpiredFighterTrial(victim.pilotId, now) ?? victimProfile;
+      victim.profile = boundaryProfile;
+      sendProfile(victimId, boundaryProfile);
+    }
   } else if (victim.bot) {
     victim.bot.phase = 'respawn';
     victim.bot.respawnAt = now + 7_000;
@@ -3645,7 +3730,10 @@ server.on('connection', (socket, request) => {
     otherSocket.close(4001, 'Profile opened in another tab');
   }
   profileStore.getOrCreate(identity.pilotId, identity.pilotName);
-  const profile = profileStore.objectivesForCity(identity.pilotId, cityId)!;
+  let profile = profileStore.consumeExpiredFighterTrial(identity.pilotId)!;
+  const activatedTrialOnConnect = profile.fighterTrial.status === 'pending';
+  if (activatedTrialOnConnect) profile = profileStore.activateFighterTrial(identity.pilotId)!;
+  profile = profileStore.objectivesForCity(identity.pilotId, cityId)!;
   if (connectionKind === 'NEW' && !profile.legacyImportPending) connectionKind = 'RECONNECT';
   const spawnSlot = reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
@@ -3679,6 +3767,7 @@ server.on('connection', (socket, request) => {
   const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, cityId, aircraftType: profile.selectedAircraft, ...host };
   analyticsContexts.set(playerId, analyticsContext);
   analyticsStore.startSession(analyticsContext);
+  if (activatedTrialOnConnect) analyticsStore.recordEvent(analyticsContext, 'fighter_trial_started', { source: 'garage' });
   console.log(`[server] player connected: ${playerId} (${playerSockets.size} humans online)`);
   if (stabilityDiagnosticsEnabled) console.info('[connection]', {
     pilotId: profile.pilotId, sessionId: playerId, cityId, kind: connectionKind,
@@ -3755,6 +3844,8 @@ server.on('connection', (socket, request) => {
         aircraftType?: unknown;
         purchaseRequestId?: unknown;
         testerCode?: unknown;
+        startFighterTrial?: unknown;
+        fighterTrialBoundary?: unknown;
         equipRequestId?: unknown;
         airportId?: unknown;
         telemetry?: unknown;
@@ -3777,6 +3868,12 @@ server.on('connection', (socket, request) => {
         if (message.event === 'crash' && player.lifeState === 'alive' && player.hasRespawnTransform && now - player.lastStateAt <= 2_000 && (lastClientCrashAnalytics.get(playerId) ?? 0) <= now - 5_000) {
           lastClientCrashAnalytics.set(playerId, now);
           recordAnalytics(playerId, 'crash', { source: 'terrain_or_landing' }, now);
+        }
+        if (message.event === 'fighter_modal_viewed' || message.event === 'fighter_purchase_clicked') recordAnalytics(playerId, message.event, { metadata: { cityId: player.cityId } }, now);
+        if (message.event === 'fighter_trial_completed' && profileStore.markFighterTrialCompleted(player.pilotId, now)) {
+          player.profile = profileStore.getOrCreate(player.pilotId, player.displayName);
+          recordAnalytics(playerId, 'fighter_trial_completed', { metadata: { cityId: player.cityId } }, now);
+          sendProfile(playerId, player.profile);
         }
         return;
       }
@@ -3853,6 +3950,37 @@ server.on('connection', (socket, request) => {
         player.aircraftType = profile.selectedAircraft;
         player.health = maxHealthForAircraft(player.aircraftType);
         sendProfile(playerId, profile, undefined, requestId);
+        broadcastToCity(player.cityId, {
+          type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
+          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+          cityId: player.cityId, displayName: player.displayName, boostActive: player.boostActive, maxHealth: maxHealthForAircraft(player.aircraftType),
+        });
+        return;
+      }
+
+      if (message.type === 'startFighterTrial') {
+        if (player.lifeState !== 'alive' || !player.hasRespawnTransform || Date.now() - player.lastStateAt > 1500 || !groundedAtAirport(player)) {
+          sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason: 'STOP AT AN AIRPORT TO START TEST FLIGHT' }); return;
+        }
+        const requested = profileStore.requestFighterTrial(player.pilotId);
+        if (!requested.ok) { sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason: requested.reason }); return; }
+        const profile = profileStore.activateFighterTrial(player.pilotId);
+        if (!profile) return;
+        player.profile = profile; player.aircraftType = 'fighter'; player.health = maxHealthForAircraft('fighter');
+        player.selectionRevision = (player.selectionRevision ?? 0) + 1;
+        sendProfile(playerId, profile);
+        recordAnalytics(playerId, 'fighter_trial_started', { metadata: { cityId: player.cityId } });
+        sendToPlayer(playerId, { type: 'fighterTrialResult', ok: true, reason: 'FIREHAWK TEST FLIGHT STARTED' });
+        return;
+      }
+
+      if (message.type === 'fighterTrialBoundary') {
+        if (player.lifeState !== 'alive' || !player.hasRespawnTransform || Date.now() - player.lastStateAt > 1_500 || !groundedAtAirport(player)) return;
+        const profile = profileStore.consumeExpiredFighterTrial(player.pilotId);
+        if (!profile || profile.fighterTrial.status !== 'consumed') return;
+        player.profile = profile; player.aircraftType = profile.selectedAircraft; player.health = maxHealthForAircraft(player.aircraftType);
+        player.selectionRevision = (player.selectionRevision ?? 0) + 1;
+        sendProfile(playerId, profile);
         broadcastToCity(player.cityId, {
           type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
           position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,

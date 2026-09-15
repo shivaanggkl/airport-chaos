@@ -73,6 +73,11 @@ body {
 .brand-logo-home { display: block; width: min(300px, 65vw); height: min(210px, 23vh); margin: 0 auto 8px; object-fit: contain; }
 .brand-logo-menu, .brand-logo-help { display: block; width: auto; height: 42px; max-width: 148px; object-fit: contain; object-position: left center; }
 .brand-logo-help { height: 36px; max-width: 130px; }
+.game-brand-signature { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; color: #a9c2ce; font: 700 10px/1.35 ui-monospace, monospace; letter-spacing: .02em; }
+.game-brand-signature strong { color: #f0f8fb; letter-spacing: .1em; text-transform: uppercase; }
+.game-brand-signature a { color: #83d9ec; text-decoration: none; }
+.game-brand-signature a:hover, .game-brand-signature a:focus-visible { color: #fff; text-decoration: underline; }
+.game-brand-signature-start { margin: 0 auto 15px; }
 
 .city-select-card h1 {
   margin-top: 8px;
@@ -162,12 +167,13 @@ body {
 .pilot-menu-overlay[hidden] { display: none; }
 .stability-qa-panel { position: fixed; z-index: 40; top: 12px; left: 12px; margin: 0; padding: 9px 10px; color: #d8f5ff; border: 1px solid rgb(112 216 239 / 48%); border-radius: 5px; background: rgb(2 15 24 / 84%); font: 700 10px/1.4 ui-monospace, monospace; pointer-events: none; }
 #marker-qa { top: auto; bottom: 8px; max-height: 190px; max-width: 330px; overflow: auto; }
-.pilot-menu-card { width: min(880px, 100%); height: min(800px, calc(100vh - 36px)); display: grid; grid-template-rows: auto auto minmax(0, 1fr); padding: 20px; border: 1px solid rgb(123 202 222 / 42%); border-radius: 10px; background: linear-gradient(145deg, #102634, #07131e 72%); box-shadow: 0 22px 80px rgb(0 0 0 / 58%); }
+.pilot-menu-card { width: min(880px, 100%); height: min(800px, calc(100vh - 36px)); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; padding: 20px; border: 1px solid rgb(123 202 222 / 42%); border-radius: 10px; background: linear-gradient(145deg, #102634, #07131e 72%); box-shadow: 0 22px 80px rgb(0 0 0 / 58%); }
 .pilot-menu-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 13px; border-bottom: 1px solid rgb(160 222 235 / 22%); }
 .pilot-menu-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable; touch-action: pan-y; }
 .pilot-menu-navigation { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: thin; }
 .pilot-menu-navigation button { flex: none; white-space: nowrap; }
 .pilot-menu-navigation button.active { color: #07141e; background: var(--meaning-reward); border-color: var(--meaning-reward); }
+.game-brand-signature-menu { justify-content: flex-start; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgb(160 222 235 / 14%); }
 .pilot-menu-control-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; margin: 12px 0; }
 .pilot-menu-control-group h3 { grid-column: 1 / -1; margin: 0; color: var(--meaning-reward); font-size: 11px; }
 .pilot-menu-kicker { color: #ffd36a; font: 800 10px ui-monospace, monospace; letter-spacing: .18em; }
@@ -230,6 +236,13 @@ body {
 .garage-details { padding: 14px; border: 1px solid rgb(132 202 220 / 20%); background: rgb(255 255 255 / 3%); } .garage-details [data-garage-status] { color: #ffd36a; font-size: 10px; font-weight: 800; letter-spacing: .1em; } .garage-details p { color: #b8cbd3; line-height: 1.5; } .garage-stats { display: grid; gap: 7px; margin: 18px 0; } .garage-stats div { display:flex; justify-content:space-between; gap:12px; font-size:10px; } .garage-stats b { color: #79d9ee; letter-spacing: 2px; }
 .garage-list { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 14px; } .garage-aircraft { min-height: 46px; padding: 7px; color: #b8dce5; border: 1px solid rgb(132 202 220 / 24%); background: rgb(255 255 255 / 4%); font: 800 10px/1.3 ui-monospace, monospace; cursor: pointer; } .garage-aircraft.selected { color: #fff2bd; border-color: #ffd36a; background: rgb(255 211 106 / 10%); }
 .garage-balance { display:flex; align-items:center; gap:12px; color:#ffd36a; font:800 11px ui-monospace,monospace; } .garage-details [data-garage-message] { display:block; min-height:16px; margin-top:8px; color:#ffd36a; font:800 10px ui-monospace,monospace; } .garage-tester { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; } .garage-tester input,.garage-tester button { padding:7px 9px; border:1px solid rgb(132 202 220 / 35%); border-radius:4px; color:#dff7ff; background:#0b202c; font:800 10px ui-monospace,monospace; } .garage-tester[hidden] { display:none; }
+.garage-premium { display:grid; gap:9px; margin:14px 0; padding:14px; border:1px solid rgb(255 211 106 / 42%); border-radius:7px; background:linear-gradient(145deg,rgb(110 22 30 / 38%),rgb(255 211 106 / 7%)); }
+.garage-premium[hidden], .garage-details button[hidden] { display:none; }
+.garage-premium > b { color:#ffd36a; font-size:13px; letter-spacing:.1em; } .garage-premium > strong { color:#fff; font-size:11px; letter-spacing:.16em; }
+.garage-premium > p { margin:0; font-size:11px; } .garage-premium > div { display:grid; grid-template-columns:1fr 1fr; gap:8px; color:#bcd2dc; font-size:9px; }
+.garage-premium > div span { padding:8px; border:1px solid rgb(255 255 255 / 12%); border-radius:4px; } .garage-premium > div b { color:#fff; font-size:12px; }
+.fighter-trial-indicator { position:fixed; z-index:4; top:82px; left:50%; transform:translateX(-50%); padding:6px 10px; border:1px solid rgb(255 211 106 / 42%); border-radius:5px; color:#ffe28b; background:rgb(7 20 30 / 82%); font:800 10px ui-monospace,monospace; pointer-events:none; }
+.fighter-trial-indicator.hidden { display:none; }
 @media (max-width: 680px) { .garage-layout { grid-template-columns: 1fr; } .garage-preview { min-height: 240px; } .garage-preview canvas { height: 240px; } .garage-list { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 
 #osm-attribution {
@@ -2034,6 +2047,13 @@ body {
 .restart {
   margin-top: 14px;
   color: #ffd34d;
+}
+
+.game-brand-signature-crash {
+  max-width: 430px;
+  margin: 20px auto 0;
+  padding-top: 14px;
+  border-top: 1px solid rgb(255 255 255 / 16%);
 }
 
 /* Keep transient gameplay notices visible without turning them into persistent game panels. */

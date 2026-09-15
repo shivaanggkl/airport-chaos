@@ -21,6 +21,7 @@ import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type Human
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { beginFirehawkCheckout } from './firehawk-checkout';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
@@ -1349,6 +1350,17 @@ function updateFlightHud(): void {
   speedElement.classList.toggle('landing-risk', speedRisk);
   altitudeElement.classList.toggle('landing-risk', descentRisk);
   verticalSpeedElement.classList.toggle('landing-risk', descentRisk);
+  const trial = serverProfile.fighterTrial;
+  const trialActive = aircraftType === 'fighter' && trial.status === 'active' && typeof trial.expiresAt === 'number';
+  if (trialActive) {
+    const remaining = Math.max(0, trial.expiresAt! - Date.now());
+    const totalSeconds = Math.ceil(remaining / 1000);
+    fighterTrialIndicator.textContent = remaining > 0
+      ? `FIREHAWK TRIAL — ${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
+      : 'FIREHAWK TRIAL COMPLETE · UNLOCK FOREVER FOR $9.99';
+    if (remaining === 0 && !trial.completedReportedAt && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_trial_completed' }));
+  }
+  fighterTrialIndicator.classList.toggle('hidden', !trialActive);
 }
 
 function updateAirportNavigation(): void {
@@ -2707,6 +2719,16 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
   if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER REQUIRED FOR TESTER CODE'); return; }
   try { socket.send(JSON.stringify({ type: 'redeemTesterCode', testerCode: code })); }
   catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
+}, () => {
+  if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER REQUIRED FOR TEST FLIGHT'); return; }
+  try { socket.send(JSON.stringify({ type: 'startFighterTrial' })); }
+  catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
+}, () => {
+  if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_purchase_clicked' }));
+  void beginFirehawkCheckout({ pilotId: serverProfile.pilotId, pilotName: serverProfile.pilotName })
+    .catch((error: unknown) => aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
+}, () => {
+  if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_modal_viewed' }));
 });
 function openGarage(): boolean {
   if (!onGround || crashed) {
@@ -2718,6 +2740,9 @@ function openGarage(): boolean {
   heldActions.clear();
   if (worldMap.isOpen()) worldMap.setOpen(false);
   if (pilotMenu.isOpen()) pilotMenu.close();
+  if (connectionReady() && serverProfile.fighterTrial.status === 'active' && (serverProfile.fighterTrial.expiresAt ?? Infinity) <= Date.now()) {
+    socket.send(JSON.stringify({ type: 'fighterTrialBoundary' }));
+  }
   aircraftGarage.open({
     credits,
     selectedAircraft: aircraftType,
@@ -2725,6 +2750,7 @@ function openGarage(): boolean {
     economyVersion: serverProfile.economyVersion,
     aircraftEntitlements: serverProfile.aircraftEntitlements,
     testerCodeEnabled: serverProfile.testerCodeEnabled,
+    fighterTrial: serverProfile.fighterTrial,
   });
   return true;
 }
@@ -2903,6 +2929,7 @@ const lastValidCameraQuaternion = camera.quaternion.clone();
 let lastValidCameraFov = camera.fov;
 let lastValidCameraFar = camera.far;
 const speedElement = document.querySelector<HTMLSpanElement>('#speed')!;
+const fighterTrialIndicator = document.querySelector<HTMLDivElement>('#fighter-trial-indicator')!;
 const throttleElement = document.querySelector<HTMLSpanElement>('#throttle')!;
 const boostElement = document.querySelector<HTMLSpanElement>('#boost')!;
 const boostReadoutElement = document.querySelector<HTMLSpanElement>('#boost-readout')!;
@@ -2995,6 +3022,7 @@ type NetworkProfile = {
   economyVersion: number;
   aircraftEntitlements: string[];
   testerCodeEnabled: boolean;
+  fighterTrial: { status: 'available' | 'pending' | 'active' | 'consumed'; startedAt?: number; expiresAt?: number; completedReportedAt?: number };
   selectedAircraft: AircraftType;
   unlockedAircraft: AircraftType[];
   totalDistance: number;
@@ -3035,6 +3063,7 @@ type ServerMessage =
   | { type: 'equipRejected'; reason: string; equipRequestId: number }
   | { type: 'aircraftPurchaseResult'; purchaseRequestId: number; aircraftType?: unknown; ok: boolean; reason?: string }
   | { type: 'testerCodeResult'; ok: boolean; reason: string }
+  | { type: 'fighterTrialResult'; ok: boolean; reason?: string }
   | { type: 'missionState'; cityId: CityId; state: NetworkMissionCityState }
   | { type: 'missionResult'; missionId: string; ok: boolean; reason?: string; confirmationRequired?: boolean; attemptId?: string }
   | { type: 'missionCompleted'; missionId: string; credits: number; score: number }
@@ -3113,6 +3142,7 @@ function createSafeNetworkProfile(): NetworkProfile {
     economyVersion: 0,
     aircraftEntitlements: [],
     testerCodeEnabled: false,
+    fighterTrial: { status: 'available' },
     selectedAircraft: 'trainer',
     unlockedAircraft: ['trainer'],
     totalDistance: persistedPlayer.totalDistance,
@@ -3140,6 +3170,7 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
     typeof profile.economyVersion === 'number' && Number.isSafeInteger(profile.economyVersion) && profile.economyVersion >= 0 &&
     Array.isArray(profile.aircraftEntitlements) && profile.aircraftEntitlements.every((entry) => typeof entry === 'string') &&
     typeof profile.testerCodeEnabled === 'boolean' &&
+    !!profile.fighterTrial && ['available', 'pending', 'active', 'consumed'].includes(profile.fighterTrial.status) &&
     isAircraftType(profile.selectedAircraft) &&
     Array.isArray(profile.unlockedAircraft) && profile.unlockedAircraft.every(isAircraftType) &&
     typeof profile.totalDistance === 'number' && Number.isFinite(profile.totalDistance) && profile.totalDistance >= 0 &&
@@ -6676,6 +6707,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
     economyVersion: profile.economyVersion,
     aircraftEntitlements: profile.aircraftEntitlements,
     testerCodeEnabled: profile.testerCodeEnabled,
+    fighterTrial: profile.fighterTrial,
   });
   updateProgressHud();
   savePlayerProgress();
@@ -6953,6 +6985,9 @@ socket.addEventListener('message', (event) => {
     aircraftGarage.showActionResult(message.ok ? 'AIRCRAFT PURCHASED — NOW OWNED' : (message.reason ?? 'PURCHASE FAILED'));
   } else if (message.type === 'testerCodeResult') {
     aircraftGarage.showActionResult(message.reason);
+  } else if (message.type === 'fighterTrialResult') {
+    aircraftGarage.showActionResult(message.reason ?? (message.ok ? 'FIREHAWK TEST FLIGHT STARTED' : 'TEST FLIGHT UNAVAILABLE'));
+    if (message.ok) aircraftGarage.close();
   } else if (message.type === 'projectileSpawn') {
     addProjectile(message);
   } else if (message.type === 'projectileStates') {

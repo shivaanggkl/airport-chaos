@@ -3,8 +3,9 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from
 import { AircraftGarage, type GarageProfile } from './garage';
 import type { AircraftType } from './aircraft';
 import { flightTutorial } from './tutorial';
-import { mountAirportChaosLogo } from './brand';
+import { mountAirportChaosLogo, mountGameBrandSignature } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { beginFirehawkCheckout, verifyCheckoutReturn } from './firehawk-checkout';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
@@ -18,6 +19,8 @@ const citySelectionError = document.querySelector<HTMLElement>('#city-selection-
 const garageEntry = document.querySelector<HTMLButtonElement>('#garage-entry')!;
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kicker')!, 'brand-logo-home');
+mountGameBrandSignature(document.querySelector<HTMLElement>('#start-brand-signature')!, 'game-brand-signature-start');
+mountGameBrandSignature(document.querySelector<HTMLElement>('#crash-brand-signature')!, 'game-brand-signature-crash');
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
 type GarageIdentity = { pilotId: string; displayName: string; credits: number; selectedAircraft: AircraftType };
@@ -33,6 +36,10 @@ function identity(): GarageIdentity {
 }
 const garageIdentity = identity();
 const profileOrigin = import.meta.env.DEV ? 'http://localhost:8091' : window.location.origin;
+function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purchase_clicked'): void {
+  const url = new URL('/api/profile', profileOrigin); url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
+  void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ analyticsEvent: event }) }).catch(() => undefined);
+}
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 // The landing page has its own small, explicit modal router.  Keeping NONE
 // distinct from CITIES prevents an in-flight profile request from reopening a
@@ -69,6 +76,7 @@ function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
     economyVersion: profile.economyVersion,
     aircraftEntitlements: profile.aircraftEntitlements,
     testerCodeEnabled: profile.testerCodeEnabled === true,
+    fighterTrial: profile.fighterTrial ?? { status: 'available' },
   };
 }
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
@@ -100,7 +108,31 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     if (!response.ok) { garage.showActionResult(result.error ?? 'CODE REJECTED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('Redspear Fighter Unlocked');
   } catch { garage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
-});
+}, async () => {
+  try {
+    const url = new URL('/api/profile', profileOrigin); url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startFighterTrial: true }) });
+    const result = await response.json() as GarageProfile & { error?: string };
+    if (!response.ok) { garage.showActionResult(result.error ?? 'TEST FLIGHT UNAVAILABLE'); return; }
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
+  } catch { garage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
+}, () => {
+  recordGarageBusinessEvent('fighter_purchase_clicked');
+  void beginFirehawkCheckout({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName })
+    .catch((error: unknown) => garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
+}, () => recordGarageBusinessEvent('fighter_modal_viewed'));
+
+void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName }).then(async result => {
+  if (result.state === 'none') return;
+  garage.open(garageProfile, true);
+  if (result.state === 'cancelled') garage.showActionResult('CHECKOUT CANCELLED — FIREHAWK REMAINS LOCKED');
+  else if (result.state === 'completed') {
+    const profile = await loadGarageProfile(); garage.updateProfile(profile);
+    garage.showActionResult(`FIREHAWK UNLOCKED · PURCHASE CONFIRMED · REF ${result.reference ?? 'AVAILABLE'}`);
+  } else garage.showActionResult('PAYMENT RECEIVED — VERIFYING · YOUR UNLOCK WILL APPEAR SHORTLY');
+  const clean = new URL(window.location.href); clean.searchParams.delete('checkout'); clean.searchParams.delete('session_id');
+  window.history.replaceState(null, '', `${clean.pathname}${clean.search}${clean.hash}`);
+}).catch(() => garage.showActionResult('PURCHASE VERIFICATION UNAVAILABLE'));
 garageEntry.addEventListener('click', async () => {
   if (startModalState === 'GARAGE') return;
   startModalState = 'GARAGE';

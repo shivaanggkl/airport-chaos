@@ -1,6 +1,6 @@
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
 import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
-import { mountAirportChaosLogo } from './brand';
+import { createGameBrandSignature, mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string };
 
@@ -286,7 +286,8 @@ export class PilotMenu {
       button.dataset.section = name;
       navigation.append(button);
     }
-    card.append(header, navigation, content);
+    const footer = createGameBrandSignature('game-brand-signature-menu');
+    card.append(header, navigation, content, footer);
     this.element.replaceChildren(card);
     this.content = content;
     this.navigation = navigation;

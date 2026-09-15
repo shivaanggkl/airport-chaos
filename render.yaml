@@ -13,6 +13,14 @@ services:
         value: /var/data/player-profiles.sqlite
       - key: AIRPORT_CHAOS_ADMIN_PASSWORD_HASH
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_FIREHAWK_PRICE_ID
+        sync: false
+      - key: STRIPE_MODE
+        value: test
     disk:
       name: airport-chaos-data
       mountPath: /var/data

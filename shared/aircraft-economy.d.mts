@@ -5,6 +5,7 @@ export type AircraftEconomyEntry =
   | { readonly access: 'premium'; readonly credits: 0; readonly usdPrice: string; readonly entitlement: string };
 export const ECONOMY_VERSION: number;
 export const REDSPEAR_PRICE_USD: string;
+export const REDSPEAR_TRIAL_DURATION_MS: number;
 export const aircraftDisplayOrder: readonly StableAircraftType[];
 export const aircraftEconomy: Readonly<Record<StableAircraftType, AircraftEconomyEntry>>;
 export function aircraftCreditPrice(type: StableAircraftType): number | undefined;

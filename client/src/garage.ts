@@ -11,6 +11,7 @@ export type GarageProfile = {
   economyVersion?: number;
   aircraftEntitlements?: string[];
   testerCodeEnabled?: boolean;
+  fighterTrial?: { status: 'available' | 'pending' | 'active' | 'consumed'; startedAt?: number; expiresAt?: number; completedReportedAt?: number };
 };
 
 export class AircraftGarage {
@@ -48,8 +49,11 @@ export class AircraftGarage {
     private readonly onClose?: () => void,
     private readonly onPurchase?: (type: AircraftType) => void,
     private readonly onRedeemTesterCode?: (code: string) => void,
+    private readonly onStartFighterTrial?: () => void,
+    private readonly onPremiumPurchase?: () => void,
+    private readonly onFighterModalViewed?: () => void,
   ) {
-    element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details"><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
+    element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details"><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-premium" data-garage-premium hidden><b>REDSPEAR FIGHTER</b><strong>FIREHAWK</strong><p>Fastest and most agile combat aircraft currently available in Airport Chaos.</p><div><span>FREE TEST FLIGHT<br><b>5 minutes</b></span><span>UNLOCK FOREVER<br><b>${REDSPEAR_PRICE_USD}</b></span></div><button type="button" data-garage-trial>START 5-MIN FREE TEST FLIGHT</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${REDSPEAR_PRICE_USD}</button></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -58,7 +62,7 @@ export class AircraftGarage {
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
     for (const type of aircraftDisplayOrder) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
-      card.addEventListener('click', () => { this.selected = type; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); });
+      card.addEventListener('click', () => { this.selected = type; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
     }
     element.querySelector('[data-garage-close]')!.addEventListener('click', () => this.close());
@@ -78,6 +82,8 @@ export class AircraftGarage {
       const code = testerInput.value.trim(); if (!code || this.actionPending) return;
       this.actionPending = true; this.actionMessage = 'CHECKING CODE…'; this.renderDetails(); this.onRedeemTesterCode?.(code); testerInput.value = '';
     });
+    element.querySelector('[data-garage-trial]')!.addEventListener('click', () => { if (!this.actionPending) { this.actionPending = true; this.actionMessage = 'STARTING TEST FLIGHT…'; this.renderDetails(); this.onStartFighterTrial?.(); } });
+    element.querySelector('[data-garage-premium-buy]')!.addEventListener('click', () => { this.onPremiumPurchase?.(); this.showActionResult('PURCHASE COMING SOON'); });
     canvas.addEventListener('pointerdown', (event) => { this.dragging = true; this.pointerX = event.clientX; this.pointerY = event.clientY; canvas.setPointerCapture(event.pointerId); });
     canvas.addEventListener('pointermove', (event) => {
       if (!this.dragging) return;
@@ -165,8 +171,12 @@ export class AircraftGarage {
     const insufficient = price !== undefined && this.profile.credits < price;
     equip.disabled = this.loadingProfile || this.actionPending || this.selected === this.profile.selectedAircraft || (!owned && (definition.access === 'premium' || insufficient));
     equip.textContent = this.selected === this.profile.selectedAircraft ? 'EQUIPPED' : owned ? 'EQUIP AIRCRAFT' : definition.access === 'premium' ? 'Purchase Coming Soon' : insufficient ? `NEED ${(price! - this.profile.credits).toLocaleString()} MORE CREDITS` : `BUY · ${price!.toLocaleString()} CREDITS`;
+    equip.hidden = definition.access === 'premium' && !owned;
     this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
     const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
+    const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
+    premium.hidden = this.selected !== 'fighter' || owned;
+    this.element.querySelector<HTMLElement>('[data-garage-trial]')!.hidden = this.profile.fighterTrial?.status !== 'available';
     const canRedeem = this.selected === 'fighter' && !owned && this.profile.testerCodeEnabled === true;
     this.element.querySelector<HTMLElement>('[data-garage-redeem-open]')!.hidden = !canRedeem || this.testerOpen;
     tester.hidden = !canRedeem || !this.testerOpen;
@@ -191,6 +201,7 @@ export class AircraftGarage {
       economyVersion: profile.economyVersion,
       aircraftEntitlements: Array.isArray(profile.aircraftEntitlements) ? profile.aircraftEntitlements.filter((value): value is string => typeof value === 'string') : [],
       testerCodeEnabled: profile.testerCodeEnabled === true,
+      fighterTrial: profile.fighterTrial ?? { status: 'available' },
     };
   }
 
