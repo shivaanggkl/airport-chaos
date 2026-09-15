@@ -1,5 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
+import type { PurchaseMetrics, PurchaseMetricsByMode, StripeMode } from './firehawk-payments.js';
 
 export type AnalyticsEnvironment = 'production' | 'development';
 export type AnalyticsEventName =
@@ -67,6 +69,10 @@ export class AnalyticsStore {
       CREATE INDEX IF NOT EXISTS analytics_events_environment_created ON analytics_events(environment, created_at);
       CREATE INDEX IF NOT EXISTS analytics_events_name_created ON analytics_events(event_name, created_at);
     `);
+    // Stripe was sandbox-only before event mode metadata existed.
+    this.database.prepare(`UPDATE analytics_events SET metadata=json_set(COALESCE(metadata,'{}'),'$.stripeMode','test')
+      WHERE event_name IN ('fighter_checkout_created','fighter_purchase_completed')
+      AND json_extract(COALESCE(metadata,'{}'),'$.stripeMode') IS NULL`).run();
   }
 
   startSession(context: AnalyticsContext, now = Date.now()): void {
@@ -117,7 +123,7 @@ export class AnalyticsStore {
     });
   }
 
-  dashboardHtml(productionOnly = true, now = Date.now(), purchases?: { purchases: number; revenue: number; rows: Array<{ pilotId: string; reference: string; amount: number; paidAt: number; email?: string }> }): string {
+  dashboardHtml(productionOnly = true, now = Date.now(), purchases?: PurchaseMetricsByMode, stripeMode: StripeMode = 'test'): string {
     const environment = productionOnly ? 'production' : undefined;
     const windows = [['TODAY', 24 * 60 * 60_000], ['LAST 7 DAYS', 7 * 24 * 60 * 60_000], ['LAST 30 DAYS', 30 * 24 * 60 * 60_000]] as const;
     const cards = windows.map(([label, duration]) => this.summary(label, now - duration, environment, now)).join('');
@@ -125,13 +131,27 @@ export class AnalyticsStore {
     const args = environment ? [now - 30 * 24 * 60 * 60_000, environment] : [now - 30 * 24 * 60 * 60_000];
     const unlocks = this.database.prepare(`SELECT COALESCE(aircraft_type,'Unknown') aircraft, COUNT(*) count FROM analytics_events WHERE event_name='aircraft_unlocked' AND created_at >= ? ${filter} GROUP BY aircraft_type ORDER BY count DESC`).all(...args) as Array<{ aircraft: string; count: number }>;
     const unlockRows = unlocks.length ? unlocks.map(row => `<tr><td>${escapeHtml(row.aircraft)}</td><td>${row.count}</td></tr>`).join('') : '<tr><td colspan="2">No unlocks yet</td></tr>';
-    const purchaseRows = purchases?.rows.length ? purchases.rows.map(row => `<tr><td>${escapeHtml(row.reference)}</td><td>${escapeHtml(row.pilotId.slice(0, 8))}</td><td>$${(row.amount / 100).toFixed(2)}</td><td>${escapeHtml(row.email ?? '—')}</td></tr>`).join('') : '<tr><td colspan="4">No purchases yet</td></tr>';
-    const purchaseCard = `<div class="card" style="margin-top:16px"><h2>Firehawk purchases</h2><div class="metrics">${metricHtml('Completed purchases', purchases?.purchases ?? 0)}${metricHtml('Gross revenue', `$${((purchases?.revenue ?? 0) / 100).toFixed(2)}`)}${metricHtml('Checkout starts', this.eventCount('fighter_checkout_created', environment))}${metricHtml('Trial starts', this.eventCount('fighter_trial_started', environment))}${metricHtml('Trial completions', this.eventCount('fighter_trial_completed', environment))}${metricHtml('Trial → purchase', `${conversion(this.eventCount('fighter_purchase_completed', environment), this.eventCount('fighter_trial_started', environment))}%`)}</div><table><tr><td>Reference</td><td>Pilot</td><td>Amount</td><td>Support email</td></tr>${purchaseRows}</table></div>`;
-    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Airport Chaos Analytics</title><style>body{margin:0;background:#07111f;color:#e8f4ff;font:14px system-ui;padding:28px}h1{margin:0 0 6px;color:#65cfff}.sub{color:#8da6ba;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.card{background:#0d2032;border:1px solid #274b63;border-radius:12px;padding:18px}.metrics{display:grid;grid-template-columns:1fr auto;gap:8px 18px}.metrics b{color:#fff}.metrics span{color:#9eb5c7}table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #20394b}a{color:#65cfff}</style></head><body><h1>Airport Chaos Analytics</h1><div class="sub">${productionOnly ? 'Production only · fly.vadensoftware.com' : 'All environments'} · analytics begins at deployment</div><div class="grid">${cards}</div><div class="card" style="margin-top:16px"><h2>Aircraft unlocks · 30 days</h2><table>${unlockRows}</table></div>${purchaseCard}</body></html>`;
+    const purchaseCard = (mode: StripeMode, metrics: PurchaseMetrics | undefined) => {
+      const rows = metrics?.rows.length ? metrics.rows.map(row => `<tr><td>${escapeHtml(row.reference)}</td><td>${escapeHtml(row.pilotId.slice(0, 8))}</td><td>${formatFirehawkAmount(row.amount)}</td><td>${escapeHtml(row.email ?? '—')}</td></tr>`).join('') : '<tr><td colspan="4">No purchases yet</td></tr>';
+      const completedEvents = this.stripeEventCount('fighter_purchase_completed', mode, environment);
+      const activeFunnel = mode === stripeMode
+        ? metricHtml('Trial starts', this.eventCount('fighter_trial_started', environment)) + metricHtml('Trial completions', this.eventCount('fighter_trial_completed', environment)) + metricHtml('Trial → purchase', `${conversion(completedEvents, this.eventCount('fighter_trial_started', environment))}%`)
+        : '';
+      return `<div class="card" style="margin-top:16px"><h2>${mode.toUpperCase()} · Firehawk purchases</h2><div class="metrics">${metricHtml('Completed purchases', metrics?.purchases ?? 0)}${metricHtml(mode === 'live' ? 'Gross revenue' : 'Sandbox value', formatFirehawkAmount(metrics?.revenue ?? 0))}${metricHtml('Checkout starts', this.stripeEventCount('fighter_checkout_created', mode, environment))}${metricHtml('Purchase events', completedEvents)}${mode === stripeMode ? metricHtml('Configured Stripe mode', mode.toUpperCase()) + activeFunnel : ''}</div><table><tr><td>Reference</td><td>Pilot</td><td>Amount</td><td>Support email</td></tr>${rows}</table></div>`;
+    };
+    const purchaseCards = purchaseCard('live', purchases?.live) + purchaseCard('test', purchases?.test);
+    const modeLabel = stripeMode === 'test' ? 'STRIPE TEST MODE / SANDBOX' : 'STRIPE LIVE MODE';
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Airport Chaos Analytics</title><style>body{margin:0;background:#07111f;color:#e8f4ff;font:14px system-ui;padding:28px}h1{margin:0 0 6px;color:#65cfff}.sub{color:#8da6ba;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.card{background:#0d2032;border:1px solid #274b63;border-radius:12px;padding:18px}.metrics{display:grid;grid-template-columns:1fr auto;gap:8px 18px}.metrics b{color:#fff}.metrics span{color:#9eb5c7}table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #20394b}a{color:#65cfff}</style></head><body><h1>Airport Chaos Analytics</h1><div class="sub">${modeLabel} · ${productionOnly ? 'Production only · fly.vadensoftware.com' : 'All environments'} · analytics begins at deployment</div><div class="grid">${cards}</div><div class="card" style="margin-top:16px"><h2>Aircraft unlocks · 30 days</h2><table>${unlockRows}</table></div>${purchaseCards}</body></html>`;
   }
 
   private eventCount(name: AnalyticsEventName, environment?: string): number {
     const row = this.database.prepare(`SELECT COUNT(*) count FROM analytics_events WHERE event_name=? ${environment ? 'AND environment=?' : ''}`).get(...(environment ? [name, environment] : [name])) as { count: number };
+    return row.count;
+  }
+
+  private stripeEventCount(name: 'fighter_checkout_created' | 'fighter_purchase_completed', mode: StripeMode, environment?: string): number {
+    const row = this.database.prepare(`SELECT COUNT(*) count FROM analytics_events WHERE event_name=? AND json_extract(COALESCE(metadata,'{}'),'$.stripeMode')=? ${environment ? 'AND environment=?' : ''}`)
+      .get(...(environment ? [name, mode, environment] : [name, mode])) as { count: number };
     return row.count;
   }
 
@@ -155,6 +175,9 @@ export class AnalyticsStore {
 }
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!); }
+function formatFirehawkAmount(cents: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: firehawkProduct.currency.toUpperCase() }).format(cents / 100);
+}
 function formatDuration(milliseconds: number): string { const seconds = Math.max(0, Math.round(milliseconds / 1000)); return `${Math.floor(seconds / 60)}m ${seconds % 60}s`; }
 function metricHtml(name: string, value: string | number): string { return `<span>${escapeHtml(name)}</span><b>${escapeHtml(String(value))}</b>`; }
 function conversion(purchases: number, trials: number): string { return (trials ? purchases / trials * 100 : 0).toFixed(1); }

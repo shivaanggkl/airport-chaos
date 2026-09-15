@@ -48,7 +48,7 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; visual: s
   {
     nav: 'Missions', icon: 'mission', title: 'MISSIONS',
     visual: `<div class="help-mission-visual"><b>MISSION</b><strong>FIRST FLIGHT</strong><span>Stay in the air</span><i>15 Credits</i></div>`,
-    instructions: steps(`Open <kbd>${menuKeyLabel('menu')}</kbd> → Missions`, 'Pick one mission', 'Follow the objective and earn Credits'),
+    instructions: steps(`Open <kbd>${menuKeyLabel('menu')}</kbd> → Missions`, 'Pick one mission', 'Follow the objective and earn Credits', 'SESSION SCORE: Earned during this play session. It resets when the session ends.'),
   },
 ];
 

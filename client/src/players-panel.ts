@@ -19,6 +19,7 @@ export class PlayersPanel {
   private readonly title = document.createElement('span');
   private readonly toggle = document.createElement('button');
   private readonly content = document.createElement('div');
+  private readonly columns = document.createElement('div');
   private readonly more = document.createElement('small');
   private readonly rows = Array.from({ length: 5 }, () => {
     const row = document.createElement('div');
@@ -34,7 +35,7 @@ export class PlayersPanel {
     ownership.className = 'human-player-ownership';
     ownership.append(...dots);
     identity.append(name, ownership);
-    score.title = 'Score';
+    score.title = 'Live Score';
     level.title = 'City Level';
     status.className = 'human-player-status';
     row.append(identity, score, level, status);
@@ -50,7 +51,9 @@ export class PlayersPanel {
     const header = document.createElement('div');
     header.className = 'human-player-header';
     header.append(this.title, this.toggle);
-    this.content.append(...this.rows.map(row => row.row), this.more);
+    this.columns.className = 'human-player-columns';
+    this.columns.innerHTML = '<span>PILOT</span><span>LIVE SCORE</span><span>LEVEL</span>';
+    this.content.append(this.columns, ...this.rows.map(row => row.row), this.more);
     root.append(header, this.content);
     this.toggle.onclick = () => {
       this.collapsed = !this.collapsed;

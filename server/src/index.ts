@@ -23,6 +23,8 @@ import { FirehawkPayments } from './firehawk-payments.js';
 import { PilotSessionStore } from './session-auth.js';
 import { validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
+import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
+import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -261,10 +263,25 @@ const firehawkPayments = new FirehawkPayments(profileDatabasePath);
 const pilotSessions = new PilotSessionStore(profileDatabasePath);
 pilotSessions.prune();
 analyticsStore.prune();
-const checkoutAttempts = new Map<string, number[]>();
-const purchaseRecoveryAttempts = new Map<string, number[]>();
+const securityLimiter = new BoundedRateLimiter(20_000);
+const securityLimits = {
+  checkoutPilot: { limit: 5, windowMs: 10 * 60_000 }, checkoutIp: { limit: 10, windowMs: 10 * 60_000 },
+  recoveryPilot: { limit: 5, windowMs: 15 * 60_000 }, recoveryIp: { limit: 10, windowMs: 15 * 60_000 },
+  testerPilot: { limit: 5, windowMs: 10 * 60_000 }, testerIp: { limit: 10, windowMs: 10 * 60_000 },
+  sessionIp: { limit: 30, windowMs: 60 * 60_000 },
+} satisfies Record<string, RateLimitRule>;
+const playerClientIps = new Map<string, string>();
+const rateLimitMessage = 'TOO MANY ATTEMPTS — Please wait a few minutes and try again.';
+function rateLimited(response: ServerResponse, retryAfterMs: number): void {
+  response.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': String(Math.max(1, Math.ceil(retryAfterMs / 1000))) });
+  response.end(JSON.stringify({ error: rateLimitMessage }));
+}
+function limitedBy(scope: string, identity: string, rule: RateLimitRule): { limited: boolean; retryAfterMs: number } {
+  const result = securityLimiter.attempt(scope, identity, rule);
+  return { limited: !result.allowed, retryAfterMs: result.retryAfterMs };
+}
 function reconcilePaidFirehawk(profile: PlayerProfile): PlayerProfile {
-  return firehawkPayments.completedForPilot(profile.pilotId) && !profile.aircraftEntitlements.includes('REDSPEAR_FIGHTER_PREMIUM')
+  return firehawkPayments.completedForPilot(profile.pilotId) && !profile.aircraftEntitlements.includes(firehawkProduct.entitlement)
     ? profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter']) ?? profile
     : profile;
 }
@@ -279,13 +296,11 @@ const testerCodeHash = /^[a-f0-9]{64}$/i.test(process.env.REDSPEAR_TESTER_CODE_H
   ? Buffer.from(process.env.REDSPEAR_TESTER_CODE_HASH!, 'hex')
   : undefined;
 const testerCodeEnabled = Boolean(testerCodeHash);
-const testerAttempts = new Map<string, number[]>();
-function redeemTesterCode(pilotId: string, value: unknown): { ok: boolean; reason: string; profile?: PlayerProfile } {
+function redeemTesterCode(pilotId: string, value: unknown, clientIp: string): { ok: boolean; reason: string; profile?: PlayerProfile } {
   if (!testerCodeEnabled || !testerCodeHash) return { ok: false, reason: 'Access code redemption unavailable.' };
-  const now = Date.now();
-  const recent = (testerAttempts.get(pilotId) ?? []).filter((at) => now - at < 10 * 60_000);
-  if (recent.length >= 5) return { ok: false, reason: 'Too many attempts. Try again later.' };
-  recent.push(now); testerAttempts.set(pilotId, recent);
+  const pilotLimit = limitedBy('tester-pilot', pilotId, securityLimits.testerPilot);
+  const ipLimit = limitedBy('tester-ip', clientIp, securityLimits.testerIp);
+  if (pilotLimit.limited || ipLimit.limited) return { ok: false, reason: rateLimitMessage };
   const supplied = typeof value === 'string' ? value.trim() : '';
   const digest = createHash('sha256').update(supplied).digest();
   if (digest.length !== testerCodeHash.length || !timingSafeEqual(digest, testerCodeHash)) return { ok: false, reason: 'Invalid access code' };
@@ -489,7 +504,7 @@ const httpServer = createServer(async (request, response) => {
       if (purchase) {
         profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter']);
         const host = analyticsHost(request.headers.host);
-        analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: 999, source: 'stripe' });
+        analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: firehawkProduct.amountCents, source: 'stripe', metadata: { stripeMode: purchase.stripeMode } });
       }
       response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"received":true}');
     } catch (error) {
@@ -501,17 +516,18 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname === '/api/firehawk/checkout') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
     const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    const pilotLimit = limitedBy('checkout-pilot', identity.pilotId, securityLimits.checkoutPilot);
+    const ipLimit = limitedBy('checkout-ip', identity.clientIp, securityLimits.checkoutIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
     const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
-    if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes('REDSPEAR_FIGHTER_PREMIUM')) {
+    if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) {
       response.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Firehawk already owned"}'); return;
     }
-    const now = Date.now(); const attempts = (checkoutAttempts.get(identity.pilotId) ?? []).filter(at => now - at < 10 * 60_000);
-    if (attempts.length >= 5) { response.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Too many attempts. Try again later."}'); return; }
-    attempts.push(now); checkoutAttempts.set(identity.pilotId, attempts);
     try {
       const checkout = await firehawkPayments.createCheckout(identity.pilotId, checkoutOrigin(request));
       const host = analyticsHost(request.headers.host);
-      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe' });
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe', metadata: { stripeMode: firehawkPayments.mode } });
       response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(checkout));
     } catch (error) {
       console.warn('[stripe] checkout unavailable', error instanceof Error ? error.message : 'unknown');
@@ -522,6 +538,7 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname === '/api/firehawk/purchase-status') {
     if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
     const identity = authenticatedIdentity(request, response); const sessionId = requestUrl.searchParams.get('sessionId') ?? '';
+    if (!identity) return;
     const status = firehawkPayments.status(identity.pilotId, sessionId);
     if (status.status === 'completed') reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
     if (status.recoveryCode) analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'purchase_recovery_created', { source: 'stripe' });
@@ -530,13 +547,15 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname === '/api/firehawk/restore') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
     const identity = authenticatedIdentity(request, response);
-    const now = Date.now(); const attempts = (purchaseRecoveryAttempts.get(identity.pilotId) ?? []).filter(at => now - at < 15 * 60_000);
-    if (attempts.length >= 5) { response.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Too many attempts. Try again later."}'); return; }
-    attempts.push(now); purchaseRecoveryAttempts.set(identity.pilotId, attempts);
+    if (!identity) return;
+    const pilotLimit = limitedBy('recovery-pilot', identity.pilotId, securityLimits.recoveryPilot);
+    const ipLimit = limitedBy('recovery-ip', identity.clientIp, securityLimits.recoveryIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
     const payload = await readJson(request); const code = typeof payload?.recoveryCode === 'string' ? payload.recoveryCode : '';
     const restored = firehawkPayments.restore(code);
     if (!restored.ok) { response.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Invalid recovery code"}'); return; }
     const profile = profileStore.grantAircraftEntitlements(identity.pilotId, ['fighter']);
+    securityLimiter.clear('recovery-pilot', identity.pilotId);
     analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'purchase_recovery_succeeded', { source: restored.reference });
     response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     response.end(JSON.stringify({ profile: profile ? reconcilePaidFirehawk(profile) : undefined, recoveryCode: restored.recoveryCode, reference: restored.reference })); return;
@@ -548,10 +567,11 @@ const httpServer = createServer(async (request, response) => {
     }
     const includeDevelopment = requestUrl.searchParams.get('environment') === 'all';
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
-    response.end(analyticsStore.dashboardHtml(!includeDevelopment, Date.now(), firehawkPayments.metrics())); return;
+    response.end(analyticsStore.dashboardHtml(!includeDevelopment, Date.now(), firehawkPayments.metrics(), firehawkPayments.mode)); return;
   }
   if (requestUrl.pathname === '/api/profile') {
     const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
     if (request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName))));
@@ -581,14 +601,14 @@ const httpServer = createServer(async (request, response) => {
         }
       } else if (payload?.testerCode !== undefined) {
         const before = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
-        const result = redeemTesterCode(identity.pilotId, payload.testerCode);
+        const result = redeemTesterCode(identity.pilotId, payload.testerCode, identity.clientIp);
         profile = result.profile; error = result.ok ? undefined : result.reason;
         if (result.ok && profile?.unlockedAircraft.includes('fighter') && !before.unlockedAircraft.includes('fighter')) {
           const host = analyticsHost(request.headers.host);
           analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'aircraft_unlocked', { source: 'tester_code' });
         }
       } else if (payload) profile = profileStore.updateProgress(identity.pilotId, payload.progress ?? {});
-      response.writeHead(profile && !error ? 200 : error?.startsWith('Too many') ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.writeHead(profile && !error ? 200 : error === rateLimitMessage ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(profile && !error ? reconcilePaidFirehawk(profile) : { error: error ?? 'Invalid profile update' }));
       return;
     }
@@ -3595,10 +3615,6 @@ function pruneEphemeralRuntimeState(now: number): void {
   for (const [key, receivedAt] of masteryCooldowns) if (now - receivedAt > heatKillCooldownMs) masteryCooldowns.delete(key);
   for (const [key, receivedAt] of territoryRewardCooldown) if (now - receivedAt > territoryCaptureRewardCooldownMs) territoryRewardCooldown.delete(key);
   for (const [key, receivedAt] of fireBlockedDebugAt) if (now - receivedAt > 1_000) fireBlockedDebugAt.delete(key);
-  for (const [pilotId, attempts] of testerAttempts) {
-    const recent = attempts.filter((at) => now - at < 10 * 60_000);
-    if (recent.length) testerAttempts.set(pilotId, recent); else testerAttempts.delete(pilotId);
-  }
   for (const territories of cityTerritoryState.values()) {
     for (const territory of territories.values()) {
       for (const [playerId, lastAt] of territory.lastContestedHeatAt) {
@@ -3750,16 +3766,19 @@ function requestedPilotName(request: IncomingMessage): string {
   return (url.searchParams.get('pilotName') ?? '').slice(0, 20);
 }
 
-function authenticatedIdentity(request: IncomingMessage, response: ServerResponse): { pilotId: string; pilotName: string } {
+function authenticatedIdentity(request: IncomingMessage, response: ServerResponse): { pilotId: string; pilotName: string; clientIp: string } | undefined {
+  const clientIp = trustedClientIp(request);
   const resolved = pilotSessions.resolve(request.headers.cookie);
-  if (resolved) return { pilotId: resolved, pilotName: requestedPilotName(request) };
+  if (resolved) return { pilotId: resolved, pilotName: requestedPilotName(request), clientIp };
+  const issuanceLimit = limitedBy('session-ip', clientIp, securityLimits.sessionIp);
+  if (issuanceLimit.limited) { rateLimited(response, issuanceLimit.retryAfterMs); return undefined; }
   const url = new URL(request.url ?? '/', 'http://localhost');
   const legacyId = url.searchParams.get('pilotId') ?? '';
   const issued = pilotSessions.issue(legacyId, /^[a-zA-Z0-9-]{16,80}$/.test(legacyId) && profileStore.hasProfile(legacyId));
   const host = (request.headers.host ?? '').toLowerCase();
   const secure = !host.startsWith('localhost:') && !host.startsWith('127.0.0.1:');
   response.setHeader('Set-Cookie', pilotSessions.cookie(issued.cookie, secure));
-  return { pilotId: issued.pilotId, pilotName: requestedPilotName(request) };
+  return { pilotId: issued.pilotId, pilotName: requestedPilotName(request), clientIp };
 }
 
 function sessionIdentity(request: IncomingMessage): { pilotId: string; pilotName: string } | undefined {
@@ -3788,6 +3807,7 @@ function removeHumanConnection(socket: WebSocket): void {
   const analyticsContext = analyticsContexts.get(playerId);
   if (analyticsContext) analyticsStore.endSession({ ...analyticsContext, cityId: player.cityId, aircraftType: player.aircraftType });
   analyticsContexts.delete(playerId);
+  playerClientIps.delete(playerId);
   lastClientCrashAnalytics.delete(playerId);
   transformRejectLogAt.delete(playerId);
   missionSignal(playerId, { type: 'disconnect', at: Date.now() });
@@ -3863,6 +3883,7 @@ server.on('connection', (socket, request) => {
     spawnSlot,
   });
   playerSockets.set(socket, playerId);
+  playerClientIps.set(playerId, trustedClientIp(request));
   const host = analyticsHost(request.headers.host);
   const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, cityId, aircraftType: profile.selectedAircraft, ...host };
   analyticsContexts.set(playerId, analyticsContext);
@@ -4105,7 +4126,7 @@ server.on('connection', (socket, request) => {
 
       if (message.type === 'redeemTesterCode') {
         const previouslyOwned = player.profile.unlockedAircraft.includes('fighter');
-        const result = redeemTesterCode(player.pilotId, message.testerCode);
+        const result = redeemTesterCode(player.pilotId, message.testerCode, playerClientIps.get(playerId) ?? 'unknown');
         if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
         if (result.ok && result.profile?.unlockedAircraft.includes('fighter') && !previouslyOwned) {
           const context = analyticsContexts.get(playerId);

@@ -388,7 +388,7 @@ export class PilotMenu {
       ].filter(Boolean).join(' · ');
       const meta = [
         player.distance === undefined ? player.lifecycle : `${player.lifecycle} · ${Math.round(player.distance)}m`,
-        `Score ${player.score}`,
+        `Live Score ${player.score}`,
         player.kills === undefined ? '' : `Kills ${player.kills}`,
         badges,
       ].filter(Boolean).join(' · ');
@@ -438,7 +438,7 @@ export class PilotMenu {
     const cards = document.createElement('div'); cards.className = 'pilot-progress-grid';
     const creditsCard = this.progressCard('credits', `${visualLanguage.credits.icon} CREDITS`, data.progression.credits.toLocaleString(), 'Use Credits to unlock aircraft.');
     creditsCard.querySelector('.pilot-progress-value')!.setAttribute('data-progress-slot', 'credits');
-    const scoreCard = this.progressCard('score', `${visualLanguage.score.icon} SCORE`, data.progression.score.toLocaleString(), 'Your competition score.');
+    const scoreCard = this.progressCard('score', `${visualLanguage.score.icon} SESSION SCORE`, data.progression.score.toLocaleString(), 'Earned this session. Resets when the session ends.');
     scoreCard.querySelector('.pilot-progress-value')!.setAttribute('data-progress-slot', 'score');
     cards.append(creditsCard, scoreCard);
     const cityLevel = this.progressCard('level', `🏙 CITY LEVEL`, `Level ${data.mastery.level}`, `Your ${data.mastery.city} progress.`);

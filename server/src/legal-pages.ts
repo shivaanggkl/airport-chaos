@@ -1,4 +1,5 @@
 import { legalConfig } from '../../shared/legal-config.mjs';
+import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 
 type PolicyKey = keyof typeof legalConfig.policyRoutes;
 
@@ -18,11 +19,11 @@ const sections: Record<PolicyKey, { title: string; updated: string; content: str
     content: `<h2>Information used by the game</h2><p>Airport Chaos processes an anonymous pilot identifier, a live session identifier, gameplay and progression statistics, first-party analytics events, and an authentication cookie used to reconnect you to your player profile. Normal game accounts do not use or store raw passwords.</p>
       <h2>Purchases and support</h2><p>For purchases and support, we may store a purchase reference, recovery information, entitlement status, and the customer email Stripe provides. Payment card details are entered with and handled by Stripe; Airport Chaos does not store your card number.</p>
       <h2>Analytics and advertising</h2><p>Current analytics are first-party and raw analytics records are retained for approximately 180 days. Airport Chaos currently has no advertising tracking SDK. ${legalConfig.legalEntityName} does not sell personal information.</p>
-      <h2>Operator, storage, and choices</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. Profile data—including Credits, Score, Mastery, unlocks, and entitlements—is stored to provide and restore gameplay. The session authentication cookie is necessary to associate this browser with that profile. For support, contact ${support}.</p>`,
+      <h2>Operator, storage, and choices</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. Live Session Score is temporary and resets when the session ends. Persistent profile data includes Credits, aircraft unlocks, City Level and Mastery, missions, gameplay statistics, discoveries, and entitlements. Weekly leaderboard category records may be stored separately, and Best Score may be saved locally in your browser. The session authentication cookie is necessary to associate this browser with that profile. For support, contact ${support}.</p>`,
   },
   refund: {
     title: 'Digital Purchase & Refund Policy', updated: 'September 14, 2026',
-    content: `<h2>Firehawk unlock</h2><p>The Firehawk permanent digital unlock currently costs $9.99 USD. Please use the free five-minute test flight before purchasing to confirm that the aircraft and game work for you.</p>
+    content: `<h2>Firehawk unlock</h2><p>The Firehawk permanent digital unlock currently costs ${firehawkProduct.displayPrice} ${firehawkProduct.currency.toUpperCase()}. Please use the free five-minute test flight before purchasing to confirm that the aircraft and game work for you.</p>
       <h2>Purchase records</h2><p>After purchase, save the recovery code and purchase support reference. They help Support locate and restore the entitlement without exposing payment-card data.</p>
       <h2>Operator and support</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}.</p>
       <h2>Problems and refund requests</h2><p>For duplicate charges, an incorrect purchase, a missing entitlement, or a technical purchase problem, contact ${support} with the support reference. Refund requests are evaluated according to applicable law and the payment circumstances; this policy does not remove rights provided by law.</p>`,
