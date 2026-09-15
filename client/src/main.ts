@@ -68,7 +68,7 @@ const isDallas = cityId === 'dallas';
 let worldTimeOfDay: 'day' | 'dusk' = isDallas && new URLSearchParams(window.location.search).get('time') === 'dusk' ? 'dusk' : 'day';
 const worldVisualQuality = new URLSearchParams(window.location.search).get('visualquality') === 'low' ? 'low' : 'high';
 cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
-let SKY_COLOR = worldTimeOfDay === 'dusk' ? 0x596d94 : isDallas ? 0x5aaee0 : 0x76c9ed;
+let SKY_COLOR = worldTimeOfDay === 'dusk' ? 0x33405e : isDallas ? 0x5aaee0 : 0x76c9ed;
 const CAMERA_NEAR = 2;
 const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
 const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
@@ -131,13 +131,15 @@ const skyDome = new THREE.Mesh(
     fog: false,
     toneMapped: false,
     uniforms: {
-      horizonColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0xb46d79 : isDallas ? 0xaedcf0 : 0xc4e8f4) },
-      zenithColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x1b3258 : isDallas ? 0x217fbe : 0x2d9dd4) },
+      horizonColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0xaa644a : isDallas ? 0xaedcf0 : 0xc4e8f4) },
+      middleColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x51476f : isDallas ? 0xaedcf0 : 0xc4e8f4) },
+      zenithColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x1b2d58 : isDallas ? 0x217fbe : 0x2d9dd4) },
       gradientLow: { value: worldTimeOfDay === 'dusk' ? -0.10 : -0.18 },
       gradientHigh: { value: worldTimeOfDay === 'dusk' ? 0.34 : 0.82 },
+      duskAmount: { value: worldTimeOfDay === 'dusk' ? 1 : 0 },
     },
     vertexShader: 'varying float vHeight; void main() { vHeight = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform vec3 horizonColor; uniform vec3 zenithColor; uniform float gradientLow; uniform float gradientHigh; varying float vHeight; void main() { float t = smoothstep(gradientLow, gradientHigh, vHeight); gl_FragColor = vec4(mix(horizonColor, zenithColor, t), 1.0); }',
+    fragmentShader: 'uniform vec3 horizonColor; uniform vec3 middleColor; uniform vec3 zenithColor; uniform float gradientLow; uniform float gradientHigh; uniform float duskAmount; varying float vHeight; void main() { float dayT = smoothstep(gradientLow, gradientHigh, vHeight); vec3 dayColor = mix(horizonColor, zenithColor, dayT); float duskUpperT = smoothstep(0.08, 0.40, vHeight); vec3 duskBase = mix(middleColor * 0.48, mix(middleColor, zenithColor, duskUpperT), smoothstep(-0.30, 0.025, vHeight)); float warmBand = smoothstep(-0.015, 0.002, vHeight) * (1.0 - smoothstep(0.025, 0.065, vHeight)); vec3 duskColor = mix(duskBase, horizonColor, warmBand * 0.62); gl_FragColor = vec4(mix(dayColor, duskColor, duskAmount), 1.0); }',
   }),
 );
 skyDome.renderOrder = -10;
@@ -148,6 +150,7 @@ skyDome.add(duskSky);
 {
   // One camera-following sky group: no per-star meshes, lights or updates.
   const starPositions = new Float32Array(150 * 3);
+  const starColors = new Float32Array(150 * 3);
   for (let index = 0; index < 150; index += 1) {
     const azimuth = index * 2.3999632297;
     const elevation = 0.15 + ((index * 73) % 101) / 101 * 0.78;
@@ -155,22 +158,35 @@ skyDome.add(duskSky);
     starPositions[index * 3] = Math.cos(azimuth) * Math.cos(elevation) * radius;
     starPositions[index * 3 + 1] = Math.sin(elevation) * radius;
     starPositions[index * 3 + 2] = Math.sin(azimuth) * Math.cos(elevation) * radius;
+    const brightness = 0.68 + ((index * 47) % 31) / 100;
+    starColors[index * 3] = brightness * 0.92;
+    starColors[index * 3 + 1] = brightness * 0.96;
+    starColors[index * 3 + 2] = brightness;
   }
   const starsGeometry = new THREE.BufferGeometry();
   starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-  const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ color: 0xf7f3ea, size: 2.8, sizeAttenuation: false, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false, fog: false }));
+  starsGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+  const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ vertexColors: true, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.88, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
   stars.renderOrder = -9;
   duskSky.add(stars);
-  const moonDirection = new THREE.Vector3(-0.57, 0.16, -0.81).normalize();
+  const moonDirection = new THREE.Vector3(0.42, 0.13, -0.90).normalize();
   const moonPosition = moonDirection.multiplyScalar(SKY_DOME_RADIUS * 0.9);
-  const moonHalo = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xdce8ff, transparent: true, opacity: 0.2, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+  const moonHalo = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false,
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'varying vec2 vUv; void main() { float radius = length(vUv - 0.5) * 2.0; float alpha = (1.0 - smoothstep(0.08, 1.0, radius)) * 0.14; gl_FragColor = vec4(0.86, 0.91, 1.0, alpha); }',
+  }));
   moonHalo.position.copy(moonPosition);
-  moonHalo.scale.setScalar(1_150);
+  moonHalo.scale.setScalar(1_000);
   moonHalo.lookAt(0, 0, 0);
   moonHalo.renderOrder = -8;
   const moon = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xfff2d4, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
   moon.position.copy(moonPosition).multiplyScalar(0.999);
-  moon.scale.setScalar(620);
+  moon.scale.setScalar(680);
   moon.lookAt(0, 0, 0);
   moon.renderOrder = -7;
   duskSky.add(moonHalo, moon);
@@ -180,7 +196,7 @@ function setLocalTimePreset(preset: 'day' | 'dusk'): void {
   if (!isDallas || preset === worldTimeOfDay) return;
   worldTimeOfDay = preset;
   const dusk = preset === 'dusk';
-  SKY_COLOR = dusk ? 0x596d94 : 0x5aaee0;
+  SKY_COLOR = dusk ? 0x33405e : 0x5aaee0;
   (scene.background as THREE.Color).setHex(SKY_COLOR);
   skyAmbient.color.setHex(dusk ? 0xb8c8e8 : 0xd4efff);
   skyAmbient.groundColor.setHex(dusk ? 0x53604e : 0x587443);
@@ -188,11 +204,14 @@ function setLocalTimePreset(preset: 'day' | 'dusk'): void {
   sun.color.setHex(dusk ? 0xffae78 : 0xffd39a);
   sun.intensity = dusk ? 1.68 : 3.72;
   const uniforms = (skyDome.material as THREE.ShaderMaterial).uniforms;
-  (uniforms.horizonColor.value as THREE.Color).setHex(dusk ? 0xb46d79 : 0xaedcf0);
-  (uniforms.zenithColor.value as THREE.Color).setHex(dusk ? 0x1b3258 : 0x217fbe);
+  (uniforms.horizonColor.value as THREE.Color).setHex(dusk ? 0xaa644a : 0xaedcf0);
+  (uniforms.middleColor.value as THREE.Color).setHex(dusk ? 0x51476f : 0xaedcf0);
+  (uniforms.zenithColor.value as THREE.Color).setHex(dusk ? 0x1b2d58 : 0x217fbe);
   uniforms.gradientLow.value = dusk ? -0.10 : -0.18;
   uniforms.gradientHigh.value = dusk ? 0.34 : 0.82;
+  uniforms.duskAmount.value = dusk ? 1 : 0;
   duskSky.visible = dusk;
+  ambientTraffic?.setTimeOfDay(preset);
   cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: preset });
   cityWorld.setTimeOfDay?.(preset);
 }
@@ -257,6 +276,7 @@ const adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, a
 const ambientTraffic = cityWorld.ambientTrafficConfig
   ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight)
   : undefined;
+ambientTraffic?.setTimeOfDay(worldTimeOfDay);
 const eventCrate = new THREE.Mesh(
   new THREE.BoxGeometry(18, 14, 18),
   new THREE.MeshStandardMaterial({ color: 0xffa52c, emissive: 0x4c2300, emissiveIntensity: 0.7, roughness: 0.55 }),
@@ -2526,6 +2546,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
 
 function endRun(message: EndReason, title: string = message): void {
   if (crashed) return;
+  if (message === 'CRASHED' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'crash' }));
   crashed = true;
   landingSpeedCueElement.classList.add('hidden');
   speedElement.classList.remove('landing-risk');
@@ -6208,7 +6229,7 @@ function updateCamera(delta: number): void {
       : THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
     if (Math.abs(scene.fog.near - targetFogNear) >= 10) scene.fog.near = targetFogNear;
     if (Math.abs(scene.fog.far - targetFogFar) >= 10) scene.fog.far = targetFogFar;
-    if (worldTimeOfDay === 'dusk') scene.fog.color.setRGB(0.39 + altitudeFactor * 0.055, 0.43 + altitudeFactor * 0.06, 0.54 + altitudeFactor * 0.075);
+    if (worldTimeOfDay === 'dusk') scene.fog.color.setRGB(0.18 + altitudeFactor * 0.055, 0.21 + altitudeFactor * 0.06, 0.32 + altitudeFactor * 0.075);
     else if (isDallas) scene.fog.color.setRGB(0.5 + altitudeFactor * 0.14, 0.71 + altitudeFactor * 0.11, 0.8 + altitudeFactor * 0.1);
     else scene.fog.color.setRGB(0.57 + altitudeFactor * 0.13, 0.76 + altitudeFactor * 0.1, 0.84 + altitudeFactor * 0.09);
   }

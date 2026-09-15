@@ -280,6 +280,14 @@ export class AmbientTrafficSystem {
     if (this.atmosphereZones.length) this.addAtmosphereZones(this.atmosphereZones);
   }
 
+  setTimeOfDay(preset: 'day' | 'dusk'): void {
+    const dusk = preset === 'dusk';
+    cloudMaterial.color.setHex(dusk ? 0xbac4dc : 0xf4fbff);
+    cloudMaterial.opacity = dusk ? 0.64 : 0.7;
+    stormCloudMaterial.color.setHex(dusk ? 0x8995b2 : 0xd4dbe0);
+    stormCloudMaterial.opacity = dusk ? 0.62 : 0.68;
+  }
+
   update(delta: number, playerPosition: THREE.Vector3, camera: THREE.PerspectiveCamera): void {
     this.elapsed += delta;
     this.simulationAccumulator += delta;

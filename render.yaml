@@ -11,6 +11,8 @@ services:
         value: 22.22.0
       - key: AIRPORT_CHAOS_PROFILE_DB
         value: /var/data/player-profiles.sqlite
+      - key: AIRPORT_CHAOS_ADMIN_PASSWORD_HASH
+        sync: false
     disk:
       name: airport-chaos-data
       mountPath: /var/data

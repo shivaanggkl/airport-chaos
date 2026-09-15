@@ -18,6 +18,7 @@ import { dallasDisplayNames as place } from '../../shared/dallas-display-names.m
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -247,7 +248,17 @@ const eventCooldownMaxMs = 48_000;
 const wantedTransformFreshMs = 1_500;
 const cityEvents = new Map<CityId, CityEvent>();
 const lastEventTypes = new Map<CityId, DynamicEventType>();
-const profileStore = new PlayerProfileStore(process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url))));
+const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url)));
+const profileStore = new PlayerProfileStore(profileDatabasePath);
+const analyticsStore = new AnalyticsStore(profileDatabasePath);
+analyticsStore.prune();
+const analyticsContexts = new Map<string, AnalyticsContext>();
+const lastClientCrashAnalytics = new Map<string, number>();
+function recordAnalytics(playerId: string, eventName: AnalyticsEventName, details: { amount?: number; source?: string; metadata?: Record<string, string | number | boolean> } = {}, now = Date.now()): void {
+  const player = players.get(playerId); const context = analyticsContexts.get(playerId);
+  if (!isHumanPilot(player) || !context) return;
+  analyticsStore.recordEvent({ ...context, cityId: player.cityId, aircraftType: player.aircraftType }, eventName, details, now);
+}
 const testerCodeHash = /^[a-f0-9]{64}$/i.test(process.env.REDSPEAR_TESTER_CODE_HASH ?? '')
   ? Buffer.from(process.env.REDSPEAR_TESTER_CODE_HASH!, 'hex')
   : undefined;
@@ -403,6 +414,15 @@ const httpServer = createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+  if (requestUrl.pathname === '/admin/analytics') {
+    if (!validAdminPassword(request.headers.authorization, process.env.AIRPORT_CHAOS_ADMIN_PASSWORD_HASH)) {
+      response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Airport Chaos Analytics"', 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end('Authentication required'); return;
+    }
+    const includeDevelopment = requestUrl.searchParams.get('environment') === 'all';
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
+    response.end(analyticsStore.dashboardHtml(!includeDevelopment)); return;
+  }
   if (requestUrl.pathname === '/api/profile') {
     const identity = identityFromRequest(request);
     if (request.method === 'GET') {
@@ -417,11 +437,21 @@ const httpServer = createServer(async (request, response) => {
       if (payload?.legacy) profile = profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
       else if (payload?.equipAircraft !== undefined) profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
       else if (payload?.purchaseAircraft !== undefined) {
+        const before = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
         const result = profileStore.purchaseAircraft(identity.pilotId, payload.purchaseAircraft);
         profile = result.profile; error = result.ok ? undefined : result.reason;
+        if (result.ok && profile && typeof payload.purchaseAircraft === 'string' && !before.unlockedAircraft.includes(payload.purchaseAircraft as AircraftType) && profile.unlockedAircraft.includes(payload.purchaseAircraft as AircraftType)) {
+          const host = analyticsHost(request.headers.host);
+          analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: payload.purchaseAircraft }, 'aircraft_unlocked', { source: 'credits' });
+        }
       } else if (payload?.testerCode !== undefined) {
+        const before = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
         const result = redeemTesterCode(identity.pilotId, payload.testerCode);
         profile = result.profile; error = result.ok ? undefined : result.reason;
+        if (result.ok && profile?.unlockedAircraft.includes('fighter') && !before.unlockedAircraft.includes('fighter')) {
+          const host = analyticsHost(request.headers.host);
+          analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'aircraft_unlocked', { source: 'tester_code' });
+        }
       } else if (payload) profile = profileStore.updateProgress(identity.pilotId, payload.progress ?? {});
       response.writeHead(profile && !error ? 200 : error?.startsWith('Too many') ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(profile && !error ? profile : { error: error ?? 'Invalid profile update' }));
@@ -630,6 +660,7 @@ function awardSocialPlayer(playerId: string, score: number, credits: number, rea
   player.score += reward.score;
   const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { challengeCompletions: reason.includes('CHALLENGE WON') ? 1 : 0 });
   if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
+  if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'social' });
   sendToPlayer(playerId, { type: 'socialReward', score: reward.score, credits: reward.credits, reason });
   broadcastLeaderboard(player.cityId);
   updateKing(player.cityId);
@@ -971,6 +1002,8 @@ function missionSignal(playerId: string, signal: MissionSignal): void {
     player.score += reward.score;
     sendProfile(playerId, reward.profile, undefined, undefined, 'Mission Complete');
     sendToPlayer(playerId, { type: 'missionCompleted', missionId: reward.missionId, credits: reward.credits, score: reward.score });
+    recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'mission' }, signal.at);
+    recordAnalytics(playerId, 'mission_completed', { source: reward.missionId, amount: reward.credits }, signal.at);
     broadcastLeaderboard(player.cityId);
     updateKing(player.cityId);
   } else {
@@ -1027,6 +1060,8 @@ function recordObjectiveActivity(playerId: string, activity: ObjectiveActivity, 
   if (!isHumanPilot(player)) return;
   const result = profileStore.recordObjectiveActivity(player.pilotId, player.cityId, activity, amount, airportId);
   if (!result) return;
+  const earnedCredits = result.completed.reduce((sum, item) => sum + item.reward, 0) + result.bonusCredits;
+  if (earnedCredits > 0) recordAnalytics(playerId, 'credits_earned', { amount: earnedCredits, source: 'objective' });
   sendProfile(playerId, result.profile, undefined, undefined, result.completed.length || result.bonusCredits ? 'Objective Complete' : undefined);
   if (activity !== 'distance' || amount >= 250) awardMastery(playerId, activity, activity === 'distance' ? Math.min(30, amount * (masteryValues.distance ?? 0)) : undefined);
   if (activity !== 'distance') {
@@ -1090,6 +1125,7 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   const challengeCredits = challengeCreditReward(challenge.reward);
   const profile = profileStore.awardServerReward(player.pilotId, challengeCredits, { challengeCompletions: 1 });
   if (profile) sendProfile(playerId, profile, undefined, undefined, 'Sky Challenge');
+  if (challengeCredits > 0) recordAnalytics(playerId, 'credits_earned', { amount: challengeCredits, source: 'challenge' }, now);
   recordObjectiveActivity(playerId, 'challenge');
   missionSignal(playerId, { type: 'challenge', at: now, challengeId: challenge.id });
   awardMastery(playerId, 'challenge');
@@ -1167,6 +1203,8 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   missionSignal(playerId, { type: 'landing', at: now, airportId: airport.id, quality, controlledTerritories: controlledTerritoryIds(playerId, player.cityId) });
   const landingProfile = profileStore.awardServerReward(player.pilotId, economyRewards.landing);
   if (landingProfile) sendProfile(playerId, landingProfile, undefined, undefined, 'Safe Landing');
+  recordAnalytics(playerId, 'successful_landing', { source: airport.id, metadata: { quality } }, now);
+  recordAnalytics(playerId, 'credits_earned', { amount: economyRewards.landing, source: 'landing' }, now);
   recordObjectiveActivity(playerId, 'landing', 1, airport.id);
   recordWeeklyActivity(playerId, 'precisionLanding', quality, true);
 }
@@ -1250,6 +1288,7 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
   if (isHumanPilot(player)) {
     const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { eventCompletions: 1 });
     if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
+    if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'event' });
     recordObjectiveActivity(playerId, 'event');
   }
   sendToPlayer(playerId, { type: 'eventReward', eventId: event.id, score: reward.score, credits: reward.credits, reason });
@@ -1437,6 +1476,8 @@ function awardTerritory(playerId: string, territory: TerritoryRuntime, kind: 'ca
     const profile = profileStore.awardServerReward(player.pilotId, reward.credits);
     if (profile) sendProfile(playerId, profile, undefined, undefined, kind === 'capture' ? 'Territory Captured' : 'Territory Held');
     if (kind === 'capture') recordObjectiveActivity(playerId, 'territoryCapture');
+    if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: kind === 'capture' ? 'territory_capture' : 'territory_control' }, now);
+    if (kind === 'capture') recordAnalytics(playerId, 'territory_captured', { source: territory.definition.id }, now);
   }
   sendToPlayer(playerId, { type: 'territoryReward', territoryId: territory.definition.id, score: reward.score, credits: reward.credits, kind });
   broadcastLeaderboard(player.cityId);
@@ -1719,6 +1760,7 @@ function bankChaos(playerId: string, reason: string): void {
   state.pendingCredits = 0;
   const profile = profileStore.awardServerReward(player.pilotId, credits);
   if (profile) sendProfile(playerId, profile, undefined, undefined, reason || 'Stunt Combo');
+  if (credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: credits, source: 'chaos' });
   sendToPlayer(playerId, { type: 'chaosReward', credits, reason });
 }
 
@@ -2425,6 +2467,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if (isHumanPilot(killer)) {
     const killerProfile = profileStore.awardServerReward(killer.pilotId, killReward.credits, { kills: victim.isBot ? 0 : 1 });
     if (killerProfile) sendProfile(ownerId, killerProfile, undefined, undefined, victim.isBot ? 'AI Pilot Destroyed' : 'Enemy Destroyed');
+    if (killerProfile && killReward.credits > 0) recordAnalytics(ownerId, 'credits_earned', { amount: killReward.credits, source: victim.isBot ? 'bot_combat' : 'player_combat' }, now);
     if (eligibleForReward && !victim.isBot) recordObjectiveActivity(ownerId, 'kill');
   }
   broadcastToCity(cityId, {
@@ -2452,6 +2495,7 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
     activeRiskZone.participants.delete(victimId);
   }
   if (isHumanPilot(victim)) {
+    recordAnalytics(victimId, 'crash', { source: 'destruction' }, now);
     const victimProfile = profileStore.awardServerReward(victim.pilotId, 0, { deaths: 1 });
     if (victimProfile) sendProfile(victimId, victimProfile);
   } else if (victim.bot) {
@@ -3513,7 +3557,14 @@ setInterval(() => {
   logStabilityDiagnostics();
 }, 30_000);
 setInterval(() => {
-  try { profileStore.pruneRewardReceipts(); }
+  const now = Date.now();
+  for (const [playerId, context] of analyticsContexts) {
+    const player = players.get(playerId);
+    if (isHumanPilot(player)) analyticsStore.heartbeat(context.sessionId!, player.aircraftType, now);
+  }
+}, 60_000);
+setInterval(() => {
+  try { profileStore.pruneRewardReceipts(); analyticsStore.prune(); }
   catch (error) { console.error('[profiles] reward receipt prune failed', error); }
 }, 6 * 60 * 60_000);
 
@@ -3558,6 +3609,10 @@ function removeHumanConnection(socket: WebSocket): void {
   const player = players.get(playerId);
   playerSockets.delete(socket);
   if (!player) return;
+  const analyticsContext = analyticsContexts.get(playerId);
+  if (analyticsContext) analyticsStore.endSession({ ...analyticsContext, cityId: player.cityId, aircraftType: player.aircraftType });
+  analyticsContexts.delete(playerId);
+  lastClientCrashAnalytics.delete(playerId);
   missionSignal(playerId, { type: 'disconnect', at: Date.now() });
   removePlayerProjectiles(playerId);
   clearPlayerRuntimeState(playerId);
@@ -3620,6 +3675,10 @@ server.on('connection', (socket, request) => {
     spawnSlot,
   });
   playerSockets.set(socket, playerId);
+  const host = analyticsHost(request.headers.host);
+  const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, cityId, aircraftType: profile.selectedAircraft, ...host };
+  analyticsContexts.set(playerId, analyticsContext);
+  analyticsStore.startSession(analyticsContext);
   console.log(`[server] player connected: ${playerId} (${playerSockets.size} humans online)`);
   if (stabilityDiagnosticsEnabled) console.info('[connection]', {
     pilotId: profile.pilotId, sessionId: playerId, cityId, kind: connectionKind,
@@ -3708,9 +3767,19 @@ server.on('connection', (socket, request) => {
         maneuver?: unknown;
         boostActive?: unknown;
         transform?: unknown;
+        event?: unknown;
       } & Partial<Transform>;
       const player = players.get(playerId);
       if (!player) return;
+
+      if (message.type === 'analyticsEvent') {
+        const now = Date.now();
+        if (message.event === 'crash' && player.lifeState === 'alive' && player.hasRespawnTransform && now - player.lastStateAt <= 2_000 && (lastClientCrashAnalytics.get(playerId) ?? 0) <= now - 5_000) {
+          lastClientCrashAnalytics.set(playerId, now);
+          recordAnalytics(playerId, 'crash', { source: 'terrain_or_landing' }, now);
+        }
+        return;
+      }
 
       if (message.type === 'player') {
         if (typeof message.displayName === 'string' && message.displayName.trim()) {
@@ -3751,6 +3820,8 @@ server.on('connection', (socket, request) => {
           let objectiveUpdated = false;
           if (nextDiscoveries > priorDiscoveries) { recordObjectiveActivity(playerId, 'discovery', nextDiscoveries - priorDiscoveries); objectiveUpdated = true; }
           const distanceGain = Math.max(0, profile.totalDistance - before.totalDistance);
+          const creditGain = Math.max(0, profile.credits - before.credits);
+          if (creditGain > 0) recordAnalytics(playerId, 'credits_earned', { amount: creditGain, source: 'discovery' });
           if (distanceGain > 0) { recordObjectiveActivity(playerId, 'distance', distanceGain); objectiveUpdated = true; }
           if (!objectiveUpdated) sendProfile(playerId, profile);
         }
@@ -3793,15 +3864,25 @@ server.on('connection', (socket, request) => {
       if (message.type === 'purchaseAircraft') {
         const requestId = message.purchaseRequestId;
         if (typeof requestId !== 'number' || !Number.isSafeInteger(requestId) || requestId <= 0) return;
+        const previouslyOwned = new Set(player.profile.unlockedAircraft);
         const result = profileStore.purchaseAircraft(player.pilotId, message.aircraftType);
         if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
+        if (result.ok && result.profile && typeof message.aircraftType === 'string' && !previouslyOwned.has(message.aircraftType as AircraftType) && result.profile.unlockedAircraft.includes(message.aircraftType as AircraftType)) {
+          const context = analyticsContexts.get(playerId);
+          if (context) analyticsStore.recordEvent({ ...context, cityId: player.cityId, aircraftType: message.aircraftType }, 'aircraft_unlocked', { source: 'credits' });
+        }
         sendToPlayer(playerId, { type: 'aircraftPurchaseResult', purchaseRequestId: requestId, aircraftType: message.aircraftType, ok: result.ok, reason: result.reason });
         return;
       }
 
       if (message.type === 'redeemTesterCode') {
+        const previouslyOwned = player.profile.unlockedAircraft.includes('fighter');
         const result = redeemTesterCode(player.pilotId, message.testerCode);
         if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
+        if (result.ok && result.profile?.unlockedAircraft.includes('fighter') && !previouslyOwned) {
+          const context = analyticsContexts.get(playerId);
+          if (context) analyticsStore.recordEvent({ ...context, cityId: player.cityId, aircraftType: 'fighter' }, 'aircraft_unlocked', { source: 'tester_code' });
+        }
         sendToPlayer(playerId, { type: 'testerCodeResult', ok: result.ok, reason: result.reason });
         return;
       }
@@ -4024,6 +4105,7 @@ server.on('connection', (socket, request) => {
           return Math.abs(along) <= airport.runwayLength / 2 + 350 && Math.abs(lateral) <= Math.max(airport.runwayWidth * 3, 160);
         });
         missionSignal(playerId, { type: 'takeoff', at: stateNow, airportId: departure?.id });
+        recordAnalytics(playerId, 'takeoff', { source: departure?.id ?? 'unknown' }, stateNow);
       }
       if (isHumanPilot(player) && flight?.airborne && player.lifeState === 'alive') {
         const acceptedTravel = Math.min(traveled, velocityCap * stateSeconds * 1.15);
@@ -4034,6 +4116,7 @@ server.on('connection', (socket, request) => {
           player.distanceRewardMeters -= batches * economyRewards.distanceBatchMeters;
           const rewarded = profileStore.awardServerReward(player.pilotId, batches * economyRewards.distanceBatchCredits);
           if (rewarded) sendProfile(playerId, rewarded, undefined, undefined, 'Flight Distance');
+          if (rewarded) recordAnalytics(playerId, 'credits_earned', { amount: batches * economyRewards.distanceBatchCredits, source: 'flight_distance' }, stateNow);
         }
       }
       if (isHumanPilot(player) && stateNow - (player.missionLastFlightAt ?? 0) >= 1_000) {
