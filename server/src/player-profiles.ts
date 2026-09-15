@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 import { missionForCity } from '../../shared/city-missions.mjs';
 import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
-import { economyRewards } from '../../shared/reward-economy.mjs';
+import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
@@ -423,6 +423,10 @@ export class PlayerProfileStore {
     return this.toProfile(row);
   }
 
+  hasProfile(pilotId: string): boolean {
+    return Boolean(this.getRow(pilotId));
+  }
+
   importLegacy(pilotId: string, legacy: LegacyProfileImport): PlayerProfile {
     const row = this.getRow(pilotId);
     if (!row || row.legacy_imported) return row ? this.toProfile(row) : this.getOrCreate(pilotId, 'Pilot');
@@ -699,7 +703,7 @@ export class PlayerProfileStore {
     return this.toProfile(this.getRow(pilotId)!);
   }
 
-  completeMission(pilotId: string, cityId: CityId, attemptId: string, now = Date.now()): { profile: PlayerProfile; credits: number; score: number; missionId: string } | undefined {
+  completeMission(pilotId: string, cityId: CityId, attemptId: string, now = Date.now()): { profile: PlayerProfile; credits: number; score: number; missionId: string; cargoBonusCredits: number } | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
     const all = parseMissionStates(row.missions);
@@ -707,14 +711,15 @@ export class PlayerProfileStore {
     if (!active || active.attemptId !== attemptId) return undefined;
     const mission = missionForCity(cityId, active.missionId);
     if (!mission) return undefined;
+    const cargoReward = cargoCreditReward(mission.creditReward, row.selected_aircraft, 'mission', mission.id, mission.cargoCreditBonus === true);
     const previous = all[cityId]!.completions[mission.id];
     all[cityId]!.completions[mission.id] = { count: Math.min(1_000_000, (previous?.count ?? 0) + 1), lastCompletedAt: now };
     all[cityId]!.active = undefined;
     // Credits, attempt removal and replay cooldown commit in ONE SQLite row
     // update. A repeated completion cannot pay or advance Score again.
     this.database.prepare('UPDATE player_profiles SET missions = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?')
-      .run(JSON.stringify(all), mission.creditReward, pilotId);
-    return { profile: this.toProfile(this.getRow(pilotId)!), credits: mission.creditReward, score: mission.scoreReward, missionId: mission.id };
+      .run(JSON.stringify(all), cargoReward.credits, pilotId);
+    return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward, missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits };
   }
 
   private getRow(pilotId: string): ProfileRow | undefined {

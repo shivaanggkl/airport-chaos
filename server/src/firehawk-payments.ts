@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import Stripe from 'stripe';
 import { aircraftEconomy } from '../../shared/aircraft-economy.mjs';
@@ -9,6 +10,14 @@ const expectedCurrency = 'usd';
 export type CompletedFirehawkPurchase = {
   pilotId: string; sessionId: string; reference: string; customerEmail?: string;
 };
+
+function recoveryHash(code: string): string {
+  return createHash('sha256').update(code.replace(/-/g, '').trim().toUpperCase()).digest('hex');
+}
+
+function newRecoveryCode(): string {
+  return randomBytes(15).toString('base64url').toUpperCase().replace(/[^A-Z0-9]/g, '').padEnd(20, 'X').slice(0, 20).match(/.{1,4}/g)!.join('-');
+}
 
 export class FirehawkPayments {
   readonly enabled: boolean;
@@ -43,6 +52,9 @@ export class FirehawkPayments {
       );
       CREATE INDEX IF NOT EXISTS firehawk_purchases_pilot_status ON firehawk_purchases(pilot_id,status);
     `);
+    try { this.database.exec('ALTER TABLE firehawk_purchases ADD COLUMN recovery_hash TEXT'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE firehawk_purchases ADD COLUMN recovery_created_at INTEGER'); } catch { /* already migrated */ }
+    this.database.exec('CREATE UNIQUE INDEX IF NOT EXISTS firehawk_purchase_recovery_hash ON firehawk_purchases(recovery_hash) WHERE recovery_hash IS NOT NULL');
   }
 
   async createCheckout(pilotId: string, origin: string): Promise<{ url: string; sessionId: string }> {
@@ -90,9 +102,24 @@ export class FirehawkPayments {
     return Boolean(this.database.prepare(`SELECT 1 FROM firehawk_purchases WHERE pilot_id=? AND entitlement=? AND status='paid' LIMIT 1`).get(pilotId, entitlement));
   }
 
-  status(pilotId: string, sessionId: string): { status: 'completed' | 'pending'; reference?: string } {
+  status(pilotId: string, sessionId: string): { status: 'completed' | 'pending'; reference?: string; recoveryCode?: string } {
     const row = this.database.prepare(`SELECT checkout_session_id FROM firehawk_purchases WHERE pilot_id=? AND checkout_session_id=? AND status='paid'`).get(pilotId, sessionId) as { checkout_session_id: string } | undefined;
-    return row ? { status: 'completed', reference: row.checkout_session_id.slice(-12) } : { status: 'pending' };
+    if (!row) return { status: 'pending' };
+    const code = newRecoveryCode();
+    const created = this.database.prepare('UPDATE firehawk_purchases SET recovery_hash=?,recovery_created_at=? WHERE pilot_id=? AND checkout_session_id=? AND recovery_hash IS NULL')
+      .run(recoveryHash(code), Date.now(), pilotId, sessionId);
+    return { status: 'completed', reference: row.checkout_session_id.slice(-12), recoveryCode: created.changes > 0 ? code : undefined };
+  }
+
+  restore(code: string): { ok: boolean; recoveryCode?: string; reference?: string } {
+    const normalized = code.replace(/-/g, '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{20}$/.test(normalized)) return { ok: false };
+    const row = this.database.prepare("SELECT checkout_session_id FROM firehawk_purchases WHERE recovery_hash=? AND status='paid'").get(recoveryHash(normalized)) as { checkout_session_id: string } | undefined;
+    if (!row) return { ok: false };
+    const replacement = newRecoveryCode();
+    const rotated = this.database.prepare("UPDATE firehawk_purchases SET recovery_hash=?,recovery_created_at=? WHERE checkout_session_id=? AND recovery_hash=? AND status='paid'")
+      .run(recoveryHash(replacement), Date.now(), row.checkout_session_id, recoveryHash(normalized));
+    return rotated.changes > 0 ? { ok: true, recoveryCode: replacement, reference: row.checkout_session_id.slice(-12) } : { ok: false };
   }
 
   metrics(): { purchases: number; revenue: number; rows: Array<{ pilotId: string; reference: string; amount: number; paidAt: number; email?: string }> } {

@@ -3,6 +3,7 @@ export type CityMission = {
   id: string; cityId: 'dallas' | 'milwaukee'; number: number; type: MissionType;
   displayName: string; description: string; difficulty: string;
   creditReward: number; scoreReward: number; replayCooldownMs: number;
+  cargoCreditBonus?: boolean;
   requirements: {
     airportId?: string; airportIds?: readonly string[]; territoryIds?: readonly string[]; requiredTerritoryIds?: readonly string[];
     challengeId?: string; gateCount?: number; eventType?: string; result?: string; personality?: string;

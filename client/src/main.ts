@@ -21,14 +21,14 @@ import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type Human
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
-import { beginFirehawkCheckout } from './firehawk-checkout';
+import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
-import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
+import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import type {
   AirportDefinition,
   AirportId,
@@ -2729,6 +2729,12 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
     .catch((error: unknown) => aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
 }, () => {
   if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_modal_viewed' }));
+}, async (code) => {
+  try {
+    const result = await restoreFirehawkPurchase(code);
+    if (result.profile) applyServerProfile(result.profile);
+    aircraftGarage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
+  } catch (error) { aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
 });
 function openGarage(): boolean {
   if (!onGround || crashed) {
@@ -3667,7 +3673,7 @@ function playerFacingEventDetail(event: NetworkCityEvent): string {
     case 'skyRush': return 'Fly the temporary gate route fastest for the top reward.';
     case 'riskZone': return 'Build a bonus inside the zone, then leave safely to bank it.';
     case 'emergencyEscort': return 'Fly near the event aircraft until it reaches its destination.';
-    case 'cargoConvoy': return 'Escort the Dallas cargo convoy to build shared progress.';
+    case 'cargoConvoy': return 'Escort the Dallas cargo convoy to build shared progress. MAMMOTH CARGO BONUS: +40% Credits.';
     case 'aceIntercept': return 'Track and destroy the elite event aircraft; rewards scale with your contribution.';
     case 'vipEscort': return 'Stay near the VIP aircraft until it reaches the city center for a shared reward.';
     case 'goldenSkyRun': return 'Race the rare high-value gate route before time expires.';
@@ -4087,7 +4093,8 @@ function updateMissionHud(): void {
   }
   meter.hidden = false; next.hidden = false; next.textContent = 'MISSIONS · TAB';
   meter.max = Math.max(1, progress.target); meter.value = Math.max(0, Math.min(progress.target, progress.value));
-  missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} ${definition.creditReward.toLocaleString()} Credits · ${visualLanguage.score.icon} ${definition.scoreReward.toLocaleString()} Score`;
+  const missionCredits = cargoCreditReward(definition.creditReward, aircraftType, 'mission', definition.id, definition.cargoCreditBonus === true);
+  missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} ${missionCredits.credits.toLocaleString()} Credits${missionCredits.applied ? ' · MAMMOTH CARGO BONUS +40%' : ''} · ${visualLanguage.score.icon} ${definition.scoreReward.toLocaleString()} Score`;
 }
 
 function pilotMenuData(): PilotMenuData {
@@ -4134,7 +4141,7 @@ function pilotMenuData(): PilotMenuData {
   const liveEvent = event && eventObjective ? {
     name: `${visualLanguage[event.eventType === 'mostWanted' ? 'wanted' : 'event'].icon} ` + event.name.replace(/\s*·\s*.*/, ''),
     detail: playerFacingEventDetail(event),
-    meta: `${event.lifecycle === 'active' ? 'ACTIVE' : 'NEXT'} · +${event.rewardCredits ?? 0} credits · ${Math.max(0, Math.ceil((event.expiresAt - Date.now()) / 1000))}s · ${Math.round(Math.hypot(airplane.position.x - eventObjective.x, airplane.position.z - eventObjective.z))}m`,
+    meta: (() => { const cargoReward = cargoCreditReward(event.rewardCredits ?? 0, aircraftType, 'event', event.eventType); return `${event.lifecycle === 'active' ? 'ACTIVE' : 'NEXT'} · +${cargoReward.credits} Credits${cargoReward.applied ? ' · MAMMOTH CARGO BONUS +40%' : ''} · ${Math.max(0, Math.ceil((event.expiresAt - Date.now()) / 1000))}s · ${Math.round(Math.hypot(airplane.position.x - eventObjective.x, airplane.position.z - eventObjective.z))}m`; })(),
     actions: [
       { label: 'Set Waypoint', run: () => setWaypoint(eventObjective.x, eventObjective.z, event.name) },
       ...(localPlayerId && connectionReady() ? [{ label: joinedEventId === event.id ? 'Joined' : 'Join Event', run: () => {

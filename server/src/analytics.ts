@@ -6,7 +6,8 @@ export type AnalyticsEventName =
   | 'session_started' | 'game_started' | 'takeoff' | 'successful_landing' | 'crash'
   | 'aircraft_unlocked' | 'credits_earned' | 'mission_completed' | 'territory_captured' | 'session_ended'
   | 'fighter_modal_viewed' | 'fighter_trial_started' | 'fighter_trial_completed' | 'fighter_purchase_clicked'
-  | 'fighter_checkout_created' | 'fighter_purchase_completed' | 'fighter_checkout_cancelled';
+  | 'fighter_checkout_created' | 'fighter_purchase_completed' | 'fighter_checkout_cancelled'
+  | 'purchase_recovery_created' | 'purchase_recovery_succeeded';
 
 export type AnalyticsContext = {
   pilotId: string;
@@ -23,6 +24,7 @@ const validEventNames = new Set<AnalyticsEventName>([
   'credits_earned', 'mission_completed', 'territory_captured', 'session_ended',
   'fighter_modal_viewed', 'fighter_trial_started', 'fighter_trial_completed', 'fighter_purchase_clicked',
   'fighter_checkout_created', 'fighter_purchase_completed', 'fighter_checkout_cancelled',
+  'purchase_recovery_created', 'purchase_recovery_succeeded',
 ]);
 
 function compactText(value: unknown, maximum: number): string | undefined {

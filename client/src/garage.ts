@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { aircraftDefinitions, aircraftDisplayName, aircraftPitch, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
 import { REDSPEAR_PRICE_USD, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { legalConfig } from '../../shared/legal-config.mjs';
 
 export type GarageProfile = {
   credits: number;
@@ -52,8 +53,9 @@ export class AircraftGarage {
     private readonly onStartFighterTrial?: () => void,
     private readonly onPremiumPurchase?: () => void,
     private readonly onFighterModalViewed?: () => void,
+    private readonly onRestorePurchase?: (code: string) => void,
   ) {
-    element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details"><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-premium" data-garage-premium hidden><b>REDSPEAR FIGHTER</b><strong>FIREHAWK</strong><p>Fastest and most agile combat aircraft currently available in Airport Chaos.</p><div><span>FREE TEST FLIGHT<br><b>5 minutes</b></span><span>UNLOCK FOREVER<br><b>${REDSPEAR_PRICE_USD}</b></span></div><button type="button" data-garage-trial>START 5-MIN FREE TEST FLIGHT</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${REDSPEAR_PRICE_USD}</button></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
+    element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details"><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-premium" data-garage-premium hidden><b>REDSPEAR FIGHTER</b><strong>FIREHAWK</strong><p>Fastest and most agile combat aircraft currently available in Airport Chaos.</p><div><span>FREE TEST FLIGHT<br><b>5 minutes</b></span><span>UNLOCK FOREVER<br><b>${REDSPEAR_PRICE_USD}</b></span></div><button type="button" data-garage-trial>START 5-MIN FREE TEST FLIGHT</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${REDSPEAR_PRICE_USD}</button><p class="garage-purchase-disclosure">Airport Chaos is operated by ${legalConfig.legalEntityName}. By purchasing, you agree to the <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> and <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a>. Read our <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -84,6 +86,10 @@ export class AircraftGarage {
     });
     element.querySelector('[data-garage-trial]')!.addEventListener('click', () => { if (!this.actionPending) { this.actionPending = true; this.actionMessage = 'STARTING TEST FLIGHT…'; this.renderDetails(); this.onStartFighterTrial?.(); } });
     element.querySelector('[data-garage-premium-buy]')!.addEventListener('click', () => { this.onPremiumPurchase?.(); this.showActionResult('PURCHASE COMING SOON'); });
+    element.querySelector('[data-garage-restore]')!.addEventListener('click', () => {
+      const code = window.prompt('Enter your Firehawk purchase recovery code');
+      if (code?.trim()) this.onRestorePurchase?.(code.trim());
+    });
     canvas.addEventListener('pointerdown', (event) => { this.dragging = true; this.pointerX = event.clientX; this.pointerY = event.clientY; canvas.setPointerCapture(event.pointerId); });
     canvas.addEventListener('pointermove', (event) => {
       if (!this.dragging) return;
@@ -163,7 +169,9 @@ export class AircraftGarage {
     this.element.querySelector('[data-garage-status]')!.textContent = `${ownership} · ${definition.livery.name}`;
     this.element.querySelector('[data-garage-credits]')!.textContent = `${this.profile.credits.toLocaleString()} ${identityText('credits')}`;
     this.element.querySelector('[data-garage-name]')!.textContent = aircraftDisplayName(this.selected);
-    this.element.querySelector('[data-garage-pitch]')!.textContent = `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)}`;
+    this.element.querySelector('[data-garage-pitch]')!.textContent = this.selected === 'cargo'
+      ? `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)} · MAMMOTH CARGO BONUS: +40% Credits on eligible cargo missions`
+      : `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)}`;
     this.element.querySelector('[data-garage-stats]')!.replaceChildren(...garageStats(definition).map(({ label, value }) => {
       const row = document.createElement('div'); row.innerHTML = `<span>${label}</span><b>${'■'.repeat(value)}${'□'.repeat(5 - value)}</b>`; return row;
     }));

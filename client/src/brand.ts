@@ -1,3 +1,5 @@
+import { legalConfig } from '../../shared/legal-config.mjs';
+
 // One optional source image is shared by DOM branding and cached house-ad
 // canvases. If the supplied beta logo has not been installed yet, existing
 // text branding remains visible instead of leaving a broken image.
@@ -5,9 +7,9 @@ export const airportChaosLogoUrl = '/brand/airport-chaos-logo.avif';
 const airportChaosLogoFallbackUrl = '/brand/airport-chaos-logo.png';
 
 export const gameBrand = {
-  gameName: 'Airport Chaos',
-  studioName: 'Vaden Software',
-  gameUrl: 'https://fly.vadensoftware.com',
+  gameName: legalConfig.gameName,
+  studioName: legalConfig.studioName,
+  gameUrl: legalConfig.gameUrl,
   gameUrlLabel: 'fly.vadensoftware.com',
   // Add only verified, official destinations here. Empty by design today.
   socialLinks: [] as readonly { label: string; url: string }[],
@@ -55,6 +57,27 @@ export function createGameBrandSignature(className = ''): HTMLElement {
   gameLink.rel = 'noopener noreferrer';
   gameLink.textContent = `Play free at ${gameBrand.gameUrlLabel}`;
   signature.append(gameName, studio, gameLink);
+
+  const policies = document.createElement('nav');
+  policies.className = 'game-brand-policies';
+  for (const [label, route] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund Policy', legalConfig.policyRoutes.refund]] as const) {
+    const link = document.createElement('a');
+    link.href = route;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = label;
+    policies.append(link);
+  }
+  const support = document.createElement('a');
+  support.href = `mailto:${legalConfig.supportEmail}`;
+  support.textContent = 'Support';
+  policies.append(support);
+  signature.append(policies);
+
+  const legal = document.createElement('small');
+  legal.className = 'game-brand-legal';
+  legal.textContent = `© 2026 ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. All rights reserved.`;
+  signature.append(legal);
 
   if (gameBrand.socialLinks.length > 0) {
     const social = document.createElement('div');

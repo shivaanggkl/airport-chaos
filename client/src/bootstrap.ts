@@ -5,7 +5,7 @@ import type { AircraftType } from './aircraft';
 import { flightTutorial } from './tutorial';
 import { mountAirportChaosLogo, mountGameBrandSignature } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
-import { beginFirehawkCheckout, verifyCheckoutReturn } from './firehawk-checkout';
+import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
@@ -38,7 +38,7 @@ const garageIdentity = identity();
 const profileOrigin = import.meta.env.DEV ? 'http://localhost:8091' : window.location.origin;
 function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purchase_clicked'): void {
   const url = new URL('/api/profile', profileOrigin); url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-  void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ analyticsEvent: event }) }).catch(() => undefined);
+  void fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ analyticsEvent: event }) }).catch(() => undefined);
 }
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 // The landing page has its own small, explicit modal router.  Keeping NONE
@@ -50,16 +50,18 @@ let garageOpenRequest = 0;
 async function loadGarageProfile(): Promise<GarageProfile> {
   const url = new URL('/api/profile', profileOrigin);
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetch(url, { cache: 'no-store', credentials: 'include' });
   if (!response.ok) throw new Error('Profile unavailable');
   let profile = await response.json() as GarageProfile & { legacyImportPending?: boolean };
   if (profile.legacyImportPending) {
-    const imported = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName } }) });
+    const imported = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName } }) });
     if (!imported.ok) throw new Error('Profile migration unavailable');
     profile = await imported.json() as GarageProfile;
   }
   garageProfile = normalizeGarageProfile(profile);
+  garageIdentity.pilotId = (profile as GarageProfile & { pilotId?: string }).pilotId ?? garageIdentity.pilotId;
   garageIdentity.displayName = (profile as GarageProfile & { pilotName?: string }).pilotName ?? garageIdentity.displayName;
+  try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* secure session remains authoritative */ }
   return garageProfile;
 }
 function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
@@ -82,7 +84,7 @@ function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   const url = new URL('/api/profile', profileOrigin);
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ equipAircraft: selectedAircraft }) });
+  const response = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ equipAircraft: selectedAircraft }) });
   if (!response.ok) return;
   garageProfile = normalizeGarageProfile(await response.json() as GarageProfile);
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* server profile remains authoritative */ }
@@ -94,7 +96,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   try {
     const url = new URL('/api/profile', profileOrigin);
     url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseAircraft: aircraftType }) });
+    const response = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseAircraft: aircraftType }) });
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'PURCHASE FAILED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
@@ -103,7 +105,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   try {
     const url = new URL('/api/profile', profileOrigin);
     url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testerCode: code }) });
+    const response = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testerCode: code }) });
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'CODE REJECTED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('Redspear Fighter Unlocked');
@@ -111,7 +113,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
 }, async () => {
   try {
     const url = new URL('/api/profile', profileOrigin); url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startFighterTrial: true }) });
+    const response = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startFighterTrial: true }) });
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'TEST FLIGHT UNAVAILABLE'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
@@ -120,7 +122,13 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   recordGarageBusinessEvent('fighter_purchase_clicked');
   void beginFirehawkCheckout({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName })
     .catch((error: unknown) => garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
-}, () => recordGarageBusinessEvent('fighter_modal_viewed'));
+}, () => recordGarageBusinessEvent('fighter_modal_viewed'), async (code) => {
+  try {
+    const result = await restoreFirehawkPurchase(code);
+    garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
+    garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
+  } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
+});
 
 void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName }).then(async result => {
   if (result.state === 'none') return;
@@ -128,7 +136,7 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
   if (result.state === 'cancelled') garage.showActionResult('CHECKOUT CANCELLED — FIREHAWK REMAINS LOCKED');
   else if (result.state === 'completed') {
     const profile = await loadGarageProfile(); garage.updateProfile(profile);
-    garage.showActionResult(`FIREHAWK UNLOCKED · PURCHASE CONFIRMED · REF ${result.reference ?? 'AVAILABLE'}`);
+    garage.showActionResult(`FIREHAWK UNLOCKED · PURCHASE CONFIRMED · REF ${result.reference ?? 'AVAILABLE'}${result.recoveryCode ? ` · SAVE RECOVERY CODE: ${result.recoveryCode}` : ''}`);
   } else garage.showActionResult('PAYMENT RECEIVED — VERIFYING · YOUR UNLOCK WILL APPEAR SHORTLY');
   const clean = new URL(window.location.href); clean.searchParams.delete('checkout'); clean.searchParams.delete('session_id');
   window.history.replaceState(null, '', `${clean.pathname}${clean.search}${clean.hash}`);
@@ -243,6 +251,7 @@ for (const city of cities) {
 }
 
 async function start(): Promise<void> {
+  await loadGarageProfile();
   await flightTutorial.firstVisit(garageIdentity.pilotId);
   const requestedCity = activeCityFromUrl();
   if (requestedCity?.status === 'available') {

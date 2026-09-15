@@ -16,10 +16,13 @@ import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
-import { challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
+import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { FirehawkPayments } from './firehawk-payments.js';
+import { PilotSessionStore } from './session-auth.js';
+import { validateClientTransform } from './transform-validation.js';
+import { policyPage } from './legal-pages.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -52,6 +55,8 @@ type PlayerState = Transform & {
   aimSequence?: number;
   velocity: Vector3;
   lastStateAt: number;
+  lastAcceptedPosition: Vector3;
+  lastAcceptedTransformAt: number;
   chaosQaEnabled: boolean;
   selectionRevision?: number;
   spawnSlot?: number;
@@ -253,8 +258,11 @@ const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(file
 const profileStore = new PlayerProfileStore(profileDatabasePath);
 const analyticsStore = new AnalyticsStore(profileDatabasePath);
 const firehawkPayments = new FirehawkPayments(profileDatabasePath);
+const pilotSessions = new PilotSessionStore(profileDatabasePath);
+pilotSessions.prune();
 analyticsStore.prune();
 const checkoutAttempts = new Map<string, number[]>();
+const purchaseRecoveryAttempts = new Map<string, number[]>();
 function reconcilePaidFirehawk(profile: PlayerProfile): PlayerProfile {
   return firehawkPayments.completedForPilot(profile.pilotId) && !profile.aircraftEntitlements.includes('REDSPEAR_FIGHTER_PREMIUM')
     ? profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter']) ?? profile
@@ -355,6 +363,21 @@ const cityTerritoryState = new Map<CityId, Map<string, TerritoryRuntime>>();
 // long time).  State traffic is continuous, so that queue must be bounded.
 const maxBufferedSocketBytes = 512 * 1024;
 const stabilityDiagnosticsEnabled = process.env.AIRPORT_CHAOS_DEV_QA === '1';
+const transformRejectLogAt = new Map<string, number>();
+type TransformWorldBounds = { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
+function buildTransformWorldBounds(cityId: CityId): TransformWorldBounds {
+  const airports = cityAirports[cityId];
+  const territories = territoriesForCity(cityId);
+  const minX = Math.min(...airports.map(airport => airport.x - airport.runwayLength), ...territories.map(territory => territory.bounds.minX));
+  const maxX = Math.max(...airports.map(airport => airport.x + airport.runwayLength), ...territories.map(territory => territory.bounds.maxX));
+  const minZ = Math.min(...airports.map(airport => airport.z - airport.runwayLength), ...territories.map(territory => territory.bounds.minZ));
+  const maxZ = Math.max(...airports.map(airport => airport.z + airport.runwayLength), ...territories.map(territory => territory.bounds.maxZ));
+  return { minX: minX - 30_000, maxX: maxX + 30_000, minY: -2_000, maxY: 40_000, minZ: minZ - 30_000, maxZ: maxZ + 30_000 };
+}
+const transformWorldBounds: Record<CityId, TransformWorldBounds> = {
+  dallas: buildTransformWorldBounds('dallas'),
+  milwaukee: buildTransformWorldBounds('milwaukee'),
+};
 const wsPayloadWindow = {
   largestBytes: 0,
   largestType: 'none',
@@ -429,6 +452,15 @@ function checkoutOrigin(request: IncomingMessage): string {
 }
 
 const httpServer = createServer(async (request, response) => {
+  const requestOrigin = request.headers.origin;
+  if (requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(requestOrigin)) {
+    response.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
+    response.setHeader('Vary', 'Origin');
+  }
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET,POST', 'Access-Control-Allow-Headers': 'Content-Type' }); response.end(); return;
+  }
   if (request.url === '/health') {
     response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     response.end('ok');
@@ -436,6 +468,17 @@ const httpServer = createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+  const publicPolicy = request.method === 'GET' ? policyPage(requestUrl.pathname) : undefined;
+  if (publicPolicy) {
+    response.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=300',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+    });
+    response.end(publicPolicy);
+    return;
+  }
   if (requestUrl.pathname === '/api/stripe/webhook') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
     const rawBody = await readRawBody(request);
@@ -457,7 +500,7 @@ const httpServer = createServer(async (request, response) => {
   }
   if (requestUrl.pathname === '/api/firehawk/checkout') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
-    const identity = identityFromRequest(request);
+    const identity = authenticatedIdentity(request, response);
     const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
     if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes('REDSPEAR_FIGHTER_PREMIUM')) {
       response.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Firehawk already owned"}'); return;
@@ -478,10 +521,25 @@ const httpServer = createServer(async (request, response) => {
   }
   if (requestUrl.pathname === '/api/firehawk/purchase-status') {
     if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
-    const identity = identityFromRequest(request); const sessionId = requestUrl.searchParams.get('sessionId') ?? '';
+    const identity = authenticatedIdentity(request, response); const sessionId = requestUrl.searchParams.get('sessionId') ?? '';
     const status = firehawkPayments.status(identity.pilotId, sessionId);
     if (status.status === 'completed') reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+    if (status.recoveryCode) analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'purchase_recovery_created', { source: 'stripe' });
     response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(status)); return;
+  }
+  if (requestUrl.pathname === '/api/firehawk/restore') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    const identity = authenticatedIdentity(request, response);
+    const now = Date.now(); const attempts = (purchaseRecoveryAttempts.get(identity.pilotId) ?? []).filter(at => now - at < 15 * 60_000);
+    if (attempts.length >= 5) { response.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Too many attempts. Try again later."}'); return; }
+    attempts.push(now); purchaseRecoveryAttempts.set(identity.pilotId, attempts);
+    const payload = await readJson(request); const code = typeof payload?.recoveryCode === 'string' ? payload.recoveryCode : '';
+    const restored = firehawkPayments.restore(code);
+    if (!restored.ok) { response.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Invalid recovery code"}'); return; }
+    const profile = profileStore.grantAircraftEntitlements(identity.pilotId, ['fighter']);
+    analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'purchase_recovery_succeeded', { source: restored.reference });
+    response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    response.end(JSON.stringify({ profile: profile ? reconcilePaidFirehawk(profile) : undefined, recoveryCode: restored.recoveryCode, reference: restored.reference })); return;
   }
   if (requestUrl.pathname === '/admin/analytics') {
     if (!validAdminPassword(request.headers.authorization, process.env.AIRPORT_CHAOS_ADMIN_PASSWORD_HASH)) {
@@ -493,7 +551,7 @@ const httpServer = createServer(async (request, response) => {
     response.end(analyticsStore.dashboardHtml(!includeDevelopment, Date.now(), firehawkPayments.metrics())); return;
   }
   if (requestUrl.pathname === '/api/profile') {
-    const identity = identityFromRequest(request);
+    const identity = authenticatedIdentity(request, response);
     if (request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName))));
@@ -1080,7 +1138,7 @@ function missionSignal(playerId: string, signal: MissionSignal): void {
     sendProfile(playerId, reward.profile, undefined, undefined, 'Mission Complete');
     sendToPlayer(playerId, { type: 'missionCompleted', missionId: reward.missionId, credits: reward.credits, score: reward.score });
     recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'mission' }, signal.at);
-    recordAnalytics(playerId, 'mission_completed', { source: reward.missionId, amount: reward.credits }, signal.at);
+    recordAnalytics(playerId, 'mission_completed', { source: reward.missionId, amount: reward.credits, metadata: { mammothCargoBonus: reward.cargoBonusCredits, cargoBonusApplied: reward.cargoBonusCredits > 0 } }, signal.at);
     broadcastLeaderboard(player.cityId);
     updateKing(player.cityId);
   } else {
@@ -1364,12 +1422,13 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
     : reason.includes('WON') || reason.includes('BOUNTY') || reason.includes('SURVIVED')
       ? heatGains.eventWin
       : 5);
-  const reward = rewardWithHeat(playerId, score, credits);
+  const cargoReward = cargoCreditReward(credits, player.aircraftType, 'event', event.type);
+  const reward = rewardWithHeat(playerId, score, cargoReward.credits);
   player.score += reward.score;
   if (isHumanPilot(player)) {
     const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { eventCompletions: 1 });
     if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
-    if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'event' });
+    if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'event', metadata: { eventType: event.type, mammothCargoBonus: cargoReward.bonusCredits, cargoBonusApplied: cargoReward.applied } });
     recordObjectiveActivity(playerId, 'event');
   }
   sendToPlayer(playerId, { type: 'eventReward', eventId: event.id, score: reward.score, credits: reward.credits, reason });
@@ -2845,7 +2904,8 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     rotation: { x: 0, y: spawnHeading, z: 0 }, aircraftType: botAircraftType,
     displayName: name, score: 0, health: maxHealthForAircraft(botAircraftType), lifeState: 'alive', hasRespawnTransform: true,
     lastFireAt: 0, spawnProtectedUntil: Date.now() + 1_500, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
-    lastStateAt: Date.now(), chaosQaEnabled: false, territoryIds: new Set(), bot,
+    lastStateAt: Date.now(), lastAcceptedPosition: { x: spawnX, y: spawnY, z: spawnZ }, lastAcceptedTransformAt: Date.now(),
+    chaosQaEnabled: false, territoryIds: new Set(), bot,
   };
   players.set(id, player);
   broadcastToCity(cityId, botStateMessage(id, player, 'playerState'));
@@ -3458,6 +3518,23 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   return fallback ?? { position: { ...player.position }, heading: player.rotation.y };
 }
 
+function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3): Vector3 {
+  if (cityId !== 'dallas') return { ...generic };
+  const airport = cityAirports[cityId][0];
+  const along = Math.min(airport.runwayLength * 0.32, airport.runwayLength * 0.5 - 120) + spawnSlot * 15;
+  return {
+    x: airport.x + Math.sin(airport.heading) * along,
+    y: dallasAirportElevations.get(airport.id) ?? generic.y,
+    z: airport.z + Math.cos(airport.heading) * along,
+  };
+}
+
+function logTransformReject(playerId: string, player: PlayerState, reason: string, distance: number, allowed: number, now: number): void {
+  if (!stabilityDiagnosticsEnabled || now - (transformRejectLogAt.get(playerId) ?? 0) < 2_000) return;
+  transformRejectLogAt.set(playerId, now);
+  console.warn(`PLAYER_TRANSFORM_REJECT pilot=${player.pilotId} aircraft=${player.aircraftType} reason=${reason} distance=${distance.toFixed(1)}m allowed=${allowed.toFixed(1)}m`);
+}
+
 function broadcastRepair(playerId: string, player: PlayerState, sourceId: string, full: boolean, cooldownMs?: number): void {
   broadcastToCity(player.cityId, {
     type: 'repair', playerId, sourceId, full,
@@ -3668,12 +3745,26 @@ function protocolMatchesRequest(request: IncomingMessage): boolean {
   return requested === String(PROTOCOL_VERSION);
 }
 
-function identityFromRequest(request: IncomingMessage): { pilotId: string; pilotName: string } {
+function requestedPilotName(request: IncomingMessage): string {
   const url = new URL(request.url ?? '/', 'http://localhost');
-  const requestedId = url.searchParams.get('pilotId') ?? '';
-  const pilotId = /^[a-zA-Z0-9-]{16,80}$/.test(requestedId) ? requestedId : randomUUID();
-  const requestedName = url.searchParams.get('pilotName') ?? '';
-  return { pilotId, pilotName: requestedName.slice(0, 20) };
+  return (url.searchParams.get('pilotName') ?? '').slice(0, 20);
+}
+
+function authenticatedIdentity(request: IncomingMessage, response: ServerResponse): { pilotId: string; pilotName: string } {
+  const resolved = pilotSessions.resolve(request.headers.cookie);
+  if (resolved) return { pilotId: resolved, pilotName: requestedPilotName(request) };
+  const url = new URL(request.url ?? '/', 'http://localhost');
+  const legacyId = url.searchParams.get('pilotId') ?? '';
+  const issued = pilotSessions.issue(legacyId, /^[a-zA-Z0-9-]{16,80}$/.test(legacyId) && profileStore.hasProfile(legacyId));
+  const host = (request.headers.host ?? '').toLowerCase();
+  const secure = !host.startsWith('localhost:') && !host.startsWith('127.0.0.1:');
+  response.setHeader('Set-Cookie', pilotSessions.cookie(issued.cookie, secure));
+  return { pilotId: issued.pilotId, pilotName: requestedPilotName(request) };
+}
+
+function sessionIdentity(request: IncomingMessage): { pilotId: string; pilotName: string } | undefined {
+  const pilotId = pilotSessions.resolve(request.headers.cookie);
+  return pilotId ? { pilotId, pilotName: requestedPilotName(request) } : undefined;
 }
 
 function reserveSpawnSlot(cityId: CityId): number {
@@ -3698,6 +3789,7 @@ function removeHumanConnection(socket: WebSocket): void {
   if (analyticsContext) analyticsStore.endSession({ ...analyticsContext, cityId: player.cityId, aircraftType: player.aircraftType });
   analyticsContexts.delete(playerId);
   lastClientCrashAnalytics.delete(playerId);
+  transformRejectLogAt.delete(playerId);
   missionSignal(playerId, { type: 'disconnect', at: Date.now() });
   removePlayerProjectiles(playerId);
   clearPlayerRuntimeState(playerId);
@@ -3719,7 +3811,12 @@ server.on('connection', (socket, request) => {
   const playerId = randomUUID();
   const cityId = cityFromRequest(request);
   const chaosQaEnabled = chaosQaFromRequest(request);
-  const identity = identityFromRequest(request);
+  const identity = sessionIdentity(request);
+  if (!identity) {
+    sendSocketMessage(socket, { type: 'sessionRequired' });
+    socket.close(4003, 'Secure session required');
+    return;
+  }
   let connectionKind = 'NEW';
   // A persistent profile owns progression; each live connection gets a new
   // playerId. Replace only the SAME profile, never another browser's identity.
@@ -3737,6 +3834,7 @@ server.on('connection', (socket, request) => {
   if (connectionKind === 'NEW' && !profile.legacyImportPending) connectionKind = 'RECONNECT';
   const spawnSlot = reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
+  const initialAcceptedPosition = expectedInitialTransform(cityId, spawnSlot, spawnPosition);
 
   players.set(playerId, {
     pilotId: profile.pilotId,
@@ -3757,6 +3855,8 @@ server.on('connection', (socket, request) => {
     velocity: { x: 0, y: 0, z: 0 },
     boostActive: false,
     lastStateAt: Date.now(),
+    lastAcceptedPosition: initialAcceptedPosition,
+    lastAcceptedTransformAt: Date.now(),
     chaosQaEnabled,
     territoryIds: new Set(),
     distanceRewardMeters: 0,
@@ -4148,6 +4248,8 @@ server.on('connection', (socket, request) => {
         player.hasRespawnTransform = false;
         player.spawnProtectedUntil = Date.now() + spawnProtectionMs;
         player.position = safeSpawn.position;
+        player.lastAcceptedPosition = { ...safeSpawn.position };
+        player.lastAcceptedTransformAt = Date.now();
         player.rotation = { x: 0, y: safeSpawn.heading, z: 0 };
         player.velocity = { x: 0, y: 0, z: 0 };
         playerChaos.delete(playerId);
@@ -4177,6 +4279,7 @@ server.on('connection', (socket, request) => {
 
       if (message.type !== 'state' || !message.position || !message.rotation) return;
 
+      const stateNow = Date.now();
       const values = [
         message.position.x,
         message.position.y,
@@ -4185,33 +4288,45 @@ server.on('connection', (socket, request) => {
         message.rotation.y,
         message.rotation.z,
       ];
-      if (!values.every(Number.isFinite)) return;
+      if (!values.every(Number.isFinite)) {
+        logTransformReject(playerId, player, 'MALFORMED', Infinity, 0, stateNow);
+        return;
+      }
 
-      const stateNow = Date.now();
-      const stateSeconds = Math.min(0.35, Math.max(0.08, (stateNow - player.lastStateAt) / 1000));
-      const traveled = Math.hypot(
-        message.position.x - player.position.x,
-        message.position.y - player.position.y,
-        message.position.z - player.position.z,
-      );
-      const nextVelocity = {
-        x: (message.position.x - player.position.x) / stateSeconds,
-        y: (message.position.y - player.position.y) / stateSeconds,
-        z: (message.position.z - player.position.z) / stateSeconds,
-      };
-      const velocityLength = Math.hypot(nextVelocity.x, nextVelocity.y, nextVelocity.z);
       // Preserve fast aircraft velocity for interpolation, pursuit and swept
       // hits instead of truncating every aircraft at the old 300m/s limit.
       const envelope = aircraftFlightEnvelope[player.aircraftType];
       const velocityCap = envelope.maxSpeed * envelope.boostMaxSpeed + 10; // existing challenge speed bonus
+      const activeStunt = activeMissionStunts.get(playerId);
+      const stuntAllowance = activeStunt?.kind === 'quickDodge' ? 55 : activeStunt?.kind === 'barrelRoll' ? 18 : 0;
+      const validation = validateClientTransform(
+        player.lastAcceptedPosition, message.position, stateNow - player.lastAcceptedTransformAt,
+        envelope, stuntAllowance, transformWorldBounds[player.cityId],
+      );
+      const firstValidTransform = !player.hasRespawnTransform;
+      const traveled = Math.hypot(
+        message.position.x - player.lastAcceptedPosition.x,
+        message.position.y - player.lastAcceptedPosition.y,
+        message.position.z - player.lastAcceptedPosition.z,
+      );
+      // A discontinuity is trusted only while the server has put this player
+      // into its spawn lifecycle, and only at the server-selected runway slot.
+      if ((!validation.accepted && !(firstValidTransform && traveled <= 250)) || (firstValidTransform && traveled > 250)) {
+        const reason = validation.accepted ? 'SPAWN_MISMATCH' : validation.reason;
+        logTransformReject(playerId, player, reason, traveled, validation.accepted ? 250 : validation.allowedDistance, stateNow);
+        return;
+      }
+      const stateSeconds = validation.accepted ? validation.elapsedSeconds : Math.max(0.05, (stateNow - player.lastAcceptedTransformAt) / 1000);
+      const nextVelocity = firstValidTransform || !validation.accepted ? { x: 0, y: 0, z: 0 } : validation.velocity;
+      const velocityLength = Math.hypot(nextVelocity.x, nextVelocity.y, nextVelocity.z);
       player.velocity = velocityLength > velocityCap
         ? { x: nextVelocity.x / velocityLength * velocityCap, y: nextVelocity.y / velocityLength * velocityCap, z: nextVelocity.z / velocityLength * velocityCap }
         : nextVelocity;
-      const firstValidTransform = !player.hasRespawnTransform;
       player.lastStateAt = stateNow;
       player.position = message.position;
+      player.lastAcceptedPosition = { ...message.position };
+      player.lastAcceptedTransformAt = stateNow;
       player.rotation = message.rotation;
-      const activeStunt = activeMissionStunts.get(playerId);
       if (activeStunt) {
         const step = Math.abs(Math.atan2(Math.sin(player.rotation.z - activeStunt.lastRoll), Math.cos(player.rotation.z - activeStunt.lastRoll)));
         if (step <= 1.8) activeStunt.rollTravel += step;

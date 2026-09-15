@@ -77,6 +77,8 @@ body {
 .game-brand-signature strong { color: #f0f8fb; letter-spacing: .1em; text-transform: uppercase; }
 .game-brand-signature a { color: #83d9ec; text-decoration: none; }
 .game-brand-signature a:hover, .game-brand-signature a:focus-visible { color: #fff; text-decoration: underline; }
+.game-brand-policies { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; width: 100%; }
+.game-brand-legal { width: 100%; color: #7895a4; text-align: center; font-size: 8px; font-weight: 600; }
 .game-brand-signature-start { margin: 0 auto 15px; }
 
 .city-select-card h1 {
@@ -241,6 +243,8 @@ body {
 .garage-premium > b { color:#ffd36a; font-size:13px; letter-spacing:.1em; } .garage-premium > strong { color:#fff; font-size:11px; letter-spacing:.16em; }
 .garage-premium > p { margin:0; font-size:11px; } .garage-premium > div { display:grid; grid-template-columns:1fr 1fr; gap:8px; color:#bcd2dc; font-size:9px; }
 .garage-premium > div span { padding:8px; border:1px solid rgb(255 255 255 / 12%); border-radius:4px; } .garage-premium > div b { color:#fff; font-size:12px; }
+.garage-premium .garage-purchase-disclosure { color:#a9bdc8; font-size:9px; line-height:1.45; }
+.garage-purchase-disclosure a { color:#8edbed; }
 .fighter-trial-indicator { position:fixed; z-index:4; top:82px; left:50%; transform:translateX(-50%); padding:6px 10px; border:1px solid rgb(255 211 106 / 42%); border-radius:5px; color:#ffe28b; background:rgb(7 20 30 / 82%); font:800 10px ui-monospace,monospace; pointer-events:none; }
 .fighter-trial-indicator.hidden { display:none; }
 @media (max-width: 680px) { .garage-layout { grid-template-columns: 1fr; } .garage-preview { min-height: 240px; } .garage-preview canvas { height: 240px; } .garage-list { grid-template-columns: repeat(2, minmax(0,1fr)); } }
