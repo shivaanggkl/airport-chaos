@@ -3201,6 +3201,7 @@ const profileActiveMissionAttempt = (profile: NetworkProfile): NetworkMissionAtt
   profile.missions[profileActiveMissionCity(profile) ?? cityId]?.active;
 let profileHydrated = false;
 let selectionRevision = 0;
+let authoritativeSelectionApplied = false;
 let legacyImportSent = false;
 
 type RemotePlayer = {
@@ -6666,6 +6667,7 @@ function queueProfileProgress(): void {
 function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false): boolean {
   if (!isNetworkProfile(profile)) return false;
   if (!Number.isSafeInteger(revision) || revision < 0) return false;
+  const previousRevision = selectionRevision;
   if (rewardId) {
     pendingProfileRewards.delete(rewardId);
     if (inFlightProfileReward?.id === rewardId) inFlightProfileReward = undefined;
@@ -6675,8 +6677,24 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   if (revision < selectionRevision) return true;
   const equipConfirmed = pendingEquip && profile.selectedAircraft === pendingEquip.aircraftType &&
     (equipRequestId === pendingEquip.id || revision > selectionRevision);
+  const selectionChanged = profile.selectedAircraft !== aircraftType;
+  const selectionChangeAuthorized = !authoritativeSelectionApplied || revision > previousRevision || Boolean(equipConfirmed);
+  // Routine rewards/progress share the current selection revision. They may
+  // update progression, but can never authorize an aircraft replacement and
+  // runway restart. Explicit equips and controlled boundaries increment the
+  // revision server-side before sending their profile.
+  if (!preserveActiveAircraft && selectionChanged && !selectionChangeAuthorized) {
+    if (import.meta.env.DEV) console.warn('[profile-selection-rejected]', {
+      previousAircraft: aircraftType, incomingAircraft: profile.selectedAircraft,
+      previousRevision, incomingRevision: revision, equipRequestId,
+      trialStatus: profile.fighterTrial.status,
+      trialRemainingMs: profile.fighterTrial.status === 'active' ? (profile.fighterTrial.expiresAt ?? 0) - Date.now() : undefined,
+    });
+    return true;
+  }
   if (equipConfirmed) pendingEquip = undefined;
   selectionRevision = revision;
+  authoritativeSelectionApplied = true;
   const earnedCredits = profileHydrated ? Math.max(0, profile.credits - serverProfile.credits) : 0;
   serverProfile = profile;
   activeMissionAttemptId = profileActiveMissionAttempt(profile)?.attemptId;

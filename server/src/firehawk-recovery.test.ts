@@ -178,6 +178,23 @@ test('Firehawk trial is temporary usable access and survives refresh until a pos
   assert.equal(active.fighterTrial.expiresAt, startedAt + 5 * 60_000);
   assert.equal(profiles.getOrCreate(pilotId, 'Trial pilot').selectedAircraft, 'fighter');
 
+  const afterProgress = profiles.updateProgress(pilotId, {
+    totalDistance: 2_000,
+    successfulLandings: 0,
+    discoveries: { dallas: ['trial-flight-discovery'] },
+  })!;
+  assert.equal(afterProgress.fighterTrial.status, 'active');
+  assert.equal(afterProgress.selectedAircraft, 'fighter');
+  assert.equal(afterProgress.unlockedAircraft.includes('fighter'), true);
+
+  const afterReward = profiles.awardServerReward(pilotId, 5)!;
+  assert.equal(afterReward.selectedAircraft, 'fighter');
+  assert.equal(afterReward.fighterTrial.status, 'active');
+
+  const afterNonExpiredBoundary = profiles.consumeExpiredFighterTrial(pilotId, startedAt + 200_000)!;
+  assert.equal(afterNonExpiredBoundary.selectedAircraft, 'fighter');
+  assert.equal(afterNonExpiredBoundary.fighterTrial.status, 'active');
+
   const expiredInFlight = profiles.getOrCreate(pilotId, 'Trial pilot');
   assert.equal(expiredInFlight.fighterTrial.status, 'active');
   assert.equal(expiredInFlight.selectedAircraft, 'fighter');
@@ -185,4 +202,18 @@ test('Firehawk trial is temporary usable access and survives refresh until a pos
   assert.equal(consumed.fighterTrial.status, 'consumed');
   assert.equal(consumed.selectedAircraft, 'trainer');
   assert.equal(consumed.unlockedAircraft.includes('fighter'), false);
+});
+
+test('legacy hydration cannot replace a non-expired active Firehawk trial with trainer', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-trial-import-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  const pilotId = 'trial-import-000001';
+  profiles.getOrCreate(pilotId, 'Trial import');
+  assert.equal(profiles.requestFighterTrial(pilotId).ok, true);
+  const active = profiles.activateFighterTrial(pilotId, 20_000)!;
+  assert.equal(active.selectedAircraft, 'fighter');
+
+  const imported = profiles.importLegacy(pilotId, { selectedAircraft: 'trainer' });
+  assert.equal(imported.fighterTrial.status, 'active');
+  assert.equal(imported.selectedAircraft, 'fighter');
 });

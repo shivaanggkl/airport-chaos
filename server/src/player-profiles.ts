@@ -223,6 +223,16 @@ function selectedOwnedAircraft(value: unknown, owned: readonly AircraftType[]): 
   return typeof value === 'string' && owned.includes(value as AircraftType) ? value as AircraftType : 'trainer';
 }
 
+function usableAircraftForRow(row: ProfileRow): AircraftType[] {
+  const usable = new Set(parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)));
+  const fighterTrial = parseFighterTrial(row.fighter_trial);
+  // Pending/active trials are temporary access, not ownership. An expired
+  // active trial deliberately remains usable until a controlled boundary
+  // consumes it, so routine profile writes cannot force an in-flight swap.
+  if (fighterTrial.status === 'pending' || fighterTrial.status === 'active') usable.add('fighter');
+  return aircraftOrder.filter((type) => usable.has(type));
+}
+
 function parseDiscoveries(value: unknown): Partial<Record<CityId, string[]>> {
   const result: Partial<Record<CityId, string[]>> = {};
   if (!value || typeof value !== 'object') return result;
@@ -453,8 +463,12 @@ export class PlayerProfileStore {
       ? migratedDevCredits
       : Math.max(boundedInteger(row.credits, 1_000_000), importedCredits);
     const discoveries = parseDiscoveries(legacy.discoveries);
-    const owned = parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements));
-    const selectedAircraft = selectedOwnedAircraft(legacy.selectedAircraft, owned);
+    const usableAircraft = usableAircraftForRow(row);
+    const trial = parseFighterTrial(row.fighter_trial);
+    const requestedAircraft = trial.status === 'pending' || trial.status === 'active'
+      ? row.selected_aircraft
+      : legacy.selectedAircraft;
+    const selectedAircraft = selectedOwnedAircraft(requestedAircraft, usableAircraft);
     this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, credits = ?, selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
       .run(
         assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), credits, selectedAircraft,
@@ -486,7 +500,7 @@ export class PlayerProfileStore {
       newDiscoveries += Math.max(0, merged.length - previous.size);
       mergedDiscoveries[cityId] = merged;
     }
-    const currentAircraft = selectedOwnedAircraft(row.selected_aircraft, parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)));
+    const currentAircraft = selectedOwnedAircraft(row.selected_aircraft, usableAircraftForRow(row));
     this.database.prepare(`UPDATE player_profiles SET selected_aircraft = ?, total_distance = MAX(total_distance, ?), successful_landings = MAX(successful_landings, ?), discoveries = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?`)
       .run(currentAircraft, boundedNumber(progress.totalDistance, 10_000_000), boundedInteger(progress.successfulLandings, 100_000), JSON.stringify(mergedDiscoveries), newDiscoveries * economyRewards.discovery, pilotId);
     return this.toProfile(this.getRow(pilotId)!);
@@ -802,8 +816,7 @@ export class PlayerProfileStore {
     const aircraftEntitlements = parseEntitlements(row.aircraft_entitlements);
     const fighterTrial = parseFighterTrial(row.fighter_trial);
     const permanentlyUnlocked = parseOwnedAircraft(row.owned_aircraft, aircraftEntitlements);
-    const unlockedAircraft = [...permanentlyUnlocked];
-    if ((fighterTrial.status === 'pending' || fighterTrial.status === 'active') && !unlockedAircraft.includes('fighter')) unlockedAircraft.push('fighter');
+    const unlockedAircraft = usableAircraftForRow(row);
     const selectedAircraft = selectedOwnedAircraft(row.selected_aircraft, unlockedAircraft);
     const encodedOwnedAircraft = JSON.stringify(permanentlyUnlocked);
     if (row.owned_aircraft !== encodedOwnedAircraft || row.selected_aircraft !== selectedAircraft) {
