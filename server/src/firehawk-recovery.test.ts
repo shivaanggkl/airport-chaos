@@ -217,3 +217,20 @@ test('legacy hydration cannot replace a non-expired active Firehawk trial with t
   assert.equal(imported.fighterTrial.status, 'active');
   assert.equal(imported.selectedAircraft, 'fighter');
 });
+
+test('trial expiry consumes once without resetting an independently entitled Firehawk owner', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-trial-owner-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  const pilotId = 'trial-owner-0000001';
+  profiles.getOrCreate(pilotId, 'Trial owner');
+  assert.equal(profiles.requestFighterTrial(pilotId).ok, true);
+  const active = profiles.activateFighterTrial(pilotId, 30_000)!;
+  assert.equal(active.selectedAircraft, 'fighter');
+  profiles.grantAircraftEntitlements(pilotId, ['fighter'], 'tester');
+
+  const consumed = profiles.consumeExpiredFighterTrial(pilotId, active.fighterTrial.expiresAt)!;
+  assert.equal(consumed.fighterTrial.status, 'consumed');
+  assert.equal(consumed.selectedAircraft, 'fighter');
+  assert.equal(consumed.unlockedAircraft.includes('fighter'), true);
+  assert.equal(profiles.requestFighterTrial(pilotId).profile?.fighterTrial.status, 'consumed');
+});

@@ -1351,13 +1351,14 @@ function updateFlightHud(): void {
   altitudeElement.classList.toggle('landing-risk', descentRisk);
   verticalSpeedElement.classList.toggle('landing-risk', descentRisk);
   const trial = serverProfile.fighterTrial;
-  const trialActive = aircraftType === 'fighter' && trial.status === 'active' && typeof trial.expiresAt === 'number';
+  const trialActive = aircraftType === 'fighter' && trial.status === 'active' && typeof trial.expiresAt === 'number' &&
+    !serverProfile.aircraftEntitlements.includes(firehawkProduct.entitlement);
   if (trialActive) {
     const remaining = Math.max(0, trial.expiresAt! - Date.now());
     const totalSeconds = Math.ceil(remaining / 1000);
     fighterTrialIndicator.textContent = remaining > 0
       ? `FIREHAWK TRIAL — ${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
-      : 'FIREHAWK TRIAL COMPLETE · UNLOCK FOREVER FOR $9.99';
+      : 'FIREHAWK TRIAL COMPLETE · UNLOCK FOREVER — $9.99';
     if (remaining === 0 && !trial.completedReportedAt && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_trial_completed' }));
   }
   fighterTrialIndicator.classList.toggle('hidden', !trialActive);
@@ -2589,7 +2590,7 @@ function endRun(message: EndReason, title: string = message): void {
   updateTimerDisplay();
 }
 
-function restartGame(): void {
+function restartGame(notifyServer = true): void {
   heldActions.clear();
   fireCooldown = 0;
   runStarted = true;
@@ -2645,12 +2646,12 @@ function restartGame(): void {
   updateTimerDisplay();
   showActiveCheckpoint();
   updateCamera(1);
-  sendRespawn();
+  if (notifyServer) sendRespawn();
   sendLocalState();
   sendPlayerUpdate();
 }
 
-function applyServerSelectedAircraft(nextType: AircraftType): void {
+function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true, notifyServer = true): void {
   if (nextType === aircraftType) return;
   scene.remove(airplane);
   disposeAirplaneMaterials(airplane);
@@ -2661,7 +2662,7 @@ function applyServerSelectedAircraft(nextType: AircraftType): void {
   health = Math.min(health, maxHealth);
   airplane = createAirplane(aircraftType);
   scene.add(airplane);
-  restartGame();
+  if (resetFlight) restartGame(notifyServer);
 }
 
 function selectAircraft(nextType: AircraftType): void {
@@ -3139,7 +3140,7 @@ type ServerMessage =
   | { type: 'socialReward'; score: number; credits: number; reason: string }
   | { type: 'chaosState'; multiplier: number; action: string; score: number; pendingCredits: number }
   | { type: 'chaosReward'; credits: number; reason: string }
-  | { type: 'profile'; profile: NetworkProfile; rewardId?: string; selectionRevision: number; equipRequestId?: number; creditReason?: string; preserveActiveAircraft?: boolean };
+  | { type: 'profile'; profile: NetworkProfile; rewardId?: string; selectionRevision: number; equipRequestId?: number; creditReason?: string; preserveActiveAircraft?: boolean; serverReset?: boolean };
 
 function createSafeNetworkProfile(): NetworkProfile {
   return {
@@ -6664,7 +6665,7 @@ function queueProfileProgress(): void {
   }, 1000);
 }
 
-function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false): boolean {
+function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false, serverReset = false): boolean {
   if (!isNetworkProfile(profile)) return false;
   if (!Number.isSafeInteger(revision) || revision < 0) return false;
   const previousRevision = selectionRevision;
@@ -6724,7 +6725,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   discoveredLocationIds.clear();
   for (const id of discoveredLocationsByCity[cityId] ?? []) discoveredLocationIds.add(id);
   discoverySystem?.hydrate(discoveredLocationIds);
-  if (!flightTestMode && !preserveActiveAircraft && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft);
+  if (!flightTestMode && !preserveActiveAircraft && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft, true, !serverReset);
   updateAircraftOptions();
   if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
     credits: profile.credits,
@@ -6997,7 +6998,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'chaosReward') {
     showProgressMessage(message.reason);
   } else if (message.type === 'profile') {
-    if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason, message.preserveActiveAircraft === true)) {
+    if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason, message.preserveActiveAircraft === true, message.serverReset === true)) {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');
     }
   } else if (message.type === 'equipRejected') {

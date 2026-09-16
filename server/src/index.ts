@@ -253,6 +253,7 @@ const eventActiveMs = 90_000;
 const eventTerminalMs = 5_000;
 const eventCooldownMinMs = 24_000;
 const eventCooldownMaxMs = 48_000;
+const fighterTrialEndGraceMs = 7_000;
 const wantedTransformFreshMs = 1_500;
 const cityEvents = new Map<CityId, CityEvent>();
 const lastEventTypes = new Map<CityId, DynamicEventType>();
@@ -1132,14 +1133,14 @@ function isHumanPilot(player: PlayerState | undefined): player is PlayerState & 
   return Boolean(player && !player.isBot);
 }
 
-function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false): void {
+function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false, serverReset = false): void {
   const player = players.get(playerId);
   if (!isHumanPilot(player)) return;
   const current = reconcilePaidFirehawk(profile ?? player.profile);
   player.profile = current;
   player.displayName = current.pilotName;
   if (!preserveActiveAircraft) player.aircraftType = current.selectedAircraft;
-  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft });
+  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft, serverReset });
 }
 
 function syncRefundedFirehawkProfile(pilotId: string, profile: PlayerProfile): void {
@@ -3570,6 +3571,44 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   return fallback ?? { position: { ...player.position }, heading: player.rotation.y };
 }
 
+function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: PlayerProfile, now: number, serverReset = false): void {
+  activeMissionStunts.delete(playerId);
+  missionSignal(playerId, { type: 'lostFlight', at: now });
+  const safeSpawn = safeRespawnTransform(playerId, player, now);
+  player.assistedAim = undefined;
+  player.aimSamples = undefined;
+  if (profile.selectedAircraft !== player.aircraftType) player.selectionRevision = (player.selectionRevision ?? 0) + 1;
+  player.profile = profile;
+  player.aircraftType = profile.selectedAircraft;
+  player.health = maxHealthForAircraft(player.aircraftType);
+  player.lifeState = 'respawning';
+  player.hasRespawnTransform = false;
+  player.spawnProtectedUntil = now + spawnProtectionMs;
+  player.position = safeSpawn.position;
+  player.lastAcceptedPosition = { ...safeSpawn.position };
+  player.lastAcceptedTransformAt = now;
+  player.rotation = { x: 0, y: safeSpawn.heading, z: 0 };
+  player.velocity = { x: 0, y: 0, z: 0 };
+  playerChaos.delete(playerId);
+  activeChallenges.delete(playerId);
+  landingFlightState.delete(playerId);
+  airportRepairStays.delete(playerId);
+  removeTerritoryContribution(playerId);
+  const activeRiskZone = cityEvents.get(player.cityId);
+  if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
+    activeRiskZone.progress.delete(playerId);
+    activeRiskZone.participants.delete(playerId);
+  }
+  setServerLock(playerId, player);
+  sendProfile(playerId, profile, undefined, undefined, undefined, false, serverReset);
+  reconcileMostWanted(player.cityId, now);
+  broadcastToCity(player.cityId, {
+    type: 'respawn', playerId, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType),
+    lifeState: player.lifeState, spawnPosition: safeSpawn.position, spawnHeading: safeSpawn.heading,
+  });
+  broadcastLeaderboard(player.cityId);
+}
+
 function expectedInitialTransform(cityId: CityId, spawnSlot: number, generic: Vector3): Vector3 {
   if (cityId !== 'dallas') return { ...generic };
   const airport = cityAirports[cityId][0];
@@ -3737,6 +3776,25 @@ function updateRepairStations(now: number): void {
   }
 }
 
+function updateFighterTrialExpiries(now: number): void {
+  for (const [playerId, player] of players) {
+    if (!isHumanPilot(player)) continue;
+    const trial = player.profile.fighterTrial;
+    if (trial.status !== 'active' || !Number.isFinite(trial.expiresAt) || now < trial.expiresAt! + fighterTrialEndGraceMs) continue;
+    if (profileStore.markFighterTrialCompleted(player.pilotId, now)) {
+      recordAnalytics(playerId, 'fighter_trial_completed', { metadata: { cityId: player.cityId } }, now);
+    }
+    const consumed = profileStore.consumeExpiredFighterTrial(player.pilotId, now);
+    if (!consumed || consumed.fighterTrial.status !== 'consumed') continue;
+    if (player.aircraftType === 'fighter' && consumed.selectedAircraft !== 'fighter') {
+      resetHumanToSafeRunway(playerId, player, consumed, now, true);
+    } else {
+      player.profile = consumed;
+      sendProfile(playerId, consumed);
+    }
+  }
+}
+
 let lastProjectileUpdate = Date.now();
 setInterval(() => {
   const now = Date.now();
@@ -3754,6 +3812,7 @@ setInterval(() => {
 }, 1_000);
 setInterval(() => updateTerritories(Date.now()), territoryTickMs);
 setInterval(() => tickMissions(Date.now()), 1_000);
+setInterval(() => updateFighterTrialExpiries(Date.now()), 500);
 setInterval(() => updateBots(Date.now()), botTickMs);
 setInterval(() => { for (const cityId of cityIds) reconcileBots(cityId); }, botPopulationTickMs);
 setInterval(() => updateRepairStations(Date.now()), repairCheckMs);
@@ -4291,47 +4350,8 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'respawn') {
-        activeMissionStunts.delete(playerId);
-        missionSignal(playerId, { type: 'lostFlight', at: Date.now() });
-        const safeSpawn = safeRespawnTransform(playerId, player, Date.now());
-        player.assistedAim = undefined;
-        player.aimSamples = undefined;
         const boundaryProfile = profileStore.getOrCreate(player.pilotId, player.displayName);
-        if (boundaryProfile.selectedAircraft !== player.aircraftType) player.selectionRevision = (player.selectionRevision ?? 0) + 1;
-        player.profile = boundaryProfile;
-        player.aircraftType = boundaryProfile.selectedAircraft;
-        player.health = maxHealthForAircraft(player.aircraftType);
-        player.lifeState = 'respawning';
-        player.hasRespawnTransform = false;
-        player.spawnProtectedUntil = Date.now() + spawnProtectionMs;
-        player.position = safeSpawn.position;
-        player.lastAcceptedPosition = { ...safeSpawn.position };
-        player.lastAcceptedTransformAt = Date.now();
-        player.rotation = { x: 0, y: safeSpawn.heading, z: 0 };
-        player.velocity = { x: 0, y: 0, z: 0 };
-        playerChaos.delete(playerId);
-        activeChallenges.delete(playerId);
-        landingFlightState.delete(playerId);
-        airportRepairStays.delete(playerId);
-        removeTerritoryContribution(playerId);
-        const activeRiskZone = cityEvents.get(player.cityId);
-        if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
-          activeRiskZone.progress.delete(playerId);
-          activeRiskZone.participants.delete(playerId);
-        }
-        setServerLock(playerId, player);
-        sendProfile(playerId, boundaryProfile);
-        reconcileMostWanted(player.cityId, Date.now());
-        broadcastToCity(player.cityId, {
-          type: 'respawn',
-          playerId,
-          health: player.health,
-          maxHealth: maxHealthForAircraft(player.aircraftType),
-          lifeState: player.lifeState,
-          spawnPosition: safeSpawn.position,
-          spawnHeading: safeSpawn.heading,
-        });
-        broadcastLeaderboard(player.cityId);
+        resetHumanToSafeRunway(playerId, player, boundaryProfile, Date.now());
         return;
       }
 

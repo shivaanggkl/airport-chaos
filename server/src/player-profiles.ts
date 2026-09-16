@@ -540,8 +540,9 @@ export class PlayerProfileStore {
     const trial = parseFighterTrial(row.fighter_trial);
     if (trial.status !== 'active' || (trial.expiresAt ?? Infinity) > now) return this.toProfile(row);
     const consumed = { ...trial, status: 'consumed' } satisfies FighterTrialState;
-    this.database.prepare('UPDATE player_profiles SET fighter_trial = ?, selected_aircraft = CASE WHEN selected_aircraft = ? THEN ? ELSE selected_aircraft END WHERE pilot_id = ?')
-      .run(JSON.stringify(consumed), 'fighter', 'trainer', pilotId);
+    const permanentlyOwnsFighter = parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes('fighter');
+    this.database.prepare('UPDATE player_profiles SET fighter_trial = ?, selected_aircraft = CASE WHEN ? = 0 AND selected_aircraft = ? THEN ? ELSE selected_aircraft END WHERE pilot_id = ?')
+      .run(JSON.stringify(consumed), permanentlyOwnsFighter ? 1 : 0, 'fighter', 'trainer', pilotId);
     return this.toProfile(this.getRow(pilotId)!);
   }
 
