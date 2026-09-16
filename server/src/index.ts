@@ -510,7 +510,8 @@ const httpServer = createServer(async (request, response) => {
       const refund = firehawkPayments.recordRefund(event);
       if (refund) {
         if (refund.fullRefund && !firehawkPayments.completedForPilot(refund.pilotId)) {
-          profileStore.revokeAircraftEntitlementSource(refund.pilotId, 'fighter', `stripe:${refund.stripeMode}`);
+          const updatedProfile = profileStore.revokeAircraftEntitlementSource(refund.pilotId, 'fighter', `stripe:${refund.stripeMode}`);
+          if (updatedProfile) syncRefundedFirehawkProfile(refund.pilotId, updatedProfile);
         }
         const host = analyticsHost(request.headers.host);
         analyticsStore.recordEvent({ pilotId: refund.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_refunded', {
@@ -1131,14 +1132,31 @@ function isHumanPilot(player: PlayerState | undefined): player is PlayerState & 
   return Boolean(player && !player.isBot);
 }
 
-function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string): void {
+function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false): void {
   const player = players.get(playerId);
   if (!isHumanPilot(player)) return;
   const current = reconcilePaidFirehawk(profile ?? player.profile);
   player.profile = current;
   player.displayName = current.pilotName;
-  player.aircraftType = current.selectedAircraft;
-  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason });
+  if (!preserveActiveAircraft) player.aircraftType = current.selectedAircraft;
+  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft });
+}
+
+function syncRefundedFirehawkProfile(pilotId: string, profile: PlayerProfile): void {
+  for (const [playerId, player] of players) {
+    if (!isHumanPilot(player) || player.pilotId !== pilotId) continue;
+    const preserveActiveAircraft = player.aircraftType === 'fighter' && player.lifeState === 'alive' && landingFlightState.get(playerId)?.airborne === true;
+    const previousAircraft = player.aircraftType;
+    player.selectionRevision = (player.selectionRevision ?? 0) + 1;
+    sendProfile(playerId, profile, undefined, undefined, undefined, preserveActiveAircraft);
+    if (preserveActiveAircraft || player.aircraftType === previousAircraft) continue;
+    player.health = maxHealthForAircraft(player.aircraftType);
+    broadcastToCity(player.cityId, {
+      type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
+      position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+      cityId: player.cityId, displayName: player.displayName, boostActive: player.boostActive, maxHealth: maxHealthForAircraft(player.aircraftType),
+    });
+  }
 }
 
 function sendMissionState(playerId: string): void {
@@ -4278,6 +4296,10 @@ server.on('connection', (socket, request) => {
         const safeSpawn = safeRespawnTransform(playerId, player, Date.now());
         player.assistedAim = undefined;
         player.aimSamples = undefined;
+        const boundaryProfile = profileStore.getOrCreate(player.pilotId, player.displayName);
+        if (boundaryProfile.selectedAircraft !== player.aircraftType) player.selectionRevision = (player.selectionRevision ?? 0) + 1;
+        player.profile = boundaryProfile;
+        player.aircraftType = boundaryProfile.selectedAircraft;
         player.health = maxHealthForAircraft(player.aircraftType);
         player.lifeState = 'respawning';
         player.hasRespawnTransform = false;
@@ -4298,6 +4320,7 @@ server.on('connection', (socket, request) => {
           activeRiskZone.participants.delete(playerId);
         }
         setServerLock(playerId, player);
+        sendProfile(playerId, boundaryProfile);
         reconcileMostWanted(player.cityId, Date.now());
         broadcastToCity(player.cityId, {
           type: 'respawn',

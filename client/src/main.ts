@@ -3138,7 +3138,7 @@ type ServerMessage =
   | { type: 'socialReward'; score: number; credits: number; reason: string }
   | { type: 'chaosState'; multiplier: number; action: string; score: number; pendingCredits: number }
   | { type: 'chaosReward'; credits: number; reason: string }
-  | { type: 'profile'; profile: NetworkProfile; rewardId?: string; selectionRevision: number; equipRequestId?: number; creditReason?: string };
+  | { type: 'profile'; profile: NetworkProfile; rewardId?: string; selectionRevision: number; equipRequestId?: number; creditReason?: string; preserveActiveAircraft?: boolean };
 
 function createSafeNetworkProfile(): NetworkProfile {
   return {
@@ -6662,7 +6662,7 @@ function queueProfileProgress(): void {
   }, 1000);
 }
 
-function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number, creditReason?: string): boolean {
+function applyServerProfile(profile: unknown, rewardId?: string, revision = selectionRevision, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false): boolean {
   if (!isNetworkProfile(profile)) return false;
   if (!Number.isSafeInteger(revision) || revision < 0) return false;
   if (rewardId) {
@@ -6705,7 +6705,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   discoveredLocationIds.clear();
   for (const id of discoveredLocationsByCity[cityId] ?? []) discoveredLocationIds.add(id);
   discoverySystem?.hydrate(discoveredLocationIds);
-  if (!flightTestMode && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft);
+  if (!flightTestMode && !preserveActiveAircraft && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft);
   updateAircraftOptions();
   if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
     credits: profile.credits,
@@ -6978,7 +6978,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'chaosReward') {
     showProgressMessage(message.reason);
   } else if (message.type === 'profile') {
-    if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason)) {
+    if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason, message.preserveActiveAircraft === true)) {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');
     }
   } else if (message.type === 'equipRejected') {

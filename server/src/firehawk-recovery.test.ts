@@ -143,3 +143,16 @@ test('refund mode isolation and entitlement sources preserve tester access', () 
   assert.equal(profile?.aircraftEntitlements.includes(firehawkProduct.entitlement), true);
   assert.equal(profile?.unlockedAircraft.includes('fighter'), true);
 });
+
+test('removing the final paid source locks Firehawk and falls selection back to trainer', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-refund-lock-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  profiles.getOrCreate('lock-pilot-0000001', 'Paid pilot');
+  profiles.grantAircraftEntitlements('lock-pilot-0000001', ['fighter'], 'stripe:test');
+  const equipped = profiles.equipAircraft('lock-pilot-0000001', 'fighter');
+  assert.equal(equipped?.selectedAircraft, 'fighter');
+  const revoked = profiles.revokeAircraftEntitlementSource('lock-pilot-0000001', 'fighter', 'stripe:test');
+  assert.equal(revoked?.selectedAircraft, 'trainer');
+  assert.equal(revoked?.unlockedAircraft.includes('fighter'), false);
+  assert.equal(profiles.equipAircraft('lock-pilot-0000001', 'fighter')?.selectedAircraft, 'trainer');
+});

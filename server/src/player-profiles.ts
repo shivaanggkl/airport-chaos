@@ -198,6 +198,10 @@ function parseOwnedAircraft(value: unknown, entitlements: readonly string[] = []
   if (Array.isArray(stored)) {
     for (const type of stored) {
       if (typeof type !== 'string' || !aircraftTypes.has(type as AircraftType)) continue;
+      // Premium aircraft ownership is entitlement-derived. Keeping it in the
+      // legacy credit-owned list would allow a refunded purchase to remain
+      // unlocked after its final entitlement source is removed.
+      if (aircraftEntitlement(type as AircraftType)) continue;
       owned.add(type as AircraftType);
     }
   }
@@ -206,6 +210,13 @@ function parseOwnedAircraft(value: unknown, entitlements: readonly string[] = []
     if (entitlement && entitlements.includes(entitlement)) owned.add(type);
   }
   return aircraftOrder.filter((type) => owned.has(type));
+}
+
+function storedAircraftIncludes(value: unknown, aircraft: AircraftType): boolean {
+  try {
+    const stored = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(stored) && stored.includes(aircraft);
+  } catch { return false; }
 }
 
 function selectedOwnedAircraft(value: unknown, owned: readonly AircraftType[]): AircraftType {
@@ -776,11 +787,10 @@ export class PlayerProfileStore {
   private toProfile(row: ProfileRow): PlayerProfile {
     const storedEconomyVersion = boundedInteger(row.economy_version, 1_000);
     if (storedEconomyVersion < ECONOMY_VERSION) {
-      const owned = parseOwnedAircraft(row.owned_aircraft);
       const entitlements = new Set(parseEntitlements(row.aircraft_entitlements));
       // Preserve both previously owned Fighters and the v1 tester entitlement
       // under the one canonical entitlement used by future purchases too.
-      if (owned.includes('fighter')) entitlements.add(aircraftEntitlement('fighter')!);
+      if (storedAircraftIncludes(row.owned_aircraft, 'fighter')) entitlements.add(aircraftEntitlement('fighter')!);
       const migratedCredits = storedEconomyVersion < 1 && row.credits >= legacyDevCreditThreshold
         ? migratedDevCredits
         : Math.max(0, row.credits);
