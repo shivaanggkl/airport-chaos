@@ -26,7 +26,7 @@ import { territoriesForCity, type CityTerritory } from '../../shared/city-territ
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
-import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import type {
@@ -2471,16 +2471,17 @@ function updateAircraftOptions(): void {
   for (const option of aircraftSelectElement.options) {
     if (!isAircraftType(option.value)) continue;
     const definition = aircraftDefinitions[option.value];
-    const owned = flightTestMode || (profileHydrated && serverProfile.unlockedAircraft.includes(option.value));
-    if (option.disabled !== !owned) option.disabled = !owned;
+    const usable = flightTestMode || (profileHydrated && serverProfile.unlockedAircraft.includes(option.value));
+    const permanentlyOwned = option.value !== 'fighter' || serverProfile.aircraftEntitlements.includes(firehawkProduct.entitlement);
+    if (option.disabled !== !usable) option.disabled = !usable;
     const label = flightTestMode && definition.access !== 'free'
       ? `${aircraftDisplayName(option.value)} — Flight test`
       :
       definition.access === 'free'
         ? `${aircraftDisplayName(option.value)} — Free`
         : definition.access === 'premium'
-          ? `${aircraftDisplayName(option.value)} — ${owned ? 'Owned' : 'Premium'}`
-          : `${aircraftDisplayName(option.value)} — ${owned ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
+          ? `${aircraftDisplayName(option.value)} — ${permanentlyOwned ? 'Owned' : usable ? 'Trial' : 'Premium'}`
+          : `${aircraftDisplayName(option.value)} — ${usable ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
     if (option.textContent !== label) option.textContent = label;
   }
 }

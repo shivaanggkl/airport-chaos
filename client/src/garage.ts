@@ -50,6 +50,7 @@ export class AircraftGarage {
   private readonly previewCorner = new THREE.Vector3();
   private previewWidth = 0;
   private previewHeight = 0;
+  private lastTrialSecond = -1;
 
   constructor(
     private readonly element: HTMLElement,
@@ -176,11 +177,14 @@ export class AircraftGarage {
 
   private renderDetails(): void {
     const definition = aircraftDefinitions[this.selected];
-    const owned = this.profile.unlockedAircraft.includes(this.selected);
+    const owned = this.isPermanentlyOwned(this.selected);
+    const trialUsable = this.selected === 'fighter' && this.isTrialUsable();
     const price = definition.access === 'credits' ? definition.creditsRequired : undefined;
     const ownership = this.loadingProfile
       ? 'SYNCING PROFILE…'
-      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : owned ? 'OWNED' : definition.access === 'premium' ? `Premium Aircraft · ${firehawkProduct.displayPrice}` : `${price!.toLocaleString()} ${identityText('credits')}`;
+      : trialUsable ? this.trialStatusText()
+      : owned ? (this.selected === this.profile.selectedAircraft ? 'OWNED · SELECTED' : 'OWNED')
+      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : definition.access === 'premium' ? `Premium Aircraft · ${firehawkProduct.displayPrice}` : `${price!.toLocaleString()} ${identityText('credits')}`;
     this.element.querySelector('[data-garage-status]')!.textContent = `${ownership} · ${definition.livery.name}`;
     this.element.querySelector('[data-garage-credits]')!.textContent = `${this.profile.credits.toLocaleString()} ${identityText('credits')}`;
     this.element.querySelector('[data-garage-name]')!.textContent = aircraftDisplayName(this.selected);
@@ -204,10 +208,33 @@ export class AircraftGarage {
     this.element.querySelector<HTMLElement>('[data-garage-redeem-open]')!.hidden = !canRedeem || this.testerOpen;
     tester.hidden = !canRedeem || !this.testerOpen;
     for (const [type, card] of this.cards) {
-      const data = aircraftDefinitions[type]; const typeOwned = this.profile.unlockedAircraft.includes(type);
-      const access = typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${firehawkProduct.displayPrice}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
+      const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
+      const access = type === 'fighter' && this.isTrialUsable() ? this.trialStatusText() : typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${firehawkProduct.displayPrice}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
       card.classList.toggle('selected', type === this.selected); card.textContent = `${aircraftDisplayName(type)} · ${access}`;
     }
+    this.lastTrialSecond = this.trialRemainingSeconds();
+  }
+
+  private isPermanentlyOwned(type: AircraftType): boolean {
+    return type === 'fighter'
+      ? this.profile.aircraftEntitlements?.includes(firehawkProduct.entitlement) === true
+      : this.profile.unlockedAircraft.includes(type);
+  }
+
+  private isTrialUsable(): boolean {
+    return this.profile.fighterTrial?.status === 'pending' || this.profile.fighterTrial?.status === 'active';
+  }
+
+  private trialRemainingSeconds(): number {
+    const trial = this.profile.fighterTrial;
+    return trial?.status === 'active' && typeof trial.expiresAt === 'number' ? Math.max(0, Math.ceil((trial.expiresAt - Date.now()) / 1000)) : -1;
+  }
+
+  private trialStatusText(): string {
+    const remaining = this.trialRemainingSeconds();
+    if (remaining < 0) return 'TEST FLIGHT READY';
+    if (remaining === 0) return 'TRIAL COMPLETE';
+    return `TRIAL ACTIVE — ${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
   }
 
   private normalizeProfile(profile: GarageProfile): GarageProfile {
@@ -334,6 +361,8 @@ export class AircraftGarage {
 
   private animate = (): void => {
     if (this.element.hidden) return;
+    const trialSecond = this.trialRemainingSeconds();
+    if (trialSecond !== this.lastTrialSecond) this.renderDetails();
     if (!this.dragging) this.targetOrbitYaw += 0.002;
     this.orbitYaw = THREE.MathUtils.lerp(this.orbitYaw, this.targetOrbitYaw, 0.12);
     this.orbitPitch = THREE.MathUtils.lerp(this.orbitPitch, this.targetOrbitPitch, 0.14);

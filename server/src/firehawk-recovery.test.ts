@@ -156,3 +156,33 @@ test('removing the final paid source locks Firehawk and falls selection back to 
   assert.equal(revoked?.unlockedAircraft.includes('fighter'), false);
   assert.equal(profiles.equipAircraft('lock-pilot-0000001', 'fighter')?.selectedAircraft, 'trainer');
 });
+
+test('Firehawk trial is temporary usable access and survives refresh until a post-expiry boundary', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-trial-flow-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  const pilotId = 'trial-pilot-0000001';
+  const initial = profiles.getOrCreate(pilotId, 'Trial pilot');
+  assert.equal(initial.aircraftEntitlements.includes(firehawkProduct.entitlement), false);
+  assert.equal(initial.unlockedAircraft.includes('fighter'), false);
+
+  const requested = profiles.requestFighterTrial(pilotId);
+  assert.equal(requested.ok, true);
+  assert.equal(requested.profile?.fighterTrial.status, 'pending');
+  assert.equal(requested.profile?.fighterTrial.startedAt, undefined);
+  assert.equal(requested.profile?.unlockedAircraft.includes('fighter'), true);
+
+  const startedAt = 10_000;
+  const active = profiles.activateFighterTrial(pilotId, startedAt)!;
+  assert.equal(active.selectedAircraft, 'fighter');
+  assert.equal(active.aircraftEntitlements.includes(firehawkProduct.entitlement), false);
+  assert.equal(active.fighterTrial.expiresAt, startedAt + 5 * 60_000);
+  assert.equal(profiles.getOrCreate(pilotId, 'Trial pilot').selectedAircraft, 'fighter');
+
+  const expiredInFlight = profiles.getOrCreate(pilotId, 'Trial pilot');
+  assert.equal(expiredInFlight.fighterTrial.status, 'active');
+  assert.equal(expiredInFlight.selectedAircraft, 'fighter');
+  const consumed = profiles.consumeExpiredFighterTrial(pilotId, startedAt + 5 * 60_000)!;
+  assert.equal(consumed.fighterTrial.status, 'consumed');
+  assert.equal(consumed.selectedAircraft, 'trainer');
+  assert.equal(consumed.unlockedAircraft.includes('fighter'), false);
+});
