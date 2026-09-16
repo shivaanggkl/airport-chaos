@@ -9,6 +9,7 @@ export type AnalyticsEventName =
   | 'aircraft_unlocked' | 'credits_earned' | 'mission_completed' | 'territory_captured' | 'session_ended'
   | 'fighter_modal_viewed' | 'fighter_trial_started' | 'fighter_trial_completed' | 'fighter_purchase_clicked'
   | 'fighter_checkout_created' | 'fighter_purchase_completed' | 'fighter_checkout_cancelled'
+  | 'fighter_purchase_refunded'
   | 'purchase_recovery_created' | 'purchase_recovery_succeeded';
 
 export type AnalyticsContext = {
@@ -26,6 +27,7 @@ const validEventNames = new Set<AnalyticsEventName>([
   'credits_earned', 'mission_completed', 'territory_captured', 'session_ended',
   'fighter_modal_viewed', 'fighter_trial_started', 'fighter_trial_completed', 'fighter_purchase_clicked',
   'fighter_checkout_created', 'fighter_purchase_completed', 'fighter_checkout_cancelled',
+  'fighter_purchase_refunded',
   'purchase_recovery_created', 'purchase_recovery_succeeded',
 ]);
 
@@ -123,6 +125,11 @@ export class AnalyticsStore {
     });
   }
 
+  testerEntitlementPilots(): string[] {
+    return (this.database.prepare(`SELECT DISTINCT pilot_id FROM analytics_events WHERE event_name='aircraft_unlocked' AND source='tester_code'`).all() as Array<{ pilot_id: string }>)
+      .map(row => row.pilot_id);
+  }
+
   dashboardHtml(productionOnly = true, now = Date.now(), purchases?: PurchaseMetricsByMode, stripeMode: StripeMode = 'test'): string {
     const environment = productionOnly ? 'production' : undefined;
     const windows = [['TODAY', 24 * 60 * 60_000], ['LAST 7 DAYS', 7 * 24 * 60 * 60_000], ['LAST 30 DAYS', 30 * 24 * 60 * 60_000]] as const;
@@ -132,12 +139,12 @@ export class AnalyticsStore {
     const unlocks = this.database.prepare(`SELECT COALESCE(aircraft_type,'Unknown') aircraft, COUNT(*) count FROM analytics_events WHERE event_name='aircraft_unlocked' AND created_at >= ? ${filter} GROUP BY aircraft_type ORDER BY count DESC`).all(...args) as Array<{ aircraft: string; count: number }>;
     const unlockRows = unlocks.length ? unlocks.map(row => `<tr><td>${escapeHtml(row.aircraft)}</td><td>${row.count}</td></tr>`).join('') : '<tr><td colspan="2">No unlocks yet</td></tr>';
     const purchaseCard = (mode: StripeMode, metrics: PurchaseMetrics | undefined) => {
-      const rows = metrics?.rows.length ? metrics.rows.map(row => `<tr><td>${escapeHtml(row.reference)}</td><td>${escapeHtml(row.pilotId.slice(0, 8))}</td><td>${formatFirehawkAmount(row.amount)}</td><td>${escapeHtml(row.email ?? '—')}</td></tr>`).join('') : '<tr><td colspan="4">No purchases yet</td></tr>';
-      const completedEvents = this.stripeEventCount('fighter_purchase_completed', mode, environment);
+      const rows = metrics?.rows.length ? metrics.rows.map(row => `<tr><td>${escapeHtml(row.reference)}</td><td>${escapeHtml(row.pilotId.slice(0, 8))}</td><td>${formatFirehawkAmount(row.amount)}</td><td>${formatFirehawkAmount(row.refundedAmount)}</td><td>${escapeHtml(row.status)}</td><td>${escapeHtml(row.email ?? '—')}</td></tr>`).join('') : '<tr><td colspan="6">No purchases yet</td></tr>';
+      const completedEvents = metrics?.purchases ?? 0;
       const activeFunnel = mode === stripeMode
         ? metricHtml('Trial starts', this.eventCount('fighter_trial_started', environment)) + metricHtml('Trial completions', this.eventCount('fighter_trial_completed', environment)) + metricHtml('Trial → purchase', `${conversion(completedEvents, this.eventCount('fighter_trial_started', environment))}%`)
         : '';
-      return `<div class="card" style="margin-top:16px"><h2>${mode.toUpperCase()} · Firehawk purchases</h2><div class="metrics">${metricHtml('Completed purchases', metrics?.purchases ?? 0)}${metricHtml(mode === 'live' ? 'Gross revenue' : 'Sandbox value', formatFirehawkAmount(metrics?.revenue ?? 0))}${metricHtml('Checkout starts', this.stripeEventCount('fighter_checkout_created', mode, environment))}${metricHtml('Purchase events', completedEvents)}${mode === stripeMode ? metricHtml('Configured Stripe mode', mode.toUpperCase()) + activeFunnel : ''}</div><table><tr><td>Reference</td><td>Pilot</td><td>Amount</td><td>Support email</td></tr>${rows}</table></div>`;
+      return `<div class="card" style="margin-top:16px"><h2>${mode.toUpperCase()} · Firehawk purchases</h2><div class="metrics">${metricHtml('Active paid purchases', metrics?.purchases ?? 0)}${metricHtml(mode === 'live' ? 'Gross sales' : 'Sandbox gross', formatFirehawkAmount(metrics?.grossRevenue ?? 0))}${metricHtml('Refunded purchases', metrics?.refundedPurchases ?? 0)}${metricHtml('Refunds', formatFirehawkAmount(metrics?.refundedAmount ?? 0))}${metricHtml(mode === 'live' ? 'Net revenue' : 'Sandbox net', formatFirehawkAmount(metrics?.netRevenue ?? 0))}${metricHtml('Checkout starts', this.stripeEventCount('fighter_checkout_created', mode, environment))}${mode === stripeMode ? metricHtml('Configured Stripe mode', mode.toUpperCase()) + activeFunnel : ''}</div><table><tr><td>Reference</td><td>Pilot</td><td>Amount</td><td>Refunded</td><td>Status</td><td>Support email</td></tr>${rows}</table></div>`;
     };
     const purchaseCards = purchaseCard('live', purchases?.live) + purchaseCard('test', purchases?.test);
     const modeLabel = stripeMode === 'test' ? 'STRIPE TEST MODE / SANDBOX' : 'STRIPE LIVE MODE';

@@ -322,6 +322,13 @@ export class PlayerProfileStore {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS aircraft_entitlement_sources (
+        pilot_id TEXT NOT NULL,
+        entitlement TEXT NOT NULL,
+        source TEXT NOT NULL,
+        granted_at INTEGER NOT NULL,
+        PRIMARY KEY (pilot_id, entitlement, source)
+      );
       CREATE TABLE IF NOT EXISTS weekly_leaderboard (
         city_id TEXT NOT NULL, week_id TEXT NOT NULL, category TEXT NOT NULL, pilot_id TEXT NOT NULL,
         pilot_name TEXT NOT NULL, value REAL NOT NULL DEFAULT 0, achieved_at INTEGER NOT NULL,
@@ -545,17 +552,57 @@ export class PlayerProfileStore {
     }
   }
 
-  grantAircraftEntitlements(pilotId: string, requestedAircraft: readonly AircraftType[]): PlayerProfile | undefined {
+  grantAircraftEntitlements(pilotId: string, requestedAircraft: readonly AircraftType[], source = 'legacy'): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
     const entitlements = new Set(parseEntitlements(row.aircraft_entitlements));
     for (const aircraft of requestedAircraft) {
       const entitlement = aircraftEntitlement(aircraft);
-      if (entitlement) entitlements.add(entitlement);
+      if (entitlement) {
+        entitlements.add(entitlement);
+        this.database.prepare(`INSERT OR IGNORE INTO aircraft_entitlement_sources (pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)`)
+          .run(pilotId, entitlement, source.slice(0, 80), Date.now());
+      }
     }
     this.database.prepare('UPDATE player_profiles SET aircraft_entitlements = ? WHERE pilot_id = ?')
       .run(JSON.stringify([...entitlements]), pilotId);
     return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  revokeAircraftEntitlementSource(pilotId: string, aircraft: AircraftType, source: string): PlayerProfile | undefined {
+    const row = this.getRow(pilotId);
+    const entitlement = aircraftEntitlement(aircraft);
+    if (!row || !entitlement) return row ? this.toProfile(row) : undefined;
+    this.database.prepare('DELETE FROM aircraft_entitlement_sources WHERE pilot_id=? AND entitlement=? AND source=?')
+      .run(pilotId, entitlement, source.slice(0, 80));
+    const remaining = this.database.prepare('SELECT 1 FROM aircraft_entitlement_sources WHERE pilot_id=? AND entitlement=? LIMIT 1')
+      .get(pilotId, entitlement);
+    if (!remaining) {
+      const entitlements = parseEntitlements(row.aircraft_entitlements).filter(value => value !== entitlement);
+      this.database.prepare(`UPDATE player_profiles SET aircraft_entitlements=?,selected_aircraft=CASE WHEN selected_aircraft=? THEN ? ELSE selected_aircraft END WHERE pilot_id=?`)
+        .run(JSON.stringify(entitlements), aircraft, 'trainer', pilotId);
+    }
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  migrateFighterEntitlementSources(paid: ReadonlyArray<{ pilotId: string; stripeMode: 'test' | 'live' }>, testerPilotIds: readonly string[]): void {
+    const entitlement = aircraftEntitlement('fighter')!;
+    const insert = this.database.prepare(`INSERT OR IGNORE INTO aircraft_entitlement_sources (pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)`);
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      for (const grant of paid) insert.run(grant.pilotId, entitlement, `stripe:${grant.stripeMode}`, Date.now());
+      for (const pilotId of testerPilotIds) insert.run(pilotId, entitlement, 'tester', Date.now());
+      const unresolved = this.database.prepare(`SELECT pilot_id FROM player_profiles WHERE EXISTS (
+        SELECT 1 FROM json_each(player_profiles.aircraft_entitlements) WHERE value=?
+      ) AND NOT EXISTS (
+        SELECT 1 FROM aircraft_entitlement_sources sources WHERE sources.pilot_id=player_profiles.pilot_id AND sources.entitlement=?
+      )`).all(entitlement, entitlement) as Array<{ pilot_id: string }>;
+      for (const row of unresolved) insert.run(row.pilot_id, entitlement, 'legacy', Date.now());
+      this.database.exec('COMMIT');
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   applyClientReward(pilotId: string, rewardId: string, source: unknown): PlayerProfile | undefined {

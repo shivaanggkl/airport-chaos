@@ -260,6 +260,7 @@ const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(file
 const profileStore = new PlayerProfileStore(profileDatabasePath);
 const analyticsStore = new AnalyticsStore(profileDatabasePath);
 const firehawkPayments = new FirehawkPayments(profileDatabasePath);
+profileStore.migrateFighterEntitlementSources(firehawkPayments.activeEntitlementOwners(), analyticsStore.testerEntitlementPilots());
 const pilotSessions = new PilotSessionStore(profileDatabasePath);
 pilotSessions.prune();
 analyticsStore.prune();
@@ -281,8 +282,8 @@ function limitedBy(scope: string, identity: string, rule: RateLimitRule): { limi
   return { limited: !result.allowed, retryAfterMs: result.retryAfterMs };
 }
 function reconcilePaidFirehawk(profile: PlayerProfile): PlayerProfile {
-  return firehawkPayments.completedForPilot(profile.pilotId) && !profile.aircraftEntitlements.includes(firehawkProduct.entitlement)
-    ? profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter']) ?? profile
+  return firehawkPayments.completedForPilot(profile.pilotId)
+    ? profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter'], `stripe:${firehawkPayments.mode}`) ?? profile
     : profile;
 }
 const analyticsContexts = new Map<string, AnalyticsContext>();
@@ -304,7 +305,7 @@ function redeemTesterCode(pilotId: string, value: unknown, clientIp: string): { 
   const supplied = typeof value === 'string' ? value.trim() : '';
   const digest = createHash('sha256').update(supplied).digest();
   if (digest.length !== testerCodeHash.length || !timingSafeEqual(digest, testerCodeHash)) return { ok: false, reason: 'Invalid access code' };
-  const profile = profileStore.grantAircraftEntitlements(pilotId, ['fighter']);
+  const profile = profileStore.grantAircraftEntitlements(pilotId, ['fighter'], 'tester');
   return profile ? { ok: true, reason: 'Redspear Fighter Unlocked', profile } : { ok: false, reason: 'Profile unavailable.' };
 }
 type FormationState = { memberIds: [string, string]; qualifiedAt: number; active: boolean; lastRewardAt: number };
@@ -502,9 +503,19 @@ const httpServer = createServer(async (request, response) => {
       const event = firehawkPayments.verifyEvent(rawBody, request.headers['stripe-signature'] as string | undefined);
       const purchase = await firehawkPayments.recordPaidCheckout(event);
       if (purchase) {
-        profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter']);
+        profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter'], `stripe:${purchase.stripeMode}`);
         const host = analyticsHost(request.headers.host);
         analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: firehawkProduct.amountCents, source: 'stripe', metadata: { stripeMode: purchase.stripeMode } });
+      }
+      const refund = firehawkPayments.recordRefund(event);
+      if (refund) {
+        if (refund.fullRefund && !firehawkPayments.completedForPilot(refund.pilotId)) {
+          profileStore.revokeAircraftEntitlementSource(refund.pilotId, 'fighter', `stripe:${refund.stripeMode}`);
+        }
+        const host = analyticsHost(request.headers.host);
+        analyticsStore.recordEvent({ pilotId: refund.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_refunded', {
+          amount: refund.refundDelta, source: 'stripe', metadata: { stripeMode: refund.stripeMode, fullRefund: refund.fullRefund },
+        });
       }
       response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"received":true}');
     } catch (error) {
@@ -552,9 +563,12 @@ const httpServer = createServer(async (request, response) => {
     const ipLimit = limitedBy('recovery-ip', identity.clientIp, securityLimits.recoveryIp);
     if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
     const payload = await readJson(request); const code = typeof payload?.recoveryCode === 'string' ? payload.recoveryCode : '';
-    const restored = firehawkPayments.restore(code);
+    const restored = firehawkPayments.restore(code, identity.pilotId);
     if (!restored.ok) { response.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Invalid recovery code"}'); return; }
-    const profile = profileStore.grantAircraftEntitlements(identity.pilotId, ['fighter']);
+    if (restored.previousPilotId && restored.previousPilotId !== identity.pilotId && restored.stripeMode && !firehawkPayments.completedForPilot(restored.previousPilotId)) {
+      profileStore.revokeAircraftEntitlementSource(restored.previousPilotId, 'fighter', `stripe:${restored.stripeMode}`);
+    }
+    const profile = profileStore.grantAircraftEntitlements(identity.pilotId, ['fighter'], `stripe:${restored.stripeMode ?? firehawkPayments.mode}`);
     securityLimiter.clear('recovery-pilot', identity.pilotId);
     analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'purchase_recovery_succeeded', { source: restored.reference });
     response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });

@@ -4,9 +4,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
+import type Stripe from 'stripe';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { AnalyticsStore } from './analytics.js';
 import { FirehawkPayments, stripeModeAcceptsEvent } from './firehawk-payments.js';
+import { PlayerProfileStore } from './player-profiles.js';
+
+function refundEvent(id: string, livemode: boolean, amountRefunded: number): Stripe.Event {
+  return { id, type: 'charge.refunded', livemode, created: 1_800_000_000, data: { object: {
+    id: 'ch_refund', object: 'charge', livemode, paid: true, amount: firehawkProduct.amountCents,
+    amount_refunded: amountRefunded, currency: firehawkProduct.currency, payment_intent: 'pi_refund',
+  } } } as unknown as Stripe.Event;
+}
 
 test('paid purchase emits one recovery code and successful restore rotates it', () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-recovery-')), 'profiles.sqlite');
@@ -18,10 +27,10 @@ test('paid purchase emits one recovery code and successful restore rotates it', 
   const status = payments.status('paid-pilot-0000001', 'cs_paid');
   assert.match(status.recoveryCode ?? '', /^(?:[A-Z0-9]{4}-){4}[A-Z0-9]{4}$/);
   assert.equal(payments.status('paid-pilot-0000001', 'cs_paid').recoveryCode, undefined);
-  const restored = payments.restore(status.recoveryCode!);
+  const restored = payments.restore(status.recoveryCode!, 'restored-pilot-00001');
   assert.equal(restored.ok, true);
   assert.notEqual(restored.recoveryCode, status.recoveryCode);
-  assert.equal(payments.restore(status.recoveryCode!).ok, false);
+  assert.equal(payments.restore(status.recoveryCode!, 'restored-pilot-00001').ok, false);
   const stored = database.prepare('SELECT recovery_hash FROM firehawk_purchases').get() as { recovery_hash: string };
   assert.match(stored.recovery_hash, /^[a-f0-9]{64}$/);
   assert.equal(stored.recovery_hash.includes(status.recoveryCode!), false);
@@ -50,7 +59,7 @@ test('legacy sandbox rows migrate to TEST and never reconcile or restore in LIVE
   const livePayments = new FirehawkPayments(databasePath, 'live');
   assert.equal(livePayments.completedForPilot('legacy-test-pilot-01'), false);
   assert.equal(livePayments.status('legacy-test-pilot-01', 'cs_legacy_test').status, 'pending');
-  assert.equal(livePayments.restore(status.recoveryCode!).ok, false);
+  assert.equal(livePayments.restore(status.recoveryCode!, 'legacy-live-pilot01').ok, false);
   assert.equal(testPayments.metrics().test.purchases, 1);
   assert.equal(testPayments.metrics().live.purchases, 0);
 });
@@ -72,8 +81,8 @@ test('admin purchase reporting separates LIVE revenue from TEST sandbox value', 
   insert.run('evt_test', 'cs_test', 'test-metrics-pilot-01', firehawkProduct.entitlement, firehawkProduct.productId, firehawkProduct.amountCents, firehawkProduct.currency, 'paid', 'test', 1, 1);
   insert.run('evt_live', 'cs_live', 'live-metrics-pilot-01', firehawkProduct.entitlement, firehawkProduct.productId, firehawkProduct.amountCents, firehawkProduct.currency, 'paid', 'live', 1, 1);
   const metrics = payments.metrics();
-  assert.equal(metrics.test.revenue, firehawkProduct.amountCents);
-  assert.equal(metrics.live.revenue, firehawkProduct.amountCents);
+  assert.equal(metrics.test.grossRevenue, firehawkProduct.amountCents);
+  assert.equal(metrics.live.grossRevenue, firehawkProduct.amountCents);
   const analytics = new AnalyticsStore(databasePath);
   analytics.recordEvent({ pilotId: 'test-metrics-pilot-01', environment: 'production', host: 'fly.vadensoftware.com' }, 'fighter_checkout_created', { metadata: { stripeMode: 'test' } });
   analytics.recordEvent({ pilotId: 'live-metrics-pilot-01', environment: 'production', host: 'fly.vadensoftware.com' }, 'fighter_checkout_created', { metadata: { stripeMode: 'live' } });
@@ -81,7 +90,56 @@ test('admin purchase reporting separates LIVE revenue from TEST sandbox value', 
   assert.match(html, /STRIPE TEST MODE \/ SANDBOX/);
   assert.match(html, /LIVE · Firehawk purchases/);
   assert.match(html, /TEST · Firehawk purchases/);
-  assert.match(html, /Gross revenue/);
-  assert.match(html, /Sandbox value/);
+  assert.match(html, /Gross sales/);
+  assert.match(html, /Sandbox gross/);
   assert.match(html, /Checkout starts<\/span><b>1<\/b>/);
+});
+
+test('partial then full refund is cumulative, idempotent, and invalidates recovery', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-refund-')), 'profiles.sqlite');
+  const payments = new FirehawkPayments(databasePath, 'test');
+  const database = new DatabaseSync(databasePath);
+  database.prepare(`INSERT INTO firehawk_purchases
+    (stripe_event_id,checkout_session_id,payment_intent_id,pilot_id,entitled_pilot_id,entitlement,product,amount,currency,status,stripe_mode,created_at,paid_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('evt_purchase', 'cs_refund', 'pi_refund', 'refund-pilot-00001', 'refund-pilot-00001',
+      firehawkProduct.entitlement, firehawkProduct.productId, firehawkProduct.amountCents, firehawkProduct.currency, 'paid', 'test', 1, 1);
+  const status = payments.status('refund-pilot-00001', 'cs_refund');
+  assert.ok(status.recoveryCode);
+
+  const partial = payments.recordRefund(refundEvent('evt_partial', false, 300));
+  assert.equal(partial?.fullRefund, false);
+  assert.equal(payments.completedForPilot('refund-pilot-00001'), true);
+  assert.equal(payments.metrics().test.netRevenue, firehawkProduct.amountCents - 300);
+
+  const full = payments.recordRefund(refundEvent('evt_full', false, firehawkProduct.amountCents));
+  assert.equal(full?.fullRefund, true);
+  assert.equal(full?.refundDelta, firehawkProduct.amountCents - 300);
+  assert.equal(payments.completedForPilot('refund-pilot-00001'), false);
+  assert.equal(payments.restore(status.recoveryCode!, 'other-pilot-000001').ok, false);
+  assert.equal(payments.recordRefund(refundEvent('evt_full_duplicate', false, firehawkProduct.amountCents)), undefined);
+  const metrics = payments.metrics().test;
+  assert.equal(metrics.purchases, 0);
+  assert.equal(metrics.refundedPurchases, 1);
+  assert.equal(metrics.refundedAmount, firehawkProduct.amountCents);
+  assert.equal(metrics.netRevenue, 0);
+});
+
+test('refund mode isolation and entitlement sources preserve tester access', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-refund-source-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  profiles.getOrCreate('source-pilot-00001', 'Tester');
+  profiles.grantAircraftEntitlements('source-pilot-00001', ['fighter'], 'tester');
+  profiles.grantAircraftEntitlements('source-pilot-00001', ['fighter'], 'stripe:test');
+  const payments = new FirehawkPayments(databasePath, 'test');
+  const database = new DatabaseSync(databasePath);
+  database.prepare(`INSERT INTO firehawk_purchases
+    (stripe_event_id,checkout_session_id,payment_intent_id,pilot_id,entitled_pilot_id,entitlement,product,amount,currency,status,stripe_mode,created_at,paid_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('evt_source', 'cs_source', 'pi_refund', 'source-pilot-00001', 'source-pilot-00001',
+      firehawkProduct.entitlement, firehawkProduct.productId, firehawkProduct.amountCents, firehawkProduct.currency, 'paid', 'test', 1, 1);
+  assert.equal(payments.recordRefund(refundEvent('evt_wrong_mode', true, firehawkProduct.amountCents)), undefined);
+  const refund = payments.recordRefund(refundEvent('evt_source_refund', false, firehawkProduct.amountCents));
+  assert.equal(refund?.fullRefund, true);
+  const profile = profiles.revokeAircraftEntitlementSource('source-pilot-00001', 'fighter', 'stripe:test');
+  assert.equal(profile?.aircraftEntitlements.includes(firehawkProduct.entitlement), true);
+  assert.equal(profile?.unlockedAircraft.includes('fighter'), true);
 });
