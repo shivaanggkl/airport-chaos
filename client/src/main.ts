@@ -883,6 +883,9 @@ function showAircraftSwitchHint(): void {
 let aircraftOptionsKey = '';
 let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
+function releaseAircraftSelectorFocus(): void {
+  if (document.activeElement === aircraftSelectElement) aircraftSelectElement.blur();
+}
 let purchaseSequence = 0;
 const flightTestIndicator = document.querySelector<HTMLDivElement>('#flight-test-mode')!;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
@@ -2456,6 +2459,7 @@ function updateAircraftOptions(): void {
   if (pendingEquip && performance.now() - pendingEquip.sentAt > 8000) {
     pendingEquip = undefined;
     aircraftSelectElement.value = aircraftType;
+    releaseAircraftSelectorFocus();
     showProgressMessage('AIRCRAFT SWITCH NOT CONFIRMED — TRY AGAIN');
   }
   const switchingAllowed = canSwitchAircraft();
@@ -2666,24 +2670,28 @@ function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true,
 }
 
 function selectAircraft(nextType: AircraftType): void {
-  if (pendingEquip) { updateAircraftOptions(); return; }
-  if (nextType === aircraftType) return;
+  if (pendingEquip) { updateAircraftOptions(); releaseAircraftSelectorFocus(); return; }
+  if (nextType === aircraftType) { releaseAircraftSelectorFocus(); return; }
   if (!canSwitchAircraft()) {
     aircraftSelectElement.value = aircraftType;
+    releaseAircraftSelectorFocus();
     showAircraftSwitchHint();
     return;
   }
   if (flightTestMode) {
     applyServerSelectedAircraft(nextType);
+    releaseAircraftSelectorFocus();
     return;
   }
   if (!profileHydrated || !serverProfile.unlockedAircraft.includes(nextType)) {
     aircraftSelectElement.value = aircraftType;
+    releaseAircraftSelectorFocus();
     showProgressMessage(!profileHydrated ? 'WAITING FOR SERVER PROFILE' : (aircraftAccessReason(nextType) ?? 'AIRCRAFT NOT OWNED'));
     return;
   }
   if (!connectionReady()) {
     aircraftSelectElement.value = aircraftType;
+    releaseAircraftSelectorFocus();
     showProgressMessage('SERVER REQUIRED TO EQUIP AIRCRAFT');
     return;
   }
@@ -2705,7 +2713,23 @@ aircraftSelectElement.addEventListener('pointerdown', (event) => {
   showAircraftSwitchHint();
 });
 aircraftSelectElement.addEventListener('keydown', (event) => {
-  if (canSwitchAircraft()) return;
+  if (event.code === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    releaseAircraftSelectorFocus();
+    return;
+  }
+  // TAB remains the global Pilot Menu shortcut even while this control owns
+  // native keyboard focus.
+  if (event.code === menuBindings.menu) return;
+  if (canSwitchAircraft()) {
+    // Preserve native Arrow/Enter/Space selection, but stop letter-bound
+    // flight keys from type-ahead-changing the selected aircraft.
+    if (flightControlCodes.has(event.code) && !event.code.startsWith('Arrow') && event.code !== 'Space') {
+      event.preventDefault();
+    }
+    return;
+  }
   event.preventDefault();
   showAircraftSwitchHint();
 });
@@ -4352,6 +4376,9 @@ window.addEventListener('keydown', (event) => {
 });
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
+  // Reclaim flight focus without consuming the pointer event; the same press
+  // must still begin the existing camera-orbit gesture below.
+  releaseAircraftSelectorFocus();
   if (event.pointerType !== 'mouse' || event.button !== 0 || worldMap.isOpen() || pilotMenu.isOpen() || aircraftGarage.isOpen()) return;
   event.preventDefault();
   // Convert the rendered camera frame to orbit coordinates before changing
@@ -6693,7 +6720,10 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
     });
     return true;
   }
-  if (equipConfirmed) pendingEquip = undefined;
+  if (equipConfirmed) {
+    pendingEquip = undefined;
+    releaseAircraftSelectorFocus();
+  }
   selectionRevision = revision;
   authoritativeSelectionApplied = true;
   const earnedCredits = profileHydrated ? Math.max(0, profile.credits - serverProfile.credits) : 0;
@@ -7005,6 +7035,7 @@ socket.addEventListener('message', (event) => {
     if (pendingEquip?.id === message.equipRequestId) {
       pendingEquip = undefined;
       aircraftSelectElement.value = aircraftType;
+      releaseAircraftSelectorFocus();
       updateAircraftOptions();
       showProgressMessage(message.reason);
     }
