@@ -20,6 +20,7 @@ export class AircraftGarage {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
   private readonly preview = new THREE.Group();
+  private readonly previewContent = new THREE.Group();
   private readonly cards = new Map<AircraftType, HTMLButtonElement>();
   private profile: GarageProfile = { credits: 0, selectedAircraft: 'trainer', unlockedAircraft: ['trainer'] };
   private selected: AircraftType = 'trainer';
@@ -28,6 +29,7 @@ export class AircraftGarage {
   private pointerY = 0;
   private distance = 14;
   private targetDistance = 14;
+  private defaultDistance = 14;
   private orbitYaw = 0.58;
   private targetOrbitYaw = 0.58;
   private orbitPitch = 0.2;
@@ -42,6 +44,12 @@ export class AircraftGarage {
   private readonly previewSize = new THREE.Vector3();
   private readonly previewCenter = new THREE.Vector3();
   private readonly previewFocus = new THREE.Vector3();
+  private readonly viewDirection = new THREE.Vector3();
+  private readonly viewRight = new THREE.Vector3();
+  private readonly viewUp = new THREE.Vector3();
+  private readonly previewCorner = new THREE.Vector3();
+  private previewWidth = 0;
+  private previewHeight = 0;
 
   constructor(
     private readonly element: HTMLElement,
@@ -59,6 +67,7 @@ export class AircraftGarage {
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.preview.add(this.previewContent);
     this.scene.add(new THREE.HemisphereLight(0xc9edff, 0x14222b, 2.2), this.preview);
     const key = new THREE.DirectionalLight(0xffffff, 2.8); key.position.set(5, 8, 7); this.scene.add(key);
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
@@ -99,8 +108,13 @@ export class AircraftGarage {
       this.pointerY = event.clientY;
     });
     const release = () => { this.dragging = false; }; canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release);
-    canvas.addEventListener('wheel', (event) => { event.preventDefault(); this.userAdjustedZoom = true; this.targetDistance = THREE.MathUtils.clamp(this.targetDistance + event.deltaY * 0.012, 4, 34); }, { passive: false });
+    canvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      this.userAdjustedZoom = true;
+      this.targetDistance = THREE.MathUtils.clamp(this.targetDistance + event.deltaY * 0.012, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
+    }, { passive: false });
     window.addEventListener('resize', () => this.resize());
+    new ResizeObserver(() => this.resize()).observe(canvas.parentElement!);
   }
 
   open(profile: GarageProfile, loadingProfile = false): void {
@@ -143,18 +157,19 @@ export class AircraftGarage {
   }
 
   private loadPreview(): void {
-    this.preview.clear();
+    this.previewContent.clear();
+    this.previewContent.position.set(0, 0, 0);
     this.userAdjustedZoom = false;
     const definition = aircraftDefinitions[this.selected];
     const plane = new THREE.Group();
     const fallback = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(definition.bodyRadius, definition.bodyRadius, definition.bodyLength, 12), new THREE.MeshStandardMaterial({ color: definition.bodyColor, roughness: 0.45 }));
-    body.rotation.x = Math.PI / 2; fallback.add(body); plane.add(fallback); this.preview.add(plane);
+    body.rotation.x = Math.PI / 2; fallback.add(body); plane.add(fallback); this.previewContent.add(plane);
     this.framePreview(true);
     attachAircraftAsset(plane, fallback, this.selected, definition.bodyLength + definition.noseLength, definition.wingSpan, () => {
       // A cached GLB can resolve after the player chose another card.  Only
       // reframe if this plane is still the active preview.
-      if (this.preview.children.includes(plane)) this.framePreview(false);
+      if (this.previewContent.children.includes(plane)) this.framePreview(false);
     });
     this.decoratePreview?.(plane, this.selected);
   }
@@ -213,23 +228,93 @@ export class AircraftGarage {
     };
   }
 
+  private forEachVisualCorner(visitor: (corner: THREE.Vector3) => void): void {
+    this.previewContent.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      let current: THREE.Object3D | null = object;
+      while (current && current !== this.previewContent) {
+        if (!current.visible) return;
+        current = current.parent;
+      }
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      if (!materials.some(material => material.visible && material.opacity > 0)) return;
+      if (!object.geometry.boundingBox) object.geometry.computeBoundingBox();
+      const bounds = object.geometry.boundingBox;
+      if (!bounds || bounds.isEmpty()) return;
+      for (let index = 0; index < 8; index += 1) {
+        this.previewCorner.set(
+          index & 1 ? bounds.max.x : bounds.min.x,
+          index & 2 ? bounds.max.y : bounds.min.y,
+          index & 4 ? bounds.max.z : bounds.min.z,
+        ).applyMatrix4(object.matrixWorld);
+        visitor(this.previewCorner);
+      }
+    });
+  }
+
+  private measureVisualBounds(): boolean {
+    this.previewBounds.makeEmpty();
+    this.forEachVisualCorner(corner => this.previewBounds.expandByPoint(corner));
+    return !this.previewBounds.isEmpty();
+  }
+
   private framePreview(resetView: boolean): void {
-    this.preview.updateMatrixWorld(true);
-    this.previewBounds.setFromObject(this.preview);
-    if (this.previewBounds.isEmpty()) return;
-    this.previewBounds.getSize(this.previewSize);
-    this.previewBounds.getCenter(this.previewCenter);
-    this.previewFocus.copy(this.previewCenter);
-    const horizontalHalfFov = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5) * this.camera.aspect);
-    const widthDistance = this.previewSize.x / Math.max(0.001, 2 * Math.tan(horizontalHalfFov) * 0.72);
-    const heightDistance = this.previewSize.y / Math.max(0.001, 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5) * 0.78);
-    const framedDistance = THREE.MathUtils.clamp(Math.max(widthDistance, heightDistance, this.previewSize.z * 0.72), 4.5, 30);
-    if (resetView || !this.userAdjustedZoom) this.targetDistance = framedDistance;
     if (resetView) {
       this.targetOrbitYaw = 0.58;
       this.targetOrbitPitch = 0.2;
       this.orbitYaw = this.targetOrbitYaw;
       this.orbitPitch = this.targetOrbitPitch;
+    }
+    // Center inconsistent asset origins inside the Garage wrapper only. The
+    // shared gameplay model and its transforms remain untouched.
+    this.previewContent.position.set(0, 0, 0);
+    this.previewContent.updateMatrixWorld(true);
+    if (!this.measureVisualBounds()) return;
+    this.previewBounds.getCenter(this.previewCenter);
+    this.previewContent.position.copy(this.previewCenter).multiplyScalar(-1);
+    this.previewContent.updateMatrixWorld(true);
+    if (!this.measureVisualBounds()) return;
+    this.previewBounds.getSize(this.previewSize);
+    this.previewFocus.set(0, 0, 0);
+
+    const yaw = this.targetOrbitYaw;
+    const pitch = this.targetOrbitPitch;
+    const cosPitch = Math.cos(pitch);
+    this.viewDirection.set(Math.sin(yaw) * cosPitch, Math.sin(pitch), Math.cos(yaw) * cosPitch).normalize();
+    this.viewRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
+    this.viewUp.crossVectors(this.viewDirection, this.viewRight).normalize();
+    const verticalTan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5);
+    const horizontalTan = verticalTan * this.camera.aspect;
+    // Mesh bounds include depth that is not all silhouette at once; 90% of
+    // the mathematical frame leaves roughly 10–15% visible-model breathing room.
+    const usableFrame = 0.94;
+    let framedDistance = 0;
+    this.forEachVisualCorner(corner => {
+      const towardCamera = corner.dot(this.viewDirection);
+      framedDistance = Math.max(
+        framedDistance,
+        towardCamera + Math.abs(corner.dot(this.viewRight)) / Math.max(0.001, horizontalTan * usableFrame),
+        towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
+      );
+    });
+    this.defaultDistance = Math.max(1, framedDistance);
+    let minProjectedX = Infinity, maxProjectedX = -Infinity, minProjectedY = Infinity, maxProjectedY = -Infinity;
+    this.forEachVisualCorner(corner => {
+      const depth = Math.max(0.001, this.defaultDistance - corner.dot(this.viewDirection));
+      const projectedX = corner.dot(this.viewRight) / (depth * horizontalTan);
+      const projectedY = corner.dot(this.viewUp) / (depth * verticalTan);
+      minProjectedX = Math.min(minProjectedX, projectedX); maxProjectedX = Math.max(maxProjectedX, projectedX);
+      minProjectedY = Math.min(minProjectedY, projectedY); maxProjectedY = Math.max(maxProjectedY, projectedY);
+    });
+    // Correct the small perspective shift from long noses/tails so the visual
+    // silhouette—not merely its world-space origin—is centered in the canvas.
+    this.previewFocus.copy(this.viewRight).multiplyScalar((minProjectedX + maxProjectedX) * 0.5 * this.defaultDistance * horizontalTan)
+      .addScaledVector(this.viewUp, (minProjectedY + maxProjectedY) * 0.5 * this.defaultDistance * verticalTan);
+    this.camera.far = Math.max(100, this.defaultDistance * 4);
+    this.camera.updateProjectionMatrix();
+    if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
+    else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
+    if (resetView) {
       this.distance = this.targetDistance;
     }
   }
@@ -238,6 +323,9 @@ export class AircraftGarage {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth || 520;
     const height = canvas.clientHeight || 340;
+    if (width === this.previewWidth && height === this.previewHeight) return;
+    this.previewWidth = width;
+    this.previewHeight = height;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
