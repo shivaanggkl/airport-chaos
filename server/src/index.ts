@@ -25,6 +25,7 @@ import { validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
+import { TrialNetworkGuard } from './trial-network-guard.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -261,6 +262,7 @@ const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(file
 const profileStore = new PlayerProfileStore(profileDatabasePath);
 const analyticsStore = new AnalyticsStore(profileDatabasePath);
 const firehawkPayments = new FirehawkPayments(profileDatabasePath);
+const trialNetworkGuard = new TrialNetworkGuard(profileDatabasePath, process.env.AIRPORT_CHAOS_TRIAL_IP_SECRET);
 profileStore.migrateFighterEntitlementSources(firehawkPayments.activeEntitlementOwners(), analyticsStore.testerEntitlementPilots());
 const pilotSessions = new PilotSessionStore(profileDatabasePath);
 pilotSessions.prune();
@@ -273,6 +275,7 @@ const securityLimits = {
   sessionIp: { limit: 30, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 const playerClientIps = new Map<string, string>();
+const playerTrialNetworkIds = new Map<string, string>();
 const rateLimitMessage = 'TOO MANY ATTEMPTS — Please wait a few minutes and try again.';
 function rateLimited(response: ServerResponse, retryAfterMs: number): void {
   response.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': String(Math.max(1, Math.ceil(retryAfterMs / 1000))) });
@@ -3899,6 +3902,7 @@ function removeHumanConnection(socket: WebSocket): void {
   if (analyticsContext) analyticsStore.endSession({ ...analyticsContext, cityId: player.cityId, aircraftType: player.aircraftType });
   analyticsContexts.delete(playerId);
   playerClientIps.delete(playerId);
+  playerTrialNetworkIds.delete(playerId);
   lastClientCrashAnalytics.delete(playerId);
   transformRejectLogAt.delete(playerId);
   missionSignal(playerId, { type: 'disconnect', at: Date.now() });
@@ -3974,7 +3978,10 @@ server.on('connection', (socket, request) => {
     spawnSlot,
   });
   playerSockets.set(socket, playerId);
-  playerClientIps.set(playerId, trustedClientIp(request));
+  const clientIp = trustedClientIp(request);
+  playerClientIps.set(playerId, clientIp);
+  const trialNetworkId = trialNetworkGuard.identify(clientIp);
+  if (trialNetworkId) playerTrialNetworkIds.set(playerId, trialNetworkId);
   const host = analyticsHost(request.headers.host);
   const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, cityId, aircraftType: profile.selectedAircraft, ...host };
   analyticsContexts.set(playerId, analyticsContext);
@@ -4173,6 +4180,18 @@ server.on('connection', (socket, request) => {
       if (message.type === 'startFighterTrial') {
         if (player.lifeState !== 'alive' || !player.hasRespawnTransform || Date.now() - player.lastStateAt > 1500 || !groundedAtAirport(player)) {
           sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason: 'STOP AT AN AIRPORT TO START TEST FLIGHT' }); return;
+        }
+        const currentProfile = profileStore.getOrCreate(player.pilotId, player.profile.pilotName);
+        const permanentlyOwned = currentProfile.aircraftEntitlements.includes(firehawkProduct.entitlement);
+        const networkDecision = trialNetworkGuard.authorizeNewTrial(
+          currentProfile.fighterTrial.status, permanentlyOwned, playerTrialNetworkIds.get(playerId),
+        );
+        if (!networkDecision.allowed) {
+          const reason = networkDecision.reason === 'used'
+            ? 'FREE TEST FLIGHT ALREADY USED ON THIS NETWORK\nTry again later or unlock Firehawk for $9.99.'
+            : 'FREE TEST FLIGHT TEMPORARILY UNAVAILABLE';
+          sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason });
+          return;
         }
         const requested = profileStore.requestFighterTrial(player.pilotId);
         if (!requested.ok) { sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason: requested.reason }); return; }
