@@ -44,6 +44,8 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
   void fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ analyticsEvent: event }) }).catch(() => undefined);
 }
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
+let remoteTutorial:{version:'tutorial_v1';status:'new'|'started'|'completed'|'skipped';completedAt?:number}={version:'tutorial_v1',status:'new'};
+let establishedProfile=false;
 // The landing page has its own small, explicit modal router.  Keeping NONE
 // distinct from CITIES prevents an in-flight profile request from reopening a
 // start-screen overlay after the player has entered a city.
@@ -55,12 +57,14 @@ async function loadGarageProfile(): Promise<GarageProfile> {
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
   const response = await fetch(url, { cache: 'no-store', credentials: 'include' });
   if (!response.ok) throw new Error('Profile unavailable');
-  let profile = await response.json() as GarageProfile & { legacyImportPending?: boolean };
+  let profile = await response.json() as GarageProfile & { legacyImportPending?: boolean; tutorial?:typeof remoteTutorial;totalDistance?:number;successfulLandings?:number;kills?:number;deaths?:number };
   if (profile.legacyImportPending) {
     const imported = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName } }) });
     if (!imported.ok) throw new Error('Profile migration unavailable');
     profile = await imported.json() as GarageProfile;
   }
+  remoteTutorial=profile.tutorial??remoteTutorial;
+  establishedProfile=(profile.totalDistance??0)>500||(profile.successfulLandings??0)>0||(profile.kills??0)>0||(profile.deaths??0)>0;
   garageProfile = normalizeGarageProfile(profile);
   garageIdentity.pilotId = (profile as GarageProfile & { pilotId?: string }).pilotId ?? garageIdentity.pilotId;
   garageIdentity.displayName = (profile as GarageProfile & { pilotName?: string }).pilotName ?? garageIdentity.displayName;
@@ -259,7 +263,12 @@ for (const city of cities) {
 
 async function start(): Promise<void> {
   await loadGarageProfile();
-  await flightTutorial.firstVisit(garageIdentity.pilotId);
+  const tutorialChoice=await flightTutorial.firstVisit(garageIdentity.pilotId,remoteTutorial.status,establishedProfile);
+  if(tutorialChoice){
+    try{localStorage.setItem(`airport-chaos-guided-tutorial-v1:${garageIdentity.pilotId}`,tutorialChoice==='started'?'active':'skipped');}catch{/* server remains the durable fallback */}
+    const url=new URL('/api/profile',profileOrigin);url.searchParams.set('pilotId',garageIdentity.pilotId);url.searchParams.set('pilotName',garageIdentity.displayName);
+    await fetch(url,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialState:{version:'tutorial_v1',status:tutorialChoice}})}).catch(()=>undefined);
+  }
   const requestedCity = activeCityFromUrl();
   if (requestedCity?.status === 'available') {
     const requestedTime = new URLSearchParams(window.location.search).get('time');

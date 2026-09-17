@@ -18,6 +18,19 @@ test('daily streak is idempotent, advances, resets, and cycles after day seven',
   assert.equal(reset?.profile.dailyStreak.current, 1);
 });
 
+test('daily flight plan is compact, solo-achievable, and reward progress is idempotent', () => {
+  const db = store(); const profile = db.getOrCreate('daily-plan', 'Daily Pilot');
+  const plan = profile.objectives.dallas!;
+  assert.equal(plan.daily.length, 3);
+  assert.equal(plan.daily.some(item => item.activity === 'kill'), false);
+  const task = plan.daily.find(item => item.activity !== 'landing')!;
+  const first = db.recordObjectiveActivity('daily-plan', 'dallas', task.activity, task.target)!;
+  const credits = first.profile.credits;
+  const repeat = db.recordObjectiveActivity('daily-plan', 'dallas', task.activity, task.target)!;
+  assert.equal(repeat.profile.credits, credits);
+  assert.equal(repeat.completed.length, 0);
+});
+
 test('pilot XP migration is once-only and records only improve', () => {
   const db = store(); const first = db.getOrCreate('pilot-b', 'Pilot B');
   const xp = db.awardPilotXp('pilot-b', 6_300)!;
@@ -53,4 +66,29 @@ test('weekly payout chooses one best placement and is idempotent', () => {
   const reward = db.finalizePreviousWeeklyReward('weekly-pilot', nextWeek);
   assert.equal(reward?.rank, 1); assert.equal(reward?.credits, 1_000);
   assert.deepEqual(db.finalizePreviousWeeklyReward('weekly-pilot', nextWeek), reward);
+});
+
+test('cosmetics purchase and equip are authoritative, idempotent, and persistent', () => {
+  const db = store(); db.getOrCreate('cosmetic-pilot', 'Cosmetic Pilot');
+  db.awardServerReward('cosmetic-pilot', 5_000);
+  const purchase = db.purchaseCosmetic('cosmetic-pilot', 'bluejay-sunset');
+  assert.equal(purchase.ok, true); assert.equal(purchase.profile?.credits, 3_000);
+  const repeat = db.purchaseCosmetic('cosmetic-pilot', 'bluejay-sunset');
+  assert.equal(repeat.ok, true); assert.equal(repeat.profile?.credits, 3_000);
+  assert.equal(db.equipCosmetic('cosmetic-pilot', 'bluejay-sunset').ok, true);
+  assert.equal(db.getOrCreate('cosmetic-pilot', 'Cosmetic Pilot').cosmetics.equipped['livery:trainer'], 'bluejay-sunset');
+  assert.equal(db.equipCosmetic('cosmetic-pilot', 'unknown').ok, false);
+});
+
+test('Chaos Event reward and active-event persistence are reconnect idempotent', () => {
+  const db = store(); db.getOrCreate('chaos-pilot', 'Chaos Pilot');
+  db.saveActiveChaosEvent('chaos-pilot', { id:'event-1', type:'cargoRush', cityId:'dallas', startedAt:1_000, expiresAt:Date.now()+60_000, target:{ targetAirportId:'executive' } });
+  db.updateChaosEventProgress('chaos-pilot', 'event-1', 1);
+  assert.equal(db.activeChaosEvent('chaos-pilot')?.progress, 1);
+  const first = db.awardServerRewardOnce('chaos-pilot', 'chaos-event:event-1', 240, { eventCompletions:1 });
+  const repeat = db.awardServerRewardOnce('chaos-pilot', 'chaos-event:event-1', 240, { eventCompletions:1 });
+  assert.equal(first.awarded, true); assert.equal(repeat.awarded, false);
+  assert.equal(repeat.profile?.credits, 240); assert.equal(repeat.profile?.eventCompletions, 1);
+  db.finishChaosEvent('chaos-pilot', 'event-1', 'completed', { airportId:'executive' });
+  assert.equal(db.activeChaosEvent('chaos-pilot'), undefined);
 });

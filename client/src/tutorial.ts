@@ -57,7 +57,8 @@ class FlightTutorial {
   private page = 0;
   private home = false;
   private pilotId = '';
-  private resolveVisit?: () => void;
+  private resolveVisit?: (result:'started'|'skipped') => void;
+  private onboarding=false;
   private returnFocus: HTMLElement | null = null;
   private visibilityHandler?: (open: boolean) => void;
   private helpAction?: () => void;
@@ -86,7 +87,7 @@ class FlightTutorial {
     this.dots = this.root.querySelector('.tutorial-dots')!;
     this.root.querySelector<HTMLButtonElement>('[data-home]')!.onclick = () => { this.home = true; this.render(); };
     this.back.onclick = () => { if (this.page > 0) this.page--; else this.home = true; this.render(); };
-    this.next.onclick = () => { if (this.home) { this.home = false; this.page = 0; this.render(); return; } if (this.page === pages.length - 1) this.close('completed'); else { this.page++; this.render(); } };
+    this.next.onclick = () => { if(this.onboarding){this.close('started');return;}if (this.home) { this.home = false; this.page = 0; this.render(); return; } if (this.page === pages.length - 1) this.close('completed'); else { this.page++; this.render(); } };
     this.skip.onclick = () => this.close('skipped');
     this.root.addEventListener('click', (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-topic]');
@@ -112,11 +113,12 @@ class FlightTutorial {
   isOpen(): boolean { return !this.root.hidden; }
   setVisibilityHandler(handler: (open: boolean) => void): void { this.visibilityHandler = handler; }
   setHelpAction(handler: () => void): void { this.helpAction = handler; }
-  async firstVisit(pilotId: string): Promise<void> {
+  async firstVisit(pilotId: string,serverStatus:'new'|'started'|'completed'|'skipped'='new',establishedProfile=false): Promise<'started'|'skipped'|undefined> {
     this.pilotId = pilotId;
-    let done = this.sessionCompleted.has(pilotId);
-    try { done ||= ['completed', 'skipped'].includes(localStorage.getItem(this.storageKey()) ?? ''); } catch { /* session fallback */ }
+    let done = this.sessionCompleted.has(pilotId)||serverStatus!=='new'||establishedProfile;
+    try { done ||= ['started','completed', 'skipped'].includes(localStorage.getItem(this.storageKey()) ?? ''); } catch { /* session fallback */ }
     if (done) return;
+    this.onboarding=true;
     return new Promise((resolve) => { this.resolveVisit = resolve; this.open(); });
   }
   open(): void {
@@ -136,7 +138,7 @@ class FlightTutorial {
     this.next.focus({ preventScroll: true });
   }
   private storageKey(): string { return `airport-chaos-tutorial-v1:${this.pilotId}`; }
-  private close(result: 'completed' | 'skipped'): void {
+  private close(result: 'started'|'completed' | 'skipped'): void {
     this.sessionCompleted.add(this.pilotId);
     try {
       if (localStorage.getItem(this.storageKey()) !== 'completed') localStorage.setItem(this.storageKey(), result);
@@ -147,9 +149,14 @@ class FlightTutorial {
     this.backgrounds.length = 0;
     this.visibilityHandler?.(false);
     this.returnFocus?.focus({ preventScroll: true });
-    const resolve = this.resolveVisit; this.resolveVisit = undefined; resolve?.();
+    const resolve = this.resolveVisit; this.resolveVisit = undefined;const onboarding=this.onboarding;this.onboarding=false;if(onboarding)resolve?.(result==='started'?'started':'skipped');
   }
   private render(): void {
+    if(this.onboarding){
+      this.content.innerHTML='<div class="tutorial-welcome"><h1 id="tutorial-title">WELCOME TO AIRPORT CHAOS</h1><p>Fly, land, complete missions, discover secrets, and earn Credits.</p><small>You can replay the tutorial anytime.</small></div>';
+      this.back.hidden=true;this.dots.innerHTML='';this.next.textContent='START TUTORIAL FLIGHT';this.skip.textContent='FREE FLY';return;
+    }
+    this.back.hidden=false;
     if (this.home) {
       this.content.innerHTML = `<h1 id="tutorial-title">FLY. EXPLORE. COMPETE.</h1><p>Pick a topic. Get back to flying.</p><div class="help-home">${pages.map((page,index) => `<button type="button" data-topic="${index}"><span style="color:${visualLanguage[page.icon].color}">${visualLanguage[page.icon].icon}</span><strong>${page.nav}</strong><small>${page.title}</small></button>`).join('')}</div>`;
       this.back.disabled = true; this.next.textContent = 'START GUIDE'; this.skip.textContent = this.resolveVisit ? 'SKIP' : 'CLOSE';

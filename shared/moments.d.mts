@@ -1,0 +1,4 @@
+export type MomentType = 'perfect_landing'|'legendary_landing'|'storm_landing'|'fog_landing'|'chaos_event_complete'|'secret_discovery'|'combat_kill'|'near_miss'|'crash'|'low_altitude_run'|'new_record'|'level_up'|'weekly_reward';
+export type FlightMoment = { id:string; type:MomentType; timestamp:number; cityId:string; airportId?:string; aircraftType:string; title:string; statLine:string; shareText:string; screenshotEligible:boolean; sourceEventId?:string; flightId?:string };
+export function momentShareText(type:MomentType,statLine?:string):string;
+export class MomentStore { constructor(limit?:number,duplicateCooldownMs?:number); add(input:Omit<FlightMoment,'id'|'timestamp'|'shareText'>&{timestamp?:number;shareText?:string}):FlightMoment|undefined; latestSince(timestamp:number):FlightMoment|undefined; list():readonly FlightMoment[]; }

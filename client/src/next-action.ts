@@ -1,4 +1,4 @@
-export type NextActionKind = 'takeoff' | 'map' | 'event' | 'contract' | 'challenge' | 'discovery' | 'stunt' | 'combat' | 'landing' | 'garage';
+export type NextActionKind = 'repair' | 'mission' | 'pvp' | 'territory' | 'progress' | 'takeoff' | 'map' | 'event' | 'contract' | 'challenge' | 'discovery' | 'stunt' | 'combat' | 'landing' | 'garage';
 export type NextActionAction = { label: string; run: () => void; disabled?: boolean; title?: string };
 
 export type NextActionCandidate = {
@@ -20,9 +20,10 @@ export type NextActionContext = {
 };
 
 const basePriority: Record<NextActionKind, number> = {
+  repair: 140, mission: 105, pvp: 130, territory: 88, progress: 96,
   takeoff: 105,
   map: 64,
-  event: 96,
+  event: 120,
   contract: 72,
   challenge: 68,
   discovery: 74,

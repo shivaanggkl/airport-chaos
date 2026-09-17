@@ -92,6 +92,9 @@ const visibilityHysteresis = 1_000;
 const maxDetailedActors = 10;
 const maxSilhouetteActors = 22;
 const maxCloudClusters = 7;
+const maxAmbientActors = 3;
+const ambientActivationDistance = 8_500;
+const ambientRetireDistance = 12_000;
 const cloudPatternSpan = 30_000;
 const midSilhouetteStart = 3_000;
 const farImpostorStart = 7_500;
@@ -265,16 +268,20 @@ export class AmbientTrafficSystem {
   private eventStormActive = false;
   private simulationAccumulator = 0;
   private elapsed = 0;
+  private readonly ambientEnabled: boolean;
+  private nearestAmbientRoute = Number.POSITIVE_INFINITY;
 
   constructor(
     private readonly scene: THREE.Scene,
     config: AmbientTrafficConfig,
     private readonly heightAt: (x: number, z: number) => number,
+    ambientEnabled = true,
   ) {
     // Ordinary ambient routes are intentionally dormant. They remain in the
     // city config so future scripted Escort/Convoy/Emergency events can spawn
     // the same deterministic traffic without a second AI implementation.
     this.eventRoutes = config.routes;
+    this.ambientEnabled = ambientEnabled;
     this.atmosphereZones = config.atmosphereZones ?? [];
     if (config.clouds?.length) this.addClouds(config.clouds);
     if (this.atmosphereZones.length) this.addAtmosphereZones(this.atmosphereZones);
@@ -293,6 +300,7 @@ export class AmbientTrafficSystem {
     this.simulationAccumulator += delta;
     while (this.simulationAccumulator >= tickSeconds) {
       this.simulationAccumulator -= tickSeconds;
+      this.syncAmbientRoutes(playerPosition);
       for (const actor of this.actors) if (!actor.serverControlled) this.advance(actor, tickSeconds);
       this.updateLod(playerPosition, camera);
       this.updateClouds(playerPosition);
@@ -341,8 +349,16 @@ export class AmbientTrafficSystem {
     this.eventStormActive = active;
   }
 
-  getStats(): { actors: number; clouds: number; storms: number } {
-    return { actors: this.actors.length, clouds: this.cloudClusters.length, storms: this.stormCells.length };
+  getStats(): { actors: number; ambientActors: number; routeCount: number; ambientEnabled: boolean; nearestRoute: number; clouds: number; storms: number } {
+    return {
+      actors: this.actors.length,
+      ambientActors: this.actors.filter((actor) => actor.entityType === 'ambient').length,
+      routeCount: this.eventRoutes.length,
+      ambientEnabled: this.ambientEnabled,
+      nearestRoute: this.nearestAmbientRoute,
+      clouds: this.cloudClusters.length,
+      storms: this.stormCells.length,
+    };
   }
 
   getAtmosphereAt(position: THREE.Vector3): AtmosphereZone | null {
@@ -360,7 +376,7 @@ export class AmbientTrafficSystem {
   }
 
   activateEvent(routeId: string, eventCombatMode: EventCombatMode = 'noncombat'): boolean {
-    if (this.actors.some((actor) => actor.route.id === routeId)) return true;
+    if (this.actors.some((actor) => actor.route.id === routeId && actor.entityType === 'event')) return true;
     const route = this.eventRoutes.find((candidate) => candidate.id === routeId);
     if (!route) return false;
     this.actors.push(this.createActor({ ...route, entityType: 'event', eventCombatMode }, this.actors.length));
@@ -368,7 +384,7 @@ export class AmbientTrafficSystem {
   }
 
   deactivateEvent(routeId: string): void {
-    const index = this.actors.findIndex((actor) => actor.route.id === routeId);
+    const index = this.actors.findIndex((actor) => actor.route.id === routeId && actor.entityType === 'event');
     if (index < 0) return;
     const [actor] = this.actors.splice(index, 1);
     this.disposeActor(actor);
@@ -376,11 +392,11 @@ export class AmbientTrafficSystem {
 
   syncEventRoutes(states: readonly EventTrafficVisualState[]): void {
     const wanted = new Set(states.map((state) => state.routeId));
-    for (const actor of [...this.actors]) {
+    for (const actor of [...this.actors].filter((candidate) => candidate.entityType === 'event')) {
       if (!wanted.has(actor.route.id)) this.deactivateEvent(actor.route.id);
     }
     for (const state of states) {
-      let actor = this.actors.find((candidate) => candidate.route.id === state.routeId);
+      let actor = this.actors.find((candidate) => candidate.route.id === state.routeId && candidate.entityType === 'event');
       if (!actor) {
         const configured = this.eventRoutes.find((candidate) => candidate.id === state.routeId);
         const route: AmbientTrafficRoute = configured
@@ -411,6 +427,27 @@ export class AmbientTrafficSystem {
         actor.previousQuaternion.copy(actor.targetQuaternion);
       }
     }
+  }
+
+  private syncAmbientRoutes(playerPosition: THREE.Vector3): void {
+    if (!this.ambientEnabled) return;
+    const distanceToRoute = (route: AmbientTrafficRoute): number => route.points.reduce((nearest, point) =>
+      Math.min(nearest, Math.hypot(playerPosition.x - point.x, playerPosition.z - point.z)), Number.POSITIVE_INFINITY);
+    this.nearestAmbientRoute = this.eventRoutes.reduce((nearest, route) => Math.min(nearest, distanceToRoute(route)), Number.POSITIVE_INFINITY);
+    for (const actor of [...this.actors]) {
+      if (actor.entityType !== 'ambient' || distanceToRoute(actor.route) <= ambientRetireDistance) continue;
+      const index = this.actors.indexOf(actor);
+      if (index >= 0) this.actors.splice(index, 1);
+      this.disposeActor(actor);
+    }
+    const activeIds = new Set(this.actors.filter((actor) => actor.entityType === 'ambient').map((actor) => actor.route.id));
+    const activeCount = activeIds.size;
+    if (activeCount >= maxAmbientActors) return;
+    const nearby = this.eventRoutes
+      .filter((route) => !activeIds.has(route.id) && distanceToRoute(route) <= ambientActivationDistance)
+      .sort((left, right) => distanceToRoute(left) - distanceToRoute(right))
+      .slice(0, maxAmbientActors - activeCount);
+    for (const route of nearby) this.actors.push(this.createActor({ ...route, entityType: 'ambient' }, this.actors.length));
   }
 
   dispose(): void {

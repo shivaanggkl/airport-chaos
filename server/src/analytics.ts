@@ -13,7 +13,18 @@ export type AnalyticsEventName =
   | 'purchase_recovery_created' | 'purchase_recovery_succeeded'
   | 'daily_streak_claimed' | 'pilot_level_up' | 'personal_record_broken' | 'weekly_reward_awarded'
   | 'pvp_challenge_sent' | 'pvp_challenge_accepted' | 'pvp_challenge_completed'
-  | 'referral_attached' | 'referral_qualified';
+  | 'referral_attached' | 'referral_qualified'
+  | 'chaos_moment_started' | 'chaos_moment_completed' | 'next_action_selected' | 'secret_discovered'
+  | 'photo_mode_opened' | 'cosmetic_unlocked' | 'cosmetic_equipped' | 'flight_recap_shown' | 'fly_again_clicked'
+  | 'daily_flight_plan_viewed' | 'daily_flight_plan_task_completed' | 'daily_flight_plan_completed' | 'daily_flight_plan_reward_claimed'
+  | 'landing_scored' | 'perfect_landing_earned'
+  | 'season_points_earned' | 'season_level_reached' | 'weekly_event_viewed' | 'weekly_event_progressed' | 'weekly_event_completed' | 'weekly_event_reward_claimed'
+  | 'city_entered' | 'city_exited' | 'intercity_route_started' | 'intercity_route_completed' | 'intercity_route_failed' | 'city_discovery_found' | 'city_airport_landed'
+  | 'chaos_event_offered' | 'chaos_event_accepted' | 'chaos_event_skipped' | 'chaos_event_completed' | 'chaos_event_failed'
+  | 'chaos_weather_zone_entered' | 'chaos_weather_zone_exited' | 'chaos_event_reward_claimed'
+  | 'moment_created' | 'moment_card_viewed' | 'moment_share_text_copied' | 'moment_screenshot_saved' | 'photo_mode_opened_from_moment'
+  | 'input_mode_detected' | 'touch_controls_enabled' | 'graphics_quality_changed' | 'mobile_layout_used' | 'photo_mode_touch_opened'
+  | 'tutorial_started' | 'tutorial_step_completed' | 'tutorial_completed' | 'tutorial_skipped' | 'tutorial_retried' | 'tutorial_crashed';
 
 export type AnalyticsContext = {
   pilotId: string;
@@ -34,6 +45,17 @@ const validEventNames = new Set<AnalyticsEventName>([
   'purchase_recovery_created', 'purchase_recovery_succeeded',
   'daily_streak_claimed', 'pilot_level_up', 'personal_record_broken', 'weekly_reward_awarded',
   'pvp_challenge_sent', 'pvp_challenge_accepted', 'pvp_challenge_completed', 'referral_attached', 'referral_qualified',
+  'chaos_moment_started', 'chaos_moment_completed', 'next_action_selected', 'secret_discovered',
+  'photo_mode_opened', 'cosmetic_unlocked', 'cosmetic_equipped', 'flight_recap_shown', 'fly_again_clicked',
+  'daily_flight_plan_viewed', 'daily_flight_plan_task_completed', 'daily_flight_plan_completed', 'daily_flight_plan_reward_claimed',
+  'landing_scored', 'perfect_landing_earned',
+  'season_points_earned', 'season_level_reached', 'weekly_event_viewed', 'weekly_event_progressed', 'weekly_event_completed', 'weekly_event_reward_claimed',
+  'city_entered', 'city_exited', 'intercity_route_started', 'intercity_route_completed', 'intercity_route_failed', 'city_discovery_found', 'city_airport_landed',
+  'chaos_event_offered', 'chaos_event_accepted', 'chaos_event_skipped', 'chaos_event_completed', 'chaos_event_failed',
+  'chaos_weather_zone_entered', 'chaos_weather_zone_exited', 'chaos_event_reward_claimed',
+  'moment_created', 'moment_card_viewed', 'moment_share_text_copied', 'moment_screenshot_saved', 'photo_mode_opened_from_moment',
+  'input_mode_detected', 'touch_controls_enabled', 'graphics_quality_changed', 'mobile_layout_used', 'photo_mode_touch_opened',
+  'tutorial_started', 'tutorial_step_completed', 'tutorial_completed', 'tutorial_skipped', 'tutorial_retried', 'tutorial_crashed',
 ]);
 
 function compactText(value: unknown, maximum: number): string | undefined {

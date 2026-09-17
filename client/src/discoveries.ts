@@ -21,6 +21,7 @@ export type DiscoveryDefinition = {
   setId?: string;
   setBonus?: number;
   mapVisible?: boolean;
+  timePreset?: 'day' | 'dusk';
 };
 
 export type DiscoveryMapMarker = {
@@ -48,12 +49,13 @@ export class DiscoverySystem {
     private readonly callbacks: DiscoveryCallbacks,
   ) {}
 
-  update(delta: number, position: { x: number; z: number }, altitude: number): void {
+  update(delta: number, position: { x: number; z: number }, altitude: number, timePreset?: 'day' | 'dusk'): void {
     this.checkElapsed += delta;
     if (this.checkElapsed < 0.18) return;
     this.checkElapsed = 0;
     for (const definition of this.definitions) {
       if (this.discoveredIds.has(definition.id)) continue;
+      if (definition.timePreset && definition.timePreset !== timePreset) continue;
       if (altitude < definition.minAltitude || altitude > definition.maxAltitude) continue;
       if (Math.hypot(position.x - definition.x, position.z - definition.z) > definition.radius) continue;
       this.discoveredIds.add(definition.id);

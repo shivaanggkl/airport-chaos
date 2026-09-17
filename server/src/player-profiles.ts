@@ -8,6 +8,9 @@ import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircr
 import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { dailyPilotRewards, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayDistance, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
+import { cosmeticCatalog, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
+import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
+import { routeDefinition } from '../../shared/city-registry.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 export type CityId = 'milwaukee' | 'dallas';
@@ -38,6 +41,16 @@ export type PlayerProfile = {
   personalRecords: Record<string, { value: number; cityId?: CityId; achievedAt: number }>;
   weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
   referral: { code: string; status: 'none' | 'pending' | 'qualified' | 'rewarded'; rewardedCount: number };
+  cosmetics: { ownedIds: string[]; equipped: Record<string, string> };
+  season?: SeasonProgress;
+  intercityRoute?: { routeId:string;fromCityId:CityId;toCityId:CityId;startedAt:number };
+  tutorial: { version:'tutorial_v1'; status:'new'|'started'|'completed'|'skipped'; completedAt?:number };
+};
+export type SeasonProgress = {
+  seasonId: string; name: string; theme: string; startsAt: number; endsAt: number; points: number;
+  rewards: Array<{ id: string; points: number; label: string; state: 'locked'|'claimable'|'claimed' }>;
+  missions: Array<{ id: string; label: string; progress: number; target: number; completed: boolean }>;
+  weeklyEvent?: { weeklyEventId: string; title: string; description: string; progress: number; target: number; completed: boolean; rewarded: boolean; weekEnd: number };
 };
 export type FighterTrialState = { status: 'available' | 'pending' | 'active' | 'consumed'; startedAt?: number; expiresAt?: number; completedReportedAt?: number };
 
@@ -279,7 +292,8 @@ function freshObjectives(cityId: CityId, discoveredCount = 0, now = new Date()):
   const supported = new Set(capabilities.objectiveSupportedTypes as ObjectiveActivity[]);
   if (discoveredCount >= capabilities.discoveryTotal) supported.delete('discovery');
   if (capabilities.airportCount >= 2) supported.add('landing');
-  const dailyPool = ['stunt', 'territoryCapture', 'event', 'discovery', 'kill', 'heat3', 'distance', 'landing'].filter((activity): activity is ObjectiveActivity => supported.has(activity as ObjectiveActivity));
+  // Keep daily plans achievable in a quiet solo city; PvP remains weekly.
+  const dailyPool = ['stunt', 'territoryCapture', 'event', 'discovery', 'heat3', 'distance', 'landing'].filter((activity): activity is ObjectiveActivity => supported.has(activity as ObjectiveActivity));
   const weeklyPool = ['territoryCapture', 'stunt', 'event', 'discovery', 'kill', 'heat3', 'distance', 'landing'].filter((activity): activity is ObjectiveActivity => supported.has(activity as ObjectiveActivity));
   const salt = (value: string) => value.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const rotate = <T>(items: T[], key: string, count: number) => items.slice(salt(key) % items.length).concat(items.slice(0, salt(key) % items.length)).slice(0, count);
@@ -390,6 +404,51 @@ export class PlayerProfileStore {
       CREATE TABLE IF NOT EXISTS pilot_network_security (
         pilot_id TEXT PRIMARY KEY, network_id TEXT NOT NULL, updated_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS pilot_cosmetics (
+        pilot_id TEXT NOT NULL, cosmetic_id TEXT NOT NULL, acquired_at INTEGER NOT NULL,
+        PRIMARY KEY (pilot_id, cosmetic_id)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_equipped_cosmetics (
+        pilot_id TEXT NOT NULL, category TEXT NOT NULL, cosmetic_id TEXT NOT NULL,
+        PRIMARY KEY (pilot_id, category)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_chaos_events (
+        pilot_id TEXT PRIMARY KEY, event_id TEXT NOT NULL, event_type TEXT NOT NULL, city_id TEXT NOT NULL,
+        state TEXT NOT NULL, started_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+        completed_at INTEGER, reward_claimed_at INTEGER, target_json TEXT NOT NULL DEFAULT '{}', result_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE TABLE IF NOT EXISTS pilot_seasons (
+        pilot_id TEXT NOT NULL, season_id TEXT NOT NULL, points INTEGER NOT NULL DEFAULT 0,
+        mission_json TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL,
+        PRIMARY KEY (pilot_id, season_id)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_season_contributions (
+        pilot_id TEXT NOT NULL, season_id TEXT NOT NULL, contribution_id TEXT NOT NULL,
+        points INTEGER NOT NULL, created_at INTEGER NOT NULL,
+        PRIMARY KEY (pilot_id, season_id, contribution_id)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_season_claims (
+        pilot_id TEXT NOT NULL, season_id TEXT NOT NULL, reward_id TEXT NOT NULL, claimed_at INTEGER NOT NULL,
+        PRIMARY KEY (pilot_id, season_id, reward_id)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_weekly_events (
+        pilot_id TEXT NOT NULL, weekly_event_id TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,
+        completed_at INTEGER, rewarded_at INTEGER,
+        PRIMARY KEY (pilot_id, weekly_event_id)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_intercity_routes (
+        pilot_id TEXT PRIMARY KEY, route_id TEXT NOT NULL, from_city_id TEXT NOT NULL, to_city_id TEXT NOT NULL,
+        started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS pilot_intercity_completions (
+        pilot_id TEXT NOT NULL, route_id TEXT NOT NULL, attempt_started_at INTEGER NOT NULL,
+        completed_at INTEGER NOT NULL, credits INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (pilot_id, route_id, attempt_started_at)
+      );
+      CREATE TABLE IF NOT EXISTS pilot_tutorial_state (
+        pilot_id TEXT PRIMARY KEY, version TEXT NOT NULL, status TEXT NOT NULL,
+        updated_at INTEGER NOT NULL, completed_at INTEGER
+      );
     `);
     // Existing SQLite MVP profiles predate durable ownership. SQLite has no
     // portable ADD COLUMN IF NOT EXISTS, so tolerate the one expected error.
@@ -406,6 +465,85 @@ export class PlayerProfileStore {
       CREATE INDEX IF NOT EXISTS profile_reward_receipts_created ON profile_reward_receipts (created_at DESC);
     `);
     this.compactRewardReceiptsOnce(process.env.AIRPORT_CHAOS_PROFILE_DB_COMPACT_ONCE);
+  }
+
+  setTutorialState(pilotId:string,status:'started'|'completed'|'skipped',now=Date.now()):PlayerProfile|undefined{
+    const row=this.getRow(pilotId);if(!row)return undefined;
+    const existing=this.database.prepare('SELECT status FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {status?:string}|undefined;
+    const next=existing?.status==='completed'?'completed':status;
+    this.database.prepare(`INSERT INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(pilot_id) DO UPDATE SET version=excluded.version,status=excluded.status,updated_at=excluded.updated_at,completed_at=COALESCE(pilot_tutorial_state.completed_at,excluded.completed_at)`)
+      .run(pilotId,'tutorial_v1',next,now,next==='completed'?now:null);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  activeIntercityRoute(pilotId:string):PlayerProfile['intercityRoute']|undefined{
+    const row=this.database.prepare('SELECT route_id,from_city_id,to_city_id,started_at FROM pilot_intercity_routes WHERE pilot_id=?').get(pilotId) as {route_id:string;from_city_id:CityId;to_city_id:CityId;started_at:number}|undefined;
+    const route=row&&routeDefinition(row.route_id);return route&&route.fromCityId===row.from_city_id&&route.toCityId===row.to_city_id?{routeId:row.route_id,fromCityId:row.from_city_id,toCityId:row.to_city_id,startedAt:row.started_at}:undefined;
+  }
+
+  startIntercityRoute(pilotId:string,routeId:string,currentCityId:CityId,now=Date.now()):{ok:boolean;reason?:string;profile?:PlayerProfile}{
+    const row=this.getRow(pilotId);const route=routeDefinition(routeId);if(!row||!route||route.fromCityId!==currentCityId)return{ok:false,reason:'ROUTE UNAVAILABLE',profile:row?this.toProfile(row):undefined};
+    if([...cityIds].some(cityId=>parseMissionStates(row.missions)[cityId]?.active))return{ok:false,reason:'FINISH OR LEAVE YOUR ACTIVE MISSION',profile:this.toProfile(row)};
+    const active=this.activeIntercityRoute(pilotId);if(active)return active.routeId===routeId?{ok:true,profile:this.toProfile(row)}:{ok:false,reason:'FINISH CURRENT INTERCITY FLIGHT',profile:this.toProfile(row)};
+    const recent=this.database.prepare('SELECT completed_at FROM pilot_intercity_completions WHERE pilot_id=? AND route_id=? ORDER BY completed_at DESC LIMIT 1').get(pilotId,routeId) as {completed_at:number}|undefined;
+    if(recent&&now-recent.completed_at<30*60_000)return{ok:false,reason:'ROUTE REWARD COOLDOWN',profile:this.toProfile(row)};
+    this.database.prepare('INSERT INTO pilot_intercity_routes (pilot_id,route_id,from_city_id,to_city_id,started_at,updated_at) VALUES (?,?,?,?,?,?)').run(pilotId,route.routeId,route.fromCityId,route.toCityId,now,now);
+    return{ok:true,profile:this.toProfile(row)};
+  }
+
+  completeIntercityArrival(pilotId:string,currentCityId:CityId,now=Date.now()):{completed:boolean;credits:number;routeId?:string;profile?:PlayerProfile}{
+    const row=this.getRow(pilotId);const active=this.activeIntercityRoute(pilotId);if(!row||!active||active.toCityId!==currentCityId)return{completed:false,credits:0,profile:row?this.toProfile(row):undefined};
+    const route=routeDefinition(active.routeId)!;const credits=Math.max(0,Math.min(10_000,route.rewardProfile?.credits??0));
+    this.database.exec('BEGIN IMMEDIATE');try{const receipt=this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions (pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES (?,?,?,?,?)').run(pilotId,active.routeId,active.startedAt,now,credits);if(receipt.changes)this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(credits,pilotId);this.database.prepare('DELETE FROM pilot_intercity_routes WHERE pilot_id=? AND route_id=? AND started_at=?').run(pilotId,active.routeId,active.startedAt);this.database.exec('COMMIT');return{completed:receipt.changes>0,credits:receipt.changes?credits:0,routeId:active.routeId,profile:this.toProfile(this.getRow(pilotId)!)};}catch(error){this.database.exec('ROLLBACK');throw error;}
+  }
+
+  seasonProgress(pilotId: string, cityId: CityId, now = Date.now()): SeasonProgress | undefined {
+    const season = activeSeasonAt(now, cityId);
+    if (!season) return undefined;
+    const row = this.database.prepare('SELECT points,mission_json FROM pilot_seasons WHERE pilot_id=? AND season_id=?').get(pilotId, season.seasonId) as { points:number; mission_json:string } | undefined;
+    const points = boundedInteger(row?.points, 100_000_000);
+    let missionProgress: Record<string, number> = {}; try { missionProgress = JSON.parse(row?.mission_json ?? '{}'); } catch { /* safe empty migration */ }
+    const claims = (this.database.prepare('SELECT reward_id FROM pilot_season_claims WHERE pilot_id=? AND season_id=?').all(pilotId, season.seasonId) as Array<{ reward_id:string }>).map(item=>item.reward_id);
+    const weekly = activeWeeklyEventAt(season, now);
+    const weeklyRow = weekly ? this.database.prepare('SELECT progress,completed_at,rewarded_at FROM pilot_weekly_events WHERE pilot_id=? AND weekly_event_id=?').get(pilotId, weekly.weeklyEventId) as { progress:number; completed_at?:number; rewarded_at?:number } | undefined : undefined;
+    return { seasonId:season.seasonId,name:season.name,theme:season.theme,startsAt:season.startsAt,endsAt:season.endsAt,points,
+      rewards:seasonRewardStates(season,points,claims).map(({id,points,label,state})=>({id,points,label,state})),
+      missions:season.missions.map(mission=>({id:mission.id,label:mission.label,progress:Math.min(mission.target,boundedInteger(missionProgress[mission.id],mission.target)),target:mission.target,completed:boundedInteger(missionProgress[mission.id],mission.target)>=mission.target})),
+      weeklyEvent:weekly?{weeklyEventId:weekly.weeklyEventId,title:weekly.title,description:weekly.description,progress:Math.min(weekly.target,boundedInteger(weeklyRow?.progress,weekly.target)),target:weekly.target,completed:Boolean(weeklyRow?.completed_at),rewarded:Boolean(weeklyRow?.rewarded_at),weekEnd:weekly.weekEnd}:undefined };
+  }
+
+  recordSeasonActivity(pilotId:string, cityId:CityId, activity:SeasonActivity, contributionId:string, amount=1, now=Date.now()): { awarded:boolean; points:number; profile?:PlayerProfile } {
+    const season=activeSeasonAt(now,cityId); const row=this.getRow(pilotId);
+    const compact=contributionId.replace(/[^a-zA-Z0-9:_-]/g,'').slice(0,160);
+    if(!season||!row||!compact||amount<=0) return {awarded:false,points:0,profile:row?this.toProfile(row):undefined};
+    const base=seasonPointsByActivity[activity]??0; if(!base) return {awarded:false,points:0,profile:this.toProfile(row)};
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const receipt=this.database.prepare('INSERT OR IGNORE INTO pilot_season_contributions (pilot_id,season_id,contribution_id,points,created_at) VALUES (?,?,?,?,?)').run(pilotId,season.seasonId,compact,base,now);
+      if(!receipt.changes){this.database.exec('COMMIT');return {awarded:false,points:0,profile:this.toProfile(row)};}
+      const current=this.database.prepare('SELECT mission_json FROM pilot_seasons WHERE pilot_id=? AND season_id=?').get(pilotId,season.seasonId) as {mission_json:string}|undefined;
+      let missions:Record<string,number>={};try{missions=JSON.parse(current?.mission_json??'{}');}catch{/* empty */}
+      let bonus=0;
+      for(const mission of season.missions.filter(item=>item.activity===activity)){const before=boundedInteger(missions[mission.id],mission.target);const after=Math.min(mission.target,before+Math.floor(amount));missions[mission.id]=after;if(before<mission.target&&after>=mission.target)bonus+=mission.points;}
+      this.database.prepare(`INSERT INTO pilot_seasons (pilot_id,season_id,points,mission_json,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(pilot_id,season_id) DO UPDATE SET points=MIN(100000000,pilot_seasons.points+excluded.points),mission_json=excluded.mission_json,updated_at=excluded.updated_at`).run(pilotId,season.seasonId,base+bonus,JSON.stringify(missions),now);
+      const weekly=activeWeeklyEventAt(season,now);
+      if(weekly?.activity===activity){const existing=this.database.prepare('SELECT progress FROM pilot_weekly_events WHERE pilot_id=? AND weekly_event_id=?').get(pilotId,weekly.weeklyEventId) as {progress:number}|undefined;const progress=Math.min(weekly.target,boundedInteger(existing?.progress,weekly.target)+Math.floor(amount));this.database.prepare(`INSERT INTO pilot_weekly_events (pilot_id,weekly_event_id,progress,completed_at) VALUES (?,?,?,?) ON CONFLICT(pilot_id,weekly_event_id) DO UPDATE SET progress=excluded.progress,completed_at=COALESCE(pilot_weekly_events.completed_at,excluded.completed_at)`).run(pilotId,weekly.weeklyEventId,progress,progress>=weekly.target?now:null);}
+      this.database.exec('COMMIT');return {awarded:true,points:base+bonus,profile:this.toProfile(this.getRow(pilotId)!)};
+    }catch(error){this.database.exec('ROLLBACK');throw error;}
+  }
+
+  claimSeasonReward(pilotId:string,cityId:CityId,rewardId:string,now=Date.now()):{ok:boolean;reason?:string;profile?:PlayerProfile}{
+    const season=activeSeasonAt(now,cityId);const row=this.getRow(pilotId);if(!season||!row)return{ok:false,reason:'NO ACTIVE SEASON'};
+    const reward=season.rewards.find(item=>item.id===rewardId);const progress=this.seasonProgress(pilotId,cityId,now);if(!reward||!progress)return{ok:false,reason:'REWARD UNAVAILABLE',profile:this.toProfile(row)};
+    if(progress.rewards.find(item=>item.id===rewardId)?.state==='locked')return{ok:false,reason:'EARN MORE SEASON POINTS',profile:this.toProfile(row)};
+    this.database.exec('BEGIN IMMEDIATE');try{const claim=this.database.prepare('INSERT OR IGNORE INTO pilot_season_claims (pilot_id,season_id,reward_id,claimed_at) VALUES (?,?,?,?)').run(pilotId,season.seasonId,rewardId,now);if(claim.changes){if(reward.type==='credits')this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(boundedInteger(reward.amount,100000),pilotId);else if(reward.type==='cosmetic'&&reward.value&&cosmeticCatalog.some(item=>item.id===reward.value))this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics (pilot_id,cosmetic_id,acquired_at) VALUES (?,?,?)').run(pilotId,reward.value,now);}this.database.exec('COMMIT');return{ok:true,profile:this.toProfile(this.getRow(pilotId)!)};}catch(error){this.database.exec('ROLLBACK');throw error;}
+  }
+
+  claimWeeklyEventReward(pilotId:string,cityId:CityId,weeklyEventId:string,now=Date.now()):{ok:boolean;reason?:string;profile?:PlayerProfile}{
+    const season=activeSeasonAt(now,cityId);const weekly=activeWeeklyEventAt(season,now);const row=this.getRow(pilotId);
+    if(!weekly||!row||weekly.weeklyEventId!==weeklyEventId)return{ok:false,reason:'WEEKLY EVENT UNAVAILABLE',profile:row?this.toProfile(row):undefined};
+    this.database.exec('BEGIN IMMEDIATE');try{const state=this.database.prepare('SELECT progress,rewarded_at FROM pilot_weekly_events WHERE pilot_id=? AND weekly_event_id=?').get(pilotId,weeklyEventId) as {progress:number;rewarded_at?:number}|undefined;if(!state||state.progress<weekly.target){this.database.exec('ROLLBACK');return{ok:false,reason:'WEEKLY OBJECTIVE INCOMPLETE',profile:this.toProfile(row)};}if(!state.rewarded_at){this.database.prepare('UPDATE pilot_weekly_events SET rewarded_at=? WHERE pilot_id=? AND weekly_event_id=?').run(now,pilotId,weeklyEventId);this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(weekly.credits,pilotId);this.database.prepare('UPDATE pilot_seasons SET points=MIN(100000000,points+?),updated_at=? WHERE pilot_id=? AND season_id=?').run(weekly.points,now,pilotId,season!.seasonId);}this.database.exec('COMMIT');return{ok:true,profile:this.toProfile(this.getRow(pilotId)!)};}catch(error){this.database.exec('ROLLBACK');throw error;}
   }
 
   pruneRewardReceipts(now = Date.now()): { deleted: number; at: number } {
@@ -484,7 +622,39 @@ export class PlayerProfileStore {
       }
     }
     this.ensurePilotProgression(row);
+    const insertCosmetic = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
+    for (const id of defaultCosmeticIds) insertCosmetic.run(pilotId, id, Date.now());
+    const equipDefault = this.database.prepare('INSERT OR IGNORE INTO pilot_equipped_cosmetics VALUES(?,?,?)');
+    for (const id of defaultCosmeticIds) {
+      const item = cosmeticCatalog.find(entry => entry.id === id)!;
+      equipDefault.run(pilotId, item.category === 'livery' ? `livery:${item.aircraftRestriction}` : item.category, id);
+    }
     return this.toProfile(row);
+  }
+
+  purchaseCosmetic(pilotId: string, cosmeticId: string, now = Date.now()): { ok: boolean; reason?: string; profile?: PlayerProfile } {
+    const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
+    if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };
+    if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, profile: this.toProfile(row) };
+    const level = this.pilotProgression(pilotId).level;
+    if (item.unlockType === 'pilotLevel' && level < item.requiredLevel) return { ok: false, reason: `REQUIRES PILOT LEVEL ${item.requiredLevel}` };
+    if (item.unlockType !== 'credits' && item.unlockType !== 'pilotLevel' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
+    if (item.unlockType === 'credits' && row.credits < item.creditPrice) return { ok: false, reason: `NEED ${(item.creditPrice - row.credits).toLocaleString()} MORE CREDITS` };
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      if (item.unlockType === 'credits') this.database.prepare('UPDATE player_profiles SET credits=credits-? WHERE pilot_id=? AND credits>=?').run(item.creditPrice, pilotId, item.creditPrice);
+      this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
+      this.database.exec('COMMIT');
+    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
+    return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+  }
+
+  equipCosmetic(pilotId: string, cosmeticId: string): { ok: boolean; reason?: string; profile?: PlayerProfile } {
+    const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
+    if (!row || !item || !this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: false, reason: 'COSMETIC NOT OWNED' };
+    const slot = item.category === 'livery' ? `livery:${item.aircraftRestriction}` : item.category;
+    this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?) ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`).run(pilotId, slot, cosmeticId);
+    return { ok: true, profile: this.toProfile(row) };
   }
 
   claimDailyStreak(pilotId: string, now = Date.now()): { profile: PlayerProfile; credits: number; claimed: boolean } | undefined {
@@ -784,6 +954,54 @@ export class PlayerProfileStore {
     return this.toProfile(this.getRow(pilotId)!);
   }
 
+  awardServerRewardOnce(pilotId: string, rewardId: string, credits: number, stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>): { profile?: PlayerProfile; awarded: boolean } {
+    const row = this.getRow(pilotId);
+    const compactId = rewardId.replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 160);
+    if (!row || !compactId) return { awarded: false };
+    const now = Date.now();
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const receipt = this.database.prepare('INSERT OR IGNORE INTO profile_reward_receipts (pilot_id, reward_id, created_at) VALUES (?, ?, ?)')
+        .run(pilotId, `server:${compactId}`, now);
+      if (receipt.changes > 0) {
+        this.database.prepare(`UPDATE player_profiles SET credits = MIN(1000000, credits + ?), kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
+          .run(
+            boundedInteger(credits, 100_000), boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
+            boundedInteger(stats?.challengeCompletions, 1_000_000), boundedInteger(stats?.eventCompletions, 1_000_000), pilotId,
+          );
+      }
+      this.database.exec('COMMIT');
+      return { profile: this.toProfile(this.getRow(pilotId)!), awarded: receipt.changes > 0 };
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  saveActiveChaosEvent(pilotId: string, event: { id:string; type:string; cityId:string; startedAt:number; expiresAt:number; target?:unknown }): void {
+    this.database.prepare(`INSERT INTO pilot_chaos_events (pilot_id,event_id,event_type,city_id,state,started_at,expires_at,target_json,result_json)
+      VALUES (?,?,?,?, 'active',?,?,?, '{}') ON CONFLICT(pilot_id) DO UPDATE SET event_id=excluded.event_id,event_type=excluded.event_type,city_id=excluded.city_id,state='active',started_at=excluded.started_at,expires_at=excluded.expires_at,completed_at=NULL,reward_claimed_at=NULL,target_json=excluded.target_json,result_json='{}'`)
+      .run(pilotId, event.id, event.type.slice(0,48), event.cityId.slice(0,32), event.startedAt, event.expiresAt, JSON.stringify(event.target ?? {}).slice(0,2_000));
+  }
+
+  activeChaosEvent(pilotId: string, now = Date.now()): { eventId:string; eventType:string; cityId:string; expiresAt:number; progress:number } | undefined {
+    const row = this.database.prepare(`SELECT event_id,event_type,city_id,expires_at,result_json FROM pilot_chaos_events WHERE pilot_id=? AND state='active' AND expires_at>?`)
+      .get(pilotId, now) as { event_id:string; event_type:string; city_id:string; expires_at:number; result_json:string } | undefined;
+    if (!row) return undefined;
+    let progress = 0; try { progress = Number(JSON.parse(row.result_json)?.progress) || 0; } catch { /* keep zero */ }
+    return { eventId:row.event_id, eventType:row.event_type, cityId:row.city_id, expiresAt:row.expires_at, progress };
+  }
+
+  updateChaosEventProgress(pilotId:string, eventId:string, progress:number):void {
+    this.database.prepare(`UPDATE pilot_chaos_events SET result_json=? WHERE pilot_id=? AND event_id=? AND state='active'`)
+      .run(JSON.stringify({ progress:Math.max(0, Math.min(1_000_000, progress)) }), pilotId, eventId);
+  }
+
+  finishChaosEvent(pilotId: string, eventId: string, state: 'completed'|'failed', result: unknown = {}, now = Date.now()): void {
+    this.database.prepare(`UPDATE pilot_chaos_events SET state=?,completed_at=?,result_json=? WHERE pilot_id=? AND event_id=? AND state='active'`)
+      .run(state, now, JSON.stringify(result).slice(0,2_000), pilotId, eventId);
+  }
+
   objectivesForCity(pilotId: string, cityId: CityId): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
@@ -1043,7 +1261,14 @@ export class PlayerProfileStore {
         return reward ? { weekId: reward.week_id, rank: reward.rank, category: reward.category, credits: reward.credits, badge: reward.badge, badgeExpiresAt: reward.badge_expires_at } : undefined;
       })(),
       referral: this.referralState(row.pilot_id),
-    };
+      cosmetics: {
+        ownedIds: (this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ cosmetic_id: string }>).map(item => item.cosmetic_id),
+        equipped: Object.fromEntries((this.database.prepare('SELECT category,cosmetic_id FROM pilot_equipped_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ category: string; cosmetic_id: string }>).map(item => [item.category, item.cosmetic_id])),
+      },
+      season: this.seasonProgress(row.pilot_id, 'dallas'),
+      intercityRoute: this.activeIntercityRoute(row.pilot_id),
+      tutorial: (()=>{const state=this.database.prepare('SELECT version,status,completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(row.pilot_id) as {version?:string;status?:string;completed_at?:number}|undefined;const status=state?.status==='started'||state?.status==='completed'||state?.status==='skipped'?state.status:'new';return{version:'tutorial_v1' as const,status,completedAt:Number.isFinite(state?.completed_at)?state!.completed_at:undefined};})(),
+};
   }
 
   private objectiveStates(row: ProfileRow): Partial<Record<CityId, ObjectiveCycleState>> {

@@ -1,0 +1,12 @@
+export type SeasonActivity='landing'|'event'|'discovery'|'challenge'|'kill'|'territoryCapture'|'mission'|'record'|'dailyComplete';
+export type SeasonReward={id:string;points:number;type:'credits'|'cosmetic'|'title'|'badge';amount?:number;value?:string;label:string};
+export type SeasonDefinition={seasonId:string;name:string;theme:string;cityId?:string;enabled:boolean;startsAt:number;endsAt:number;rewardTrackId:string;premiumTrack:{enabled:false;rewards:never[]};featuredCosmeticId?:string;sponsorSlotId?:string;rewards:SeasonReward[];missions:Array<{id:string;label:string;activity:SeasonActivity;target:number;points:number}>};
+export type WeeklyEventDefinition={id:string;weeklyEventId:string;seasonId:string;title:string;description:string;activity:SeasonActivity;target:number;points:number;credits:number;leaderboardCategory?:string;weekStart:number;weekEnd:number;cityId?:string};
+export declare const WEEK_MS:number;
+export declare const seasonCatalog:SeasonDefinition[];
+export declare const weeklyEventCatalog:Array<Omit<WeeklyEventDefinition,'weeklyEventId'|'seasonId'|'weekStart'|'weekEnd'|'cityId'>>;
+export declare function activeSeasonAt(now?:number,cityId?:string):SeasonDefinition|undefined;
+export declare function utcWeekId(now?:number):string;
+export declare function activeWeeklyEventAt(season:SeasonDefinition|undefined,now?:number):WeeklyEventDefinition|undefined;
+export declare function seasonRewardStates(season:SeasonDefinition|undefined,points:number,claimedIds?:string[]):Array<SeasonReward&{state:'locked'|'claimable'|'claimed'}>;
+export declare const seasonPointsByActivity:Readonly<Record<SeasonActivity,number>>;

@@ -55,6 +55,7 @@ export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium:
 
 export type PilotMenuData = {
   city: { name: string; timePreset: string; changeCity: () => void };
+  intercity: { routes: readonly {routeId:string;destination:string;distanceLabel:string;recommendedAircraft:string;estimatedFlightTime:number;available:boolean;reason?:string;start:()=>void}[] };
   progression: { credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[];
     pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
     dailyStreak: { current: number; longest: number; cycleDay: number; nextReward: number };
@@ -62,6 +63,12 @@ export type PilotMenuData = {
     weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
     referral: { code: string; status: string; rewardedCount: number };
     pvpChallenge?: { id: string; mode: 'dogfight' | 'airportSprint'; status: string; expiresAt: number } | null;
+    claimSeasonReward?: (rewardId:string)=>void;
+    claimWeeklyEventReward?: (weeklyEventId:string)=>void;
+    season?: { seasonId:string;name:string;theme:string;startsAt:number;endsAt:number;points:number;
+      rewards:readonly {id:string;points:number;label:string;state:'locked'|'claimable'|'claimed'}[];
+      missions:readonly {id:string;label:string;progress:number;target:number;completed:boolean}[];
+      weeklyEvent?:{weeklyEventId:string;title:string;description:string;progress:number;target:number;completed:boolean;rewarded:boolean;weekEnd:number} };
   };
   missions: { activeId?: string; activeCity?: string; entries: readonly PilotMenuMission[]; accept: (id: string, replace: boolean) => void; abandon: () => void };
   players: { city: string; entries: readonly PilotMenuPlayer[] };
@@ -76,8 +83,9 @@ export type PilotMenuData = {
   garage: { available: boolean; reason?: string; open: () => void; setAirportWaypoint: () => void };
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
+  preferences:{touchMode:'auto'|'on'|'off';setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void};
   audio: { muted: boolean; toggle: () => void; levels: { master: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'engine' | 'combat' | 'ui', value: number) => void };
-  guide: { open: () => void };
+  guide: { open: () => void; replay:()=>void };
 };
 
 function textElement<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, className?: string): HTMLElementTagNameMap[K] {
@@ -128,7 +136,7 @@ export class PilotMenu {
   private territoryLegendOpen = this.readLegendPreference();
   private pendingMissionId: string | undefined;
 
-  constructor(private readonly element: HTMLElement) {}
+  constructor(private readonly element: HTMLElement, private readonly onSectionViewed?: (section: string) => void) {}
 
   private readLegendPreference(): boolean {
     try { return localStorage.getItem('airport-chaos-tab-territory-legend-collapsed-v1') !== '1'; }
@@ -144,6 +152,7 @@ export class PilotMenu {
   private switchTo(name: (typeof this.sections)[number]): void {
     if (this.activeSection === name || !this.lastData) return;
     this.activeSection = name;
+    this.onSectionViewed?.(name);
     this.render(this.lastData, true);
   }
 
@@ -213,6 +222,7 @@ export class PilotMenu {
       case 'PROGRESS': return JSON.stringify([this.activeSection,
         data.progression.aircraft.map(({ name, owned, premium, price }) => [name, owned, premium, price]),
         data.mastery.city, data.mastery.level, data.mastery.levelStartXp, data.mastery.nextXp, data.missions.activeId,
+        data.objectives.dailyId, data.objectives.daily.map(({ label, progress, target, completed }) => [label, progress, target, completed]),
         data.missions.entries.map(({ id, completions }) => [id, completions]),
         data.territories.entries.map(({ id, ownedByYou }) => [id, ownedByYou]), data.leaderboards]);
       case 'GARAGE': return JSON.stringify([this.activeSection, data.garage.available, data.garage.reason]);
@@ -460,6 +470,23 @@ export class PilotMenu {
     const pilotBar = document.createElement('progress'); pilotBar.max = Math.max(1, pilot.nextLevelXp); pilotBar.value = Math.min(pilot.xp, pilot.nextLevelXp); pilotCard.append(pilotBar); cards.append(pilotCard);
     const streak = data.progression.dailyStreak;
     cards.append(this.progressCard('daily-streak', '☀ DAILY STREAK', `${streak.current} DAYS · BEST ${streak.longest}`, `Next reward: ${streak.nextReward} Credits`));
+    const dailyPlan = this.progressCard('daily-plan', '☀ DAILY FLIGHT PLAN', `${data.objectives.daily.filter(item => item.completed).length} / ${data.objectives.daily.length} COMPLETE`, 'Finish today’s short flight goals. Resets at UTC midnight.');
+    for (const item of data.objectives.daily) {
+      const row = document.createElement('div'); row.className = 'pilot-progress-detail';
+      row.append(textElement('span', `${item.completed ? '✓' : '○'} ${item.label} · ${Math.min(item.progress, item.target).toLocaleString()} / ${item.target.toLocaleString()} · +${item.reward} Credits`));
+      const bar = document.createElement('progress'); bar.max = Math.max(1, item.target); bar.value = Math.min(item.target, item.progress); row.append(bar); dailyPlan.append(row);
+    }
+    cards.append(dailyPlan);
+    const seasonState=data.progression.season;
+    if(seasonState){
+      const next=seasonState.rewards.find(item=>item.state!=='claimed');
+      const days=Math.max(0,Math.ceil((seasonState.endsAt-Date.now())/86_400_000));
+      const seasonCard=this.progressCard('season','✦ SEASON',`${seasonState.name} · ${seasonState.points.toLocaleString()} POINTS`,`${seasonState.theme} · ${days} days left${next?` · Next: ${next.label} at ${next.points}`:''}`);
+      for(const mission of seasonState.missions){const row=document.createElement('div');row.className='pilot-progress-detail';row.append(textElement('span',`${mission.completed?'✓':'○'} ${mission.label} · ${mission.progress} / ${mission.target}`));const bar=document.createElement('progress');bar.max=mission.target;bar.value=mission.progress;row.append(bar);seasonCard.append(row);}
+      for(const reward of seasonState.rewards){const row=textElement('div',`${reward.state==='claimed'?'✓':reward.state==='claimable'?'◆':'○'} ${reward.points.toLocaleString()} · ${reward.label}${reward.state==='claimable'?' · READY':''}`,'pilot-progress-detail');if(reward.state==='claimable'&&data.progression.claimSeasonReward)row.append(actionButton({label:'CLAIM',run:()=>data.progression.claimSeasonReward?.(reward.id)}));seasonCard.append(row);}
+      cards.append(seasonCard);
+      if(seasonState.weeklyEvent){const weekly=seasonState.weeklyEvent;const weeklyCard=this.progressCard('season-weekly','◷ WEEKLY EVENT',weekly.title,weekly.description);const row=document.createElement('div');row.className='pilot-progress-detail';row.append(textElement('span',`${weekly.completed?'✓':'○'} ${weekly.progress} / ${weekly.target}`));const bar=document.createElement('progress');bar.max=weekly.target;bar.value=weekly.progress;row.append(bar);weeklyCard.append(row);if(weekly.completed&&!weekly.rewarded&&data.progression.claimWeeklyEventReward)weeklyCard.append(actionButton({label:'CLAIM WEEKLY REWARD',run:()=>data.progression.claimWeeklyEventReward?.(weekly.weeklyEventId)}));cards.append(weeklyCard);}
+    }
     const recordLabels: Record<string, string> = { top_speed: 'TOP SPEED', highest_altitude: 'HIGHEST ALTITUDE', longest_flight: 'LONGEST FLIGHT', best_landing: 'BEST LANDING', longest_kill: 'LONGEST KILL', most_territories: 'MOST TERRITORIES' };
     const recordsCard = this.progressCard('records', '★ PERSONAL RECORDS', Object.keys(data.progression.personalRecords).length ? '' : 'No records yet', 'Your best verified flights.');
     for (const [key, record] of Object.entries(data.progression.personalRecords)) recordsCard.append(textElement('div', `${recordLabels[key] ?? key.toUpperCase()} · ${Math.round(record.value).toLocaleString()}`, 'pilot-progress-detail'));
@@ -537,6 +564,7 @@ export class PilotMenu {
     if (!data.garage.available) garageSection.append(actionButton({ label: 'Set Airport Waypoint', run: data.garage.setAirportWaypoint }));
     if (!data.garage.available && data.garage.reason) garageSection.append(textElement('small', data.garage.reason, 'pilot-menu-muted'));
     content.append(garageSection);
+    if(data.intercity.routes.length){const routes=section('INTERCITY FLIGHTS');routes.append(textElement('p','Land and stop at the departure airport, then begin a city-to-city flight.','pilot-menu-muted'));for(const route of data.intercity.routes)routes.append(this.createCard({name:`FLY TO ${route.destination.toUpperCase()}`,detail:route.distanceLabel,meta:`Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,actions:[{label:'START ROUTE',run:route.start,disabled:!route.available,title:route.reason}]}));content.append(routes);}
     }
 
     if (this.activeSection === 'SETTINGS') {
@@ -569,6 +597,10 @@ export class PilotMenu {
     const navigation = section('Navigation');
     navigation.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: data.navigation.toggle }));
     content.append(navigation);
+    const controls=section('Mobile & Graphics');
+    const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
+    controls.append(selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),selectRow('GRAPHICS QUALITY',data.preferences.graphicsQuality,['auto','high','balanced','low'],value=>data.preferences.setGraphicsQuality(value as 'auto'|'high'|'balanced'|'low')),textElement('small','Graphics changes apply next time the city loads.','pilot-menu-muted'));
+    content.append(controls);
 
     const advertising = section('Advertising');
     const sponsorInfo = document.createElement('div'); sponsorInfo.className = 'pilot-menu-sponsor-info';
@@ -588,6 +620,8 @@ export class PilotMenu {
       help.append(textElement('p', 'See the visual guide or check the keys below.', 'pilot-menu-muted'));
       help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
       help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
+      help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
+      if(data.preferences.touchMode!=='off')help.append(textElement('p','TOUCH: Left stick turns. Right control moves up/down. Use Faster, Slow, Fire, and Boost.','pilot-menu-controls'));
       for (const group of controlGroups) {
         const controls = document.createElement('div'); controls.className = 'pilot-menu-control-group';
         controls.append(textElement('h3', group.label));

@@ -133,6 +133,11 @@ export const discoveries: ReadonlyArray<DiscoveryDefinition> = [
   { id: 'trinity-corridor', name: 'Trinity River Corridor', type: 'water', ...dallasLocations.trinityNorth, radius: 320, minAltitude: 20, maxAltitude: 260, credits: 100 },
   { id: 'trinity-crossing', name: 'Trinity Crossing', type: 'bridge', ...dallasLocations.trinity, radius: 130, minAltitude: 18, maxAltitude: 105, credits: 150 },
   { id: 'i35e-overlook', name: 'I-35E Overlook', type: 'bridge', ...dallasLocations.i35eCrossing, radius: 220, minAltitude: 35, maxAltitude: 210, credits: 125 },
+  { id: 'secret-ghost-strip', name: 'GHOST STRIP', type: 'secret', x: -18_900, z: 7_800, radius: 180, minAltitude: 0, maxAltitude: 120, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
+  { id: 'secret-skyline-gap', name: 'SKYLINE GAP', type: 'secret', x: -520, z: -485, radius: 75, minAltitude: 105, maxAltitude: 245, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
+  { id: 'secret-under-bridge', name: 'UNDER THE BRIDGE', type: 'secret', ...dallasLocations.trinity, radius: 85, minAltitude: 8, maxAltitude: 55, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
+  { id: 'secret-hangar-9', name: 'HANGAR 9', type: 'secret', x: -6_180, z: 10_560, radius: 110, minAltitude: 0, maxAltitude: 100, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
+  { id: 'secret-midnight-signal', name: 'MIDNIGHT SIGNAL', type: 'secret', x: 3_900, z: -13_200, radius: 120, minAltitude: 60, maxAltitude: 260, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false, timePreset: 'dusk' },
 ];
 // Ambient-only routes stay deliberately clear of runway surfaces. They use the
 // same city coordinates as the flight world and can later be promoted into

@@ -111,6 +111,9 @@
       <div class="radar-legend" id="radar-legend"></div>
     </aside>
     <aside id="next-actions" class="next-actions" aria-label="Suggested activities"></aside>
+    <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><section data-recap-moment hidden><small>MOMENT OF THE FLIGHT</small><b data-moment-title></b><span data-moment-stat></span><div><button type="button" data-moment-copy>COPY SHARE TEXT</button><button type="button" data-moment-save>SAVE SCREENSHOT</button><button type="button" data-moment-photo>OPEN PHOTO MODE</button></div></section><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
+    <div id="gameplay-feedback" hidden aria-live="polite"></div>
+    <div id="photo-mode-ui" hidden><div>PHOTO MODE<br><small>P / ESC — EXIT · DRAG — CAMERA · SCROLL — ZOOM</small></div><footer>AIRPORT CHAOS<br><small>VADEN SOFTWARE</small></footer></div>
     <aside id="contextual-hint" class="contextual-hint hidden" aria-live="polite">
       <strong id="contextual-hint-title"></strong>
       <span id="contextual-hint-body"></span>
@@ -146,7 +149,10 @@
       <strong id="dynamic-event-name">SKY EVENT</strong>
       <span id="dynamic-event-objective"></span>
       <small id="dynamic-event-sponsor"></small>
-      <button id="dynamic-event-join" type="button">JOIN</button>
+      <div class="dynamic-event-actions">
+        <button id="dynamic-event-skip" type="button">SKIP</button>
+        <button id="dynamic-event-join" type="button">JOIN</button>
+      </div>
     </aside>
     <aside id="social-panel" class="social-panel">
       <strong id="formation-status">SOCIAL SKY</strong>
@@ -163,9 +169,17 @@
         <div id="end-title" class="crash-title">CRASHED</div>
         <div>Final Session Score: <strong id="final-score">0</strong></div>
         <div class="restart">Press R to Restart</div>
+        <div id="tutorial-crash-actions" class="tutorial-crash-actions" hidden><button type="button" data-tutorial-retry>RETRY TUTORIAL</button><button type="button" data-tutorial-free>CONTINUE FREE FLIGHT</button></div>
         <div id="crash-brand-signature"></div>
       </div>
     </div>
+    <section id="touch-controls" class="touch-controls" hidden aria-label="Touch flight controls">
+      <div class="touch-stick" data-touch-stick aria-label="Turn and tilt"><i></i></div>
+      <div class="touch-pitch" data-touch-pitch aria-label="Pitch up and down"><i></i><small>UP / DOWN</small></div>
+      <div class="touch-throttle"><button type="button" data-hold="throttleUp">FASTER</button><button type="button" data-hold="throttleDown">SLOW</button></div>
+      <div class="touch-actions"><button type="button" data-hold="fire">FIRE</button><button type="button" data-hold="boost">BOOST</button><button type="button" data-touch-photo>PHOTO</button><button type="button" data-touch-menu>MENU</button></div>
+    </section>
+    <div class="portrait-guidance" aria-hidden="true">ROTATE DEVICE FOR FLIGHT</div>
     <div id="pilot-menu-overlay" class="pilot-menu-overlay" hidden></div>
     </div>
     <div id="garage-overlay" class="garage-overlay" hidden></div>
