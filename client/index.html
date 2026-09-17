@@ -5,9 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Airport Chaos</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='27'%3E%E2%9C%88%3C/text%3E%3C/svg%3E" />
+    <link rel="preload" as="image" href="/media/launch/airport-chaos-launch-poster.jpg" />
   </head>
   <body>
     <main id="city-selector" class="city-selector" hidden>
+      <div id="launch-background" class="launch-background" aria-hidden="true">
+        <img src="/media/launch/airport-chaos-launch-poster.jpg" alt="" fetchpriority="high" />
+        <video autoplay muted loop playsinline preload="none" poster="/media/launch/airport-chaos-launch-poster.jpg" tabindex="-1">
+          <source data-src="/media/launch/airport-chaos-launch.webm" type="video/webm" />
+          <source data-src="/media/launch/airport-chaos-launch.mp4" type="video/mp4" />
+        </video>
+      </div>
       <div class="city-select-card">
         <div class="city-select-kicker">AIRPORT CHAOS</div>
         <div class="city-select-tagline">FLY • FIGHT • EXPLORE</div>

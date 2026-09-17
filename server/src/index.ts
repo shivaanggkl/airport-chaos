@@ -415,8 +415,11 @@ const contentTypes: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.avif': 'image/avif',
+  '.jpg': 'image/jpeg',
+  '.mp4': 'video/mp4',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.webm': 'video/webm',
 };
 
 function cacheControlFor(filePath: string): string {

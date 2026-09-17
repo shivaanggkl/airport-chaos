@@ -34,18 +34,38 @@ body {
   position: fixed;
   z-index: 5;
   inset: 0;
+  isolation: isolate;
   display: grid;
   place-items: center;
   padding: 24px;
   color: #f8fbff;
-  background: radial-gradient(circle at 50% 8%, #204f69, #07111c 66%);
+  background: #07111c;
 }
+
+.launch-background,
+.launch-background::after,
+.launch-background img,
+.launch-background video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.launch-background { z-index: 0; overflow: hidden; pointer-events: none; background: #07111c; }
+.launch-background::after { content: ''; z-index: 2; background: radial-gradient(circle at 50% 42%, rgb(1 8 15 / 30%), rgb(1 8 15 / 68%)), linear-gradient(rgb(2 9 16 / 22%), rgb(2 9 16 / 48%)); }
+.launch-background img,
+.launch-background video { object-fit: cover; object-position: center center; }
+.launch-background img { z-index: 0; }
+.launch-background video { z-index: 1; opacity: 0; transition: opacity 220ms ease; }
+.launch-background.is-video-playing video { opacity: 1; }
 
 .city-selector[hidden] {
   display: none;
 }
 
 .city-select-card {
+  position: relative;
+  z-index: 3;
   width: min(92vw, 820px);
   max-height: calc(100vh - 32px);
   overflow: visible;
@@ -54,6 +74,10 @@ body {
   border: 1px solid rgb(115 216 237 / 42%);
   border-radius: 10px;
   box-shadow: 0 18px 55px rgb(0 0 0 / 32%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launch-background video { display: none; }
 }
 
 .city-select-kicker,

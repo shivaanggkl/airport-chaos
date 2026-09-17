@@ -7,6 +7,7 @@ import { mountAirportChaosLogo, mountCompactBrandFooter, mountGameBrandSignature
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
+import { setupLaunchBackground } from './launch-background';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
@@ -19,6 +20,7 @@ const citySelectDescription = document.querySelector<HTMLElement>('#city-select-
 const citySelectionError = document.querySelector<HTMLElement>('#city-selection-error')!;
 const garageEntry = document.querySelector<HTMLButtonElement>('#garage-entry')!;
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
+const launchBackground = setupLaunchBackground(document.querySelector<HTMLElement>('#launch-background')!);
 void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kicker')!, 'brand-logo-home');
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 mountGameBrandSignature(document.querySelector<HTMLElement>('#crash-brand-signature')!, 'game-brand-signature-crash');
@@ -166,6 +168,7 @@ function showSelector(message = ''): void {
   garage.close();
   cityClose.hidden = gameRoot.hidden;
   citySelector.hidden = false;
+  launchBackground.setActive(true);
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.hidden = true;
@@ -187,6 +190,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
     currentUrl.searchParams.set('time', timePreset);
     window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
     citySelector.hidden = true;
+    launchBackground.setActive(false);
     startModalState = 'NONE';
     window.dispatchEvent(new CustomEvent('airport-chaos-time-change', { detail: timePreset }));
     return;
@@ -195,6 +199,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   startModalState = 'NONE';
   garage.close();
   citySelector.hidden = true;
+  launchBackground.setActive(false);
   citySelectionError.hidden = true;
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
@@ -234,7 +239,7 @@ function chooseCity(city: CityDefinition): void {
   }
 }
 cityBack.addEventListener('click', () => showSelector());
-cityClose.addEventListener('click', () => { citySelector.hidden = true; startModalState = 'NONE'; });
+cityClose.addEventListener('click', () => { citySelector.hidden = true; launchBackground.setActive(false); startModalState = 'NONE'; });
 window.addEventListener('airport-chaos-open-city-selector', () => showSelector());
 
 for (const city of cities) {
