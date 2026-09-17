@@ -269,6 +269,8 @@ export class AmbientTrafficSystem {
   private simulationAccumulator = 0;
   private elapsed = 0;
   private readonly ambientEnabled: boolean;
+  private tutorialMode = false;
+  setTutorialMode(active: boolean): void { this.tutorialMode = active; }
   private nearestAmbientRoute = Number.POSITIVE_INFINITY;
 
   constructor(
@@ -310,7 +312,7 @@ export class AmbientTrafficSystem {
     for (const actor of this.actors) {
       actor.root.position.lerpVectors(actor.previousPosition, actor.targetPosition, blend);
       actor.root.quaternion.slerpQuaternions(actor.previousQuaternion, actor.targetQuaternion, blend);
-      actor.root.visible = actor.detailVisible || actor.silhouetteVisible || actor.impostorVisible;
+      actor.root.visible = !this.tutorialMode && (actor.detailVisible || actor.silhouetteVisible || actor.impostorVisible);
       actor.detail.visible = actor.detailVisible;
       actor.silhouette.visible = actor.silhouetteVisible;
       actor.impostor.visible = actor.impostorVisible;
@@ -342,7 +344,7 @@ export class AmbientTrafficSystem {
   }
 
   getAtmosphereZones(): ReadonlyArray<AtmosphereZone> {
-    return this.atmosphereZones;
+    return this.tutorialMode ? [] : this.atmosphereZones;
   }
 
   setStormEvent(active: boolean): void {
@@ -364,6 +366,7 @@ export class AmbientTrafficSystem {
   getAtmosphereAt(position: THREE.Vector3): AtmosphereZone | null {
     let closest: AtmosphereZone | null = null;
     let closestDistance = Number.POSITIVE_INFINITY;
+    if (this.tutorialMode) return null;
     for (const zone of this.atmosphereZones) {
       if (!zone.active) continue;
       const distance = Math.hypot(position.x - zone.x, position.z - zone.z);
@@ -430,7 +433,7 @@ export class AmbientTrafficSystem {
   }
 
   private syncAmbientRoutes(playerPosition: THREE.Vector3): void {
-    if (!this.ambientEnabled) return;
+    if (!this.ambientEnabled || this.tutorialMode) return;
     const distanceToRoute = (route: AmbientTrafficRoute): number => route.points.reduce((nearest, point) =>
       Math.min(nearest, Math.hypot(playerPosition.x - point.x, playerPosition.z - point.z)), Number.POSITIVE_INFINITY);
     this.nearestAmbientRoute = this.eventRoutes.reduce((nearest, route) => Math.min(nearest, distanceToRoute(route)), Number.POSITIVE_INFINITY);

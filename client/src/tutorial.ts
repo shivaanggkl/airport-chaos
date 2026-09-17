@@ -1,3 +1,4 @@
+import { shouldOfferTutorial } from '../../shared/tutorial-flight-rules.mjs';
 import { actionKeyLabel, menuKeyLabel } from './flight-input';
 import { targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
@@ -115,8 +116,8 @@ class FlightTutorial {
   setHelpAction(handler: () => void): void { this.helpAction = handler; }
   async firstVisit(pilotId: string,serverStatus:'new'|'started'|'completed'|'skipped'='new',establishedProfile=false): Promise<'started'|'skipped'|undefined> {
     this.pilotId = pilotId;
-    let done = this.sessionCompleted.has(pilotId)||serverStatus!=='new'||establishedProfile;
-    try { done ||= ['started','completed', 'skipped'].includes(localStorage.getItem(this.storageKey()) ?? ''); } catch { /* session fallback */ }
+    let done = this.sessionCompleted.has(pilotId)||!shouldOfferTutorial(serverStatus,establishedProfile);
+    try { done ||= !shouldOfferTutorial(serverStatus,establishedProfile,localStorage.getItem(this.storageKey())); } catch { /* session fallback */ }
     if (done) return;
     this.onboarding=true;
     return new Promise((resolve) => { this.resolveVisit = resolve; this.open(); });

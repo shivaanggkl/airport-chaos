@@ -2200,3 +2200,16 @@ body.photo-mode #photo-mode-ui { display:block; }
 #progress-message { top: 172px; color: #bdebf4; }
 #combat-message { top: 206px; color: #ffd0bf; }
 #combat-message.hit-confirmed { color: #ffdc89; background: rgb(5 18 31 / 82%); }
+
+.guided-tutorial-panel { position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:65; width:min(460px,90vw); padding:14px 18px; background:#082c42ee; border:2px solid #5ffff0; border-radius:12px; color:#fff; box-shadow:0 8px 30px #001a2b66; }
+.guided-tutorial-panel[hidden] {display:none}
+.guided-tutorial-panel strong {color:#6ffff0;font-size:20px}
+.guided-tutorial-panel p {margin:8px 0;font-size:16px}
+.guided-tutorial-panel button {margin:4px 8px 0 0;padding:7px 10px}
+.tutorial-flight-active #next-actions, .tutorial-flight-active #mission-card, .tutorial-flight-active #dynamic-event, .tutorial-flight-active .contextual-hint {display:none!important}
+.garage-cosmetic[aria-pressed=true] {outline:2px solid #5ffff0;background:#173e55}
+@media(max-width:600px){.guided-tutorial-panel{top:58px;padding:8px 12px}.guided-tutorial-panel p{font-size:13px}}
+
+.tutorial-flight-active #right-hud-stack, .tutorial-flight-active #leader-message, .tutorial-flight-active #combat-message, .tutorial-flight-active #capture-hud, .tutorial-flight-active .territory-label {display:none!important}
+.guided-tutorial-panel button {color:#e5ffff;background:#14506a;border:1px solid #4196a6;border-radius:6px;font:inherit;cursor:pointer}
+.guided-tutorial-panel button:hover {background:#216b81}

@@ -1,3 +1,5 @@
+import { addDowntownDistrict } from './dallas-skyline';
+import { inDallasCore } from '../../shared/dallas-skyline.mjs';
 import * as THREE from 'three';
 import dallasElevationJson from './data/dallas-elevation.json';
 import dallasSourceJson from './data/dallas-source.json';
@@ -1241,6 +1243,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
 
   for (const airport of airports) addAirport(scene, airport, obstacleBounds);
   addDallasSkyline(scene, obstacleBounds);
+  addDowntownDistrict(scene, obstacleBounds, airports, getTerrainHeight);
   addTrinityRiver(scene, waterBounds);
   cityVisualLayer?.dispose();
   cityVisualLayer = new CityVisualLayer(scene, cityVisualConfig, getTerrainHeight, visualQuality, timeOfDay === 'dusk');
@@ -1255,6 +1258,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     // static gameplay data. Avoid building throwaway duplicate arrays while
     // parsing a streamed render chunk.
     collectCollisionData: false,
+    isBuildingExcluded: inDallasCore,
     roadMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection }),
     buildingMaterials: [
       new THREE.MeshStandardMaterial({ color: dusk ? 0xa79488 : 0xd0b69a, roughness: 0.88 }),

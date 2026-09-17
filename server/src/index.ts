@@ -649,6 +649,10 @@ const httpServer = createServer(async (request, response) => {
         analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host }, payload.analyticsEvent, { source: 'start_garage' });
       } else if (payload?.legacy) profile = profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
       else if (payload?.equipAircraft !== undefined) profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
+      else if (typeof payload?.purchaseCosmetic === 'string' || typeof payload?.equipCosmetic === 'string') {
+        const result = typeof payload.purchaseCosmetic === 'string' ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic) : profileStore.equipCosmetic(identity.pilotId, payload.equipCosmetic as string);
+        profile = result.profile; error = result.ok ? undefined : result.reason;
+      }
       else if (payload?.startFighterTrial === true) {
         const result = profileStore.requestFighterTrial(identity.pilotId);
         profile = result.profile; error = result.ok ? undefined : result.reason;
@@ -1276,7 +1280,7 @@ function controlledTerritoryIds(playerId: string, cityId: CityId): ReadonlySet<s
 
 function missionSignal(playerId: string, signal: MissionSignal): void {
   const player = players.get(playerId);
-  if (!isHumanPilot(player)) return;
+  if (!isHumanPilot(player) || (player.tutorialMode && signal.type !== 'lostFlight')) return;
   const state = profileStore.missionState(player.pilotId, player.cityId);
   const active = state?.active;
   if (!active) return;
@@ -1412,6 +1416,7 @@ function awardMastery(playerId: string, source: ObjectiveActivity, amount?: numb
 }
 
 function startSkyChallenge(playerId: string, player: PlayerState, challengeId: unknown): void {
+  if (player.tutorialMode) return;
   if (typeof challengeId !== 'string' || player.lifeState !== 'alive' || activeChallenges.has(playerId)) return;
   const challenge = challengeForCity(player.cityId, challengeId);
   if (!challenge) return;
@@ -1602,7 +1607,7 @@ function reconcileMostWanted(cityId: CityId, now: number): void {
 function awardEventPlayer(event: CityEvent, playerId: string, score: number, credits: number, reason: string): void {
   if (event.rewardsGiven.has(playerId)) return;
   const player = players.get(playerId);
-  if (!player || player.cityId !== event.cityId) return;
+  if (!player || player.tutorialMode || player.cityId !== event.cityId) return;
   const cargoReward = cargoCreditReward(credits, player.aircraftType, 'event', event.type);
   const reward = rewardWithHeat(playerId, score, cargoReward.credits);
   if (isHumanPilot(player)) {
@@ -1802,7 +1807,7 @@ function territoryCaptureAltitudeEligible(player: PlayerState): boolean {
 }
 
 function isTerritoryActive(playerId: string, player: PlayerState, now: number): boolean {
-  if (player.lifeState !== 'alive' || !player.hasRespawnTransform || now - player.lastStateAt > 1_500) return false;
+  if (player.tutorialMode || player.lifeState !== 'alive' || !player.hasRespawnTransform || now - player.lastStateAt > 1_500) return false;
   const speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
   const chaos = playerChaos.get(playerId);
   const event = cityEvents.get(player.cityId);
@@ -2461,6 +2466,7 @@ function updateRespawningPlayers(now: number): void {
       position: player.position,
       rotation: player.rotation,
       aircraftType: player.aircraftType,
+      equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
       cityId: player.cityId,
       displayName: player.displayName,
       isBot: player.isBot,
@@ -2818,7 +2824,7 @@ function broadcastProjectileStates(now: number): void {
 function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, shotDistance = 0): boolean {
   const victim = players.get(victimId);
   if (
-    !victim || victimId === ownerId || victim.entityType !== 'player' ||
+    !victim || victim.tutorialMode || players.get(ownerId)?.tutorialMode || victimId === ownerId || victim.entityType !== 'player' ||
     victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil
   ) return false;
 
@@ -2906,7 +2912,7 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
 
 function applyAircraftCollision(firstId: string, secondId: string, now: number): boolean {
   const first = players.get(firstId), second = players.get(secondId);
-  if (!first || !second || firstId === secondId || first.cityId !== second.cityId ||
+  if (!first || !second || first.tutorialMode || second.tutorialMode || firstId === secondId || first.cityId !== second.cityId ||
       first.entityType !== 'player' || second.entityType !== 'player' ||
       first.lifeState !== 'alive' || second.lifeState !== 'alive' ||
       !first.hasRespawnTransform || !second.hasRespawnTransform ||
@@ -4249,12 +4255,12 @@ server.on('connection', (socket, request) => {
           position: player.position,
           rotation: player.rotation,
           aircraftType: player.aircraftType,
+          equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
           lifeState: player.lifeState,
           isBot: player.isBot,
           boostActive: player.boostActive,
           health: player.health,
           maxHealth: maxHealthForAircraft(player.aircraftType),
-          equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
         })),
     },
   );
@@ -4340,8 +4346,16 @@ server.on('connection', (socket, request) => {
 
       if(message.type==='tutorialState'&&(message.tutorialStatus==='started'||message.tutorialStatus==='completed'||message.tutorialStatus==='skipped')){
         player.tutorialMode=message.tutorialStatus==='started';
-        const profile=profileStore.setTutorialState(player.pilotId,message.tutorialStatus,Date.now());
-        if(profile){player.profile=profile;sendProfile(playerId,profile);}
+        let profile=profileStore.setTutorialState(player.pilotId,message.tutorialStatus,Date.now());
+        if(player.tutorialMode && profile) {
+          const challenge = challengeForPlayer(playerId);
+          if (challenge) {
+            pvpChallenges.delete(challenge.id);
+            for (const id of [challenge.challengerId, challenge.opponentId]) sendToPlayer(id, {type:'pvpChallengeCancelled',challengeId:challenge.id,reason:'TUTORIAL FLIGHT STARTED'});
+          }
+          profile = profileStore.equipAircraft(player.pilotId, 'trainer') ?? profile;
+          resetHumanToSafeRunway(playerId, player, profile, Date.now(), true);
+        } else if(profile){player.profile=profile;sendProfile(playerId,profile);}
         recordAnalytics(playerId,message.tutorialStatus==='started'?'tutorial_started':message.tutorialStatus==='completed'?'tutorial_completed':'tutorial_skipped',{metadata:{cityId:player.cityId,tutorialVersion:'tutorial_v1'}},Date.now());
         return;
       }
@@ -4369,7 +4383,7 @@ server.on('connection', (socket, request) => {
         sendProfile(playerId, profile);
         broadcastToCity(player.cityId, {
           type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
-          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType, equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
           cityId: player.cityId, displayName: player.displayName, boostActive: player.boostActive, maxHealth: maxHealthForAircraft(player.aircraftType),
         });
         return;
@@ -4425,7 +4439,7 @@ server.on('connection', (socket, request) => {
         sendProfile(playerId, profile, undefined, requestId);
         broadcastToCity(player.cityId, {
           type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
-          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType, equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
           cityId: player.cityId, displayName: player.displayName, boostActive: player.boostActive, maxHealth: maxHealthForAircraft(player.aircraftType),
         });
         return;
@@ -4468,7 +4482,7 @@ server.on('connection', (socket, request) => {
         sendProfile(playerId, profile);
         broadcastToCity(player.cityId, {
           type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
-          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+          position: player.position, rotation: player.rotation, aircraftType: player.aircraftType, equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
           cityId: player.cityId, displayName: player.displayName, boostActive: player.boostActive, maxHealth: maxHealthForAircraft(player.aircraftType),
         });
         return;
@@ -4542,6 +4556,7 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'missionAccept') {
+        if (player.tutorialMode) return;
         if (typeof message.missionId !== 'string') return;
         if (process.env.AIRPORT_CHAOS_MISSION_DEBUG === '1') console.log('[mission-accept]', { requested: message.missionId, replace: message.replaceMission, expected: message.expectedAttemptId, active: profileStore.missionState(player.pilotId, player.cityId)?.active?.attemptId });
         const definition = missionForCity(player.cityId, message.missionId);
@@ -4629,6 +4644,7 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'fire') {
+        if (player.tutorialMode) return;
         const now = Date.now();
         const blocked = fireBlockReason(player, now);
         if (blocked) {
@@ -4661,15 +4677,17 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'eventJoin') {
+        if (player.tutorialMode) return;
         joinDynamicEvent(playerId, player, typeof message.eventId === 'string' ? message.eventId : undefined);
         return;
       }
 
       if (message.type === 'pvpChallengeInvite') {
+        if (player.tutorialMode) return;
         if (typeof message.opponentId !== 'string' || challengeForPlayer(playerId)) return;
         const opponent = players.get(message.opponentId);
         const mode = message.mode === 'airportSprint' ? 'airportSprint' : message.mode === 'dogfight' ? 'dogfight' : undefined;
-        if (!mode || !isHumanPilot(opponent) || opponent.cityId !== player.cityId || challengeForPlayer(message.opponentId)) return;
+        if (!mode || !isHumanPilot(opponent) || opponent.tutorialMode || opponent.cityId !== player.cityId || challengeForPlayer(message.opponentId)) return;
         const destination = mode === 'airportSprint' && typeof message.destinationAirportId === 'string' ? airportForCity(player.cityId, message.destinationAirportId) : undefined;
         if (mode === 'airportSprint' && !destination) return;
         if (mode === 'airportSprint') {
@@ -4822,6 +4840,7 @@ server.on('connection', (socket, request) => {
         position: player.position,
         rotation: player.rotation,
         aircraftType: player.aircraftType,
+        equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
         cityId: player.cityId,
         displayName: player.displayName,
         lifeState: player.lifeState,

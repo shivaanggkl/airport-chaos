@@ -85,6 +85,7 @@ function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
     economyVersion: profile.economyVersion,
     aircraftEntitlements: profile.aircraftEntitlements,
     testerCodeEnabled: profile.testerCodeEnabled === true,
+    cosmetics: profile.cosmetics,
     fighterTrial: profile.fighterTrial ?? { status: 'available' },
   };
 }
@@ -135,7 +136,19 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
     garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
-});
+}, id => { void changeGarageCosmetic('purchaseCosmetic', id); }, id => { void changeGarageCosmetic('equipCosmetic', id); });
+
+async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string): Promise<void> {
+  try {
+    const url = new URL('/api/profile', profileOrigin);
+    url.searchParams.set('pilotId', garageIdentity.pilotId);
+    const response = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [action]: id }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
+    garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'COSMETIC OWNED — SELECT TO EQUIP');
+  } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }
+}
 
 void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName }).then(async result => {
   if (result.state === 'none') return;
@@ -269,6 +282,7 @@ async function start(): Promise<void> {
     const url=new URL('/api/profile',profileOrigin);url.searchParams.set('pilotId',garageIdentity.pilotId);url.searchParams.set('pilotName',garageIdentity.displayName);
     await fetch(url,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialState:{version:'tutorial_v1',status:tutorialChoice}})}).catch(()=>undefined);
   }
+  if (tutorialChoice === 'started') { await enterCity(cities.find(city => city.id === 'dallas')!, 'day'); return; }
   const requestedCity = activeCityFromUrl();
   if (requestedCity?.status === 'available') {
     const requestedTime = new URLSearchParams(window.location.search).get('time');

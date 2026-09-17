@@ -1,7 +1,8 @@
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
+export const FLIGHT_UNITS_PER_METER: number;
 export const KNOTS_PER_METER_PER_SECOND: number;
 export type AircraftFlightEnvelope = Readonly<{
-  maxSpeed: number; groundMaxSpeed: number; acceleration: number; drag: number;
+  topSpeed: number; maxSpeed: number; groundMaxSpeed: number; acceleration: number; drag: number;
   groundAcceleration: number; groundDrag: number; stallSpeed: number; takeoffSpeed: number; minimumTakeoffRoll: number;
   pitchRate: number; maxClimbPitch: number; maxDivePitch: number; rollRate: number;
   rollInputResponse: number; yawRate: number; groundSteering: number; inertia: number;

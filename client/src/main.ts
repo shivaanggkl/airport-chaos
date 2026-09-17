@@ -1,3 +1,4 @@
+import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
 import * as THREE from 'three';
 import { keyboardActionBindings, controlGroups, controlKeyLabel, menuBindings, menuKeyLabel, type FlightAction } from './flight-input';
 import { visualLanguage, identityText, targetBracketPath, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
@@ -22,7 +23,7 @@ import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
 import { routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
 import { MobileInputControls, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type TouchControlsMode } from './mobile-input';
-import {TUTORIAL_VERSION,nextTutorialStep,tutorialObjective}from'../../shared/tutorial-flight-rules.mjs';
+import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialObjective}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
@@ -310,7 +311,7 @@ function enabledWeatherZoneIds(): Set<string> {
 function updateLocalWeather(now: number): void {
   if (now < weatherZoneCheckAt) return;
   weatherZoneCheckAt = now + 250;
-  const next = weatherZoneAt(configuredWeatherZones, airplane.position, enabledWeatherZoneIds());
+  const next = guidedTutorialActive ? undefined : weatherZoneAt(configuredWeatherZones, airplane.position, enabledWeatherZoneIds());
   if (next?.id === activeWeatherZone?.id) return;
   const previous = activeWeatherZone;
   activeWeatherZone = next;
@@ -561,7 +562,9 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   fallback.name = `aircraft-fallback-${type}`;
   plane.add(fallback);
   const bodyMaterial = new THREE.MeshStandardMaterial({ color: remote ? 0xe05252 : definition.bodyColor, roughness: 0.55 });
+  bodyMaterial.name = 'AC_LIVERY_BASE';
   const accentMaterial = new THREE.MeshStandardMaterial({ color: remote ? 0x9e1f2b : definition.accentColor, roughness: 0.5 });
+  accentMaterial.name = 'AC_LIVERY_PRIMARY';
   const dark = new THREE.MeshStandardMaterial({ color: 0x18323f, roughness: 0.35 });
   const exhaustMaterial = type === 'trainer'
     ? null
@@ -790,7 +793,7 @@ function disposeAirplaneMaterials(plane: THREE.Group): void {
   const materials = new Set<THREE.Material>();
   plane.traverse((part) => {
     if (!(part instanceof THREE.Mesh)) return;
-    if (part.userData.sharedAsset) return;
+    if (part.userData.sharedAsset && !part.userData.cosmeticMaterialsCloned) return;
     if (Array.isArray(part.material)) {
       for (const material of part.material) materials.add(material);
     } else {
@@ -926,7 +929,7 @@ const finalScoreElement = document.querySelector<HTMLSpanElement>('#final-score'
 const crashOverlay = document.querySelector<HTMLDivElement>('#crash-overlay')!;
 const endTitleElement = document.querySelector<HTMLDivElement>('#end-title')!;
 const tutorialCrashActions=document.querySelector<HTMLElement>('#tutorial-crash-actions')!;
-document.querySelector<HTMLButtonElement>('[data-tutorial-retry]')!.addEventListener('click',()=>{tutorialEvent('tutorial_retried',TUTORIAL_VERSION);restartGame();setGuidedTutorial(true);});
+document.querySelector<HTMLButtonElement>('[data-tutorial-retry]')!.addEventListener('click',()=>{tutorialEvent('tutorial_retried',TUTORIAL_VERSION);setGuidedTutorial(true);});
 document.querySelector<HTMLButtonElement>('[data-tutorial-free]')!.addEventListener('click',()=>{exitGuidedTutorial('skipped');restartGame();});
 const timerElement = document.querySelector<HTMLSpanElement>('#timer')!;
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
@@ -2074,7 +2077,7 @@ function updateTerritoryBorderVisibility(now: number): void {
     const dx = Math.max(definition.bounds.minX - airplane.position.x, 0, airplane.position.x - definition.bounds.maxX);
     const dz = Math.max(definition.bounds.minZ - airplane.position.z, 0, airplane.position.z - definition.bounds.maxZ);
     const distanceSquared = dx * dx + dz * dz;
-    border.visible = distanceSquared < 12_000 * 12_000;
+    border.visible = !guidedTutorialActive && distanceSquared < 12_000 * 12_000;
     const far = distanceSquared > 7_000 * 7_000;
     if (entry.farCurtain !== far) {
       entry.farCurtain = far;
@@ -2866,6 +2869,7 @@ function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true,
   maxHealth = maxHealthForAircraft(aircraftType);
   health = Math.min(health, maxHealth);
   airplane = createAirplane(aircraftType);
+  applyEquippedLivery(airplane, aircraftType, serverProfile.cosmetics.equipped);
   scene.add(airplane);
   if (resetFlight) restartGame(notifyServer);
 }
@@ -2962,8 +2966,12 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
     if (result.profile) applyServerProfile(result.profile);
     aircraftGarage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
-}, (id) => { if (connectionReady()) socket.send(JSON.stringify({ type: 'purchaseCosmetic', cosmeticId: id })); },
-  (id) => { if (connectionReady()) socket.send(JSON.stringify({ type: 'equipCosmetic', cosmeticId: id })); });
+}, (id) => sendCosmeticAction('purchaseCosmetic', id),
+  (id) => sendCosmeticAction('equipCosmetic', id));
+function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmeticId: string): void {
+  if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); return; }
+  try { socket.send(JSON.stringify({ type, cosmeticId })); } catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); }
+}
 function openGarage(): boolean {
   if (!onGround || crashed) {
     showProgressMessage('GARAGE AVAILABLE WHEN SAFELY ON GROUND');
@@ -3030,7 +3038,7 @@ function tryStartStunt(): void {
 }
 let runStarted = false;
 const guidedTutorialKey=`airport-chaos-guided-tutorial-v1:${persistedPlayer.pilotId}`;
-let guidedTutorialActive=false;let guidedTutorialStep='controls';let guidedTutorialStepAt=performance.now();let guidedTutorialTargetAirport:AirportDefinition|undefined;
+let guidedTutorialActive=false;let guidedTutorialStep='throttle';let guidedTutorialStepAt=performance.now();let guidedTutorialTargetAirport:AirportDefinition|undefined;
 try{guidedTutorialActive=localStorage.getItem(guidedTutorialKey)==='active';}catch{/* server profile restores after welcome */}
 const flightControlCodes = new Set(Object.keys(keyboardActionBindings));
 function showFirstRunGuide(): void {
@@ -3470,26 +3478,6 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
 }
 
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
-function applyEquippedLivery(root: THREE.Object3D, type: AircraftType, equipped: Record<string, string>): void {
-  const item = cosmeticCatalog.find(entry => entry.id === equipped[`livery:${type}`]);
-  if (item?.visualConfig.primary) {
-    let index = 0;
-    root.traverse(object => {
-      if (!(object instanceof THREE.Mesh)) return;
-      if (!object.userData.cosmeticMaterialsCloned) {
-        object.material = Array.isArray(object.material) ? object.material.map(material => material.clone()) : object.material.clone();
-        object.userData.cosmeticMaterialsCloned = true;
-      }
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhongMaterial) {
-        material.color.setHex(index++ % 3 === 0 && item.visualConfig.accent ? item.visualConfig.accent : item.visualConfig.primary!);
-      }
-    });
-  }
-  const contrail = cosmeticCatalog.find(entry => entry.id === equipped.contrail);
-  const visuals = root.userData.visuals as AircraftVisuals | undefined;
-  if (visuals) visuals.boostMaterial.color.setHex(contrail?.visualConfig.color ?? (type === 'fighter' ? 0xff4d1f : type === 'trainer' ? 0xd8f4ff : 0x9eeaff));
-}
 let activeMissionAttemptId: string | undefined;
 const profileActiveMissionCity = (profile: NetworkProfile): CityId | undefined =>
   profile.missions[cityId]?.active ? cityId : (['dallas', 'milwaukee'] as const).find((id) => profile.missions[id]?.active);
@@ -3995,30 +3983,62 @@ function setActivityWaypoint(x: number, z: number, label: string): void {
   updateNavigationHud();
 }
 
+const tutorialPanel = document.createElement('section');
+tutorialPanel.className = 'guided-tutorial-panel'; tutorialPanel.hidden = true;
+tutorialPanel.innerHTML = '<strong>Tutorial Flight</strong><p data-tutorial-objective aria-live="polite"></p><button data-guided-skip>Skip to Free Flight</button><button data-guided-restart>Restart Tutorial</button>';
+document.body.append(tutorialPanel);
+tutorialPanel.querySelector('[data-guided-skip]')!.addEventListener('click', () => exitGuidedTutorial('skipped'));
+tutorialPanel.querySelector('[data-guided-restart]')!.addEventListener('click', () => setGuidedTutorial(true, true));
+const tutorialCompletePanel = document.createElement('section'); tutorialCompletePanel.className = 'guided-tutorial-panel'; tutorialCompletePanel.hidden = true;
+tutorialCompletePanel.innerHTML = '<strong>Tutorial Complete</strong><p>You are ready to explore.</p><button>Free Flight</button>';
+tutorialCompletePanel.querySelector('button')!.onclick = () => { tutorialCompletePanel.hidden = true; };
+document.body.append(tutorialCompletePanel);
+const tutorialRing = new THREE.Mesh(new THREE.TorusGeometry(120, 8, 6, 48), new THREE.MeshBasicMaterial({color:0x5ffff0, toneMapped:false}));
+tutorialRing.visible = false; scene.add(tutorialRing);
+function renderTutorialPanel(): void {
+  const step = Math.max(1, tutorialSteps.indexOf(guidedTutorialStep));
+  const text = `Step ${step}/${tutorialSteps.length - 1}: ${tutorialObjective(guidedTutorialStep, mobileInput.getMode()==='on'?'touch':'keyboard')}`;
+  const objective = tutorialPanel.querySelector('[data-tutorial-objective]')!;
+  if(objective.textContent !== text) objective.textContent = text;
+}
+
 function tutorialEvent(event:string,mode?:string):void{if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event,mode}));}
 function setGuidedTutorial(active:boolean,replay=false):void{
-  guidedTutorialActive=active;guidedTutorialStep='controls';guidedTutorialStepAt=performance.now();guidedTutorialTargetAirport=undefined;
+  ambientTraffic?.setTutorialMode(active);
+  guidedTutorialActive=active;guidedTutorialStep='throttle';guidedTutorialStepAt=performance.now();guidedTutorialTargetAirport=undefined;
   try{localStorage.setItem(guidedTutorialKey,active?'active':'completed');}catch{/* server is durable */}
   if(connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:active?'started':'completed'}));
   if(replay)tutorialEvent('tutorial_retried',TUTORIAL_VERSION);
   document.body.classList.toggle('tutorial-flight-active',active);
-  if(active){cityEvent=null;ambientTraffic?.setStormEvent(false);updateDynamicEventHud();showProgressMessage('TUTORIAL FLIGHT STARTED');}
+  if(active){
+    heldActions.clear(); waypoint=null; setLocalTimePreset('day'); cityEvent=null; activeWeatherZone = undefined; document.body.dataset.weather='clear';
+    ambientTraffic?.syncEventRoutes([]); ambientTraffic?.setStormEvent(false);
+    skyChallenges?.cancel();
+    applyServerSelectedAircraft('trainer', false);
+    restartGame(false); updateDynamicEventHud();
+  }
+  tutorialPanel.hidden = !active; tutorialCompletePanel.hidden = true;
+  renderTutorialPanel();
   updateNextActions(true);
 }
 function exitGuidedTutorial(status:'completed'|'skipped'):void{
-  guidedTutorialActive=false;document.body.classList.remove('tutorial-flight-active');waypoint=null;try{localStorage.setItem(guidedTutorialKey,status);}catch{/* server is durable */}
+  ambientTraffic?.setTutorialMode(false);
+  guidedTutorialActive=false;tutorialPanel.hidden=true;tutorialRing.visible=false;tutorialCompletePanel.hidden=status!=='completed';document.body.classList.remove('tutorial-flight-active');waypoint=null;try{localStorage.setItem(guidedTutorialKey,status);}catch{/* server is durable */}
   if(connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:status}));updateNavigationHud();updateNextActions(true);
 }
 function advanceGuidedTutorial(signal:string):void{
   if(!guidedTutorialActive)return;const next=nextTutorialStep(guidedTutorialStep,signal);if(next===guidedTutorialStep)return;
   tutorialEvent('tutorial_step_completed',guidedTutorialStep);guidedTutorialStep=next;guidedTutorialStepAt=performance.now();
-  if(next==='waypoint')setActivityWaypoint(airplane.position.x+Math.sin(heading)*1100,airplane.position.z+Math.cos(heading)*1100,'Tutorial Marker');
-  if(next==='turn')setActivityWaypoint(airplane.position.x+Math.sin(heading+.75)*950,airplane.position.z+Math.cos(heading+.75)*950,'Turn Marker');
+  if(next==='waypoint')setActivityWaypoint(airplane.position.x-Math.sin(heading)*1800,airplane.position.z-Math.cos(heading)*1800,'Tutorial Marker');
+  if(next==='turn')setActivityWaypoint(airplane.position.x-Math.sin(heading+.55)*1800,airplane.position.z-Math.cos(heading+.55)*1800,'Turn Marker');
   if(next==='landingSetup'){guidedTutorialTargetAirport=airports.filter(item=>item.id!==spawnAirport.id).map(item=>({item,d:Math.hypot(item.x-airplane.position.x,item.z-airplane.position.z)})).sort((a,b)=>a.d-b.d)[0]?.item??centralAirport;setActivityWaypoint(guidedTutorialTargetAirport.x,guidedTutorialTargetAirport.z,guidedTutorialTargetAirport.name);}
   showProgressMessage(`TUTORIAL · ${tutorialObjective(next,mobileInput.getMode()==='on'?'touch':'keyboard').toUpperCase()}`);updateNextActions(true);
 }
 function updateGuidedTutorial():void{
-  if(!guidedTutorialActive||crashed)return;
+  if(!guidedTutorialActive||crashed){tutorialRing.visible=false;return;}
+  renderTutorialPanel();
+  tutorialRing.visible=Boolean(waypoint);
+  if(waypoint){tutorialRing.position.set(waypoint.x, guidedTutorialStep==='land'||guidedTutorialStep==='landingSetup' ? getTerrainHeight(waypoint.x,waypoint.z)+18 : getTerrainHeight(waypoint.x,waypoint.z)+180,waypoint.z);tutorialRing.lookAt(airplane.position);}
   if(guidedTutorialStep==='controls'&&['pitchUp','pitchDown','yawLeft','yawRight','rollLeft','rollRight'].some(action=>heldActions.has(action as FlightAction)))advanceGuidedTutorial('steered');
   else if(guidedTutorialStep==='throttle'&&heldActions.has('throttleUp'))advanceGuidedTutorial('throttle');
   else if(guidedTutorialStep==='takeoffRoll'&&onGround&&currentSpeed>=currentAircraft.takeoffSpeed*.65)advanceGuidedTutorial('takeoffSpeed');
@@ -4695,7 +4715,7 @@ function pilotMenuData(): PilotMenuData {
     },
     preferences:{touchMode:mobileInput.getMode(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));renderPilotMenu(true);},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);}},
     audio: { muted: audioMuted, toggle: () => audioToggleElement.click(), levels: audioLevels, setLevel: setAudioLevel },
-    guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGame();setGuidedTutorial(true,true);} },
+    guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();setGuidedTutorial(true,true);} },
   };
 }
 
@@ -5067,6 +5087,7 @@ function spawnFlash(
 function updateFlashEffects(effects: FlashEffect[], pool: FlashEffect[], delta: number): void {
   for (let index = effects.length - 1; index >= 0; index -= 1) {
     const flash = effects[index];
+    flash.mesh.visible = !guidedTutorialActive;
     // The muzzle flash is attached light, not a world-space puff left behind
     // for 110 ms (120 m at Fighter Boost speed).
     if (effects === muzzleFlashes) getCurrentMuzzleTransform(flash.mesh.position, projectileDirection);
@@ -5252,6 +5273,7 @@ function updateProjectiles(delta: number): void {
   const now = performance.now();
   if (aimQaRay && now >= aimQaRayUntil) aimQaRay.visible = false;
   for (const [projectileId, projectile] of clientProjectiles) {
+    projectile.mesh.visible = !guidedTutorialActive;
     // Projectile removals are normally explicit.  This bounded fallback is
     // necessary when a slow socket drops an obsolete remove/state frame: the
     // server range limits a round to about two seconds, so an unconfirmed
@@ -5283,6 +5305,7 @@ function updateProjectiles(delta: number): void {
   }
   for (let index = assistedShotVisuals.length - 1; index >= 0; index -= 1) {
     const shot = assistedShotVisuals[index];
+    shot.mesh.visible = !guidedTutorialActive;
     // Assisted shots are short visual-only links to a confirmed target. Their
     // source follows the rendered gun while the endpoint follows that target.
     if (shot.ownerId === localPlayerId) getCurrentMuzzleTransform(shot.origin, assistedShotDirection);
@@ -5385,6 +5408,7 @@ function recycleDestructionEffect(effect: DestructionEffect): void {
 function updateDestructionEffects(delta: number): void {
   for (let effectIndex = destructionEffects.length - 1; effectIndex >= 0; effectIndex -= 1) {
     const effect = destructionEffects[effectIndex];
+    effect.group.visible = !guidedTutorialActive;
     effect.elapsed += delta;
     const progress = effect.elapsed / 1.2;
     effect.flash.scale.setScalar(effect.scale * (1.4 + progress * 8));
@@ -5530,8 +5554,11 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     scene.add(replacement);
     remote.plane = replacement;
     remote.aircraftType = player.aircraftType;
+    applyEquippedLivery(replacement, player.aircraftType, player.equippedCosmetics ?? remote.plane.userData.equippedCosmetics ?? {});
     refreshPlayerIdentityTag(remote);
   }
+
+  if (player.equippedCosmetics && JSON.stringify(remote.plane.userData.equippedCosmetics) !== JSON.stringify(player.equippedCosmetics)) applyEquippedLivery(remote.plane, player.aircraftType, player.equippedCosmetics);
 
   if (player.displayName && player.displayName !== remote.displayName) {
     remote.displayName = player.displayName;
@@ -5597,7 +5624,8 @@ function updateRemotePlayers(delta: number): void {
     const interpolation = remote.interpolationElapsed / remote.interpolationDuration;
     remote.plane.position.lerpVectors(remote.previousPosition, remote.targetPosition, interpolation);
     remote.plane.quaternion.slerpQuaternions(remote.previousQuaternion, remote.targetQuaternion, interpolation);
-    const identityVisible = remoteIdentityVisible(remote);
+    remote.plane.visible = !guidedTutorialActive && remote.lifeState === 'alive';
+    const identityVisible = !guidedTutorialActive && remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
     const targeted = selectedCombatTarget?.remote === remote;
     const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
@@ -5756,6 +5784,7 @@ function validateServerLock(targetId: string | null, delta: number): void {
 }
 
 function updateCombatTarget(delta = 0): void {
+  if (guidedTutorialActive) { heldActions.delete('fire'); clearCombatTarget(); updateLockCircle(); return; }
   if (crashed || localLifeState !== 'alive') {
     clearCombatTarget();
     stepAim(visualAim, neutralAim, delta, AIM_ENVELOPE);
@@ -5918,7 +5947,7 @@ function awardNearMiss(): void {
 }
 
 function updatePlayerInteractions(): void {
-  if (localLifeState !== 'alive') return;
+  if (guidedTutorialActive || localLifeState !== 'alive') return;
   const maximumFrameTravel = Math.max(12, currentSpeed * 0.06 + 8);
   if (!interactionSweepReady || previousInteractionPosition.distanceToSquared(airplane.position) > maximumFrameTravel * maximumFrameTravel) {
     previousInteractionPosition.copy(airplane.position);
@@ -6271,7 +6300,7 @@ function updateFlight(delta: number): void {
   }
   const speedRatio = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   const steeringAuthority =
-    (0.42 + speedRatio * 0.5) * currentAircraft.yawRate / currentAircraft.inertia;
+    (0.64 + speedRatio * 0.36) * currentAircraft.yawRate / currentAircraft.inertia;
   // Roll is an abstract, filtered control command. Releasing it damps the
   // command first, then aerodynamics gently level the wings; neither path
   // touches heading, so the aircraft carries on along its earned new course.
@@ -6369,7 +6398,7 @@ function updateFlight(delta: number): void {
   const thrust = (throttle * currentAircraft.acceleration + boostThrust) / currentAircraft.inertia;
   const baseDrag = currentAircraft.drag * (airspeed / currentAircraft.maxSpeed) ** 2;
   const inducedDrag = Math.max(0, angleOfAttack) * currentAircraft.drag * 0.07;
-  const airbrakeDrag = baseDrag * speedBrakeStrength * (currentAircraft.airbrakeDrag ?? 2);
+  const airbrakeDrag = Math.max(baseDrag * (currentAircraft.airbrakeDrag ?? 2), airspeed * currentAircraft.inertia * 0.85) * speedBrakeStrength;
   const approachDrag = landingAssistActive ? baseDrag * 0.75 : 0;
   const normalDrag = (baseDrag + inducedDrag + airbrakeDrag + approachDrag) / currentAircraft.inertia;
   const normalSpeedLimit = currentAircraft.maxSpeed + speedBonus;
@@ -6427,7 +6456,7 @@ function updateFlight(delta: number): void {
   }
   // A normal acceleration still obeys the base cap. An aircraft already above
   // it after Boost release retains the Boost ceiling while drag winds it down.
-  const maxAirSpeed = boostActive || overspeed > 0
+  const maxAirSpeed = guidedTutorialActive ? Math.max(currentAircraft.takeoffSpeed * 2.5, 180) : boostActive || overspeed > 0
     ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.15) + speedBonus
     : normalSpeedLimit;
   if (velocity.lengthSq() > maxAirSpeed * maxAirSpeed) velocity.setLength(maxAirSpeed);
@@ -6735,6 +6764,7 @@ function updateWeapons(delta: number): void {
 }
 
 function fireWeaponOnce(): boolean {
+  if (guidedTutorialActive) return false;
   const blocked = localFireBlockReason();
   if (blocked) {
     reportFireBlocked(blocked);
@@ -6758,9 +6788,9 @@ function animate(): void {
     // Keep high-speed travel between the existing terrain/obstacle checks no
     // larger than 8m, including a thrust allowance. No extra render/network ticks.
     const travelSpeed = velocity.length() + currentAircraft.acceleration * (currentAircraft.boostThrust ?? 1) / currentAircraft.inertia * delta;
-    const flightSteps = Math.max(1, Math.ceil(travelSpeed * delta / 8));
+    const flightSteps = Math.min(32, Math.max(1, Math.ceil(travelSpeed * delta / 8)));
     for (let step = 0; step < flightSteps && !crashed; step += 1) updateFlight(delta / flightSteps);
-    if (!crashed && challengeModeEnabled) {
+    if (!guidedTutorialActive && !crashed && challengeModeEnabled) {
       checkCheckpoint();
       updateRunTimer(delta);
     }
@@ -6778,7 +6808,7 @@ function animate(): void {
   cityWorld.updateWorldVisuals?.(delta);
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
-  if (!crashed && runStarted) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
+  if (!guidedTutorialActive && !crashed && runStarted) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
   if (!crashed && runStarted) {
     stuntFrame.delta = delta;
     stuntFrame.airborne = !onGround;
@@ -6859,7 +6889,10 @@ if (stabilityQaMode) {
     const challenges = skyChallenges?.getStats() ?? { gates: 0, active: false };
     const ads = adPlacementManager.getStats();
     const heap = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
+    const paintOf = (root: THREE.Object3D) => { const colors: Record<string,string> = {}; root.traverse(object => { if(object instanceof THREE.Mesh) for(const material of Array.isArray(object.material)?object.material:[object.material]) if(material.name.startsWith('AC_LIVERY') && 'color' in material) colors[material.name] = (material.color as THREE.Color).getHexString(); }); return colors; };
     const snapshot = {
+      tutorial: {active:guidedTutorialActive,step:guidedTutorialStep,crashed},
+      cosmetics: {local:paintOf(airplane),remote:[...remotePlayers.values()].filter(player=>!player.isBot).map(player=>({id:player.playerId,paint:paintOf(player.plane)}))},
       geometries: renderer.info.memory.geometries,
       textures: renderer.info.memory.textures,
       calls: renderer.info.render.calls,
@@ -7316,7 +7349,7 @@ socket.addEventListener('message', (event) => {
     connectionElement.textContent = 'Online';
     if (matchMedia('(pointer: coarse)').matches || innerWidth <= 900) socket.send(JSON.stringify({ type:'analyticsEvent', event:'mobile_layout_used', mode:innerWidth <= 600 ? 'narrow' : 'wide' }));
     serverProfile = message.profile;
-    if(message.profile.tutorial.status==='started')setGuidedTutorial(true);
+
     activeMissionAttemptId = profileActiveMissionAttempt(message.profile)?.attemptId;
     refreshTerritoryBorders();
     updateMissionHud();
@@ -7337,6 +7370,7 @@ socket.addEventListener('message', (event) => {
     } else {
       applyServerProfile(message.profile);
     }
+    if(message.profile.tutorial.status==='started' || guidedTutorialActive)setGuidedTutorial(true);
     applySocialState(message.social);
     reconcileRemotePlayers(message.players);
     for (const player of message.players) updateRemotePlayer(player);

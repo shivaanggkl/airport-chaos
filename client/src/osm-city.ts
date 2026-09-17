@@ -219,6 +219,7 @@ export function addOsmCityData(
     // Callers that only render one of those files must not allocate the
     // legacy derived LODs or collision return arrays just to discard them.
     collectCollisionData?: boolean;
+    isBuildingExcluded?: (x:number,z:number)=>boolean;
     streamRadius?: number;
     midRadius?: number;
     farRadius?: number;
@@ -344,6 +345,7 @@ export function addOsmCityData(
       const points = flatPolygon(building, cityData.v >= 3 ? 4 : cityData.v >= 2 ? 3 : 2);
       const box = bounds(points);
       if (options.isExcluded(box.x, box.z, Math.max(box.maxX - box.minX, box.maxZ - box.minZ) / 2 + 8)) continue;
+      if (options.isBuildingExcluded?.(box.x, box.z)) continue;
       const baseY = (cityData.v >= 3 ? building[3] : options.heightAt(box.x, box.z)) + 0.08;
       addBuilding(buildingBuffers[family] ?? buildingBuffers[2], points, baseY, height);
       if (buildDerivedLods) {

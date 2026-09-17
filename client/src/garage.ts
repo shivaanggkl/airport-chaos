@@ -1,3 +1,4 @@
+import { applyAircraftCosmetics } from './aircraft-cosmetics';
 import { aircraftRoles, identityText } from './visual-language';
 import * as THREE from 'three';
 import { aircraftDefinitions, aircraftDisplayName, aircraftPitch, garageStats, type AircraftType } from './aircraft';
@@ -26,6 +27,8 @@ export class AircraftGarage {
   private readonly cards = new Map<AircraftType, HTMLButtonElement>();
   private profile: GarageProfile = { credits: 0, selectedAircraft: 'trainer', unlockedAircraft: ['trainer'] };
   private selected: AircraftType = 'trainer';
+  private previewCosmetic?: string;
+  private pendingTimer = 0;
   private dragging = false;
   private pointerX = 0;
   private pointerY = 0;
@@ -135,6 +138,7 @@ export class AircraftGarage {
     this.actionMessage = '';
     this.testerOpen = false;
     this.selected = this.profile.selectedAircraft;
+    this.previewCosmetic = undefined;
     this.element.hidden = false;
     this.resize();
     this.renderDetails();
@@ -151,19 +155,29 @@ export class AircraftGarage {
 
   updateProfile(profile: GarageProfile): void {
     this.profile = this.normalizeProfile(profile);
+    this.paintPreview();
     this.loadingProfile = false;
+    window.clearTimeout(this.pendingTimer);
     this.actionPending = false;
     this.actionMessage = '';
     this.renderDetails();
   }
 
   showActionResult(message: string): void {
+    window.clearTimeout(this.pendingTimer);
     this.actionPending = false;
     this.actionMessage = message;
     this.renderDetails();
   }
 
   private loadPreview(): void {
+    this.previewContent.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      if (object.userData.cosmeticMaterialsCloned || !object.userData.sharedAsset) {
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose();
+      }
+      if (!object.userData.sharedAsset) object.geometry.dispose();
+    });
     this.previewContent.clear();
     this.previewContent.position.set(0, 0, 0);
     this.userAdjustedZoom = false;
@@ -171,6 +185,7 @@ export class AircraftGarage {
     const plane = new THREE.Group();
     const fallback = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(definition.bodyRadius, definition.bodyRadius, definition.bodyLength, 12), new THREE.MeshStandardMaterial({ color: definition.bodyColor, roughness: 0.45 }));
+    body.material.name = 'AC_LIVERY_PRIMARY';
     body.rotation.x = Math.PI / 2; fallback.add(body); plane.add(fallback); this.previewContent.add(plane);
     this.framePreview(true);
     attachAircraftAsset(plane, fallback, this.selected, definition.bodyLength + definition.noseLength, definition.wingSpan, () => {
@@ -179,6 +194,7 @@ export class AircraftGarage {
       if (this.previewContent.children.includes(plane)) this.framePreview(false);
     });
     this.decoratePreview?.(plane, this.selected);
+    this.paintPreview();
   }
 
   private renderDetails(): void {
@@ -222,20 +238,40 @@ export class AircraftGarage {
     this.renderCosmetics();
   }
 
+  private paintPreview(): void {
+    const equipped = { ...this.profile.cosmetics?.equipped };
+    const item = cosmeticCatalog.find(entry => entry.id === this.previewCosmetic);
+    if (item && (!item.aircraftRestriction || item.aircraftRestriction === this.selected)) equipped[item.category === 'livery' ? `livery:${this.selected}` : item.category] = item.id;
+    for (const plane of this.previewContent.children) applyAircraftCosmetics(plane, this.selected, equipped);
+  }
+
   private renderCosmetics(): void {
     const root = this.element.querySelector<HTMLElement>('[data-garage-cosmetics]')!;
-    root.innerHTML = '<h2>COSMETICS</h2>';
+    root.innerHTML = '<h2>COSMETICS</h2><p>Select a preview, then unlock or equip.</p>';
     const owned = new Set(this.profile.cosmetics?.ownedIds ?? []);
     for (const item of cosmeticCatalog.filter(entry => !entry.aircraftRestriction || entry.aircraftRestriction === this.selected)) {
-      const slot = item.category === 'livery' ? `livery:${item.aircraftRestriction}` : item.category;
+      const slot = item.category === 'livery' ? `livery:${this.selected}` : item.category;
       const equipped = this.profile.cosmetics?.equipped?.[slot] === item.id;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'garage-cosmetic';
+      const selected = this.previewCosmetic === item.id;
       const access = equipped ? 'EQUIPPED' : owned.has(item.id) ? 'OWNED'
-        : item.unlockType === 'credits' ? `${item.creditPrice.toLocaleString()} CREDITS`
-        : item.unlockType === 'pilotLevel' ? `LEVEL ${item.requiredLevel}` : 'ACHIEVEMENT';
-      button.textContent = `${item.category.toUpperCase()} · ${item.displayName} · ${access}`;
-      button.disabled = equipped || (!owned.has(item.id) && item.unlockType === 'achievement');
-      button.addEventListener('click', () => owned.has(item.id) ? this.onEquipCosmetic?.(item.id) : this.onPurchaseCosmetic?.(item.id)); root.append(button);
+        : item.unlockType === 'credits' ? `${this.profile.credits >= item.creditPrice ? 'UNLOCKABLE' : 'LOCKED'} · ${item.creditPrice.toLocaleString()} CREDITS`
+        : item.unlockType === 'pilotLevel' ? `LOCKED · LEVEL ${item.requiredLevel}` : 'LOCKED · ACHIEVEMENT';
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'garage-cosmetic';
+      button.textContent = `${item.displayName} · ${access}${selected ? ' · SELECTED PREVIEW' : ''}`;
+      button.setAttribute('aria-pressed', String(selected));
+      button.onclick = () => { this.previewCosmetic = item.id; this.paintPreview(); this.renderCosmetics(); };
+      root.append(button);
+      if (!selected || equipped) continue;
+      const action = document.createElement('button'); action.type = 'button'; action.className = 'garage-cosmetic';
+      action.textContent = owned.has(item.id) ? 'EQUIP COSMETIC' : 'UNLOCK COSMETIC';
+      action.disabled = this.loadingProfile || this.actionPending || (!owned.has(item.id) && (item.unlockType === 'achievement' || (item.unlockType === 'credits' && this.profile.credits < item.creditPrice)));
+      action.onclick = () => {
+        this.actionPending = true; this.actionMessage = 'WAITING FOR SERVER…'; this.renderDetails();
+        window.clearTimeout(this.pendingTimer);
+        this.pendingTimer = window.setTimeout(() => this.showActionResult('SERVER DID NOT RESPOND — REOPEN GARAGE TO SYNC'), 8000);
+        if (owned.has(item.id)) this.onEquipCosmetic?.(item.id); else this.onPurchaseCosmetic?.(item.id);
+      };
+      root.append(action);
     }
   }
 

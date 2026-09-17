@@ -1,3 +1,4 @@
+import { applyAircraftCosmetics } from './aircraft-cosmetics';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
@@ -137,6 +138,7 @@ export function attachAircraftAsset(
       plane.userData.assetPropellers = propellers;
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
+      applyAircraftCosmetics(plane, type, plane.userData.equippedCosmetics ?? {});
       onLoaded?.(model);
     })
     .catch(() => {
