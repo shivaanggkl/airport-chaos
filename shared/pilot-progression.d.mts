@@ -1,0 +1,10 @@
+export const PILOT_LEVEL_CAP: number;
+export function pilotXpForLevel(level: number): number;
+export function pilotLevelForXp(xp: number): number;
+export function pilotTitleForLevel(level: number): string;
+export const dailyPilotRewards: readonly number[];
+export function utcDayId(now?: number): string;
+export function utcDayDistance(fromDay: string, toDay: string): number;
+export const pilotXpRewards: Readonly<{ distance5km: number; landing: number; discovery: number; aiKill: number; humanKill: number; territoryCapture: number; event: number; pvpVictory: number; mission: Readonly<Record<string, number>> }>;
+export const weeklyPlacementRewards: readonly Readonly<{ maxRank: number; credits: number; badge: string }>[];
+export function weeklyRewardForRank(rank: number): Readonly<{ maxRank: number; credits: number; badge: string }> | undefined;

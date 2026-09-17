@@ -829,6 +829,7 @@ let availableContract: ContractDefinition | null = null;
 let activeContract: ActiveContract | null = null;
 type Waypoint = { x: number; z: number; label?: string };
 let waypoint: Waypoint | null = null;
+let activePvpChallenge: { id: string; mode: 'dogfight' | 'airportSprint'; status: string; expiresAt: number } | null = null;
 let cameraShakeTime = 0;
 let checkpointPulseTime = 0;
 let checkpointFlashIndex = -1;
@@ -3068,6 +3069,11 @@ type NetworkProfile = {
   mastery: Partial<Record<CityId, NetworkMastery>>;
   missions: Partial<Record<CityId, NetworkMissionCityState>>;
   legacyImportPending: boolean;
+  pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
+  dailyStreak: { current: number; longest: number; cycleDay: number; lastClaimDay?: string; nextReward: number };
+  personalRecords: Record<string, { value: number; cityId?: CityId; achievedAt: number }>;
+  weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
+  referral: { code: string; status: 'none' | 'pending' | 'qualified' | 'rewarded'; rewardedCount: number };
 };
 
 type ServerMessage =
@@ -3101,6 +3107,11 @@ type ServerMessage =
   | { type: 'missionCompleted'; missionId: string; credits: number; score: number }
   | { type: 'missionFailed'; missionId: string; reason: string }
   | { type: 'weeklyLeaderboards'; weeklyLeaderboards: NetworkWeeklyLeaderboard[] }
+  | { type: 'dailyStreakClaimed'; day: number; streak: number; credits: number }
+  | { type: 'pvpChallengeInvite'; challenge: { id: string; mode: 'dogfight' | 'airportSprint'; challengerId: string; opponentId: string; expiresAt: number } }
+  | { type: 'pvpChallengeState'; challenge: { id: string; mode: 'dogfight' | 'airportSprint'; status: string; expiresAt: number; startsAt?: number } }
+  | { type: 'pvpChallengeCancelled'; challengeId: string }
+  | { type: 'pvpChallengeResult'; challengeId: string; winnerId: string; rewarded: boolean }
   | ({ type: 'state' } & NetworkPlayer)
   | { type: 'remove'; playerId: string }
   | { type: 'leaderboard'; cityId: CityId; players: LeaderboardPlayer[] }
@@ -3187,6 +3198,10 @@ function createSafeNetworkProfile(): NetworkProfile {
     objectives: {},
     mastery: {},
     missions: {},
+    pilotProgress: { xp: 0, level: 1, title: 'ROOKIE', nextLevelXp: 125 },
+    dailyStreak: { current: 0, longest: 0, cycleDay: 0, nextReward: 50 },
+    personalRecords: {},
+    referral: { code: '---- ----', status: 'none', rewardedCount: 0 },
     // This local placeholder is never awarded from. It keeps the profile
     // session structurally safe until a version-validated server welcome.
     legacyImportPending: true,
@@ -4189,6 +4204,7 @@ function pilotMenuData(): PilotMenuData {
   const wantedPlayerId = cityEvent?.eventType === 'mostWanted' ? cityEvent.wantedPlayerId : undefined;
   const players = [
     {
+      id: localPlayerId ?? undefined,
       name: displayName,
       aircraft: aircraftDisplayName(aircraftType),
       distance: 0,
@@ -4203,6 +4219,7 @@ function pilotMenuData(): PilotMenuData {
     ...[...remotePlayers.values()]
       .filter((remote) => remote.entityType === 'player' && remote.cityId === cityId)
       .map((remote) => ({
+        id: remote.playerId,
         name: remote.displayName,
         aircraft: aircraftDisplayName(remote.aircraftType),
         distance: remote.plane.position.distanceTo(airplane.position),
@@ -4218,15 +4235,28 @@ function pilotMenuData(): PilotMenuData {
           remote.plane.position.z,
           `${remote.displayName} · last reported position`,
         ) : undefined,
+        challenge: !remote.isBot && remote.lifeState === 'alive' ? () => socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: remote.playerId, mode: 'dogfight' })) : undefined,
+        sprint: !remote.isBot && remote.lifeState === 'alive' ? () => {
+          const destination = airports.filter((airport) => airport.id !== lastSuccessfulAirportId)
+            .sort((left, right) => Math.hypot(left.x - airplane.position.x, left.z - airplane.position.z) - Math.hypot(right.x - airplane.position.x, right.z - airplane.position.z))[0];
+          if (destination) socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: remote.playerId, mode: 'airportSprint', destinationAirportId: destination.id }));
+        } : undefined,
       })),
     // Online presence is not render visibility: background browsers may stop
     // transforms while their socket/profile remains connected.
     ...[...cityHumanRoster.values()].filter(player => player.playerId !== localPlayerId && !remotePlayers.has(player.playerId)).map(player => ({
+      id: player.playerId,
       name: player.displayName, aircraft: aircraftDisplayName(player.aircraftType),
       distance: undefined, lifecycle: player.lifeState === 'alive' ? 'Online' : player.lifeState === 'respawning' ? 'Respawning' : 'Destroyed',
       score: player.score, isLocal: false, isBot: false,
       ownedTerritories: ownedTerritoriesForPlayer(player.playerId),
       mostWanted: wantedPlayerId === player.playerId, king: kingPlayerId === player.playerId,
+      challenge: player.lifeState === 'alive' ? () => socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: player.playerId, mode: 'dogfight' })) : undefined,
+      sprint: player.lifeState === 'alive' ? () => {
+        const destination = airports.filter((airport) => airport.id !== lastSuccessfulAirportId)
+          .sort((left, right) => Math.hypot(left.x - airplane.position.x, left.z - airplane.position.z) - Math.hypot(right.x - airplane.position.x, right.z - airplane.position.z))[0];
+        if (destination) socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: player.playerId, mode: 'airportSprint', destinationAirportId: destination.id }));
+      } : undefined,
     })),
   ].sort((left, right) => {
     if (left.mostWanted !== right.mostWanted) return left.mostWanted ? -1 : 1;
@@ -4282,7 +4312,9 @@ function pilotMenuData(): PilotMenuData {
       abandon: () => socket.send(JSON.stringify({ type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMissionAttemptId })),
     },
     progression: {
-      credits, score,
+      credits, score, pilotProgress: serverProfile.pilotProgress, dailyStreak: serverProfile.dailyStreak,
+      personalRecords: serverProfile.personalRecords, weeklyReward: serverProfile.weeklyReward, referral: serverProfile.referral,
+      pvpChallenge: activePvpChallenge,
       aircraft: aircraftDisplayOrder.map((type) => ({
         name: aircraftDefinitions[type].callsign,
         owned: flightTestMode || serverProfile.unlockedAircraft.includes(type),
@@ -6947,6 +6979,8 @@ socket.addEventListener('message', (event) => {
     weeklyLeaderboards = message.weeklyLeaderboards ?? [];
     applyCityEvent(message.event);
     flushProfileRewards();
+    const referralCode = new URLSearchParams(window.location.search).get('ref');
+    if (referralCode) socket.send(JSON.stringify({ type: 'referralAttach', code: referralCode }));
     sendLocalState();
     sendPlayerUpdate();
   } else if (!protocolReady || !profileHydrated) {
@@ -7033,6 +7067,20 @@ socket.addEventListener('message', (event) => {
     showProgressMessage(`${message.action.toUpperCase()} · CHAOS x${message.multiplier}`);
   } else if (message.type === 'chaosReward') {
     showProgressMessage(message.reason);
+  } else if (message.type === 'dailyStreakClaimed') {
+    showProgressMessage(`DAY ${message.day} PILOT STREAK · +${message.credits} CREDITS`);
+  } else if (message.type === 'pvpChallengeInvite') {
+    const accepted = window.confirm(`${message.challenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT'} CHALLENGE\nAccept?`);
+    socket.send(JSON.stringify({ type: 'pvpChallengeResponse', challengeId: message.challenge.id, accept: accepted }));
+  } else if (message.type === 'pvpChallengeState') {
+    activePvpChallenge = message.challenge;
+    showProgressMessage(`${message.challenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT'} · ${message.challenge.status.toUpperCase()}`);
+  } else if (message.type === 'pvpChallengeCancelled') {
+    activePvpChallenge = null;
+    showProgressMessage('CHALLENGE CANCELLED');
+  } else if (message.type === 'pvpChallengeResult') {
+    activePvpChallenge = null;
+    showProgressMessage(message.winnerId === localPlayerId ? `CHALLENGE WON${message.rewarded ? '' : ' · PRACTICE'}` : 'CHALLENGE COMPLETE');
   } else if (message.type === 'profile') {
     if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason, message.preserveActiveAircraft === true, message.serverReset === true)) {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');

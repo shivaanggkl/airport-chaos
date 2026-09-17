@@ -10,7 +10,10 @@ export type AnalyticsEventName =
   | 'fighter_modal_viewed' | 'fighter_trial_started' | 'fighter_trial_completed' | 'fighter_purchase_clicked'
   | 'fighter_checkout_created' | 'fighter_purchase_completed' | 'fighter_checkout_cancelled'
   | 'fighter_purchase_refunded'
-  | 'purchase_recovery_created' | 'purchase_recovery_succeeded';
+  | 'purchase_recovery_created' | 'purchase_recovery_succeeded'
+  | 'daily_streak_claimed' | 'pilot_level_up' | 'personal_record_broken' | 'weekly_reward_awarded'
+  | 'pvp_challenge_sent' | 'pvp_challenge_accepted' | 'pvp_challenge_completed'
+  | 'referral_attached' | 'referral_qualified';
 
 export type AnalyticsContext = {
   pilotId: string;
@@ -29,6 +32,8 @@ const validEventNames = new Set<AnalyticsEventName>([
   'fighter_checkout_created', 'fighter_purchase_completed', 'fighter_checkout_cancelled',
   'fighter_purchase_refunded',
   'purchase_recovery_created', 'purchase_recovery_succeeded',
+  'daily_streak_claimed', 'pilot_level_up', 'personal_record_broken', 'weekly_reward_awarded',
+  'pvp_challenge_sent', 'pvp_challenge_accepted', 'pvp_challenge_completed', 'referral_attached', 'referral_qualified',
 ]);
 
 function compactText(value: unknown, maximum: number): string | undefined {

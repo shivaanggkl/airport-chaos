@@ -21,6 +21,7 @@ export type PilotMenuEvent = {
 export type PilotMenuStunt = { name: string; how: string; where: string; reward: number };
 
 export type PilotMenuPlayer = {
+  id?: string;
   name: string;
   aircraft: string;
   distance: number | undefined;
@@ -33,6 +34,8 @@ export type PilotMenuPlayer = {
   mostWanted: boolean;
   king: boolean;
   setWaypoint?: () => void;
+  challenge?: () => void;
+  sprint?: () => void;
 };
 export type PilotMenuTerritory = {
   id: string;
@@ -52,7 +55,14 @@ export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium:
 
 export type PilotMenuData = {
   city: { name: string; timePreset: string; changeCity: () => void };
-  progression: { credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[] };
+  progression: { credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[];
+    pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
+    dailyStreak: { current: number; longest: number; cycleDay: number; nextReward: number };
+    personalRecords: Record<string, { value: number; cityId?: string; achievedAt: number }>;
+    weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
+    referral: { code: string; status: string; rewardedCount: number };
+    pvpChallenge?: { id: string; mode: 'dogfight' | 'airportSprint'; status: string; expiresAt: number } | null;
+  };
   missions: { activeId?: string; activeCity?: string; entries: readonly PilotMenuMission[]; accept: (id: string, replace: boolean) => void; abandon: () => void };
   players: { city: string; entries: readonly PilotMenuPlayer[] };
   territories: { city: string; entries: readonly PilotMenuTerritory[]; legend: readonly { name: string; color: string; colorName?: string }[]; neutralColor: string };
@@ -398,7 +408,11 @@ export class PilotMenu {
         meta: player.isLocal
           ? 'Your plane.'
           : 'Another player. Set Waypoint marks where they are now.',
-        actions: player.setWaypoint ? [{ label: 'Set Waypoint', run: player.setWaypoint }] : undefined,
+        actions: [
+          ...(player.setWaypoint ? [{ label: 'Set Waypoint', run: player.setWaypoint }] : []),
+          ...(player.challenge ? [{ label: 'Challenge', run: player.challenge }] : []),
+          ...(player.sprint ? [{ label: 'Airport Sprint', run: player.sprint }] : []),
+        ],
       });
       playerCard.querySelector<HTMLElement>('strong')!.style.color = visualLanguage[player.isLocal ? 'you' : 'player'].color;
       if (player.ownedTerritories?.length) {
@@ -441,6 +455,19 @@ export class PilotMenu {
     const scoreCard = this.progressCard('score', `${visualLanguage.score.icon} SESSION SCORE`, data.progression.score.toLocaleString(), 'Earned this session. Resets when the session ends.');
     scoreCard.querySelector('.pilot-progress-value')!.setAttribute('data-progress-slot', 'score');
     cards.append(creditsCard, scoreCard);
+    const pilot = data.progression.pilotProgress;
+    const pilotCard = this.progressCard('pilot-level', '✦ PILOT LEVEL', `Level ${pilot.level} · ${pilot.title}`, `${pilot.xp.toLocaleString()} XP`);
+    const pilotBar = document.createElement('progress'); pilotBar.max = Math.max(1, pilot.nextLevelXp); pilotBar.value = Math.min(pilot.xp, pilot.nextLevelXp); pilotCard.append(pilotBar); cards.append(pilotCard);
+    const streak = data.progression.dailyStreak;
+    cards.append(this.progressCard('daily-streak', '☀ DAILY STREAK', `${streak.current} DAYS · BEST ${streak.longest}`, `Next reward: ${streak.nextReward} Credits`));
+    const recordLabels: Record<string, string> = { top_speed: 'TOP SPEED', highest_altitude: 'HIGHEST ALTITUDE', longest_flight: 'LONGEST FLIGHT', best_landing: 'BEST LANDING', longest_kill: 'LONGEST KILL', most_territories: 'MOST TERRITORIES' };
+    const recordsCard = this.progressCard('records', '★ PERSONAL RECORDS', Object.keys(data.progression.personalRecords).length ? '' : 'No records yet', 'Your best verified flights.');
+    for (const [key, record] of Object.entries(data.progression.personalRecords)) recordsCard.append(textElement('div', `${recordLabels[key] ?? key.toUpperCase()} · ${Math.round(record.value).toLocaleString()}`, 'pilot-progress-detail'));
+    cards.append(recordsCard);
+    if (data.progression.pvpChallenge) cards.append(this.progressCard('pvp', '⚔ PvP CHALLENGE', data.progression.pvpChallenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT', data.progression.pvpChallenge.status.toUpperCase()));
+    const referral = data.progression.referral;
+    const invite = this.progressCard('referral', '↗ INVITE FRIENDS', referral.code, `Both earn 500 Credits after they become an active pilot. · ${referral.rewardedCount} rewarded`);
+    invite.append(actionButton({ label: 'COPY INVITE LINK', run: () => navigator.clipboard?.writeText(`https://fly.vadensoftware.com/?ref=${referral.code}`) })); cards.append(invite);
     const cityLevel = this.progressCard('level', `🏙 CITY LEVEL`, `Level ${data.mastery.level}`, `Your ${data.mastery.city} progress.`);
     const levelBar = document.createElement('progress'); levelBar.className = 'pilot-progress-level-bar';
     levelBar.max = Math.max(1, data.mastery.nextXp - data.mastery.levelStartXp);
@@ -475,7 +502,8 @@ export class PilotMenu {
     cards.append(territoryCard);
 
     const weeklyBoard = data.leaderboards.find((board) => board.category === 'mastery') ?? data.leaderboards.find((board) => board.localRank);
-    const weekly = this.progressCard('weekly', '🏆 WEEKLY', weeklyBoard?.localRank ? `Your rank #${weeklyBoard.localRank}` : 'No rank yet', 'Your rank this week.');
+    const lastWeekly = data.progression.weeklyReward;
+    const weekly = this.progressCard('weekly', '🏆 WEEKLY', weeklyBoard?.localRank ? `Your rank #${weeklyBoard.localRank}` : 'No rank yet', lastWeekly ? `Last week: #${lastWeekly.rank} ${lastWeekly.category} · +${lastWeekly.credits} Credits · ${lastWeekly.badge}` : 'Your rank this week.');
     weekly.append(textElement('div', weeklyBoard?.category === 'mastery' ? 'City Level earned this week' : weeklyBoard ? weeklyBoard.category.replace(/([a-z])([A-Z])/g, '$1 $2') : 'Play to join the weekly competition.', 'pilot-progress-detail'));
     const leaderboardDetails = document.createElement('details'); leaderboardDetails.className = 'pilot-progress-leaderboards';
     leaderboardDetails.append(textElement('summary', 'VIEW LEADERBOARDS'));
