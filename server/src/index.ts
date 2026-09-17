@@ -211,9 +211,9 @@ const hunterFireCone = 0.20;
 // A defender at the mandatory 2,000-ft floor needs a modest downward gun
 // depression to threaten low intruders. Horizontal authority stays unchanged.
 const defenderDownwardFireAngle = 0.45;
-const hunterReactionDelayMs = 480;
-const hunterShotIntervalMinMs = 560;
-const hunterShotIntervalJitterMs = 360;
+const hunterReactionDelayMs = 360;
+const hunterShotIntervalMinMs = 430;
+const hunterShotIntervalJitterMs = 240;
 const hunterMinimumHorizontalSeparation = 1_100;
 const hunterVerticalBlindHorizontal = 500;
 const hunterVerticalBlindMinimum = 60;
@@ -3069,13 +3069,13 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
   const scale = targetSpeed > targetCap ? targetCap / targetSpeed : 1;
   let leadTime = 0;
   let aimPoint = target.position;
-  if (defender) {
+  {
     // Projectile velocity is fixed at launch. Estimate its intercept in a few
     // bounded iterations, then use that one point for the entire ballistic shot.
     for (let iteration = 0; iteration < 3; iteration += 1) {
       const offset = { x: aimPoint.x - muzzle.x, y: aimPoint.y - muzzle.y, z: aimPoint.z - muzzle.z };
       const direction = normalize(offset);
-      leadTime = Math.min(2.5, Math.hypot(offset.x, offset.y, offset.z) / ballisticShotSpeed(shooter.velocity, direction));
+      leadTime = Math.min(defender ? 2.5 : 1.75, Math.hypot(offset.x, offset.y, offset.z) / ballisticShotSpeed(shooter.velocity, direction));
       aimPoint = {
         x: target.position.x + target.velocity.x * scale * leadTime,
         y: target.position.y + target.velocity.y * scale * leadTime,
@@ -3483,8 +3483,8 @@ function updateBots(now: number): void {
       // without granting a bot the player's assisted LOCKED-hit contract.
       const canShoot = !target.isBot && target.lifeState === 'alive' && now >= target.spawnProtectedUntil &&
         !solution.reason;
-      if (canShoot && Math.random() < (bot.defenseTerritoryId ? 0.9 : 0.72)) {
-        const variance = (Math.random() - 0.5) * (bot.defenseTerritoryId ? 0.01 : 0.052);
+      if (canShoot && Math.random() < (bot.defenseTerritoryId ? 0.92 : 0.84)) {
+        const variance = (Math.random() - 0.5) * (bot.defenseTerritoryId ? 0.01 : 0.028);
         if (createProjectile(botId, player, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + variance * 0.45 })) {
           bot.attackShots = (bot.attackShots ?? 0) + 1;
           bot.noFireReason = undefined;
@@ -4281,6 +4281,19 @@ server.on('connection', (socket, request) => {
           profile = profileStore.updateMissionAttempt(player.pilotId, player.cityId, profile.missions[player.cityId]!.active!) ?? profile;
         }
         sendProfile(playerId, profile);
+        if (definition.type === 'challenge') {
+          const activeChallenge = activeChallenges.get(playerId);
+          const challengeId = definition.requirements.challengeId;
+          const challenge = challengeId ? challengeForCity(player.cityId, challengeId) : undefined;
+          if (activeChallenge && challenge && activeChallenge.challengeId === challenge.id) {
+            const signalAt = Date.now();
+            const remainingMs = Math.max(0, challenge.timeLimit * 1_000 - (signalAt - activeChallenge.startedAt));
+            missionSignal(playerId, { type: 'challengeStart', at: signalAt, challengeId: challenge.id, timeLimitMs: remainingMs });
+            for (let gateIndex = 0; gateIndex < activeChallenge.gateIndex; gateIndex += 1) {
+              missionSignal(playerId, { type: 'challengeGate', at: signalAt, challengeId: challenge.id, gateIndex });
+            }
+          }
+        }
         if (process.env.AIRPORT_CHAOS_MISSION_DEBUG === '1') console.log('[mission-issued]', profile.missions[player.cityId]?.active?.attemptId);
         sendToPlayer(playerId, { type: 'missionResult', ok: true, missionId: definition.id, attemptId: profile.missions[player.cityId]?.active?.attemptId });
         // Existing server ownership counts on the accepted attempt immediately;

@@ -101,6 +101,12 @@ export class SkyChallengeSystem {
   private active: ActiveChallenge | null = null;
   private availabilityElapsed = 0;
   private nearbyStart: ChallengeRuntime | null = null;
+  private readonly previousPosition = new THREE.Vector3();
+  private readonly segment = new THREE.Vector3();
+  private readonly gateCenter = new THREE.Vector3();
+  private readonly gateOffset = new THREE.Vector3();
+  private readonly closestPoint = new THREE.Vector3();
+  private hasPreviousPosition = false;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -118,9 +124,16 @@ export class SkyChallengeSystem {
         this.availabilityElapsed = 0;
         this.updateNearbyStart(position);
       }
-      if (this.nearbyStart && this.distanceToGate(position, this.nearbyStart.definition.gates[0]) <= this.nearbyStart.definition.gates[0].radius) {
+      const startGate = this.nearbyStart?.definition.gates[0];
+      const crossedStart = Boolean(startGate && (
+        this.distanceToGate(position, startGate) <= startGate.radius ||
+        (this.hasPreviousPosition && this.segmentDistanceToGate(this.previousPosition, position, startGate) <= startGate.radius)
+      ));
+      if (this.nearbyStart && crossedStart) {
         this.activate(this.nearbyStart.definition.id);
       }
+      this.previousPosition.copy(position);
+      this.hasPreviousPosition = true;
       return;
     }
 
@@ -142,7 +155,10 @@ export class SkyChallengeSystem {
       this.fail('ALTITUDE LIMIT');
       return;
     }
-    if (distance > gate.radius) return;
+    const crossed = distance <= gate.radius || (this.hasPreviousPosition && this.segmentDistanceToGate(this.previousPosition, position, gate) <= gate.radius);
+    this.previousPosition.copy(position);
+    this.hasPreviousPosition = true;
+    if (!crossed) return;
     if (gate.inverted && Math.abs(Math.abs(normalizedAngle(roll)) - Math.PI) > 0.72) {
       this.fail('INVERTED REQUIRED');
       return;
@@ -159,6 +175,7 @@ export class SkyChallengeSystem {
     const runtime = this.runtimes.find((candidate) => candidate.definition.id === id);
     if (!runtime) return false;
     this.active = { runtime, gateIndex: 0, combo: 1, elapsed: 0 };
+    this.hasPreviousPosition = false;
     this.callbacks.onStarted?.(id);
     this.nearbyStart = null;
     this.refreshGateVisuals();
@@ -314,5 +331,14 @@ export class SkyChallengeSystem {
   private distanceToGate(position: THREE.Vector3, gate: SkyChallengeGate): number {
     const y = this.heightAt(gate.x, gate.z) + gate.altitude;
     return Math.hypot(position.x - gate.x, position.y - y, position.z - gate.z);
+  }
+
+  private segmentDistanceToGate(from: THREE.Vector3, to: THREE.Vector3, gate: SkyChallengeGate): number {
+    this.gateCenter.set(gate.x, this.heightAt(gate.x, gate.z) + gate.altitude, gate.z);
+    this.segment.subVectors(to, from);
+    const lengthSquared = this.segment.lengthSq();
+    if (lengthSquared <= 0.0001) return from.distanceTo(this.gateCenter);
+    const t = THREE.MathUtils.clamp(this.gateOffset.subVectors(this.gateCenter, from).dot(this.segment) / lengthSquared, 0, 1);
+    return this.closestPoint.copy(from).addScaledVector(this.segment, t).distanceTo(this.gateCenter);
   }
 }

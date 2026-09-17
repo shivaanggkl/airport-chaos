@@ -3,7 +3,7 @@
 export const aircraftMaxHealth = Object.freeze({
   trainer: 100,
   privateJet: 100,
-  cargo: 175,
+  cargo: 200,
   fighter: 125,
 });
 

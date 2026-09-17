@@ -3979,9 +3979,15 @@ function missionProgress(definition: CityMission, attempt: NetworkMissionAttempt
   }
   if (definition.type === 'stuntPair') return { text: `${attempt.completedIds.includes('barrelRoll') ? '✓' : '○'} Barrel Roll · ${attempt.completedIds.includes('quickDodge') ? '✓' : '○'} Quick Dodge`, value: attempt.progress, target: 2 };
   if (definition.type === 'challenge') {
-    const gateCount = cityWorld.skyChallenges?.find((item) => item.id === requirements.challengeId)?.gates.length ?? 4;
+    const challenge = cityWorld.skyChallenges?.find((item) => item.id === requirements.challengeId);
+    const gateCount = challenge?.gates.length ?? 4;
+    const gateNumber = Math.min(gateCount, Math.floor(attempt.progress) + 1);
+    const nextGate = challenge?.gates[Math.min(gateCount - 1, Math.floor(attempt.progress))];
+    const nextDistance = nextGate
+      ? `${(Math.hypot(airplane.position.x - nextGate.x, airplane.position.z - nextGate.z) / 1000).toFixed(1)} KM`
+      : '—';
     const remaining = attempt.challengeEndsAt ? ` · ${Math.max(0, Math.ceil((attempt.challengeEndsAt - Date.now()) / 1000))}s left` : ' · fly to the first gate';
-    return { text: `CYAN Speed Course · ${attempt.progress}/${gateCount} gates${remaining}`, value: attempt.progress, target: gateCount };
+    return { text: `SPEED COURSE — GATE ${gateNumber}/${gateCount}\nNEXT GATE — ${nextDistance}${remaining}`, value: attempt.progress, target: gateCount };
   }
   if (definition.type === 'event') {
     const event = cityEvent?.eventType === requirements.eventType ? cityEvent : null;
@@ -6175,7 +6181,7 @@ function updateCamera(delta: number): void {
   );
   const cameraSpeedOffset = cameraSpeedRatio * 7.2 + boostVisualStrength * 2.35;
   const cameraFollow = currentAircraft.cameraDamping;
-  const targetChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
+  const targetChaseDistance = defaultChaseDistance * cameraDistanceMultiplier * (1 - cameraSpeedRatio * 0.055);
   smoothedChaseDistance = THREE.MathUtils.lerp(
     smoothedChaseDistance,
     targetChaseDistance,
@@ -6279,8 +6285,8 @@ function updateCamera(delta: number): void {
     (currentSpeed - 42) / (aircraftDefinitions.fighter.maxSpeed - 42), 0, 1,
   );
   const targetFov = CAMERA_CHASE_FOV
-    + peripheralSpeed * 5.2
-    + boostVisualStrength * 3.2
+    + peripheralSpeed * 7.5
+    + boostVisualStrength * 4.0
     // A little extra peripheral expansion near the ground makes roads and
     // buildings slide past more convincingly without moving the chase camera.
     + peripheralSpeed * (1 - THREE.MathUtils.clamp(altitudeAboveTerrain() / 900, 0, 1)) * 1.15;
