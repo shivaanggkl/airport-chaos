@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 
 export type StuntType =
-  | 'barrelRoll'
-  | 'quickDodge'
   | 'invertedFlight'
   | 'lowPass'
   | 'nearMiss'
@@ -53,8 +51,6 @@ type StuntCallbacks = {
 };
 
 const STUNT_POINTS: Record<StuntType, number> = {
-  barrelRoll: 150,
-  quickDodge: 180,
   invertedFlight: 200,
   lowPass: 250,
   nearMiss: 300,
@@ -65,8 +61,6 @@ const STUNT_POINTS: Record<StuntType, number> = {
 };
 
 const STUNT_LABELS: Record<StuntType, string> = {
-  barrelRoll: 'BARREL ROLL',
-  quickDodge: 'QUICK DODGE',
   invertedFlight: 'INVERTED FLIGHT',
   lowPass: 'LOW PASS',
   nearMiss: 'NEAR MISS',
@@ -77,8 +71,6 @@ const STUNT_LABELS: Record<StuntType, string> = {
 };
 
 export const stuntGuide: ReadonlyArray<{ type: StuntType; name: string; how: string; where: string; reward: number }> = [
-  { type: 'barrelRoll', name: STUNT_LABELS.barrelRoll, how: 'Hold X + A / D for one full roll.', where: 'Open sky', reward: STUNT_POINTS.barrelRoll },
-  { type: 'quickDodge', name: STUNT_LABELS.quickDodge, how: 'Hold X + ← / → to break sideways.', where: 'Open sky or combat', reward: STUNT_POINTS.quickDodge },
   { type: 'invertedFlight', name: STUNT_LABELS.invertedFlight, how: 'Fly upside down for a few seconds without slowing too much.', where: 'Open sky', reward: STUNT_POINTS.invertedFlight },
   { type: 'lowPass', name: STUNT_LABELS.lowPass, how: 'Fly fast and safely close to terrain without touching it.', where: 'Open ground or water corridors', reward: STUNT_POINTS.lowPass },
   { type: 'nearMiss', name: STUNT_LABELS.nearMiss, how: 'Pass close to another real pilot without colliding.', where: 'Multiplayer airspace', reward: STUNT_POINTS.nearMiss },
@@ -92,9 +84,6 @@ const comboTimeout = 9;
 const normalizedAngle = (angle: number): number => THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI;
 
 export class StuntComboSystem {
-  private previousRoll = 0;
-  private rollTravel = 0;
-  private rollDirection = 0;
   private invertedTime = 0;
   private invertedArmed = true;
   private lowPassTime = 0;
@@ -119,8 +108,6 @@ export class StuntComboSystem {
 
   update(frame: StuntFrame): void {
     if (!frame.airborne) {
-      this.previousRoll = frame.roll;
-      this.rollTravel = 0;
       this.invertedTime = 0;
       this.lowPassTime = 0;
       this.highSpeedTime = 0;
@@ -130,7 +117,6 @@ export class StuntComboSystem {
     this.comboIdle += frame.delta;
     if (this.comboStunts > 0 && this.comboIdle >= comboTimeout) this.finishCombo();
 
-    this.detectBarrelRoll(frame);
     this.detectInverted(frame);
     this.detectLowPass(frame);
     this.detectBridgeRun(frame);
@@ -140,10 +126,6 @@ export class StuntComboSystem {
 
   notifyNearMiss(aircraftType: StuntFrame['aircraftType']): void {
     this.award('nearMiss', aircraftType);
-  }
-
-  notifyQuickDodge(aircraftType: StuntFrame['aircraftType']): void {
-    this.award('quickDodge', aircraftType);
   }
 
   notifyLanding(quality: LandingQuality): void {
@@ -162,8 +144,6 @@ export class StuntComboSystem {
     this.comboStunts = 0;
     this.comboIdle = 0;
     this.lastStunt = null;
-    this.rollTravel = 0;
-    this.rollDirection = 0;
     this.invertedTime = 0;
     this.invertedArmed = true;
     this.lowPassTime = 0;
@@ -172,20 +152,6 @@ export class StuntComboSystem {
     this.highSpeedArmed = true;
     this.diving = false;
     for (const zone of this.zones) if (zone.kind === 'bridge') this.bridgeArmed.add(zone.id);
-  }
-
-  private detectBarrelRoll(frame: StuntFrame): void {
-    const delta = normalizedAngle(frame.roll - this.previousRoll);
-    this.previousRoll = frame.roll;
-    if (Math.abs(delta) < 0.001) return;
-    const direction = Math.sign(delta);
-    if (this.rollDirection !== 0 && direction !== this.rollDirection) this.rollTravel = 0;
-    this.rollDirection = direction;
-    this.rollTravel += Math.abs(delta);
-    if (this.rollTravel >= Math.PI * 2 - 0.16) {
-      this.rollTravel = 0;
-      this.award('barrelRoll', frame.aircraftType);
-    }
   }
 
   private detectInverted(frame: StuntFrame): void {

@@ -2,6 +2,7 @@ import { identityText, visualLanguage, playerFacingText } from './visual-languag
 import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { createGameBrandSignature, mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
+import type { MobileControlId, MobileControlLayout, MobileControlPlacement } from './mobile-input';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string };
 
 export type PilotMenuActivity = {
@@ -50,7 +51,7 @@ export type PilotMenuTerritory = {
   setWaypoint: () => void;
 };
 export type PilotMenuObjective = { label: string; progress: number; target: number; reward: number; completed: boolean };
-export type PilotMenuMission = { id: string; name: string; detail: string; difficulty: string; credits: number; score: number; completions: number; cooldownUntil: number; territoryIds: readonly string[]; progressText?: string; progress?: number; target?: number; setWaypoint?: () => void };
+export type PilotMenuMission = { id: string; name: string; detail: string; difficulty: string; credits: number; score: number; completions: number; cooldownUntil: number; territoryIds: readonly string[]; retired?: boolean; progressText?: string; progress?: number; target?: number; setWaypoint?: () => void };
 export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium: boolean; price: number; neededCredits: number };
 
 export type PilotMenuData = {
@@ -83,7 +84,8 @@ export type PilotMenuData = {
   garage: { available: boolean; reason?: string; open: () => void; setAirportWaypoint: () => void };
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
-  preferences:{touchMode:'auto'|'on'|'off';setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void};
+  preferences:{touchMode:'auto'|'on'|'off';touchLayout:boolean;setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void;mobileLayout:MobileControlLayout;setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>void;resetMobileLayout:()=>MobileControlLayout};
+  restart: () => void;
   audio: { muted: boolean; toggle: () => void; levels: { master: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'engine' | 'combat' | 'ui', value: number) => void };
   guide: { open: () => void; replay:()=>void };
 };
@@ -126,7 +128,7 @@ function territoryDot(name: string, color: string): HTMLElement {
 export class PilotMenu {
   private openState = false;
   private content: HTMLDivElement | undefined;
-  private readonly sections = ['MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'HELP', 'SETTINGS'] as const;
+  private readonly sections = ['MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS'] as const;
   private activeSection: (typeof this.sections)[number] = 'MISSIONS';
   private navigation: HTMLElement | undefined;
   private lastData: PilotMenuData | undefined;
@@ -226,6 +228,7 @@ export class PilotMenu {
         data.missions.entries.map(({ id, completions }) => [id, completions]),
         data.territories.entries.map(({ id, ownedByYou }) => [id, ownedByYou]), data.leaderboards]);
       case 'GARAGE': return JSON.stringify([this.activeSection, data.garage.available, data.garage.reason]);
+      case 'CONTROLS': return JSON.stringify([this.activeSection, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout]);
       case 'HELP': return this.activeSection;
       case 'SETTINGS': return JSON.stringify([this.activeSection, data.hints.enabled, data.navigation.enabled, data.audio.muted]);
     }
@@ -285,11 +288,12 @@ export class PilotMenu {
     const kicker = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
     heading.append(kicker, textElement('span', 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
     void mountAirportChaosLogo(kicker, 'brand-logo-menu');
-    const changeCity = actionButton({ label: 'CHANGE CITY', run: () => this.lastData?.city.changeCity() });
+    const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
     changeCity.title = 'Return to Choose a City';
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
-    const close = actionButton({ label: 'Close · TAB', run: () => this.close() });
-    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, changeCity, close);
+    const close = actionButton({ label: 'BACK TO GAME', run: () => this.close() });
+    const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart() });
+    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, changeCity, restart, close);
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -377,7 +381,7 @@ export class PilotMenu {
         name: `${item.name}${active ? ' · ACTIVE' : item.completions ? ` · COMPLETED ×${item.completions}` : ''}`,
         detail: item.detail,
         meta: `${item.difficulty} · ${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}`,
-        actions: active ? undefined : [{ label: cooling ? 'COOLDOWN' : item.completions ? 'REPLAY' : 'ACCEPT', disabled: cooling, run: () => {
+        actions: active ? undefined : [{ label: item.retired ? 'RETIRED' : cooling ? 'COOLDOWN' : item.completions ? 'REPLAY' : 'ACCEPT', disabled: item.retired || cooling, run: () => {
           if (data.missions.activeId) { this.pendingMissionId = item.id; this.render(data); }
           else data.missions.accept(item.id, false);
         } }],
@@ -567,6 +571,49 @@ export class PilotMenu {
     if(data.intercity.routes.length){const routes=section('INTERCITY FLIGHTS');routes.append(textElement('p','Land and stop at the departure airport, then begin a city-to-city flight.','pilot-menu-muted'));for(const route of data.intercity.routes)routes.append(this.createCard({name:`FLY TO ${route.destination.toUpperCase()}`,detail:route.distanceLabel,meta:`Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,actions:[{label:'START ROUTE',run:route.start,disabled:!route.available,title:route.reason}]}));content.append(routes);}
     }
 
+    if (this.activeSection === 'CONTROLS') {
+    const controls = section('CONTROLS');
+    const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
+    if(data.preferences.touchLayout){
+      controls.append(
+        textElement('p','The left stick controls speed, Boost, and turning. Altitude and Fire stay on the right. Drag the aim circle directly.','pilot-menu-muted'),
+        selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),
+      );
+      const labels:Record<MobileControlId,string>={stick:'FLIGHT STICK',altitude:'ALTITUDE BUTTONS',fire:'FIRE'};
+      for(const control of ['stick','altitude','fire'] as const){
+        const editor=document.createElement('fieldset');editor.className='pilot-mobile-control-editor';editor.append(textElement('legend',labels[control]));
+        for(const [property,label,min,max,step] of [['x','Horizontal',12,88,1],['y','Vertical',35,76,1],['scale','Size',.75,1.35,.05]] as const){
+          const row=document.createElement('label');const value=textElement('output',property==='scale'?`${Math.round(data.preferences.mobileLayout[control][property]*100)}%`:`${Math.round(data.preferences.mobileLayout[control][property])}%`);
+          const slider=document.createElement('input');slider.type='range';slider.min=String(min);slider.max=String(max);slider.step=String(step);slider.value=String(data.preferences.mobileLayout[control][property]);
+          slider.addEventListener('input',()=>{const next=Number(slider.value);value.textContent=property==='scale'?`${Math.round(next*100)}%`:`${Math.round(next)}%`;data.preferences.setMobileControl(control,{[property]:next});});
+          row.append(textElement('span',label),slider,value);editor.append(row);
+        }
+        controls.append(editor);
+      }
+      controls.append(actionButton({label:'RESET MOBILE CONTROLS',run:()=>{data.preferences.mobileLayout=data.preferences.resetMobileLayout();this.render(data,true);}}));
+    }else{
+      controls.append(textElement('p','Keyboard and mouse reference for desktop flight.','pilot-menu-muted'));
+      for(const group of controlGroups){
+        const reference=document.createElement('div');reference.className='pilot-menu-control-group';reference.append(textElement('h3',group.label));
+        for(const row of group.rows)reference.append(textElement('div',`${controlKeyLabel(row.actions)}   ${row.label}`,'pilot-menu-controls'));
+        controls.append(reference);
+      }
+      const camera=document.createElement('div');camera.className='pilot-menu-control-group';camera.append(textElement('h3','CAMERA & GAME'));
+      camera.append(
+        textElement('div','MOUSE DRAG   Camera Look','pilot-menu-controls'),
+        textElement('div','MOUSE WHEEL   Camera Zoom','pilot-menu-controls'),
+        textElement('div',`${menuKeyLabel('map')}   Map`,'pilot-menu-controls'),
+        textElement('div',`${menuKeyLabel('menu')}   Menu`,'pilot-menu-controls'),
+        textElement('div',`${menuKeyLabel('restart')}   Restart / Respawn`,'pilot-menu-controls'),
+        textElement('div','H   Show / Hide Controls Help','pilot-menu-controls'),
+      );
+      controls.append(camera);
+    }
+    const session = section('SESSION');
+    session.append(actionButton({label:'BACK TO GAME',run:()=>this.close()}),actionButton({label:'RESTART / RESPAWN',run:data.restart}));
+    content.append(controls,session);
+    }
+
     if (this.activeSection === 'SETTINGS') {
     const audio = section('Audio');
     audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: data.audio.toggle }));
@@ -597,9 +644,9 @@ export class PilotMenu {
     const navigation = section('Navigation');
     navigation.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: data.navigation.toggle }));
     content.append(navigation);
-    const controls=section('Mobile & Graphics');
+    const controls=section('Graphics');
     const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
-    controls.append(selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),selectRow('GRAPHICS QUALITY',data.preferences.graphicsQuality,['auto','high','balanced','low'],value=>data.preferences.setGraphicsQuality(value as 'auto'|'high'|'balanced'|'low')),textElement('small','Graphics changes apply next time the city loads.','pilot-menu-muted'));
+    controls.append(selectRow('GRAPHICS QUALITY',data.preferences.graphicsQuality,['auto','high','balanced','low'],value=>data.preferences.setGraphicsQuality(value as 'auto'|'high'|'balanced'|'low')),textElement('small','Graphics changes apply next time the city loads.','pilot-menu-muted'));
     content.append(controls);
 
     const advertising = section('Advertising');
@@ -617,18 +664,12 @@ export class PilotMenu {
 
     if (this.activeSection === 'HELP') {
       const help = section('HELP');
-      help.append(textElement('p', 'See the visual guide or check the keys below.', 'pilot-menu-muted'));
+      help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
       help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
       help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
       help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
-      if(data.preferences.touchMode!=='off')help.append(textElement('p','TOUCH: Left stick turns. Right control moves up/down. Use Faster, Slow, Fire, and Boost.','pilot-menu-controls'));
-      for (const group of controlGroups) {
-        const controls = document.createElement('div'); controls.className = 'pilot-menu-control-group';
-        controls.append(textElement('h3', group.label));
-        for (const row of group.rows) controls.append(textElement('div', `${controlKeyLabel(row.actions)}   ${row.label}`, 'pilot-menu-controls'));
-        help.append(controls);
-      }
-      help.append(textElement('p', `${menuKeyLabel('map')} Map · ${menuKeyLabel('menu')} Menu · ? Help`, 'pilot-menu-controls'));
+      if(data.preferences.touchLayout)help.append(textElement('p','TOUCH: Left stick turns and changes speed; push beyond Faster for Boost. Use the right Altitude and Fire buttons, and drag the aim circle directly.','pilot-menu-controls'));
+      else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       content.append(help);
     }
     content.scrollTop = scrollTop;

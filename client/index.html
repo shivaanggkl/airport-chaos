@@ -31,75 +31,38 @@
       </div>
     </main>
     <div id="game-root" hidden>
+    <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">
+      <button id="flight-menu-button" type="button" aria-label="Open pilot menu">☰</button>
+      <div class="flight-hud-reward-anchor">
+        <div class="flight-hud-reward-stats">
+          <span id="hud-credits" class="flight-hud-stat flight-hud-credits"><small>CREDITS</small><b>💰</b><strong id="credits">0</strong></span>
+          <span class="flight-hud-stat flight-hud-score"><small>SCORE</small><strong id="score">0</strong></span>
+        </div>
+        <div id="reward-feedback" class="reward-feedback hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+      </div>
+      <span class="flight-hud-stat"><small>SPEED</small><strong id="speed">0</strong></span>
+      <span class="flight-hud-stat"><small>ALT</small><strong id="altitude">0</strong><i>FT</i></span>
+      <span class="flight-hud-stat flight-hud-health"><b>♥</b><strong id="health">100</strong></span>
+      <span id="heat-row" class="flight-hud-stat flight-hud-danger" title="More Danger means more attention and better rewards."><b>⚠</b><strong id="heat-level">0</strong></span>
+      <span class="flight-hud-stat flight-hud-mission"><small>MISSION</small><strong id="mission-progress">—</strong></span>
+      <button id="flight-garage-button" class="desktop-hud-action" type="button">GARAGE</button>
+      <button id="flight-world-button" class="desktop-hud-action" type="button">WORLD</button>
+      <button id="flight-map-button" type="button">MAP</button>
+    </nav>
     <div id="flight-hud" aria-label="Flight instruments">
-      <section id="heading-tape" class="glass-instrument">
-        <span>NW</span><span>N</span><span>NE</span><span>E</span><strong id="heading">N</strong><span>SE</span><span>S</span><span>SW</span>
-      </section>
-      <section id="airspeed-tape" class="flight-tape glass-instrument">
-        <span class="instrument-label">SPEED</span>
-        <strong id="speed">0</strong><span class="instrument-unit">KT</span>
-        <span class="throttle-readout">POWER <strong id="throttle">0</strong>%</span>
-        <span id="boost-readout" class="boost-readout">BOOST <strong id="boost">100</strong>%</span>
-      </section>
-      <section id="altitude-tape" class="flight-tape glass-instrument">
-        <span class="instrument-label">ALTITUDE</span>
-        <strong id="altitude">0</strong><span class="instrument-unit">FT</span>
-        <span class="vsi-readout">UP / DOWN <strong id="vertical-speed">0</strong> ft/min</span>
-        <span id="vsi-indicator" aria-hidden="true"></span>
-      </section>
       <div id="flight-reference" aria-hidden="true"><span></span><i></i><span></span></div>
       <div id="acquisition-circle" aria-hidden="true"></div>
-      <section id="flight-status" class="glass-instrument">
-        <div class="flight-state-row"><strong id="flight-state">ON RUNWAY</strong></div>
-        <div class="health-row"><span>PLANE LIFE</span><span class="hull-meter"><i id="hull-fill"></i></span><strong id="health">100/100</strong><span id="repair-feedback" class="repair-feedback" role="status" aria-live="polite">♥ FULL REPAIR · 100%</span></div>
-        <div id="heat-row" class="heat-row" title="More Danger means more attention and better rewards.">DANGER <strong id="heat-level">0</strong></div>
-        <div id="landing-speed-cue" class="landing-speed-cue hidden" role="status"></div>
-        <div class="airport-navigation"><span>NEAREST PLACE <strong id="nearest-airport">Airport</strong></span><span id="airport-distance"></span></div>
-        <div id="world-status" class="world-status hidden">Leaving City 1</div>
-      </section>
+      <div id="landing-speed-cue" class="landing-speed-cue hidden" role="status"></div>
+      <span id="repair-feedback" class="repair-feedback" role="status" aria-live="polite">♥ FULL REPAIR · 100%</span>
+      <div id="world-status" class="world-status hidden">Leaving City 1</div>
       <div id="target-feedback" class="target-feedback hidden"><b id="target-range">LOCKED</b><span id="target-name-distance"></span></div>
       <div id="fighter-trial-indicator" class="fighter-trial-indicator hidden" role="status"></div>
     </div>
-    <div class="left-hud-stack">
-    <aside id="progression-readout" class="progression-readout" aria-label="Credits and Session Score">
-      <div><span id="credits-icon"></span> <strong id="credits">0</strong> Credits</div>
-      <small>★ <strong id="score">0</strong> Session Score</small>
-      <div id="reward-feedback" class="reward-feedback hidden" aria-live="polite"></div>
-      <div id="progress-message" class="hidden" aria-live="polite"></div>
-      <div id="territory-defense-alert" class="territory-defense-alert hidden" role="status"><span id="territory-defense-text"></span><button id="territory-defense-waypoint" type="button">Set Waypoint</button></div>
-    </aside>
     <aside id="mission-card" class="mission-card hidden" aria-label="Active mission"></aside>
     <aside id="territory-capture" class="territory-capture hidden" role="status" aria-live="polite"></aside>
-    <aside id="hud" class="utility-hud">
-      <div class="utility-bar"><span class="title">AIRPORT CHAOS</span><span id="connection" class="offline">Server: connecting…</span></div>
-      <div id="flight-test-mode" class="flight-test-mode hidden">FLIGHT TEST MODE</div>
-      <details class="utility-details" open>
-        <summary>AIRPORT / PLANE</summary>
-        <div class="score-row"><small>Best Score <strong id="best-score">0</strong></small></div>
-        <div class="timer-row" hidden>Time <strong id="timer">12.0</strong>s</div>
-        <div hidden>Multiplier <strong id="multiplier">x1</strong></div>
-        <label class="aircraft-selector">Aircraft
-          <select id="aircraft-select">
-            <option value="trainer">Skyrift Scout — Free</option>
-            <option value="cargo">Gravitas Cargo — 12,000 Credits</option>
-            <option value="privateJet">Wayfarer Jet — 30,000 Credits</option>
-            <option value="fighter">Redspear Fighter — Premium</option>
-          </select>
-        </label>
-        <small id="aircraft-switch-hint" class="aircraft-switch-hint" hidden>✈ LAND AT AN AIRPORT TO CHANGE AIRCRAFT</small>
-        <div class="progress-stats"><span>Distance <strong id="distance-flown">0</strong></span><span>Landings <strong id="successful-landings">0</strong></span><span>Regions <strong id="regions-discovered">0</strong></span><span id="discovery-progress">Discoveries 0 / 0 — 0%</span></div>
-        <div class="pilot-name">Pilot <strong id="player-name"></strong></div>
-        <button id="audio-toggle" class="audio-toggle" type="button" aria-pressed="false">Mute</button>
-        <button id="cities-button" class="cities-button" type="button">Cities</button>
-        <button id="garage-button" class="cities-button" type="button">Garage</button>
-        <button id="pilot-menu-button" class="cities-button" type="button">Pilot Menu</button>
-      </details>
-    </aside>
-    <aside id="controls-card" class="controls-card" aria-label="Flight controls">
-      <header><strong>CONTROLS</strong><button id="controls-toggle" type="button" aria-expanded="true" aria-label="Hide controls">−</button></header>
-      <div id="controls-content" class="controls-grid">
-      </div>
-    </aside>
+    <div id="flight-notifications" class="flight-notifications" aria-live="polite">
+      <div id="progress-message" class="hidden"></div>
+      <div id="territory-defense-alert" class="territory-defense-alert hidden" role="status"><span id="territory-defense-text"></span><button id="territory-defense-waypoint" type="button">Set Waypoint</button></div>
     </div>
     <div id="right-hud-stack">
       <aside id="real-players" aria-label="Human players"></aside>
@@ -111,9 +74,13 @@
       <div class="radar-legend" id="radar-legend"></div>
     </aside>
     <aside id="next-actions" class="next-actions" aria-label="Suggested activities"></aside>
-    <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><section data-recap-moment hidden><small>MOMENT OF THE FLIGHT</small><b data-moment-title></b><span data-moment-stat></span><div><button type="button" data-moment-copy>COPY SHARE TEXT</button><button type="button" data-moment-save>SAVE SCREENSHOT</button><button type="button" data-moment-photo>OPEN PHOTO MODE</button></div></section><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
+    <aside id="desktop-controls-help" class="desktop-controls-help" hidden aria-hidden="true" aria-label="Desktop flight controls">
+      <span><kbd>W/S</kbd> Speed</span><span><kbd>←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Altitude</span>
+      <span><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span><span><kbd>H</kbd> Controls</span>
+      <span class="desktop-controls-help-camera"><kbd>Mouse Drag</kbd> Camera</span><span class="desktop-controls-help-camera"><kbd>Mouse Wheel</kbd> Zoom</span>
+    </aside>
+    <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><section data-recap-moment hidden><small>MOMENT OF THE FLIGHT</small><b data-moment-title></b><span data-moment-stat></span><div><button type="button" data-moment-copy>COPY SHARE TEXT</button><button type="button" data-moment-save>SAVE SCREENSHOT</button></div></section><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
     <div id="gameplay-feedback" hidden aria-live="polite"></div>
-    <div id="photo-mode-ui" hidden><div>PHOTO MODE<br><small>P / ESC — EXIT · DRAG — CAMERA · SCROLL — ZOOM</small></div><footer>AIRPORT CHAOS<br><small>VADEN SOFTWARE</small></footer></div>
     <aside id="contextual-hint" class="contextual-hint hidden" aria-live="polite">
       <strong id="contextual-hint-title"></strong>
       <span id="contextual-hint-body"></span>
@@ -174,10 +141,9 @@
       </div>
     </div>
     <section id="touch-controls" class="touch-controls" hidden aria-label="Touch flight controls">
-      <div class="touch-stick" data-touch-stick aria-label="Turn and tilt"><i></i></div>
-      <div class="touch-pitch" data-touch-pitch aria-label="Pitch up and down"><i></i><small>UP / DOWN</small></div>
-      <div class="touch-throttle"><button type="button" data-hold="throttleUp">FASTER</button><button type="button" data-hold="throttleDown">SLOW</button></div>
-      <div class="touch-actions"><button type="button" data-hold="fire">FIRE</button><button type="button" data-hold="boost">BOOST</button><button type="button" data-touch-photo>PHOTO</button><button type="button" data-touch-menu>MENU</button></div>
+      <div class="touch-stick" data-touch-stick data-touch-control="stick" aria-label="Turn, throttle, and boost"><em>BOOST</em><i></i><small>SLOW</small></div>
+      <div class="touch-altitude" data-touch-control="altitude" aria-label="Altitude controls"><button type="button" data-hold="pitchUp">ALT +</button><button type="button" data-hold="pitchDown">ALT −</button></div>
+      <button class="touch-fire" type="button" data-touch-control="fire" data-hold="fire">FIRE</button>
     </section>
     <div class="portrait-guidance" aria-hidden="true">ROTATE DEVICE FOR FLIGHT</div>
     <div id="pilot-menu-overlay" class="pilot-menu-overlay" hidden></div>

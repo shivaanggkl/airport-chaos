@@ -449,7 +449,6 @@ export class DallasChunkStreamer {
     for (const loaded of candidates) {
       const key = this.keyFor(loaded.entry);
       const distance = distanceToBounds(position, loaded.entry);
-      const distant = distance > ranges[loaded.entry.lod] + 4_000;
       const replacementReady = order.some((lod) => lod !== loaded.entry.lod && this.loaded.has(`${lod}:${loaded.entry.id}`));
       const visible = this.visibleLod.get(loaded.entry.id) === loaded.entry.lod;
       // The replacement is already attached. An obsolete hidden LOD is no
@@ -466,7 +465,10 @@ export class DallasChunkStreamer {
       // cell. It may briefly exceed the nominal cache cap; a non-visible or
       // already-replaced chunk is evicted on a later pass instead.
       if (!obsoleteFallback && (visible || velocityAheadProtected || immediateFallbackProtected || (retained && !replacementReady))) continue;
-      if (!obsoleteFallback && !distant && this.loadedBytes <= this.maxBytes) continue;
+      // Keep useful detached geometry as a true warm cache while budget is
+      // available. Distance alone previously discarded it around 62–70 MiB,
+      // forcing repeat routes to rebuild the same chunks despite a 128 MiB cap.
+      if (!obsoleteFallback && this.loadedBytes <= this.maxBytes) continue;
       this.loaded.delete(key);
       this.loadedBytes -= loaded.bytes;
       disposeOsmGroups(loaded.groups);

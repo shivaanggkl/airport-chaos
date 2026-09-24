@@ -17,6 +17,7 @@ const statusLabel: Record<HumanRosterEntry['status'], string> = {
 // Five stable row slots; roster updates only change text that actually changed.
 export class PlayersPanel {
   private readonly title = document.createElement('span');
+  private readonly indicator = document.createElement('i');
   private readonly toggle = document.createElement('button');
   private readonly content = document.createElement('div');
   private readonly columns = document.createElement('div');
@@ -41,23 +42,23 @@ export class PlayersPanel {
     row.append(identity, score, level, status);
     return { row, name, ownership, dots, score, level, status };
   });
-  private collapsed = false;
+  private collapsed = true;
 
   constructor(root: HTMLElement) {
-    try { this.collapsed = localStorage.getItem('airport-chaos-players-collapsed') === '1'; } catch { /* default expanded */ }
+    try { this.collapsed = localStorage.getItem('airport-chaos-players-expanded-v2') !== '1'; } catch { /* default collapsed */ }
     this.toggle.type = 'button';
+    this.toggle.className = 'flight-panel-summary';
     this.content.id = 'human-player-rows';
     this.toggle.setAttribute('aria-controls', this.content.id);
-    const header = document.createElement('div');
-    header.className = 'human-player-header';
-    header.append(this.title, this.toggle);
+    this.indicator.setAttribute('aria-hidden', 'true');
+    this.toggle.append(this.title, this.indicator);
     this.columns.className = 'human-player-columns';
     this.columns.innerHTML = '<span>PILOT</span><span>LIVE SCORE</span><span>LEVEL</span>';
     this.content.append(this.columns, ...this.rows.map(row => row.row), this.more);
-    root.append(header, this.content);
+    root.append(this.toggle, this.content);
     this.toggle.onclick = () => {
       this.collapsed = !this.collapsed;
-      try { localStorage.setItem('airport-chaos-players-collapsed', this.collapsed ? '1' : '0'); } catch { /* optional preference */ }
+      try { localStorage.setItem('airport-chaos-players-expanded-v2', this.collapsed ? '0' : '1'); } catch { /* optional preference */ }
       this.applyCollapse();
     };
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
@@ -67,7 +68,8 @@ export class PlayersPanel {
 
   private applyCollapse(): void {
     this.content.hidden = this.collapsed;
-    this.toggle.textContent = this.collapsed ? '+' : '−';
+    this.toggle.parentElement?.classList.toggle('expanded', !this.collapsed);
+    this.indicator.textContent = this.collapsed ? '▸' : '▾';
     this.toggle.setAttribute('aria-expanded', String(!this.collapsed));
     this.toggle.setAttribute('aria-label', this.collapsed ? 'Show players' : 'Hide players');
   }
@@ -115,10 +117,11 @@ export type CityTerritoryEntry = {
 // Fixed row slots retain focus/scroll while authoritative ownership changes.
 export class CityTerritoriesPanel {
   private readonly title = document.createElement('span');
+  private readonly indicator = document.createElement('i');
   private readonly toggle = document.createElement('button');
   private readonly content = document.createElement('div');
   private readonly rows = Array.from({ length: 8 }, () => CityTerritoriesPanel.createRow());
-  private collapsed = false;
+  private collapsed = true;
 
   private static createRow() {
     const row = document.createElement('div');
@@ -132,18 +135,18 @@ export class CityTerritoriesPanel {
   }
 
   constructor(root: HTMLElement) {
-    try { this.collapsed = localStorage.getItem('airport-chaos-city-territories-collapsed') === '1'; } catch { /* default expanded */ }
+    try { this.collapsed = localStorage.getItem('airport-chaos-city-territories-expanded-v2') !== '1'; } catch { /* default collapsed */ }
     this.toggle.type = 'button';
+    this.toggle.className = 'flight-panel-summary';
     this.content.id = 'city-territory-rows';
     this.toggle.setAttribute('aria-controls', this.content.id);
-    const header = document.createElement('div');
-    header.className = 'human-player-header';
-    header.append(this.title, this.toggle);
+    this.indicator.setAttribute('aria-hidden', 'true');
+    this.toggle.append(this.title, this.indicator);
     this.content.append(...this.rows.map(({ row }) => row));
-    root.append(header, this.content);
+    root.append(this.toggle, this.content);
     this.toggle.onclick = () => {
       this.collapsed = !this.collapsed;
-      try { localStorage.setItem('airport-chaos-city-territories-collapsed', this.collapsed ? '1' : '0'); } catch { /* optional preference */ }
+      try { localStorage.setItem('airport-chaos-city-territories-expanded-v2', this.collapsed ? '0' : '1'); } catch { /* optional preference */ }
       this.applyCollapse();
     };
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
@@ -153,7 +156,8 @@ export class CityTerritoriesPanel {
 
   private applyCollapse(): void {
     this.content.hidden = this.collapsed;
-    this.toggle.textContent = this.collapsed ? '+' : '−';
+    this.toggle.parentElement?.classList.toggle('expanded', !this.collapsed);
+    this.indicator.textContent = this.collapsed ? '▸' : '▾';
     this.toggle.setAttribute('aria-expanded', String(!this.collapsed));
     this.toggle.setAttribute('aria-label', this.collapsed ? 'Show city territories' : 'Hide city territories');
   }
@@ -164,7 +168,7 @@ export class CityTerritoriesPanel {
       this.rows.push(slot);
       this.content.append(slot.row);
     }
-    const title = `CITY TERRITORIES${online ? '' : ' · OFFLINE'}`;
+    const title = `TERRITORIES${online ? '' : ' · OFFLINE'}`;
     if (this.title.textContent !== title) this.title.textContent = title;
     for (let index = 0; index < this.rows.length; index += 1) {
       const slot = this.rows[index];

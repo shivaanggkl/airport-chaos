@@ -1,6 +1,7 @@
 import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
 import * as THREE from 'three';
-import { keyboardActionBindings, controlGroups, controlKeyLabel, menuBindings, menuKeyLabel, type FlightAction } from './flight-input';
+import { keyboardActionBindings, menuBindings, type FlightAction } from './flight-input';
+import { shouldToggleDesktopControlsHelp } from './controls-help';
 import { visualLanguage, identityText, targetBracketPath, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
 import { flightTutorial } from './tutorial';
 import './style.css';
@@ -22,7 +23,7 @@ import { MomentStore, type FlightMoment, type MomentType } from '../../shared/mo
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
 import { routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
-import { MobileInputControls, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type TouchControlsMode } from './mobile-input';
+import { MobileInputControls, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialObjective}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
@@ -32,6 +33,8 @@ import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-check
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
+import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
@@ -923,15 +926,12 @@ let checkpointFlashTime = 0;
 let displayName = persistedPlayer.displayName;
 
 const scoreElement = document.querySelector<HTMLSpanElement>('#score')!;
-const bestScoreElement = document.querySelector<HTMLSpanElement>('#best-score')!;
-const multiplierElement = document.querySelector<HTMLSpanElement>('#multiplier')!;
 const finalScoreElement = document.querySelector<HTMLSpanElement>('#final-score')!;
 const crashOverlay = document.querySelector<HTMLDivElement>('#crash-overlay')!;
 const endTitleElement = document.querySelector<HTMLDivElement>('#end-title')!;
 const tutorialCrashActions=document.querySelector<HTMLElement>('#tutorial-crash-actions')!;
 document.querySelector<HTMLButtonElement>('[data-tutorial-retry]')!.addEventListener('click',()=>{tutorialEvent('tutorial_retried',TUTORIAL_VERSION);setGuidedTutorial(true);});
 document.querySelector<HTMLButtonElement>('[data-tutorial-free]')!.addEventListener('click',()=>{exitGuidedTutorial('skipped');restartGame();});
-const timerElement = document.querySelector<HTMLSpanElement>('#timer')!;
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
@@ -942,72 +942,26 @@ const dynamicEventSponsorElement = document.querySelector<HTMLElement>('#dynamic
 const dynamicEventJoinElement = document.querySelector<HTMLButtonElement>('#dynamic-event-join')!;
 const dynamicEventSkipElement = document.querySelector<HTMLButtonElement>('#dynamic-event-skip')!;
 const formationStatusElement = document.querySelector<HTMLElement>('#formation-status')!;
-const playerNameElement = document.querySelector<HTMLSpanElement>('#player-name')!;
-const audioToggleElement = document.querySelector<HTMLButtonElement>('#audio-toggle')!;
-const citiesButtonElement = document.querySelector<HTMLButtonElement>('#cities-button')!;
 const citySelectorElement = document.querySelector<HTMLElement>('#city-selector')!;
-const garageButtonElement = document.querySelector<HTMLButtonElement>('#garage-button')!;
 const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overlay')!;
-const pilotMenuButtonElement = document.querySelector<HTMLButtonElement>('#pilot-menu-button')!;
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
-const controlsCardElement = document.querySelector<HTMLElement>('#controls-card')!;
-const controlsToggleElement = document.querySelector<HTMLButtonElement>('#controls-toggle')!;
+const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
+const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
+const flightWorldButtonElement = document.querySelector<HTMLButtonElement>('#flight-world-button')!;
+const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
+const desktopControlsHelpElement = document.querySelector<HTMLElement>('#desktop-controls-help')!;
 const contextualHintElement = document.querySelector<HTMLElement>('#contextual-hint')!;
 const contextualHintTitleElement = document.querySelector<HTMLElement>('#contextual-hint-title')!;
 const contextualHintBodyElement = document.querySelector<HTMLElement>('#contextual-hint-body')!;
 const contextualHintDismissElement = document.querySelector<HTMLButtonElement>('#contextual-hint-dismiss')!;
 const altitudeElement = document.querySelector<HTMLSpanElement>('#altitude')!;
-const verticalSpeedElement = document.querySelector<HTMLSpanElement>('#vertical-speed')!;
-const verticalSpeedIndicator = document.querySelector<HTMLSpanElement>('#vsi-indicator')!;
-const flightStateElement = document.querySelector<HTMLSpanElement>('#flight-state')!;
-const aircraftSelectElement = document.querySelector<HTMLSelectElement>('#aircraft-select')!;
-const aircraftSwitchHintElement = document.querySelector<HTMLElement>('#aircraft-switch-hint')!;
-let aircraftSwitchHintTimer: number | undefined;
 function canSwitchAircraft(): boolean {
   return onGround && !crashed && currentSpeed <= 8 && Boolean(getAirportAtPosition(airplane.position));
 }
-function showAircraftSwitchHint(): void {
-  aircraftSwitchHintElement.hidden = false;
-  window.clearTimeout(aircraftSwitchHintTimer);
-  aircraftSwitchHintTimer = window.setTimeout(() => { aircraftSwitchHintElement.hidden = true; }, 2_500);
-}
-let aircraftOptionsKey = '';
 let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
-function releaseAircraftSelectorFocus(): void {
-  if (document.activeElement === aircraftSelectElement) aircraftSelectElement.blur();
-}
 let purchaseSequence = 0;
-const flightTestIndicator = document.querySelector<HTMLDivElement>('#flight-test-mode')!;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
-const distanceFlownElement = document.querySelector<HTMLSpanElement>('#distance-flown')!;
-const successfulLandingsElement = document.querySelector<HTMLSpanElement>('#successful-landings')!;
-const regionsDiscoveredElement = document.querySelector<HTMLSpanElement>('#regions-discovered')!;
-const discoveryProgressElement = document.querySelector<HTMLSpanElement>('#discovery-progress')!;
-const CONTROLS_COLLAPSED_STORAGE_KEY = 'airport-chaos-controls-collapsed-v1';
-const utilityDetailsElement = document.querySelector<HTMLDetailsElement>('.utility-details')!;
-const UTILITY_COLLAPSED_STORAGE_KEY = 'airport-chaos-utility-collapsed-v1';
-try { utilityDetailsElement.open = localStorage.getItem(UTILITY_COLLAPSED_STORAGE_KEY) !== '1'; } catch { /* default expanded */ }
-utilityDetailsElement.addEventListener('toggle', () => {
-  try { localStorage.setItem(UTILITY_COLLAPSED_STORAGE_KEY, utilityDetailsElement.open ? '0' : '1'); } catch { /* preference is optional */ }
-});
-let controlsCollapsed = false;
-try { controlsCollapsed = localStorage.getItem(CONTROLS_COLLAPSED_STORAGE_KEY) === '1'; } catch { /* expanded is the safe first-run default */ }
-function updateControlsCard(): void {
-  controlsCardElement.classList.toggle('collapsed', controlsCollapsed);
-  controlsToggleElement.textContent = controlsCollapsed ? '+' : '−';
-  controlsToggleElement.setAttribute('aria-expanded', String(!controlsCollapsed));
-  controlsToggleElement.setAttribute('aria-label', controlsCollapsed ? 'Show controls' : 'Hide controls');
-}
-controlsToggleElement.addEventListener('click', () => {
-  controlsCollapsed = !controlsCollapsed;
-  try { localStorage.setItem(CONTROLS_COLLAPSED_STORAGE_KEY, controlsCollapsed ? '1' : '0'); } catch { /* preference is optional */ }
-  updateControlsCard();
-});
-updateControlsCard();
-const nearestAirportElement = document.querySelector<HTMLSpanElement>('#nearest-airport')!;
-const airportDistanceElement = document.querySelector<HTMLSpanElement>('#airport-distance')!;
-const headingElement = document.querySelector<HTMLSpanElement>('#heading')!;
 const worldStatusElement = document.querySelector<HTMLDivElement>('#world-status')!;
 const radarCanvas = document.querySelector<HTMLCanvasElement>('#radar')!;
 const radarContext = radarCanvas.getContext('2d')!;
@@ -1029,16 +983,12 @@ const combatMessageElement = document.querySelector<HTMLDivElement>('#combat-mes
 const hitMarkerElement = document.querySelector<HTMLDivElement>('#hit-marker')!;
 const damageFlashElement = document.querySelector<HTMLDivElement>('#damage-flash')!;
 const healthElement = document.querySelector<HTMLSpanElement>('#health')!;
-const healthRowElement = document.querySelector<HTMLDivElement>('.health-row')!;
-const hullFillElement = document.querySelector<HTMLSpanElement>('#hull-fill')!;
+const healthRowElement = document.querySelector<HTMLElement>('.flight-hud-health')!;
 const repairFeedbackElement = document.querySelector<HTMLSpanElement>('#repair-feedback')!;
 let repairFeedbackTimer = 0;
-const heatRowElement = document.querySelector<HTMLDivElement>('#heat-row')!;
-heatRowElement.firstChild!.textContent = `${identityText('heat').toUpperCase()} `;
+const heatRowElement = document.querySelector<HTMLElement>('#heat-row')!;
 heatRowElement.style.color = visualLanguage.heat.color;
-document.querySelector('#controls-content')!.innerHTML = controlGroups.map(group => `<div><span>${group.label}</span>${group.rows.map(row => `<b>${controlKeyLabel(row.actions)}</b><small>${row.label}</small>`).join('')}</div>`).join('') + `<div class="controls-shortcuts"><b>${menuKeyLabel('map')}</b><small>Map</small><b>${menuKeyLabel('menu')}</b><small>Menu</small><b>?</b><small>Help</small></div>`;
 const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!;
-document.querySelector('#credits-icon')!.textContent = visualLanguage.credits.icon;
 for (const id of ['radar-legend', 'map-legend']) {
   const entries = (id === 'map-legend'
     ? ['you', 'player', 'ai', 'mission', 'airport', 'territory', 'repair', 'event', 'waypoint'] as const
@@ -1047,6 +997,7 @@ for (const id of ['radar-legend', 'map-legend']) {
     ? `<details class="map-symbol-legend"><summary>LEGEND</summary><div>${entries}</div></details>` : entries;
 }
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
+const missionProgressElement = document.querySelector<HTMLElement>('#mission-progress')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
@@ -1068,6 +1019,7 @@ let checkpointMessageTimer: number | undefined;
 let progressMessageTimer: number | undefined;
 let rewardBatchTimer: number | undefined;
 let rewardHideTimer: number | undefined;
+let rewardRemoveTimer: number | undefined;
 const rewardBatchCredits = new Map<string, number>();
 let rewardBatchScore = 0;
 const displayedRewardCredits = new Map<string, number>();
@@ -1077,8 +1029,6 @@ let combatMessageTimer: number | undefined;
 let healthFlashTimer: number | undefined;
 let hitMarkerTimer: number | undefined;
 let damageFlashTimer: number | undefined;
-playerNameElement.textContent = displayName;
-if (flightTestMode) flightTestIndicator.classList.remove('hidden');
 
 let audioContext: AudioContext | null = null;
 let audioMaster: GainNode | null = null;
@@ -1119,8 +1069,6 @@ function setAudioLevel(category: keyof AudioLevels, value: number): void {
   applyAudioLevels();
 }
 let progressSaveTimer: number | undefined;
-audioToggleElement.textContent = audioMuted ? 'Unmute' : 'Mute';
-audioToggleElement.setAttribute('aria-pressed', String(audioMuted));
 
 function writePlayerProgress(): void {
   if (flightTestMode) return;
@@ -1222,7 +1170,6 @@ function activateAudio(): void {
     engineGain.gain.value = 0.0001;
     engineOscillator.connect(engineFilter).connect(engineGain).connect(engineBus);
     engineOscillator.start();
-    audioToggleElement.dataset.active = 'true';
   }
 
   if (audioContext.state === 'suspended') void audioContext.resume();
@@ -1319,14 +1266,12 @@ function updateEngineAudio(): void {
 
 window.addEventListener('pointerdown', activateAudio);
 window.addEventListener('keydown', activateAudio);
-audioToggleElement.addEventListener('click', () => {
+function toggleAudio(): void {
   activateAudio();
   audioMuted = !audioMuted;
   applyAudioLevels();
-  audioToggleElement.textContent = audioMuted ? 'Unmute' : 'Mute';
-  audioToggleElement.setAttribute('aria-pressed', String(audioMuted));
   savePlayerProgress(true);
-});
+}
 
 function showActiveCheckpoint(): void {
   checkpointRings.forEach((ring, index) => {
@@ -1343,13 +1288,6 @@ function showActiveCheckpoint(): void {
 
 function updateScoreDisplay(): void {
   scoreElement.textContent = score.toLocaleString();
-  bestScoreElement.textContent = bestScore.toString();
-  multiplierElement.textContent = `x${multiplier}`;
-}
-
-function updateTimerDisplay(): void {
-  timerElement.textContent = remainingTime.toFixed(1);
-  timerElement.classList.toggle('urgent', remainingTime <= 3 && !crashed);
 }
 
 function checkCheckpoint(): void {
@@ -1374,7 +1312,6 @@ function checkCheckpoint(): void {
   remainingTime = Math.min(14, Math.max(10, remainingTime) + 2);
   activeCheckpoint = (passedCheckpoint + 1) % checkpointRings.length;
   updateScoreDisplay();
-  updateTimerDisplay();
   showActiveCheckpoint();
   checkpointFlashIndex = passedCheckpoint;
   checkpointFlashTime = 0.45;
@@ -1411,22 +1348,16 @@ function setFlightState(state: FlightState): void {
   if (flightState === state) return;
   const previous = flightState;
   flightState = state;
-  flightStateElement.textContent = state === 'TAXI' ? 'ON RUNWAY' : state === 'TAKEOFF' ? 'TAKING OFF' : state;
-  updateAircraftOptions();
+  updatePendingAircraftEquip();
   if (state === 'TAKEOFF' && previous === 'TAXI') queueAtcCallout('takeoff-roll', 'TOWER: CLEARED FOR TAKEOFF');
   else if (state === 'FLYING' && previous === 'TAKEOFF') queueAtcCallout('airborne', 'TOWER: GOOD DEPARTURE');
 }
 
 function updateFlightHud(): void {
-  speedElement.textContent = Math.round(currentSpeed * METERS_PER_SECOND_TO_KNOTS).toString();
-  throttleElement.textContent = Math.round(throttle * 100).toString();
-  boostElement.textContent = Math.round(boostMeter).toString();
-  boostReadoutElement.classList.toggle('active', boostActive);
-  altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
-  const feetPerMinute = Math.round(verticalSpeed * METERS_TO_FEET * 60);
-  verticalSpeedElement.textContent = `${feetPerMinute >= 0 ? '+' : ''}${feetPerMinute}`;
-  verticalSpeedIndicator.style.setProperty('--vsi-offset', `${THREE.MathUtils.clamp(-feetPerMinute / 2400, -1, 1) * 23}px`);
-  verticalSpeedIndicator.classList.toggle('descending', feetPerMinute < -40);
+  const speedKnots = Math.round(currentSpeed * METERS_PER_SECOND_TO_KNOTS).toString();
+  speedElement.textContent = speedKnots;
+  const altitudeFeet = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
+  altitudeElement.textContent = altitudeFeet;
   // Guidance must remain visible when the pilot is misaligned and assist is
   // unavailable. It observes the same touchdown predicate, not a new envelope.
   const approachAirport = !onGround && !crashed && flightState !== 'TAKEOFF' &&
@@ -1451,7 +1382,6 @@ function updateFlightHud(): void {
   landingSpeedCueElement.classList.toggle('hidden', !warning);
   speedElement.classList.toggle('landing-risk', speedRisk);
   altitudeElement.classList.toggle('landing-risk', descentRisk);
-  verticalSpeedElement.classList.toggle('landing-risk', descentRisk);
   const trial = serverProfile.fighterTrial;
   const trialActive = aircraftType === 'fighter' && trial.status === 'active' && typeof trial.expiresAt === 'number' &&
     !serverProfile.aircraftEntitlements.includes(firehawkProduct.entitlement);
@@ -1466,21 +1396,6 @@ function updateFlightHud(): void {
   fighterTrialIndicator.classList.toggle('hidden', !trialActive);
 }
 
-function updateAirportNavigation(): void {
-  let nearestAirport = centralAirport;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const airport of airports) {
-    const distance = Math.hypot(airplane.position.x - airport.x, airplane.position.z - airport.z);
-    if (distance < nearestDistance) {
-      nearestAirport = airport;
-      nearestDistance = distance;
-    }
-  }
-  nearestAirportElement.textContent = nearestAirport.name;
-  airportDistanceElement.textContent = formatActionDistance(nearestDistance);
-}
-
-const compassPoints = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
 const radarAirportLabels: Record<AirportId, string> = {
   central: 'CEN',
   coast: 'CST',
@@ -1496,12 +1411,6 @@ function getNavigationForward(): THREE.Vector3 {
   navigationForward.y = 0;
   if (navigationForward.lengthSq() < 0.0001) navigationForward.set(0, 0, -1);
   return navigationForward.normalize();
-}
-
-function updateHeadingDisplay(direction: THREE.Vector3): void {
-  const degrees = (THREE.MathUtils.radToDeg(Math.atan2(direction.x, -direction.z)) + 360) % 360;
-  const compass = compassPoints[Math.round(degrees / 45) % compassPoints.length];
-  headingElement.textContent = compass;
 }
 
 function drawRadarMarker(
@@ -1727,8 +1636,6 @@ function updateRadar(direction: THREE.Vector3): void {
 function updateNavigationHud(): void {
   updateMarkerQa();
   const direction = getNavigationForward();
-  updateHeadingDisplay(direction);
-  updateAirportNavigation();
   updateRadar(direction);
   updateWorldMap(direction);
   navigationBeacons.update(airplane.position, camera, waypoint, getTerrainHeight, {
@@ -1759,12 +1666,11 @@ function updateContextualHints(): void {
 }
 
 function updateProgressHud(): void {
-  creditsElement.textContent = credits.toLocaleString();
-  distanceFlownElement.textContent = Math.floor(distanceFlown).toString();
-  successfulLandingsElement.textContent = successfulLandings.toString();
-  regionsDiscoveredElement.textContent = regionsDiscovered.toString();
-  const discoveryProgress = discoverySystem?.getProgress() ?? { discovered: 0, total: 0, percent: 0 };
-  discoveryProgressElement.textContent = `${cityId === 'dallas' ? 'Dallas' : 'Milwaukee'} Discovery: ${discoveryProgress.discovered} / ${discoveryProgress.total} — ${discoveryProgress.percent}%`;
+  const compact = document.documentElement.classList.contains('touch-controls-active') && window.innerWidth <= 700;
+  creditsElement.textContent = compact && credits >= 1_000
+    ? `${(credits / 1_000).toFixed(credits >= 100_000 ? 0 : 1).replace(/\.0$/, '')}K`
+    : credits.toLocaleString();
+  creditsElement.title = `${credits.toLocaleString()} Credits`;
 }
 
 function showProgressMessage(message: string): void {
@@ -1789,16 +1695,6 @@ function queueAtcCallout(key: string, primaryText: string, secondaryText?: strin
   }
   gameplayFeedback.push({ type: 'atc', primaryText, secondaryText, intensity: 'small' });
 }
-let photoMode = false;
-const photoModeUi = document.querySelector<HTMLElement>('#photo-mode-ui')!;
-function setPhotoMode(active: boolean): void {
-  if (photoMode === active) return;
-  photoMode = active;
-  document.body.classList.toggle('photo-mode', active);
-  photoModeUi.hidden = !active;
-  if (active && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'photo_mode_opened' }));
-}
-
 async function copyMomentShareText(moment: FlightMoment): Promise<void> {
   try {
     await navigator.clipboard.writeText(moment.shareText);
@@ -1861,23 +1757,24 @@ function queueRewardFeedback(creditDelta = 0, scoreDelta = 0, creditReason = 'Ga
     rewardBatchCredits.clear();
     rewardBatchScore = 0;
     lastRewardFlushAt = now;
-    const parts: string[] = [];
-    for (const [reason, amount] of displayedRewardCredits) parts.push(`+${amount.toLocaleString()} Credits · ${reason}`);
-    if (displayedRewardScore > 0) parts.push(`+${displayedRewardScore.toLocaleString()} Score`);
-    rewardFeedbackElement.textContent = parts.join('\n');
+    const displayedCredits = [...displayedRewardCredits.values()].reduce((total, amount) => total + amount, 0);
+    rewardFeedbackElement.textContent = formatRewardFeedback(displayedCredits, displayedRewardScore);
     const wasHidden = rewardFeedbackElement.classList.contains('hidden');
+    window.clearTimeout(rewardHideTimer);
+    window.clearTimeout(rewardRemoveTimer);
     rewardFeedbackElement.classList.remove('hidden');
     if (wasHidden) {
       rewardFeedbackElement.classList.remove('show');
       void rewardFeedbackElement.offsetWidth;
-      rewardFeedbackElement.classList.add('show');
     }
-    window.clearTimeout(rewardHideTimer);
+    rewardFeedbackElement.classList.add('show');
     rewardHideTimer = window.setTimeout(() => {
-      rewardFeedbackElement.classList.add('hidden');
       rewardFeedbackElement.classList.remove('show');
-      displayedRewardCredits.clear();
-      displayedRewardScore = 0;
+      rewardRemoveTimer = window.setTimeout(() => {
+        rewardFeedbackElement.classList.add('hidden');
+        displayedRewardCredits.clear();
+        displayedRewardScore = 0;
+      }, 220);
     }, 1400);
   }, 180);
 }
@@ -2605,8 +2502,8 @@ function updateHealthDisplay(damaged = false): void {
   maxHealth = safeMaximum;
   health = safeCurrent;
   const ratio = safeCurrent / safeMaximum;
-  healthElement.textContent = `${safeCurrent}/${safeMaximum}`;
-  hullFillElement.style.width = `${Math.round(ratio * 100)}%`;
+  healthElement.textContent = safeCurrent.toString();
+  healthElement.title = `Health ${safeCurrent} / ${safeMaximum}`;
   healthRowElement.classList.toggle('warning', ratio <= 0.5 && ratio > 0.25);
   healthRowElement.classList.toggle('critical', ratio <= 0.25);
   healthRowElement.classList.toggle('damaged', damaged);
@@ -2641,39 +2538,10 @@ function applyHeatState(state: NetworkHeatState): void {
   if (remote) remote.heatLevel = level;
 }
 
-function updateAircraftOptions(): void {
+function updatePendingAircraftEquip(): void {
   if (pendingEquip && performance.now() - pendingEquip.sentAt > 8000) {
     pendingEquip = undefined;
-    aircraftSelectElement.value = aircraftType;
-    releaseAircraftSelectorFocus();
     showProgressMessage('AIRCRAFT SWITCH NOT CONFIRMED — TRY AGAIN');
-  }
-  const switchingAllowed = canSwitchAircraft();
-  const disabled = crashed || Boolean(pendingEquip) || (!flightTestMode && (!profileHydrated || !connectionReady()));
-  if (switchingAllowed && !aircraftSwitchHintElement.hidden) aircraftSwitchHintElement.hidden = true;
-  const title = pendingEquip ? 'SWITCHING AIRCRAFT…' : !switchingAllowed ? 'STOP AT AN AIRPORT TO CHANGE AIRCRAFT' : '';
-  if (aircraftSelectElement.disabled !== disabled) aircraftSelectElement.disabled = disabled;
-  if (aircraftSelectElement.title !== title) aircraftSelectElement.title = title;
-  // Do not synchronize value here: the native popup can have a provisional
-  // choice while open. Only equip/restore outcomes may set its selected value.
-  const optionsKey = flightTestMode ? 'flight-test' : profileHydrated ? serverProfile.unlockedAircraft.slice().sort().join(',') : 'loading';
-  if (aircraftOptionsKey === optionsKey) return;
-  aircraftOptionsKey = optionsKey;
-  for (const option of aircraftSelectElement.options) {
-    if (!isAircraftType(option.value)) continue;
-    const definition = aircraftDefinitions[option.value];
-    const usable = flightTestMode || (profileHydrated && serverProfile.unlockedAircraft.includes(option.value));
-    const permanentlyOwned = option.value !== 'fighter' || serverProfile.aircraftEntitlements.includes(firehawkProduct.entitlement);
-    if (option.disabled !== !usable) option.disabled = !usable;
-    const label = flightTestMode && definition.access !== 'free'
-      ? `${aircraftDisplayName(option.value)} — Flight test`
-      :
-      definition.access === 'free'
-        ? `${aircraftDisplayName(option.value)} — Free`
-        : definition.access === 'premium'
-          ? `${aircraftDisplayName(option.value)} — ${permanentlyOwned ? 'Owned' : usable ? 'Trial' : 'Premium'}`
-          : `${aircraftDisplayName(option.value)} — ${usable ? 'Owned' : `${definition.creditsRequired.toLocaleString()} credits`}`;
-    if (option.textContent !== label) option.textContent = label;
   }
 }
 
@@ -2759,10 +2627,8 @@ function endRun(message: EndReason, title: string = message): void {
   landingSpeedCueElement.classList.add('hidden');
   speedElement.classList.remove('landing-risk');
   altitudeElement.classList.remove('landing-risk');
-  verticalSpeedElement.classList.remove('landing-risk');
   boostActive = false;
   boostVisualStrength = 0;
-  activeStuntManeuver = null;
   resetRegionsOnNextTakeoff = true;
   failActiveContract();
   skyChallenges?.fail(message);
@@ -2784,7 +2650,6 @@ function endRun(message: EndReason, title: string = message): void {
   setFlightState('CRASHED');
   playEndSound(message);
   updateScoreDisplay();
-  updateTimerDisplay();
 }
 
 function restartGame(notifyServer = true): void {
@@ -2803,8 +2668,6 @@ function restartGame(notifyServer = true): void {
   boostMeter = 100;
   boostActive = false;
   boostVisualStrength = 0;
-  activeStuntManeuver = null;
-  stuntCooldown = 0;
   speedBrakeStrength = 0;
   landingAssistActive = false;
   score = 0;
@@ -2842,7 +2705,6 @@ function restartGame(notifyServer = true): void {
   updateHealthDisplay();
   updateFlightHud();
   updateScoreDisplay();
-  updateTimerDisplay();
   showActiveCheckpoint();
   updateCamera(1);
   if (notifyServer) sendRespawn();
@@ -2853,18 +2715,12 @@ flightRecapElement.querySelector('[data-recap-fly]')!.addEventListener('click', 
 flightRecapElement.querySelector('[data-recap-close]')!.addEventListener('click', () => { flightRecapElement.hidden=true; });
 flightRecapElement.querySelector('[data-moment-copy]')!.addEventListener('click', () => { if (visibleMoment) void copyMomentShareText(visibleMoment); });
 flightRecapElement.querySelector('[data-moment-save]')!.addEventListener('click', () => { if (visibleMoment) saveMomentScreenshot(visibleMoment); });
-flightRecapElement.querySelector('[data-moment-photo]')!.addEventListener('click', () => {
-  if (!visibleMoment) return;
-  flightRecapElement.hidden = true; setPhotoMode(true);
-  if (connectionReady()) socket.send(JSON.stringify({ type:'analyticsEvent', event:'photo_mode_opened_from_moment', source:visibleMoment.type }));
-});
 
 function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true, notifyServer = true): void {
   if (nextType === aircraftType) return;
   scene.remove(airplane);
   disposeAirplaneMaterials(airplane);
   aircraftType = nextType;
-  if (aircraftSelectElement.value !== nextType) aircraftSelectElement.value = nextType;
   currentAircraft = aircraftDefinitions[aircraftType];
   maxHealth = maxHealthForAircraft(aircraftType);
   health = Math.min(health, maxHealth);
@@ -2875,69 +2731,31 @@ function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true,
 }
 
 function selectAircraft(nextType: AircraftType): void {
-  if (pendingEquip) { updateAircraftOptions(); releaseAircraftSelectorFocus(); return; }
-  if (nextType === aircraftType) { releaseAircraftSelectorFocus(); return; }
+  if (pendingEquip) { updatePendingAircraftEquip(); return; }
+  if (nextType === aircraftType) return;
   if (!canSwitchAircraft()) {
-    aircraftSelectElement.value = aircraftType;
-    releaseAircraftSelectorFocus();
-    showAircraftSwitchHint();
+    showProgressMessage('LAND AND STOP AT AN AIRPORT TO CHANGE AIRCRAFT');
     return;
   }
   if (flightTestMode) {
     applyServerSelectedAircraft(nextType);
-    releaseAircraftSelectorFocus();
     return;
   }
   if (!profileHydrated || !serverProfile.unlockedAircraft.includes(nextType)) {
-    aircraftSelectElement.value = aircraftType;
-    releaseAircraftSelectorFocus();
     showProgressMessage(!profileHydrated ? 'WAITING FOR SERVER PROFILE' : (aircraftAccessReason(nextType) ?? 'AIRCRAFT NOT OWNED'));
     return;
   }
   if (!connectionReady()) {
-    aircraftSelectElement.value = aircraftType;
-    releaseAircraftSelectorFocus();
     showProgressMessage('SERVER REQUIRED TO EQUIP AIRCRAFT');
     return;
   }
   // The local model changes only after the server returns its accepted profile.
   pendingEquip = { id: ++equipSequence, aircraftType: nextType, sentAt: performance.now() };
-  if (aircraftSelectElement.value !== nextType) aircraftSelectElement.value = nextType;
-  updateAircraftOptions();
+  updatePendingAircraftEquip();
   showProgressMessage('SWITCHING AIRCRAFT…');
   sendLocalState();
   socket.send(JSON.stringify({ type: 'equipAircraft', aircraftType: nextType, equipRequestId: pendingEquip.id }));
 }
-
-aircraftSelectElement.addEventListener('change', () => {
-  if (isAircraftType(aircraftSelectElement.value)) selectAircraft(aircraftSelectElement.value);
-});
-aircraftSelectElement.addEventListener('pointerdown', (event) => {
-  if (canSwitchAircraft()) return;
-  event.preventDefault();
-  showAircraftSwitchHint();
-});
-aircraftSelectElement.addEventListener('keydown', (event) => {
-  if (event.code === 'Escape') {
-    event.preventDefault();
-    event.stopPropagation();
-    releaseAircraftSelectorFocus();
-    return;
-  }
-  // TAB remains the global Pilot Menu shortcut even while this control owns
-  // native keyboard focus.
-  if (event.code === menuBindings.menu) return;
-  if (canSwitchAircraft()) {
-    // Preserve native Arrow/Enter/Space selection, but stop letter-bound
-    // flight keys from type-ahead-changing the selected aircraft.
-    if (flightControlCodes.has(event.code) && !event.code.startsWith('Arrow') && event.code !== 'Space') {
-      event.preventDefault();
-    }
-    return;
-  }
-  event.preventDefault();
-  showAircraftSwitchHint();
-});
 
 const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
   selectAircraft(nextType);
@@ -2997,45 +2815,44 @@ function openGarage(): boolean {
   });
   return true;
 }
-garageButtonElement.addEventListener('click', openGarage);
+flightGarageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
 let touchInputReported=false;
-const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, (action,active)=>{
+const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
   if(active&&!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}
-  if(active){heldActions.add(action);runStarted=true;if(action==='fire')fireWeaponOnce();if(action==='stunt'||action==='rollLeft'||action==='rollRight'||action==='yawLeft'||action==='yawRight')tryStartStunt();}
+  if(active){heldActions.add(action);runStarted=true;if(action==='fire')fireWeaponOnce();}
   else heldActions.delete(action);
-},{menu:()=>togglePilotMenu(),photo:()=>{if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'photo_mode_touch_opened',mode:'touch'}));setPhotoMode(!photoMode);}});
-type StuntManeuver = { kind: 'barrelRoll' | 'quickDodge'; direction: 1 | -1; elapsed: number; duration: number; sideX?: number; sideZ?: number; lateralDistance?: number };
-let activeStuntManeuver: StuntManeuver | null = null;
-let stuntCooldown = 0;
-function tryStartStunt(): void {
-  if (!heldActions.has('stunt') || activeStuntManeuver || stuntCooldown > 0 ||
-      onGround || crashed || !runStarted ||
-      altitudeAboveTerrain() < 8 || currentSpeed < currentAircraft.stallSpeed * 1.2) return;
-  const rollDirection = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
-  const yawDirection = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
-  if (Math.abs(rollDirection) === 1) {
-    // Smoothstep reaches exactly one revolution, with no one-frame rotation.
-    // Existing per-aircraft roll rates set the maneuver duration.
-    activeStuntManeuver = {
-      kind: 'barrelRoll', direction: rollDirection as 1 | -1, elapsed: 0,
-      duration: 3 * Math.PI / (2.2 * currentAircraft.rollRate),
-      sideX: Math.cos(heading), sideZ: -Math.sin(heading),
-      lateralDistance: THREE.MathUtils.clamp(45 + currentAircraft.rollRate * 22 - currentAircraft.inertia * 4, 45, 115),
-    };
-    rollControlStrength = 0;
-  } else if (Math.abs(yawDirection) === 1) {
-    activeStuntManeuver = {
-      kind: 'quickDodge', direction: yawDirection as 1 | -1, elapsed: 0,
-      duration: THREE.MathUtils.clamp(0.68 + currentAircraft.inertia * 0.12, 0.72, 0.94),
-    };
-  }
-  if (activeStuntManeuver && connectionReady()) {
-    sendLocalState();
-    socket.send(JSON.stringify({ type: 'stuntStart', maneuver: activeStuntManeuver.kind }));
-  }
+});
+let controlsHelpAutoHideTimer: number | undefined;
+let controlsHelpConcealTimer: number | undefined;
+let lastTouchLayout = mobileInput.isTouchLayout();
+function hideDesktopControlsHelp(immediate = false): void {
+  window.clearTimeout(controlsHelpAutoHideTimer);
+  window.clearTimeout(controlsHelpConcealTimer);
+  desktopControlsHelpElement.classList.remove('is-visible');
+  desktopControlsHelpElement.setAttribute('aria-hidden', 'true');
+  if (immediate) desktopControlsHelpElement.hidden = true;
+  else controlsHelpConcealTimer = window.setTimeout(() => { desktopControlsHelpElement.hidden = true; }, 260);
 }
+function showDesktopControlsHelp(duration = 9_000): void {
+  if (mobileInput.isTouchLayout()) { hideDesktopControlsHelp(true); return; }
+  window.clearTimeout(controlsHelpAutoHideTimer);
+  window.clearTimeout(controlsHelpConcealTimer);
+  desktopControlsHelpElement.hidden = false;
+  desktopControlsHelpElement.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => desktopControlsHelpElement.classList.add('is-visible'));
+  controlsHelpAutoHideTimer = window.setTimeout(() => hideDesktopControlsHelp(), duration);
+}
+function syncDesktopControlsHelp(): void {
+  const touchLayout = mobileInput.isTouchLayout();
+  if (touchLayout) hideDesktopControlsHelp(true);
+  else if (lastTouchLayout) showDesktopControlsHelp(12_000);
+  lastTouchLayout = touchLayout;
+}
+window.addEventListener('resize', syncDesktopControlsHelp);
+window.addEventListener('orientationchange', syncDesktopControlsHelp);
+if (!lastTouchLayout) showDesktopControlsHelp();
 let runStarted = false;
 const guidedTutorialKey=`airport-chaos-guided-tutorial-v1:${persistedPlayer.pilotId}`;
 let guidedTutorialActive=false;let guidedTutorialStep='throttle';let guidedTutorialStepAt=performance.now();let guidedTutorialTargetAirport:AirportDefinition|undefined;
@@ -3070,12 +2887,6 @@ window.addEventListener('keydown', (event) => {
     }
     return;
   }
-  if (!event.repeat && event.code === 'KeyP') {
-    event.preventDefault(); setPhotoMode(!photoMode); return;
-  }
-  if (photoMode && event.code === 'Escape') {
-    event.preventDefault(); setPhotoMode(false); return;
-  }
   if (event.code === menuBindings.menu) {
     event.preventDefault();
     togglePilotMenu();
@@ -3090,9 +2901,12 @@ window.addEventListener('keydown', (event) => {
     }
     return;
   }
-  // A focused native selector owns arrows/Space; choosing an option is not
-  // a flight command. Other game/menu bindings remain unchanged.
-  if (event.target === aircraftSelectElement) return;
+  if (!worldMap.isOpen() && shouldToggleDesktopControlsHelp(event.code, mobileInput.isTouchLayout(), event.target)) {
+    event.preventDefault();
+    if (desktopControlsHelpElement.classList.contains('is-visible')) hideDesktopControlsHelp();
+    else showDesktopControlsHelp(12_000);
+    return;
+  }
   if (flightControlCodes.has(event.code)) {
     event.preventDefault();
     if (!['aimLeft', 'aimRight', 'aimUp', 'aimDown'].includes(keyboardActionBindings[event.code])) runStarted = true;
@@ -3105,16 +2919,15 @@ window.addEventListener('keydown', (event) => {
   }
   if (action) {
     heldActions.add(action);
-    if (!event.repeat && (action === 'stunt' || action === 'rollLeft' || action === 'rollRight' || action === 'yawLeft' || action === 'yawRight')) tryStartStunt();
   }
 });
 window.addEventListener('keyup', (event) => {
-  if (event.target !== aircraftSelectElement && (flightControlCodes.has(event.code) || (aircraftGarage.isOpen() && (event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu)))) event.preventDefault();
+  if (flightControlCodes.has(event.code) || (aircraftGarage.isOpen() && (event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu))) event.preventDefault();
   const action = keyboardActionBindings[event.code];
   if (action) heldActions.delete(action);
 });
 window.addEventListener('blur', () => {
-  // Browser focus loss must not leave any flight or stunt input latched.
+  // Browser focus loss must not leave any flight input latched.
   heldActions.clear();
   mobileInput.reset();
 });
@@ -3142,16 +2955,11 @@ const forward = new THREE.Vector3();
 const velocity = new THREE.Vector3();
 const liftDirection = new THREE.Vector3();
 const sideSlip = new THREE.Vector3();
-const dodgeSide = new THREE.Vector3();
 const targetCameraPosition = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 const cameraOrbitOffset = new THREE.Vector3();
 const cameraOrbitYawQuaternion = new THREE.Quaternion();
 const cameraChaseQuaternion = new THREE.Quaternion();
-const cameraNoRollQuaternion = new THREE.Quaternion();
-const cameraNoRollEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-let cameraRollSuppression = 0;
-let cameraDodgeLag = 0;
 const cameraOrbitInverseYawQuaternion = new THREE.Quaternion();
 const cameraAircraftForward = new THREE.Vector3();
 const cameraWorldUp = new THREE.Vector3(0, 1, 0);
@@ -3176,6 +2984,8 @@ let cameraOrbitDragging = false;
 let cameraOrbitPointerId: number | null = null;
 let cameraOrbitPointerX = 0;
 let cameraOrbitPointerY = 0;
+const cameraTouchPointers = new Map<number, { x: number; y: number }>();
+let cameraPinchDistance = 0;
 let cameraOrbitRecenterAt: number | null = null;
 let cameraDistanceMultiplier = 1;
 let defaultChaseDistance = 10;
@@ -3190,9 +3000,6 @@ let lastValidCameraFov = camera.fov;
 let lastValidCameraFar = camera.far;
 const speedElement = document.querySelector<HTMLSpanElement>('#speed')!;
 const fighterTrialIndicator = document.querySelector<HTMLDivElement>('#fighter-trial-indicator')!;
-const throttleElement = document.querySelector<HTMLSpanElement>('#throttle')!;
-const boostElement = document.querySelector<HTMLSpanElement>('#boost')!;
-const boostReadoutElement = document.querySelector<HTMLSpanElement>('#boost-readout')!;
 const landingSpeedCueElement = document.querySelector<HTMLDivElement>('#landing-speed-cue')!;
 const landingStatus = { speedSafe: true, descentSafe: true, bankSafe: true, pitchSafe: true, alignmentSafe: true, bankAngle: 0, headingError: 0, reason: '', rough: false };
 
@@ -4338,7 +4145,7 @@ function missionProgress(definition: CityMission, attempt: NetworkMissionAttempt
     const checklist = territoryIds.map((id) => `${(definition.type === 'territorySequence' ? attempt.completedIds.includes(id) : territoryState.get(id)?.controllerId === localPlayerId) ? '✓' : '○'} ${territoryDefinitions.find((item) => item.id === id)?.displayName ?? id}`);
     return { text: `OWNED ${ownedIds.length} / ${territoryIds.length}\n${checklist.join(' · ')}`, value: attempt.progress, target: territoryIds.length || 1 };
   }
-  if (definition.type === 'stuntPair') return { text: `${attempt.completedIds.includes('barrelRoll') ? '✓' : '○'} Barrel Roll · ${attempt.completedIds.includes('quickDodge') ? '✓' : '○'} Quick Dodge`, value: attempt.progress, target: 2 };
+  if (definition.type === 'stuntPair') return { text: 'This retired mission is no longer available. Abandon it and choose another mission.', value: 0, target: 1 };
   if (definition.type === 'challenge') {
     const challenge = cityWorld.skyChallenges?.find((item) => item.id === requirements.challengeId);
     const gateCount = challenge?.gates.length ?? 4;
@@ -4418,30 +4225,30 @@ function updateMissionHud(): void {
   const completed = !definition && completedMissionCard && Date.now() < completedMissionCard.until
     ? completedMissionCard : null;
   missionCardElement.classList.toggle('hidden', !definition && !completed && !foreignAttempt);
+  if (definition && active) {
+    const mobileProgress = missionProgress(definition, active);
+    missionProgressElement.textContent = `${Math.min(mobileProgress.value, mobileProgress.target)}/${mobileProgress.target}`;
+  } else {
+    missionProgressElement.textContent = completed ? 'DONE' : foreignAttempt ? 'AWAY' : '—';
+  }
   if (!definition && !completed && !foreignAttempt) return;
   if (!missionCardElement.firstChild) {
     const kicker = document.createElement('small'); kicker.className = 'mission-kicker';
     const title = document.createElement('strong'); title.className = 'mission-title';
     const detail = document.createElement('p'); detail.className = 'mission-detail';
-    const territory = document.createElement('div'); territory.className = 'mission-territories';
-    const progress = document.createElement('progress'); progress.className = 'mission-progress';
     const reward = document.createElement('div'); reward.className = 'mission-reward';
     const next = document.createElement('button'); next.className = 'mission-next'; next.type = 'button';
     next.textContent = 'CHOOSE NEXT MISSION'; next.hidden = true;
     next.addEventListener('click', openPilotMenu);
-    missionCardElement.append(kicker, title, detail, territory, progress, reward, next);
+    missionCardElement.append(kicker, title, detail, reward, next);
   }
-  const meter = missionCardElement.querySelector<HTMLProgressElement>('.mission-progress')!;
   const next = missionCardElement.querySelector<HTMLButtonElement>('.mission-next')!;
-  const territoryRow = missionCardElement.querySelector<HTMLDivElement>('.mission-territories')!;
-  territoryRow.hidden = true;
-  missionCardElement.style.removeProperty('--mission-accent');
   if (completed) {
     missionCardElement.querySelector('.mission-kicker')!.textContent = 'MISSION COMPLETE';
     missionCardElement.querySelector('.mission-title')!.textContent = missionForCity(cityId, completed.missionId)?.displayName ?? 'MISSION';
     missionCardElement.querySelector('.mission-detail')!.textContent = 'Well flown. Choose what to do next.';
     missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} +${completed.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} +${completed.score.toLocaleString()} Score`;
-    meter.hidden = true; next.hidden = false;
+    next.hidden = false;
     return;
   }
   if (foreignAttempt && foreignCity) {
@@ -4449,7 +4256,7 @@ function updateMissionHud(): void {
     missionCardElement.querySelector('.mission-title')!.textContent = missionForCity(foreignCity, foreignAttempt.missionId)?.displayName ?? 'ACTIVE MISSION';
     missionCardElement.querySelector('.mission-detail')!.textContent = `Return to ${foreignCity === 'dallas' ? 'Dallas' : 'Milwaukee'} to continue.`;
     missionCardElement.querySelector('.mission-reward')!.textContent = 'Only one mission can be active.';
-    meter.hidden = true; next.hidden = false; next.textContent = 'OPEN MISSIONS';
+    next.hidden = false; next.textContent = 'OPEN MISSIONS';
     return;
   }
   if (!definition || !active) return;
@@ -4457,36 +4264,8 @@ function updateMissionHud(): void {
   const progress = missionProgress(definition, active);
   missionCardElement.querySelector('.mission-kicker')!.textContent = identityText('mission').toUpperCase();
   missionCardElement.querySelector('.mission-title')!.textContent = definition.displayName;
-  missionCardElement.querySelector('.mission-detail')!.textContent = playerFacingText(progress.text);
-  const missionTerritoryIds = missionRequirements(definition);
-  if (missionTerritoryIds.length) {
-    const signature = missionTerritoryIds.map((id) => {
-      const state = territoryState.get(id);
-      return `${id}:${state?.controllerId ?? ''}:${state?.controllerName ?? ''}:${state?.contested ? 1 : 0}`;
-    }).join('|');
-    if (territoryRow.dataset.signature !== signature) {
-      territoryRow.dataset.signature = signature;
-      territoryRow.replaceChildren();
-      for (const id of missionTerritoryIds.slice(0, 3)) {
-        const territory = territoryDefinition(id);
-        if (!territory) continue;
-        const state = territoryState.get(id);
-        const color = state?.controllerId ? territory.fixedColor : neutralTerritoryColor;
-        const chip = document.createElement('span'); chip.className = 'mission-territory-chip';
-        const dot = document.createElement('i'); dot.className = 'territory-color-dot'; dot.style.backgroundColor = color;
-        const status = state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
-        chip.append(dot, document.createTextNode(`${territory.displayName} · ${status}`));
-        chip.classList.toggle('contested', Boolean(state?.contested));
-        territoryRow.append(chip);
-      }
-      if (missionTerritoryIds.length > 3) territoryRow.append(document.createTextNode(`+${missionTerritoryIds.length - 3} more in Missions`));
-    }
-    territoryRow.hidden = false;
-    const firstTerritory = territoryDefinition(missionTerritoryIds[0]);
-    if (firstTerritory) missionCardElement.style.setProperty('--mission-accent', firstTerritory.fixedColor);
-  }
-  meter.hidden = false; next.hidden = false; next.textContent = 'MISSIONS · TAB';
-  meter.max = Math.max(1, progress.target); meter.value = Math.max(0, Math.min(progress.target, progress.value));
+  missionCardElement.querySelector('.mission-detail')!.textContent = playerFacingText(progress.text).replace(/\n+/g, ' · ');
+  next.hidden = false; next.textContent = 'MISSIONS · TAB';
   const missionCredits = cargoCreditReward(definition.creditReward, aircraftType, 'mission', definition.id, definition.cargoCreditBonus === true);
   missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} ${missionCredits.credits.toLocaleString()} Credits${missionCredits.applied ? ' · MAMMOTH CARGO BONUS +40%' : ''} · ${visualLanguage.score.icon} ${definition.scoreReward.toLocaleString()} Score`;
 }
@@ -4635,7 +4414,7 @@ function pilotMenuData(): PilotMenuData {
   }));
 
   return {
-    city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: () => citiesButtonElement.click() },
+    city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: openWorldSelector },
     intercity:{routes:routesFromCity(cityId).map(route=>({routeId:route.routeId,destination:route.toCityId==='dallas'?'Dallas':'Milwaukee',distanceLabel:route.distanceLabel,recommendedAircraft:route.recommendedAircraft.toUpperCase(),estimatedFlightTime:route.estimatedFlightTime,available:onGround&&!crashed&&!profileActiveMissionAttempt(serverProfile),reason:!onGround?'Land and stop first.':profileActiveMissionAttempt(serverProfile)?'Finish or leave your active mission.':undefined,start:()=>socket.send(JSON.stringify({type:'intercityRouteStart',routeId:route.routeId}))}))},
     missions: {
       activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
@@ -4646,7 +4425,7 @@ function pilotMenuData(): PilotMenuData {
         const target = missionWaypoint(definition, active);
         const progress = active ? missionProgress(definition, active) : undefined;
         return {
-          id: definition.id, name: definition.displayName, detail: definition.description, difficulty: definition.difficulty,
+          id: definition.id, name: definition.displayName, detail: definition.type === 'stuntPair' ? 'This retired mission is no longer available. Choose another mission.' : definition.description, difficulty: definition.difficulty, retired: definition.type === 'stuntPair',
           territoryIds: missionRequirements(definition),
           credits: definition.creditReward, score: definition.scoreReward,
           completions: completion?.count ?? 0, cooldownUntil: (completion?.lastCompletedAt ?? 0) + definition.replayCooldownMs,
@@ -4713,8 +4492,9 @@ function pilotMenuData(): PilotMenuData {
         savePlayerProgress();
       },
     },
-    preferences:{touchMode:mobileInput.getMode(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));renderPilotMenu(true);},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);}},
-    audio: { muted: audioMuted, toggle: () => audioToggleElement.click(), levels: audioLevels, setLevel: setAudioLevel },
+    preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.isTouchLayout(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
+    restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
+    audio: { muted: audioMuted, toggle: toggleAudio, levels: audioLevels, setLevel: setAudioLevel },
     guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();setGuidedTutorial(true,true);} },
   };
 }
@@ -4749,7 +4529,14 @@ function togglePilotMenu(): void {
   openPilotMenu();
 }
 
-pilotMenuButtonElement.addEventListener('click', openPilotMenu);
+flightMenuButtonElement.addEventListener('click', togglePilotMenu);
+flightWorldButtonElement.addEventListener('click', openWorldSelector);
+flightMapButtonElement.addEventListener('click', () => {
+  if (pilotMenu.isOpen()) pilotMenu.close();
+  contextualHints.dismiss();
+  worldMap.toggle();
+  if (worldMap.isOpen()) contextualHints.trigger('firstDestination');
+});
 
 window.addEventListener('keydown', (event) => {
   if (pilotMenu.isOpen() || aircraftGarage.isOpen()) return;
@@ -4764,12 +4551,16 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-renderer.domElement.addEventListener('pointerdown', (event) => {
-  // Reclaim flight focus without consuming the pointer event; the same press
-  // must still begin the existing camera-orbit gesture below.
-  releaseAircraftSelectorFocus();
-  if (event.pointerType !== 'mouse' || event.button !== 0 || worldMap.isOpen() || pilotMenu.isOpen() || aircraftGarage.isOpen()) return;
-  event.preventDefault();
+const applyCameraZoom = (zoomFactor: number): void => {
+  cameraDistanceMultiplier = THREE.MathUtils.clamp(cameraDistanceMultiplier * zoomFactor, 0.62, 1.8);
+  if (cameraOrbitBlend > 0) {
+    const minimumRadius = defaultChaseDistance * 0.62;
+    const maximumRadius = defaultChaseDistance * 1.8 + defaultChaseHeight;
+    cameraOrbitRadiusTarget = THREE.MathUtils.clamp(cameraOrbitRadiusTarget * zoomFactor, minimumRadius, maximumRadius);
+  }
+};
+
+const beginCameraOrbit = (event: PointerEvent): void => {
   // Convert the rendered camera frame to orbit coordinates before changing
   // ownership, so pointer-down itself cannot alter distance or framing.
   cameraAircraftForward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
@@ -4791,9 +4582,40 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   cameraOrbitPointerX = event.clientX;
   cameraOrbitPointerY = event.clientY;
   renderer.domElement.setPointerCapture(event.pointerId);
+};
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  // Controls and HUD elements own their own pointers because they are layered
+  // above the canvas. Only unused gameplay canvas space reaches this handler.
+  const touch = event.pointerType === 'touch';
+  if ((!touch && (event.pointerType !== 'mouse' || event.button !== 0)) || worldMap.isOpen() || pilotMenu.isOpen() || aircraftGarage.isOpen()) return;
+  event.preventDefault();
+  if (touch) {
+    cameraTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    renderer.domElement.setPointerCapture(event.pointerId);
+    if (cameraTouchPointers.size > 1) {
+      cameraOrbitDragging = false;
+      cameraOrbitPointerId = null;
+      const [first, second] = [...cameraTouchPointers.values()];
+      cameraPinchDistance = Math.hypot(second.x - first.x, second.y - first.y);
+      return;
+    }
+  }
+  beginCameraOrbit(event);
 });
 
 renderer.domElement.addEventListener('pointermove', (event) => {
+  if (event.pointerType === 'touch' && cameraTouchPointers.has(event.pointerId)) {
+    cameraTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (cameraTouchPointers.size > 1) {
+      event.preventDefault();
+      const [first, second] = [...cameraTouchPointers.values()];
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      applyCameraZoom(pinchZoomFactor(cameraPinchDistance, distance));
+      cameraPinchDistance = distance;
+      return;
+    }
+  }
   if (!cameraOrbitDragging || event.pointerId !== cameraOrbitPointerId) return;
   event.preventDefault();
   const deltaX = event.clientX - cameraOrbitPointerX;
@@ -4807,6 +4629,16 @@ renderer.domElement.addEventListener('pointermove', (event) => {
 });
 
 const stopCameraOrbit = (event: PointerEvent): void => {
+  const wasTouch = event.pointerType === 'touch' && cameraTouchPointers.delete(event.pointerId);
+  const wasPinching = cameraPinchDistance > 0;
+  if (wasTouch && cameraTouchPointers.size < 2) cameraPinchDistance = 0;
+  if (wasPinching) {
+    cameraOrbitDragging = false;
+    cameraOrbitPointerId = null;
+    cameraOrbitRecenterAt = performance.now() + 2_000;
+    if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
+    return;
+  }
   if (!cameraOrbitDragging || event.pointerId !== cameraOrbitPointerId) return;
   if (event.cancelable) event.preventDefault();
   const pointerId = event.pointerId;
@@ -4829,12 +4661,7 @@ renderer.domElement.addEventListener('wheel', (event) => {
   if (worldMap.isOpen() || pilotMenu.isOpen() || aircraftGarage.isOpen()) return;
   event.preventDefault();
   const zoomFactor = Math.exp(event.deltaY * 0.0012);
-  cameraDistanceMultiplier = THREE.MathUtils.clamp(cameraDistanceMultiplier * zoomFactor, 0.62, 1.8);
-  if (cameraOrbitBlend > 0) {
-    const minimumRadius = defaultChaseDistance * 0.62;
-    const maximumRadius = defaultChaseDistance * 1.8 + defaultChaseHeight;
-    cameraOrbitRadiusTarget = THREE.MathUtils.clamp(cameraOrbitRadiusTarget * zoomFactor, minimumRadius, maximumRadius);
-  }
+  applyCameraZoom(zoomFactor);
 }, { passive: false });
 // Tail starts at the muzzle/projectile position; no half-streak behind the gun.
 const projectileGeometry = new THREE.BoxGeometry(0.3, 0.3, 9).translate(0, 0, -4.5);
@@ -5657,7 +5484,7 @@ function updateRemotePlayers(delta: number): void {
     remote.playerProxy.visible = identityVisible && distance <= 12_000;
     if (remote.playerProxy.visible) {
       const targeted = selectedCombatTarget?.remote === remote;
-      const targetPixels = (distance <= 450 ? 20 : distance <= 1_100 ? 16 : 12) + (targeted ? selectedCombatTarget?.locked ? 4 : 2 : 0);
+      const targetPixels = remoteProxyPixelWidth(distance) + (targeted ? selectedCombatTarget?.locked ? 4 : 2 : 0);
       const width = worldPerPixel * targetPixels;
       remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, worldPerPixel * (targetPixels * 0.7 + 8));
       remote.playerProxy.scale.set(width, width * (2 / 3), 1);
@@ -6102,7 +5929,6 @@ function hitsWorldObstacle(): boolean {
 
 function updateFlight(delta: number): void {
   updateLocalWeather(performance.now());
-  stuntCooldown = Math.max(0, stuntCooldown - delta);
   const throttleUp = heldActions.has('throttleUp');
   const throttleDown = heldActions.has('throttleDown');
   if (!onGround) {
@@ -6162,10 +5988,8 @@ function updateFlight(delta: number): void {
     boostMeter = Math.min(100, boostMeter + delta * (currentAircraft.boostRegen ?? 12));
   }
 
-  const stuntOwnsSteering = heldActions.has('stunt') || activeStuntManeuver !== null;
-  const rollInput = stuntOwnsSteering ? 0 : Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
-  const yawInput =
-    stuntOwnsSteering ? 0 : Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
+  const rollInput = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
+  const yawInput = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
   // Turn is an abstract control command, not an instant heading change.  Its
   // response is derived from the existing yaw/inertia envelope, so Cargo
   // settles deliberately while the Fighter remains crisp without keeping a
@@ -6198,7 +6022,6 @@ function updateFlight(delta: number): void {
   }
 
   if (onGround) {
-    activeStuntManeuver = null;
     rollControlStrength = 0;
     const reverseSpeed = Math.min(10, currentAircraft.groundMaxSpeed * 0.17);
     const brakeRate = currentAircraft.groundDrag * 2.6;
@@ -6217,7 +6040,7 @@ function updateFlight(delta: number): void {
       groundSpeedChange = brakeRate;
     }
     currentSpeed = moveToward(currentSpeed, groundTargetSpeed, delta * groundSpeedChange);
-    if (!photoMode && currentSpeed >= currentAircraft.takeoffSpeed * 0.45 && throttle >= 0.6) {
+    if (currentSpeed >= currentAircraft.takeoffSpeed * 0.45 && throttle >= 0.6) {
       cameraShakeTime = Math.max(cameraShakeTime, aircraftType === 'cargo' ? 0.045 : aircraftType === 'fighter' ? 0.032 : 0.025);
     }
     if (Math.abs(currentSpeed) < 0.04 && groundTargetSpeed === 0) currentSpeed = 0;
@@ -6276,28 +6099,6 @@ function updateFlight(delta: number): void {
     return;
   }
 
-  const maneuver = activeStuntManeuver;
-  let maneuverPhase = 0;
-  let maneuverRollAdvance = 0;
-  let maneuverComplete = false;
-  if (maneuver) {
-    const from = maneuver.elapsed / maneuver.duration;
-    maneuver.elapsed = Math.min(maneuver.duration, maneuver.elapsed + delta);
-    const to = maneuver.elapsed / maneuver.duration;
-    maneuverComplete = to >= 1;
-    if (maneuver.kind === 'barrelRoll') {
-      const smoothFrom = from * from * (3 - 2 * from);
-      const smoothTo = to * to * (3 - 2 * to);
-      maneuverRollAdvance = maneuver.direction * Math.PI * 2 * (smoothTo - smoothFrom);
-    } else {
-      // Build the break early, hold it briefly, then ease out. The old sine
-      // spent half the short maneuver building toward its first useful shove.
-      const midpoint = (from + to) * 0.5;
-      const entry = THREE.MathUtils.clamp(midpoint / 0.16, 0, 1);
-      const exit = THREE.MathUtils.clamp((1 - midpoint) / 0.32, 0, 1);
-      maneuverPhase = entry * entry * (3 - 2 * entry) * exit * exit * (3 - 2 * exit);
-    }
-  }
   const speedRatio = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   const steeringAuthority =
     (0.64 + speedRatio * 0.36) * currentAircraft.yawRate / currentAircraft.inertia;
@@ -6313,11 +6114,7 @@ function updateFlight(delta: number): void {
     1 - Math.exp(-rollResponse * delta),
   );
   roll += rollControlStrength * delta * currentAircraft.rollRate;
-  roll += maneuverRollAdvance;
-  if (maneuver?.kind === 'quickDodge') {
-    roll += maneuver.direction * currentAircraft.rollRate * 0.92 * maneuverPhase * delta;
-  }
-  if (rollInput === 0 && maneuver?.kind !== 'barrelRoll') {
+  if (rollInput === 0) {
     // Roll is intentionally unbounded while commanded. Use the shortest
     // equivalent angle when leveling so a completed 360° roll does not cause
     // an artificial extra revolution on release.
@@ -6356,9 +6153,6 @@ function updateFlight(delta: number): void {
   const pitchYawLeak = heading - pitchStageHeading;
   heading += yawControlStrength * delta * steeringAuthority;
   heading += Math.sin(roll) * speedRatio * currentAircraft.bankTurn * delta;
-  if (maneuver?.kind === 'quickDodge') {
-    heading += maneuver.direction * currentAircraft.yawRate / currentAircraft.inertia * 0.28 * maneuverPhase * delta;
-  }
 
   airplane.rotation.set(pitch, heading, roll, 'YXZ');
   if (import.meta.env.DEV) pitchBeforeQuaternion.copy(airplane.quaternion);
@@ -6432,28 +6226,6 @@ function updateFlight(delta: number): void {
   sideSlip.copy(forward).multiplyScalar(velocity.dot(forward)).sub(velocity);
   sideSlip.y *= 0.25;
   velocity.addScaledVector(sideSlip, Math.min(1, delta * currentAircraft.alignmentRate * (0.42 + speedRatio * 0.58)));
-  if (maneuver) {
-    // Dodge bends the existing velocity vector; it never teleports or grants
-    // invulnerability. Both maneuvers spend a little kinetic energy.
-    if (maneuver.kind === 'quickDodge') {
-      dodgeSide.set(1, 0, 0).applyQuaternion(airplane.quaternion);
-      velocity.addScaledVector(dodgeSide, -maneuver.direction * Math.min(680, currentAircraft.acceleration / currentAircraft.inertia * 4.5) * maneuverPhase * delta);
-    } else {
-      // A smooth lateral-velocity arch moves the entire aircraft through a
-      // helical track while its body rolls. The target returns to zero side
-      // speed, never to the starting line; existing collision checks sample
-      // each new position and remote pilots receive ordinary transforms.
-      const phase = maneuver.elapsed / maneuver.duration;
-      const targetSideSpeed = -maneuver.direction * (maneuver.lateralDistance ?? 0) / maneuver.duration * 6 * phase * (1 - phase);
-      const sideX = maneuver.sideX ?? 0, sideZ = maneuver.sideZ ?? 0;
-      const currentSideSpeed = velocity.x * sideX + velocity.z * sideZ;
-      const maxSideChange = currentAircraft.acceleration / currentAircraft.inertia * 2.5 * delta;
-      const sideChange = THREE.MathUtils.clamp(targetSideSpeed - currentSideSpeed, -maxSideChange, maxSideChange);
-      velocity.x += sideX * sideChange;
-      velocity.z += sideZ * sideChange;
-    }
-    velocity.multiplyScalar(Math.max(0, 1 - delta * (maneuver.kind === 'barrelRoll' ? 0.025 : 0.025) / maneuver.duration));
-  }
   // A normal acceleration still obeys the base cap. An aircraft already above
   // it after Boost release retains the Boost ceiling while drag winds it down.
   const maxAirSpeed = guidedTutorialActive ? Math.max(currentAircraft.takeoffSpeed * 2.5, 180) : boostActive || overspeed > 0
@@ -6499,7 +6271,7 @@ function updateFlight(delta: number): void {
     roll = 0;
     airplane.rotation.set(0, heading, 0, 'YXZ');
     onGround = true;
-    if (!photoMode) cameraShakeTime = Math.max(cameraShakeTime, landingStatus.rough ? 0.2 : 0.065);
+    cameraShakeTime = Math.max(cameraShakeTime, landingStatus.rough ? 0.2 : 0.065);
     takeoffRollMeters = 0;
     landedFeedbackTime = 1.5;
     setFlightState('LANDED');
@@ -6507,23 +6279,10 @@ function updateFlight(delta: number): void {
     handleContractLanding(landingAirport);
   }
 
-  if (maneuverComplete) {
-    activeStuntManeuver = null;
-    stuntCooldown = 2.2;
-    if (!onGround && maneuver && connectionReady()) {
-      sendLocalState();
-      socket.send(JSON.stringify({ type: 'stuntComplete', maneuver: maneuver.kind }));
-    }
-    if (!onGround && maneuver?.kind === 'quickDodge') stuntCombo?.notifyQuickDodge(aircraftType);
-  } else if (onGround) {
-    activeStuntManeuver = null;
-  }
-
 }
 
 function updateRunTimer(delta: number): void {
   remainingTime = Math.max(0, remainingTime - delta);
-  updateTimerDisplay();
   if (remainingTime === 0) endRun('TIME UP');
 }
 
@@ -6604,29 +6363,15 @@ function updateCamera(delta: number): void {
     if (cameraOrbitBlend === 0) cameraOrbitRecenterAt = null;
   }
   cameraAircraftForward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
-  const aircraftPitch = Math.atan2(cameraAircraftForward.y, Math.hypot(cameraAircraftForward.x, cameraAircraftForward.z));
   cameraAircraftForward.y = 0;
   if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1);
   else cameraAircraftForward.normalize();
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
-  // Keep the chase view readable through a full roll without spinning it
-  // around the fuselage. Ease suppression in/out; manual camera orbit stays owned.
-  cameraRollSuppression += ((activeStuntManeuver?.kind === 'barrelRoll' ? 0.9 : activeStuntManeuver?.kind === 'quickDodge' ? 0.35 : 0) - cameraRollSuppression) *
-    (1 - Math.exp(-6 * delta));
-  const dodgeCameraPhase = activeStuntManeuver?.kind === 'quickDodge'
-    ? Math.sin(Math.PI * activeStuntManeuver.elapsed / activeStuntManeuver.duration) : 0;
-  const dodgeCameraTarget = activeStuntManeuver?.kind === 'quickDodge'
-    ? activeStuntManeuver.direction * Math.min(2.4, defaultChaseDistance * 0.12) * dodgeCameraPhase : 0;
-  cameraDodgeLag += (dodgeCameraTarget - cameraDodgeLag) * (1 - Math.exp(-8 * delta));
   cameraChaseQuaternion.copy(airplane.quaternion);
-  if (cameraRollSuppression > 0.001) {
-    cameraNoRollQuaternion.setFromEuler(cameraNoRollEuler.set(aircraftPitch, aircraftYaw, 0));
-    cameraChaseQuaternion.slerp(cameraNoRollQuaternion, cameraRollSuppression);
-  }
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
-      cameraDodgeLag,
+      0,
       defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18) + cameraSpeedOffset * 0.05,
       smoothedChaseDistance,
     )
@@ -6724,7 +6469,7 @@ function updateCamera(delta: number): void {
   }
 
   if (cameraShakeTime > 0) {
-    if (!cameraOrbitDragging && !photoMode) {
+    if (!cameraOrbitDragging) {
       const shakeStrength = (cameraShakeTime / 0.35) * 0.38;
       camera.position.x += Math.sin(cameraShakeTime * 95) * shakeStrength;
       camera.position.y += Math.cos(cameraShakeTime * 110) * shakeStrength * 0.65;
@@ -6842,7 +6587,7 @@ function animate(): void {
   if (navigationTimer >= 0.1) {
     navigationTimer %= 0.1;
     updateFlightHud();
-    updateAircraftOptions();
+    updatePendingAircraftEquip();
     updateSkyChallengeHud();
     updateDynamicEventHud();
     updateNavigationHud();
@@ -7002,7 +6747,6 @@ window.addEventListener('resize', () => {
   worldMap.resize();
 });
 
-const connectionElement = document.querySelector<HTMLDivElement>('#connection')!;
 const defaultSocketUrl = import.meta.env.DEV
   ? 'ws://localhost:8091'
   : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
@@ -7024,8 +6768,7 @@ function blockProtocolConnection(message: string): void {
   if (protocolBlocked) return;
   protocolBlocked = true;
   protocolReady = false;
-  connectionElement.textContent = message;
-  connectionElement.className = 'offline';
+  showProgressMessage(message);
   if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close(4002, 'Protocol mismatch');
 }
 
@@ -7154,7 +6897,6 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   }
   if (equipConfirmed) {
     pendingEquip = undefined;
-    releaseAircraftSelectorFocus();
   }
   selectionRevision = revision;
   authoritativeSelectionApplied = true;
@@ -7172,14 +6914,13 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   if (earnedCredits > 0) {
     if (!creditReason && import.meta.env.DEV) console.warn(`CREDIT_REASON_MISSING amount=${earnedCredits}`);
     queueRewardFeedback(earnedCredits, 0, creditReason ?? 'Profile Sync');
-    document.querySelector('#progression-readout')!.classList.remove('earned');
+    document.querySelector('#hud-credits')!.classList.remove('earned');
     void creditsElement.offsetWidth;
-    document.querySelector('#progression-readout')!.classList.add('earned');
+    document.querySelector('#hud-credits')!.classList.add('earned');
   }
   totalDistance = profile.totalDistance;
   totalSuccessfulLandings = profile.successfulLandings;
   displayName = profile.pilotName;
-  playerNameElement.textContent = displayName;
   // Discovery progress is monotonic. A reward response can precede the
   // debounced progress upload; do not erase locally completed discoveries.
   for (const city of ['milwaukee', 'dallas'] as const) {
@@ -7189,7 +6930,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   for (const id of discoveredLocationsByCity[cityId] ?? []) discoveredLocationIds.add(id);
   discoverySystem?.hydrate(discoveredLocationIds);
   if (!flightTestMode && !preserveActiveAircraft && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft, true, !serverReset);
-  updateAircraftOptions();
+  updatePendingAircraftEquip();
   if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
     credits: profile.credits,
     selectedAircraft: profile.selectedAircraft,
@@ -7207,12 +6948,12 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   return true;
 }
 
-citiesButtonElement.addEventListener('click', () => {
+function openWorldSelector(): void {
   pilotMenu.close();
   heldActions.clear();
   boostActive = false;
   window.dispatchEvent(new Event('airport-chaos-open-city-selector'));
-});
+}
 window.addEventListener('airport-chaos-city-exit', (event) => {
   const destination = (event as CustomEvent<{ cityId: CityId; timePreset: 'day' | 'dusk';intercity?:boolean }>).detail;
   const activeMission = profileActiveMissionAttempt(serverProfile);
@@ -7295,10 +7036,7 @@ function sendRespawn(): void {
   socket.send(JSON.stringify({ type: 'respawn' }));
 }
 
-socket.addEventListener('open', () => {
-  connectionElement.textContent = 'Server: verifying version';
-  connectionElement.className = 'online';
-});
+socket.addEventListener('open', () => { /* Welcome packet completes protocol verification. */ });
 
 socket.addEventListener('message', (event) => {
   let message: ServerMessage;
@@ -7323,7 +7061,6 @@ socket.addEventListener('message', (event) => {
     }
     protocolReady = true;
     pendingEquip = undefined;
-    if (aircraftSelectElement.value !== aircraftType) aircraftSelectElement.value = aircraftType;
     selectionRevision = message.selectionRevision;
     localPlayerId = message.playerId;
     for (const id of repairHeartSprites.keys()) setHeartCooldown(id, 0);
@@ -7346,7 +7083,6 @@ socket.addEventListener('message', (event) => {
     spawnPosition.y = groundPlaneY(spawnPosition.x, spawnPosition.z);
     airplane.position.copy(spawnPosition);
     altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
-    connectionElement.textContent = 'Online';
     if (matchMedia('(pointer: coarse)').matches || innerWidth <= 900) socket.send(JSON.stringify({ type:'analyticsEvent', event:'mobile_layout_used', mode:innerWidth <= 600 ? 'narrow' : 'wide' }));
     serverProfile = message.profile;
 
@@ -7496,9 +7232,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'equipRejected') {
     if (pendingEquip?.id === message.equipRequestId) {
       pendingEquip = undefined;
-      aircraftSelectElement.value = aircraftType;
-      releaseAircraftSelectorFocus();
-      updateAircraftOptions();
+      updatePendingAircraftEquip();
       showProgressMessage(message.reason);
     }
   } else if (message.type === 'aircraftPurchaseResult') {
@@ -7735,14 +7469,12 @@ socket.addEventListener('close', (event) => {
   if (protocolBlocked) return;
   protocolReady = false;
   profileHydrated = false;
-  connectionElement.textContent = event.code === 4001 ? 'Opened in another tab — reload to play here' : 'Server: disconnected';
-  connectionElement.className = 'offline';
+  showProgressMessage(event.code === 4001 ? 'OPENED IN ANOTHER TAB — RELOAD TO PLAY HERE' : 'SERVER DISCONNECTED');
 });
 
 socket.addEventListener('error', () => {
   if (protocolBlocked) return;
-  connectionElement.textContent = 'Server: connection error';
-  connectionElement.className = 'offline';
+  showProgressMessage('SERVER CONNECTION ERROR');
 });
 
 // Same 10Hz transform stream, but not tied to requestAnimationFrame: Safari
@@ -7755,11 +7487,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) send
 updateCamera(1);
 showActiveCheckpoint();
 updateScoreDisplay();
-updateTimerDisplay();
 updateProgressHud();
 updateHealthDisplay();
-updateAircraftOptions();
-aircraftSelectElement.value = aircraftType;
+updatePendingAircraftEquip();
 updateNavigationHud();
 // The legacy Contracts UI is retired; Missions are profile-owned on the server.
 savePlayerProgress(true);
