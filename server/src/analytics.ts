@@ -14,7 +14,7 @@ export type AnalyticsEventName =
   | 'daily_streak_claimed' | 'pilot_level_up' | 'personal_record_broken' | 'weekly_reward_awarded'
   | 'pvp_challenge_sent' | 'pvp_challenge_accepted' | 'pvp_challenge_completed'
   | 'referral_attached' | 'referral_qualified'
-  | 'chaos_moment_started' | 'chaos_moment_completed' | 'next_action_selected' | 'secret_discovered'
+  | 'chaos_moment_started' | 'chaos_moment_completed' | 'secret_discovered'
   | 'photo_mode_opened' | 'cosmetic_unlocked' | 'cosmetic_equipped' | 'flight_recap_shown' | 'fly_again_clicked'
   | 'daily_flight_plan_viewed' | 'daily_flight_plan_task_completed' | 'daily_flight_plan_completed' | 'daily_flight_plan_reward_claimed'
   | 'landing_scored' | 'perfect_landing_earned'
@@ -44,7 +44,7 @@ const validEventNames = new Set<AnalyticsEventName>([
   'purchase_recovery_created', 'purchase_recovery_succeeded',
   'daily_streak_claimed', 'pilot_level_up', 'personal_record_broken', 'weekly_reward_awarded',
   'pvp_challenge_sent', 'pvp_challenge_accepted', 'pvp_challenge_completed', 'referral_attached', 'referral_qualified',
-  'chaos_moment_started', 'chaos_moment_completed', 'next_action_selected', 'secret_discovered',
+  'chaos_moment_started', 'chaos_moment_completed', 'secret_discovered',
   'photo_mode_opened', 'cosmetic_unlocked', 'cosmetic_equipped', 'flight_recap_shown', 'fly_again_clicked',
   'daily_flight_plan_viewed', 'daily_flight_plan_task_completed', 'daily_flight_plan_completed', 'daily_flight_plan_reward_claimed',
   'landing_scored', 'perfect_landing_earned',

@@ -1,6 +1,7 @@
 import type { FlightAction } from './flight-input';
 import {
   joystickInput,
+  mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
@@ -12,6 +13,7 @@ import {
 
 export {
   joystickInput,
+  mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
@@ -31,6 +33,12 @@ export type MobileControlLayout = Record<MobileControlId, MobileControlPlacement
 export type MobileControlPlacementLimits = Record<keyof MobileControlPlacement, { min: number; max: number; step: number }>;
 
 const defaultLayout: MobileControlLayout = {
+  stick: { x: 14, y: 72, scale: 1 },
+  throttle: { x: 75, y: 40, scale: 0.95 },
+  fire: { x: 72, y: 82, scale: 1 },
+};
+
+const legacyDefaultLayout: MobileControlLayout = {
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 87, y: 45, scale: 0.95 },
   fire: { x: 87, y: 80, scale: 1 },
@@ -63,10 +71,17 @@ function safePlacement(control: MobileControlId, value: unknown, fallback: Mobil
 function preferredLayout(): MobileControlLayout {
   try {
     const stored = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? 'null') as Partial<MobileControlLayout> | null;
+    const migrated = (control: MobileControlId): Partial<MobileControlPlacement> | undefined => {
+      const placement = stored?.[control];
+      const legacy = legacyDefaultLayout[control];
+      return placement?.x === legacy.x && placement.y === legacy.y && placement.scale === legacy.scale
+        ? defaultLayout[control]
+        : placement;
+    };
     return {
-      stick: safePlacement('stick', stored?.stick, defaultLayout.stick),
-      throttle: safePlacement('throttle', stored?.throttle, defaultLayout.throttle),
-      fire: safePlacement('fire', stored?.fire, defaultLayout.fire),
+      stick: safePlacement('stick', migrated('stick'), defaultLayout.stick),
+      throttle: safePlacement('throttle', migrated('throttle'), defaultLayout.throttle),
+      fire: safePlacement('fire', migrated('fire'), defaultLayout.fire),
     };
   } catch {
     return cloneLayout(defaultLayout);
@@ -215,6 +230,8 @@ export class MobileInputControls {
     for (const control of Object.keys(this.layout) as MobileControlId[]) {
       const element = this.root.querySelector<HTMLElement>(`[data-touch-control="${control}"]`);
       const placement = this.layout[control];
+      const defaults = defaultLayout[control];
+      element?.classList.toggle('uses-default-placement', placement.x === defaults.x && placement.y === defaults.y && placement.scale === defaults.scale);
       element?.style.setProperty('--touch-left', `${placement.x}%`);
       element?.style.setProperty('--touch-top', `${placement.y}%`);
       element?.style.setProperty('--touch-scale', `${placement.scale}`);

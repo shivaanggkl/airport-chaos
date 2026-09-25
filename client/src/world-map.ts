@@ -26,6 +26,8 @@ type MapAirport = {
 
 type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string };
 type MapTarget = { x: number; z: number; label?: string };
+export type MapMissionSummary = { name: string; progress: string; credits: number; score: number };
+export type MapRosterEntry = { id: string; name: string; status: string; isLocal?: boolean };
 export type MapChallenge = { id: string; x: number; z: number; label: string; active: boolean };
 export type MapEvent = { id: string; x: number; z: number; label: string; mostWanted?: boolean; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
 export type MapDiscovery = { id: string; label: string; x: number; z: number; discovered: boolean; secret: boolean };
@@ -38,6 +40,7 @@ export type MapTerritory = {
   color?: string;
   missionTarget?: boolean;
   controllerName?: string;
+  status: string;
   captureProgress: number;
   contested: boolean;
 };
@@ -48,6 +51,8 @@ export type WorldMapState = {
   forward: { x: number; z: number };
   king?: boolean;
   players: readonly MapPlayer[];
+  roster: readonly MapRosterEntry[];
+  mission?: MapMissionSummary;
   waypoint: MapTarget | null;
   contractTarget: MapTarget | null;
   challenges?: readonly MapChallenge[];
@@ -84,6 +89,12 @@ export class WorldMap {
   private readonly roadPaths = new Map<number, Path2D>();
   private labelCount = 0;
   private readonly labels: Array<{ x: number; y: number; w: number; h: number }> = [];
+  private readonly missionSummary: HTMLElement;
+  private readonly playerCount: HTMLElement;
+  private readonly playerList: HTMLElement;
+  private readonly territoryCount: HTMLElement;
+  private readonly territoryList: HTMLElement;
+  private intelligenceSignature = '';
 
   constructor(
     private readonly element: HTMLElement,
@@ -97,6 +108,11 @@ export class WorldMap {
     this.context = canvas.getContext('2d')!;
     this.staticContext = this.staticCanvas.getContext('2d')!;
     this.geographyContext = this.geographyCanvas.getContext('2d')!;
+    this.missionSummary = element.querySelector<HTMLElement>('#map-mission-summary')!;
+    this.playerCount = element.querySelector<HTMLElement>('#map-player-count')!;
+    this.playerList = element.querySelector<HTMLElement>('#map-player-list')!;
+    this.territoryCount = element.querySelector<HTMLElement>('#map-territory-count')!;
+    this.territoryList = element.querySelector<HTMLElement>('#map-territory-list')!;
     this.geographyCanvas.width = 0;
     this.geographyCanvas.height = 0;
     this.centerX = (layer.bounds.minX + layer.bounds.maxX) / 2;
@@ -132,13 +148,17 @@ export class WorldMap {
       this.clampCenter();
       this.drawStatic();
       this.draw();
+      this.renderIntelligence();
       if (this.layer.staticUrl && !this.staticLoading && !this.staticLoaded) void this.loadStaticLayer(this.layer.staticUrl);
     }
   }
 
   update(state: WorldMapState): void {
     this.state = state;
-    if (this.openState) this.draw();
+    if (this.openState) {
+      this.draw();
+      this.renderIntelligence();
+    }
   }
 
   resize(): void {
@@ -536,6 +556,57 @@ export class WorldMap {
       this.label('NEUTRAL', centerX, centerY + 12, color);
     }
     this.context.restore();
+  }
+
+  private renderIntelligence(): void {
+    if (!this.state) return;
+    const mission = this.state.mission;
+    const signature = JSON.stringify([
+      mission,
+      this.state.roster.map(({ id, name, status, isLocal }) => [id, name, status, isLocal]),
+      (this.state.territories ?? []).map(({ id, label, color, status }) => [id, label, color, status]),
+    ]);
+    if (signature === this.intelligenceSignature) return;
+    this.intelligenceSignature = signature;
+
+    this.missionSummary.replaceChildren();
+    if (!mission) {
+      this.missionSummary.textContent = 'No active mission';
+    } else {
+      const name = document.createElement('b');
+      const detail = document.createElement('span');
+      name.textContent = mission.name;
+      detail.textContent = `${mission.progress.replace(/\s*\n\s*/g, ' · ')} · +${mission.credits.toLocaleString()} Credits · +${mission.score.toLocaleString()} Score`;
+      this.missionSummary.append(name, detail);
+    }
+
+    this.playerCount.textContent = String(this.state.roster.length);
+    this.playerList.replaceChildren(...this.state.roster.map((player) => {
+      const row = document.createElement('div');
+      const name = document.createElement('span');
+      const status = document.createElement('strong');
+      name.textContent = `${player.name}${player.isLocal ? ' (You)' : ''}`;
+      status.textContent = player.status;
+      row.append(name, status);
+      return row;
+    }));
+
+    const territories = this.state.territories ?? [];
+    this.territoryCount.textContent = String(territories.length);
+    this.territoryList.replaceChildren(...territories.map((territory) => {
+      const row = document.createElement('div');
+      const identity = document.createElement('span');
+      const dot = document.createElement('i');
+      const name = document.createElement('span');
+      const status = document.createElement('strong');
+      dot.className = 'territory-color-dot';
+      dot.style.backgroundColor = territory.color ?? territoryOwnershipColors.neutral;
+      name.textContent = territory.label;
+      status.textContent = territory.status;
+      identity.append(dot, name);
+      row.append(identity, status);
+      return row;
+    }));
   }
 
   private drawDiscoveryProgress(progress: MapDiscoveryProgress): void {

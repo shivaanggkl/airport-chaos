@@ -420,24 +420,12 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .controls-card.collapsed { width: auto; min-width: 100px; }
 .controls-card.collapsed .controls-grid { display: none; }
 
-.next-actions { position: fixed; z-index: 2; right: 18px; bottom: 198px; width: min(252px, calc(100vw - 36px)); display: grid; gap: 6px; pointer-events: auto; }
-.next-actions:empty { display: none; }
 .gameplay-feedback { position: fixed; z-index: 8; top: 21%; left: 50%; translate: -50% 0; min-width: 220px; padding: 10px 18px; text-align: center; pointer-events: none; border: 1px solid rgb(121 220 235 / 45%); border-radius: 7px; background: rgb(3 15 27 / 82%); box-shadow: 0 8px 30px rgb(0 0 0 / 28%); animation: feedback-in .18s ease-out; }
 .gameplay-feedback strong,.gameplay-feedback span { display:block; } .gameplay-feedback strong { color:#fff3bd; font:900 15px ui-monospace,monospace; letter-spacing:.08em; } .gameplay-feedback span { margin-top:4px; color:#cceef4; font:800 11px ui-monospace,monospace; }
 .gameplay-feedback.major { border-color:rgb(255 201 72 / 70%); box-shadow:0 8px 35px rgb(255 177 32 / 15%); } @keyframes feedback-in { from { opacity:0; transform:scale(.94); } }
 @media (max-width:600px){.gameplay-feedback{top:17%;min-width:180px;max-width:75vw}.gameplay-feedback strong{font-size:12px}}
 .flight-recap { position:fixed; z-index:12; left:50%; bottom:24px; translate:-50% 0; width:min(440px,calc(100vw - 32px)); padding:13px; color:#dff7fa; border:1px solid rgb(125 220 232 / 42%); border-radius:8px; background:rgb(4 17 29 / 92%); box-shadow:0 12px 36px #0008; }
 .flight-recap strong { display:block; color:#ffda69; letter-spacing:.11em; } .flight-recap [data-recap-stats]{margin:7px 0;white-space:pre-line;font:800 11px/1.55 ui-monospace,monospace}.flight-recap button{margin-right:7px;padding:6px 10px}.flight-recap [data-recap-fly]{color:#08202a;background:#70dbe8;border:0;font-weight:900}
-.next-actions-title { display: none; }
-.next-action { padding: 7px 9px; border: 1px solid rgb(142 205 216 / 27%); border-left: 2px solid #77d8e3; border-radius: 5px; background: rgb(5 18 31 / 78%); box-shadow: 0 6px 20px rgb(0 0 0 / 16%); }
-.next-action strong, .next-action span { display: block; }
-.next-action strong { color: #f5e3a4; font: 800 10px ui-monospace, monospace; letter-spacing: .04em; }
-.next-action span { margin-top: 3px; color: #bfdae1; font-size: 10px; line-height: 1.3; }
-.next-action-meta { color: #83c9d8 !important; font: 800 9px ui-monospace, monospace; }
-.next-action-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.next-action-actions button { padding: 3px 6px; color: #e2f7fa; border: 1px solid rgb(120 205 222 / 42%); border-radius: 3px; background: rgb(47 120 139 / 58%); font: 800 8px ui-monospace, monospace; cursor: pointer; }
-.next-action-actions button:hover:not(:disabled), .next-action-actions button:focus-visible:not(:disabled) { background: rgb(69 155 174 / 78%); }
-.next-action-actions button:disabled { opacity: .5; cursor: not-allowed; }
 
 .contextual-hint { position: fixed; z-index: 4; left: 18px; bottom: 24px; width: min(292px, calc(100vw - 36px)); padding: 8px 10px; color: #dceff3; border: 1px solid rgb(124 202 220 / 38%); border-left: 3px solid #77d8e3; border-radius: 5px; background: rgb(5 18 31 / 86%); box-shadow: 0 8px 28px rgb(0 0 0 / 28%); font-size: 10px; line-height: 1.35; pointer-events: auto; }
 .contextual-hint.hidden { display: none; }
@@ -737,6 +725,13 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
   cursor: pointer;
 }
 
+.world-map-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
 #world-map-canvas {
   display: block;
   width: 100%;
@@ -748,6 +743,30 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
   pointer-events: auto;
   user-select: none;
 }
+
+.map-intelligence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 7px 10px 9px;
+  border-top: 1px solid rgb(124 203 218 / 20%);
+  background: rgb(5 17 25 / 78%);
+  font: 700 10px/1.35 ui-monospace, monospace;
+}
+.map-intelligence-mission { grid-column: 1 / -1; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; min-width: 0; padding: 5px 7px; border: 1px solid rgb(226 194 105 / 20%); border-radius: 4px; background: rgb(80 61 18 / 9%); }
+.map-intelligence-mission > strong { color: #e5c978; letter-spacing: .1em; }
+#map-mission-summary { display: flex; min-width: 0; gap: 8px; color: #a9c5cd; overflow: hidden; }
+#map-mission-summary b { flex: none; color: #edf8fa; }
+#map-mission-summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-intelligence-panel { min-width: 0; padding: 5px 7px; border: 1px solid rgb(124 203 218 / 18%); border-radius: 4px; background: rgb(7 23 32 / 48%); }
+.map-intelligence-panel summary { color: #aadbe4; letter-spacing: .08em; cursor: pointer; }
+.map-intelligence-panel summary span { color: #fff; }
+#map-player-list, #map-territory-list { max-height: 76px; margin-top: 4px; overflow: auto; scrollbar-width: thin; }
+#map-player-list > div, #map-territory-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 2px 0; border-top: 1px solid rgb(255 255 255 / 6%); }
+#map-player-list span, #map-territory-list span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#map-player-list strong, #map-territory-list strong { color: #a9c5cd; font-size: 9px; font-weight: 700; white-space: nowrap; }
+#map-territory-list > div > span { display: inline-flex; align-items: center; gap: 5px; }
+#map-territory-list .territory-color-dot { width: 7px; height: 7px; }
 
 #contract-panel {
   position: fixed;
@@ -1533,11 +1552,11 @@ body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
 .touch-throttle-handle{position:absolute;z-index:2;top:var(--throttle-y,100%);left:50%;width:38px;height:14px;border:1px solid rgb(218 250 255 / 72%);border-radius:8px;background:rgb(91 190 210 / 72%);box-shadow:0 2px 8px #0008;transform:translate(-50%,-50%);transition:top 90ms linear,background 140ms ease,box-shadow 140ms ease;pointer-events:none}.touch-throttle-lever.is-dragging .touch-throttle-handle{transition:background 100ms ease,box-shadow 100ms ease;background:rgb(127 222 238 / 86%)}
 .touch-boost-ready{position:absolute;top:-14px;left:50%;width:max-content;color:#ffe18b;font-size:7px;opacity:0;translate:-50% 0;transition:opacity 180ms ease;pointer-events:none}.touch-throttle-lever.boost-ready .touch-boost-ready{opacity:.72}.touch-throttle-lever.boost-recharging .touch-boost-zone{opacity:.45}.touch-throttle-lever.boost-ready .touch-boost-zone{border-color:rgb(255 225 139 / 52%);color:#ffe18b;background:rgb(130 91 20 / 22%);box-shadow:inset 0 0 10px rgb(255 210 90 / 10%)}.touch-throttle-lever.is-boosting .touch-boost-zone{background:rgb(184 119 16 / 36%);box-shadow:inset 0 0 14px rgb(255 211 99 / 24%)}.touch-throttle-lever.is-boosting .touch-throttle-handle{background:#ffd66e;box-shadow:0 0 11px rgb(255 211 94 / 42%)}
 @keyframes touch-boost-ready-wave{0%{box-shadow:0 0 0 0 rgb(255 218 106 / 0)}45%{box-shadow:0 0 12px 3px rgb(255 218 106 / 24%)}100%{box-shadow:0 0 0 7px rgb(255 218 106 / 0)}}.touch-throttle-lever.boost-ready-pulse .touch-boost-zone{animation:touch-boost-ready-wave 850ms ease-out}
-.touch-fire{width:82px;height:82px!important;border-color:rgb(255 118 96 / 65%)!important;border-radius:50%!important;color:#ffe5de!important;background:rgb(66 16 15 / 38%)!important;font-size:12px!important}
-.touch-controls button{min-width:56px;min-height:46px;padding:6px;border:1px solid rgb(132 218 235 / 52%);border-radius:12px;color:#effcff;background:rgb(5 24 38 / 36%);font:900 9px ui-monospace,monospace;letter-spacing:.04em;text-shadow:0 1px 3px #000}.touch-controls button.is-active,.touch-controls button:active{background:rgb(65 164 187 / 72%);border-color:rgb(194 245 255 / 80%)}.touch-fire.is-active,.touch-fire:active{background:rgb(173 49 35 / 74%)!important;box-shadow:0 0 20px rgb(255 94 74 / 30%)}
+.touch-fire{width:116px;height:116px!important;border-color:rgb(255 138 119 / 48%)!important;border-radius:50%!important;color:rgb(255 235 230 / 84%)!important;background:rgb(66 16 15 / 20%)!important;box-shadow:inset 0 0 24px rgb(255 80 55 / 7%);font-size:13px!important}
+.touch-controls button{min-width:56px;min-height:46px;padding:6px;border:1px solid rgb(132 218 235 / 52%);border-radius:12px;color:#effcff;background:rgb(5 24 38 / 36%);font:900 9px ui-monospace,monospace;letter-spacing:.04em;text-shadow:0 1px 3px #000}.touch-controls button.is-active,.touch-controls button:active{background:rgb(65 164 187 / 72%);border-color:rgb(194 245 255 / 80%)}.touch-fire.is-active,.touch-fire:active{color:#fff4f0!important;background:rgb(190 53 38 / 78%)!important;border-color:rgb(255 198 186 / 88%)!important;box-shadow:0 0 24px rgb(255 94 74 / 38%),inset 0 0 18px rgb(255 220 210 / 14%)}
 .touch-aim-enabled{pointer-events:auto!important;touch-action:none}
 .touch-aim-enabled::before{content:'';position:absolute;inset:-24px;border-radius:50%}
-.touch-controls-active :is(#next-actions,#contract-panel,#active-contract,#sky-challenge,#dynamic-event){display:none!important}
+.touch-controls-active :is(#contract-panel,#active-contract,#sky-challenge,#dynamic-event){display:none!important}
 .touch-controls-active .desktop-hud-action,.touch-controls-active .flight-hud-score,.touch-controls-active .flight-hud-danger{display:none!important}
 .touch-controls-active :is(.flight-hud-credits,.flight-hud-mission) small{display:none}
 .touch-controls-active .desktop-controls-help{display:none!important}
@@ -1546,7 +1565,7 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
 .portrait-guidance{display:none;position:fixed;z-index:50;inset:0;place-items:center;background:#06131dea;color:#e8faff;font:900 14px ui-monospace,monospace;letter-spacing:.08em;text-align:center}
 
 @media(max-width:900px){
-  body{overscroll-behavior:none}.controls-card{display:none}.next-actions{right:max(8px,env(safe-area-inset-right));bottom:154px;width:210px}.pilot-menu-card{width:min(96vw,760px);max-height:94dvh;padding:12px}.pilot-menu-navigation{overflow-x:auto;flex-wrap:nowrap}.pilot-menu-navigation button,.pilot-menu-card button,.garage-card button,.flight-recap button{min-height:44px}.pilot-progress-grid{grid-template-columns:1fr}.garage-card{width:96vw;max-height:94dvh;overflow:auto}.garage-layout{grid-template-columns:1fr}.garage-preview,.garage-preview canvas{min-height:220px;height:220px}.garage-list{grid-template-columns:repeat(2,minmax(0,1fr))}.flight-recap{max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(14px,env(safe-area-inset-bottom))}}
+  body{overscroll-behavior:none}.controls-card{display:none}.pilot-menu-card{width:min(96vw,760px);max-height:94dvh;padding:12px}.pilot-menu-navigation{overflow-x:auto;flex-wrap:nowrap}.pilot-menu-navigation button,.pilot-menu-card button,.garage-card button,.flight-recap button{min-height:44px}.pilot-progress-grid{grid-template-columns:1fr}.garage-card{width:96vw;max-height:94dvh;overflow:auto}.garage-layout{grid-template-columns:1fr}.garage-preview,.garage-preview canvas{min-height:220px;height:220px}.garage-list{grid-template-columns:repeat(2,minmax(0,1fr))}.flight-recap{max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(14px,env(safe-area-inset-bottom))}}
 @media(max-width:1000px) and (orientation:landscape){
   .pilot-menu-overlay{padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}
   .pilot-menu-card{grid-template:"header header" auto "navigation content" minmax(0,1fr)/118px minmax(0,1fr);column-gap:10px;width:min(96vw,900px);height:min(94dvh,440px);max-height:94dvh;padding:9px}
@@ -1565,21 +1584,39 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
   .pilot-menu-actions{margin-top:6px}
   .pilot-menu-actions button{min-width:132px;min-height:42px}
 }
-.touch-controls-active #right-flight-stack{top:max(50px,calc(env(safe-area-inset-top) + 44px));right:calc(13vw + 44px);width:146px;max-height:calc(100dvh - 58px);justify-items:end}
+@media(max-width:1000px) and (orientation:landscape){
+  .world-map-overlay{padding:6px}
+  .world-map-card{width:calc(100vw - 12px);height:calc(100dvh - 12px)}
+  .world-map-card header{min-height:34px;gap:6px;padding:3px 6px;font-size:9px}
+  .world-map-card header span{display:none}
+  .world-map-card button{padding:4px 6px}
+  .map-legend{gap:4px 9px;padding:4px 7px;font-size:8px}
+  .map-intelligence{grid-template-columns:1.2fr 1fr 1fr;gap:4px;padding:4px 6px 5px;font-size:8px}
+  .map-intelligence-mission{grid-column:auto;display:block;padding:4px 5px}
+  .map-intelligence-mission>strong{display:block;margin-bottom:2px}
+  #map-mission-summary{display:block}
+  #map-mission-summary b,#map-mission-summary span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .map-intelligence-panel{padding:4px 5px}
+  #map-player-list,#map-territory-list{max-height:48px;margin-top:2px}
+  #map-player-list>div,#map-territory-list>div{gap:4px;padding:1px 0}
+  #map-player-list strong,#map-territory-list strong{font-size:7px}
+}
+.touch-controls-active #right-flight-stack{top:max(50px,calc(env(safe-area-inset-top) + 44px));right:max(8px,env(safe-area-inset-right));width:124px;max-height:calc(100dvh - 58px);justify-items:end}
+.touch-controls-active [data-touch-control="throttle"].uses-default-placement{left:calc(100% - 174px)}
 .touch-controls-active #radar-panel{width:88px;padding:4px;border-color:rgb(147 203 220 / 15%);background:rgb(4 14 23 / 18%)}
 .touch-controls-active #radar-panel .radar-title{margin-bottom:3px;font-size:8px}
 .touch-controls-active #radar-panel .radar-title span,.touch-controls-active #radar-panel .radar-legend{display:none}
 .touch-controls-active #radar{width:78px;height:78px;background:rgb(2 12 22 / 34%)}
 .touch-controls-active #right-hud-stack{justify-items:end}
 .touch-controls-active :is(#real-players,#city-territories):not(.expanded){width:88px}
-.touch-controls-active :is(#real-players,#city-territories).expanded{width:146px;padding:4px 6px 6px}
-.touch-controls-active #human-player-rows,.touch-controls-active #city-territory-rows{max-height:74px}
+.touch-controls-active :is(#real-players,#city-territories).expanded{width:124px;padding:4px 6px 6px}
+.touch-controls-active #human-player-rows,.touch-controls-active #city-territory-rows{max-height:60px}
 body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(max-width:1100px){.desktop-controls-help{left:20px;width:calc(100vw - 220px);transform:translateY(7px)}.desktop-controls-help.is-visible{transform:translateY(0)}.desktop-controls-help-camera{display:none}}
-@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:6px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px}.reward-feedback{max-width:calc(100vw - 150px);padding:2px 5px;font-size:9px}.touch-stick{width:104px;height:104px}.touch-throttle-lever{width:70px;height:142px}.touch-fire{width:72px;height:72px!important}.pilot-mobile-control-editor{grid-template-columns:1fr}}
+@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:6px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px}.reward-feedback{max-width:calc(100vw - 150px);padding:2px 5px;font-size:9px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
 @media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback{animation:none!important;transition:none!important}}
-.tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:#9fc8d8}.tutorial-crash-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}.tutorial-crash-actions button{min-height:44px}.next-actions[data-tutorial="true"]{border-color:#68dff2;box-shadow:0 0 18px rgb(65 205 231 / 22%)}
+.tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:#9fc8d8}.tutorial-crash-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}.tutorial-crash-actions button{min-height:44px}
 .tutorial-flight-active #contextual-hint,.tutorial-flight-active #dynamic-event-panel,.tutorial-flight-active #mission-panel{display:none!important}
 #real-players, #city-territories {
   width: 100%;
@@ -2002,7 +2039,7 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 .guided-tutorial-panel strong {color:#6ffff0;font-size:20px}
 .guided-tutorial-panel p {margin:8px 0;font-size:16px}
 .guided-tutorial-panel button {margin:4px 8px 0 0;padding:7px 10px}
-.tutorial-flight-active #next-actions, .tutorial-flight-active #dynamic-event, .tutorial-flight-active .contextual-hint {display:none!important}
+.tutorial-flight-active #dynamic-event, .tutorial-flight-active .contextual-hint {display:none!important}
 .garage-cosmetic[aria-pressed=true] {outline:2px solid #5ffff0;background:#173e55}
 @media(max-width:600px){.guided-tutorial-panel{top:58px;padding:8px 12px}.guided-tutorial-panel p{font-size:13px}}
 
