@@ -19,7 +19,6 @@ import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { NextActionSystem, type NextActionCandidate } from './next-action';
 import { GameplayFeedbackSystem } from './gameplay-feedback';
-import { MomentStore, type FlightMoment, type MomentType } from '../../shared/moments.mjs';
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
 import { routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
@@ -869,15 +868,8 @@ let totalDistance = persistedPlayer.totalDistance;
 let distanceCreditProgress = 0;
 let flightDistanceSinceTakeoff = 0;
 const flightRecapElement = document.querySelector<HTMLElement>('#flight-recap')!;
-const momentStore = new MomentStore(8);
 let flightRecap = { startedAt: 0, topSpeed: 0, maxAltitude: 0, kills: 0, discoveries: 0, territories: 0, eventResults: [] as string[], creditsAtStart: 0, xpAtStart: 0, seasonPointsAtStart: 0, recordsAtStart: {} as Record<string, number> };
 let visibleRecap: { title: string; landing?: string } | undefined;
-let visibleMoment: FlightMoment | undefined;
-function createMoment(type: MomentType, title: string, statLine: string, options: { airportId?: string; sourceEventId?: string; screenshotEligible?: boolean } = {}): FlightMoment | undefined {
-  const moment = momentStore.add({ type, cityId, airportId: options.airportId, aircraftType, title, statLine, screenshotEligible: options.screenshotEligible ?? true, sourceEventId: options.sourceEventId, flightId: flightRecap.startedAt ? String(flightRecap.startedAt) : undefined });
-  if (moment && connectionReady()) socket.send(JSON.stringify({ type:'analyticsEvent', event:'moment_created', source:type, metadata:{ aircraftType, cityId } }));
-  return moment;
-}
 function beginFlightRecap(): void {
   flightRecap = { startedAt: Date.now(), topSpeed: 0, maxAltitude: 0, kills: 0, discoveries: 0, territories: 0, eventResults: [], creditsAtStart: serverProfile.credits, xpAtStart: serverProfile.pilotProgress.xp, seasonPointsAtStart: serverProfile.season?.points ?? 0, recordsAtStart: Object.fromEntries(Object.entries(serverProfile.personalRecords).map(([key, record]) => [key, record.value])) };
   visibleRecap = undefined; flightRecapElement.hidden = true;
@@ -892,15 +884,6 @@ function showFlightRecap(title: string, landing?: string, announce = true): void
   lines.push(`+${Math.max(0,serverProfile.credits-flightRecap.creditsAtStart)} CREDITS · +${Math.max(0,serverProfile.pilotProgress.xp-flightRecap.xpAtStart)} XP`);
   const seasonPoints=Math.max(0,(serverProfile.season?.points??0)-flightRecap.seasonPointsAtStart);if(seasonPoints)lines.push(`+${seasonPoints} SEASON POINTS`);
   flightRecapElement.querySelector<HTMLElement>('[data-recap-title]')!.textContent=title; flightRecapElement.querySelector<HTMLElement>('[data-recap-stats]')!.textContent=lines.join('\n'); flightRecapElement.hidden=false;
-  visibleMoment = momentStore.latestSince(flightRecap.startedAt);
-  const momentSection = flightRecapElement.querySelector<HTMLElement>('[data-recap-moment]')!;
-  momentSection.hidden = !visibleMoment;
-  if (visibleMoment) {
-    momentSection.querySelector<HTMLElement>('[data-moment-title]')!.textContent = visibleMoment.title;
-    momentSection.querySelector<HTMLElement>('[data-moment-stat]')!.textContent = visibleMoment.statLine;
-    momentSection.querySelector<HTMLButtonElement>('[data-moment-save]')!.disabled = !visibleMoment.screenshotEligible;
-    if (announce && connectionReady()) socket.send(JSON.stringify({ type:'analyticsEvent', event:'moment_card_viewed', source:visibleMoment.type }));
-  }
   visibleRecap = { title, landing };
   if (announce && connectionReady()) socket.send(JSON.stringify({type:'analyticsEvent',event:'flight_recap_shown'}));
 }
@@ -1004,7 +987,6 @@ const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#targ
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
 const activeContractElement = document.querySelector<HTMLDivElement>('#active-contract')!;
 const contractPanelElement = document.querySelector<HTMLElement>('#contract-panel')!;
-const missionCardElement = document.querySelector<HTMLElement>('#mission-card')!;
 const territoryCaptureElement = document.querySelector<HTMLElement>('#territory-capture')!;
 contractPanelElement.classList.add('hidden');
 const contractTypeElement = document.querySelector<HTMLElement>('#contract-type')!;
@@ -1696,51 +1678,6 @@ function queueAtcCallout(key: string, primaryText: string, secondaryText?: strin
   }
   gameplayFeedback.push({ type: 'atc', primaryText, secondaryText, intensity: 'small' });
 }
-async function copyMomentShareText(moment: FlightMoment): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(moment.shareText);
-  } catch {
-    const fallback = document.createElement('textarea');
-    fallback.value = moment.shareText; fallback.readOnly = true; fallback.style.position = 'fixed'; fallback.style.opacity = '0';
-    document.body.append(fallback); fallback.select(); document.execCommand('copy'); fallback.remove();
-  }
-  showProgressMessage('SHARE TEXT COPIED');
-  if (connectionReady()) socket.send(JSON.stringify({ type:'analyticsEvent', event:'moment_share_text_copied', source:moment.type }));
-}
-
-function saveMomentScreenshot(moment: FlightMoment): void {
-  const output = document.createElement('canvas');
-  output.width = 1080; output.height = 1350;
-  const context = output.getContext('2d');
-  if (!context) { void copyMomentShareText(moment); return; }
-  try {
-    renderer.render(scene, camera);
-    const source = renderer.domElement;
-    const scale = Math.max(output.width / source.width, output.height / source.height);
-    const sourceWidth = output.width / scale; const sourceHeight = output.height / scale;
-    context.drawImage(source, (source.width - sourceWidth) / 2, (source.height - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, output.width, output.height);
-    const gradient = context.createLinearGradient(0, 760, 0, 1350);
-    gradient.addColorStop(0, 'rgba(2,10,22,0)'); gradient.addColorStop(0.45, 'rgba(2,10,22,.72)'); gradient.addColorStop(1, 'rgba(2,10,22,.96)');
-    context.fillStyle = gradient; context.fillRect(0, 0, output.width, output.height);
-    context.fillStyle = '#77dbff'; context.font = '800 34px system-ui'; context.fillText('AIRPORT CHAOS', 64, 1030);
-    context.fillStyle = '#ffffff'; context.font = '900 62px system-ui'; context.fillText(moment.title.toUpperCase(), 64, 1110, 952);
-    context.fillStyle = '#ffda69'; context.font = '700 32px system-ui'; context.fillText(moment.statLine, 64, 1164, 952);
-    context.fillStyle = '#d6e5ef'; context.font = '600 24px system-ui'; context.fillText(`${aircraftDefinitions[aircraftType].callsign} · ${cityId.toUpperCase()}`, 64, 1220);
-    context.fillStyle = '#9eb3c1'; context.font = '600 23px system-ui'; context.fillText('Built by Vaden Software  ·  fly.vadensoftware.com', 64, 1282);
-    output.toBlob((blob) => {
-      if (!blob) { void copyMomentShareText(moment); return; }
-      const url = URL.createObjectURL(blob); const link = document.createElement('a');
-      link.href = url; link.download = `airport-chaos-${moment.type}.png`; link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 2_000);
-    }, 'image/png');
-    showProgressMessage('MOMENT SCREENSHOT SAVED');
-    if (connectionReady()) socket.send(JSON.stringify({ type:'analyticsEvent', event:'moment_screenshot_saved', source:moment.type }));
-  } catch {
-    void copyMomentShareText(moment);
-    showProgressMessage('SCREENSHOT UNAVAILABLE · SHARE TEXT COPIED');
-  }
-}
-
 function queueRewardFeedback(creditDelta = 0, scoreDelta = 0, creditReason = 'Gameplay Reward'): void {
   if (creditDelta > 0) rewardBatchCredits.set(creditReason, (rewardBatchCredits.get(creditReason) ?? 0) + Math.round(creditDelta));
   rewardBatchScore += Math.max(0, Math.round(scoreDelta));
@@ -2231,7 +2168,6 @@ if (cityWorld.discoveries?.length) {
       showProgressMessage(`DISCOVERED: ${definition.name}`);
       gameplayFeedback.push({ type: 'secret', primaryText: definition.type === 'secret' ? 'SECRET DISCOVERED' : 'PLACE DISCOVERED', secondaryText: `${definition.name.toUpperCase()} · +${definition.credits} CREDITS`, intensity: definition.type === 'secret' ? 'major' : 'medium' });
       flightRecap.discoveries += 1;
-      if (definition.type === 'secret') createMoment('secret_discovery', 'SECRET DISCOVERED', definition.name.toUpperCase());
       if (definition.type === 'secret' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'secret_discovered' }));
       updateProgressHud();
       contextualHints.trigger('discovery');
@@ -2642,7 +2578,6 @@ function endRun(message: EndReason, title: string = message): void {
   finalScoreElement.textContent = score.toString();
   crashOverlay.classList.remove('hidden');
   tutorialCrashActions.hidden=!guidedTutorialActive;if(guidedTutorialActive)tutorialEvent('tutorial_crashed',guidedTutorialStep);
-  createMoment('crash', 'CHAOS CRASH', `${Math.round(flightRecap.topSpeed * KNOTS_PER_METER_PER_SECOND).toLocaleString()} KT`);
   showFlightRecap('FLIGHT COMPLETE');
   cameraShakeTime = 0.35;
   currentSpeed = 0;
@@ -2715,8 +2650,6 @@ function restartGame(notifyServer = true): void {
 }
 flightRecapElement.querySelector('[data-recap-fly]')!.addEventListener('click', () => { if(connectionReady()) socket.send(JSON.stringify({type:'analyticsEvent',event:'fly_again_clicked'})); restartGame(); });
 flightRecapElement.querySelector('[data-recap-close]')!.addEventListener('click', () => { flightRecapElement.hidden=true; });
-flightRecapElement.querySelector('[data-moment-copy]')!.addEventListener('click', () => { if (visibleMoment) void copyMomentShareText(visibleMoment); });
-flightRecapElement.querySelector('[data-moment-save]')!.addEventListener('click', () => { if (visibleMoment) saveMomentScreenshot(visibleMoment); });
 
 function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true, notifyServer = true): void {
   if (nextType === aircraftType) return;
@@ -4220,58 +4153,16 @@ function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttemp
   return undefined;
 }
 
-let completedMissionCard: { missionId: string; credits: number; score: number; until: number } | null = null;
+let completedMissionUntil = 0;
 function updateMissionHud(): void {
   const active = serverProfile.missions[cityId]?.active;
   const definition = active && missionForCity(cityId, active.missionId);
-  const foreignCity = !active && profileActiveMissionCity(serverProfile);
-  const foreignAttempt = foreignCity ? serverProfile.missions[foreignCity]?.active : undefined;
-  const completed = !definition && completedMissionCard && Date.now() < completedMissionCard.until
-    ? completedMissionCard : null;
-  missionCardElement.classList.toggle('hidden', !definition && !completed && !foreignAttempt);
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
     missionProgressElement.textContent = `${Math.min(mobileProgress.value, mobileProgress.target)}/${mobileProgress.target}`;
   } else {
-    missionProgressElement.textContent = completed ? 'DONE' : foreignAttempt ? 'AWAY' : '—';
+    missionProgressElement.textContent = Date.now() < completedMissionUntil ? 'DONE' : profileActiveMissionCity(serverProfile) ? 'AWAY' : '—';
   }
-  if (!definition && !completed && !foreignAttempt) return;
-  if (!missionCardElement.firstChild) {
-    const kicker = document.createElement('small'); kicker.className = 'mission-kicker';
-    const title = document.createElement('strong'); title.className = 'mission-title';
-    const detail = document.createElement('p'); detail.className = 'mission-detail';
-    const reward = document.createElement('div'); reward.className = 'mission-reward';
-    const next = document.createElement('button'); next.className = 'mission-next'; next.type = 'button';
-    next.textContent = 'CHOOSE NEXT MISSION'; next.hidden = true;
-    next.addEventListener('click', openPilotMenu);
-    missionCardElement.append(kicker, title, detail, reward, next);
-  }
-  const next = missionCardElement.querySelector<HTMLButtonElement>('.mission-next')!;
-  if (completed) {
-    missionCardElement.querySelector('.mission-kicker')!.textContent = 'MISSION COMPLETE';
-    missionCardElement.querySelector('.mission-title')!.textContent = missionForCity(cityId, completed.missionId)?.displayName ?? 'MISSION';
-    missionCardElement.querySelector('.mission-detail')!.textContent = 'Well flown. Choose what to do next.';
-    missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} +${completed.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} +${completed.score.toLocaleString()} Score`;
-    next.hidden = false;
-    return;
-  }
-  if (foreignAttempt && foreignCity) {
-    missionCardElement.querySelector('.mission-kicker')!.textContent = `MISSION · ${foreignCity.toUpperCase()}`;
-    missionCardElement.querySelector('.mission-title')!.textContent = missionForCity(foreignCity, foreignAttempt.missionId)?.displayName ?? 'ACTIVE MISSION';
-    missionCardElement.querySelector('.mission-detail')!.textContent = `Return to ${foreignCity === 'dallas' ? 'Dallas' : 'Milwaukee'} to continue.`;
-    missionCardElement.querySelector('.mission-reward')!.textContent = 'Only one mission can be active.';
-    next.hidden = false; next.textContent = 'OPEN MISSIONS';
-    return;
-  }
-  if (!definition || !active) return;
-  completedMissionCard = null;
-  const progress = missionProgress(definition, active);
-  missionCardElement.querySelector('.mission-kicker')!.textContent = identityText('mission').toUpperCase();
-  missionCardElement.querySelector('.mission-title')!.textContent = definition.displayName;
-  missionCardElement.querySelector('.mission-detail')!.textContent = playerFacingText(progress.text).replace(/\n+/g, ' · ');
-  next.hidden = false; next.textContent = 'MISSIONS · TAB';
-  const missionCredits = cargoCreditReward(definition.creditReward, aircraftType, 'mission', definition.id, definition.cargoCreditBonus === true);
-  missionCardElement.querySelector('.mission-reward')!.textContent = `${visualLanguage.credits.icon} ${missionCredits.credits.toLocaleString()} Credits${missionCredits.applied ? ' · MAMMOTH CARGO BONUS +40%' : ''} · ${visualLanguage.score.icon} ${definition.scoreReward.toLocaleString()} Score`;
 }
 
 function pilotMenuData(): PilotMenuData {
@@ -5782,7 +5673,6 @@ function awardNearMiss(): void {
   window.clearTimeout(nearMissMessageTimer);
   nearMissMessageTimer = window.setTimeout(() => nearMissMessageElement.classList.add('hidden'), 1000);
   playNearMissSound();
-  createMoment('near_miss', 'CLOSE CALL', `${aircraftDefinitions[aircraftType].callsign} NEAR MISS`);
 }
 
 function updatePlayerInteractions(): void {
@@ -6818,18 +6708,11 @@ if (chaosQaMode) {
       <option value="cargoRush">CARGO RUSH</option>
       <option value="soloAirportSprint">SOLO AIRPORT SPRINT</option>
     </select>
-    <div><button type="button" data-chaos-qa="start">START</button><button type="button" data-chaos-qa="end">FAIL</button><button type="button" data-chaos-qa="reset">RESET</button><button type="button" data-chaos-qa="moment">MOMENT CARD</button></div>`;
+    <div><button type="button" data-chaos-qa="start">START</button><button type="button" data-chaos-qa="end">FAIL</button><button type="button" data-chaos-qa="reset">RESET</button></div>`;
   const select = panel.querySelector<HTMLSelectElement>('select')!;
   panel.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-chaos-qa]');
     if (!button || !connectionReady()) return;
-    if (button.dataset.chaosQa === 'moment') {
-      if (!flightRecap.startedAt) beginFlightRecap();
-      flightRecap.startedAt = Date.now() - 30_000;
-      createMoment('perfect_landing', 'PERFECT LANDING', '943/1000 AT METRO CENTRAL AIRPORT');
-      showFlightRecap('FLIGHT COMPLETE');
-      return;
-    }
     socket.send(JSON.stringify({ type: 'chaosQa', action: button.dataset.chaosQa, qaEvent: select.value }));
   });
   document.body.append(panel);
@@ -7172,13 +7055,13 @@ socket.addEventListener('message', (event) => {
       updateMissionHud();
     }
   } else if (message.type === 'missionResult') {
-    if (message.ok && message.attemptId) { activeMissionAttemptId = message.attemptId; completedMissionCard = null; }
+    if (message.ok && message.attemptId) { activeMissionAttemptId = message.attemptId; completedMissionUntil = 0; }
     showProgressMessage(message.ok ? 'MISSION ACCEPTED' : (message.reason ?? 'MISSION UNAVAILABLE'));
     if (message.ok && pilotMenu.isOpen()) pilotMenu.close();
     else if (pilotMenu.isOpen()) renderPilotMenu();
   } else if (message.type === 'missionCompleted') {
     activeMissionAttemptId = undefined;
-    completedMissionCard = { missionId: message.missionId, credits: message.credits, score: message.score, until: Date.now() + 12_000 };
+    completedMissionUntil = Date.now() + 12_000;
     score += message.score;
     recordBestScore(score);
     updateScoreDisplay();
@@ -7188,7 +7071,7 @@ socket.addEventListener('message', (event) => {
     sendPlayerUpdate();
   } else if (message.type === 'missionFailed') {
     activeMissionAttemptId = undefined;
-    completedMissionCard = null;
+    completedMissionUntil = 0;
     showProgressMessage(`MISSION FAILED · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · ${message.reason}`);
     updateMissionHud();
   } else if (message.type === 'eventState') {
@@ -7205,7 +7088,6 @@ socket.addEventListener('message', (event) => {
     updateScoreDisplay();
     showProgressMessage(message.reason);
     flightRecap.eventResults.push(`${message.reason} · +${message.credits} CREDITS`);
-    createMoment(cityEvent?.eventType === 'stormLanding' ? 'storm_landing' : cityEvent?.eventType === 'fogApproach' ? 'fog_landing' : 'chaos_event_complete', message.reason, `+${message.credits.toLocaleString()} CREDITS`, { sourceEventId: message.eventId });
     sendPlayerUpdate();
   } else if (message.type === 'eventProgress') {
     showProgressMessage(message.message);
@@ -7321,15 +7203,12 @@ socket.addEventListener('message', (event) => {
     queueAtcCallout(`landing-${message.grade}`, message.grade === 'ROUGH' ? 'TOWER: ROUGH LANDING' : 'TOWER: LANDING CONFIRMED', message.grade === 'PERFECT' || message.grade === 'LEGENDARY' ? 'SMOOTH TOUCHDOWN' : undefined);
     if (message.grade === 'PERFECT' || message.grade === 'LEGENDARY') {
       const airportName = airports.find((airport) => airport.id === message.airportId)?.name ?? 'THE AIRPORT';
-      createMoment(message.grade === 'LEGENDARY' ? 'legendary_landing' : 'perfect_landing', `${message.grade} LANDING`, `${message.quality}/1000 AT ${airportName.toUpperCase()}`, { airportId: message.airportId });
     }
     if (visibleRecap) showFlightRecap(visibleRecap.title, grade, false);
   } else if (message.type === 'pilotLevelUp') {
     gameplayFeedback.push({ type: 'pilot-level', primaryText: `PILOT LEVEL ${message.level}`, secondaryText: message.title ? `TITLE UNLOCKED — ${message.title}` : undefined, intensity: 'major' });
-    createMoment('level_up', `PILOT LEVEL ${message.level}`, message.title ? `TITLE UNLOCKED — ${message.title}` : 'NEW LEVEL REACHED');
   } else if (message.type === 'weeklyRewardClaimed') {
     gameplayFeedback.push({ type: 'weekly', primaryText: 'WEEKLY REWARD', secondaryText: `#${message.reward.rank} · +${message.reward.credits.toLocaleString()} CREDITS · ${message.reward.badge}`, intensity: 'major' });
-    createMoment('weekly_reward', 'WEEKLY REWARD', `#${message.reward.rank} · ${message.reward.badge}`);
   } else if (message.type === 'cosmeticResult') {
     aircraftGarage.showActionResult(message.ok ? `${message.action.toUpperCase()} COMPLETE` : (message.reason ?? 'COSMETIC UNAVAILABLE'));
   } else if (message.type === 'cosmeticChanged') {
@@ -7429,7 +7308,6 @@ socket.addEventListener('message', (event) => {
     }
     if (message.killerId === localPlayerId && message.cause !== 'collision') {
       flightRecap.kills += 1;
-      createMoment('combat_kill', 'DOGFIGHT WIN', `${cityHumanRoster.get(message.playerId)?.displayName ?? 'HOSTILE PILOT'} DESTROYED`);
       gameplayFeedback.push({ type: 'combat', primaryText: 'DESTROYED', secondaryText: message.killerDisplayName.toUpperCase(), intensity: 'medium' });
       const destroyedHuman = cityHumanRoster.get(message.playerId)?.displayName;
       score = Math.max(score, message.killerScore);

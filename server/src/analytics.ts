@@ -22,7 +22,6 @@ export type AnalyticsEventName =
   | 'city_entered' | 'city_exited' | 'intercity_route_started' | 'intercity_route_completed' | 'intercity_route_failed' | 'city_discovery_found' | 'city_airport_landed'
   | 'chaos_event_offered' | 'chaos_event_accepted' | 'chaos_event_skipped' | 'chaos_event_completed' | 'chaos_event_failed'
   | 'chaos_weather_zone_entered' | 'chaos_weather_zone_exited' | 'chaos_event_reward_claimed'
-  | 'moment_created' | 'moment_card_viewed' | 'moment_share_text_copied' | 'moment_screenshot_saved' | 'photo_mode_opened_from_moment'
   | 'input_mode_detected' | 'touch_controls_enabled' | 'graphics_quality_changed' | 'mobile_layout_used' | 'photo_mode_touch_opened'
   | 'tutorial_started' | 'tutorial_step_completed' | 'tutorial_completed' | 'tutorial_skipped' | 'tutorial_retried' | 'tutorial_crashed';
 
@@ -53,7 +52,6 @@ const validEventNames = new Set<AnalyticsEventName>([
   'city_entered', 'city_exited', 'intercity_route_started', 'intercity_route_completed', 'intercity_route_failed', 'city_discovery_found', 'city_airport_landed',
   'chaos_event_offered', 'chaos_event_accepted', 'chaos_event_skipped', 'chaos_event_completed', 'chaos_event_failed',
   'chaos_weather_zone_entered', 'chaos_weather_zone_exited', 'chaos_event_reward_claimed',
-  'moment_created', 'moment_card_viewed', 'moment_share_text_copied', 'moment_screenshot_saved', 'photo_mode_opened_from_moment',
   'input_mode_detected', 'touch_controls_enabled', 'graphics_quality_changed', 'mobile_layout_used', 'photo_mode_touch_opened',
   'tutorial_started', 'tutorial_step_completed', 'tutorial_completed', 'tutorial_skipped', 'tutorial_retried', 'tutorial_crashed',
 ]);

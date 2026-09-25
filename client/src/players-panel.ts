@@ -14,6 +14,8 @@ const statusLabel: Record<HumanRosterEntry['status'], string> = {
   spawnSafe: '🛡 SPAWN SAFE',
 };
 
+const mobilePanelDefault = (): boolean => matchMedia('(pointer: coarse)').matches || innerWidth <= 900;
+
 // Five stable row slots; roster updates only change text that actually changed.
 export class PlayersPanel {
   private readonly title = document.createElement('span');
@@ -42,10 +44,9 @@ export class PlayersPanel {
     row.append(identity, score, level, status);
     return { row, name, ownership, dots, score, level, status };
   });
-  private collapsed = true;
+  private collapsed = mobilePanelDefault();
 
   constructor(root: HTMLElement) {
-    try { this.collapsed = localStorage.getItem('airport-chaos-players-expanded-v2') !== '1'; } catch { /* default collapsed */ }
     this.toggle.type = 'button';
     this.toggle.className = 'flight-panel-summary';
     this.content.id = 'human-player-rows';
@@ -58,7 +59,6 @@ export class PlayersPanel {
     root.append(this.toggle, this.content);
     this.toggle.onclick = () => {
       this.collapsed = !this.collapsed;
-      try { localStorage.setItem('airport-chaos-players-expanded-v2', this.collapsed ? '0' : '1'); } catch { /* optional preference */ }
       this.applyCollapse();
     };
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
@@ -121,7 +121,7 @@ export class CityTerritoriesPanel {
   private readonly toggle = document.createElement('button');
   private readonly content = document.createElement('div');
   private readonly rows = Array.from({ length: 8 }, () => CityTerritoriesPanel.createRow());
-  private collapsed = true;
+  private collapsed = mobilePanelDefault();
 
   private static createRow() {
     const row = document.createElement('div');
@@ -135,7 +135,6 @@ export class CityTerritoriesPanel {
   }
 
   constructor(root: HTMLElement) {
-    try { this.collapsed = localStorage.getItem('airport-chaos-city-territories-expanded-v2') !== '1'; } catch { /* default collapsed */ }
     this.toggle.type = 'button';
     this.toggle.className = 'flight-panel-summary';
     this.content.id = 'city-territory-rows';
@@ -146,7 +145,6 @@ export class CityTerritoriesPanel {
     root.append(this.toggle, this.content);
     this.toggle.onclick = () => {
       this.collapsed = !this.collapsed;
-      try { localStorage.setItem('airport-chaos-city-territories-expanded-v2', this.collapsed ? '0' : '1'); } catch { /* optional preference */ }
       this.applyCollapse();
     };
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });

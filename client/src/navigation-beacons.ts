@@ -33,9 +33,7 @@ export class NavigationBeaconSystem {
   private readonly waypointMesh: THREE.Mesh;
   private readonly waypointLabel = document.createElement('div');
   private readonly projected = new THREE.Vector3();
-  private readonly missionHud = document.querySelector<HTMLElement>('#mission-card');
-  private readonly rightHud = document.querySelector<HTMLElement>('#right-hud-stack');
-  private missionHudBounds: DOMRect | undefined;
+  private readonly rightHud = document.querySelector<HTMLElement>('#right-flight-stack');
   private rightHudBounds: DOMRect | undefined;
   private nextHudBoundsAt = 0;
   private enabled = true;
@@ -88,9 +86,6 @@ export class NavigationBeaconSystem {
     const now = performance.now();
     if (now >= this.nextHudBoundsAt) {
       this.nextHudBoundsAt = now + 500;
-      this.missionHudBounds = this.missionHud && !this.missionHud.classList.contains('hidden')
-        ? this.missionHud.getBoundingClientRect()
-        : undefined;
       this.rightHudBounds = this.rightHud?.getBoundingClientRect();
     }
     const candidates = this.entries
@@ -158,7 +153,7 @@ export class NavigationBeaconSystem {
   }
 
   isHudArea(x: number, y: number): boolean {
-    return this.overlapsHudPanel(this.missionHudBounds, x, y) || this.overlapsHudPanel(this.rightHudBounds, x, y);
+    return this.overlapsHudPanel(this.rightHudBounds, x, y);
   }
 
   private overlapsHudPanel(bounds: DOMRect | undefined, x: number, y: number): boolean {

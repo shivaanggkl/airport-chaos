@@ -16,7 +16,8 @@ test('mobile radar stays available and shares the existing map action',()=>{
   assert.match(html,/id="radar-panel" role="button" tabindex="0"/);
   assert.match(main,/flightMapButtonElement\.addEventListener\('click', toggleWorldMapFromHud\);\s*radarPanelElement\.addEventListener\('click', toggleWorldMapFromHud\);/);
   assert.doesNotMatch(css,/\.touch-controls-active :is\([^)]*#radar-panel/);
-  assert.match(css,/\.touch-controls-active #radar-panel\{[^}]*top:[^;}]+;[^}]*width:88px;/);
+  assert.match(css,/\.touch-controls-active #right-flight-stack\{[^}]*top:[^;}]+;[^}]*width:146px;/);
+  assert.match(css,/\.touch-controls-active #radar-panel\{[^}]*width:88px;/);
 });
 
 test('mobile pilot menu protects active taps and uses a vertical content layout',()=>{

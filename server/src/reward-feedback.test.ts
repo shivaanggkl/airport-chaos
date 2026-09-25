@@ -21,14 +21,31 @@ test('reward feedback is anchored once inside the shared Credits and Score HUD g
 test('mission and status notices share a stable ordered HUD layer', () => {
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
-  assert.match(html, /id="mission-status-layer"[\s\S]*id="mission-card"[\s\S]*id="flight-notifications"[\s\S]*id="world-status"[\s\S]*id="progress-message"/);
+  assert.match(html, /id="mission-status-layer"[\s\S]*id="flight-notifications"[\s\S]*id="world-status"[\s\S]*id="progress-message"/);
+  assert.doesNotMatch(html, /id="mission-card"/);
+  assert.match(html, /class="flight-hud-stat flight-hud-mission"[\s\S]*id="mission-progress"/);
   assert.match(css, /\.mission-status-layer\s*\{[^}]*position:\s*fixed;[^}]*top:\s*74px;[^}]*display:\s*grid;[^}]*gap:\s*8px;/);
-  assert.match(css, /\.mission-card\s*\{[^}]*position:\s*static;/);
-  assert.doesNotMatch(css, /:has\(#reward-feedback\.show\)\s+\.mission-card/);
 });
 
 test('transient flight notices size to their content instead of the mission column', () => {
   const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
   assert.match(css, /\.flight-notifications\s*\{[^}]*justify-items:\s*start;[^}]*width:\s*fit-content;/);
   assert.match(css, /\.flight-notifications \.world-status\s*\{[^}]*padding:\s*4px 8px;[^}]*white-space:\s*nowrap;/);
+});
+
+test('Moment of Flight share and screenshot UI is removed', () => {
+  const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(`${html}\n${main}\n${css}`, /data-moment|MOMENT OF THE FLIGHT|COPY SHARE TEXT|SAVE SCREENSHOT|copyMomentShareText|saveMomentScreenshot/);
+});
+
+test('Radar, Players, and Territories share the responsive top-right stack', () => {
+  const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  const panels = readFileSync(new URL('../../client/src/players-panel.ts', import.meta.url), 'utf8');
+  assert.match(html, /id="right-flight-stack"[\s\S]*id="radar-panel"[\s\S]*id="right-hud-stack"[\s\S]*id="real-players"[\s\S]*id="city-territories"/);
+  assert.match(css, /#right-flight-stack\s*\{[^}]*position:\s*fixed;[^}]*top:\s*max\(56px/);
+  assert.match(css, /#radar-panel\s*\{[^}]*background:\s*rgb\(3 14 23 \/ 22%\);/);
+  assert.match(panels, /matchMedia\('\(pointer: coarse\)'\)\.matches \|\| innerWidth <= 900/);
 });

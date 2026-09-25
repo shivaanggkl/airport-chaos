@@ -58,7 +58,6 @@
       <div id="fighter-trial-indicator" class="fighter-trial-indicator hidden" role="status"></div>
     </div>
     <div id="mission-status-layer" class="mission-status-layer">
-      <aside id="mission-card" class="mission-card hidden" aria-label="Active mission"></aside>
       <div id="flight-notifications" class="flight-notifications" aria-live="polite">
         <div id="world-status" class="world-status hidden">Leaving City 1</div>
         <div id="progress-message" class="hidden"></div>
@@ -66,22 +65,24 @@
       </div>
     </div>
     <aside id="territory-capture" class="territory-capture hidden" role="status" aria-live="polite"></aside>
-    <div id="right-hud-stack">
-      <aside id="real-players" aria-label="Human players"></aside>
-      <aside id="city-territories" aria-label="City territories"></aside>
+    <div id="right-flight-stack">
+      <aside id="radar-panel" role="button" tabindex="0" aria-label="Open map from navigation radar" title="Open map">
+        <div class="radar-title">RADAR <span>3,000</span></div>
+        <canvas id="radar" width="180" height="180"></canvas>
+        <div class="radar-legend" id="radar-legend"></div>
+      </aside>
+      <div id="right-hud-stack">
+        <aside id="real-players" aria-label="Human players"></aside>
+        <aside id="city-territories" aria-label="City territories"></aside>
+      </div>
     </div>
-    <aside id="radar-panel" role="button" tabindex="0" aria-label="Open map from navigation radar" title="Open map">
-      <div class="radar-title">RADAR <span>3,000</span></div>
-      <canvas id="radar" width="180" height="180"></canvas>
-      <div class="radar-legend" id="radar-legend"></div>
-    </aside>
     <aside id="next-actions" class="next-actions" aria-label="Suggested activities"></aside>
     <aside id="desktop-controls-help" class="desktop-controls-help" hidden aria-hidden="true" aria-label="Desktop flight controls">
       <span><kbd>W/S</kbd> Speed</span><span><kbd>←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Altitude</span>
       <span><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span><span><kbd>H</kbd> Controls</span>
       <span class="desktop-controls-help-camera"><kbd>Mouse Drag</kbd> Camera</span><span class="desktop-controls-help-camera"><kbd>Mouse Wheel</kbd> Zoom</span>
     </aside>
-    <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><section data-recap-moment hidden><small>MOMENT OF THE FLIGHT</small><b data-moment-title></b><span data-moment-stat></span><div><button type="button" data-moment-copy>COPY SHARE TEXT</button><button type="button" data-moment-save>SAVE SCREENSHOT</button></div></section><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
+    <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
     <div id="gameplay-feedback" hidden aria-live="polite"></div>
     <aside id="contextual-hint" class="contextual-hint hidden" aria-live="polite">
       <strong id="contextual-hint-title"></strong>
