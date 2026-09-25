@@ -2,6 +2,7 @@ import type { FlightAction } from './flight-input';
 import {
   joystickActions,
   pinchZoomFactor,
+  throttleLeverState,
   normalizeGraphicsQuality,
   normalizeTouchMode,
   resolvedGraphicsQuality,
@@ -12,6 +13,7 @@ import {
 export {
   joystickActions,
   pinchZoomFactor,
+  throttleLeverState,
   normalizeGraphicsQuality,
   normalizeTouchMode,
   resolvedGraphicsQuality,
@@ -23,30 +25,39 @@ const TOUCH_KEY = 'airport-chaos-touch-controls-v1';
 const QUALITY_KEY = 'airport-chaos-graphics-quality-v1';
 const LAYOUT_KEY = 'airport-chaos-mobile-layout-v1';
 
-export type MobileControlId = 'stick' | 'altitude' | 'fire';
+export type MobileControlId = 'stick' | 'throttle' | 'fire';
 export type MobileControlPlacement = { x: number; y: number; scale: number };
 export type MobileControlLayout = Record<MobileControlId, MobileControlPlacement>;
+export type MobileControlPlacementLimits = Record<keyof MobileControlPlacement, { min: number; max: number; step: number }>;
 
 const defaultLayout: MobileControlLayout = {
-  stick: { x: 13, y: 76, scale: 1 },
-  altitude: { x: 87, y: 50, scale: 1 },
-  fire: { x: 87, y: 76, scale: 1.08 },
+  stick: { x: 14, y: 72, scale: 1 },
+  throttle: { x: 87, y: 45, scale: 0.95 },
+  fire: { x: 87, y: 80, scale: 1 },
 };
 
-const controlActions: Record<'stick' | 'aim', FlightAction[]> = {
-  stick: ['yawLeft', 'yawRight', 'rollLeft', 'rollRight', 'throttleUp', 'throttleDown', 'boost'],
+export const mobileControlPlacementLimits: Record<MobileControlId, MobileControlPlacementLimits> = {
+  stick: { x: { min: 10, max: 40, step: 1 }, y: { min: 45, max: 82, step: 1 }, scale: { min: 0.75, max: 1.25, step: 0.05 } },
+  throttle: { x: { min: 62, max: 90, step: 1 }, y: { min: 30, max: 66, step: 1 }, scale: { min: 0.75, max: 1.25, step: 0.05 } },
+  fire: { x: { min: 60, max: 90, step: 1 }, y: { min: 62, max: 88, step: 1 }, scale: { min: 0.8, max: 1.3, step: 0.05 } },
+};
+
+const controlActions: Record<'stick' | 'throttle' | 'aim', FlightAction[]> = {
+  stick: ['yawLeft', 'yawRight', 'rollLeft', 'rollRight', 'pitchUp', 'pitchDown'],
+  throttle: ['boost'],
   aim: ['aimLeft', 'aimRight', 'aimUp', 'aimDown'],
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const cloneLayout = (layout: MobileControlLayout): MobileControlLayout => structuredClone(layout);
 
-function safePlacement(value: unknown, fallback: MobileControlPlacement): MobileControlPlacement {
+function safePlacement(control: MobileControlId, value: unknown, fallback: MobileControlPlacement): MobileControlPlacement {
   const stored = value && typeof value === 'object' ? value as Partial<MobileControlPlacement> : {};
+  const limits = mobileControlPlacementLimits[control];
   return {
-    x: clamp(Number.isFinite(stored.x) ? stored.x! : fallback.x, 12, 88),
-    y: clamp(Number.isFinite(stored.y) ? stored.y! : fallback.y, 35, 76),
-    scale: clamp(Number.isFinite(stored.scale) ? stored.scale! : fallback.scale, 0.75, 1.35),
+    x: clamp(Number.isFinite(stored.x) ? stored.x! : fallback.x, limits.x.min, limits.x.max),
+    y: clamp(Number.isFinite(stored.y) ? stored.y! : fallback.y, limits.y.min, limits.y.max),
+    scale: clamp(Number.isFinite(stored.scale) ? stored.scale! : fallback.scale, limits.scale.min, limits.scale.max),
   };
 }
 
@@ -54,9 +65,9 @@ function preferredLayout(): MobileControlLayout {
   try {
     const stored = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? 'null') as Partial<MobileControlLayout> | null;
     return {
-      stick: safePlacement(stored?.stick, defaultLayout.stick),
-      altitude: safePlacement(stored?.altitude, defaultLayout.altitude),
-      fire: safePlacement(stored?.fire, defaultLayout.fire),
+      stick: safePlacement('stick', stored?.stick, defaultLayout.stick),
+      throttle: safePlacement('throttle', stored?.throttle, defaultLayout.throttle),
+      fire: safePlacement('fire', stored?.fire, defaultLayout.fire),
     };
   } catch {
     return cloneLayout(defaultLayout);
@@ -76,6 +87,11 @@ export class MobileInputControls {
   private layout = preferredLayout();
   private active = new Set<FlightAction>();
   private joystickPointer: number | undefined;
+  private throttlePointer: number | undefined;
+  private throttleTarget: number | undefined;
+  private throttleBoostRequested = false;
+  private lastBoostReady: boolean | undefined;
+  private boostReadyPulseTimer: number | undefined;
   private aimPointer: number | undefined;
   private aimStart = { x: 0, y: 0 };
 
@@ -83,11 +99,13 @@ export class MobileInputControls {
     private root: HTMLElement,
     private aimTarget: HTMLElement,
     private setAction: (action: FlightAction, active: boolean) => void,
+    private onThrottleInput?: (throttle: number) => void,
   ) {
     root.querySelectorAll<HTMLElement>('[data-hold]').forEach((button) => {
       this.bindHold(button, button.dataset.hold as FlightAction);
     });
     this.bindStick(root.querySelector<HTMLElement>('[data-touch-stick]')!);
+    this.bindThrottle(root.querySelector<HTMLElement>('[data-touch-throttle]')!);
     this.bindAimTarget();
     window.addEventListener('blur', () => this.reset());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset(); });
@@ -99,6 +117,39 @@ export class MobileInputControls {
 
   getMode() { return this.mode; }
   isTouchLayout() { return this.deviceEnabled(); }
+  getThrottleTarget() { return this.root.hidden ? undefined : this.throttleTarget; }
+
+  setThrottleState(throttle: number) {
+    const value = clamp(throttle, 0, 1);
+    this.throttleTarget = value;
+    this.renderThrottle(value, false);
+  }
+
+  syncFlightState(throttle: number, boostMeter: number, boostActive: boolean) {
+    const lever = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
+    if (!lever) return;
+    const ready = boostMeter >= 99.5;
+    lever.classList.toggle('boost-ready', ready);
+    lever.classList.toggle('boost-recharging', !ready);
+    lever.classList.toggle('is-boosting', boostActive);
+    lever.dataset.boostMeter = Math.round(boostMeter).toString();
+    if (this.lastBoostReady === false && ready) {
+      lever.classList.remove('boost-ready-pulse');
+      void lever.offsetWidth;
+      lever.classList.add('boost-ready-pulse');
+      window.clearTimeout(this.boostReadyPulseTimer);
+      this.boostReadyPulseTimer = window.setTimeout(() => lever.classList.remove('boost-ready-pulse'), 900);
+    }
+    this.lastBoostReady = ready;
+    if (this.throttleBoostRequested && boostMeter <= 0.05) {
+      this.throttleBoostRequested = false;
+      this.throttleTarget = 1;
+      this.apply([], 'throttle');
+      this.renderThrottle(1, false);
+    } else if (this.throttleTarget === undefined) {
+      this.renderThrottle(clamp(throttle, 0, 1), false);
+    }
+  }
 
   setMode(mode: TouchControlsMode) {
     this.mode = normalizeTouchMode(mode);
@@ -110,7 +161,7 @@ export class MobileInputControls {
   getLayout() { return cloneLayout(this.layout); }
 
   setPlacement(control: MobileControlId, next: Partial<MobileControlPlacement>) {
-    this.layout[control] = safePlacement({ ...this.layout[control], ...next }, defaultLayout[control]);
+    this.layout[control] = safePlacement(control, { ...this.layout[control], ...next }, defaultLayout[control]);
     this.persistLayout();
     this.applyLayout();
   }
@@ -126,11 +177,17 @@ export class MobileInputControls {
     for (const action of this.active) this.setAction(action, false);
     this.active.clear();
     this.joystickPointer = undefined;
+    this.throttlePointer = undefined;
+    this.throttleTarget = undefined;
+    this.throttleBoostRequested = false;
     this.aimPointer = undefined;
     this.root.querySelectorAll<HTMLElement>('.is-active').forEach((element) => element.classList.remove('is-active'));
     const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
     stick?.style.removeProperty('--touch-x');
     stick?.style.removeProperty('--touch-y');
+    const throttle = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
+    window.clearTimeout(this.boostReadyPulseTimer);
+    throttle?.classList.remove('is-dragging', 'is-boosting', 'boost-ready-pulse');
   }
 
   private deviceEnabled() {
@@ -210,7 +267,6 @@ export class MobileInputControls {
       this.apply(joystickActions(x, y), 'stick');
       stick.style.setProperty('--touch-x', `${x * 30}px`);
       stick.style.setProperty('--touch-y', `${y * 30}px`);
-      stick.classList.toggle('is-boosting', y < -0.82);
     };
     stick.addEventListener('pointerdown', (event) => {
       event.preventDefault();
@@ -224,7 +280,6 @@ export class MobileInputControls {
     const stop = (event: PointerEvent) => {
       if (this.joystickPointer !== event.pointerId) return;
       this.apply([], 'stick');
-      stick.classList.remove('is-boosting');
       stick.style.removeProperty('--touch-x');
       stick.style.removeProperty('--touch-y');
       this.joystickPointer = undefined;
@@ -232,6 +287,53 @@ export class MobileInputControls {
     };
     stick.addEventListener('pointerup', stop);
     stick.addEventListener('pointercancel', stop);
+  }
+
+  private renderThrottle(throttle: number, boost: boolean, handlePercent?: number) {
+    const lever = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
+    if (!lever) return;
+    const normalHandle = 100 - clamp(throttle, 0, 1) * 82;
+    lever.style.setProperty('--throttle-y', `${handlePercent ?? normalHandle}%`);
+    lever.setAttribute('aria-valuenow', Math.round(throttle * 100).toString());
+    lever.setAttribute('aria-valuetext', boost ? 'Boost' : `${Math.round(throttle * 100)}% throttle`);
+    lever.dataset.throttle = throttle.toFixed(2);
+  }
+
+  private bindThrottle(lever: HTMLElement) {
+    const move = (event: PointerEvent) => {
+      const rect = lever.getBoundingClientRect();
+      const state = throttleLeverState(event.clientY, rect.top, rect.height);
+      this.throttleTarget = state.throttle;
+      this.throttleBoostRequested = state.boost;
+      this.renderThrottle(state.throttle, state.boost, state.handlePercent);
+      this.apply(state.boost ? ['boost'] : [], 'throttle');
+      this.onThrottleInput?.(state.throttle);
+    };
+    lever.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      lever.setPointerCapture(event.pointerId);
+      lever.classList.add('is-dragging');
+      this.throttlePointer = event.pointerId;
+      move(event);
+    });
+    lever.addEventListener('pointermove', (event) => {
+      if (this.throttlePointer === event.pointerId) move(event);
+    });
+    const stop = (event: PointerEvent) => {
+      if (this.throttlePointer !== event.pointerId) return;
+      if (this.throttleBoostRequested) {
+        this.throttleTarget = 1;
+        this.renderThrottle(1, false);
+      }
+      this.throttleBoostRequested = false;
+      this.apply([], 'throttle');
+      lever.classList.remove('is-dragging', 'is-boosting');
+      this.throttlePointer = undefined;
+      if (lever.hasPointerCapture(event.pointerId)) lever.releasePointerCapture(event.pointerId);
+    };
+    lever.addEventListener('pointerup', stop);
+    lever.addEventListener('pointercancel', stop);
+    lever.addEventListener('lostpointercapture', (event) => stop(event as PointerEvent));
   }
 
   private bindAimTarget() {

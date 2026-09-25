@@ -15,6 +15,14 @@ test('reward feedback is anchored once inside the shared Credits and Score HUD g
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
   assert.equal(html.match(/id="reward-feedback"/g)?.length, 1);
   assert.match(html, /class="flight-hud-reward-anchor"[\s\S]*id="credits"[\s\S]*id="score"[\s\S]*id="reward-feedback"/);
-  const notificationStack = html.match(/id="flight-notifications"[\s\S]*?<\/div>\s*<div id="right-hud-stack"/)?.[0] ?? '';
-  assert.doesNotMatch(notificationStack, /id="reward-feedback"/);
+  assert.doesNotMatch(html, /id="flight-notifications"[^>]*>[\s\S]*id="reward-feedback"/);
+});
+
+test('mission and status notices share a stable ordered HUD layer', () => {
+  const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  assert.match(html, /id="mission-status-layer"[\s\S]*id="mission-card"[\s\S]*id="flight-notifications"[\s\S]*id="world-status"[\s\S]*id="progress-message"/);
+  assert.match(css, /\.mission-status-layer\s*\{[^}]*position:\s*fixed;[^}]*top:\s*74px;[^}]*display:\s*grid;[^}]*gap:\s*8px;/);
+  assert.match(css, /\.mission-card\s*\{[^}]*position:\s*static;/);
+  assert.doesNotMatch(css, /:has\(#reward-feedback\.show\)\s+\.mission-card/);
 });

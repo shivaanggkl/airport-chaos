@@ -1252,14 +1252,11 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 }
 
 .world-status {
-  position: fixed;
-  top: 56px;
-  left: 50%;
   color: #ffcf72;
   font-size: 9px;
-  transform: translateX(-50%);
 }
-.mission-card { position: fixed; top: 56px; left: 14px; z-index: 4; width: min(330px, calc(100vw - 28px)); box-sizing: border-box; padding: 5px 8px; border-left: 2px solid var(--meaning-mission); background: linear-gradient(90deg, rgb(5 20 31 / 58%), transparent); color: #e9faff; font: 700 11px/1.3 system-ui, sans-serif; pointer-events: auto; }
+.mission-status-layer { position: fixed; top: 74px; left: 14px; z-index: 12; display: grid; gap: 8px; width: min(330px, calc(100vw - 28px)); pointer-events: none; }
+.mission-card { position: static; width: 100%; box-sizing: border-box; padding: 5px 8px; border-left: 2px solid var(--meaning-mission); background: linear-gradient(90deg, rgb(5 20 31 / 58%), transparent); color: #e9faff; font: 700 11px/1.3 system-ui, sans-serif; pointer-events: auto; }
 .mission-card.hidden { display: none; }
 .territory-capture { padding: 7px 10px; border: 1px solid rgb(255 184 73 / 65%); border-radius: 6px; background: rgb(38 28 10 / 88%); color: #ffda91; font: 800 11px/1.35 system-ui, sans-serif; letter-spacing: .04em; white-space: pre-line; }
 .territory-capture.hidden { display: none; }
@@ -1299,7 +1296,6 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 }
 .reward-feedback.show { opacity: 1; transform: translateY(0); }
 .reward-feedback.hidden { display: none; }
-body:has(#reward-feedback.show) .mission-card { top: 74px; }
 body:has(#world-map-overlay:not(.hidden)) #reward-feedback,
 body:has(#pilot-menu-overlay:not([hidden])) #reward-feedback,
 body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
@@ -1501,7 +1497,7 @@ body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
 #leader-message { top: 104px; color: #ffda72; }
 #near-miss-message,
 #checkpoint-message { top: 138px; color: #b7f4ca; }
-#progress-message { top: 172px; color: #bdebf4; }
+#progress-message { color: #bdebf4; }
 #combat-message { top: 206px; color: #ffd0bf; }
 #combat-message.hit-confirmed { color: #ffdc89; background: rgb(5 18 31 / 82%); }
 
@@ -1547,11 +1543,18 @@ body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
 #right-hud-stack { position: fixed; z-index: 4; top: 56px; right: 14px; display: grid; justify-items: end; gap: 4px; max-height: calc(100dvh - 70px); pointer-events: none; }
 
 .touch-controls{position:fixed;z-index:20;inset:0;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
-.touch-controls button,.touch-stick,.touch-altitude{pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent}
+.touch-controls button,.touch-stick,.touch-throttle-lever{pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent}
 [data-touch-control]{position:absolute;left:var(--touch-left);top:var(--touch-top);transform:translate(-50%,-50%) scale(var(--touch-scale,1));transform-origin:center}
 .touch-stick{width:116px;height:116px;border:2px solid rgb(139 224 239 / 40%);border-radius:50%;background:rgb(4 20 32 / 34%);box-shadow:inset 0 0 22px rgb(71 191 215 / 12%)}
-.touch-stick::before{content:'';position:absolute;top:9px;left:31px;width:50px;height:18px;border-top:2px solid rgb(255 211 106 / 55%);border-radius:50%}.touch-stick em,.touch-stick small{position:absolute;left:50%;translate:-50% 0;color:#eafcff;font:800 8px ui-monospace,monospace;letter-spacing:.05em;pointer-events:none}.touch-stick em{top:5px;color:#ffe18b;font-style:normal}.touch-stick small{bottom:6px}.touch-stick i{position:absolute;left:50%;top:50%;width:44px;height:44px;translate:calc(-50% + var(--touch-x,0px)) calc(-50% + var(--touch-y,0px));border-radius:50%;background:rgb(121 218 235 / 40%);border:1px solid rgb(211 249 255 / 70%);box-shadow:0 2px 10px #0005}.touch-stick.is-boosting{border-color:rgb(255 218 113 / 72%);box-shadow:inset 0 0 25px rgb(255 192 55 / 19%)}
-.touch-altitude{display:grid;gap:7px}.touch-altitude button{width:64px;height:48px}.touch-fire{width:82px;height:82px!important;border-color:rgb(255 118 96 / 65%)!important;border-radius:50%!important;color:#ffe5de!important;background:rgb(66 16 15 / 38%)!important;font-size:12px!important}
+.touch-stick > span{position:absolute;color:rgb(225 247 251 / 76%);font:800 7px ui-monospace,monospace;letter-spacing:.04em;pointer-events:none}.touch-stick-up{top:6px;left:50%;translate:-50% 0}.touch-stick-right{top:50%;right:5px;translate:0 -50%}.touch-stick-down{bottom:6px;left:50%;translate:-50% 0}.touch-stick-left{top:50%;left:6px;translate:0 -50%}.touch-stick i{position:absolute;left:50%;top:50%;width:44px;height:44px;translate:calc(-50% + var(--touch-x,0px)) calc(-50% + var(--touch-y,0px));border-radius:50%;background:rgb(121 218 235 / 40%);border:1px solid rgb(211 249 255 / 70%);box-shadow:0 2px 10px #0005}
+.touch-throttle-lever{width:76px;height:150px;color:#eafcff;font:800 7px ui-monospace,monospace;letter-spacing:.05em;text-shadow:0 1px 3px #000}
+.touch-throttle-track{position:absolute;inset:0;overflow:visible;border:1px solid rgb(132 218 235 / 42%);border-radius:10px;background:rgb(4 20 32 / 30%);box-shadow:inset 0 0 18px rgb(71 191 215 / 9%);pointer-events:none}
+.touch-throttle-track::after{content:'';position:absolute;z-index:0;top:18%;bottom:7px;left:50%;width:2px;border-radius:2px;background:rgb(174 232 241 / 30%);translate:-50% 0}
+.touch-throttle-track > span{position:absolute;z-index:1;left:6px;pointer-events:none}.touch-boost-zone{top:0;right:0;height:18%;display:flex;align-items:center;justify-content:center;padding:0;border-bottom:1px solid rgb(255 215 112 / 26%);border-radius:9px 9px 0 0;color:#e7c970;background:rgb(110 79 22 / 14%)}.touch-throttle-fast{top:20%;color:#dceff3}.touch-throttle-medium{top:49%;color:#bcd9df}.touch-throttle-slow{top:72%;color:#a9c7ce}.touch-throttle-idle{bottom:4px;color:#91afb7}
+.touch-throttle-handle{position:absolute;z-index:2;top:var(--throttle-y,100%);left:50%;width:38px;height:14px;border:1px solid rgb(218 250 255 / 72%);border-radius:8px;background:rgb(91 190 210 / 72%);box-shadow:0 2px 8px #0008;transform:translate(-50%,-50%);transition:top 90ms linear,background 140ms ease,box-shadow 140ms ease;pointer-events:none}.touch-throttle-lever.is-dragging .touch-throttle-handle{transition:background 100ms ease,box-shadow 100ms ease;background:rgb(127 222 238 / 86%)}
+.touch-boost-ready{position:absolute;top:-14px;left:50%;width:max-content;color:#ffe18b;font-size:7px;opacity:0;translate:-50% 0;transition:opacity 180ms ease;pointer-events:none}.touch-throttle-lever.boost-ready .touch-boost-ready{opacity:.72}.touch-throttle-lever.boost-recharging .touch-boost-zone{opacity:.45}.touch-throttle-lever.boost-ready .touch-boost-zone{border-color:rgb(255 225 139 / 52%);color:#ffe18b;background:rgb(130 91 20 / 22%);box-shadow:inset 0 0 10px rgb(255 210 90 / 10%)}.touch-throttle-lever.is-boosting .touch-boost-zone{background:rgb(184 119 16 / 36%);box-shadow:inset 0 0 14px rgb(255 211 99 / 24%)}.touch-throttle-lever.is-boosting .touch-throttle-handle{background:#ffd66e;box-shadow:0 0 11px rgb(255 211 94 / 42%)}
+@keyframes touch-boost-ready-wave{0%{box-shadow:0 0 0 0 rgb(255 218 106 / 0)}45%{box-shadow:0 0 12px 3px rgb(255 218 106 / 24%)}100%{box-shadow:0 0 0 7px rgb(255 218 106 / 0)}}.touch-throttle-lever.boost-ready-pulse .touch-boost-zone{animation:touch-boost-ready-wave 850ms ease-out}
+.touch-fire{width:82px;height:82px!important;border-color:rgb(255 118 96 / 65%)!important;border-radius:50%!important;color:#ffe5de!important;background:rgb(66 16 15 / 38%)!important;font-size:12px!important}
 .touch-controls button{min-width:56px;min-height:46px;padding:6px;border:1px solid rgb(132 218 235 / 52%);border-radius:12px;color:#effcff;background:rgb(5 24 38 / 36%);font:900 9px ui-monospace,monospace;letter-spacing:.04em;text-shadow:0 1px 3px #000}.touch-controls button.is-active,.touch-controls button:active{background:rgb(65 164 187 / 72%);border-color:rgb(194 245 255 / 80%)}.touch-fire.is-active,.touch-fire:active{background:rgb(173 49 35 / 74%)!important;box-shadow:0 0 20px rgb(255 94 74 / 30%)}
 .touch-aim-enabled{pointer-events:auto!important;touch-action:none}
 .touch-aim-enabled::before{content:'';position:absolute;inset:-24px;border-radius:50%}
@@ -1566,9 +1569,9 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
 @media(max-width:900px){
   body{overscroll-behavior:none}.controls-card{display:none}#right-hud-stack{right:max(8px,env(safe-area-inset-right))}.next-actions{right:max(8px,env(safe-area-inset-right));bottom:154px;width:210px}.radar-panel{transform:scale(.78);transform-origin:bottom right;right:max(6px,env(safe-area-inset-right));bottom:max(6px,env(safe-area-inset-bottom))}.pilot-menu-card{width:min(96vw,760px);max-height:94dvh;padding:12px}.pilot-menu-navigation{overflow-x:auto;flex-wrap:nowrap}.pilot-menu-navigation button,.pilot-menu-card button,.garage-card button,.flight-recap button{min-height:44px}.pilot-progress-grid{grid-template-columns:1fr}.garage-card{width:96vw;max-height:94dvh;overflow:auto}.garage-layout{grid-template-columns:1fr}.garage-preview,.garage-preview canvas{min-height:220px;height:220px}.garage-list{grid-template-columns:repeat(2,minmax(0,1fr))}.flight-recap{max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(14px,env(safe-area-inset-bottom))}}
 @media(max-width:1100px){.desktop-controls-help{left:20px;width:calc(100vw - 220px);transform:translateY(7px)}.desktop-controls-help.is-visible{transform:translateY(0)}.desktop-controls-help-camera{display:none}}
-@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:6px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px}.reward-feedback{max-width:calc(100vw - 150px);padding:2px 5px;font-size:9px}.mission-card{top:48px;left:8px;width:min(310px,calc(100vw - 150px));padding:3px 6px}.mission-card small{font-size:8px}.mission-card strong{font-size:10px}.mission-card p{font-size:9px}.mission-card .mission-reward{font-size:8px}.touch-stick{width:104px;height:104px}.touch-altitude button{width:58px;height:43px}.touch-fire{width:72px;height:72px!important}.pilot-mobile-control-editor{grid-template-columns:1fr}}
+@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:6px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px}.reward-feedback{max-width:calc(100vw - 150px);padding:2px 5px;font-size:9px}.mission-card{padding:3px 6px}.mission-card small{font-size:8px}.mission-card strong{font-size:10px}.mission-card p{font-size:9px}.mission-card .mission-reward{font-size:8px}.touch-stick{width:104px;height:104px}.touch-throttle-lever{width:70px;height:142px}.touch-fire{width:72px;height:72px!important}.pilot-mobile-control-editor{grid-template-columns:1fr}}
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
-@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.desktop-controls-help,.reward-feedback{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:#9fc8d8}.tutorial-crash-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}.tutorial-crash-actions button{min-height:44px}.next-actions[data-tutorial="true"]{border-color:#68dff2;box-shadow:0 0 18px rgb(65 205 231 / 22%)}
 .tutorial-flight-active #contextual-hint,.tutorial-flight-active #dynamic-event-panel,.tutorial-flight-active #mission-panel{display:none!important}
 #real-players, #city-territories {
@@ -1690,16 +1693,11 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
 }
 
 #progress-message {
-  position: fixed;
-  z-index: 3;
-  top: 112px;
-  left: 50%;
   padding: 8px 14px;
   color: #10252b;
   background: #74e89a;
   border-radius: 6px;
   font-weight: 900;
-  transform: translateX(-50%);
 }
 
 #progress-message.hidden {
@@ -1992,29 +1990,6 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
   border-top: 1px solid rgb(255 255 255 / 16%);
 }
 
-/* Keep transient gameplay notices visible without turning them into persistent game panels. */
-#leader-message,
-#near-miss-message,
-#checkpoint-message,
-#progress-message,
-#combat-message {
-  padding: 6px 10px;
-  color: #eaf6fb;
-  background: rgb(5 18 31 / 82%);
-  border: 1px solid rgb(143 202 216 / 35%);
-  border-radius: 3px;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-}
-
-#leader-message { top: 104px; color: #ffda72; }
-#near-miss-message,
-#checkpoint-message { top: 138px; color: #b7f4ca; }
-#progress-message { top: 172px; color: #bdebf4; }
-#combat-message { top: 206px; color: #ffd0bf; }
-#combat-message.hit-confirmed { color: #ffdc89; background: rgb(5 18 31 / 82%); }
-
 .guided-tutorial-panel { position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:65; width:min(460px,90vw); padding:14px 18px; background:#082c42ee; border:2px solid #5ffff0; border-radius:12px; color:#fff; box-shadow:0 8px 30px #001a2b66; }
 .guided-tutorial-panel[hidden] {display:none}
 .guided-tutorial-panel strong {color:#6ffff0;font-size:20px}
@@ -2029,15 +2004,12 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
 .guided-tutorial-panel button:hover {background:#216b81}
 
 .flight-notifications {
-  position: fixed;
-  z-index: 12;
-  top: 96px;
-  left: 14px;
   display: grid;
   gap: 5px;
-  width: min(330px, calc(100vw - 28px));
+  width: 100%;
   pointer-events: none;
 }
+.flight-notifications .world-status,
 .flight-notifications #progress-message,
 .flight-notifications .territory-defense-alert {
   position: static;
@@ -2046,8 +2018,9 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
   box-sizing: border-box;
   transform: none;
 }
+.flight-notifications .world-status { padding: 4px 8px; background: rgb(43 31 8 / 68%); }
 .flight-notifications .territory-defense-alert { pointer-events: auto; }
 .flight-notifications #progress-message { color: #bdebf4; background: rgb(5 18 31 / 76%); }
 @media(max-width:700px) and (orientation:landscape) {
-  .flight-notifications { top: 104px; left: 8px; width: min(310px, calc(100vw - 150px)); }
+  .mission-status-layer { top: 74px; left: 8px; width: min(310px, calc(100vw - 150px)); }
 }

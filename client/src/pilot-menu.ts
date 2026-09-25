@@ -2,7 +2,7 @@ import { identityText, visualLanguage, playerFacingText } from './visual-languag
 import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { createGameBrandSignature, mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
-import type { MobileControlId, MobileControlLayout, MobileControlPlacement } from './mobile-input';
+import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string };
 
 export type PilotMenuActivity = {
@@ -575,14 +575,16 @@ export class PilotMenu {
     const controls = section('CONTROLS');
     const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
     if(data.preferences.touchLayout){
+      const touchDescription=textElement('p','', 'pilot-menu-muted');touchDescription.textContent='The left stick controls turning and altitude. The right throttle lever holds your selected power; drag into its Boost Zone to use Boost.';
       controls.append(
-        textElement('p','The left stick controls speed, Boost, and turning. Altitude and Fire stay on the right. Drag the aim circle directly.','pilot-menu-muted'),
+        touchDescription,
         selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),
       );
-      const labels:Record<MobileControlId,string>={stick:'FLIGHT STICK',altitude:'ALTITUDE BUTTONS',fire:'FIRE'};
-      for(const control of ['stick','altitude','fire'] as const){
-        const editor=document.createElement('fieldset');editor.className='pilot-mobile-control-editor';editor.append(textElement('legend',labels[control]));
-        for(const [property,label,min,max,step] of [['x','Horizontal',12,88,1],['y','Vertical',35,76,1],['scale','Size',.75,1.35,.05]] as const){
+      const labels:Record<MobileControlId,string>={stick:'DIRECTION STICK',throttle:'THROTTLE LEVER',fire:'FIRE'};
+      for(const control of ['stick','throttle','fire'] as const){
+        const editor=document.createElement('fieldset');editor.className='pilot-mobile-control-editor';const legend=document.createElement('legend');legend.textContent=labels[control];editor.append(legend);
+        for(const [property,label] of [['x','Horizontal'],['y','Vertical'],['scale','Size']] as const){
+          const {min,max,step}=mobileControlPlacementLimits[control][property];
           const row=document.createElement('label');const value=textElement('output',property==='scale'?`${Math.round(data.preferences.mobileLayout[control][property]*100)}%`:`${Math.round(data.preferences.mobileLayout[control][property])}%`);
           const slider=document.createElement('input');slider.type='range';slider.min=String(min);slider.max=String(max);slider.step=String(step);slider.value=String(data.preferences.mobileLayout[control][property]);
           slider.addEventListener('input',()=>{const next=Number(slider.value);value.textContent=property==='scale'?`${Math.round(next*100)}%`:`${Math.round(next)}%`;data.preferences.setMobileControl(control,{[property]:next});});
@@ -668,7 +670,7 @@ export class PilotMenu {
       help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
       help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
       help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
-      if(data.preferences.touchLayout)help.append(textElement('p','TOUCH: Left stick turns and changes speed; push beyond Faster for Boost. Use the right Altitude and Fire buttons, and drag the aim circle directly.','pilot-menu-controls'));
+      if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
       else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       content.append(help);
     }

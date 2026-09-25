@@ -2665,6 +2665,7 @@ function restartGame(notifyServer = true): void {
   pitchControlStrength = 0;
   yawControlStrength = 0;
   throttle = 0;
+  mobileInput.setThrottleState(0);
   boostMeter = 100;
   boostActive = false;
   boostVisualStrength = 0;
@@ -2819,11 +2820,12 @@ flightGarageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
 let touchInputReported=false;
+const reportTouchInput=()=>{if(!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}};
 const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
-  if(active&&!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}
+  if(active)reportTouchInput();
   if(active){heldActions.add(action);runStarted=true;if(action==='fire')fireWeaponOnce();}
   else heldActions.delete(action);
-});
+},()=>{reportTouchInput();runStarted=true;});
 let controlsHelpAutoHideTimer: number | undefined;
 let controlsHelpConcealTimer: number | undefined;
 let lastTouchLayout = mobileInput.isTouchLayout();
@@ -3847,7 +3849,7 @@ function updateGuidedTutorial():void{
   tutorialRing.visible=Boolean(waypoint);
   if(waypoint){tutorialRing.position.set(waypoint.x, guidedTutorialStep==='land'||guidedTutorialStep==='landingSetup' ? getTerrainHeight(waypoint.x,waypoint.z)+18 : getTerrainHeight(waypoint.x,waypoint.z)+180,waypoint.z);tutorialRing.lookAt(airplane.position);}
   if(guidedTutorialStep==='controls'&&['pitchUp','pitchDown','yawLeft','yawRight','rollLeft','rollRight'].some(action=>heldActions.has(action as FlightAction)))advanceGuidedTutorial('steered');
-  else if(guidedTutorialStep==='throttle'&&heldActions.has('throttleUp'))advanceGuidedTutorial('throttle');
+  else if(guidedTutorialStep==='throttle'&&(heldActions.has('throttleUp')||(mobileInput.getThrottleTarget()??0)>.2))advanceGuidedTutorial('throttle');
   else if(guidedTutorialStep==='takeoffRoll'&&onGround&&currentSpeed>=currentAircraft.takeoffSpeed*.65)advanceGuidedTutorial('takeoffSpeed');
   else if(guidedTutorialStep==='liftOff'&&!onGround&&altitudeAboveTerrain()>=30)advanceGuidedTutorial('airborne');
   else if((guidedTutorialStep==='waypoint'||guidedTutorialStep==='turn')&&waypoint&&Math.hypot(airplane.position.x-waypoint.x,airplane.position.z-waypoint.z)<260)advanceGuidedTutorial(guidedTutorialStep==='waypoint'?'waypointReached':'turned');
@@ -4791,6 +4793,7 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   crashed = false;
   health = maxHealth;
   throttle = preset.onGround || preset.speed === 0 ? 0 : 0.62;
+  mobileInput.setThrottleState(throttle);
   currentSpeed = preset.onGround || preset.speed === 0 ? 0 : preset.speed && aircraftType === 'fighter' && flightTestMode ? preset.speed : Math.min(currentAircraft.maxSpeed * 0.62, 58);
   verticalSpeed = 0;
   heading = preset.heading;
@@ -5931,7 +5934,13 @@ function updateFlight(delta: number): void {
   updateLocalWeather(performance.now());
   const throttleUp = heldActions.has('throttleUp');
   const throttleDown = heldActions.has('throttleDown');
-  if (!onGround) {
+  const mobileThrottleTarget = !throttleUp && !throttleDown ? mobileInput.getThrottleTarget() : undefined;
+  if (mobileThrottleTarget !== undefined) {
+    const response = mobileThrottleTarget > throttle
+      ? currentAircraft.throttleResponse
+      : currentAircraft.throttleResponse * 2.1;
+    throttle = moveToward(throttle, mobileThrottleTarget, delta * response);
+  } else if (!onGround) {
     if (throttleUp) throttle += delta * currentAircraft.throttleResponse;
     else if (throttleDown) throttle -= delta * currentAircraft.throttleResponse * 2.1;
     else throttle = moveToward(throttle, currentAircraft.idleThrottle, delta * currentAircraft.throttleDecay);
@@ -6529,6 +6538,7 @@ function animate(): void {
   requestAnimationFrame(animate);
   if (stabilityQaMode) stabilityQaFrames += 1;
   const delta = Math.min(clock.getDelta(), 0.05);
+  mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   if (!crashed && runStarted) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
     // larger than 8m, including a thrust allowance. No extra render/network ticks.

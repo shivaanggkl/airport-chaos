@@ -54,16 +54,18 @@
       <div id="acquisition-circle" aria-hidden="true"></div>
       <div id="landing-speed-cue" class="landing-speed-cue hidden" role="status"></div>
       <span id="repair-feedback" class="repair-feedback" role="status" aria-live="polite">♥ FULL REPAIR · 100%</span>
-      <div id="world-status" class="world-status hidden">Leaving City 1</div>
       <div id="target-feedback" class="target-feedback hidden"><b id="target-range">LOCKED</b><span id="target-name-distance"></span></div>
       <div id="fighter-trial-indicator" class="fighter-trial-indicator hidden" role="status"></div>
     </div>
-    <aside id="mission-card" class="mission-card hidden" aria-label="Active mission"></aside>
-    <aside id="territory-capture" class="territory-capture hidden" role="status" aria-live="polite"></aside>
-    <div id="flight-notifications" class="flight-notifications" aria-live="polite">
-      <div id="progress-message" class="hidden"></div>
-      <div id="territory-defense-alert" class="territory-defense-alert hidden" role="status"><span id="territory-defense-text"></span><button id="territory-defense-waypoint" type="button">Set Waypoint</button></div>
+    <div id="mission-status-layer" class="mission-status-layer">
+      <aside id="mission-card" class="mission-card hidden" aria-label="Active mission"></aside>
+      <div id="flight-notifications" class="flight-notifications" aria-live="polite">
+        <div id="world-status" class="world-status hidden">Leaving City 1</div>
+        <div id="progress-message" class="hidden"></div>
+        <div id="territory-defense-alert" class="territory-defense-alert hidden" role="status"><span id="territory-defense-text"></span><button id="territory-defense-waypoint" type="button">Set Waypoint</button></div>
+      </div>
     </div>
+    <aside id="territory-capture" class="territory-capture hidden" role="status" aria-live="polite"></aside>
     <div id="right-hud-stack">
       <aside id="real-players" aria-label="Human players"></aside>
       <aside id="city-territories" aria-label="City territories"></aside>
@@ -141,8 +143,20 @@
       </div>
     </div>
     <section id="touch-controls" class="touch-controls" hidden aria-label="Touch flight controls">
-      <div class="touch-stick" data-touch-stick data-touch-control="stick" aria-label="Turn, throttle, and boost"><em>BOOST</em><i></i><small>SLOW</small></div>
-      <div class="touch-altitude" data-touch-control="altitude" aria-label="Altitude controls"><button type="button" data-hold="pitchUp">ALT +</button><button type="button" data-hold="pitchDown">ALT −</button></div>
+      <div class="touch-stick" data-touch-stick data-touch-control="stick" aria-label="Turn and altitude">
+        <span class="touch-stick-up">ALT ↑</span><span class="touch-stick-right">RIGHT</span><span class="touch-stick-down">ALT ↓</span><span class="touch-stick-left">LEFT</span><i></i>
+      </div>
+      <div class="touch-throttle-lever" data-touch-throttle data-touch-control="throttle" role="slider" aria-label="Throttle" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span class="touch-boost-ready">BOOST READY</span>
+        <div class="touch-throttle-track">
+          <span class="touch-boost-zone">BOOST</span>
+          <span class="touch-throttle-fast">FAST</span>
+          <span class="touch-throttle-medium">MEDIUM</span>
+          <span class="touch-throttle-slow">SLOW</span>
+          <span class="touch-throttle-idle">IDLE</span>
+          <i class="touch-throttle-handle"></i>
+        </div>
+      </div>
       <button class="touch-fire" type="button" data-touch-control="fire" data-hold="fire">FIRE</button>
     </section>
     <div class="portrait-guidance" aria-hidden="true">ROTATE DEVICE FOR FLIGHT</div>
