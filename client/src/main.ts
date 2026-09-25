@@ -963,6 +963,7 @@ let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | u
 let purchaseSequence = 0;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
 const worldStatusElement = document.querySelector<HTMLDivElement>('#world-status')!;
+const radarPanelElement = document.querySelector<HTMLElement>('#radar-panel')!;
 const radarCanvas = document.querySelector<HTMLCanvasElement>('#radar')!;
 const radarContext = radarCanvas.getContext('2d')!;
 const nextActionsElement = document.querySelector<HTMLElement>('#next-actions')!;
@@ -3848,7 +3849,8 @@ function updateGuidedTutorial():void{
   renderTutorialPanel();
   tutorialRing.visible=Boolean(waypoint);
   if(waypoint){tutorialRing.position.set(waypoint.x, guidedTutorialStep==='land'||guidedTutorialStep==='landingSetup' ? getTerrainHeight(waypoint.x,waypoint.z)+18 : getTerrainHeight(waypoint.x,waypoint.z)+180,waypoint.z);tutorialRing.lookAt(airplane.position);}
-  if(guidedTutorialStep==='controls'&&['pitchUp','pitchDown','yawLeft','yawRight','rollLeft','rollRight'].some(action=>heldActions.has(action as FlightAction)))advanceGuidedTutorial('steered');
+  const touchSteering = mobileInput.getSteeringInput();
+  if(guidedTutorialStep==='controls'&&(['pitchUp','pitchDown','yawLeft','yawRight','rollLeft','rollRight'].some(action=>heldActions.has(action as FlightAction))||Math.abs(touchSteering.x)>.05||Math.abs(touchSteering.y)>.05))advanceGuidedTutorial('steered');
   else if(guidedTutorialStep==='throttle'&&(heldActions.has('throttleUp')||(mobileInput.getThrottleTarget()??0)>.2))advanceGuidedTutorial('throttle');
   else if(guidedTutorialStep==='takeoffRoll'&&onGround&&currentSpeed>=currentAircraft.takeoffSpeed*.65)advanceGuidedTutorial('takeoffSpeed');
   else if(guidedTutorialStep==='liftOff'&&!onGround&&altitudeAboveTerrain()>=30)advanceGuidedTutorial('airborne');
@@ -4533,11 +4535,18 @@ function togglePilotMenu(): void {
 
 flightMenuButtonElement.addEventListener('click', togglePilotMenu);
 flightWorldButtonElement.addEventListener('click', openWorldSelector);
-flightMapButtonElement.addEventListener('click', () => {
+const toggleWorldMapFromHud = () => {
   if (pilotMenu.isOpen()) pilotMenu.close();
   contextualHints.dismiss();
   worldMap.toggle();
   if (worldMap.isOpen()) contextualHints.trigger('firstDestination');
+};
+flightMapButtonElement.addEventListener('click', toggleWorldMapFromHud);
+radarPanelElement.addEventListener('click', toggleWorldMapFromHud);
+radarPanelElement.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  toggleWorldMapFromHud();
 });
 
 window.addEventListener('keydown', (event) => {
@@ -5997,8 +6006,11 @@ function updateFlight(delta: number): void {
     boostMeter = Math.min(100, boostMeter + delta * (currentAircraft.boostRegen ?? 12));
   }
 
-  const rollInput = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
-  const yawInput = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
+  const touchSteering = mobileInput.getSteeringInput();
+  const keyboardRollInput = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
+  const keyboardYawInput = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
+  const rollInput = keyboardRollInput || -touchSteering.x;
+  const yawInput = keyboardYawInput || -touchSteering.x;
   // Turn is an abstract control command, not an instant heading change.  Its
   // response is derived from the existing yaw/inertia envelope, so Cargo
   // settles deliberately while the Fighter remains crisp without keeping a
@@ -6009,7 +6021,8 @@ function updateFlight(delta: number): void {
     yawInput,
     1 - Math.exp(-yawResponse * delta),
   );
-  const pitchInput = Number(heldActions.has('pitchUp')) - Number(heldActions.has('pitchDown'));
+  const keyboardPitchInput = Number(heldActions.has('pitchUp')) - Number(heldActions.has('pitchDown'));
+  const pitchInput = keyboardPitchInput || -touchSteering.y;
   // The abstract pitch action is filtered before it reaches attitude/lift.
   // Exponential damping is stable across frame rates and gives release a
   // deliberate neutral glide rather than an immediate level command.
@@ -7161,7 +7174,8 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'missionResult') {
     if (message.ok && message.attemptId) { activeMissionAttemptId = message.attemptId; completedMissionCard = null; }
     showProgressMessage(message.ok ? 'MISSION ACCEPTED' : (message.reason ?? 'MISSION UNAVAILABLE'));
-    if (pilotMenu.isOpen()) renderPilotMenu();
+    if (message.ok && pilotMenu.isOpen()) pilotMenu.close();
+    else if (pilotMenu.isOpen()) renderPilotMenu();
   } else if (message.type === 'missionCompleted') {
     activeMissionAttemptId = undefined;
     completedMissionCard = { missionId: message.missionId, credits: message.credits, score: message.score, until: Date.now() + 12_000 };

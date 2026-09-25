@@ -1,6 +1,6 @@
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
 import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
-import { createGameBrandSignature, mountAirportChaosLogo } from './brand';
+import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string };
@@ -134,6 +134,7 @@ export class PilotMenu {
   private lastData: PilotMenuData | undefined;
   private lastSnapshot = '';
   private lastScrollInteractionAt = 0;
+  private pointerActive = false;
   private advertisingOpen = false;
   private territoryLegendOpen = this.readLegendPreference();
   private pendingMissionId: string | undefined;
@@ -198,7 +199,7 @@ export class PilotMenu {
   }
 
   refresh(data: PilotMenuData): void {
-    if (!this.openState || this.isActivelyScrolling()) return;
+    if (!this.openState || this.pointerActive || this.isActivelyScrolling()) return;
     const snapshot = this.snapshot(data);
     if (snapshot === this.lastSnapshot) {
       if (this.activeSection === 'MISSIONS') this.updateActiveMission(data);
@@ -288,12 +289,9 @@ export class PilotMenu {
     const kicker = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
     heading.append(kicker, textElement('span', 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
     void mountAirportChaosLogo(kicker, 'brand-logo-menu');
-    const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
-    changeCity.title = 'Return to Choose a City';
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const close = actionButton({ label: 'BACK TO GAME', run: () => this.close() });
-    const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart() });
-    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, changeCity, restart, close);
+    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, close);
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -301,7 +299,17 @@ export class PilotMenu {
     // overlay-level input from treating this UI gesture as flight-camera input.
     content.addEventListener('wheel', (event) => event.stopPropagation(), { passive: true });
     content.addEventListener('scroll', () => { this.lastScrollInteractionAt = performance.now(); }, { passive: true });
-    content.addEventListener('pointerdown', () => { this.lastScrollInteractionAt = performance.now(); }, { passive: true });
+    content.addEventListener('pointerdown', () => {
+      this.pointerActive = true;
+      this.lastScrollInteractionAt = performance.now();
+    }, { passive: true });
+    const releasePointer = () => {
+      if (!this.pointerActive) return;
+      this.pointerActive = false;
+      this.lastScrollInteractionAt = performance.now();
+    };
+    window.addEventListener('pointerup', releasePointer, { passive: true });
+    window.addEventListener('pointercancel', releasePointer, { passive: true });
     const navigation = document.createElement('nav');
     navigation.className = 'pilot-menu-navigation';
     navigation.setAttribute('aria-label', 'Pilot Menu sections');
@@ -310,8 +318,13 @@ export class PilotMenu {
       button.dataset.section = name;
       navigation.append(button);
     }
-    const footer = createGameBrandSignature('game-brand-signature-menu');
-    card.append(header, navigation, content, footer);
+    const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
+    changeCity.classList.add('pilot-menu-navigation-action');
+    changeCity.title = 'Return to Choose a City';
+    const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart() });
+    restart.classList.add('pilot-menu-navigation-action');
+    navigation.append(changeCity, restart);
+    card.append(header, navigation, content);
     this.element.replaceChildren(card);
     this.content = content;
     this.navigation = navigation;
@@ -679,6 +692,7 @@ export class PilotMenu {
 
   close(): void {
     this.openState = false;
+    this.pointerActive = false;
     this.pendingMissionId = undefined;
     this.element.hidden = true;
   }

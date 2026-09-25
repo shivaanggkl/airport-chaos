@@ -1,6 +1,6 @@
 import type { FlightAction } from './flight-input';
 import {
-  joystickActions,
+  joystickInput,
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
@@ -11,7 +11,7 @@ import {
 } from '../../shared/mobile-input-rules.mjs';
 
 export {
-  joystickActions,
+  joystickInput,
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
@@ -42,8 +42,7 @@ export const mobileControlPlacementLimits: Record<MobileControlId, MobileControl
   fire: { x: { min: 60, max: 90, step: 1 }, y: { min: 62, max: 88, step: 1 }, scale: { min: 0.8, max: 1.3, step: 0.05 } },
 };
 
-const controlActions: Record<'stick' | 'throttle' | 'aim', FlightAction[]> = {
-  stick: ['yawLeft', 'yawRight', 'rollLeft', 'rollRight', 'pitchUp', 'pitchDown'],
+const controlActions: Record<'throttle' | 'aim', FlightAction[]> = {
   throttle: ['boost'],
   aim: ['aimLeft', 'aimRight', 'aimUp', 'aimDown'],
 };
@@ -87,6 +86,7 @@ export class MobileInputControls {
   private layout = preferredLayout();
   private active = new Set<FlightAction>();
   private joystickPointer: number | undefined;
+  private steeringInput = { x: 0, y: 0 };
   private throttlePointer: number | undefined;
   private throttleTarget: number | undefined;
   private throttleBoostRequested = false;
@@ -118,6 +118,7 @@ export class MobileInputControls {
   getMode() { return this.mode; }
   isTouchLayout() { return this.deviceEnabled(); }
   getThrottleTarget() { return this.root.hidden ? undefined : this.throttleTarget; }
+  getSteeringInput() { return this.root.hidden ? { x: 0, y: 0 } : this.steeringInput; }
 
   setThrottleState(throttle: number) {
     const value = clamp(throttle, 0, 1);
@@ -177,6 +178,7 @@ export class MobileInputControls {
     for (const action of this.active) this.setAction(action, false);
     this.active.clear();
     this.joystickPointer = undefined;
+    this.steeringInput = { x: 0, y: 0 };
     this.throttlePointer = undefined;
     this.throttleTarget = undefined;
     this.throttleBoostRequested = false;
@@ -264,7 +266,7 @@ export class MobileInputControls {
       const rect = stick.getBoundingClientRect();
       const x = clamp((event.clientX - (rect.left + rect.width / 2)) / (rect.width * 0.42), -1, 1);
       const y = clamp((event.clientY - (rect.top + rect.height / 2)) / (rect.height * 0.42), -1, 1);
-      this.apply(joystickActions(x, y), 'stick');
+      this.steeringInput = joystickInput(x, y);
       stick.style.setProperty('--touch-x', `${x * 30}px`);
       stick.style.setProperty('--touch-y', `${y * 30}px`);
     };
@@ -279,7 +281,7 @@ export class MobileInputControls {
     });
     const stop = (event: PointerEvent) => {
       if (this.joystickPointer !== event.pointerId) return;
-      this.apply([], 'stick');
+      this.steeringInput = { x: 0, y: 0 };
       stick.style.removeProperty('--touch-x');
       stick.style.removeProperty('--touch-y');
       this.joystickPointer = undefined;

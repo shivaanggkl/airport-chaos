@@ -26,3 +26,9 @@ test('mission and status notices share a stable ordered HUD layer', () => {
   assert.match(css, /\.mission-card\s*\{[^}]*position:\s*static;/);
   assert.doesNotMatch(css, /:has\(#reward-feedback\.show\)\s+\.mission-card/);
 });
+
+test('transient flight notices size to their content instead of the mission column', () => {
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.flight-notifications\s*\{[^}]*justify-items:\s*start;[^}]*width:\s*fit-content;/);
+  assert.match(css, /\.flight-notifications \.world-status\s*\{[^}]*padding:\s*4px 8px;[^}]*white-space:\s*nowrap;/);
+});
