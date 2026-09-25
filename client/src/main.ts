@@ -26,7 +26,7 @@ import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialObjective}from'.
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
-import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
@@ -912,7 +912,7 @@ const finalScoreElement = document.querySelector<HTMLSpanElement>('#final-score'
 const crashOverlay = document.querySelector<HTMLDivElement>('#crash-overlay')!;
 const endTitleElement = document.querySelector<HTMLDivElement>('#end-title')!;
 const tutorialCrashActions=document.querySelector<HTMLElement>('#tutorial-crash-actions')!;
-document.querySelector<HTMLButtonElement>('[data-tutorial-retry]')!.addEventListener('click',()=>{tutorialEvent('tutorial_retried',TUTORIAL_VERSION);setGuidedTutorial(true);});
+document.querySelector<HTMLButtonElement>('[data-tutorial-retry]')!.addEventListener('click',()=>restartGuidedTutorial());
 document.querySelector<HTMLButtonElement>('[data-tutorial-free]')!.addEventListener('click',()=>{exitGuidedTutorial('skipped');restartGame();});
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
@@ -3708,10 +3708,24 @@ function setActivityWaypoint(x: number, z: number, label: string): void {
 
 const tutorialPanel = document.createElement('section');
 tutorialPanel.className = 'guided-tutorial-panel'; tutorialPanel.hidden = true;
-tutorialPanel.innerHTML = '<strong>Tutorial Flight</strong><p data-tutorial-objective aria-live="polite"></p><button data-guided-skip>Skip to Free Flight</button><button data-guided-restart>Restart Tutorial</button>';
+tutorialPanel.innerHTML = `
+  <header>
+    <strong data-tutorial-title>Tutorial 1/${tutorialSteps.length - 1}</strong>
+    <button type="button" data-guided-close aria-label="Hide tutorial instructions">×</button>
+  </header>
+  <p data-tutorial-objective aria-live="polite"></p>
+  <div class="guided-tutorial-actions">
+    <button type="button" data-guided-restart>Restart Tutorial</button>
+    <button type="button" data-guided-skip>Skip to Free Flight</button>
+  </div>`;
 document.body.append(tutorialPanel);
 tutorialPanel.querySelector('[data-guided-skip]')!.addEventListener('click', () => exitGuidedTutorial('skipped'));
-tutorialPanel.querySelector('[data-guided-restart]')!.addEventListener('click', () => setGuidedTutorial(true, true));
+tutorialPanel.querySelector('[data-guided-restart]')!.addEventListener('click', () => restartGuidedTutorial());
+let tutorialPanelDismissed = false;
+tutorialPanel.querySelector('[data-guided-close]')!.addEventListener('click', () => {
+  tutorialPanelDismissed = true;
+  tutorialPanel.hidden = true;
+});
 const tutorialCompletePanel = document.createElement('section'); tutorialCompletePanel.className = 'guided-tutorial-panel'; tutorialCompletePanel.hidden = true;
 tutorialCompletePanel.innerHTML = '<strong>Tutorial Complete</strong><p>You are ready to explore.</p><button>Free Flight</button>';
 tutorialCompletePanel.querySelector('button')!.onclick = () => { tutorialCompletePanel.hidden = true; };
@@ -3720,14 +3734,24 @@ const tutorialRing = new THREE.Mesh(new THREE.TorusGeometry(120, 8, 6, 48), new 
 tutorialRing.visible = false; scene.add(tutorialRing);
 function renderTutorialPanel(): void {
   const step = Math.max(1, tutorialSteps.indexOf(guidedTutorialStep));
-  const text = `Step ${step}/${tutorialSteps.length - 1}: ${tutorialObjective(guidedTutorialStep, mobileInput.getMode()==='on'?'touch':'keyboard')}`;
+  const title = `Tutorial ${step}/${tutorialSteps.length - 1}`;
+  const text = tutorialObjective(guidedTutorialStep, mobileInput.isTouchLayout() ? 'touch' : 'keyboard');
+  const titleElement = tutorialPanel.querySelector('[data-tutorial-title]')!;
   const objective = tutorialPanel.querySelector('[data-tutorial-objective]')!;
+  if(titleElement.textContent !== title) titleElement.textContent = title;
   if(objective.textContent !== text) objective.textContent = text;
 }
 
 function tutorialEvent(event:string,mode?:string):void{if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event,mode}));}
+function restartGuidedTutorial():void{
+  tutorialPanel.hidden=true;
+  tutorialPanelDismissed=false;
+  setGuidedTutorial(true,true);
+}
 function setGuidedTutorial(active:boolean,replay=false):void{
   ambientTraffic?.setTutorialMode(active);
+  tutorialPanel.hidden=true;
+  tutorialPanelDismissed=false;
   guidedTutorialActive=active;guidedTutorialStep='throttle';guidedTutorialStepAt=performance.now();guidedTutorialTargetAirport=undefined;
   try{localStorage.setItem(guidedTutorialKey,active?'active':'completed');}catch{/* server is durable */}
   if(connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:active?'started':'completed'}));
@@ -3740,12 +3764,12 @@ function setGuidedTutorial(active:boolean,replay=false):void{
     applyServerSelectedAircraft('trainer', false);
     restartGame(false); updateDynamicEventHud();
   }
-  tutorialPanel.hidden = !active; tutorialCompletePanel.hidden = true;
   renderTutorialPanel();
+  tutorialPanel.hidden = !active || tutorialPanelDismissed; tutorialCompletePanel.hidden = true;
 }
 function exitGuidedTutorial(status:'completed'|'skipped'):void{
   ambientTraffic?.setTutorialMode(false);
-  guidedTutorialActive=false;tutorialPanel.hidden=true;tutorialRing.visible=false;tutorialCompletePanel.hidden=status!=='completed';document.body.classList.remove('tutorial-flight-active');waypoint=null;try{localStorage.setItem(guidedTutorialKey,status);}catch{/* server is durable */}
+  guidedTutorialActive=false;tutorialPanelDismissed=false;tutorialPanel.hidden=true;tutorialRing.visible=false;tutorialCompletePanel.hidden=status!=='completed';document.body.classList.remove('tutorial-flight-active');waypoint=null;try{localStorage.setItem(guidedTutorialKey,status);}catch{/* server is durable */}
   if(connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:status}));updateNavigationHud();
 }
 function advanceGuidedTutorial(signal:string):void{
@@ -3754,7 +3778,7 @@ function advanceGuidedTutorial(signal:string):void{
   if(next==='waypoint')setActivityWaypoint(airplane.position.x-Math.sin(heading)*1800,airplane.position.z-Math.cos(heading)*1800,'Tutorial Marker');
   if(next==='turn')setActivityWaypoint(airplane.position.x-Math.sin(heading+.55)*1800,airplane.position.z-Math.cos(heading+.55)*1800,'Turn Marker');
   if(next==='landingSetup'){guidedTutorialTargetAirport=airports.filter(item=>item.id!==spawnAirport.id).map(item=>({item,d:Math.hypot(item.x-airplane.position.x,item.z-airplane.position.z)})).sort((a,b)=>a.d-b.d)[0]?.item??centralAirport;setActivityWaypoint(guidedTutorialTargetAirport.x,guidedTutorialTargetAirport.z,guidedTutorialTargetAirport.name);}
-  showProgressMessage(`TUTORIAL · ${tutorialObjective(next,mobileInput.getMode()==='on'?'touch':'keyboard').toUpperCase()}`);
+  showProgressMessage(`TUTORIAL · ${tutorialObjective(next,mobileInput.isTouchLayout()?'touch':'keyboard').toUpperCase()}`);
 }
 function updateGuidedTutorial():void{
   if(!guidedTutorialActive||crashed){tutorialRing.visible=false;return;}
@@ -4143,7 +4167,7 @@ function pilotMenuData(): PilotMenuData {
     preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.isTouchLayout(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
     restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     audio: { muted: audioMuted, toggle: toggleAudio, levels: audioLevels, setLevel: setAudioLevel },
-    guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();setGuidedTutorial(true,true);} },
+    guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGuidedTutorial();} },
   };
 }
 
@@ -4344,6 +4368,7 @@ const projectilePool: ClientProjectile[] = [];
 const predictedProjectiles = new Map<string, ClientProjectile>();
 const maxClientProjectiles = 256;
 const pendingTracerLifetime = 0.35;
+const maxAuthoritativeProjectileAgeMs = (COMBAT_RANGE / BASE_PROJECTILE_SPEED + 1) * 1_000;
 const assistedShotVisuals: AssistedShotVisual[] = [];
 const assistedShotPool: THREE.Group[] = [];
 const recentAssistedShotIds = new Map<string, number>();
@@ -4760,9 +4785,9 @@ function updateProjectiles(delta: number): void {
     projectile.mesh.visible = !guidedTutorialActive;
     // Projectile removals are normally explicit.  This bounded fallback is
     // necessary when a slow socket drops an obsolete remove/state frame: the
-    // server range limits a round to about two seconds, so an unconfirmed
-    // visual cannot become a permanent runway line.
-    if (now - projectile.spawnedAt > 3_500 || now - projectile.lastAuthoritativeAt > 1_200) {
+    // Bound an unconfirmed visual without expiring a minimum-speed round
+    // before it can traverse the shared authoritative combat range.
+    if (now - projectile.spawnedAt > maxAuthoritativeProjectileAgeMs || now - projectile.lastAuthoritativeAt > 1_200) {
       removeClientProjectile(projectileId);
       continue;
     }
@@ -6776,7 +6801,7 @@ socket.addEventListener('message', (event) => {
     } else {
       applyServerProfile(message.profile);
     }
-    if(message.profile.tutorial.status==='started' || guidedTutorialActive)setGuidedTutorial(true);
+    if(message.profile.tutorial.status==='started' && !guidedTutorialActive)setGuidedTutorial(true);
     applySocialState(message.social);
     reconcileRemotePlayers(message.players);
     for (const player of message.players) updateRemotePlayer(player);

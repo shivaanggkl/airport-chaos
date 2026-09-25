@@ -182,6 +182,7 @@ garageEntry.addEventListener('click', async () => {
 
 function showSelector(message = ''): void {
   startModalState = 'CITIES';
+  citySelector.dataset.view = 'cities';
   garage.close();
   cityClose.hidden = gameRoot.hidden;
   citySelector.hidden = false;
@@ -230,6 +231,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
 
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
+  citySelector.dataset.view = 'time';
   cityOptions.hidden = true;
   timeOptions.replaceChildren();
   timeOptions.hidden = false;
@@ -242,8 +244,12 @@ function chooseCity(city: CityDefinition): void {
     const option = document.createElement('article');
     option.className = 'city-option city-time-option';
     option.classList.add(`city-${city.id}`);
+    const copy = document.createElement('div');
+    copy.className = 'city-option-copy';
     const label = document.createElement('strong');
     label.textContent = preset.toUpperCase();
+    const description = document.createElement('span');
+    description.textContent = preset === 'day' ? 'Bright daytime flying' : 'Evening city atmosphere';
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = preset === preferred ? 'Play (preferred)' : 'Play';
@@ -251,7 +257,8 @@ function chooseCity(city: CityDefinition): void {
       try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
       void enterCity(city, preset);
     });
-    option.append(label, button);
+    copy.append(label, description);
+    option.append(copy, button);
     timeOptions.append(option);
   }
 }

@@ -5,6 +5,7 @@ import {
   AIM_ENVELOPE,
   AIM_MANUAL_OFFSET,
   AIM_MAX_OFFSET,
+  BASE_PROJECTILE_SPEED,
   COMBAT_RANGE,
   aimGoal,
   biasAim,
@@ -18,7 +19,8 @@ test('shared angular aim limits are exactly twice their previous values', () => 
   assert.equal(AIM_ENVELOPE, 0.40);
   assert.equal(AIM_MAX_OFFSET, 0.23);
   assert.equal(AIM_MANUAL_OFFSET, 0.20);
-  assert.equal(COMBAT_RANGE, 3_000);
+  assert.equal(COMBAT_RANGE, 4_500);
+  assert.equal(BASE_PROJECTILE_SPEED, 520);
 });
 
 test('horizontal, vertical, and diagonal manual aim use the expanded envelope', () => {
@@ -91,4 +93,9 @@ test('client prediction and server projectiles both derive direction from the sh
   assert.match(client, /aimSample: \{ from: previousAimId, to: serverAimId, blend: visualAimBlend \}/);
   assert.match(server, /const shotAim = validatedShotAim\(player, message\.aimSample, now\)/);
   assert.match(server, /rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)/);
+  assert.match(client, /if \(distance > COMBAT_RANGE\)/);
+  assert.match(client, /maxAuthoritativeProjectileAgeMs = \(COMBAT_RANGE \/ BASE_PROJECTILE_SPEED \+ 1\) \* 1_000/);
+  assert.match(server, /Math\.hypot\(local\.x, local\.y, local\.z\) > COMBAT_RANGE/);
+  assert.match(server, /COMBAT_RANGE - projectile\.traveled/);
+  assert.match(server, /projectile\.traveled >= COMBAT_RANGE/);
 });

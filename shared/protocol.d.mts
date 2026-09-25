@@ -1,5 +1,6 @@
 export const PROTOCOL_VERSION: number;
 export const COMBAT_RANGE: number;
+export const BASE_PROJECTILE_SPEED: number;
 export function ballisticShotSpeed(velocity: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number }): number;
 export const LOCK_ANGLE: number;
 export const AIM_ENVELOPE: number;

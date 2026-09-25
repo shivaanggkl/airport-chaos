@@ -3,11 +3,12 @@
 export const PROTOCOL_VERSION = 25;
 // One authoritative range drives client acquisition, server assisted-hit
 // validation, unlocked projectile travel, and Hunter firing eligibility.
-export const COMBAT_RANGE = 3000;
+export const COMBAT_RANGE = 4500;
+export const BASE_PROJECTILE_SPEED = 520;
 // Muzzle speed is relative to the firing aircraft, not a fixed world speed
 // that a boosted aircraft can overtake. Keep the validated aim unchanged.
 export function ballisticShotSpeed(velocity, direction) {
-  return 520 + Math.max(0, velocity.x * direction.x + velocity.y * direction.y + velocity.z * direction.z);
+  return BASE_PROJECTILE_SPEED + Math.max(0, velocity.x * direction.x + velocity.y * direction.y + velocity.z * direction.z);
 }
 // Combat lock geometry is shared: the client renders the same small angular
 // circle around the bounded assisted aim that the server validates.
