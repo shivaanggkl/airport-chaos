@@ -148,7 +148,8 @@ function parseMissionStates(value: unknown): Partial<Record<CityId, MissionCityS
       completions[id] = { count: boundedInteger(item?.count, 1_000_000), lastCompletedAt: boundedInteger(item?.lastCompletedAt, Number.MAX_SAFE_INTEGER) };
     }
     const attempt = source?.active;
-    const active = attempt && missionForCity(cityId, attempt.missionId) && typeof attempt.attemptId === 'string' && /^[a-f0-9-]{36}$/i.test(attempt.attemptId)
+    const activeMission = attempt ? missionForCity(cityId, attempt.missionId) : undefined;
+    const active = attempt && activeMission && !activeMission.retired && typeof attempt.attemptId === 'string' && /^[a-f0-9-]{36}$/i.test(attempt.attemptId)
       ? { ...attempt, completedIds: [...new Set(Array.isArray(attempt.completedIds) ? attempt.completedIds.filter((id): id is string => typeof id === 'string').slice(0, 32) : [])] }
       : undefined;
     result[cityId] = { active, completions };
@@ -1111,6 +1112,7 @@ export class PlayerProfileStore {
     const row = this.getRow(pilotId);
     const mission = missionForCity(cityId, missionId);
     if (!row || !mission) return { ok: false, reason: 'MISSION UNAVAILABLE' };
+    if (mission.retired) return { ok: false, reason: 'MISSION RETIRED' };
     const all = parseMissionStates(row.missions);
     const state = all[cityId]!;
     const current = [...cityIds].find((id) => all[id]?.active);

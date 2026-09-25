@@ -51,7 +51,7 @@ export type PilotMenuTerritory = {
   setWaypoint: () => void;
 };
 export type PilotMenuObjective = { label: string; progress: number; target: number; reward: number; completed: boolean };
-export type PilotMenuMission = { id: string; name: string; detail: string; difficulty: string; credits: number; score: number; completions: number; cooldownUntil: number; territoryIds: readonly string[]; retired?: boolean; progressText?: string; progress?: number; target?: number; setWaypoint?: () => void };
+export type PilotMenuMission = { id: string; name: string; detail: string; difficulty: string; credits: number; score: number; completions: number; cooldownUntil: number; territoryIds: readonly string[]; retired?: boolean; unavailableReason?: string; progressText?: string; progress?: number; target?: number; setWaypoint?: () => void };
 export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium: boolean; price: number; neededCredits: number };
 
 export type PilotMenuData = {
@@ -137,7 +137,6 @@ export class PilotMenu {
   private pointerActive = false;
   private advertisingOpen = false;
   private territoryLegendOpen = this.readLegendPreference();
-  private pendingMissionId: string | undefined;
 
   constructor(private readonly element: HTMLElement, private readonly onSectionViewed?: (section: string) => void) {}
 
@@ -212,7 +211,7 @@ export class PilotMenu {
 
   private snapshot(data: PilotMenuData): string {
     switch (this.activeSection) {
-      case 'MISSIONS': return JSON.stringify([this.activeSection, this.pendingMissionId, data.missions.activeId,
+      case 'MISSIONS': return JSON.stringify([this.activeSection, data.missions.activeId,
         data.missions.activeCity, data.missions.entries.map(({ id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds }) =>
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
         data.territories.entries.map(({ id, controller, contested, progress }) => [id, controller, contested, progress]),
@@ -375,29 +374,22 @@ export class PilotMenu {
       }));
     }
 
-    if (this.pendingMissionId && this.pendingMissionId !== data.missions.activeId) {
-      const pending = data.missions.entries.find((entry) => entry.id === this.pendingMissionId);
-      if (pending) {
-        const confirm = this.createCard({ name: 'LEAVE CURRENT MISSION?', detail: 'Current progress will be lost. No Credits or Score will be earned.', meta: `Accept ${pending.name}?`, actions: [
-          { label: 'KEEP MISSION', run: () => { this.pendingMissionId = undefined; this.render(data); } },
-          { label: 'ACCEPT NEW MISSION', run: () => { this.pendingMissionId = undefined; data.missions.accept(pending.id, true); } },
-        ] });
-        confirm.classList.add('pilot-menu-mission-confirm');
-        missions.append(confirm);
-      }
-    }
     for (const item of data.missions.entries) {
       const now = Date.now();
       const cooling = item.cooldownUntil > now;
       const active = item.id === data.missions.activeId;
+      const anotherMissionActive = Boolean(data.missions.activeId && !active);
+      const unavailableReason = anotherMissionActive ? 'Abandon the active mission first.' : item.unavailableReason;
       const card = this.createCard({
         name: `${item.name}${active ? ' · ACTIVE' : item.completions ? ` · COMPLETED ×${item.completions}` : ''}`,
         detail: item.detail,
-        meta: `${item.difficulty} · ${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}`,
-        actions: active ? undefined : [{ label: item.retired ? 'RETIRED' : cooling ? 'COOLDOWN' : item.completions ? 'REPLAY' : 'ACCEPT', disabled: item.retired || cooling, run: () => {
-          if (data.missions.activeId) { this.pendingMissionId = item.id; this.render(data); }
-          else data.missions.accept(item.id, false);
-        } }],
+        meta: `${item.difficulty} · ${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}${unavailableReason ? ` · ${unavailableReason}` : ''}`,
+        actions: active ? undefined : [{
+          label: item.retired ? 'RETIRED' : cooling ? 'COOLDOWN' : unavailableReason ? 'UNAVAILABLE' : item.completions ? 'REPLAY' : 'ACCEPT',
+          disabled: item.retired || cooling || Boolean(unavailableReason),
+          title: unavailableReason,
+          run: () => data.missions.accept(item.id, false),
+        }],
       });
       this.addMissionTerritories(card, item, data.territories.entries);
       missions.append(card);
@@ -693,7 +685,6 @@ export class PilotMenu {
   close(): void {
     this.openState = false;
     this.pointerActive = false;
-    this.pendingMissionId = undefined;
     this.element.hidden = true;
   }
 

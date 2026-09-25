@@ -73,6 +73,7 @@ type ActiveChallenge = {
 const gateGeometry = new THREE.TorusGeometry(1, 0.075, 8, 32);
 const inactiveMaterial = new THREE.MeshBasicMaterial({ color: 0x62bcd4, transparent: true, opacity: 0.34, depthWrite: false, toneMapped: false });
 const activeMaterial = new THREE.MeshBasicMaterial({ color: 0x5ae2ff, transparent: true, opacity: 0.96, depthWrite: false, toneMapped: false });
+const completedMaterial = new THREE.MeshBasicMaterial({ color: 0x78a9b4, transparent: true, opacity: 0.16, depthWrite: false, toneMapped: false });
 const startVisibilityDistance = 3_800;
 const normalizedAngle = (angle: number): number => THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI;
 
@@ -99,6 +100,7 @@ function typeLabel(type: SkyChallengeType): string {
 export class SkyChallengeSystem {
   private readonly runtimes: ChallengeRuntime[];
   private active: ActiveChallenge | null = null;
+  private missionGuidance: { id: string; gateIndex: number } | null = null;
   private availabilityElapsed = 0;
   private nearbyStart: ChallengeRuntime | null = null;
   private readonly previousPosition = new THREE.Vector3();
@@ -197,6 +199,13 @@ export class SkyChallengeSystem {
     this.fail('ABANDONED');
   }
 
+  setMissionGuidance(id?: string, gateIndex = 0): void {
+    const next = id ? { id, gateIndex: Math.max(0, Math.floor(gateIndex)) } : null;
+    if (this.missionGuidance?.id === next?.id && this.missionGuidance?.gateIndex === next?.gateIndex) return;
+    this.missionGuidance = next;
+    this.refreshGateVisuals();
+  }
+
   getHud(): SkyChallengeHud {
     if (!this.active) return null;
     const { definition } = this.active.runtime;
@@ -210,10 +219,18 @@ export class SkyChallengeSystem {
   }
 
   getMapMarkers(): readonly SkyChallengeMarker[] {
-    return this.runtimes.map((runtime) => {
+    return this.runtimes.flatMap((runtime) => {
       const active = runtime === this.active?.runtime;
+      const guided = this.missionGuidance?.id === runtime.definition.id;
+      if (guided) return runtime.definition.gates.map((gate, index) => ({
+        id: runtime.definition.id,
+        label: index === this.missionGuidance!.gateIndex ? `NEXT GATE ${index + 1}` : `GATE ${index + 1}`,
+        x: gate.x,
+        z: gate.z,
+        active: index === this.missionGuidance!.gateIndex,
+      }));
       const gate = active ? runtime.definition.gates[this.active!.gateIndex] : runtime.definition.gates[0];
-      return { id: runtime.definition.id, label: runtime.definition.name, x: gate.x, z: gate.z, active };
+      return [{ id: runtime.definition.id, label: runtime.definition.name, x: gate.x, z: gate.z, active }];
     });
   }
 
@@ -221,6 +238,11 @@ export class SkyChallengeSystem {
     if (this.active) {
       const gate = this.active.runtime.definition.gates[this.active.gateIndex];
       return { id: this.active.runtime.definition.id, label: this.active.runtime.definition.name, x: gate.x, z: gate.z, active: true };
+    }
+    if (this.missionGuidance) {
+      const runtime = this.runtimes.find((candidate) => candidate.definition.id === this.missionGuidance!.id);
+      const gate = runtime?.definition.gates[Math.min(runtime.definition.gates.length - 1, this.missionGuidance.gateIndex)];
+      if (runtime && gate) return { id: runtime.definition.id, label: `NEXT GATE ${this.missionGuidance.gateIndex + 1}`, x: gate.x, z: gate.z, active: true };
     }
     if (!this.nearbyStart) return null;
     const gate = this.nearbyStart.definition.gates[0];
@@ -300,10 +322,21 @@ export class SkyChallengeSystem {
 
   private refreshGateVisuals(): void {
     for (const runtime of this.runtimes) {
-      for (const gate of runtime.gates) gate.visible = false;
+      for (let index = 0; index < runtime.gates.length; index += 1) {
+        runtime.gates[index].visible = false;
+        runtime.gates[index].scale.setScalar(runtime.definition.gates[index].radius);
+      }
     }
     if (this.active) {
       const { gates } = this.active.runtime;
+      if (this.missionGuidance?.id === this.active.runtime.definition.id) {
+        for (let index = 0; index < gates.length; index += 1) {
+          gates[index].visible = true;
+          (gates[index].material as THREE.MeshBasicMaterial).copy(index < this.active.gateIndex
+            ? completedMaterial : index === this.active.gateIndex ? activeMaterial : inactiveMaterial);
+        }
+        return;
+      }
       const current = gates[this.active.gateIndex];
       current.visible = true;
       (current.material as THREE.MeshBasicMaterial).copy(activeMaterial);
@@ -311,6 +344,15 @@ export class SkyChallengeSystem {
       if (next) {
         next.visible = true;
         (next.material as THREE.MeshBasicMaterial).copy(inactiveMaterial);
+      }
+      return;
+    }
+    if (this.missionGuidance) {
+      const runtime = this.runtimes.find((candidate) => candidate.definition.id === this.missionGuidance!.id);
+      if (runtime) for (let index = 0; index < runtime.gates.length; index += 1) {
+        runtime.gates[index].visible = true;
+        (runtime.gates[index].material as THREE.MeshBasicMaterial).copy(index < this.missionGuidance.gateIndex
+          ? completedMaterial : index === this.missionGuidance.gateIndex ? activeMaterial : inactiveMaterial);
       }
       return;
     }

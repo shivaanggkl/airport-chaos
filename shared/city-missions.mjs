@@ -2,18 +2,24 @@
 // airport, territory, challenge and event identifiers, never display names.
 import { dallasDisplayNames as name } from './dallas-display-names.mjs';
 
-const mission = (number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes) => Object.freeze({
+const mission = (number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes, retired = false) => Object.freeze({
   id, cityId: 'dallas', number, type, displayName, description, difficulty,
   creditReward: credits, scoreReward: score, requirements: Object.freeze(requirements),
-  replayCooldownMs: cooldownMinutes * 60_000,
+  replayCooldownMs: cooldownMinutes * 60_000, retired,
+});
+
+const cityMission = (cityId, number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes, retired = false) => Object.freeze({
+  id, cityId, number, type, displayName, description, difficulty,
+  creditReward: credits, scoreReward: score, requirements: Object.freeze(requirements),
+  replayCooldownMs: cooldownMinutes * 60_000, retired,
 });
 
 export const cityMissionCatalog = Object.freeze({
   dallas: Object.freeze([
-    mission(1, 'first-flight', 'airborneHold', 'FIRST FLIGHT', `Take off from ${name.dfw} and fly for 1 minute.`, 'EASY', 15, 25, { airportId: 'dfw', durationSeconds: 60 }, 10),
-    mission(2, 'first-landing', 'destinationLanding', 'FIRST LANDING', `Take off, then land at ${name.love}.`, 'EASY', 40, 50, { airportId: 'love' }, 10),
-    mission(3, 'straight-run', 'straightDistance', 'STRAIGHT RUN', 'Fly 8 km without landing, crashing, or turning sharply.', 'EASY', 60, 75, { meters: 8_000, maxHeadingErrorRadians: 0.17 }, 10),
-    mission(4, 'stunt-training', 'stuntPair', 'STUNT TRAINING', 'Do one Barrel Roll and one Quick Dodge in the same flight.', 'EASY', 75, 100, { maneuvers: ['barrelRoll', 'quickDodge'] }, 10),
+    mission(1, 'first-flight', 'airborneHold', 'FIRST FLIGHT — DALLAS', 'Stay alive, connected, and airborne in Dallas for 60 seconds.', 'EASY', 15, 25, { durationSeconds: 60 }, 10),
+    mission(2, 'first-landing', 'destinationLanding', 'FIRST LANDING', `Land safely at ${name.love}.`, 'EASY', 40, 50, { airportId: 'love' }, 10),
+    mission(3, 'straight-run', 'straightDistance', 'STRAIGHT RUN — DALLAS', 'Fly 24 km without landing and stay roughly on the same heading.', 'EASY', 60, 75, { meters: 24_000, maxHeadingErrorRadians: 0.17 }, 10),
+    mission(4, 'stunt-training', 'stuntPair', 'STUNT TRAINING', 'Do one Barrel Roll and one Quick Dodge in the same flight.', 'EASY', 75, 100, { maneuvers: ['barrelRoll', 'quickDodge'] }, 10, true),
     mission(5, 'airport-tour', 'airportLandings', 'AIRPORT TOUR', 'Land at all four Dallas airports, in any order.', 'MEDIUM', 350, 400, { airportIds: ['dfw', 'love', 'addison', 'executive'] }, 15),
     mission(6, 'speed-course', 'challenge', 'SPEED COURSE', 'Fly every cyan Speed Course gate in order before time runs out.', 'MEDIUM', 200, 300, { challengeId: 'dfw-speed', gateCount: 4 }, 15),
     mission(7, 'first-hunter', 'assignedHunter', 'FIRST HUNTER', 'Destroy your marked AI Hunter.', 'MEDIUM', 250, 350, { personality: 'hunter' }, 15),
@@ -24,11 +30,11 @@ export const cityMissionCatalog = Object.freeze({
     mission(12, 'central-stronghold', 'territoryHold', 'CENTRAL DISTRICT STRONGHOLD', `Capture ${name.downtown} and hold it for 30 minutes.`, 'VERY HARD', 2_500, 3_000, { territoryIds: ['downtown'], durationSeconds: 1_800 }, 5),
     mission(13, 'two-zone-control', 'territoryHold', 'TWO-ZONE CONTROL', `Hold ${name.downtown} and ${name.lasColinas} together for 10 minutes.`, 'VERY HARD', 2_000, 2_500, { territoryIds: ['downtown', 'las-colinas'], durationSeconds: 600 }, 5),
     mission(14, 'airport-control', 'territoryOwn', 'AIRPORT CONTROL', 'Control all four airport territories at once.', 'VERY HARD', 2_750, 3_250, { territoryIds: ['dfw', 'love-field', 'addison', 'dallas-executive'] }, 5),
-    mission(15, 'ace-intercept', 'event', 'ACE INTERCEPT', 'Destroy the marked Ace before time runs out.', 'HARD', 900, 1_200, { eventType: 'aceIntercept', result: 'aceDestroyed' }, 5),
-    mission(16, 'vip-escort', 'event', 'VIP ESCORT', 'Protect the VIP plane until it reaches its destination.', 'HARD', 1_000, 1_250, { eventType: 'vipEscort', result: 'completed' }, 5),
-    mission(17, 'golden-sky-run', 'event', 'GOLDEN SKY RUN', 'Fly every gold gate in order before time runs out.', 'HARD', 750, 1_000, { eventType: 'goldenSkyRun', result: 'completed' }, 5),
-    mission(18, 'most-wanted', 'wantedSurvival', 'MOST WANTED', 'Reach Danger 5, become Most Wanted, and survive the full timer.', 'VERY HARD', 1_750, 2_500, { heatLevel: 5 }, 5),
-    mission(19, 'precision-landing', 'precisionLanding', 'PRECISION LANDING', 'Land smoothly at the marked airport.', 'HARD', 500, 750, { airportId: 'love', minimumScore: 780 }, 5),
+    mission(15, 'ace-intercept', 'event', 'ACE INTERCEPT', 'Destroy the marked 300-HP Ace. Final hit completes the mission.', 'HARD', 900, 1_200, { eventType: 'aceIntercept', result: 'aceDestroyed' }, 5),
+    mission(16, 'vip-escort', 'event', 'VIP ESCORT', 'Protect the AI VIP and follow it through all 4 checkpoints.', 'HARD', 1_000, 1_250, { eventType: 'vipEscort', result: 'completed' }, 5),
+    mission(17, 'golden-sky-run', 'event', 'GOLDEN SKY RUN', 'Fly through all 6 gold gates in order before time expires.', 'HARD', 750, 1_000, { eventType: 'goldenSkyRun', result: 'completed' }, 5),
+    mission(18, 'most-wanted', 'wantedSurvival', 'MOST WANTED', 'Reach Danger 5, become Most Wanted, and survive until the event ends.', 'VERY HARD', 1_750, 2_500, { heatLevel: 5 }, 5),
+    mission(19, 'precision-landing', 'precisionLanding', 'PRECISION LANDING', `Land at ${name.love} with 780+ quality: descend gently, align with the runway, keep wings and nose level, and control speed.`, 'HARD', 500, 750, { airportId: 'love', minimumScore: 780 }, 5),
     mission(20, 'three-territory-offensive', 'territoryHold', 'THREE-TERRITORY OFFENSIVE', 'Own South Metro, Canal District, and Central District together for 10 minutes.', 'EXTREME', 3_500, 4_500, { requiredTerritoryIds: ['dallas-executive', 'las-colinas', 'downtown'], holdDurationSeconds: 600 }, 1),
     mission(21, 'central-air-supremacy', 'territoryUniqueKills', 'CENTRAL AIR SUPREMACY', 'Control Central District and destroy 3 different hostile pilots.', 'EXTREME', 3_000, 4_000, { territoryIds: ['downtown'], uniqueKills: 3 }, 1),
     mission(22, 'core-dallas-takeover', 'territoryHold', 'CORE DALLAS TAKEOVER', 'Hold Metroplex, Metro Central, Canal, and Central together for 15 minutes.', 'EXTREME', 5_000, 6_500, { territoryIds: ['dfw', 'love-field', 'las-colinas', 'downtown'], durationSeconds: 900 }, 1),
@@ -36,7 +42,10 @@ export const cityMissionCatalog = Object.freeze({
     mission(24, 'dallas-conquest', 'territoryOwn', 'DALLAS CONQUEST', 'Control every Dallas territory at once.', 'EXTREME', 10_000, 12_500, { allCityTerritories: true }, 1),
     mission(25, 'number-one-pilot', 'liveScoreRank', '#1 PILOT', 'Reach #1 on the live Dallas Score leaderboard.', 'EXTREME', 15_000, 20_000, { rank: 1 }, 1),
   ]),
-  milwaukee: Object.freeze([]),
+  milwaukee: Object.freeze([
+    cityMission('milwaukee', 1, 'first-flight', 'airborneHold', 'FIRST FLIGHT — MILWAUKEE', 'Stay alive, connected, and airborne in Milwaukee for 60 seconds.', 'EASY', 15, 25, { durationSeconds: 60 }, 10),
+    cityMission('milwaukee', 3, 'straight-run', 'straightDistance', 'STRAIGHT RUN — MILWAUKEE', 'Fly 24 km without landing and stay roughly on the same heading.', 'EASY', 60, 75, { meters: 24_000, maxHeadingErrorRadians: 0.17 }, 10),
+  ]),
 });
 
 export function missionsForCity(cityId) { return cityMissionCatalog[cityId] ?? []; }

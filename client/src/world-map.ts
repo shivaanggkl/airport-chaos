@@ -24,12 +24,12 @@ type MapAirport = {
   runwayLength: number;
 };
 
-type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string };
+type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string; missionTarget?: boolean };
 type MapTarget = { x: number; z: number; label?: string };
 export type MapMissionSummary = { name: string; objective: string; progress: string; compactProgress: string; credits: number; score: number };
 export type MapRosterEntry = { id: string; name: string; status: string; isLocal?: boolean };
 export type MapChallenge = { id: string; x: number; z: number; label: string; active: boolean };
-export type MapEvent = { id: string; x: number; z: number; label: string; mostWanted?: boolean; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
+export type MapEvent = { id: string; x: number; z: number; label: string; mostWanted?: boolean; missionTarget?: boolean; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
 export type MapDiscovery = { id: string; label: string; x: number; z: number; discovered: boolean; secret: boolean };
 export type MapDiscoveryProgress = { cityName: string; discovered: number; total: number; percent: number };
 export type MapRepair = { id: string; x: number; z: number; kind?: string; cooldownUntil?: number };
@@ -489,6 +489,12 @@ export class WorldMap {
       }
       this.context.fill();
       this.context.strokeStyle = '#0b1823'; this.context.lineWidth = 1.5; this.context.stroke();
+      if (player.missionTarget) {
+        this.context.strokeStyle = visualLanguage.mission.color;
+        this.context.lineWidth = 2.5;
+        this.context.beginPath(); this.context.arc(point.x, point.y, 11, 0, Math.PI * 2); this.context.stroke();
+        this.label(`${visualLanguage.mission.icon} TARGET: HUNTER`, point.x, point.y - 14, visualLanguage.mission.color);
+      }
       if (player.ownershipAccent) {
         this.context.strokeStyle = '#081722'; this.context.lineWidth = 5;
         this.context.beginPath(); this.context.arc(point.x, point.y, 10.5, 0, Math.PI * 2); this.context.stroke();
@@ -674,14 +680,14 @@ export class WorldMap {
   private drawEvent(event: MapEvent): void {
     if (event.lifecycle !== 'available' && event.lifecycle !== 'active') return;
     const point = this.worldToScreen(event.x, event.z);
-    const color = visualLanguage[event.mostWanted ? 'wanted' : 'event'].color;
+    const color = event.missionTarget ? visualLanguage.mission.color : visualLanguage[event.mostWanted ? 'wanted' : 'event'].color;
     this.context.strokeStyle = color;
     this.context.lineWidth = 2;
     this.context.beginPath(); this.context.arc(point.x, point.y, 8, 0, Math.PI * 2); this.context.stroke();
     this.context.fillStyle = color;
     this.context.font = '700 9px ui-monospace, monospace';
     this.context.textAlign = 'center';
-    this.label(`${visualLanguage[event.mostWanted ? 'wanted' : 'event'].icon} ${event.label}`, point.x, point.y - 12, color);
+    this.label(`${event.missionTarget ? visualLanguage.mission.icon : visualLanguage[event.mostWanted ? 'wanted' : 'event'].icon} ${event.label}`, point.x, point.y - 12, color);
   }
 
   private drawRepair(repair: MapRepair): void {

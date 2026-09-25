@@ -9,8 +9,8 @@ import { PlayerProfileStore, type LegacyProfileImport, type ObjectiveActivity, t
 import { routeDefinition } from '../../shared/city-registry.mjs';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
-import { missionForCity, missionsForCity } from '../../shared/city-missions.mjs';
-import { advanceMission, type MissionSignal } from './mission-engine.js';
+import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
+import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { airportForCity, cityAirports } from '../../shared/city-airports.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
@@ -229,8 +229,6 @@ function expirePvpChallenges(now: number): void {
     }
   }
 }
-type MissionStunt = { kind: 'barrelRoll' | 'quickDodge'; startedAt: number; x: number; z: number; heading: number; lastRoll: number; rollTravel: number };
-const activeMissionStunts = new Map<string, MissionStunt>();
 const landingReceipts = new Map<string, number>();
 const landingFlightState = new Map<string, { baselineY: number; airborne: boolean }>();
 const projectiles = new Map<string, ProjectileState>();
@@ -1274,6 +1272,33 @@ function sendMissionState(playerId: string): void {
   sendToPlayer(playerId, { type: 'missionState', cityId: player.cityId, state: player.profile.missions[player.cityId] });
 }
 
+function missionAcceptanceUnavailableReason(playerId: string, player: PlayerState, definition: CityMission): string | undefined {
+  if (definition.retired) return 'MISSION RETIRED';
+  if (definition.type === 'assignedHunter') {
+    const available = [...players.values()].some((candidate) => candidate.cityId === player.cityId && candidate.isBot &&
+      candidate.bot?.personality === 'hunter' && candidate.lifeState === 'alive');
+    if (!available) return 'NO HUNTER AVAILABLE — TRY AGAIN SOON';
+  }
+  if (definition.type === 'humanKill') {
+    const opponentAvailable = [...players.entries()].some(([candidateId, candidate]) => candidateId !== playerId &&
+      isHumanPilot(candidate) && candidate.cityId === player.cityId && hasOpenPlayerSocket(candidateId));
+    if (!opponentAvailable) return 'REQUIRES ANOTHER HUMAN PILOT IN THIS CITY';
+  }
+  if (definition.type === 'event') {
+    const event = cityEvents.get(player.cityId);
+    const available = Boolean(event && event.type === definition.requirements.eventType &&
+      (event.lifecycle === 'available' || event.lifecycle === 'active') &&
+      ((event.type !== 'aceIntercept' && event.type !== 'vipEscort') || event.lifecycle === 'available' || (event.bossHealth ?? 0) > 0));
+    if (!available) {
+      if (definition.requirements.eventType === 'aceIntercept') return 'ACE EVENT NOT CURRENTLY AVAILABLE';
+      if (definition.requirements.eventType === 'vipEscort') return 'VIP EVENT NOT CURRENTLY AVAILABLE';
+      if (definition.requirements.eventType === 'goldenSkyRun') return 'GOLDEN SKY RUN NOT CURRENTLY AVAILABLE';
+      return 'MATCHING EVENT NOT CURRENTLY AVAILABLE';
+    }
+  }
+  return undefined;
+}
+
 function controlledTerritoryIds(playerId: string, cityId: CityId): ReadonlySet<string> {
   return new Set(territoryStates(cityId).filter((state) => state.controllerId === playerId).map((state) => state.definition.id));
 }
@@ -1457,29 +1482,6 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   awardMastery(playerId, 'challenge');
   sendToPlayer(playerId, { type: 'challengeComplete', challengeId: challenge.id, score: challenge.reward, credits: challengeCredits });
   broadcastLeaderboard(player.cityId);
-}
-
-function startMissionStunt(playerId: string, player: PlayerState, kind: unknown, now: number): void {
-  if ((kind !== 'barrelRoll' && kind !== 'quickDodge') || player.lifeState !== 'alive' ||
-      !landingFlightState.get(playerId)?.airborne || now - player.lastStateAt > 1_500 ||
-      player.profile.missions[player.cityId]?.active?.missionId !== 'stunt-training') return;
-  activeMissionStunts.set(playerId, {
-    kind, startedAt: now, x: player.position.x, z: player.position.z,
-    heading: player.rotation.y, lastRoll: player.rotation.z, rollTravel: 0,
-  });
-}
-
-function finishMissionStunt(playerId: string, player: PlayerState, kind: unknown, now: number): void {
-  const stunt = activeMissionStunts.get(playerId);
-  activeMissionStunts.delete(playerId);
-  if (!stunt || stunt.kind !== kind || player.lifeState !== 'alive' ||
-      !landingFlightState.get(playerId)?.airborne || now - player.lastStateAt > 1_500) return;
-  const elapsed = now - stunt.startedAt;
-  const lateral = Math.abs((player.position.x - stunt.x) * Math.cos(stunt.heading) - (player.position.z - stunt.z) * Math.sin(stunt.heading));
-  const verified = kind === 'barrelRoll'
-    ? elapsed >= 650 && elapsed <= 7_000 && stunt.rollTravel >= Math.PI * 1.7
-    : elapsed >= 450 && elapsed <= 1_800 && lateral >= 28 && stunt.rollTravel >= 0.04;
-  if (verified) missionSignal(playerId, { type: 'stunt', at: now, maneuver: stunt.kind });
 }
 
 type LandingTelemetry = { speed: number; descentRate: number; bankAngle: number; pitch: number; headingError: number };
@@ -2886,7 +2888,6 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
   reduceHeatAfterDestruction(victimId, now);
   playerChaos.delete(victimId);
   activeChallenges.delete(victimId);
-  activeMissionStunts.delete(victimId);
   removeTerritoryContribution(victimId);
   const activeRiskZone = cityEvents.get(victim.cityId);
   if (activeRiskZone?.lifecycle === 'active' && activeRiskZone.type === 'riskZone') {
@@ -3060,7 +3061,8 @@ function botStateMessage(playerId: string, player: PlayerState, type: 'state' | 
   return {
     type, playerId, position: player.position, rotation: player.rotation,
     aircraftType: player.aircraftType, cityId: player.cityId, displayName: player.displayName,
-    lifeState: player.lifeState, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType), isBot: true, boostActive: false,
+    lifeState: player.lifeState, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType), isBot: true,
+    botPersonality: player.bot?.personality, boostActive: false,
   };
 }
 
@@ -3779,7 +3781,6 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
 }
 
 function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: PlayerProfile, now: number, serverReset = false): void {
-  activeMissionStunts.delete(playerId);
   missionSignal(playerId, { type: 'lostFlight', at: now });
   const safeSpawn = safeRespawnTransform(playerId, player, now);
   player.assistedAim = undefined;
@@ -3856,7 +3857,6 @@ function clearPlayerRuntimeState(playerId: string): void {
   clearLocksForTarget(playerId);
   playerChaos.delete(playerId);
   activeChallenges.delete(playerId);
-  activeMissionStunts.delete(playerId);
   landingFlightState.delete(playerId);
   playerHeat.delete(playerId);
   clearRepairState(playerId);
@@ -4258,6 +4258,7 @@ server.on('connection', (socket, request) => {
           equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
           lifeState: player.lifeState,
           isBot: player.isBot,
+          botPersonality: player.bot?.personality,
           boostActive: player.boostActive,
           health: player.health,
           maxHealth: maxHealthForAircraft(player.aircraftType),
@@ -4561,15 +4562,16 @@ server.on('connection', (socket, request) => {
         if (process.env.AIRPORT_CHAOS_MISSION_DEBUG === '1') console.log('[mission-accept]', { requested: message.missionId, replace: message.replaceMission, expected: message.expectedAttemptId, active: profileStore.missionState(player.pilotId, player.cityId)?.active?.attemptId });
         const definition = missionForCity(player.cityId, message.missionId);
         if (!definition) return;
+        const unavailableReason = missionAcceptanceUnavailableReason(playerId, player, definition);
+        if (unavailableReason) {
+          sendToPlayer(playerId, { type: 'missionResult', ok: false, missionId: definition.id, reason: unavailableReason });
+          return;
+        }
         const hunter = definition.type === 'assignedHunter'
           ? [...players.entries()]
             .filter(([, candidate]) => candidate.cityId === player.cityId && candidate.isBot && candidate.bot?.personality === 'hunter' && candidate.lifeState === 'alive')
             .sort((a, b) => Math.hypot(a[1].position.x - player.position.x, a[1].position.z - player.position.z) - Math.hypot(b[1].position.x - player.position.x, b[1].position.z - player.position.z))[0]
           : undefined;
-        if (definition.type === 'assignedHunter' && !hunter) {
-          sendToPlayer(playerId, { type: 'missionResult', ok: false, missionId: definition.id, reason: 'NO HUNTER AVAILABLE — TRY AGAIN SOON' });
-          return;
-        }
         const result = profileStore.acceptMission(player.pilotId, player.cityId, definition.id, message.replaceMission === true,
           typeof message.expectedAttemptId === 'string' ? message.expectedAttemptId : undefined);
         if (!result.ok) {
@@ -4577,9 +4579,17 @@ server.on('connection', (socket, request) => {
           return;
         }
         let profile = result.profile!;
-        if (hunter && profile.missions[player.cityId]?.active) {
-          profile.missions[player.cityId]!.active!.targetId = hunter[0];
-          profile = profileStore.updateMissionAttempt(player.pilotId, player.cityId, profile.missions[player.cityId]!.active!) ?? profile;
+        const acceptedAttempt = profile.missions[player.cityId]?.active;
+        if (acceptedAttempt) {
+          const initialized = initializeMissionAttempt(definition, acceptedAttempt, {
+            at: Date.now(),
+            alive: player.lifeState === 'alive',
+            connected: hasOpenPlayerSocket(playerId),
+            airborne: Boolean(landingFlightState.get(playerId)?.airborne),
+            heading: player.rotation.y,
+          });
+          if (hunter) initialized.targetId = hunter[0];
+          profile = profileStore.updateMissionAttempt(player.pilotId, player.cityId, initialized) ?? profile;
         }
         sendProfile(playerId, profile);
         if (definition.type === 'challenge') {
@@ -4611,9 +4621,6 @@ server.on('connection', (socket, request) => {
         if (profile) sendProfile(playerId, profile);
         return;
       }
-
-      if (message.type === 'stuntStart') { startMissionStunt(playerId, player, message.maneuver, Date.now()); return; }
-      if (message.type === 'stuntComplete') { finishMissionStunt(playerId, player, message.maneuver, Date.now()); return; }
 
       if (message.type === 'chaosAction') {
         const action = message.action;
@@ -4747,11 +4754,9 @@ server.on('connection', (socket, request) => {
       // hits instead of truncating every aircraft at the old 300m/s limit.
       const envelope = aircraftFlightEnvelope[player.aircraftType];
       const velocityCap = envelope.maxSpeed * envelope.boostMaxSpeed + 10; // existing challenge speed bonus
-      const activeStunt = activeMissionStunts.get(playerId);
-      const stuntAllowance = activeStunt?.kind === 'quickDodge' ? 55 : activeStunt?.kind === 'barrelRoll' ? 18 : 0;
       const validation = validateClientTransform(
         player.lastAcceptedPosition, message.position, stateNow - player.lastAcceptedTransformAt,
-        envelope, stuntAllowance, transformWorldBounds[player.cityId],
+        envelope, 0, transformWorldBounds[player.cityId],
       );
       const firstValidTransform = !player.hasRespawnTransform;
       const traveled = Math.hypot(
@@ -4777,11 +4782,6 @@ server.on('connection', (socket, request) => {
       player.lastAcceptedPosition = { ...message.position };
       player.lastAcceptedTransformAt = stateNow;
       player.rotation = message.rotation;
-      if (activeStunt) {
-        const step = Math.abs(Math.atan2(Math.sin(player.rotation.z - activeStunt.lastRoll), Math.cos(player.rotation.z - activeStunt.lastRoll)));
-        if (step <= 1.8) activeStunt.rollTravel += step;
-        activeStunt.lastRoll = player.rotation.z;
-      }
       player.boostActive = message.boostActive === true;
       // Transform packets never equip aircraft. Explicit equipAircraft above
       // is the only selection path accepted by the server profile.

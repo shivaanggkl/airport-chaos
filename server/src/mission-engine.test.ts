@@ -5,14 +5,14 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cityMissionCatalog, missionForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
-import { advanceMission } from './mission-engine.js';
+import { advanceMission, initializeMissionAttempt } from './mission-engine.js';
 import { PlayerProfileStore, type MissionAttempt } from './player-profiles.js';
 
 function attempt(missionId: string): MissionAttempt {
   return { missionId, attemptId: '00000000-0000-4000-8000-000000000001', startedAt: 1_000, updatedAt: 1_000, progress: 0, completedIds: [] };
 }
 
-test('Dallas catalog is complete and other cities cannot use Dallas missions', () => {
+test('Dallas catalog remains complete and city-scoped starter missions exist in Milwaukee', () => {
   assert.equal(cityMissionCatalog.dallas.length, 25);
   assert.deepEqual(cityMissionCatalog.dallas.map((mission) => mission.number), Array.from({ length: 25 }, (_, index) => index + 1));
   assert.deepEqual(cityMissionCatalog.dallas.map((mission) => [mission.creditReward, mission.scoreReward]), [
@@ -21,7 +21,36 @@ test('Dallas catalog is complete and other cities cannot use Dallas missions', (
     [900, 1200], [1000, 1250], [750, 1000], [1750, 2500], [500, 750], [3500, 4500],
     [3000, 4000], [5000, 6500], [6000, 7500], [10000, 12500], [15000, 20000],
   ]);
-  assert.equal(missionForCity('milwaukee', 'first-flight'), undefined);
+  assert.deepEqual(cityMissionCatalog.milwaukee.map((mission) => mission.id), ['first-flight', 'straight-run']);
+  assert.equal(missionForCity('dallas', 'straight-run')?.requirements.meters, 24_000);
+  assert.equal(missionForCity('milwaukee', 'straight-run')?.requirements.meters, 24_000);
+  assert.equal(missionForCity('dallas', 'stunt-training')?.retired, true);
+});
+
+test('airborne acceptance starts city flight missions immediately and landing needs no post-acceptance takeoff', () => {
+  const context = { at: 5_000, alive: true, connected: true, airborne: true, heading: 0.72 };
+  for (const cityId of ['dallas', 'milwaukee'] as const) {
+    const firstFlight = missionForCity(cityId, 'first-flight')!;
+    const initialized = initializeMissionAttempt(firstFlight, attempt(firstFlight.id), context);
+    assert.equal(initialized.flightStartedAt, 5_000);
+    assert.equal(advanceMission(firstFlight, initialized, {
+      type: 'tick', at: 65_000, alive: true, connected: true, airborne: true,
+      controlledTerritories: new Set(), scoreRank: 1, humanCount: 1, score: 0,
+    }).completed, true);
+
+    const straight = missionForCity(cityId, 'straight-run')!;
+    const straightAttempt = initializeMissionAttempt(straight, attempt(straight.id), context);
+    assert.equal(straightAttempt.heading, context.heading);
+    assert.equal(straightAttempt.distanceMeters, 0);
+  }
+
+  const landing = missionForCity('dallas', 'first-landing')!;
+  assert.equal(advanceMission(landing, attempt(landing.id), {
+    type: 'landing', at: 9_000, airportId: 'love', quality: 700, controlledTerritories: new Set(),
+  }).completed, true);
+  assert.equal(advanceMission(landing, attempt(landing.id), {
+    type: 'landing', at: 9_000, airportId: 'dfw', quality: 700, controlledTerritories: new Set(),
+  }).completed, false);
 });
 
 test('mission attempts persist, switch resets, reward is once-only, and replay cools down', () => {
@@ -32,6 +61,7 @@ test('mission attempts persist, switch resets, reward is once-only, and replay c
     const second = store.getOrCreate('pilot-test-two-00002', 'Pilot Two');
     const accepted = store.acceptMission(first.pilotId, 'dallas', 'straight-run', false, undefined, 1_000);
     assert.equal(accepted.ok, true);
+    assert.deepEqual(store.acceptMission(second.pilotId, 'dallas', 'stunt-training', false, undefined, 1_000), { ok: false, reason: 'MISSION RETIRED' });
     const oldAttempt = accepted.profile!.missions.dallas!.active!;
     const progressed = { ...oldAttempt, progress: 4_000, distanceMeters: 4_000 };
     store.updateMissionAttempt(first.pilotId, 'dallas', progressed);
@@ -46,6 +76,12 @@ test('mission attempts persist, switch resets, reward is once-only, and replay c
     const rewarded = store.completeMission(first.pilotId, 'dallas', active.attemptId, 62_000);
     assert.equal(rewarded?.credits, 15);
     assert.equal(store.completeMission(first.pilotId, 'dallas', active.attemptId, 62_100), undefined);
+    const milwaukee = store.acceptMission(first.pilotId, 'milwaukee', 'first-flight', false, undefined, 62_500);
+    assert.equal(milwaukee.ok, true, 'Dallas cooldown must not block Milwaukee');
+    const abandoned = store.abandonMission(first.pilotId, 'milwaukee', milwaukee.profile!.missions.milwaukee!.active!.attemptId);
+    assert.equal(abandoned?.credits, first.credits + 15);
+    assert.equal(abandoned?.missions.milwaukee!.active, undefined);
+    assert.equal(abandoned?.missions.milwaukee!.completions['first-flight'], undefined);
     assert.equal(store.acceptMission(first.pilotId, 'dallas', 'first-flight', false, undefined, 62_500).ok, false);
     assert.equal(store.acceptMission(first.pilotId, 'dallas', 'first-flight', false, undefined, 663_000).ok, true);
     const restored = new PlayerProfileStore(join(directory, 'profiles.sqlite')).getOrCreate(first.pilotId, 'Pilot One');

@@ -7,7 +7,6 @@ export type MissionSignal =
   | { type: 'takeoff'; at: number; airportId?: string }
   | { type: 'landing'; at: number; airportId: string; quality: number; controlledTerritories: ReadonlySet<string> }
   | { type: 'flight'; at: number; airborne: boolean; alive: boolean; meters: number; heading: number }
-  | { type: 'stunt'; at: number; maneuver: 'barrelRoll' | 'quickDodge' }
   | { type: 'challenge'; at: number; challengeId: string }
   | { type: 'challengeStart'; at: number; challengeId: string; timeLimitMs: number }
   | { type: 'challengeGate'; at: number; challengeId: string; gateIndex: number }
@@ -21,6 +20,30 @@ export type MissionSignal =
   | { type: 'disconnect'; at: number };
 
 export type MissionStep = { attempt: MissionAttempt; completed: boolean; changed: boolean };
+
+export type MissionAcceptanceContext = {
+  at: number;
+  alive: boolean;
+  connected: boolean;
+  airborne: boolean;
+  heading: number;
+};
+
+// Start only the mission state that can be observed authoritatively at
+// acceptance. This lets airborne pilots begin time/distance missions without
+// manufacturing a second takeoff while keeping all progress post-acceptance.
+export function initializeMissionAttempt(mission: CityMission, original: MissionAttempt, context: MissionAcceptanceContext): MissionAttempt {
+  const attempt: MissionAttempt = { ...original, completedIds: [...original.completedIds] };
+  if (!context.alive || !context.connected || !context.airborne || mission.retired) return attempt;
+  if (mission.type === 'airborneHold') attempt.flightStartedAt = context.at;
+  if (mission.type === 'straightDistance') {
+    attempt.flightStartedAt = context.at;
+    attempt.heading = context.heading;
+    attempt.distanceMeters = 0;
+  }
+  attempt.updatedAt = context.at;
+  return attempt;
+}
 
 function sameSet(controlled: ReadonlySet<string>, required: readonly string[]): boolean {
   return required.every((id) => controlled.has(id));
@@ -40,6 +63,7 @@ function resetFlight(attempt: MissionAttempt): void {
 
 export function advanceMission(mission: CityMission, original: MissionAttempt, signal: MissionSignal): MissionStep {
   const attempt: MissionAttempt = { ...original, completedIds: [...original.completedIds], ownedTerritoryIds: original.ownedTerritoryIds ? [...original.ownedTerritoryIds] : undefined };
+  if (mission.retired) return { attempt, completed: false, changed: false };
   const before = JSON.stringify(attempt);
   const requirements = mission.requirements;
   const requiredTerritoryIds = requirements.requiredTerritoryIds ?? requirements.territoryIds ?? [];
@@ -49,12 +73,12 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
   }
   let completed = false;
   if (signal.type === 'disconnect' || signal.type === 'lostFlight') {
-    if (mission.type === 'airborneHold' || mission.type === 'straightDistance' || mission.type === 'stuntPair' || mission.type === 'destinationLanding') resetFlight(attempt);
+    if (mission.type === 'airborneHold' || mission.type === 'straightDistance' || mission.type === 'destinationLanding') resetFlight(attempt);
     if (mission.type === 'territoryHold') { attempt.holdStartedAt = undefined; attempt.progress = 0; }
     if (signal.type === 'disconnect') attempt.holdStartedAt = undefined;
   } else switch (mission.type) {
     case 'airborneHold':
-      if (signal.type === 'takeoff' && signal.airportId === requirements.airportId) attempt.flightStartedAt = signal.at;
+      if (signal.type === 'takeoff' && (!requirements.airportId || signal.airportId === requirements.airportId)) attempt.flightStartedAt = signal.at;
       if (signal.type === 'landing') resetFlight(attempt);
       if (signal.type === 'tick' && attempt.flightStartedAt) {
         if (!signal.alive || !signal.airborne || !signal.connected) resetFlight(attempt);
@@ -62,8 +86,7 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
       }
       break;
     case 'destinationLanding':
-      if (signal.type === 'takeoff') attempt.flightStartedAt = signal.at;
-      if (signal.type === 'landing') { completed = Boolean(attempt.flightStartedAt && signal.airportId === requirements.airportId); if (!completed) resetFlight(attempt); }
+      if (signal.type === 'landing') completed = signal.airportId === requirements.airportId;
       break;
     case 'straightDistance':
       if (signal.type === 'flight') {
@@ -73,15 +96,6 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
         else { attempt.distanceMeters = Math.min(requirements.meters ?? 0, (attempt.distanceMeters ?? 0) + Math.max(0, signal.meters)); attempt.progress = attempt.distanceMeters; completed = attempt.progress >= (requirements.meters ?? Infinity); }
       }
       if (signal.type === 'landing') resetFlight(attempt);
-      break;
-    case 'stuntPair':
-      if (signal.type === 'takeoff') attempt.flightStartedAt = signal.at;
-      if (signal.type === 'landing') resetFlight(attempt);
-      if (signal.type === 'stunt' && attempt.flightStartedAt && requirements.maneuvers?.includes(signal.maneuver)) {
-        if (!attempt.completedIds.includes(signal.maneuver)) attempt.completedIds.push(signal.maneuver);
-        attempt.progress = attempt.completedIds.length;
-        completed = (requirements.maneuvers ?? []).every((name) => attempt.completedIds.includes(name));
-      }
       break;
     case 'airportLandings':
       if (signal.type === 'landing' && requirements.airportIds?.includes(signal.airportId)) {
