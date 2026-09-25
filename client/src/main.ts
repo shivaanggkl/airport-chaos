@@ -5170,25 +5170,35 @@ function updateLockCircle(): void {
     .addScaledVector(lockCameraRight, Math.sin(LOCK_ANGLE)).normalize()
     .multiplyScalar(depth).add(airplane.position);
   lockProjectedEdge.copy(lockCircleEdgePoint).project(camera);
-  const centerX = (lockProjectedCenter.x * 0.5 + 0.5) * window.innerWidth;
-  const centerY = (-lockProjectedCenter.y * 0.5 + 0.5) * window.innerHeight;
+  const projectedCenterX = (lockProjectedCenter.x * 0.5 + 0.5) * window.innerWidth;
+  const projectedCenterY = (-lockProjectedCenter.y * 0.5 + 0.5) * window.innerHeight;
   const derivedRadius = Math.hypot(
     (lockProjectedEdge.x - lockProjectedCenter.x) * window.innerWidth * 0.5,
     (lockProjectedEdge.y - lockProjectedCenter.y) * window.innerHeight * 0.5,
   );
-  const diameter = Math.max(1, derivedRadius * 2);
-  lockCircleCenterX = centerX;
-  lockCircleCenterY = centerY;
-  lockCircleRadius = diameter * 0.5;
+  const edgeMargin = window.innerWidth <= 900 ? 8 : 12;
+  const radius = THREE.MathUtils.clamp(
+    derivedRadius,
+    0.5,
+    Math.max(0.5, (Math.min(window.innerWidth, window.innerHeight) - edgeMargin * 2) * 0.5),
+  );
+  const centerX = THREE.MathUtils.clamp(projectedCenterX, edgeMargin + radius, window.innerWidth - edgeMargin - radius);
+  const centerY = THREE.MathUtils.clamp(projectedCenterY, edgeMargin + radius, window.innerHeight - edgeMargin - radius);
+  const diameter = radius * 2;
+  // Keep angular validation on the true projected aim. Only the presentation
+  // is edge-clamped when the expanded envelope reaches a small viewport.
+  lockCircleCenterX = projectedCenterX;
+  lockCircleCenterY = projectedCenterY;
+  lockCircleRadius = derivedRadius;
   acquisitionCircleElement.style.setProperty('--acquisition-size', `${Math.round(diameter)}px`);
   acquisitionCircleElement.style.left = `${Math.round(centerX)}px`;
   acquisitionCircleElement.style.top = `${Math.round(centerY)}px`;
   acquisitionCircleElement.style.visibility = lockProjectedCenter.z >= -1 && lockProjectedCenter.z <= 1 ? '' : 'hidden';
-  const feedbackBelow = centerY + derivedRadius + 28;
+  const feedbackBelow = centerY + radius + 28;
   const feedbackAbove = feedbackBelow + 42 > window.innerHeight;
   targetFeedbackElement.classList.toggle('above', feedbackAbove);
   targetFeedbackElement.style.left = `${Math.round(THREE.MathUtils.clamp(centerX, 82, Math.max(82, window.innerWidth - 82)))}px`;
-  targetFeedbackElement.style.top = `${Math.round(feedbackAbove ? centerY - derivedRadius - 28 : feedbackBelow)}px`;
+  targetFeedbackElement.style.top = `${Math.round(feedbackAbove ? centerY - radius - 28 : feedbackBelow)}px`;
   targetFeedbackElement.style.visibility = lockProjectedCenter.z >= -1 && lockProjectedCenter.z <= 1 ? '' : 'hidden';
 }
 

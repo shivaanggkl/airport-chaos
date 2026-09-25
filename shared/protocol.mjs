@@ -15,10 +15,11 @@ export function ballisticShotSpeed(velocity, direction) {
 export const LOCK_ANGLE = 0.075;
 
 // Search is wider than the lock itself. Manual and automatic aim remain
-// bounded inside this forward-only cone.
-export const AIM_ENVELOPE = 0.20;
-export const AIM_MAX_OFFSET = 0.115;
-export const AIM_MANUAL_OFFSET = 0.10;
+// bounded inside this forward-only cone. These angular limits are 2× the
+// original 0.20 / 0.115 / 0.10 rad envelope without changing aim step speed.
+export const AIM_ENVELOPE = 0.40;
+export const AIM_MAX_OFFSET = 0.23;
+export const AIM_MANUAL_OFFSET = 0.20;
 export const AIM_SWITCH_MARGIN = 0.015;
 // A shot references server-issued samples, never client-provided aim coordinates.
 export function interpolateAim(from, to, blend, out) {
