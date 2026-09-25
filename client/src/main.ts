@@ -944,6 +944,10 @@ let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
 let purchaseSequence = 0;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
+const activeMissionOverlayElement = document.querySelector<HTMLElement>('#active-mission-overlay')!;
+const activeMissionTitleElement = document.querySelector<HTMLElement>('#active-mission-title')!;
+const activeMissionObjectiveElement = document.querySelector<HTMLElement>('#active-mission-objective')!;
+const activeMissionProgressElement = document.querySelector<HTMLElement>('#active-mission-progress')!;
 const worldStatusElement = document.querySelector<HTMLDivElement>('#world-status')!;
 const radarPanelElement = document.querySelector<HTMLElement>('#radar-panel')!;
 const radarCanvas = document.querySelector<HTMLCanvasElement>('#radar')!;
@@ -3919,14 +3923,31 @@ function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttemp
 }
 
 let completedMissionUntil = 0;
+function missionOverlayProgress(definition: CityMission, progress: ReturnType<typeof missionProgress>): string {
+  const lines = progress.text.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return [...lines].reverse().find((line) => /\d+\s*\/\s*\d+|\d+:\d+/.test(line)) ?? lines.at(-1)!;
+  }
+  if (lines[0] && lines[0] !== definition.description) return lines[0];
+  return `Progress: ${Math.min(progress.value, progress.target)}/${progress.target}`;
+}
+
 function updateMissionHud(): void {
   const active = serverProfile.missions[cityId]?.active;
   const definition = active && missionForCity(cityId, active.missionId);
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
     missionProgressElement.textContent = `${Math.min(mobileProgress.value, mobileProgress.target)}/${mobileProgress.target}`;
+    activeMissionTitleElement.textContent = `MISSION: ${definition.displayName}`;
+    activeMissionObjectiveElement.textContent = definition.description;
+    activeMissionProgressElement.textContent = missionOverlayProgress(definition, mobileProgress);
+    activeMissionOverlayElement.hidden = false;
   } else {
     missionProgressElement.textContent = Date.now() < completedMissionUntil ? 'DONE' : profileActiveMissionCity(serverProfile) ? 'AWAY' : '—';
+    activeMissionOverlayElement.hidden = true;
+    activeMissionTitleElement.textContent = '';
+    activeMissionObjectiveElement.textContent = '';
+    activeMissionProgressElement.textContent = '';
   }
 }
 
