@@ -1,4 +1,4 @@
-import type { CityMission } from '../../shared/city-missions.mjs';
+import type { CityMission, CityMissionStep } from '../../shared/city-missions.mjs';
 import type { MissionAttempt } from './player-profiles.js';
 
 // The server alone produces these signals from accepted transforms, validated
@@ -6,7 +6,7 @@ import type { MissionAttempt } from './player-profiles.js';
 export type MissionSignal =
   | { type: 'takeoff'; at: number; airportId?: string }
   | { type: 'landing'; at: number; airportId: string; quality: number; controlledTerritories: ReadonlySet<string> }
-  | { type: 'flight'; at: number; airborne: boolean; alive: boolean; meters: number; heading: number }
+  | { type: 'flight'; at: number; airborne: boolean; alive: boolean; meters: number; heading: number; x: number; z: number; altitudeMeters: number }
   | { type: 'challenge'; at: number; challengeId: string }
   | { type: 'challengeStart'; at: number; challengeId: string; timeLimitMs: number }
   | { type: 'challengeGate'; at: number; challengeId: string; gateIndex: number }
@@ -27,6 +27,9 @@ export type MissionAcceptanceContext = {
   connected: boolean;
   airborne: boolean;
   heading: number;
+  x?: number;
+  z?: number;
+  altitudeMeters?: number;
 };
 
 // Start only the mission state that can be observed authoritatively at
@@ -40,6 +43,18 @@ export function initializeMissionAttempt(mission: CityMission, original: Mission
     attempt.flightStartedAt = context.at;
     attempt.heading = context.heading;
     attempt.distanceMeters = 0;
+  }
+  if (mission.type === 'sequentialTour') {
+    attempt.sequenceIndex = 0;
+    attempt.progress = 0;
+    attempt.distanceMeters = 0;
+    attempt.holdStartedAt = undefined;
+    if (context.x !== undefined && context.z !== undefined && context.altitudeMeters !== undefined) {
+      return advanceMission(mission, attempt, {
+        type: 'flight', at: context.at, alive: context.alive, airborne: context.airborne,
+        meters: 0, heading: context.heading, x: context.x, z: context.z, altitudeMeters: context.altitudeMeters,
+      }).attempt;
+    }
   }
   attempt.updatedAt = context.at;
   return attempt;
@@ -61,6 +76,28 @@ function resetFlight(attempt: MissionAttempt): void {
   attempt.completedIds = [];
 }
 
+function currentTourStep(mission: CityMission, attempt: MissionAttempt): CityMissionStep | undefined {
+  return mission.requirements.steps?.[attempt.sequenceIndex ?? 0];
+}
+
+function resetTourContinuousStep(attempt: MissionAttempt, step: CityMissionStep | undefined): void {
+  if (step?.kind === 'lowDistance') attempt.distanceMeters = 0;
+  if (step?.kind === 'areaHold') attempt.holdStartedAt = undefined;
+}
+
+function insideTourStep(step: CityMissionStep, x: number, z: number): boolean {
+  if (step.bounds) return x >= step.bounds.minX && x <= step.bounds.maxX && z >= step.bounds.minZ && z <= step.bounds.maxZ;
+  return step.x !== undefined && step.z !== undefined && Math.hypot(x - step.x, z - step.z) <= (step.radius ?? 0);
+}
+
+function completeTourStep(attempt: MissionAttempt, step: CityMissionStep): void {
+  if (!attempt.completedIds.includes(step.id)) attempt.completedIds.push(step.id);
+  attempt.sequenceIndex = (attempt.sequenceIndex ?? 0) + 1;
+  attempt.progress = attempt.sequenceIndex;
+  attempt.distanceMeters = 0;
+  attempt.holdStartedAt = undefined;
+}
+
 export function advanceMission(mission: CityMission, original: MissionAttempt, signal: MissionSignal): MissionStep {
   const attempt: MissionAttempt = { ...original, completedIds: [...original.completedIds], ownedTerritoryIds: original.ownedTerritoryIds ? [...original.ownedTerritoryIds] : undefined };
   if (mission.retired) return { attempt, completed: false, changed: false };
@@ -75,6 +112,8 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
   if (signal.type === 'disconnect' || signal.type === 'lostFlight') {
     if (mission.type === 'airborneHold' || mission.type === 'straightDistance' || mission.type === 'destinationLanding') resetFlight(attempt);
     if (mission.type === 'territoryHold') { attempt.holdStartedAt = undefined; attempt.progress = 0; }
+    if (mission.type === 'liveScoreRank') { attempt.holdStartedAt = undefined; attempt.progress = 0; }
+    if (mission.type === 'sequentialTour') resetTourContinuousStep(attempt, currentTourStep(mission, attempt));
     if (signal.type === 'disconnect') attempt.holdStartedAt = undefined;
   } else switch (mission.type) {
     case 'airborneHold':
@@ -171,8 +210,46 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
       }
       break;
     case 'liveScoreRank':
-      if (signal.type === 'tick' && signal.alive && signal.connected && signal.humanCount >= 2 && signal.score > 0 && signal.scoreRank === requirements.rank) { attempt.progress = 1; completed = true; }
+      if (signal.type === 'tick') {
+        const durationSeconds = requirements.durationSeconds ?? 300;
+        const eligible = signal.alive && signal.connected && signal.humanCount >= (requirements.minimumHumanPlayers ?? 2) && signal.score > 0 && signal.scoreRank === requirements.rank;
+        if (!eligible) { attempt.holdStartedAt = undefined; attempt.progress = 0; }
+        else {
+          attempt.holdStartedAt ??= signal.at;
+          attempt.progress = Math.min(durationSeconds, Math.floor((signal.at - attempt.holdStartedAt) / 1000));
+          completed = attempt.progress >= durationSeconds;
+        }
+      }
       break;
+    case 'sequentialTour': {
+      const steps = requirements.steps ?? [];
+      const step = currentTourStep(mission, attempt);
+      if (!step) break;
+      if (signal.type === 'landing') resetTourContinuousStep(attempt, step);
+      if (signal.type !== 'flight') break;
+      if (!signal.alive || !signal.airborne) {
+        resetTourContinuousStep(attempt, step);
+        break;
+      }
+      if ((step.kind === 'area' || step.kind === 'checkpoint') && insideTourStep(step, signal.x, signal.z)) completeTourStep(attempt, step);
+      else if (step.kind === 'altitude' && signal.altitudeMeters >= (step.minimumAltitudeMeters ?? Infinity)) completeTourStep(attempt, step);
+      else if (step.kind === 'lowDistance') {
+        if (signal.altitudeMeters > (step.maximumAltitudeMeters ?? -Infinity)) attempt.distanceMeters = 0;
+        else {
+          attempt.distanceMeters = Math.min(step.meters ?? 0, (attempt.distanceMeters ?? 0) + Math.max(0, signal.meters));
+          if (attempt.distanceMeters >= (step.meters ?? Infinity)) completeTourStep(attempt, step);
+        }
+      } else if (step.kind === 'areaHold') {
+        const valid = signal.altitudeMeters <= (step.maximumAltitudeMeters ?? -Infinity) && insideTourStep(step, signal.x, signal.z);
+        if (!valid) attempt.holdStartedAt = undefined;
+        else {
+          attempt.holdStartedAt ??= signal.at;
+          if (signal.at - attempt.holdStartedAt >= (step.durationSeconds ?? Infinity) * 1000) completeTourStep(attempt, step);
+        }
+      }
+      completed = (attempt.sequenceIndex ?? 0) >= steps.length && steps.length > 0;
+      break;
+    }
   }
   if (JSON.stringify(attempt) !== before) attempt.updatedAt = signal.at;
   return { attempt, completed, changed: JSON.stringify(attempt) !== before };

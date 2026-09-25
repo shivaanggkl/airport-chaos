@@ -1,6 +1,31 @@
 // Data only: the mission engine is city-neutral. Saved IDs use stable city,
 // airport, territory, challenge and event identifiers, never display names.
 import { dallasDisplayNames as name } from './dallas-display-names.mjs';
+import { cityRegistry } from './city-registry.mjs';
+import { territoriesForCity } from './city-territories.mjs';
+
+const dallasTerritories = territoriesForCity('dallas');
+const dallasTerritoryStep = (id, label) => {
+  const territory = dallasTerritories.find((item) => item.id === id);
+  if (!territory) throw new Error(`Missing Dallas Grand Tour territory: ${id}`);
+  return Object.freeze({ id, kind: 'area', label, x: territory.center.x, z: territory.center.z, bounds: territory.bounds });
+};
+const dallasHalfWorld = cityRegistry.dallas.worldSize / 2;
+const dallasEdge = dallasHalfWorld - 2_000;
+const dallasGrandTourSteps = Object.freeze([
+  dallasTerritoryStep('downtown', 'DOWNTOWN DALLAS'),
+  dallasTerritoryStep('love-field', `${name.love} AREA`),
+  dallasTerritoryStep('las-colinas', name.lasColinas),
+  dallasTerritoryStep('dallas-executive', `${name.executive} AREA`),
+  Object.freeze({ id: 'northwest-edge', kind: 'checkpoint', label: 'NORTHWEST EDGE', x: -dallasEdge, z: -dallasEdge, radius: 1_800 }),
+  Object.freeze({ id: 'northeast-edge', kind: 'checkpoint', label: 'NORTHEAST EDGE', x: dallasEdge, z: -dallasEdge, radius: 1_800 }),
+  Object.freeze({ id: 'southeast-edge', kind: 'checkpoint', label: 'SOUTHEAST EDGE', x: dallasEdge, z: dallasEdge, radius: 1_800 }),
+  Object.freeze({ id: 'southwest-edge', kind: 'checkpoint', label: 'SOUTHWEST EDGE', x: -dallasEdge, z: dallasEdge, radius: 1_800 }),
+  Object.freeze({ id: 'high-altitude', kind: 'altitude', label: 'HIGH ALTITUDE', minimumAltitudeMeters: 18_288 }),
+  Object.freeze({ id: 'low-flight', kind: 'lowDistance', label: 'LOW FLIGHT', maximumAltitudeMeters: 304.8, meters: 6_000 }),
+  Object.freeze({ id: 'downtown-low-pass', kind: 'areaHold', label: 'DOWNTOWN LOW PASS', x: -600, z: -450,
+    bounds: dallasTerritories.find((item) => item.id === 'downtown').bounds, maximumAltitudeMeters: 152.4, durationSeconds: 6 }),
+]);
 
 const mission = (number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes, retired = false) => Object.freeze({
   id, cityId: 'dallas', number, type, displayName, description, difficulty,
@@ -36,11 +61,12 @@ export const cityMissionCatalog = Object.freeze({
     mission(18, 'most-wanted', 'wantedSurvival', 'MOST WANTED', 'Reach Danger 5, become Most Wanted, and survive until the event ends.', 'VERY HARD', 1_750, 2_500, { heatLevel: 5 }, 5),
     mission(19, 'precision-landing', 'precisionLanding', 'PRECISION LANDING', `Land at ${name.love} with 780+ quality: descend gently, align with the runway, keep wings and nose level, and control speed.`, 'HARD', 500, 750, { airportId: 'love', minimumScore: 780 }, 5),
     mission(20, 'three-territory-offensive', 'territoryHold', 'THREE-TERRITORY OFFENSIVE', 'Own South Metro, Canal District, and Central District together for 10 minutes.', 'EXTREME', 3_500, 4_500, { requiredTerritoryIds: ['dallas-executive', 'las-colinas', 'downtown'], holdDurationSeconds: 600 }, 1),
-    mission(21, 'central-air-supremacy', 'territoryUniqueKills', 'CENTRAL AIR SUPREMACY', 'Control Central District and destroy 3 different hostile pilots.', 'EXTREME', 3_000, 4_000, { territoryIds: ['downtown'], uniqueKills: 3 }, 1),
+    mission(21, 'central-air-supremacy', 'territoryUniqueKills', 'CENTRAL AIR SUPREMACY', 'Control Central District and destroy 3 different enemy aircraft without losing the territory.', 'EXTREME', 3_000, 4_000, { territoryIds: ['downtown'], uniqueKills: 3 }, 1),
     mission(22, 'core-dallas-takeover', 'territoryHold', 'CORE DALLAS TAKEOVER', 'Hold Metroplex, Metro Central, Canal, and Central together for 15 minutes.', 'EXTREME', 5_000, 6_500, { territoryIds: ['dfw', 'love-field', 'las-colinas', 'downtown'], durationSeconds: 900 }, 1),
     mission(23, 'airport-empire', 'airportEmpire', 'AIRPORT EMPIRE', 'Control all four airports while landing at each one.', 'EXTREME', 6_000, 7_500, { territoryIds: ['dfw', 'love-field', 'addison', 'dallas-executive'], airportIds: ['dfw', 'love', 'addison', 'executive'] }, 1),
     mission(24, 'dallas-conquest', 'territoryOwn', 'DALLAS CONQUEST', 'Control every Dallas territory at once.', 'EXTREME', 10_000, 12_500, { allCityTerritories: true }, 1),
-    mission(25, 'number-one-pilot', 'liveScoreRank', '#1 PILOT', 'Reach #1 on the live Dallas Score leaderboard.', 'EXTREME', 15_000, 20_000, { rank: 1 }, 1),
+    mission(25, 'number-one-pilot', 'liveScoreRank', '#1 PILOT', 'Hold #1 on the live Dallas Score leaderboard continuously for 5 minutes with at least 2 total connected human pilots in Dallas.', 'EXTREME', 15_000, 20_000, { rank: 1, durationSeconds: 300, minimumHumanPlayers: 2 }, 1),
+    mission(26, 'dallas-grand-tour', 'sequentialTour', 'DALLAS GRAND TOUR', 'Complete all 11 Dallas exploration and flight steps in order.', 'VERY HARD', 2_000, 2_500, { steps: dallasGrandTourSteps }, 30),
   ]),
   milwaukee: Object.freeze([
     cityMission('milwaukee', 1, 'first-flight', 'airborneHold', 'FIRST FLIGHT — MILWAUKEE', 'Stay alive, connected, and airborne in Milwaukee for 60 seconds.', 'EASY', 15, 25, { durationSeconds: 60 }, 10),

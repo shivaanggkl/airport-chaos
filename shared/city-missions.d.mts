@@ -1,4 +1,9 @@
-export type MissionType = 'airborneHold' | 'destinationLanding' | 'straightDistance' | 'stuntPair' | 'airportLandings' | 'challenge' | 'assignedHunter' | 'humanKill' | 'territoryHold' | 'territoryOwn' | 'event' | 'wantedSurvival' | 'precisionLanding' | 'territorySequence' | 'territoryUniqueKills' | 'airportEmpire' | 'liveScoreRank';
+export type MissionType = 'airborneHold' | 'destinationLanding' | 'straightDistance' | 'stuntPair' | 'airportLandings' | 'challenge' | 'assignedHunter' | 'humanKill' | 'territoryHold' | 'territoryOwn' | 'event' | 'wantedSurvival' | 'precisionLanding' | 'territorySequence' | 'territoryUniqueKills' | 'airportEmpire' | 'liveScoreRank' | 'sequentialTour';
+export type CityMissionStep = Readonly<{
+  id: string; kind: 'area' | 'checkpoint' | 'altitude' | 'lowDistance' | 'areaHold'; label: string;
+  x?: number; z?: number; radius?: number; bounds?: Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>;
+  minimumAltitudeMeters?: number; maximumAltitudeMeters?: number; meters?: number; durationSeconds?: number;
+}>;
 export type CityMission = {
   id: string; cityId: 'dallas' | 'milwaukee'; number: number; type: MissionType;
   displayName: string; description: string; difficulty: string;
@@ -9,7 +14,8 @@ export type CityMission = {
     challengeId?: string; gateCount?: number; eventType?: string; result?: string; personality?: string;
     durationSeconds?: number; holdDurationSeconds?: number; meters?: number; maxHeadingErrorRadians?: number;
     maneuvers?: readonly string[]; kills?: number; uniqueKills?: number;
-    heatLevel?: number; minimumScore?: number; allCityTerritories?: boolean; rank?: number;
+    heatLevel?: number; minimumScore?: number; allCityTerritories?: boolean; rank?: number; minimumHumanPlayers?: number;
+    steps?: readonly CityMissionStep[];
   };
 };
 export const cityMissionCatalog: Readonly<Record<'dallas' | 'milwaukee', readonly CityMission[]>>;

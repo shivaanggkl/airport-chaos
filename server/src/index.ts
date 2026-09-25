@@ -1340,7 +1340,7 @@ function missionSignal(playerId: string, signal: MissionSignal): void {
 
 function tickMissions(now: number): void {
   for (const cityId of cityIds) {
-    const humans = [...players.entries()].filter(([, player]) => !player.isBot && player.cityId === cityId)
+    const humans = [...players.entries()].filter(([playerId, player]) => !player.isBot && player.cityId === cityId && hasOpenPlayerSocket(playerId))
       .sort((a, b) => b[1].score - a[1].score || a[0].localeCompare(b[0]));
     const controlled = new Map<string, Set<string>>();
     for (const territory of territoryStates(cityId)) if (territory.controllerId) {
@@ -4587,6 +4587,9 @@ server.on('connection', (socket, request) => {
             connected: hasOpenPlayerSocket(playerId),
             airborne: Boolean(landingFlightState.get(playerId)?.airborne),
             heading: player.rotation.y,
+            x: player.position.x,
+            z: player.position.z,
+            altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
           });
           if (hunter) initialized.targetId = hunter[0];
           profile = profileStore.updateMissionAttempt(player.pilotId, player.cityId, initialized) ?? profile;
@@ -4829,6 +4832,8 @@ server.on('connection', (socket, request) => {
         missionSignal(playerId, {
           type: 'flight', at: stateNow, alive: player.lifeState === 'alive', airborne: Boolean(flight?.airborne),
           meters: player.missionDistanceMeters ?? 0, heading: player.rotation.y,
+          x: player.position.x, z: player.position.z,
+          altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
         });
         player.missionDistanceMeters = 0;
       }
