@@ -26,7 +26,7 @@ type MapAirport = {
 
 type MapPlayer = { id: string; x: number; z: number; king?: boolean; heatLevel?: number; isBot?: boolean; ownershipAccent?: string };
 type MapTarget = { x: number; z: number; label?: string };
-export type MapMissionSummary = { name: string; progress: string; credits: number; score: number };
+export type MapMissionSummary = { name: string; objective: string; progress: string; compactProgress: string; credits: number; score: number };
 export type MapRosterEntry = { id: string; name: string; status: string; isLocal?: boolean };
 export type MapChallenge = { id: string; x: number; z: number; label: string; active: boolean };
 export type MapEvent = { id: string; x: number; z: number; label: string; mostWanted?: boolean; lifecycle: 'available' | 'active' | 'completed' | 'failed' | 'cooldown' };
@@ -575,9 +575,13 @@ export class WorldMap {
     } else {
       const name = document.createElement('b');
       const detail = document.createElement('span');
+      const compactDetail = document.createElement('span');
       name.textContent = mission.name;
+      detail.className = 'map-mission-desktop-detail';
       detail.textContent = `${mission.progress.replace(/\s*\n\s*/g, ' · ')} · +${mission.credits.toLocaleString()} Credits · +${mission.score.toLocaleString()} Score`;
-      this.missionSummary.append(name, detail);
+      compactDetail.className = 'map-mission-mobile-detail';
+      compactDetail.textContent = `${mission.objective} · ${mission.compactProgress}`;
+      this.missionSummary.append(name, detail, compactDetail);
     }
 
     this.playerCount.textContent = String(this.state.roster.length);

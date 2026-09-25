@@ -726,6 +726,7 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 }
 
 .world-map-view {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -758,9 +759,10 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 #map-mission-summary { display: flex; min-width: 0; gap: 8px; color: #a9c5cd; overflow: hidden; }
 #map-mission-summary b { flex: none; color: #edf8fa; }
 #map-mission-summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-intelligence-panel { min-width: 0; padding: 5px 7px; border: 1px solid rgb(124 203 218 / 18%); border-radius: 4px; background: rgb(7 23 32 / 48%); }
-.map-intelligence-panel summary { color: #aadbe4; letter-spacing: .08em; cursor: pointer; }
-.map-intelligence-panel summary span { color: #fff; }
+.map-mission-mobile-detail { display: none; }
+.map-intelligence-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; padding: 5px 7px; overflow: hidden; border: 1px solid rgb(124 203 218 / 18%); border-radius: 4px; background: rgb(7 23 32 / 48%); }
+.map-intelligence-panel h2 { margin: 0; color: #aadbe4; font: inherit; letter-spacing: .08em; }
+.map-intelligence-panel h2 span { color: #fff; }
 #map-player-list, #map-territory-list { max-height: 76px; margin-top: 4px; overflow: auto; scrollbar-width: thin; }
 #map-player-list > div, #map-territory-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 2px 0; border-top: 1px solid rgb(255 255 255 / 6%); }
 #map-player-list span, #map-territory-list span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1320,17 +1322,12 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 body:has(#world-map-overlay:not(.hidden)) #reward-feedback,
 body:has(#pilot-menu-overlay:not([hidden])) #reward-feedback,
 body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
-.map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px; background: #101e29; font: 700 11px system-ui, sans-serif; }
-.map-symbol-legend { width: 100%; }
-.map-symbol-legend summary { width: max-content; cursor: pointer; color: #e8f5fa; font-weight: 800; }
-.map-symbol-legend > div { display: flex; flex-wrap: wrap; gap: 7px 15px; padding-top: 7px; }
+.map-legend { position: absolute; z-index: 1; top: 6px; left: 50%; display: flex; gap: 8px 14px; max-width: calc(100% - 20px); padding: 4px 8px; overflow: hidden; border-radius: 3px; background: rgb(4 16 23 / 48%); font: 700 9px/1.2 system-ui, sans-serif; white-space: nowrap; pointer-events: none; transform: translateX(-50%); }
 .territory-color-dot { display: inline-block; flex: none; width: 10px; height: 10px; border: 1px solid #07151e; border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 255 255 / 40%); vertical-align: middle; }
 .territory-color-legend { margin: 8px 0; color: #dcebf0; font: 800 10px system-ui, sans-serif; }
 .territory-color-legend summary { width: max-content; cursor: pointer; color: #dcebf0; letter-spacing: .06em; }
 .territory-color-legend-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 5px 12px; margin: 8px 0 0; }
 .territory-color-legend-items > span { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
-.map-territory-legend { flex-basis: 100%; margin: 0; }
-.map-territory-legend[open] { border-top: 1px solid rgb(255 255 255 / 12%); padding-top: 7px; }
 .pilot-mission-territories { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 8px; color: #dcebf0; font-size: 10px; }
 .pilot-mission-territories > span { max-width: 100%; }
 .pilot-player-ownership { display: inline-flex; gap: 4px; margin-left: 8px; }
@@ -1551,9 +1548,8 @@ body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
   .world-map-card { width: calc(100vw - 16px); max-width: 100%; min-width: 0; height: calc(100dvh - 24px); }
   #airspeed-tape { bottom: 130px; }
   #altitude-tape { padding-right: 9px; }
-  .world-map-card header { flex-wrap: wrap; gap: 6px; padding: 9px; }
-  .world-map-card header span { order: 3; flex-basis: 100%; }
-  .map-legend { gap: 5px 10px; padding: 8px; font-size: 10px; }
+  .world-map-card header { gap: 6px; padding: 5px 7px; }
+  .world-map-card header span { display: none; }
 }
 
 #right-flight-stack { position: fixed; z-index: 4; top: max(56px, calc(env(safe-area-inset-top) + 48px)); right: max(14px, env(safe-area-inset-right)); display: grid; justify-items: stretch; gap: 5px; width: 164px; max-height: calc(100dvh - 70px); pointer-events: none; }
@@ -1581,6 +1577,7 @@ body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
 .touch-controls-active .desktop-controls-help{display:none!important}
 body:has(#world-map-overlay:not(.hidden)) .touch-controls > *{display:none}
 body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
+body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.mission-status-layer,.territory-capture,.contextual-hint,.tutorial-help,.gameplay-feedback,.flight-recap){display:none!important}
 .portrait-guidance{display:none;position:fixed;z-index:50;inset:0;place-items:center;background:#06131dea;color:#e8faff;font:900 14px ui-monospace,monospace;letter-spacing:.08em;text-align:center}
 
 @media(max-width:900px){
@@ -1606,17 +1603,21 @@ body:has(#world-map-overlay:not(.hidden)) .desktop-controls-help{display:none}
 @media(max-width:1000px) and (orientation:landscape){
   .world-map-overlay{padding:6px}
   .world-map-card{width:calc(100vw - 12px);height:calc(100dvh - 12px)}
-  .world-map-card header{min-height:34px;gap:6px;padding:3px 6px;font-size:9px}
+  .world-map-card header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;flex-wrap:nowrap;min-height:34px;gap:6px;padding:3px 6px;font-size:9px}
+  .world-map-card header strong{text-align:center}
   .world-map-card header span{display:none}
-  .world-map-card button{padding:4px 6px}
-  .map-legend{gap:4px 9px;padding:4px 7px;font-size:8px}
-  .map-intelligence{grid-template-columns:1.2fr 1fr 1fr;gap:4px;padding:4px 6px 5px;font-size:8px}
-  .map-intelligence-mission{grid-column:auto;display:block;padding:4px 5px}
-  .map-intelligence-mission>strong{display:block;margin-bottom:2px}
-  #map-mission-summary{display:block}
+  .world-map-card button{min-height:27px;padding:4px 6px}
+  .world-map-view{flex:1 1 auto}
+  .map-legend{top:3px;left:4px;right:4px;justify-content:center;gap:5px 9px;max-width:none;padding:3px 5px;font-size:7px;transform:none}
+  .map-intelligence{flex:0 0 clamp(112px,32dvh,135px);grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:4px;padding:4px 6px 5px;overflow:hidden;font-size:8px}
+  .map-intelligence-mission{grid-column:1/-1;display:grid;grid-template-columns:58px minmax(0,1fr);gap:5px;padding:3px 5px}
+  .map-intelligence-mission>strong{align-self:start;margin:0}
+  #map-mission-summary{display:grid;gap:1px}
   #map-mission-summary b,#map-mission-summary span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .map-intelligence-panel{padding:4px 5px}
-  #map-player-list,#map-territory-list{max-height:48px;margin-top:2px}
+  .map-mission-desktop-detail{display:none!important}
+  .map-mission-mobile-detail{display:block!important}
+  .map-intelligence-panel{padding:3px 5px}
+  #map-player-list,#map-territory-list{min-height:0;max-height:none;margin-top:2px;overflow-y:auto;overscroll-behavior:contain}
   #map-player-list>div,#map-territory-list>div{gap:4px;padding:1px 0}
   #map-player-list strong,#map-territory-list strong{font-size:7px}
 }

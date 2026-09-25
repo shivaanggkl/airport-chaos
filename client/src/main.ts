@@ -956,6 +956,7 @@ const worldMapOverlayElement = document.querySelector<HTMLElement>('#world-map-o
 const worldMapCanvas = document.querySelector<HTMLCanvasElement>('#world-map-canvas')!;
 const worldMapCloseElement = document.querySelector<HTMLButtonElement>('#world-map-close')!;
 const worldMapRecenterElement = document.querySelector<HTMLButtonElement>('#world-map-recenter')!;
+document.querySelector<HTMLElement>('#world-map-title')!.textContent = `${activeCity.displayName.toUpperCase()} MAP`;
 const progressMessageElement = document.querySelector<HTMLDivElement>('#progress-message')!;
 const territoryDefenseAlertElement = document.querySelector<HTMLDivElement>('#territory-defense-alert')!;
 const territoryDefenseTextElement = document.querySelector<HTMLSpanElement>('#territory-defense-text')!;
@@ -976,13 +977,10 @@ let repairFeedbackTimer = 0;
 const heatRowElement = document.querySelector<HTMLElement>('#heat-row')!;
 heatRowElement.style.color = visualLanguage.heat.color;
 const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!;
-for (const id of ['radar-legend', 'map-legend']) {
-  const entries = (id === 'map-legend'
-    ? ['you', 'player', 'ai', 'mission', 'airport', 'territory', 'repair', 'event', 'waypoint'] as const
-    : ['airport', 'ai', 'player'] as const).map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
-  document.getElementById(id)!.innerHTML = id === 'map-legend'
-    ? `<details class="map-symbol-legend"><summary>LEGEND</summary><div>${entries}</div></details>` : entries;
-}
+document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'] as const)
+  .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
+document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'] as const)
+  .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 const missionProgressElement = document.querySelector<HTMLElement>('#mission-progress')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
@@ -1734,39 +1732,6 @@ const formationMembers = new Set<string>();
 const territoryDefinitions = territoriesForCity(cityId);
 const territoryState = new Map<string, NetworkTerritoryState>();
 const neutralTerritoryColor: string = territoryOwnershipColors.neutral;
-const mapTerritoryLegend = document.createElement('details');
-mapTerritoryLegend.className = 'map-territory-legend territory-color-legend';
-const MAP_TERRITORY_LEGEND_KEY = 'airport-chaos-map-territory-legend-collapsed-v1';
-const MAP_SYMBOL_LEGEND_KEY = 'airport-chaos-map-symbol-legend-collapsed-v1';
-const mapSymbolLegend = document.querySelector<HTMLDetailsElement>('#map-legend .map-symbol-legend')!;
-try {
-  mapSymbolLegend.open = localStorage.getItem(MAP_SYMBOL_LEGEND_KEY) !== '1';
-  mapTerritoryLegend.open = localStorage.getItem(MAP_TERRITORY_LEGEND_KEY) !== '1';
-} catch { mapSymbolLegend.open = true; mapTerritoryLegend.open = true; }
-for (const [legend, key] of [[mapSymbolLegend, MAP_SYMBOL_LEGEND_KEY], [mapTerritoryLegend, MAP_TERRITORY_LEGEND_KEY]] as const) {
-  legend.addEventListener('toggle', () => {
-    if (!legend.isConnected) return;
-    try { localStorage.setItem(key, legend.open ? '0' : '1'); } catch { /* optional UI preference */ }
-  });
-}
-mapTerritoryLegend.append(document.createElement('summary'));
-mapTerritoryLegend.querySelector('summary')!.textContent = 'TERRITORY COLORS';
-const mapTerritoryLegendItems = document.createElement('div');
-mapTerritoryLegendItems.className = 'territory-color-legend-items';
-for (const definition of territoryDefinitions) {
-  const item = document.createElement('span');
-  const dot = document.createElement('i'); dot.className = 'territory-color-dot'; dot.style.backgroundColor = definition.fixedColor;
-  item.append(dot, document.createTextNode(`${definition.colorName ? `${definition.colorName} — ` : ''}${definition.displayName}`));
-  mapTerritoryLegendItems.append(item);
-}
-if (territoryDefinitions.length) {
-  const neutralItem = document.createElement('span');
-  const dot = document.createElement('i'); dot.className = 'territory-color-dot'; dot.style.backgroundColor = neutralTerritoryColor;
-  neutralItem.append(dot, document.createTextNode('Silver / White — Neutral'));
-  mapTerritoryLegendItems.append(neutralItem);
-  mapTerritoryLegend.append(mapTerritoryLegendItems);
-  document.querySelector('#map-legend .map-symbol-legend')!.append(mapTerritoryLegend);
-}
 function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; color: string }> {
   const owned: Array<{ name: string; color: string }> = [];
   for (const definition of territoryDefinitions) {
@@ -3666,7 +3631,9 @@ function updateWorldMap(direction: THREE.Vector3): void {
     })),
     mission: activeMissionDefinition && activeMissionProgress ? {
       name: activeMissionDefinition.displayName,
+      objective: activeMissionDefinition.description,
       progress: activeMissionProgress.text,
+      compactProgress: missionOverlayProgress(activeMissionDefinition, activeMissionProgress),
       credits: activeMissionDefinition.creditReward,
       score: activeMissionDefinition.scoreReward,
     } : undefined,

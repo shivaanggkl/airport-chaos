@@ -95,15 +95,15 @@
     </aside>
     <section id="world-map-overlay" class="world-map-overlay hidden" aria-label="World map">
       <div class="world-map-card">
-        <header><button id="world-map-close" type="button">← Game</button><strong>CITY MAP</strong><span>M close · drag to move · scroll to zoom · click to Set Waypoint</span><button id="world-map-recenter" type="button">Recenter Me</button></header>
+        <header><button id="world-map-close" type="button">← GAME</button><strong id="world-map-title">CITY MAP</strong><span>M close · drag to move · scroll to zoom · click to Set Waypoint</span><button id="world-map-recenter" type="button">RECENTER</button></header>
         <div class="world-map-view">
           <div id="map-legend" class="map-legend"></div>
           <canvas id="world-map-canvas" aria-label="Interactive world map"></canvas>
         </div>
         <section class="map-intelligence" aria-label="Current mission, players, and territories">
-          <article class="map-intelligence-mission"><strong>MISSION</strong><div id="map-mission-summary">No active mission</div></article>
-          <details class="map-intelligence-panel" open><summary>PLAYERS <span id="map-player-count">0</span></summary><div id="map-player-list"></div></details>
-          <details class="map-intelligence-panel" open><summary>TERRITORIES <span id="map-territory-count">0</span></summary><div id="map-territory-list"></div></details>
+          <article class="map-intelligence-mission"><strong>MISSION:</strong><div id="map-mission-summary">No active mission</div></article>
+          <section class="map-intelligence-panel"><h2>PLAYERS <span id="map-player-count">0</span></h2><div id="map-player-list"></div></section>
+          <section class="map-intelligence-panel"><h2>TERRITORIES <span id="map-territory-count">0</span></h2><div id="map-territory-list"></div></section>
         </section>
       </div>
     </section>
