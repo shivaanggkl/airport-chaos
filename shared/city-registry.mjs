@@ -4,15 +4,18 @@ import { cityWeatherZones } from './weather-zones.mjs';
 export const cityRegistry = Object.freeze({
   dallas: Object.freeze({ cityId:'dallas', legacyIds:['dallas'], name:'Dallas', displayName:'Dallas', regionName:'North Texas', worldOrigin:{x:0,z:0}, worldSize:50_000,
     airports:cityAirports.dallas, regions:['Metroplex','Central District','Canal District','North Metro','South Metro'], discoveryIds:['dfw','love','addison','executive'], weatherZones:cityWeatherZones.dallas,
+    capabilities:Object.freeze({tutorialEnabled:false,practiceMode:false,progressionEnabled:true,territoriesEnabled:true,competitiveEnabled:true}),
     chaosEventSpawnRules:{enabled:true}, missionRouteRules:{enabled:true}, sponsorSlots:[], enabled:true, recommendedAircraft:'nightowl', difficulty:'LARGE' }),
   milwaukee: Object.freeze({ cityId:'milwaukee', legacyIds:['milwaukee'], name:'Milwaukee', displayName:'Milwaukee', regionName:'Lake Coast & Mountain Ridge', worldOrigin:{x:0,z:0}, worldSize:12_000,
     airports:cityAirports.milwaukee, regions:['Central','Lake Coast','Mountain Ridge','Countryside'], discoveryIds:['central-international','coast-airport','mountain-airfield','countryside-airstrip','mountain-ridge'], weatherZones:cityWeatherZones.milwaukee,
+    capabilities:Object.freeze({tutorialEnabled:true,practiceMode:true,progressionEnabled:false,territoriesEnabled:false,competitiveEnabled:false}),
     chaosEventSpawnRules:{enabled:true,fallback:'soloAirportSprint'}, missionRouteRules:{enabled:true}, sponsorSlots:[], enabled:true, recommendedAircraft:'nightowl', difficulty:'EXPLORER' }),
 });
 
 export const cityAliases=Object.freeze({city_dallas_001:'dallas',city_milwaukee_002:'milwaukee',dallas:'dallas',milwaukee:'milwaukee'});
 export function normalizeCityId(value){return cityAliases[value];}
 export function cityDefinition(value){const id=normalizeCityId(value);return id?cityRegistry[id]:undefined;}
+export function cityCapabilities(value){return cityDefinition(value)?.capabilities;}
 export function airportsForCity(value){return cityDefinition(value)?.airports??[];}
 
 export const intercityRoutes=Object.freeze([

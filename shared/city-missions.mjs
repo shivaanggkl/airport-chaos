@@ -69,8 +69,8 @@ export const cityMissionCatalog = Object.freeze({
     mission(26, 'dallas-grand-tour', 'sequentialTour', 'DALLAS GRAND TOUR', 'Complete all 11 Dallas exploration and flight steps in order.', 'VERY HARD', 2_000, 2_500, { steps: dallasGrandTourSteps }, 30),
   ]),
   milwaukee: Object.freeze([
-    cityMission('milwaukee', 1, 'first-flight', 'airborneHold', 'FIRST FLIGHT — MILWAUKEE', 'Stay alive, connected, and airborne in Milwaukee for 60 seconds.', 'EASY', 15, 25, { durationSeconds: 60 }, 10),
-    cityMission('milwaukee', 3, 'straight-run', 'straightDistance', 'STRAIGHT RUN — MILWAUKEE', 'Fly 24 km without landing and stay roughly on the same heading.', 'EASY', 60, 75, { meters: 24_000, maxHeadingErrorRadians: 0.17 }, 10),
+    cityMission('milwaukee', 1, 'first-flight', 'airborneHold', 'PRACTICE — FIRST FLIGHT', 'Stay alive, connected, and airborne in Milwaukee for 60 seconds. Practice task — no rewards.', 'PRACTICE', 0, 0, { durationSeconds: 60 }, 10),
+    cityMission('milwaukee', 3, 'straight-run', 'straightDistance', 'PRACTICE — STRAIGHT RUN', 'Fly 24 km without landing and stay roughly on the same heading. Practice task — no rewards.', 'PRACTICE', 0, 0, { meters: 24_000, maxHeadingErrorRadians: 0.17 }, 10),
   ]),
 });
 

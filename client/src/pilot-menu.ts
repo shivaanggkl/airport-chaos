@@ -57,7 +57,7 @@ export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium:
 export type PilotMenuData = {
   city: { name: string; timePreset: string; changeCity: () => void };
   intercity: { routes: readonly {routeId:string;destination:string;distanceLabel:string;recommendedAircraft:string;estimatedFlightTime:number;available:boolean;reason?:string;start:()=>void}[] };
-  progression: { credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[];
+  progression: { enabled: boolean; credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[];
     pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
     dailyStreak: { current: number; longest: number; cycleDay: number; nextReward: number };
     personalRecords: Record<string, { value: number; cityId?: string; achievedAt: number }>;
@@ -71,23 +71,23 @@ export type PilotMenuData = {
       missions:readonly {id:string;label:string;progress:number;target:number;completed:boolean}[];
       weeklyEvent?:{weeklyEventId:string;title:string;description:string;progress:number;target:number;completed:boolean;rewarded:boolean;weekEnd:number} };
   };
-  missions: { activeId?: string; activeCity?: string; entries: readonly PilotMenuMission[]; accept: (id: string, replace: boolean) => void; abandon: () => void };
+  missions: { practice: boolean; activeId?: string; activeCity?: string; entries: readonly PilotMenuMission[]; accept: (id: string, replace: boolean) => void; abandon: () => void };
   players: { city: string; entries: readonly PilotMenuPlayer[] };
-  territories: { city: string; entries: readonly PilotMenuTerritory[]; legend: readonly { name: string; color: string; colorName?: string }[]; neutralColor: string };
+  territories: { enabled: boolean; city: string; entries: readonly PilotMenuTerritory[]; legend: readonly { name: string; color: string; colorName?: string }[]; neutralColor: string };
   objectives: { daily: readonly PilotMenuObjective[]; weekly: readonly PilotMenuObjective[]; dailyId?: string; weeklyId?: string };
   mastery: { city: string; level: number; xp: number; levelStartXp: number; nextXp: number; rewards: readonly string[] };
   leaderboards: readonly { category: string; weekId: string; entries: readonly { name: string; value: number; you: boolean }[]; localRank?: number }[];
   activities: readonly PilotMenuActivity[];
   liveEvent?: PilotMenuEvent;
   stunts: readonly PilotMenuStunt[];
-  discoveries: { city: string; discovered: readonly string[]; remaining: number; total: number; percent: number; openMap: () => void };
+  map: { mount: (host: HTMLElement) => void; unmount: () => void };
   garage: { available: boolean; reason?: string; open: () => void; setAirportWaypoint: () => void };
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
   preferences:{touchMode:'auto'|'on'|'off';touchLayout:boolean;setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void;mobileLayout:MobileControlLayout;setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>void;resetMobileLayout:()=>MobileControlLayout};
   restart: () => void;
   audio: { muted: boolean; toggle: () => void; levels: { master: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'engine' | 'combat' | 'ui', value: number) => void };
-  guide: { open: () => void; replay:()=>void };
+  guide: { enabled: boolean; open: () => void; replay:()=>void };
 };
 
 function textElement<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, className?: string): HTMLElementTagNameMap[K] {
@@ -216,7 +216,7 @@ export class PilotMenu {
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
         data.territories.entries.map(({ id, controller, contested, progress }) => [id, controller, contested, progress]),
         data.missions.entries.some((entry) => entry.cooldownUntil > Date.now()) ? Math.floor(Date.now() / 60_000) : 0]);
-      case 'MAP': return JSON.stringify([this.activeSection, data.territories.legend]);
+      case 'MAP': return this.activeSection;
       case 'PLAYERS': return JSON.stringify([this.activeSection, data.players.entries.map(({ name, aircraft, distance, lifecycle, score, kills, isLocal, isBot, ownedTerritories, mostWanted, king }) =>
         [name, aircraft, distance && Math.round(distance / 100), lifecycle, score, kills, isLocal, isBot, ownedTerritories, mostWanted, king])]);
       case 'TERRITORIES': return JSON.stringify([this.activeSection, data.territories.entries.map(({ id, name, controller, contested, color, ownedByYou }) =>
@@ -331,6 +331,7 @@ export class PilotMenu {
   }
 
   private render(data: PilotMenuData, switched = false): void {
+    this.lastData?.map.unmount();
     this.lastData = data;
     this.lastSnapshot = this.snapshot(data);
     const content = this.ensureContent();
@@ -338,7 +339,10 @@ export class PilotMenu {
     if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
+    content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');
     for (const button of this.navigation?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
+      const sectionName = button.dataset.section;
+      button.hidden = (sectionName === 'TERRITORIES' && !data.territories.enabled) || (sectionName === 'PROGRESS' && !data.progression.enabled);
       button.classList.toggle('active', button.dataset.section === this.activeSection);
       button.setAttribute('aria-current', button.dataset.section === this.activeSection ? 'page' : 'false');
     }
@@ -346,13 +350,13 @@ export class PilotMenu {
     if (this.activeSection === 'MISSIONS') {
     const missions = section(identityText('mission').toUpperCase() + 'S');
     missions.querySelector('h2')!.style.color = visualLanguage.mission.color;
-    missions.append(textElement('p', 'Choose one mission. Finish it for the full Credits and Score reward.', 'pilot-menu-muted'));
+    missions.append(textElement('p', data.missions.practice ? 'Practice tasks build flight skills and give no permanent rewards.' : 'Choose one mission. Finish it for the full Credits and Score reward.', 'pilot-menu-muted'));
     const current = data.missions.entries.find((entry) => entry.id === data.missions.activeId);
     if (current) {
       const active = this.createCard({
         name: `ACTIVE · ${current.name}`,
         detail: current.progressText ?? current.detail,
-        meta: `REWARD · ${visualLanguage.credits.icon} ${current.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${current.score.toLocaleString()} Score`,
+        meta: data.missions.practice ? 'PRACTICE — NO REWARDS' : `REWARD · ${visualLanguage.credits.icon} ${current.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${current.score.toLocaleString()} Score`,
         actions: [
           ...(current.setWaypoint ? [{ label: 'Set Waypoint', run: current.setWaypoint }] : []),
           { label: 'Abandon Mission', run: data.missions.abandon },
@@ -383,7 +387,7 @@ export class PilotMenu {
       const card = this.createCard({
         name: `${item.name}${active ? ' · ACTIVE' : item.completions ? ` · COMPLETED ×${item.completions}` : ''}`,
         detail: item.detail,
-        meta: `${item.difficulty} · ${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}${unavailableReason ? ` · ${unavailableReason}` : ''}`,
+        meta: `${item.difficulty} · ${data.missions.practice ? 'PRACTICE — NO REWARDS' : `${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score`}${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}${unavailableReason ? ` · ${unavailableReason}` : ''}`,
         actions: active ? undefined : [{
           label: item.retired ? 'RETIRED' : cooling ? 'COOLDOWN' : unavailableReason ? 'UNAVAILABLE' : item.completions ? 'REPLAY' : 'ACCEPT',
           disabled: item.retired || cooling || Boolean(unavailableReason),
@@ -399,9 +403,12 @@ export class PilotMenu {
 
     if (this.activeSection === 'MAP') {
       const map = section('MAP');
-      map.append(textElement('p', 'Find places and set a waypoint.', 'pilot-menu-muted'));
-      map.append(actionButton({ label: 'OPEN MAP · M', run: data.discoveries.openMap }));
-      map.append(this.createTerritoryLegend(data)); content.append(map);
+      map.classList.add('pilot-menu-map-section');
+      const host = document.createElement('div');
+      host.className = 'pilot-menu-map-host';
+      map.append(host);
+      content.append(map);
+      data.map.mount(host);
     }
 
     if (this.activeSection === 'PLAYERS') {
@@ -673,8 +680,10 @@ export class PilotMenu {
       const help = section('HELP');
       help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
       help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
-      help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
-      help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
+      if(data.guide.enabled){
+        help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
+        help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
+      }
       if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
       else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       content.append(help);
@@ -683,6 +692,7 @@ export class PilotMenu {
   }
 
   close(): void {
+    this.lastData?.map.unmount();
     this.openState = false;
     this.pointerActive = false;
     this.element.hidden = true;

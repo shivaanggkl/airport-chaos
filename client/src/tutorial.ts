@@ -48,8 +48,8 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; visual: s
   },
   {
     nav: 'Missions', icon: 'mission', title: 'MISSIONS',
-    visual: `<div class="help-mission-visual"><b>MISSION</b><strong>FIRST FLIGHT</strong><span>Stay in the air</span><i>15 Credits</i></div>`,
-    instructions: steps(`Open <kbd>${menuKeyLabel('menu')}</kbd> → Missions`, 'Pick one mission', 'Follow the objective and earn Credits', 'SESSION SCORE: Earned during this play session. It resets when the session ends.'),
+    visual: `<div class="help-mission-visual"><b>PRACTICE</b><strong>FIRST FLIGHT</strong><span>Stay in the air</span><i>No rewards</i></div>`,
+    instructions: steps(`Open <kbd>${menuKeyLabel('menu')}</kbd> → Missions`, 'Pick one practice task', 'Follow the objective to build your skills', 'Milwaukee Practice Mode does not change Credits, Score, or XP.'),
   },
 ];
 
@@ -154,7 +154,7 @@ class FlightTutorial {
   }
   private render(): void {
     if(this.onboarding){
-      this.content.innerHTML='<div class="tutorial-welcome"><h1 id="tutorial-title">WELCOME TO AIRPORT CHAOS</h1><p>Fly, land, complete missions, discover secrets, and earn Credits.</p><small>You can replay the tutorial anytime.</small></div>';
+      this.content.innerHTML='<div class="tutorial-welcome"><h1 id="tutorial-title">MILWAUKEE PRACTICE MODE</h1><p>Learn to fly, land, aim, and fight without changing Credits, Score, or XP.</p><small>You can replay the tutorial anytime in Milwaukee.</small></div>';
       this.back.hidden=true;this.dots.innerHTML='';this.next.textContent='START TUTORIAL FLIGHT';this.skip.textContent='FREE FLY';return;
     }
     this.back.hidden=false;

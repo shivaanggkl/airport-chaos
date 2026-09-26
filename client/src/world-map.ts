@@ -69,6 +69,8 @@ const MAX_SCALE = 0.11;
 
 export class WorldMap {
   private readonly context: CanvasRenderingContext2D;
+  private readonly card: HTMLElement;
+  private readonly standaloneParent: HTMLElement;
   private readonly staticCanvas = document.createElement('canvas');
   private readonly staticContext: CanvasRenderingContext2D;
   private readonly geographyCanvas = document.createElement('canvas');
@@ -86,6 +88,7 @@ export class WorldMap {
   private openedBefore = false;
   private staticLoading = false;
   private staticLoaded = false;
+  private embeddedHost: HTMLElement | undefined;
   private readonly roadPaths = new Map<number, Path2D>();
   private labelCount = 0;
   private readonly labels: Array<{ x: number; y: number; w: number; h: number }> = [];
@@ -106,6 +109,8 @@ export class WorldMap {
     private readonly onChallenge?: (challengeId: string) => void,
   ) {
     this.context = canvas.getContext('2d')!;
+    this.card = element.querySelector<HTMLElement>('.world-map-card')!;
+    this.standaloneParent = this.card.parentElement!;
     this.staticContext = this.staticCanvas.getContext('2d')!;
     this.geographyContext = this.geographyCanvas.getContext('2d')!;
     this.missionSummary = element.querySelector<HTMLElement>('#map-mission-summary')!;
@@ -132,30 +137,58 @@ export class WorldMap {
   }
 
   setOpen(open: boolean): void {
+    if (open) this.unmountEmbedded();
     this.openState = open;
     this.element.classList.toggle('hidden', !open);
-    if (open) {
+    if (open) this.present();
+  }
+
+  mountEmbedded(host: HTMLElement): void {
+    if (this.embeddedHost === host && this.card.parentElement === host) return;
+    this.setOpen(false);
+    this.embeddedHost = host;
+    this.card.classList.add('world-map-card-embedded');
+    host.append(this.card);
+    this.present();
+    requestAnimationFrame(() => {
+      if (this.embeddedHost !== host || !host.isConnected) return;
       this.resizeCanvas();
-      if (!this.openedBefore) this.scale = this.defaultScale();
-      this.openedBefore = true;
-      if (this.state) {
-        const you = this.worldToScreen(this.state.position.x, this.state.position.z);
-        if (you.x < 35 || you.x > this.canvas.width - 35 || you.y < 35 || you.y > this.canvas.height - 45) {
-          this.centerX = this.state.position.x;
-          this.centerZ = this.state.position.z;
-        }
-      }
       this.clampCenter();
       this.drawStatic();
       this.draw();
       this.renderIntelligence();
-      if (this.layer.staticUrl && !this.staticLoading && !this.staticLoaded) void this.loadStaticLayer(this.layer.staticUrl);
+    });
+  }
+
+  unmountEmbedded(): void {
+    if (!this.embeddedHost) return;
+    this.dragging = false;
+    this.embeddedHost = undefined;
+    this.card.classList.remove('world-map-card-embedded');
+    this.standaloneParent.append(this.card);
+  }
+
+  private present(): void {
+    this.resizeCanvas();
+    if (!this.openedBefore) this.scale = this.defaultScale();
+    this.openedBefore = true;
+    if (this.state) {
+      const you = this.worldToScreen(this.state.position.x, this.state.position.z);
+      if (you.x < 35 || you.x > this.canvas.width - 35 || you.y < 35 || you.y > this.canvas.height - 45) {
+        this.centerX = this.state.position.x;
+        this.centerZ = this.state.position.z;
+      }
     }
+    this.clampCenter();
+    this.drawStatic();
+    this.draw();
+    this.renderIntelligence();
+    if (this.layer.staticUrl && !this.staticLoading && !this.staticLoaded) void this.loadStaticLayer(this.layer.staticUrl);
   }
 
   update(state: WorldMapState): void {
     this.state = state;
-    if (this.openState) {
+    if (this.openState || this.embeddedHost) {
       this.draw();
       this.renderIntelligence();
     }
@@ -164,7 +197,7 @@ export class WorldMap {
   resize(): void {
     this.resizeCanvas();
     this.drawStatic();
-    if (this.openState) this.draw();
+    if (this.openState || this.embeddedHost) this.draw();
   }
 
   private defaultScale(): number {
@@ -186,7 +219,7 @@ export class WorldMap {
     this.staticLoaded = true;
     this.buildGeographyCache();
     this.drawStatic();
-    if (this.openState) this.draw();
+    if (this.openState || this.embeddedHost) this.draw();
   }
 
   private bindEvents(): void {

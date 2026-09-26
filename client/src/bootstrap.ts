@@ -6,6 +6,7 @@ import { flightTutorial } from './tutorial';
 import { mountAirportChaosLogo, mountCompactBrandFooter, mountGameBrandSignature } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
+import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { setupLaunchBackground } from './launch-background';
 
@@ -196,6 +197,20 @@ function showSelector(message = ''): void {
   citySelectionError.hidden = !message;
 }
 
+async function offerCityTutorial(city: CityDefinition): Promise<'started'|'skipped'|undefined> {
+  if (!cityCapabilities(city.id)?.tutorialEnabled) return;
+  const tutorialChoice = await flightTutorial.firstVisit(garageIdentity.pilotId, remoteTutorial.status, establishedProfile);
+  if (!tutorialChoice) return;
+  try { localStorage.setItem(`airport-chaos-guided-tutorial-v1:${garageIdentity.pilotId}`, tutorialChoice === 'started' ? 'active' : 'skipped'); }
+  catch { /* server remains the durable fallback */ }
+  const url = new URL('/api/profile', profileOrigin);
+  url.searchParams.set('pilotId', garageIdentity.pilotId);
+  url.searchParams.set('pilotName', garageIdentity.displayName);
+  await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tutorialState: { version: 'tutorial_v1', status: tutorialChoice } }) }).catch(() => undefined);
+  remoteTutorial = { version: 'tutorial_v1', status: tutorialChoice };
+  return tutorialChoice;
+}
+
 async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day'): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
 
@@ -214,6 +229,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
     return;
   }
 
+  const tutorialChoice = await offerCityTutorial(city);
   startModalState = 'NONE';
   garage.close();
   citySelector.hidden = true;
@@ -227,6 +243,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   await city.loadWorld();
   await import('./main');
   gameRoot.hidden = false;
+  if (tutorialChoice === 'started') window.dispatchEvent(new Event('airport-chaos-start-tutorial'));
 }
 
 function chooseCity(city: CityDefinition): void {
@@ -270,7 +287,8 @@ for (const city of cities) {
   const option = document.createElement('article');
   option.className = 'city-option';
   const airportCount = cityAirports[city.id].length;
-  option.innerHTML = `<div class="city-option-copy"><strong>${city.displayName}</strong><span>${city.id === 'dallas' ? 'Huge city' : 'Open-world city'} • ${airportCount} airports</span><div class="city-time-list">${city.timePresets.map(preset => `<i>${preset.toUpperCase()}</i>`).join('')}</div></div>`;
+  const cityRole = cityCapabilities(city.id)?.practiceMode ? 'Practice / training city' : 'Real gameplay city';
+  option.innerHTML = `<div class="city-option-copy"><strong>${city.displayName}</strong><span>${cityRole} • ${airportCount} airports</span><div class="city-time-list">${city.timePresets.map(preset => `<i>${preset.toUpperCase()}</i>`).join('')}</div></div>`;
   option.classList.add(`city-${city.id}`);
   const button = document.createElement('button');
   button.type = 'button';
@@ -283,13 +301,6 @@ for (const city of cities) {
 
 async function start(): Promise<void> {
   await loadGarageProfile();
-  const tutorialChoice=await flightTutorial.firstVisit(garageIdentity.pilotId,remoteTutorial.status,establishedProfile);
-  if(tutorialChoice){
-    try{localStorage.setItem(`airport-chaos-guided-tutorial-v1:${garageIdentity.pilotId}`,tutorialChoice==='started'?'active':'skipped');}catch{/* server remains the durable fallback */}
-    const url=new URL('/api/profile',profileOrigin);url.searchParams.set('pilotId',garageIdentity.pilotId);url.searchParams.set('pilotName',garageIdentity.displayName);
-    await fetch(url,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialState:{version:'tutorial_v1',status:tutorialChoice}})}).catch(()=>undefined);
-  }
-  if (tutorialChoice === 'started') { await enterCity(cities.find(city => city.id === 'dallas')!, 'day'); return; }
   const requestedCity = activeCityFromUrl();
   if (requestedCity?.status === 'available') {
     const requestedTime = new URLSearchParams(window.location.search).get('time');

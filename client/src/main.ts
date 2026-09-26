@@ -20,7 +20,7 @@ import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId 
 import { GameplayFeedbackSystem } from './gameplay-feedback';
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
-import { routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
+import { cityCapabilities, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialObjective}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
@@ -56,6 +56,8 @@ const combatQaMode = import.meta.env.DEV && new URLSearchParams(window.location.
 const activeCity = activeCityFromUrl();
 if (!activeCity || activeCity.status !== 'available') throw new Error('A playable city is required before starting the game.');
 const cityId = activeCity.id;
+const cityRules = cityCapabilities(cityId)!;
+document.body.classList.toggle('practice-mode', cityRules.practiceMode);
 const cityWorld = await activeCity.loadWorld!();
 const { airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = cityWorld;
 const spawnBrand = activeCity.spawnBrandPlacement;
@@ -977,6 +979,7 @@ const dynamicEventSponsorElement = document.querySelector<HTMLElement>('#dynamic
 const dynamicEventJoinElement = document.querySelector<HTMLButtonElement>('#dynamic-event-join')!;
 const dynamicEventSkipElement = document.querySelector<HTMLButtonElement>('#dynamic-event-skip')!;
 const formationStatusElement = document.querySelector<HTMLElement>('#formation-status')!;
+formationStatusElement.closest<HTMLElement>('#social-panel')!.hidden = !cityRules.competitiveEnabled;
 const citySelectorElement = document.querySelector<HTMLElement>('#city-selector')!;
 const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
@@ -1020,6 +1023,24 @@ territoryDefenseWaypointElement.addEventListener('click', () => {
   if (territory) setActivityWaypoint(territory.center.x, territory.center.z, territory.displayName);
 });
 const rewardFeedbackElement = document.querySelector<HTMLDivElement>('#reward-feedback')!;
+const dallasPracticeSuggestionElement = document.querySelector<HTMLElement>('#dallas-practice-suggestion')!;
+const dallasPracticeSuggestionKey = `airport-chaos-dallas-practice-suggestion-v1:${persistedPlayer.pilotId}`;
+let dallasPracticeSuggestionDismissed = false;
+function dismissDallasPracticeSuggestion(): void {
+  dallasPracticeSuggestionDismissed = true;
+  dallasPracticeSuggestionElement.hidden = true;
+  try { localStorage.setItem(dallasPracticeSuggestionKey, 'dismissed'); } catch { /* session dismissal still applies */ }
+}
+function offerDallasPracticeSuggestion(profile: NetworkProfile): void {
+  if (cityId !== 'dallas' || profile.tutorial.status !== 'new' || profile.totalDistance > 500 || profile.successfulLandings > 0 || profile.kills > 0 || profile.deaths > 0 || dallasPracticeSuggestionDismissed) return;
+  try { if (localStorage.getItem(dallasPracticeSuggestionKey) === 'dismissed') return; } catch { /* show once this session */ }
+  dallasPracticeSuggestionElement.hidden = false;
+}
+dallasPracticeSuggestionElement.querySelector<HTMLButtonElement>('[data-continue-dallas]')!.addEventListener('click', dismissDallasPracticeSuggestion);
+dallasPracticeSuggestionElement.querySelector<HTMLButtonElement>('[data-practice-city]')!.addEventListener('click', () => {
+  dismissDallasPracticeSuggestion();
+  window.dispatchEvent(new CustomEvent('airport-chaos-city-exit', { detail: { cityId: 'milwaukee', timePreset: 'day', practiceSuggestion: true } }));
+});
 const combatMessageElement = document.querySelector<HTMLDivElement>('#combat-message')!;
 const hitMarkerElement = document.querySelector<HTMLDivElement>('#hit-marker')!;
 const damageFlashElement = document.querySelector<HTMLDivElement>('#damage-flash')!;
@@ -1029,6 +1050,7 @@ const repairFeedbackElement = document.querySelector<HTMLSpanElement>('#repair-f
 let repairFeedbackTimer = 0;
 const heatRowElement = document.querySelector<HTMLElement>('#heat-row')!;
 heatRowElement.style.color = visualLanguage.heat.color;
+heatRowElement.hidden = !cityRules.competitiveEnabled;
 const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!;
 document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'] as const)
   .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
@@ -1042,6 +1064,11 @@ const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!
 const activeContractElement = document.querySelector<HTMLDivElement>('#active-contract')!;
 const contractPanelElement = document.querySelector<HTMLElement>('#contract-panel')!;
 const territoryCaptureElement = document.querySelector<HTMLElement>('#territory-capture')!;
+territoryCaptureElement.hidden = !cityRules.territoriesEnabled;
+territoryDefenseAlertElement.hidden = !cityRules.territoriesEnabled;
+document.querySelector<HTMLElement>('#practice-mode-label')!.hidden = !cityRules.practiceMode;
+document.querySelector<HTMLElement>('#tutorial-help')!.hidden = !cityRules.tutorialEnabled;
+document.querySelector<HTMLElement>('#map-territory-list')?.closest<HTMLElement>('.map-intelligence-panel')?.toggleAttribute('hidden', !cityRules.territoriesEnabled);
 contractPanelElement.classList.add('hidden');
 const contractTypeElement = document.querySelector<HTMLElement>('#contract-type')!;
 const contractDetailElement = document.querySelector<HTMLDivElement>('#contract-detail')!;
@@ -1340,9 +1367,11 @@ function checkCheckpoint(): void {
 
   const passedCheckpoint = (activeCheckpoint + checkpointOffset) % checkpointRings.length;
   const points = 100 * multiplier * (checkpointOffset === 0 ? 1 : checkpointOffset === 1 ? 0.5 : 0.25);
-  score += points;
-  queueRewardFeedback(0, points);
-  recordBestScore(score);
+  if (cityRules.progressionEnabled) {
+    score += points;
+    queueRewardFeedback(0, points);
+    recordBestScore(score);
+  }
   checkpointsPassed += 1;
   multiplier = Math.min(5, 1 + Math.floor(checkpointsPassed / 3));
   speedBonus = Math.min(10, Math.floor(checkpointsPassed / 2) * 2);
@@ -1757,6 +1786,7 @@ function queueAtcCallout(key: string, primaryText: string, secondaryText?: strin
   gameplayFeedback.push({ type: 'atc', primaryText, secondaryText, intensity: 'small' });
 }
 function queueRewardFeedback(creditDelta = 0, scoreDelta = 0, creditReason = 'Gameplay Reward'): void {
+  if (!cityRules.progressionEnabled) return;
   if (creditDelta > 0) rewardBatchCredits.set(creditReason, (rewardBatchCredits.get(creditReason) ?? 0) + Math.round(creditDelta));
   rewardBatchScore += Math.max(0, Math.round(scoreDelta));
   if (rewardBatchCredits.size === 0 && rewardBatchScore === 0) return;
@@ -2209,6 +2239,7 @@ dynamicEventSkipElement.addEventListener('click', () => {
 if (cityWorld.skyChallenges?.length) {
   skyChallenges = new SkyChallengeSystem(scene, cityWorld.skyChallenges, getTerrainHeight, {
     onScore: (points) => {
+      if (!cityRules.progressionEnabled) return;
       score += points;
       queueRewardFeedback(0, points);
       recordBestScore(score);
@@ -2226,6 +2257,7 @@ if (cityWorld.skyChallenges?.length) {
 
 stuntCombo = new StuntComboSystem(cityWorld.stuntZones ?? [], {
   onScore: (points) => {
+    if (!cityRules.progressionEnabled) return;
     score += points;
     queueRewardFeedback(0, points);
     recordBestScore(score);
@@ -2244,11 +2276,13 @@ stuntCombo = new StuntComboSystem(cityWorld.stuntZones ?? [], {
 if (cityWorld.discoveries?.length) {
   discoverySystem = new DiscoverySystem(cityWorld.discoveries, discoveredLocationIds, {
     onDiscover: (definition) => {
-      discoveredLocationsByCity[cityId] = [...discoveredLocationIds];
-      savePlayerProgress();
-      queueProfileProgress();
-      showProgressMessage(`DISCOVERED: ${definition.name}`);
-      gameplayFeedback.push({ type: 'secret', primaryText: definition.type === 'secret' ? 'SECRET DISCOVERED' : 'PLACE DISCOVERED', secondaryText: `${definition.name.toUpperCase()} · +${definition.credits} CREDITS`, intensity: definition.type === 'secret' ? 'major' : 'medium' });
+      if (cityRules.progressionEnabled) {
+        discoveredLocationsByCity[cityId] = [...discoveredLocationIds];
+        savePlayerProgress();
+        queueProfileProgress();
+      }
+      showProgressMessage(cityRules.practiceMode ? `PRACTICE DISCOVERY: ${definition.name}` : `DISCOVERED: ${definition.name}`);
+      gameplayFeedback.push({ type: 'secret', primaryText: definition.type === 'secret' ? 'SECRET DISCOVERED' : 'PLACE DISCOVERED', secondaryText: cityRules.practiceMode ? `${definition.name.toUpperCase()} · PRACTICE — NO REWARDS` : `${definition.name.toUpperCase()} · +${definition.credits} CREDITS`, intensity: definition.type === 'secret' ? 'major' : 'medium' });
       flightRecap.discoveries += 1;
       if (definition.type === 'secret' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'secret_discovered' }));
       updateProgressHud();
@@ -2256,10 +2290,12 @@ if (cityWorld.discoveries?.length) {
     },
     onSetComplete: (setId, bonus) => {
       if (bonus <= 0) return;
-      discoveredLocationsByCity[cityId] = [...discoveredLocationIds];
-      savePlayerProgress();
-      queueProfileProgress();
-      showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE`);
+      if (cityRules.progressionEnabled) {
+        discoveredLocationsByCity[cityId] = [...discoveredLocationIds];
+        savePlayerProgress();
+        queueProfileProgress();
+      }
+      showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE${cityRules.practiceMode ? ' · PRACTICE — NO REWARDS' : ''}`);
     },
   });
 }
@@ -2591,12 +2627,14 @@ function updateAirborneProgress(delta: number): void {
   const traveled = currentSpeed * delta;
   if (traveled <= 0) return;
   distanceFlown += traveled;
-  totalDistance += traveled;
   flightDistanceSinceTakeoff += traveled;
-  distanceCreditProgress += traveled;
-  if (distanceCreditProgress >= 250) {
-    distanceCreditProgress %= 250;
-    queueProfileProgress();
+  if (cityRules.progressionEnabled) {
+    totalDistance += traveled;
+    distanceCreditProgress += traveled;
+    if (distanceCreditProgress >= 250) {
+      distanceCreditProgress %= 250;
+      queueProfileProgress();
+    }
   }
   checkRegionDiscovery();
 }
@@ -2616,9 +2654,11 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   if (visualQaMode) return;
   if (flightDistanceSinceTakeoff < MIN_REWARDED_FLIGHT_DISTANCE) return;
   successfulLandings += 1;
-  totalSuccessfulLandings += 1;
-  if (totalSuccessfulLandings % 3 === 0) gameplayFeedback.push({ type:'landing-streak', primaryText:`${totalSuccessfulLandings} LANDINGS`, secondaryText:'LANDING STREAK', intensity:'medium' });
-  queueProfileProgress();
+  if (cityRules.progressionEnabled) {
+    totalSuccessfulLandings += 1;
+    if (totalSuccessfulLandings % 3 === 0) gameplayFeedback.push({ type:'landing-streak', primaryText:`${totalSuccessfulLandings} LANDINGS`, secondaryText:'LANDING STREAK', intensity:'medium' });
+    queueProfileProgress();
+  }
   resetRegionsOnNextTakeoff = true;
   const destinationBonus = !landedAirportIds.has(airport.id);
   landedAirportIds.add(airport.id);
@@ -2874,9 +2914,10 @@ if (!lastTouchLayout) showDesktopControlsHelp();
 let runStarted = false;
 const guidedTutorialKey=`airport-chaos-guided-tutorial-v1:${persistedPlayer.pilotId}`;
 let guidedTutorialActive=false;let guidedTutorialStep='throttle';let guidedTutorialStepAt=performance.now();let guidedTutorialTargetAirport:AirportDefinition|undefined;
-try{guidedTutorialActive=localStorage.getItem(guidedTutorialKey)==='active';}catch{/* server profile restores after welcome */}
+try{guidedTutorialActive=cityRules.tutorialEnabled&&localStorage.getItem(guidedTutorialKey)==='active';}catch{/* server profile restores after welcome */}
 const flightControlCodes = new Set(Object.keys(keyboardActionBindings));
 function showFirstRunGuide(): void {
+  if (!cityRules.tutorialEnabled) return;
   if (pilotMenu.isOpen()) pilotMenu.close();
   if (worldMap.isOpen()) worldMap.setOpen(false);
   if (aircraftGarage.isOpen()) aircraftGarage.close();
@@ -3878,11 +3919,13 @@ function renderTutorialPanel(): void {
 
 function tutorialEvent(event:string,mode?:string):void{if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event,mode}));}
 function restartGuidedTutorial():void{
+  if(!cityRules.tutorialEnabled)return;
   tutorialPanel.hidden=true;
   tutorialPanelDismissed=false;
   setGuidedTutorial(true,true);
 }
 function setGuidedTutorial(active:boolean,replay=false):void{
+  if(!cityRules.tutorialEnabled)return;
   ambientTraffic?.setTutorialMode(active);
   tutorialPanel.hidden=true;
   tutorialPanelDismissed=false;
@@ -3901,6 +3944,7 @@ function setGuidedTutorial(active:boolean,replay=false):void{
   renderTutorialPanel();
   tutorialPanel.hidden = !active || tutorialPanelDismissed; tutorialCompletePanel.hidden = true;
 }
+window.addEventListener('airport-chaos-start-tutorial',()=>setGuidedTutorial(true));
 function exitGuidedTutorial(status:'completed'|'skipped'):void{
   ambientTraffic?.setTutorialMode(false);
   guidedTutorialActive=false;tutorialPanelDismissed=false;tutorialPanel.hidden=true;tutorialRing.visible=false;tutorialCompletePanel.hidden=status!=='completed';document.body.classList.remove('tutorial-flight-active');waypoint=null;try{localStorage.setItem(guidedTutorialKey,status);}catch{/* server is durable */}
@@ -4221,8 +4265,6 @@ function pilotMenuData(): PilotMenuData {
       } }] : []),
     ],
   } : undefined;
-  const discoveryProgress = discoverySystem?.getProgress() ?? { discovered: 0, total: 0, percent: 0 };
-  const discovered = discoverySystem?.getMapMarkers().filter((marker) => marker.discovered).map((marker) => marker.label) ?? [];
   const wantedPlayerId = cityEvent?.eventType === 'mostWanted' ? cityEvent.wantedPlayerId : undefined;
   const players = [
     {
@@ -4257,8 +4299,8 @@ function pilotMenuData(): PilotMenuData {
           remote.plane.position.z,
           `${remote.displayName} · last reported position`,
         ) : undefined,
-        challenge: !remote.isBot && remote.lifeState === 'alive' ? () => socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: remote.playerId, mode: 'dogfight' })) : undefined,
-        sprint: !remote.isBot && remote.lifeState === 'alive' ? () => {
+        challenge: cityRules.competitiveEnabled && !remote.isBot && remote.lifeState === 'alive' ? () => socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: remote.playerId, mode: 'dogfight' })) : undefined,
+        sprint: cityRules.competitiveEnabled && !remote.isBot && remote.lifeState === 'alive' ? () => {
           const destination = airports.filter((airport) => airport.id !== lastSuccessfulAirportId)
             .sort((left, right) => Math.hypot(left.x - airplane.position.x, left.z - airplane.position.z) - Math.hypot(right.x - airplane.position.x, right.z - airplane.position.z))[0];
           if (destination) socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: remote.playerId, mode: 'airportSprint', destinationAirportId: destination.id }));
@@ -4273,8 +4315,8 @@ function pilotMenuData(): PilotMenuData {
       score: player.score, isLocal: false, isBot: false,
       ownedTerritories: ownedTerritoriesForPlayer(player.playerId),
       mostWanted: wantedPlayerId === player.playerId, king: kingPlayerId === player.playerId,
-      challenge: player.lifeState === 'alive' ? () => socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: player.playerId, mode: 'dogfight' })) : undefined,
-      sprint: player.lifeState === 'alive' ? () => {
+      challenge: cityRules.competitiveEnabled && player.lifeState === 'alive' ? () => socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: player.playerId, mode: 'dogfight' })) : undefined,
+      sprint: cityRules.competitiveEnabled && player.lifeState === 'alive' ? () => {
         const destination = airports.filter((airport) => airport.id !== lastSuccessfulAirportId)
           .sort((left, right) => Math.hypot(left.x - airplane.position.x, left.z - airplane.position.z) - Math.hypot(right.x - airplane.position.x, right.z - airplane.position.z))[0];
         if (destination) socket.send(JSON.stringify({ type: 'pvpChallengeInvite', opponentId: player.playerId, mode: 'airportSprint', destinationAirportId: destination.id }));
@@ -4314,6 +4356,7 @@ function pilotMenuData(): PilotMenuData {
     city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: openWorldSelector },
     intercity:{routes:routesFromCity(cityId).map(route=>({routeId:route.routeId,destination:route.toCityId==='dallas'?'Dallas':'Milwaukee',distanceLabel:route.distanceLabel,recommendedAircraft:route.recommendedAircraft.toUpperCase(),estimatedFlightTime:route.estimatedFlightTime,available:onGround&&!crashed&&!profileActiveMissionAttempt(serverProfile),reason:!onGround?'Land and stop first.':profileActiveMissionAttempt(serverProfile)?'Finish or leave your active mission.':undefined,start:()=>socket.send(JSON.stringify({type:'intercityRouteStart',routeId:route.routeId}))}))},
     missions: {
+      practice: cityRules.practiceMode,
       activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
       activeCity: profileActiveMissionCity(serverProfile),
       entries: missionsForCity(cityId).map((definition) => {
@@ -4336,7 +4379,7 @@ function pilotMenuData(): PilotMenuData {
       abandon: () => socket.send(JSON.stringify({ type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMissionAttemptId })),
     },
     progression: {
-      credits, score, pilotProgress: serverProfile.pilotProgress, dailyStreak: serverProfile.dailyStreak,
+      enabled: cityRules.progressionEnabled, credits, score, pilotProgress: serverProfile.pilotProgress, dailyStreak: serverProfile.dailyStreak,
       personalRecords: serverProfile.personalRecords, weeklyReward: serverProfile.weeklyReward, referral: serverProfile.referral,
       pvpChallenge: activePvpChallenge,
       season: serverProfile.season,
@@ -4351,7 +4394,7 @@ function pilotMenuData(): PilotMenuData {
       })),
     },
     players: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: players },
-    territories: { city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: territories,
+    territories: { enabled: cityRules.territoriesEnabled, city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', entries: territories,
       legend: territoryDefinitions.map(({ displayName, fixedColor, colorName }) => ({ name: displayName, color: fixedColor, colorName })),
       neutralColor: neutralTerritoryColor },
     objectives: { daily: objectiveItems(objectiveCycle?.daily), weekly: objectiveItems(objectiveCycle?.weekly), dailyId: objectiveCycle?.dailyId, weeklyId: objectiveCycle?.weeklyId },
@@ -4361,13 +4404,12 @@ function pilotMenuData(): PilotMenuData {
     activities,
     liveEvent,
     stunts: stuntGuide,
-    discoveries: {
-      city: cityId === 'dallas' ? 'Dallas' : 'Milwaukee',
-      discovered,
-      remaining: Math.max(0, discoveryProgress.total - discoveryProgress.discovered),
-      total: discoveryProgress.total,
-      percent: discoveryProgress.percent,
-      openMap: () => { pilotMenu.close(); worldMap.setOpen(true); contextualHints.trigger('firstDestination'); },
+    map: {
+      mount: (host) => {
+        worldMap.mountEmbedded(host);
+        contextualHints.trigger('firstDestination');
+      },
+      unmount: () => worldMap.unmountEmbedded(),
     },
     garage: {
       available: onGround && !crashed,
@@ -4393,7 +4435,7 @@ function pilotMenuData(): PilotMenuData {
     preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.isTouchLayout(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
     restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     audio: { muted: audioMuted, toggle: toggleAudio, levels: audioLevels, setLevel: setAudioLevel },
-    guide: { open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGuidedTutorial();} },
+    guide: { enabled: cityRules.tutorialEnabled, open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGuidedTutorial();} },
   };
 }
 
@@ -4663,6 +4705,7 @@ let wasFirstPlace = false;
 let leaderMessageTimer: number | undefined;
 const playersPanel = new PlayersPanel(document.querySelector<HTMLElement>('#real-players')!);
 const cityTerritoriesPanel = new CityTerritoriesPanel(document.querySelector<HTMLElement>('#city-territories')!);
+document.querySelector<HTMLElement>('#city-territories')!.hidden = !cityRules.territoriesEnabled;
 cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
 const leaderMessageElement = document.querySelector<HTMLDivElement>('#leader-message')!;
 const cityHumanRoster = new Map<string, LeaderboardPlayer>();
@@ -4822,7 +4865,7 @@ function spawnFlash(
 function updateFlashEffects(effects: FlashEffect[], pool: FlashEffect[], delta: number): void {
   for (let index = effects.length - 1; index >= 0; index -= 1) {
     const flash = effects[index];
-    flash.mesh.visible = !guidedTutorialActive;
+    flash.mesh.visible = true;
     // The muzzle flash is attached light, not a world-space puff left behind
     // for 110 ms (120 m at Fighter Boost speed).
     if (effects === muzzleFlashes) getCurrentMuzzleTransform(flash.mesh.position, projectileDirection);
@@ -5008,7 +5051,7 @@ function updateProjectiles(delta: number): void {
   const now = performance.now();
   if (aimQaRay && now >= aimQaRayUntil) aimQaRay.visible = false;
   for (const [projectileId, projectile] of clientProjectiles) {
-    projectile.mesh.visible = !guidedTutorialActive;
+    projectile.mesh.visible = true;
     // Projectile removals are normally explicit.  This bounded fallback is
     // necessary when a slow socket drops an obsolete remove/state frame: the
     // Bound an unconfirmed visual without expiring a minimum-speed round
@@ -5040,7 +5083,7 @@ function updateProjectiles(delta: number): void {
   }
   for (let index = assistedShotVisuals.length - 1; index >= 0; index -= 1) {
     const shot = assistedShotVisuals[index];
-    shot.mesh.visible = !guidedTutorialActive;
+    shot.mesh.visible = true;
     // Assisted shots are short visual-only links to a confirmed target. Their
     // source follows the rendered gun while the endpoint follows that target.
     if (shot.ownerId === localPlayerId) getCurrentMuzzleTransform(shot.origin, assistedShotDirection);
@@ -5143,7 +5186,7 @@ function recycleDestructionEffect(effect: DestructionEffect): void {
 function updateDestructionEffects(delta: number): void {
   for (let effectIndex = destructionEffects.length - 1; effectIndex >= 0; effectIndex -= 1) {
     const effect = destructionEffects[effectIndex];
-    effect.group.visible = !guidedTutorialActive;
+    effect.group.visible = true;
     effect.elapsed += delta;
     const progress = effect.elapsed / 1.2;
     effect.flash.scale.setScalar(effect.scale * (1.4 + progress * 8));
@@ -5361,8 +5404,8 @@ function updateRemotePlayers(delta: number): void {
     const interpolation = remote.interpolationElapsed / remote.interpolationDuration;
     remote.plane.position.lerpVectors(remote.previousPosition, remote.targetPosition, interpolation);
     remote.plane.quaternion.slerpQuaternions(remote.previousQuaternion, remote.targetQuaternion, interpolation);
-    remote.plane.visible = !guidedTutorialActive && remote.lifeState === 'alive';
-    const identityVisible = !guidedTutorialActive && remoteIdentityVisible(remote);
+    remote.plane.visible = remote.lifeState === 'alive';
+    const identityVisible = remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
     const targeted = selectedCombatTarget?.remote === remote;
     const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
@@ -5533,7 +5576,6 @@ function validateServerLock(targetId: string | null, delta: number): void {
 }
 
 function updateCombatTarget(delta = 0): void {
-  if (guidedTutorialActive) { heldActions.delete('fire'); clearCombatTarget(); updateLockCircle(); return; }
   if (crashed || localLifeState !== 'alive') {
     clearCombatTarget();
     stepAim(visualAim, neutralAim, delta, AIM_ENVELOPE);
@@ -6440,7 +6482,6 @@ function updateWeapons(delta: number): void {
 }
 
 function fireWeaponOnce(): boolean {
-  if (guidedTutorialActive) return false;
   const blocked = localFireBlockReason();
   if (blocked) {
     reportFireBlocked(blocked);
@@ -6777,7 +6818,7 @@ function queueProfileReward(source: ContractType): void {
 }
 
 function queueProfileProgress(): void {
-  if (flightTestMode || profileProgressTimer !== undefined) return;
+  if (flightTestMode || !cityRules.progressionEnabled || profileProgressTimer !== undefined) return;
   profileProgressTimer = window.setTimeout(() => {
     profileProgressTimer = undefined;
     if (!localPlayerId || !connectionReady()) return;
@@ -6880,9 +6921,10 @@ function openWorldSelector(): void {
   window.dispatchEvent(new Event('airport-chaos-open-city-selector'));
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
-  const destination = (event as CustomEvent<{ cityId: CityId; timePreset: 'day' | 'dusk';intercity?:boolean }>).detail;
+  const destination = (event as CustomEvent<{ cityId: CityId; timePreset: 'day' | 'dusk';intercity?:boolean;practiceSuggestion?:boolean }>).detail;
   const activeMission = profileActiveMissionAttempt(serverProfile);
-  if (!destination.intercity&&!window.confirm(activeMission ? 'Change city? Your active mission will end.' : 'Leave this flight and change city?')) return;
+  const confirmationRequired = !destination.intercity && (Boolean(activeMission) || !destination.practiceSuggestion);
+  if (confirmationRequired&&!window.confirm(activeMission ? 'Change city? Your active mission will end.' : 'Leave this flight and change city?')) return;
   if (activeMission && connectionReady()) socket.send(JSON.stringify({
     type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMission.attemptId,
   }));
@@ -7031,7 +7073,8 @@ socket.addEventListener('message', (event) => {
     } else {
       applyServerProfile(message.profile);
     }
-    if(message.profile.tutorial.status==='started' && !guidedTutorialActive)setGuidedTutorial(true);
+    if(cityRules.tutorialEnabled&&message.profile.tutorial.status==='started')setGuidedTutorial(true);
+    offerDallasPracticeSuggestion(message.profile);
     applySocialState(message.social);
     reconcileRemotePlayers(message.players);
     for (const player of message.players) updateRemotePlayer(player);
@@ -7088,8 +7131,8 @@ socket.addEventListener('message', (event) => {
     score += message.score;
     recordBestScore(score);
     updateScoreDisplay();
-    showProgressMessage(`MISSION COMPLETE · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · +${message.credits.toLocaleString()} Credits · +${message.score.toLocaleString()} Score`);
-    gameplayFeedback.push({ type: 'mission', primaryText: 'MISSION COMPLETE', secondaryText: `+${message.credits.toLocaleString()} CREDITS · +${message.score.toLocaleString()} SCORE`, intensity: 'major' });
+    showProgressMessage(cityRules.practiceMode ? `PRACTICE TASK COMPLETE · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · NO REWARDS` : `MISSION COMPLETE · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · +${message.credits.toLocaleString()} Credits · +${message.score.toLocaleString()} Score`);
+    gameplayFeedback.push({ type: 'mission', primaryText: cityRules.practiceMode ? 'PRACTICE COMPLETE' : 'MISSION COMPLETE', secondaryText: cityRules.practiceMode ? 'NO REWARDS' : `+${message.credits.toLocaleString()} CREDITS · +${message.score.toLocaleString()} SCORE`, intensity: 'major' });
     updateMissionHud();
     sendPlayerUpdate();
   } else if (message.type === 'missionFailed') {
@@ -7102,7 +7145,7 @@ socket.addEventListener('message', (event) => {
   } else if (message.type === 'eventClear') {
     applyCityEvent(undefined);
   } else if (message.type === 'eventAnnouncement') {
-    showProgressMessage(`${message.name ?? 'SKY EVENT'} · +${message.reward ?? 0} CREDITS`);
+    showProgressMessage(cityRules.practiceMode ? `${message.name ?? 'SKY EVENT'} · PRACTICE — NO REWARDS` : `${message.name ?? 'SKY EVENT'} · +${message.reward ?? 0} CREDITS`);
     gameplayFeedback.push({ type: 'chaos-moment', primaryText: 'CHAOS MOMENT', secondaryText: message.name ?? 'SKY EVENT', intensity: 'major' });
   } else if (message.type === 'eventReward') {
     score += message.score;
@@ -7110,7 +7153,7 @@ socket.addEventListener('message', (event) => {
     recordBestScore(score);
     updateScoreDisplay();
     showProgressMessage(message.reason);
-    flightRecap.eventResults.push(`${message.reason} · +${message.credits} CREDITS`);
+    flightRecap.eventResults.push(cityRules.practiceMode ? `${message.reason}` : `${message.reason} · +${message.credits} CREDITS`);
     sendPlayerUpdate();
   } else if (message.type === 'eventProgress') {
     showProgressMessage(message.message);

@@ -27,8 +27,8 @@ test('guided tutorial uses one compact dismissible card and ignores redundant ac
   const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
   assert.match(main,/data-tutorial-title[\s\S]*data-guided-close[\s\S]*data-tutorial-objective[\s\S]*data-guided-restart[\s\S]*data-guided-skip/);
   assert.match(main,/tutorialPanelDismissed = true;[\s\S]*tutorialPanel\.hidden = true;/);
-  assert.match(main,/tutorial\.status==='started' && !guidedTutorialActive\)setGuidedTutorial\(true\)/);
-  assert.match(main,/function restartGuidedTutorial\(\):void\{[\s\S]*tutorialPanel\.hidden=true;[\s\S]*setGuidedTutorial\(true,true\)/);
+  assert.match(main,/cityRules\.tutorialEnabled&&message\.profile\.tutorial\.status==='started'\)setGuidedTutorial\(true\)/);
+  assert.match(main,/function restartGuidedTutorial\(\):void\{[\s\S]*cityRules\.tutorialEnabled[\s\S]*tutorialPanel\.hidden=true;[\s\S]*setGuidedTutorial\(true,true\)/);
   assert.match(css,/@media\(max-width:950px\) and \(orientation:landscape\)\{[\s\S]*\.guided-tutorial-panel\{[^}]*width:clamp\(260px,44vw,340px\)/);
   assert.match(css,/\.tutorial-flight-active \.active-mission-overlay \{display:none!important\}/);
 });

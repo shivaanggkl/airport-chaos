@@ -279,6 +279,10 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .pilot-menu-card { width: min(880px, 100%); height: min(800px, calc(100vh - 36px)); display: grid; grid-template-rows: auto auto minmax(0, 1fr); padding: 20px; border: 1px solid rgb(123 202 222 / 42%); border-radius: 10px; background: linear-gradient(145deg, #102634, #07131e 72%); box-shadow: 0 22px 80px rgb(0 0 0 / 58%); }
 .pilot-menu-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 13px; border-bottom: 1px solid rgb(160 222 235 / 22%); }
 .pilot-menu-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable; touch-action: pan-y; }
+.pilot-menu-content-map { overflow: hidden; padding-right: 0; scrollbar-gutter: auto; }
+.pilot-menu-map-section { height: 100%; min-height: 0; padding: 0; border: 0; }
+.pilot-menu-map-section > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pilot-menu-map-host { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 .pilot-menu-navigation { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: thin; }
 .pilot-menu-navigation button { flex: none; white-space: nowrap; }
 .pilot-menu-navigation button.active { color: #07141e; background: var(--meaning-reward); border-color: var(--meaning-reward); }
@@ -748,6 +752,24 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
   box-shadow: 0 22px 70px rgb(0 0 0 / 48%);
   pointer-events: auto;
 }
+
+.pilot-menu-map-host > .world-map-card-embedded {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-color: rgb(124 203 218 / 30%);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.pilot-menu-map-host > .world-map-card-embedded > header {
+  justify-content: flex-end;
+  min-height: 35px;
+  padding: 4px 7px;
+}
+
+.pilot-menu-map-host > .world-map-card-embedded > header > :not(#world-map-recenter) { display: none; }
 
 .world-map-card header {
   display: flex;
@@ -2144,7 +2166,18 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 .flight-notifications .world-status { padding: 4px 8px; overflow: hidden; border-radius: 4px; background: rgb(43 31 8 / 68%); text-overflow: ellipsis; white-space: nowrap; }
 .flight-notifications .territory-defense-alert { pointer-events: auto; }
 .flight-notifications #progress-message { padding: 4px 8px; color: #bdebf4; border-radius: 4px; background: rgb(5 18 31 / 76%); font-size: 9px; }
+.practice-mode-label { position: fixed; z-index: 5; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 4px 8px; color: #bff7ee; background: rgb(4 24 35 / 58%); border: 1px solid rgb(111 255 240 / 34%); border-radius: 4px; font: 800 9px/1.2 ui-monospace, monospace; letter-spacing: .06em; pointer-events: none; white-space: nowrap; }
+.practice-mode-label small { margin-left: 5px; color: #c7d8df; font-size: 8px; }
+.practice-mode-label[hidden], .dallas-practice-suggestion[hidden] { display: none; }
+.flight-hud-danger[hidden], #social-panel[hidden], .map-intelligence-panel[hidden], #city-territories[hidden], #territory-capture[hidden], #territory-defense-alert[hidden] { display: none !important; }
+.dallas-practice-suggestion { position: fixed; z-index: 30; top: max(56px, calc(env(safe-area-inset-top) + 48px)); left: 50%; display: flex; align-items: center; gap: 10px; width: min(620px, calc(100vw - 32px)); box-sizing: border-box; padding: 7px 9px; transform: translateX(-50%); color: #edfaff; background: rgb(5 24 36 / 88%); border: 1px solid rgb(113 203 226 / 52%); border-radius: 7px; box-shadow: 0 4px 16px rgb(0 0 0 / 22%); font: 700 11px/1.3 system-ui, sans-serif; }
+.dallas-practice-suggestion span { flex: 1; }
+.dallas-practice-suggestion div { display: flex; gap: 5px; }
+.dallas-practice-suggestion button { min-height: 28px; padding: 4px 7px; color: #eafaff; background: rgb(21 79 102 / 82%); border: 1px solid rgb(117 210 229 / 48%); border-radius: 5px; font: 800 9px ui-monospace, monospace; white-space: nowrap; cursor: pointer; }
 @media(max-width:700px) and (orientation:landscape) {
+  .practice-mode-label { right: max(8px, env(safe-area-inset-right)); bottom: max(5px, env(safe-area-inset-bottom)); left: auto; transform: none; font-size: 8px; }
+  .dallas-practice-suggestion { top: max(48px, calc(env(safe-area-inset-top) + 42px)); width: min(560px, calc(100vw - 16px)); padding: 5px 7px; font-size: 9px; }
+  .dallas-practice-suggestion button { min-height: 25px; font-size: 8px; }
   .mission-status-layer { top: 56px; left: 8px; width: clamp(200px, 34vw, 300px); }
   .active-mission-overlay { gap: 1px; padding: 4px 6px; font-size: 8px; }
   .active-mission-overlay strong { font-size: 9px; }
