@@ -55,6 +55,7 @@ test('legacy globally unique identity email schema migrates to provider-neutral 
   const migrated = new DatabaseSync(databasePath);
   const columns = migrated.prepare('PRAGMA table_info(auth_identities)').all() as Array<{ name: string }>;
   assert.equal(columns.some((column) => column.name === 'provider_display_name'), true);
+  assert.equal(columns.some((column) => column.name === 'provider_avatar_url'), true);
   const row = migrated.prepare('SELECT provider,normalized_email,password_hash FROM auth_identities').get() as { provider: string; normalized_email: string; password_hash: string };
   assert.deepEqual([row.provider, row.normalized_email, row.password_hash], ['password', 'pilot@example.com', 'digest']);
   const schema = migrated.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='auth_identities'").get() as { sql: string };
@@ -143,14 +144,14 @@ function completeTestProvider(
   provider: 'google' | 'apple',
   action: 'login' | 'link',
   subject: string,
-  options: { email?: string; displayName?: string; tokenHash?: string; now?: number } = {},
+  options: { email?: string; displayName?: string; avatarUrl?: string; tokenHash?: string; now?: number } = {},
 ) {
   const now = options.now ?? 2_000;
   const identity = sessions.resolveSession(`airport_chaos_session=${sessionCookie}`, now)!;
   const pending = sessions.beginOAuthFlow(identity, provider, action, `https://game.example/api/auth/oauth/${provider}/callback`, 'https://game.example/?city=dallas', now + 1)!;
   const flow = sessions.consumeOAuthFlow(pending.state, provider, now + 2)!;
   return sessions.completeProviderAuth(flow, {
-    provider, subject, email: options.email, displayName: options.displayName,
+    provider, subject, email: options.email, displayName: options.displayName, avatarUrl: options.avatarUrl,
     tokenHash: options.tokenHash ?? createHash('sha256').update(`${provider}:${subject}:${now}`).digest('hex'),
     expiresAt: now + 60_000,
   }, now + 3);
@@ -164,6 +165,7 @@ test('guest Google and Apple sign-in atomically attach the current profile and r
     profiles.awardServerReward(guest.pilotId, 321); profiles.awardScore(guest.pilotId, 654); profiles.grantAircraftEntitlements(guest.pilotId, ['fighter'], 'test:purchase');
     const result = completeTestProvider(sessions, guest.cookie, provider, 'login', `${provider}-guest-sub`, {
       email: provider === 'apple' ? 'relay@privaterelay.appleid.com' : 'guest@example.com', displayName: 'Guest Ace',
+      avatarUrl: provider === 'google' ? 'https://lh3.googleusercontent.com/a/verified=s96-c' : 'https://attacker.example/apple.png',
     });
     assert.equal(result.ok, true); assert.equal(result.identity?.pilotId, guest.pilotId);
     assert.equal(sessions.resolveSession(`airport_chaos_session=${guest.cookie}`, 3_000), undefined);
@@ -171,6 +173,8 @@ test('guest Google and Apple sign-in atomically attach the current profile and r
     const status = sessions.status(linked);
     assert.equal(status.state, 'account');
     assert.equal(status.state === 'account' && status.providers[provider], true);
+    assert.equal(status.state === 'account' ? status.avatarUrl : undefined,
+      provider === 'google' ? 'https://lh3.googleusercontent.com/a/verified=s96-c' : undefined);
     const profile = profiles.getOrCreate(linked.pilotId, 'Ignored');
     assert.equal(profile.credits, 321); assert.equal(profile.score, 654); assert.equal(profile.unlockedAircraft.includes('fighter'), true);
   }
@@ -186,6 +190,64 @@ test('existing provider login resolves the original account while preserving an 
   assert.equal(login.ok, true); assert.equal(login.guestPreserved, true); assert.equal(login.identity?.pilotId, created.identity?.pilotId);
   assert.equal(profiles.getOrCreate(visitor.pilotId, 'Ignored').credits, 25);
   assert.equal(profiles.getOrCreate(login.identity!.pilotId, 'Ignored').credits, 900);
+});
+
+test('Google A logout cannot leak cached profile data into Google B and returning A is restored', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-account-isolation-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath); const sessions = new PilotSessionStore(databasePath);
+
+  const firstGuest = sessions.issue(undefined, false, 1_000);
+  profiles.getOrCreate(firstGuest.pilotId, 'Pilot');
+  profiles.importLegacy(firstGuest.pilotId, { pilotName: '666', credits: 9_300, score: 700, totalDistance: 321 });
+  profiles.awardPilotXp(firstGuest.pilotId, 275);
+  profiles.grantAircraftEntitlements(firstGuest.pilotId, ['fighter'], 'test:purchase');
+  const accountA = completeTestProvider(sessions, firstGuest.cookie, 'google', 'login', 'google-account-a', {
+    email: 'account-a@example.com', now: 2_000,
+  });
+  assert.equal(accountA.ok, true);
+  const accountAProfile = profiles.getOrCreate(accountA.identity!.pilotId, 'Ignored');
+  assert.equal(accountAProfile.pilotName, '666');
+  assert.equal(accountAProfile.credits, 9_300);
+
+  const afterALogout = sessions.signOut(sessions.resolveSession(`airport_chaos_session=${accountA.cookie}`, 3_000)!, 4_000);
+  const guestAfterA = profiles.createFreshGuest(afterALogout.identity!.pilotId);
+  const staleAImport = profiles.importLegacy(guestAfterA.pilotId, {
+    pilotName: accountAProfile.pilotName, credits: accountAProfile.credits,
+    score: accountAProfile.score, totalDistance: accountAProfile.totalDistance,
+  });
+  assert.equal(staleAImport.pilotId, guestAfterA.pilotId);
+  assert.notEqual(staleAImport.pilotName, accountAProfile.pilotName);
+  assert.notEqual(staleAImport.credits, accountAProfile.credits);
+  assert.equal(staleAImport.legacyImportPending, false);
+
+  const accountB = completeTestProvider(sessions, afterALogout.cookie!, 'google', 'login', 'google-account-b', {
+    email: 'account-b@example.com', now: 5_000,
+  });
+  assert.equal(accountB.ok, true);
+  assert.equal(accountB.identity!.pilotId, guestAfterA.pilotId);
+  assert.notEqual(accountB.identity!.pilotId, accountA.identity!.pilotId);
+  const accountBProfile = profiles.getOrCreate(accountB.identity!.pilotId, 'Ignored');
+  assert.notEqual(accountBProfile.pilotName, accountAProfile.pilotName);
+  assert.notEqual(accountBProfile.credits, accountAProfile.credits);
+
+  const afterBLogout = sessions.signOut(sessions.resolveSession(`airport_chaos_session=${accountB.cookie}`, 6_000)!, 7_000);
+  const guestAfterB = profiles.createFreshGuest(afterBLogout.identity!.pilotId);
+  const staleBImport = profiles.importLegacy(guestAfterB.pilotId, { pilotName: accountBProfile.pilotName, credits: accountBProfile.credits });
+  assert.deepEqual(staleBImport, guestAfterB);
+  assert.notEqual(staleBImport.pilotId, accountB.identity!.pilotId);
+
+  const accountAReturn = completeTestProvider(sessions, afterBLogout.cookie!, 'google', 'login', 'google-account-a', {
+    email: 'account-a@example.com', now: 8_000,
+  });
+  assert.equal(accountAReturn.ok, true);
+  assert.equal(accountAReturn.identity!.pilotId, accountA.identity!.pilotId);
+  assert.deepEqual(
+    profiles.getOrCreate(accountAReturn.identity!.pilotId, 'Ignored'),
+    accountAProfile,
+    'returning Google A must recover its original profile without A/B/guest mutation',
+  );
+  assert.equal(sessions.resolveSession(`airport_chaos_session=${accountA.cookie}`, 9_000), undefined);
+  assert.equal(sessions.resolveSession(`airport_chaos_session=${accountB.cookie}`, 9_000), undefined);
 });
 
 test('explicit provider linking supports password + Google + Apple on one account', async () => {

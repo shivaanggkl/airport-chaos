@@ -46,6 +46,7 @@ type Transform = {
 
 type PlayerState = Transform & {
   pilotId: string;
+  accountId?: string;
   sessionTokenHash?: string;
   profile: PlayerProfile;
   entityType: 'player';
@@ -692,7 +693,9 @@ const httpServer = createServer(async (request, response) => {
       if (requestUrl.pathname === '/api/auth/logout') {
         const result = pilotSessions.signOut(identity.session);
         if (!result.identity || !result.cookie || !result.expiresAt) { jsonResponse(response, 400, { error: 'Unable to log out.' }); return; }
-        const profile = profileStore.getOrCreate(result.identity.pilotId, 'Pilot');
+        // A post-account guest is deliberately fresh.  Seal legacy import so
+        // cached values from the account being logged out cannot hydrate it.
+        const profile = profileStore.createFreshGuest(result.identity.pilotId);
         response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
         closeSessionConnections(identity.session.tokenHash);
         jsonResponse(response, 200, { account: { state: 'guest' }, profile, message: 'Logged out. Continuing as a guest.' });
@@ -824,7 +827,11 @@ const httpServer = createServer(async (request, response) => {
         profile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
         const host = analyticsHost(request.headers.host);
         analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host }, payload.analyticsEvent, { source: 'start_garage' });
-      } else if (payload?.legacy) profile = profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
+      } else if (payload?.legacy) {
+        profile = identity.session.accountId
+          ? profileStore.getOrCreate(identity.pilotId, identity.pilotName)
+          : profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
+      }
       else if (payload?.equipAircraft !== undefined) profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
       else if (typeof payload?.purchaseCosmetic === 'string' || typeof payload?.equipCosmetic === 'string') {
         const result = typeof payload.purchaseCosmetic === 'string' ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic) : profileStore.equipCosmetic(identity.pilotId, payload.equipCosmetic as string);
@@ -4305,7 +4312,16 @@ function authenticatedIdentity(request: IncomingMessage, response: ServerRespons
   if (issuanceLimit.limited) { rateLimited(response, issuanceLimit.retryAfterMs); return undefined; }
   const url = new URL(request.url ?? '/', 'http://localhost');
   const legacyId = url.searchParams.get('pilotId') ?? '';
-  const issued = pilotSessions.issue(legacyId, /^[a-zA-Z0-9-]{16,80}$/.test(legacyId) && profileStore.hasProfile(legacyId));
+  const validLegacyId = /^[a-zA-Z0-9-]{16,80}$/.test(legacyId);
+  const existingLegacyProfile = validLegacyId && profileStore.hasProfile(legacyId);
+  const issued = pilotSessions.issue(legacyId, existingLegacyProfile);
+  // If an existing local pilot ID has already been claimed, it may be a stale
+  // cache from a signed-out account.  The replacement guest must never accept
+  // that cache as a legacy import.  A genuinely first migration remains
+  // allowed through issued.migrated.
+  if (!validLegacyId || (existingLegacyProfile && !issued.migrated)) {
+    profileStore.createFreshGuest(issued.pilotId);
+  }
   response.setHeader('Set-Cookie', pilotSessions.cookie(issued.cookie, secureCookieRequest(request), issued.expiresAt));
   return { pilotId: issued.pilotId, pilotName: requestedPilotName(request), clientIp, session: { pilotId: issued.pilotId, tokenHash: issued.tokenHash } };
 }
@@ -4421,6 +4437,7 @@ server.on('connection', (socket, request) => {
 
   players.set(playerId, {
     pilotId: profile.pilotId,
+    accountId: identity.session.accountId,
     sessionTokenHash: identity.session.tokenHash,
     profile,
     entityType: 'player',
@@ -4625,7 +4642,9 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'profileImport') {
-        const profile = profileStore.importLegacy(player.pilotId, message.legacy ?? {});
+        const profile = player.accountId
+          ? profileStore.getOrCreate(player.pilotId, player.displayName)
+          : profileStore.importLegacy(player.pilotId, message.legacy ?? {});
         // The first legacy hydration is also an explicit server-side profile
         // reconciliation. Keep the active player transform aligned with that
         // persisted selection before any later transform can be broadcast.

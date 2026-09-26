@@ -18,7 +18,7 @@ import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } fr
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { GameplayFeedbackSystem } from './gameplay-feedback';
-import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
+import { PilotMenu, type PilotMenuAction, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { cityCapabilities, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialObjective}from'../../shared/tutorial-flight-rules.mjs';
@@ -986,6 +986,9 @@ const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flig
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightWorldButtonElement = document.querySelector<HTMLButtonElement>('#flight-world-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
+const flightAccountButtonElement = document.querySelector<HTMLButtonElement>('#flight-account-button')!;
+const flightAccountAvatarElement = document.querySelector<HTMLImageElement>('#flight-account-avatar')!;
+const flightAccountLabelElement = document.querySelector<HTMLElement>('#flight-account-label')!;
 const desktopControlsHelpElement = document.querySelector<HTMLElement>('#desktop-controls-help')!;
 const desktopControlsHelpToggleElement = document.querySelector<HTMLButtonElement>('#desktop-controls-help-toggle')!;
 const desktopControlsHelpItemsElement = document.querySelector<HTMLElement>('#desktop-controls-help-items')!;
@@ -1025,6 +1028,10 @@ territoryDefenseWaypointElement.addEventListener('click', () => {
 });
 const rewardFeedbackElement = document.querySelector<HTMLDivElement>('#reward-feedback')!;
 const dallasPracticeSuggestionElement = document.querySelector<HTMLElement>('#dallas-practice-suggestion')!;
+const missionReminderElement = document.querySelector<HTMLElement>('#mission-reminder')!;
+const missionReminderCopyElement = document.querySelector<HTMLElement>('#mission-reminder-copy')!;
+const missionReminderOpenElement = missionReminderElement.querySelector<HTMLButtonElement>('[data-mission-reminder-open]')!;
+const missionReminderDismissElement = missionReminderElement.querySelector<HTMLButtonElement>('[data-mission-reminder-dismiss]')!;
 const dallasPracticeSuggestionKey = `airport-chaos-dallas-practice-suggestion-v1:${persistedPlayer.pilotId}`;
 let dallasPracticeSuggestionDismissed = false;
 function dismissDallasPracticeSuggestion(): void {
@@ -1137,9 +1144,10 @@ function setAudioLevel(category: keyof AudioLevels, value: number): void {
   applyAudioLevels();
 }
 let progressSaveTimer: number | undefined;
+let identityTransitionInProgress = false;
 
 function writePlayerProgress(): void {
-  if (flightTestMode) return;
+  if (flightTestMode || identityTransitionInProgress) return;
   const value: PersistedPlayer = {
     version: 1,
     pilotId: persistedPlayer.pilotId,
@@ -3391,7 +3399,7 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
 }
 
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
-type ClientAccountState = { state: 'guest' | 'account'; email?: string; providers?: { password: boolean; google: boolean; apple: boolean } };
+type ClientAccountState = { state: 'guest' | 'account'; email?: string; avatarUrl?: string; providers?: { password: boolean; google: boolean; apple: boolean } };
 let clientAccount: ClientAccountState = { state: 'guest', providers: { password: false, google: false, apple: false } };
 const accountApiOrigin = (() => {
   if (!import.meta.env.DEV) return window.location.origin;
@@ -3400,21 +3408,85 @@ const accountApiOrigin = (() => {
   return ws.origin;
 })();
 
+function accountAvatarFallback(name: string): string {
+  const parts = name.trim().split(/\s+/).map((part) => part.replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)![0]}` : parts[0]?.slice(0, 2) || '👤').toUpperCase();
+}
+
+function updateAuthHudControl(): void {
+  const authenticated = clientAccount.state === 'account';
+  flightAccountButtonElement.classList.toggle('is-account', authenticated);
+  flightAccountButtonElement.setAttribute('aria-label', authenticated ? 'Open profile and account' : 'Open login and profile');
+  flightAccountButtonElement.title = authenticated ? 'Profile / Account' : 'Guest — Log in';
+  flightAccountAvatarElement.hidden = true;
+  flightAccountAvatarElement.removeAttribute('src');
+  flightAccountLabelElement.hidden = false;
+  flightAccountLabelElement.classList.toggle('avatar-fallback', authenticated);
+  flightAccountLabelElement.textContent = authenticated ? accountAvatarFallback(serverProfile.pilotName) : 'LOGIN';
+  if (!authenticated || !clientAccount.avatarUrl) return;
+  flightAccountAvatarElement.src = clientAccount.avatarUrl;
+  flightAccountAvatarElement.hidden = false;
+  flightAccountLabelElement.hidden = true;
+}
+
+flightAccountAvatarElement.addEventListener('load', () => {
+  if (clientAccount.state === 'account' && flightAccountAvatarElement.currentSrc) flightAccountLabelElement.hidden = true;
+});
+flightAccountAvatarElement.addEventListener('error', () => {
+  flightAccountAvatarElement.hidden = true;
+  flightAccountAvatarElement.removeAttribute('src');
+  flightAccountLabelElement.hidden = false;
+});
+updateAuthHudControl();
+
+function cacheIdentityTransitionProfile(profile: NetworkProfile): void {
+  identityTransitionInProgress = true;
+  window.clearTimeout(progressSaveTimer);
+  progressSaveTimer = undefined;
+  try {
+    localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      pilotId: profile.pilotId,
+      credits: profile.credits,
+      selectedAircraft: profile.selectedAircraft,
+      displayName: profile.pilotName,
+      muted: audioMuted,
+      bestScore: profile.score,
+      discoveries: profile.discoveries,
+      totalDistance: profile.totalDistance,
+      successfulLandings: profile.successfulLandings,
+      hintsEnabled: contextualHints.isEnabled(),
+      dismissedHints: contextualHintDismissed,
+      navigationMarkersEnabled,
+      onboardingSeen: persistedPlayer.onboardingSeen,
+    } satisfies PersistedPlayer));
+  } catch { /* the secure session still controls the next profile load */ }
+}
+
 async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
+  const rotatesIdentity = path !== 'pilot-name';
+  if (rotatesIdentity) identityTransitionInProgress = true;
   try {
     const response = await fetch(new URL(`/api/auth/${path}`, accountApiOrigin), {
       method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     const result = await response.json() as { error?: string; message?: string; account?: ClientAccountState; profile?: unknown; guestPreserved?: boolean };
-    if (!response.ok) return { ok: false, message: result.error ?? 'ACCOUNT REQUEST FAILED' };
+    if (!response.ok) {
+      if (rotatesIdentity) identityTransitionInProgress = false;
+      return { ok: false, message: result.error ?? 'ACCOUNT REQUEST FAILED' };
+    }
     if (result.account) clientAccount = result.account;
     if (path === 'pilot-name' && result.profile) applyServerProfile(result.profile);
-    if (path !== 'pilot-name') {
-      try { sessionStorage.setItem('airport-chaos-account-notice', result.message ?? 'ACCOUNT UPDATED'); } catch { /* transient notice is optional */ }
-      window.setTimeout(() => window.location.reload(), 250);
-    }
+    else if (result.profile && isNetworkProfile(result.profile)) cacheIdentityTransitionProfile(result.profile);
+    updateAuthHudControl();
+    if (pilotMenu.isOpen()) renderPilotMenu();
+    if (rotatesIdentity) reconnectRealtimeSession();
+    showProgressMessage(result.message ?? 'ACCOUNT UPDATED');
     return { ok: true, message: result.message ?? 'ACCOUNT UPDATED' };
-  } catch { return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' }; }
+  } catch {
+    if (rotatesIdentity) identityTransitionInProgress = false;
+    return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' };
+  }
 }
 
 async function providerAccountRequest(provider: 'google' | 'apple', action: 'login' | 'link'): Promise<{ ok: boolean; message: string }> {
@@ -3432,11 +3504,21 @@ async function providerAccountRequest(provider: 'google' | 'apple', action: 'log
   } catch { return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' }; }
 }
 
-async function refreshAccountStatus(): Promise<void> {
+async function refreshAccountStatus(reconnectOnIdentityChange = false): Promise<void> {
   try {
     const response = await fetch(new URL('/api/auth/status', accountApiOrigin), { cache: 'no-store', credentials: 'include' });
-    const result = await response.json() as { account?: ClientAccountState };
-    if (response.ok && result.account) { clientAccount = result.account; renderPilotMenu(true); }
+    const result = await response.json() as { account?: ClientAccountState; profile?: unknown };
+    if (!response.ok || !result.account) return;
+    const previousState = clientAccount.state;
+    clientAccount = result.account;
+    updateAuthHudControl();
+    if (pilotMenu.isOpen()) renderPilotMenu();
+    if ((profileHydrated || reconnectOnIdentityChange) && result.profile && isNetworkProfile(result.profile) &&
+      (result.profile.pilotId !== serverProfile.pilotId || previousState !== result.account.state)) {
+      identityTransitionInProgress = true;
+      cacheIdentityTransitionProfile(result.profile);
+      reconnectRealtimeSession();
+    }
   } catch { /* gameplay remains available as a guest */ }
 }
 let activeMissionAttemptId: string | undefined;
@@ -4645,10 +4727,10 @@ function pilotMenuData(): PilotMenuData {
   };
 }
 
-function renderPilotMenu(force = false): void {
+function renderPilotMenu(force = false, section: PilotMenuSection = 'MISSIONS'): void {
   const data = pilotMenuData();
-  if (pilotMenu.isOpen() && !force) pilotMenu.refresh(data);
-  else pilotMenu.open(data);
+  if (pilotMenu.isOpen()) pilotMenu.refresh(data);
+  else if (force) pilotMenu.open(data, section);
 }
 
 let nextPilotMenuRefreshAt = 0;
@@ -4660,11 +4742,11 @@ function refreshPilotMenu(): void {
   renderPilotMenu();
 }
 
-function openPilotMenu(): void {
+function openPilotMenu(section: PilotMenuSection = 'MISSIONS'): void {
   if (aircraftGarage.isOpen()) return;
   if (worldMap.isOpen()) worldMap.setOpen(false);
   heldActions.clear();
-  renderPilotMenu(true);
+  renderPilotMenu(true, section);
 }
 
 function togglePilotMenu(): void {
@@ -4676,6 +4758,7 @@ function togglePilotMenu(): void {
 }
 
 flightMenuButtonElement.addEventListener('click', togglePilotMenu);
+flightAccountButtonElement.addEventListener('click', () => openPilotMenu('PROFILE'));
 flightWorldButtonElement.addEventListener('click', openWorldSelector);
 const toggleWorldMapFromHud = () => {
   if (pilotMenu.isOpen()) pilotMenu.close();
@@ -4690,6 +4773,61 @@ radarPanelElement.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
   toggleWorldMapFromHud();
+});
+
+const missionReminderFirstDelaySeconds = 60;
+const missionReminderRepeatDelayMs = 10 * 60_000;
+const missionReminderMaxPerSession = 2;
+let missionReminderFlightSeconds = 0;
+let missionReminderCount = 0;
+let missionReminderLastEndedAt = -Infinity;
+let missionReminderHideTimer: number | undefined;
+let missionAvailabilityCheckedAt = -Infinity;
+let missionAvailable = false;
+
+function hideMissionReminder(startCooldown = true): void {
+  if (missionReminderElement.hidden) return;
+  missionReminderElement.hidden = true;
+  window.clearTimeout(missionReminderHideTimer);
+  missionReminderHideTimer = undefined;
+  missionReminderFlightSeconds = 0;
+  if (startCooldown) missionReminderLastEndedAt = performance.now();
+}
+
+function cityHasAvailableMission(): boolean {
+  const now = performance.now();
+  if (now - missionAvailabilityCheckedAt < 1_000) return missionAvailable;
+  missionAvailabilityCheckedAt = now;
+  missionAvailable = missionsForCity(cityId).some((definition) => !definition.retired && !missionUnavailableReason(definition));
+  return missionAvailable;
+}
+
+function updateMissionReminder(deltaSeconds: number): void {
+  const noMission = !profileActiveMissionAttempt(serverProfile);
+  const actuallyFlying = profileHydrated && protocolReady && localLifeState === 'alive' && runStarted && !onGround && !crashed;
+  const gameplayVisible = citySelectorElement.hidden && pilotMenuOverlayElement.hidden && !worldMap.isOpen() && !aircraftGarage.isOpen() &&
+    !flightTutorial.isOpen() && dallasPracticeSuggestionElement.hidden && !identityTransitionInProgress;
+  const eligible = noMission && actuallyFlying && gameplayVisible && cityHasAvailableMission();
+  if (!eligible) {
+    if (!missionReminderElement.hidden) hideMissionReminder();
+    return;
+  }
+  if (!missionReminderElement.hidden || missionReminderCount >= missionReminderMaxPerSession) return;
+  missionReminderFlightSeconds += deltaSeconds;
+  if (missionReminderFlightSeconds < missionReminderFirstDelaySeconds || performance.now() - missionReminderLastEndedAt < missionReminderRepeatDelayMs) return;
+  missionReminderCopyElement.textContent = cityRules.practiceMode
+    ? 'Start a practice mission to build flight skills. Practice Mode gives no permanent rewards.'
+    : 'Start a mission to earn rewards and progress.';
+  missionReminderElement.hidden = false;
+  missionReminderCount += 1;
+  window.clearTimeout(missionReminderHideTimer);
+  missionReminderHideTimer = window.setTimeout(() => hideMissionReminder(), 8_000);
+}
+
+missionReminderDismissElement.addEventListener('click', () => hideMissionReminder());
+missionReminderOpenElement.addEventListener('click', () => {
+  hideMissionReminder();
+  openPilotMenu('MISSIONS');
 });
 
 window.addEventListener('keydown', (event) => {
@@ -6763,6 +6901,7 @@ function animate(): void {
     flightRecap.maxAltitude = Math.max(flightRecap.maxAltitude, altitudeAboveTerrain());
   }
   updateWeapons(delta);
+  updateMissionReminder(delta);
   if (!crashed && runStarted) updatePlayerInteractions();
   if (challengeModeEnabled) updateCheckpointFeedback(delta);
   updateEventVisual();
@@ -6948,7 +7087,7 @@ socketUrl.searchParams.set('pilotId', persistedPlayer.pilotId);
 socketUrl.searchParams.set('pilotName', displayName);
 socketUrl.searchParams.set('protocol', String(PROTOCOL_VERSION));
 if (chaosQaMode) socketUrl.searchParams.set('chaosqa', '1');
-const socket = new WebSocket(socketUrl);
+let socket = new WebSocket(socketUrl);
 let protocolReady = false;
 let protocolBlocked = false;
 const oauthResult = new URLSearchParams(window.location.search);
@@ -6971,6 +7110,23 @@ try {
 
 function connectionReady(): boolean {
   return protocolReady && !protocolBlocked && socket.readyState === WebSocket.OPEN;
+}
+
+function reconnectRealtimeSession(): void {
+  const previous = socket;
+  protocolReady = false;
+  protocolBlocked = false;
+  profileHydrated = false;
+  localPlayerId = null;
+  pendingEquip = undefined;
+  clearCombatThreats();
+  cityHumanRoster.clear();
+  humanRadarTracks.clear();
+  playersPanel.update([], null);
+  for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
+  socket = new WebSocket(socketUrl);
+  bindSocketEvents(socket);
+  if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) previous.close(1000, 'Session changed');
 }
 
 function blockProtocolConnection(message: string): void {
@@ -7123,6 +7279,8 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   totalDistance = profile.totalDistance;
   totalSuccessfulLandings = profile.successfulLandings;
   displayName = profile.pilotName;
+  identityTransitionInProgress = false;
+  updateAuthHudControl();
   // Discovery progress is monotonic. A reward response can precede the
   // debounced progress upload; do not erase locally completed discoveries.
   for (const city of ['milwaukee', 'dallas'] as const) {
@@ -7239,9 +7397,11 @@ function sendRespawn(): void {
   socket.send(JSON.stringify({ type: 'respawn' }));
 }
 
-socket.addEventListener('open', () => { /* Welcome packet completes protocol verification. */ });
+function bindSocketEvents(boundSocket: WebSocket): void {
+boundSocket.addEventListener('open', () => { /* Welcome packet completes protocol verification. */ });
 
-socket.addEventListener('message', (event) => {
+boundSocket.addEventListener('message', (event) => {
+  if (boundSocket !== socket) return;
   let message: ServerMessage;
   try {
     message = JSON.parse(event.data) as ServerMessage;
@@ -7275,7 +7435,7 @@ socket.addEventListener('message', (event) => {
     if (cityId === 'milwaukee') {
       spawnPosition.set(message.spawnPosition.x, message.spawnPosition.y, message.spawnPosition.z);
     } else {
-      const airport = airports.find((candidate) => candidate.id === activeCity.spawn.airportId) ?? centralAirport;
+      const airport = spawnAirport;
       const slotOffset = airport.spawnOffset + message.spawnPosition.z - 45;
       spawnPosition.set(
         airport.x + Math.sin(airport.heading) * slotOffset,
@@ -7675,8 +7835,8 @@ socket.addEventListener('message', (event) => {
   }
 });
 
-socket.addEventListener('close', (event) => {
-  window.clearInterval(stateSendTimer);
+boundSocket.addEventListener('close', (event) => {
+  if (boundSocket !== socket) return;
   clearCombatThreats();
   cityHumanRoster.clear();
   humanRadarTracks.clear();
@@ -7687,20 +7847,37 @@ socket.addEventListener('close', (event) => {
   if (protocolBlocked) return;
   protocolReady = false;
   profileHydrated = false;
+  if (event.code === 4003) {
+    if (!identityTransitionInProgress) {
+      clientAccount = { state: 'guest', providers: { password: false, google: false, apple: false } };
+      updateAuthHudControl();
+      void refreshAccountStatus(true);
+    }
+    showProgressMessage(identityTransitionInProgress ? 'SWITCHING ACCOUNT…' : 'SESSION CHANGED — RECONNECTING');
+    return;
+  }
   showProgressMessage(event.code === 4001 ? 'OPENED IN ANOTHER TAB — RELOAD TO PLAY HERE' : 'SERVER DISCONNECTED');
 });
 
-socket.addEventListener('error', () => {
+boundSocket.addEventListener('error', () => {
+  if (boundSocket !== socket) return;
   if (protocolBlocked) return;
   showProgressMessage('SERVER CONNECTION ERROR');
 });
+}
+bindSocketEvents(socket);
 
 // Same 10Hz transform stream, but not tied to requestAnimationFrame: Safari
 // can suspend rendering when Chrome is foreground. Timer throttling still
 // allows a current stationary transform without pretending the socket left.
 const stateSendTimer = window.setInterval(sendLocalState, 100);
-window.addEventListener('pagehide', () => { window.clearInterval(stateSendTimer); socket.close(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) sendLocalState(); });
+const accountStatusTimer = window.setInterval(() => void refreshAccountStatus(), 60_000);
+window.addEventListener('pagehide', () => { window.clearInterval(stateSendTimer); window.clearInterval(accountStatusTimer); socket.close(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  sendLocalState();
+  void refreshAccountStatus();
+});
 
 updateCamera(1);
 showActiveCheckpoint();

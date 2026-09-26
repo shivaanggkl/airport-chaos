@@ -16,7 +16,7 @@ function derivePassword(password: string, salt: Buffer, length: number, options:
 
 export type SessionIdentity = { pilotId: string; accountId?: string; tokenHash: string };
 export type AccountStatus = { state: 'guest' } | {
-  state: 'account'; email?: string;
+  state: 'account'; email?: string; avatarUrl?: string;
   providers: { password: boolean; google: boolean; apple: boolean };
 };
 export type AuthResult = {
@@ -55,6 +55,16 @@ export function validAccountPassword(value: unknown): value is string {
   return typeof value === 'string' && value.length >= 10 && value.length <= 128;
 }
 
+function normalizeProviderAvatarUrl(provider: ProviderName, value: unknown): string | undefined {
+  if (provider !== 'google' || typeof value !== 'string' || value.length > 2_048) return undefined;
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    return url.protocol === 'https:' && !url.username && !url.password &&
+      (hostname === 'googleusercontent.com' || hostname.endsWith('.googleusercontent.com')) ? url.toString() : undefined;
+  } catch { return undefined; }
+}
+
 async function passwordHash(password: string): Promise<string> {
   const salt = randomBytes(16);
   const derived = await derivePassword(password, salt, scryptKeyLength, scryptOptions);
@@ -86,7 +96,7 @@ export class PilotSessionStore {
       );
       CREATE TABLE IF NOT EXISTS auth_identities (
         identity_id TEXT PRIMARY KEY, account_id TEXT NOT NULL, provider TEXT NOT NULL,
-        provider_subject TEXT NOT NULL, normalized_email TEXT, password_hash TEXT, provider_display_name TEXT,
+        provider_subject TEXT NOT NULL, normalized_email TEXT, password_hash TEXT, provider_display_name TEXT, provider_avatar_url TEXT,
         created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
         UNIQUE(provider, provider_subject),
         FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
@@ -100,6 +110,10 @@ export class PilotSessionStore {
         pilot_id TEXT PRIMARY KEY, migrated_at INTEGER NOT NULL
       );
     `);
+    if (this.database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_profiles'").get()) {
+      this.database.exec(`UPDATE player_profiles SET legacy_imported=1
+        WHERE pilot_id IN (SELECT pilot_id FROM account_profile_links)`);
+    }
     this.migrateAuthIdentities();
     this.migrateSessions();
     this.database.exec(`
@@ -130,19 +144,19 @@ export class PilotSessionStore {
     const columns = this.database.prepare('PRAGMA table_info(auth_identities)').all() as Array<{ name: string }>;
     const names = new Set(columns.map((column) => column.name));
     const hasGlobalEmailUnique = /UNIQUE\s*\(\s*normalized_email\s*\)/i.test(existing.sql);
-    if (names.has('provider_display_name') && !hasGlobalEmailUnique) return;
+    if (names.has('provider_display_name') && names.has('provider_avatar_url') && !hasGlobalEmailUnique) return;
     this.database.exec('BEGIN IMMEDIATE');
     try {
       this.database.exec(`
         CREATE TABLE auth_identities_next (
           identity_id TEXT PRIMARY KEY, account_id TEXT NOT NULL, provider TEXT NOT NULL,
-          provider_subject TEXT NOT NULL, normalized_email TEXT, password_hash TEXT, provider_display_name TEXT,
+          provider_subject TEXT NOT NULL, normalized_email TEXT, password_hash TEXT, provider_display_name TEXT, provider_avatar_url TEXT,
           created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
           UNIQUE(provider, provider_subject),
           FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
         );
-        INSERT INTO auth_identities_next(identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,created_at,updated_at)
-        SELECT identity_id,account_id,provider,provider_subject,normalized_email,password_hash,${names.has('provider_display_name') ? 'provider_display_name' : 'NULL'},created_at,updated_at FROM auth_identities;
+        INSERT INTO auth_identities_next(identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,provider_avatar_url,created_at,updated_at)
+        SELECT identity_id,account_id,provider,provider_subject,normalized_email,password_hash,${names.has('provider_display_name') ? 'provider_display_name' : 'NULL'},${names.has('provider_avatar_url') ? 'provider_avatar_url' : 'NULL'},created_at,updated_at FROM auth_identities;
         DROP TABLE auth_identities;
         ALTER TABLE auth_identities_next RENAME TO auth_identities;
       `);
@@ -219,14 +233,15 @@ export class PilotSessionStore {
 
   status(identity: SessionIdentity): AccountStatus {
     if (!identity.accountId) return { state: 'guest' };
-    const rows = this.database.prepare('SELECT provider,normalized_email FROM auth_identities WHERE account_id=?').all(identity.accountId) as Array<{ provider: string; normalized_email: string | null }>;
+    const rows = this.database.prepare('SELECT provider,normalized_email,provider_avatar_url FROM auth_identities WHERE account_id=?').all(identity.accountId) as Array<{ provider: string; normalized_email: string | null; provider_avatar_url: string | null }>;
     const providers = {
       password: rows.some((row) => row.provider === 'password'),
       google: rows.some((row) => row.provider === 'google'),
       apple: rows.some((row) => row.provider === 'apple'),
     };
     const email = rows.find((row) => row.provider === 'password')?.normalized_email ?? rows.find((row) => row.normalized_email)?.normalized_email ?? undefined;
-    return { state: 'account', email: email ?? undefined, providers };
+    const avatarUrl = rows.find((row) => row.provider === 'google' && row.provider_avatar_url)?.provider_avatar_url ?? undefined;
+    return { state: 'account', email: email ?? undefined, avatarUrl, providers };
   }
 
   beginOAuthFlow(
@@ -273,11 +288,12 @@ export class PilotSessionStore {
 
   completeProviderAuth(
     flow: OAuthFlow,
-    verified: { provider: ProviderName; subject: string; email?: string; displayName?: string; tokenHash: string; expiresAt: number },
+    verified: { provider: ProviderName; subject: string; email?: string; displayName?: string; avatarUrl?: string; tokenHash: string; expiresAt: number },
     now = Date.now(),
   ): ProviderAuthResult {
     if (flow.provider !== verified.provider || verified.expiresAt <= now) return { ok: false, error: 'Provider authentication failed.' };
     const email = normalizeAccountEmail(verified.email);
+    const avatarUrl = normalizeProviderAvatarUrl(verified.provider, verified.avatarUrl);
     this.database.exec('BEGIN IMMEDIATE');
     try {
       if (this.database.prepare('SELECT 1 FROM provider_token_replays WHERE token_hash=?').get(verified.tokenHash)) {
@@ -304,8 +320,9 @@ export class PilotSessionStore {
         pilotId = link.pilot_id;
         guestPreserved = !flow.session.accountId && flow.session.pilotId !== pilotId;
         this.database.prepare(`UPDATE auth_identities SET
-          normalized_email=COALESCE(normalized_email,?), provider_display_name=COALESCE(provider_display_name,?), updated_at=?
-          WHERE provider=? AND provider_subject=?`).run(email ?? null, verified.displayName ?? null, now, verified.provider, verified.subject);
+          normalized_email=COALESCE(normalized_email,?), provider_display_name=COALESCE(provider_display_name,?),
+          provider_avatar_url=COALESCE(?,provider_avatar_url), updated_at=?
+          WHERE provider=? AND provider_subject=?`).run(email ?? null, verified.displayName ?? null, avatarUrl ?? null, now, verified.provider, verified.subject);
       } else {
         const collision = email ? this.database.prepare('SELECT account_id FROM auth_identities WHERE normalized_email=? AND account_id IS NOT ? LIMIT 1')
           .get(email, flow.session.accountId ?? '') as { account_id: string } | undefined : undefined;
@@ -326,14 +343,15 @@ export class PilotSessionStore {
           this.database.prepare('INSERT INTO account_profile_links(account_id,pilot_id,linked_at) VALUES(?,?,?)').run(accountId, pilotId, now);
         }
         this.database.prepare(`INSERT INTO auth_identities(
-          identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,created_at,updated_at
-        ) VALUES(?,?,?,?,?,NULL,?,?,?)`).run(randomUUID(), accountId, verified.provider, verified.subject, email ?? null, verified.displayName ?? null, now, now);
+          identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,provider_avatar_url,created_at,updated_at
+        ) VALUES(?,?,?,?,?,NULL,?,?,?,?)`).run(randomUUID(), accountId, verified.provider, verified.subject, email ?? null, verified.displayName ?? null, avatarUrl ?? null, now, now);
       }
 
       const rotated = this.database.prepare('UPDATE pilot_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?')
         .run(now, flow.session.tokenHash, now);
       if (!rotated.changes) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Provider authentication failed.' }; }
       const issued = this.insertSession(pilotId, accountId, now, accountSessionLifetimeMs);
+      this.database.prepare('UPDATE player_profiles SET legacy_imported=1 WHERE pilot_id=?').run(pilotId);
       this.database.prepare('UPDATE accounts SET updated_at=? WHERE account_id=?').run(now, accountId);
       this.database.exec('COMMIT');
       return { ok: true, identity: { pilotId, accountId, tokenHash: issued.tokenHash }, cookie: issued.cookie, expiresAt: issued.expiresAt, guestPreserved };
@@ -360,6 +378,7 @@ export class PilotSessionStore {
       const rotated = this.database.prepare('UPDATE pilot_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?').run(now, identity.tokenHash, now);
       if (!rotated.changes) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Unable to create account with those details.' }; }
       const issued = this.insertSession(identity.pilotId, accountId, now, accountSessionLifetimeMs);
+      this.database.prepare('UPDATE player_profiles SET legacy_imported=1 WHERE pilot_id=?').run(identity.pilotId);
       this.database.exec('COMMIT');
       return { ok: true, identity: { pilotId: identity.pilotId, accountId, tokenHash: issued.tokenHash }, cookie: issued.cookie, expiresAt: issued.expiresAt };
     } catch (error) {
@@ -383,6 +402,7 @@ export class PilotSessionStore {
       const rotated = this.database.prepare('UPDATE pilot_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?').run(now, identity.tokenHash, now);
       if (!rotated.changes) { this.database.exec('ROLLBACK'); return { ok: false, error: genericCredentialsError }; }
       const issued = this.insertSession(link.pilot_id, row.account_id, now, accountSessionLifetimeMs);
+      this.database.prepare('UPDATE player_profiles SET legacy_imported=1 WHERE pilot_id=?').run(link.pilot_id);
       this.database.prepare('UPDATE accounts SET updated_at=? WHERE account_id=?').run(now, row.account_id);
       this.database.exec('COMMIT');
       return { ok: true, identity: { pilotId: link.pilot_id, accountId: row.account_id, tokenHash: issued.tokenHash }, cookie: issued.cookie, expiresAt: issued.expiresAt, guestPreserved };

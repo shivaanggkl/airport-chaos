@@ -1091,7 +1091,50 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
   pointer-events: auto;
 }
 .unified-flight-hud button:hover { background: rgb(23 117 223 / 24%); border-color: var(--ui-border-strong); }
+.unified-flight-hud .flight-account-button { flex: 0 0 auto; overflow: hidden; }
+.unified-flight-hud .flight-account-button.is-account {
+  position: relative;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border-color: rgb(249 176 10 / 68%);
+  box-shadow: 0 0 0 1px rgb(57 169 249 / 34%);
+}
+.flight-account-button img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.flight-account-button .avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--ui-gold); font: 800 12px/1 var(--font-display); }
+.flight-account-button:focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 2px; }
 .unified-flight-hud .landing-risk { color: #ff8b82; }
+
+.mission-reminder {
+  position: fixed;
+  z-index: 20;
+  top: max(54px, calc(env(safe-area-inset-top) + 46px));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(520px, calc(100vw - 28px));
+  padding: 7px 8px 7px 11px;
+  box-sizing: border-box;
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 7px;
+  background: rgb(24 52 74 / 78%);
+  box-shadow: var(--ui-shadow);
+  backdrop-filter: blur(5px);
+  pointer-events: auto;
+  transform: translateX(-50%);
+}
+.mission-reminder[hidden] { display: none; }
+.mission-reminder > div { display: grid; gap: 2px; min-width: 0; }
+.mission-reminder strong { color: var(--ui-gold); font: 700 12px/1.2 var(--font-display); }
+.mission-reminder span { color: var(--text-secondary); font: 500 12px/1.25 var(--font-body); }
+.mission-reminder button { min-height: 28px; padding: 4px 7px; border: 1px solid var(--ui-border-strong); border-radius: 5px; color: var(--ui-text); background: rgb(23 117 223 / 22%); font: 700 11px/1 var(--font-display); cursor: pointer; }
+.mission-reminder button[data-mission-reminder-open] { color: var(--ui-ocean-ink); border-color: rgb(249 176 10 / 74%); background: var(--ui-gradient-primary); }
+.mission-reminder button[data-mission-reminder-dismiss] { min-width: 28px; padding-inline: 5px; color: var(--text-secondary); background: transparent; }
 
 .desktop-controls-help {
   position: fixed;
@@ -1560,6 +1603,9 @@ body:has(.combat-threat-warning:not(.hidden)) .landing-speed-cue { top: 118px; }
 body:has(#world-map-overlay:not(.hidden)) #reward-feedback,
 body:has(#pilot-menu-overlay:not([hidden])) #reward-feedback,
 body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
+body:has(#world-map-overlay:not(.hidden)) #mission-reminder,
+body:has(#pilot-menu-overlay:not([hidden])) #mission-reminder,
+body:has(#garage-overlay:not([hidden])) #mission-reminder { display: none; }
 .map-legend { position: absolute; z-index: 1; top: 6px; left: 50%; display: flex; gap: 8px 14px; max-width: calc(100% - 20px); padding: 4px 8px; overflow: hidden; border:1px solid var(--ui-border); border-radius: 3px; color:var(--ui-text); background: var(--ui-bg-soft); font: 600 12px/1.2 var(--font-body); white-space: nowrap; pointer-events: none; transform: translateX(-50%); }
 .territory-color-dot { display: inline-block; flex: none; width: 10px; height: 10px; border: 1px solid #07151e; border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 255 255 / 40%); vertical-align: middle; }
 .territory-color-legend { margin: 8px 0; color: var(--ui-text); font: 600 var(--font-meta-size) var(--font-body); }
@@ -1870,7 +1916,7 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
 .touch-controls-active #human-player-rows,.touch-controls-active #city-territory-rows{max-height:60px}
 body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(max-width:1100px){.desktop-controls-help-items{gap:3px 8px}.desktop-controls-help-items span:not(:last-child)::after{margin-left:8px}.practice-mode-label{bottom:max(60px,calc(env(safe-area-inset-bottom) + 52px))}}
-@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px;font-size:11px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
+@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px;font-size:11px}.unified-flight-hud .flight-account-button.is-account{width:30px;min-width:30px;height:30px;min-height:30px}.mission-reminder{top:max(48px,calc(env(safe-area-inset-top) + 42px));max-width:calc(100vw - 160px);padding:5px 6px 5px 8px}.mission-reminder span{font-size:11px}.mission-reminder button{min-height:27px;padding:3px 5px;font-size:10px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
 @media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:var(--text-secondary)}

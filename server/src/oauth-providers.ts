@@ -17,6 +17,7 @@ export type VerifiedProviderIdentity = {
   subject: string;
   email?: string;
   displayName?: string;
+  avatarUrl?: string;
   tokenHash: string;
   expiresAt: number;
 };
@@ -84,6 +85,17 @@ function verifiedEmail(claims: JwtClaims): string | undefined {
   return verified && typeof claims.email === 'string' ? claims.email : undefined;
 }
 
+function verifiedGoogleAvatar(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length > 2_048) return undefined;
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    if (url.protocol !== 'https:' || url.username || url.password ||
+      !(hostname === 'googleusercontent.com' || hostname.endsWith('.googleusercontent.com'))) return undefined;
+    return url.toString();
+  } catch { return undefined; }
+}
+
 /** Verifies provider signature and all identity-bearing claims. Exported for deterministic security tests. */
 export function verifyProviderIdToken(
   provider: OAuthProvider,
@@ -116,6 +128,7 @@ export function verifyProviderIdToken(
     subject: claims.sub,
     email: verifiedEmail(claims),
     displayName: provider === 'google' && typeof claims.name === 'string' ? claims.name.slice(0, 200) : undefined,
+    avatarUrl: provider === 'google' ? verifiedGoogleAvatar(claims.picture) : undefined,
     tokenHash: createHash('sha256').update(token).digest('hex'),
     expiresAt: claims.exp * 1_000,
   };

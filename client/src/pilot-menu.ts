@@ -4,6 +4,7 @@ import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
+export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'HELP' | 'SETTINGS' | 'DATA LICENSES';
 
 export type PilotMenuActivity = {
   name: string;
@@ -146,8 +147,8 @@ function territoryDot(name: string, color: string): HTMLElement {
 export class PilotMenu {
   private openState = false;
   private content: HTMLDivElement | undefined;
-  private readonly sections = ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'] as const;
-  private activeSection: (typeof this.sections)[number] = 'MISSIONS';
+  private readonly sections: readonly PilotMenuSection[] = ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'];
+  private activeSection: PilotMenuSection = 'MISSIONS';
   private navigation: HTMLElement | undefined;
   private lastData: PilotMenuData | undefined;
   private lastSnapshot = '';
@@ -169,7 +170,7 @@ export class PilotMenu {
     catch { /* optional UI preference */ }
   }
 
-  private switchTo(name: (typeof this.sections)[number]): void {
+  private switchTo(name: PilotMenuSection): void {
     if (this.activeSection === name || !this.lastData) return;
     this.activeSection = name;
     this.onSectionViewed?.(name);
@@ -207,9 +208,9 @@ export class PilotMenu {
   isOpen(): boolean { return this.openState; }
   isActivelyScrolling(now = performance.now()): boolean { return now - this.lastScrollInteractionAt < 260; }
 
-  open(data: PilotMenuData): void {
+  open(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'): void {
     this.openState = true;
-    this.activeSection = 'MISSIONS';
+    this.activeSection = section;
     this.lastSnapshot = '';
     this.element.hidden = false;
     this.render(data);

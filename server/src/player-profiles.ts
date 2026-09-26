@@ -667,6 +667,12 @@ export class PlayerProfileStore {
     return this.toProfile(row);
   }
 
+  createFreshGuest(pilotId: string): PlayerProfile {
+    this.getOrCreate(pilotId, 'Pilot');
+    this.database.prepare('UPDATE player_profiles SET legacy_imported = 1 WHERE pilot_id = ?').run(pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
   purchaseCosmetic(pilotId: string, cosmeticId: string, now = Date.now()): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
     if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };

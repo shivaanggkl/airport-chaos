@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { keyboardActionBindings } from '../../client/src/flight-input.ts';
 
 const controlsSource = readFileSync(new URL('../../client/src/controls-help.ts', import.meta.url), 'utf8');
 const inputSource = readFileSync(new URL('../../client/src/flight-input.ts', import.meta.url), 'utf8');
@@ -18,11 +19,26 @@ test('H is not captured from editable controls', () => {
 });
 
 test('desktop reference is sourced from current supported flight bindings', () => {
-  assert.match(inputSource, /KeyW:\s*'throttleUp'/);
-  assert.match(inputSource, /Space:\s*'fire'/);
-  assert.match(inputSource, /ShiftLeft:\s*'boost'/);
+  assert.equal(keyboardActionBindings.KeyW, 'throttleUp');
+  assert.equal(keyboardActionBindings.KeyS, 'throttleDown');
+  assert.equal(keyboardActionBindings.KeyA, 'rollLeft');
+  assert.equal(keyboardActionBindings.KeyD, 'rollRight');
+  assert.equal(keyboardActionBindings.ArrowLeft, 'yawLeft');
+  assert.equal(keyboardActionBindings.ArrowRight, 'yawRight');
+  assert.equal(keyboardActionBindings.ArrowUp, 'pitchUp');
+  assert.equal(keyboardActionBindings.ArrowDown, 'pitchDown');
+  assert.equal(keyboardActionBindings.Space, 'fire');
+  assert.equal(keyboardActionBindings.ShiftLeft, 'boost');
   assert.doesNotMatch(inputSource, /Key[PX]:/);
   assert.doesNotMatch(inputSource, /label:\s*'[^']*(?:photo|barrel|dodge)/i);
+});
+
+test('desktop controls bar distinguishes roll, yaw, pitch, and speed', () => {
+  const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
+  assert.match(html, /<kbd>W\/S<\/kbd> Speed/);
+  assert.match(html, /<kbd>A\/D<\/kbd> Roll/);
+  assert.match(html, /<kbd>←\/→<\/kbd> Turn/);
+  assert.match(html, /<kbd>↑\/↓<\/kbd> Pitch/);
 });
 
 test('desktop controls state is persistent and has no auto-hide path', () => {

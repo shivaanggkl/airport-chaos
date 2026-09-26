@@ -17,6 +17,7 @@ function token(provider: OAuthProvider, overrides: Record<string, unknown> = {},
     iat: Math.floor(now / 1_000) - 10, exp: Math.floor(now / 1_000) + 300,
     email: provider === 'apple' ? 'pilot@privaterelay.appleid.com' : 'pilot@example.com', email_verified: true,
     name: provider === 'google' ? 'Cloud Pilot' : undefined,
+    picture: provider === 'google' ? 'https://lh3.googleusercontent.com/a/test=s96-c' : undefined,
     ...overrides,
   })).toString('base64url');
   return `${header}.${body}.${sign('RSA-SHA256', Buffer.from(`${header}.${body}`), key).toString('base64url')}`;
@@ -24,7 +25,12 @@ function token(provider: OAuthProvider, overrides: Record<string, unknown> = {},
 
 test('Google OIDC accepts a valid signed token and authorization uses state, nonce, and S256 PKCE', () => {
   const verified = verifyProviderIdToken('google', token('google'), { clientId: 'google-client', nonce: 'expected-nonce', now }, { keys: [jwk] });
-  assert.deepEqual({ subject: verified.subject, email: verified.email, name: verified.displayName }, { subject: 'google-subject', email: 'pilot@example.com', name: 'Cloud Pilot' });
+  assert.deepEqual(
+    { subject: verified.subject, email: verified.email, name: verified.displayName, avatar: verified.avatarUrl },
+    { subject: 'google-subject', email: 'pilot@example.com', name: 'Cloud Pilot', avatar: 'https://lh3.googleusercontent.com/a/test=s96-c' },
+  );
+  const unsafeAvatar = verifyProviderIdToken('google', token('google', { picture: 'https://attacker.example/avatar.png' }), { clientId: 'google-client', nonce: 'expected-nonce', now }, { keys: [jwk] });
+  assert.equal(unsafeAvatar.avatarUrl, undefined);
   const verifier = 'v'.repeat(64);
   const url = new URL(createAuthorizationUrl({ provider: 'google', clientId: 'google-client', redirectUri: 'https://game.example/api/auth/oauth/google/callback' }, {
     state: 'state', nonce: 'nonce', codeChallenge: pkceChallenge(verifier),
@@ -51,6 +57,7 @@ test('Apple OIDC accepts verified private-relay email and works without email on
   const first = verifyProviderIdToken('apple', token('apple'), { clientId: 'apple-client', nonce: 'expected-nonce', now }, { keys: [jwk] });
   assert.equal(first.subject, 'apple-subject');
   assert.equal(first.email, 'pilot@privaterelay.appleid.com');
+  assert.equal(first.avatarUrl, undefined);
   const later = verifyProviderIdToken('apple', token('apple', { email: undefined, email_verified: undefined }), { clientId: 'apple-client', nonce: 'expected-nonce', now }, { keys: [jwk] });
   assert.equal(later.subject, first.subject);
   assert.equal(later.email, undefined);

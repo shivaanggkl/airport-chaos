@@ -48,11 +48,20 @@
       <button id="flight-garage-button" class="desktop-hud-action" type="button">GARAGE</button>
       <button id="flight-world-button" class="desktop-hud-action" type="button">WORLD</button>
       <button id="flight-map-button" type="button">MAP</button>
+      <button id="flight-account-button" class="flight-account-button" type="button" aria-label="Open login and profile">
+        <img id="flight-account-avatar" alt="" referrerpolicy="no-referrer" hidden />
+        <span id="flight-account-label">LOGIN</span>
+      </button>
     </nav>
     <aside id="practice-mode-label" class="practice-mode-label" hidden>MILWAUKEE — PRACTICE MODE <small>NO REWARDS</small></aside>
     <aside id="dallas-practice-suggestion" class="dallas-practice-suggestion" hidden aria-live="polite">
       <span>New to Airport Chaos? Try Milwaukee Practice Mode to learn flying and combat.</span>
       <div><button type="button" data-practice-city>Practice in Milwaukee</button><button type="button" data-continue-dallas>Continue in Dallas</button></div>
+    </aside>
+    <aside id="mission-reminder" class="mission-reminder" hidden aria-live="polite">
+      <div><strong>No mission active</strong><span id="mission-reminder-copy">Start a mission to earn rewards and progress.</span></div>
+      <button type="button" data-mission-reminder-open>MISSIONS</button>
+      <button type="button" data-mission-reminder-dismiss aria-label="Dismiss mission reminder">×</button>
     </aside>
     <div id="flight-hud" aria-label="Flight instruments">
       <div id="flight-reference" aria-hidden="true"><span></span><i></i><span></span></div>
@@ -90,7 +99,7 @@
     <aside id="desktop-controls-help" class="desktop-controls-help" hidden aria-hidden="true" aria-label="Desktop flight controls">
       <button id="desktop-controls-help-toggle" type="button" aria-controls="desktop-controls-help-items" aria-expanded="true" title="Collapse controls reference">◀</button>
       <div id="desktop-controls-help-items" class="desktop-controls-help-items">
-        <span><kbd>W/S</kbd> Speed</span><span><kbd>←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Altitude</span>
+        <span><kbd>W/S</kbd> Speed</span><span><kbd>A/D</kbd> Roll</span><span><kbd>←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Pitch</span>
         <span><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span>
         <span class="desktop-controls-help-camera"><kbd>Mouse Drag</kbd> Camera</span><span class="desktop-controls-help-camera"><kbd>Mouse Wheel</kbd> Zoom</span>
         <span><kbd>H</kbd> Controls</span>

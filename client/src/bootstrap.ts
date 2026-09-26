@@ -26,14 +26,33 @@ void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kic
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
-type GarageIdentity = { pilotId: string; displayName: string; credits: number; bestScore: number; selectedAircraft: AircraftType };
+type GarageIdentity = {
+  pilotId: string; displayName: string; credits: number; bestScore: number; selectedAircraft: AircraftType;
+  totalDistance: number; successfulLandings: number; discoveries: Record<string, string[]>;
+};
+type RemoteGarageProfile = GarageProfile & {
+  pilotId?: string; pilotName?: string; score?: number;
+  totalDistance?: number; successfulLandings?: number;
+  discoveries?: Record<string, string[]>;
+  legacyImportPending?: boolean;
+  tutorial?: { version: 'tutorial_v1'; status: 'new' | 'started' | 'completed' | 'skipped'; completedAt?: number };
+  kills?: number; deaths?: number;
+};
 function identity(): GarageIdentity {
   let value: Partial<GarageIdentity> = {};
   try { value = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Partial<GarageIdentity>; } catch { /* use defaults */ }
   const pilotId = typeof value.pilotId === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(value.pilotId)
     ? value.pilotId : (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `pilot-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const displayName = typeof value.displayName === 'string' && value.displayName.trim() ? value.displayName.slice(0, 20) : 'Pilot';
-  const result: GarageIdentity = { pilotId, displayName, credits: typeof value.credits === 'number' ? value.credits : 0, bestScore: typeof value.bestScore === 'number' ? value.bestScore : 0, selectedAircraft: value.selectedAircraft ?? 'trainer' };
+  const result: GarageIdentity = {
+    pilotId, displayName,
+    credits: typeof value.credits === 'number' ? value.credits : 0,
+    bestScore: typeof value.bestScore === 'number' ? value.bestScore : 0,
+    selectedAircraft: value.selectedAircraft ?? 'trainer',
+    totalDistance: typeof value.totalDistance === 'number' ? value.totalDistance : 0,
+    successfulLandings: typeof value.successfulLandings === 'number' ? value.successfulLandings : 0,
+    discoveries: value.discoveries && typeof value.discoveries === 'object' ? value.discoveries : {},
+  };
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...value, version: 1, ...result })); } catch { /* profile fetch will still work for this session */ }
   return result;
 }
@@ -46,6 +65,23 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 let remoteTutorial:{version:'tutorial_v1';status:'new'|'started'|'completed'|'skipped';completedAt?:number}={version:'tutorial_v1',status:'new'};
 let establishedProfile=false;
+function cacheAuthoritativeProfile(profile: RemoteGarageProfile): void {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Record<string, unknown>;
+    localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({
+      ...cached,
+      version: 1,
+      pilotId: profile.pilotId ?? garageIdentity.pilotId,
+      displayName: profile.pilotName ?? garageIdentity.displayName,
+      credits: Number.isFinite(profile.credits) ? profile.credits : 0,
+      bestScore: Number.isFinite(profile.score) ? profile.score : 0,
+      selectedAircraft: profile.selectedAircraft,
+      discoveries: profile.discoveries && typeof profile.discoveries === 'object' ? profile.discoveries : {},
+      totalDistance: Number.isFinite(profile.totalDistance) ? profile.totalDistance : 0,
+      successfulLandings: Number.isFinite(profile.successfulLandings) ? profile.successfulLandings : 0,
+    }));
+  } catch { /* secure server session remains authoritative */ }
+}
 // The landing page has its own small, explicit modal router.  Keeping NONE
 // distinct from CITIES prevents an in-flight profile request from reopening a
 // start-screen overlay after the player has entered a city.
@@ -57,18 +93,23 @@ async function loadGarageProfile(): Promise<GarageProfile> {
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
   const response = await fetch(url, { cache: 'no-store', credentials: 'include' });
   if (!response.ok) throw new Error('Profile unavailable');
-  let profile = await response.json() as GarageProfile & { legacyImportPending?: boolean; tutorial?:typeof remoteTutorial;totalDistance?:number;successfulLandings?:number;kills?:number;deaths?:number };
+  let profile = await response.json() as RemoteGarageProfile;
   if (profile.legacyImportPending) {
-    const imported = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: { credits: garageIdentity.credits, score: garageIdentity.bestScore, selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName } }) });
+    const imported = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: {
+      credits: garageIdentity.credits, score: garageIdentity.bestScore,
+      selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName,
+      totalDistance: garageIdentity.totalDistance, successfulLandings: garageIdentity.successfulLandings,
+      discoveries: garageIdentity.discoveries,
+    } }) });
     if (!imported.ok) throw new Error('Profile migration unavailable');
-    profile = await imported.json() as GarageProfile;
+    profile = await imported.json() as RemoteGarageProfile;
   }
   remoteTutorial=profile.tutorial??remoteTutorial;
   establishedProfile=(profile.totalDistance??0)>500||(profile.successfulLandings??0)>0||(profile.kills??0)>0||(profile.deaths??0)>0;
   garageProfile = normalizeGarageProfile(profile);
-  garageIdentity.pilotId = (profile as GarageProfile & { pilotId?: string }).pilotId ?? garageIdentity.pilotId;
-  garageIdentity.displayName = (profile as GarageProfile & { pilotName?: string }).pilotName ?? garageIdentity.displayName;
-  try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* secure session remains authoritative */ }
+  garageIdentity.pilotId = profile.pilotId ?? garageIdentity.pilotId;
+  garageIdentity.displayName = profile.pilotName ?? garageIdentity.displayName;
+  cacheAuthoritativeProfile(profile);
   return garageProfile;
 }
 function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
