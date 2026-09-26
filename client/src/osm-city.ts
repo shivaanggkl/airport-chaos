@@ -10,11 +10,29 @@ export type CompactChunk = {
   a?: number[];
 };
 
+export type OsmDataProvenance = {
+  derivedFrom: string;
+  provider: string;
+  sourceUrl: string;
+  downloadedAt: string;
+  osmSnapshotAt: string;
+  extractedAt: string;
+  geographicBounds: { south: number; west: number; north: number; east: number };
+  geographicBoundsType: string;
+  importer: string;
+  pipeline: string;
+  pipelineVersion: number | string;
+  generatedAt: string;
+  datasetVersion: number;
+};
+
 export type CompactCityData = {
   v: number;
   source: string;
   attribution: string;
   license: string;
+  copyright?: string;
+  provenance?: OsmDataProvenance;
   chunkSize: number;
   chunks: CompactChunk[];
 };

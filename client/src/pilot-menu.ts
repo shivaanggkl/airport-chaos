@@ -116,6 +116,14 @@ function actionButton(action: PilotMenuAction): HTMLButtonElement {
   return button;
 }
 
+function externalLink(label: string, href: string): HTMLAnchorElement {
+  const link = textElement('a', label);
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  return link;
+}
+
 function territoryDot(name: string, color: string): HTMLElement {
   const dot = document.createElement('i');
   dot.className = 'territory-color-dot';
@@ -128,7 +136,7 @@ function territoryDot(name: string, color: string): HTMLElement {
 export class PilotMenu {
   private openState = false;
   private content: HTMLDivElement | undefined;
-  private readonly sections = ['MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS'] as const;
+  private readonly sections = ['MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'] as const;
   private activeSection: (typeof this.sections)[number] = 'MISSIONS';
   private navigation: HTMLElement | undefined;
   private lastData: PilotMenuData | undefined;
@@ -231,6 +239,7 @@ export class PilotMenu {
       case 'CONTROLS': return JSON.stringify([this.activeSection, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout]);
       case 'HELP': return this.activeSection;
       case 'SETTINGS': return JSON.stringify([this.activeSection, data.hints.enabled, data.navigation.enabled, data.audio.muted]);
+      case 'DATA LICENSES': return this.activeSection;
     }
   }
 
@@ -687,6 +696,23 @@ export class PilotMenu {
       if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
       else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       content.append(help);
+    }
+
+    if (this.activeSection === 'DATA LICENSES') {
+      const licenses = section('DATA LICENSES');
+      licenses.append(
+        textElement('p', 'Airport Chaos uses OpenStreetMap-derived geographic data for Dallas and Milwaukee.'),
+        textElement('p', 'OpenStreetMap data is licensed under the Open Database License (ODbL) 1.0.', 'pilot-menu-muted'),
+      );
+      const links = document.createElement('div');
+      links.className = 'pilot-menu-license-links';
+      links.append(
+        externalLink('OpenStreetMap copyright', 'https://www.openstreetmap.org/copyright'),
+        externalLink('ODbL 1.0 license', 'https://opendatacommons.org/licenses/odbl/1-0/'),
+        externalLink('Data provenance and availability', '/osm-data-license.txt'),
+      );
+      licenses.append(links);
+      content.append(licenses);
     }
     content.scrollTop = scrollTop;
   }

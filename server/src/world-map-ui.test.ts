@@ -15,6 +15,13 @@ test('Map is the shared mission, player, and territory intelligence view', () =>
   assert.doesNotMatch(map, /setInterval|fetch\([^)]*(?:mission|player|territor)/i);
 });
 
+test('OpenStreetMap attribution belongs to the Map view instead of the flight HUD', () => {
+  assert.match(html, /class="world-map-view">[\s\S]*id="osm-attribution"[^>]*href="https:\/\/www\.openstreetmap\.org\/copyright"[\s\S]*<\/div>\s*<section class="map-intelligence"/);
+  assert.equal(html.match(/id="osm-attribution"/g)?.length, 1);
+  assert.match(css, /#osm-attribution\s*\{[^}]*position:\s*absolute;/);
+  assert.doesNotMatch(css, /#osm-attribution\s*\{[^}]*position:\s*fixed;/);
+});
+
 test('mobile Map keeps the geographic view dominant with always-visible intelligence', () => {
   assert.match(html, /id="world-map-close"[^>]*>← GAME<\/button>[\s\S]*id="world-map-title"[\s\S]*id="world-map-recenter"[^>]*>RECENTER<\/button>/);
   assert.match(html, /class="map-intelligence-panel"><h2>PLAYERS[\s\S]*class="map-intelligence-panel"><h2>TERRITORIES/);

@@ -50,6 +50,6 @@ for (const entry of manifest.chunks) {
   }
 }
 
-const output = { v: 2, roads, water, land };
+const output = { v: 2, source: manifest.source, attribution: manifest.attribution, license: manifest.license, copyright: manifest.copyright, provenance: manifest.provenance, roads, water, land };
 await writeFile(resolve(dataDirectory, 'map.json'), JSON.stringify(output));
 console.log(JSON.stringify({ roadSegments: roads.length / 5, waterPolygons: water.length }, null, 2));

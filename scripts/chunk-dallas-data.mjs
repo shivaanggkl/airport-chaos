@@ -26,7 +26,7 @@ function lodChunk(chunk, grid, minRoadClass) {
   for (let i = 0; i < chunk.r.length; i += 6) if (chunk.r[i] >= minRoadClass) r.push(...chunk.r.slice(i, i + 6));
   return { x: chunk.x, z: chunk.z, r, b, w: chunk.w, p: grid === 360 ? chunk.p : [], a: grid === 360 ? (chunk.a ?? []) : [] };
 }
-const manifest = { v: city.v, source: city.source, attribution: city.attribution, license: city.license, chunkSize: city.chunkSize, chunks: [] };
+const manifest = { v: city.v, source: city.source, attribution: city.attribution, license: city.license, copyright: city.copyright, provenance: city.provenance, chunkSize: city.chunkSize, chunks: [] };
 for (const chunk of city.chunks) {
   const id = `${chunk.x}_${chunk.z}`;
   const variants = { near: chunk, mid: lodChunk(chunk, 360, 2), far: lodChunk(chunk, 1000, 3) };

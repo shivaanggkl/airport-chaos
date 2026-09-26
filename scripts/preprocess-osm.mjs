@@ -17,9 +17,18 @@ const DEFAULT_SOURCE = {
   chunkSize: 1000,
 };
 const SOURCE = process.env.OSM_SOURCE ? { ...DEFAULT_SOURCE, ...JSON.parse(process.env.OSM_SOURCE) } : DEFAULT_SOURCE;
+const sourceData = inputPath.endsWith('.pbf') ? null : JSON.parse(await readFile(inputPath, 'utf8'));
+const SOURCE_PROVENANCE = process.env.OSM_PROVENANCE ? JSON.parse(process.env.OSM_PROVENANCE) : sourceData?.provenance ?? {};
 const elevationPath = process.env.ELEVATION_DATA;
 const metersPerLon = 111_320 * Math.cos(SOURCE.originLat * Math.PI / 180);
 const metersPerLat = 110_540;
+const generatedAt = new Date().toISOString();
+const geographicBounds = SOURCE.bounds ?? SOURCE_PROVENANCE.geographicBounds ?? {
+  south: SOURCE.originLat + (SOURCE.targetZ - SOURCE.worldHalfSize) / metersPerLat,
+  west: SOURCE.originLon + (-SOURCE.worldHalfSize - SOURCE.targetX) / metersPerLon,
+  north: SOURCE.originLat + (SOURCE.targetZ + SOURCE.worldHalfSize) / metersPerLat,
+  east: SOURCE.originLon + (SOURCE.worldHalfSize - SOURCE.targetX) / metersPerLon,
+};
 
 let elevationData = null;
 let elevationSamples = null;
@@ -180,7 +189,6 @@ const chunks = new Map();
 
 async function* sourceElements() {
   if (!inputPath.endsWith('.pbf')) {
-    const sourceData = JSON.parse(await readFile(inputPath, 'utf8'));
     yield* sourceData.elements ?? [];
     return;
   }
@@ -288,7 +296,23 @@ const compact = {
   v: elevationData ? 3 : 2,
   source: SOURCE.name,
   attribution: '© OpenStreetMap contributors',
-  license: 'https://www.openstreetmap.org/copyright',
+  license: 'https://opendatacommons.org/licenses/odbl/1-0/',
+  copyright: 'https://www.openstreetmap.org/copyright',
+  provenance: {
+    derivedFrom: 'OpenStreetMap',
+    provider: SOURCE_PROVENANCE.provider ?? 'not recorded',
+    sourceUrl: SOURCE_PROVENANCE.sourceUrl ?? 'not recorded',
+    downloadedAt: SOURCE_PROVENANCE.downloadedAt ?? 'not recorded',
+    osmSnapshotAt: SOURCE_PROVENANCE.osmSnapshotAt ?? 'not recorded',
+    extractedAt: SOURCE_PROVENANCE.extractedAt ?? 'not recorded',
+    geographicBounds,
+    geographicBoundsType: SOURCE.bounds ? 'configured source bounds' : SOURCE_PROVENANCE.geographicBounds ? 'recorded source bounds' : 'configured generation extent',
+    importer: 'scripts/preprocess-osm.mjs',
+    pipeline: SOURCE_PROVENANCE.pipeline ?? 'OSM input -> compact city dataset',
+    pipelineVersion: 1,
+    generatedAt,
+    datasetVersion: elevationData ? 3 : 2,
+  },
   origin: [SOURCE.originLat, SOURCE.originLon],
   target: [SOURCE.targetX, SOURCE.targetZ],
   chunkSize: SOURCE.chunkSize,

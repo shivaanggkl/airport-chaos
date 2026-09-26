@@ -332,6 +332,9 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .pilot-menu-item { margin-top: 8px; padding: 10px 11px; border: 1px solid rgb(147 207 219 / 19%); border-radius: 5px; background: rgb(255 255 255 / 3%); }
 .pilot-menu-item strong { color: #f5e3a4; font: 800 12px ui-monospace, monospace; letter-spacing: .05em; }
 .pilot-menu-item small, .pilot-menu-muted { color: #98b7c1; font-size: 10px; line-height: 1.45; }
+.pilot-menu-license-links { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 12px; }
+.pilot-menu-license-links a { color: #8cdcf0; font-size: 10px; text-underline-offset: 2px; }
+.pilot-menu-license-links a:focus-visible { outline: 2px solid var(--meaning-reward); outline-offset: 2px; }
 .pilot-menu-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .pilot-menu-stunts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .pilot-menu-stunt { padding: 9px; border: 1px solid rgb(147 207 219 / 17%); border-radius: 4px; background: rgb(255 255 255 / 3%); }
@@ -360,15 +363,15 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 @media (max-width: 680px) { .garage-layout { grid-template-columns: 1fr; } .garage-preview { min-height: 240px; } .garage-preview canvas { height: 240px; } .garage-list { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 
 #osm-attribution {
-  position: fixed;
+  position: absolute;
   z-index: 1;
-  right: 10px;
+  right: 5px;
   bottom: 4px;
-  padding: 2px 5px;
-  color: rgb(235 243 248 / 78%);
-  background: rgb(5 18 31 / 52%);
-  border-radius: 3px;
-  font-size: 9px;
+  padding: 1px 4px;
+  color: rgb(235 243 248 / 72%);
+  background: rgb(5 18 31 / 42%);
+  border-radius: 2px;
+  font: 500 8px/1.4 system-ui, sans-serif;
   text-decoration: none;
 }
 

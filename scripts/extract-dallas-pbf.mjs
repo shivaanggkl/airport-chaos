@@ -10,19 +10,59 @@ const cacheDirectory = resolve(projectRoot, '.cache/osm');
 const rawPbf = resolve(cacheDirectory, 'texas-latest.osm.pbf');
 const extractedPbf = resolve(cacheDirectory, 'dallas-bounds.osm.pbf');
 const filteredPbf = resolve(cacheDirectory, 'dallas-features.osm.pbf');
+const provenancePath = resolve(cacheDirectory, 'dallas-provenance.json');
 const outputPath = resolve(projectRoot, process.argv[2] ?? '.cache/osm/dallas-source.json');
 const execFileAsync = promisify(execFile);
 const bbox = `${source.bounds.west},${source.bounds.south},${source.bounds.east},${source.bounds.north}`;
+const sourceUrl = 'https://download.geofabrik.de/north-america/us/texas-latest.osm.pbf';
 
 async function exists(path) { try { await access(path); return true; } catch { return false; } }
 async function run(command, args) { await execFileAsync(command, args, { maxBuffer: 16 * 1024 * 1024 }); }
+async function recordedProvenance() {
+  try { return JSON.parse(await readFile(provenancePath, 'utf8')); }
+  catch { return {}; }
+}
+async function osmSnapshotAt() {
+  for (const key of ['header.option.osmosis_replication_timestamp', 'header.option.timestamp']) {
+    try {
+      const { stdout } = await execFileAsync('osmium', ['fileinfo', '-g', key, rawPbf]);
+      if (stdout.trim()) return stdout.trim();
+    } catch { /* Older source files may not expose a snapshot timestamp. */ }
+  }
+  return 'not recorded';
+}
 
+const previous = await recordedProvenance();
+let downloadedAt = previous.downloadedAt ?? 'not recorded';
+let extractedAt = previous.extractedAt ?? 'not recorded';
 if (!await exists(rawPbf)) {
   await mkdir(cacheDirectory, { recursive: true });
-  await run('curl', ['--location', '--fail', '--continue-at', '-', '--output', rawPbf, 'https://download.geofabrik.de/north-america/us/texas-latest.osm.pbf']);
+  await run('curl', ['--location', '--fail', '--continue-at', '-', '--output', rawPbf, sourceUrl]);
+  downloadedAt = new Date().toISOString();
 }
-if (!await exists(extractedPbf)) await run('osmium', ['extract', '--bbox', bbox, '--strategy', 'complete_ways', '--overwrite', '--output', extractedPbf, rawPbf]);
-if (!await exists(filteredPbf)) await run('osmium', ['tags-filter', '--overwrite', '--output', filteredPbf, extractedPbf, 'w/building', 'w/highway', 'w/aeroway', 'w/water', 'w/waterway', 'w/railway', 'w/landuse', 'w/leisure', 'w/natural', 'r/type=multipolygon']);
+let extractedThisRun = false;
+if (!await exists(extractedPbf)) {
+  await run('osmium', ['extract', '--bbox', bbox, '--strategy', 'complete_ways', '--overwrite', '--output', extractedPbf, rawPbf]);
+  extractedThisRun = true;
+}
+if (!await exists(filteredPbf)) {
+  await run('osmium', ['tags-filter', '--overwrite', '--output', filteredPbf, extractedPbf, 'w/building', 'w/highway', 'w/aeroway', 'w/water', 'w/waterway', 'w/railway', 'w/landuse', 'w/leisure', 'w/natural', 'r/type=multipolygon']);
+  extractedThisRun = true;
+}
+if (extractedThisRun) extractedAt = new Date().toISOString();
+const provenance = {
+  derivedFrom: 'OpenStreetMap',
+  provider: 'Geofabrik GmbH',
+  sourceUrl,
+  downloadedAt,
+  osmSnapshotAt: await osmSnapshotAt(),
+  extractedAt,
+  geographicBounds: source.bounds,
+  importer: 'scripts/extract-dallas-pbf.mjs',
+  pipeline: 'Geofabrik Texas PBF -> osmium extract/tags-filter -> compact Dallas dataset -> streaming chunks/map cache',
+  pipelineVersion: 1,
+};
+await writeFile(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
 console.log(JSON.stringify({ bounds: source.bounds, texasPbf: (await stat(rawPbf)).size, extractedPbf: (await stat(extractedPbf)).size, filteredPbf: (await stat(filteredPbf)).size, outputPath: filteredPbf }, null, 2));
 process.exit(0);
 

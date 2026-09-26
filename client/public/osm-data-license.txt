@@ -1,3 +1,27 @@
-City 1 map data is derived from OpenStreetMap data for Milwaukee, Wisconsin, USA.
-© OpenStreetMap contributors. Data is available under the Open Database License (ODbL).
-https://www.openstreetmap.org/copyright
+AIRPORT CHAOS — OPENSTREETMAP DATA NOTICE
+
+Airport Chaos uses geographic datasets derived from OpenStreetMap for Dallas-Fort Worth, Texas, and Milwaukee, Wisconsin.
+
+© OpenStreetMap contributors
+OpenStreetMap data is licensed under the Open Database License (ODbL) 1.0.
+Copyright and attribution: https://www.openstreetmap.org/copyright
+ODbL 1.0: https://opendatacommons.org/licenses/odbl/1-0/
+
+PROVENANCE
+
+Dallas-Fort Worth
+- Geographic bounds: south 32.5506, west -97.064, north 33.0028, east -96.53.
+- The checked-in dataset does not record its provider, source URL, download date, OSM snapshot date, extraction date, or generated date.
+- Current generation tooling uses a Geofabrik Texas PBF, osmium, scripts/preprocess-osm.mjs, scripts/chunk-dallas-data.mjs, and scripts/generate-dallas-map.mjs. This describes the current reproducible pipeline, not unrecorded history for the checked-in dataset.
+
+Milwaukee
+- City origin: 43.0389, -87.9065. Configured game-world coverage is 12 km by 12 km.
+- Configured generation extent: south 42.9591098788, west -87.9627911294, north 43.0676678668, east -87.8153034541. Historical source-extract bounds were not separately recorded.
+- The checked-in dataset does not record its provider, source URL, download date, OSM snapshot date, extraction date, or generated date.
+- Its compact data format is produced by scripts/preprocess-osm.mjs; the historical upstream provider and acquisition process were not recorded.
+
+DERIVED DATA AVAILABILITY
+
+- Dallas machine-readable derived data: /data/dallas/manifest.json and the chunk files referenced by that manifest.
+- Milwaukee machine-readable derived data: /data/milwaukee/city-osm.json.
+- The repository generation scripts document the reproducible processing method for future datasets.

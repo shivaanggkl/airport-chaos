@@ -13,9 +13,11 @@ if (!process.argv.includes('--remote')) {
   };
   await run(['scripts/extract-dallas-pbf.mjs']);
   const source = JSON.parse(await readFile(new URL('../client/src/data/dallas-source.json', import.meta.url), 'utf8'));
+  const provenance = JSON.parse(await readFile(new URL('../.cache/osm/dallas-provenance.json', import.meta.url), 'utf8'));
   await run(['scripts/preprocess-osm.mjs', '.cache/osm/dallas-features.osm.pbf', outputPath], {
     ...process.env,
-    OSM_SOURCE: JSON.stringify({ name: source.name, originLat: source.origin.lat, originLon: source.origin.lon, targetX: source.target.x, targetZ: source.target.z, worldHalfSize: source.worldHalfSize, chunkSize: source.chunkSize }),
+    OSM_SOURCE: JSON.stringify({ name: source.name, originLat: source.origin.lat, originLon: source.origin.lon, targetX: source.target.x, targetZ: source.target.z, worldHalfSize: source.worldHalfSize, chunkSize: source.chunkSize, bounds: source.bounds }),
+    OSM_PROVENANCE: JSON.stringify(provenance),
     ELEVATION_DATA: 'client/src/data/dallas-elevation.json',
   });
   process.exit(0);
@@ -87,12 +89,14 @@ const seen = new Set();
 const elements = [];
 const allTiles = tiles();
 const cacheDirectory = `${outputPath}.tiles`;
+let restoredTiles = 0;
 await mkdir(cacheDirectory, { recursive: true });
 for (const [index, tile] of allTiles.entries()) {
   const cachePath = join(cacheDirectory, `${index}.json`);
   let tileElements;
   try {
     tileElements = JSON.parse(await readFile(cachePath, 'utf8'));
+    restoredTiles += 1;
     console.log(`Dallas OSM ${index + 1}/${allTiles.length}: restored ${tileElements.length} features`);
   } catch {
     tileElements = await fetchTile(tile);
@@ -108,5 +112,23 @@ for (const [index, tile] of allTiles.entries()) {
   }
 }
 
-await writeFile(outputPath, `${JSON.stringify({ source: 'OpenStreetMap Dallas 50 km bounds', bounds, elements })}\n`);
+const generatedAt = new Date().toISOString();
+await writeFile(outputPath, `${JSON.stringify({
+  source: 'OpenStreetMap Dallas 50 km bounds',
+  bounds,
+  provenance: {
+    derivedFrom: 'OpenStreetMap',
+    provider: new URL(endpoint).hostname,
+    sourceUrl: endpoint,
+    downloadedAt: restoredTiles === 0 ? generatedAt : 'not recorded',
+    osmSnapshotAt: 'not recorded',
+    extractedAt: generatedAt,
+    geographicBounds: bounds,
+    importer: 'scripts/fetch-dallas-osm.mjs --remote',
+    pipeline: 'Overpass API -> raw Dallas OSM JSON',
+    pipelineVersion: 1,
+    generatedAt,
+  },
+  elements,
+})}\n`);
 console.log(JSON.stringify({ tiles: allTiles.length, features: elements.length, outputPath }, null, 2));
