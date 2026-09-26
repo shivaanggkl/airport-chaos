@@ -800,10 +800,20 @@ function sendLockState(playerId: string, targetId?: string): void {
 function setServerLock(playerId: string, player: PlayerState, targetId?: string, notify = false): void {
   if (player.lockedTargetId === targetId) {
     if (notify) sendLockState(playerId, targetId);
+    // Refresh the target's compact warning state so a dropped transition can
+    // never leave a stale lock on screen indefinitely.
+    if (targetId) sendToPlayer(targetId, { type: 'combatThreat', attackerId: playerId, locked: true });
     return;
   }
+  const previousTargetId = player.lockedTargetId;
   player.lockedTargetId = targetId;
   sendLockState(playerId, targetId);
+  if (previousTargetId) sendToPlayer(previousTargetId, { type: 'combatThreat', attackerId: playerId, locked: false });
+  if (targetId) sendToPlayer(targetId, { type: 'combatThreat', attackerId: playerId, locked: true });
+}
+
+function sendIncomingFire(targetId: string, attackerId: string): void {
+  sendToPlayer(targetId, { type: 'incomingFire', attackerId });
 }
 
 function clearLocksForTarget(targetId: string): void {
@@ -817,7 +827,9 @@ function clearLocksForTarget(targetId: string): void {
 // city transform so a target leaving the shared cone is cleared immediately.
 function refreshCityLocks(cityId: CityId, now: number): void {
   for (const [playerId, player] of players) {
-    if (player.cityId !== cityId || !player.lockedTargetId) continue;
+    // Bot locks are refreshed by updateBots from botFireSolution; only human
+    // assisted locks use currentLockedTarget and assistedAim samples.
+    if (player.cityId !== cityId || player.isBot || !player.lockedTargetId) continue;
     if (!currentLockedTarget(playerId, player, player.lockedTargetId, now)) setServerLock(playerId, player);
   }
 }
@@ -2892,7 +2904,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     if (eligibleForReward && !victim.isBot) recordObjectiveActivity(ownerId, 'kill');
   }
   broadcastToCity(cityId, {
-    type: 'destroyed', cause: 'combat', playerId: victimId, killerId: ownerId, killerDisplayName: killer.displayName, killerScore: killer.score, killerReward: killReward.score,
+    type: 'destroyed', cause: 'combat', playerId: victimId, position: victim.position, aircraftType: victim.aircraftType, killerId: ownerId, killerDisplayName: killer.displayName, killerScore: killer.score, killerReward: killReward.score,
   });
   broadcastLeaderboard(cityId);
   updateKing(cityId, cityKings.get(cityId) === victimId ? ownerId : undefined);
@@ -2929,6 +2941,7 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
     victim.bot.phase = 'respawn';
     victim.bot.respawnAt = now + 7_000;
   }
+  setServerLock(victimId, victim);
   clearLocksForTarget(victimId);
   removePlayerProjectiles(victimId);
 }
@@ -2946,8 +2959,8 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   if (Math.hypot(first.position.x - second.position.x, first.position.y - second.position.y, first.position.z - second.position.z) > aircraftCollisionRadius + relativeAllowance) return false;
   markPlayerDestroyed(firstId, first, now);
   markPlayerDestroyed(secondId, second, now);
-  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: firstId, killerId: secondId, killerDisplayName: second.displayName, killerScore: second.score, killerReward: 0 });
-  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: secondId, killerId: firstId, killerDisplayName: first.displayName, killerScore: first.score, killerReward: 0 });
+  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: firstId, position: first.position, aircraftType: first.aircraftType, killerId: secondId, killerDisplayName: second.displayName, killerScore: second.score, killerReward: 0 });
+  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: secondId, position: second.position, aircraftType: second.aircraftType, killerId: firstId, killerDisplayName: first.displayName, killerScore: first.score, killerReward: 0 });
   broadcastLeaderboard(first.cityId);
   updateKing(first.cityId);
   handleWantedDestruction(secondId, firstId, now);
@@ -2969,6 +2982,7 @@ function createAssistedShot(
   const local = targetInAircraftSpace(fireTransform ?? player, target);
   if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
   player.lastFireAt = now;
+  sendIncomingFire(targetId, playerId);
   const muzzle = muzzleTransform(fireTransform ?? player);
   broadcastToCity(player.cityId, {
     type: 'assistedShot',
@@ -3493,7 +3507,6 @@ function beginHunterExtend(player: PlayerState, bot: BotRuntime, now: number): v
   }, botCombatClearance);
   bot.combatPhaseUntil = now + Math.max(3_600, separation / Math.max(1, bot.speed) * 1_000);
   bot.phase = 'extend';
-  player.lockedTargetId = undefined;
 }
 
 function beginHunterBlindZoneExtend(
@@ -3534,7 +3547,6 @@ function beginHunterBlindZoneExtend(
   bot.combatPhaseUntil = now + Math.max(hunterBlindZoneEscapeMs, separation / Math.max(1, bot.speed) * 1_200);
   bot.blindZoneEscapeUntil = bot.combatPhaseUntil;
   bot.phase = 'extend';
-  player.lockedTargetId = undefined;
   if (stabilityDiagnosticsEnabled) {
     console.log(`HUNTER_REPOSITION reason=${reason} horiz=${Math.round(horizontal)}m vertical=${Math.round(vertical)}m target=${bot.combatTargetId ?? 'none'}`);
   }
@@ -3573,7 +3585,6 @@ function clearHunterCombat(player: PlayerState, bot: BotRuntime): void {
   bot.attackFireAfter = 0;
   bot.blindZoneEscapeUntil = 0;
   if (isHunterCombatPhase(bot.phase)) bot.phase = 'cruise';
-  player.lockedTargetId = undefined;
 }
 
 function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRuntime, now: number): { waypoint: Vector3; target?: [string, PlayerState] } | undefined {
@@ -3700,9 +3711,17 @@ function updateBots(now: number): void {
       console.log(`HUNTER target=${bot.combatTargetId ?? 'none'} state=${bot.phase} dist=${tracked ? Math.round(Math.hypot(tracked.position.x - player.position.x, tracked.position.y - player.position.y, tracked.position.z - player.position.z)) : '-'}`);
     }
     const combatTarget = combatNavigation?.target;
-    if (combatTarget && now >= Math.max(bot.nextFireAt, bot.attackFireAfter)) {
-      const [, target] = combatTarget;
-      const solution = botFireSolution(player, target, Boolean(bot.defenseTerritoryId));
+    const combatSolution = combatTarget ? botFireSolution(player, combatTarget[1], Boolean(bot.defenseTerritoryId)) : undefined;
+    const botLockTargetId = combatTarget && combatSolution && !combatSolution.reason &&
+      combatTarget[1].lifeState === 'alive' && now >= combatTarget[1].spawnProtectedUntil
+      ? combatTarget[0]
+      : undefined;
+    // Bot warning state reuses the active combat target and the exact firing
+    // solution below. Proximity and radar presence never create a lock.
+    setServerLock(botId, player, botLockTargetId);
+    if (combatTarget && combatSolution && now >= Math.max(bot.nextFireAt, bot.attackFireAfter)) {
+      const [targetId, target] = combatTarget;
+      const solution = combatSolution;
       // Attack-pass shots use the normal ballistic projectile pipeline. The
       // separate, modest bot cone and random dispersion create pressure
       // without granting a bot the player's assisted LOCKED-hit contract.
@@ -3713,6 +3732,7 @@ function updateBots(now: number): void {
         if (createProjectile(botId, player, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + variance * 0.45 })) {
           bot.attackShots = (bot.attackShots ?? 0) + 1;
           bot.noFireReason = undefined;
+          if (player.lockedTargetId === targetId) sendIncomingFire(targetId, botId);
           if (stabilityDiagnosticsEnabled && bot.defenseTerritoryId && bot.attackShots === 1) {
             console.info(`DEFENDER_FIRE dist=${Math.round(solution.distance)} vertical=${Math.round(solution.vertical)} angle=${Math.round(solution.angle * 180 / Math.PI)} agl=${Math.round(player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z))} phase=${bot.phase}`);
           }
@@ -3876,6 +3896,8 @@ function clearRepairState(playerId: string): void {
 // be retired and a browser can disappear without a clean gameplay transition,
 // so remove every such reference in the same lifecycle path.
 function clearPlayerRuntimeState(playerId: string): void {
+  const player = players.get(playerId);
+  if (player?.lockedTargetId) setServerLock(playerId, player);
   clearLocksForTarget(playerId);
   playerChaos.delete(playerId);
   activeChallenges.delete(playerId);
@@ -4703,8 +4725,13 @@ server.on('connection', (socket, request) => {
             now,
           );
         }
-        if (!assisted && !createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
-          logFireBlocked(playerId, projectiles.size >= maxProjectiles ? 'projectile_cap' : 'invalid_state', now);
+        if (!assisted) {
+          if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
+            logFireBlocked(playerId, projectiles.size >= maxProjectiles ? 'projectile_cap' : 'invalid_state', now);
+          } else {
+            const lockedTarget = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);
+            if (lockedTarget && player.lockedTargetId) sendIncomingFire(player.lockedTargetId, playerId);
+          }
         }
         return;
       }

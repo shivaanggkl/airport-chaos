@@ -1423,6 +1423,45 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .target-feedback span { color: #eef8fa; font-size: 10px; font-weight: 600; }
 .target-feedback.hidden { display: none; }
 
+.combat-threat-warning {
+  position: fixed;
+  z-index: 20;
+  top: max(54px, calc(env(safe-area-inset-top) + 46px));
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 220px);
+  padding: 5px 9px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: #ffd18a;
+  background: rgb(83 43 14 / 72%);
+  border: 1px solid rgb(255 177 70 / 64%);
+  border-radius: 5px;
+  box-shadow: 0 3px 12px rgb(17 10 5 / 28%);
+  font: 800 12px/1.1 var(--font-display);
+  letter-spacing: .08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 1;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 0s;
+}
+.combat-threat-warning > span { color: #ffb34f; font-size: 16px; line-height: 1; }
+.combat-threat-warning > strong { overflow: hidden; text-overflow: ellipsis; }
+.combat-threat-warning.incoming { color: #fff0e8; background: rgb(121 24 20 / 80%); border-color: rgb(255 104 76 / 78%); }
+.combat-threat-warning.incoming > span { color: #ff6b4d; }
+.combat-threat-warning.hidden {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate(-50%, -4px);
+  transition-delay: 0s, 0s, 160ms;
+}
+body:has(.combat-threat-warning:not(.hidden)) .fighter-trial-indicator { top: 86px; }
+body:has(.combat-threat-warning:not(.hidden)) .landing-speed-cue { top: 118px; }
+
 .landing-speed-cue {
   position: fixed;
   top: 56px;
@@ -1818,7 +1857,7 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(max-width:1100px){.desktop-controls-help-items{gap:3px 8px}.desktop-controls-help-items span:not(:last-child)::after{margin-left:8px}.practice-mode-label{bottom:max(60px,calc(env(safe-area-inset-bottom) + 52px))}}
 @media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px;font-size:11px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
-@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:var(--text-secondary)}
 .tutorial-flight-active #contextual-hint,.tutorial-flight-active #dynamic-event-panel,.tutorial-flight-active #mission-panel{display:none!important}
 #real-players, #city-territories {

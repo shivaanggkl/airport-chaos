@@ -123,6 +123,7 @@ export function attachAircraftAsset(
   targetLength: number,
   targetSpan: number,
   onLoaded?: (model: THREE.Group) => void,
+  visualParent: THREE.Object3D = plane,
 ): void {
   plane.userData.assetStatus = 'loading';
   void loadAsset(type)
@@ -132,7 +133,7 @@ export function attachAircraftAsset(
       // matching the shared flight, muzzle, exhaust and remote-render roots.
       model.rotation.y = 0;
       model.name = `aircraft-asset-${type}`;
-      plane.add(model);
+      visualParent.add(model);
       const propellers: THREE.Object3D[] = [];
       model.traverse((object) => { if (object.name.startsWith('Propeller_') && !object.name.endsWith('_Blades')) propellers.push(object); });
       plane.userData.assetPropellers = propellers;

@@ -1,6 +1,7 @@
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftEconomy } from '../../shared/aircraft-economy.mjs';
+import { aircraftVisualConfig } from '../../shared/aircraft-visual-rules.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 
@@ -31,13 +32,13 @@ export function aircraftDisplayName(type: AircraftType): string {
   return `${aircraftDefinitions[type].name} "${aircraftDefinitions[type].callsign}"`;
 }
 
-export const aircraftEffectAnchors: Record<AircraftType, ReadonlyArray<{ x: number; y: number; z: number; radius: number }>> = {
-  trainer: [],
-  privateJet: [{ x: -2.02, y: -0.75, z: 0.98, radius: 0.31 }, { x: 2.02, y: -0.75, z: 0.98, radius: 0.31 }],
-  cargo: [{ x: -3.85, y: 0.17, z: 0.88, radius: 0.24 }, { x: -2.05, y: 0.17, z: 0.44, radius: 0.27 }, { x: 2.05, y: 0.17, z: 0.44, radius: 0.27 }, { x: 3.85, y: 0.17, z: 0.88, radius: 0.24 }],
-  // Primitive fallback only; the loaded Redspear effect uses its GLB nozzle socket.
-  fighter: [{ x: 0, y: -0.18, z: 2.9, radius: 0.46 }],
-};
+export const aircraftEffectAnchors = Object.fromEntries(
+  (Object.keys(aircraftVisualConfig) as AircraftType[]).map((type) => [type, aircraftVisualConfig[type].effectAnchors]),
+) as Record<AircraftType, (typeof aircraftVisualConfig)[AircraftType]['effectAnchors']>;
+
+export const aircraftGroundContacts = Object.fromEntries(
+  (Object.keys(aircraftVisualConfig) as AircraftType[]).map((type) => [type, aircraftVisualConfig[type].groundContacts]),
+) as Record<AircraftType, (typeof aircraftVisualConfig)[AircraftType]['groundContacts']>;
 
 export { aircraftMuzzleSockets };
 
