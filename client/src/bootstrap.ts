@@ -26,14 +26,14 @@ void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kic
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
-type GarageIdentity = { pilotId: string; displayName: string; credits: number; selectedAircraft: AircraftType };
+type GarageIdentity = { pilotId: string; displayName: string; credits: number; bestScore: number; selectedAircraft: AircraftType };
 function identity(): GarageIdentity {
   let value: Partial<GarageIdentity> = {};
   try { value = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Partial<GarageIdentity>; } catch { /* use defaults */ }
   const pilotId = typeof value.pilotId === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(value.pilotId)
     ? value.pilotId : (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `pilot-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const displayName = typeof value.displayName === 'string' && value.displayName.trim() ? value.displayName.slice(0, 20) : 'Pilot';
-  const result: GarageIdentity = { pilotId, displayName, credits: typeof value.credits === 'number' ? value.credits : 0, selectedAircraft: value.selectedAircraft ?? 'trainer' };
+  const result: GarageIdentity = { pilotId, displayName, credits: typeof value.credits === 'number' ? value.credits : 0, bestScore: typeof value.bestScore === 'number' ? value.bestScore : 0, selectedAircraft: value.selectedAircraft ?? 'trainer' };
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...value, version: 1, ...result })); } catch { /* profile fetch will still work for this session */ }
   return result;
 }
@@ -59,7 +59,7 @@ async function loadGarageProfile(): Promise<GarageProfile> {
   if (!response.ok) throw new Error('Profile unavailable');
   let profile = await response.json() as GarageProfile & { legacyImportPending?: boolean; tutorial?:typeof remoteTutorial;totalDistance?:number;successfulLandings?:number;kills?:number;deaths?:number };
   if (profile.legacyImportPending) {
-    const imported = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName } }) });
+    const imported = await fetch(url, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ legacy: { credits: garageIdentity.credits, score: garageIdentity.bestScore, selectedAircraft: garageIdentity.selectedAircraft, pilotName: garageIdentity.displayName } }) });
     if (!imported.ok) throw new Error('Profile migration unavailable');
     profile = await imported.json() as GarageProfile;
   }

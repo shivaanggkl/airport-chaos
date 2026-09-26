@@ -19,6 +19,7 @@ export type PlayerProfile = {
   pilotId: string;
   pilotName: string;
   credits: number;
+  score: number;
   economyVersion: number;
   aircraftEntitlements: string[];
   testerCodeEnabled: boolean;
@@ -73,6 +74,7 @@ export type CityMastery = { xp: number; level: number; unlockedRewards: string[]
 
 export type LegacyProfileImport = {
   credits?: unknown;
+  score?: unknown;
   selectedAircraft?: unknown;
   pilotName?: unknown;
   totalDistance?: unknown;
@@ -107,6 +109,7 @@ type ProfileRow = {
   pilot_id: string;
   pilot_name: string;
   credits: number;
+  score: number;
   selected_aircraft: string;
   total_distance: number;
   successful_landings: number;
@@ -194,8 +197,15 @@ function profileName(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim().slice(0, 20) : fallback;
 }
 
+export function normalizePilotName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const name = value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  if (name.length < 3 || name.length > 20) return undefined;
+  return /^[A-Za-z0-9][A-Za-z0-9 ._'-]*[A-Za-z0-9]$/.test(name) ? name : undefined;
+}
+
 function assignedPilotName(value: unknown, pilotId: string): string {
-  const name = profileName(value, 'Pilot');
+  const name = normalizePilotName(value) ?? 'Pilot';
   const automatic = /^Pilot-(\d{3})$/i.exec(name);
   if (automatic) return isValidPilotNumber(Number(automatic[1])) ? name : `Pilot-${pilotNumberForId(pilotId)}`;
   return name.toLowerCase() === 'pilot' ? `Pilot-${pilotNumberForId(pilotId)}` : name;
@@ -337,6 +347,7 @@ export class PlayerProfileStore {
         pilot_id TEXT PRIMARY KEY,
         pilot_name TEXT NOT NULL,
         credits INTEGER NOT NULL DEFAULT 0,
+        score INTEGER NOT NULL DEFAULT 0,
         selected_aircraft TEXT NOT NULL DEFAULT 'trainer',
         total_distance REAL NOT NULL DEFAULT 0,
         successful_landings INTEGER NOT NULL DEFAULT 0,
@@ -460,6 +471,7 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN aircraft_entitlements TEXT NOT NULL DEFAULT '[]'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN missions TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN fighter_trial TEXT NOT NULL DEFAULT '{"status":"available"}'`); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN score INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
     this.pruneRewardReceipts();
     this.database.exec(`
       CREATE INDEX IF NOT EXISTS profile_reward_receipts_pilot_created ON profile_reward_receipts (pilot_id, created_at DESC);
@@ -644,8 +656,9 @@ export class PlayerProfileStore {
         .run(pilotId, assignedPilotName(pilotName, pilotId), newPilotCredits, ECONOMY_VERSION);
       row = this.getRow(pilotId)!;
     } else {
-      const assigned = assignedPilotName(row.pilot_name, pilotId);
-      if (assigned !== row.pilot_name) {
+      const automaticName = /^Pilot(?:-\d{3})?$/i.test(row.pilot_name.trim());
+      const assigned = automaticName ? assignedPilotName(row.pilot_name, pilotId) : row.pilot_name;
+      if (automaticName && assigned !== row.pilot_name) {
         this.database.prepare('UPDATE player_profiles SET pilot_name = ? WHERE pilot_id = ?').run(assigned, pilotId);
         row = this.getRow(pilotId)!;
       }
@@ -705,6 +718,12 @@ export class PlayerProfileStore {
     this.database.prepare('UPDATE pilot_progression SET xp=MIN(100000000,xp+?) WHERE pilot_id=?').run(Math.floor(amount), pilotId);
     const after = this.pilotProgression(pilotId);
     return { profile: this.toProfile(this.getRow(pilotId)!), levelUp: after.level > before.level ? after.level : undefined, title: after.level > before.level ? after.title : undefined };
+  }
+
+  awardScore(pilotId: string, amount: number): PlayerProfile | undefined {
+    if (!Number.isFinite(amount) || amount <= 0 || !this.getRow(pilotId)) return undefined;
+    this.database.prepare('UPDATE player_profiles SET score=MIN(100000000,score+?) WHERE pilot_id=?').run(Math.floor(amount), pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
   }
 
   updatePersonalRecord(pilotId: string, type: string, value: number, cityId?: CityId, now = Date.now()): boolean {
@@ -788,9 +807,9 @@ export class PlayerProfileStore {
       ? row.selected_aircraft
       : legacy.selectedAircraft;
     const selectedAircraft = selectedOwnedAircraft(requestedAircraft, usableAircraft);
-    this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, credits = ?, selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
+    this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, credits = ?, score = MAX(score, ?), selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
       .run(
-        assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), credits, selectedAircraft,
+        assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), credits, boundedInteger(legacy.score, 100_000_000), selectedAircraft,
         boundedNumber(legacy.totalDistance, 10_000_000), boundedInteger(legacy.successfulLandings, 100_000), JSON.stringify(discoveries), pilotId,
       );
     return this.toProfile(this.getRow(pilotId)!);
@@ -799,10 +818,9 @@ export class PlayerProfileStore {
   setPilotName(pilotId: string, pilotName: string): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
-    // A cached browser-generated Pilot-### must not overwrite the server's
-    // durable number on every reconnect.
-    if (/^Pilot(?:-\d{3})?$/i.test(pilotName.trim())) return this.toProfile(row);
-    this.database.prepare('UPDATE player_profiles SET pilot_name = ? WHERE pilot_id = ?').run(profileName(pilotName, row.pilot_name), pilotId);
+    const normalized = normalizePilotName(pilotName);
+    if (!normalized) return undefined;
+    this.database.prepare('UPDATE player_profiles SET pilot_name = ? WHERE pilot_id = ?').run(normalized, pilotId);
     return this.toProfile(this.getRow(pilotId)!);
   }
 
@@ -1183,8 +1201,8 @@ export class PlayerProfileStore {
     all[cityId]!.active = undefined;
     // Credits, attempt removal and replay cooldown commit in ONE SQLite row
     // update. A repeated completion cannot pay or advance Score again.
-    this.database.prepare('UPDATE player_profiles SET missions = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?')
-      .run(JSON.stringify(all), cargoReward.credits, pilotId);
+    this.database.prepare('UPDATE player_profiles SET missions = ?, credits = MIN(1000000, credits + ?), score = MIN(100000000, score + ?) WHERE pilot_id = ?')
+      .run(JSON.stringify(all), cargoReward.credits, mission.scoreReward, pilotId);
     return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward, missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits };
   }
 
@@ -1260,6 +1278,7 @@ export class PlayerProfileStore {
       pilotId: row.pilot_id,
       pilotName: profileName(row.pilot_name, 'Pilot'),
       credits,
+      score: boundedInteger(row.score, 100_000_000),
       economyVersion: ECONOMY_VERSION,
       aircraftEntitlements,
       testerCodeEnabled: /^[a-f0-9]{64}$/i.test(process.env.REDSPEAR_TESTER_CODE_HASH ?? ''),

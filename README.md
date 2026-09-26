@@ -23,3 +23,5 @@ npm start
 ```
 
 Open `http://localhost:8091`. Render deployment is configured by `render.yaml`.
+
+Google and Apple web sign-in require server-only provider credentials. See [docs/provider-auth-setup.md](docs/provider-auth-setup.md); the game continues to support guest and email/password access when provider credentials are absent.

@@ -371,6 +371,21 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .pilot-menu-section:last-child { border-bottom: 0; }
 .pilot-menu-section h2 { margin: 0 0 9px; color: var(--ui-gold); font: 700 14px var(--font-display); letter-spacing: .1em; text-transform: uppercase; }
 .pilot-menu-section p { margin: 5px 0; color: var(--text-secondary); font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
+.pilot-account-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; margin: 10px 0 14px; padding: 14px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-cyan); color: var(--ui-text); font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
+.pilot-account-summary strong { grid-column: 1 / -1; color: var(--ui-gold); font: 800 20px/1.2 var(--font-display); letter-spacing: .04em; }
+.pilot-account-summary span:nth-child(2) { color: var(--ui-text-muted); }
+.pilot-account-form { display: grid; grid-template-columns: minmax(90px, auto) minmax(160px, 1fr) auto; align-items: center; gap: 8px; margin: 12px 0; }
+.pilot-account-form > label, .pilot-account-auth-form h3 { margin: 0; color: var(--ui-gold); font: 700 var(--font-meta-size) var(--font-display); letter-spacing: .08em; }
+.pilot-account-auth-forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.pilot-account-providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.pilot-provider-button { min-height: 42px; }
+.pilot-account-linked { display: grid; gap: 7px; margin: 14px 0; padding: 12px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-blue); }
+.pilot-account-linked h3 { margin: 0 0 4px; color: var(--ui-gold); font: 700 var(--font-meta-size) var(--font-display); letter-spacing: .08em; }
+.pilot-account-linked-row { display: grid; grid-template-columns: minmax(70px, 1fr) minmax(110px, auto) auto; align-items: center; gap: 10px; min-height: 34px; color: var(--ui-text); }
+.pilot-account-linked-row strong { color: var(--ui-text-muted); font-size: var(--font-meta-size); }
+.pilot-account-auth-form { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-blue); }
+.pilot-account-message { min-height: 18px; margin-top: 10px !important; color: var(--ui-gold) !important; }
+.pilot-account-message.error { color: #ff9aab !important; }
 .pilot-menu-status { display: inline-block; margin: 3px 8px 3px 0; padding: 4px 7px; color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: 3px; background: rgb(23 117 223 / 12%); font: 600 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
 .pilot-progress-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .pilot-progress-card { --progress-accent: var(--ui-royal); min-width: 0; padding: 14px; border: 1px solid var(--ui-border); border-left: 3px solid var(--progress-accent); border-radius: 7px; background: var(--ui-glass-cyan); }
@@ -420,7 +435,7 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .pilot-menu-stunt small { margin-top: 5px; color: var(--text-secondary); font: 500 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
 .pilot-menu-discovered { color: #79d9bb; font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
 .pilot-menu-controls { color: var(--ui-text) !important; font: 500 var(--font-body-size)/1.6 var(--font-body) !important; }
-@media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts, .pilot-progress-grid, .pilot-progress-aircraft-list { grid-template-columns: 1fr; } .pilot-progress-aircraft { grid-column: auto; } }
+@media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts, .pilot-progress-grid, .pilot-progress-aircraft-list, .pilot-account-auth-forms, .pilot-account-providers, .pilot-account-summary { grid-template-columns: 1fr; } .pilot-account-summary strong { grid-column: auto; } .pilot-account-form, .pilot-account-linked-row { grid-template-columns: 1fr; } .pilot-progress-aircraft { grid-column: auto; } }
 .garage-card { width: min(940px, 100%); max-height: min(760px, 94vh); overflow: auto; padding: 18px; color: var(--ui-text); border: 1px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-strong); box-shadow: var(--ui-shadow); backdrop-filter: blur(12px); }
 .garage-card.is-firehawk { max-height:min(800px,94vh); }
 .garage-card header { display: flex; justify-content: space-between; align-items: center; } .garage-card header span { color: var(--ui-gold); font: 700 13px var(--font-display); letter-spacing: .12em; } .garage-card h1,.garage-card h2 { margin: 3px 0 0; font-family: var(--font-display); letter-spacing: .06em; } .garage-card header button,.garage-details button { padding: 7px 10px; border: 1px solid var(--ui-border-strong); border-radius: 4px; color: var(--ui-text); background: var(--ui-glass-main); font: 600 var(--font-control-size) var(--font-display); cursor: pointer; } .garage-details button:not(:disabled):hover { background: rgb(23 117 223 / 22%); } .garage-details button:disabled { opacity: .52; cursor: default; }

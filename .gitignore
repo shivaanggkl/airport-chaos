@@ -5,3 +5,4 @@ dist/
 .cache/
 server/data/
 *.zip
+.env

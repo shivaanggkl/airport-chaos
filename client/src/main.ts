@@ -3186,6 +3186,7 @@ type NetworkProfile = {
   pilotId: string;
   pilotName: string;
   credits: number;
+  score: number;
   economyVersion: number;
   aircraftEntitlements: string[];
   testerCodeEnabled: boolean;
@@ -3334,6 +3335,7 @@ function createSafeNetworkProfile(): NetworkProfile {
     pilotId: persistedPlayer.pilotId,
     pilotName: persistedPlayer.displayName,
     credits: persistedPlayer.credits,
+    score: persistedPlayer.bestScore,
     economyVersion: 0,
     aircraftEntitlements: [],
     testerCodeEnabled: false,
@@ -3368,6 +3370,7 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
   return typeof profile.pilotId === 'string' &&
     typeof profile.pilotName === 'string' &&
     typeof profile.credits === 'number' && Number.isFinite(profile.credits) && profile.credits >= 0 &&
+    typeof profile.score === 'number' && Number.isFinite(profile.score) && profile.score >= 0 &&
     typeof profile.economyVersion === 'number' && Number.isSafeInteger(profile.economyVersion) && profile.economyVersion >= 0 &&
     Array.isArray(profile.aircraftEntitlements) && profile.aircraftEntitlements.every((entry) => typeof entry === 'string') &&
     typeof profile.testerCodeEnabled === 'boolean' &&
@@ -3388,6 +3391,54 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
 }
 
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
+type ClientAccountState = { state: 'guest' | 'account'; email?: string; providers?: { password: boolean; google: boolean; apple: boolean } };
+let clientAccount: ClientAccountState = { state: 'guest', providers: { password: false, google: false, apple: false } };
+const accountApiOrigin = (() => {
+  if (!import.meta.env.DEV) return window.location.origin;
+  const ws = new URL(import.meta.env.VITE_WS_URL ?? 'ws://localhost:8091');
+  ws.protocol = ws.protocol === 'wss:' ? 'https:' : 'http:';
+  return ws.origin;
+})();
+
+async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
+  try {
+    const response = await fetch(new URL(`/api/auth/${path}`, accountApiOrigin), {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const result = await response.json() as { error?: string; message?: string; account?: ClientAccountState; profile?: unknown; guestPreserved?: boolean };
+    if (!response.ok) return { ok: false, message: result.error ?? 'ACCOUNT REQUEST FAILED' };
+    if (result.account) clientAccount = result.account;
+    if (path === 'pilot-name' && result.profile) applyServerProfile(result.profile);
+    if (path !== 'pilot-name') {
+      try { sessionStorage.setItem('airport-chaos-account-notice', result.message ?? 'ACCOUNT UPDATED'); } catch { /* transient notice is optional */ }
+      window.setTimeout(() => window.location.reload(), 250);
+    }
+    return { ok: true, message: result.message ?? 'ACCOUNT UPDATED' };
+  } catch { return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' }; }
+}
+
+async function providerAccountRequest(provider: 'google' | 'apple', action: 'login' | 'link'): Promise<{ ok: boolean; message: string }> {
+  try {
+    const returnUrl = new URL(window.location.href);
+    returnUrl.searchParams.delete('auth'); returnUrl.searchParams.delete('provider'); returnUrl.searchParams.delete('linked');
+    const response = await fetch(new URL('/api/auth/oauth/start', accountApiOrigin), {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, action, returnTo: returnUrl.toString() }),
+    });
+    const result = await response.json() as { authorizationUrl?: string; error?: string };
+    if (!response.ok || !result.authorizationUrl) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
+    window.location.assign(result.authorizationUrl);
+    return { ok: true, message: `OPENING ${provider.toUpperCase()}…` };
+  } catch { return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' }; }
+}
+
+async function refreshAccountStatus(): Promise<void> {
+  try {
+    const response = await fetch(new URL('/api/auth/status', accountApiOrigin), { cache: 'no-store', credentials: 'include' });
+    const result = await response.json() as { account?: ClientAccountState };
+    if (response.ok && result.account) { clientAccount = result.account; renderPilotMenu(true); }
+  } catch { /* gameplay remains available as a guest */ }
+}
 let activeMissionAttemptId: string | undefined;
 const profileActiveMissionCity = (profile: NetworkProfile): CityId | undefined =>
   profile.missions[cityId]?.active ? cityId : (['dallas', 'milwaukee'] as const).find((id) => profile.missions[id]?.active);
@@ -4492,6 +4543,22 @@ function pilotMenuData(): PilotMenuData {
   }));
 
   return {
+    account: {
+      state: clientAccount.state, email: clientAccount.email, pilotName: serverProfile.pilotName,
+      providers: clientAccount.providers ?? { password: clientAccount.state === 'account' && Boolean(clientAccount.email), google: false, apple: false },
+      level: serverProfile.pilotProgress.level, xp: serverProfile.pilotProgress.xp,
+      credits: serverProfile.credits, score: serverProfile.score,
+      ownedAircraft: serverProfile.unlockedAircraft.length,
+      badges: new Set([
+        ...Object.values(serverProfile.mastery).flatMap((entry) => entry?.unlockedRewards ?? []).filter((reward) => /badge/i.test(reward)),
+        ...(serverProfile.weeklyReward?.badge && serverProfile.weeklyReward.badgeExpiresAt > Date.now() ? [serverProfile.weeklyReward.badge] : []),
+      ]).size,
+      signUp: (email, password) => accountRequest('signup', { email, password }),
+      signIn: (email, password) => accountRequest('login', { email, password }),
+      logOut: () => accountRequest('logout'),
+      changeName: (pilotName) => accountRequest('pilot-name', { pilotName }),
+      providerAuth: providerAccountRequest,
+    },
     city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: openWorldSelector },
     intercity:{routes:routesFromCity(cityId).map(route=>({routeId:route.routeId,destination:route.toCityId==='dallas'?'Dallas':'Milwaukee',distanceLabel:route.distanceLabel,recommendedAircraft:route.recommendedAircraft.toUpperCase(),estimatedFlightTime:route.estimatedFlightTime,available:onGround&&!crashed&&!profileActiveMissionAttempt(serverProfile),reason:!onGround?'Land and stop first.':profileActiveMissionAttempt(serverProfile)?'Finish or leave your active mission.':undefined,start:()=>socket.send(JSON.stringify({type:'intercityRouteStart',routeId:route.routeId}))}))},
     missions: {
@@ -6884,6 +6951,23 @@ if (chaosQaMode) socketUrl.searchParams.set('chaosqa', '1');
 const socket = new WebSocket(socketUrl);
 let protocolReady = false;
 let protocolBlocked = false;
+const oauthResult = new URLSearchParams(window.location.search);
+if (oauthResult.has('auth')) {
+  const provider = (oauthResult.get('provider') ?? 'provider').toUpperCase();
+  const outcome = oauthResult.get('auth');
+  const notice = outcome === 'success'
+    ? `${provider} ${oauthResult.get('linked') === '1' ? 'LINKED' : 'ACCOUNT LOADED'}`
+    : outcome === 'collision' ? 'SIGN IN TO YOUR EXISTING ACCOUNT, THEN LINK THIS PROVIDER' : `${provider} SIGN-IN FAILED`;
+  try { sessionStorage.setItem('airport-chaos-account-notice', notice); } catch { /* transient notice is optional */ }
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('auth'); cleanUrl.searchParams.delete('provider'); cleanUrl.searchParams.delete('linked');
+  window.history.replaceState(null, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+}
+void refreshAccountStatus();
+try {
+  const accountNotice = sessionStorage.getItem('airport-chaos-account-notice');
+  if (accountNotice) { sessionStorage.removeItem('airport-chaos-account-notice'); window.setTimeout(() => showProgressMessage(accountNotice), 400); }
+} catch { /* transient notice is optional */ }
 
 function connectionReady(): boolean {
   return protocolReady && !protocolBlocked && socket.readyState === WebSocket.OPEN;
@@ -7215,6 +7299,7 @@ socket.addEventListener('message', (event) => {
         type: 'profileImport',
         legacy: {
           credits: persistedPlayer.credits,
+          score: persistedPlayer.bestScore,
           selectedAircraft: persistedPlayer.selectedAircraft,
           pilotName: persistedPlayer.displayName,
           totalDistance: persistedPlayer.totalDistance,

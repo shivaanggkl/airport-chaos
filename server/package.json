@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "AIRPORT_CHAOS_DEV_QA=1 tsx watch src/index.ts",
+    "dev": "AIRPORT_CHAOS_DEV_QA=1 tsx watch --env-file-if-exists=../.env src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node --env-file-if-exists=../.env dist/index.js"
   },
   "dependencies": {
     "stripe": "^22.6.2",

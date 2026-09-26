@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket, { WebSocketServer } from 'ws';
-import { PlayerProfileStore, type LegacyProfileImport, type ObjectiveActivity, type PlayerProfile, type ProfileProgress, type WeeklyLeaderboardCategory } from './player-profiles.js';
+import { PlayerProfileStore, normalizePilotName, type LegacyProfileImport, type ObjectiveActivity, type PlayerProfile, type ProfileProgress, type WeeklyLeaderboardCategory } from './player-profiles.js';
 import { cityCapabilities, routeDefinition } from '../../shared/city-registry.mjs';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
@@ -23,7 +23,9 @@ import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { FirehawkPayments } from './firehawk-payments.js';
-import { PilotSessionStore } from './session-auth.js';
+import { PilotSessionStore, normalizeAccountEmail, type SessionIdentity } from './session-auth.js';
+import { createAuthorizationUrl, exchangeAndVerifyProviderCode, pkceChallenge, providerConfig, type OAuthProvider } from './oauth-providers.js';
+import { allowedOAuthReturn, sameOriginJsonRequest } from './auth-request-security.js';
 import { validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
@@ -44,6 +46,7 @@ type Transform = {
 
 type PlayerState = Transform & {
   pilotId: string;
+  sessionTokenHash?: string;
   profile: PlayerProfile;
   entityType: 'player';
   isBot: boolean;
@@ -215,7 +218,7 @@ function completePvpChallenge(challenge: PvpChallenge, winnerId: string, now: nu
   const credits = challenge.mode === 'dogfight' ? 200 : 150;
   const result = profileStore.awardPvpWin(challenge.id, winner.pilotId, loser.pilotId, credits, now);
   if (result.profile) { winner.profile = result.profile; sendProfile(winnerId, result.profile, undefined, undefined, result.rewarded ? 'PvP Challenge Won' : undefined); }
-  if (result.rewarded) { winner.score += challenge.mode === 'dogfight' ? 300 : 250; awardPilotProgress(winnerId, 40); }
+  if (result.rewarded) { const scoreReward = challenge.mode === 'dogfight' ? 300 : 250; winner.score += scoreReward; persistScore(winner, scoreReward); awardPilotProgress(winnerId, 40); }
   for (const id of [challenge.challengerId, challenge.opponentId]) sendToPlayer(id, { type: 'pvpChallengeResult', challengeId: challenge.id, winnerId, rewarded: result.rewarded });
   recordAnalytics(winnerId, 'pvp_challenge_completed', { metadata: { mode: challenge.mode, rewarded: result.rewarded } }, now);
   pvpChallenges.delete(challenge.id);
@@ -312,6 +315,11 @@ const securityLimits = {
   recoveryPilot: { limit: 5, windowMs: 15 * 60_000 }, recoveryIp: { limit: 10, windowMs: 15 * 60_000 },
   testerPilot: { limit: 5, windowMs: 10 * 60_000 }, testerIp: { limit: 10, windowMs: 10 * 60_000 },
   sessionIp: { limit: 30, windowMs: 60 * 60_000 },
+  signupIp: { limit: 5, windowMs: 60 * 60_000 }, signupEmail: { limit: 3, windowMs: 60 * 60_000 },
+  loginIp: { limit: 12, windowMs: 15 * 60_000 }, loginEmail: { limit: 6, windowMs: 15 * 60_000 },
+  oauthStartIp: { limit: 12, windowMs: 15 * 60_000 }, oauthStartPilot: { limit: 8, windowMs: 15 * 60_000 },
+  oauthCallbackIp: { limit: 30, windowMs: 15 * 60_000 },
+  namePilot: { limit: 5, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 const playerClientIps = new Map<string, string>();
 const playerTrialNetworkIds = new Map<string, string>();
@@ -499,6 +507,15 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   try { return JSON.parse(body) as Record<string, unknown>; } catch { return undefined; }
 }
 
+async function readForm(request: IncomingMessage): Promise<URLSearchParams | undefined> {
+  let body = '';
+  for await (const chunk of request) {
+    body += chunk;
+    if (body.length > 16_384) return undefined;
+  }
+  try { return new URLSearchParams(body); } catch { return undefined; }
+}
+
 async function readRawBody(request: IncomingMessage, maximum = 1_048_576): Promise<Buffer | undefined> {
   const chunks: Buffer[] = []; let size = 0;
   for await (const chunk of request) {
@@ -513,7 +530,39 @@ function checkoutOrigin(request: IncomingMessage): string {
   return host.startsWith('localhost:') || host.startsWith('127.0.0.1:') ? `http://${host}` : 'https://fly.vadensoftware.com';
 }
 
+function secureCookieRequest(request: IncomingMessage): boolean {
+  const host = (request.headers.host ?? '').toLowerCase();
+  return !host.startsWith('localhost:') && !host.startsWith('127.0.0.1:');
+}
+
+function jsonResponse(response: ServerResponse, status: number, payload: unknown): void {
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  response.end(JSON.stringify(payload));
+}
+
+function authLimiterIdentity(email: unknown): string {
+  const normalized = normalizeAccountEmail(email) ?? 'invalid';
+  return createHash('sha256').update(normalized).digest('hex');
+}
+
+function oauthProvider(value: unknown): OAuthProvider | undefined {
+  return value === 'google' || value === 'apple' ? value : undefined;
+}
+
+function redirectOAuthResult(response: ServerResponse, returnTo: string, provider: OAuthProvider, result: 'success' | 'collision' | 'failed', linked = false): void {
+  const target = new URL(returnTo);
+  target.searchParams.set('auth', result);
+  target.searchParams.set('provider', provider);
+  if (linked) target.searchParams.set('linked', '1');
+  response.writeHead(303, { Location: target.toString(), 'Cache-Control': 'no-store' });
+  response.end();
+}
+
 const httpServer = createServer(async (request, response) => {
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('X-Frame-Options', 'DENY');
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   const requestOrigin = request.headers.origin;
   if (requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(requestOrigin)) {
     response.setHeader('Access-Control-Allow-Origin', requestOrigin);
@@ -540,6 +589,132 @@ const httpServer = createServer(async (request, response) => {
     });
     response.end(request.method === 'HEAD' ? undefined : publicPolicy);
     return;
+  }
+  const oauthCallbackMatch = /^\/api\/auth\/oauth\/(google|apple)\/callback$/.exec(requestUrl.pathname);
+  if (oauthCallbackMatch) {
+    const provider = oauthCallbackMatch[1] as OAuthProvider;
+    const callbackLimit = limitedBy('oauth-callback-ip', trustedClientIp(request), securityLimits.oauthCallbackIp);
+    if (callbackLimit.limited) { rateLimited(response, callbackLimit.retryAfterMs); return; }
+    const expectedMethod = provider === 'apple' ? 'POST' : 'GET';
+    if (request.method !== expectedMethod) { response.writeHead(405, { Allow: expectedMethod }); response.end(); return; }
+    if (provider === 'apple' && !String(request.headers['content-type'] ?? '').toLowerCase().startsWith('application/x-www-form-urlencoded')) {
+      jsonResponse(response, 400, { error: 'Provider authentication failed.' }); return;
+    }
+    const form = provider === 'apple' ? await readForm(request) : requestUrl.searchParams;
+    const state = form?.get('state') ?? '';
+    const flow = pilotSessions.consumeOAuthFlow(state, provider);
+    if (!flow) { jsonResponse(response, 400, { error: 'Provider authentication failed.' }); return; }
+    try {
+      const config = providerConfig(provider);
+      const code = form?.get('code') ?? '';
+      if (!config || config.redirectUri !== flow.redirectUri || !code || form?.get('error')) {
+        redirectOAuthResult(response, flow.returnTo, provider, 'failed'); return;
+      }
+      const verified = await exchangeAndVerifyProviderCode(config, { code, nonce: flow.nonce, codeVerifier: flow.codeVerifier });
+      if (provider === 'apple') {
+        const userValue = form?.get('user');
+        if (userValue && userValue.length <= 4_096) {
+          try {
+            const user = JSON.parse(userValue) as { name?: { firstName?: unknown; lastName?: unknown } };
+            const name = [user.name?.firstName, user.name?.lastName].filter((part): part is string => typeof part === 'string' && part.trim().length > 0).join(' ').trim();
+            if (name) verified.displayName = name.slice(0, 200);
+          } catch { /* Apple's optional first-authorization profile is non-authoritative metadata. */ }
+        }
+      }
+      const result = pilotSessions.completeProviderAuth(flow, verified);
+      if (!result.ok || !result.identity || !result.cookie || !result.expiresAt) {
+        redirectOAuthResult(response, flow.returnTo, provider, result.collision ? 'collision' : 'failed'); return;
+      }
+      profileStore.getOrCreate(result.identity.pilotId, verified.displayName ?? 'Pilot');
+      response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
+      closeSessionConnections(flow.session.tokenHash);
+      redirectOAuthResult(response, flow.returnTo, provider, 'success', flow.action === 'link');
+    } catch (error) {
+      console.warn('[auth] provider callback rejected', provider, error instanceof Error ? error.message : 'invalid');
+      redirectOAuthResult(response, flow.returnTo, provider, 'failed');
+    }
+    return;
+  }
+  if (requestUrl.pathname.startsWith('/api/auth/')) {
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    profileStore.getOrCreate(identity.pilotId, identity.pilotName);
+    if (requestUrl.pathname === '/api/auth/status') {
+      if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+      const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+      jsonResponse(response, 200, { account: pilotSessions.status(identity.session), profile });
+      return;
+    }
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const payload = await readJson(request);
+    if (!payload) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
+    try {
+      if (requestUrl.pathname === '/api/auth/oauth/start') {
+        const provider = oauthProvider(payload.provider);
+        const action = payload.action === 'link' || payload.action === 'login' ? payload.action : undefined;
+        const returnTo = allowedOAuthReturn(payload.returnTo, String(request.headers.origin ?? ''), process.env.AIRPORT_CHAOS_WEB_ORIGIN?.trim() || 'https://fly.vadensoftware.com');
+        if (!provider || !action || !returnTo) { jsonResponse(response, 400, { error: 'Invalid provider request.' }); return; }
+        const ipLimit = limitedBy('oauth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
+        const pilotLimit = limitedBy('oauth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
+        if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
+        const config = providerConfig(provider);
+        if (!config) { jsonResponse(response, 503, { error: 'That sign-in provider is not configured yet.' }); return; }
+        const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, config.redirectUri, returnTo);
+        if (!flow) { jsonResponse(response, 409, { error: action === 'link' ? 'Sign in before linking a provider.' : 'Use Link from your signed-in account.' }); return; }
+        jsonResponse(response, 200, { authorizationUrl: createAuthorizationUrl(config, {
+          state: flow.state, nonce: flow.nonce, codeChallenge: flow.codeVerifier ? pkceChallenge(flow.codeVerifier) : undefined,
+        }) });
+        return;
+      }
+      if (requestUrl.pathname === '/api/auth/signup' || requestUrl.pathname === '/api/auth/login') {
+        const signup = requestUrl.pathname.endsWith('/signup');
+        const emailKey = authLimiterIdentity(payload.email);
+        const ipLimit = limitedBy(signup ? 'signup-ip' : 'login-ip', identity.clientIp, signup ? securityLimits.signupIp : securityLimits.loginIp);
+        const emailLimit = limitedBy(signup ? 'signup-email' : 'login-email', emailKey, signup ? securityLimits.signupEmail : securityLimits.loginEmail);
+        if (ipLimit.limited || emailLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, emailLimit.retryAfterMs)); return; }
+        const result = signup
+          ? await pilotSessions.signUp(identity.session, payload.email, payload.password)
+          : await pilotSessions.signIn(identity.session, payload.email, payload.password);
+        if (!result.ok || !result.identity || !result.cookie || !result.expiresAt) {
+          jsonResponse(response, signup ? 400 : 401, { error: result.error ?? 'Account request failed.' }); return;
+        }
+        const profile = reconcilePaidFirehawk(profileStore.getOrCreate(result.identity.pilotId, 'Pilot'));
+        response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
+        closeSessionConnections(identity.session.tokenHash);
+        jsonResponse(response, 200, {
+          account: pilotSessions.status(result.identity), profile,
+          message: result.guestPreserved ? 'Account loaded. This device guest profile was preserved separately.' : signup ? 'Account created. Your current pilot progress is protected.' : 'Account loaded.',
+          guestPreserved: result.guestPreserved === true,
+        });
+        return;
+      }
+      if (requestUrl.pathname === '/api/auth/logout') {
+        const result = pilotSessions.signOut(identity.session);
+        if (!result.identity || !result.cookie || !result.expiresAt) { jsonResponse(response, 400, { error: 'Unable to log out.' }); return; }
+        const profile = profileStore.getOrCreate(result.identity.pilotId, 'Pilot');
+        response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
+        closeSessionConnections(identity.session.tokenHash);
+        jsonResponse(response, 200, { account: { state: 'guest' }, profile, message: 'Logged out. Continuing as a guest.' });
+        return;
+      }
+      if (requestUrl.pathname === '/api/auth/pilot-name') {
+        const limit = limitedBy('pilot-name', identity.pilotId, securityLimits.namePilot);
+        if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
+        const name = normalizePilotName(payload.pilotName);
+        if (!name) { jsonResponse(response, 400, { error: 'Pilot name must be 3–20 characters using letters, numbers, spaces, or . _ \' -.' }); return; }
+        const profile = profileStore.setPilotName(identity.pilotId, name);
+        if (!profile) { jsonResponse(response, 400, { error: 'Pilot name could not be changed.' }); return; }
+        updateConnectedPilotName(identity.pilotId, profile);
+        jsonResponse(response, 200, { account: pilotSessions.status(identity.session), profile, message: 'Pilot name updated.' });
+        return;
+      }
+      response.writeHead(404); response.end('Not found'); return;
+    } catch (error) {
+      console.error('[auth] account request failed', error instanceof Error ? error.message : 'unknown');
+      jsonResponse(response, 500, { error: 'Account service is temporarily unavailable.' });
+      return;
+    }
   }
   if (requestUrl.pathname === '/api/stripe/webhook') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
@@ -573,6 +748,7 @@ const httpServer = createServer(async (request, response) => {
   }
   if (requestUrl.pathname === '/api/firehawk/checkout') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
     const pilotLimit = limitedBy('checkout-pilot', identity.pilotId, securityLimits.checkoutPilot);
@@ -604,6 +780,7 @@ const httpServer = createServer(async (request, response) => {
   }
   if (requestUrl.pathname === '/api/firehawk/restore') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
     const pilotLimit = limitedBy('recovery-pilot', identity.pilotId, securityLimits.recoveryPilot);
@@ -639,6 +816,7 @@ const httpServer = createServer(async (request, response) => {
       return;
     }
     if (request.method === 'POST') {
+      if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
       const payload = await readJson(request);
       let profile: PlayerProfile | undefined;
       let error: string | undefined;
@@ -906,12 +1084,17 @@ function awardSocialPlayer(playerId: string, score: number, credits: number, rea
   if (!player || !progressionEnabled(player)) return;
   const reward = rewardWithHeat(playerId, score, credits);
   player.score += reward.score;
+  persistScore(player, reward.score);
   const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { challengeCompletions: reason.includes('CHALLENGE WON') ? 1 : 0 });
   if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
   if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'social' });
   sendToPlayer(playerId, { type: 'socialReward', score: reward.score, credits: reward.credits, reason });
   broadcastLeaderboard(player.cityId);
   updateKing(player.cityId);
+}
+
+function persistScore(player: PlayerState, amount: number): void {
+  if (isHumanPilot(player) && progressionEnabled(player) && amount > 0) profileStore.awardScore(player.pilotId, amount);
 }
 
 function isSocialPairEligible(first: PlayerState, second: PlayerState): boolean {
@@ -1497,6 +1680,7 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   const canProgress = progressionEnabled(player);
   const challengeScore = canProgress ? challenge.reward : 0;
   player.score += challengeScore;
+  persistScore(player, challengeScore);
   const challengeCredits = canProgress ? challengeCreditReward(challenge.reward) : 0;
   const profile = canProgress ? profileStore.awardServerReward(player.pilotId, challengeCredits, { challengeCompletions: 1 }) : undefined;
   if (profile) sendProfile(playerId, profile, undefined, undefined, 'Sky Challenge');
@@ -1648,7 +1832,8 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
   if (isHumanPilot(player)) {
     const result = profileStore.awardServerRewardOnce(player.pilotId, `chaos-event:${event.id}`, reward.credits, { eventCompletions: 1 });
     if (!result.awarded) return;
-    const profile = result.profile;
+    persistScore(player, reward.score);
+    const profile = profileStore.getOrCreate(player.pilotId, player.displayName);
     if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
     if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'event', metadata: { eventType: event.type, mammothCargoBonus: cargoReward.bonusCredits, cargoBonusApplied: cargoReward.applied } });
     recordObjectiveActivity(playerId, 'event');
@@ -1704,6 +1889,7 @@ function registerChaosAction(playerId: string, action: keyof typeof chaosActionV
   const reward = rewardWithHeat(playerId, baseScore, 0, now);
   previous.pendingCredits += Math.max(1, Math.floor(reward.score / 50));
   player.score += reward.score;
+  persistScore(player, reward.score);
   playerChaos.set(playerId, previous);
   if (action === 'stunt') recordObjectiveActivity(playerId, 'stunt');
   sendToPlayer(playerId, { type: 'chaosState', multiplier, action, score: reward.score, pendingCredits: previous.pendingCredits });
@@ -1861,6 +2047,7 @@ function awardTerritory(playerId: string, territory: TerritoryRuntime, kind: 'ca
   territoryRewardCooldown.set(key, now);
   const reward = rewardWithHeat(playerId, kind === 'capture' ? 125 : 35, kind === 'capture' ? 250 : 15, now);
   player.score += reward.score;
+  persistScore(player, reward.score);
   if (isHumanPilot(player)) {
     const profile = profileStore.awardServerReward(player.pilotId, reward.credits);
     if (profile) sendProfile(playerId, profile, undefined, undefined, kind === 'capture' ? 'Territory Captured' : 'Territory Held');
@@ -2892,6 +3079,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   const rewardScale = victim.isBot ? botKillRewardMultiplier : 1;
   const killReward = eligibleForReward ? rewardWithHeat(ownerId, 500 * rewardScale, 200 * rewardScale, now) : { score: 0, credits: 0, multiplier: 1 };
   killer.score += killReward.score;
+  persistScore(killer, killReward.score);
   if (isHumanPilot(killer)) {
     const killerProfile = progressionEnabled(killer) ? profileStore.awardServerReward(killer.pilotId, killReward.credits, { kills: victim.isBot ? 0 : 1 }) : undefined;
     if (killerProfile) sendProfile(ownerId, killerProfile, undefined, undefined, victim.isBot ? 'AI Pilot Destroyed' : 'Enemy Destroyed');
@@ -4109,24 +4297,45 @@ function requestedPilotName(request: IncomingMessage): string {
   return (url.searchParams.get('pilotName') ?? '').slice(0, 20);
 }
 
-function authenticatedIdentity(request: IncomingMessage, response: ServerResponse): { pilotId: string; pilotName: string; clientIp: string } | undefined {
+function authenticatedIdentity(request: IncomingMessage, response: ServerResponse): { pilotId: string; pilotName: string; clientIp: string; session: SessionIdentity } | undefined {
   const clientIp = trustedClientIp(request);
-  const resolved = pilotSessions.resolve(request.headers.cookie);
-  if (resolved) return { pilotId: resolved, pilotName: requestedPilotName(request), clientIp };
+  const resolved = pilotSessions.resolveSession(request.headers.cookie);
+  if (resolved) return { pilotId: resolved.pilotId, pilotName: requestedPilotName(request), clientIp, session: resolved };
   const issuanceLimit = limitedBy('session-ip', clientIp, securityLimits.sessionIp);
   if (issuanceLimit.limited) { rateLimited(response, issuanceLimit.retryAfterMs); return undefined; }
   const url = new URL(request.url ?? '/', 'http://localhost');
   const legacyId = url.searchParams.get('pilotId') ?? '';
   const issued = pilotSessions.issue(legacyId, /^[a-zA-Z0-9-]{16,80}$/.test(legacyId) && profileStore.hasProfile(legacyId));
-  const host = (request.headers.host ?? '').toLowerCase();
-  const secure = !host.startsWith('localhost:') && !host.startsWith('127.0.0.1:');
-  response.setHeader('Set-Cookie', pilotSessions.cookie(issued.cookie, secure));
-  return { pilotId: issued.pilotId, pilotName: requestedPilotName(request), clientIp };
+  response.setHeader('Set-Cookie', pilotSessions.cookie(issued.cookie, secureCookieRequest(request), issued.expiresAt));
+  return { pilotId: issued.pilotId, pilotName: requestedPilotName(request), clientIp, session: { pilotId: issued.pilotId, tokenHash: issued.tokenHash } };
 }
 
-function sessionIdentity(request: IncomingMessage): { pilotId: string; pilotName: string } | undefined {
-  const pilotId = pilotSessions.resolve(request.headers.cookie);
-  return pilotId ? { pilotId, pilotName: requestedPilotName(request) } : undefined;
+function sessionIdentity(request: IncomingMessage): { pilotId: string; pilotName: string; session: SessionIdentity } | undefined {
+  const session = pilotSessions.resolveSession(request.headers.cookie);
+  return session ? { pilotId: session.pilotId, pilotName: requestedPilotName(request), session } : undefined;
+}
+
+function closeSessionConnections(tokenHash: string): void {
+  for (const [socket, playerId] of playerSockets) {
+    if (players.get(playerId)?.sessionTokenHash !== tokenHash) continue;
+    removeHumanConnection(socket);
+    socket.close(4003, 'Session changed');
+  }
+}
+
+function updateConnectedPilotName(pilotId: string, profile: PlayerProfile): void {
+  for (const [playerId, player] of players) {
+    if (player.pilotId !== pilotId || player.isBot) continue;
+    player.profile = profile;
+    player.displayName = profile.pilotName;
+    broadcastToCity(player.cityId, {
+      type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
+      position: player.position, rotation: player.rotation, aircraftType: player.aircraftType,
+      equippedCosmetics: player.profile.cosmetics.equipped, cityId: player.cityId,
+      displayName: player.displayName, boostActive: player.boostActive, maxHealth: maxHealthForAircraft(player.aircraftType),
+    });
+    broadcastLeaderboard(player.cityId);
+  }
 }
 
 function reserveSpawnSlot(cityId: CityId): number {
@@ -4212,6 +4421,7 @@ server.on('connection', (socket, request) => {
 
   players.set(playerId, {
     pilotId: profile.pilotId,
+    sessionTokenHash: identity.session.tokenHash,
     profile,
     entityType: 'player',
     isBot: false,
@@ -4407,13 +4617,8 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'player') {
-        if (typeof message.displayName === 'string' && message.displayName.trim()) {
-          const profile = profileStore.setPilotName(player.pilotId, message.displayName);
-          if (profile) {
-            player.profile = profile;
-            player.displayName = profile.pilotName;
-          }
-        }
+        // Names are durable profile data and may only change through the
+        // validated, rate-limited HTTP account/profile endpoint.
         broadcastLeaderboard(player.cityId);
         updateKing(player.cityId);
         return;

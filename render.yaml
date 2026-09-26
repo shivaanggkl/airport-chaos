@@ -15,6 +15,14 @@ services:
         sync: false
       - key: AIRPORT_CHAOS_TRIAL_IP_SECRET
         sync: false
+      - key: AIRPORT_CHAOS_WEB_ORIGIN
+        value: https://fly.vadensoftware.com
+      - key: AIRPORT_CHAOS_GOOGLE_CLIENT_ID
+        sync: false
+      - key: AIRPORT_CHAOS_GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: AIRPORT_CHAOS_GOOGLE_REDIRECT_URI
+        value: https://fly.vadensoftware.com/api/auth/oauth/google/callback
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

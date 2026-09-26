@@ -53,8 +53,19 @@ export type PilotMenuTerritory = {
 export type PilotMenuObjective = { label: string; progress: number; target: number; reward: number; completed: boolean };
 export type PilotMenuMission = { id: string; name: string; detail: string; difficulty: string; credits: number; score: number; completions: number; cooldownUntil: number; territoryIds: readonly string[]; retired?: boolean; unavailableReason?: string; progressText?: string; progress?: number; target?: number; setWaypoint?: () => void };
 export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium: boolean; price: number; neededCredits: number };
+export type PilotMenuAccountResult = { ok: boolean; message: string };
 
 export type PilotMenuData = {
+  account: {
+    state: 'guest' | 'account'; email?: string; pilotName: string;
+    providers: { password: boolean; google: boolean; apple: boolean };
+    level: number; xp: number; credits: number; score: number; ownedAircraft: number; badges: number;
+    signUp: (email: string, password: string) => Promise<PilotMenuAccountResult>;
+    signIn: (email: string, password: string) => Promise<PilotMenuAccountResult>;
+    logOut: () => Promise<PilotMenuAccountResult>;
+    changeName: (pilotName: string) => Promise<PilotMenuAccountResult>;
+    providerAuth: (provider: 'google' | 'apple', action: 'login' | 'link') => Promise<PilotMenuAccountResult>;
+  };
   city: { name: string; timePreset: string; changeCity: () => void };
   intercity: { routes: readonly {routeId:string;destination:string;distanceLabel:string;recommendedAircraft:string;estimatedFlightTime:number;available:boolean;reason?:string;start:()=>void}[] };
   progression: { enabled: boolean; credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[];
@@ -135,7 +146,7 @@ function territoryDot(name: string, color: string): HTMLElement {
 export class PilotMenu {
   private openState = false;
   private content: HTMLDivElement | undefined;
-  private readonly sections = ['MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'] as const;
+  private readonly sections = ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'] as const;
   private activeSection: (typeof this.sections)[number] = 'MISSIONS';
   private navigation: HTMLElement | undefined;
   private lastData: PilotMenuData | undefined;
@@ -218,6 +229,7 @@ export class PilotMenu {
 
   private snapshot(data: PilotMenuData): string {
     switch (this.activeSection) {
+      case 'PROFILE': return JSON.stringify([this.activeSection, data.account.state, data.account.email, data.account.providers, data.account.pilotName, data.account.level, data.account.xp, data.account.credits, data.account.score, data.account.ownedAircraft, data.account.badges]);
       case 'MISSIONS': return JSON.stringify([this.activeSection, data.missions.activeId,
         data.missions.activeCity, data.missions.entries.map(({ id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds }) =>
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
@@ -356,6 +368,79 @@ export class PilotMenu {
       button.hidden = (sectionName === 'TERRITORIES' && !data.territories.enabled) || (sectionName === 'PROGRESS' && !data.progression.enabled);
       button.classList.toggle('active', button.dataset.section === this.activeSection);
       button.setAttribute('aria-current', button.dataset.section === this.activeSection ? 'page' : 'false');
+    }
+
+    if (this.activeSection === 'PROFILE') {
+      const profile = section('PROFILE / ACCOUNT');
+      const account = data.account;
+      const identity = document.createElement('div'); identity.className = 'pilot-account-summary';
+      identity.append(
+        textElement('strong', account.pilotName),
+        textElement('span', account.state === 'account' ? account.email ?? 'ACCOUNT' : 'GUEST'),
+        textElement('span', `LEVEL ${account.level} · ${account.xp.toLocaleString()} XP`),
+        textElement('span', `${account.credits.toLocaleString()} CREDITS · ${account.score.toLocaleString()} SCORE`),
+        textElement('span', `${account.ownedAircraft} AIRCRAFT · ${account.badges} BADGES`),
+      );
+      profile.append(identity);
+      const message = textElement('p', '', 'pilot-account-message'); message.setAttribute('role', 'status'); message.hidden = true;
+      const run = async (button: HTMLButtonElement, action: () => Promise<PilotMenuAccountResult>) => {
+        button.disabled = true; message.hidden = false; message.textContent = 'PLEASE WAIT…';
+        try { const result = await action(); message.textContent = result.message; message.classList.toggle('error', !result.ok); }
+        catch { message.textContent = 'ACCOUNT SERVICE UNAVAILABLE'; message.classList.add('error'); }
+        finally { button.disabled = false; }
+      };
+      const nameForm = document.createElement('form'); nameForm.className = 'pilot-account-form';
+      const nameInput = document.createElement('input'); nameInput.name = 'pilotName'; nameInput.value = account.pilotName; nameInput.minLength = 3; nameInput.maxLength = 20; nameInput.required = true; nameInput.setAttribute('autocomplete', 'nickname'); nameInput.setAttribute('aria-label', 'Pilot name');
+      const nameButton = actionButton({ label: 'CHANGE NAME', run: () => undefined }); nameButton.type = 'submit';
+      nameForm.append(textElement('label', 'PILOT NAME'), nameInput, nameButton);
+      nameForm.addEventListener('submit', (event) => { event.preventDefault(); void run(nameButton, () => account.changeName(nameInput.value)); });
+      profile.append(nameForm);
+      if (account.state === 'guest') {
+        profile.append(textElement('p', 'Create an account to use this pilot on another browser or device. Your current progress and purchases stay with this pilot.', 'pilot-menu-muted'));
+        const providers = document.createElement('div'); providers.className = 'pilot-account-providers';
+        for (const provider of ['google', 'apple'] as const) {
+          const label = `CONTINUE WITH ${provider.toUpperCase()}`;
+          const button = actionButton({ label, intent: 'primary', run: () => void run(button, () => account.providerAuth(provider, 'login')) });
+          button.classList.add('pilot-provider-button', `pilot-provider-${provider}`);
+          providers.append(button);
+        }
+        profile.append(providers);
+        const authForms = document.createElement('div'); authForms.className = 'pilot-account-auth-forms';
+        const makeAuthForm = (title: string, submitLabel: string, action: (email: string, password: string) => Promise<PilotMenuAccountResult>) => {
+          const form = document.createElement('form'); form.className = 'pilot-account-auth-form';
+          form.append(textElement('h3', title));
+          const email = document.createElement('input'); email.type = 'email'; email.required = true; email.maxLength = 254; email.autocomplete = 'email'; email.placeholder = 'Email'; email.setAttribute('aria-label', `${title} email`);
+          const password = document.createElement('input'); password.type = 'password'; password.required = true; password.minLength = 10; password.maxLength = 128; password.autocomplete = title === 'CREATE ACCOUNT' ? 'new-password' : 'current-password'; password.placeholder = title === 'CREATE ACCOUNT' ? 'Password (10+ characters)' : 'Password'; password.setAttribute('aria-label', `${title} password`);
+          const submit = actionButton({ label: submitLabel, run: () => undefined, intent: title === 'CREATE ACCOUNT' ? 'primary' : undefined }); submit.type = 'submit';
+          form.append(email, password, submit);
+          form.addEventListener('submit', (event) => { event.preventDefault(); void run(submit, () => action(email.value, password.value)); });
+          return form;
+        };
+        authForms.append(makeAuthForm('CREATE ACCOUNT', 'CREATE ACCOUNT', account.signUp), makeAuthForm('SIGN IN', 'SIGN IN', account.signIn));
+        profile.append(authForms, actionButton({ label: 'CONTINUE AS GUEST', run: () => this.close() }));
+      } else {
+        profile.append(textElement('p', 'Your progression, purchases, aircraft and cosmetics are linked to this account.', 'pilot-menu-muted'));
+        const linked = document.createElement('div'); linked.className = 'pilot-account-linked';
+        linked.append(textElement('h3', 'LINKED ACCOUNTS'));
+        const methods: Array<{ provider: 'password' | 'google' | 'apple'; label: string }> = [
+          { provider: 'google', label: 'GOOGLE' }, { provider: 'apple', label: 'APPLE' }, { provider: 'password', label: 'EMAIL' },
+        ];
+        for (const method of methods) {
+          const row = document.createElement('div'); row.className = 'pilot-account-linked-row';
+          row.append(textElement('span', method.label), textElement('strong', account.providers[method.provider] ? 'CONNECTED' : 'NOT CONNECTED'));
+          if (method.provider !== 'password' && !account.providers[method.provider]) {
+            const provider = method.provider;
+            const button = actionButton({ label: `LINK ${method.label}`, run: () => void run(button, () => account.providerAuth(provider, 'link')) });
+            row.append(button);
+          }
+          linked.append(row);
+        }
+        profile.append(
+          linked,
+          actionButton({ label: 'LOG OUT', intent: 'danger', run: () => { const button = this.content?.querySelector<HTMLButtonElement>('.pilot-menu-danger'); if (button) void run(button, account.logOut); } }),
+        );
+      }
+      profile.append(message); content.append(profile);
     }
 
     if (this.activeSection === 'MISSIONS') {
