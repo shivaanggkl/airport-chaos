@@ -87,9 +87,13 @@
       </div>
     </div>
     <aside id="desktop-controls-help" class="desktop-controls-help" hidden aria-hidden="true" aria-label="Desktop flight controls">
-      <span><kbd>W/S</kbd> Speed</span><span><kbd>←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Altitude</span>
-      <span><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span><span><kbd>H</kbd> Controls</span>
-      <span class="desktop-controls-help-camera"><kbd>Mouse Drag</kbd> Camera</span><span class="desktop-controls-help-camera"><kbd>Mouse Wheel</kbd> Zoom</span>
+      <button id="desktop-controls-help-toggle" type="button" aria-controls="desktop-controls-help-items" aria-expanded="true" title="Collapse controls reference">◀</button>
+      <div id="desktop-controls-help-items" class="desktop-controls-help-items">
+        <span><kbd>W/S</kbd> Speed</span><span><kbd>←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Altitude</span>
+        <span><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span>
+        <span class="desktop-controls-help-camera"><kbd>Mouse Drag</kbd> Camera</span><span class="desktop-controls-help-camera"><kbd>Mouse Wheel</kbd> Zoom</span>
+        <span><kbd>H</kbd> Controls</span>
+      </div>
     </aside>
     <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
     <div id="gameplay-feedback" hidden aria-live="polite"></div>

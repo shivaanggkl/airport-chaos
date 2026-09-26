@@ -4,6 +4,8 @@ import test from 'node:test';
 
 const controlsSource = readFileSync(new URL('../../client/src/controls-help.ts', import.meta.url), 'utf8');
 const inputSource = readFileSync(new URL('../../client/src/flight-input.ts', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+const styleSource = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 
 test('H toggles help only on non-touch gameplay layouts', () => {
   assert.match(controlsSource, /code === 'KeyH' && !touchLayout && !isEditableControl\(target\)/);
@@ -12,6 +14,7 @@ test('H toggles help only on non-touch gameplay layouts', () => {
 test('H is not captured from editable controls', () => {
   for (const tag of ['INPUT', 'TEXTAREA', 'SELECT']) assert.match(controlsSource, new RegExp(`tagName === '${tag}'`));
   assert.match(controlsSource, /isContentEditable/);
+  for (const role of ['textbox', 'searchbox', 'combobox']) assert.match(controlsSource, new RegExp(`role="${role}"`));
 });
 
 test('desktop reference is sourced from current supported flight bindings', () => {
@@ -20,6 +23,15 @@ test('desktop reference is sourced from current supported flight bindings', () =
   assert.match(inputSource, /ShiftLeft:\s*'boost'/);
   assert.doesNotMatch(inputSource, /Key[PX]:/);
   assert.doesNotMatch(inputSource, /label:\s*'[^']*(?:photo|barrel|dodge)/i);
+});
+
+test('desktop controls state is persistent and has no auto-hide path', () => {
+  assert.match(mainSource, /airport-chaos-desktop-controls-help-v1/);
+  assert.match(mainSource, /=== 'collapsed'/);
+  assert.match(mainSource, /collapsed \? 'collapsed' : 'expanded'/);
+  assert.match(mainSource, /desktopControlsHelpToggleElement\.addEventListener\('click', toggleDesktopControlsHelp\)/);
+  assert.doesNotMatch(mainSource, /controlsHelp(?:AutoHide|Conceal)Timer|showDesktopControlsHelp|hideDesktopControlsHelp/);
+  assert.doesNotMatch(styleSource, /desktop-controls-help\.is-visible/);
 });
 
 test('flight screen uses one ordered HUD and no legacy utility panels', () => {
@@ -32,4 +44,7 @@ test('flight screen uses one ordered HUD and no legacy utility panels', () => {
   assert.doesNotMatch(html, /id="mobile-(?:score|speed|altitude|mission)"/);
   assert.doesNotMatch(html, /id="(?:flight-status|progression-readout|aircraft-select|hud)"/);
   assert.match(html, /id="desktop-controls-help"[^>]*hidden/);
+  assert.match(html, /id="desktop-controls-help-toggle"[^>]*aria-expanded="true"/);
+  assert.match(html, /id="desktop-controls-help-items"/);
+  assert.doesNotMatch(html, /Photo Mode|Barrel Roll|Dodge/i);
 });

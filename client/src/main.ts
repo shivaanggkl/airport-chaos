@@ -988,6 +988,8 @@ const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#fl
 const flightWorldButtonElement = document.querySelector<HTMLButtonElement>('#flight-world-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
 const desktopControlsHelpElement = document.querySelector<HTMLElement>('#desktop-controls-help')!;
+const desktopControlsHelpToggleElement = document.querySelector<HTMLButtonElement>('#desktop-controls-help-toggle')!;
+const desktopControlsHelpItemsElement = document.querySelector<HTMLElement>('#desktop-controls-help-items')!;
 const contextualHintElement = document.querySelector<HTMLElement>('#contextual-hint')!;
 const contextualHintTitleElement = document.querySelector<HTMLElement>('#contextual-hint-title')!;
 const contextualHintBodyElement = document.querySelector<HTMLElement>('#contextual-hint-body')!;
@@ -2882,35 +2884,34 @@ const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#
   if(active){heldActions.add(action);runStarted=true;if(action==='fire')fireWeaponOnce();}
   else heldActions.delete(action);
 },()=>{reportTouchInput();runStarted=true;});
-let controlsHelpAutoHideTimer: number | undefined;
-let controlsHelpConcealTimer: number | undefined;
-let lastTouchLayout = mobileInput.isTouchLayout();
-function hideDesktopControlsHelp(immediate = false): void {
-  window.clearTimeout(controlsHelpAutoHideTimer);
-  window.clearTimeout(controlsHelpConcealTimer);
-  desktopControlsHelpElement.classList.remove('is-visible');
-  desktopControlsHelpElement.setAttribute('aria-hidden', 'true');
-  if (immediate) desktopControlsHelpElement.hidden = true;
-  else controlsHelpConcealTimer = window.setTimeout(() => { desktopControlsHelpElement.hidden = true; }, 260);
+const desktopControlsHelpPreferenceKey = 'airport-chaos-desktop-controls-help-v1';
+let desktopControlsHelpCollapsed = false;
+try { desktopControlsHelpCollapsed = localStorage.getItem(desktopControlsHelpPreferenceKey) === 'collapsed'; } catch { /* default expanded */ }
+function renderDesktopControlsHelp(): void {
+  const touchLayout = mobileInput.isTouchLayout();
+  desktopControlsHelpElement.hidden = touchLayout;
+  desktopControlsHelpElement.setAttribute('aria-hidden', touchLayout ? 'true' : 'false');
+  desktopControlsHelpElement.classList.toggle('is-collapsed', desktopControlsHelpCollapsed);
+  desktopControlsHelpItemsElement.hidden = desktopControlsHelpCollapsed;
+  desktopControlsHelpToggleElement.textContent = desktopControlsHelpCollapsed ? '▶ CONTROLS' : '◀';
+  desktopControlsHelpToggleElement.setAttribute('aria-expanded', desktopControlsHelpCollapsed ? 'false' : 'true');
+  desktopControlsHelpToggleElement.title = desktopControlsHelpCollapsed ? 'Expand controls reference' : 'Collapse controls reference';
 }
-function showDesktopControlsHelp(duration = 9_000): void {
-  if (mobileInput.isTouchLayout()) { hideDesktopControlsHelp(true); return; }
-  window.clearTimeout(controlsHelpAutoHideTimer);
-  window.clearTimeout(controlsHelpConcealTimer);
-  desktopControlsHelpElement.hidden = false;
-  desktopControlsHelpElement.setAttribute('aria-hidden', 'false');
-  requestAnimationFrame(() => desktopControlsHelpElement.classList.add('is-visible'));
-  controlsHelpAutoHideTimer = window.setTimeout(() => hideDesktopControlsHelp(), duration);
+function setDesktopControlsHelpCollapsed(collapsed: boolean): void {
+  desktopControlsHelpCollapsed = collapsed;
+  try { localStorage.setItem(desktopControlsHelpPreferenceKey, collapsed ? 'collapsed' : 'expanded'); } catch { /* Optional local preference. */ }
+  renderDesktopControlsHelp();
+}
+function toggleDesktopControlsHelp(): void {
+  setDesktopControlsHelpCollapsed(!desktopControlsHelpCollapsed);
 }
 function syncDesktopControlsHelp(): void {
-  const touchLayout = mobileInput.isTouchLayout();
-  if (touchLayout) hideDesktopControlsHelp(true);
-  else if (lastTouchLayout) showDesktopControlsHelp(12_000);
-  lastTouchLayout = touchLayout;
+  renderDesktopControlsHelp();
 }
 window.addEventListener('resize', syncDesktopControlsHelp);
 window.addEventListener('orientationchange', syncDesktopControlsHelp);
-if (!lastTouchLayout) showDesktopControlsHelp();
+desktopControlsHelpToggleElement.addEventListener('click', toggleDesktopControlsHelp);
+renderDesktopControlsHelp();
 let runStarted = false;
 const guidedTutorialKey=`airport-chaos-guided-tutorial-v1:${persistedPlayer.pilotId}`;
 let guidedTutorialActive=false;let guidedTutorialStep='throttle';let guidedTutorialStepAt=performance.now();let guidedTutorialTargetAirport:AirportDefinition|undefined;
@@ -2962,8 +2963,7 @@ window.addEventListener('keydown', (event) => {
   }
   if (!worldMap.isOpen() && shouldToggleDesktopControlsHelp(event.code, mobileInput.isTouchLayout(), event.target)) {
     event.preventDefault();
-    if (desktopControlsHelpElement.classList.contains('is-visible')) hideDesktopControlsHelp();
-    else showDesktopControlsHelp(12_000);
+    toggleDesktopControlsHelp();
     return;
   }
   if (flightControlCodes.has(event.code)) {

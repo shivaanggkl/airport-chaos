@@ -485,6 +485,8 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .contextual-hint button { margin-top: 6px; padding: 3px 7px; color: #dff7fa; border: 1px solid rgb(120 205 222 / 42%); border-radius: 3px; background: rgb(47 120 139 / 58%); font: 800 9px ui-monospace, monospace; cursor: pointer; }
 .contextual-hint button:hover, .contextual-hint button:focus-visible { background: rgb(69 155 174 / 78%); }
 @media (max-width: 680px) { .contextual-hint { left: 10px; bottom: 12px; width: min(300px, calc(100vw - 20px)); } }
+body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
+@media (min-height: 701px) { body:has(.desktop-controls-help:not([hidden])) .contextual-hint { bottom: 84px; } }
 
 .online {
   color: #74e89a;
@@ -985,26 +987,42 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 .desktop-controls-help {
   position: fixed;
   z-index: 9;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  left: 50%;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: max(8px, env(safe-area-inset-left));
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px 15px;
-  width: min(980px, calc(100vw - 40px));
-  padding: 7px 14px;
+  gap: 9px;
+  max-width: calc(100vw - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right)));
+  min-height: 28px;
+  padding: 3px 7px;
   box-sizing: border-box;
   color: rgb(220 241 246 / 86%);
-  background: linear-gradient(90deg, transparent, rgb(2 13 21 / 55%) 10%, rgb(2 13 21 / 55%) 90%, transparent);
+  border: 1px solid rgb(147 203 220 / 14%);
+  border-radius: 5px;
+  background: rgb(2 13 21 / 42%);
   font: 700 9px/1.35 ui-monospace, monospace;
   letter-spacing: .025em;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 7px);
-  transition: opacity 240ms ease, transform 240ms ease;
+  pointer-events: auto;
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
 .desktop-controls-help[hidden] { display: none; }
-.desktop-controls-help.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.desktop-controls-help.is-collapsed { background: rgb(2 13 21 / 34%); border-color: rgb(147 203 220 / 11%); }
+.desktop-controls-help-items { display: flex; align-items: center; justify-content: flex-start; gap: 4px 11px; flex-wrap: wrap; }
+.desktop-controls-help-items[hidden] { display: none; }
+.desktop-controls-help-items span:not(:last-child)::after { content: '•'; margin-left: 11px; color: rgb(178 214 222 / 52%); }
+.desktop-controls-help button {
+  flex: none;
+  min-width: 24px;
+  min-height: 20px;
+  padding: 2px 5px;
+  color: rgb(224 245 249 / 84%);
+  border: 1px solid rgb(147 203 220 / 22%);
+  border-radius: 3px;
+  background: rgb(13 43 57 / 38%);
+  font: 800 8px/1 ui-monospace, monospace;
+  cursor: pointer;
+}
+.desktop-controls-help button:hover { color: #fff; border-color: rgb(164 232 243 / 48%); background: rgb(27 77 94 / 46%); }
 .desktop-controls-help kbd { color: #fff4bf; font: 900 9px ui-monospace, monospace; }
 
 .glass-instrument,
@@ -1701,7 +1719,7 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
 .touch-controls-active :is(#real-players,#city-territories).expanded{width:124px;padding:4px 6px 6px}
 .touch-controls-active #human-player-rows,.touch-controls-active #city-territory-rows{max-height:60px}
 body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
-@media(max-width:1100px){.desktop-controls-help{left:20px;width:calc(100vw - 220px);transform:translateY(7px)}.desktop-controls-help.is-visible{transform:translateY(0)}.desktop-controls-help-camera{display:none}}
+@media(max-width:1100px){.desktop-controls-help:not(.is-collapsed){right:210px;max-width:none}.desktop-controls-help-items{gap:3px 8px}.desktop-controls-help-items span:not(:last-child)::after{margin-left:8px}.practice-mode-label{bottom:max(60px,calc(env(safe-area-inset-bottom) + 52px))}}
 @media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:clamp(4px,1vw,7px);width:calc(100vw - 12px);padding:2px 4px}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:6px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-mission{min-width:auto}.unified-flight-hud button{min-width:36px;min-height:32px;padding:3px 5px}.reward-feedback{max-width:calc(100vw - 150px);padding:2px 5px;font-size:9px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
 @media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback{animation:none!important;transition:none!important}}
@@ -2166,7 +2184,7 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 .flight-notifications .world-status { padding: 4px 8px; overflow: hidden; border-radius: 4px; background: rgb(43 31 8 / 68%); text-overflow: ellipsis; white-space: nowrap; }
 .flight-notifications .territory-defense-alert { pointer-events: auto; }
 .flight-notifications #progress-message { padding: 4px 8px; color: #bdebf4; border-radius: 4px; background: rgb(5 18 31 / 76%); font-size: 9px; }
-.practice-mode-label { position: fixed; z-index: 5; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 4px 8px; color: #bff7ee; background: rgb(4 24 35 / 58%); border: 1px solid rgb(111 255 240 / 34%); border-radius: 4px; font: 800 9px/1.2 ui-monospace, monospace; letter-spacing: .06em; pointer-events: none; white-space: nowrap; }
+.practice-mode-label { position: fixed; z-index: 5; left: 50%; bottom: max(42px, calc(env(safe-area-inset-bottom) + 34px)); transform: translateX(-50%); padding: 4px 8px; color: #bff7ee; background: rgb(4 24 35 / 58%); border: 1px solid rgb(111 255 240 / 34%); border-radius: 4px; font: 800 9px/1.2 ui-monospace, monospace; letter-spacing: .06em; pointer-events: none; white-space: nowrap; }
 .practice-mode-label small { margin-left: 5px; color: #c7d8df; font-size: 8px; }
 .practice-mode-label[hidden], .dallas-practice-suggestion[hidden] { display: none; }
 .flight-hud-danger[hidden], #social-panel[hidden], .map-intelligence-panel[hidden], #city-territories[hidden], #territory-capture[hidden], #territory-defense-alert[hidden] { display: none !important; }
