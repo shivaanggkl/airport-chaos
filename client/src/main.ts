@@ -18,7 +18,6 @@ import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } fr
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { GameplayFeedbackSystem } from './gameplay-feedback';
-import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData } from './pilot-menu';
 import { cityCapabilities, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
@@ -967,6 +966,7 @@ const finalScoreElement = document.querySelector<HTMLSpanElement>('#final-score'
 const crashOverlay = document.querySelector<HTMLDivElement>('#crash-overlay')!;
 const endTitleElement = document.querySelector<HTMLDivElement>('#end-title')!;
 const tutorialCrashActions=document.querySelector<HTMLElement>('#tutorial-crash-actions')!;
+document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListener('click',()=>restartGame());
 document.querySelector<HTMLButtonElement>('[data-tutorial-retry]')!.addEventListener('click',()=>restartGuidedTutorial());
 document.querySelector<HTMLButtonElement>('[data-tutorial-free]')!.addEventListener('click',()=>{exitGuidedTutorial('skipped');restartGame();});
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
@@ -2701,7 +2701,9 @@ function endRun(message: EndReason, title: string = message): void {
   endTitleElement.textContent = title;
   finalScoreElement.textContent = score.toString();
   crashOverlay.classList.remove('hidden');
-  tutorialCrashActions.hidden=!guidedTutorialActive;if(guidedTutorialActive)tutorialEvent('tutorial_crashed',guidedTutorialStep);
+  const tutorialRecoveryAvailable = cityRules.tutorialEnabled && guidedTutorialActive;
+  tutorialCrashActions.hidden = !tutorialRecoveryAvailable;
+  if (tutorialRecoveryAvailable) tutorialEvent('tutorial_crashed',guidedTutorialStep);
   showFlightRecap('FLIGHT COMPLETE');
   cameraShakeTime = 0.35;
   currentSpeed = 0;

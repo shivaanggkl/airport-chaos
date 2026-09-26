@@ -158,9 +158,8 @@
       <div class="crash-card">
         <div id="end-title" class="crash-title">CRASHED</div>
         <div>Final Session Score: <strong id="final-score">0</strong></div>
-        <div class="restart">Press R to Restart</div>
-        <div id="tutorial-crash-actions" class="tutorial-crash-actions" hidden><button type="button" data-tutorial-retry>RETRY TUTORIAL</button><button type="button" data-tutorial-free>CONTINUE FREE FLIGHT</button></div>
-        <div id="crash-brand-signature"></div>
+        <div class="crash-actions"><button type="button" data-crash-restart>RESTART FLIGHT</button></div>
+        <div id="tutorial-crash-actions" class="tutorial-crash-actions" hidden><button type="button" data-tutorial-retry>RETRY TUTORIAL</button><button type="button" data-tutorial-free>CONTINUE FREE PRACTICE</button></div>
       </div>
     </div>
     <section id="touch-controls" class="touch-controls" hidden aria-label="Touch flight controls">
@@ -185,6 +184,6 @@
     </div>
     <div id="garage-overlay" class="garage-overlay" hidden></div>
     <button id="tutorial-help" class="tutorial-help" type="button" aria-label="Tutorial / Help" title="Tutorial / Help">?</button>
-    <script type="module" src="/src/bootstrap.ts"></script>
+    <script type="module" src="/src/entry.ts"></script>
   </body>
 </html>

@@ -43,72 +43,15 @@ export async function mountAirportChaosLogo(container: HTMLElement, className: s
   container.classList.add('has-brand-logo');
 }
 
-export function createGameBrandSignature(className = ''): HTMLElement {
-  const signature = document.createElement('div');
-  signature.className = `game-brand-signature ${className}`.trim();
-
-  const gameName = document.createElement('strong');
-  gameName.textContent = gameBrand.gameName;
-  const studio = document.createElement('span');
-  studio.textContent = `Built by ${gameBrand.studioName}`;
-  const gameLink = document.createElement('a');
-  gameLink.href = gameBrand.gameUrl;
-  gameLink.target = '_blank';
-  gameLink.rel = 'noopener noreferrer';
-  gameLink.textContent = `Play free at ${gameBrand.gameUrlLabel}`;
-  signature.append(gameName, studio, gameLink);
-
-  const policies = document.createElement('nav');
-  policies.className = 'game-brand-policies';
-  for (const [label, route] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund Policy', legalConfig.policyRoutes.refund]] as const) {
-    const link = document.createElement('a');
-    link.href = route;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = label;
-    policies.append(link);
-  }
-  const support = document.createElement('a');
-  support.href = `mailto:${legalConfig.supportEmail}`;
-  support.textContent = 'Support';
-  policies.append(support);
-  signature.append(policies);
-
-  const legal = document.createElement('small');
-  legal.className = 'game-brand-legal';
-  legal.textContent = `© 2026 ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. All rights reserved.`;
-  signature.append(legal);
-
-  if (gameBrand.socialLinks.length > 0) {
-    const social = document.createElement('div');
-    social.className = 'game-brand-social';
-    social.append('Follow development');
-    for (const destination of gameBrand.socialLinks) {
-      const link = document.createElement('a');
-      link.href = destination.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = destination.label;
-      social.append(link);
-    }
-    signature.append(social);
-  }
-  return signature;
-}
-
-export function mountGameBrandSignature(container: HTMLElement, className = ''): void {
-  container.replaceChildren(createGameBrandSignature(className));
-}
-
 export function mountCompactBrandFooter(container: HTMLElement): void {
   const footer = document.createElement('div');
   footer.className = 'intro-brand-footer';
   const identity = document.createElement('span');
   identity.textContent = `${gameBrand.gameName} • Built by ${gameBrand.studioName}`;
   const links = document.createElement('nav');
-  for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund', legalConfig.policyRoutes.refund], ['Support', `mailto:${legalConfig.supportEmail}`]] as const) {
+  for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund', legalConfig.policyRoutes.refund], ['Support', legalConfig.policyRoutes.support]] as const) {
     const link = document.createElement('a'); link.href = href; link.textContent = label;
-    if (!href.startsWith('mailto:')) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    link.target = '_blank'; link.rel = 'noopener noreferrer';
     links.append(link);
   }
   footer.append(identity, links);

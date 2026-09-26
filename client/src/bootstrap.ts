@@ -3,7 +3,7 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from
 import { AircraftGarage, type GarageProfile } from './garage';
 import type { AircraftType } from './aircraft';
 import { flightTutorial } from './tutorial';
-import { mountAirportChaosLogo, mountCompactBrandFooter, mountGameBrandSignature } from './brand';
+import { mountAirportChaosLogo, mountCompactBrandFooter } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
@@ -24,7 +24,6 @@ const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const launchBackground = setupLaunchBackground(document.querySelector<HTMLElement>('#launch-background')!);
 void mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-kicker')!, 'brand-logo-home');
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
-mountGameBrandSignature(document.querySelector<HTMLElement>('#crash-brand-signature')!, 'game-brand-signature-crash');
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
 type GarageIdentity = { pilotId: string; displayName: string; credits: number; selectedAircraft: AircraftType };

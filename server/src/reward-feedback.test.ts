@@ -46,6 +46,6 @@ test('Radar, Players, and Territories share the responsive top-right stack', () 
   const panels = readFileSync(new URL('../../client/src/players-panel.ts', import.meta.url), 'utf8');
   assert.match(html, /id="right-flight-stack"[\s\S]*id="radar-panel"[\s\S]*id="right-hud-stack"[\s\S]*id="real-players"[\s\S]*id="city-territories"/);
   assert.match(css, /#right-flight-stack\s*\{[^}]*position:\s*fixed;[^}]*top:\s*max\(56px/);
-  assert.match(css, /#radar-panel\s*\{[^}]*background:\s*rgb\(3 14 23 \/ 22%\);/);
+  assert.match(css, /#radar-panel\s*\{[^}]*background:\s*rgb\(24 52 74 \/ 32%\);/);
   assert.match(panels, /matchMedia\('\(pointer: coarse\)'\)\.matches \|\| innerWidth <= 900/);
 });

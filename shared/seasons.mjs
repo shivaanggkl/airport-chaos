@@ -4,15 +4,10 @@ export const WEEK_MS = 7 * DAY_MS;
 export const seasonCatalog = [{
   seasonId: 'season_001_launch', name: 'Launch Season', theme: 'First Flights', cityId: 'dallas', enabled: true,
   startsAt: Date.UTC(2026, 8, 1), endsAt: Date.UTC(2026, 8, 29), rewardTrackId: 'launch_free',
-  premiumTrack: { enabled: false, rewards: [] }, featuredCosmeticId: 'bluejay-launch', sponsorSlotId: undefined,
+  premiumTrack: { enabled: false, rewards: [] }, featuredCosmeticId: undefined, sponsorSlotId: undefined,
   rewards: [
     { id: 'launch-100', points: 100, type: 'credits', amount: 500, label: '500 Credits' },
-    { id: 'launch-250', points: 250, type: 'cosmetic', value: 'title-launch-pilot', label: 'Launch Pilot title' },
-    { id: 'launch-500', points: 500, type: 'cosmetic', value: 'decal-first-flight', label: 'First Flight decal' },
     { id: 'launch-900', points: 900, type: 'credits', amount: 1500, label: '1,500 Credits' },
-    { id: 'launch-1300', points: 1300, type: 'cosmetic', value: 'frame-launch-season', label: 'Launch photo frame' },
-    { id: 'launch-1800', points: 1800, type: 'cosmetic', value: 'badge-first-flights-ace', label: 'First Flights Ace badge' },
-    { id: 'launch-2500', points: 2500, type: 'cosmetic', value: 'bluejay-launch', label: 'Launch Bluejay skin' },
   ],
   missions: [
     { id: 'launch-landings', label: 'Complete 10 landings', activity: 'landing', target: 10, points: 150 },

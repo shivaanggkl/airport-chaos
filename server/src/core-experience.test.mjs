@@ -23,15 +23,16 @@ test('cosmetic path isolates instances, preserves glass and repaints late loaded
   const glass = new THREE.MeshStandardMaterial({color:0x123456}); glass.name='AC_GLASS';
   const root=new THREE.Group(),other=new THREE.Mesh(new THREE.BoxGeometry(),shared);
   const paint=new THREE.Mesh(new THREE.BoxGeometry(),shared);root.add(paint,new THREE.Mesh(new THREE.BoxGeometry(),glass));
-  const equipped={'livery:trainer':'bluejay-sunset'};
+  const equipped={'livery:trainer':'bluejay-aurora'};
   applyAircraftCosmetics(root,'trainer',equipped);
-  assert.equal(paint.material.color.getHex(),0xd96b27);assert.equal(other.material.color.getHex(),0xffffff);assert.equal(glass.color.getHex(),0x123456);
+  assert.equal(paint.material.color.getHex(),0xf07cb4);assert.equal(other.material.color.getHex(),0xffffff);assert.equal(glass.color.getHex(),0x123456);
   const late=new THREE.Mesh(new THREE.BoxGeometry(),shared);root.add(late);
   applyAircraftCosmetics(root,'trainer',root.userData.equippedCosmetics);
-  assert.equal(late.material.color.getHex(),0xd96b27);
+  assert.equal(late.material.color.getHex(),0xf07cb4);
   applyAircraftCosmetics(root,'trainer',{'livery:trainer':'unknown'});
-  assert.equal(paint.material.color.getHex(),0x1769b8);
-  assert.ok(cosmeticCatalog.filter(item=>item.category==='livery'&&item.aircraftRestriction==='trainer').length>=10);
+  assert.equal(paint.material.color.getHex(),0x77d8f2);
+  assert.equal(cosmeticCatalog.length,10);
+  assert.deepEqual(Object.fromEntries(['trainer','cargo','privateJet','fighter'].map(type=>[type,cosmeticCatalog.filter(item=>item.aircraftRestriction===type).length])),{trainer:3,cargo:3,privateJet:3,fighter:1});
 });
 test('Dallas core is deterministic, at least 80% high-rise, with 15 facades and safe airport approaches',()=>{
   const buildings=generateDallasSkyline(cityAirports.dallas);
@@ -47,12 +48,12 @@ test('equipped paint survives aircraft changes, a city arrival, and a reopened p
   const {PlayerProfileStore}=await import('./player-profiles.js');
   const path=join(mkdtempSync(join(tmpdir(),'airport-paint-')),'profiles.sqlite');
   const db=new PlayerProfileStore(path);db.getOrCreate('paint-pilot','Pilot');db.awardServerReward('paint-pilot',50000);
-  assert.equal(db.purchaseCosmetic('paint-pilot','bluejay-sunset').ok,true);
-  assert.equal(db.equipCosmetic('paint-pilot','bluejay-sunset').ok,true);
   assert.equal(db.purchaseAircraft('paint-pilot','cargo').ok,true);
+  assert.equal(db.purchaseCosmetic('paint-pilot','mammoth-arctic-rescue').ok,true);
+  assert.equal(db.equipCosmetic('paint-pilot','mammoth-arctic-rescue').ok,true);
   assert.equal(db.equipAircraft('paint-pilot','cargo')?.selectedAircraft,'cargo');
   const now=Date.now();assert.equal(db.startIntercityRoute('paint-pilot','dallas-milwaukee','dallas',now).ok,true);
-  assert.equal(db.completeIntercityArrival('paint-pilot','milwaukee',now+60000).profile?.cosmetics.equipped['livery:trainer'],'bluejay-sunset');
+  assert.equal(db.completeIntercityArrival('paint-pilot','milwaukee',now+60000).profile?.cosmetics.equipped['livery:cargo'],'mammoth-arctic-rescue');
   const reopened=new PlayerProfileStore(path);
-  assert.equal(reopened.getOrCreate('paint-pilot','Pilot').cosmetics.equipped['livery:trainer'],'bluejay-sunset');
+  assert.equal(reopened.getOrCreate('paint-pilot','Pilot').cosmetics.equipped['livery:cargo'],'mammoth-arctic-rescue');
 });

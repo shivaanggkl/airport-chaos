@@ -6,5 +6,5 @@ export const legalConfig: Readonly<{
   gameUrl: 'https://fly.vadensoftware.com';
   supportEmail: 'support@vadensoftware.com';
   legalEntityName: 'Ecleva LLC';
-  policyRoutes: Readonly<{ terms: '/terms'; privacy: '/privacy'; refund: '/refund' }>;
+  policyRoutes: Readonly<{ terms: '/terms'; privacy: '/privacy'; refund: '/refund'; support: '/support' }>;
 }>;

@@ -8,7 +8,7 @@ import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircr
 import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { dailyPilotRewards, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayDistance, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
-import { cosmeticCatalog, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
 
@@ -609,6 +609,34 @@ export class PlayerProfileStore {
     this.setMetadata('reward_receipt_compaction_token', normalized);
   }
 
+  private normalizeActiveCosmetics(pilotId: string, ownedAircraft: readonly AircraftType[]): void {
+    const insertOwned = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
+    const now = Date.now();
+    for (const id of defaultCosmeticIds) insertOwned.run(pilotId, id, now);
+    if (ownedAircraft.includes('fighter')) insertOwned.run(pilotId, includedCosmeticIds.fighter, now);
+    else this.database.prepare('DELETE FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').run(pilotId, includedCosmeticIds.fighter);
+
+    const activeIds = new Set(cosmeticCatalog.map(item => item.id));
+    const ownedIds = new Set((this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(pilotId) as Array<{ cosmetic_id: string }>)
+      .map(item => item.cosmetic_id).filter(id => activeIds.has(id)));
+    const slots = aircraftOrder.map(type => `livery:${type}`);
+    this.database.prepare(`DELETE FROM pilot_equipped_cosmetics WHERE pilot_id=? AND category NOT IN (${slots.map(() => '?').join(',')})`).run(pilotId, ...slots);
+    const readEquipped = this.database.prepare('SELECT cosmetic_id FROM pilot_equipped_cosmetics WHERE pilot_id=? AND category=?');
+    const equip = this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
+      ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`);
+    const remove = this.database.prepare('DELETE FROM pilot_equipped_cosmetics WHERE pilot_id=? AND category=?');
+    for (const type of aircraftOrder) {
+      const slot = `livery:${type}`;
+      const current = (readEquipped.get(pilotId, slot) as { cosmetic_id?: string } | undefined)?.cosmetic_id;
+      const currentItem = cosmeticCatalog.find(item => item.id === current);
+      const aircraftAvailable = type === 'trainer' || ownedAircraft.includes(type);
+      if (aircraftAvailable && currentItem?.aircraftRestriction === type && ownedIds.has(currentItem.id)) continue;
+      const fallback = fallbackLiveryIds[type];
+      if (aircraftAvailable && ownedIds.has(fallback)) equip.run(pilotId, slot, fallback);
+      else remove.run(pilotId, slot);
+    }
+  }
+
   getOrCreate(pilotId: string, pilotName: string): PlayerProfile {
     let row = this.getRow(pilotId);
     if (!row) {
@@ -623,23 +651,15 @@ export class PlayerProfileStore {
       }
     }
     this.ensurePilotProgression(row);
-    const insertCosmetic = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
-    for (const id of defaultCosmeticIds) insertCosmetic.run(pilotId, id, Date.now());
-    const equipDefault = this.database.prepare('INSERT OR IGNORE INTO pilot_equipped_cosmetics VALUES(?,?,?)');
-    for (const id of defaultCosmeticIds) {
-      const item = cosmeticCatalog.find(entry => entry.id === id)!;
-      equipDefault.run(pilotId, item.category === 'livery' ? `livery:${item.aircraftRestriction}` : item.category, id);
-    }
     return this.toProfile(row);
   }
 
   purchaseCosmetic(pilotId: string, cosmeticId: string, now = Date.now()): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
     if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };
+    if (item.aircraftRestriction !== 'trainer' && !parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes(item.aircraftRestriction as AircraftType)) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
     if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, profile: this.toProfile(row) };
-    const level = this.pilotProgression(pilotId).level;
-    if (item.unlockType === 'pilotLevel' && level < item.requiredLevel) return { ok: false, reason: `REQUIRES PILOT LEVEL ${item.requiredLevel}` };
-    if (item.unlockType !== 'credits' && item.unlockType !== 'pilotLevel' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
+    if (item.unlockType !== 'credits' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
     if (item.unlockType === 'credits' && row.credits < item.creditPrice) return { ok: false, reason: `NEED ${(item.creditPrice - row.credits).toLocaleString()} MORE CREDITS` };
     this.database.exec('BEGIN IMMEDIATE');
     try {
@@ -653,7 +673,8 @@ export class PlayerProfileStore {
   equipCosmetic(pilotId: string, cosmeticId: string): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
     if (!row || !item || !this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: false, reason: 'COSMETIC NOT OWNED' };
-    const slot = item.category === 'livery' ? `livery:${item.aircraftRestriction}` : item.category;
+    if (item.aircraftRestriction !== 'trainer' && !parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes(item.aircraftRestriction as AircraftType)) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
+    const slot = `livery:${item.aircraftRestriction}`;
     this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?) ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`).run(pilotId, slot, cosmeticId);
     return { ok: true, profile: this.toProfile(row) };
   }
@@ -1231,6 +1252,7 @@ export class PlayerProfileStore {
       this.database.prepare('UPDATE player_profiles SET owned_aircraft = ?, selected_aircraft = ? WHERE pilot_id = ?')
         .run(encodedOwnedAircraft, selectedAircraft, row.pilot_id);
     }
+    this.normalizeActiveCosmetics(row.pilot_id, permanentlyUnlocked);
     const objectives = this.objectiveStates(row);
     const mastery = parseMastery(row.mastery);
     this.ensurePilotProgression(row);
@@ -1264,7 +1286,7 @@ export class PlayerProfileStore {
       })(),
       referral: this.referralState(row.pilot_id),
       cosmetics: {
-        ownedIds: (this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ cosmetic_id: string }>).map(item => item.cosmetic_id),
+        ownedIds: (this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ cosmetic_id: string }>).map(item => item.cosmetic_id).filter(id => cosmeticCatalog.some(item => item.id === id)),
         equipped: Object.fromEntries((this.database.prepare('SELECT category,cosmetic_id FROM pilot_equipped_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ category: string; cosmetic_id: string }>).map(item => [item.category, item.cosmetic_id])),
       },
       season: this.seasonProgress(row.pilot_id, 'dallas'),

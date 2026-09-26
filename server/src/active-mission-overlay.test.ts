@@ -25,7 +25,7 @@ test('overlay reuses authoritative mission metadata and progress update path', (
 
 test('mission overlay is compact, responsive, and leaves notices and rewards independently anchored', () => {
   assert.match(css, /\.mission-status-layer\s*\{[^}]*position:\s*fixed;[^}]*display:\s*grid;[^}]*gap:\s*8px;/);
-  assert.match(css, /\.active-mission-overlay\s*\{[^}]*display:\s*grid;[^}]*padding:\s*6px 8px;[^}]*background:\s*rgb\(4 18 28 \/ 52%\);/);
+  assert.match(css, /\.active-mission-overlay\s*\{[^}]*display:\s*grid;[^}]*padding:\s*6px 8px;[^}]*background:\s*var\(--ui-bg\);/);
   assert.match(css, /@media\(max-width:700px\) and \(orientation:landscape\)[\s\S]*\.mission-status-layer\s*\{[^}]*top:\s*56px;[^}]*width:\s*clamp\(200px, 34vw, 300px\);/);
   assert.match(css, /@media\(min-width:701px\) and \(max-width:950px\) and \(orientation:landscape\)[\s\S]*\.mission-status-layer\s*\{[^}]*width:\s*clamp\(238px, 34vw, 300px\);/);
   assert.match(css, /\.reward-feedback\s*\{[^}]*position:\s*absolute;[^}]*top:\s*calc\(100% \+ 8px\);/);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PlayerProfileStore } from './player-profiles.js';
@@ -68,16 +69,49 @@ test('weekly payout chooses one best placement and is idempotent', () => {
   assert.deepEqual(db.finalizePreviousWeeklyReward('weekly-pilot', nextWeek), reward);
 });
 
-test('cosmetics purchase and equip are authoritative, idempotent, and persistent', () => {
+test('cosmetics purchase requires the aircraft and remains authoritative and idempotent', () => {
   const db = store(); db.getOrCreate('cosmetic-pilot', 'Cosmetic Pilot');
-  db.awardServerReward('cosmetic-pilot', 5_000);
-  const purchase = db.purchaseCosmetic('cosmetic-pilot', 'bluejay-sunset');
-  assert.equal(purchase.ok, true); assert.equal(purchase.profile?.credits, 3_000);
-  const repeat = db.purchaseCosmetic('cosmetic-pilot', 'bluejay-sunset');
-  assert.equal(repeat.ok, true); assert.equal(repeat.profile?.credits, 3_000);
-  assert.equal(db.equipCosmetic('cosmetic-pilot', 'bluejay-sunset').ok, true);
-  assert.equal(db.getOrCreate('cosmetic-pilot', 'Cosmetic Pilot').cosmetics.equipped['livery:trainer'], 'bluejay-sunset');
+  db.awardServerReward('cosmetic-pilot', 50_000);
+  assert.equal(db.purchaseCosmetic('cosmetic-pilot', 'mammoth-desert-sand').ok, false);
+  assert.equal(db.purchaseAircraft('cosmetic-pilot', 'cargo').ok, true);
+  const before = db.getOrCreate('cosmetic-pilot', 'Cosmetic Pilot').credits;
+  const purchase = db.purchaseCosmetic('cosmetic-pilot', 'mammoth-desert-sand');
+  assert.equal(purchase.ok, true); assert.equal(purchase.profile?.credits, before - 2_500);
+  const repeat = db.purchaseCosmetic('cosmetic-pilot', 'mammoth-desert-sand');
+  assert.equal(repeat.ok, true); assert.equal(repeat.profile?.credits, before - 2_500);
+  assert.equal(db.equipCosmetic('cosmetic-pilot', 'mammoth-desert-sand').ok, true);
+  assert.equal(db.getOrCreate('cosmetic-pilot', 'Cosmetic Pilot').cosmetics.equipped['livery:cargo'], 'mammoth-desert-sand');
   assert.equal(db.equipCosmetic('cosmetic-pilot', 'unknown').ok, false);
+});
+
+test('new pilots retain free legacy finishes and permanent Firehawk ownership includes Inferno', () => {
+  const db = store();
+  const initial = db.getOrCreate('cosmetic-defaults', 'Pilot');
+  assert.deepEqual(initial.cosmetics.ownedIds.sort(), ['bluejay-aurora', 'bluejay-classic', 'bluejay-skybolt', 'mammoth-sand', 'nightowl-forest']);
+  assert.equal(initial.cosmetics.equipped['livery:trainer'], 'bluejay-skybolt');
+  assert.equal(db.equipCosmetic('cosmetic-defaults', 'bluejay-aurora').ok, true);
+  db.awardServerReward('cosmetic-defaults', 100_000);
+  assert.equal(db.purchaseAircraft('cosmetic-defaults', 'cargo').profile?.cosmetics.equipped['livery:cargo'], 'mammoth-sand');
+  assert.equal(db.purchaseAircraft('cosmetic-defaults', 'privateJet').profile?.cosmetics.equipped['livery:privateJet'], 'nightowl-forest');
+  const paid = db.grantAircraftEntitlements('cosmetic-defaults', ['fighter'], 'stripe:test')!;
+  assert.equal(paid.cosmetics.ownedIds.includes('firehawk-inferno'), true);
+  assert.equal(paid.cosmetics.equipped['livery:fighter'], 'firehawk-inferno');
+  const refunded = db.revokeAircraftEntitlementSource('cosmetic-defaults', 'fighter', 'stripe:test')!;
+  assert.equal(refunded.cosmetics.ownedIds.includes('firehawk-inferno'), false);
+  assert.equal(refunded.cosmetics.equipped['livery:fighter'], undefined);
+});
+
+test('legacy cosmetic ids remain stored but are hidden and invalid equipped slots normalize safely', () => {
+  const path = join(mkdtempSync(join(tmpdir(), 'airport-legacy-cosmetics-')), 'profiles.sqlite');
+  const db = new PlayerProfileStore(path); db.getOrCreate('legacy-cosmetic', 'Legacy Pilot');
+  const raw = new DatabaseSync(path);
+  raw.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)').run('legacy-cosmetic', 'bluejay-sunset', 1);
+  raw.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?) ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`)
+    .run('legacy-cosmetic', 'livery:trainer', 'bluejay-sunset');
+  raw.close();
+  const profile = db.getOrCreate('legacy-cosmetic', 'Legacy Pilot');
+  assert.equal(profile.cosmetics.ownedIds.includes('bluejay-sunset'), false);
+  assert.equal(profile.cosmetics.equipped['livery:trainer'], 'bluejay-skybolt');
 });
 
 test('Chaos Event reward and active-event persistence are reconnect idempotent', () => {

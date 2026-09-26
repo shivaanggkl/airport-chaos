@@ -3,7 +3,7 @@ import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
-export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string };
+export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
 
 export type PilotMenuActivity = {
   name: string;
@@ -101,8 +101,6 @@ function section(title: string): HTMLElement {
   const sectionElement = document.createElement('section');
   sectionElement.className = 'pilot-menu-section';
   const heading = textElement('h2', title);
-  const identity = Object.values(visualLanguage).find(item => title === `${item.icon} ${item.label}`);
-  if (identity) heading.style.color = identity.color;
   sectionElement.append(heading);
   return sectionElement;
 }
@@ -111,6 +109,7 @@ function actionButton(action: PilotMenuAction): HTMLButtonElement {
   const button = textElement('button', action.label) as HTMLButtonElement;
   button.type = 'button';
   button.disabled = action.disabled ?? false;
+  if (action.intent) button.classList.add(`pilot-menu-${action.intent}`);
   if (action.title) button.title = action.title;
   button.addEventListener('click', action.run);
   return button;
@@ -283,9 +282,12 @@ export class PilotMenu {
   }
 
   private territoryDetail(territory: PilotMenuTerritory): string {
+    const distance = territory.distance >= 1000
+      ? `${(territory.distance / 1000).toFixed(1).replace(/\.0$/, '')} km away`
+      : `${Math.round(territory.distance)} m away`;
     return territory.contested
-      ? `Contested · capture paused · ${Math.round(territory.distance)}m away`
-      : `${territory.controller} · ${territory.progress > 0 ? `Capture ${territory.progress}% · ` : ''}${Math.round(territory.distance)}m away`;
+      ? `Contested • Capture paused • ${distance}`
+      : `${territory.controller} • ${territory.progress > 0 ? `Capture ${territory.progress}% • ` : ''}${distance}`;
   }
 
   private ensureContent(): HTMLDivElement {
@@ -329,7 +331,7 @@ export class PilotMenu {
     const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
     changeCity.classList.add('pilot-menu-navigation-action');
     changeCity.title = 'Return to Choose a City';
-    const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart() });
+    const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart(), intent: 'danger' });
     restart.classList.add('pilot-menu-navigation-action');
     navigation.append(changeCity, restart);
     card.append(header, navigation, content);
@@ -358,7 +360,6 @@ export class PilotMenu {
 
     if (this.activeSection === 'MISSIONS') {
     const missions = section(identityText('mission').toUpperCase() + 'S');
-    missions.querySelector('h2')!.style.color = visualLanguage.mission.color;
     missions.append(textElement('p', data.missions.practice ? 'Practice tasks build flight skills and give no permanent rewards.' : 'Choose one mission. Finish it for the full Credits and Score reward.', 'pilot-menu-muted'));
     const current = data.missions.entries.find((entry) => entry.id === data.missions.activeId);
     if (current) {
@@ -368,7 +369,7 @@ export class PilotMenu {
         meta: data.missions.practice ? 'PRACTICE — NO REWARDS' : `REWARD · ${visualLanguage.credits.icon} ${current.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${current.score.toLocaleString()} Score`,
         actions: [
           ...(current.setWaypoint ? [{ label: 'Set Waypoint', run: current.setWaypoint }] : []),
-          { label: 'Abandon Mission', run: data.missions.abandon },
+          { label: 'Abandon Mission', run: data.missions.abandon, intent: 'danger' },
         ],
       });
       active.classList.add('pilot-menu-mission-active');
@@ -383,7 +384,7 @@ export class PilotMenu {
         name: `ACTIVE IN ${(data.missions.activeCity ?? 'ANOTHER CITY').toUpperCase()}`,
         detail: 'Return to that city to continue, or choose another mission and lose its progress.',
         meta: 'Only one mission can be active.',
-        actions: [{ label: 'Abandon Mission', run: data.missions.abandon }],
+        actions: [{ label: 'Abandon Mission', run: data.missions.abandon, intent: 'danger' }],
       }));
     }
 
@@ -402,6 +403,7 @@ export class PilotMenu {
           disabled: item.retired || cooling || Boolean(unavailableReason),
           title: unavailableReason,
           run: () => data.missions.accept(item.id, false),
+          intent: 'primary',
         }],
       });
       this.addMissionTerritories(card, item, data.territories.entries);
@@ -449,7 +451,7 @@ export class PilotMenu {
           ...(player.sprint ? [{ label: 'Airport Sprint', run: player.sprint }] : []),
         ],
       });
-      playerCard.querySelector<HTMLElement>('strong')!.style.color = visualLanguage[player.isLocal ? 'you' : 'player'].color;
+      playerCard.querySelector<HTMLElement>('strong')!.style.color = player.isLocal ? 'var(--ui-text)' : visualLanguage.player.color;
       if (player.ownedTerritories?.length) {
         const dots = document.createElement('span'); dots.className = 'pilot-player-ownership';
         for (const territory of player.ownedTerritories.slice(0, 3)) dots.append(territoryDot(territory.name, territory.color));
@@ -469,7 +471,7 @@ export class PilotMenu {
       const card = this.createCard({
         name: `${territory.name}${territory.contested ? ' · CONTESTED' : ''}`,
         detail: this.territoryDetail(territory),
-        meta: 'Keep flying here to claim it. Parking does not count.',
+        meta: 'Keep flying inside this territory to claim it. Parking does not count.',
         actions: [{ label: 'Set Waypoint', run: territory.setWaypoint }],
       });
       card.classList.add('pilot-territory-card');
@@ -633,7 +635,7 @@ export class PilotMenu {
       controls.append(camera);
     }
     const session = section('SESSION');
-    session.append(actionButton({label:'BACK TO GAME',run:()=>this.close()}),actionButton({label:'RESTART / RESPAWN',run:data.restart}));
+    session.append(actionButton({label:'BACK TO GAME',run:()=>this.close(),intent:'primary'}),actionButton({label:'RESTART / RESPAWN',run:data.restart,intent:'danger'}));
     content.append(controls,session);
     }
 

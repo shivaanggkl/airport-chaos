@@ -530,7 +530,7 @@ const httpServer = createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
-  const publicPolicy = request.method === 'GET' ? policyPage(requestUrl.pathname) : undefined;
+  const publicPolicy = request.method === 'GET' || request.method === 'HEAD' ? policyPage(requestUrl.pathname) : undefined;
   if (publicPolicy) {
     response.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -538,7 +538,7 @@ const httpServer = createServer(async (request, response) => {
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
     });
-    response.end(publicPolicy);
+    response.end(request.method === 'HEAD' ? undefined : publicPolicy);
     return;
   }
   if (requestUrl.pathname === '/api/stripe/webhook') {
