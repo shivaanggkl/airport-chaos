@@ -76,3 +76,18 @@ test('realtime ticket issuance requires an existing authoritative session', () =
   assert.match(route, /jsonResponse\(response, 401, \{ error: 'Secure session required\.' \}\)/);
   assert.doesNotMatch(route, /authenticatedIdentity\(/);
 });
+
+test('native offline recovery probes only while connectivity remains down', () => {
+  const connectivity = readFileSync(new URL('../../client/src/connectivity.ts', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  assert.match(connectivity, /const nativeRuntime = Capacitor\.isNativePlatform\(\)/);
+  assert.match(connectivity, /if \(!active \|\| !nativeRuntime \|\| last\)/);
+  assert.match(connectivity, /window\.setInterval\(\(\) => void refreshNativeStatus\(\), 2_000\)/);
+  assert.match(connectivity, /if \(!connected && recoveryProbe\) connected = await recoveryProbe\(\)/);
+  assert.match(connectivity, /if \(next\.connected\) publish\(true\);[\s\S]*else void refreshNativeStatus\(\)/);
+  assert.match(connectivity, /window\.clearInterval\(offlineProbeTimer\)/);
+  assert.match(main, /apiFetch\(apiUrl\('\/api\/auth\/status'\), \{ cache: 'no-store' \}\)/);
+  assert.match(main, /REALTIME_WELCOME_TIMEOUT_MS = 10_000/);
+  assert.match(main, /replaceRealtimeSocket\('Realtime handshake timed out'\)/);
+  assert.match(main, /window\.clearTimeout\(welcomeTimeout\)/);
+});

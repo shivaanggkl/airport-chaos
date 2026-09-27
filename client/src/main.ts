@@ -7108,6 +7108,7 @@ let realtimeStopped = false;
 let realtimeConnectInFlight = false;
 let stopConnectivityMonitor: () => void = () => undefined;
 let resumeRefreshInFlight = false;
+const REALTIME_WELCOME_TIMEOUT_MS = 10_000;
 
 function setConnectionWarning(visible: boolean): void {
   connectionStatusElement.classList.toggle('hidden', !visible);
@@ -7134,6 +7135,8 @@ async function replaceRealtimeSocket(reason: string): Promise<void> {
     const previous = socket;
     const replacement = new WebSocket(nextUrl);
     socket = replacement;
+    protocolReady = false;
+    profileHydrated = false;
     bindSocketEvents(replacement);
     if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) {
       try { previous.close(1000, reason); } catch { /* replacement remains authoritative */ }
@@ -7475,6 +7478,14 @@ function sendRespawn(): void {
 }
 
 function bindSocketEvents(boundSocket: WebSocket): void {
+const welcomeTimeout = window.setTimeout(() => {
+  if (boundSocket !== socket || protocolBlocked || realtimeStopped || realtimePaused || !networkOnline) return;
+  protocolReady = false;
+  profileHydrated = false;
+  setConnectionWarning(true);
+  void replaceRealtimeSocket('Realtime handshake timed out');
+}, REALTIME_WELCOME_TIMEOUT_MS);
+
 boundSocket.addEventListener('open', () => { /* Welcome packet completes protocol verification. */ });
 
 boundSocket.addEventListener('message', (event) => {
@@ -7499,6 +7510,7 @@ boundSocket.addEventListener('message', (event) => {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');
       return;
     }
+    window.clearTimeout(welcomeTimeout);
     protocolReady = true;
     reconnectAttempt = 0;
     clearReconnectTimer();
@@ -7916,6 +7928,7 @@ boundSocket.addEventListener('message', (event) => {
 });
 
 boundSocket.addEventListener('close', (event) => {
+  window.clearTimeout(welcomeTimeout);
   if (boundSocket !== socket) return;
   clearCombatThreats();
   cityHumanRoster.clear();
@@ -7969,6 +7982,12 @@ void monitorConnectivity((connected) => {
   }
   if (!realtimePaused) {
     refreshSessionAndReconnect();
+  }
+}, async () => {
+  try {
+    return (await apiFetch(apiUrl('/api/auth/status'), { cache: 'no-store' })).ok;
+  } catch {
+    return false;
   }
 }).then((stop) => { stopConnectivityMonitor = stop; });
 window.addEventListener('pagehide', () => {
