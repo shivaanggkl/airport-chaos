@@ -68,3 +68,11 @@ test('iOS secure session transport keeps cookies native and constrains its produ
   assert.match(capacitor, /limitsNavigationsToAppBoundDomains:\s*true/);
   assert.doesNotMatch(capacitor, /CapacitorHttp|CapacitorCookies/);
 });
+
+test('realtime ticket issuance requires an existing authoritative session', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const route = server.slice(server.indexOf("if (requestUrl.pathname === '/api/realtime-ticket')"), server.indexOf('const publicPolicy'));
+  assert.match(route, /pilotSessions\.resolveSession\(request\.headers\.cookie\)/);
+  assert.match(route, /jsonResponse\(response, 401, \{ error: 'Secure session required\.' \}\)/);
+  assert.doesNotMatch(route, /authenticatedIdentity\(/);
+});

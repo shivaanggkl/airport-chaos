@@ -593,8 +593,9 @@ const httpServer = createServer(async (request, response) => {
     if (requestOrigin !== 'capacitor://localhost' || !sameOriginJsonRequest(request, configuredWebOrigin)) {
       jsonResponse(response, 403, { error: 'Request could not be verified.' }); return;
     }
-    const identity = authenticatedIdentity(request, response);
-    if (!identity) return;
+    const session = pilotSessions.resolveSession(request.headers.cookie);
+    if (!session) { jsonResponse(response, 401, { error: 'Secure session required.' }); return; }
+    const identity = { pilotId: session.pilotId, clientIp: trustedClientIp(request), session };
     const payload = await readJson(request);
     if (!payload) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
     const pilotLimit = limitedBy('realtime-ticket-pilot', identity.pilotId, securityLimits.realtimeTicketPilot);
