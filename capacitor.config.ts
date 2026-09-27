@@ -4,6 +4,15 @@ const config: CapacitorConfig = {
   appId: 'com.vadensoftware.airportchaos',
   appName: 'Airport Chaos',
   webDir: 'client/dist',
+  plugins: {
+    SystemBars: {
+      insetsHandling: 'native',
+      initialViewportFitValueHint: 'cover',
+      style: 'DARK',
+      hidden: true,
+      animation: 'NONE',
+    },
+  },
 };
 
 export default config;

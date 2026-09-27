@@ -4946,6 +4946,19 @@ const stopCameraOrbit = (event: PointerEvent): void => {
 renderer.domElement.addEventListener('pointerup', stopCameraOrbit);
 renderer.domElement.addEventListener('pointercancel', stopCameraOrbit);
 renderer.domElement.addEventListener('lostpointercapture', stopCameraOrbit);
+const resetCameraPointers = (): void => {
+  for (const pointerId of cameraTouchPointers.keys()) {
+    if (renderer.domElement.hasPointerCapture(pointerId)) renderer.domElement.releasePointerCapture(pointerId);
+  }
+  cameraTouchPointers.clear();
+  cameraPinchDistance = 0;
+  cameraOrbitDragging = false;
+  cameraOrbitPointerId = null;
+  cameraOrbitRecenterAt = performance.now() + 2_000;
+};
+window.addEventListener('blur', resetCameraPointers);
+window.addEventListener('pagehide', resetCameraPointers);
+document.addEventListener('visibilitychange', () => { if (document.hidden) resetCameraPointers(); });
 renderer.domElement.addEventListener('dragstart', (event) => event.preventDefault());
 renderer.domElement.addEventListener('wheel', (event) => {
   // The map owns its own canvas wheel input. The flight canvas only handles

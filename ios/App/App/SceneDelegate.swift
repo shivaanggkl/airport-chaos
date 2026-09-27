@@ -10,8 +10,19 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window = UIWindow(windowScene: windowScene)
         window?.rootViewController = CAPBridgeViewController()
         window?.makeKeyAndVisible()
+        requestLandscapeOrientation(for: windowScene)
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        requestLandscapeOrientation(for: windowScene)
+    }
+
+    private func requestLandscapeOrientation(for windowScene: UIWindowScene) {
+        guard #available(iOS 16.0, *) else { return }
+        windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {

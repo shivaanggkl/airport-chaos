@@ -123,9 +123,13 @@ export class MobileInputControls {
     this.bindThrottle(root.querySelector<HTMLElement>('[data-touch-throttle]')!);
     this.bindAimTarget();
     window.addEventListener('blur', () => this.reset());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.reset();
+      else this.refresh();
+    });
     window.addEventListener('resize', () => this.refresh());
-    window.addEventListener('orientationchange', () => this.refresh());
+    window.addEventListener('orientationchange', () => requestAnimationFrame(() => this.refresh()));
+    window.addEventListener('pageshow', () => this.refresh());
     this.applyLayout();
     this.refresh();
   }
@@ -190,6 +194,11 @@ export class MobileInputControls {
   }
 
   reset() {
+    const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
+    const throttle = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
+    this.releaseCapture(stick, this.joystickPointer);
+    this.releaseCapture(throttle, this.throttlePointer);
+    this.releaseCapture(this.aimTarget, this.aimPointer);
     for (const action of this.active) this.setAction(action, false);
     this.active.clear();
     this.joystickPointer = undefined;
@@ -199,12 +208,14 @@ export class MobileInputControls {
     this.throttleBoostRequested = false;
     this.aimPointer = undefined;
     this.root.querySelectorAll<HTMLElement>('.is-active').forEach((element) => element.classList.remove('is-active'));
-    const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
     stick?.style.removeProperty('--touch-x');
     stick?.style.removeProperty('--touch-y');
-    const throttle = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
     window.clearTimeout(this.boostReadyPulseTimer);
     throttle?.classList.remove('is-dragging', 'is-boosting', 'boost-ready-pulse');
+  }
+
+  private releaseCapture(element: HTMLElement | null, pointerId: number | undefined) {
+    if (pointerId !== undefined && element?.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
   }
 
   private deviceEnabled() {
@@ -306,6 +317,7 @@ export class MobileInputControls {
     };
     stick.addEventListener('pointerup', stop);
     stick.addEventListener('pointercancel', stop);
+    stick.addEventListener('lostpointercapture', (event) => stop(event as PointerEvent));
   }
 
   private renderThrottle(throttle: number, boost: boolean, handlePercent?: number) {
@@ -385,5 +397,6 @@ export class MobileInputControls {
     };
     this.aimTarget.addEventListener('pointerup', stop);
     this.aimTarget.addEventListener('pointercancel', stop);
+    this.aimTarget.addEventListener('lostpointercapture', (event) => stop(event as PointerEvent));
   }
 }

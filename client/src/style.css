@@ -36,6 +36,10 @@
   --font-control-size: 14px;
   --line-height-body: 1.5;
   --line-height-meta: 1.35;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 }
 
 * {
@@ -49,9 +53,29 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: #7cc6e8;
   color: var(--text-primary);
   font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body);
+}
+
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+.native-shell :is(#game-root, #city-selector, #garage-overlay) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.native-shell :is(input, textarea, select, [contenteditable='true']) {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: auto;
 }
 
 /* One compositor layer keeps local weather cheap and independent from HUD. */
@@ -2392,4 +2416,85 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
   .mission-status-layer { top: 56px; left: 8px; width: clamp(238px, 34vw, 300px); }
   .active-mission-overlay { gap: 1px; padding: 4px 6px; font-size: 13px; }
   .active-mission-overlay strong { font-size: 12px; }
+}
+
+/* Native and mobile-browser safe layout. Android WebView < 140 applies these
+   insets to the native WebView; modern Android and iOS expose them through env(). */
+.city-selector {
+  padding: max(24px, var(--safe-area-top)) max(24px, var(--safe-area-right)) max(24px, var(--safe-area-bottom)) max(24px, var(--safe-area-left));
+}
+
+.garage-overlay,
+.pilot-menu-overlay,
+.world-map-overlay,
+.flight-tutorial {
+  padding-top: max(12px, var(--safe-area-top));
+  padding-right: max(12px, var(--safe-area-right));
+  padding-bottom: max(12px, var(--safe-area-bottom));
+  padding-left: max(12px, var(--safe-area-left));
+}
+
+.unified-flight-hud {
+  left: calc(var(--safe-area-left) + (100vw - var(--safe-area-left) - var(--safe-area-right)) / 2);
+  width: min(1120px, calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));
+}
+
+.mission-status-layer {
+  top: max(74px, calc(var(--safe-area-top) + 66px));
+  left: max(14px, var(--safe-area-left));
+}
+
+.touch-controls {
+  inset: var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
+}
+
+.contextual-hint {
+  left: max(18px, var(--safe-area-left));
+  bottom: max(24px, var(--safe-area-bottom));
+}
+
+.tutorial-help {
+  bottom: max(23px, var(--safe-area-bottom));
+  left: max(154px, calc(var(--safe-area-left) + 136px));
+}
+
+.guided-tutorial-panel {
+  top: max(68px, calc(var(--safe-area-top) + 60px));
+}
+
+@media (max-width: 950px) and (orientation: landscape) {
+  .city-selector,
+  .garage-overlay,
+  .pilot-menu-overlay,
+  .world-map-overlay,
+  .flight-tutorial {
+    padding-top: max(6px, var(--safe-area-top));
+    padding-right: max(6px, var(--safe-area-right));
+    padding-bottom: max(6px, var(--safe-area-bottom));
+    padding-left: max(6px, var(--safe-area-left));
+  }
+
+  .mission-status-layer {
+    top: max(56px, calc(var(--safe-area-top) + 48px));
+    left: max(8px, var(--safe-area-left));
+  }
+
+  .guided-tutorial-panel {
+    top: max(52px, calc(var(--safe-area-top) + 44px));
+  }
+}
+
+@media (max-width: 700px) and (orientation: landscape) {
+  .unified-flight-hud {
+    width: calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 12px);
+  }
+
+  .contextual-hint {
+    left: max(10px, var(--safe-area-left));
+    bottom: max(12px, var(--safe-area-bottom));
+  }
+
+  .tutorial-help {
+    left: max(132px, calc(var(--safe-area-left) + 122px));
+  }
 }
