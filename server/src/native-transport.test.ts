@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+import { NATIVE_APP_ORIGINS, PRODUCTION_BACKEND_ORIGIN, reconnectDelay, resolveTransport } from '../../shared/native-transport.mjs';
+import { isTrustedRequestOrigin } from './request-origin.js';
+
+test('native transport uses the single secure production backend while web remains same-origin', () => {
+  assert.equal(PRODUCTION_BACKEND_ORIGIN, 'https://fly.vadensoftware.com');
+  assert.deepEqual(resolveTransport({ native: true, development: false, pageOrigin: 'capacitor://localhost' }), {
+    apiOrigin: 'https://fly.vadensoftware.com', websocketOrigin: 'wss://fly.vadensoftware.com',
+  });
+  assert.deepEqual(resolveTransport({ native: true, development: false, pageOrigin: 'https://localhost' }), {
+    apiOrigin: 'https://fly.vadensoftware.com', websocketOrigin: 'wss://fly.vadensoftware.com',
+  });
+  assert.deepEqual(resolveTransport({ native: false, development: false, pageOrigin: 'https://fly.vadensoftware.com' }), {
+    apiOrigin: 'https://fly.vadensoftware.com', websocketOrigin: 'wss://fly.vadensoftware.com',
+  });
+  assert.throws(() => resolveTransport({ native: false, development: false, pageOrigin: 'http://production.example' }), /requires HTTPS/);
+});
+
+test('native and web origin allowlist is exact', () => {
+  assert.deepEqual(NATIVE_APP_ORIGINS, ['capacitor://localhost', 'https://localhost']);
+  for (const origin of NATIVE_APP_ORIGINS) {
+    assert.equal(isTrustedRequestOrigin(origin, 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), true);
+  }
+  assert.equal(isTrustedRequestOrigin(PRODUCTION_BACKEND_ORIGIN, 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), true);
+  assert.equal(isTrustedRequestOrigin('https://attacker.example', 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), false);
+  assert.equal(isTrustedRequestOrigin('capacitor://attacker.example', 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), false);
+  assert.equal(isTrustedRequestOrigin(undefined, 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), false);
+});
+
+test('reconnect backoff is bounded and jittered', () => {
+  assert.equal(reconnectDelay(0, () => 0), 600);
+  assert.equal(reconnectDelay(0, () => 1), 900);
+  assert.ok(reconnectDelay(4, () => 0.5) > reconnectDelay(1, () => 0.5));
+  assert.equal(reconnectDelay(20, () => 1), 30_000);
+});
+
+test('client uses one transport for REST and WebSocket and has no Capacitor server URL', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
+  const checkout = readFileSync(new URL('../../client/src/firehawk-checkout.ts', import.meta.url), 'utf8');
+  const capacitor = readFileSync(new URL('../../capacitor.config.ts', import.meta.url), 'utf8');
+  assert.match(main, /realtimeUrl\(\)/);
+  assert.match(main, /apiFetch\(apiUrl\(/);
+  assert.match(bootstrap, /apiFetch/);
+  assert.match(checkout, /apiFetch/);
+  assert.doesNotMatch(main, /new URL\(import\.meta\.env\.VITE_WS_URL/);
+  assert.doesNotMatch(capacitor, /server:\s*\{[^}]*url:/s);
+});

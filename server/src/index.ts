@@ -26,6 +26,7 @@ import { FirehawkPayments } from './firehawk-payments.js';
 import { PilotSessionStore, normalizeAccountEmail, type SessionIdentity } from './session-auth.js';
 import { createAuthorizationUrl, exchangeAndVerifyProviderCode, pkceChallenge, providerConfig, type OAuthProvider } from './oauth-providers.js';
 import { allowedOAuthReturn, sameOriginJsonRequest } from './auth-request-security.js';
+import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin } from './request-origin.js';
 import { validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
@@ -456,6 +457,7 @@ const wsPayloadWindow = {
 const fireBlockedDebugAt = new Map<string, number>();
 
 const port = Number(process.env.PORT ?? 8091);
+const configuredWebOrigin = process.env.AIRPORT_CHAOS_WEB_ORIGIN?.trim() || 'https://fly.vadensoftware.com';
 const clientDist = resolve(fileURLToPath(new URL('../../client/dist/', import.meta.url)));
 const contentTypes: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -536,6 +538,11 @@ function secureCookieRequest(request: IncomingMessage): boolean {
   return !host.startsWith('localhost:') && !host.startsWith('127.0.0.1:');
 }
 
+function sessionCookie(request: IncomingMessage, token: string, expiresAt: number): string {
+  const nativeRequest = isNativeAppOrigin(String(request.headers.origin ?? ''));
+  return pilotSessions.cookie(token, secureCookieRequest(request), expiresAt, nativeRequest ? 'None' : 'Lax');
+}
+
 function jsonResponse(response: ServerResponse, status: number, payload: unknown): void {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(payload));
@@ -565,12 +572,9 @@ const httpServer = createServer(async (request, response) => {
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   const requestOrigin = request.headers.origin;
-  if (requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(requestOrigin)) {
-    response.setHeader('Access-Control-Allow-Origin', requestOrigin);
-    response.setHeader('Access-Control-Allow-Credentials', 'true');
-    response.setHeader('Vary', 'Origin');
-  }
+  const trustedOrigin = applyCors(request, response, configuredWebOrigin);
   if (request.method === 'OPTIONS') {
+    if (!requestOrigin || !trustedOrigin) { response.writeHead(403); response.end(); return; }
     response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET,POST', 'Access-Control-Allow-Headers': 'Content-Type' }); response.end(); return;
   }
   if (request.url === '/health') {
@@ -580,6 +584,9 @@ const httpServer = createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+  if (requestOrigin && !trustedOrigin && requestUrl.pathname.startsWith('/api/')) {
+    jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+  }
   const publicPolicy = request.method === 'GET' || request.method === 'HEAD' ? policyPage(requestUrl.pathname) : undefined;
   if (publicPolicy) {
     response.writeHead(200, {
@@ -627,7 +634,7 @@ const httpServer = createServer(async (request, response) => {
         redirectOAuthResult(response, flow.returnTo, provider, result.collision ? 'collision' : 'failed'); return;
       }
       profileStore.getOrCreate(result.identity.pilotId, verified.displayName ?? 'Pilot');
-      response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
+      response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
       closeSessionConnections(flow.session.tokenHash);
       redirectOAuthResult(response, flow.returnTo, provider, 'success', flow.action === 'link');
     } catch (error) {
@@ -647,14 +654,14 @@ const httpServer = createServer(async (request, response) => {
       return;
     }
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
-    if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const payload = await readJson(request);
     if (!payload) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
     try {
       if (requestUrl.pathname === '/api/auth/oauth/start') {
         const provider = oauthProvider(payload.provider);
         const action = payload.action === 'link' || payload.action === 'login' ? payload.action : undefined;
-        const returnTo = allowedOAuthReturn(payload.returnTo, String(request.headers.origin ?? ''), process.env.AIRPORT_CHAOS_WEB_ORIGIN?.trim() || 'https://fly.vadensoftware.com');
+        const returnTo = allowedOAuthReturn(payload.returnTo, String(request.headers.origin ?? ''), configuredWebOrigin);
         if (!provider || !action || !returnTo) { jsonResponse(response, 400, { error: 'Invalid provider request.' }); return; }
         const ipLimit = limitedBy('oauth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
         const pilotLimit = limitedBy('oauth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
@@ -681,7 +688,7 @@ const httpServer = createServer(async (request, response) => {
           jsonResponse(response, signup ? 400 : 401, { error: result.error ?? 'Account request failed.' }); return;
         }
         const profile = reconcilePaidFirehawk(profileStore.getOrCreate(result.identity.pilotId, 'Pilot'));
-        response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
+        response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
         closeSessionConnections(identity.session.tokenHash);
         jsonResponse(response, 200, {
           account: pilotSessions.status(result.identity), profile,
@@ -696,7 +703,7 @@ const httpServer = createServer(async (request, response) => {
         // A post-account guest is deliberately fresh.  Seal legacy import so
         // cached values from the account being logged out cannot hydrate it.
         const profile = profileStore.createFreshGuest(result.identity.pilotId);
-        response.setHeader('Set-Cookie', pilotSessions.cookie(result.cookie, secureCookieRequest(request), result.expiresAt));
+        response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
         closeSessionConnections(identity.session.tokenHash);
         jsonResponse(response, 200, { account: { state: 'guest' }, profile, message: 'Logged out. Continuing as a guest.' });
         return;
@@ -751,7 +758,7 @@ const httpServer = createServer(async (request, response) => {
   }
   if (requestUrl.pathname === '/api/firehawk/checkout') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
-    if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
     const pilotLimit = limitedBy('checkout-pilot', identity.pilotId, securityLimits.checkoutPilot);
@@ -783,7 +790,7 @@ const httpServer = createServer(async (request, response) => {
   }
   if (requestUrl.pathname === '/api/firehawk/restore') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
-    if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
     const pilotLimit = limitedBy('recovery-pilot', identity.pilotId, securityLimits.recoveryPilot);
@@ -819,7 +826,7 @@ const httpServer = createServer(async (request, response) => {
       return;
     }
     if (request.method === 'POST') {
-      if (!sameOriginJsonRequest(request)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+      if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
       const payload = await readJson(request);
       let profile: PlayerProfile | undefined;
       let error: string | undefined;
@@ -909,7 +916,12 @@ const httpServer = createServer(async (request, response) => {
 
 // Yield between inbound messages so a buffered reward/state burst cannot
 // monopolize the event loop and starve Dallas chunk HTTP responses.
-const server = new WebSocketServer({ server: httpServer, allowSynchronousEvents: false });
+const server = new WebSocketServer({
+  server: httpServer,
+  allowSynchronousEvents: false,
+  verifyClient: ({ origin, req }: { origin: string; req: IncomingMessage }) =>
+    isTrustedRequestOrigin(origin, req.headers.host, configuredWebOrigin),
+});
 
 httpServer.listen(port, '0.0.0.0', () => {
   console.log(`[server] healthy and listening on http://0.0.0.0:${port}`);
@@ -4322,7 +4334,7 @@ function authenticatedIdentity(request: IncomingMessage, response: ServerRespons
   if (!validLegacyId || (existingLegacyProfile && !issued.migrated)) {
     profileStore.createFreshGuest(issued.pilotId);
   }
-  response.setHeader('Set-Cookie', pilotSessions.cookie(issued.cookie, secureCookieRequest(request), issued.expiresAt));
+  response.setHeader('Set-Cookie', sessionCookie(request, issued.cookie, issued.expiresAt));
   return { pilotId: issued.pilotId, pilotName: requestedPilotName(request), clientIp, session: { pilotId: issued.pilotId, tokenHash: issued.tokenHash } };
 }
 

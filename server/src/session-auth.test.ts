@@ -22,6 +22,8 @@ test('legacy pilot identity can be bound once and cookie—not query ID—is aut
   const lostCookieAttempt = sessions.issue(attacker.pilotId, true, 4_000);
   assert.notEqual(lostCookieAttempt.pilotId, attacker.pilotId);
   assert.match(sessions.cookie(first.cookie, true), /HttpOnly; SameSite=Lax; Path=\/;.*; Secure/);
+  assert.match(sessions.cookie(first.cookie, true, 100_000, 'None'), /HttpOnly; SameSite=None; Path=\/;.*; Secure/);
+  assert.throws(() => sessions.cookie(first.cookie, false, 100_000, 'None'), /require Secure/);
 });
 
 test('legacy unique-pilot session schema migrates without signing out existing guests', () => {

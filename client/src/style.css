@@ -2396,6 +2396,8 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 .flight-notifications .world-status { padding: 4px 8px; overflow: hidden; border:1px solid var(--ui-border); border-radius: 4px; color:var(--ui-text); background: var(--ui-bg); text-overflow: ellipsis; white-space: nowrap; }
 .flight-notifications .territory-defense-alert { pointer-events: auto; }
 .flight-notifications #progress-message { padding: 4px 8px; color: var(--ui-text); border:1px solid var(--ui-border); border-radius: 4px; background: var(--ui-bg); font: 600 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
+.flight-notifications .connection-status { width: max-content; max-width: 100%; padding: 4px 8px; color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: 4px; background: var(--ui-bg); font: 600 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
+.flight-notifications .connection-status.hidden { display: none; }
 .practice-mode-label { position: fixed; z-index: 5; left: 50%; bottom: max(42px, calc(env(safe-area-inset-bottom) + 34px)); transform: translateX(-50%); padding: 4px 8px; color: var(--ui-gold); background: var(--ui-bg-soft); border: 1px solid rgb(57 169 249 / 36%); border-radius: 4px; font: 700 12px/1.2 var(--font-display); letter-spacing:.04em; pointer-events:none; white-space:nowrap; }
 .practice-mode-label small { margin-left: 5px; color: var(--text-secondary); font-size: 11px; }
 .practice-mode-label[hidden], .dallas-practice-suggestion[hidden] { display: none; }

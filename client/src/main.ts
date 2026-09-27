@@ -40,6 +40,9 @@ import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
 import { weatherZoneAt, weatherZonesForCity, type WeatherZone } from '../../shared/weather-zones.mjs';
 import { combatThreatDirection } from '../../shared/combat-warning.mjs';
 import { DESTRUCTION_EFFECT_DURATION_SECONDS, DESTRUCTION_FRAGMENT_COUNT, MAX_DESTRUCTION_EFFECTS, groundContactVisualOffset } from '../../shared/aircraft-visual-rules.mjs';
+import { apiFetch, apiUrl, realtimeUrl } from './transport';
+import { monitorConnectivity } from './connectivity';
+import { reconnectDelay } from '../../shared/native-transport.mjs';
 import type {
   AirportDefinition,
   AirportId,
@@ -1018,6 +1021,7 @@ const worldMapCloseElement = document.querySelector<HTMLButtonElement>('#world-m
 const worldMapRecenterElement = document.querySelector<HTMLButtonElement>('#world-map-recenter')!;
 document.querySelector<HTMLElement>('#world-map-title')!.textContent = `${activeCity.displayName.toUpperCase()} MAP`;
 const progressMessageElement = document.querySelector<HTMLDivElement>('#progress-message')!;
+const connectionStatusElement = document.querySelector<HTMLDivElement>('#connection-status')!;
 const territoryDefenseAlertElement = document.querySelector<HTMLDivElement>('#territory-defense-alert')!;
 const territoryDefenseTextElement = document.querySelector<HTMLSpanElement>('#territory-defense-text')!;
 const territoryDefenseWaypointElement = document.querySelector<HTMLButtonElement>('#territory-defense-waypoint')!;
@@ -3401,13 +3405,6 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
 type ClientAccountState = { state: 'guest' | 'account'; email?: string; avatarUrl?: string; providers?: { password: boolean; google: boolean; apple: boolean } };
 let clientAccount: ClientAccountState = { state: 'guest', providers: { password: false, google: false, apple: false } };
-const accountApiOrigin = (() => {
-  if (!import.meta.env.DEV) return window.location.origin;
-  const ws = new URL(import.meta.env.VITE_WS_URL ?? 'ws://localhost:8091');
-  ws.protocol = ws.protocol === 'wss:' ? 'https:' : 'http:';
-  return ws.origin;
-})();
-
 function accountAvatarFallback(name: string): string {
   const parts = name.trim().split(/\s+/).map((part) => part.replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)![0]}` : parts[0]?.slice(0, 2) || '👤').toUpperCase();
@@ -3467,8 +3464,8 @@ async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name'
   const rotatesIdentity = path !== 'pilot-name';
   if (rotatesIdentity) identityTransitionInProgress = true;
   try {
-    const response = await fetch(new URL(`/api/auth/${path}`, accountApiOrigin), {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    const response = await apiFetch(apiUrl(`/api/auth/${path}`), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     const result = await response.json() as { error?: string; message?: string; account?: ClientAccountState; profile?: unknown; guestPreserved?: boolean };
     if (!response.ok) {
@@ -3493,8 +3490,8 @@ async function providerAccountRequest(provider: 'google' | 'apple', action: 'log
   try {
     const returnUrl = new URL(window.location.href);
     returnUrl.searchParams.delete('auth'); returnUrl.searchParams.delete('provider'); returnUrl.searchParams.delete('linked');
-    const response = await fetch(new URL('/api/auth/oauth/start', accountApiOrigin), {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+    const response = await apiFetch(apiUrl('/api/auth/oauth/start'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, action, returnTo: returnUrl.toString() }),
     });
     const result = await response.json() as { authorizationUrl?: string; error?: string };
@@ -3506,7 +3503,7 @@ async function providerAccountRequest(provider: 'google' | 'apple', action: 'log
 
 async function refreshAccountStatus(reconnectOnIdentityChange = false): Promise<void> {
   try {
-    const response = await fetch(new URL('/api/auth/status', accountApiOrigin), { cache: 'no-store', credentials: 'include' });
+    const response = await apiFetch(apiUrl('/api/auth/status'), { cache: 'no-store' });
     const result = await response.json() as { account?: ClientAccountState; profile?: unknown };
     if (!response.ok || !result.account) return;
     const previousState = clientAccount.state;
@@ -7091,10 +7088,7 @@ window.addEventListener('resize', () => {
   worldMap.resize();
 });
 
-const defaultSocketUrl = import.meta.env.DEV
-  ? 'ws://localhost:8091'
-  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
-const socketUrl = new URL(import.meta.env.VITE_WS_URL ?? defaultSocketUrl);
+const socketUrl = realtimeUrl();
 socketUrl.searchParams.set(CITY_QUERY_PARAM, cityId);
 socketUrl.searchParams.set('pilotId', persistedPlayer.pilotId);
 socketUrl.searchParams.set('pilotName', displayName);
@@ -7103,6 +7097,62 @@ if (chaosQaMode) socketUrl.searchParams.set('chaosqa', '1');
 let socket = new WebSocket(socketUrl);
 let protocolReady = false;
 let protocolBlocked = false;
+let reconnectAttempt = 0;
+let reconnectTimer: number | undefined;
+let networkOnline = navigator.onLine;
+let realtimePaused = document.hidden;
+let realtimeStopped = false;
+let stopConnectivityMonitor: () => void = () => undefined;
+let resumeRefreshInFlight = false;
+
+function setConnectionWarning(visible: boolean): void {
+  connectionStatusElement.classList.toggle('hidden', !visible);
+}
+
+function clearReconnectTimer(): void {
+  window.clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+}
+
+function closeRealtimeSocket(reason: string): void {
+  if (socket.readyState !== WebSocket.OPEN && socket.readyState !== WebSocket.CONNECTING) return;
+  try { socket.close(1000, reason); } catch { /* a connecting socket will close asynchronously */ }
+}
+
+function replaceRealtimeSocket(reason: string): void {
+  if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked) return;
+  clearReconnectTimer();
+  const previous = socket;
+  const replacement = new WebSocket(socketUrl);
+  socket = replacement;
+  bindSocketEvents(replacement);
+  if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) {
+    try { previous.close(1000, reason); } catch { /* replacement remains authoritative */ }
+  }
+}
+
+function scheduleRealtimeReconnect(immediate = false): void {
+  if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked || reconnectTimer !== undefined) return;
+  if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) return;
+  const delay = immediate ? 0 : reconnectDelay(reconnectAttempt++);
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = undefined;
+    replaceRealtimeSocket('Reconnecting');
+  }, delay);
+}
+
+function refreshSessionAndReconnect(): void {
+  if (resumeRefreshInFlight || realtimeStopped || realtimePaused || !networkOnline) return;
+  resumeRefreshInFlight = true;
+  void refreshAccountStatus().finally(() => {
+    resumeRefreshInFlight = false;
+    if (connectionReady()) setConnectionWarning(false);
+    else {
+      setConnectionWarning(true);
+      scheduleRealtimeReconnect(true);
+    }
+  });
+}
 const oauthResult = new URLSearchParams(window.location.search);
 if (oauthResult.has('auth')) {
   const provider = (oauthResult.get('provider') ?? 'provider').toUpperCase();
@@ -7126,7 +7176,6 @@ function connectionReady(): boolean {
 }
 
 function reconnectRealtimeSession(): void {
-  const previous = socket;
   protocolReady = false;
   protocolBlocked = false;
   profileHydrated = false;
@@ -7137,9 +7186,8 @@ function reconnectRealtimeSession(): void {
   humanRadarTracks.clear();
   playersPanel.update([], null);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
-  socket = new WebSocket(socketUrl);
-  bindSocketEvents(socket);
-  if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) previous.close(1000, 'Session changed');
+  reconnectAttempt = 0;
+  replaceRealtimeSocket('Session changed');
 }
 
 function blockProtocolConnection(message: string): void {
@@ -7436,6 +7484,9 @@ boundSocket.addEventListener('message', (event) => {
       return;
     }
     protocolReady = true;
+    reconnectAttempt = 0;
+    clearReconnectTimer();
+    setConnectionWarning(false);
     pendingEquip = undefined;
     selectionRevision = message.selectionRevision;
     localPlayerId = message.playerId;
@@ -7860,22 +7911,29 @@ boundSocket.addEventListener('close', (event) => {
   if (protocolBlocked) return;
   protocolReady = false;
   profileHydrated = false;
+  if (realtimeStopped || realtimePaused) return;
+  setConnectionWarning(true);
   if (event.code === 4003) {
     if (!identityTransitionInProgress) {
       clientAccount = { state: 'guest', providers: { password: false, google: false, apple: false } };
       updateAuthHudControl();
-      void refreshAccountStatus(true);
     }
+    void refreshAccountStatus(true).finally(() => scheduleRealtimeReconnect(true));
     showProgressMessage(identityTransitionInProgress ? 'SWITCHING ACCOUNT…' : 'SESSION CHANGED — RECONNECTING');
     return;
   }
-  showProgressMessage(event.code === 4001 ? 'OPENED IN ANOTHER TAB — RELOAD TO PLAY HERE' : 'SERVER DISCONNECTED');
+  if (event.code === 4001) {
+    setConnectionWarning(false);
+    showProgressMessage('OPENED IN ANOTHER TAB — RELOAD TO PLAY HERE');
+    return;
+  }
+  scheduleRealtimeReconnect();
 });
 
 boundSocket.addEventListener('error', () => {
   if (boundSocket !== socket) return;
   if (protocolBlocked) return;
-  showProgressMessage('SERVER CONNECTION ERROR');
+  if (!realtimePaused) setConnectionWarning(true);
 });
 }
 bindSocketEvents(socket);
@@ -7885,11 +7943,37 @@ bindSocketEvents(socket);
 // allows a current stationary transform without pretending the socket left.
 const stateSendTimer = window.setInterval(sendLocalState, 100);
 const accountStatusTimer = window.setInterval(() => void refreshAccountStatus(), 60_000);
-window.addEventListener('pagehide', () => { window.clearInterval(stateSendTimer); window.clearInterval(accountStatusTimer); socket.close(); });
+void monitorConnectivity((connected) => {
+  networkOnline = connected;
+  if (!connected) {
+    clearReconnectTimer();
+    if (!document.hidden) setConnectionWarning(true);
+    closeRealtimeSocket('Offline');
+    return;
+  }
+  if (!realtimePaused) {
+    refreshSessionAndReconnect();
+  }
+}).then((stop) => { stopConnectivityMonitor = stop; });
+window.addEventListener('pagehide', () => {
+  realtimeStopped = true;
+  clearReconnectTimer();
+  stopConnectivityMonitor();
+  window.clearInterval(stateSendTimer);
+  window.clearInterval(accountStatusTimer);
+  closeRealtimeSocket('Page hidden');
+});
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) return;
+  realtimePaused = document.hidden;
+  if (document.hidden) {
+    clearReconnectTimer();
+    closeRealtimeSocket('Backgrounded');
+    return;
+  }
   sendLocalState();
-  void refreshAccountStatus();
+  if (networkOnline) {
+    refreshSessionAndReconnect();
+  }
 });
 
 updateCamera(1);

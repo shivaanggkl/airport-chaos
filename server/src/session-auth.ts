@@ -426,9 +426,10 @@ export class PilotSessionStore {
     return this.database.prepare('UPDATE pilot_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL').run(now, tokenHash).changes > 0;
   }
 
-  cookie(token: string, secure: boolean, expiresAt = Date.now() + guestSessionLifetimeMs): string {
+  cookie(token: string, secure: boolean, expiresAt = Date.now() + guestSessionLifetimeMs, sameSite: 'Lax' | 'None' = 'Lax'): string {
     const maxAge = Math.max(0, Math.floor((expiresAt - Date.now()) / 1_000));
-    return `${cookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
+    if (sameSite === 'None' && !secure) throw new Error('SameSite=None session cookies require Secure.');
+    return `${cookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=${sameSite}; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
   }
 
   prune(now = Date.now()): void {

@@ -7,8 +7,10 @@ function request(headers: IncomingMessage['headers']): IncomingMessage {
   return { headers } as IncomingMessage;
 }
 
-test('account mutations require same-origin JSON and reject cross-site CSRF requests', () => {
+test('account mutations accept exact web/native origins and reject cross-site CSRF requests', () => {
   assert.equal(sameOriginJsonRequest(request({ host: 'fly.vadensoftware.com', origin: 'https://fly.vadensoftware.com', 'content-type': 'application/json' })), true);
+  assert.equal(sameOriginJsonRequest(request({ host: 'fly.vadensoftware.com', origin: 'capacitor://localhost', 'content-type': 'application/json' })), true);
+  assert.equal(sameOriginJsonRequest(request({ host: 'fly.vadensoftware.com', origin: 'https://localhost', 'content-type': 'application/json' })), true);
   assert.equal(sameOriginJsonRequest(request({ host: 'fly.vadensoftware.com', origin: 'https://attacker.example', 'content-type': 'application/json' })), false);
   assert.equal(sameOriginJsonRequest(request({ host: 'fly.vadensoftware.com', origin: 'https://fly.vadensoftware.com', 'content-type': 'text/plain' })), false);
   assert.equal(sameOriginJsonRequest(request({ host: 'fly.vadensoftware.com', 'content-type': 'application/json' })), false);

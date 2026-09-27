@@ -1,16 +1,11 @@
 import type { IncomingMessage } from 'node:http';
+import { isTrustedRequestOrigin } from './request-origin.js';
 
-export function sameOriginJsonRequest(request: IncomingMessage): boolean {
+export function sameOriginJsonRequest(request: IncomingMessage, configuredWebOrigin = 'https://fly.vadensoftware.com'): boolean {
   const contentType = String(request.headers['content-type'] ?? '').toLowerCase();
   const origin = String(request.headers.origin ?? '');
   if (!contentType.startsWith('application/json') || !origin || !request.headers.host) return false;
-  try {
-    const parsed = new URL(origin);
-    const host = request.headers.host.toLowerCase();
-    const local = host.startsWith('localhost:') || host.startsWith('127.0.0.1:');
-    const localOrigin = parsed.protocol === 'http:' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
-    return (parsed.host.toLowerCase() === host && parsed.protocol === 'https:') || (local && localOrigin);
-  } catch { return false; }
+  return isTrustedRequestOrigin(origin, request.headers.host, configuredWebOrigin);
 }
 
 export function allowedOAuthReturn(value: unknown, requestOrigin: string, configuredOrigin: string): string | undefined {
