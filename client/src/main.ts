@@ -7088,13 +7088,16 @@ window.addEventListener('resize', () => {
   worldMap.resize();
 });
 
-const socketUrl = realtimeUrl();
-socketUrl.searchParams.set(CITY_QUERY_PARAM, cityId);
-socketUrl.searchParams.set('pilotId', persistedPlayer.pilotId);
-socketUrl.searchParams.set('pilotName', displayName);
-socketUrl.searchParams.set('protocol', String(PROTOCOL_VERSION));
-if (chaosQaMode) socketUrl.searchParams.set('chaosqa', '1');
-let socket = new WebSocket(socketUrl);
+async function realtimeSocketUrl(): Promise<URL> {
+  const url = await realtimeUrl();
+  url.searchParams.set(CITY_QUERY_PARAM, cityId);
+  url.searchParams.set('pilotId', persistedPlayer.pilotId);
+  url.searchParams.set('pilotName', displayName);
+  url.searchParams.set('protocol', String(PROTOCOL_VERSION));
+  if (chaosQaMode) url.searchParams.set('chaosqa', '1');
+  return url;
+}
+let socket = new WebSocket(await realtimeSocketUrl());
 let protocolReady = false;
 let protocolBlocked = false;
 let reconnectAttempt = 0;
@@ -7102,6 +7105,7 @@ let reconnectTimer: number | undefined;
 let networkOnline = navigator.onLine;
 let realtimePaused = document.hidden;
 let realtimeStopped = false;
+let realtimeConnectInFlight = false;
 let stopConnectivityMonitor: () => void = () => undefined;
 let resumeRefreshInFlight = false;
 
@@ -7119,25 +7123,37 @@ function closeRealtimeSocket(reason: string): void {
   try { socket.close(1000, reason); } catch { /* a connecting socket will close asynchronously */ }
 }
 
-function replaceRealtimeSocket(reason: string): void {
-  if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked) return;
+async function replaceRealtimeSocket(reason: string): Promise<void> {
+  if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked || realtimeConnectInFlight) return;
   clearReconnectTimer();
-  const previous = socket;
-  const replacement = new WebSocket(socketUrl);
-  socket = replacement;
-  bindSocketEvents(replacement);
-  if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) {
-    try { previous.close(1000, reason); } catch { /* replacement remains authoritative */ }
+  realtimeConnectInFlight = true;
+  let failed = false;
+  try {
+    const nextUrl = await realtimeSocketUrl();
+    if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked) return;
+    const previous = socket;
+    const replacement = new WebSocket(nextUrl);
+    socket = replacement;
+    bindSocketEvents(replacement);
+    if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) {
+      try { previous.close(1000, reason); } catch { /* replacement remains authoritative */ }
+    }
+  } catch {
+    failed = true;
+    setConnectionWarning(true);
+  } finally {
+    realtimeConnectInFlight = false;
+    if (failed) scheduleRealtimeReconnect();
   }
 }
 
 function scheduleRealtimeReconnect(immediate = false): void {
-  if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked || reconnectTimer !== undefined) return;
+  if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked || realtimeConnectInFlight || reconnectTimer !== undefined) return;
   if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) return;
   const delay = immediate ? 0 : reconnectDelay(reconnectAttempt++);
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = undefined;
-    replaceRealtimeSocket('Reconnecting');
+    void replaceRealtimeSocket('Reconnecting');
   }, delay);
 }
 
@@ -7187,7 +7203,7 @@ function reconnectRealtimeSession(): void {
   playersPanel.update([], null);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
   reconnectAttempt = 0;
-  replaceRealtimeSocket('Session changed');
+  void replaceRealtimeSocket('Session changed');
 }
 
 function blockProtocolConnection(message: string): void {

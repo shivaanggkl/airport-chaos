@@ -53,6 +53,11 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>localhost</string>
+		<string>fly.vadensoftware.com</string>
+	</array>
 	<key>UIStatusBarHidden</key>
 	<true/>
 	<key>UISupportedInterfaceOrientations</key>

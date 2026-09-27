@@ -38,13 +38,33 @@ test('reconnect backoff is bounded and jittered', () => {
 
 test('client uses one transport for REST and WebSocket and has no Capacitor server URL', () => {
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const transport = readFileSync(new URL('../../client/src/transport.ts', import.meta.url), 'utf8');
   const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
   const checkout = readFileSync(new URL('../../client/src/firehawk-checkout.ts', import.meta.url), 'utf8');
   const capacitor = readFileSync(new URL('../../capacitor.config.ts', import.meta.url), 'utf8');
-  assert.match(main, /realtimeUrl\(\)/);
+  assert.match(main, /await realtimeUrl\(\)/);
   assert.match(main, /apiFetch\(apiUrl\(/);
   assert.match(bootstrap, /apiFetch/);
   assert.match(checkout, /apiFetch/);
+  assert.match(transport, /Capacitor\.getPlatform\(\) === 'ios'/);
+  assert.match(transport, /SecureSessionHttp\.request/);
+  assert.match(transport, /apiFetch\('\/api\/realtime-ticket'/);
+  assert.doesNotMatch(transport, /localStorage|sessionStorage/);
+  assert.match(transport, /fetch\(url, \{ \.\.\.init, credentials: 'include'/);
   assert.doesNotMatch(main, /new URL\(import\.meta\.env\.VITE_WS_URL/);
   assert.doesNotMatch(capacitor, /server:\s*\{[^}]*url:/s);
+});
+
+test('iOS secure session transport keeps cookies native and constrains its production boundary', () => {
+  const swift = readFileSync(new URL('../../ios/App/App/SecureSessionTransport.swift', import.meta.url), 'utf8');
+  const plist = readFileSync(new URL('../../ios/App/App/Info.plist', import.meta.url), 'utf8');
+  const capacitor = readFileSync(new URL('../../capacitor.config.ts', import.meta.url), 'utf8');
+  assert.match(swift, /https:\/\/fly\.vadensoftware\.com/);
+  assert.match(swift, /private let nativeOrigin = "capacitor:\/\/localhost"/);
+  assert.match(swift, /lowerName != "set-cookie" && lowerName != "set-cookie2"/);
+  assert.match(swift, /WKWebsiteDataStore\.default\(\)\.httpCookieStore\.setCookie/);
+  assert.doesNotMatch(swift, /call\.resolve\([^)]*(?:cookie|token)/is);
+  assert.match(plist, /<key>WKAppBoundDomains<\/key>[\s\S]*<string>fly\.vadensoftware\.com<\/string>/);
+  assert.match(capacitor, /limitsNavigationsToAppBoundDomains:\s*true/);
+  assert.doesNotMatch(capacitor, /CapacitorHttp|CapacitorCookies/);
 });

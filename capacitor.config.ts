@@ -4,6 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.vadensoftware.airportchaos',
   appName: 'Airport Chaos',
   webDir: 'client/dist',
+  ios: {
+    limitsNavigationsToAppBoundDomains: true,
+  },
   plugins: {
     SystemBars: {
       insetsHandling: 'native',

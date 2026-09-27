@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 const cookieName = 'airport_chaos_session';
 const guestSessionLifetimeMs = 365 * 24 * 60 * 60 * 1_000;
 const accountSessionLifetimeMs = 30 * 24 * 60 * 60 * 1_000;
+const websocketTicketLifetimeMs = 20_000;
 const pilotIdPattern = /^[a-zA-Z0-9-]{16,80}$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const scryptKeyLength = 64;
@@ -133,6 +134,11 @@ export class PilotSessionStore {
         token_hash TEXT PRIMARY KEY, provider TEXT NOT NULL, used_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS provider_token_replays_expiry ON provider_token_replays(expires_at);
+      CREATE TABLE IF NOT EXISTS websocket_tickets (
+        ticket_hash TEXT PRIMARY KEY, session_token_hash TEXT NOT NULL, pilot_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, consumed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS websocket_tickets_expiry ON websocket_tickets(expires_at);
     `);
     // Unknown-email attempts do the same expensive password work as valid ones.
     this.dummyPasswordHash = passwordHash(randomBytes(24).toString('base64url'));
@@ -211,6 +217,35 @@ export class PilotSessionStore {
     const row = this.database.prepare('SELECT token_hash,pilot_id,account_id,expires_at,revoked_at FROM pilot_sessions WHERE token_hash=?').get(tokenHash) as SessionRow | undefined;
     if (!row || row.revoked_at !== null || row.expires_at <= now) return undefined;
     return { pilotId: row.pilot_id, accountId: row.account_id ?? undefined, tokenHash: row.token_hash };
+  }
+
+  issueWebSocketTicket(identity: SessionIdentity, now = Date.now()): { ticket: string; expiresAt: number } | undefined {
+    const session = this.resolveTokenHash(identity.tokenHash, now);
+    if (!session || session.pilotId !== identity.pilotId) return undefined;
+    const ticket = randomBytes(32).toString('base64url');
+    const expiresAt = now + websocketTicketLifetimeMs;
+    this.database.prepare('INSERT INTO websocket_tickets(ticket_hash,session_token_hash,pilot_id,created_at,expires_at,consumed_at) VALUES(?,?,?,?,?,NULL)')
+      .run(hashToken(ticket), identity.tokenHash, identity.pilotId, now, expiresAt);
+    return { ticket, expiresAt };
+  }
+
+  consumeWebSocketTicket(ticket: string | undefined, now = Date.now()): SessionIdentity | undefined {
+    if (!ticket || !/^[A-Za-z0-9_-]{40,128}$/.test(ticket)) return undefined;
+    const ticketHash = hashToken(ticket);
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const row = this.database.prepare(`SELECT session_token_hash,pilot_id FROM websocket_tickets
+        WHERE ticket_hash=? AND consumed_at IS NULL AND expires_at>?`).get(ticketHash, now) as
+        { session_token_hash: string; pilot_id: string } | undefined;
+      if (!row) { this.database.exec('ROLLBACK'); return undefined; }
+      const consumed = this.database.prepare(`UPDATE websocket_tickets SET consumed_at=?
+        WHERE ticket_hash=? AND consumed_at IS NULL AND expires_at>?`).run(now, ticketHash, now);
+      if (!consumed.changes) { this.database.exec('ROLLBACK'); return undefined; }
+      const session = this.resolveTokenHash(row.session_token_hash, now);
+      if (!session || session.pilotId !== row.pilot_id) { this.database.exec('ROLLBACK'); return undefined; }
+      this.database.exec('COMMIT');
+      return session;
+    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
   }
 
   issue(preferredPilotId: string | undefined, existingProfile: boolean, now = Date.now()): { pilotId: string; cookie: string; migrated: boolean; expiresAt: number; tokenHash: string } {
@@ -436,5 +471,6 @@ export class PilotSessionStore {
     this.database.prepare('DELETE FROM pilot_sessions WHERE expires_at <= ? OR (revoked_at IS NOT NULL AND revoked_at <= ?)').run(now, now - 7 * 24 * 60 * 60_000);
     this.database.prepare('DELETE FROM oauth_flows WHERE expires_at <= ? OR (consumed_at IS NOT NULL AND consumed_at <= ?)').run(now, now - 24 * 60 * 60_000);
     this.database.prepare('DELETE FROM provider_token_replays WHERE expires_at <= ?').run(now);
+    this.database.prepare('DELETE FROM websocket_tickets WHERE expires_at <= ? OR (consumed_at IS NOT NULL AND consumed_at <= ?)').run(now, now - 60_000);
   }
 }

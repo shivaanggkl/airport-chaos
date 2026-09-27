@@ -26,6 +26,23 @@ test('legacy pilot identity can be bound once and cookie—not query ID—is aut
   assert.throws(() => sessions.cookie(first.cookie, false, 100_000, 'None'), /require Secure/);
 });
 
+test('WebSocket tickets are session-bound, short-lived, and atomically single-use', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-ws-ticket-')), 'profiles.sqlite');
+  const sessions = new PilotSessionStore(databasePath);
+  const guest = sessions.issue(undefined, false, 1_000);
+  const identity = sessions.resolveSession(`airport_chaos_session=${guest.cookie}`, 2_000)!;
+  const issued = sessions.issueWebSocketTicket(identity, 3_000)!;
+  assert.ok(issued.expiresAt - 3_000 <= 30_000);
+  assert.equal(sessions.consumeWebSocketTicket(issued.ticket, 4_000)?.pilotId, identity.pilotId);
+  assert.equal(sessions.consumeWebSocketTicket(issued.ticket, 4_001), undefined, 'ticket replay is rejected');
+
+  const expired = sessions.issueWebSocketTicket(identity, 5_000)!;
+  assert.equal(sessions.consumeWebSocketTicket(expired.ticket, expired.expiresAt + 1), undefined);
+  const revoked = sessions.issueWebSocketTicket(identity, 6_000)!;
+  sessions.revoke(identity.tokenHash, 6_001);
+  assert.equal(sessions.consumeWebSocketTicket(revoked.ticket, 6_002), undefined, 'ticket cannot outlive its session');
+});
+
 test('legacy unique-pilot session schema migrates without signing out existing guests', () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-session-migration-')), 'profiles.sqlite');
   const database = new DatabaseSync(databasePath);

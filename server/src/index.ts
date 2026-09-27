@@ -321,6 +321,7 @@ const securityLimits = {
   loginIp: { limit: 12, windowMs: 15 * 60_000 }, loginEmail: { limit: 6, windowMs: 15 * 60_000 },
   oauthStartIp: { limit: 12, windowMs: 15 * 60_000 }, oauthStartPilot: { limit: 8, windowMs: 15 * 60_000 },
   oauthCallbackIp: { limit: 30, windowMs: 15 * 60_000 },
+  realtimeTicketPilot: { limit: 120, windowMs: 15 * 60_000 }, realtimeTicketIp: { limit: 240, windowMs: 15 * 60_000 },
   namePilot: { limit: 5, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 const playerClientIps = new Map<string, string>();
@@ -586,6 +587,23 @@ const httpServer = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
   if (requestOrigin && !trustedOrigin && requestUrl.pathname.startsWith('/api/')) {
     jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+  }
+  if (requestUrl.pathname === '/api/realtime-ticket') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (requestOrigin !== 'capacitor://localhost' || !sameOriginJsonRequest(request, configuredWebOrigin)) {
+      jsonResponse(response, 403, { error: 'Request could not be verified.' }); return;
+    }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    const payload = await readJson(request);
+    if (!payload) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
+    const pilotLimit = limitedBy('realtime-ticket-pilot', identity.pilotId, securityLimits.realtimeTicketPilot);
+    const ipLimit = limitedBy('realtime-ticket-ip', identity.clientIp, securityLimits.realtimeTicketIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
+    const issued = pilotSessions.issueWebSocketTicket(identity.session);
+    if (!issued) { jsonResponse(response, 401, { error: 'Secure session required.' }); return; }
+    jsonResponse(response, 200, issued);
+    return;
   }
   const publicPolicy = request.method === 'GET' || request.method === 'HEAD' ? policyPage(requestUrl.pathname) : undefined;
   if (publicPolicy) {
@@ -4339,7 +4357,10 @@ function authenticatedIdentity(request: IncomingMessage, response: ServerRespons
 }
 
 function sessionIdentity(request: IncomingMessage): { pilotId: string; pilotName: string; session: SessionIdentity } | undefined {
-  const session = pilotSessions.resolveSession(request.headers.cookie);
+  const ticket = new URL(request.url ?? '/', 'http://localhost').searchParams.get('ticket') ?? undefined;
+  const session = ticket
+    ? (request.headers.origin === 'capacitor://localhost' ? pilotSessions.consumeWebSocketTicket(ticket) : undefined)
+    : pilotSessions.resolveSession(request.headers.cookie);
   return session ? { pilotId: session.pilotId, pilotName: requestedPilotName(request), session } : undefined;
 }
 
