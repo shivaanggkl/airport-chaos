@@ -1,6 +1,9 @@
 {
   "name": "airport-chaos",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "workspaces": [
     "client",
     "server"
@@ -9,7 +12,21 @@
     "preprocess:osm": "node scripts/preprocess-osm.mjs",
     "dev:client": "npm run dev --workspace client",
     "dev:server": "npm run dev --workspace server",
+    "build:web": "npm run build --workspace client",
     "build": "npm run build --workspace client && npm run build --workspace server",
+    "cap:sync": "npm run build:web && cap sync",
+    "cap:sync:ios": "npm run build:web && cap sync ios",
+    "cap:open:ios": "npm run cap:sync:ios && cap open ios",
+    "cap:sync:android": "npm run build:web && cap sync android",
+    "cap:open:android": "npm run cap:sync:android && cap open android",
     "start": "npm run start --workspace server"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2"
   }
 }

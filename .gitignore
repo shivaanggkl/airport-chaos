@@ -7,3 +7,8 @@ server/data/
 *.zip
 .env
 *.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+android/key.properties

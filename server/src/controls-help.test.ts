@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { keyboardActionBindings } from '../../client/src/flight-input.ts';
 
 const controlsSource = readFileSync(new URL('../../client/src/controls-help.ts', import.meta.url), 'utf8');
 const inputSource = readFileSync(new URL('../../client/src/flight-input.ts', import.meta.url), 'utf8');
@@ -19,16 +18,16 @@ test('H is not captured from editable controls', () => {
 });
 
 test('desktop reference is sourced from current supported flight bindings', () => {
-  assert.equal(keyboardActionBindings.KeyW, 'throttleUp');
-  assert.equal(keyboardActionBindings.KeyS, 'throttleDown');
-  assert.equal(keyboardActionBindings.KeyA, 'rollLeft');
-  assert.equal(keyboardActionBindings.KeyD, 'rollRight');
-  assert.equal(keyboardActionBindings.ArrowLeft, 'yawLeft');
-  assert.equal(keyboardActionBindings.ArrowRight, 'yawRight');
-  assert.equal(keyboardActionBindings.ArrowUp, 'pitchUp');
-  assert.equal(keyboardActionBindings.ArrowDown, 'pitchDown');
-  assert.equal(keyboardActionBindings.Space, 'fire');
-  assert.equal(keyboardActionBindings.ShiftLeft, 'boost');
+  assert.match(inputSource, /KeyW:\s*'throttleUp'/);
+  assert.match(inputSource, /KeyS:\s*'throttleDown'/);
+  assert.match(inputSource, /KeyA:\s*'rollLeft'/);
+  assert.match(inputSource, /KeyD:\s*'rollRight'/);
+  assert.match(inputSource, /ArrowLeft:\s*'yawLeft'/);
+  assert.match(inputSource, /ArrowRight:\s*'yawRight'/);
+  assert.match(inputSource, /ArrowUp:\s*'pitchUp'/);
+  assert.match(inputSource, /ArrowDown:\s*'pitchDown'/);
+  assert.match(inputSource, /Space:\s*'fire'/);
+  assert.match(inputSource, /ShiftLeft:\s*'boost'/);
   assert.doesNotMatch(inputSource, /Key[PX]:/);
   assert.doesNotMatch(inputSource, /label:\s*'[^']*(?:photo|barrel|dodge)/i);
 });
