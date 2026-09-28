@@ -60,6 +60,7 @@ export type PilotMenuData = {
   account: {
     state: 'guest' | 'account'; email?: string; pilotName: string;
     providers: { password: boolean; google: boolean; apple: boolean };
+    availableProviders: readonly ('google' | 'apple')[];
     level: number; xp: number; credits: number; score: number; ownedAircraft: number; badges: number;
     signUp: (email: string, password: string) => Promise<PilotMenuAccountResult>;
     signIn: (email: string, password: string) => Promise<PilotMenuAccountResult>;
@@ -399,7 +400,7 @@ export class PilotMenu {
       if (account.state === 'guest') {
         profile.append(textElement('p', 'Create an account to use this pilot on another browser or device. Your current progress and purchases stay with this pilot.', 'pilot-menu-muted'));
         const providers = document.createElement('div'); providers.className = 'pilot-account-providers';
-        for (const provider of ['google', 'apple'] as const) {
+        for (const provider of account.availableProviders) {
           const label = `CONTINUE WITH ${provider.toUpperCase()}`;
           const button = actionButton({ label, intent: 'primary', run: () => void run(button, () => account.providerAuth(provider, 'login')) });
           button.classList.add('pilot-provider-button', `pilot-provider-${provider}`);
@@ -429,7 +430,7 @@ export class PilotMenu {
         for (const method of methods) {
           const row = document.createElement('div'); row.className = 'pilot-account-linked-row';
           row.append(textElement('span', method.label), textElement('strong', account.providers[method.provider] ? 'CONNECTED' : 'NOT CONNECTED'));
-          if (method.provider !== 'password' && !account.providers[method.provider]) {
+          if (method.provider !== 'password' && account.availableProviders.includes(method.provider) && !account.providers[method.provider]) {
             const provider = method.provider;
             const button = actionButton({ label: `LINK ${method.label}`, run: () => void run(button, () => account.providerAuth(provider, 'link')) });
             row.append(button);

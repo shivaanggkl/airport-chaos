@@ -21,8 +21,20 @@ services:
         sync: false
       - key: AIRPORT_CHAOS_GOOGLE_CLIENT_SECRET
         sync: false
+      - key: AIRPORT_CHAOS_GOOGLE_IOS_CLIENT_ID
+        value: 358368665752-g2sl0rlt5vs2u4e88u2217atjusqv035.apps.googleusercontent.com
       - key: AIRPORT_CHAOS_GOOGLE_REDIRECT_URI
         value: https://fly.vadensoftware.com/api/auth/oauth/google/callback
+      - key: AIRPORT_CHAOS_APPLE_CLIENT_ID
+        sync: false
+      - key: AIRPORT_CHAOS_APPLE_TEAM_ID
+        sync: false
+      - key: AIRPORT_CHAOS_APPLE_KEY_ID
+        sync: false
+      - key: AIRPORT_CHAOS_APPLE_PRIVATE_KEY
+        sync: false
+      - key: AIRPORT_CHAOS_APPLE_REDIRECT_URI
+        value: https://fly.vadensoftware.com/api/auth/oauth/apple/callback
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

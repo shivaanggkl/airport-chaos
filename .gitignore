@@ -12,3 +12,4 @@ server/data/
 *.keystore
 *.mobileprovision
 android/key.properties
+native-auth/android/build/

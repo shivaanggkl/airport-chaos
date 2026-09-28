@@ -24,9 +24,9 @@ import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal,
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { FirehawkPayments } from './firehawk-payments.js';
 import { PilotSessionStore, normalizeAccountEmail, type SessionIdentity } from './session-auth.js';
-import { createAuthorizationUrl, exchangeAndVerifyProviderCode, pkceChallenge, providerConfig, type OAuthProvider } from './oauth-providers.js';
+import { createAuthorizationUrl, exchangeAndVerifyProviderCode, nativeProviderConfig, pkceChallenge, providerConfig, verifyNativeProviderToken, type NativeAuthPlatform, type OAuthProvider } from './oauth-providers.js';
 import { allowedOAuthReturn, sameOriginJsonRequest } from './auth-request-security.js';
-import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin } from './request-origin.js';
+import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin, nativePlatformForOrigin } from './request-origin.js';
 import { validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
@@ -558,6 +558,16 @@ function oauthProvider(value: unknown): OAuthProvider | undefined {
   return value === 'google' || value === 'apple' ? value : undefined;
 }
 
+function nativeAuthPlatform(request: IncomingMessage): NativeAuthPlatform | undefined {
+  return nativePlatformForOrigin(String(request.headers.origin ?? ''));
+}
+
+function nativeProviderDisplayName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.normalize('NFKC').replace(/[\u0000-\u001f\u007f]/g, '').trim().replace(/\s+/g, ' ');
+  return normalized ? normalized.slice(0, 200) : undefined;
+}
+
 function redirectOAuthResult(response: ServerResponse, returnTo: string, provider: OAuthProvider, result: 'success' | 'collision' | 'failed', linked = false): void {
   const target = new URL(returnTo);
   target.searchParams.set('auth', result);
@@ -677,6 +687,70 @@ const httpServer = createServer(async (request, response) => {
     const payload = await readJson(request);
     if (!payload) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
     try {
+      if (requestUrl.pathname === '/api/auth/native/start') {
+        const platform = nativeAuthPlatform(request);
+        const provider = oauthProvider(payload.provider);
+        const action = payload.action === 'link' || payload.action === 'login' ? payload.action : undefined;
+        if (!platform || !provider || !action || (provider === 'apple' && platform !== 'ios')) {
+          jsonResponse(response, 400, { error: 'Invalid provider request.' }); return;
+        }
+        const ipLimit = limitedBy('native-auth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
+        const pilotLimit = limitedBy('native-auth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
+        if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
+        const config = nativeProviderConfig(provider, platform);
+        if (!config) { jsonResponse(response, 503, { error: 'That sign-in provider is not configured yet.' }); return; }
+        const marker = `native:${platform}`;
+        const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, marker, marker);
+        if (!flow) { jsonResponse(response, 409, { error: action === 'link' ? 'Sign in before linking a provider.' : 'Use Link from your signed-in account.' }); return; }
+        jsonResponse(response, 200, {
+          state: flow.state,
+          nonce: flow.nonce,
+          provider,
+          platform,
+          ...(config.iosClientId ? { iosClientId: config.iosClientId } : {}),
+          ...(config.serverClientId ? { serverClientId: config.serverClientId } : {}),
+        });
+        return;
+      }
+      if (requestUrl.pathname === '/api/auth/native/complete') {
+        const platform = nativeAuthPlatform(request);
+        const provider = oauthProvider(payload.provider);
+        const state = typeof payload.state === 'string' ? payload.state : '';
+        const idToken = typeof payload.idToken === 'string' ? payload.idToken : '';
+        if (!platform || !provider || (provider === 'apple' && platform !== 'ios') || !state || !idToken) {
+          jsonResponse(response, 400, { error: 'Provider authentication failed.' }); return;
+        }
+        const ipLimit = limitedBy('native-auth-complete-ip', identity.clientIp, securityLimits.oauthCallbackIp);
+        const pilotLimit = limitedBy('native-auth-complete-pilot', identity.pilotId, securityLimits.oauthStartPilot);
+        if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
+        const flow = pilotSessions.consumeOAuthFlow(state, provider);
+        const config = nativeProviderConfig(provider, platform);
+        if (!flow || flow.session.tokenHash !== identity.session.tokenHash || flow.redirectUri !== `native:${platform}` || flow.returnTo !== `native:${platform}` || !config) {
+          jsonResponse(response, 400, { error: 'Provider authentication failed.' }); return;
+        }
+        let verified: Awaited<ReturnType<typeof verifyNativeProviderToken>>;
+        try {
+          verified = await verifyNativeProviderToken(config, idToken, flow.nonce);
+        } catch {
+          jsonResponse(response, 401, { error: 'Provider authentication failed.' }); return;
+        }
+        if (provider === 'apple') verified.displayName = nativeProviderDisplayName(payload.displayName);
+        const result = pilotSessions.completeProviderAuth(flow, verified);
+        if (!result.ok || !result.identity || !result.cookie || !result.expiresAt) {
+          jsonResponse(response, result.collision ? 409 : 401, { error: result.error ?? 'Provider authentication failed.' }); return;
+        }
+        const profile = reconcilePaidFirehawk(profileStore.getOrCreate(result.identity.pilotId, verified.displayName ?? 'Pilot'));
+        response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
+        closeSessionConnections(flow.session.tokenHash);
+        jsonResponse(response, 200, {
+          account: pilotSessions.status(result.identity), profile,
+          message: result.guestPreserved
+            ? 'Account loaded. This device guest profile was preserved separately.'
+            : flow.action === 'link' ? `${provider === 'google' ? 'Google' : 'Apple'} linked.` : 'Account loaded.',
+          guestPreserved: result.guestPreserved === true,
+        });
+        return;
+      }
       if (requestUrl.pathname === '/api/auth/oauth/start') {
         const provider = oauthProvider(payload.provider);
         const action = payload.action === 'link' || payload.action === 'login' ? payload.action : undefined;

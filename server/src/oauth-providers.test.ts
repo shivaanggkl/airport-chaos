@@ -3,7 +3,7 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { createAuthorizationUrl, exchangeAndVerifyProviderCode, pkceChallenge, verifyProviderIdToken, type OAuthProvider } from './oauth-providers.js';
+import { createAuthorizationUrl, exchangeAndVerifyProviderCode, nativeProviderConfig, pkceChallenge, verifyNativeProviderToken, verifyProviderIdToken, type OAuthProvider } from './oauth-providers.js';
 
 const now = 1_700_000_000_000;
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -73,6 +73,50 @@ test('Apple OIDC rejects wrong issuer, audience, expiry, nonce, and signature', 
     token('apple', { iss: 'https://attacker.example' }), token('apple', { aud: 'wrong' }),
     token('apple', { exp: Math.floor(now / 1_000) - 1 }), token('apple', { nonce: 'wrong' }), token('apple', {}, other),
   ]) assert.throws(() => verifyProviderIdToken('apple', invalid, options, { keys: [jwk] }), /Provider authentication failed/);
+});
+
+test('native provider configuration uses one backend Google audience and the native Apple app ID', () => {
+  const environment = {
+    AIRPORT_CHAOS_GOOGLE_CLIENT_ID: 'google-web-client',
+    AIRPORT_CHAOS_GOOGLE_IOS_CLIENT_ID: 'google-ios-client',
+  } as NodeJS.ProcessEnv;
+  assert.deepEqual(nativeProviderConfig('google', 'android', environment), {
+    provider: 'google', platform: 'android', audience: 'google-web-client', serverClientId: 'google-web-client',
+  });
+  assert.deepEqual(nativeProviderConfig('google', 'ios', environment), {
+    provider: 'google', platform: 'ios', audience: 'google-web-client', iosClientId: 'google-ios-client', serverClientId: 'google-web-client',
+  });
+  assert.deepEqual(nativeProviderConfig('apple', 'ios', environment), {
+    provider: 'apple', platform: 'ios', audience: 'com.vadensoftware.airportchaos',
+  });
+  assert.equal(nativeProviderConfig('apple', 'android', environment), undefined);
+  assert.equal(nativeProviderConfig('google', 'ios', { AIRPORT_CHAOS_GOOGLE_CLIENT_ID: 'google-web-client' }), undefined);
+});
+
+test('native Google and Apple credentials are JWKS-verified with exact audience and nonce', async () => {
+  const current = Date.now();
+  const fetcher = (async () => new Response(JSON.stringify({ keys: [jwk] }), {
+    status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=300' },
+  })) as typeof fetch;
+  const google = await verifyNativeProviderToken(
+    { provider: 'google', platform: 'android', audience: 'google-client', serverClientId: 'google-client' },
+    token('google', { iat: Math.floor(current / 1_000) - 10, exp: Math.floor(current / 1_000) + 300 }),
+    'expected-nonce', fetcher,
+  );
+  const apple = await verifyNativeProviderToken(
+    { provider: 'apple', platform: 'ios', audience: 'apple-client' },
+    token('apple', { iat: Math.floor(current / 1_000) - 10, exp: Math.floor(current / 1_000) + 300 }),
+    'expected-nonce', fetcher,
+  );
+  assert.deepEqual([google.subject, apple.subject], ['google-subject', 'apple-subject']);
+  await assert.rejects(
+    verifyNativeProviderToken(
+      { provider: 'apple', platform: 'ios', audience: 'wrong-client' },
+      token('apple', { iat: Math.floor(current / 1_000) - 10, exp: Math.floor(current / 1_000) + 300 }),
+      'expected-nonce', fetcher,
+    ),
+    /Provider authentication failed/,
+  );
 });
 
 test('authorization codes are exchanged server-side before Google identity resolution', async () => {

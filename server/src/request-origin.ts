@@ -16,6 +16,12 @@ export function isNativeAppOrigin(value: string | undefined): boolean {
   return Boolean(value && nativeOrigins.has(value));
 }
 
+export function nativePlatformForOrigin(value: string | undefined): 'ios' | 'android' | undefined {
+  if (value === 'capacitor://localhost') return 'ios';
+  if (value === 'https://localhost') return 'android';
+  return undefined;
+}
+
 export function isTrustedRequestOrigin(originValue: string | undefined, hostValue: string | undefined, configuredWebOrigin: string): boolean {
   const origin = normalizedOrigin(originValue);
   if (!origin) return false;

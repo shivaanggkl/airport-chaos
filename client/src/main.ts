@@ -43,6 +43,7 @@ import { DESTRUCTION_EFFECT_DURATION_SECONDS, DESTRUCTION_FRAGMENT_COUNT, MAX_DE
 import { apiFetch, apiUrl, realtimeUrl } from './transport';
 import { monitorConnectivity } from './connectivity';
 import { reconnectDelay } from '../../shared/native-transport.mjs';
+import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
 import type {
   AirportDefinition,
   AirportId,
@@ -3491,6 +3492,7 @@ async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name'
       return { ok: false, message: result.error ?? 'ACCOUNT REQUEST FAILED' };
     }
     if (result.account) clientAccount = result.account;
+    if (path === 'logout') await clearNativeProviderState();
     if (path === 'pilot-name' && result.profile) applyServerProfile(result.profile);
     else if (result.profile && isNetworkProfile(result.profile)) cacheIdentityTransitionProfile(result.profile);
     updateAuthHudControl();
@@ -3506,6 +3508,41 @@ async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name'
 
 async function providerAccountRequest(provider: 'google' | 'apple', action: 'login' | 'link'): Promise<{ ok: boolean; message: string }> {
   try {
+    if (nativeAuthPlatform) {
+      if (!availableNativeProviders.includes(provider)) return { ok: false, message: 'THIS PROVIDER IS NOT AVAILABLE ON THIS DEVICE' };
+      const startResponse = await apiFetch(apiUrl('/api/auth/native/start'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action }),
+      });
+      const challenge = await startResponse.json() as Partial<NativeAuthChallenge> & { error?: string };
+      if (!startResponse.ok || challenge.provider !== provider || challenge.platform !== nativeAuthPlatform ||
+        typeof challenge.state !== 'string' || typeof challenge.nonce !== 'string') {
+        return { ok: false, message: challenge.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
+      }
+      const credential = await acquireNativeCredential(challenge as NativeAuthChallenge);
+      if (credential.cancelled) return { ok: true, message: 'SIGN-IN CANCELLED' };
+      const completionBody = JSON.stringify({
+        provider,
+        state: challenge.state,
+        idToken: credential.idToken,
+        ...(credential.displayName ? { displayName: credential.displayName } : {}),
+      });
+      credential.idToken = '';
+      const completeResponse = await apiFetch(apiUrl('/api/auth/native/complete'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: completionBody,
+      });
+      const result = await completeResponse.json() as { error?: string; message?: string; account?: ClientAccountState; profile?: unknown };
+      if (!completeResponse.ok || !result.account || !result.profile || !isNetworkProfile(result.profile)) {
+        return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN FAILED' };
+      }
+      identityTransitionInProgress = true;
+      clientAccount = result.account;
+      cacheIdentityTransitionProfile(result.profile);
+      updateAuthHudControl();
+      if (pilotMenu.isOpen()) renderPilotMenu();
+      reconnectRealtimeSession();
+      showProgressMessage(result.message ?? 'ACCOUNT LOADED');
+      return { ok: true, message: result.message ?? 'ACCOUNT LOADED' };
+    }
     const returnUrl = new URL(window.location.href);
     returnUrl.searchParams.delete('auth'); returnUrl.searchParams.delete('provider'); returnUrl.searchParams.delete('linked');
     const response = await apiFetch(apiUrl('/api/auth/oauth/start'), {
@@ -4643,6 +4680,7 @@ function pilotMenuData(): PilotMenuData {
     account: {
       state: clientAccount.state, email: clientAccount.email, pilotName: serverProfile.pilotName,
       providers: clientAccount.providers ?? { password: clientAccount.state === 'account' && Boolean(clientAccount.email), google: false, apple: false },
+      availableProviders: availableNativeProviders,
       level: serverProfile.pilotProgress.level, xp: serverProfile.pilotProgress.xp,
       credits: serverProfile.credits, score: serverProfile.score,
       ownedAircraft: serverProfile.unlockedAircraft.length,

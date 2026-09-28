@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, createPublicKey, sign, verify, type JsonWebKey } from 'node:crypto';
 
 export type OAuthProvider = 'google' | 'apple';
+export type NativeAuthPlatform = 'ios' | 'android';
 
 export type OAuthProviderConfig = {
   provider: OAuthProvider;
@@ -10,6 +11,14 @@ export type OAuthProviderConfig = {
   teamId?: string;
   keyId?: string;
   privateKey?: string;
+};
+
+export type NativeProviderConfig = {
+  provider: OAuthProvider;
+  platform: NativeAuthPlatform;
+  audience: string;
+  iosClientId?: string;
+  serverClientId?: string;
 };
 
 export type VerifiedProviderIdentity = {
@@ -63,6 +72,25 @@ export function providerConfig(provider: OAuthProvider, environment: NodeJS.Proc
   const privateKey = privateKeyEnv(environment.AIRPORT_CHAOS_APPLE_PRIVATE_KEY);
   if (!clientId || !redirectUri || !teamId || !keyId || !privateKey) return undefined;
   return { provider, clientId, redirectUri, teamId, keyId, privateKey };
+}
+
+export function nativeProviderConfig(
+  provider: OAuthProvider,
+  platform: NativeAuthPlatform,
+  environment: NodeJS.ProcessEnv = process.env,
+): NativeProviderConfig | undefined {
+  if (provider === 'apple') {
+    if (platform !== 'ios') return undefined;
+    return { provider, platform, audience: 'com.vadensoftware.airportchaos' };
+  }
+  const serverClientId = stringEnv(environment.AIRPORT_CHAOS_GOOGLE_CLIENT_ID);
+  if (!serverClientId) return undefined;
+  if (platform === 'ios') {
+    const iosClientId = stringEnv(environment.AIRPORT_CHAOS_GOOGLE_IOS_CLIENT_ID);
+    if (!iosClientId) return undefined;
+    return { provider, platform, audience: serverClientId, iosClientId, serverClientId };
+  }
+  return { provider, platform, audience: serverClientId, serverClientId };
 }
 
 function base64UrlJson(value: unknown): string {
@@ -178,6 +206,24 @@ async function fetchJwks(uri: string, fetcher: typeof fetch, forceRefresh = fals
   const ttl = Math.min(60 * 60_000, Math.max(60_000, Number(maxAge ?? 300) * 1_000));
   jwksCache.set(uri, { value, expiresAt: Date.now() + ttl });
   return value;
+}
+
+export async function verifyNativeProviderToken(
+  config: NativeProviderConfig,
+  token: string,
+  nonce: string,
+  fetcher: typeof fetch = fetch,
+): Promise<VerifiedProviderIdentity> {
+  if (token.length < 100 || token.length > 16_384 || !/^[A-Za-z0-9._-]+$/.test(token)) {
+    throw new Error('Provider authentication failed.');
+  }
+  const jwksUri = providerMetadata[config.provider].jwksUri;
+  const expected = { clientId: config.audience, nonce };
+  try {
+    return verifyProviderIdToken(config.provider, token, expected, await fetchJwks(jwksUri, fetcher));
+  } catch {
+    return verifyProviderIdToken(config.provider, token, expected, await fetchJwks(jwksUri, fetcher, true));
+  }
 }
 
 export async function exchangeAndVerifyProviderCode(

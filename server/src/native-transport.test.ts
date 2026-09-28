@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { NATIVE_APP_ORIGINS, PRODUCTION_BACKEND_ORIGIN, reconnectDelay, resolveTransport } from '../../shared/native-transport.mjs';
-import { isTrustedRequestOrigin } from './request-origin.js';
+import { isTrustedRequestOrigin, nativePlatformForOrigin } from './request-origin.js';
 
 test('native transport uses the single secure production backend while web remains same-origin', () => {
   assert.equal(PRODUCTION_BACKEND_ORIGIN, 'https://fly.vadensoftware.com');
@@ -27,6 +27,44 @@ test('native and web origin allowlist is exact', () => {
   assert.equal(isTrustedRequestOrigin('https://attacker.example', 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), false);
   assert.equal(isTrustedRequestOrigin('capacitor://attacker.example', 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), false);
   assert.equal(isTrustedRequestOrigin(undefined, 'fly.vadensoftware.com', PRODUCTION_BACKEND_ORIGIN), false);
+  assert.equal(nativePlatformForOrigin('capacitor://localhost'), 'ios');
+  assert.equal(nativePlatformForOrigin('https://localhost'), 'android');
+  assert.equal(nativePlatformForOrigin(PRODUCTION_BACKEND_ORIGIN), undefined);
+  assert.equal(nativePlatformForOrigin('capacitor://attacker.example'), undefined);
+});
+
+test('native auth uses official SDK adapters and never accepts client account authority', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const client = readFileSync(new URL('../../client/src/native-auth.ts', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const swift = readFileSync(new URL('../../native-auth/ios/Sources/NativeAuthPlugin/NativeAuthPlugin.swift', import.meta.url), 'utf8');
+  const java = readFileSync(new URL('../../native-auth/android/src/main/java/com/vadensoftware/airportchaos/nativeauth/NativeAuthPlugin.java', import.meta.url), 'utf8');
+  const gradle = readFileSync(new URL('../../native-auth/android/build.gradle', import.meta.url), 'utf8');
+  const packageSwift = readFileSync(new URL('../../native-auth/Package.swift', import.meta.url), 'utf8');
+  const entitlement = readFileSync(new URL('../../ios/App/App/App.entitlements', import.meta.url), 'utf8');
+  const nativeRoutes = server.slice(server.indexOf("if (requestUrl.pathname === '/api/auth/native/start')"), server.indexOf("if (requestUrl.pathname === '/api/auth/oauth/start')"));
+
+  assert.match(nativeRoutes, /nativeAuthPlatform\(request\)/);
+  assert.match(nativeRoutes, /verifyNativeProviderToken\(config, idToken, flow\.nonce\)/);
+  assert.match(nativeRoutes, /flow\.session\.tokenHash !== identity\.session\.tokenHash/);
+  assert.match(nativeRoutes, /completeProviderAuth\(flow, verified\)/);
+  assert.match(nativeRoutes, /closeSessionConnections\(flow\.session\.tokenHash\)/);
+  assert.doesNotMatch(nativeRoutes, /payload\.(?:accountId|pilotId)/);
+  assert.match(client, /nativeAuthPlatform === 'android' \? \['google'\] : \['google', 'apple'\]/);
+  assert.doesNotMatch(client, /localStorage|sessionStorage/);
+  assert.match(main, /credential\.idToken = ''/);
+  assert.match(swift, /import GoogleSignIn/);
+  assert.match(swift, /import AuthenticationServices/);
+  assert.match(swift, /additionalScopes: \[\]/);
+  assert.match(swift, /request\.nonce = nonce/);
+  assert.match(swift, /credential\.state == appleState/);
+  assert.match(java, /CredentialManager/);
+  assert.match(java, /GetSignInWithGoogleOption/);
+  assert.match(java, /\.setNonce\(nonce\)/);
+  assert.match(gradle, /androidx\.credentials:credentials:1\.6\.0/);
+  assert.match(gradle, /googleid:1\.2\.1/);
+  assert.match(packageSwift, /GoogleSignIn-iOS\.git", exact: "9\.2\.0"/);
+  assert.match(entitlement, /com\.apple\.developer\.applesignin/);
 });
 
 test('reconnect backoff is bounded and jittered', () => {
