@@ -334,6 +334,25 @@ test('expired Google OAuth flow state is rejected without changing the guest ses
   assert.equal(sessions.resolveSession(`airport_chaos_session=${guest.cookie}`, 2_001 + 10 * 60_000 + 1)?.pilotId, guest.pilotId);
 });
 
+test('Apple callback state is cookie-independent, provider-bound, expiring, and atomically single-use', () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-apple-form-post-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath); const sessions = new PilotSessionStore(databasePath);
+  const guest = sessions.issue(undefined, false, 1_000); profiles.getOrCreate(guest.pilotId, 'Apple Guest');
+  const session = sessions.resolveSession(`airport_chaos_session=${guest.cookie}`, 2_000)!;
+
+  const valid = sessions.beginOAuthFlow(session, 'apple', 'login', 'https://game.example/api/auth/oauth/apple/callback', 'https://game.example/', 2_001)!;
+  assert.match(valid.state, /^[A-Za-z0-9_-]{40,128}$/);
+  assert.equal(sessions.consumeOAuthFlow('', 'apple', 2_002), undefined, 'missing state is rejected');
+  assert.equal(sessions.consumeOAuthFlow('A'.repeat(43), 'apple', 2_003), undefined, 'unknown state is rejected');
+  assert.equal(sessions.consumeOAuthFlow(valid.state, 'google', 2_004), undefined, 'wrong-provider state is rejected without consuming it');
+  const recovered = sessions.consumeOAuthFlow(valid.state, 'apple', 2_005)!;
+  assert.equal(recovered.session.pilotId, guest.pilotId, 'flow recovers the server-side session without a callback cookie');
+  assert.equal(sessions.consumeOAuthFlow(valid.state, 'apple', 2_006), undefined, 'replayed state is rejected');
+
+  const expired = sessions.beginOAuthFlow(session, 'apple', 'login', 'https://game.example/api/auth/oauth/apple/callback', 'https://game.example/', 3_000)!;
+  assert.equal(sessions.consumeOAuthFlow(expired.state, 'apple', 3_000 + 10 * 60_000 + 1), undefined, 'expired state is rejected');
+});
+
 test('an authenticated account cannot claim a provider identity already owned by another account', () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-provider-owner-')), 'profiles.sqlite');
   const profiles = new PlayerProfileStore(databasePath); const sessions = new PilotSessionStore(databasePath);

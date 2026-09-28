@@ -25,7 +25,7 @@ import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContex
 import { FirehawkPayments } from './firehawk-payments.js';
 import { PilotSessionStore, normalizeAccountEmail, type SessionIdentity } from './session-auth.js';
 import { createAuthorizationUrl, exchangeAndVerifyProviderCode, nativeProviderConfig, pkceChallenge, providerConfig, verifyNativeProviderToken, type NativeAuthPlatform, type OAuthProvider } from './oauth-providers.js';
-import { allowedOAuthReturn, sameOriginJsonRequest } from './auth-request-security.js';
+import { allowedOAuthReturn, rejectsApiRequestOrigin, sameOriginJsonRequest } from './auth-request-security.js';
 import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin, nativePlatformForOrigin } from './request-origin.js';
 import { validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
@@ -595,7 +595,7 @@ const httpServer = createServer(async (request, response) => {
   }
 
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
-  if (requestOrigin && !trustedOrigin && requestUrl.pathname.startsWith('/api/')) {
+  if (rejectsApiRequestOrigin(request, requestUrl.pathname, configuredWebOrigin)) {
     jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
   }
   if (requestUrl.pathname === '/api/realtime-ticket') {

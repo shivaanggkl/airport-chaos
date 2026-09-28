@@ -158,6 +158,17 @@ test('Apple code exchange creates a short-lived ES256 client assertion on the se
   assert.equal(clientSecret?.split('.').length, 3); assert.match(tokenRequest, /code=apple-code/);
 });
 
+test('Apple callback verification rejects a forged authorization code before account resolution', async () => {
+  const appleSigningKey = generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+  const fetcher = (async () => new Response(JSON.stringify({ error: 'invalid_grant' }), {
+    status: 400, headers: { 'Content-Type': 'application/json' },
+  })) as typeof fetch;
+  await assert.rejects(exchangeAndVerifyProviderCode({
+    provider: 'apple', clientId: 'apple-client', redirectUri: 'https://game.example/api/auth/oauth/apple/callback',
+    teamId: 'TEAM123', keyId: 'KEY123', privateKey: appleSigningKey,
+  }, { code: 'forged-code', nonce: 'expected-nonce' }, fetcher), /Provider authentication failed/);
+});
+
 test('provider tokens and server credentials are absent from client-authoritative gameplay source', () => {
   const client = [
     readFileSync(resolve('client/src/main.ts'), 'utf8'),
