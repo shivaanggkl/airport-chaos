@@ -56,6 +56,24 @@ const flightTestMode = localQaEnabled && new URLSearchParams(window.location.sea
 const chaosQaMode = localQaEnabled && new URLSearchParams(window.location.search).get('chaosqa') === '1';
 const stabilityQaMode = localQaEnabled && new URLSearchParams(window.location.search).get('stabilityqa') === '1';
 let stabilityQaFrames = 0;
+const stabilityQaTiming = stabilityQaMode ? {
+  lastFrameStartedAt: 0,
+  samples: 0,
+  frameTotalMs: 0,
+  frameMaxMs: 0,
+  updateTotalMs: 0,
+  updateMaxMs: 0,
+  renderTotalMs: 0,
+  renderMaxMs: 0,
+  over50Ms: 0,
+  over100Ms: 0,
+  over250Ms: 0,
+} : undefined;
+let stabilityQaSocketsCreated = 0;
+let stabilityQaSocketOpens = 0;
+let stabilityQaSocketCloses = 0;
+let stabilityQaReconnectsScheduled = 0;
+let stabilityQaSocketState: number = WebSocket.CONNECTING;
 const combatQaMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('combatqa') === '1';
 const activeCity = activeCityFromUrl();
 if (!activeCity || activeCity.status !== 'available') throw new Error('A playable city is required before starting the game.');
@@ -5119,8 +5137,8 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   updateHealthDisplay();
   updateFlightHud();
   updateNavigationHud();
-  updateOsmCityChunks(airplane.position);
-  cityWorld.updateWorldStreaming?.(airplane.position, velocity);
+  if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
+  else updateOsmCityChunks(airplane.position);
   updateCamera(1);
   sendLocalState();
 }
@@ -6865,6 +6883,19 @@ function fireWeaponOnce(): boolean {
 
 function animate(): void {
   requestAnimationFrame(animate);
+  const qaFrameStartedAt = stabilityQaTiming ? performance.now() : 0;
+  if (stabilityQaTiming) {
+    if (stabilityQaTiming.lastFrameStartedAt > 0) {
+      const frameMs = qaFrameStartedAt - stabilityQaTiming.lastFrameStartedAt;
+      stabilityQaTiming.samples += 1;
+      stabilityQaTiming.frameTotalMs += frameMs;
+      stabilityQaTiming.frameMaxMs = Math.max(stabilityQaTiming.frameMaxMs, frameMs);
+      if (frameMs > 50) stabilityQaTiming.over50Ms += 1;
+      if (frameMs > 100) stabilityQaTiming.over100Ms += 1;
+      if (frameMs > 250) stabilityQaTiming.over250Ms += 1;
+    }
+    stabilityQaTiming.lastFrameStartedAt = qaFrameStartedAt;
+  }
   if (stabilityQaMode) stabilityQaFrames += 1;
   const delta = Math.min(clock.getDelta(), 0.05);
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
@@ -6888,8 +6919,8 @@ function animate(): void {
   updateFlashEffects(muzzleFlashes, muzzleFlashPool, delta);
   updateFlashEffects(impactFlashes, impactFlashPool, delta);
   updateDestructionEffects(delta);
-  updateOsmCityChunks(airplane.position);
-  cityWorld.updateWorldStreaming?.(airplane.position, velocity);
+  if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
+  else updateOsmCityChunks(airplane.position);
   cityWorld.updateWorldVisuals?.(delta);
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
@@ -6934,7 +6965,18 @@ function animate(): void {
     updateNavigationHud();
     updateEngineAudio();
   }
+  const qaRenderStartedAt = stabilityQaTiming ? performance.now() : 0;
+  if (stabilityQaTiming) {
+    const updateMs = qaRenderStartedAt - qaFrameStartedAt;
+    stabilityQaTiming.updateTotalMs += updateMs;
+    stabilityQaTiming.updateMaxMs = Math.max(stabilityQaTiming.updateMaxMs, updateMs);
+  }
   renderer.render(scene, camera);
+  if (stabilityQaTiming) {
+    const renderMs = performance.now() - qaRenderStartedAt;
+    stabilityQaTiming.renderTotalMs += renderMs;
+    stabilityQaTiming.renderMaxMs = Math.max(stabilityQaTiming.renderMaxMs, renderMs);
+  }
 }
 
 if (stabilityQaMode) {
@@ -6948,6 +6990,8 @@ if (stabilityQaMode) {
   let lastSampleAt = performance.now();
   let lastMaterialSampleAt = -Infinity;
   let materialCount = 0;
+  let objectCount = 0;
+  let meshCount = 0;
   const takeoffSampleSeconds = [0, 2, 5, 10, 20] as const;
   const report = (): void => {
     const sampleAt = performance.now();
@@ -6957,8 +7001,12 @@ if (stabilityQaMode) {
     if (sampleAt - lastMaterialSampleAt >= 5_000) {
       lastMaterialSampleAt = sampleAt;
       const materials = new Set<number>();
+      objectCount = 0;
+      meshCount = 0;
       scene.traverse((object) => {
+        objectCount += 1;
         if (!(object instanceof THREE.Mesh)) return;
+        meshCount += 1;
         const used = object.material;
         if (Array.isArray(used)) for (const material of used) materials.add(material.id);
         else materials.add(used.id);
@@ -6975,6 +7023,13 @@ if (stabilityQaMode) {
     const challenges = skyChallenges?.getStats() ?? { gates: 0, active: false };
     const ads = adPlacementManager.getStats();
     const heap = (performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
+    const timingSamples = Math.max(1, stabilityQaTiming?.samples ?? 0);
+    const timing = stabilityQaTiming ? {
+      frameMs: { average: stabilityQaTiming.frameTotalMs / timingSamples, max: stabilityQaTiming.frameMaxMs },
+      updateMs: { average: stabilityQaTiming.updateTotalMs / timingSamples, max: stabilityQaTiming.updateMaxMs },
+      renderMs: { average: stabilityQaTiming.renderTotalMs / timingSamples, max: stabilityQaTiming.renderMaxMs },
+      spikes: { over50Ms: stabilityQaTiming.over50Ms, over100Ms: stabilityQaTiming.over100Ms, over250Ms: stabilityQaTiming.over250Ms },
+    } : undefined;
     const paintOf = (root: THREE.Object3D) => { const colors: Record<string,string> = {}; root.traverse(object => { if(object instanceof THREE.Mesh) for(const material of Array.isArray(object.material)?object.material:[object.material]) if(material.name.startsWith('AC_LIVERY') && 'color' in material) colors[material.name] = (material.color as THREE.Color).getHexString(); }); return colors; };
     const snapshot = {
       tutorial: {active:guidedTutorialActive,step:guidedTutorialStep,crashed},
@@ -6985,6 +7040,9 @@ if (stabilityQaMode) {
       triangles: renderer.info.render.triangles,
       fps,
       materials: materialCount,
+      objects: objectCount,
+      meshes: meshCount,
+      timing,
       chunks: stream?.loaded ?? { near: 0, mid: 0, far: 0 },
       visibleLods: stream?.visible ?? { near: 0, mid: 0, far: 0 },
       desired: stream?.desired ?? { near: 0, mid: 0, far: 0 },
@@ -7029,12 +7087,33 @@ if (stabilityQaMode) {
       eventObjects: chaosGates.filter((gate) => gate.visible).length + Number(eventCrate.visible),
       ads,
       remoteMeshes: remotePlayers.size,
+      realtime: {
+        state: stabilityQaSocketState,
+        created: stabilityQaSocketsCreated,
+        opens: stabilityQaSocketOpens,
+        closes: stabilityQaSocketCloses,
+        reconnectsScheduled: stabilityQaReconnectsScheduled,
+      },
       heapMiB: heap ? `${(heap.usedJSHeapSize / 1048576).toFixed(1)}/${(heap.totalJSHeapSize / 1048576).toFixed(1)}` : 'unavailable',
       contextEvents,
     };
+    if (stabilityQaTiming) {
+      stabilityQaTiming.samples = 0;
+      stabilityQaTiming.frameTotalMs = 0;
+      stabilityQaTiming.frameMaxMs = 0;
+      stabilityQaTiming.updateTotalMs = 0;
+      stabilityQaTiming.updateMaxMs = 0;
+      stabilityQaTiming.renderTotalMs = 0;
+      stabilityQaTiming.renderMaxMs = 0;
+      stabilityQaTiming.over50Ms = 0;
+      stabilityQaTiming.over100Ms = 0;
+      stabilityQaTiming.over250Ms = 0;
+    }
     panel.textContent = [
       'STABILITY QA · LOCAL ONLY',
       `GPU geo ${snapshot.geometries} · tex ${snapshot.textures} · materials ${snapshot.materials} · calls ${snapshot.calls} · tris ${snapshot.triangles} · FPS ${snapshot.fps}`,
+      `frame ms avg/max ${snapshot.timing?.frameMs.average.toFixed(1) ?? 'n/a'}/${snapshot.timing?.frameMs.max.toFixed(1) ?? 'n/a'} · update ${snapshot.timing?.updateMs.average.toFixed(1) ?? 'n/a'}/${snapshot.timing?.updateMs.max.toFixed(1) ?? 'n/a'} · render ${snapshot.timing?.renderMs.average.toFixed(1) ?? 'n/a'}/${snapshot.timing?.renderMs.max.toFixed(1) ?? 'n/a'} · spikes 50/100/250 ${snapshot.timing?.spikes.over50Ms ?? 0}/${snapshot.timing?.spikes.over100Ms ?? 0}/${snapshot.timing?.spikes.over250Ms ?? 0}`,
+      `scene objects ${snapshot.objects} · meshes ${snapshot.meshes} · realtime state ${snapshot.realtime.state} · sockets created/open/close/reconnect ${snapshot.realtime.created}/${snapshot.realtime.opens}/${snapshot.realtime.closes}/${snapshot.realtime.reconnectsScheduled}`,
       `player ${Math.round(airplane.position.x)},${Math.round(airplane.position.z)} · speed ${Math.round(snapshot.streamSpeed)} · lookahead ${Math.round(snapshot.preloadDistance)}m · desired N/M/F ${snapshot.desired.near}/${snapshot.desired.mid}/${snapshot.desired.far} · requested ${snapshot.requested.near}/${snapshot.requested.mid}/${snapshot.requested.far}`,
       `state ${snapshot.flight.state} · alt ${Math.round(snapshot.flight.altitude)}m · velocity ${Math.round(snapshot.flight.velocity.x)},${Math.round(snapshot.flight.velocity.y)},${Math.round(snapshot.flight.velocity.z)} · camera/fog ${Math.round(snapshot.flight.cameraFar)}/${Math.round(snapshot.flight.fogNear ?? 0)}-${Math.round(snapshot.flight.fogFar ?? 0)}`,
       `Dallas attached N/M/F ${snapshot.chunks.near}/${snapshot.chunks.mid}/${snapshot.chunks.far} · visible ${snapshot.visibleLods.near}/${snapshot.visibleLods.mid}/${snapshot.visibleLods.far} · geometry cache ${snapshot.geometryCacheMiB} MiB`,
@@ -7098,6 +7177,10 @@ async function realtimeSocketUrl(): Promise<URL> {
   return url;
 }
 let socket = new WebSocket(await realtimeSocketUrl());
+if (stabilityQaMode) {
+  stabilityQaSocketsCreated += 1;
+  stabilityQaSocketState = socket.readyState;
+}
 let protocolReady = false;
 let protocolBlocked = false;
 let reconnectAttempt = 0;
@@ -7134,6 +7217,10 @@ async function replaceRealtimeSocket(reason: string): Promise<void> {
     if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked) return;
     const previous = socket;
     const replacement = new WebSocket(nextUrl);
+    if (stabilityQaMode) {
+      stabilityQaSocketsCreated += 1;
+      stabilityQaSocketState = replacement.readyState;
+    }
     socket = replacement;
     protocolReady = false;
     profileHydrated = false;
@@ -7154,6 +7241,7 @@ function scheduleRealtimeReconnect(immediate = false): void {
   if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked || realtimeConnectInFlight || reconnectTimer !== undefined) return;
   if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) return;
   const delay = immediate ? 0 : reconnectDelay(reconnectAttempt++);
+  if (stabilityQaMode) stabilityQaReconnectsScheduled += 1;
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = undefined;
     void replaceRealtimeSocket('Reconnecting');
@@ -7486,7 +7574,13 @@ const welcomeTimeout = window.setTimeout(() => {
   void replaceRealtimeSocket('Realtime handshake timed out');
 }, REALTIME_WELCOME_TIMEOUT_MS);
 
-boundSocket.addEventListener('open', () => { /* Welcome packet completes protocol verification. */ });
+boundSocket.addEventListener('open', () => {
+  if (stabilityQaMode) {
+    stabilityQaSocketOpens += 1;
+    if (boundSocket === socket) stabilityQaSocketState = boundSocket.readyState;
+  }
+  /* Welcome packet completes protocol verification. */
+});
 
 boundSocket.addEventListener('message', (event) => {
   if (boundSocket !== socket) return;
@@ -7928,6 +8022,10 @@ boundSocket.addEventListener('message', (event) => {
 });
 
 boundSocket.addEventListener('close', (event) => {
+  if (stabilityQaMode) {
+    stabilityQaSocketCloses += 1;
+    if (boundSocket === socket) stabilityQaSocketState = boundSocket.readyState;
+  }
   window.clearTimeout(welcomeTimeout);
   if (boundSocket !== socket) return;
   clearCombatThreats();

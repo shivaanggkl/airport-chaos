@@ -50,3 +50,14 @@ test('interrupted mobile pointers are released and native gesture blocking exemp
   assert.match(main, /window\.addEventListener\('blur', resetCameraPointers\)/);
   assert.match(main, /window\.addEventListener\('pagehide', resetCameraPointers\)/);
 });
+
+test('local stability diagnostics expose frame, scene, streaming, and realtime costs without a production telemetry path', () => {
+  const main = readProjectFile('client/src/main.ts');
+
+  assert.match(main, /const stabilityQaTiming = stabilityQaMode \?/);
+  assert.match(main, /frame ms avg\/max/);
+  assert.match(main, /scene objects .* meshes/);
+  assert.match(main, /sockets created\/open\/close\/reconnect/);
+  assert.match(main, /if \(cityWorld\.updateWorldStreaming\) cityWorld\.updateWorldStreaming/);
+  assert.doesNotMatch(main, /updateOsmCityChunks\(airplane\.position\);\s*cityWorld\.updateWorldStreaming/);
+});
