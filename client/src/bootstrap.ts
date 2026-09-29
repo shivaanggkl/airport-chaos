@@ -312,7 +312,10 @@ function chooseCity(city: CityDefinition): void {
     button.textContent = preset === preferred ? 'Play (preferred)' : 'Play';
     button.addEventListener('click', () => {
       try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
-      void enterCity(city, preset);
+      void enterCity(city, preset).catch((error: unknown) => {
+        console.error('[city-entry] Unable to initialize gameplay.', error);
+        showSelector('Unable to load this city.');
+      });
     });
     copy.append(label, description);
     option.append(copy, button);

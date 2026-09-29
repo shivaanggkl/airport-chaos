@@ -7214,11 +7214,11 @@ async function realtimeSocketUrl(): Promise<URL> {
   if (chaosQaMode) url.searchParams.set('chaosqa', '1');
   return url;
 }
-let socket = new WebSocket(await realtimeSocketUrl());
-if (stabilityQaMode) {
-  stabilityQaSocketsCreated += 1;
-  stabilityQaSocketState = socket.readyState;
-}
+// Rendering and input must not depend on the first network round trip. On
+// iOS the authoritative session/ticket request uses the native transport; a
+// transient failure there is recovered by the normal reconnect path instead
+// of rejecting this module and leaving the game root hidden.
+let socket!: WebSocket;
 let protocolReady = false;
 let protocolBlocked = false;
 let reconnectAttempt = 0;
@@ -7241,8 +7241,9 @@ function clearReconnectTimer(): void {
 }
 
 function closeRealtimeSocket(reason: string): void {
-  if (socket.readyState !== WebSocket.OPEN && socket.readyState !== WebSocket.CONNECTING) return;
-  try { socket.close(1000, reason); } catch { /* a connecting socket will close asynchronously */ }
+  const current = socket;
+  if (!current || (current.readyState !== WebSocket.OPEN && current.readyState !== WebSocket.CONNECTING)) return;
+  try { current.close(1000, reason); } catch { /* a connecting socket will close asynchronously */ }
 }
 
 async function replaceRealtimeSocket(reason: string): Promise<void> {
@@ -7263,7 +7264,7 @@ async function replaceRealtimeSocket(reason: string): Promise<void> {
     protocolReady = false;
     profileHydrated = false;
     bindSocketEvents(replacement);
-    if (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING) {
+    if (previous && (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING)) {
       try { previous.close(1000, reason); } catch { /* replacement remains authoritative */ }
     }
   } catch {
@@ -7277,7 +7278,7 @@ async function replaceRealtimeSocket(reason: string): Promise<void> {
 
 function scheduleRealtimeReconnect(immediate = false): void {
   if (realtimeStopped || realtimePaused || !networkOnline || protocolBlocked || realtimeConnectInFlight || reconnectTimer !== undefined) return;
-  if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) return;
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   const delay = immediate ? 0 : reconnectDelay(reconnectAttempt++);
   if (stabilityQaMode) stabilityQaReconnectsScheduled += 1;
   reconnectTimer = window.setTimeout(() => {
@@ -7317,7 +7318,7 @@ try {
 } catch { /* transient notice is optional */ }
 
 function connectionReady(): boolean {
-  return protocolReady && !protocolBlocked && socket.readyState === WebSocket.OPEN;
+  return protocolReady && !protocolBlocked && socket?.readyState === WebSocket.OPEN;
 }
 
 function reconnectRealtimeSession(): void {
@@ -7340,7 +7341,7 @@ function blockProtocolConnection(message: string): void {
   protocolBlocked = true;
   protocolReady = false;
   showProgressMessage(message);
-  if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close(4002, 'Protocol mismatch');
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) socket.close(4002, 'Protocol mismatch');
 }
 
 if (chaosQaMode) {
@@ -7538,7 +7539,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
   navigationBeacons.dispose(scene);
   adPlacementManager.dispose(scene);
   cityWorld.disposeWorldStreaming?.();
-  socket.close();
+  socket?.close();
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, destination.cityId);
   url.searchParams.set('time', destination.timePreset);
@@ -8101,7 +8102,8 @@ boundSocket.addEventListener('error', () => {
   if (!realtimePaused) setConnectionWarning(true);
 });
 }
-bindSocketEvents(socket);
+setConnectionWarning(true);
+void replaceRealtimeSocket('Initial connection');
 
 // Same 10Hz transform stream, but not tied to requestAnimationFrame: Safari
 // can suspend rendering when Chrome is foreground. Timer throttling still

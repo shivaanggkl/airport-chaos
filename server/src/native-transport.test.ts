@@ -129,3 +129,13 @@ test('native offline recovery probes only while connectivity remains down', () =
   assert.match(main, /replaceRealtimeSocket\('Realtime handshake timed out'\)/);
   assert.match(main, /window\.clearTimeout\(welcomeTimeout\)/);
 });
+
+test('gameplay bootstrap is not blocked by the initial realtime ticket request', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /new WebSocket\(await realtimeSocketUrl\(\)\)/);
+  assert.match(main, /let socket!: WebSocket/);
+  assert.match(main, /setConnectionWarning\(true\);\s*void replaceRealtimeSocket\('Initial connection'\)/);
+  assert.match(bootstrap, /enterCity\(city, preset\)\.catch/);
+  assert.match(bootstrap, /showSelector\('Unable to load this city\.'\)/);
+});

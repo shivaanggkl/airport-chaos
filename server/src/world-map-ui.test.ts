@@ -28,8 +28,15 @@ test('mobile Map keeps the geographic view dominant with always-visible intellig
   assert.doesNotMatch(html, /class="map-intelligence-panel"[^>]*details|<summary>PLAYERS|<summary>TERRITORIES/);
   assert.match(css, /\.world-map-view\s*\{[^}]*position:\s*relative;[^}]*flex:\s*1;[^}]*min-height:\s*0;/);
   assert.match(css, /\.map-intelligence\s*\{[^}]*display:\s*grid;/);
-  assert.match(css, /@media\(max-width:1000px\) and \(orientation:landscape\)\{[\s\S]*\.map-intelligence\{[^}]*flex:0 0 clamp\(112px,32dvh,135px\);[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);/);
+  assert.match(css, /@media\(max-width:1000px\) and \(orientation:landscape\),\s*\(any-pointer:coarse\) and \(orientation:landscape\) and \(max-height:520px\)\{[\s\S]*\.map-intelligence\{[^}]*flex:0 0 clamp\(112px,32dvh,135px\);[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);/);
   assert.match(css, /body:has\(#world-map-overlay:not\(\.hidden\)\) :is\([^}]*\.unified-flight-hud[^}]*\.tutorial-help[^}]*\)\{display:none!important\}/);
+});
+
+test('short touch landscape Map is bounded by its safe-area container', () => {
+  assert.match(css, /@media \(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.world-map-card\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*height:\s*100%;/);
+  assert.match(css, /\.world-map-view,[\s\S]*#world-map-canvas\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/);
+  assert.match(css, /\.map-legend\s*\{[^}]*flex-wrap:\s*wrap;[^}]*white-space:\s*normal;/);
+  assert.match(css, /\.map-intelligence\s*\{[^}]*flex:\s*0 0 clamp\(112px, 32dvh, 138px\);[^}]*width:\s*100%;[^}]*min-width:\s*0;/);
 });
 
 test('mobile Map uses one compact in-map legend and no duplicate territory colors block', () => {

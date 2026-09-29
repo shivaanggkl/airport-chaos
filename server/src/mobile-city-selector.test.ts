@@ -16,10 +16,28 @@ test('city and time selector keeps existing actions while exposing compact time 
   assert.match(bootstrap, /void enterCity\(city, preset\)/);
 });
 
-test('mobile landscape selector is centered, bounded, compact, and scrolls only inside its card', () => {
-  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\) \{[\s\S]*\.city-select-card\s*\{[^}]*width:\s*min\(78vw, 760px\);[^}]*max-height:\s*74dvh;[^}]*overflow-y:\s*auto;/);
+test('short touch landscape selector uses the full safe viewport and scrolls only inside its card', () => {
+  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.city-select-card\s*\{[^}]*width:\s*min\(100%, 760px\);[^}]*max-height:\s*100%;[^}]*overflow-y:\s*auto;/);
   assert.match(css, /\.city-selector\[data-view="time"\] \.city-select-kicker,[\s\S]*#start-brand-signature\s*\{\s*display:\s*none;/);
-  assert.match(css, /\.city-selector\[data-view="time"\] \.city-select-card\s*\{[^}]*width:\s*min\(78vw, 720px\);[^}]*max-height:\s*72dvh;/);
+  assert.match(css, /\.city-selector\[data-view="time"\] \.city-select-card\s*\{[^}]*width:\s*min\(100%, 720px\);[^}]*max-height:\s*100%;/);
   assert.match(css, /#city-close::after\s*\{\s*content:\s*'×';/);
   assert.match(css, /\.city-option button\s*\{[^}]*min-height:\s*40px;/);
+});
+
+test('short touch landscape keeps Pilot Menu header fixed with independent navigation and content scrolling', () => {
+  assert.match(css, /\(any-pointer:coarse\) and \(orientation:landscape\) and \(max-height:520px\)\{[\s\S]*\.pilot-menu-card\{[^}]*grid-template:[^}]*108px minmax\(0,1fr\);[^}]*height:100%;[^}]*max-height:100%;/);
+  assert.match(css, /\.pilot-menu-navigation\{[^}]*overflow-y:auto;[^}]*overscroll-behavior:contain/);
+  assert.match(css, /\.pilot-menu-content\{[^}]*min-width:0;[^}]*overflow-x:hidden/);
+  assert.match(css, /\.pilot-account-summary\{[^}]*padding:8px 10px;[^}]*font-size:14px/);
+});
+
+test('WKWebView and short landscape overlays use an explicit compact type scale', () => {
+  assert.match(css, /html\s*\{[^}]*-webkit-text-size-adjust:\s*100%;[^}]*text-size-adjust:\s*100%;/);
+  assert.match(css, /@media \(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*--font-body-size:\s*14px;[\s\S]*--font-meta-size:\s*12px;[\s\S]*\.pilot-progress-card \.pilot-progress-value\s*\{[^}]*font-size:\s*clamp\(18px, 2\.2vw, 22px\);/);
+});
+
+test('short landscape restores two-column progress and Garage presentation', () => {
+  assert.match(css, /@media \(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.pilot-progress-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(css, /\.garage-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1\.2fr\) minmax\(220px, \.8fr\);/);
+  assert.match(css, /\.garage-preview,[\s\S]*\.garage-preview canvas\s*\{[^}]*height:\s*164px;/);
 });
