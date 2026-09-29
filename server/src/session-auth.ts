@@ -16,6 +16,12 @@ function derivePassword(password: string, salt: Buffer, length: number, options:
 }
 
 export type SessionIdentity = { pilotId: string; accountId?: string; tokenHash: string };
+export function shouldReplaceRealtimeConnection(
+  existing: { pilotId: string; sessionTokenHash?: string },
+  incoming: SessionIdentity,
+): boolean {
+  return existing.pilotId === incoming.pilotId && existing.sessionTokenHash === incoming.tokenHash;
+}
 export type AccountStatus = { state: 'guest' } | {
   state: 'account'; email?: string; avatarUrl?: string;
   providers: { password: boolean; google: boolean; apple: boolean };

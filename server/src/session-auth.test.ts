@@ -6,7 +6,15 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { PlayerProfileStore, normalizePilotName } from './player-profiles.js';
-import { PilotSessionStore } from './session-auth.js';
+import { PilotSessionStore, shouldReplaceRealtimeConnection } from './session-auth.js';
+
+test('realtime replacement is session-scoped while one account can use multiple devices', () => {
+  const incoming = { pilotId: 'shared-pilot-000001', accountId: 'account-a', tokenHash: 'iphone-session' };
+  assert.equal(shouldReplaceRealtimeConnection({ pilotId: incoming.pilotId, sessionTokenHash: 'iphone-session' }, incoming), true);
+  assert.equal(shouldReplaceRealtimeConnection({ pilotId: incoming.pilotId, sessionTokenHash: 'web-session' }, incoming), false);
+  assert.equal(shouldReplaceRealtimeConnection({ pilotId: 'different-pilot-001', sessionTokenHash: 'iphone-session' }, incoming), false);
+  assert.equal(shouldReplaceRealtimeConnection({ pilotId: incoming.pilotId }, incoming), false);
+});
 
 test('legacy pilot identity can be bound once and cookie—not query ID—is authority', () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-session-')), 'profiles.sqlite');

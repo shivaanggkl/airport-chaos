@@ -23,7 +23,7 @@ import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { FirehawkPayments } from './firehawk-payments.js';
-import { PilotSessionStore, normalizeAccountEmail, type SessionIdentity } from './session-auth.js';
+import { PilotSessionStore, normalizeAccountEmail, shouldReplaceRealtimeConnection, type SessionIdentity } from './session-auth.js';
 import { createAuthorizationUrl, exchangeAndVerifyProviderCode, nativeProviderConfig, pkceChallenge, providerConfig, verifyNativeProviderToken, type NativeAuthPlatform, type OAuthProvider } from './oauth-providers.js';
 import { allowedOAuthReturn, rejectsApiRequestOrigin, sameOriginJsonRequest } from './auth-request-security.js';
 import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin, nativePlatformForOrigin } from './request-origin.js';
@@ -4517,13 +4517,15 @@ server.on('connection', (socket, request) => {
     return;
   }
   let connectionKind = 'NEW';
-  // A persistent profile owns progression; each live connection gets a new
-  // playerId. Replace only the SAME profile, never another browser's identity.
+  // A persistent profile may be active on multiple authenticated devices.
+  // Replace only another socket from this exact first-party session; a Web
+  // session and an iPhone session can safely share the same pilot/profile.
   for (const [otherSocket, otherId] of playerSockets) {
-    if (players.get(otherId)?.pilotId !== identity.pilotId) continue;
+    const existingPlayer = players.get(otherId);
+    if (!existingPlayer || !shouldReplaceRealtimeConnection(existingPlayer, identity.session)) continue;
     connectionKind = 'REPLACED';
     removeHumanConnection(otherSocket);
-    otherSocket.close(4001, 'Profile opened in another tab');
+    otherSocket.close(4001, 'Session opened in another tab');
   }
   profileStore.getOrCreate(identity.pilotId, identity.pilotName);
   let profile = profileStore.consumeExpiredFighterTrial(identity.pilotId)!;
