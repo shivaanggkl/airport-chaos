@@ -35,6 +35,18 @@ services:
         sync: false
       - key: AIRPORT_CHAOS_APPLE_REDIRECT_URI
         value: https://fly.vadensoftware.com/api/auth/oauth/apple/callback
+      - key: AIRPORT_CHAOS_APPLE_IAP_ENVIRONMENT
+        value: sandbox
+      - key: AIRPORT_CHAOS_APPLE_IAP_APP_APPLE_ID
+        sync: false
+      - key: AIRPORT_CHAOS_APPLE_IAP_ROOT_CERTIFICATES_BASE64
+        sync: false
+      - key: AIRPORT_CHAOS_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: AIRPORT_CHAOS_GOOGLE_PLAY_PUBSUB_AUDIENCE
+        value: https://fly.vadensoftware.com/api/store/google/notifications
+      - key: AIRPORT_CHAOS_GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT
+        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

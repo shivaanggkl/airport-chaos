@@ -27,12 +27,13 @@ import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
-import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
+import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
+import { MOBILE_BANK_CAP, smoothMobileSteering, stepMobileBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
@@ -44,6 +45,7 @@ import { apiFetch, apiUrl, realtimeUrl } from './transport';
 import { monitorConnectivity } from './connectivity';
 import { reconnectDelay } from '../../shared/native-transport.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
+import { loadNativeFirehawkOffer, nativePurchaseProvider, purchaseNativeFirehawk, restoreNativeFirehawk } from './native-purchases';
 import type {
   AirportDefinition,
   AirportId,
@@ -56,6 +58,7 @@ const localQaEnabled = import.meta.env.DEV || window.location.hostname === 'loca
 const flightTestMode = localQaEnabled && new URLSearchParams(window.location.search).get('flighttest') === '1';
 const chaosQaMode = localQaEnabled && new URLSearchParams(window.location.search).get('chaosqa') === '1';
 const stabilityQaMode = localQaEnabled && new URLSearchParams(window.location.search).get('stabilityqa') === '1';
+let territoryWallsQaDisabled = localQaEnabled && new URLSearchParams(window.location.search).get('territorywalls') === 'off';
 let stabilityQaFrames = 0;
 const stabilityQaTiming = stabilityQaMode ? {
   lastFrameStartedAt: 0,
@@ -1509,7 +1512,7 @@ function updateFlightHud(): void {
     const totalSeconds = Math.ceil(remaining / 1000);
     fighterTrialIndicator.textContent = remaining > 0
       ? `FIREHAWK TRIAL — ${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`
-      : 'FIREHAWK TRIAL COMPLETE · UNLOCK FOREVER — $9.99';
+      : `FIREHAWK TRIAL COMPLETE · UNLOCK FOREVER — ${firehawkProduct.displayPrice}`;
     if (remaining === 0 && !trial.completedReportedAt && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_trial_completed' }));
   }
   fighterTrialIndicator.classList.toggle('hidden', !trialActive);
@@ -1713,6 +1716,43 @@ function drawRadarMarker(
   radarContext.fillText(label, x, Math.max(9, y - 7));
 }
 
+function drawRadarTerritories(direction: THREE.Vector3): void {
+  if (!territoryDefinitions.length) return;
+  const center = radarCanvas.width / 2;
+  const radarRadius = center - 13;
+  const rightX = -direction.z;
+  const rightZ = direction.x;
+  const project = (x: number, z: number) => {
+    const offsetX = x - airplane.position.x;
+    const offsetZ = z - airplane.position.z;
+    return {
+      x: center + (offsetX * rightX + offsetZ * rightZ) / radarRange * radarRadius,
+      y: center - (offsetX * direction.x + offsetZ * direction.z) / radarRange * radarRadius,
+    };
+  };
+  radarContext.save();
+  radarContext.beginPath();
+  radarContext.arc(center, center, radarRadius, 0, Math.PI * 2);
+  radarContext.clip();
+  for (const definition of territoryDefinitions) {
+    const { minX, maxX, minZ, maxZ } = definition.bounds;
+    const corners = [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ]] as const;
+    const state = territoryState.get(definition.id);
+    radarContext.beginPath();
+    corners.forEach(([x, z], index) => {
+      const point = project(x, z);
+      if (index === 0) radarContext.moveTo(point.x, point.y);
+      else radarContext.lineTo(point.x, point.y);
+    });
+    radarContext.closePath();
+    radarContext.strokeStyle = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
+    radarContext.globalAlpha = state?.contested ? 0.58 : 0.28;
+    radarContext.lineWidth = state?.contested ? 2 : 1;
+    radarContext.stroke();
+  }
+  radarContext.restore();
+}
+
 function updateRadar(direction: THREE.Vector3): void {
   const width = radarCanvas.width;
   const height = radarCanvas.height;
@@ -1731,6 +1771,7 @@ function updateRadar(direction: THREE.Vector3): void {
   radarContext.moveTo(8, center);
   radarContext.lineTo(width - 8, center);
   radarContext.stroke();
+  drawRadarTerritories(direction);
   const activeMission = serverProfile.missions[cityId]?.active;
   const activeMissionDefinition = activeMission && missionForCity(cityId, activeMission.missionId);
 
@@ -1924,96 +1965,141 @@ function primaryTerritoryColorForPlayer(playerId: string): string | undefined {
 }
 let weeklyLeaderboards: NetworkWeeklyLeaderboard[] = [];
 
-// Shared ownership colors match the world map. Every strip vertex follows the
-// terrain, including the outer edge, so wide glow cannot vanish under slopes.
-const territoryMaterialColors = [...new Set([...territoryDefinitions.map(({ fixedColor }) => fixedColor), neutralTerritoryColor])];
-const borderMaterials = Object.fromEntries(territoryMaterialColors.map((fixedColor) => [fixedColor, {
-  core: new THREE.MeshBasicMaterial({ color: fixedColor, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 1 : 0.96, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
-  halo: new THREE.MeshBasicMaterial({ color: fixedColor, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.52 : 0.39, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
-  missionHalo: new THREE.MeshBasicMaterial({ color: fixedColor, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.72 : 0.56, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
-}])) as Record<string, { core: THREE.MeshBasicMaterial; halo: THREE.MeshBasicMaterial; missionHalo: THREE.MeshBasicMaterial }>;
-const contestedBorderHalo = new THREE.MeshBasicMaterial({ color: territoryOwnershipColors.contested, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.65 : 0.5, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
-const borderUnderlayMaterial = new THREE.MeshBasicMaterial({ color: 0x102330, transparent: true, opacity: worldTimeOfDay === 'dusk' ? 0.82 : 0.78, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
-const territoryCurtainHeight = 220;
-const curtainVisuals = {
-  day: { full: 0.34, far: 0.11, missionFull: 0.44, missionFar: 0.17 },
-  dusk: { full: 0.43, far: 0.15, missionFull: 0.54, missionFar: 0.22 },
-  night: { full: 0.48, far: 0.18, missionFull: 0.6, missionFar: 0.26 },
-} as const;
-type CurtainLod = keyof typeof curtainVisuals.day;
-const curtainLods: readonly CurtainLod[] = ['full', 'far', 'missionFull', 'missionFar'];
-const curtainStrength = curtainVisuals[worldTimeOfDay];
-const curtainMaterials = Object.fromEntries(territoryMaterialColors.map((fixedColor) => [fixedColor,
-  Object.fromEntries(curtainLods.map((lod) => [lod, new THREE.ShaderMaterial({
+const territoryCurtainHeight = TERRITORY_WALL_HEIGHT_METERS;
+const territoryWallFadeStart = 5_500;
+const territoryWallCullDistance = 10_000;
+const territoryWallVertexShader = `
+  attribute float layer;
+  attribute float verticalFade;
+  attribute float emphasis;
+  varying vec3 vColor;
+  varying float vLayer;
+  varying float vVerticalFade;
+  varying float vEmphasis;
+  varying float vDistance;
+  void main() {
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vColor = color;
+    vLayer = layer;
+    vVerticalFade = verticalFade;
+    vEmphasis = emphasis;
+    vDistance = distance(worldPosition.xz, cameraPosition.xz);
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  }
+`;
+const territoryWallFragmentShader = `
+  uniform float curtainAlpha;
+  uniform float haloAlpha;
+  uniform float coreAlpha;
+  uniform float fadeStart;
+  uniform float fadeEnd;
+  uniform float globalOpacity;
+  varying vec3 vColor;
+  varying float vLayer;
+  varying float vVerticalFade;
+  varying float vEmphasis;
+  varying float vDistance;
+  void main() {
+    float distanceAlpha = 1.0 - smoothstep(fadeStart, fadeEnd, vDistance);
+    float alpha = vLayer < 0.5 ? curtainAlpha * vVerticalFade : (vLayer < 1.5 ? haloAlpha : coreAlpha);
+    alpha *= distanceAlpha * vEmphasis * globalOpacity;
+    if (alpha < 0.003) discard;
+    float brightness = vLayer < 0.5 ? 0.95 : (vLayer < 1.5 ? 1.15 : 1.35);
+    gl_FragColor = vec4(vColor * brightness, alpha);
+  }
+`;
+function createTerritoryWallMaterial(pulse = false): THREE.ShaderMaterial {
+  const dusk = worldTimeOfDay === 'dusk';
+  return new THREE.ShaderMaterial({
     uniforms: {
-      tint: { value: new THREE.Color(fixedColor) },
-      strength: { value: curtainStrength[lod] },
+      curtainAlpha: { value: pulse ? 0.18 : dusk ? 0.38 : 0.3 },
+      haloAlpha: { value: pulse ? 0.5 : dusk ? 0.42 : 0.34 },
+      coreAlpha: { value: pulse ? 0.7 : 0.9 },
+      fadeStart: { value: territoryWallFadeStart },
+      fadeEnd: { value: territoryWallCullDistance },
+      globalOpacity: { value: pulse ? 0 : 1 },
     },
-    vertexShader: 'attribute float fade; varying float vFade; void main() { vFade = fade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform vec3 tint; uniform float strength; varying float vFade; void main() { gl_FragColor = vec4(tint, strength * vFade); }',
-    transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-  })])) as Record<CurtainLod, THREE.ShaderMaterial>,
-])) as Record<string, Record<CurtainLod, THREE.ShaderMaterial>>;
+    vertexShader: territoryWallVertexShader,
+    fragmentShader: territoryWallFragmentShader,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+}
+const territoryWallMaterial = createTerritoryWallMaterial();
+const territoryPulseMaterial = createTerritoryWallMaterial(true);
 const territoryLabelLayer = document.createElement('div');
 territoryLabelLayer.className = 'territory-world-labels';
 document.querySelector('#game-root')!.append(territoryLabelLayer);
 const territoryLabelProjection = new THREE.Vector3();
-const territoryBorders = territoryDefinitions.map((definition) => {
+
+function createTerritoryWallGeometry(definition: CityTerritory): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const layers: number[] = [];
+  const verticalFades: number[] = [];
+  const emphases: number[] = [];
+  const colors: number[] = [];
+  const initialColor = new THREE.Color(neutralTerritoryColor);
+  const pushVertex = (x: number, y: number, z: number, layer: number, verticalFade = 1): void => {
+    positions.push(x, y, z);
+    layers.push(layer);
+    verticalFades.push(verticalFade);
+    emphases.push(1);
+    colors.push(initialColor.r, initialColor.g, initialColor.b);
+  };
   const { minX, maxX, minZ, maxZ } = definition.bounds;
   const corners: Array<[number, number]> = [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ], [minX, minZ]];
-  const border = new THREE.Group();
-  for (const [width, layer] of [[34, 'underlay'], [80, 'halo'], [16, 'core']] as const) {
-    const vertices: number[] = [];
+  for (const [width, layer] of [[72, 1], [14, 2]] as const) {
     for (let edge = 0; edge < 4; edge += 1) {
       const [x0, z0] = corners[edge], [x1, z1] = corners[edge + 1];
       const length = Math.hypot(x1 - x0, z1 - z0);
-      const steps = Math.max(1, Math.ceil(length / 60));
+      const steps = Math.max(1, Math.ceil(length / 90));
       const nx = -(z1 - z0) / length * width * 0.5;
       const nz = (x1 - x0) / length * width * 0.5;
       for (let step = 0; step < steps; step += 1) {
         const a = step / steps, b = (step + 1) / steps;
         const ax = x0 + (x1 - x0) * a, az = z0 + (z1 - z0) * a;
         const bx = x0 + (x1 - x0) * b, bz = z0 + (z1 - z0) * b;
-        const lift = layer === 'core' ? 1.7 : layer === 'halo' ? 1.5 : 1.35;
-        vertices.push(ax + nx, groundPlaneY(ax + nx, az + nz) + lift, az + nz,
-          ax - nx, groundPlaneY(ax - nx, az - nz) + lift, az - nz,
-          bx + nx, groundPlaneY(bx + nx, bz + nz) + lift, bz + nz,
-          ax - nx, groundPlaneY(ax - nx, az - nz) + lift, az - nz,
-          bx - nx, groundPlaneY(bx - nx, bz - nz) + lift, bz - nz,
-          bx + nx, groundPlaneY(bx + nx, bz + nz) + lift, bz + nz);
+        const lift = layer === 2 ? 1.7 : 1.5;
+        pushVertex(ax + nx, groundPlaneY(ax + nx, az + nz) + lift, az + nz, layer);
+        pushVertex(ax - nx, groundPlaneY(ax - nx, az - nz) + lift, az - nz, layer);
+        pushVertex(bx + nx, groundPlaneY(bx + nx, bz + nz) + lift, bz + nz, layer);
+        pushVertex(ax - nx, groundPlaneY(ax - nx, az - nz) + lift, az - nz, layer);
+        pushVertex(bx - nx, groundPlaneY(bx - nx, bz - nz) + lift, bz - nz, layer);
+        pushVertex(bx + nx, groundPlaneY(bx + nx, bz + nz) + lift, bz + nz, layer);
       }
     }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, layer === 'underlay' ? borderUnderlayMaterial : borderMaterials[neutralTerritoryColor][layer]);
-    mesh.renderOrder = layer === 'core' ? 12 : layer === 'halo' ? 11 : 10;
-    border.add(mesh);
   }
-  const curtainVertices: number[] = [];
-  const curtainFade: number[] = [];
-  const height = THREE.MathUtils.clamp(definition.boundaryHeight ?? territoryCurtainHeight, 150, 300);
+  const height = TERRITORY_WALL_HEIGHT_METERS;
   for (let edge = 0; edge < 4; edge += 1) {
     const [x0, z0] = corners[edge], [x1, z1] = corners[edge + 1];
-    const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 120));
+    const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 180));
     for (let step = 0; step < steps; step += 1) {
       const a = step / steps, b = (step + 1) / steps;
       const ax = x0 + (x1 - x0) * a, az = z0 + (z1 - z0) * a;
       const bx = x0 + (x1 - x0) * b, bz = z0 + (z1 - z0) * b;
       const ay = groundPlaneY(ax, az) + 1.4, by = groundPlaneY(bx, bz) + 1.4;
-      curtainVertices.push(ax, ay, az, ax, ay + height, az, bx, by, bz,
-        ax, ay + height, az, bx, by + height, bz, bx, by, bz);
-      curtainFade.push(1, 0, 1, 0, 0, 1);
+      pushVertex(ax, ay, az, 0, 1); pushVertex(ax, ay + height, az, 0, 0); pushVertex(bx, by, bz, 0, 1);
+      pushVertex(ax, ay + height, az, 0, 0); pushVertex(bx, by + height, bz, 0, 0); pushVertex(bx, by, bz, 0, 1);
     }
   }
-  const curtainGeometry = new THREE.BufferGeometry();
-  curtainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(curtainVertices, 3));
-  curtainGeometry.setAttribute('fade', new THREE.Float32BufferAttribute(curtainFade, 1));
-  curtainGeometry.computeBoundingSphere();
-  const curtain = new THREE.Mesh(curtainGeometry, curtainMaterials[neutralTerritoryColor].full);
-  curtain.name = `territory-curtain-${definition.id}`;
-  curtain.renderOrder = 9;
-  border.add(curtain);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('layer', new THREE.Float32BufferAttribute(layers, 1));
+  geometry.setAttribute('verticalFade', new THREE.Float32BufferAttribute(verticalFades, 1));
+  geometry.setAttribute('emphasis', new THREE.Float32BufferAttribute(emphases, 1));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+const territoryBorders = territoryDefinitions.map((definition) => {
+  const wall = new THREE.Mesh(createTerritoryWallGeometry(definition), territoryWallMaterial);
+  wall.name = `territory-wall-${definition.id}`;
+  wall.renderOrder = 9;
   const label = document.createElement('div');
   const title = document.createElement('strong');
   const owner = document.createElement('span');
@@ -2022,25 +2108,53 @@ const territoryBorders = territoryDefinitions.map((definition) => {
   title.textContent = definition.displayName.toUpperCase();
   label.append(title, owner);
   territoryLabelLayer.append(label);
-  scene.add(border);
-  return { definition, border, curtain, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, farCurtain: false };
+  scene.add(wall);
+  return { definition, wall, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, pulseUntil: 0, styleSignature: '' };
 });
+const territoryPulseMesh = new THREE.Mesh(new THREE.BufferGeometry(), territoryPulseMaterial);
+territoryPulseMesh.name = 'territory-wall-pulse';
+territoryPulseMesh.renderOrder = 10;
+territoryPulseMesh.visible = false;
+scene.add(territoryPulseMesh);
+let pulsingTerritory: (typeof territoryBorders)[number] | undefined;
 let territoryBorderRefreshAt = 0;
+function applyTerritoryBorderStyle(entry: (typeof territoryBorders)[number]): void {
+  const signature = `${entry.displayColor}:${entry.appearance}:${entry.missionTarget}`;
+  if (signature === entry.styleSignature) return;
+  entry.styleSignature = signature;
+  const colorAttribute = entry.wall.geometry.getAttribute('color') as THREE.BufferAttribute;
+  const layerAttribute = entry.wall.geometry.getAttribute('layer') as THREE.BufferAttribute;
+  const emphasisAttribute = entry.wall.geometry.getAttribute('emphasis') as THREE.BufferAttribute;
+  const baseColor = new THREE.Color(entry.displayColor);
+  const contestedColor = new THREE.Color(territoryOwnershipColors.contested);
+  for (let index = 0; index < colorAttribute.count; index += 1) {
+    const color = entry.appearance === 'contested' && layerAttribute.getX(index) >= 0.5 ? contestedColor : baseColor;
+    colorAttribute.setXYZ(index, color.r, color.g, color.b);
+    emphasisAttribute.setX(index, entry.missionTarget ? 1.3 : 1);
+  }
+  colorAttribute.needsUpdate = true;
+  emphasisAttribute.needsUpdate = true;
+}
+function pulseTerritoryBoundary(territoryId: string): void {
+  const entry = territoryBorders.find(({ definition }) => definition.id === territoryId);
+  if (!entry) return;
+  entry.pulseUntil = performance.now() + 1_400;
+  pulsingTerritory = entry;
+  territoryPulseMesh.geometry = entry.wall.geometry;
+  territoryPulseMesh.visible = entry.wall.visible;
+}
 function refreshTerritoryBorders(): void {
   const active = serverProfile.missions[cityId]?.active;
   const mission = active && missionForCity(cityId, active.missionId);
   const missionTerritories = mission ? missionRequirements(mission, active) : [];
   for (const entry of territoryBorders) {
-    const { definition, border } = entry;
+    const { definition } = entry;
     const state = territoryState.get(definition.id);
     const appearance: TerritoryAppearance = state?.contested ? 'contested' : !state?.controllerId ? 'neutral' : state.controllerId === localPlayerId ? 'own' : 'enemy';
     entry.appearance = appearance;
     entry.displayColor = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
     entry.missionTarget = missionTerritories.includes(definition.id);
-    const materials = borderMaterials[entry.displayColor];
-    (border.children[1] as THREE.Mesh).material = appearance === 'contested' ? contestedBorderHalo : entry.missionTarget ? materials.missionHalo : materials.halo;
-    (border.children[2] as THREE.Mesh).material = materials.core;
-    entry.curtain.material = curtainMaterials[entry.displayColor][entry.missionTarget ? entry.farCurtain ? 'missionFar' : 'missionFull' : entry.farCurtain ? 'far' : 'full'];
+    applyTerritoryBorderStyle(entry);
     entry.owner.textContent = state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
     entry.label.style.setProperty('--territory-accent', entry.displayColor);
     entry.label.classList.toggle('mission', entry.missionTarget);
@@ -2049,24 +2163,22 @@ function refreshTerritoryBorders(): void {
 }
 function updateTerritoryBorderVisibility(now: number): void {
   if (now < territoryBorderRefreshAt) return;
-  territoryBorderRefreshAt = now + 500;
-  let contestedVisible = false;
+  const activeBoundaryPulse = Boolean(pulsingTerritory && pulsingTerritory.pulseUntil > now);
+  territoryBorderRefreshAt = now + (activeBoundaryPulse ? 80 : 500);
   for (const entry of territoryBorders) {
-    const { definition, border } = entry;
+    const { definition, wall } = entry;
     const dx = Math.max(definition.bounds.minX - airplane.position.x, 0, airplane.position.x - definition.bounds.maxX);
     const dz = Math.max(definition.bounds.minZ - airplane.position.z, 0, airplane.position.z - definition.bounds.maxZ);
     const distanceSquared = dx * dx + dz * dz;
-    border.visible = !guidedTutorialActive && distanceSquared < 12_000 * 12_000;
-    const far = distanceSquared > 7_000 * 7_000;
-    if (entry.farCurtain !== far) {
-      entry.farCurtain = far;
-      entry.curtain.material = curtainMaterials[entry.displayColor][entry.missionTarget ? far ? 'missionFar' : 'missionFull' : far ? 'far' : 'full'];
-    }
-    if (border.visible && territoryState.get(definition.id)?.contested) contestedVisible = true;
+    wall.visible = !territoryWallsQaDisabled && !guidedTutorialActive && distanceSquared < territoryWallCullDistance * territoryWallCullDistance;
   }
-  if (contestedVisible) {
-    const pulse = Math.sin(now * 0.0022) * 0.08;
-    contestedBorderHalo.opacity = (worldTimeOfDay === 'dusk' ? 0.65 : 0.5) + pulse;
+  if (pulsingTerritory && pulsingTerritory.pulseUntil > now) {
+    const remaining = (pulsingTerritory.pulseUntil - now) / 1_400;
+    territoryPulseMaterial.uniforms.globalOpacity.value = Math.max(0, remaining) * (0.72 + Math.sin(now * 0.018) * 0.22);
+    territoryPulseMesh.visible = pulsingTerritory.wall.visible;
+  } else {
+    territoryPulseMesh.visible = false;
+    pulsingTerritory = undefined;
   }
 }
 
@@ -2077,7 +2189,7 @@ function updateTerritoryLabels(): void {
     const dx = entry.definition.center.x - airplane.position.x;
     const dz = entry.definition.center.z - airplane.position.z;
     const distanceSquared = dx * dx + dz * dz;
-    if (distanceSquared > 7_000 * 7_000 || !entry.border.visible) continue;
+    if (distanceSquared > 7_000 * 7_000 || !entry.wall.visible) continue;
     const priority = entry.missionTarget ? distanceSquared * 0.25 : distanceSquared;
     if (priority < firstPriority) { second = first; secondPriority = firstPriority; first = index; firstPriority = priority; }
     else if (priority < secondPriority) { second = index; secondPriority = priority; }
@@ -2086,7 +2198,7 @@ function updateTerritoryLabels(): void {
     const entry = territoryBorders[index];
     if (index !== first && index !== second) { entry.label.hidden = true; continue; }
     territoryLabelProjection.set(entry.definition.center.x,
-      groundPlaneY(entry.definition.center.x, entry.definition.center.z) + Math.max(450, (entry.definition.boundaryHeight ?? territoryCurtainHeight) + 220),
+      groundPlaneY(entry.definition.center.x, entry.definition.center.z) + Math.min(900, Math.max(450, (entry.definition.boundaryHeight ?? territoryCurtainHeight) * 0.22)),
       entry.definition.center.z).project(camera);
     const x = (territoryLabelProjection.x + 1) * window.innerWidth * 0.5;
     const y = (1 - territoryLabelProjection.y) * window.innerHeight * 0.5;
@@ -2123,8 +2235,7 @@ function updateCaptureHud(): void {
   const capturing = localPlayerId ? territoryDefinitions.find((definition) => {
     const state = territoryState.get(definition.id);
     return state?.capturingPlayerId === localPlayerId &&
-      airplane.position.x >= definition.bounds.minX && airplane.position.x <= definition.bounds.maxX &&
-      airplane.position.z >= definition.bounds.minZ && airplane.position.z <= definition.bounds.maxZ;
+      territoryContains(definition, airplane.position);
   }) : undefined;
   territoryCaptureElement.classList.toggle('hidden', !capturing);
   if (capturing) {
@@ -2793,6 +2904,7 @@ function restartGame(notifyServer = true): void {
   rollControlStrength = 0;
   pitchControlStrength = 0;
   yawControlStrength = 0;
+  smoothedTouchSteering = { x: 0, y: 0 };
   throttle = 0;
   mobileInput.setThrottleState(0);
   boostMeter = 100;
@@ -2900,20 +3012,41 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
   if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER REQUIRED FOR TEST FLIGHT'); return; }
   try { socket.send(JSON.stringify({ type: 'startFighterTrial' })); }
   catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
-}, () => {
+}, async () => {
   if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_purchase_clicked' }));
+  if (nativePurchaseProvider) {
+    try {
+      const result = await purchaseNativeFirehawk();
+      if (result.state === 'cancelled') { aircraftGarage.showActionResult('PURCHASE CANCELLED'); return; }
+      if (result.state === 'pending') { aircraftGarage.showActionResult('PURCHASE PENDING'); return; }
+      if (result.profile) applyServerProfile(result.profile);
+      aircraftGarage.showActionResult('FIREHAWK UNLOCKED · PURCHASE CONFIRMED');
+    } catch (error) { aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'UNABLE TO VERIFY PURCHASE. TRY AGAIN.'); }
+    return;
+  }
   void beginFirehawkCheckout({ pilotId: serverProfile.pilotId, pilotName: serverProfile.pilotName })
     .catch((error: unknown) => aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
 }, () => {
   if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_modal_viewed' }));
 }, async (code) => {
   try {
+    if (nativePurchaseProvider) {
+      const result = await restoreNativeFirehawk();
+      if (result.state === 'notFound') { aircraftGarage.showActionResult('NO FIREHAWK PURCHASE FOUND'); return; }
+      if (result.profile) applyServerProfile(result.profile);
+      aircraftGarage.showActionResult('FIREHAWK RESTORED'); return;
+    }
+    if (!code) { aircraftGarage.showActionResult('PURCHASE RESTORE FAILED'); return; }
     const result = await restoreFirehawkPurchase(code);
     if (result.profile) applyServerProfile(result.profile);
     aircraftGarage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
 }, (id) => sendCosmeticAction('purchaseCosmetic', id),
   (id) => sendCosmeticAction('equipCosmetic', id));
+if (nativePurchaseProvider) {
+  aircraftGarage.setNativeStorePrice();
+  void loadNativeFirehawkOffer().then(offer => aircraftGarage.setNativeStorePrice(offer?.localizedPrice)).catch(() => undefined);
+}
 function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmeticId: string): void {
   if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); return; }
   try { socket.send(JSON.stringify({ type, cosmeticId })); } catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); }
@@ -3075,6 +3208,7 @@ let roll = 0;
 let rollControlStrength = 0;
 let pitchControlStrength = 0;
 let yawControlStrength = 0;
+let smoothedTouchSteering = { x: 0, y: 0 };
 const pitchBeforeQuaternion = new THREE.Quaternion();
 const pitchDeltaQuaternion = new THREE.Quaternion();
 let lastPitchAxisLeakAt = -Infinity;
@@ -3327,7 +3461,7 @@ type ServerMessage =
   | { type: 'incomingFire'; attackerId: string }
   | ({ type: 'heatState' } & NetworkHeatState)
   | { type: 'territoryState'; cityId: CityId; territories: NetworkTerritoryState[] }
-  | { type: 'territoryNotice'; territoryId: string; kind: 'enter' | 'captured' | 'underAttack' | 'defenderInbound'; attackerName?: string }
+  | { type: 'territoryNotice'; territoryId: string; kind: 'enter' | 'exit' | 'captured' | 'underAttack' | 'defenderInbound'; attackerName?: string }
   | { type: 'territoryReward'; territoryId: string; score: number; credits: number; kind: 'capture' | 'control' }
   | { type: 'objectiveComplete'; objectiveId: string; label: string; credits: number }
   | { type: 'objectiveProgress'; label: string; progress: number; target: number }
@@ -5161,6 +5295,7 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   rollControlStrength = 0;
   pitchControlStrength = 0;
   yawControlStrength = 0;
+  smoothedTouchSteering = { x: 0, y: 0 };
   airplane.position.set(preset.x, groundPlaneY(preset.x, preset.z) + preset.altitude, preset.z);
   airplane.rotation.set(pitch, heading, roll, 'YXZ');
   forward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();
@@ -6379,11 +6514,13 @@ function updateFlight(delta: number): void {
     boostMeter = Math.min(100, boostMeter + delta * (currentAircraft.boostRegen ?? 12));
   }
 
-  const touchSteering = mobileInput.getSteeringInput();
+  const touchSteeringTarget = mobileInput.getSteeringInput();
+  smoothedTouchSteering = smoothMobileSteering(smoothedTouchSteering, touchSteeringTarget, delta);
+  const touchSteering = smoothedTouchSteering;
   const keyboardRollInput = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
   const keyboardYawInput = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
   const rollInput = keyboardRollInput || -touchSteering.x;
-  const yawInput = keyboardYawInput || -touchSteering.x;
+  const yawInput = keyboardYawInput || -touchSteering.x * 0.62;
   // Turn is an abstract control command, not an instant heading change.  Its
   // response is derived from the existing yaw/inertia envelope, so Cargo
   // settles deliberately while the Fighter remains crisp without keeping a
@@ -6497,30 +6634,30 @@ function updateFlight(delta: number): void {
   const speedRatio = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   const steeringAuthority =
     (0.64 + speedRatio * 0.36) * currentAircraft.yawRate / currentAircraft.inertia;
-  // Roll is an abstract, filtered control command. Releasing it damps the
-  // command first, then aerodynamics gently level the wings; neither path
-  // touches heading, so the aircraft carries on along its earned new course.
-  const rollResponse = rollInput === 0
-    ? (currentAircraft.rollInputRelease ?? currentAircraft.rollInputResponse * 0.8)
-    : currentAircraft.rollInputResponse;
-  rollControlStrength = THREE.MathUtils.lerp(
-    rollControlStrength,
-    rollInput,
-    1 - Math.exp(-rollResponse * delta),
-  );
-  roll += rollControlStrength * delta * currentAircraft.rollRate;
-  if (rollInput === 0) {
-    // Roll is intentionally unbounded while commanded. Use the shortest
-    // equivalent angle when leveling so a completed 360° roll does not cause
-    // an artificial extra revolution on release.
-    const bankFromLevel = Math.atan2(Math.sin(roll), Math.cos(roll));
-    roll -= bankFromLevel * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? currentAircraft.rollRate * 0.75) * delta));
-    if (landingAssistActive) {
-      // The approach helper only levels the wings; it never changes heading.
-      // A second, gentle damping pass makes reasonable runway corrections
-      // forgiving without turning the feature into an automatic landing.
-      const approachBank = Math.atan2(Math.sin(roll), Math.cos(roll));
-      roll -= approachBank * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? 0.7) * 0.55 * delta));
+  if (mobileInput.isTouchLayout() && keyboardRollInput === 0) {
+    // Touch X expresses turn intent. It selects a bounded coordinated-bank
+    // attitude instead of accumulating roll velocity, so holding the edge
+    // keeps turning without ever driving the aircraft inverted.
+    rollControlStrength = 0;
+    roll = stepMobileBank(roll, rollInput, delta, currentAircraft);
+  } else {
+    // Desktop A/D remains an aerobatic roll-rate control.
+    const rollResponse = rollInput === 0
+      ? (currentAircraft.rollInputRelease ?? currentAircraft.rollInputResponse * 0.8)
+      : currentAircraft.rollInputResponse;
+    rollControlStrength = THREE.MathUtils.lerp(
+      rollControlStrength,
+      rollInput,
+      1 - Math.exp(-rollResponse * delta),
+    );
+    roll += rollControlStrength * delta * currentAircraft.rollRate;
+    if (rollInput === 0) {
+      const bankFromLevel = Math.atan2(Math.sin(roll), Math.cos(roll));
+      roll -= bankFromLevel * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? currentAircraft.rollRate * 0.75) * delta));
+      if (landingAssistActive) {
+        const approachBank = Math.atan2(Math.sin(roll), Math.cos(roll));
+        roll -= approachBank * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? 0.7) * 0.55 * delta));
+      }
     }
   }
   // The eased control command sets a bounded attitude target. Pitch only rotates the
@@ -6541,8 +6678,8 @@ function updateFlight(delta: number): void {
   let nextLocalPitch = moveToward(localPitch, targetPitch, delta * pitchResponse);
   if (landingAssistActive) {
     nextLocalPitch = THREE.MathUtils.lerp(nextLocalPitch, THREE.MathUtils.clamp(nextLocalPitch, -0.14, 0.18), 1 - Math.exp(-delta * 1.35));
-    // Never clamp continuous roll here: 2π is level, not excessive bank.
-    // The ordinary roll-release path already levels via the wrapped angle.
+    // Desktop roll remains continuous; touch roll is already bounded by its
+    // target-bank controller before pitch is applied.
   }
   const pitchRollLeak = roll - pitchStageRoll;
   const pitchYawLeak = heading - pitchStageHeading;
@@ -6564,6 +6701,10 @@ function updateFlight(delta: number): void {
   pitch = airplane.rotation.x;
   heading += Math.atan2(Math.sin(airplane.rotation.y - heading), Math.cos(airplane.rotation.y - heading));
   roll += Math.atan2(Math.sin(airplane.rotation.z - roll), Math.cos(airplane.rotation.z - roll));
+  if (mobileInput.isTouchLayout() && keyboardRollInput === 0) {
+    roll = THREE.MathUtils.clamp(roll, -MOBILE_BANK_CAP, MOBILE_BANK_CAP);
+    airplane.rotation.set(pitch, heading, roll, 'YXZ');
+  }
   forward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();
   liftDirection.set(0, 1, 0).applyQuaternion(airplane.quaternion).normalize();
 
@@ -6599,7 +6740,18 @@ function updateFlight(delta: number): void {
   const coastDrag = !boostActive && overspeed > 0
     ? Math.max(0, thrust - normalDrag) + overspeed / currentAircraft.overspeedDecaySeconds
     : 0;
-  const drag = normalDrag + coastDrag;
+  const speedRequestThrottle = mobileThrottleTarget ?? throttle;
+  const requestedDeceleration = !boostActive
+    ? throttleTargetDeceleration(airspeed, speedRequestThrottle, currentAircraft)
+    : 0;
+  // The lever requests a continuous performance target. Above that target,
+  // first cancel residual engine surplus and then shed the excess speed at an
+  // aircraft-specific rate. Large lever reductions therefore bite at once,
+  // while small corrections remain smooth and heavy aircraft retain inertia.
+  const throttleTargetDrag = requestedDeceleration > 0
+    ? Math.max(0, thrust - normalDrag) + requestedDeceleration
+    : 0;
+  const drag = normalDrag + Math.max(coastDrag, throttleTargetDrag);
 
   velocity.addScaledVector(forward, thrust * delta);
   velocity.addScaledVector(liftDirection, 9.81 * liftFactor * delta);
@@ -7021,6 +7173,13 @@ if (stabilityQaMode) {
   const panel = document.createElement('pre');
   panel.className = 'stability-qa-panel';
   document.body.append(panel);
+  const wallToggle = document.createElement('button');
+  wallToggle.className = 'territory-wall-qa-toggle';
+  wallToggle.style.cssText = 'position:fixed;z-index:10000;right:8px;bottom:8px;padding:6px 10px';
+  const updateWallToggle = (): void => { wallToggle.textContent = `WALLS ${territoryWallsQaDisabled ? 'OFF' : 'ON'}`; };
+  wallToggle.addEventListener('click', () => { territoryWallsQaDisabled = !territoryWallsQaDisabled; territoryBorderRefreshAt = 0; updateWallToggle(); });
+  updateWallToggle();
+  document.body.append(wallToggle);
   let contextEvents = 0;
   let airborneSince: number | undefined;
   let takeoffSampleIndex = 0;
@@ -7069,6 +7228,10 @@ if (stabilityQaMode) {
       spikes: { over50Ms: stabilityQaTiming.over50Ms, over100Ms: stabilityQaTiming.over100Ms, over250Ms: stabilityQaTiming.over250Ms },
     } : undefined;
     const paintOf = (root: THREE.Object3D) => { const colors: Record<string,string> = {}; root.traverse(object => { if(object instanceof THREE.Mesh) for(const material of Array.isArray(object.material)?object.material:[object.material]) if(material.name.startsWith('AC_LIVERY') && 'color' in material) colors[material.name] = (material.color as THREE.Color).getHexString(); }); return colors; };
+    const visibleTerritoryMeshes = territoryBorders.flatMap(({ wall }) => wall.visible ? [wall] : []);
+    const territoryTriangles = visibleTerritoryMeshes.reduce((total, mesh) => total + (mesh.geometry.index
+      ? mesh.geometry.index.count / 3
+      : (mesh.geometry.getAttribute('position')?.count ?? 0) / 3), 0);
     const snapshot = {
       tutorial: {active:guidedTutorialActive,step:guidedTutorialStep,crashed},
       cosmetics: {local:paintOf(airplane),remote:[...remotePlayers.values()].filter(player=>!player.isBot).map(player=>({id:player.playerId,paint:paintOf(player.plane)}))},
@@ -7134,6 +7297,14 @@ if (stabilityQaMode) {
       },
       heapMiB: heap ? `${(heap.usedJSHeapSize / 1048576).toFixed(1)}/${(heap.totalJSHeapSize / 1048576).toFixed(1)}` : 'unavailable',
       contextEvents,
+      territoryWalls: {
+        enabled: !territoryWallsQaDisabled,
+        groups: territoryBorders.length,
+        visibleGroups: territoryBorders.filter(({ wall }) => wall.visible).length,
+        meshes: territoryBorders.length + 1,
+        drawCalls: visibleTerritoryMeshes.length + Number(territoryPulseMesh.visible),
+        triangles: territoryTriangles,
+      },
     };
     if (stabilityQaTiming) {
       stabilityQaTiming.samples = 0;
@@ -7164,6 +7335,7 @@ if (stabilityQaMode) {
       `projectiles ${snapshot.projectiles} · flashes ${snapshot.flashes} · debris ${snapshot.debris} · remotes ${snapshot.remoteMeshes}`,
       `clouds ${snapshot.ambient.clouds} · ambient ${snapshot.ambient.ambientActors}/${snapshot.ambient.routeCount} (${snapshot.ambient.actors} total, ${snapshot.ambient.ambientEnabled ? 'on' : 'off'}, near ${Math.round(snapshot.ambient.nearestRoute)}m) · gates ${snapshot.challengeGates}${snapshot.challengeActive ? ' active' : ''} · event ${snapshot.eventObjects}`,
       `ads ${snapshot.ads.meshes} meshes/${snapshot.ads.materials} materials · heap ${snapshot.heapMiB} MiB · context ${snapshot.contextEvents}`,
+      `territory walls ${snapshot.territoryWalls.enabled ? 'ON' : 'OFF'} · groups ${snapshot.territoryWalls.visibleGroups}/${snapshot.territoryWalls.groups} · meshes ${snapshot.territoryWalls.meshes} · calls ${snapshot.territoryWalls.drawCalls} · tris ${snapshot.territoryWalls.triangles}`,
     ].join('\n');
     console.debug('[stabilityqa]', snapshot);
     const now = performance.now();
@@ -7866,6 +8038,7 @@ boundSocket.addEventListener('message', (event) => {
     updateMissionHud();
   } else if (message.type === 'territoryNotice') {
     const territory = territoryDefinition(message.territoryId);
+    if (territory && (message.kind === 'enter' || message.kind === 'exit')) pulseTerritoryBoundary(territory.id);
     if (territory && message.kind === 'underAttack') {
       gameplayFeedback.push({ type:'territory-contest', primaryText:'TERRITORY CONTESTED', secondaryText:territory.displayName.toUpperCase(), intensity:'medium' });
       territoryDefenseAlertId = territory.id;
@@ -7877,7 +8050,8 @@ boundSocket.addEventListener('message', (event) => {
       showProgressMessage(message.kind === 'captured'
       ? `${territory.displayName.toUpperCase()} CAPTURED +250`
       : message.kind === 'defenderInbound' ? `${territory.displayName.toUpperCase()} · DEFENDER INBOUND`
-      : `ENTERING ${territory.displayName.toUpperCase()}`);
+      : message.kind === 'exit' ? `LEFT ${territory.displayName.toUpperCase()}`
+      : `ENTERED ${territory.displayName.toUpperCase()}`);
     }
   } else if (message.type === 'territoryReward') {
     const territory = territoryDefinition(message.territoryId);

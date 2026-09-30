@@ -10,6 +10,7 @@ import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { setupLaunchBackground } from './launch-background';
 import { apiFetch, apiUrl } from './transport';
+import { loadNativeFirehawkOffer, nativePurchaseProvider, purchaseNativeFirehawk, restoreNativeFirehawk } from './native-purchases';
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
@@ -167,17 +168,39 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     if (!response.ok) { garage.showActionResult(result.error ?? 'TEST FLIGHT UNAVAILABLE'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
   } catch { garage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
-}, () => {
+}, async () => {
   recordGarageBusinessEvent('fighter_purchase_clicked');
+  if (nativePurchaseProvider) {
+    try {
+      const result = await purchaseNativeFirehawk();
+      if (result.state === 'cancelled') { garage.showActionResult('PURCHASE CANCELLED'); return; }
+      if (result.state === 'pending') { garage.showActionResult('PURCHASE PENDING'); return; }
+      garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
+      garage.showActionResult('FIREHAWK UNLOCKED · PURCHASE CONFIRMED');
+    } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'UNABLE TO VERIFY PURCHASE. TRY AGAIN.'); }
+    return;
+  }
   void beginFirehawkCheckout({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName })
     .catch((error: unknown) => garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
 }, () => recordGarageBusinessEvent('fighter_modal_viewed'), async (code) => {
   try {
+    if (nativePurchaseProvider) {
+      const result = await restoreNativeFirehawk();
+      if (result.state === 'notFound') { garage.showActionResult('NO FIREHAWK PURCHASE FOUND'); return; }
+      garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
+      garage.showActionResult('FIREHAWK RESTORED'); return;
+    }
+    if (!code) { garage.showActionResult('PURCHASE RESTORE FAILED'); return; }
     const result = await restoreFirehawkPurchase(code);
     garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
     garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
 }, id => { void changeGarageCosmetic('purchaseCosmetic', id); }, id => { void changeGarageCosmetic('equipCosmetic', id); });
+
+if (nativePurchaseProvider) {
+  garage.setNativeStorePrice();
+  void loadNativeFirehawkOffer().then(offer => garage.setNativeStorePrice(offer?.localizedPrice)).catch(() => undefined);
+}
 
 async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string): Promise<void> {
   try {

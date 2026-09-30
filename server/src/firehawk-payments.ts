@@ -15,10 +15,10 @@ export function stripeModeForLivemode(livemode: boolean): StripeMode { return li
 export function stripeModeAcceptsEvent(mode: StripeMode, livemode: boolean): boolean { return stripeModeForLivemode(livemode) === mode; }
 
 export type CompletedFirehawkPurchase = {
-  pilotId: string; sessionId: string; reference: string; stripeMode: StripeMode; customerEmail?: string;
+  pilotId: string; accountId?: string; sessionId: string; paymentIntentId?: string; reference: string; stripeMode: StripeMode; customerEmail?: string;
 };
 export type FirehawkRefund = {
-  pilotId: string; stripeMode: StripeMode; reference: string; refundedAmount: number; refundDelta: number; fullRefund: boolean;
+  pilotId: string; stripeMode: StripeMode; sessionId: string; reference: string; refundedAmount: number; refundDelta: number; fullRefund: boolean;
 };
 
 function recoveryHash(code: string): string {
@@ -75,13 +75,14 @@ export class FirehawkPayments {
     try { this.database.exec('ALTER TABLE firehawk_purchases ADD COLUMN refund_updated_at INTEGER'); } catch { /* already migrated */ }
     try { this.database.exec('ALTER TABLE firehawk_purchases ADD COLUMN refunded_at INTEGER'); } catch { /* already migrated */ }
     try { this.database.exec('ALTER TABLE firehawk_purchases ADD COLUMN last_refund_event_id TEXT'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE firehawk_purchases ADD COLUMN account_id TEXT'); } catch { /* already migrated */ }
     this.database.exec('UPDATE firehawk_purchases SET entitled_pilot_id=pilot_id WHERE entitled_pilot_id IS NULL');
     this.database.exec('CREATE UNIQUE INDEX IF NOT EXISTS firehawk_purchase_recovery_hash ON firehawk_purchases(recovery_hash) WHERE recovery_hash IS NOT NULL');
     this.database.exec('CREATE INDEX IF NOT EXISTS firehawk_purchases_mode_status ON firehawk_purchases(stripe_mode,status)');
     this.database.exec('CREATE INDEX IF NOT EXISTS firehawk_purchases_payment_mode ON firehawk_purchases(payment_intent_id,stripe_mode)');
   }
 
-  async createCheckout(pilotId: string, origin: string): Promise<{ url: string; sessionId: string }> {
+  async createCheckout(pilotId: string, accountId: string, origin: string): Promise<{ url: string; sessionId: string }> {
     if (!this.enabled || !this.stripe || !this.priceId) throw new Error('CHECKOUT_UNAVAILABLE');
     const entry = aircraftEconomy.fighter;
     if (entry.access !== 'premium' || entry.entitlement !== firehawkProduct.entitlement || entry.usdPrice !== firehawkProduct.displayPrice) throw new Error('PRODUCT_CONFIG_INVALID');
@@ -90,8 +91,8 @@ export class FirehawkPayments {
       line_items: [{ price: this.priceId, quantity: 1 }],
       success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?checkout=cancel`,
-      metadata: { pilotId, entitlement: firehawkProduct.entitlement, product: firehawkProduct.productId },
-      payment_intent_data: { metadata: { pilotId, entitlement: firehawkProduct.entitlement, product: firehawkProduct.productId } },
+      metadata: { pilotId, accountId, entitlement: firehawkProduct.entitlement, product: firehawkProduct.productId },
+      payment_intent_data: { metadata: { pilotId, accountId, entitlement: firehawkProduct.entitlement, product: firehawkProduct.productId } },
     });
     if (!session.url) throw new Error('CHECKOUT_UNAVAILABLE');
     return { url: session.url, sessionId: session.id };
@@ -110,19 +111,21 @@ export class FirehawkPayments {
     const session = await this.stripe.checkout.sessions.retrieve(supplied.id);
     const lines = await this.stripe.checkout.sessions.listLineItems(supplied.id, { limit: 10 });
     const pilotId = session.metadata?.pilotId;
+    const accountId = session.metadata?.accountId;
     const stripeMode = stripeModeForLivemode(session.livemode);
     if (stripeMode !== this.mode || session.payment_status !== 'paid' || session.amount_total !== firehawkProduct.amountCents || session.currency !== firehawkProduct.currency ||
       session.metadata?.entitlement !== firehawkProduct.entitlement || session.metadata?.product !== firehawkProduct.productId ||
       typeof pilotId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(pilotId) ||
+      typeof accountId !== 'string' || !/^[a-f0-9-]{36}$/i.test(accountId) ||
       lines.data.length !== 1 || lines.data[0]?.price?.id !== this.priceId || lines.data[0]?.quantity !== 1) return undefined;
     const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
     const email = session.customer_details?.email?.trim().slice(0, 254) || undefined;
     const inserted = this.database.prepare(`INSERT OR IGNORE INTO firehawk_purchases
-      (stripe_event_id,checkout_session_id,payment_intent_id,pilot_id,entitled_pilot_id,entitlement,product,amount,currency,status,stripe_mode,customer_email,created_at,paid_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(event.id, session.id, paymentIntentId ?? null, pilotId, pilotId, firehawkProduct.entitlement, firehawkProduct.productId, firehawkProduct.amountCents,
+      (stripe_event_id,checkout_session_id,payment_intent_id,pilot_id,entitled_pilot_id,account_id,entitlement,product,amount,currency,status,stripe_mode,customer_email,created_at,paid_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(event.id, session.id, paymentIntentId ?? null, pilotId, pilotId, accountId ?? null, firehawkProduct.entitlement, firehawkProduct.productId, firehawkProduct.amountCents,
         firehawkProduct.currency, 'paid', stripeMode, email ?? null, event.created * 1000, Date.now());
     if (inserted.changes === 0) return undefined;
-    return { pilotId, sessionId: session.id, reference: session.id.slice(-12), stripeMode, customerEmail: email };
+    return { pilotId, accountId, sessionId: session.id, paymentIntentId, reference: session.id.slice(-12), stripeMode, customerEmail: email };
   }
 
   recordRefund(event: Stripe.Event): FirehawkRefund | undefined {
@@ -147,7 +150,7 @@ export class FirehawkPayments {
       .run(refundedAmount, event.created * 1000, fullRefund ? 1 : 0, fullRefund ? event.created * 1000 : null,
         fullRefund ? 1 : 0, fullRefund ? 1 : 0, fullRefund ? 1 : 0, event.id, row.checkout_session_id, stripeMode, refundedAmount);
     if (updated.changes === 0) return undefined;
-    return { pilotId: row.entitled_pilot_id, stripeMode, reference: row.checkout_session_id.slice(-12), refundedAmount,
+    return { pilotId: row.entitled_pilot_id, stripeMode, sessionId: row.checkout_session_id, reference: row.checkout_session_id.slice(-12), refundedAmount,
       refundDelta: refundedAmount - row.refunded_amount, fullRefund };
   }
 

@@ -56,6 +56,8 @@ export class AircraftGarage {
   private previewWidth = 0;
   private previewHeight = 0;
   private lastTrialSecond = -1;
+  private nativeStore = false;
+  private nativeStorePrice?: string;
 
   constructor(
     private readonly element: HTMLElement,
@@ -67,7 +69,7 @@ export class AircraftGarage {
     private readonly onStartFighterTrial?: () => void,
     private readonly onPremiumPurchase?: () => void,
     private readonly onFighterModalViewed?: () => void,
-    private readonly onRestorePurchase?: (code: string) => void,
+    private readonly onRestorePurchase?: (code?: string) => void,
     private readonly onPurchaseCosmetic?: (id: string) => void,
     private readonly onEquipCosmetic?: (id: string) => void,
   ) {
@@ -104,8 +106,12 @@ export class AircraftGarage {
       this.actionPending = true; this.actionMessage = 'CHECKING CODE…'; this.renderDetails(); this.onRedeemTesterCode?.(code); testerInput.value = '';
     });
     element.querySelector('[data-garage-trial]')!.addEventListener('click', () => { if (!this.actionPending) { this.actionPending = true; this.actionMessage = 'STARTING TEST FLIGHT…'; this.renderDetails(); this.onStartFighterTrial?.(); } });
-    element.querySelector('[data-garage-premium-buy]')!.addEventListener('click', () => { this.onPremiumPurchase?.(); this.showActionResult('PURCHASE COMING SOON'); });
+    element.querySelector('[data-garage-premium-buy]')!.addEventListener('click', () => {
+      if (this.actionPending) return;
+      this.actionPending = true; this.actionMessage = 'OPENING SECURE CHECKOUT…'; this.renderDetails(); this.onPremiumPurchase?.();
+    });
     element.querySelector('[data-garage-restore]')!.addEventListener('click', () => {
+      if (this.nativeStore) { this.onRestorePurchase?.(); return; }
       const code = window.prompt('Enter your Firehawk purchase recovery code');
       if (code?.trim()) this.onRestorePurchase?.(code.trim());
     });
@@ -170,6 +176,14 @@ export class AircraftGarage {
     this.renderDetails();
   }
 
+  setNativeStorePrice(localizedPrice?: string): void {
+    this.nativeStore = true;
+    this.nativeStorePrice = localizedPrice?.trim() || undefined;
+    if (this.isOpen()) this.renderDetails();
+  }
+
+  private premiumPrice(): string { return this.nativeStore ? this.nativeStorePrice ?? 'STORE PRICE' : firehawkProduct.displayPrice; }
+
   private loadPreview(): void {
     this.previewContent.traverse(object => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -206,11 +220,11 @@ export class AircraftGarage {
       ? 'SYNCING PROFILE…'
       : trialUsable ? this.trialStatusText()
       : owned ? (this.selected === this.profile.selectedAircraft ? 'OWNED · SELECTED' : 'OWNED')
-      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : definition.access === 'premium' ? `Premium Aircraft · ${firehawkProduct.displayPrice}` : `${price!.toLocaleString()} ${identityText('credits')}`;
+      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : definition.access === 'premium' ? `Premium Aircraft · ${this.premiumPrice()}` : `${price!.toLocaleString()} ${identityText('credits')}`;
     const equippedAppearance = cosmeticCatalog.find(item => item.id === this.profile.cosmetics?.equipped?.[`livery:${this.selected}`] && item.aircraftRestriction === this.selected)?.displayName ?? definition.livery.name;
     const compactPremiumIdentity = this.selected === 'fighter' && !owned && !trialUsable;
     this.element.querySelector('[data-garage-status]')!.textContent = compactPremiumIdentity
-      ? `Premium Fighter • ${firehawkProduct.displayPrice}`
+      ? `Premium Fighter • ${this.premiumPrice()}`
       : `${ownership} · ${equippedAppearance}`;
     this.element.querySelector('[data-garage-details]')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('.garage-card')!.classList.toggle('is-firehawk', this.selected === 'fighter');
@@ -232,23 +246,34 @@ export class AircraftGarage {
     this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
     const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
-    premium.hidden = this.selected !== 'fighter' || owned;
+    premium.hidden = this.selected !== 'fighter' || (owned && !this.nativeStore);
+    const buy = this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')!;
+    buy.textContent = this.nativeStore
+      ? this.nativeStorePrice ? `UNLOCK FOREVER — ${this.nativeStorePrice}` : 'STORE UNAVAILABLE'
+      : `${firehawkProduct.displayPrice} — PERMANENT UNLOCK`;
+    buy.disabled = this.loadingProfile || this.actionPending || (this.nativeStore && !this.nativeStorePrice);
+    buy.hidden = owned;
+    const restore = this.element.querySelector<HTMLButtonElement>('[data-garage-restore]')!;
+    restore.textContent = this.nativeStore ? 'RESTORE PURCHASES' : 'RESTORE PURCHASE';
+    this.element.querySelector<HTMLElement>('.garage-purchase-disclosure')!.hidden = this.nativeStore;
     const trialState = this.profile.fighterTrial?.status ?? 'available';
     const remaining = this.trialRemainingSeconds();
-    this.element.querySelector<HTMLElement>('[data-garage-trial-summary]')!.textContent = trialState === 'available'
+    const trialSummary = this.element.querySelector<HTMLElement>('[data-garage-trial-summary]')!;
+    trialSummary.hidden = owned;
+    trialSummary.textContent = trialState === 'available'
       ? 'Trial: 5 minutes'
       : trialState === 'pending'
         ? 'Trial: ready on next flight'
         : trialState === 'active'
           ? `Trial: ${String(Math.floor(Math.max(0, remaining) / 60)).padStart(2, '0')}:${String(Math.max(0, remaining) % 60).padStart(2, '0')} remaining`
           : 'Trial: already used';
-    this.element.querySelector<HTMLElement>('[data-garage-trial]')!.hidden = this.profile.fighterTrial?.status !== 'available';
+    this.element.querySelector<HTMLElement>('[data-garage-trial]')!.hidden = owned || this.profile.fighterTrial?.status !== 'available';
     const canRedeem = this.selected === 'fighter' && !owned && this.profile.testerCodeEnabled === true;
     this.element.querySelector<HTMLElement>('[data-garage-redeem-open]')!.hidden = !canRedeem || this.testerOpen;
     tester.hidden = !canRedeem || !this.testerOpen;
     for (const [type, card] of this.cards) {
       const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
-      const access = type === 'fighter' && this.isTrialUsable() ? this.trialStatusText() : typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${firehawkProduct.displayPrice}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
+      const access = type === 'fighter' && this.isTrialUsable() ? this.trialStatusText() : typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${this.premiumPrice()}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
       card.classList.toggle('selected', type === this.selected); card.textContent = `${aircraftDisplayName(type)} · ${access}`;
     }
     this.lastTrialSecond = this.trialRemainingSeconds();

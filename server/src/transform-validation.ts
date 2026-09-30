@@ -1,9 +1,17 @@
 export type AcceptedPosition = { x: number; y: number; z: number };
+export type AcceptedRotation = { x: number; y: number; z: number };
 
 export type TransformEnvelope = {
   maxSpeed: number;
   boostMaxSpeed: number;
   acceleration: number;
+};
+
+export type RotationEnvelope = {
+  pitchRate: number;
+  rollRate: number;
+  yawRate: number;
+  bankTurn: number;
 };
 
 export type TransformValidationResult =
@@ -13,6 +21,37 @@ export type TransformValidationResult =
 const minimumPacketSeconds = 0.05;
 const maximumCatchupSeconds = 1.5;
 const baseNetworkSlackMeters = 18;
+const baseAngularSlackRadians = 0.22;
+
+function yxzQuaternion(rotation: AcceptedRotation): readonly [number, number, number, number] {
+  const c1 = Math.cos(rotation.x * 0.5), c2 = Math.cos(rotation.y * 0.5), c3 = Math.cos(rotation.z * 0.5);
+  const s1 = Math.sin(rotation.x * 0.5), s2 = Math.sin(rotation.y * 0.5), s3 = Math.sin(rotation.z * 0.5);
+  return [
+    s1 * c2 * c3 + c1 * s2 * s3,
+    c1 * s2 * c3 - s1 * c2 * s3,
+    c1 * c2 * s3 - s1 * s2 * c3,
+    c1 * c2 * c3 + s1 * s2 * s3,
+  ];
+}
+
+export function validateClientRotation(
+  previous: AcceptedRotation,
+  submitted: AcceptedRotation,
+  elapsedMs: number,
+  envelope: RotationEnvelope,
+): { accepted: true; angularDistance: number; allowedAngularDistance: number } | { accepted: false; reason: 'ANGULAR_RATE'; angularDistance: number; allowedAngularDistance: number } {
+  const previousQuaternion = yxzQuaternion(previous);
+  const submittedQuaternion = yxzQuaternion(submitted);
+  const dot = Math.abs(previousQuaternion[0] * submittedQuaternion[0] + previousQuaternion[1] * submittedQuaternion[1] +
+    previousQuaternion[2] * submittedQuaternion[2] + previousQuaternion[3] * submittedQuaternion[3]);
+  const angularDistance = 2 * Math.acos(Math.min(1, dot));
+  const elapsedSeconds = Math.min(maximumCatchupSeconds, Math.max(minimumPacketSeconds, elapsedMs / 1000));
+  const approvedAngularRate = Math.hypot(envelope.pitchRate, envelope.rollRate, envelope.yawRate + envelope.bankTurn);
+  const allowedAngularDistance = approvedAngularRate * elapsedSeconds * 1.35 + baseAngularSlackRadians;
+  return angularDistance <= allowedAngularDistance
+    ? { accepted: true, angularDistance, allowedAngularDistance }
+    : { accepted: false, reason: 'ANGULAR_RATE', angularDistance, allowedAngularDistance };
+}
 
 /**
  * Validates an ordinary client transform against the most recently accepted

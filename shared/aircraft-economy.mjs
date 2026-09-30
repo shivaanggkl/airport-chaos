@@ -1,10 +1,12 @@
 // Shared presentation data; the server remains the only authority allowed to
 // spend Credits or grant aircraft entitlements.
-export const ECONOMY_VERSION = 2;
+export const ECONOMY_VERSION = 3;
 export const firehawkProduct = Object.freeze({
   productId: 'firehawk',
-  displayPrice: '$9.99',
-  amountCents: 999,
+  appleProductId: 'com.vadensoftware.airportchaos.firehawk',
+  googleProductId: 'firehawk',
+  displayPrice: '$24.00',
+  amountCents: 2400,
   currency: 'usd',
   entitlement: 'REDSPEAR_FIGHTER_PREMIUM',
 });

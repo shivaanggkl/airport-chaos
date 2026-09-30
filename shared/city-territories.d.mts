@@ -10,5 +10,14 @@ export type CityTerritory = {
   boundaryHeight?: number;
   botObstacleClearance?: number;
 };
+export const TERRITORY_AREA_SCALE: 2;
+export const TERRITORY_LINEAR_SCALE: number;
+export const TERRITORY_WALL_HEIGHT_METERS: number;
+export function territoryBoundsArea(bounds: CityTerritory['bounds']): number;
+export function scaleTerritoryBounds(bounds: CityTerritory['bounds'], center: CityTerritory['center'], linearScale?: number): CityTerritory['bounds'];
+export function territoryContains(definition: CityTerritory, position: { x: number; z: number }): boolean;
+export function territoriesContainingPoint(definitions: readonly CityTerritory[], position: { x: number; z: number }): CityTerritory[];
+export function territoryMembershipTransition(previousIds: ReadonlySet<string>, definitions: readonly CityTerritory[], position: { x: number; z: number }): { current: Set<string>; entered: string[]; exited: string[] };
+export function primaryTerritoryAt(definitions: readonly CityTerritory[], position: { x: number; z: number }): CityTerritory | undefined;
 export const cityTerritories: Record<'milwaukee' | 'dallas', readonly CityTerritory[]>;
 export function territoriesForCity(cityId: string): readonly CityTerritory[];

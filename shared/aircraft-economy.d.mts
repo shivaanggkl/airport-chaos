@@ -6,8 +6,10 @@ export type AircraftEconomyEntry =
 export const ECONOMY_VERSION: number;
 export const firehawkProduct: Readonly<{
   productId: 'firehawk';
-  displayPrice: '$9.99';
-  amountCents: 999;
+  appleProductId: 'com.vadensoftware.airportchaos.firehawk';
+  googleProductId: 'firehawk';
+  displayPrice: '$24.00';
+  amountCents: 2400;
   currency: 'usd';
   entitlement: 'REDSPEAR_FIGHTER_PREMIUM';
 }>;

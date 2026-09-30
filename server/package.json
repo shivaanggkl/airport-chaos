@@ -9,6 +9,8 @@
     "start": "node --env-file-if-exists=../.env dist/index.js"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
+    "google-auth-library": "^11.1.0",
     "stripe": "^22.6.2",
     "ws": "^8.18.3"
   },

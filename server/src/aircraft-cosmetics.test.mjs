@@ -57,7 +57,9 @@ test('Garage is aircraft-filtered and multiplayer reuses the same equipped cosme
   assert.doesNotMatch(garage, /data-garage-premium hidden><b>REDSPEAR FIGHTER/);
   assert.match(garage, /data-garage-trial-summary>Trial: 5 minutes/);
   assert.match(garage, /Fastest and most agile combat aircraft in Airport Chaos\./);
-  assert.match(garage, /premium\.hidden = this\.selected !== 'fighter' \|\| owned/);
+  assert.match(garage, /premium\.hidden = this\.selected !== 'fighter' \|\| \(owned && !this\.nativeStore\)/);
+  assert.match(garage, /buy\.hidden = owned/);
+  assert.match(garage, /trialSummary\.hidden = owned/);
   assert.match(garage, /this\.selected === 'fighter' \? 0\.9 : 1/);
   assert.match(client, /player\.equippedCosmetics[^\n]*applyEquippedLivery/);
   assert.match(server, /equippedCosmetics: player\.profile\?\.cosmetics\?\.equipped \?\? \{\}/);

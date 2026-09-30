@@ -1,0 +1,10 @@
+export const MOBILE_STICK_X_SMOOTH_SECONDS: number;
+export const MOBILE_STICK_Y_SMOOTH_SECONDS: number;
+export const MOBILE_BANK_STRONG_TARGET: number;
+export const MOBILE_BANK_CAP: number;
+export function smoothMobileSteering(current:{x:number;y:number},target:{x:number;y:number},delta:number,responseSeconds?:number|{x:number;y:number}):{x:number;y:number};
+export function mobileBankTarget(turnInput:number):number;
+export function stepMobileBank(currentBank:number,turnInput:number,delta:number,envelope:{rollRate:number;rollInputResponse:number;rollLevelRate?:number}):number;
+export function throttleSpeedTarget(throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number;maxSpeed:number}):number;
+export function throttleDecelerationResponse(throttle:number,envelope:{airbrakeResponse?:number;inertia:number}):number;
+export function throttleTargetDeceleration(airspeed:number,throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number;maxSpeed:number;airbrakeResponse?:number;inertia:number}):number;

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
-import { validateClientTransform } from './transform-validation.js';
+import { validateClientRotation, validateClientTransform } from './transform-validation.js';
 
 const origin = { x: 0, y: 1_000, z: 0 };
 
@@ -26,4 +26,21 @@ test('rejects malformed and out-of-world positions', () => {
   const result = validateClientTransform(origin, { x: 101, y: 1_000, z: 0 }, 100, aircraftFlightEnvelope.trainer, 0, bounds);
   assert.equal(result.accepted, false);
   if (!result.accepted) assert.equal(result.reason, 'WORLD_BOUNDS');
+});
+
+test('accepts physical aircraft rotation rates and rejects impossible attitude jumps', () => {
+  const level = { x: 0, y: 0, z: 0 };
+  assert.equal(validateClientRotation(level, { x: 0.04, y: 0.05, z: 0.14 }, 50, aircraftFlightEnvelope.fighter).accepted, true);
+  const jump = validateClientRotation(level, { x: 0, y: 0, z: Math.PI }, 50, aircraftFlightEnvelope.trainer);
+  assert.equal(jump.accepted, false);
+  if (!jump.accepted) assert.equal(jump.reason, 'ANGULAR_RATE');
+});
+
+test('continuous desktop roll remains valid when it advances within the aircraft envelope', () => {
+  let previous = { x: 0, y: 0, z: 0 };
+  for (let index = 0; index < 200; index += 1) {
+    const next = { x: 0, y: 0, z: previous.z + aircraftFlightEnvelope.fighter.rollRate * 0.05 };
+    assert.equal(validateClientRotation(previous, next, 50, aircraftFlightEnvelope.fighter).accepted, true);
+    previous = next;
+  }
 });

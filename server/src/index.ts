@@ -8,7 +8,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import { PlayerProfileStore, normalizePilotName, type LegacyProfileImport, type ObjectiveActivity, type PlayerProfile, type ProfileProgress, type WeeklyLeaderboardCategory } from './player-profiles.js';
 import { cityCapabilities, routeDefinition } from '../../shared/city-registry.mjs';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
-import { territoriesForCity, type CityTerritory } from '../../shared/city-territories.mjs';
+import { primaryTerritoryAt, territoriesForCity, territoryContains, territoryMembershipTransition, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
@@ -23,11 +23,12 @@ import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { FirehawkPayments } from './firehawk-payments.js';
+import { NativePurchaseLedger, NativePurchaseVerifier, googleNotificationToken, type NativePurchaseProvider } from './native-purchases.js';
 import { PilotSessionStore, normalizeAccountEmail, shouldReplaceRealtimeConnection, type SessionIdentity } from './session-auth.js';
 import { createAuthorizationUrl, exchangeAndVerifyProviderCode, nativeProviderConfig, pkceChallenge, providerConfig, verifyNativeProviderToken, type NativeAuthPlatform, type OAuthProvider } from './oauth-providers.js';
 import { allowedOAuthReturn, rejectsApiRequestOrigin, sameOriginJsonRequest } from './auth-request-security.js';
 import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin, nativePlatformForOrigin } from './request-origin.js';
-import { validateClientTransform } from './transform-validation.js';
+import { validateClientRotation, validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/chaos-event-rules.mjs';
@@ -306,8 +307,13 @@ const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(file
 const profileStore = new PlayerProfileStore(profileDatabasePath);
 const analyticsStore = new AnalyticsStore(profileDatabasePath);
 const firehawkPayments = new FirehawkPayments(profileDatabasePath);
+const nativePurchaseLedger = new NativePurchaseLedger(profileDatabasePath);
+const nativePurchaseVerifier = new NativePurchaseVerifier();
 const trialNetworkGuard = new TrialNetworkGuard(profileDatabasePath, process.env.AIRPORT_CHAOS_TRIAL_IP_SECRET);
 profileStore.migrateFighterEntitlementSources(firehawkPayments.activeEntitlementOwners(), analyticsStore.testerEntitlementPilots());
+for (const owner of nativePurchaseLedger.activeEntitlementOwners()) {
+  if (owner.source.startsWith('apple:') || owner.source.startsWith('google:')) profileStore.grantAircraftEntitlements(owner.pilotId, ['fighter'], owner.source);
+}
 const pilotSessions = new PilotSessionStore(profileDatabasePath);
 pilotSessions.prune();
 analyticsStore.prune();
@@ -323,6 +329,7 @@ const securityLimits = {
   oauthCallbackIp: { limit: 30, windowMs: 15 * 60_000 },
   realtimeTicketPilot: { limit: 120, windowMs: 15 * 60_000 }, realtimeTicketIp: { limit: 240, windowMs: 15 * 60_000 },
   namePilot: { limit: 5, windowMs: 60 * 60_000 },
+  nativePurchasePilot: { limit: 12, windowMs: 15 * 60_000 }, nativePurchaseIp: { limit: 30, windowMs: 15 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 const playerClientIps = new Map<string, string>();
 const playerTrialNetworkIds = new Map<string, string>();
@@ -336,9 +343,19 @@ function limitedBy(scope: string, identity: string, rule: RateLimitRule): { limi
   return { limited: !result.allowed, retryAfterMs: result.retryAfterMs };
 }
 function reconcilePaidFirehawk(profile: PlayerProfile): PlayerProfile {
-  return firehawkPayments.completedForPilot(profile.pilotId)
+  let reconciled = firehawkPayments.completedForPilot(profile.pilotId)
     ? profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter'], `stripe:${firehawkPayments.mode}`) ?? profile
     : profile;
+  for (const source of nativePurchaseLedger.activeNativeSourcesForPilot(profile.pilotId)) {
+    reconciled = profileStore.grantAircraftEntitlements(profile.pilotId, ['fighter'], source) ?? reconciled;
+  }
+  return reconciled;
+}
+function revokeNativeFirehawk(provider: NativePurchaseProvider, transactionId: string): void {
+  const revoked = nativePurchaseLedger.revoke(provider, transactionId);
+  if (!revoked || nativePurchaseLedger.hasActiveSource(revoked.pilotId, revoked.source)) return;
+  const updated = profileStore.revokeAircraftEntitlementSource(revoked.pilotId, 'fighter', revoked.source);
+  if (updated) syncRefundedFirehawkProfile(revoked.pilotId, updated);
 }
 const analyticsContexts = new Map<string, AnalyticsContext>();
 const lastClientCrashAnalytics = new Map<string, number>();
@@ -819,6 +836,108 @@ const httpServer = createServer(async (request, response) => {
       return;
     }
   }
+  if (requestUrl.pathname === '/api/store/apple/notifications') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    const payload = await readJson(request);
+    const signedPayload = typeof payload?.signedPayload === 'string' ? payload.signedPayload : '';
+    try {
+      const notification = await nativePurchaseVerifier.decodeAppleNotification(signedPayload);
+      if (!nativePurchaseLedger.recordNotification('apple', notification.notificationId)) {
+        jsonResponse(response, 200, { received: true }); return;
+      }
+      if (notification.purchase && !notification.purchase.active) revokeNativeFirehawk('apple', notification.purchase.providerTransactionId);
+      jsonResponse(response, 200, { received: true });
+    } catch (error) {
+      console.warn('[apple-iap] notification rejected', error instanceof Error ? error.message : 'invalid');
+      jsonResponse(response, 400, { error: 'Invalid notification.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/store/google/notifications') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!await nativePurchaseVerifier.verifyGooglePushAuthorization(String(request.headers.authorization ?? ''))) {
+      jsonResponse(response, 401, { error: 'Notification authentication failed.' }); return;
+    }
+    const payload = await readJson(request);
+    const purchaseToken = googleNotificationToken(payload);
+    if (!purchaseToken) { jsonResponse(response, 400, { error: 'Invalid notification.' }); return; }
+    try {
+      const purchase = await nativePurchaseVerifier.verifyGoogle(purchaseToken);
+      const notificationId = createHash('sha256').update(purchaseToken).digest('base64url');
+      if (nativePurchaseLedger.recordNotification('google', notificationId) && !purchase.active) {
+        revokeNativeFirehawk('google', purchase.providerTransactionId);
+      }
+      jsonResponse(response, 200, { received: true });
+    } catch (error) {
+      console.warn('[google-play] notification rejected', error instanceof Error ? error.message : 'invalid');
+      jsonResponse(response, 400, { error: 'Invalid notification.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/firehawk/native/context') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    if (!identity.session.accountId) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
+    const payload = await readJson(request);
+    const provider: NativePurchaseProvider | undefined = payload?.provider === 'apple' || payload?.provider === 'google' ? payload.provider : undefined;
+    const action: 'purchase' | 'restore' | undefined = payload?.action === 'purchase' || payload?.action === 'restore' ? payload.action : undefined;
+    const platform = nativeAuthPlatform(request);
+    if (!provider || !action || (platform === 'ios' ? provider !== 'apple' : platform === 'android' ? provider !== 'google' : true)) {
+      jsonResponse(response, 403, { error: 'Native store is unavailable.' }); return;
+    }
+    if ((provider === 'apple' && !nativePurchaseVerifier.appleEnabled) || (provider === 'google' && !nativePurchaseVerifier.googleEnabled)) {
+      jsonResponse(response, 503, { error: 'Store verification is not configured yet.' }); return;
+    }
+    const pilotLimit = limitedBy('native-purchase-pilot', identity.pilotId, securityLimits.nativePurchasePilot);
+    const ipLimit = limitedBy('native-purchase-ip', identity.clientIp, securityLimits.nativePurchaseIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
+    const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+    if (action === 'purchase' && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) { jsonResponse(response, 409, { error: 'Firehawk already owned.' }); return; }
+    const context = nativePurchaseLedger.createContext({ accountId: identity.session.accountId, pilotId: identity.pilotId }, provider, action);
+    if (!context) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
+    jsonResponse(response, 200, context);
+    return;
+  }
+  if (requestUrl.pathname === '/api/firehawk/native/verify') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    if (!identity.session.accountId) { jsonResponse(response, 403, { error: 'Sign in to restore or purchase Firehawk.' }); return; }
+    const payload = await readJson(request);
+    const provider: NativePurchaseProvider | undefined = payload?.provider === 'apple' || payload?.provider === 'google' ? payload.provider : undefined;
+    const platform = nativeAuthPlatform(request);
+    if (!provider || (platform === 'ios' ? provider !== 'apple' : platform === 'android' ? provider !== 'google' : true)) {
+      jsonResponse(response, 403, { error: 'Native store is unavailable.' }); return;
+    }
+    const contextId = typeof payload?.contextId === 'string' && /^[0-9a-f-]{36}$/i.test(payload.contextId) ? payload.contextId : '';
+    const signedTransaction = typeof payload?.signedTransaction === 'string' ? payload.signedTransaction : '';
+    const purchaseToken = typeof payload?.purchaseToken === 'string' ? payload.purchaseToken : '';
+    try {
+      const verified = provider === 'apple'
+        ? await nativePurchaseVerifier.verifyApple(signedTransaction)
+        : await nativePurchaseVerifier.verifyGoogle(purchaseToken);
+      const grant = nativePurchaseLedger.recordVerified({ accountId: identity.session.accountId, pilotId: identity.pilotId }, contextId, verified);
+      if (!grant.ok || !grant.source) {
+        const message = grant.reason === 'ACCOUNT_MISMATCH' ? 'This store purchase belongs to another Airport Chaos account.' :
+          grant.reason === 'PURCHASE_INACTIVE' ? 'This purchase is not active.' : 'Unable to verify purchase. Try again.';
+        jsonResponse(response, grant.reason === 'ACCOUNT_MISMATCH' ? 409 : 400, { error: message }); return;
+      }
+      const profile = profileStore.grantAircraftEntitlements(identity.pilotId, ['fighter'], grant.source);
+      if (!profile) throw new Error('PROFILE_NOT_FOUND');
+      if (provider === 'google' && !verified.acknowledged) await nativePurchaseVerifier.acknowledgeGoogle(purchaseToken);
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'fighter_purchase_completed', {
+        amount: verified.amountCents, source: provider, metadata: { environment: verified.environment, duplicate: grant.duplicate === true },
+      });
+      jsonResponse(response, 200, { profile: reconcilePaidFirehawk(profile), transactionId: verified.providerTransactionId });
+    } catch (error) {
+      console.warn(`[${provider ?? 'native'}-purchase] verification rejected`, error instanceof Error ? error.message : 'invalid');
+      jsonResponse(response, 400, { error: 'Unable to verify purchase. Try again.' });
+    }
+    return;
+  }
   if (requestUrl.pathname === '/api/stripe/webhook') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
     const rawBody = await readRawBody(request);
@@ -827,12 +946,14 @@ const httpServer = createServer(async (request, response) => {
       const event = firehawkPayments.verifyEvent(rawBody, request.headers['stripe-signature'] as string | undefined);
       const purchase = await firehawkPayments.recordPaidCheckout(event);
       if (purchase) {
+        nativePurchaseLedger.recordStripePurchase({ transactionId: purchase.sessionId, originalId: purchase.paymentIntentId, accountId: purchase.accountId, pilotId: purchase.pilotId, mode: purchase.stripeMode });
         profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter'], `stripe:${purchase.stripeMode}`);
         const host = analyticsHost(request.headers.host);
         analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: firehawkProduct.amountCents, source: 'stripe', metadata: { stripeMode: purchase.stripeMode } });
       }
       const refund = firehawkPayments.recordRefund(event);
       if (refund) {
+        if (refund.fullRefund) nativePurchaseLedger.recordStripeRefund(refund.sessionId);
         if (refund.fullRefund && !firehawkPayments.completedForPilot(refund.pilotId)) {
           const updatedProfile = profileStore.revokeAircraftEntitlementSource(refund.pilotId, 'fighter', `stripe:${refund.stripeMode}`);
           if (updatedProfile) syncRefundedFirehawkProfile(refund.pilotId, updatedProfile);
@@ -858,11 +979,12 @@ const httpServer = createServer(async (request, response) => {
     const ipLimit = limitedBy('checkout-ip', identity.clientIp, securityLimits.checkoutIp);
     if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
     const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+    if (!identity.session.accountId) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
     if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) {
       response.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Firehawk already owned"}'); return;
     }
     try {
-      const checkout = await firehawkPayments.createCheckout(identity.pilotId, checkoutOrigin(request));
+      const checkout = await firehawkPayments.createCheckout(identity.pilotId, identity.session.accountId, checkoutOrigin(request));
       const host = analyticsHost(request.headers.host);
       analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe', metadata: { stripeMode: firehawkPayments.mode } });
       response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(checkout));
@@ -2129,11 +2251,6 @@ function broadcastTerritories(cityId: CityId, now = Date.now(), force = false): 
   broadcastToCity(cityId, { type: 'territoryState', cityId, territories: territorySnapshot(cityId) });
 }
 
-function territoryContains(definition: CityTerritory, position: Vector3): boolean {
-  return position.x >= definition.bounds.minX && position.x <= definition.bounds.maxX &&
-    position.z >= definition.bounds.minZ && position.z <= definition.bounds.maxZ;
-}
-
 const territoryCaptureCeilingAgl = 10_000 * 0.3048;
 function territoryCaptureAltitudeEligible(player: PlayerState): boolean {
   const agl = player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z);
@@ -2346,20 +2463,26 @@ function updateTerritoryDefense(territory: TerritoryRuntime, attackerId: string 
 function updateTerritories(now: number): void {
   for (const cityId of cityIds) {
     const cityTerritories = territoryStates(cityId);
+    const definitions = cityTerritories.map((territory) => territory.definition);
     for (const [playerId, player] of players) {
       if (player.cityId !== cityId) continue;
       if (!player.hasRespawnTransform) {
         player.territoryIds.clear();
         continue;
       }
-      const memberships = new Set(cityTerritories.filter((territory) => territoryContains(territory.definition, player.position)).map((territory) => territory.definition.id));
-      for (const territoryId of memberships) if (!player.territoryIds.has(territoryId)) {
+      const membership = territoryMembershipTransition(player.territoryIds, definitions, player.position);
+      for (const territoryId of membership.entered) {
         sendToPlayer(playerId, { type: 'territoryNotice', territoryId, kind: 'enter' });
       }
-      player.territoryIds = memberships;
+      for (const territoryId of membership.exited) {
+        sendToPlayer(playerId, { type: 'territoryNotice', territoryId, kind: 'exit' });
+      }
+      player.territoryIds = membership.current;
     }
     const activePlayers = [...players.entries()].filter(([playerId, player]) => player.cityId === cityId &&
       territoryCaptureAltitudeEligible(player) && isTerritoryActive(playerId, player, now));
+    const captureTerritoryByPlayer = new Map(activePlayers.map(([playerId, player]) =>
+      [playerId, primaryTerritoryAt(definitions, player.position)?.id]));
     let changed = false;
     let urgentChanged = false;
     let ownershipChanged = false;
@@ -2368,7 +2491,7 @@ function updateTerritories(now: number): void {
       // contributor; its arrival must not freeze the invader's progress.
       const inside = activePlayers.filter(([id, player]) => id !== territory.defenderBotId &&
         (!player.isBot || !territory.controllerId || now >= (territory.aiRecaptureBlockedUntil ?? 0)) &&
-        territoryContains(territory.definition, player.position));
+        captureTerritoryByPlayer.get(id) === territory.definition.id);
       const humansInside = inside.filter(([, pilot]) => !pilot.isBot);
       const intruder = territory.controllerId ? humansInside.find(([id]) => id !== territory.controllerId)?.[0] : undefined;
       updateTerritoryDefense(territory, intruder, now);
@@ -3423,7 +3546,7 @@ function botSafeFloor(cityId: CityId, x: number, z: number, clearance: number): 
   // Major downtown towers have no server collision meshes. A city-supplied
   // clearance envelope keeps bot routes above that known obstruction cluster.
   for (const area of territoriesForCity(cityId)) {
-    if (area.botObstacleClearance && territoryContains(area, { x, y: 0, z })) {
+    if (area.botObstacleClearance && territoryContains(area, { x, z })) {
       floor = Math.max(floor, botTerrainHeight(cityId, x, z) + area.botObstacleClearance);
     }
   }
@@ -4385,7 +4508,7 @@ setInterval(() => {
   }
 }, 60_000);
 setInterval(() => {
-  try { profileStore.pruneRewardReceipts(); analyticsStore.prune(); }
+  try { profileStore.pruneRewardReceipts(); analyticsStore.prune(); nativePurchaseLedger.prune(); }
   catch (error) { console.error('[profiles] reward receipt prune failed', error); }
 }, 6 * 60 * 60_000);
 
@@ -4837,7 +4960,7 @@ server.on('connection', (socket, request) => {
         );
         if (!networkDecision.allowed) {
           const reason = networkDecision.reason === 'used'
-            ? 'FREE TEST FLIGHT ALREADY USED ON THIS NETWORK\nTry again later or unlock Firehawk for $9.99.'
+            ? `FREE TEST FLIGHT ALREADY USED ON THIS NETWORK\nTry again later or unlock Firehawk for ${firehawkProduct.displayPrice}.`
             : 'FREE TEST FLIGHT TEMPORARILY UNAVAILABLE';
           sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason });
           return;
@@ -5147,6 +5270,9 @@ server.on('connection', (socket, request) => {
         envelope, 0, transformWorldBounds[player.cityId],
       );
       const firstValidTransform = !player.hasRespawnTransform;
+      const rotationValidation = validateClientRotation(
+        player.rotation, message.rotation, stateNow - player.lastAcceptedTransformAt, envelope,
+      );
       const traveled = Math.hypot(
         message.position.x - player.lastAcceptedPosition.x,
         message.position.y - player.lastAcceptedPosition.y,
@@ -5157,6 +5283,10 @@ server.on('connection', (socket, request) => {
       if ((!validation.accepted && !(firstValidTransform && traveled <= 250)) || (firstValidTransform && traveled > 250)) {
         const reason = validation.accepted ? 'SPAWN_MISMATCH' : validation.reason;
         logTransformReject(playerId, player, reason, traveled, validation.accepted ? 250 : validation.allowedDistance, stateNow);
+        return;
+      }
+      if (!firstValidTransform && !rotationValidation.accepted) {
+        logTransformReject(playerId, player, rotationValidation.reason, rotationValidation.angularDistance, rotationValidation.allowedAngularDistance, stateNow);
         return;
       }
       const stateSeconds = validation.accepted ? validation.elapsedSeconds : Math.max(0.05, (stateNow - player.lastAcceptedTransformAt) / 1000);
