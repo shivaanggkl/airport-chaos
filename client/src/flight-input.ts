@@ -1,7 +1,7 @@
-export type FlightAction = 'throttleUp' | 'throttleDown' | 'pitchUp' | 'pitchDown' | 'rollLeft' | 'rollRight' | 'yawLeft' | 'yawRight' | 'boost' | 'fire' | 'aimLeft' | 'aimRight' | 'aimUp' | 'aimDown';
+export type FlightAction = 'throttleUp' | 'throttleDown' | 'pitchUp' | 'pitchDown' | 'yawLeft' | 'yawRight' | 'boost' | 'fire' | 'aimLeft' | 'aimRight' | 'aimUp' | 'aimDown';
 export const keyboardActionBindings: Readonly<Record<string, FlightAction>> = {
   KeyW: 'throttleUp', KeyS: 'throttleDown',
-  KeyA: 'rollLeft', KeyD: 'rollRight',
+  KeyA: 'yawLeft', KeyD: 'yawRight',
   KeyQ: 'aimUp', KeyE: 'aimDown', KeyZ: 'aimLeft', KeyC: 'aimRight',
   ArrowUp: 'pitchUp', ArrowDown: 'pitchDown',
   ArrowLeft: 'yawLeft', ArrowRight: 'yawRight',
@@ -17,12 +17,12 @@ export function actionKeyLabel(action: FlightAction): string {
 
 export const menuBindings = { map: 'KeyM', menu: 'Tab', restart: 'KeyR' } as const;
 export const menuKeyLabel = (action: keyof typeof menuBindings): string => menuBindings[action].replace('Key', '').toUpperCase();
-export const controlGroups = [
+export const desktopTurnKeyLabel = 'A/D or ←/→';
+export const controlGroups: Array<{ label: string; rows: Array<{ label: string; actions: FlightAction[]; keyLabel?: string }> }> = [
   { label: 'CORE', rows: [
     { label: 'Faster / Slower', actions: ['throttleUp', 'throttleDown'] },
     { label: 'Altitude Up / Down', actions: ['pitchUp', 'pitchDown'] },
-    { label: 'Tilt Left / Right', actions: ['rollLeft', 'rollRight'] },
-    { label: 'Turn Left / Right', actions: ['yawLeft', 'yawRight'] },
+    { label: 'Turn Left / Right', actions: ['yawLeft', 'yawRight'], keyLabel: desktopTurnKeyLabel },
     { label: 'Fire', actions: ['fire'] },
     { label: 'Boost', actions: ['boost'] },
   ] },
@@ -30,5 +30,5 @@ export const controlGroups = [
     { label: 'Aim Left / Right', actions: ['aimLeft', 'aimRight'] },
     { label: 'Aim Up / Down', actions: ['aimUp', 'aimDown'] },
   ] },
-] satisfies Array<{ label: string; rows: Array<{ label: string; actions: FlightAction[] }> }>;
+];
 export const controlKeyLabel = (actions: readonly FlightAction[]): string => actions.map(actionKeyLabel).join(' / ');

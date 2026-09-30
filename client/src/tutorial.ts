@@ -1,5 +1,5 @@
 import { shouldOfferTutorial } from '../../shared/tutorial-flight-rules.mjs';
-import { actionKeyLabel, menuKeyLabel } from './flight-input';
+import { actionKeyLabel, desktopTurnKeyLabel, menuKeyLabel } from './flight-input';
 import { targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
@@ -24,7 +24,7 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; visual: s
   {
     nav: 'Turn', icon: 'you', title: 'TURN',
     visual: `<div class="help-turn-visual"><span>←</span><b>✈</b><span>→</span></div>`,
-    instructions: steps(`<kbd>${actionKeyLabel('yawLeft')} / ${actionKeyLabel('yawRight')}</kbd> Turn`, `<kbd>${actionKeyLabel('rollLeft')} / ${actionKeyLabel('rollRight')}</kbd> Tilt Plane`),
+    instructions: steps(`<kbd>${desktopTurnKeyLabel}</kbd> Turn`),
   },
   {
     nav: 'Land', icon: 'airport', title: 'LAND',

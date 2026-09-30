@@ -4,8 +4,17 @@ const interpolate=(from,to,amount)=>from+(to-from)*amount;
 
 export const MOBILE_STICK_X_SMOOTH_SECONDS=.275;
 export const MOBILE_STICK_Y_SMOOTH_SECONDS=.2;
-export const MOBILE_BANK_STRONG_TARGET=48*Math.PI/180;
-export const MOBILE_BANK_CAP=70*Math.PI/180;
+export const COORDINATED_TURN_STRONG_INPUT=.9;
+export const COORDINATED_BANK_STRONG_TARGET=48*Math.PI/180;
+export const COORDINATED_BANK_CAP=70*Math.PI/180;
+// Public mobile aliases preserve the approved touch contract while desktop
+// and touch share one coordinated-bank implementation.
+export const MOBILE_BANK_STRONG_TARGET=COORDINATED_BANK_STRONG_TARGET;
+export const MOBILE_BANK_CAP=COORDINATED_BANK_CAP;
+
+export function desktopTurnIntent(turnLeft,turnRight){
+  return(Number(Boolean(turnLeft))-Number(Boolean(turnRight)))*COORDINATED_TURN_STRONG_INPUT;
+}
 
 export function smoothMobileSteering(current,target,delta,responseSeconds={x:MOBILE_STICK_X_SMOOTH_SECONDS,y:MOBILE_STICK_Y_SMOOTH_SECONDS}){
   const response=typeof responseSeconds==='number'?{x:responseSeconds,y:responseSeconds}:responseSeconds;
@@ -13,25 +22,27 @@ export function smoothMobileSteering(current,target,delta,responseSeconds={x:MOB
   return{x:moveToward(current.x,target.x,elapsed/Math.max(.01,response.x)),y:moveToward(current.y,target.y,elapsed/Math.max(.01,response.y))};
 }
 
-export function mobileBankTarget(turnInput){
+export function coordinatedBankTarget(turnInput){
   const input=clamp(turnInput,-1,1);
   const magnitude=Math.abs(input);
-  const strongInput=.9;
-  const bank=magnitude<=strongInput
-    ? MOBILE_BANK_STRONG_TARGET*(magnitude/strongInput)
-    : interpolate(MOBILE_BANK_STRONG_TARGET,MOBILE_BANK_CAP,(magnitude-strongInput)/(1-strongInput));
+  const bank=magnitude<=COORDINATED_TURN_STRONG_INPUT
+    ? COORDINATED_BANK_STRONG_TARGET*(magnitude/COORDINATED_TURN_STRONG_INPUT)
+    : interpolate(COORDINATED_BANK_STRONG_TARGET,COORDINATED_BANK_CAP,(magnitude-COORDINATED_TURN_STRONG_INPUT)/(1-COORDINATED_TURN_STRONG_INPUT));
   return Math.sign(input)*bank;
 }
 
-export function stepMobileBank(currentBank,turnInput,delta,envelope){
+export function stepCoordinatedBank(currentBank,turnInput,delta,envelope){
   const input=clamp(turnInput,-1,1);
-  const target=mobileBankTarget(input);
+  const target=coordinatedBankTarget(input);
   const commanding=Math.abs(input)>.001;
   const responseScale=commanding?clamp(envelope.rollInputResponse/4.5,.5,1.35):1;
   const baseRate=commanding?envelope.rollRate:(envelope.rollLevelRate??envelope.rollRate*.75);
-  const authority=commanding ? .55+.45*Math.abs(input) : .55+.45*Math.min(1,Math.abs(currentBank)/MOBILE_BANK_CAP);
-  return clamp(moveToward(clamp(currentBank,-MOBILE_BANK_CAP,MOBILE_BANK_CAP),target,Math.max(0,delta)*baseRate*responseScale*authority),-MOBILE_BANK_CAP,MOBILE_BANK_CAP);
+  const authority=commanding ? .55+.45*Math.abs(input) : .55+.45*Math.min(1,Math.abs(currentBank)/COORDINATED_BANK_CAP);
+  return clamp(moveToward(clamp(currentBank,-COORDINATED_BANK_CAP,COORDINATED_BANK_CAP),target,Math.max(0,delta)*baseRate*responseScale*authority),-COORDINATED_BANK_CAP,COORDINATED_BANK_CAP);
 }
+
+export const mobileBankTarget=coordinatedBankTarget;
+export const stepMobileBank=stepCoordinatedBank;
 
 const throttleStops=[0,.2,.5,.8,1];
 

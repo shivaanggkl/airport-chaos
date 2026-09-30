@@ -20,8 +20,8 @@ test('H is not captured from editable controls', () => {
 test('desktop reference is sourced from current supported flight bindings', () => {
   assert.match(inputSource, /KeyW:\s*'throttleUp'/);
   assert.match(inputSource, /KeyS:\s*'throttleDown'/);
-  assert.match(inputSource, /KeyA:\s*'rollLeft'/);
-  assert.match(inputSource, /KeyD:\s*'rollRight'/);
+  assert.match(inputSource, /KeyA:\s*'yawLeft'/);
+  assert.match(inputSource, /KeyD:\s*'yawRight'/);
   assert.match(inputSource, /ArrowLeft:\s*'yawLeft'/);
   assert.match(inputSource, /ArrowRight:\s*'yawRight'/);
   assert.match(inputSource, /ArrowUp:\s*'pitchUp'/);
@@ -32,12 +32,12 @@ test('desktop reference is sourced from current supported flight bindings', () =
   assert.doesNotMatch(inputSource, /label:\s*'[^']*(?:photo|barrel|dodge)/i);
 });
 
-test('desktop controls bar distinguishes roll, yaw, pitch, and speed', () => {
+test('desktop controls bar presents A/D and arrows as one turn control', () => {
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
   assert.match(html, /<kbd>W\/S<\/kbd> Speed/);
-  assert.match(html, /<kbd>A\/D<\/kbd> Roll/);
-  assert.match(html, /<kbd>←\/→<\/kbd> Turn/);
+  assert.match(html, /<kbd>A\/D or ←\/→<\/kbd> Turn/);
   assert.match(html, /<kbd>↑\/↓<\/kbd> Pitch/);
+  assert.doesNotMatch(html, /A\/D<\/kbd> Roll|Barrel Roll through A\/D/i);
 });
 
 test('desktop controls state is persistent and has no auto-hide path', () => {

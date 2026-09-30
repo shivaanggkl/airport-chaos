@@ -707,7 +707,7 @@ export class PilotMenu {
       controls.append(textElement('p','Keyboard and mouse reference for desktop flight.','pilot-menu-muted'));
       for(const group of controlGroups){
         const reference=document.createElement('div');reference.className='pilot-menu-control-group';reference.append(textElement('h3',group.label));
-        for(const row of group.rows)reference.append(textElement('div',`${controlKeyLabel(row.actions)}   ${row.label}`,'pilot-menu-controls'));
+        for(const row of group.rows)reference.append(textElement('div',`${row.keyLabel ?? controlKeyLabel(row.actions)}   ${row.label}`,'pilot-menu-controls'));
         controls.append(reference);
       }
       const camera=document.createElement('div');camera.className='pilot-menu-control-group';camera.append(textElement('h3','CAMERA & GAME'));

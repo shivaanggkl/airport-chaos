@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
+import { COORDINATED_TURN_STRONG_INPUT, stepCoordinatedBank } from '../../shared/flight-control-rules.mjs';
 import { validateClientRotation, validateClientTransform } from './transform-validation.js';
 
 const origin = { x: 0, y: 1_000, z: 0 };
@@ -36,11 +37,14 @@ test('accepts physical aircraft rotation rates and rejects impossible attitude j
   if (!jump.accepted) assert.equal(jump.reason, 'ANGULAR_RATE');
 });
 
-test('continuous desktop roll remains valid when it advances within the aircraft envelope', () => {
+test('bounded coordinated desktop turning remains valid within the aircraft envelope', () => {
+  const envelope = aircraftFlightEnvelope.fighter;
   let previous = { x: 0, y: 0, z: 0 };
   for (let index = 0; index < 200; index += 1) {
-    const next = { x: 0, y: 0, z: previous.z + aircraftFlightEnvelope.fighter.rollRate * 0.05 };
-    assert.equal(validateClientRotation(previous, next, 50, aircraftFlightEnvelope.fighter).accepted, true);
+    const bank = stepCoordinatedBank(previous.z, COORDINATED_TURN_STRONG_INPUT, 0.05, envelope);
+    const headingRate = envelope.yawRate / envelope.inertia + Math.sin(bank) * envelope.bankTurn;
+    const next = { x: 0, y: previous.y + headingRate * 0.05, z: bank };
+    assert.equal(validateClientRotation(previous, next, 50, envelope).accepted, true);
     previous = next;
   }
 });

@@ -33,7 +33,7 @@ import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
-import { MOBILE_BANK_CAP, smoothMobileSteering, stepMobileBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { COORDINATED_BANK_CAP, desktopTurnIntent, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
@@ -2893,7 +2893,7 @@ function endRun(message: EndReason, title: string = message): void {
 }
 
 function restartGame(notifyServer = true): void {
-  heldActions.clear();
+  clearHeldActions();
   fireCooldown = 0;
   runStarted = true;
   airplane.position.copy(spawnPosition);
@@ -2901,7 +2901,6 @@ function restartGame(notifyServer = true): void {
   heading = spawnHeading;
   pitch = 0;
   roll = 0;
-  rollControlStrength = 0;
   pitchControlStrength = 0;
   yawControlStrength = 0;
   smoothedTouchSteering = { x: 0, y: 0 };
@@ -3058,7 +3057,7 @@ function openGarage(): boolean {
   }
   // The Garage owns the whole screen while open. Clear held flight input and
   // close the two other full-screen surfaces before its preview takes focus.
-  heldActions.clear();
+  clearHeldActions();
   if (worldMap.isOpen()) worldMap.setOpen(false);
   if (pilotMenu.isOpen()) pilotMenu.close();
   if (connectionReady() && serverProfile.fighterTrial.status === 'active' && (serverProfile.fighterTrial.expiresAt ?? Infinity) <= Date.now()) {
@@ -3079,6 +3078,11 @@ function openGarage(): boolean {
 flightGarageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
+const heldKeyboardCodes = new Set<string>();
+function clearHeldActions(): void {
+  heldActions.clear();
+  heldKeyboardCodes.clear();
+}
 let touchInputReported=false;
 const reportTouchInput=()=>{if(!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}};
 const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
@@ -3127,7 +3131,7 @@ function showFirstRunGuide(): void {
   flightTutorial.open();
 }
 flightTutorial.setVisibilityHandler(() => {
-  heldActions.clear();
+  clearHeldActions();
   boostActive = false;
   if (cameraOrbitPointerId !== null && renderer.domElement.hasPointerCapture(cameraOrbitPointerId)) {
     renderer.domElement.releasePointerCapture(cameraOrbitPointerId);
@@ -3179,20 +3183,22 @@ window.addEventListener('keydown', (event) => {
     return;
   }
   if (action) {
+    heldKeyboardCodes.add(event.code);
     heldActions.add(action);
   }
 });
 window.addEventListener('keyup', (event) => {
   if (flightControlCodes.has(event.code) || (aircraftGarage.isOpen() && (event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu))) event.preventDefault();
   const action = keyboardActionBindings[event.code];
-  if (action) heldActions.delete(action);
+  heldKeyboardCodes.delete(event.code);
+  if (action && ![...heldKeyboardCodes].some((code) => keyboardActionBindings[code] === action)) heldActions.delete(action);
 });
 window.addEventListener('blur', () => {
   // Browser focus loss must not leave any flight input latched.
-  heldActions.clear();
+  clearHeldActions();
   mobileInput.reset();
 });
-document.addEventListener('visibilitychange',()=>{if(document.hidden){heldActions.clear();mobileInput.reset();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearHeldActions();mobileInput.reset();}});
 
 let throttle = 0;
 let boostMeter = 100;
@@ -3205,7 +3211,6 @@ let landingAssistActive = false;
 let heading = 0;
 let pitch = 0;
 let roll = 0;
-let rollControlStrength = 0;
 let pitchControlStrength = 0;
 let yawControlStrength = 0;
 let smoothedTouchSteering = { x: 0, y: 0 };
@@ -4393,7 +4398,7 @@ function setGuidedTutorial(active:boolean,replay=false):void{
   if(replay)tutorialEvent('tutorial_retried',TUTORIAL_VERSION);
   document.body.classList.toggle('tutorial-flight-active',active);
   if(active){
-    heldActions.clear(); waypoint=null; setLocalTimePreset('day'); cityEvent=null; activeWeatherZone = undefined; document.body.dataset.weather='clear';
+    clearHeldActions(); waypoint=null; setLocalTimePreset('day'); cityEvent=null; activeWeatherZone = undefined; document.body.dataset.weather='clear';
     ambientTraffic?.syncEventRoutes([]); ambientTraffic?.setStormEvent(false);
     skyChallenges?.cancel();
     applyServerSelectedAircraft('trainer', false);
@@ -4422,7 +4427,7 @@ function updateGuidedTutorial():void{
   tutorialRing.visible=Boolean(waypoint);
   if(waypoint){tutorialRing.position.set(waypoint.x, guidedTutorialStep==='land'||guidedTutorialStep==='landingSetup' ? getTerrainHeight(waypoint.x,waypoint.z)+18 : getTerrainHeight(waypoint.x,waypoint.z)+180,waypoint.z);tutorialRing.lookAt(airplane.position);}
   const touchSteering = mobileInput.getSteeringInput();
-  if(guidedTutorialStep==='controls'&&(['pitchUp','pitchDown','yawLeft','yawRight','rollLeft','rollRight'].some(action=>heldActions.has(action as FlightAction))||Math.abs(touchSteering.x)>.05||Math.abs(touchSteering.y)>.05))advanceGuidedTutorial('steered');
+  if(guidedTutorialStep==='controls'&&(['pitchUp','pitchDown','yawLeft','yawRight'].some(action=>heldActions.has(action as FlightAction))||Math.abs(touchSteering.x)>.05||Math.abs(touchSteering.y)>.05))advanceGuidedTutorial('steered');
   else if(guidedTutorialStep==='throttle'&&(heldActions.has('throttleUp')||(mobileInput.getThrottleTarget()??0)>.2))advanceGuidedTutorial('throttle');
   else if(guidedTutorialStep==='takeoffRoll'&&onGround&&currentSpeed>=currentAircraft.takeoffSpeed*.65)advanceGuidedTutorial('takeoffSpeed');
   else if(guidedTutorialStep==='liftOff'&&!onGround&&altitudeAboveTerrain()>=30)advanceGuidedTutorial('airborne');
@@ -4932,7 +4937,7 @@ function refreshPilotMenu(): void {
 function openPilotMenu(section: PilotMenuSection = 'MISSIONS'): void {
   if (aircraftGarage.isOpen()) return;
   if (worldMap.isOpen()) worldMap.setOpen(false);
-  heldActions.clear();
+  clearHeldActions();
   renderPilotMenu(true, section);
 }
 
@@ -5282,7 +5287,7 @@ function interactionSegmentDistanceSquared(point: THREE.Vector3, start: THREE.Ve
 }
 
 function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPresets>[number]): void {
-  heldActions.clear();
+  clearHeldActions();
   crashed = false;
   health = maxHealth;
   throttle = preset.onGround || preset.speed === 0 ? 0 : 0.62;
@@ -5292,7 +5297,6 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   heading = preset.heading;
   pitch = preset.pitch ?? 0;
   roll = 0;
-  rollControlStrength = 0;
   pitchControlStrength = 0;
   yawControlStrength = 0;
   smoothedTouchSteering = { x: 0, y: 0 };
@@ -6517,10 +6521,10 @@ function updateFlight(delta: number): void {
   const touchSteeringTarget = mobileInput.getSteeringInput();
   smoothedTouchSteering = smoothMobileSteering(smoothedTouchSteering, touchSteeringTarget, delta);
   const touchSteering = smoothedTouchSteering;
-  const keyboardRollInput = Number(heldActions.has('rollLeft')) - Number(heldActions.has('rollRight'));
-  const keyboardYawInput = Number(heldActions.has('yawLeft')) - Number(heldActions.has('yawRight'));
-  const rollInput = keyboardRollInput || -touchSteering.x;
-  const yawInput = keyboardYawInput || -touchSteering.x * 0.62;
+  const keyboardTurnInput = desktopTurnIntent(heldActions.has('yawLeft'), heldActions.has('yawRight'));
+  const touchTurnInput = -touchSteering.x;
+  const turnInput = keyboardTurnInput || touchTurnInput;
+  const yawInput = keyboardTurnInput ? Math.sign(keyboardTurnInput) : touchTurnInput * 0.62;
   // Turn is an abstract control command, not an instant heading change.  Its
   // response is derived from the existing yaw/inertia envelope, so Cargo
   // settles deliberately while the Fighter remains crisp without keeping a
@@ -6554,7 +6558,6 @@ function updateFlight(delta: number): void {
   }
 
   if (onGround) {
-    rollControlStrength = 0;
     const reverseSpeed = Math.min(10, currentAircraft.groundMaxSpeed * 0.17);
     const brakeRate = currentAircraft.groundDrag * 2.6;
     let groundTargetSpeed = throttle * currentAircraft.groundMaxSpeed;
@@ -6634,32 +6637,10 @@ function updateFlight(delta: number): void {
   const speedRatio = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   const steeringAuthority =
     (0.64 + speedRatio * 0.36) * currentAircraft.yawRate / currentAircraft.inertia;
-  if (mobileInput.isTouchLayout() && keyboardRollInput === 0) {
-    // Touch X expresses turn intent. It selects a bounded coordinated-bank
-    // attitude instead of accumulating roll velocity, so holding the edge
-    // keeps turning without ever driving the aircraft inverted.
-    rollControlStrength = 0;
-    roll = stepMobileBank(roll, rollInput, delta, currentAircraft);
-  } else {
-    // Desktop A/D remains an aerobatic roll-rate control.
-    const rollResponse = rollInput === 0
-      ? (currentAircraft.rollInputRelease ?? currentAircraft.rollInputResponse * 0.8)
-      : currentAircraft.rollInputResponse;
-    rollControlStrength = THREE.MathUtils.lerp(
-      rollControlStrength,
-      rollInput,
-      1 - Math.exp(-rollResponse * delta),
-    );
-    roll += rollControlStrength * delta * currentAircraft.rollRate;
-    if (rollInput === 0) {
-      const bankFromLevel = Math.atan2(Math.sin(roll), Math.cos(roll));
-      roll -= bankFromLevel * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? currentAircraft.rollRate * 0.75) * delta));
-      if (landingAssistActive) {
-        const approachBank = Math.atan2(Math.sin(roll), Math.cos(roll));
-        roll -= approachBank * (1 - Math.exp(-(currentAircraft.rollLevelRate ?? 0.7) * 0.55 * delta));
-      }
-    }
-  }
+  // Keyboard and touch both express turn intent. The shared target-bank
+  // controller preserves each aircraft's response rate without accumulating
+  // roll, so holding a turn keeps changing heading but cannot barrel-roll.
+  roll = stepCoordinatedBank(roll, turnInput, delta, currentAircraft);
   // The eased control command sets a bounded attitude target. Pitch only rotates the
   // aircraft; lift and gravity below remain the sole source of vertical movement.
   const pitchStageRoll = roll;
@@ -6678,8 +6659,7 @@ function updateFlight(delta: number): void {
   let nextLocalPitch = moveToward(localPitch, targetPitch, delta * pitchResponse);
   if (landingAssistActive) {
     nextLocalPitch = THREE.MathUtils.lerp(nextLocalPitch, THREE.MathUtils.clamp(nextLocalPitch, -0.14, 0.18), 1 - Math.exp(-delta * 1.35));
-    // Desktop roll remains continuous; touch roll is already bounded by its
-    // target-bank controller before pitch is applied.
+    // Coordinated bank is already bounded before pitch is applied.
   }
   const pitchRollLeak = roll - pitchStageRoll;
   const pitchYawLeak = heading - pitchStageHeading;
@@ -6689,7 +6669,7 @@ function updateFlight(delta: number): void {
   airplane.rotation.set(pitch, heading, roll, 'YXZ');
   if (import.meta.env.DEV) pitchBeforeQuaternion.copy(airplane.quaternion);
   airplane.rotateX(nextLocalPitch - localPitch);
-  if (import.meta.env.DEV && pitchInput !== 0 && rollInput === 0 && yawInput === 0) {
+  if (import.meta.env.DEV && pitchInput !== 0 && turnInput === 0 && yawInput === 0) {
     pitchDeltaQuaternion.copy(pitchBeforeQuaternion).invert().multiply(airplane.quaternion);
     if ((Math.abs(pitchRollLeak) > 0.000001 || Math.abs(pitchYawLeak) > 0.000001 ||
          Math.abs(pitchDeltaQuaternion.y) > 0.000001 || Math.abs(pitchDeltaQuaternion.z) > 0.000001) &&
@@ -6701,10 +6681,8 @@ function updateFlight(delta: number): void {
   pitch = airplane.rotation.x;
   heading += Math.atan2(Math.sin(airplane.rotation.y - heading), Math.cos(airplane.rotation.y - heading));
   roll += Math.atan2(Math.sin(airplane.rotation.z - roll), Math.cos(airplane.rotation.z - roll));
-  if (mobileInput.isTouchLayout() && keyboardRollInput === 0) {
-    roll = THREE.MathUtils.clamp(roll, -MOBILE_BANK_CAP, MOBILE_BANK_CAP);
-    airplane.rotation.set(pitch, heading, roll, 'YXZ');
-  }
+  roll = THREE.MathUtils.clamp(roll, -COORDINATED_BANK_CAP, COORDINATED_BANK_CAP);
+  airplane.rotation.set(pitch, heading, roll, 'YXZ');
   forward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();
   liftDirection.set(0, 1, 0).applyQuaternion(airplane.quaternion).normalize();
 
@@ -7689,7 +7667,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
 
 function openWorldSelector(): void {
   pilotMenu.close();
-  heldActions.clear();
+  clearHeldActions();
   boostActive = false;
   window.dispatchEvent(new Event('airport-chaos-open-city-selector'));
 }
