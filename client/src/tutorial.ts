@@ -4,6 +4,8 @@ import { targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentit
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
 import { mountAirportChaosLogo } from './brand';
+import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
+import { shouldIgnoreGameplayKeyboardEvent } from './controls-help';
 
 const callout = (label: string, x: number, y: number) => `<span class="help-callout" style="left:${x}%;top:${y}%">${label}</span>`;
 const shot = (src: string, alt: string, callouts = '') => `<figure class="help-shot"><img src="${src}" alt="${alt}" decoding="async"/>${callouts}</figure>`;
@@ -72,6 +74,12 @@ class FlightTutorial {
   private readonly backgrounds: Array<{ element: HTMLElement; inert: boolean }> = [];
 
   constructor() {
+    registerUiBackLayer({
+      id: 'flight-tutorial',
+      priority: uiBackPriority.blockingModal,
+      isActive: () => this.isOpen(),
+      close: () => this.close('skipped'),
+    });
     this.root.className = 'flight-tutorial';
     this.root.hidden = true;
     this.root.setAttribute('role', 'dialog');
@@ -99,10 +107,10 @@ class FlightTutorial {
     this.root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
     this.root.addEventListener('pointerdown', event => event.stopPropagation());
     window.addEventListener('keydown', (event) => {
+      if (shouldIgnoreGameplayKeyboardEvent(event)) return;
       if (!this.isOpen()) return;
       event.stopImmediatePropagation();
-      if (event.key === 'Escape') { event.preventDefault(); this.close('skipped'); }
-      else if (event.repeat) event.preventDefault();
+      if (event.repeat) event.preventDefault();
       else if (event.key === 'Tab') {
         event.preventDefault();
         const buttons = [...this.root.querySelectorAll<HTMLButtonElement>('button')].filter(button => !button.disabled && !button.hidden);

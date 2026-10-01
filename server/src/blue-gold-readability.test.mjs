@@ -33,7 +33,7 @@ test('mobile reading surfaces no longer use tiny body or touch-label sizes', () 
   assert.match(css, /\.pilot-menu-section p\{[^}]+font-size:16px;[^}]*line-height:1\.45\}/);
   assert.match(css, /\.map-intelligence\{[^}]+font-size:13px\}/);
   assert.match(css, /\.touch-controls button\{[^}]+var\(--font-control-size\) var\(--font-display\)/);
-  assert.match(css, /\.active-mission-overlay \{[^}]+font-size: 13px;/);
+  assert.match(css, /\.active-mission-overlay \{[^}]+font-size: 12px;/);
   assert.doesNotMatch(css, /\.unified-flight-hud small\{font-size:6px\}/);
 });
 

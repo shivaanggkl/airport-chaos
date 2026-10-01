@@ -1,12 +1,6 @@
-export function isEditableControl(target: EventTarget | null): boolean {
-  if (!target || typeof target !== 'object') return false;
-  const element = target as HTMLElement;
-  if (element.isContentEditable) return true;
-  const tagName = typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
-  if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
-  return typeof element.closest === 'function'
-    && Boolean(element.closest('[contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"]'));
-}
+import { isEditableControl, shouldIgnoreGameplayKeyboardEvent } from '../../shared/editable-keyboard.mjs';
+
+export { isEditableControl, shouldIgnoreGameplayKeyboardEvent };
 
 export function shouldToggleDesktopControlsHelp(
   code: string,

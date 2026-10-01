@@ -124,9 +124,9 @@ export function attachAircraftAsset(
   targetSpan: number,
   onLoaded?: (model: THREE.Group) => void,
   visualParent: THREE.Object3D = plane,
-): void {
+): Promise<'loaded' | 'fallback'> {
   plane.userData.assetStatus = 'loading';
-  void loadAsset(type)
+  return loadAsset(type)
     .then((source) => {
       const model = normalizedClone(source, { x: targetSpan, y: targetSpan, z: targetLength }, true, true);
       // Every original Airport Chaos airframe is authored nose-forward on -Z,
@@ -141,10 +141,12 @@ export function attachAircraftAsset(
       plane.userData.assetStatus = 'loaded';
       applyAircraftCosmetics(plane, type, plane.userData.equippedCosmetics ?? {});
       onLoaded?.(model);
+      return 'loaded' as const;
     })
     .catch(() => {
       fallback.visible = true;
       plane.userData.assetStatus = 'fallback';
+      return 'fallback' as const;
     });
 }
 

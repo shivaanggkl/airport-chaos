@@ -1,4 +1,5 @@
 import { visualLanguage, identityText, territoryOwnershipColors } from './visual-language';
+import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 export type WorldMapBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 
 export type WorldMapLandmark = {
@@ -108,6 +109,12 @@ export class WorldMap {
     private readonly onWaypoint: (position: MapTarget | null) => void,
     private readonly onChallenge?: (challengeId: string) => void,
   ) {
+    registerUiBackLayer({
+      id: 'world-map',
+      priority: uiBackPriority.surface,
+      isActive: () => this.isOpen(),
+      close: () => this.setOpen(false),
+    });
     this.context = canvas.getContext('2d')!;
     this.card = element.querySelector<HTMLElement>('.world-map-card')!;
     this.standaloneParent = this.card.parentElement!;

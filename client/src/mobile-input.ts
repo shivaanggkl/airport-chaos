@@ -1,24 +1,30 @@
 import type { FlightAction } from './flight-input';
 import {
   joystickInput,
+  joystickKnobPosition,
   mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
   normalizeTouchMode,
+  mobileControlStyle,
   resolvedGraphicsQuality,
+  touchControlsEnabled,
   type GraphicsQualityMode,
   type TouchControlsMode,
 } from '../../shared/mobile-input-rules.mjs';
 
 export {
   joystickInput,
+  joystickKnobPosition,
   mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
   normalizeTouchMode,
+  mobileControlStyle,
   resolvedGraphicsQuality,
+  touchControlsEnabled,
   type GraphicsQualityMode,
   type TouchControlsMode,
 };
@@ -35,13 +41,19 @@ export type MobileControlPlacementLimits = Record<keyof MobileControlPlacement, 
 const defaultLayout: MobileControlLayout = {
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 75, y: 40, scale: 0.95 },
-  fire: { x: 72, y: 82, scale: 1 },
+  fire: { x: 75, y: 78, scale: 1 },
 };
 
 const legacyDefaultLayout: MobileControlLayout = {
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 87, y: 45, scale: 0.95 },
   fire: { x: 87, y: 80, scale: 1 },
+};
+
+const previousDefaultLayout: MobileControlLayout = {
+  stick: { x: 14, y: 72, scale: 1 },
+  throttle: { x: 75, y: 40, scale: 0.95 },
+  fire: { x: 72, y: 82, scale: 1 },
 };
 
 export const mobileControlPlacementLimits: Record<MobileControlId, MobileControlPlacementLimits> = {
@@ -74,7 +86,9 @@ function preferredLayout(): MobileControlLayout {
     const migrated = (control: MobileControlId): Partial<MobileControlPlacement> | undefined => {
       const placement = stored?.[control];
       const legacy = legacyDefaultLayout[control];
-      return placement?.x === legacy.x && placement.y === legacy.y && placement.scale === legacy.scale
+      const previous = previousDefaultLayout[control];
+      return placement && [legacy, previous].some((oldDefault) =>
+        placement.x === oldDefault.x && placement.y === oldDefault.y && placement.scale === oldDefault.scale)
         ? defaultLayout[control]
         : placement;
     };
@@ -123,19 +137,30 @@ export class MobileInputControls {
     this.bindThrottle(root.querySelector<HTMLElement>('[data-touch-throttle]')!);
     this.bindAimTarget();
     window.addEventListener('blur', () => this.reset());
+    window.addEventListener('pagehide', () => this.reset());
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.reset();
       else this.refresh();
     });
-    window.addEventListener('resize', () => this.refresh());
-    window.addEventListener('orientationchange', () => requestAnimationFrame(() => this.refresh()));
-    window.addEventListener('pageshow', () => this.refresh());
+    window.addEventListener('resize', () => {
+      this.reset();
+      this.refresh();
+    });
+    window.addEventListener('orientationchange', () => requestAnimationFrame(() => {
+      this.reset();
+      this.refresh();
+    }));
+    window.addEventListener('pageshow', () => {
+      this.reset();
+      this.refresh();
+    });
     this.applyLayout();
     this.refresh();
   }
 
   getMode() { return this.mode; }
   isTouchLayout() { return this.deviceEnabled(); }
+  supportsTouchControls() { return matchMedia('(pointer: coarse)').matches || innerWidth <= 900; }
   getThrottleTarget() { return this.root.hidden ? undefined : this.throttleTarget; }
   getSteeringInput() { return this.root.hidden ? { x: 0, y: 0 } : this.steeringInput; }
 
@@ -196,31 +221,43 @@ export class MobileInputControls {
   reset() {
     const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
     const throttle = this.root.querySelector<HTMLElement>('[data-touch-throttle]');
-    this.releaseCapture(stick, this.joystickPointer);
+    this.resetJoystick(stick);
     this.releaseCapture(throttle, this.throttlePointer);
     this.releaseCapture(this.aimTarget, this.aimPointer);
     for (const action of this.active) this.setAction(action, false);
     this.active.clear();
-    this.joystickPointer = undefined;
-    this.steeringInput = { x: 0, y: 0 };
     this.throttlePointer = undefined;
     this.throttleTarget = undefined;
     this.throttleBoostRequested = false;
     this.aimPointer = undefined;
     this.root.querySelectorAll<HTMLElement>('.is-active').forEach((element) => element.classList.remove('is-active'));
-    stick?.style.removeProperty('--touch-x');
-    stick?.style.removeProperty('--touch-y');
     window.clearTimeout(this.boostReadyPulseTimer);
     throttle?.classList.remove('is-dragging', 'is-boosting', 'boost-ready-pulse');
   }
 
   private releaseCapture(element: HTMLElement | null, pointerId: number | undefined) {
-    if (pointerId !== undefined && element?.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+    if (pointerId === undefined || !element) return;
+    try {
+      if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+    } catch {
+      // A lifecycle event may invalidate the native pointer before JS observes it.
+    }
+  }
+
+  private resetJoystick(stick = this.root.querySelector<HTMLElement>('[data-touch-stick]'), pointerId?: number): boolean {
+    if (pointerId !== undefined && this.joystickPointer !== pointerId) return false;
+    const owner = this.joystickPointer;
+    this.joystickPointer = undefined;
+    this.steeringInput = { x: 0, y: 0 };
+    stick?.style.removeProperty('--touch-x');
+    stick?.style.removeProperty('--touch-y');
+    stick?.classList.remove('is-active');
+    this.releaseCapture(stick, owner);
+    return true;
   }
 
   private deviceEnabled() {
-    return this.mode === 'on'
-      || (this.mode === 'auto' && (matchMedia('(pointer: coarse)').matches || innerWidth <= 900));
+    return touchControlsEnabled(this.mode, matchMedia('(pointer: coarse)').matches, innerWidth <= 900);
   }
 
   private refresh() {
@@ -242,10 +279,11 @@ export class MobileInputControls {
       const element = this.root.querySelector<HTMLElement>(`[data-touch-control="${control}"]`);
       const placement = this.layout[control];
       const defaults = defaultLayout[control];
+      const style = mobileControlStyle(placement.x, placement.y, placement.scale);
       element?.classList.toggle('uses-default-placement', placement.x === defaults.x && placement.y === defaults.y && placement.scale === defaults.scale);
-      element?.style.setProperty('--touch-left', `${placement.x}%`);
-      element?.style.setProperty('--touch-top', `${placement.y}%`);
-      element?.style.setProperty('--touch-scale', `${placement.scale}`);
+      element?.style.setProperty('--touch-left', style.left);
+      element?.style.setProperty('--touch-top', style.top);
+      element?.style.setProperty('--touch-scale', style.scale);
     }
   }
 
@@ -291,17 +329,22 @@ export class MobileInputControls {
 
   private bindStick(stick: HTMLElement) {
     const move = (event: PointerEvent) => {
+      if (this.joystickPointer !== event.pointerId) return;
+      event.preventDefault();
       const rect = stick.getBoundingClientRect();
       const x = clamp((event.clientX - (rect.left + rect.width / 2)) / (rect.width * 0.42), -1, 1);
       const y = clamp((event.clientY - (rect.top + rect.height / 2)) / (rect.height * 0.42), -1, 1);
       this.steeringInput = joystickInput(x, y);
-      stick.style.setProperty('--touch-x', `${x * 30}px`);
-      stick.style.setProperty('--touch-y', `${y * 30}px`);
+      const knob = joystickKnobPosition(x, y);
+      stick.style.setProperty('--touch-x', `${knob.x}px`);
+      stick.style.setProperty('--touch-y', `${knob.y}px`);
     };
     stick.addEventListener('pointerdown', (event) => {
       event.preventDefault();
-      stick.setPointerCapture(event.pointerId);
+      if (this.joystickPointer !== undefined) return;
       this.joystickPointer = event.pointerId;
+      try { stick.setPointerCapture(event.pointerId); } catch { /* Window-level release still owns cleanup. */ }
+      stick.classList.add('is-active');
       move(event);
     });
     stick.addEventListener('pointermove', (event) => {
@@ -309,15 +352,14 @@ export class MobileInputControls {
     });
     const stop = (event: PointerEvent) => {
       if (this.joystickPointer !== event.pointerId) return;
-      this.steeringInput = { x: 0, y: 0 };
-      stick.style.removeProperty('--touch-x');
-      stick.style.removeProperty('--touch-y');
-      this.joystickPointer = undefined;
-      if (stick.hasPointerCapture(event.pointerId)) stick.releasePointerCapture(event.pointerId);
+      if (event.cancelable) event.preventDefault();
+      this.resetJoystick(stick, event.pointerId);
     };
     stick.addEventListener('pointerup', stop);
     stick.addEventListener('pointercancel', stop);
     stick.addEventListener('lostpointercapture', (event) => stop(event as PointerEvent));
+    window.addEventListener('pointerup', stop, { capture: true });
+    window.addEventListener('pointercancel', stop, { capture: true });
   }
 
   private renderThrottle(throttle: number, boost: boolean, handlePercent?: number) {
@@ -342,7 +384,8 @@ export class MobileInputControls {
     };
     lever.addEventListener('pointerdown', (event) => {
       event.preventDefault();
-      lever.setPointerCapture(event.pointerId);
+      if (this.throttlePointer !== undefined) return;
+      try { lever.setPointerCapture(event.pointerId); } catch { /* Element events still release state. */ }
       lever.classList.add('is-dragging');
       this.throttlePointer = event.pointerId;
       move(event);

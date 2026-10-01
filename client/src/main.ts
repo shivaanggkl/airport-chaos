@@ -1,7 +1,7 @@
 import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
 import * as THREE from 'three';
 import { keyboardActionBindings, menuBindings, type FlightAction } from './flight-input';
-import { shouldToggleDesktopControlsHelp } from './controls-help';
+import { isEditableControl, shouldIgnoreGameplayKeyboardEvent, shouldToggleDesktopControlsHelp } from './controls-help';
 import { visualLanguage, identityText, targetBracketPath, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
 import { flightTutorial } from './tutorial';
 import './style.css';
@@ -29,6 +29,7 @@ import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECT
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
 import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
+import { missionHudObjective, missionHudProgress } from '../../shared/mission-hud.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
@@ -51,6 +52,7 @@ import type {
   AirportId,
   RegionName,
 } from './world';
+import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 
 // Local production-build QA uses the same diagnostics as Vite DEV without
 // exposing transform presets or telemetry on a deployed beta hostname.
@@ -1033,6 +1035,7 @@ const activeMissionOverlayElement = document.querySelector<HTMLElement>('#active
 const activeMissionTitleElement = document.querySelector<HTMLElement>('#active-mission-title')!;
 const activeMissionObjectiveElement = document.querySelector<HTMLElement>('#active-mission-objective')!;
 const activeMissionProgressElement = document.querySelector<HTMLElement>('#active-mission-progress')!;
+const activeMissionBarElement = document.querySelector<HTMLProgressElement>('#active-mission-bar')!;
 const worldStatusElement = document.querySelector<HTMLDivElement>('#world-status')!;
 const radarPanelElement = document.querySelector<HTMLElement>('#radar-panel')!;
 const radarCanvas = document.querySelector<HTMLCanvasElement>('#radar')!;
@@ -1070,7 +1073,7 @@ function offerDallasPracticeSuggestion(profile: NetworkProfile): void {
   try { if (localStorage.getItem(dallasPracticeSuggestionKey) === 'dismissed') return; } catch { /* show once this session */ }
   dallasPracticeSuggestionElement.hidden = false;
 }
-dallasPracticeSuggestionElement.querySelector<HTMLButtonElement>('[data-continue-dallas]')!.addEventListener('click', dismissDallasPracticeSuggestion);
+dallasPracticeSuggestionElement.querySelector<HTMLButtonElement>('[data-continue-dallas]')!.addEventListener('click', closeTopUiLayer);
 dallasPracticeSuggestionElement.querySelector<HTMLButtonElement>('[data-practice-city]')!.addEventListener('click', () => {
   dismissDallasPracticeSuggestion();
   window.dispatchEvent(new CustomEvent('airport-chaos-city-exit', { detail: { cityId: 'milwaukee', timePreset: 'day', practiceSuggestion: true } }));
@@ -1232,7 +1235,7 @@ const contextualHints = new ContextualHintSystem(
     if (enabled !== persistedPlayer.hintsEnabled || dismissed.length) savePlayerProgress();
   },
 );
-contextualHintDismissElement.addEventListener('click', () => contextualHints.dismiss());
+contextualHintDismissElement.addEventListener('click', closeTopUiLayer);
 // Returning pilots receive the compact runway reminder; first-time pilots see
 // the visual guide first, then enter the same contextual hint sequence.
 contextualHints.trigger('missionBoard');
@@ -1385,7 +1388,9 @@ function updateEngineAudio(): void {
 }
 
 window.addEventListener('pointerdown', activateAudio);
-window.addEventListener('keydown', activateAudio);
+window.addEventListener('keydown', (event) => {
+  if (!shouldIgnoreGameplayKeyboardEvent(event)) activateAudio();
+});
 function toggleAudio(): void {
   activateAudio();
   audioMuted = !audioMuted;
@@ -2953,7 +2958,7 @@ function restartGame(notifyServer = true): void {
   sendPlayerUpdate();
 }
 flightRecapElement.querySelector('[data-recap-fly]')!.addEventListener('click', () => { if(connectionReady()) socket.send(JSON.stringify({type:'analyticsEvent',event:'fly_again_clicked'})); restartGame(); });
-flightRecapElement.querySelector('[data-recap-close]')!.addEventListener('click', () => { flightRecapElement.hidden=true; });
+flightRecapElement.querySelector('[data-recap-close]')!.addEventListener('click', closeTopUiLayer);
 
 function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true, notifyServer = true): void {
   if (nextType === aircraftType) return;
@@ -3083,6 +3088,9 @@ function clearHeldActions(): void {
   heldActions.clear();
   heldKeyboardCodes.clear();
 }
+document.addEventListener('focusin', (event) => {
+  if (isEditableControl(event.target)) clearHeldActions();
+}, true);
 let touchInputReported=false;
 const reportTouchInput=()=>{if(!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}};
 const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
@@ -3139,15 +3147,13 @@ flightTutorial.setVisibilityHandler(() => {
 });
 flightTutorial.setHelpAction(showFirstRunGuide);
 window.addEventListener('keydown', (event) => {
+  if (shouldIgnoreGameplayKeyboardEvent(event)) return;
   if (!citySelectorElement.hidden) {
     if (flightControlCodes.has(event.code)) event.preventDefault();
     return;
   }
   if (aircraftGarage.isOpen()) {
-    if (event.code === 'Escape') {
-      event.preventDefault();
-      aircraftGarage.close();
-    } else if (flightControlCodes.has(event.code) || event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu) {
+    if (flightControlCodes.has(event.code) || event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu) {
       event.preventDefault();
       if (event.code === 'Space') reportFireBlocked('menu');
     }
@@ -3161,10 +3167,6 @@ window.addEventListener('keydown', (event) => {
   if (pilotMenu.isOpen()) {
     if (flightControlCodes.has(event.code)) event.preventDefault();
     if (event.code === 'Space') reportFireBlocked('menu');
-    if (event.code === 'Escape') {
-      event.preventDefault();
-      pilotMenu.close();
-    }
     return;
   }
   if (!worldMap.isOpen() && shouldToggleDesktopControlsHelp(event.code, mobileInput.isTouchLayout(), event.target)) {
@@ -3188,6 +3190,7 @@ window.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keyup', (event) => {
+  if (shouldIgnoreGameplayKeyboardEvent(event)) return;
   if (flightControlCodes.has(event.code) || (aircraftGarage.isOpen() && (event.code === menuBindings.map || event.code === menuBindings.restart || event.code === menuBindings.menu))) event.preventDefault();
   const action = keyboardActionBindings[event.code];
   heldKeyboardCodes.delete(event.code);
@@ -4257,7 +4260,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
       name: activeMissionDefinition.displayName,
       objective: activeMissionDefinition.description,
       progress: activeMissionProgress.text,
-      compactProgress: missionOverlayProgress(activeMissionDefinition, activeMissionProgress),
+      compactProgress: missionHudProgress(activeMissionDefinition, activeMissionProgress).text,
       credits: activeMissionDefinition.creditReward,
       score: activeMissionDefinition.scoreReward,
     } : undefined,
@@ -4360,14 +4363,45 @@ document.body.append(tutorialPanel);
 tutorialPanel.querySelector('[data-guided-skip]')!.addEventListener('click', () => exitGuidedTutorial('skipped'));
 tutorialPanel.querySelector('[data-guided-restart]')!.addEventListener('click', () => restartGuidedTutorial());
 let tutorialPanelDismissed = false;
-tutorialPanel.querySelector('[data-guided-close]')!.addEventListener('click', () => {
+tutorialPanel.querySelector('[data-guided-close]')!.addEventListener('click', closeTopUiLayer);
+function dismissGuidedTutorialPanel(): void {
   tutorialPanelDismissed = true;
   tutorialPanel.hidden = true;
-});
+}
 const tutorialCompletePanel = document.createElement('section'); tutorialCompletePanel.className = 'guided-tutorial-panel'; tutorialCompletePanel.hidden = true;
 tutorialCompletePanel.innerHTML = '<strong>Tutorial Complete</strong><p>You are ready to explore.</p><button>Free Flight</button>';
-tutorialCompletePanel.querySelector('button')!.onclick = () => { tutorialCompletePanel.hidden = true; };
+tutorialCompletePanel.querySelector('button')!.onclick = closeTopUiLayer;
 document.body.append(tutorialCompletePanel);
+registerUiBackLayer({
+  id: 'flight-recap',
+  priority: uiBackPriority.modal,
+  isActive: () => !flightRecapElement.hidden,
+  close: () => { flightRecapElement.hidden = true; },
+});
+registerUiBackLayer({
+  id: 'practice-city-suggestion',
+  priority: uiBackPriority.modal + 10,
+  isActive: () => !dallasPracticeSuggestionElement.hidden,
+  close: dismissDallasPracticeSuggestion,
+});
+registerUiBackLayer({
+  id: 'tutorial-complete',
+  priority: uiBackPriority.blockingModal,
+  isActive: () => !tutorialCompletePanel.hidden,
+  close: () => { tutorialCompletePanel.hidden = true; },
+});
+registerUiBackLayer({
+  id: 'guided-tutorial-panel',
+  priority: uiBackPriority.transient,
+  isActive: () => !tutorialPanel.hidden,
+  close: dismissGuidedTutorialPanel,
+});
+registerUiBackLayer({
+  id: 'contextual-hint',
+  priority: uiBackPriority.transient,
+  isActive: () => !contextualHintElement.classList.contains('hidden'),
+  close: () => contextualHints.dismiss(),
+});
 const tutorialRing = new THREE.Mesh(new THREE.TorusGeometry(120, 8, 6, 48), new THREE.MeshBasicMaterial({color:0x5ffff0, toneMapped:false}));
 tutorialRing.visible = false; scene.add(tutorialRing);
 function renderTutorialPanel(): void {
@@ -4645,14 +4679,6 @@ function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttemp
 }
 
 let completedMissionUntil = 0;
-function missionOverlayProgress(definition: CityMission, progress: ReturnType<typeof missionProgress>): string {
-  const lines = progress.text.split('\n').map((line) => line.trim()).filter(Boolean);
-  if (lines.length > 1) {
-    return [...lines].reverse().find((line) => /\d+\s*\/\s*\d+|\d+:\d+/.test(line)) ?? lines.at(-1)!;
-  }
-  if (lines[0] && lines[0] !== definition.description) return lines[0];
-  return `Progress: ${Math.min(progress.value, progress.target)}/${progress.target}`;
-}
 
 function updateMissionHud(): void {
   const active = serverProfile.missions[cityId]?.active;
@@ -4660,10 +4686,16 @@ function updateMissionHud(): void {
   skyChallenges?.setMissionGuidance(definition?.type === 'challenge' ? definition.requirements.challengeId : undefined, active?.progress ?? 0);
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
+    const hudProgress = missionHudProgress(definition, mobileProgress);
     missionProgressElement.textContent = `${Math.min(mobileProgress.value, mobileProgress.target)}/${mobileProgress.target}`;
-    activeMissionTitleElement.textContent = `MISSION: ${definition.displayName}`;
-    activeMissionObjectiveElement.textContent = definition.description;
-    activeMissionProgressElement.textContent = missionOverlayProgress(definition, mobileProgress);
+    activeMissionTitleElement.textContent = definition.displayName;
+    activeMissionObjectiveElement.textContent = missionHudObjective(definition);
+    activeMissionProgressElement.textContent = hudProgress.text;
+    activeMissionBarElement.hidden = hudProgress.barValue === undefined || hudProgress.barMax === undefined;
+    if (!activeMissionBarElement.hidden) {
+      activeMissionBarElement.max = hudProgress.barMax!;
+      activeMissionBarElement.value = hudProgress.barValue!;
+    }
     activeMissionOverlayElement.hidden = false;
   } else {
     missionProgressElement.textContent = Date.now() < completedMissionUntil ? 'DONE' : profileActiveMissionCity(serverProfile) ? 'AWAY' : '—';
@@ -4671,6 +4703,8 @@ function updateMissionHud(): void {
     activeMissionTitleElement.textContent = '';
     activeMissionObjectiveElement.textContent = '';
     activeMissionProgressElement.textContent = '';
+    activeMissionBarElement.hidden = true;
+    activeMissionBarElement.value = 0;
   }
 }
 
@@ -4912,7 +4946,7 @@ function pilotMenuData(): PilotMenuData {
         savePlayerProgress();
       },
     },
-    preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.isTouchLayout(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
+    preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.supportsTouchControls(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));renderPilotMenu();},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
     restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     audio: { muted: audioMuted, toggle: toggleAudio, levels: audioLevels, setLevel: setAudioLevel },
     guide: { enabled: cityRules.tutorialEnabled, open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGuidedTutorial();} },
@@ -4959,7 +4993,7 @@ const toggleWorldMapFromHud = () => {
   if (worldMap.isOpen()) contextualHints.trigger('firstDestination');
 };
 flightMapButtonElement.addEventListener('click', toggleWorldMapFromHud);
-worldMapCloseElement.addEventListener('click', () => worldMap.setOpen(false));
+worldMapCloseElement.addEventListener('click', closeTopUiLayer);
 radarPanelElement.addEventListener('click', toggleWorldMapFromHud);
 radarPanelElement.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -5016,22 +5050,26 @@ function updateMissionReminder(deltaSeconds: number): void {
   missionReminderHideTimer = window.setTimeout(() => hideMissionReminder(), 8_000);
 }
 
-missionReminderDismissElement.addEventListener('click', () => hideMissionReminder());
+missionReminderDismissElement.addEventListener('click', closeTopUiLayer);
 missionReminderOpenElement.addEventListener('click', () => {
   hideMissionReminder();
   openPilotMenu('MISSIONS');
 });
+registerUiBackLayer({
+  id: 'mission-reminder',
+  priority: uiBackPriority.transient,
+  isActive: () => !missionReminderElement.hidden,
+  close: () => hideMissionReminder(),
+});
 
 window.addEventListener('keydown', (event) => {
+  if (shouldIgnoreGameplayKeyboardEvent(event)) return;
   if (pilotMenu.isOpen() || aircraftGarage.isOpen()) return;
   if (event.code === menuBindings.map) {
     event.preventDefault();
     contextualHints.dismiss();
     worldMap.toggle();
     if (worldMap.isOpen()) contextualHints.trigger('firstDestination');
-  } else if (event.code === 'Escape' && worldMap.isOpen()) {
-    event.preventDefault();
-    worldMap.setOpen(false);
   }
 });
 

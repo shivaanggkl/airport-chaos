@@ -20,7 +20,14 @@
       <list>
         <option value="$PROJECT_DIR$/client/src/flight-input.js" />
         <option value="$PROJECT_DIR$/client/src/controls-help.js" />
+        <option value="$PROJECT_DIR$/client/src/aircraft.js" />
+        <option value="$PROJECT_DIR$/client/src/aircraft-cosmetics.js" />
+        <option value="$PROJECT_DIR$/client/src/flight-input.js" />
       </list>
     </option>
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
   </component>
 </project>

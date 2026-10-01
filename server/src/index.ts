@@ -1085,6 +1085,12 @@ const httpServer = createServer(async (request, response) => {
           profile=profileStore.setTutorialState(identity.pilotId,tutorialState.status);
           if(profile)analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},tutorialState.status==='started'?'tutorial_started':tutorialState.status==='completed'?'tutorial_completed':'tutorial_skipped',{metadata:{tutorialVersion:'tutorial_v1'}});
         }else error='Invalid tutorial state';
+      } else if (payload?.abandonMission && typeof payload.abandonMission === 'object') {
+        const abandonMission = payload.abandonMission as { cityId?: unknown; expectedAttemptId?: unknown };
+        const cityId = abandonMission.cityId;
+        const expectedAttemptId = abandonMission.expectedAttemptId;
+        if (typeof cityId !== 'string' || !cityIds.has(cityId as CityId) || typeof expectedAttemptId !== 'string') error = 'Invalid mission state';
+        else profile = profileStore.abandonMission(identity.pilotId, cityId as CityId, expectedAttemptId);
       } else if (payload) profile = profileStore.updateProgress(identity.pilotId, payload.progress ?? {});
       response.writeHead(profile && !error ? 200 : error === rateLimitMessage ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(profile && !error ? reconcilePaidFirehawk(profile) : { error: error ?? 'Invalid profile update' }));

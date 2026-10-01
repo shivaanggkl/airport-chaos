@@ -3,8 +3,16 @@ import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
+import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
 export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'HELP' | 'SETTINGS' | 'DATA LICENSES';
+export type PilotMenuOptions = {
+  sections?: readonly PilotMenuSection[];
+  title?: string;
+  closeLabel?: string;
+  showFlightActions?: boolean;
+  onClose?: () => void;
+};
 
 export type PilotMenuActivity = {
   name: string;
@@ -148,8 +156,9 @@ function territoryDot(name: string, color: string): HTMLElement {
 export class PilotMenu {
   private openState = false;
   private content: HTMLDivElement | undefined;
-  private readonly sections: readonly PilotMenuSection[] = ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'];
+  private readonly sections: readonly PilotMenuSection[];
   private activeSection: PilotMenuSection = 'MISSIONS';
+  private readonly sectionHistory: PilotMenuSection[] = [];
   private navigation: HTMLElement | undefined;
   private lastData: PilotMenuData | undefined;
   private lastSnapshot = '';
@@ -158,7 +167,21 @@ export class PilotMenu {
   private advertisingOpen = false;
   private territoryLegendOpen = this.readLegendPreference();
 
-  constructor(private readonly element: HTMLElement, private readonly onSectionViewed?: (section: string) => void) {}
+  constructor(
+    private readonly element: HTMLElement,
+    private readonly onSectionViewed?: (section: string) => void,
+    private readonly options: PilotMenuOptions = {},
+  ) {
+    this.sections = options.sections ?? ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'];
+    registerUiBackLayer({
+      id: `pilot-menu-${++PilotMenu.instanceCount}`,
+      priority: uiBackPriority.menu,
+      isActive: () => this.isOpen(),
+      close: () => this.backOrClose(),
+    });
+  }
+
+  private static instanceCount = 0;
 
   private readLegendPreference(): boolean {
     try { return localStorage.getItem('airport-chaos-tab-territory-legend-collapsed-v1') !== '1'; }
@@ -173,6 +196,7 @@ export class PilotMenu {
 
   private switchTo(name: PilotMenuSection): void {
     if (this.activeSection === name || !this.lastData) return;
+    this.sectionHistory.push(this.activeSection);
     this.activeSection = name;
     this.onSectionViewed?.(name);
     this.render(this.lastData, true);
@@ -210,6 +234,7 @@ export class PilotMenu {
   isActivelyScrolling(now = performance.now()): boolean { return now - this.lastScrollInteractionAt < 260; }
 
   open(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'): void {
+    if (!this.openState) this.sectionHistory.length = 0;
     this.openState = true;
     this.activeSection = section;
     this.lastSnapshot = '';
@@ -311,10 +336,10 @@ export class PilotMenu {
     const header = document.createElement('header');
     const heading = document.createElement('div');
     const kicker = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
-    heading.append(kicker, textElement('span', 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
+    heading.append(kicker, textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
     void mountAirportChaosLogo(kicker, 'brand-logo-menu');
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
-    const close = actionButton({ label: 'BACK TO GAME', run: () => this.close() });
+    const close = actionButton({ label: this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
     const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, close);
     header.append(heading, actions);
     const content = document.createElement('div');
@@ -342,12 +367,14 @@ export class PilotMenu {
       button.dataset.section = name;
       navigation.append(button);
     }
-    const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
-    changeCity.classList.add('pilot-menu-navigation-action');
-    changeCity.title = 'Return to Choose a City';
-    const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart(), intent: 'danger' });
-    restart.classList.add('pilot-menu-navigation-action');
-    navigation.append(changeCity, restart);
+    if (this.options.showFlightActions !== false) {
+      const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
+      changeCity.classList.add('pilot-menu-navigation-action');
+      changeCity.title = 'Return to Choose a City';
+      const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart(), intent: 'danger' });
+      restart.classList.add('pilot-menu-navigation-action');
+      navigation.append(changeCity, restart);
+    }
     card.append(header, navigation, content);
     this.element.replaceChildren(card);
     this.content = content;
@@ -392,7 +419,7 @@ export class PilotMenu {
         finally { button.disabled = false; }
       };
       const nameForm = document.createElement('form'); nameForm.className = 'pilot-account-form';
-      const nameInput = document.createElement('input'); nameInput.name = 'pilotName'; nameInput.value = account.pilotName; nameInput.minLength = 3; nameInput.maxLength = 20; nameInput.required = true; nameInput.setAttribute('autocomplete', 'nickname'); nameInput.setAttribute('aria-label', 'Pilot name');
+      const nameInput = document.createElement('input'); nameInput.name = 'pilotName'; nameInput.value = account.pilotName; nameInput.minLength = 3; nameInput.maxLength = 20; nameInput.required = true; nameInput.dataset.pilotNameEditor = ''; nameInput.setAttribute('autocomplete', 'nickname'); nameInput.setAttribute('aria-label', 'Pilot name');
       const nameButton = actionButton({ label: 'CHANGE NAME', run: () => undefined }); nameButton.type = 'submit';
       nameForm.append(textElement('label', 'PILOT NAME'), nameInput, nameButton);
       nameForm.addEventListener('submit', (event) => { event.preventDefault(); void run(nameButton, () => account.changeName(nameInput.value)); });
@@ -419,7 +446,7 @@ export class PilotMenu {
           return form;
         };
         authForms.append(makeAuthForm('CREATE ACCOUNT', 'CREATE ACCOUNT', account.signUp), makeAuthForm('SIGN IN', 'SIGN IN', account.signIn));
-        profile.append(authForms, actionButton({ label: 'CONTINUE AS GUEST', run: () => this.close() }));
+        profile.append(authForms, actionButton({ label: 'CONTINUE AS GUEST', run: closeTopUiLayer }));
       } else {
         profile.append(textElement('p', 'Your progression, purchases, aircraft and cosmetics are linked to this account.', 'pilot-menu-muted'));
         const linked = document.createElement('div'); linked.className = 'pilot-account-linked';
@@ -450,6 +477,9 @@ export class PilotMenu {
     missions.append(textElement('p', data.missions.practice ? 'Practice tasks build flight skills and give no permanent rewards.' : 'Choose one mission. Finish it for the full Credits and Score reward.', 'pilot-menu-muted'));
     const current = data.missions.entries.find((entry) => entry.id === data.missions.activeId);
     if (current) {
+      const activeSection = document.createElement('div');
+      activeSection.className = 'pilot-menu-mission-active-section';
+      activeSection.append(textElement('h3', 'ACTIVE MISSION', 'pilot-menu-subheading'));
       const active = this.createCard({
         name: `ACTIVE · ${current.name}`,
         detail: current.progressText ?? current.detail,
@@ -459,33 +489,41 @@ export class PilotMenu {
           { label: 'Abandon Mission', run: data.missions.abandon, intent: 'danger' },
         ],
       });
-      active.classList.add('pilot-menu-mission-active');
+      active.classList.add('pilot-menu-mission-card', 'pilot-menu-mission-active');
       this.addMissionTerritories(active, current, data.territories.entries);
       if (current.target && current.progress !== undefined) {
         const bar = document.createElement('progress'); bar.max = current.target; bar.value = Math.min(current.target, current.progress);
         active.append(bar);
       }
-      missions.append(active);
+      activeSection.append(active);
+      missions.append(activeSection);
     } else if (data.missions.activeId) {
-      missions.append(this.createCard({
+      const activeSection = document.createElement('div');
+      activeSection.className = 'pilot-menu-mission-active-section';
+      activeSection.append(textElement('h3', 'ACTIVE MISSION', 'pilot-menu-subheading'));
+      const active = this.createCard({
         name: `ACTIVE IN ${(data.missions.activeCity ?? 'ANOTHER CITY').toUpperCase()}`,
         detail: 'Return to that city to continue, or choose another mission and lose its progress.',
         meta: 'Only one mission can be active.',
         actions: [{ label: 'Abandon Mission', run: data.missions.abandon, intent: 'danger' }],
-      }));
+      });
+      active.classList.add('pilot-menu-mission-card', 'pilot-menu-mission-active');
+      activeSection.append(active);
+      missions.append(activeSection);
     }
 
-    for (const item of data.missions.entries) {
+    const availableMissions = data.missions.entries.filter((item) => item.id !== data.missions.activeId);
+    if (availableMissions.length) missions.append(textElement('h3', 'AVAILABLE MISSIONS', 'pilot-menu-subheading'));
+    for (const item of availableMissions) {
       const now = Date.now();
       const cooling = item.cooldownUntil > now;
-      const active = item.id === data.missions.activeId;
-      const anotherMissionActive = Boolean(data.missions.activeId && !active);
+      const anotherMissionActive = Boolean(data.missions.activeId);
       const unavailableReason = anotherMissionActive ? 'Abandon the active mission first.' : item.unavailableReason;
       const card = this.createCard({
-        name: `${item.name}${active ? ' · ACTIVE' : item.completions ? ` · COMPLETED ×${item.completions}` : ''}`,
+        name: `${item.name}${item.completions ? ` · COMPLETED ×${item.completions}` : ''}`,
         detail: item.detail,
         meta: `${item.difficulty} · ${data.missions.practice ? 'PRACTICE — NO REWARDS' : `${visualLanguage.credits.icon} ${item.credits.toLocaleString()} Credits · ${visualLanguage.score.icon} ${item.score.toLocaleString()} Score`}${cooling ? ` · Replay in ${Math.ceil((item.cooldownUntil - now) / 60_000)} min` : ''}${unavailableReason ? ` · ${unavailableReason}` : ''}`,
-        actions: active ? undefined : [{
+        actions: [{
           label: item.retired ? 'RETIRED' : cooling ? 'COOLDOWN' : unavailableReason ? 'UNAVAILABLE' : item.completions ? 'REPLAY' : 'ACCEPT',
           disabled: item.retired || cooling || Boolean(unavailableReason),
           title: unavailableReason,
@@ -493,6 +531,7 @@ export class PilotMenu {
           intent: 'primary',
         }],
       });
+      card.classList.add('pilot-menu-mission-card', 'pilot-menu-mission-option');
       this.addMissionTerritories(card, item, data.territories.entries);
       missions.append(card);
     }
@@ -722,7 +761,7 @@ export class PilotMenu {
       controls.append(camera);
     }
     const session = section('SESSION');
-    session.append(actionButton({label:'BACK TO GAME',run:()=>this.close(),intent:'primary'}),actionButton({label:'RESTART / RESPAWN',run:data.restart,intent:'danger'}));
+    session.append(actionButton({label:'BACK TO GAME',run:closeTopUiLayer,intent:'primary'}),actionButton({label:'RESTART / RESPAWN',run:data.restart,intent:'danger'}));
     content.append(controls,session);
     }
 
@@ -806,11 +845,24 @@ export class PilotMenu {
     content.scrollTop = scrollTop;
   }
 
-  close(): void {
+  close(notify = true): void {
     this.lastData?.map.unmount();
     this.openState = false;
     this.pointerActive = false;
     this.element.hidden = true;
+    this.sectionHistory.length = 0;
+    if (notify) this.options.onClose?.();
+  }
+
+  private backOrClose(): void {
+    const previous = this.sectionHistory.pop();
+    if (!previous || !this.lastData) {
+      this.close();
+      return;
+    }
+    this.activeSection = previous;
+    this.onSectionViewed?.(previous);
+    this.render(this.lastData, true);
   }
 
   toggle(data: PilotMenuData): void {

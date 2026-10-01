@@ -8,6 +8,34 @@
     <link rel="preload" as="image" href="/media/launch/airport-chaos-launch-poster.jpg" />
   </head>
   <body>
+    <main id="brand-loading" class="brand-loading" aria-label="Loading Airport Chaos">
+      <div class="brand-loading-sky" aria-hidden="true"><i></i><i></i></div>
+      <img class="brand-loading-logo" src="/brand/airport-chaos-logo.avif" alt="Airport Chaos" />
+      <div class="brand-loading-progress">
+        <span>LOADING FLIGHT SYSTEMS...</span>
+        <progress data-startup-progress max="1" value="0" aria-label="Startup progress"></progress>
+        <small data-startup-progress-text>0%</small>
+      </div>
+    </main>
+    <main id="home-hangar" class="home-hangar" aria-label="Airport Chaos Pilot Hub" hidden>
+      <div class="home-hangar-stage" data-home-hangar-stage aria-label="Equipped aircraft showcase"></div>
+      <header class="entry-shell-header home-hangar-header">
+        <div class="entry-shell-brand home-hangar-brand">AIRPORT CHAOS</div>
+        <div class="entry-shell-status home-hangar-status">
+          <button class="entry-status-card" type="button" data-home-profile-entry><small>PILOT</small><strong data-home-pilot>Pilot</strong></button>
+          <span class="entry-status-card entry-credits home-hangar-credits"><small>CREDITS</small><strong data-home-credits>0</strong></span>
+          <button class="entry-status-card entry-settings home-hangar-settings" type="button" data-home-settings aria-label="Settings"><span aria-hidden="true">⚙</span></button>
+        </div>
+      </header>
+      <div class="home-hangar-aircraft-name" data-home-aircraft-name>BLUEJAY TRAINER</div>
+      <nav class="home-hangar-navigation" aria-label="Home navigation">
+        <button class="entry-button entry-button-secondary" type="button" data-home-aircraft>AIRCRAFT</button>
+        <button class="entry-button entry-button-secondary" type="button" data-home-missions>MISSIONS</button>
+        <button class="entry-button entry-button-primary home-hangar-fly" type="button" data-home-fly>FLY</button>
+        <button class="entry-button entry-button-secondary home-hangar-tutorial" type="button" data-home-tutorial disabled aria-disabled="true"><span>TUTORIAL</span><small>COMING NEXT</small></button>
+        <button class="entry-button entry-button-secondary" type="button" data-home-profile>PROFILE</button>
+      </nav>
+    </main>
     <main id="city-selector" class="city-selector" hidden>
       <div id="launch-background" class="launch-background" aria-hidden="true">
         <img src="/media/launch/airport-chaos-launch-poster.jpg" alt="" fetchpriority="high" />
@@ -16,19 +44,31 @@
           <source data-src="/media/launch/airport-chaos-launch.mp4" type="video/mp4" />
         </video>
       </div>
-      <div class="city-select-card">
-        <div class="city-select-kicker">AIRPORT CHAOS</div>
-        <div class="city-select-tagline">FLY • FIGHT • EXPLORE</div>
-        <h1 id="city-select-title">CHOOSE A CITY</h1>
-        <p id="city-select-description">Pick your city and start flying.</p>
+      <header class="entry-shell-header city-select-header">
+        <div class="entry-shell-brand city-select-brand">AIRPORT CHAOS</div>
+        <div class="entry-shell-status">
+          <button class="entry-status-card" type="button" data-city-profile-entry><small>PILOT</small><strong data-city-pilot>Pilot</strong></button>
+          <span class="entry-status-card entry-credits"><small>CREDITS</small><strong data-city-credits>0</strong></span>
+          <button class="entry-status-card entry-settings" type="button" data-city-settings aria-label="Settings"><span aria-hidden="true">⚙</span></button>
+        </div>
+      </header>
+      <section class="entry-content-panel city-select-card">
+        <div class="city-select-heading">
+          <div class="city-select-tagline">FLY • FIGHT • EXPLORE</div>
+          <h1 class="entry-page-title" id="city-select-title">CHOOSE A CITY</h1>
+          <p id="city-select-description">Pick your city and start flying.</p>
+        </div>
         <div id="city-options" class="city-options"></div>
         <div id="time-options" class="city-options" hidden></div>
-        <button id="city-back" class="garage-entry" type="button" hidden>Back to cities</button>
-        <button id="city-close" class="garage-entry" type="button" aria-label="Return to flight" hidden>Return to flight</button>
-        <button id="garage-entry" class="garage-entry" type="button">Aircraft Garage</button>
+        <nav class="city-select-actions" aria-label="Destination navigation">
+          <button id="city-back" class="entry-button entry-button-secondary" type="button" hidden>BACK TO CITIES</button>
+          <button id="city-home" class="entry-button entry-button-secondary" type="button">BACK TO PILOT HUB</button>
+          <button id="city-close" class="entry-button entry-button-secondary" type="button" aria-label="Back to Pilot Hub" hidden>BACK TO PILOT HUB</button>
+          <button id="garage-entry" class="entry-button entry-button-secondary" type="button">AIRCRAFT</button>
+        </nav>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
         <div id="start-brand-signature"></div>
-      </div>
+      </section>
     </main>
     <div id="game-root" hidden>
     <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">
@@ -77,6 +117,7 @@
         <strong id="active-mission-title"></strong>
         <span id="active-mission-objective"></span>
         <span id="active-mission-progress"></span>
+        <progress id="active-mission-bar" max="1" value="0" aria-label="Mission progress" hidden></progress>
       </aside>
       <div id="flight-notifications" class="flight-notifications" aria-live="polite">
         <div id="connection-status" class="connection-status hidden" role="status">Connection lost — reconnecting…</div>
@@ -175,7 +216,26 @@
     </div>
     <section id="touch-controls" class="touch-controls" hidden aria-label="Touch flight controls">
       <div class="touch-stick" data-touch-stick data-touch-control="stick" aria-label="Turn and pitch">
-        <span class="touch-stick-up">UP</span><span class="touch-stick-up-right" aria-hidden="true">↗</span><span class="touch-stick-right">RIGHT</span><span class="touch-stick-down-right" aria-hidden="true">↘</span><span class="touch-stick-down">DOWN</span><span class="touch-stick-down-left" aria-hidden="true">↙</span><span class="touch-stick-left">LEFT</span><span class="touch-stick-up-left" aria-hidden="true">↖</span><i></i>
+        <svg class="touch-stick-frame" viewBox="0 0 116 116" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="touch-stick-surface" x1="16" y1="8" x2="100" y2="108" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#7ee2ff" stop-opacity=".62" />
+              <stop offset=".42" stop-color="#39a9f9" stop-opacity=".44" />
+              <stop offset="1" stop-color="#0c3048" stop-opacity=".72" />
+            </linearGradient>
+            <radialGradient id="touch-stick-inset" cx="45%" cy="38%" r="68%">
+              <stop offset="0" stop-color="#4acaef" stop-opacity=".2" />
+              <stop offset="1" stop-color="#0a1f30" stop-opacity=".68" />
+            </radialGradient>
+          </defs>
+          <path class="touch-stick-frame-outer" d="M38 2H78Q82 2 85 5L111 31Q114 34 114 38V78Q114 82 111 85L85 111Q82 114 78 114H38Q34 114 31 111L5 85Q2 82 2 78V38Q2 34 5 31L31 5Q34 2 38 2Z" />
+          <path class="touch-stick-frame-inner" d="M40 9H76Q80 9 83 12L104 33Q107 36 107 40V76Q107 80 104 83L83 104Q80 107 76 107H40Q36 107 33 104L12 83Q9 80 9 76V40Q9 36 12 33L33 12Q36 9 40 9Z" />
+        </svg>
+        <span class="touch-stick-marker touch-stick-up" aria-hidden="true"></span>
+        <span class="touch-stick-marker touch-stick-right" aria-hidden="true"></span>
+        <span class="touch-stick-marker touch-stick-down" aria-hidden="true"></span>
+        <span class="touch-stick-marker touch-stick-left" aria-hidden="true"></span>
+        <i aria-hidden="true"></i>
       </div>
       <div class="touch-throttle-lever" data-touch-throttle data-touch-control="throttle" role="slider" aria-label="Throttle" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <span class="touch-boost-ready">BOOST READY</span>
@@ -191,8 +251,8 @@
       <button class="touch-fire" type="button" data-touch-control="fire" data-hold="fire">FIRE</button>
     </section>
     <div class="portrait-guidance" aria-hidden="true">ROTATE DEVICE FOR FLIGHT</div>
-    <div id="pilot-menu-overlay" class="pilot-menu-overlay" hidden></div>
     </div>
+    <div id="pilot-menu-overlay" class="pilot-menu-overlay" hidden></div>
     <div id="garage-overlay" class="garage-overlay" hidden></div>
     <button id="tutorial-help" class="tutorial-help" type="button" aria-label="Tutorial / Help" title="Tutorial / Help">?</button>
     <script type="module" src="/src/entry.ts"></script>

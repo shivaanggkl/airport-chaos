@@ -24,7 +24,7 @@ test('mission and status notices share a stable ordered HUD layer', () => {
   assert.match(html, /id="mission-status-layer"[\s\S]*id="flight-notifications"[\s\S]*id="world-status"[\s\S]*id="progress-message"/);
   assert.doesNotMatch(html, /id="mission-card"/);
   assert.match(html, /class="flight-hud-stat flight-hud-mission"[\s\S]*id="mission-progress"/);
-  assert.match(css, /\.mission-status-layer\s*\{[^}]*position:\s*fixed;[^}]*top:\s*74px;[^}]*display:\s*grid;[^}]*gap:\s*8px;/);
+  assert.match(css, /\.mission-status-layer\s*\{[^}]*position:\s*fixed;[^}]*top:\s*74px;[^}]*display:\s*grid;[^}]*gap:\s*6px;/);
 });
 
 test('transient flight notices size to their content instead of the mission column', () => {

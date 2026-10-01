@@ -1,20 +1,40 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { shouldIgnoreGameplayKeyboardEvent } from '../../shared/editable-keyboard.mjs';
 
 const controlsSource = readFileSync(new URL('../../client/src/controls-help.ts', import.meta.url), 'utf8');
+const editableSource = readFileSync(new URL('../../shared/editable-keyboard.mjs', import.meta.url), 'utf8');
 const inputSource = readFileSync(new URL('../../client/src/flight-input.ts', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const styleSource = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+const pilotMenuSource = readFileSync(new URL('../../client/src/pilot-menu.ts', import.meta.url), 'utf8');
 
 test('H toggles help only on non-touch gameplay layouts', () => {
   assert.match(controlsSource, /code === 'KeyH' && !touchLayout && !isEditableControl\(target\)/);
 });
 
 test('H is not captured from editable controls', () => {
-  for (const tag of ['INPUT', 'TEXTAREA', 'SELECT']) assert.match(controlsSource, new RegExp(`tagName === '${tag}'`));
-  assert.match(controlsSource, /isContentEditable/);
-  for (const role of ['textbox', 'searchbox', 'combobox']) assert.match(controlsSource, new RegExp(`role="${role}"`));
+  for (const tag of ['INPUT', 'TEXTAREA', 'SELECT']) assert.match(editableSource, new RegExp(`tagName === '${tag}'`));
+  assert.match(editableSource, /isContentEditable/);
+  for (const role of ['textbox', 'searchbox', 'combobox']) assert.match(editableSource, new RegExp(`role="${role}"`));
+});
+
+test('all text-editing keys bypass gameplay while Escape remains available to shared back navigation', () => {
+  const input = { tagName: 'INPUT', isContentEditable: false, closest: () => null } as unknown as EventTarget;
+  for (const key of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') {
+    assert.equal(shouldIgnoreGameplayKeyboardEvent({ code: `Key${key}`, key, target: input }, input), true);
+  }
+  for (const [code, key] of [['Backspace', 'Backspace'], ['Space', ' ']]) {
+    assert.equal(shouldIgnoreGameplayKeyboardEvent({ code, key, target: input }, input), true);
+  }
+  assert.equal(shouldIgnoreGameplayKeyboardEvent({ code: 'Escape', key: 'Escape', target: input }, input), false);
+});
+
+test('flight keyboard listeners share the editable-focus guard and clear held state on focus entry', () => {
+  assert.ok((mainSource.match(/if \(shouldIgnoreGameplayKeyboardEvent\(event\)\) return;/g) ?? []).length >= 3);
+  assert.match(mainSource, /focusin[\s\S]*isEditableControl\(event\.target\)[\s\S]*clearHeldActions\(\)/);
+  assert.match(pilotMenuSource, /nameInput\.dataset\.pilotNameEditor = ''/);
 });
 
 test('desktop reference is sourced from current supported flight bindings', () => {

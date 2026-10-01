@@ -1,6 +1,7 @@
 import { applyAircraftCosmetics } from './aircraft-cosmetics';
 import { aircraftRoles, identityText } from './visual-language';
 import * as THREE from 'three';
+import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { aircraftDefinitions, aircraftDisplayName, aircraftPitch, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
 import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
@@ -22,8 +23,44 @@ export class AircraftGarage {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  private readonly aircraftPresentation = new THREE.Group();
   private readonly preview = new THREE.Group();
   private readonly previewContent = new THREE.Group();
+  private readonly ambientLight = new THREE.HemisphereLight(0xffe5c2, 0x23313a, 2.35);
+  private readonly keyLight = new THREE.DirectionalLight(0xffd6a0, 3.05);
+  private readonly rimLight = new THREE.DirectionalLight(0x8ddfff, 1.15);
+  private readonly showcaseShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 48),
+    new THREE.MeshBasicMaterial({ color: 0x010508, transparent: true, opacity: 0.3, depthWrite: false }),
+  );
+  private readonly showcaseShadowMid = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 40),
+    new THREE.MeshBasicMaterial({ color: 0x02070a, transparent: true, opacity: 0.09, depthWrite: false }),
+  );
+  private readonly showcaseShadowOuter = new THREE.Mesh(
+    new THREE.CircleGeometry(1, 40),
+    new THREE.MeshBasicMaterial({ color: 0x02070a, transparent: true, opacity: 0.045, depthWrite: false }),
+  );
+  private readonly showcaseSet = new THREE.Group();
+  private readonly backgroundAircraftSet = new THREE.Group();
+  private readonly garageGuideMaterial = new THREE.MeshBasicMaterial({ color: 0x38d7f4, transparent: true, opacity: 0.38, toneMapped: false });
+  private readonly showcaseCameraDistance = 18;
+  private readonly showcaseCameraYaw = Math.PI / 2;
+  private readonly showcaseCameraPitch = THREE.MathUtils.degToRad(4);
+  private readonly showcaseAircraftYawOffset = THREE.MathUtils.degToRad(35);
+  private readonly showcaseCameraFocus = new THREE.Vector3(0, 1.5, 0);
+  // Display order is Bluejay, Mammoth, Nightowl, Firehawk: the outer pair
+  // sits forward at showroom scale while the inner pair recedes to the wall.
+  private readonly showroomAircraftPlacements = [
+    { x: -2.0, z: 11.0, yaw: 0, scale: 1.18 },
+    { x: -13.2, z: 8.8, yaw: 0.25, scale: 0.96 },
+    { x: -13.2, z: -8.8, yaw: Math.PI - 0.25, scale: 0.96 },
+    { x: -2.0, z: -11.0, yaw: Math.PI, scale: 1.18 },
+  ] as const;
+  private readonly garagePreviewHost: HTMLElement;
+  private showcaseHost: HTMLElement | undefined;
+  private backgroundAircraftHero?: AircraftType;
+  private backgroundAircraftGeneration = 0;
   private readonly cards = new Map<AircraftType, HTMLButtonElement>();
   private profile: GarageProfile = { credits: 0, selectedAircraft: 'trainer', unlockedAircraft: ['trainer'] };
   private selected: AircraftType = 'trainer';
@@ -35,10 +72,12 @@ export class AircraftGarage {
   private distance = 14;
   private targetDistance = 14;
   private defaultDistance = 14;
-  private orbitYaw = 0.58;
-  private targetOrbitYaw = 0.58;
-  private orbitPitch = 0.2;
-  private targetOrbitPitch = 0.2;
+  private orbitYaw = 1.98;
+  private targetOrbitYaw = 1.98;
+  private orbitPitch = -0.01;
+  private targetOrbitPitch = -0.01;
+  private idleOrbitAnchor = 1.98;
+  private idleOrbitStartedAt = performance.now();
   private userAdjustedZoom = false;
   private raf = 0;
   private loadingProfile = false;
@@ -73,22 +112,39 @@ export class AircraftGarage {
     private readonly onPurchaseCosmetic?: (id: string) => void,
     private readonly onEquipCosmetic?: (id: string) => void,
   ) {
+    registerUiBackLayer({
+      id: `aircraft-garage-${++AircraftGarage.instanceCount}`,
+      priority: uiBackPriority.menu,
+      isActive: () => this.isOpen(),
+      close: () => this.close(),
+    });
     element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
     const cosmetics = document.createElement('section'); cosmetics.className = 'garage-cosmetics'; cosmetics.dataset.garageCosmetics = '';
     element.querySelector('.garage-card')!.append(cosmetics);
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
+    this.garagePreviewHost = canvas.parentElement!;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.preview.add(this.previewContent);
-    this.scene.add(new THREE.HemisphereLight(0xc9edff, 0x14222b, 2.2), this.preview);
-    const key = new THREE.DirectionalLight(0xffffff, 2.8); key.position.set(5, 8, 7); this.scene.add(key);
+    this.aircraftPresentation.add(this.preview, this.showcaseShadowOuter, this.showcaseShadowMid, this.showcaseShadow);
+    this.showcaseShadow.rotation.x = -Math.PI / 2;
+    this.showcaseShadowMid.rotation.x = -Math.PI / 2;
+    this.showcaseShadowOuter.rotation.x = -Math.PI / 2;
+    this.showcaseShadow.visible = false;
+    this.showcaseShadowMid.visible = false;
+    this.showcaseShadowOuter.visible = false;
+    this.showcaseSet.visible = false;
+    this.buildShowcaseSet();
+    this.keyLight.position.set(-7, 8, 6);
+    this.rimLight.position.set(7, 3, -5);
+    this.scene.add(this.ambientLight, this.keyLight, this.rimLight, this.showcaseSet, this.aircraftPresentation);
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
     for (const type of aircraftDisplayOrder) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
       card.addEventListener('click', () => { this.selected = type; this.previewCosmetic = undefined; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
     }
-    element.querySelector('[data-garage-close]')!.addEventListener('click', () => this.close());
+    element.querySelector('[data-garage-close]')!.addEventListener('click', closeTopUiLayer);
     element.querySelector('[data-garage-equip]')!.addEventListener('click', () => {
       if (this.actionPending) return;
       if (this.profile.unlockedAircraft.includes(this.selected)) this.onEquip(this.selected);
@@ -123,21 +179,35 @@ export class AircraftGarage {
       this.pointerX = event.clientX;
       this.pointerY = event.clientY;
     });
-    const release = () => { this.dragging = false; }; canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release);
+    const release = () => {
+      this.dragging = false;
+      this.idleOrbitAnchor = this.targetOrbitYaw;
+      this.idleOrbitStartedAt = performance.now();
+    };
+    canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release);
     canvas.addEventListener('wheel', (event) => {
       event.preventDefault();
       this.userAdjustedZoom = true;
       this.targetDistance = THREE.MathUtils.clamp(this.targetDistance + event.deltaY * 0.012, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     }, { passive: false });
     window.addEventListener('resize', () => this.resize());
-    new ResizeObserver(() => this.resize()).observe(canvas.parentElement!);
+    new ResizeObserver(() => this.resize()).observe(canvas);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        cancelAnimationFrame(this.raf);
+        this.raf = 0;
+      } else if (this.isPreviewActive()) this.startAnimation();
+    });
   }
+
+  private static instanceCount = 0;
 
   open(profile: GarageProfile, loadingProfile = false): void {
     // Profile hydration may reopen the already-visible Garage. Keep exactly
     // one preview loop so a late profile response cannot create competing
     // render callbacks or make the first open appear unreliable.
-    cancelAnimationFrame(this.raf);
+    this.hideShowcase();
+    this.garagePreviewHost.prepend(this.renderer.domElement);
     this.profile = this.normalizeProfile(profile);
     this.loadingProfile = loadingProfile;
     this.actionPending = false;
@@ -149,15 +219,53 @@ export class AircraftGarage {
     this.resize();
     this.renderDetails();
     this.loadPreview();
-    this.animate();
+    this.startAnimation();
   }
   close(): void {
     if (this.element.hidden) return;
     this.element.hidden = true;
     cancelAnimationFrame(this.raf);
+    this.raf = 0;
     this.onClose?.();
   }
   isOpen(): boolean { return !this.element.hidden; }
+
+  showcase(host: HTMLElement, profile: GarageProfile): Promise<void> {
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.element.hidden = true;
+    this.showcaseHost = host;
+    host.prepend(this.renderer.domElement);
+    this.profile = this.normalizeProfile(profile);
+    this.selected = this.profile.selectedAircraft;
+    this.previewCosmetic = undefined;
+    this.setShowcaseLighting(true);
+    this.showcaseSet.visible = true;
+    this.showcaseShadow.visible = true;
+    this.showcaseShadowMid.visible = true;
+    this.showcaseShadowOuter.visible = true;
+    this.loadBackgroundAircraft();
+    const previewReady = this.loadPreview();
+    this.resize();
+    this.startAnimation();
+    return previewReady;
+  }
+
+  hideShowcase(): void {
+    if (!this.showcaseHost) return;
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.showcaseHost = undefined;
+    this.setShowcaseLighting(false);
+    this.showcaseSet.visible = false;
+    this.showcaseShadow.visible = false;
+    this.showcaseShadowMid.visible = false;
+    this.showcaseShadowOuter.visible = false;
+    this.aircraftPresentation.position.set(0, 0, 0);
+    this.aircraftPresentation.scale.setScalar(1);
+    this.preview.rotation.set(0, 0, 0);
+    this.garagePreviewHost.prepend(this.renderer.domElement);
+  }
 
   updateProfile(profile: GarageProfile): void {
     this.profile = this.normalizeProfile(profile);
@@ -184,7 +292,7 @@ export class AircraftGarage {
 
   private premiumPrice(): string { return this.nativeStore ? this.nativeStorePrice ?? 'STORE PRICE' : firehawkProduct.displayPrice; }
 
-  private loadPreview(): void {
+  private loadPreview(): Promise<void> {
     this.previewContent.traverse(object => {
       if (!(object instanceof THREE.Mesh)) return;
       if (object.userData.cosmeticMaterialsCloned || !object.userData.sharedAsset) {
@@ -202,13 +310,14 @@ export class AircraftGarage {
     body.material.name = 'AC_LIVERY_BASE';
     body.rotation.x = Math.PI / 2; fallback.add(body); plane.add(fallback); this.previewContent.add(plane);
     this.framePreview(true);
-    attachAircraftAsset(plane, fallback, this.selected, definition.bodyLength + definition.noseLength, definition.wingSpan, () => {
+    const assetReady = attachAircraftAsset(plane, fallback, this.selected, definition.bodyLength + definition.noseLength, definition.wingSpan, () => {
       // A cached GLB can resolve after the player chose another card.  Only
       // reframe if this plane is still the active preview.
       if (this.previewContent.children.includes(plane)) this.framePreview(false);
     });
     this.decoratePreview?.(plane, this.selected);
     this.paintPreview();
+    return assetReady.then(() => undefined);
   }
 
   private renderDetails(): void {
@@ -387,6 +496,320 @@ export class AircraftGarage {
     };
   }
 
+  private buildShowcaseSet(): void {
+    const deepNavy = 0x102536;
+    const graphiteBlue = 0x263c4a;
+    const steel = 0x486274;
+    const lightSteel = 0x7893a4;
+    const cyan = 0x38d7f4;
+    const coolWhite = 0xeaf8ff;
+    const gold = 0xd8af52;
+    const panelGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const transform = new THREE.Object3D();
+    const finishInstances = (mesh: THREE.InstancedMesh) => {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      this.showcaseSet.add(mesh);
+    };
+
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: lightSteel, roughness: 0.48, metalness: 0.58, emissive: deepNavy, emissiveIntensity: 0.16 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.46, metalness: 0.58, emissive: deepNavy, emissiveIntensity: 0.5 });
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.62, emissive: graphiteBlue, emissiveIntensity: 0.35 });
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(32, 0.18, 32), floorMaterial);
+    floor.position.set(-0.1, -0.09, 0);
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(0.34, 7.3, 32), wallMaterial);
+    backWall.position.set(-15.84, 3.65, 0);
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(32, 7.3, 0.34), wallMaterial);
+    leftWall.position.set(-0.1, 3.65, -15.84);
+    const rightWall = leftWall.clone(); rightWall.position.z = 15.84;
+    const ceiling = new THREE.Mesh(new THREE.BoxGeometry(32, 0.34, 32), ceilingMaterial);
+    ceiling.position.set(-0.1, 7.14, 0);
+    this.showcaseSet.add(floor, backWall, leftWall, rightWall, ceiling);
+
+    const heroPad = new THREE.Mesh(
+      new THREE.CylinderGeometry(5.15, 5.3, 0.12, 64),
+      new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.34, metalness: 0.72, emissive: deepNavy, emissiveIntensity: 0.2 }),
+    );
+    heroPad.position.y = 0.06;
+    const padInset = new THREE.Mesh(
+      new THREE.CircleGeometry(4.72, 64),
+      new THREE.MeshStandardMaterial({ color: steel, roughness: 0.42, metalness: 0.6, transparent: true, opacity: 0.82 }),
+    );
+    padInset.rotation.x = -Math.PI / 2; padInset.position.y = 0.126;
+    const padRingMaterial = new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+    const padOuterRing = new THREE.Mesh(new THREE.RingGeometry(4.7, 4.83, 72), padRingMaterial);
+    padOuterRing.rotation.x = -Math.PI / 2; padOuterRing.position.y = 0.132;
+    const padInnerRing = new THREE.Mesh(new THREE.RingGeometry(3.72, 3.78, 72), padRingMaterial.clone());
+    padInnerRing.rotation.x = -Math.PI / 2; padInnerRing.position.y = 0.134;
+    this.showcaseSet.add(heroPad, padInset, padOuterRing, padInnerRing);
+
+    const floorGuides = new THREE.InstancedMesh(panelGeometry, this.garageGuideMaterial, 8);
+    for (let index = 0; index < 4; index += 1) {
+      const side = index < 2 ? -1 : 1;
+      const lane = index % 2 === 0 ? 6.2 : 11.6;
+      transform.position.set(-1.0, 0.018, side * lane); transform.rotation.set(0, 0, 0); transform.scale.set(22, 0.025, 0.055); transform.updateMatrix();
+      floorGuides.setMatrixAt(index, transform.matrix);
+      transform.position.set(-8.9 + (index % 2) * 2.3, 0.022, side * lane); transform.scale.set(0.07, 0.025, 2.9); transform.updateMatrix();
+      floorGuides.setMatrixAt(index + 4, transform.matrix);
+    }
+    finishInstances(floorGuides);
+
+    const backPanelFrames = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshStandardMaterial({ color: steel, roughness: 0.42, metalness: 0.62 }),
+      9,
+    );
+    const backPanelInsets = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.58, metalness: 0.44 }),
+      9,
+    );
+    const backPanelSeams = new THREE.InstancedMesh(panelGeometry, this.garageGuideMaterial, 9);
+    for (let index = 0; index < 9; index += 1) {
+      const z = -13.7 + index * 3.425;
+      transform.position.set(-15.62, 3.25, z); transform.rotation.set(0, 0, 0); transform.scale.set(0.18, 6.15, 3.12); transform.updateMatrix();
+      backPanelFrames.setMatrixAt(index, transform.matrix);
+      transform.position.x = -15.49; transform.scale.set(0.08, 5.52, 2.76); transform.updateMatrix(); backPanelInsets.setMatrixAt(index, transform.matrix);
+      transform.position.set(-15.42, 0.68, z); transform.scale.set(0.035, 0.035, 2.42); transform.updateMatrix(); backPanelSeams.setMatrixAt(index, transform.matrix);
+    }
+    finishInstances(backPanelFrames); finishInstances(backPanelInsets); finishInstances(backPanelSeams);
+
+    const showroomPads = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(2.45, 2.58, 0.18, 40),
+      new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.4, metalness: 0.66 }),
+      this.showroomAircraftPlacements.length,
+    );
+    const showroomRings = new THREE.InstancedMesh(
+      new THREE.RingGeometry(2.22, 2.31, 48),
+      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }),
+      this.showroomAircraftPlacements.length,
+    );
+    this.showroomAircraftPlacements.forEach((placement, index) => {
+      transform.position.set(placement.x, 0.09, placement.z); transform.rotation.set(0, 0, 0); transform.scale.set(1, 1, 1); transform.updateMatrix();
+      showroomPads.setMatrixAt(index, transform.matrix);
+      transform.position.y = 0.188; transform.rotation.x = -Math.PI / 2; transform.updateMatrix();
+      showroomRings.setMatrixAt(index, transform.matrix);
+    });
+    finishInstances(showroomPads); finishInstances(showroomRings);
+
+    const sideFrames = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.65 }),
+      8,
+    );
+    let sideFrameIndex = 0;
+    for (const side of [-1, 1]) {
+      for (const x of [-11.8, -5.0]) {
+        transform.position.set(x, 3.4, side * 15.58); transform.rotation.set(0, 0, 0); transform.scale.set(0.28, 5.8, 0.28); transform.updateMatrix();
+        sideFrames.setMatrixAt(sideFrameIndex++, transform.matrix);
+      }
+      for (const y of [0.62, 6.18]) {
+        transform.position.set(-8.4, y, side * 15.58); transform.scale.set(7.08, 0.28, 0.28); transform.updateMatrix();
+        sideFrames.setMatrixAt(sideFrameIndex++, transform.matrix);
+      }
+    }
+    finishInstances(sideFrames);
+
+    const verticalServiceLights = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: coolWhite, toneMapped: false }),
+      8,
+    );
+    let verticalLightIndex = 0;
+    for (const side of [-1, 1]) {
+      for (const x of [-13.4, -9.4, -5.4, -1.4]) {
+        transform.position.set(x, 3.55, side * 15.48); transform.rotation.set(0, 0, 0); transform.scale.set(0.18, 2.7, 0.07); transform.updateMatrix();
+        verticalServiceLights.setMatrixAt(verticalLightIndex++, transform.matrix);
+      }
+    }
+    finishInstances(verticalServiceLights);
+    const rearServiceLights = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: coolWhite, toneMapped: false }),
+      6,
+    );
+    [-14.2, -9.15, -4.65, 4.65, 9.15, 14.2].forEach((z, index) => {
+      transform.position.set(-15.37, 3.45, z); transform.rotation.set(0, 0, 0); transform.scale.set(0.065, 2.75, 0.09); transform.updateMatrix();
+      rearServiceLights.setMatrixAt(index, transform.matrix);
+    });
+    finishInstances(rearServiceLights);
+
+    const ceilingRibs = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.66 }),
+      7,
+    );
+    const ceilingEdges = new THREE.InstancedMesh(panelGeometry, this.garageGuideMaterial, 7);
+    for (let index = 0; index < 7; index += 1) {
+      const z = -13.5 + index * 4.5;
+      transform.position.set(-0.1, 6.93, z); transform.rotation.set(0, 0, 0); transform.scale.set(30.5, 0.24, 0.32); transform.updateMatrix();
+      ceilingRibs.setMatrixAt(index, transform.matrix);
+      transform.position.y = 6.79; transform.scale.set(26.5, 0.025, 0.055); transform.updateMatrix(); ceilingEdges.setMatrixAt(index, transform.matrix);
+    }
+    finishInstances(ceilingRibs); finishInstances(ceilingEdges);
+    const ceilingLights = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: coolWhite, toneMapped: false }),
+      4,
+    );
+    [-11.2, -7.4, 7.4, 11.2].forEach((z, index) => {
+      transform.position.set(-2.2, 6.76, z); transform.rotation.set(0, 0, 0); transform.scale.set(13.8, 0.09, 0.72); transform.updateMatrix(); ceilingLights.setMatrixAt(index, transform.matrix);
+    });
+    finishInstances(ceilingLights);
+
+    const ceilingRingHousing = new THREE.Mesh(
+      new THREE.TorusGeometry(5.25, 0.34, 10, 72),
+      new THREE.MeshStandardMaterial({ color: steel, roughness: 0.3, metalness: 0.78 }),
+    );
+    ceilingRingHousing.rotation.x = Math.PI / 2; ceilingRingHousing.position.set(-0.9, 6.45, 0);
+    const ceilingRing = new THREE.Mesh(
+      new THREE.TorusGeometry(5.25, 0.11, 8, 72),
+      new THREE.MeshBasicMaterial({ color: cyan, toneMapped: false }),
+    );
+    ceilingRing.rotation.x = Math.PI / 2; ceilingRing.position.set(-0.75, 6.12, 0);
+    const ceilingInnerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(3.45, 0.09, 8, 64),
+      new THREE.MeshBasicMaterial({ color: coolWhite, transparent: true, opacity: 0.9, toneMapped: false }),
+    );
+    ceilingInnerRing.rotation.x = Math.PI / 2; ceilingInnerRing.position.set(-0.65, 6.08, 0);
+    this.showcaseSet.add(ceilingRingHousing, ceilingRing, ceilingInnerRing);
+
+    const displayCanvas = document.createElement('canvas');
+    displayCanvas.width = 384; displayCanvas.height = 160;
+    const displayContext = displayCanvas.getContext('2d');
+    if (displayContext) {
+      displayContext.fillStyle = '#102536'; displayContext.fillRect(0, 0, 384, 160);
+      displayContext.strokeStyle = '#486274'; displayContext.lineWidth = 3; displayContext.strokeRect(6, 6, 372, 148);
+      displayContext.strokeStyle = '#38D7F4'; displayContext.lineWidth = 3; displayContext.beginPath();
+      displayContext.moveTo(40, 80); displayContext.lineTo(138, 80); displayContext.lineTo(176, 48);
+      displayContext.lineTo(208, 48); displayContext.lineTo(246, 80); displayContext.lineTo(344, 80);
+      displayContext.moveTo(192, 28); displayContext.lineTo(192, 132); displayContext.moveTo(92, 116); displayContext.lineTo(292, 116); displayContext.stroke();
+      displayContext.strokeStyle = '#EAF8FF'; displayContext.lineWidth = 2; displayContext.beginPath(); displayContext.arc(192, 80, 26, 0, Math.PI * 2); displayContext.stroke();
+      const displayTexture = new THREE.CanvasTexture(displayCanvas);
+      displayTexture.colorSpace = THREE.SRGBColorSpace; displayTexture.generateMipmaps = false;
+      const techDisplays = new THREE.InstancedMesh(
+        new THREE.PlaneGeometry(4.7, 2.05),
+        new THREE.MeshBasicMaterial({ map: displayTexture, transparent: true, opacity: 0.9, side: THREE.DoubleSide, toneMapped: false }),
+        4,
+      );
+      [-10.7, 10.7].forEach((z, index) => {
+        transform.position.set(-15.35, 4.7, z); transform.rotation.set(0, Math.PI / 2, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); techDisplays.setMatrixAt(index, transform.matrix);
+      });
+      [-1, 1].forEach((side, offset) => {
+        transform.position.set(-7.9, 4.35, side * 15.62); transform.rotation.set(0, side === -1 ? 0 : Math.PI, 0); transform.scale.set(1, 1, 1); transform.updateMatrix(); techDisplays.setMatrixAt(offset + 2, transform.matrix);
+      });
+      finishInstances(techDisplays);
+    }
+
+    const signCanvas = document.createElement('canvas');
+    signCanvas.width = 512; signCanvas.height = 128;
+    const context = signCanvas.getContext('2d');
+    if (context) {
+      context.fillStyle = '#102536'; context.fillRect(0, 0, 512, 128);
+      context.strokeStyle = '#38D7F4'; context.lineWidth = 5; context.strokeRect(7, 7, 498, 114);
+      context.fillStyle = '#EAF8FF'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.font = '700 46px Arial, sans-serif'; context.fillText('AIRPORT CHAOS', 256, 64);
+      const signTexture = new THREE.CanvasTexture(signCanvas);
+      signTexture.colorSpace = THREE.SRGBColorSpace; signTexture.generateMipmaps = false;
+      const signBacking = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 1.38, 9.6),
+        new THREE.MeshStandardMaterial({ color: steel, roughness: 0.38, metalness: 0.68, emissive: cyan, emissiveIntensity: 0.05 }),
+      );
+      signBacking.position.set(-15.34, 6.35, 0);
+      const sign = new THREE.Mesh(
+        new THREE.PlaneGeometry(9.15, 1.12),
+        new THREE.MeshBasicMaterial({ map: signTexture, side: THREE.DoubleSide, toneMapped: false }),
+      );
+      sign.rotation.y = Math.PI / 2; sign.position.set(-15.23, 6.35, 0);
+      this.showcaseSet.add(signBacking, sign);
+    }
+
+    const goldAccents = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: gold, transparent: true, opacity: 0.55, toneMapped: false }),
+      4,
+    );
+    this.showroomAircraftPlacements.forEach((placement, index) => {
+      transform.position.set(placement.x - 1.8, 0.22, placement.z); transform.rotation.set(0, 0, 0); transform.scale.set(0.055, 0.035, 0.7); transform.updateMatrix();
+      goldAccents.setMatrixAt(index, transform.matrix);
+    });
+    finishInstances(goldAccents);
+    this.showcaseSet.add(this.backgroundAircraftSet);
+  }
+
+  private loadBackgroundAircraft(): void {
+    if (this.backgroundAircraftHero === this.selected && this.backgroundAircraftSet.children.length === 4) return;
+    this.backgroundAircraftHero = this.selected;
+    const generation = ++this.backgroundAircraftGeneration;
+    this.backgroundAircraftSet.clear();
+    const backgroundTypes = aircraftDisplayOrder.filter((type): type is AircraftType => aircraftDefinitions[type] !== undefined);
+    backgroundTypes.forEach((type, index) => {
+      const definition = aircraftDefinitions[type];
+      const placement = this.showroomAircraftPlacements[index];
+      const mount = new THREE.Group();
+      const plane = new THREE.Group();
+      const fallback = new THREE.Group();
+      mount.name = `garage-background-aircraft-${type}`;
+      mount.position.set(placement.x, 0, placement.z);
+      mount.rotation.y = placement.yaw;
+      mount.scale.setScalar(placement.scale);
+      mount.visible = false;
+      const alternative = cosmeticCatalog.find(item => item.aircraftRestriction === type && item.id !== this.profile.cosmetics?.equipped?.[`livery:${type}`]);
+      plane.userData.equippedCosmetics = { [`livery:${type}`]: alternative?.id ?? fallbackLiveryIds[type] };
+      plane.add(fallback); mount.add(plane); this.backgroundAircraftSet.add(mount);
+      void attachAircraftAsset(
+        plane,
+        fallback,
+        type,
+        definition.bodyLength + definition.noseLength,
+        definition.wingSpan,
+        (model) => {
+          if (generation !== this.backgroundAircraftGeneration || !this.backgroundAircraftSet.children.includes(mount)) return;
+          model.traverse(object => { object.frustumCulled = true; });
+          mount.visible = true;
+          mount.updateMatrixWorld(true);
+          const bounds = new THREE.Box3().setFromObject(mount);
+          mount.position.y += 0.2 - bounds.min.y;
+          mount.updateMatrixWorld(true);
+        },
+      );
+    });
+  }
+
+  private setShowcaseLighting(active: boolean): void {
+    if (active) {
+      this.ambientLight.color.setHex(0xeaf8ff);
+      this.ambientLight.groundColor.setHex(0x486274);
+      this.ambientLight.intensity = 1.95;
+      this.keyLight.color.setHex(0xeaf8ff);
+      this.keyLight.intensity = 2.55;
+      this.keyLight.position.set(5, 9, 3);
+      this.rimLight.color.setHex(0x38d7f4);
+      this.rimLight.intensity = 0.5;
+      this.rimLight.position.set(-5, 2.8, 7);
+      return;
+    }
+    this.ambientLight.color.setHex(0xffe5c2);
+    this.ambientLight.groundColor.setHex(0x23313a);
+    this.ambientLight.intensity = 2.35;
+    this.keyLight.color.setHex(0xffd6a0);
+    this.keyLight.intensity = 3.05;
+    this.keyLight.position.set(-7, 8, 6);
+    this.rimLight.color.setHex(0x8ddfff);
+    this.rimLight.intensity = 1.15;
+    this.rimLight.position.set(7, 3, -5);
+  }
+
+  private setShowcaseCamera(): void {
+    const horizontal = this.showcaseCameraDistance * Math.cos(this.showcaseCameraPitch);
+    this.camera.position.set(
+      this.showcaseCameraFocus.x + Math.sin(this.showcaseCameraYaw) * horizontal,
+      this.showcaseCameraFocus.y + Math.sin(this.showcaseCameraPitch) * this.showcaseCameraDistance,
+      this.showcaseCameraFocus.z + Math.cos(this.showcaseCameraYaw) * horizontal,
+    );
+    this.camera.lookAt(this.showcaseCameraFocus);
+  }
+
   private forEachVisualCorner(visitor: (corner: THREE.Vector3) => void): void {
     this.previewContent.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -419,25 +842,40 @@ export class AircraftGarage {
 
   private framePreview(resetView: boolean): void {
     if (resetView) {
-      this.targetOrbitYaw = 0.58;
-      this.targetOrbitPitch = 0.2;
+      this.targetOrbitYaw = this.showcaseHost ? this.showcaseCameraYaw + this.showcaseAircraftYawOffset : 1.98;
+      this.targetOrbitPitch = -0.01;
+      this.idleOrbitAnchor = this.targetOrbitYaw;
+      this.idleOrbitStartedAt = performance.now();
       this.orbitYaw = this.targetOrbitYaw;
       this.orbitPitch = this.targetOrbitPitch;
     }
-    // Center inconsistent asset origins inside the Garage wrapper only. The
-    // shared gameplay model and its transforms remain untouched.
+    // Normalize only the preview wrapper. Shared gameplay models and their
+    // authoritative transforms remain untouched.
+    this.aircraftPresentation.position.set(0, 0, 0);
+    this.aircraftPresentation.scale.setScalar(1);
+    this.preview.rotation.set(0, 0, 0);
     this.previewContent.position.set(0, 0, 0);
+    this.aircraftPresentation.updateMatrixWorld(true);
     this.previewContent.updateMatrixWorld(true);
     if (!this.measureVisualBounds()) return;
     this.previewBounds.getCenter(this.previewCenter);
-    this.previewContent.position.copy(this.previewCenter).multiplyScalar(-1);
+    if (this.showcaseHost) {
+      this.previewContent.position.set(-this.previewCenter.x, -this.previewBounds.min.y + 0.035, -this.previewCenter.z);
+    } else this.previewContent.position.copy(this.previewCenter).multiplyScalar(-1);
     this.previewContent.updateMatrixWorld(true);
     if (!this.measureVisualBounds()) return;
     this.previewBounds.getSize(this.previewSize);
+    this.showcaseSet.position.set(0, 0, 0);
+    this.showcaseShadow.position.y = 0.032;
+    this.showcaseShadowMid.position.y = 0.029;
+    this.showcaseShadowOuter.position.y = 0.026;
+    this.showcaseShadow.scale.set(Math.max(1.2, this.previewSize.x * 0.42), Math.max(1.4, this.previewSize.z * 0.36), 1);
+    this.showcaseShadowMid.scale.copy(this.showcaseShadow.scale).multiplyScalar(1.16);
+    this.showcaseShadowOuter.scale.copy(this.showcaseShadow.scale).multiplyScalar(1.34);
     this.previewFocus.set(0, 0, 0);
 
-    const yaw = this.targetOrbitYaw;
-    const pitch = this.targetOrbitPitch;
+    const yaw = this.showcaseHost ? this.showcaseCameraYaw : this.targetOrbitYaw;
+    const pitch = this.showcaseHost ? this.showcaseCameraPitch : this.targetOrbitPitch;
     const cosPitch = Math.cos(pitch);
     this.viewDirection.set(Math.sin(yaw) * cosPitch, Math.sin(pitch), Math.cos(yaw) * cosPitch).normalize();
     this.viewRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
@@ -456,7 +894,19 @@ export class AircraftGarage {
         towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
       );
     });
-    this.defaultDistance = Math.max(1, framedDistance * (this.selected === 'fighter' ? 0.9 : 1));
+    const wideShowcase = this.showcaseHost && this.camera.aspect > 2.55;
+    const showcaseDistanceScale = this.showcaseHost ? (wideShowcase ? 0.6 : 0.88) : 1;
+    this.defaultDistance = Math.max(1, framedDistance * (this.selected === 'fighter' ? 0.9 : 1) * showcaseDistanceScale);
+    if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
+    else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
+    if (resetView) this.distance = this.targetDistance;
+    if (this.showcaseHost) {
+      this.camera.far = 120;
+      this.camera.updateProjectionMatrix();
+      this.setShowcaseCamera();
+      return;
+    }
+
     let minProjectedX = Infinity, maxProjectedX = -Infinity, minProjectedY = Infinity, maxProjectedY = -Infinity;
     this.forEachVisualCorner(corner => {
       const depth = Math.max(0.001, this.defaultDistance - corner.dot(this.viewDirection));
@@ -469,13 +919,8 @@ export class AircraftGarage {
     // silhouette—not merely its world-space origin—is centered in the canvas.
     this.previewFocus.copy(this.viewRight).multiplyScalar((minProjectedX + maxProjectedX) * 0.5 * this.defaultDistance * horizontalTan)
       .addScaledVector(this.viewUp, (minProjectedY + maxProjectedY) * 0.5 * this.defaultDistance * verticalTan);
-    this.camera.far = Math.max(100, this.defaultDistance * 4);
+    this.camera.far = Math.max(140, this.defaultDistance * 6);
     this.camera.updateProjectionMatrix();
-    if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
-    else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
-    if (resetView) {
-      this.distance = this.targetDistance;
-    }
   }
 
   private resize(): void {
@@ -488,25 +933,49 @@ export class AircraftGarage {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    if (!this.element.hidden) this.framePreview(false);
+    if (this.isPreviewActive()) this.framePreview(false);
   }
 
   private animate = (): void => {
-    if (this.element.hidden) return;
+    if (!this.isPreviewActive() || document.hidden) { this.raf = 0; return; }
     const trialSecond = this.trialRemainingSeconds();
-    if (trialSecond !== this.lastTrialSecond) this.renderDetails();
-    if (!this.dragging) this.targetOrbitYaw += 0.002;
+    if (!this.showcaseHost && trialSecond !== this.lastTrialSecond) this.renderDetails();
+    if (!this.dragging) {
+      if (this.showcaseHost) this.targetOrbitYaw = this.idleOrbitAnchor + Math.sin((performance.now() - this.idleOrbitStartedAt) * 0.00018) * 0.055;
+      else this.targetOrbitYaw += 0.002;
+    }
+    if (this.showcaseHost) {
+      const pulse = Math.sin((performance.now() - this.idleOrbitStartedAt) * 0.0011);
+      this.garageGuideMaterial.opacity = 0.32 + pulse * 0.025;
+    }
     this.orbitYaw = THREE.MathUtils.lerp(this.orbitYaw, this.targetOrbitYaw, 0.12);
     this.orbitPitch = THREE.MathUtils.lerp(this.orbitPitch, this.targetOrbitPitch, 0.14);
     this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, 0.14);
-    const horizontal = this.distance * Math.cos(this.orbitPitch);
-    this.camera.position.set(
-      this.previewFocus.x + Math.sin(this.orbitYaw) * horizontal,
-      this.previewFocus.y + Math.sin(this.orbitPitch) * this.distance,
-      this.previewFocus.z + Math.cos(this.orbitYaw) * horizontal,
-    );
-    this.camera.lookAt(this.previewFocus);
+    if (this.showcaseHost) {
+      const presentationScale = this.showcaseCameraDistance / Math.max(0.001, this.distance);
+      this.aircraftPresentation.scale.setScalar(presentationScale);
+      this.preview.rotation.y = this.showcaseCameraYaw - this.orbitYaw;
+      this.preview.rotation.z = THREE.MathUtils.clamp((this.orbitPitch - this.showcaseCameraPitch) * 0.35, -0.28, 0.28);
+    } else {
+      this.aircraftPresentation.scale.setScalar(1);
+      this.preview.rotation.set(0, 0, 0);
+      const horizontal = this.distance * Math.cos(this.orbitPitch);
+      this.camera.position.set(
+        this.previewFocus.x + Math.sin(this.orbitYaw) * horizontal,
+        this.previewFocus.y + Math.sin(this.orbitPitch) * this.distance,
+        this.previewFocus.z + Math.cos(this.orbitYaw) * horizontal,
+      );
+      this.camera.lookAt(this.previewFocus);
+    }
     this.renderer.render(this.scene, this.camera);
     this.raf = requestAnimationFrame(this.animate);
   };
+
+  private isPreviewActive(): boolean { return !this.element.hidden || this.showcaseHost !== undefined; }
+
+  private startAnimation(): void {
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    if (!document.hidden && this.isPreviewActive()) this.animate();
+  }
 }
