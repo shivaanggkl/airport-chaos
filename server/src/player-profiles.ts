@@ -4,13 +4,14 @@ import { dirname } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 import { missionForCity } from '../../shared/city-missions.mjs';
-import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement } from '../../shared/aircraft-economy.mjs';
+import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { dailyPilotRewards, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayDistance, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
+import { tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 export type CityId = 'milwaukee' | 'dallas';
@@ -371,6 +372,17 @@ export class PlayerProfileStore {
         created_at INTEGER NOT NULL,
         PRIMARY KEY (pilot_id, reward_id)
       );
+      CREATE TABLE IF NOT EXISTS firehawk_mission_failures (
+        pilot_id TEXT NOT NULL,
+        mission_id TEXT NOT NULL,
+        failed_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS firehawk_mission_failures_lookup ON firehawk_mission_failures (pilot_id, mission_id, failed_at);
+      CREATE TABLE IF NOT EXISTS firehawk_promo_impressions (
+        pilot_id TEXT NOT NULL,
+        shown_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS firehawk_promo_impressions_lookup ON firehawk_promo_impressions (pilot_id, shown_at);
       CREATE TABLE IF NOT EXISTS profile_store_metadata (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -461,6 +473,10 @@ export class PlayerProfileStore {
         pilot_id TEXT PRIMARY KEY, version TEXT NOT NULL, status TEXT NOT NULL,
         updated_at INTEGER NOT NULL, completed_at INTEGER
       );
+      CREATE TABLE IF NOT EXISTS pilot_tutorial_steps (
+        pilot_id TEXT NOT NULL, step TEXT NOT NULL, status TEXT NOT NULL, updated_at INTEGER NOT NULL,
+        PRIMARY KEY (pilot_id, step)
+      );
     `);
     // Existing SQLite MVP profiles predate durable ownership. SQLite has no
     // portable ADD COLUMN IF NOT EXISTS, so tolerate the one expected error.
@@ -472,6 +488,7 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN missions TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN fighter_trial TEXT NOT NULL DEFAULT '{"status":"available"}'`); } catch { /* already migrated */ }
     try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN score INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE pilot_tutorial_state ADD COLUMN evidence INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
     this.pruneRewardReceipts();
     this.database.exec(`
       CREATE INDEX IF NOT EXISTS profile_reward_receipts_pilot_created ON profile_reward_receipts (pilot_id, created_at DESC);
@@ -482,12 +499,55 @@ export class PlayerProfileStore {
 
   setTutorialState(pilotId:string,status:'started'|'completed'|'skipped',now=Date.now()):PlayerProfile|undefined{
     const row=this.getRow(pilotId);if(!row)return undefined;
-    const existing=this.database.prepare('SELECT status FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {status?:string}|undefined;
-    const next=existing?.status==='completed'?'completed':status;
+    if(status==='started'&&this.toProfile(row).tutorial.status==='completed')this.resetTutorialRun(pilotId);
+    const next=status;
     this.database.prepare(`INSERT INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at) VALUES (?,?,?,?,?)
       ON CONFLICT(pilot_id) DO UPDATE SET version=excluded.version,status=excluded.status,updated_at=excluded.updated_at,completed_at=COALESCE(pilot_tutorial_state.completed_at,excluded.completed_at)`)
       .run(pilotId,'tutorial_v1',next,now,next==='completed'?now:null);
     return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  // Only called from validated server takeoff, lock, hit and landing paths.
+  recordTrainingEvidence(pilotId:string,bit:1|2|4|8):void{
+    this.database.prepare('UPDATE pilot_tutorial_state SET evidence=evidence|? WHERE pilot_id=? AND status=?').run(bit,pilotId,'started');
+  }
+  trainingEvidence(pilotId:string):number{
+    return (this.database.prepare('SELECT evidence FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {evidence:number}|undefined)?.evidence??0;
+  }
+  resetTrainingEvidence(pilotId:string):void{
+    this.database.prepare('UPDATE pilot_tutorial_state SET evidence=0 WHERE pilot_id=?').run(pilotId);
+  }
+
+  tutorialStepStates(pilotId:string):Record<TutorialLessonStep,TutorialStepStatus>{
+    const states=Object.fromEntries(tutorialSteps.map(step=>[step,'pending'])) as Record<TutorialLessonStep,TutorialStepStatus>;
+    const rows=this.database.prepare('SELECT step,status FROM pilot_tutorial_steps WHERE pilot_id=?').all(pilotId) as Array<{step:string;status:string}>;
+    for(const row of rows)if(tutorialSteps.includes(row.step as TutorialLessonStep)&&(row.status==='completed'||row.status==='skipped'))states[row.step as TutorialLessonStep]=row.status;
+    return states;
+  }
+
+  nextPendingTutorialStep(pilotId:string):TutorialLessonStep|undefined{
+    const states=this.tutorialStepStates(pilotId);
+    return tutorialSteps.find(step=>states[step]==='pending');
+  }
+
+  tutorialStepsResolved(pilotId:string):boolean{return this.nextPendingTutorialStep(pilotId)===undefined;}
+
+  recordTutorialStepStatus(pilotId:string,step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>,now=Date.now(),enforceOrder=true):{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>}{
+    const states=this.tutorialStepStates(pilotId);
+    if(!tutorialSteps.includes(step)||(status!=='completed'&&status!=='skipped'))return{ok:false,changed:false,reason:'INVALID TUTORIAL STEP',nextStep:this.nextPendingTutorialStep(pilotId),steps:states};
+    const existing=states[step];
+    if(existing!=='pending')return existing===status?{ok:true,changed:false,nextStep:this.nextPendingTutorialStep(pilotId),steps:states}:{ok:false,changed:false,reason:'TUTORIAL STEP ALREADY RESOLVED',nextStep:this.nextPendingTutorialStep(pilotId),steps:states};
+    const expected=tutorialSteps.find(candidate=>states[candidate]==='pending');
+    if(enforceOrder&&expected!==step)return{ok:false,changed:false,reason:'TUTORIAL STEP OUT OF ORDER',nextStep:expected,steps:states};
+    this.database.prepare('INSERT INTO pilot_tutorial_steps(pilot_id,step,status,updated_at) VALUES (?,?,?,?)').run(pilotId,step,status,now);
+    const updated=this.tutorialStepStates(pilotId);
+    return{ok:true,changed:true,nextStep:tutorialSteps.find(candidate=>updated[candidate]==='pending'),steps:updated};
+  }
+
+  resetTutorialRun(pilotId:string):void{
+    this.database.exec('BEGIN IMMEDIATE');
+    try{this.database.prepare('DELETE FROM pilot_tutorial_steps WHERE pilot_id=?').run(pilotId);this.database.prepare('UPDATE pilot_tutorial_state SET evidence=0 WHERE pilot_id=?').run(pilotId);this.database.exec('COMMIT');}
+    catch(error){this.database.exec('ROLLBACK');throw error;}
   }
 
   activeIntercityRoute(pilotId:string):PlayerProfile['intercityRoute']|undefined{
@@ -987,6 +1047,38 @@ export class PlayerProfileStore {
     if (receipt.changes === 0) return this.toProfile(row);
     this.database.prepare('UPDATE player_profiles SET credits = MIN(1000000, credits + ?) WHERE pilot_id = ?').run(credits, pilotId);
     return this.toProfile(this.getRow(pilotId)!);
+  }
+
+  recordFirehawkMissionFailure(pilotId: string, missionId: string, now = Date.now()): boolean {
+    if (!this.getRow(pilotId) || !/^[a-z0-9-]{1,80}$/.test(missionId)) return false;
+    this.database.prepare('DELETE FROM firehawk_mission_failures WHERE failed_at < ?').run(now - 7 * 24 * 60 * 60_000);
+    this.database.prepare('INSERT INTO firehawk_mission_failures (pilot_id, mission_id, failed_at) VALUES (?, ?, ?)').run(pilotId, missionId, now);
+    const since = now - 7 * 24 * 60 * 60_000;
+    const count = this.database.prepare('SELECT COUNT(*) AS total FROM firehawk_mission_failures WHERE pilot_id = ? AND mission_id = ? AND failed_at >= ? AND failed_at <= ?')
+      .get(pilotId, missionId, since, now) as { total: number };
+    return count.total >= 2;
+  }
+
+  claimFirehawkPromotion(pilotId: string, missionId: string, now = Date.now()): { trialEligible: boolean } | undefined {
+    if (!/^[a-z0-9-]{1,80}$/.test(missionId)) return undefined;
+    const since = now - 7 * 24 * 60 * 60_000;
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      this.database.prepare('DELETE FROM firehawk_promo_impressions WHERE shown_at < ?').run(since);
+      const profile = this.getRow(pilotId);
+      if (!profile) { this.database.exec('ROLLBACK'); return undefined; }
+      const failed = this.database.prepare('SELECT COUNT(*) AS total FROM firehawk_mission_failures WHERE pilot_id = ? AND mission_id = ? AND failed_at >= ? AND failed_at <= ?')
+        .get(pilotId, missionId, since, now) as { total: number };
+      const shown = this.database.prepare('SELECT COUNT(*) AS total FROM firehawk_promo_impressions WHERE pilot_id = ? AND shown_at >= ? AND shown_at <= ?')
+        .get(pilotId, since, now) as { total: number };
+      const current = this.toProfile(profile);
+      if (failed.total < 2 || shown.total >= 2 || current.aircraftEntitlements.includes(firehawkProduct.entitlement)) {
+        this.database.exec('ROLLBACK'); return undefined;
+      }
+      this.database.prepare('INSERT INTO firehawk_promo_impressions (pilot_id, shown_at) VALUES (?, ?)').run(pilotId, now);
+      this.database.exec('COMMIT');
+      return { trialEligible: current.fighterTrial.status === 'available' };
+    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
   }
 
   awardServerReward(pilotId: string, credits: number, stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>): PlayerProfile | undefined {

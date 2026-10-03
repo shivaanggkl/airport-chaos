@@ -18,6 +18,7 @@ export function actionKeyLabel(action: FlightAction): string {
 export const menuBindings = { map: 'KeyM', menu: 'Tab', restart: 'KeyR' } as const;
 export const menuKeyLabel = (action: keyof typeof menuBindings): string => menuBindings[action].replace('Key', '').toUpperCase();
 export const desktopTurnKeyLabel = 'A/D or ←/→';
+export const cameraControlLabels = Object.freeze({ look: 'MOUSE DRAG', zoom: 'MOUSE WHEEL' });
 export const controlGroups: Array<{ label: string; rows: Array<{ label: string; actions: FlightAction[]; keyLabel?: string }> }> = [
   { label: 'CORE', rows: [
     { label: 'Faster / Slower', actions: ['throttleUp', 'throttleDown'] },

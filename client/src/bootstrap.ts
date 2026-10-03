@@ -5,11 +5,10 @@ import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './a
 import { HomeHangar, type HomeHangarData } from './home-hangar';
 import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
-import { flightTutorial } from './tutorial';
 import { loadAirportChaosLogo, mountAirportChaosLogo, mountCompactBrandFooter } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { cityCapabilities } from '../../shared/city-registry.mjs';
+import { cityCapabilities, cityDefinition } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { setupLaunchBackground } from './launch-background';
 import { apiFetch, apiUrl } from './transport';
@@ -18,6 +17,11 @@ import { missionsForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
+import { audioManager, type AudioLevels } from './audio-manager';
+import { showFlightDialog } from './flight-dialog';
+
+audioManager.install();
+audioManager.setMenuMusicDesired(true);
 
 const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const brandLoadingElement = document.querySelector<HTMLElement>('#brand-loading')!;
@@ -96,8 +100,6 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 let authoritativeHomeProfile: RemoteGarageProfile | undefined;
 let hubAccount: HubAccountStatus = { state: 'guest', providers: { password: false, google: false, apple: false } };
-let remoteTutorial:{version:'tutorial_v1';status:'new'|'started'|'completed'|'skipped';completedAt?:number}={version:'tutorial_v1',status:'new'};
-let establishedProfile=false;
 function cacheAuthoritativeProfile(profile: RemoteGarageProfile): void {
   try {
     const cached = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Record<string, unknown>;
@@ -121,10 +123,9 @@ type EntryState = 'STARTUP' | 'HANGAR' | 'CITY_SELECTION' | 'AIRCRAFT' | 'MISSIO
 let entryState: EntryState = 'STARTUP';
 let garageReturnState: 'HANGAR' | 'CITY_SELECTION' = 'HANGAR';
 let hubPilotMenuReturnState: 'HANGAR' | 'CITY_SELECTION' = 'HANGAR';
+let hubMissionPreferredCity: CityDefinition['id'] | undefined;
 let garageOpenRequest = 0;
 function applyAuthoritativeHomeProfile(profile: RemoteGarageProfile): void {
-  remoteTutorial = profile.tutorial ?? remoteTutorial;
-  establishedProfile = (profile.totalDistance ?? 0) > 500 || (profile.successfulLandings ?? 0) > 0 || (profile.kills ?? 0) > 0 || (profile.deaths ?? 0) > 0;
   authoritativeHomeProfile = profile;
   garageProfile = normalizeGarageProfile(profile);
   garageIdentity.pilotId = profile.pilotId ?? garageIdentity.pilotId;
@@ -187,6 +188,7 @@ const homeHangar = new HomeHangar(homeHangarElement, {
   fly: () => showSelector(),
   aircraft: () => { void openStartGarage('HANGAR'); },
   missions: () => { void openHubPilotMenu('MISSIONS'); },
+  tutorial: () => { void startTrainingFromHub(); },
   profile: () => { void openHubPilotMenu('PROFILE'); },
   settings: () => { void openHubPilotMenu('SETTINGS'); },
 }, homeHangarData());
@@ -196,16 +198,13 @@ try { hubStoredPreferences = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY)
 let hubHintsEnabled = typeof hubStoredPreferences.hintsEnabled === 'boolean' ? hubStoredPreferences.hintsEnabled : true;
 let hubNavigationEnabled = typeof hubStoredPreferences.navigationMarkersEnabled === 'boolean' ? hubStoredPreferences.navigationMarkersEnabled : true;
 let hubAudioMuted = typeof hubStoredPreferences.muted === 'boolean' ? hubStoredPreferences.muted : false;
+audioManager.setMuted(hubAudioMuted);
 let hubGraphicsQuality: PilotMenuData['preferences']['graphicsQuality'] = 'auto';
 try {
   const quality = localStorage.getItem('airport-chaos-graphics-quality-v1');
   if (quality === 'high' || quality === 'balanced' || quality === 'low') hubGraphicsQuality = quality;
 } catch { /* use automatic quality */ }
-let hubAudioLevels = { master: 80, engine: 72, combat: 82, ui: 76 };
-try {
-  const stored = JSON.parse(localStorage.getItem('airport-chaos-audio-levels-v1') ?? '{}') as Partial<typeof hubAudioLevels>;
-  for (const key of Object.keys(hubAudioLevels) as Array<keyof typeof hubAudioLevels>) if (Number.isFinite(stored[key])) hubAudioLevels[key] = Math.max(0, Math.min(100, Math.round(stored[key]!)));
-} catch { /* use balanced defaults */ }
+let hubAudioLevels: AudioLevels = audioManager.getLevels();
 const hubMobileLayout = {
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 75, y: 40, scale: 0.95 },
@@ -224,7 +223,7 @@ const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
 }, {
   sections: ['MISSIONS', 'PROGRESS', 'PROFILE', 'SETTINGS'],
   title: 'PILOT HUB',
-  closeLabel: 'BACK TO PILOT HUB',
+  closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB',
   showFlightActions: false,
   onClose: () => {
     if (hubPilotMenuReturnState === 'CITY_SELECTION') {
@@ -239,7 +238,7 @@ const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
 function hubMissionContext(): { city: CityDefinition; activeCity?: string; active?: { missionId: string; attemptId?: string; progress: number } } {
   const profile = authoritativeHomeProfile;
   const activeEntry = Object.entries(profile?.missions ?? {}).find(([, state]) => Boolean(state?.active));
-  const preferred = activeEntry?.[0] ?? activeCityFromUrl()?.id;
+  const preferred = activeEntry?.[0] ?? hubMissionPreferredCity ?? activeCityFromUrl()?.id;
   const city = cities.find(item => item.id === preferred)
     ?? cities.find(item => item.status === 'available' && cityCapabilities(item.id)?.practiceMode !== true)
     ?? cities.find(item => item.status === 'available')!;
@@ -298,6 +297,7 @@ function hubPilotMenuData(): PilotMenuData {
   const referral = profile?.referral ?? { code: 'FLY', status: 'available', rewardedCount: 0 };
   const accountResult = (path: 'signup' | 'login' | 'logout' | 'pilot-name', payload: Record<string, string> = {}) => hubAccountRequest(path, payload);
   return {
+    nativeWebPromotion: nativePurchaseProvider !== undefined,
     account: {
       state: hubAccount.state,
       email: hubAccount.email,
@@ -369,11 +369,11 @@ function hubPilotMenuData(): PilotMenuData {
     restart: () => undefined,
     audio: {
       muted: hubAudioMuted,
-      toggle: () => { hubAudioMuted = !hubAudioMuted; saveHubPlayerPreferences(); hubPilotMenu.refresh(hubPilotMenuData()); },
+      toggle: () => { hubAudioMuted = audioManager.toggleMuted(); saveHubPlayerPreferences(); hubPilotMenu.refresh(hubPilotMenuData()); },
       levels: hubAudioLevels,
       setLevel: (category, value) => {
         hubAudioLevels = { ...hubAudioLevels, [category]: Math.max(0, Math.min(100, Math.round(value))) };
-        try { localStorage.setItem('airport-chaos-audio-levels-v1', JSON.stringify(hubAudioLevels)); } catch { /* optional */ }
+        audioManager.setLevel(category, value);
       },
     },
     guide: { enabled: false, open: () => undefined, replay: () => undefined },
@@ -471,6 +471,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'PURCHASE FAILED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
+    audioManager.playPurchaseSuccess();
   } catch { garage.showActionResult('SERVER UNAVAILABLE — PURCHASE NOT CHANGED'); }
 }, async (code) => {
   try {
@@ -480,6 +481,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'CODE REJECTED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('Redspear Fighter Unlocked');
+    audioManager.playReward();
   } catch { garage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
 }, async () => {
   try {
@@ -498,6 +500,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
       if (result.state === 'pending') { garage.showActionResult('PURCHASE PENDING'); return; }
       garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
       garage.showActionResult('FIREHAWK UNLOCKED · PURCHASE CONFIRMED');
+      audioManager.playPurchaseSuccess();
     } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'UNABLE TO VERIFY PURCHASE. TRY AGAIN.'); }
     return;
   }
@@ -509,7 +512,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
       const result = await restoreNativeFirehawk();
       if (result.state === 'notFound') { garage.showActionResult('NO FIREHAWK PURCHASE FOUND'); return; }
       garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
-      garage.showActionResult('FIREHAWK RESTORED'); return;
+      garage.showActionResult('FIREHAWK RESTORED'); audioManager.playReward(); return;
     }
     if (!code) { garage.showActionResult('PURCHASE RESTORE FAILED'); return; }
     const result = await restoreFirehawkPurchase(code);
@@ -532,6 +535,7 @@ async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic'
     if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
     garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'COSMETIC OWNED — SELECT TO EQUIP');
+    if (action === 'purchaseCosmetic') audioManager.playPurchaseSuccess();
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }
 }
 
@@ -549,6 +553,7 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
   else if (result.state === 'completed') {
     const profile = await loadGarageProfile(); garage.updateProfile(profile);
     garage.showActionResult(`FIREHAWK UNLOCKED · PURCHASE CONFIRMED · REF ${result.reference ?? 'AVAILABLE'}${result.recoveryCode ? ` · SAVE RECOVERY CODE: ${result.recoveryCode}` : ''}`);
+    audioManager.playPurchaseSuccess();
   } else garage.showActionResult('PAYMENT RECEIVED — VERIFYING · YOUR UNLOCK WILL APPEAR SHORTLY');
   const clean = new URL(window.location.href); clean.searchParams.delete('checkout'); clean.searchParams.delete('session_id');
   window.history.replaceState(null, '', `${clean.pathname}${clean.search}${clean.hash}`);
@@ -579,6 +584,7 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION'): Promis
 garageEntry.addEventListener('click', () => { void openStartGarage('CITY_SELECTION'); });
 
 function showHome(): Promise<void> {
+  audioManager.setMenuMusicDesired(true);
   entryState = 'HANGAR';
   garageReturnState = 'HANGAR';
   garageOpenRequest += 1;
@@ -591,6 +597,7 @@ function showHome(): Promise<void> {
 }
 
 function showSelector(message = ''): void {
+  audioManager.setMenuMusicDesired(true);
   entryState = 'CITY_SELECTION';
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   homeHangar.hide();
@@ -629,24 +636,60 @@ registerUiBackLayer({
   priority: uiBackPriority.surface,
   isActive: () => !citySelector.hidden,
   close: returnFromCitySelection,
+  containsTarget: (target) => target instanceof Node && Boolean(citySelector.querySelector('.city-select-card')?.contains(target)),
 });
 
-async function offerCityTutorial(city: CityDefinition): Promise<'started'|'skipped'|undefined> {
-  if (!cityCapabilities(city.id)?.tutorialEnabled) return;
-  const tutorialChoice = await flightTutorial.firstVisit(garageIdentity.pilotId, remoteTutorial.status, establishedProfile);
-  if (!tutorialChoice) return;
-  try { localStorage.setItem(`airport-chaos-guided-tutorial-v1:${garageIdentity.pilotId}`, tutorialChoice === 'started' ? 'active' : 'skipped'); }
-  catch { /* server remains the durable fallback */ }
+async function startTrainingFromHub(): Promise<void> {
+  if (entryState === 'TUTORIAL' || entryState === 'FLIGHT') return;
+  const city = cities.find((candidate) => candidate.id === 'milwaukee' && candidate.status === 'available');
+  if (!city || !cityCapabilities(city.id)?.tutorialEnabled) return;
+  entryState = 'TUTORIAL';
   const url = apiUrl('/api/profile');
   url.searchParams.set('pilotId', garageIdentity.pilotId);
   url.searchParams.set('pilotName', garageIdentity.displayName);
-  await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tutorialState: { version: 'tutorial_v1', status: tutorialChoice } }) }).catch(() => undefined);
-  remoteTutorial = { version: 'tutorial_v1', status: tutorialChoice };
-  return tutorialChoice;
+  try {
+    const response = await apiFetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tutorialState: { version: 'tutorial_v1', status: 'started' } }),
+    });
+    if (!response.ok) throw new Error('Training session unavailable');
+    const profile = await response.json() as RemoteGarageProfile;
+    applyAuthoritativeHomeProfile(profile);
+    const progressKey = `airport-chaos-training-progress-v3:${garageIdentity.pilotId}`;
+    try {
+      const stored = JSON.parse(localStorage.getItem(progressKey) ?? '{}') as { completed?: boolean };
+      if (stored.completed) localStorage.setItem(progressKey, JSON.stringify({ version: 3, nextLesson: 'joystick', completed: false }));
+    } catch { localStorage.removeItem(progressKey); }
+    await enterCity(city, 'day', true);
+  } catch (error) {
+    console.error('[tutorial-entry] Unable to create training session.', error);
+    await showHome();
+  }
 }
 
-async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day'): Promise<void> {
+function maybeBriefCityBeforeEntry(city: CityDefinition): Promise<boolean> {
+  const briefing = cityDefinition(city.id)?.briefing;
+  if (!briefing) return Promise.resolve(true);
+  const pilotId = authoritativeHomeProfile?.pilotId ?? garageIdentity.pilotId;
+  const key = `airport-chaos-city-guide-v1:${pilotId}:${city.id}`;
+  try { if (localStorage.getItem(key) === 'seen') return Promise.resolve(true); } catch { /* show on this visit */ }
+  return new Promise((resolve) => {
+    const markSeen = (): void => { try { localStorage.setItem(key, 'seen'); } catch { /* session-only */ } };
+    showFlightDialog(briefing.title, briefing.summary, [
+      { label: 'START FLYING', run: () => { markSeen(); resolve(true); } },
+      { label: 'CITY MISSIONS', secondary: true, run: () => {
+        markSeen();
+        hubMissionPreferredCity = city.id;
+        void openHubPilotMenu('MISSIONS');
+        resolve(false);
+      } },
+    ], () => resolve(false));
+  });
+}
+
+async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
+  if (!trainingSession && !await maybeBriefCityBeforeEntry(city)) return;
 
   if (!gameRoot.hidden) {
     if (activeCityFromUrl()?.id !== city.id) {
@@ -659,12 +702,13 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
     citySelector.hidden = true;
     launchBackground.setActive(false);
     entryState = 'FLIGHT';
+    audioManager.setMenuMusicDesired(false);
     window.dispatchEvent(new CustomEvent('airport-chaos-time-change', { detail: timePreset }));
     return;
   }
 
-  const tutorialChoice = await offerCityTutorial(city);
   entryState = 'FLIGHT';
+  audioManager.setMenuMusicDesired(false);
   garage.close();
   garage.hideShowcase();
   homeHangar.hide();
@@ -674,12 +718,13 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
   url.searchParams.set('time', city.timePresets.includes(timePreset) ? timePreset : 'day');
+  if (trainingSession) url.searchParams.set('training', '1');
+  else url.searchParams.delete('training');
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 
   await city.loadWorld();
   await import('./main');
   gameRoot.hidden = false;
-  if (tutorialChoice === 'started') window.dispatchEvent(new Event('airport-chaos-start-tutorial'));
 }
 
 function chooseCity(city: CityDefinition): void {
@@ -763,8 +808,19 @@ async function start(): Promise<void> {
   });
   await Promise.all([brandTask, profileTask]);
   homeHangar.update(homeHangarData());
-  await showHome();
+  if (new URLSearchParams(window.location.search).get('entry') === 'city') {
+    const url = new URL(window.location.href); url.searchParams.delete('entry');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    showSelector();
+  } else await showHome();
   startupLoading.update(1);
   await startupLoading.finish();
+  try {
+    if (sessionStorage.getItem('airport-chaos-open-firehawk-garage') === '1') {
+      sessionStorage.removeItem('airport-chaos-open-firehawk-garage');
+      await openStartGarage('HANGAR');
+      garage.focusAircraft('fighter');
+    }
+  } catch { /* the Pilot Hub remains usable if session storage is unavailable */ }
 }
 void start();

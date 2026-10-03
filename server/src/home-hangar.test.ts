@@ -116,7 +116,7 @@ test('Pilot Hub routes to canonical Garage, Pilot Menu, Profile, and City Select
   assert.match(bootstrap, /profile: \(\) => \{ void openHubPilotMenu\('PROFILE'\); \}/);
   assert.match(bootstrap, /const hubPilotMenu = new PilotMenu\(pilotMenuOverlay/);
   assert.match(bootstrap, /sections: \['MISSIONS', 'PROGRESS', 'PROFILE', 'SETTINGS'\]/);
-  assert.match(bootstrap, /closeLabel: 'BACK TO PILOT HUB'/);
+  assert.match(bootstrap, /closeLabel: \(\) => hubPilotMenuReturnState === 'CITY_SELECTION' \? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB'/);
   assert.match(menu, /options\.sections \?\? \['PROFILE', 'MISSIONS'/);
   assert.doesNotMatch(home, /openPanel|renderPanel|ACTIVE MISSION|DAILY FLIGHT PLAN|PILOT PROFILE/);
   assert.doesNotMatch(html, /data-home-panel|home-hangar-panel-body/);
@@ -124,11 +124,13 @@ test('Pilot Hub routes to canonical Garage, Pilot Menu, Profile, and City Select
   assert.match(server, /payload\?\.abandonMission[\s\S]*profileStore\.abandonMission\(identity\.pilotId/);
 });
 
-test('Tutorial is an explicit coming-next treatment rather than a dead action', () => {
+test('Tutorial is an active optional training route', () => {
   const html = read('client/index.html');
   const home = read('client/src/home-hangar.ts');
-  assert.match(html, /data-home-tutorial[^>]*disabled[^>]*aria-disabled="true"[\s\S]*COMING NEXT/);
-  assert.doesNotMatch(home, /data-home-tutorial|TRAINING COMING NEXT/);
+  const bootstrap = read('client/src/bootstrap.ts');
+  assert.match(html, /data-home-tutorial>TUTORIAL<\/button>/);
+  assert.match(home, /querySelector\('\[data-home-tutorial\]'\)![\s\S]*handlers\.tutorial/);
+  assert.match(bootstrap, /tutorial: \(\) => \{ void startTrainingFromHub\(\); \}/);
 });
 
 test('Hub renderer and ambient motion pause offscreen or in the background', () => {
@@ -162,8 +164,7 @@ test('Hub layout protects desktop and landscape touch targets with safe areas', 
   assert.match(css, /\.entry-button-secondary \{[^}]*background: var\(--ui-glass-main\)[^}]*border: 1px solid var\(--ui-border-strong\)/);
   assert.match(html, /entry-button entry-button-primary home-hangar-fly/);
   assert.match(bootstrap, /button\.className = 'entry-button entry-button-primary'/);
-  assert.match(css, /\.home-hangar-tutorial \{[^}]*color: var\(--ui-text-muted\)[^}]*opacity: \.58/);
-  assert.match(css, /\.home-hangar-tutorial small \{[^}]*color: var\(--ui-gold\)/);
+  assert.doesNotMatch(css, /\.home-hangar-tutorial \{[^}]*opacity: \.58/);
   assert.doesNotMatch(css, /\.home-hangar-navigation \.home-hangar-fly[^}]*linear-gradient\(110deg, #9ce/);
   assert.match(css, /orientation: landscape[^\{]*max-width: 1000px[^\{]*max-height: 520px/);
   assert.match(css, /\.home-hangar-navigation button \{[^}]*min-height: 56px/);

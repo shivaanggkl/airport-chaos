@@ -79,6 +79,7 @@ class FlightTutorial {
       priority: uiBackPriority.blockingModal,
       isActive: () => this.isOpen(),
       close: () => this.close('skipped'),
+      containsTarget: (target) => target instanceof Node && this.root.querySelector('.tutorial-card')?.contains(target) === true,
     });
     this.root.className = 'flight-tutorial';
     this.root.hidden = true;

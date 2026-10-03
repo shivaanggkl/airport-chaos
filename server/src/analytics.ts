@@ -23,7 +23,7 @@ export type AnalyticsEventName =
   | 'chaos_event_offered' | 'chaos_event_accepted' | 'chaos_event_skipped' | 'chaos_event_completed' | 'chaos_event_failed'
   | 'chaos_weather_zone_entered' | 'chaos_weather_zone_exited' | 'chaos_event_reward_claimed'
   | 'input_mode_detected' | 'touch_controls_enabled' | 'graphics_quality_changed' | 'mobile_layout_used' | 'photo_mode_touch_opened'
-  | 'tutorial_started' | 'tutorial_step_completed' | 'tutorial_completed' | 'tutorial_skipped' | 'tutorial_retried' | 'tutorial_crashed';
+  | 'tutorial_started' | 'tutorial_step_completed' | 'tutorial_step_skipped' | 'tutorial_completed' | 'tutorial_skipped' | 'tutorial_retried' | 'tutorial_crashed';
 
 export type AnalyticsContext = {
   pilotId: string;
@@ -53,7 +53,7 @@ const validEventNames = new Set<AnalyticsEventName>([
   'chaos_event_offered', 'chaos_event_accepted', 'chaos_event_skipped', 'chaos_event_completed', 'chaos_event_failed',
   'chaos_weather_zone_entered', 'chaos_weather_zone_exited', 'chaos_event_reward_claimed',
   'input_mode_detected', 'touch_controls_enabled', 'graphics_quality_changed', 'mobile_layout_used', 'photo_mode_touch_opened',
-  'tutorial_started', 'tutorial_step_completed', 'tutorial_completed', 'tutorial_skipped', 'tutorial_retried', 'tutorial_crashed',
+  'tutorial_started', 'tutorial_step_completed', 'tutorial_step_skipped', 'tutorial_completed', 'tutorial_skipped', 'tutorial_retried', 'tutorial_crashed',
 ]);
 
 function compactText(value: unknown, maximum: number): string | undefined {

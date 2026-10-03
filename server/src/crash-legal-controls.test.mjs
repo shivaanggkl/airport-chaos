@@ -12,12 +12,12 @@ const brand = readFileSync(new URL('../../client/src/brand.ts', import.meta.url)
 const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../../client/vite.config.ts', import.meta.url), 'utf8');
 
-test('crash dialog exposes one shared restart and tutorial recovery only through city capability', () => {
+test('crash dialog keeps normal restart while guided training crashes use the authoritative automatic reset path', () => {
   assert.match(html, /data-crash-restart>RESTART FLIGHT/);
   assert.match(main, /\[data-crash-restart\][^\n]+restartGame\(\)/);
-  assert.match(main, /cityRules\.tutorialEnabled && guidedTutorialActive/);
-  assert.match(html, /data-tutorial-retry>RETRY TUTORIAL/);
-  assert.match(html, /data-tutorial-free>CONTINUE FREE PRACTICE/);
+  assert.match(main, /guidedTrainingCrash=cityRules\.tutorialEnabled&&guidedTutorialActive/);
+  assert.match(main, /requestTutorialRunReset\('crash'\)/);
+  assert.doesNotMatch(html, /data-tutorial-retry|data-tutorial-free|tutorial-crash-actions/);
   assert.doesNotMatch(html, /crash-brand-signature|Press R to Restart/);
   assert.doesNotMatch(bootstrap, /crash-brand-signature|mountGameBrandSignature/);
 });

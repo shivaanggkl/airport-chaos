@@ -8,6 +8,7 @@ type HomeHangarHandlers = {
   fly: () => void;
   aircraft: () => void;
   missions: () => void;
+  tutorial: () => void;
   profile: () => void;
   settings: () => void;
 };
@@ -28,6 +29,7 @@ export class HomeHangar {
     element.querySelector('[data-home-fly]')!.addEventListener('click', handlers.fly);
     element.querySelector('[data-home-aircraft]')!.addEventListener('click', handlers.aircraft);
     element.querySelector('[data-home-missions]')!.addEventListener('click', handlers.missions);
+    element.querySelector('[data-home-tutorial]')!.addEventListener('click', handlers.tutorial);
     element.querySelector('[data-home-profile]')!.addEventListener('click', handlers.profile);
     element.querySelector('[data-home-profile-entry]')!.addEventListener('click', handlers.profile);
     element.querySelector('[data-home-settings]')!.addEventListener('click', handlers.settings);

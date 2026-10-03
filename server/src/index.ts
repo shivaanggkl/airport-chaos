@@ -34,6 +34,8 @@ import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/chaos-event-rules.mjs';
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
+import { runwayCombatProtectionActive } from '../../shared/runway-combat-protection.mjs';
+import { tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -72,6 +74,7 @@ type PlayerState = Transform & {
   lastAcceptedTransformAt: number;
   chaosQaEnabled: boolean;
   tutorialMode: boolean;
+  trainingOwnerId?: string;
   selectionRevision?: number;
   spawnSlot?: number;
   lastEquipRequestId?: number;
@@ -310,6 +313,8 @@ const firehawkPayments = new FirehawkPayments(profileDatabasePath);
 const nativePurchaseLedger = new NativePurchaseLedger(profileDatabasePath);
 const nativePurchaseVerifier = new NativePurchaseVerifier();
 const trialNetworkGuard = new TrialNetworkGuard(profileDatabasePath, process.env.AIRPORT_CHAOS_TRIAL_IP_SECRET);
+const firehawkPromotionShownConnections = new Set<string>();
+const firehawkPromotionRequestCounts = new Map<string, number>();
 profileStore.migrateFighterEntitlementSources(firehawkPayments.activeEntitlementOwners(), analyticsStore.testerEntitlementPilots());
 for (const owner of nativePurchaseLedger.activeEntitlementOwners()) {
   if (owner.source.startsWith('apple:') || owner.source.startsWith('google:')) profileStore.grantAircraftEntitlements(owner.pilotId, ['fighter'], owner.source);
@@ -1082,6 +1087,15 @@ const httpServer = createServer(async (request, response) => {
       } else if(payload?.tutorialState&&typeof payload.tutorialState==='object'){
         const tutorialState=payload.tutorialState as {version?:unknown;status?:unknown};
         if(tutorialState.version==='tutorial_v1'&&(tutorialState.status==='started'||tutorialState.status==='completed'||tutorialState.status==='skipped')){
+          const sessions=[...players.entries()].filter(([,player])=>player.pilotId===identity.pilotId&&player.tutorialMode);
+          if(tutorialState.status==='completed'&&!profileStore.tutorialStepsResolved(identity.pilotId)){
+            response.writeHead(400,{'Content-Type':'application/json'});response.end(JSON.stringify({error:'Training completion requires every lesson to be completed or intentionally skipped.'}));return;
+          }
+          if(tutorialState.status!=='started')for(const [id,player] of sessions){
+            removeTrainingTarget(id);removePlayerProjectiles(id);
+            // Keep the old socket isolated until navigation disconnects it.
+            for(const [peer,peerId] of playerSockets)if(peerId===id)peer.close(1000,'Training ended');
+          }
           profile=profileStore.setTutorialState(identity.pilotId,tutorialState.status);
           if(profile)analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},tutorialState.status==='started'?'tutorial_started':tutorialState.status==='completed'?'tutorial_completed':'tutorial_skipped',{metadata:{tutorialVersion:'tutorial_v1'}});
         }else error='Invalid tutorial state';
@@ -1228,6 +1242,12 @@ function setServerLock(playerId: string, player: PlayerState, targetId?: string,
   sendLockState(playerId, targetId);
   if (previousTargetId) sendToPlayer(previousTargetId, { type: 'combatThreat', attackerId: playerId, locked: false });
   if (targetId) sendToPlayer(targetId, { type: 'combatThreat', attackerId: playerId, locked: true });
+  const target = targetId ? players.get(targetId) : undefined;
+  if (player.tutorialMode && target?.trainingOwnerId === playerId) {
+    profileStore.recordTrainingEvidence(player.pilotId,2);
+    completeServerTutorialStep(playerId,player,'targetLock');
+    sendToPlayer(playerId, { type: 'tutorialSignal', signal: 'targetLocked' });
+  }
 }
 
 function sendIncomingFire(targetId: string, attackerId: string): void {
@@ -1274,6 +1294,7 @@ function broadcastLeaderboard(cityId: CityId): void {
         // Position keeps connected pilots trackable when their 3D render state
         // is culled or high-rate browser transforms are temporarily throttled.
         position: player.position,
+        altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
       }))
       .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName)),
   };
@@ -1648,22 +1669,43 @@ function sendToPlayer(playerId: string, message: object): void {
   }
 }
 
+const serverVerifiedTutorialSteps=new Set<TutorialLessonStep>(['takeoff','approach','targetLock','fire','landing']);
+function sendTutorialStepResult(playerId:string,result:{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>},step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>):void{
+  sendToPlayer(playerId,{type:'tutorialStepResult',ok:result.ok,step,status,nextStep:result.nextStep,steps:result.steps,reason:result.reason});
+}
+function completeServerTutorialStep(playerId:string,player:PlayerState,step:TutorialLessonStep,now=Date.now()):void{
+  if(!player.tutorialMode)return;
+  // Authoritative events can arrive while the preceding lesson's 600ms
+  // success card is still visible. Persist the evidence immediately; the
+  // client serializes presentation without weakening server verification.
+  const result=profileStore.recordTutorialStepStatus(player.pilotId,step,'completed',now,false);
+  if(result.changed){sendTutorialStepResult(playerId,result,step,'completed');recordAnalytics(playerId,'tutorial_step_completed',{metadata:{cityId:player.cityId,mode:step}},now);}
+}
+
 function isHumanPilot(player: PlayerState | undefined): player is PlayerState & { isBot: false } {
   return Boolean(player && !player.isBot);
 }
 
+function tutorialCombatPairAllowed(ownerId: string, owner: PlayerState, targetId: string, target: PlayerState): boolean {
+  if (owner.trainingOwnerId) return false;
+  if (owner.tutorialMode) return target.trainingOwnerId === ownerId;
+  if (target.tutorialMode || target.trainingOwnerId) return false;
+  return targetId !== ownerId;
+}
+
 function progressionEnabled(player: PlayerState | undefined): boolean {
-  return Boolean(player && cityCapabilities(player.cityId)?.progressionEnabled);
+  return Boolean(player && !player.tutorialMode && cityCapabilities(player.cityId)?.progressionEnabled);
 }
 
 function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false, serverReset = false): void {
   const player = players.get(playerId);
   if (!isHumanPilot(player)) return;
   const current = reconcilePaidFirehawk(profile ?? player.profile);
+  const keepActiveAircraft = preserveActiveAircraft || player.tutorialMode;
   player.profile = current;
   player.displayName = current.pilotName;
-  if (!preserveActiveAircraft) player.aircraftType = current.selectedAircraft;
-  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft, serverReset });
+  if (!keepActiveAircraft) player.aircraftType = current.selectedAircraft;
+  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft: keepActiveAircraft, serverReset });
 }
 
 function awardPilotProgress(playerId: string, amount: number): void {
@@ -1970,10 +2012,17 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   completeLandingChaosEvent(playerId, player, airport.id, grade, now);
   missionSignal(playerId, { type: 'landing', at: now, airportId: airport.id, quality, controlledTerritories: controlledTerritoryIds(playerId, player.cityId) });
   if (!progressionEnabled(player)) {
-    sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade });
+    const tutorialStepsState=player.tutorialMode?profileStore.tutorialStepStates(player.pilotId):undefined;
+    if(player.tutorialMode&&tutorialStepsState&&tutorialStepPrerequisitesResolved('landing',tutorialStepsState)){
+      profileStore.recordTrainingEvidence(player.pilotId,8);
+      completeServerTutorialStep(playerId,player,'landing',now);
+      sendToPlayer(playerId,{type:'tutorialSignal',signal:'completed'});
+    }
+    sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade, score: quality, credits: 0 });
     return;
   }
-  const landingProfile = profileStore.awardServerReward(player.pilotId, economyRewards.landing);
+  const landingCredits = economyRewards.landing;
+  const landingProfile = profileStore.awardServerReward(player.pilotId, landingCredits);
   if (landingProfile) {
     const boundaryProfile = profileStore.consumeExpiredFighterTrial(player.pilotId, now) ?? landingProfile;
     player.profile = boundaryProfile;
@@ -1982,8 +2031,8 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   recordAnalytics(playerId, 'successful_landing', { source: airport.id, metadata: { quality } }, now);
   recordAnalytics(playerId, 'landing_scored', { source: grade.toLowerCase(), metadata: { quality } }, now);
   if (grade === 'PERFECT' || grade === 'LEGENDARY') recordAnalytics(playerId, 'perfect_landing_earned', { source: airport.id }, now);
-  sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade });
-  recordAnalytics(playerId, 'credits_earned', { amount: economyRewards.landing, source: 'landing' }, now);
+  sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade, score: quality, credits: landingCredits });
+  recordAnalytics(playerId, 'credits_earned', { amount: landingCredits, source: 'landing' }, now);
   recordObjectiveActivity(playerId, 'landing', 1, airport.id);
   recordWeeklyActivity(playerId, 'precisionLanding', quality, true);
   const sprint = challengeForPlayer(playerId);
@@ -2654,6 +2703,10 @@ function setEventTerminal(event: CityEvent, lifecycle: Extract<DynamicEventLifec
     if (!profile) continue;
     sendProfile(playerId, profile);
     sendToPlayer(playerId, { type: 'missionFailed', missionId: mission.id, reason: lifecycle === 'failed' ? 'EVENT ENDED' : 'EVENT COMPLETED BY ANOTHER PILOT' });
+    if (lifecycle === 'failed' && (['HARD', 'VERY HARD', 'EXTREME'].includes(mission.difficulty) || ['aceIntercept', 'vipEscort'].includes(event.type)) &&
+        profileStore.recordFirehawkMissionFailure(player.pilotId, mission.id, now)) {
+      sendToPlayer(playerId, { type: 'firehawkPromotionReady', missionId: mission.id });
+    }
   }
 }
 
@@ -3091,6 +3144,7 @@ function closestLockTarget(
       targetId === ownerId ||
       target.entityType !== 'player' ||
       target.cityId !== player.cityId ||
+      !tutorialCombatPairAllowed(ownerId, player, targetId, target) ||
       target.lifeState !== 'alive' ||
       now < target.spawnProtectedUntil ||
       now - target.lastStateAt > combatTransformFreshMs
@@ -3146,7 +3200,9 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
   if (!aim || aim.targetId !== targetId || now - aim.updatedAt > 500 ||
       owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs ||
       !target || targetId === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
-      target.lifeState !== 'alive' || now < target.spawnProtectedUntil || now - target.lastStateAt > combatTransformFreshMs) return undefined;
+      !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
+      target.lifeState !== 'alive' || now < target.spawnProtectedUntil || runwayCombatProtected(targetId, target) ||
+      now - target.lastStateAt > combatTransformFreshMs) return undefined;
   const local = targetInAircraftSpace(transform, target);
   if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
   return target;
@@ -3166,12 +3222,13 @@ function currentLockedTarget(
   return validDynamicTarget(ownerId, owner, targetId, now, transform);
 }
 
-function canFire(player: PlayerState, now: number): boolean {
-  return fireBlockReason(player, now) === undefined;
+function canFire(playerId: string, player: PlayerState, now: number): boolean {
+  return fireBlockReason(playerId, player, now) === undefined;
 }
 
-function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
+function fireBlockReason(playerId: string, player: PlayerState, now: number): 'lifecycle' | 'runway_protected' | 'cooldown' | undefined {
   if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
+  if (runwayCombatProtected(playerId, player)) return 'runway_protected';
   if (now - player.lastFireAt < fireCooldownMs) return 'cooldown';
   return undefined;
 }
@@ -3224,7 +3281,7 @@ function validatedShotAim(player: PlayerState, reference: unknown, now: number):
 function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }): boolean {
   const now = Date.now();
   if (
-    !canFire(player, now) ||
+    !canFire(playerId, player, now) ||
     projectiles.size >= maxProjectiles
   ) {
     return false;
@@ -3287,9 +3344,12 @@ function broadcastProjectileStates(now: number): void {
 
 function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, shotDistance = 0): boolean {
   const victim = players.get(victimId);
+  const owner = players.get(ownerId);
   if (
-    !victim || victimId === ownerId || victim.entityType !== 'player' ||
-    victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil
+    !owner || !victim || victimId === ownerId || victim.entityType !== 'player' ||
+    victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil ||
+    !tutorialCombatPairAllowed(ownerId, owner, victimId, victim) ||
+    runwayCombatProtected(ownerId, owner) || runwayCombatProtected(victimId, victim)
   ) return false;
 
   victim.health = Math.max(0, victim.health - projectileDamage);
@@ -3297,13 +3357,35 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
   }
   airportRepairStays.delete(victimId);
-  broadcastToCity(cityId, {
+  const damageMessage = {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health, maxHealth: maxHealthForAircraft(victim.aircraftType), damage: projectileDamage,
-  });
+  };
+  if (victim.trainingOwnerId) sendToPlayer(victim.trainingOwnerId, damageMessage);
+  else broadcastToCity(cityId, damageMessage);
   if (victim.health !== 0) return true;
 
+  if (victim.trainingOwnerId) {
+    const trainingOwnerId = victim.trainingOwnerId;
+    if(ownerId===trainingOwnerId&&(profileStore.trainingEvidence(owner.pilotId)&2)!==0)profileStore.recordTrainingEvidence(owner.pilotId,4);
+    if(ownerId===trainingOwnerId)completeServerTutorialStep(trainingOwnerId,owner,'fire',now);
+    victim.lifeState = 'destroyed';
+    removePlayerProjectiles(victimId);
+    clearLocksForTarget(victimId);
+    players.delete(victimId);
+    sendToPlayer(trainingOwnerId, {
+      type: 'destroyed', cause: 'combat', playerId: victimId, position: victim.position, aircraftType: victim.aircraftType,
+      killerId: ownerId, killerDisplayName: owner.displayName, victimDisplayName: victim.displayName, killerScore: owner.score, killerReward: 0,
+    });
+    sendToPlayer(trainingOwnerId, { type: 'tutorialSignal', signal: 'targetHit' });
+    setTimeout(()=>{
+      const currentOwner=players.get(trainingOwnerId);
+      if(currentOwner?.tutorialMode&&profileStore.tutorialStepsResolved(currentOwner.pilotId))createTrainingTarget(trainingOwnerId,currentOwner);
+    },1_500);
+    return true;
+  }
+
   markPlayerDestroyed(victimId, victim, now);
-  const killer = players.get(ownerId);
+  const killer = owner;
   if (killer?.entityType !== 'player') return true;
   const heatKillKey = `${ownerId}:${victimId}`;
   const eligibleForReward = isHumanPilot(killer) && progressionEnabled(killer) && (recentHeatKills.get(heatKillKey) ?? 0) <= now - heatKillCooldownMs;
@@ -3333,7 +3415,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     if (eligibleForReward && !victim.isBot) recordObjectiveActivity(ownerId, 'kill');
   }
   broadcastToCity(cityId, {
-    type: 'destroyed', cause: 'combat', playerId: victimId, position: victim.position, aircraftType: victim.aircraftType, killerId: ownerId, killerDisplayName: killer.displayName, killerScore: killer.score, killerReward: killReward.score,
+    type: 'destroyed', cause: 'combat', playerId: victimId, position: victim.position, aircraftType: victim.aircraftType, killerId: ownerId, killerDisplayName: killer.displayName, victimDisplayName: victim.displayName, killerScore: killer.score, killerReward: killReward.score,
   });
   broadcastLeaderboard(cityId);
   updateKing(cityId, cityKings.get(cityId) === victimId ? ownerId : undefined);
@@ -3388,8 +3470,8 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   if (Math.hypot(first.position.x - second.position.x, first.position.y - second.position.y, first.position.z - second.position.z) > aircraftCollisionRadius + relativeAllowance) return false;
   markPlayerDestroyed(firstId, first, now);
   markPlayerDestroyed(secondId, second, now);
-  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: firstId, position: first.position, aircraftType: first.aircraftType, killerId: secondId, killerDisplayName: second.displayName, killerScore: second.score, killerReward: 0 });
-  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: secondId, position: second.position, aircraftType: second.aircraftType, killerId: firstId, killerDisplayName: first.displayName, killerScore: first.score, killerReward: 0 });
+  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: firstId, position: first.position, aircraftType: first.aircraftType, killerId: secondId, killerDisplayName: second.displayName, victimDisplayName: first.displayName, killerScore: second.score, killerReward: 0 });
+  broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: secondId, position: second.position, aircraftType: second.aircraftType, killerId: firstId, killerDisplayName: first.displayName, victimDisplayName: second.displayName, killerScore: first.score, killerReward: 0 });
   broadcastLeaderboard(first.cityId);
   updateKing(first.cityId);
   handleWantedDestruction(secondId, firstId, now);
@@ -3407,7 +3489,7 @@ function createAssistedShot(
 ): boolean {
   const now = Date.now();
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
-  if (!target || !canFire(player, now)) return false;
+  if (!target || !canFire(playerId, player, now)) return false;
   const local = targetInAircraftSpace(fireTransform ?? player, target);
   if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
   player.lastFireAt = now;
@@ -3438,7 +3520,7 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   const bossPosition = eventRoutePosition(event, now);
   if (distanceToSegmentSquared(bossPosition, start.x, start.y, start.z, end) > 14 * 14) return false;
   const owner = players.get(ownerId);
-  if (!owner || owner.cityId !== cityId || owner.lifeState !== 'alive') return false;
+  if (!owner || owner.tutorialMode || owner.cityId !== cityId || owner.lifeState !== 'alive' || runwayCombatProtected(ownerId, owner)) return false;
   if (event.type === 'vipEscort') {
     event.bossHealth = Math.max(0, event.bossHealth - projectileDamage);
     if (event.bossHealth > 0) broadcastEvent(event);
@@ -3467,7 +3549,7 @@ function updateProjectiles(deltaSeconds: number): void {
 
   for (const projectile of projectiles.values()) {
     const owner = players.get(projectile.ownerId);
-    if (!owner || owner.entityType !== 'player' || owner.lifeState !== 'alive') {
+    if (!owner || owner.entityType !== 'player' || owner.lifeState !== 'alive' || runwayCombatProtected(projectile.ownerId, owner)) {
       removeProjectile(projectile.projectileId);
       continue;
     }
@@ -3491,8 +3573,10 @@ function updateProjectiles(deltaSeconds: number): void {
         playerId === projectile.ownerId ||
         player.entityType !== 'player' ||
         player.cityId !== projectile.cityId ||
+        !tutorialCombatPairAllowed(projectile.ownerId, owner, playerId, player) ||
         player.lifeState !== 'alive' ||
-        now < player.spawnProtectedUntil
+        now < player.spawnProtectedUntil ||
+        runwayCombatProtected(playerId, player)
       ) {
         continue;
       }
@@ -3514,7 +3598,7 @@ function updateProjectiles(deltaSeconds: number): void {
 }
 
 function desiredBotCount(cityId: CityId): number {
-  const humans = [...players.values()].filter((player) => player.cityId === cityId && !player.isBot).length;
+  const humans = [...players.values()].filter((player) => player.cityId === cityId && !player.isBot && !player.tutorialMode).length;
   if (humans === 0) return 0;
   if (humans <= 2) return 7 - humans;
   if (humans <= 5) return 8 - humans;
@@ -3639,6 +3723,57 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   return id;
 }
 
+function removeTrainingTarget(ownerId: string): void {
+  for (const [targetId, target] of players) {
+    if (target.trainingOwnerId !== ownerId) continue;
+    removePlayerProjectiles(targetId);
+    clearPlayerRuntimeState(targetId);
+    players.delete(targetId);
+    sendToPlayer(ownerId, { type: 'remove', playerId: targetId });
+  }
+}
+
+// Keep the teaching target readable, inside the existing combat envelope.
+const trainingApproachRange = Math.min(COMBAT_RANGE, 600);
+function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.now()): string | undefined {
+  if (!owner.tutorialMode || owner.cityId !== 'milwaukee' || owner.lifeState !== 'alive' || !owner.hasRespawnTransform) return undefined;
+  removeTrainingTarget(ownerId);
+  const forward = forwardDirection(owner);
+  const targetId = `training:${ownerId}`;
+  const targetX = owner.position.x + forward.x * (trainingApproachRange + 150);
+  const targetZ = owner.position.z + forward.z * (trainingApproachRange + 150);
+  const targetY = Math.max(owner.position.y + 20, botTerrainHeight(owner.cityId, targetX, targetZ) + 85);
+  const target: PlayerState = {
+    pilotId: targetId, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
+    cityId: owner.cityId, position: { x: targetX, y: targetY, z: targetZ },
+    rotation: { x: 0, y: owner.rotation.y + Math.PI, z: 0 }, aircraftType: 'trainer',
+    displayName: 'TRAINING TARGET', score: 0, health: projectileDamage, lifeState: 'alive', hasRespawnTransform: true,
+    lastFireAt: 0, spawnProtectedUntil: 0, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
+    lastStateAt: now, lastAcceptedPosition: { x: targetX, y: targetY, z: targetZ }, lastAcceptedTransformAt: now,
+    chaosQaEnabled: false, tutorialMode: true, trainingOwnerId: ownerId, territoryIds: new Set(),
+  };
+  players.set(targetId, target);
+  sendToPlayer(ownerId, botStateMessage(targetId, target, 'playerState'));
+  sendToPlayer(ownerId, { type: 'tutorialTarget', targetId });
+  return targetId;
+}
+
+function updateTrainingTargets(now: number): void {
+  for (const [targetId, target] of players) {
+    if (!target.trainingOwnerId) continue;
+    const owner = players.get(target.trainingOwnerId);
+    if (!owner?.tutorialMode || owner.lifeState !== 'alive') {
+      removeTrainingTarget(target.trainingOwnerId);
+      continue;
+    }
+    target.lastStateAt = now;
+    const range=Math.hypot(target.position.x-owner.position.x,target.position.y-owner.position.y,target.position.z-owner.position.z);
+    if(range<=trainingApproachRange){completeServerTutorialStep(target.trainingOwnerId,owner,'approach',now);sendToPlayer(target.trainingOwnerId,{type:'tutorialSignal',signal:'targetInRange'});}
+    if(owner.lockedTargetId===targetId)sendToPlayer(target.trainingOwnerId,{type:'tutorialSignal',signal:'targetLocked'});
+    sendToPlayer(target.trainingOwnerId, botStateMessage(targetId, target));
+  }
+}
+
 function removeBot(playerId: string): void {
   const player = players.get(playerId);
   if (!player?.isBot) return;
@@ -3649,14 +3784,14 @@ function removeBot(playerId: string): void {
 }
 
 function reconcileBots(cityId: CityId): void {
-  const bots = [...players.entries()].filter(([, player]) => player.cityId === cityId && player.isBot);
+  const bots = [...players.entries()].filter(([, player]) => player.cityId === cityId && player.isBot && Boolean(player.bot));
   const desired = Math.min(maxBotsPerCity, desiredBotCount(cityId));
   if (bots.length < desired) {
     createBot(cityId);
     return;
   }
   if (bots.length <= desired) return;
-  const humans = [...players.values()].filter((player) => player.cityId === cityId && !player.isBot && player.lifeState === 'alive');
+  const humans = [...players.values()].filter((player) => player.cityId === cityId && !player.isBot && !player.tutorialMode && player.lifeState === 'alive');
   const removable = bots
     .filter(([, bot]) => !bot.bot?.defenseTerritoryId)
     .map(([id, bot]) => ({ id, distance: humans.length ? Math.min(...humans.map((human) => Math.hypot(bot.position.x - human.position.x, bot.position.z - human.position.z))) : Infinity }))
@@ -3674,7 +3809,7 @@ function botCombatTarget(botId: string, bot: PlayerState, now: number): [string,
   const candidate = [...players.entries()]
     // Hunters add pressure to real pilots only. Bots remain route traffic and
     // never form a self-sustaining bot-vs-bot combat loop.
-    .filter(([id, target]) => id !== botId && !target.isBot && target.cityId === bot.cityId && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
+    .filter(([id, target]) => id !== botId && !target.isBot && !target.tutorialMode && target.cityId === bot.cityId && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
     .filter((candidate) => candidate.distance > 90 && candidate.distance < hunterDetectionRange)
     .filter((candidate) => {
@@ -3698,7 +3833,7 @@ function hunterForward(player: PlayerState): Vector3 {
 function hunterTarget(botId: string, player: PlayerState, bot: BotRuntime, now: number): [string, PlayerState] | undefined {
   const targetId = bot.combatTargetId;
   const target = targetId ? players.get(targetId) : undefined;
-  if (!targetId || !target || targetId === botId || target.isBot || target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil) return undefined;
+  if (!targetId || !target || targetId === botId || target.isBot || target.tutorialMode || target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil) return undefined;
   return [targetId, target];
 }
 
@@ -4022,7 +4157,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
   if (!isHunterCombatPhase(bot.phase)) {
     const assigned = bot.defenseTargetId ? players.get(bot.defenseTargetId) : undefined;
     const candidate: [string, PlayerState] | undefined = bot.defenseTerritoryId && assigned && assigned.lifeState === 'alive' &&
-      assigned.cityId === player.cityId && !assigned.isBot && now < (bot.defenseReleaseAt ?? 0)
+      assigned.cityId === player.cityId && !assigned.isBot && !assigned.tutorialMode && now < (bot.defenseReleaseAt ?? 0)
       ? [bot.defenseTargetId!, assigned] : botCombatTarget(botId, player, now);
     if (!candidate) return undefined;
     beginHunterApproach(player, bot, candidate[0], candidate[1], now);
@@ -4089,6 +4224,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
 }
 
 function updateBots(now: number): void {
+  updateTrainingTargets(now);
   const delta = botTickMs / 1000;
   for (const [botId, player] of players) {
     const bot = player.bot;
@@ -4223,6 +4359,29 @@ function groundedAtAirport(player: PlayerState): { id: string } | undefined {
   return undefined;
 }
 
+function runwayOrTaxiSpawnArea(player: PlayerState): { id: string } | undefined {
+  for (const airport of cityAirports[player.cityId]) {
+    const groundY = player.cityId === 'dallas' ? dallasAirportElevations.get(airport.id)! : 0;
+    if (Math.abs(player.position.y - groundY) > 6) continue;
+    const dx = player.position.x - airport.x;
+    const dz = player.position.z - airport.z;
+    const along = dx * Math.sin(airport.heading) + dz * Math.cos(airport.heading);
+    const lateral = dx * Math.cos(airport.heading) - dz * Math.sin(airport.heading);
+    if (Math.abs(along) <= airport.runwayLength * 0.5 + 150 && Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3)) return airport;
+  }
+  return undefined;
+}
+
+function runwayCombatProtected(playerId: string, player: PlayerState): boolean {
+  const botGroundedPhase = player.bot && (player.bot.phase === 'spawn' || player.bot.phase === 'taxi' || player.bot.phase === 'land');
+  const airborne = player.isBot ? !botGroundedPhase : landingFlightState.get(playerId)?.airborne;
+  return runwayCombatProtectionActive({
+    lifeState: player.lifeState,
+    airborne,
+    groundedAtRunway: player.hasRespawnTransform && Boolean(runwayOrTaxiSpawnArea(player)),
+  });
+}
+
 function safeRespawnTransform(playerId: string, player: PlayerState, now: number): { position: Vector3; heading: number } {
   const airports = cityAirports[player.cityId];
   const preferredSlot = player.spawnSlot ?? 0;
@@ -4251,14 +4410,15 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
   return fallback ?? { position: { ...player.position }, heading: player.rotation.y };
 }
 
-function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: PlayerProfile, now: number, serverReset = false): void {
+function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: PlayerProfile, now: number, serverReset = false, aircraftOverride?: AircraftType): void {
   missionSignal(playerId, { type: 'lostFlight', at: now });
   const safeSpawn = safeRespawnTransform(playerId, player, now);
   player.assistedAim = undefined;
   player.aimSamples = undefined;
-  if (profile.selectedAircraft !== player.aircraftType) player.selectionRevision = (player.selectionRevision ?? 0) + 1;
+  const activeAircraft = aircraftOverride ?? profile.selectedAircraft;
+  if (activeAircraft !== player.aircraftType) player.selectionRevision = (player.selectionRevision ?? 0) + 1;
   player.profile = profile;
-  player.aircraftType = profile.selectedAircraft;
+  player.aircraftType = activeAircraft;
   player.health = maxHealthForAircraft(player.aircraftType);
   player.lifeState = 'respawning';
   player.hasRespawnTransform = false;
@@ -4616,9 +4776,12 @@ function removeHumanConnection(socket: WebSocket): void {
   connectionStartedAt.delete(playerId);
   playerClientIps.delete(playerId);
   playerTrialNetworkIds.delete(playerId);
+  firehawkPromotionShownConnections.delete(playerId);
+  firehawkPromotionRequestCounts.delete(playerId);
   lastClientCrashAnalytics.delete(playerId);
   transformRejectLogAt.delete(playerId);
   missionSignal(playerId, { type: 'disconnect', at: Date.now() });
+  removeTrainingTarget(playerId);
   removePlayerProjectiles(playerId);
   clearPlayerRuntimeState(playerId);
   players.delete(playerId);
@@ -4661,15 +4824,17 @@ server.on('connection', (socket, request) => {
   const activatedTrialOnConnect = profile.fighterTrial.status === 'pending';
   if (activatedTrialOnConnect) profile = profileStore.activateFighterTrial(identity.pilotId)!;
   profile = profileStore.objectivesForCity(identity.pilotId, cityId)!;
-  const intercityArrival=profileStore.completeIntercityArrival(identity.pilotId,cityId);
+  const tutorialMode = Boolean(cityCapabilities(cityId)?.tutorialEnabled && profile.tutorial.status === 'started');
+  const intercityArrival=tutorialMode ? {completed:false,credits:0} : profileStore.completeIntercityArrival(identity.pilotId,cityId);
   if(intercityArrival.completed&&intercityArrival.profile)profile=intercityArrival.profile;
-  const dailyClaim = cityCapabilities(cityId)?.progressionEnabled ? profileStore.claimDailyStreak(identity.pilotId) : undefined;
+  const dailyClaim = !tutorialMode && cityCapabilities(cityId)?.progressionEnabled ? profileStore.claimDailyStreak(identity.pilotId) : undefined;
   if (dailyClaim) profile = dailyClaim.profile;
   const priorWeeklyRewardId = profile.weeklyReward?.weekId;
-  const weeklyReward = cityCapabilities(cityId)?.progressionEnabled ? profileStore.finalizePreviousWeeklyReward(identity.pilotId) : undefined;
+  const weeklyReward = !tutorialMode && cityCapabilities(cityId)?.progressionEnabled ? profileStore.finalizePreviousWeeklyReward(identity.pilotId) : undefined;
   const weeklyRewardNew = Boolean(weeklyReward && weeklyReward.weekId !== priorWeeklyRewardId);
   if (weeklyReward) profile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
   if (connectionKind === 'NEW' && !profile.legacyImportPending) connectionKind = 'RECONNECT';
+  const activeAircraftType: AircraftType = tutorialMode ? 'trainer' : profile.selectedAircraft;
   const spawnSlot = reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
   const initialAcceptedPosition = expectedInitialTransform(cityId, spawnSlot, spawnPosition);
@@ -4684,10 +4849,10 @@ server.on('connection', (socket, request) => {
     cityId,
     position: spawnPosition,
     rotation: { x: 0, y: 0, z: 0 },
-    aircraftType: profile.selectedAircraft,
+    aircraftType: activeAircraftType,
     displayName: profile.pilotName,
     score: 0,
-    health: maxHealthForAircraft(profile.selectedAircraft),
+    health: maxHealthForAircraft(activeAircraftType),
     lifeState: 'respawning',
     hasRespawnTransform: false,
     lastFireAt: 0,
@@ -4698,7 +4863,7 @@ server.on('connection', (socket, request) => {
     lastAcceptedPosition: initialAcceptedPosition,
     lastAcceptedTransformAt: Date.now(),
     chaosQaEnabled,
-    tutorialMode:Boolean(cityCapabilities(cityId)?.tutorialEnabled&&profile.tutorial.status==='started'),
+    tutorialMode,
     territoryIds: new Set(),
     distanceRewardMeters: 0,
     spawnSlot,
@@ -4740,9 +4905,12 @@ server.on('connection', (socket, request) => {
       playerId,
       pilotId: profile.pilotId,
       cityId,
+      tutorialMode,
+      tutorialSteps: profileStore.tutorialStepStates(profile.pilotId),
+      activeAircraftType,
       spawnPosition,
-      health: maxHealthForAircraft(profile.selectedAircraft),
-      maxHealth: maxHealthForAircraft(profile.selectedAircraft),
+      health: maxHealthForAircraft(activeAircraftType),
+      maxHealth: maxHealthForAircraft(activeAircraftType),
       lifeState: 'respawning',
       event: cityEvents.get(cityId) ? (eventSnapshot(cityEvents.get(cityId)!) as { event?: unknown }).event : undefined,
       social: socialSnapshot(cityId),
@@ -4757,12 +4925,14 @@ server.on('connection', (socket, request) => {
         return remainingMs > 0 ? [{ id: beacon.id, remainingMs }] : [];
       }),
       players: [...players.entries()]
-        .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && player.cityId === cityId)
+        .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && player.cityId === cityId &&
+          (!player.trainingOwnerId || player.trainingOwnerId === playerId))
         .map(([existingPlayerId, player]) => ({
           playerId: existingPlayerId,
           cityId: player.cityId,
           displayName: player.displayName,
           position: player.position,
+          altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
           rotation: player.rotation,
           aircraftType: player.aircraftType,
           equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
@@ -4830,6 +5000,9 @@ server.on('connection', (socket, request) => {
         accept?: unknown;
         code?: unknown;
         tutorialStatus?: unknown;
+        tutorialStep?: unknown;
+        tutorialStepStatus?: unknown;
+        tutorialResetReason?: unknown;
         cosmeticId?: unknown;
         weeklyEventId?: unknown;
         routeId?: unknown;
@@ -4843,8 +5016,8 @@ server.on('connection', (socket, request) => {
           lastClientCrashAnalytics.set(playerId, now);
           recordAnalytics(playerId, 'crash', { source: 'terrain_or_landing' }, now);
         }
-        if (message.event === 'fighter_modal_viewed' || message.event === 'fighter_purchase_clicked' || message.event === 'photo_mode_opened' || message.event === 'secret_discovered' || message.event === 'flight_recap_shown' || message.event === 'fly_again_clicked' || message.event === 'daily_flight_plan_viewed' || message.event === 'input_mode_detected' || message.event === 'touch_controls_enabled' || message.event === 'graphics_quality_changed' || message.event === 'mobile_layout_used' || message.event === 'photo_mode_touch_opened' || message.event === 'tutorial_step_completed' || message.event === 'tutorial_retried' || message.event === 'tutorial_crashed') {
-          const boundedMode = typeof message.mode === 'string' && ['touch', 'auto', 'on', 'off', 'high', 'balanced', 'low', 'narrow', 'wide','tutorial_v1','controls','throttle','takeoffRoll','liftOff','waypoint','turn','landingSetup','land','reward','next'].includes(message.mode) ? message.mode : undefined;
+        if (message.event === 'fighter_modal_viewed' || message.event === 'fighter_purchase_clicked' || message.event === 'photo_mode_opened' || message.event === 'secret_discovered' || message.event === 'flight_recap_shown' || message.event === 'fly_again_clicked' || message.event === 'daily_flight_plan_viewed' || message.event === 'input_mode_detected' || message.event === 'touch_controls_enabled' || message.event === 'graphics_quality_changed' || message.event === 'mobile_layout_used' || message.event === 'photo_mode_touch_opened' || message.event === 'tutorial_retried' || message.event === 'tutorial_crashed') {
+          const boundedMode = typeof message.mode === 'string' && ['touch', 'auto', 'on', 'off', 'high', 'balanced', 'low', 'narrow', 'wide','tutorial_v1','joystick','throttle','takeoff','turnLeft','turnRight','climb','descend','targetLock','fire','landing'].includes(message.mode) ? message.mode : undefined;
           recordAnalytics(playerId, message.event, { metadata: { cityId: player.cityId, ...(boundedMode ? { mode: boundedMode } : {}) } }, now);
         }
         if (message.event === 'fighter_trial_completed' && profileStore.markFighterTrialCompleted(player.pilotId, now)) {
@@ -4855,20 +5028,64 @@ server.on('connection', (socket, request) => {
         return;
       }
 
+      if (message.type === 'firehawkPromotionRequest') {
+        const attempts = firehawkPromotionRequestCounts.get(playerId) ?? 0;
+        if (attempts >= 5 || firehawkPromotionShownConnections.has(playerId) || player.tutorialMode || !cityCapabilities(player.cityId)?.progressionEnabled) return;
+        firehawkPromotionRequestCounts.set(playerId, attempts + 1);
+        const mission = typeof message.missionId === 'string' ? missionForCity(player.cityId, message.missionId) : undefined;
+        if (!mission || !(['HARD', 'VERY HARD', 'EXTREME'].includes(mission.difficulty) || (mission.type === 'event' && ['aceIntercept', 'vipEscort'].includes(mission.requirements.eventType ?? '')))) return;
+        const claimed = profileStore.claimFirehawkPromotion(player.pilotId, mission.id, Date.now());
+        if (!claimed) return;
+        firehawkPromotionShownConnections.add(playerId);
+        sendToPlayer(playerId, { type: 'firehawkPromotionOffer', missionId: mission.id, trialEligible: claimed.trialEligible, displayPrice: firehawkProduct.displayPrice });
+        return;
+      }
+
       if(message.type==='tutorialState'&&(message.tutorialStatus==='started'||message.tutorialStatus==='completed'||message.tutorialStatus==='skipped')){
         if(!cityCapabilities(player.cityId)?.tutorialEnabled)return;
+        if(message.tutorialStatus==='completed'&&!profileStore.tutorialStepsResolved(player.pilotId))return;
+        if(message.tutorialStatus!=='started'){
+          removeTrainingTarget(playerId);removePlayerProjectiles(playerId);
+          profileStore.setTutorialState(player.pilotId,message.tutorialStatus,Date.now());
+          socket.close(1000,'Training ended');return;
+        }
         player.tutorialMode=message.tutorialStatus==='started';
-        let profile=profileStore.setTutorialState(player.pilotId,message.tutorialStatus,Date.now());
+        const profile=profileStore.setTutorialState(player.pilotId,message.tutorialStatus,Date.now());
         if(player.tutorialMode && profile) {
           const challenge = challengeForPlayer(playerId);
           if (challenge) {
             pvpChallenges.delete(challenge.id);
             for (const id of [challenge.challengerId, challenge.opponentId]) sendToPlayer(id, {type:'pvpChallengeCancelled',challengeId:challenge.id,reason:'TUTORIAL FLIGHT STARTED'});
           }
-          profile = profileStore.equipAircraft(player.pilotId, 'trainer') ?? profile;
-          resetHumanToSafeRunway(playerId, player, profile, Date.now(), true);
-        } else if(profile){player.profile=profile;sendProfile(playerId,profile);}
+          resetHumanToSafeRunway(playerId, player, profile, Date.now(), true, 'trainer');
+        } else if(profile){removeTrainingTarget(playerId);player.profile=profile;sendProfile(playerId,profile,undefined,undefined,undefined,true);}
         recordAnalytics(playerId,message.tutorialStatus==='started'?'tutorial_started':message.tutorialStatus==='completed'?'tutorial_completed':'tutorial_skipped',{metadata:{cityId:player.cityId,tutorialVersion:'tutorial_v1'}},Date.now());
+        return;
+      }
+
+      if(message.type==='tutorialStepStatus'){
+        if(!player.tutorialMode||player.cityId!=='milwaukee'||!tutorialSteps.includes(message.tutorialStep as TutorialLessonStep)||(message.tutorialStepStatus!=='completed'&&message.tutorialStepStatus!=='skipped'))return;
+        const step=message.tutorialStep as TutorialLessonStep;const status=message.tutorialStepStatus as Exclude<TutorialStepStatus,'pending'>;
+        if(status==='completed'&&serverVerifiedTutorialSteps.has(step))return;
+        const result=profileStore.recordTutorialStepStatus(player.pilotId,step,status,Date.now());
+        if(result.ok&&result.nextStep==='landing')removeTrainingTarget(playerId);
+        sendTutorialStepResult(playerId,result,step,status);
+        if(result.ok&&result.changed)recordAnalytics(playerId,status==='completed'?'tutorial_step_completed':'tutorial_step_skipped',{metadata:{cityId:player.cityId,mode:step}},Date.now());
+        return;
+      }
+
+      if(message.type==='tutorialRunReset'&&(message.tutorialResetReason==='crash'||message.tutorialResetReason==='replay')){
+        if(!player.tutorialMode||player.cityId!=='milwaukee')return;
+        removeTrainingTarget(playerId);removePlayerProjectiles(playerId);profileStore.resetTutorialRun(player.pilotId);
+        const profile=profileStore.setTutorialState(player.pilotId,'started',Date.now());if(!profile)return;
+        resetHumanToSafeRunway(playerId,player,profile,Date.now(),true,'trainer');
+        sendToPlayer(playerId,{type:'tutorialRunReset',reason:message.tutorialResetReason,steps:profileStore.tutorialStepStates(player.pilotId),nextStep:tutorialSteps[0]});
+        return;
+      }
+
+      if(message.type==='tutorialTargetRequest'){
+        if(!player.tutorialMode||player.cityId!=='milwaukee')return;
+        createTrainingTarget(playerId,player,Date.now());
         return;
       }
 
@@ -4887,9 +5104,9 @@ server.on('connection', (socket, request) => {
         // The first legacy hydration is also an explicit server-side profile
         // reconciliation. Keep the active player transform aligned with that
         // persisted selection before any later transform can be broadcast.
-        player.aircraftType = profile.selectedAircraft;
+        player.aircraftType = player.tutorialMode ? 'trainer' : profile.selectedAircraft;
         player.health = maxHealthForAircraft(player.aircraftType);
-        sendProfile(playerId, profile);
+        sendProfile(playerId, profile, undefined, undefined, undefined, player.tutorialMode);
         broadcastToCity(player.cityId, {
           type: 'playerState', playerId, health: player.health, lifeState: player.lifeState,
           position: player.position, rotation: player.rotation, aircraftType: player.aircraftType, equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
@@ -4925,6 +5142,7 @@ server.on('connection', (socket, request) => {
       if (message.type === 'equipAircraft') {
         const requestId = message.equipRequestId;
         if (typeof requestId !== 'number' || !Number.isSafeInteger(requestId) || requestId <= 0) return;
+        if(player.tutorialMode){sendToPlayer(playerId,{type:'equipRejected',equipRequestId:requestId,reason:'BLUEJAY IS LOCKED FOR TRAINING'});return;}
         if (requestId <= (player.lastEquipRequestId ?? 0)) {
           sendToPlayer(playerId, { type: 'equipRejected', equipRequestId: requestId, reason: 'AIRCRAFT REQUEST ALREADY HANDLED' });
           return;
@@ -4956,6 +5174,7 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'startFighterTrial') {
+        if(player.tutorialMode){sendToPlayer(playerId,{type:'fighterTrialResult',ok:false,reason:'TEST FLIGHTS ARE UNAVAILABLE DURING TRAINING'});return;}
         if (player.lifeState !== 'alive' || !player.hasRespawnTransform || Date.now() - player.lastStateAt > 1500 || !groundedAtAirport(player)) {
           sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason: 'STOP AT AN AIRPORT TO START TEST FLIGHT' }); return;
         }
@@ -5164,7 +5383,7 @@ server.on('connection', (socket, request) => {
 
       if (message.type === 'fire') {
         const now = Date.now();
-        const blocked = fireBlockReason(player, now);
+        const blocked = fireBlockReason(playerId, player, now);
         if (blocked) {
           logFireBlocked(playerId, blocked, now);
           return;
@@ -5323,6 +5542,8 @@ server.on('connection', (socket, request) => {
         });
         missionSignal(playerId, { type: 'takeoff', at: stateNow, airportId: departure?.id });
         recordAnalytics(playerId, 'takeoff', { source: departure?.id ?? 'unknown' }, stateNow);
+        sendToPlayer(playerId, { type: 'takeoffConfirmed', airportId: departure?.id, confirmedAt: stateNow });
+        if(player.tutorialMode){profileStore.recordTrainingEvidence(player.pilotId,1);completeServerTutorialStep(playerId,player,'takeoff',stateNow);sendToPlayer(playerId,{type:'tutorialSignal',signal:'airborne'});}
       }
       if (isHumanPilot(player) && flight?.airborne && player.lifeState === 'alive') {
         const acceptedTravel = Math.min(traveled, velocityCap * stateSeconds * 1.15);
@@ -5366,6 +5587,7 @@ server.on('connection', (socket, request) => {
         type: 'state',
         playerId,
         position: player.position,
+        altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
         rotation: player.rotation,
         aircraftType: player.aircraftType,
         equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},

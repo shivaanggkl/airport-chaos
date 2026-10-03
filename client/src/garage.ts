@@ -117,6 +117,7 @@ export class AircraftGarage {
       priority: uiBackPriority.menu,
       isActive: () => this.isOpen(),
       close: () => this.close(),
+      containsTarget: (target) => target instanceof Node && Boolean(this.element.querySelector('.garage-card')?.contains(target)),
     });
     element.innerHTML = `<section class="garage-card"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
     const cosmetics = document.createElement('section'); cosmetics.className = 'garage-cosmetics'; cosmetics.dataset.garageCosmetics = '';
@@ -229,6 +230,17 @@ export class AircraftGarage {
     this.onClose?.();
   }
   isOpen(): boolean { return !this.element.hidden; }
+
+  focusAircraft(type: AircraftType): void {
+    if (!this.isOpen() || !this.cards.has(type)) return;
+    this.selected = type;
+    this.previewCosmetic = undefined;
+    this.testerOpen = false;
+    this.actionMessage = '';
+    this.renderDetails();
+    void this.loadPreview();
+    if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.();
+  }
 
   showcase(host: HTMLElement, profile: GarageProfile): Promise<void> {
     cancelAnimationFrame(this.raf);

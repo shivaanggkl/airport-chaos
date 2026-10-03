@@ -1,15 +1,16 @@
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
-import { controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
+import { cameraControlLabels, controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
+import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
 export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'HELP' | 'SETTINGS' | 'DATA LICENSES';
 export type PilotMenuOptions = {
   sections?: readonly PilotMenuSection[];
   title?: string;
-  closeLabel?: string;
+  closeLabel?: string | (() => string);
   showFlightActions?: boolean;
   onClose?: () => void;
 };
@@ -37,6 +38,7 @@ export type PilotMenuPlayer = {
   distance: number | undefined;
   lifecycle: string;
   score: number;
+  altitudeMeters?: number;
   kills?: number;
   isLocal: boolean;
   isBot?: boolean;
@@ -106,8 +108,12 @@ export type PilotMenuData = {
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
   preferences:{touchMode:'auto'|'on'|'off';touchLayout:boolean;setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void;mobileLayout:MobileControlLayout;setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>void;resetMobileLayout:()=>MobileControlLayout};
+  mobilePitch?: { inverted: boolean; setInverted: (inverted: boolean) => void };
   restart: () => void;
-  audio: { muted: boolean; toggle: () => void; levels: { master: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'engine' | 'combat' | 'ui', value: number) => void };
+  exitFlight?: () => void;
+  cityGuide?: () => void;
+  nativeWebPromotion?: boolean;
+  audio: { muted: boolean; toggle: () => void; levels: { master: number; music: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'music' | 'engine' | 'combat' | 'ui', value: number) => void };
   guide: { enabled: boolean; open: () => void; replay:()=>void };
 };
 
@@ -178,6 +184,7 @@ export class PilotMenu {
       priority: uiBackPriority.menu,
       isActive: () => this.isOpen(),
       close: () => this.backOrClose(),
+      containsTarget: (target) => target instanceof Node && Boolean(this.element.querySelector('.pilot-menu-card')?.contains(target)),
     });
   }
 
@@ -239,7 +246,21 @@ export class PilotMenu {
     this.activeSection = section;
     this.lastSnapshot = '';
     this.element.hidden = false;
+    const close = this.element.querySelector<HTMLButtonElement>('.pilot-menu-header-actions button');
+    if (close) close.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
     this.render(data);
+  }
+
+  focusMission(missionId?: string): void {
+    if (!this.openState || this.activeSection !== 'MISSIONS') return;
+    const selector = missionId ? `[data-mission-id="${CSS.escape(missionId)}"]` : '.pilot-menu-mission-active';
+    const card = this.content?.querySelector<HTMLElement>(selector) ?? this.content?.querySelector<HTMLElement>('.pilot-menu-mission-active, .pilot-menu-mission-option');
+    if (!card) return;
+    card.classList.remove('pilot-menu-mission-focus');
+    void card.offsetWidth;
+    card.classList.add('pilot-menu-mission-focus');
+    card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    window.setTimeout(() => card.classList.remove('pilot-menu-mission-focus'), 1_600);
   }
 
   refresh(data: PilotMenuData): void {
@@ -263,8 +284,8 @@ export class PilotMenu {
         data.territories.entries.map(({ id, controller, contested, progress }) => [id, controller, contested, progress]),
         data.missions.entries.some((entry) => entry.cooldownUntil > Date.now()) ? Math.floor(Date.now() / 60_000) : 0]);
       case 'MAP': return this.activeSection;
-      case 'PLAYERS': return JSON.stringify([this.activeSection, data.players.entries.map(({ name, aircraft, distance, lifecycle, score, kills, isLocal, isBot, ownedTerritories, mostWanted, king }) =>
-        [name, aircraft, distance && Math.round(distance / 100), lifecycle, score, kills, isLocal, isBot, ownedTerritories, mostWanted, king])]);
+      case 'PLAYERS': return JSON.stringify([this.activeSection, data.players.entries.map(({ name, aircraft, distance, lifecycle, score, altitudeMeters, kills, isLocal, isBot, ownedTerritories, mostWanted, king }) =>
+        [name, aircraft, distance && Math.round(distance / 100), lifecycle, score, altitudeMeters === undefined ? undefined : Math.round(altitudeMeters / 30), kills, isLocal, isBot, ownedTerritories, mostWanted, king])]);
       case 'TERRITORIES': return JSON.stringify([this.activeSection, data.territories.entries.map(({ id, name, controller, contested, color, ownedByYou }) =>
         [id, name, controller, contested, color, ownedByYou])]);
       case 'PROGRESS': return JSON.stringify([this.activeSection,
@@ -339,7 +360,7 @@ export class PilotMenu {
     heading.append(kicker, textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
     void mountAirportChaosLogo(kicker, 'brand-logo-menu');
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
-    const close = actionButton({ label: this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
+    const close = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
     const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, close);
     header.append(heading, actions);
     const content = document.createElement('div');
@@ -373,7 +394,11 @@ export class PilotMenu {
       changeCity.title = 'Return to Choose a City';
       const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart(), intent: 'danger' });
       restart.classList.add('pilot-menu-navigation-action');
-      navigation.append(changeCity, restart);
+      const cityGuide = actionButton({ label: 'CITY GUIDE', run: () => this.lastData?.cityGuide?.() });
+      cityGuide.classList.add('pilot-menu-navigation-action');
+      const exitFlight = actionButton({ label: 'EXIT FLIGHT', run: () => this.lastData?.exitFlight?.(), intent: 'danger' });
+      exitFlight.classList.add('pilot-menu-navigation-action');
+      navigation.append(changeCity, cityGuide, restart, exitFlight);
     }
     card.append(header, navigation, content);
     this.element.replaceChildren(card);
@@ -470,6 +495,13 @@ export class PilotMenu {
         );
       }
       profile.append(message); content.append(profile);
+      if (data.nativeWebPromotion) {
+        const web = section('PLAY ON WEB');
+        web.classList.add('pilot-menu-web-promotion');
+        web.append(textElement('p', 'Continue flying from any computer.', 'pilot-menu-muted'),
+          externalLink('fly.vadensoftware.com', 'https://fly.vadensoftware.com'));
+        content.append(web);
+      }
     }
 
     if (this.activeSection === 'MISSIONS') {
@@ -490,6 +522,7 @@ export class PilotMenu {
         ],
       });
       active.classList.add('pilot-menu-mission-card', 'pilot-menu-mission-active');
+      active.dataset.missionId = current.id;
       this.addMissionTerritories(active, current, data.territories.entries);
       if (current.target && current.progress !== undefined) {
         const bar = document.createElement('progress'); bar.max = current.target; bar.value = Math.min(current.target, current.progress);
@@ -532,6 +565,7 @@ export class PilotMenu {
         }],
       });
       card.classList.add('pilot-menu-mission-card', 'pilot-menu-mission-option');
+      card.dataset.missionId = item.id;
       this.addMissionTerritories(card, item, data.territories.entries);
       missions.append(card);
     }
@@ -561,6 +595,7 @@ export class PilotMenu {
       ].filter(Boolean).join(' · ');
       const meta = [
         player.distance === undefined ? player.lifecycle : `${player.lifecycle} · ${Math.round(player.distance)}m`,
+        player.altitudeMeters === undefined ? '' : `Altitude ${formatPilotAltitude(player.altitudeMeters)} ft`,
         `Live Score ${player.score}`,
         player.kills === undefined ? '' : `Kills ${player.kills}`,
         badges,
@@ -729,6 +764,7 @@ export class PilotMenu {
         touchDescription,
         selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),
       );
+      if(data.mobilePitch)controls.append(selectRow('JOYSTICK PITCH',data.mobilePitch.inverted?'inverted':'normal',['normal','inverted'],value=>data.mobilePitch!.setInverted(value==='inverted')));
       const labels:Record<MobileControlId,string>={stick:'DIRECTION STICK',throttle:'THROTTLE LEVER',fire:'FIRE'};
       for(const control of ['stick','throttle','fire'] as const){
         const editor=document.createElement('fieldset');editor.className='pilot-mobile-control-editor';const legend=document.createElement('legend');legend.textContent=labels[control];editor.append(legend);
@@ -751,8 +787,8 @@ export class PilotMenu {
       }
       const camera=document.createElement('div');camera.className='pilot-menu-control-group';camera.append(textElement('h3','CAMERA & GAME'));
       camera.append(
-        textElement('div','MOUSE DRAG   Camera Look','pilot-menu-controls'),
-        textElement('div','MOUSE WHEEL   Camera Zoom','pilot-menu-controls'),
+        textElement('div',`${cameraControlLabels.look}   Camera Look`,'pilot-menu-controls'),
+        textElement('div',`${cameraControlLabels.zoom}   Camera Zoom`,'pilot-menu-controls'),
         textElement('div',`${menuKeyLabel('map')}   Map`,'pilot-menu-controls'),
         textElement('div',`${menuKeyLabel('menu')}   Menu`,'pilot-menu-controls'),
         textElement('div',`${menuKeyLabel('restart')}   Restart / Respawn`,'pilot-menu-controls'),
@@ -768,7 +804,7 @@ export class PilotMenu {
     if (this.activeSection === 'SETTINGS') {
     const audio = section('Audio');
     audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: data.audio.toggle }));
-    for (const category of ['master', 'engine', 'combat', 'ui'] as const) {
+    for (const category of ['master', 'music', 'engine', 'combat', 'ui'] as const) {
       const row = document.createElement('label');
       row.className = 'pilot-menu-audio-row';
       const title = textElement('span', category.toUpperCase());

@@ -5,10 +5,12 @@ export const cityRegistry = Object.freeze({
   dallas: Object.freeze({ cityId:'dallas', legacyIds:['dallas'], name:'Dallas', displayName:'Dallas', regionName:'North Texas', worldOrigin:{x:0,z:0}, worldSize:50_000,
     airports:cityAirports.dallas, regions:['Metroplex','Central District','Canal District','North Metro','South Metro'], discoveryIds:['dfw','love','addison','executive'], weatherZones:cityWeatherZones.dallas,
     capabilities:Object.freeze({tutorialEnabled:false,practiceMode:false,progressionEnabled:true,territoriesEnabled:true,competitiveEnabled:true}),
+    briefing:Object.freeze({title:'DALLAS OPERATIONS',summary:'Complete contracts, capture territories, fight rivals, explore regions, and land safely.'}),
     chaosEventSpawnRules:{enabled:true}, missionRouteRules:{enabled:true}, sponsorSlots:[], enabled:true, recommendedAircraft:'nightowl', difficulty:'LARGE' }),
   milwaukee: Object.freeze({ cityId:'milwaukee', legacyIds:['milwaukee'], name:'Milwaukee', displayName:'Milwaukee', regionName:'Lake Coast & Mountain Ridge', worldOrigin:{x:0,z:0}, worldSize:12_000,
     airports:cityAirports.milwaukee, regions:['Central','Lake Coast','Mountain Ridge','Countryside'], discoveryIds:['central-international','coast-airport','mountain-airfield','countryside-airstrip','mountain-ridge'], weatherZones:cityWeatherZones.milwaukee,
     capabilities:Object.freeze({tutorialEnabled:true,practiceMode:true,progressionEnabled:false,territoriesEnabled:false,competitiveEnabled:false}),
+    briefing:Object.freeze({title:'MILWAUKEE OPERATIONS',summary:'Practice flying, explore the city, and land safely. Milwaukee earns no rewards.'}),
     chaosEventSpawnRules:{enabled:true,fallback:'soloAirportSprint'}, missionRouteRules:{enabled:true}, sponsorSlots:[], enabled:true, recommendedAircraft:'nightowl', difficulty:'EXPLORER' }),
 });
 

@@ -249,7 +249,7 @@ export class StuntComboSystem {
   private finishCombo(): void {
     const credits = Math.min(8, Math.max(1, Math.floor(this.comboPoints / 450)));
     this.callbacks.onCredits(credits);
-    this.callbacks.onMessage(`COMBO BANKED +${credits} CREDITS`);
+    this.callbacks.onMessage('COMBO BANKED');
     this.comboMultiplier = 1;
     this.comboPoints = 0;
     this.comboStunts = 0;

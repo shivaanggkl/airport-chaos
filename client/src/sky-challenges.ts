@@ -314,7 +314,7 @@ export class SkyChallengeSystem {
     const totalReward = definition.reward + finishBonus;
     this.callbacks.onCredits(totalReward);
     this.callbacks.onComplete?.(definition.id);
-    this.callbacks.onMessage(`${typeLabel(definition.type)} COMPLETE +${totalReward} CREDITS`);
+    this.callbacks.onMessage(`${typeLabel(definition.type)} COMPLETE`);
     this.active = null;
     this.refreshGateVisuals();
     this.callbacks.onStateChange();

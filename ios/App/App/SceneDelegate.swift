@@ -18,11 +18,37 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneDidBecomeActive(_ scene: UIScene) {
         guard let windowScene = scene as? UIWindowScene else { return }
         requestLandscapeOrientation(for: windowScene)
+        emitAudioLifecycle("active")
+    }
+
+    func sceneWillResignActive(_ scene: UIScene) {
+        emitAudioLifecycle("inactive")
+    }
+
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        emitAudioLifecycle("background")
+    }
+
+    func sceneWillEnterForeground(_ scene: UIScene) {
+        emitAudioLifecycle("foreground")
     }
 
     private func requestLandscapeOrientation(for windowScene: UIWindowScene) {
         guard #available(iOS 16.0, *) else { return }
         windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
+    }
+
+    private func emitAudioLifecycle(_ state: String) {
+        print("[AirportChaosAudioNative] \(state)")
+        guard let controller = window?.rootViewController as? AirportChaosBridgeViewController,
+              let webView = controller.webView,
+              webView.url != nil,
+              !webView.isLoading else { return }
+        controller.bridge?.triggerJSEvent(
+            eventName: "airport-chaos-native-app-state",
+            target: "window",
+            data: "{\"state\":\"\(state)\"}"
+        )
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {

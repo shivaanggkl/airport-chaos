@@ -1,8 +1,11 @@
+import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
+
 export type HumanRosterEntry = {
   playerId: string;
   displayName: string;
   score: number;
   masteryLevel: number;
+  altitudeMeters?: number;
   status: 'flying' | 'onGround' | 'destroyed' | 'respawning' | 'spawnSafe';
 };
 
@@ -29,6 +32,7 @@ export class PlayersPanel {
     const identity = document.createElement('div');
     const name = document.createElement('span');
     const ownership = document.createElement('span');
+    const altitude = document.createElement('span');
     const dots = Array.from({ length: 3 }, () => document.createElement('i'));
     const score = document.createElement('strong');
     const level = document.createElement('span');
@@ -36,13 +40,14 @@ export class PlayersPanel {
     row.className = 'human-player-row';
     identity.className = 'human-player-identity';
     ownership.className = 'human-player-ownership';
+    altitude.className = 'human-player-altitude';
     ownership.append(...dots);
-    identity.append(name, ownership);
+    identity.append(name, altitude, ownership);
     score.title = 'Live Score';
     level.title = 'City Level';
     status.className = 'human-player-status';
     row.append(identity, score, level, status);
-    return { row, name, ownership, dots, score, level, status };
+    return { row, name, altitude, ownership, dots, score, level, status };
   });
   private collapsed = mobilePanelDefault();
 
@@ -90,6 +95,8 @@ export class PlayersPanel {
       slot.row.classList.toggle('you', you);
       slot.row.classList.toggle('destroyed', player.status === 'destroyed');
       text(slot.name, `${player.displayName}${you ? ' (You)' : ''}`);
+      text(slot.altitude, player.altitudeMeters === undefined ? '' : formatPilotAltitude(player.altitudeMeters));
+      slot.altitude.hidden = player.altitudeMeters === undefined;
       const ownership = ownedTerritories?.(player.playerId) ?? [];
       slot.ownership.hidden = ownership.length === 0;
       slot.ownership.setAttribute('aria-label', ownership.length ? `Owns ${ownership.map(({ name }) => name).join(', ')}` : '');
