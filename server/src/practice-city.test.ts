@@ -50,7 +50,7 @@ test('tutorial combat no longer suppresses Fire on either side of the protocol',
 
 test('tutorial entry is city-scoped and practice progression is server-authoritative', () => {
   assert.match(bootstrap, /candidate\.id === 'milwaukee'[\s\S]*cityCapabilities\(city\.id\)\?\.tutorialEnabled/);
-  assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started' \}/);
+  assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
   assert.match(bootstrap, /await enterCity\(city, 'day', true\)/);
   assert.doesNotMatch(clientMain, /airport-chaos-start-tutorial/);
   assert.match(clientMain, /profile\.tutorial\.status !== 'new'[\s\S]*profile\.totalDistance > 500[\s\S]*dallasPracticeSuggestionElement\.hidden = false/);

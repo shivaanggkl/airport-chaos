@@ -89,6 +89,7 @@ test('screens register with the shared back stack and old Escape close branches 
   assert.match(menu, /close: \(\) => this\.backOrClose\(\)/);
   assert.match(garage, /registerUiBackLayer[\s\S]*close: \(\) => this\.close\(\)/);
   assert.match(map, /id: 'world-map'[\s\S]*close: \(\) => this\.setOpen\(false\)/);
+  assert.match(main, /id: 'training-session'[\s\S]*priority: uiBackPriority\.surface - 1/);
   assert.match(tutorial, /id: 'flight-tutorial'[\s\S]*priority: uiBackPriority\.blockingModal/);
   assert.doesNotMatch(tutorial, /event\.key === 'Escape'\)[^{]*\{[^}]*this\.close/);
   assert.match(bootstrap, /id: 'city-selection'[\s\S]*close: returnFromCitySelection/);

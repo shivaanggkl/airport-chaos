@@ -7,9 +7,6 @@ export type MissionSignal =
   | { type: 'takeoff'; at: number; airportId?: string }
   | { type: 'landing'; at: number; airportId: string; quality: number; controlledTerritories: ReadonlySet<string> }
   | { type: 'flight'; at: number; airborne: boolean; alive: boolean; meters: number; heading: number; x: number; z: number; altitudeMeters: number }
-  | { type: 'challenge'; at: number; challengeId: string }
-  | { type: 'challengeStart'; at: number; challengeId: string; timeLimitMs: number }
-  | { type: 'challengeGate'; at: number; challengeId: string; gateIndex: number }
   | { type: 'kill'; at: number; targetId: string; isBot: boolean; valid: boolean; controlledTerritories: ReadonlySet<string> }
   | { type: 'territoryCapture'; at: number; territoryId: string }
   | { type: 'event'; at: number; eventId: string; eventType: string; result: string }
@@ -142,15 +139,6 @@ export function advanceMission(mission: CityMission, original: MissionAttempt, s
         attempt.progress = attempt.completedIds.length;
         completed = requirements.airportIds.every((id) => attempt.completedIds.includes(id));
       }
-      break;
-    case 'challenge':
-      if (signal.type === 'challengeStart' && signal.challengeId === requirements.challengeId) {
-        attempt.progress = 0; attempt.challengeEndsAt = signal.at + signal.timeLimitMs;
-      }
-      if (signal.type === 'challengeGate' && signal.challengeId === requirements.challengeId && signal.at <= (attempt.challengeEndsAt ?? 0)) {
-        attempt.progress = Math.max(attempt.progress, signal.gateIndex + 1);
-      }
-      if (signal.type === 'challenge' && signal.challengeId === requirements.challengeId && attempt.challengeEndsAt && signal.at <= attempt.challengeEndsAt && attempt.progress >= (requirements.gateCount ?? Infinity)) completed = true;
       break;
     case 'assignedHunter':
       if (signal.type === 'kill' && signal.valid && signal.isBot && signal.targetId === attempt.targetId) { attempt.progress = 1; completed = true; }

@@ -19,6 +19,7 @@ import { acquireNativeCredential, availableNativeProviders, clearNativeProviderS
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
 import { showFlightDialog } from './flight-dialog';
+import { persistPitchInverted, preferredPitchInverted } from './mobile-input';
 
 audioManager.install();
 audioManager.setMenuMusicDesired(true);
@@ -200,6 +201,7 @@ let hubNavigationEnabled = typeof hubStoredPreferences.navigationMarkersEnabled 
 let hubAudioMuted = typeof hubStoredPreferences.muted === 'boolean' ? hubStoredPreferences.muted : false;
 audioManager.setMuted(hubAudioMuted);
 let hubGraphicsQuality: PilotMenuData['preferences']['graphicsQuality'] = 'auto';
+let hubPitchInverted=preferredPitchInverted();
 try {
   const quality = localStorage.getItem('airport-chaos-graphics-quality-v1');
   if (quality === 'high' || quality === 'balanced' || quality === 'low') hubGraphicsQuality = quality;
@@ -366,6 +368,7 @@ function hubPilotMenuData(): PilotMenuData {
       setMobileControl: (control, placement) => { Object.assign(hubMobileLayout[control], placement); hubPilotMenu.refresh(hubPilotMenuData()); },
       resetMobileLayout: () => hubMobileLayout,
     },
+    flightPitch:{inverted:hubPitchInverted,touch:false,setInverted:(inverted)=>{hubPitchInverted=inverted;persistPitchInverted(inverted);hubPilotMenu.refresh(hubPilotMenuData());}},
     restart: () => undefined,
     audio: {
       muted: hubAudioMuted,
@@ -650,16 +653,17 @@ async function startTrainingFromHub(): Promise<void> {
   try {
     const response = await apiFetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tutorialState: { version: 'tutorial_v1', status: 'started' } }),
+      body: JSON.stringify({ tutorialState: { version: 'tutorial_v1', status: 'started', freshRun: true } }),
     });
     if (!response.ok) throw new Error('Training session unavailable');
     const profile = await response.json() as RemoteGarageProfile;
     applyAuthoritativeHomeProfile(profile);
-    const progressKey = `airport-chaos-training-progress-v3:${garageIdentity.pilotId}`;
+    // An intentional Tutorial launch is always a clean run. The server owns
+    // lesson state for the active session; old local tutorial caches are not resumed.
     try {
-      const stored = JSON.parse(localStorage.getItem(progressKey) ?? '{}') as { completed?: boolean };
-      if (stored.completed) localStorage.setItem(progressKey, JSON.stringify({ version: 3, nextLesson: 'joystick', completed: false }));
-    } catch { localStorage.removeItem(progressKey); }
+      localStorage.removeItem(`airport-chaos-training-progress-v3:${garageIdentity.pilotId}`);
+      localStorage.removeItem(`airport-chaos-training-progress-v5:${garageIdentity.pilotId}`);
+    } catch { /* Optional legacy cache cleanup. */ }
     await enterCity(city, 'day', true);
   } catch (error) {
     console.error('[tutorial-entry] Unable to create training session.', error);

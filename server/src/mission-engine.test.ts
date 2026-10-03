@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { cityMissionCatalog, missionForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
@@ -14,10 +15,10 @@ function attempt(missionId: string): MissionAttempt {
 }
 
 test('Dallas catalog remains complete and city-scoped starter missions exist in Milwaukee', () => {
-  assert.equal(cityMissionCatalog.dallas.length, 26);
-  assert.deepEqual(cityMissionCatalog.dallas.map((mission) => mission.number), Array.from({ length: 26 }, (_, index) => index + 1));
+  assert.equal(cityMissionCatalog.dallas.length, 25);
+  assert.deepEqual(cityMissionCatalog.dallas.map((mission) => mission.number), Array.from({ length: 26 }, (_, index) => index + 1).filter((number) => number !== 6));
   assert.deepEqual(cityMissionCatalog.dallas.map((mission) => [mission.creditReward, mission.scoreReward]), [
-    [15, 25], [40, 50], [60, 75], [75, 100], [350, 400], [200, 300], [250, 350], [450, 600],
+    [15, 25], [40, 50], [60, 75], [75, 100], [350, 400], [250, 350], [450, 600],
     [400, 500], [700, 850], [1100, 1300], [2500, 3000], [2000, 2500], [2750, 3250],
     [900, 1200], [1000, 1250], [750, 1000], [1750, 2500], [500, 750], [3500, 4500],
     [3000, 4000], [5000, 6500], [6000, 7500], [10000, 12500], [15000, 20000], [2000, 2500],
@@ -26,6 +27,7 @@ test('Dallas catalog remains complete and city-scoped starter missions exist in 
   assert.equal(missionForCity('dallas', 'straight-run')?.requirements.meters, 24_000);
   assert.equal(missionForCity('milwaukee', 'straight-run')?.requirements.meters, 24_000);
   assert.equal(missionForCity('dallas', 'stunt-training')?.retired, true);
+  assert.equal(missionForCity('dallas', 'speed-course'), undefined);
   const grandTour = missionForCity('dallas', 'dallas-grand-tour')!;
   assert.equal(grandTour.replayCooldownMs, 30 * 60_000);
   assert.equal(grandTour.requirements.steps?.length, 11);
@@ -97,6 +99,23 @@ test('mission attempts persist, switch resets, reward is once-only, and replay c
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('removed Speed Course mission is unavailable and legacy saved attempts are ignored', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-chaos-retired-speed-course-'));
+  try {
+    const path = join(directory, 'profiles.sqlite');
+    const store = new PlayerProfileStore(path);
+    const pilotId = 'legacy-speed-course-pilot';
+    store.getOrCreate(pilotId, 'Pilot');
+    const saved = { dallas: { active: attempt('speed-course'), completions: { 'speed-course': { count: 3, lastCompletedAt: 5_000 } } } };
+    new DatabaseSync(path).prepare('UPDATE player_profiles SET missions=? WHERE pilot_id=?').run(JSON.stringify(saved), pilotId);
+    const profile = store.getOrCreate(pilotId, 'Pilot');
+    assert.equal(profile.missions.dallas?.active, undefined);
+    assert.equal(profile.missions.dallas?.completions['speed-course'], undefined);
+    assert.deepEqual(store.acceptMission(pilotId, 'dallas', 'speed-course', false), { ok: false, reason: 'MISSION UNAVAILABLE' });
+    assert.equal(store.acceptMission(pilotId, 'dallas', 'first-flight', false).ok, true);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('territory hold resets on ownership loss and cannot advance offline', () => {
   const source = missionForCity('dallas', 'south-metro-capture')!;
   const mission = { ...source, requirements: { ...source.requirements, durationSeconds: 5 } };
@@ -118,14 +137,7 @@ test('territory hold resets on ownership loss and cannot advance offline', () =>
   assert.equal(state.completed, true);
 });
 
-test('challenge gates, Wanted start, and controlled-kill requirements stay attempt-scoped', () => {
-  const speed = missionForCity('dallas', 'speed-course')!;
-  const speedAttempt = attempt(speed.id);
-  assert.equal(advanceMission(speed, speedAttempt, { type: 'challenge', at: 5_000, challengeId: 'dfw-speed' }).completed, false);
-  let state = advanceMission(speed, speedAttempt, { type: 'challengeStart', at: 2_000, challengeId: 'dfw-speed', timeLimitMs: 62_000 });
-  for (let index = 0; index < 4; index += 1) state = advanceMission(speed, state.attempt, { type: 'challengeGate', at: 3_000 + index * 1_000, challengeId: 'dfw-speed', gateIndex: index });
-  assert.equal(advanceMission(speed, state.attempt, { type: 'challenge', at: 7_000, challengeId: 'dfw-speed' }).completed, true);
-
+test('Wanted start and controlled-kill requirements stay attempt-scoped', () => {
   const wanted = missionForCity('dallas', 'most-wanted')!;
   assert.equal(advanceMission(wanted, attempt(wanted.id), { type: 'wantedSurvived', at: 10_000, eventId: 'event-a' }).completed, false);
   const started = advanceMission(wanted, attempt(wanted.id), { type: 'wantedStarted', at: 3_000, eventId: 'event-a', heatLevel: 5 });

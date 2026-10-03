@@ -20,6 +20,7 @@ export type PlayerProfile = {
   pilotId: string;
   pilotName: string;
   credits: number;
+  creditRevision: number;
   score: number;
   economyVersion: number;
   aircraftEntitlements: string[];
@@ -61,7 +62,6 @@ export type MissionAttempt = {
   progress: number; holdStartedAt?: number; flightStartedAt?: number;
   heading?: number; distanceMeters?: number; completedIds: string[];
   targetId?: string; eventId?: string; sequenceIndex?: number; ownedTerritoryIds?: string[];
-  challengeEndsAt?: number;
 };
 export type MissionCityState = {
   active?: MissionAttempt;
@@ -110,6 +110,7 @@ type ProfileRow = {
   pilot_id: string;
   pilot_name: string;
   credits: number;
+  credit_revision: number;
   score: number;
   selected_aircraft: string;
   total_distance: number;
@@ -348,6 +349,7 @@ export class PlayerProfileStore {
         pilot_id TEXT PRIMARY KEY,
         pilot_name TEXT NOT NULL,
         credits INTEGER NOT NULL DEFAULT 0,
+        credit_revision INTEGER NOT NULL DEFAULT 0,
         score INTEGER NOT NULL DEFAULT 0,
         selected_aircraft TEXT NOT NULL DEFAULT 'trainer',
         total_distance REAL NOT NULL DEFAULT 0,
@@ -488,6 +490,12 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN missions TEXT NOT NULL DEFAULT '{}'`); } catch { /* already migrated */ }
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN fighter_trial TEXT NOT NULL DEFAULT '{"status":"available"}'`); } catch { /* already migrated */ }
     try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN score INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN credit_revision INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
+    // A single durable revision covers every existing credit award and spend
+    // path without trusting any client-supplied reward amount.
+    this.database.exec(`CREATE TRIGGER IF NOT EXISTS player_profiles_credit_revision
+      AFTER UPDATE OF credits ON player_profiles WHEN NEW.credits != OLD.credits
+      BEGIN UPDATE player_profiles SET credit_revision = OLD.credit_revision + 1 WHERE pilot_id = NEW.pilot_id; END`);
     try { this.database.exec('ALTER TABLE pilot_tutorial_state ADD COLUMN evidence INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
     this.pruneRewardReceipts();
     this.database.exec(`
@@ -1376,6 +1384,7 @@ export class PlayerProfileStore {
       pilotId: row.pilot_id,
       pilotName: profileName(row.pilot_name, 'Pilot'),
       credits,
+      creditRevision: boundedInteger(row.credit_revision, Number.MAX_SAFE_INTEGER),
       score: boundedInteger(row.score, 100_000_000),
       economyVersion: ECONOMY_VERSION,
       aircraftEntitlements,

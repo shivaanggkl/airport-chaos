@@ -24,7 +24,6 @@ test('timers, counts, territories, kills, checkpoints, landing quality, distance
     ['first-flight', 23, 60, /23 \/ 60 sec/],
     ['straight-run', 12_400, 24_000, /12\.4 \/ 24 km/],
     ['airport-tour', 2, 4, /2 \/ 4 landings/],
-    ['speed-course', 2, 4, /2 \/ 4 gates/],
     ['south-metro-capture', 83, 300, /1:23 \/ 5:00/],
     ['airport-control', 2, 4, /2 \/ 4 territories/],
     ['vip-escort', 2, 4, /2 \/ 4 checkpoints/],

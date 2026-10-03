@@ -46,7 +46,6 @@ export const cityMissionCatalog = Object.freeze({
     mission(3, 'straight-run', 'straightDistance', 'STRAIGHT RUN — DALLAS', 'Fly 24 km without landing and stay roughly on the same heading.', 'EASY', 60, 75, { meters: 24_000, maxHeadingErrorRadians: 0.17 }, 10),
     mission(4, 'stunt-training', 'stuntPair', 'STUNT TRAINING', 'Do one Barrel Roll and one Quick Dodge in the same flight.', 'EASY', 75, 100, { maneuvers: ['barrelRoll', 'quickDodge'] }, 10, true),
     mission(5, 'airport-tour', 'airportLandings', 'AIRPORT TOUR', 'Land at all four Dallas airports, in any order.', 'MEDIUM', 350, 400, { airportIds: ['dfw', 'love', 'addison', 'executive'] }, 15),
-    mission(6, 'speed-course', 'challenge', 'SPEED COURSE', 'Fly every cyan Speed Course gate in order before time runs out.', 'MEDIUM', 200, 300, { challengeId: 'dfw-speed', gateCount: 4 }, 15),
     mission(7, 'first-hunter', 'assignedHunter', 'FIRST HUNTER', 'Destroy your marked AI Hunter.', 'MEDIUM', 250, 350, { personality: 'hunter' }, 15),
     mission(8, 'human-rival', 'humanKill', 'HUMAN RIVAL', 'Destroy one real human pilot.', 'MEDIUM', 450, 600, { kills: 1 }, 15),
     mission(9, 'south-metro-capture', 'territoryHold', 'SOUTH METRO CAPTURE', `Capture ${name.executive} and hold it for 5 minutes.`, 'HARD', 400, 500, { territoryIds: ['dallas-executive'], durationSeconds: 300 }, 5),

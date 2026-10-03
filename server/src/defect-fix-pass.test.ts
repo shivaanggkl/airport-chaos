@@ -38,9 +38,10 @@ test('mission HUD routes to the canonical menu and credits render from profile d
   const stunts = read('client/src/stunt-combo.ts');
   assert.match(main, /openActiveMissionFromHud[\s\S]*openPilotMenu\('MISSIONS'\)[\s\S]*pilotMenu\.focusMission/);
   assert.match(menu, /active\.dataset\.missionId = current\.id/);
-  const creditCalls = [...main.matchAll(/queueRewardFeedback\(([^\n]*)/g)].map((match) => match[1]);
-  assert.ok(creditCalls.every((call) => call.startsWith('0,') || call.startsWith('creditDelta') || call.includes('silentDistanceCredits')));
-  assert.match(main, /queueRewardFeedback\(earnedCredits \+ silentDistanceCredits, 0, creditReason/);
+  const creditCalls = [...main.matchAll(/queueRewardFeedback\(([^\n]*)/g)].map((match) => match[1]).filter((call) => !call.startsWith('creditDelta ='));
+  assert.ok(creditCalls.every((call) => call.startsWith('0,') || call.startsWith('creditUpdate.toastDelta')));
+  assert.match(main, /creditsElement\.textContent = credits\.toLocaleString\(\)/);
+  assert.match(main, /queueRewardFeedback\(creditUpdate\.toastDelta\)/);
   assert.doesNotMatch(main, /DESTROYED \+\$\{message\.killerReward\}/);
   assert.doesNotMatch(challenges, /\+\$\{totalReward\} CREDITS/);
   assert.doesNotMatch(stunts, /\+\$\{credits\} CREDITS/);

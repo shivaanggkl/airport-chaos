@@ -6,6 +6,7 @@ export const COORDINATED_BANK_CAP: number;
 export const MOBILE_BANK_STRONG_TARGET: number;
 export const MOBILE_BANK_CAP: number;
 export function desktopTurnIntent(turnLeft:boolean,turnRight:boolean):number;
+export function normalizedPitchCommand(rawPitchCommand:number,inverted:boolean):number;
 export function smoothMobileSteering(current:{x:number;y:number},target:{x:number;y:number},delta:number,responseSeconds?:number|{x:number;y:number}):{x:number;y:number};
 export function coordinatedBankTarget(turnInput:number):number;
 export function stepCoordinatedBank(currentBank:number,turnInput:number,delta:number,envelope:{rollRate:number;rollInputResponse:number;rollLevelRate?:number}):number;

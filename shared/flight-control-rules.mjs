@@ -16,6 +16,10 @@ export function desktopTurnIntent(turnLeft,turnRight){
   return(Number(Boolean(turnLeft))-Number(Boolean(turnRight)))*COORDINATED_TURN_STRONG_INPUT;
 }
 
+export function normalizedPitchCommand(rawPitchCommand,inverted){
+  return clamp(Number.isFinite(rawPitchCommand)?rawPitchCommand:0,-1,1)*(inverted?-1:1);
+}
+
 export function smoothMobileSteering(current,target,delta,responseSeconds={x:MOBILE_STICK_X_SMOOTH_SECONDS,y:MOBILE_STICK_Y_SMOOTH_SECONDS}){
   const response=typeof responseSeconds==='number'?{x:responseSeconds,y:responseSeconds}:responseSeconds;
   const elapsed=Math.max(0,delta);

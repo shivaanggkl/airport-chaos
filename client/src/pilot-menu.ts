@@ -1,5 +1,5 @@
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
-import { cameraControlLabels, controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
+import { actionKeyLabel, cameraControlLabels, controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
@@ -108,7 +108,7 @@ export type PilotMenuData = {
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
   preferences:{touchMode:'auto'|'on'|'off';touchLayout:boolean;setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void;mobileLayout:MobileControlLayout;setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>void;resetMobileLayout:()=>MobileControlLayout};
-  mobilePitch?: { inverted: boolean; setInverted: (inverted: boolean) => void };
+  flightPitch: { inverted: boolean; touch: boolean; setInverted: (inverted: boolean) => void };
   restart: () => void;
   exitFlight?: () => void;
   cityGuide?: () => void;
@@ -295,7 +295,7 @@ export class PilotMenu {
         data.missions.entries.map(({ id, completions }) => [id, completions]),
         data.territories.entries.map(({ id, ownedByYou }) => [id, ownedByYou]), data.leaderboards]);
       case 'GARAGE': return JSON.stringify([this.activeSection, data.garage.available, data.garage.reason]);
-      case 'CONTROLS': return JSON.stringify([this.activeSection, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout]);
+      case 'CONTROLS': return JSON.stringify([this.activeSection, data.flightPitch.inverted, data.flightPitch.touch, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout]);
       case 'HELP': return this.activeSection;
       case 'SETTINGS': return JSON.stringify([this.activeSection, data.hints.enabled, data.navigation.enabled, data.audio.muted]);
       case 'DATA LICENSES': return this.activeSection;
@@ -758,13 +758,18 @@ export class PilotMenu {
     if (this.activeSection === 'CONTROLS') {
     const controls = section('CONTROLS');
     const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
+    controls.append(
+      textElement('p',data.flightPitch.touch
+        ? 'NORMAL: joystick UP = + ALT and DOWN = − ALT. INVERTED: joystick DOWN = + ALT and UP = − ALT.'
+        : `NORMAL: ${actionKeyLabel('pitchUp')} = + ALT and ${actionKeyLabel('pitchDown')} = − ALT. INVERTED: ${actionKeyLabel('pitchDown')} = + ALT and ${actionKeyLabel('pitchUp')} = − ALT.`,'pilot-menu-muted'),
+      selectRow('FLIGHT PITCH',data.flightPitch.inverted?'inverted':'normal',['normal','inverted'],value=>data.flightPitch.setInverted(value==='inverted')),
+    );
     if(data.preferences.touchLayout){
       const touchDescription=textElement('p','', 'pilot-menu-muted');touchDescription.textContent='The left stick controls turning and altitude. The right throttle lever holds your selected power; drag into its Boost Zone to use Boost.';
       controls.append(
         touchDescription,
         selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),
       );
-      if(data.mobilePitch)controls.append(selectRow('JOYSTICK PITCH',data.mobilePitch.inverted?'inverted':'normal',['normal','inverted'],value=>data.mobilePitch!.setInverted(value==='inverted')));
       const labels:Record<MobileControlId,string>={stick:'DIRECTION STICK',throttle:'THROTTLE LEVER',fire:'FIRE'};
       for(const control of ['stick','throttle','fire'] as const){
         const editor=document.createElement('fieldset');editor.className='pilot-mobile-control-editor';const legend=document.createElement('legend');legend.textContent=labels[control];editor.append(legend);

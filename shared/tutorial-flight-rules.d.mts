@@ -16,4 +16,15 @@ export declare function tutorialLockPreviewInstruction(): TutorialInstruction;
 export declare function tutorialTakeoffRecoveryInstruction(step: TutorialLessonStep, inputMode?: TutorialInputMode, inverted?: boolean, bindings?: TutorialBindings): TutorialInstruction;
 export declare function tutorialDetectedInstruction(step: string, inputMode?: TutorialInputMode, inverted?: boolean, bindings?: TutorialBindings, landingStage?: 'power' | 'alignment' | 'descent'): string;
 export declare function tutorialLandingInstruction(stage: 'power' | 'alignment' | 'descent', inputMode?: TutorialInputMode, inverted?: boolean, bindings?: TutorialBindings): TutorialInstruction;
+export type TutorialLandingCoachStage = 'alignLeft' | 'alignRight' | 'speedUp' | 'slowDown' | 'coast' | 'descend' | 'climb' | 'easeDescent' | 'levelWings' | 'levelNose' | 'touchdown' | 'steady';
+export type TutorialLandingCoachFlight = {
+  airport: { x: number; z: number; heading: number; runwayWidth: number; runwayLength: number };
+  position: { x: number; z: number };
+  heading: number; speed: number; verticalSpeed: number; altitude: number; throttle: number;
+  stallSpeed: number; takeoffSpeed: number; safeLandingSpeed: number; safeDescentRate: number; landingTilt: number;
+  roll: number; pitch: number; landingAssistActive: boolean;
+};
+export declare function tutorialLandingCoachStage(flight: TutorialLandingCoachFlight): TutorialLandingCoachStage;
+export declare function tutorialLandingCoachInstruction(stage: TutorialLandingCoachStage, inputMode?: TutorialInputMode, inverted?: boolean, bindings?: TutorialBindings): TutorialInstruction;
+export declare function tutorialLandingApproach(airport: { id: string; x: number; z: number; heading: number; runwayWidth: number; runwayLength: number }, safeLandingSpeed: number): { airportId: string; position: { x: number; y: number; z: number }; heading: number; speed: number };
 export declare function shouldOfferTutorial(status?: string, establishedProfile?: boolean, localStatus?: string | null): boolean;

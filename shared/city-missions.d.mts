@@ -1,4 +1,4 @@
-export type MissionType = 'airborneHold' | 'destinationLanding' | 'straightDistance' | 'stuntPair' | 'airportLandings' | 'challenge' | 'assignedHunter' | 'humanKill' | 'territoryHold' | 'territoryOwn' | 'event' | 'wantedSurvival' | 'precisionLanding' | 'territorySequence' | 'territoryUniqueKills' | 'airportEmpire' | 'liveScoreRank' | 'sequentialTour';
+export type MissionType = 'airborneHold' | 'destinationLanding' | 'straightDistance' | 'stuntPair' | 'airportLandings' | 'assignedHunter' | 'humanKill' | 'territoryHold' | 'territoryOwn' | 'event' | 'wantedSurvival' | 'precisionLanding' | 'territorySequence' | 'territoryUniqueKills' | 'airportEmpire' | 'liveScoreRank' | 'sequentialTour';
 export type CityMissionStep = Readonly<{
   id: string; kind: 'area' | 'checkpoint' | 'altitude' | 'lowDistance' | 'areaHold'; label: string;
   x?: number; z?: number; radius?: number; bounds?: Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>;
@@ -11,7 +11,7 @@ export type CityMission = {
   cargoCreditBonus?: boolean; retired?: boolean;
   requirements: {
     airportId?: string; airportIds?: readonly string[]; territoryIds?: readonly string[]; requiredTerritoryIds?: readonly string[];
-    challengeId?: string; gateCount?: number; eventType?: string; result?: string; personality?: string;
+    eventType?: string; result?: string; personality?: string;
     durationSeconds?: number; holdDurationSeconds?: number; meters?: number; maxHeadingErrorRadians?: number;
     maneuvers?: readonly string[]; kills?: number; uniqueKills?: number;
     heatLevel?: number; minimumScore?: number; allCityTerritories?: boolean; rank?: number; minimumHumanPlayers?: number;

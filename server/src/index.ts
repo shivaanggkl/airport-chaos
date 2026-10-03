@@ -20,6 +20,7 @@ import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mj
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
+import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -35,7 +36,7 @@ import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/cha
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
 import { runwayCombatProtectionActive } from '../../shared/runway-combat-protection.mjs';
-import { tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -172,6 +173,7 @@ type ProjectileState = {
 type ActiveChallenge = { challengeId: string; cityId: CityId; startedAt: number; lastGateAt: number; gateIndex: number; rewarded: boolean };
 
 const players = new Map<string, PlayerState>();
+const lastSentCredits = new Map<string, number>();
 const repairCooldowns = new Map<string, number>();
 const repairLastPosition = new Map<string, { x: number; y: number; z: number }>();
 const airportRepairStays = new Map<string, { airportId: string; since: number }>();
@@ -1085,7 +1087,7 @@ const httpServer = createServer(async (request, response) => {
           analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'aircraft_unlocked', { source: 'tester_code' });
         }
       } else if(payload?.tutorialState&&typeof payload.tutorialState==='object'){
-        const tutorialState=payload.tutorialState as {version?:unknown;status?:unknown};
+        const tutorialState=payload.tutorialState as {version?:unknown;status?:unknown;freshRun?:unknown};
         if(tutorialState.version==='tutorial_v1'&&(tutorialState.status==='started'||tutorialState.status==='completed'||tutorialState.status==='skipped')){
           const sessions=[...players.entries()].filter(([,player])=>player.pilotId===identity.pilotId&&player.tutorialMode);
           if(tutorialState.status==='completed'&&!profileStore.tutorialStepsResolved(identity.pilotId)){
@@ -1096,6 +1098,7 @@ const httpServer = createServer(async (request, response) => {
             // Keep the old socket isolated until navigation disconnects it.
             for(const [peer,peerId] of playerSockets)if(peerId===id)peer.close(1000,'Training ended');
           }
+          if(tutorialState.status==='started'&&tutorialState.freshRun===true)profileStore.resetTutorialRun(identity.pilotId);
           profile=profileStore.setTutorialState(identity.pilotId,tutorialState.status);
           if(profile)analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},tutorialState.status==='started'?'tutorial_started':tutorialState.status==='completed'?'tutorial_completed':'tutorial_skipped',{metadata:{tutorialVersion:'tutorial_v1'}});
         }else error='Invalid tutorial state';
@@ -1673,13 +1676,27 @@ const serverVerifiedTutorialSteps=new Set<TutorialLessonStep>(['takeoff','approa
 function sendTutorialStepResult(playerId:string,result:{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>},step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>):void{
   sendToPlayer(playerId,{type:'tutorialStepResult',ok:result.ok,step,status,nextStep:result.nextStep,steps:result.steps,reason:result.reason});
 }
+function sendTutorialLandingApproach(playerId:string,player:PlayerState):void{
+  if(!player.tutorialMode||player.cityId!=='milwaukee'||profileStore.nextPendingTutorialStep(player.pilotId)!=='landing')return;
+  const approach=tutorialLandingApproach(cityAirports.milwaukee[0],aircraftFlightEnvelope.trainer.safeLandingSpeed);
+  const now=Date.now();
+  removeTrainingTarget(playerId);removePlayerProjectiles(playerId);
+  // An earlier tutorial touchdown must not consume the final lesson's receipt.
+  landingReceipts.delete(`${playerId}:${approach.airportId}`);
+  player.position={...approach.position};player.lastAcceptedPosition={...approach.position};player.lastAcceptedTransformAt=now;
+  player.rotation={x:0,y:approach.heading,z:0};
+  player.velocity={x:-Math.sin(approach.heading)*approach.speed,y:0,z:-Math.cos(approach.heading)*approach.speed};
+  player.hasRespawnTransform=false;player.lifeState='alive';player.lastStateAt=now;
+  landingFlightState.set(playerId,{baselineY:approach.position.y-8,airborne:true});
+  sendToPlayer(playerId,{type:'tutorialLandingApproach',...approach});
+}
 function completeServerTutorialStep(playerId:string,player:PlayerState,step:TutorialLessonStep,now=Date.now()):void{
   if(!player.tutorialMode)return;
   // Authoritative events can arrive while the preceding lesson's 600ms
   // success card is still visible. Persist the evidence immediately; the
   // client serializes presentation without weakening server verification.
-  const result=profileStore.recordTutorialStepStatus(player.pilotId,step,'completed',now,false);
-  if(result.changed){sendTutorialStepResult(playerId,result,step,'completed');recordAnalytics(playerId,'tutorial_step_completed',{metadata:{cityId:player.cityId,mode:step}},now);}
+  const result=profileStore.recordTutorialStepStatus(player.pilotId,step,'completed',now);
+  if(result.changed){sendTutorialStepResult(playerId,result,step,'completed');if(result.nextStep==='landing')sendTutorialLandingApproach(playerId,player);recordAnalytics(playerId,'tutorial_step_completed',{metadata:{cityId:player.cityId,mode:step}},now);}
 }
 
 function isHumanPilot(player: PlayerState | undefined): player is PlayerState & { isBot: false } {
@@ -1697,15 +1714,20 @@ function progressionEnabled(player: PlayerState | undefined): boolean {
   return Boolean(player && !player.tutorialMode && cityCapabilities(player.cityId)?.progressionEnabled);
 }
 
-function sendProfile(playerId: string, profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false, serverReset = false): void {
+function sendProfile(playerId: string, _profile?: PlayerProfile, rewardId?: string, equipRequestId?: number, creditReason?: string, preserveActiveAircraft = false, serverReset = false): void {
   const player = players.get(playerId);
   if (!isHumanPilot(player)) return;
-  const current = reconcilePaidFirehawk(profile ?? player.profile);
+  // Caller snapshots can be stale after another reward source commits. Read
+  // the persisted profile at send time so the receipt and balance agree.
+  const current = reconcilePaidFirehawk(profileStore.getOrCreate(player.pilotId, player.displayName));
+  const previousCredits = lastSentCredits.get(playerId);
+  const receipt = previousCredits === undefined ? undefined : creditReceipt(previousCredits, current.credits, randomUUID(), creditReason ?? 'Profile Sync');
+  lastSentCredits.set(playerId, current.credits);
   const keepActiveAircraft = preserveActiveAircraft || player.tutorialMode;
   player.profile = current;
   player.displayName = current.pilotName;
   if (!keepActiveAircraft) player.aircraftType = current.selectedAircraft;
-  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft: keepActiveAircraft, serverReset });
+  sendToPlayer(playerId, { type: 'profile', profile: current, rewardId, creditReceipt: receipt, selectionRevision: player.selectionRevision ?? 0, equipRequestId, creditReason, preserveActiveAircraft: keepActiveAircraft, serverReset });
 }
 
 function awardPilotProgress(playerId: string, amount: number): void {
@@ -1934,7 +1956,6 @@ function startSkyChallenge(playerId: string, player: PlayerState, challengeId: u
   if (!challenge) return;
   const now = Date.now();
   activeChallenges.set(playerId, { challengeId, cityId: player.cityId, startedAt: now, lastGateAt: now, gateIndex: 0, rewarded: false });
-  missionSignal(playerId, { type: 'challengeStart', at: now, challengeId, timeLimitMs: challenge.timeLimit * 1_000 });
 }
 
 function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId: unknown, gateIndex: unknown): void {
@@ -1945,8 +1966,7 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
     if (active && now - active.startedAt > (challenge?.timeLimit ?? 0) * 1000) activeChallenges.delete(playerId);
     return;
   }
-  // The mission Speed Course is validated against the same four gates that
-  // the client draws. A gate intent alone cannot advance the mission.
+  // Validate the standalone sky challenge against the gates the client draws.
   const gate = challenge.gates?.[active.gateIndex];
   if (gate) {
     const gateY = (dallasAirportElevations.get(`${challenge.id}:${active.gateIndex}`) ?? 0) + gate.altitude;
@@ -1955,7 +1975,6 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   }
   active.lastGateAt = now;
   active.gateIndex += 1;
-  missionSignal(playerId, { type: 'challengeGate', at: now, challengeId: challenge.id, gateIndex: active.gateIndex - 1 });
   if (active.gateIndex < challenge.gateCount) return;
   active.rewarded = true;
   activeChallenges.delete(playerId);
@@ -1968,7 +1987,6 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   if (profile) sendProfile(playerId, profile, undefined, undefined, 'Sky Challenge');
   if (challengeCredits > 0) recordAnalytics(playerId, 'credits_earned', { amount: challengeCredits, source: 'challenge' }, now);
   recordObjectiveActivity(playerId, 'challenge');
-  missionSignal(playerId, { type: 'challenge', at: now, challengeId: challenge.id });
   awardMastery(playerId, 'challenge');
   sendToPlayer(playerId, { type: 'challengeComplete', challengeId: challenge.id, score: challengeScore, credits: challengeCredits });
   broadcastLeaderboard(player.cityId);
@@ -2003,6 +2021,9 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   const envelope = { speed: aircraft.safeLandingSpeed, descent: aircraft.safeDescentRate, tilt: aircraft.landingTilt };
   // Match the assisted touchdown envelope accepted by flight/HUD.
   if (!flight?.airborne || telemetry.speed > envelope.speed * 1.18 || Math.abs(telemetry.descentRate) > envelope.descent * 1.35 || telemetry.bankAngle > envelope.tilt + 0.12 || Math.abs(telemetry.pitch) > envelope.tilt + 0.10 || telemetry.headingError > 0.62) return;
+  // Tutorial completion also requires the latest accepted transform at runway height
+  // and above the trainer's existing stall threshold; normal landing rules stay intact.
+  if (player.tutorialMode && (telemetry.speed < aircraft.stallSpeed || !runwayOrTaxiSpawnArea(player))) return;
   // Taxi/parked contacts cannot satisfy the runway, speed, fresh-transform,
   // and telemetry-consistency requirements together.
   landingReceipts.set(receiptKey, now);
@@ -3352,6 +3373,10 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     runwayCombatProtected(ownerId, owner) || runwayCombatProtected(victimId, victim)
   ) return false;
 
+  // The training target only accepts a hit during the FIRE lesson. A lucky
+  // early ballistic shot must not destroy the lesson target or skip LOCK.
+  if(victim.trainingOwnerId&&ownerId===victim.trainingOwnerId&&profileStore.nextPendingTutorialStep(owner.pilotId)!=='fire')return false;
+
   victim.health = Math.max(0, victim.health - projectileDamage);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
@@ -3737,6 +3762,13 @@ function removeTrainingTarget(ownerId: string): void {
 const trainingApproachRange = Math.min(COMBAT_RANGE, 600);
 function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.now()): string | undefined {
   if (!owner.tutorialMode || owner.cityId !== 'milwaukee' || owner.lifeState !== 'alive' || !owner.hasRespawnTransform) return undefined;
+  const existing=[...players.entries()].find(([,candidate])=>candidate.trainingOwnerId===ownerId&&candidate.lifeState==='alive');
+  if(existing){
+    existing[1].lastStateAt=now;
+    sendToPlayer(ownerId,botStateMessage(existing[0],existing[1],'playerState'));
+    sendToPlayer(ownerId,{type:'tutorialTarget',targetId:existing[0]});
+    return existing[0];
+  }
   removeTrainingTarget(ownerId);
   const forward = forwardDirection(owner);
   const targetId = `training:${ownerId}`;
@@ -3769,7 +3801,12 @@ function updateTrainingTargets(now: number): void {
     target.lastStateAt = now;
     const range=Math.hypot(target.position.x-owner.position.x,target.position.y-owner.position.y,target.position.z-owner.position.z);
     if(range<=trainingApproachRange){completeServerTutorialStep(target.trainingOwnerId,owner,'approach',now);sendToPlayer(target.trainingOwnerId,{type:'tutorialSignal',signal:'targetInRange'});}
-    if(owner.lockedTargetId===targetId)sendToPlayer(target.trainingOwnerId,{type:'tutorialSignal',signal:'targetLocked'});
+    if(owner.lockedTargetId===targetId){
+      // APPROACH may resolve on this same tick after the lock was first
+      // acquired. Recheck the live lock now so LOCK completes in order.
+      completeServerTutorialStep(target.trainingOwnerId,owner,'targetLock',now);
+      sendToPlayer(target.trainingOwnerId,{type:'tutorialSignal',signal:'targetLocked'});
+    }
     sendToPlayer(target.trainingOwnerId, botStateMessage(targetId, target));
   }
 }
@@ -4778,6 +4815,7 @@ function removeHumanConnection(socket: WebSocket): void {
   playerTrialNetworkIds.delete(playerId);
   firehawkPromotionShownConnections.delete(playerId);
   firehawkPromotionRequestCounts.delete(playerId);
+  lastSentCredits.delete(playerId);
   lastClientCrashAnalytics.delete(playerId);
   transformRejectLogAt.delete(playerId);
   missionSignal(playerId, { type: 'disconnect', at: Date.now() });
@@ -4868,6 +4906,7 @@ server.on('connection', (socket, request) => {
     distanceRewardMeters: 0,
     spawnSlot,
   });
+  lastSentCredits.set(playerId, profile.credits);
   connectionStartedAt.set(playerId, Date.now());
   playerSockets.set(socket, playerId);
   const restoredChaosEvent = profileStore.activeChaosEvent(profile.pilotId);
@@ -4945,6 +4984,7 @@ server.on('connection', (socket, request) => {
         })),
     },
   );
+  if(tutorialMode&&profileStore.nextPendingTutorialStep(profile.pilotId)==='landing')sendTutorialLandingApproach(playerId,players.get(playerId)!);
   broadcastToCity(cityId, { type: 'cosmeticChanged', playerId, equipped: profile.cosmetics.equipped });
   if (dailyClaim?.claimed) {
     sendSocketMessage(socket, { type: 'dailyStreakClaimed', day: dailyClaim.profile.dailyStreak.cycleDay, streak: dailyClaim.profile.dailyStreak.current, credits: dailyClaim.credits });
@@ -5068,8 +5108,8 @@ server.on('connection', (socket, request) => {
         const step=message.tutorialStep as TutorialLessonStep;const status=message.tutorialStepStatus as Exclude<TutorialStepStatus,'pending'>;
         if(status==='completed'&&serverVerifiedTutorialSteps.has(step))return;
         const result=profileStore.recordTutorialStepStatus(player.pilotId,step,status,Date.now());
-        if(result.ok&&result.nextStep==='landing')removeTrainingTarget(playerId);
         sendTutorialStepResult(playerId,result,step,status);
+        if(result.ok&&result.changed&&result.nextStep==='landing')sendTutorialLandingApproach(playerId,player);
         if(result.ok&&result.changed)recordAnalytics(playerId,status==='completed'?'tutorial_step_completed':'tutorial_step_skipped',{metadata:{cityId:player.cityId,mode:step}},Date.now());
         return;
       }
@@ -5085,6 +5125,8 @@ server.on('connection', (socket, request) => {
 
       if(message.type==='tutorialTargetRequest'){
         if(!player.tutorialMode||player.cityId!=='milwaukee')return;
+        const lesson=profileStore.nextPendingTutorialStep(player.pilotId);
+        if(lesson!=='approach'&&lesson!=='targetLock'&&lesson!=='fire')return;
         createTrainingTarget(playerId,player,Date.now());
         return;
       }
@@ -5323,19 +5365,6 @@ server.on('connection', (socket, request) => {
           profile = profileStore.updateMissionAttempt(player.pilotId, player.cityId, initialized) ?? profile;
         }
         sendProfile(playerId, profile);
-        if (definition.type === 'challenge') {
-          const activeChallenge = activeChallenges.get(playerId);
-          const challengeId = definition.requirements.challengeId;
-          const challenge = challengeId ? challengeForCity(player.cityId, challengeId) : undefined;
-          if (activeChallenge && challenge && activeChallenge.challengeId === challenge.id) {
-            const signalAt = Date.now();
-            const remainingMs = Math.max(0, challenge.timeLimit * 1_000 - (signalAt - activeChallenge.startedAt));
-            missionSignal(playerId, { type: 'challengeStart', at: signalAt, challengeId: challenge.id, timeLimitMs: remainingMs });
-            for (let gateIndex = 0; gateIndex < activeChallenge.gateIndex; gateIndex += 1) {
-              missionSignal(playerId, { type: 'challengeGate', at: signalAt, challengeId: challenge.id, gateIndex });
-            }
-          }
-        }
         if (process.env.AIRPORT_CHAOS_MISSION_DEBUG === '1') console.log('[mission-issued]', profile.missions[player.cityId]?.active?.attemptId);
         sendToPlayer(playerId, { type: 'missionResult', ok: true, missionId: definition.id, attemptId: profile.missions[player.cityId]?.active?.attemptId });
         // Existing server ownership counts on the accepted attempt immediately;
@@ -5504,7 +5533,7 @@ server.on('connection', (socket, request) => {
         message.position.z - player.lastAcceptedPosition.z,
       );
       // A discontinuity is trusted only while the server has put this player
-      // into its spawn lifecycle, and only at the server-selected runway slot.
+      // into its spawn lifecycle, at the server-selected runway or tutorial approach.
       if ((!validation.accepted && !(firstValidTransform && traveled <= 250)) || (firstValidTransform && traveled > 250)) {
         const reason = validation.accepted ? 'SPAWN_MISMATCH' : validation.reason;
         logTransformReject(playerId, player, reason, traveled, validation.accepted ? 250 : validation.allowedDistance, stateNow);

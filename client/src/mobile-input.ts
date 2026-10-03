@@ -32,8 +32,15 @@ export {
 const TOUCH_KEY = 'airport-chaos-touch-controls-v1';
 const QUALITY_KEY = 'airport-chaos-graphics-quality-v1';
 const LAYOUT_KEY = 'airport-chaos-mobile-layout-v1';
-const PITCH_KEY = 'airport-chaos-mobile-pitch-inverted-v1';
-function readPitchInverted(): boolean { try { return localStorage.getItem(PITCH_KEY)==='true'; } catch { return false; } }
+const PITCH_KEY = 'airport-chaos-flight-pitch-inverted-v1';
+const LEGACY_PITCH_KEY = 'airport-chaos-mobile-pitch-inverted-v1';
+export function preferredPitchInverted(): boolean {
+  try { return (localStorage.getItem(PITCH_KEY) ?? localStorage.getItem(LEGACY_PITCH_KEY)) === 'true'; }
+  catch { return false; }
+}
+export function persistPitchInverted(inverted:boolean):void {
+  try { localStorage.setItem(PITCH_KEY,String(inverted)); } catch { /* optional storage */ }
+}
 
 export type MobileControlId = 'stick' | 'throttle' | 'fire';
 export type MobileControlPlacement = { x: number; y: number; scale: number };
@@ -113,7 +120,7 @@ export function preferredGraphicsQuality(): GraphicsQualityMode {
 }
 
 export class MobileInputControls {
-  private pitchInverted = readPitchInverted();
+  private pitchInverted = preferredPitchInverted();
   private mode = preferredTouchMode();
   private layout = preferredLayout();
   private active = new Set<FlightAction>();
@@ -167,13 +174,14 @@ export class MobileInputControls {
   }
   setPitchInverted(inverted: boolean) {
     this.pitchInverted=inverted;
-    try { localStorage.setItem(PITCH_KEY, String(inverted)); } catch { /* optional storage */ }
+    persistPitchInverted(inverted);
     this.reset();
   }
   isTouchLayout() { return this.deviceEnabled(); }
   supportsTouchControls() { return matchMedia('(pointer: coarse)').matches || innerWidth <= 900; }
   getThrottleTarget() { return this.root.hidden ? undefined : this.throttleTarget; }
-  getSteeringInput() { return this.root.hidden ? { x: 0, y: 0 } : { x: this.steeringInput.x, y: this.steeringInput.y * (this.getPitchInverted() ? -1 : 1) }; }
+  // Raw stick input. The shared keyboard/touch pitch command applies inversion once.
+  getSteeringInput() { return this.root.hidden ? { x: 0, y: 0 } : { ...this.steeringInput }; }
 
   setThrottleState(throttle: number) {
     const value = clamp(throttle, 0, 1);

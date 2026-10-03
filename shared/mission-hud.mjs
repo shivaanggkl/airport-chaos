@@ -1,7 +1,7 @@
 const sentence = (value) => (value ?? '').split('\n')[0].trim().replace(/[.!?]+$/, '');
 const count = (value, fallback = 0) => Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
 const measurableTypes = new Set([
-  'airborneHold', 'straightDistance', 'airportLandings', 'challenge', 'territoryHold',
+  'airborneHold', 'straightDistance', 'airportLandings', 'territoryHold',
   'territoryOwn', 'territorySequence', 'territoryUniqueKills', 'airportEmpire',
   'liveScoreRank', 'sequentialTour', 'precisionLanding',
 ]);
@@ -27,7 +27,6 @@ export function missionHudObjective(definition) {
     case 'destinationLanding': return sentence(definition.description).replace(/^Land safely at /i, 'Land at ');
     case 'straightDistance': return `Fly ${Math.round((requirements.meters ?? 0) / 1_000)} km without landing`;
     case 'airportLandings': return `Land at all ${requirements.airportIds?.length ?? 0} airports`;
-    case 'challenge': return `Complete all ${requirements.gateCount ?? 0} course gates`;
     case 'assignedHunter': return 'Destroy the marked Hunter';
     case 'humanKill': return 'Destroy one real pilot';
     case 'territoryHold': return namedHoldObjective(definition);
@@ -77,7 +76,6 @@ export function missionHudProgress(definition, progress) {
   else if (definition.type === 'straightDistance') text = `${(value / 1_000).toFixed(1)} / ${(target / 1_000).toFixed(0)} km`;
   else if (definition.type === 'precisionLanding') text = `${count(value)} / ${count(target)} points`;
   else if (definition.type === 'wantedSurvival') text = `${count(value)} / ${count(target)} Danger`;
-  else if (definition.type === 'challenge') text = `${count(value)} / ${count(target)} gates`;
   else if (definition.type === 'event') text = `${count(value)} / ${count(target)} ${definition.requirements.eventType === 'goldenSkyRun' ? 'gates' : 'checkpoints'}`;
   else if (definition.type === 'airportLandings' || definition.type === 'airportEmpire') text = `${count(value)} / ${count(target)} landings`;
   else if (definition.type === 'territoryOwn' || definition.type === 'territorySequence') text = `${count(value)} / ${count(target)} territories`;

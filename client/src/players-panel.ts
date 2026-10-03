@@ -79,6 +79,12 @@ export class PlayersPanel {
     this.toggle.setAttribute('aria-label', this.collapsed ? 'Show players' : 'Hide players');
   }
 
+  isExpanded(): boolean { return !this.collapsed; }
+  setExpanded(expanded: boolean): void {
+    this.collapsed = !expanded;
+    this.applyCollapse();
+  }
+
   update(players: readonly HumanRosterEntry[], localId: string | null,
     ownedTerritories?: (playerId: string) => readonly { name: string; color: string }[]): void {
     const sorted = [...players].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName) || a.playerId.localeCompare(b.playerId));
@@ -127,6 +133,7 @@ export class CityTerritoriesPanel {
   private readonly indicator = document.createElement('i');
   private readonly toggle = document.createElement('button');
   private readonly content = document.createElement('div');
+  private readonly empty = document.createElement('small');
   private readonly rows = Array.from({ length: 8 }, () => CityTerritoriesPanel.createRow());
   private collapsed = mobilePanelDefault();
 
@@ -148,7 +155,9 @@ export class CityTerritoriesPanel {
     this.toggle.setAttribute('aria-controls', this.content.id);
     this.indicator.setAttribute('aria-hidden', 'true');
     this.toggle.append(this.title, this.indicator);
-    this.content.append(...this.rows.map(({ row }) => row));
+    this.empty.className = 'city-territory-empty';
+    this.empty.hidden = true;
+    this.content.append(...this.rows.map(({ row }) => row), this.empty);
     root.append(this.toggle, this.content);
     this.toggle.onclick = () => {
       this.collapsed = !this.collapsed;
@@ -165,6 +174,16 @@ export class CityTerritoriesPanel {
     this.indicator.textContent = this.collapsed ? '▸' : '▾';
     this.toggle.setAttribute('aria-expanded', String(!this.collapsed));
     this.toggle.setAttribute('aria-label', this.collapsed ? 'Show city territories' : 'Hide city territories');
+  }
+
+  isExpanded(): boolean { return !this.collapsed; }
+  setExpanded(expanded: boolean): void {
+    this.collapsed = !expanded;
+    this.applyCollapse();
+  }
+  setEmptyMessage(message: string): void {
+    this.empty.textContent = message;
+    this.empty.hidden = !message || this.rows.some(({ row }) => !row.hidden);
   }
 
   update(territories: readonly CityTerritoryEntry[], localId: string | null, online = true): void {
@@ -193,5 +212,6 @@ export class CityTerritoriesPanel {
       slot.row.classList.toggle('contested', online && territory.contested);
       slot.row.classList.toggle('neutral', !territory.contested && (!online || !territory.controllerId));
     }
+    this.empty.hidden = territories.length > 0 || !this.empty.textContent;
   }
 }

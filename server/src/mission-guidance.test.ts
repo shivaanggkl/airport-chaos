@@ -16,14 +16,13 @@ test('mission acceptance exposes authoritative availability and retirement reaso
   assert.match(menu, /label: item\.retired \? 'RETIRED' : cooling \? 'COOLDOWN' : unavailableReason \? 'UNAVAILABLE'/);
 });
 
-test('mission targets reuse world, radar, map, and gate guidance paths', () => {
+test('mission targets reuse world, radar, and map guidance paths', () => {
   assert.match(main, /TARGET: HUNTER/);
   assert.match(main, /ACE TARGET/);
   assert.match(main, /paintMissionEventMarker\(missionEventMarker[\s\S]*'VIP'/);
   assert.match(main, /drawRadarMarker\(direction[\s\S]*'mission'/);
   assert.match(main, /missionTarget: activeMission\?\.targetId === id/);
-  assert.match(challenges, /setMissionGuidance\(id\?: string, gateIndex = 0\)/);
-  assert.match(challenges, /completedMaterial[\s\S]*activeMaterial[\s\S]*inactiveMaterial/);
+  assert.doesNotMatch(challenges, /missionGuidance/);
   assert.match(main, /missionLocationTarget[\s\S]*drawRadarMarker\(direction, missionLocation\.x, missionLocation\.z, 'mission', 'NEXT'\)/);
   assert.match(main, /missionLocationMarker[\s\S]*NEXT: \$\{locationTarget\.label\}/);
 });

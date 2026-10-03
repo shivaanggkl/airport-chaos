@@ -4,9 +4,11 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PlayerProfileStore } from './player-profiles.js';
-import { normalizeTutorialState, nextTutorialStep, tutorialDetectedInstruction, tutorialInstruction, tutorialLandingInstruction, tutorialLockPreviewInstruction, tutorialStepPrerequisitesResolved, tutorialSteps, tutorialTakeoffRecoveryInstruction, tutorialTurnProgress, TUTORIAL_VERSION, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { normalizeTutorialState, nextTutorialStep, tutorialDetectedInstruction, tutorialInstruction, tutorialLandingApproach, tutorialLandingCoachInstruction, tutorialLandingCoachStage, tutorialLandingInstruction, tutorialLockPreviewInstruction, tutorialStepPrerequisitesResolved, tutorialSteps, tutorialTakeoffRecoveryInstruction, tutorialTurnProgress, TUTORIAL_VERSION, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { cityAirports } from '../../shared/city-airports.mjs';
+import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { TutorialStepReconciler } from '../../shared/tutorial-step-reconciler.mjs';
-import { desktopTurnIntent } from '../../shared/flight-control-rules.mjs';
+import { desktopTurnIntent, normalizedPitchCommand } from '../../shared/flight-control-rules.mjs';
 import { joystickInput } from '../../shared/mobile-input-rules.mjs';
 
 test('tutorial state is versioned and rejects unknown persisted values', () => {
@@ -51,7 +53,7 @@ test('a valid landing remains completable after intentional lesson skips', () =>
   assert.equal(tutorialStepPrerequisitesResolved('landing',states),false);
 });
 
-test('orientation preference drives real analog pitch without changing lateral input', async () => {
+test('global orientation preference keeps raw touch input and normalizes keyboard and touch pitch once', async () => {
   const moduleUrl = new URL('../../client/src/mobile-input.ts', import.meta.url);
   const { MobileInputControls } = await import(moduleUrl.href);
   const stored = new Map<string, string>();
@@ -65,19 +67,34 @@ test('orientation preference drives real analog pitch without changing lateral i
     assert.deepEqual(input.getSteeringInput(), { x: .6, y: -.7 });
     input.setPitchInverted(true);
     assert.equal(input.getPitchInverted(), true);
-    assert.equal(stored.get('airport-chaos-mobile-pitch-inverted-v1'), 'true');
+    assert.equal(stored.get('airport-chaos-flight-pitch-inverted-v1'), 'true');
     assert.equal(input.getSteeringInput().x, 0);
     assert.equal(Math.abs(input.getSteeringInput().y), 0);
     input.steeringInput = { x: .6, y: -.7 };
-    assert.deepEqual(input.getSteeringInput(), { x: .6, y: .7 });
+    assert.deepEqual(input.getSteeringInput(), { x: .6, y: -.7 });
+    assert.equal(normalizedPitchCommand(1,false),1);
+    assert.equal(normalizedPitchCommand(-1,false),-1);
+    assert.equal(normalizedPitchCommand(1,true),-1);
+    assert.equal(normalizedPitchCommand(-1,true),1);
     input.root.hidden = true;
     assert.deepEqual(input.getSteeringInput(), { x: 0, y: 0 });
     input.setPitchInverted(false);
-    assert.equal(stored.get('airport-chaos-mobile-pitch-inverted-v1'), 'false');
+    assert.equal(stored.get('airport-chaos-flight-pitch-inverted-v1'), 'false');
   } finally {
     if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
     else Reflect.deleteProperty(globalThis, 'localStorage');
   }
+  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+  const menu=readFileSync(new URL('../../client/src/pilot-menu.ts',import.meta.url),'utf8');
+  const inputSource=readFileSync(new URL('../../client/src/mobile-input.ts',import.meta.url),'utf8');
+  assert.match(main,/const rawPitchInput = keyboardPitchInput \|\| -touchSteering\.y;\s*const pitchInput = normalizedPitchCommand\(rawPitchInput,mobileInput\.getPitchInverted\(\)\)/);
+  assert.match(main,/data-training-orientation[^\n]*\.hidden=false/);
+  assert.match(main,/flightPitch: \{ inverted: mobileInput\.getPitchInverted\(\)/);
+  assert.match(main,/touch: mobileInput\.isTouchLayout\(\)/);
+  assert.match(menu,/selectRow\('FLIGHT PITCH',data\.flightPitch\.inverted/);
+  assert.match(menu,/NORMAL:.*pitchUp.*\+ ALT.*pitchDown.*− ALT.*INVERTED:.*pitchDown.*\+ ALT.*pitchUp.*− ALT/s);
+  assert.match(inputSource,/const PITCH_KEY = 'airport-chaos-flight-pitch-inverted-v1'/);
+  assert.doesNotMatch(inputSource,/steeringInput\.y \* \(this\.getPitchInverted/);
 });
 
 test('every tutorial instruction names the real control and action for desktop and mobile', () => {
@@ -100,19 +117,19 @@ test('the canonical copy is the exact 13-step single-panel sequence', () => {
   const keyboard=tutorialSteps.map(step=>tutorialInstruction(step,'keyboard'));
   const touch=tutorialSteps.map(step=>tutorialInstruction(step,'touch'));
   assert.deepEqual(keyboard.map(item=>item.lesson),[1,2,3,4,5,6,7,8,9,10,11,12]);
-  assert.deepEqual(keyboard.map(item=>item.title),['THROTTLE','TAKE OFF','TURN LEFT','TURN RIGHT','CLIMB','LOWER AIRCRAFT','LOOK AROUND','ZOOM','APPROACH TARGET','LOCK TARGET','FIRE','LAND']);
+  assert.deepEqual(keyboard.map(item=>item.title),['SPEED UP','TAKE OFF','TURN LEFT','TURN RIGHT','CLIMB','DESCEND','LOOK AROUND','ZOOM','FLY TO THE TARGET','LOCK THE TARGET','HIT THE TARGET','LAND THE PLANE']);
   assert.deepEqual(keyboard.map(item=>item.controlInstruction),[
-    'Hold W to increase power.','Hold ↑ to lift off.','Press A to turn LEFT.','Press D to turn RIGHT.','Hold ↑ to fly higher.','Hold ↓ to lower the aircraft.',
-    'Drag the mouse.','Use the mouse wheel.','Use A/D and ↑/↓ to approach the target.',
-    'Use Z/C and Q/E to aim.','Press SPACE.','Hold S to slow down.',
+    'Hold W.','Hold ↑ to climb.','Hold A.','Hold D.','Hold ↑.','Hold ↓.',
+    'Drag the mouse.','Use the mouse wheel.','A/D turn. ↑ climbs. ↓ descends.',
+    'Aim with Z/C and Q/E.','Press SPACE.','A/D to line up · S to slow · ↓ to descend.',
   ]);
   assert.deepEqual(touch.map(item=>item.controlInstruction),[
-    'Slide the THROTTLE control UP to increase power.','Push the TOP joystick edge to lift off.','Move the joystick LEFT to turn.','Move the joystick RIGHT to turn.',
-    'Push the TOP joystick edge to fly higher.','Push the BOTTOM joystick edge to lower the aircraft.','Drag the camera area.','Pinch with two fingers.',
-    'Use the joystick to fly toward the target.','Drag inside the LOCK CIRCLE to aim.','Tap FIRE.','Slide THROTTLE DOWN to slow down.',
+    'Slide THROTTLE UP.','Push the joystick to the TOP edge to climb.','Move the joystick LEFT.','Move the joystick RIGHT.',
+    'Push the joystick to the TOP edge.','Push the joystick to the BOTTOM edge.','Drag the camera.','Pinch with two fingers.',
+    'Steer with the joystick. TOP climbs. BOTTOM descends.','Drag inside the lock circle.','Tap FIRE.','Joystick LEFT/RIGHT to line up · THROTTLE DOWN to slow · BOTTOM joystick edge to descend.',
   ]);
   assert.deepEqual(tutorialInstruction('freePractice'),{
-    lesson:13,title:'✓ TRAINING COMPLETE',explanation:'You are ready for real flights.',controlInstruction:'Milwaukee training gives no rewards.',control:'',
+    lesson:13,title:'✓ TRAINING COMPLETE',explanation:"YOU'RE READY TO FLY!",controlInstruction:'',control:'',
   });
   assert.deepEqual(tutorialLockPreviewInstruction(),{
     lesson:10,title:'LOCK TARGET',explanation:'Keep the target inside the lock circle until LOCKED.',controlInstruction:'SEARCHING → LOCKED',control:'targetLock',
@@ -127,13 +144,13 @@ test('takeoff input acknowledgement uses the active binding without claiming suc
 
 test('ground recovery keeps the current lesson identity while teaching takeoff again',()=>{
   assert.deepEqual(tutorialTakeoffRecoveryInstruction('climb','keyboard',false,{pitchUp:'↑'}),{
-    lesson:5,title:'CLIMB',explanation:'You are back on the runway. Take off again first.',controlInstruction:'Hold ↑ to lift off.',control:'takeoff',
+    lesson:5,title:'CLIMB',explanation:'You are back on the runway. Take off again first.',controlInstruction:'Hold ↑ to climb.',control:'takeoff',
   });
   assert.deepEqual(tutorialTakeoffRecoveryInstruction('targetLock','touch',true),{
-    lesson:10,title:'LOCK TARGET',explanation:'You are back on the runway. Take off again first.',controlInstruction:'Push the BOTTOM joystick edge to lift off.',control:'descend',
+    lesson:10,title:'LOCK THE TARGET',explanation:'You are back on the runway. Take off again first.',controlInstruction:'Push the joystick to the BOTTOM edge to climb.',control:'descend',
   });
   assert.deepEqual(tutorialTakeoffRecoveryInstruction('landing','touch',false),{
-    lesson:12,title:'LAND',explanation:'You are back on the runway. Take off again first.',controlInstruction:'Push the TOP joystick edge to lift off.',control:'climb',
+    lesson:12,title:'LAND THE PLANE',explanation:'You are back on the runway. Take off again first.',controlInstruction:'Push the joystick to the TOP edge to climb.',control:'climb',
   });
 });
 
@@ -169,7 +186,11 @@ test('pitch guidance and highlighted octagon edge follow the persisted inversion
   assert.equal(tutorialInstruction('descend','touch',false).control,'descend');
   assert.match(tutorialInstruction('descend','touch',true).controlInstruction,/TOP/);
   assert.equal(tutorialInstruction('descend','touch',true).control,'climb');
-  assert.equal(tutorialInstruction('climb','keyboard',true).controlInstruction,tutorialInstruction('climb','keyboard',false).controlInstruction);
+  assert.match(tutorialInstruction('climb','keyboard',false,{pitchUp:'UP',pitchDown:'DOWN'}).controlInstruction,/UP/);
+  assert.match(tutorialInstruction('climb','keyboard',true,{pitchUp:'UP',pitchDown:'DOWN'}).controlInstruction,/DOWN/);
+  assert.match(tutorialInstruction('descend','keyboard',true,{pitchUp:'UP',pitchDown:'DOWN'}).controlInstruction,/UP/);
+  assert.match(tutorialInstruction('approach','keyboard',true,{pitchUp:'UP',pitchDown:'DOWN'}).controlInstruction,/DOWN climbs\. UP descends/);
+  assert.match(tutorialInstruction('approach','touch',true).controlInstruction,/BOTTOM climbs\. TOP descends/);
   assert.equal(tutorialLandingInstruction('descent','touch',true).control,'climb');
   assert.match(tutorialLandingInstruction('descent','touch',true).controlInstruction,/TOP/);
 });
@@ -181,7 +202,77 @@ test('landing stages name and spotlight the exact active control',()=>{
   assert.match(desktop[0]!.controlInstruction,/S/);assert.match(desktop[1]!.controlInstruction,/A.*D/);assert.match(desktop[2]!.controlInstruction,/↓/);
   const mobile=[tutorialLandingInstruction('power','touch'),tutorialLandingInstruction('alignment','touch'),tutorialLandingInstruction('descent','touch')];
   assert.deepEqual(mobile.map(item=>item.control),['throttle','joystick','descend']);
-  assert.match(mobile[0]!.controlInstruction,/THROTTLE/);assert.match(mobile[1]!.controlInstruction,/joystick LEFT or RIGHT/i);assert.match(mobile[2]!.controlInstruction,/BOTTOM/);
+  assert.match(mobile[0]!.controlInstruction,/THROTTLE/);assert.match(mobile[1]!.controlInstruction,/joystick LEFT\/RIGHT/i);assert.match(mobile[2]!.controlInstruction,/BOTTOM/);
+});
+
+test('landing starts close to the central runway with a small correction and safe trainer speed',()=>{
+  const airport=cityAirports.milwaukee[0];
+  const safeSpeed=aircraftFlightEnvelope.trainer.safeLandingSpeed;
+  const approach=tutorialLandingApproach(airport,safeSpeed);
+  assert.equal(approach.airportId,'central');
+  assert.deepEqual(approach.position,{x:airport.runwayWidth+10,y:100,z:airport.runwayLength/2+300});
+  assert.equal(approach.heading,airport.heading-0.06);
+  assert.ok(approach.speed>safeSpeed&&approach.speed<safeSpeed*1.18);
+  assert.ok(approach.position.x>airport.runwayWidth/2);
+  const bindings={throttleDown:'R',turnLeft:'J',turnRight:'L',pitchDown:'K'};
+  assert.match(tutorialLandingInstruction('alignment','keyboard',false,bindings).controlInstruction,/J\/L.*R.*K/);
+  assert.match(tutorialLandingInstruction('descent','touch',true).controlInstruction,/TOP joystick edge/);
+});
+
+test('landing coach prioritizes runway correction, safe speed, height and touchdown using the flight envelope',()=>{
+  const airport=cityAirports.milwaukee[0];
+  const aircraft=aircraftFlightEnvelope.trainer;
+  const flight={airport,position:{x:0,z:600},heading:airport.heading,speed:65,verticalSpeed:-3,altitude:50,throttle:.3,
+    stallSpeed:aircraft.stallSpeed,takeoffSpeed:aircraft.takeoffSpeed,safeLandingSpeed:aircraft.safeLandingSpeed,safeDescentRate:aircraft.safeDescentRate,
+    landingTilt:aircraft.landingTilt,roll:0,pitch:0,landingAssistActive:true};
+  assert.equal(tutorialLandingCoachStage(flight),'steady');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:airport.runwayWidth+10,z:airport.runwayLength/2+300},heading:-0.06}),'alignLeft');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:-airport.runwayWidth-10,z:airport.runwayLength/2+300},heading:0.06}),'alignRight');
+  assert.equal(tutorialLandingCoachStage({...flight,speed:aircraft.stallSpeed*1.1,position:{x:55,z:1700}}),'speedUp');
+  assert.equal(tutorialLandingCoachStage({...flight,speed:aircraft.takeoffSpeed,throttle:.05}),'speedUp');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:0,z:1700},altitude:10}),'climb');
+  assert.equal(tutorialLandingCoachStage({...flight,speed:aircraft.safeLandingSpeed+1}),'slowDown');
+  assert.equal(tutorialLandingCoachStage({...flight,speed:aircraft.safeLandingSpeed+1,throttle:.05}),'coast');
+  assert.equal(tutorialLandingCoachStage({...flight,verticalSpeed:-aircraft.safeDescentRate*1.36}),'easeDescent');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:0,z:100},altitude:60}),'descend');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:0,z:100},altitude:10,roll:aircraft.landingTilt+0.01}),'levelWings');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:0,z:100},altitude:10,pitch:aircraft.landingTilt+0.01}),'levelNose');
+  assert.equal(tutorialLandingCoachStage({...flight,position:{x:0,z:100},altitude:10}),'touchdown');
+});
+
+test('landing coach names the active desktop bindings and mobile pitch direction',()=>{
+  const bindings={turnLeft:'J',turnRight:'L',throttleUp:'I',throttleDown:'K',pitchUp:'U',pitchDown:'N'};
+  assert.match(tutorialLandingCoachInstruction('alignLeft','keyboard',false,bindings).controlInstruction,/J/);
+  assert.match(tutorialLandingCoachInstruction('alignRight','keyboard',false,bindings).controlInstruction,/L/);
+  assert.match(tutorialLandingCoachInstruction('speedUp','keyboard',false,bindings).controlInstruction,/I/);
+  assert.match(tutorialLandingCoachInstruction('slowDown','keyboard',false,bindings).controlInstruction,/K/);
+  assert.match(tutorialLandingCoachInstruction('coast','keyboard',false,bindings).controlInstruction,/low throttle/i);
+  assert.match(tutorialLandingCoachInstruction('descend','keyboard',false,bindings).controlInstruction,/N/);
+  assert.match(tutorialLandingCoachInstruction('easeDescent','keyboard',false,bindings).controlInstruction,/U/);
+  assert.equal(tutorialLandingCoachInstruction('climb','touch',true).control,'descend');
+  assert.match(tutorialLandingCoachInstruction('climb','touch',true).controlInstruction,/BOTTOM joystick edge/);
+  assert.equal(tutorialLandingCoachInstruction('descend','touch',true).control,'climb');
+  assert.match(tutorialLandingCoachInstruction('descend','touch',true).controlInstruction,/TOP joystick edge/);
+});
+
+test('final lesson sends landing intent from valid LANDED transition and clears earlier tutorial receipt',()=>{
+  const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+  const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+  assert.match(main,/setFlightState\('LANDED'\);\s*if\(guidedTutorialActive&&guidedTutorialStep==='landing'\)\{\s*tutorialLandingIntentPending=/);
+  assert.match(main,/if\(landingQuality&&\!\(guidedTutorialActive&&guidedTutorialStep==='landing'\)\)sendLandingIntent/);
+  assert.match(main,/pending\.attempts<4&&now-pending\.lastSentAt>=150&&sendLandingIntent/);
+  assert.match(main,/if\(step==='landing'\)\{tutorialLandingIntentPending=undefined;transitionToNextPendingTutorialStep\(\);return true;\}/);
+  assert.match(server,/landingReceipts\.delete\(`\$\{playerId\}:\$\{approach\.airportId\}`\)/);
+  assert.match(server,/if \(!flight\?\.airborne \|\| telemetry\.speed[\s\S]*landingReceipts\.set\(receiptKey, now\)/);
+  assert.match(server,/player\.tutorialMode && \(telemetry\.speed < aircraft\.stallSpeed \|\| !runwayOrTaxiSpawnArea\(player\)\)/);
+  assert.match(server,/completeServerTutorialStep\(playerId,player,'landing',now\)/);
+  const path=join(mkdtempSync(join(tmpdir(),'airport-landing-once-')),'profiles.sqlite');
+  const store=new PlayerProfileStore(path);store.getOrCreate('landing-pilot','Pilot');store.setTutorialState('landing-pilot','started');
+  for(const step of tutorialSteps.slice(0,-1))store.recordTutorialStepStatus('landing-pilot',step,'skipped');
+  assert.equal(store.recordTutorialStepStatus('landing-pilot','landing','completed').changed,true);
+  assert.equal(store.recordTutorialStepStatus('landing-pilot','landing','completed').changed,false);
+  assert.equal(new PlayerProfileStore(path).tutorialStepStates('landing-pilot').landing,'completed');
+  assert.equal(store.getOrCreate('landing-pilot','Pilot').credits,0);
 });
 
 test('completed tutorial can be explicitly replayed without granting credits', () => {
@@ -232,35 +323,52 @@ test('tutorial step outcomes persist as completed, skipped, or pending and crash
   assert.equal(reopened.getOrCreate(pilot.pilotId,'Pilot').credits,pilot.credits);
 });
 
-test('training HUD provides authoritative entry, persistent exits, resume and free-practice state', () => {
+test('training HUD provides authoritative fresh entry, persistent exits, and free-practice state', () => {
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started' \}/);
-  assert.match(main, /WELCOME TO FLIGHT TRAINING[\s\S]*Follow the highlighted controls\. Training earns no rewards/);
-  assert.match(main, /data-training-start>START TRAINING<[\s\S]*data-training-skip>SKIP &amp; FLY</);
+  assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
+  assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)profileStore\.resetTutorialRun/);
+  assert.match(main, /WELCOME TO FLIGHT TRAINING[\s\S]*Learn to fly in a few minutes\./);
+  assert.match(main, /data-training-start>START TRAINING<[\s\S]*data-training-skip>Skip</);
   assert.match(main, /data-guided-skip>SKIP TRAINING<[\s\S]*data-guided-exit>EXIT TRAINING</);
-  assert.match(main, /data-tutorial-completion-actions[\s\S]*PLAY FOR REAL[\s\S]*KEEP PRACTICING[\s\S]*EXIT TRAINING/);
+  assert.match(main, /data-tutorial-completion-actions[\s\S]*CONTINUE[\s\S]*Replay Training[\s\S]*Free Practice/);
   assert.equal((main.match(/className = 'guided-tutorial-panel'/g)??[]).length,1);
   assert.doesNotMatch(main,/tutorial-objective|tutorial-coach-card|data-lock-teaching|tutorialCompletionPanel/);
-  assert.match(main,/STEP \$\{completion\?13:guidance\.lesson\} OF 13/);
+  assert.match(main,/STEP \$\{guidance\.lesson\} \/ \$\{tutorialSteps\.length\}/);
   assert.match(main,/✓ COMPLETED/);
   assert.match(main,/tutorialCompletionPresentationStep!==step[\s\S]*},600\)/);
   assert.match(main,/tutorialStepRequestStep===message\.step/);
   assert.match(main,/presentNextAuthoritativeTutorialCompletion/);
   assert.match(main,/updateTutorialImmediateFeedback\(\)/);
   assert.match(main,/tutorialLockPreviewInstruction\(\)/);
-  assert.match(main, /airport-chaos-training-progress-v5/);
+  assert.doesNotMatch(main, /airport-chaos-training-progress-v5/);
   assert.match(main, /message\.tutorialMode&&cityRules\.tutorialEnabled/);
   assert.match(main, /type:'tutorialTargetRequest'/);
+  assert.match(main, /performance\.now\(\)-tutorialTargetRequestedAt>=1_500/);
   assert.match(main, /guidedTutorialStep='freePractice'/);
-  assert.match(main, /data-guided-next>NEXT STEP/);
+  assert.doesNotMatch(main, /data-guided-next>NEXT STEP/);
+  assert.match(main,/type TutorialNavigationCoach='radar'\|'map'\|'players'\|'territories'/);
+  assert.match(main,/tutorialNavigationCoach=next==='approach'.*?'radar':undefined/);
+  assert.match(main,/tutorialNavigationCoach='map';syncTutorialNavigationMap\(\)/);
+  assert.match(main,/tutorialNavigationCoach==='map'&&!worldMap\.isOpen\(\)\)setTutorialNavigationCoach\('players'\)/);
+  assert.match(main,/tutorialNavigationCoach==='players'\)setTutorialNavigationCoach\('territories'\)/);
+  assert.match(main,/AVAILABLE IN DALLAS/);
+  assert.match(css,/data-tutorial-control="players".*#real-players/);
+  assert.match(css,/data-tutorial-control="territories".*#city-territories/);
+  assert.match(main, /data-training-replay[^\n]*restartGuidedTutorial/);
   assert.match(main, /type:'tutorialStepStatus',tutorialStep:guidedTutorialStep,tutorialStepStatus:status/);
   assert.match(server, /target\?\.trainingOwnerId === playerId[\s\S]*signal: 'targetLocked'/);
+  assert.match(server, /owner\.lockedTargetId===targetId[\s\S]*completeServerTutorialStep\(target\.trainingOwnerId,owner,'targetLock',now\)/);
+  assert.match(server, /nextPendingTutorialStep\(owner\.pilotId\)!=='fire'/);
+  assert.match(server, /lesson!=='approach'&&lesson!=='targetLock'&&lesson!=='fire'/);
   assert.match(server, /tutorialState\.status==='completed'&&!profileStore\.tutorialStepsResolved\(identity\.pilotId\)/);
   assert.match(server, /message\.tutorialStatus==='completed'&&!profileStore\.tutorialStepsResolved\(player\.pilotId\)/);
   assert.match(server, /completeServerTutorialStep\(playerId,player,'landing',now\)/);
+  assert.match(server, /if\(result\.nextStep==='landing'\)sendTutorialLandingApproach\(playerId,player\)/);
+  assert.match(server, /landingFlightState\.set\(playerId,\{baselineY:approach\.position\.y-8,airborne:true\}\)/);
+  assert.match(main, /message\.type==='tutorialLandingApproach'/);
   assert.match(main, /message\.type==='tutorialStepResult'/);
   assert.match(main, /tutorialRunReset[\s\S]*TRAINING RESTARTED/);
   assert.match(main, /guidedTrainingCrash[\s\S]*requestTutorialRunReset\('crash'\)/);

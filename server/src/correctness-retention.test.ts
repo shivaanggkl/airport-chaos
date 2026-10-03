@@ -39,15 +39,14 @@ test('exit flight and city guide use canonical menu and server mission abandon',
   assert.match(main, /if \(guidedTutorialActive \|\| trainingRequested\) return;/);
 });
 
-test('passive distance is a small server reward and only accumulated authoritative deltas are displayed', () => {
+test('passive distance keeps its existing reward and only persisted credit receipts are displayed', () => {
   assert.equal(economyRewards.distanceBatchMeters, 10_000);
   assert.equal(economyRewards.distanceBatchCredits, 5);
   assert.equal(economyRewards.landing, 75);
   const main = read('client/src/main.ts');
-  assert.match(main, /earnedCredits = profileHydrated \? Math\.max\(0, profile\.credits - serverProfile\.credits\)/);
-  assert.match(main, /creditReason === 'Flight Distance'/);
-  assert.match(main, /silentDistanceCredits >= distanceToastThresholdCredits/);
-  assert.match(main, /queueRewardFeedback\(earnedCredits \+ silentDistanceCredits/);
+  assert.match(main, /reconcileCreditSnapshot\(serverProfile\.credits, serverProfile\.creditRevision/);
+  assert.match(main, /queueRewardFeedback\(creditUpdate\.toastDelta\)/);
+  assert.doesNotMatch(main, /silentDistanceCredits|pendingProfileCredits/);
 });
 
 test('Firehawk repeat-failure eligibility is durable, capped, and ownership-aware', () => {
