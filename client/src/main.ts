@@ -1041,8 +1041,8 @@ const citySelectorElement = document.querySelector<HTMLElement>('#city-selector'
 const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
+const flightExitButtonElement = document.querySelector<HTMLButtonElement>('#flight-exit-button')!;
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
-const flightWorldButtonElement = document.querySelector<HTMLButtonElement>('#flight-world-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
 const flightAccountButtonElement = document.querySelector<HTMLButtonElement>('#flight-account-button')!;
 const flightAccountAvatarElement = document.querySelector<HTMLImageElement>('#flight-account-avatar')!;
@@ -1125,7 +1125,6 @@ document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'
 document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'] as const)
   .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
-const missionProgressElement = document.querySelector<HTMLElement>('#mission-progress')!;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
@@ -3740,21 +3739,16 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
 type ClientAccountState = { state: 'guest' | 'account'; email?: string; avatarUrl?: string; providers?: { password: boolean; google: boolean; apple: boolean } };
 let clientAccount: ClientAccountState = { state: 'guest', providers: { password: false, google: false, apple: false } };
-function accountAvatarFallback(name: string): string {
-  const parts = name.trim().split(/\s+/).map((part) => part.replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
-  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)![0]}` : parts[0]?.slice(0, 2) || '👤').toUpperCase();
-}
 
 function updateAuthHudControl(): void {
   const authenticated = clientAccount.state === 'account';
-  flightAccountButtonElement.classList.toggle('is-account', authenticated);
-  flightAccountButtonElement.setAttribute('aria-label', authenticated ? 'Open profile and account' : 'Open login and profile');
-  flightAccountButtonElement.title = authenticated ? 'Profile / Account' : 'Guest — Log in';
+  flightAccountButtonElement.classList.add('is-account');
+  flightAccountButtonElement.setAttribute('aria-label', 'Open profile');
+  flightAccountButtonElement.title = 'Profile';
   flightAccountAvatarElement.hidden = true;
   flightAccountAvatarElement.removeAttribute('src');
   flightAccountLabelElement.hidden = false;
-  flightAccountLabelElement.classList.toggle('avatar-fallback', authenticated);
-  flightAccountLabelElement.textContent = authenticated ? accountAvatarFallback(serverProfile.pilotName) : 'LOGIN';
+  flightAccountLabelElement.classList.add('avatar-fallback');
   if (!authenticated || !clientAccount.avatarUrl) return;
   flightAccountAvatarElement.src = clientAccount.avatarUrl;
   flightAccountAvatarElement.hidden = false;
@@ -4678,7 +4672,7 @@ document.body.append(tutorialDimmer);
 const tutorialIntroPanel=document.createElement('section');
 tutorialIntroPanel.className='training-intro';tutorialIntroPanel.hidden=true;
 tutorialIntroPanel.setAttribute('role','dialog');tutorialIntroPanel.setAttribute('aria-labelledby','training-intro-title');
-tutorialIntroPanel.innerHTML='<div><h1 id="training-intro-title">WELCOME TO FLIGHT TRAINING</h1><p>Learn to fly in a few minutes.</p><div class="training-orientation" data-training-orientation role="group" aria-label="Flight pitch direction"><button type="button" data-pitch-normal aria-pressed="true"><i class="training-stick-demo"><b>↑</b></i>NORMAL<small data-pitch-normal-copy></small></button><button type="button" data-pitch-inverted aria-pressed="false"><i class="training-stick-demo inverted"><b>↓</b></i>INVERTED<small data-pitch-inverted-copy></small></button></div><div class="training-dialog-actions"><button type="button" data-training-start>START TRAINING</button><button type="button" data-training-skip>Skip</button></div></div>';
+tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">WELCOME TO FLIGHT TRAINING</h1><p>Learn to fly in a few minutes.</p><div class="training-orientation" data-training-orientation role="group" aria-label="Flight pitch direction"><button type="button" data-pitch-normal aria-pressed="true"><i class="training-stick-demo"><b>↑</b></i>NORMAL<small data-pitch-normal-copy></small></button><button type="button" data-pitch-inverted aria-pressed="false"><i class="training-stick-demo inverted"><b>↓</b></i>INVERTED<small data-pitch-inverted-copy></small></button></div><div class="training-dialog-actions"><button type="button" data-training-start>START TRAINING</button><button type="button" data-training-skip>Skip</button></div></div>';
 document.body.append(tutorialIntroPanel);
 const trainingModeLabel=document.createElement('div');
 trainingModeLabel.className='training-mode-label';trainingModeLabel.hidden=true;
@@ -5278,7 +5272,6 @@ function updateMissionHud(): void {
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
     const hudProgress = missionHudProgress(definition, mobileProgress);
-    missionProgressElement.textContent = `${Math.min(mobileProgress.value, mobileProgress.target)}/${mobileProgress.target}`;
     activeMissionTitleElement.textContent = definition.displayName;
     activeMissionObjectiveElement.textContent = missionHudObjective(definition);
     activeMissionProgressElement.textContent = hudProgress.text;
@@ -5289,7 +5282,6 @@ function updateMissionHud(): void {
     }
     activeMissionOverlayElement.hidden = false;
   } else {
-    missionProgressElement.textContent = Date.now() < completedMissionUntil ? 'DONE' : profileActiveMissionCity(serverProfile) ? 'AWAY' : '—';
     activeMissionOverlayElement.hidden = true;
     activeMissionTitleElement.textContent = '';
     activeMissionObjectiveElement.textContent = '';
@@ -5588,6 +5580,7 @@ function togglePilotMenu(): void {
 }
 
 flightMenuButtonElement.addEventListener('click', togglePilotMenu);
+flightExitButtonElement.addEventListener('click', () => requestFlightExit());
 flightAccountButtonElement.addEventListener('click', () => openPilotMenu('PROFILE'));
 activeMissionOverlayElement.tabIndex = 0;
 activeMissionOverlayElement.setAttribute('role', 'button');
@@ -5602,7 +5595,6 @@ activeMissionOverlayElement.addEventListener('keydown', (event) => {
   event.preventDefault();
   openActiveMissionFromHud();
 });
-flightWorldButtonElement.addEventListener('click', openWorldSelector);
 const toggleWorldMapFromHud = () => {
   if (pilotMenu.isOpen()) pilotMenu.close();
   contextualHints.dismiss();
@@ -5988,6 +5980,7 @@ function localFireBlockReason(): FireBlockedReason | undefined {
   if (flightTutorial.isOpen()) return 'menu';
   if (crashed || !runStarted || !localPlayerId) return 'invalid_state';
   if (localLifeState !== 'alive') return localLifeState === 'respawning' ? 'protection' : 'lifecycle';
+  if (onGround) return 'protection';
   if (!connectionReady()) return 'socket';
   if (fireCooldown > 0) return 'cooldown';
   return undefined;
@@ -8497,12 +8490,18 @@ function openWorldSelector(): void {
 let flightExitPending = false;
 function requestFlightExit(openFirehawkGarage = false): void {
   if (flightExitPending) return;
-  if (guidedTutorialActive) { void endTrainingAndNavigate('hub'); return; }
+  if (guidedTutorialActive) {
+    showFlightDialog('Exit training?', 'Return to the Pilot Hub?', [
+      { label: 'STAY', secondary: true, run: () => undefined },
+      { label: 'EXIT TO HUB', run: () => { void endTrainingAndNavigate('hub'); } },
+    ]);
+    return;
+  }
   const activeMission = profileActiveMissionAttempt(serverProfile);
-  if (!activeMission && !activeContract) { void exitFlightToHub(openFirehawkGarage); return; }
-  showFlightDialog('Exit flight?', 'Current mission progress will be abandoned.', [
+  const hasActiveProgress = Boolean(activeMission || activeContract);
+  showFlightDialog('Exit flight?', hasActiveProgress ? 'Current mission progress will be abandoned.' : 'Return to the Pilot Hub?', [
     { label: 'STAY', secondary: true, run: () => undefined },
-    { label: 'EXIT FLIGHT', run: () => { void exitFlightToHub(openFirehawkGarage); } },
+    { label: 'EXIT TO HUB', run: () => { void exitFlightToHub(openFirehawkGarage); } },
   ]);
 }
 async function exitFlightToHub(openFirehawkGarage = false): Promise<void> {

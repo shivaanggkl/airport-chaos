@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-label="New York destination concept art">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#111e45"/><stop offset=".62" stop-color="#284f75"/><stop offset="1" stop-color="#102b3d"/></linearGradient>
+    <linearGradient id="water" x2="0" y2="1"><stop stop-color="#174964"/><stop offset="1" stop-color="#071b2c"/></linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h960v540H0z"/>
+  <circle cx="735" cy="105" r="48" fill="#d8efff" opacity=".72"/>
+  <path fill="#142b3e" d="M0 310h85v-94h55v94h42V173h72v137h39V238h61v72h42V120h64v190h28V209h91v101h40V161h69v149h37V231h89v79h44V190h64v120h58v230H0z"/>
+  <path fill="#294d63" d="M422 120h12l8-68 8 68h10v190h-38z"/>
+  <g fill="#f8c04a" opacity=".72"><path d="M103 239h12v9h-12zm0 27h12v9h-12zm101-65h13v10h-13zm0 29h13v10h-13zm213-72h13v10h-13zm0 31h13v10h-13zm0 31h13v10h-13zm224-31h13v10h-13zm0 30h13v10h-13zm125 40h13v10h-13z"/></g>
+  <path fill="url(#water)" d="M0 342q220 24 480 0t480 5v193H0z"/>
+  <path fill="none" stroke="#72bed3" stroke-width="4" opacity=".38" d="M0 408q228 30 480 0t480 5M0 465q226 26 480 0t480 6"/>
+  <path fill="none" stroke="#f8c04a" stroke-width="4" stroke-dasharray="16 13" d="M87 393q240-78 430 18t356-10" opacity=".75"/>
+  <text x="48" y="66" fill="#ddecff" font-family="system-ui,sans-serif" font-size="22" font-weight="700" letter-spacing="7">EAST COAST CONCEPT</text>
+</svg>

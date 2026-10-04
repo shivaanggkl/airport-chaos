@@ -3,23 +3,23 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from
 import { AircraftGarage, type GarageProfile } from './garage';
 import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
 import { HomeHangar, type HomeHangarData } from './home-hangar';
+import { AppShellHeader, type AppShellActive } from './app-shell';
 import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
-import { loadAirportChaosLogo, mountAirportChaosLogo, mountCompactBrandFooter } from './brand';
+import { loadAirportChaosLogo, mountCompactBrandFooter } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
-import { cityAirports } from '../../shared/city-airports.mjs';
 import { cityCapabilities, cityDefinition } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
-import { setupLaunchBackground } from './launch-background';
 import { apiFetch, apiUrl } from './transport';
 import { loadNativeFirehawkOffer, nativePurchaseProvider, purchaseNativeFirehawk, restoreNativeFirehawk } from './native-purchases';
 import { missionsForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
-import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
+import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
 import { showFlightDialog } from './flight-dialog';
 import { persistPitchInverted, preferredPitchInverted } from './mobile-input';
+import milwaukeeJourneyImage from './help-assets/runway.avif';
 
 audioManager.install();
 audioManager.setMenuMusicDesired(true);
@@ -29,24 +29,17 @@ const brandLoadingElement = document.querySelector<HTMLElement>('#brand-loading'
 const homeHangarElement = document.querySelector<HTMLElement>('#home-hangar')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
 const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
+const cityJourneyTrack = cityOptions.querySelector<HTMLElement>('[data-city-journey-track]')!;
+const cityJourneyDots = cityOptions.querySelector<HTMLElement>('[data-city-journey-dots]')!;
+const cityJourneyHint = cityOptions.querySelector<HTMLElement>('[data-city-journey-hint]')!;
 const timeOptions = document.querySelector<HTMLElement>('#time-options')!;
 const cityBack = document.querySelector<HTMLButtonElement>('#city-back')!;
-const cityHome = document.querySelector<HTMLButtonElement>('#city-home')!;
-const cityClose = document.querySelector<HTMLButtonElement>('#city-close')!;
 const citySelectTitle = document.querySelector<HTMLElement>('#city-select-title')!;
 const citySelectDescription = document.querySelector<HTMLElement>('#city-select-description')!;
 const citySelectionError = document.querySelector<HTMLElement>('#city-selection-error')!;
-const garageEntry = document.querySelector<HTMLButtonElement>('#garage-entry')!;
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
-const cityPilot = document.querySelector<HTMLElement>('[data-city-pilot]')!;
-const cityCredits = document.querySelector<HTMLElement>('[data-city-credits]')!;
-const cityProfileEntry = document.querySelector<HTMLButtonElement>('[data-city-profile-entry]')!;
-const citySettings = document.querySelector<HTMLButtonElement>('[data-city-settings]')!;
-const launchBackground = setupLaunchBackground(document.querySelector<HTMLElement>('#launch-background')!);
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
-const hubBrandReady = mountAirportChaosLogo(document.querySelector<HTMLElement>('.home-hangar-brand')!, 'brand-logo-entry');
-const cityBrandReady = mountAirportChaosLogo(document.querySelector<HTMLElement>('.city-select-brand')!, 'brand-logo-entry');
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
@@ -74,7 +67,7 @@ type RemoteGarageProfile = GarageProfile & {
   weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
   referral?: { code: string; status: string; rewardedCount: number };
 };
-type HubAccountStatus = Pick<PilotMenuData['account'], 'state' | 'email' | 'providers'>;
+type HubAccountStatus = Pick<PilotMenuData['account'], 'state' | 'email' | 'providers'> & { avatarUrl?: string };
 function identity(): GarageIdentity {
   let value: Partial<GarageIdentity> = {};
   try { value = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Partial<GarageIdentity>; } catch { /* use defaults */ }
@@ -101,6 +94,22 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 let authoritativeHomeProfile: RemoteGarageProfile | undefined;
 let hubAccount: HubAccountStatus = { state: 'guest', providers: { password: false, google: false, apple: false } };
+const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
+  home: () => { void showHome(); },
+  garage: () => { void openStartGarage('HANGAR'); },
+  profile: () => { void openHubPilotMenu('PROFILE'); },
+});
+function showAppHeader(active: AppShellActive): void {
+  appHeader.show({
+    active,
+    pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
+    credits: garageProfile.credits,
+    avatarUrl: hubAccount.avatarUrl,
+  });
+}
+function refreshAppHeaderIdentity(): void {
+  appHeader.updateIdentity(authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName, garageProfile.credits, hubAccount.avatarUrl);
+}
 function cacheAuthoritativeProfile(profile: RemoteGarageProfile): void {
   try {
     const cached = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Record<string, unknown>;
@@ -132,6 +141,7 @@ function applyAuthoritativeHomeProfile(profile: RemoteGarageProfile): void {
   garageIdentity.pilotId = profile.pilotId ?? garageIdentity.pilotId;
   garageIdentity.displayName = profile.pilotName ?? garageIdentity.displayName;
   cacheAuthoritativeProfile(profile);
+  refreshAppHeaderIdentity();
 }
 async function loadGarageProfile(): Promise<GarageProfile> {
   const url = apiUrl('/api/profile');
@@ -180,18 +190,222 @@ function homeHangarData(): HomeHangarData {
   };
 }
 
-function renderCityHeader(): void {
-  cityPilot.textContent = authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName;
-  cityCredits.textContent = garageProfile.credits.toLocaleString();
+type CityJourneyId = CityDefinition['id'] | 'california' | 'new-york';
+type CityJourneyEntry = Readonly<{
+  id: CityJourneyId;
+  title: string;
+  subtitle: string;
+  artImage: string;
+  artPosition: string;
+  cityId?: CityDefinition['id'];
+}>;
+const CITY_JOURNEY_SELECTION_KEY = 'airport-chaos-city-journey-selection-v1';
+const cityJourneyEntries: readonly CityJourneyEntry[] = Object.freeze([
+  { id: 'milwaukee', title: 'MILWAUKEE', subtitle: 'TRAINING CITY', artImage: milwaukeeJourneyImage, artPosition: 'center 46%', cityId: 'milwaukee' },
+  { id: 'dallas', title: 'DALLAS', subtitle: 'CITY 01', artImage: '/media/launch/airport-chaos-launch-poster.jpg', artPosition: 'center 68%', cityId: 'dallas' },
+  { id: 'california', title: 'CALIFORNIA', subtitle: 'COMING SOON', artImage: '/media/cities/california-coming-soon.svg', artPosition: 'center' },
+  { id: 'new-york', title: 'NEW YORK', subtitle: 'COMING SOON', artImage: '/media/cities/new-york-coming-soon.svg', artPosition: 'center' },
+]);
+let cityJourneyIndex = 0;
+let cityJourneyPointer: { id: number; x: number; y: number; dragging: boolean } | undefined;
+let cityJourneyClickBlockedUntil = 0;
+let cityJourneyWheelAt = Number.NEGATIVE_INFINITY;
+type CityJourneyView = { card: HTMLElement; status: HTMLElement; cta: HTMLButtonElement; dot: HTMLButtonElement };
+const cityJourneyViews: CityJourneyView[] = [];
+
+function journeyCity(entry: CityJourneyEntry): CityDefinition | undefined {
+  return entry.cityId ? cities.find(city => city.id === entry.cityId && city.status === 'available' && Boolean(city.loadWorld)) : undefined;
 }
+
+function cityJourneyState(entry: CityJourneyEntry): { status: string; cta: string; city?: CityDefinition; training?: boolean; disabled?: boolean } {
+  const city = journeyCity(entry);
+  if (!city) {
+    const label = entry.cityId ? 'LOCKED' : 'COMING SOON';
+    return { status: '', cta: label, disabled: true };
+  }
+  if (entry.id === 'milwaukee') {
+    const completed = authoritativeHomeProfile?.tutorial?.status === 'completed';
+    return { city, status: completed ? '✓ TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: !completed };
+  }
+  return { city, status: '✓ UNLOCKED', cta: 'FLY NOW' };
+}
+
+function preferredCityJourneyIndex(preferDallas = false): number {
+  const dallasIndex = cityJourneyEntries.findIndex(entry => entry.id === 'dallas');
+  if (preferDallas && dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
+  try {
+    const stored = localStorage.getItem(CITY_JOURNEY_SELECTION_KEY);
+    const storedIndex = cityJourneyEntries.findIndex(entry => entry.id === stored);
+    if (storedIndex >= 0) return storedIndex;
+  } catch { /* use the current authoritative city availability */ }
+  if (dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
+  return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
+}
+
+function dismissCityJourneyHint(): void {
+  cityJourneyHint.classList.add('is-dismissed');
+}
+
+function createCityJourneyCards(): void {
+  if (cityJourneyViews.length) return;
+  cityJourneyTrack.replaceChildren();
+  cityJourneyDots.replaceChildren();
+  cityJourneyEntries.forEach((entry, index) => {
+    const card = document.createElement('article');
+    card.className = 'city-journey-card';
+    card.classList.add(`city-journey-${entry.id}`);
+    card.dataset.cityJourneyId = entry.id;
+    card.setAttribute('role', 'option');
+
+    const art = document.createElement('div');
+    art.className = 'city-journey-art';
+    art.setAttribute('aria-hidden', 'true');
+    card.style.setProperty('--journey-art-image', `url("${entry.artImage}")`);
+    card.style.setProperty('--journey-art-position', entry.artPosition);
+    const copy = document.createElement('div');
+    copy.className = 'city-journey-copy';
+    const subtitle = document.createElement('small');
+    subtitle.textContent = entry.subtitle;
+    const title = document.createElement('h2');
+    title.textContent = entry.title;
+    const status = document.createElement('strong');
+    status.className = 'city-journey-status';
+    copy.append(subtitle, title, status);
+    card.append(art, copy);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'entry-button entry-button-primary city-journey-cta';
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      const state = cityJourneyState(entry);
+      if (performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
+      if (state.training) void startTrainingFromHub();
+      else chooseCity(state.city);
+    });
+    card.append(button);
+
+    card.addEventListener('click', () => {
+      if (performance.now() < cityJourneyClickBlockedUntil || index === cityJourneyIndex || Math.abs(index - cityJourneyIndex) !== 1) return;
+      setCityJourneyIndex(index);
+    });
+    cityJourneyTrack.append(card);
+
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'city-journey-dot';
+    dot.setAttribute('aria-label', `Show ${entry.title}`);
+    dot.addEventListener('click', () => setCityJourneyIndex(index));
+    cityJourneyDots.append(dot);
+    cityJourneyViews.push({ card, status, cta: button, dot });
+  });
+}
+
+function renderCityJourney(): void {
+  createCityJourneyCards();
+  cityJourneyViews.forEach((view, index) => {
+    const offset = index - cityJourneyIndex;
+    const state = cityJourneyState(cityJourneyEntries[index]!);
+    view.card.setAttribute('aria-selected', offset === 0 ? 'true' : 'false');
+    view.card.setAttribute('aria-hidden', Math.abs(offset) > 1 ? 'true' : 'false');
+    view.card.classList.toggle('is-selected', offset === 0);
+    view.card.classList.toggle('is-previous', offset === -1);
+    view.card.classList.toggle('is-next', offset === 1);
+    view.card.classList.toggle('is-before', offset < -1);
+    view.card.classList.toggle('is-after', offset > 1);
+    view.status.textContent = state.status;
+    view.cta.textContent = state.cta;
+    view.cta.disabled = state.disabled === true;
+    view.cta.setAttribute('aria-disabled', state.disabled === true ? 'true' : 'false');
+    view.cta.tabIndex = offset === 0 ? 0 : -1;
+    view.dot.classList.toggle('is-selected', offset === 0);
+    view.dot.setAttribute('aria-current', offset === 0 ? 'true' : 'false');
+    view.dot.textContent = offset === 0 ? '●' : '○';
+  });
+}
+
+function setCityJourneyIndex(index: number, remember = true): void {
+  const next = Math.max(0, Math.min(cityJourneyEntries.length - 1, index));
+  if (next === cityJourneyIndex && cityJourneyTrack.childElementCount) return;
+  cityJourneyIndex = next;
+  if (remember) try { localStorage.setItem(CITY_JOURNEY_SELECTION_KEY, cityJourneyEntries[next]!.id); } catch { /* session selection still works */ }
+  dismissCityJourneyHint();
+  renderCityJourney();
+}
+
+function stepCityJourney(direction: -1 | 1): void {
+  setCityJourneyIndex(cityJourneyIndex + direction);
+}
+
+cityOptions.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  event.preventDefault();
+  stepCityJourney(event.key === 'ArrowLeft' ? -1 : 1);
+});
+cityOptions.addEventListener('wheel', event => {
+  if (Math.abs(event.deltaX) < 18 || Math.abs(event.deltaX) <= Math.abs(event.deltaY) || performance.now() - cityJourneyWheelAt < 360) return;
+  event.preventDefault();
+  cityJourneyWheelAt = performance.now();
+  stepCityJourney(event.deltaX > 0 ? 1 : -1);
+}, { passive: false });
+function setCityJourneyDrag(dx: number): void {
+  const limit = Math.max(70, cityOptions.clientWidth * .28);
+  const bounded = Math.max(-limit, Math.min(limit, dx));
+  cityOptions.style.setProperty('--journey-drag-x', `${bounded}px`);
+  cityOptions.style.setProperty('--journey-side-drag-x', `${bounded * .55}px`);
+}
+function clearCityJourneyDrag(): void {
+  cityOptions.classList.remove('is-dragging');
+  void cityJourneyTrack.offsetWidth;
+  cityOptions.style.removeProperty('--journey-drag-x');
+  cityOptions.style.removeProperty('--journey-side-drag-x');
+}
+cityOptions.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  cityJourneyPointer = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+});
+cityOptions.addEventListener('pointermove', event => {
+  if (!cityJourneyPointer || cityJourneyPointer.id !== event.pointerId) return;
+  const dx = event.clientX - cityJourneyPointer.x;
+  const dy = event.clientY - cityJourneyPointer.y;
+  if (!cityJourneyPointer.dragging && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+    cityJourneyPointer = undefined;
+    return;
+  }
+  if (!cityJourneyPointer.dragging && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+    cityJourneyPointer.dragging = true;
+    cityOptions.classList.add('is-dragging');
+    cityOptions.setPointerCapture(event.pointerId);
+  }
+  if (!cityJourneyPointer.dragging) return;
+  event.preventDefault();
+  setCityJourneyDrag(dx);
+});
+function finishCityJourneyPointer(event: PointerEvent): void {
+  if (!cityJourneyPointer || cityJourneyPointer.id !== event.pointerId) return;
+  const dx = event.clientX - cityJourneyPointer.x;
+  const dy = event.clientY - cityJourneyPointer.y;
+  const wasDragging = cityJourneyPointer.dragging;
+  const passedThreshold = wasDragging && Math.abs(dx) >= 42 && Math.abs(dx) > Math.abs(dy);
+  cityJourneyPointer = undefined;
+  if (!wasDragging) return;
+  cityJourneyClickBlockedUntil = performance.now() + 350;
+  clearCityJourneyDrag();
+  if (passedThreshold) stepCityJourney(dx < 0 ? 1 : -1);
+}
+cityOptions.addEventListener('pointerup', finishCityJourneyPointer);
+cityOptions.addEventListener('pointercancel', event => {
+  if (cityJourneyPointer?.id !== event.pointerId) return;
+  const wasDragging = cityJourneyPointer.dragging;
+  cityJourneyPointer = undefined;
+  if (wasDragging) {
+    cityJourneyClickBlockedUntil = performance.now() + 350;
+    clearCityJourneyDrag();
+  }
+});
 
 const homeHangar = new HomeHangar(homeHangarElement, {
   fly: () => showSelector(),
-  aircraft: () => { void openStartGarage('HANGAR'); },
-  missions: () => { void openHubPilotMenu('MISSIONS'); },
-  tutorial: () => { void startTrainingFromHub(); },
-  profile: () => { void openHubPilotMenu('PROFILE'); },
-  settings: () => { void openHubPilotMenu('SETTINGS'); },
 }, homeHangarData());
 
 let hubStoredPreferences: Record<string, unknown> = {};
@@ -222,11 +436,13 @@ function saveHubPlayerPreferences(): void {
 
 const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
   entryState = section === 'PROFILE' ? 'PROFILE' : section === 'SETTINGS' ? 'SETTINGS' : 'MISSIONS';
+  showAppHeader(section === 'PROFILE' ? 'PROFILE' : section === 'SETTINGS' ? 'SETTINGS' : undefined);
 }, {
   sections: ['MISSIONS', 'PROGRESS', 'PROFILE', 'SETTINGS'],
   title: 'PILOT HUB',
   closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB',
   showFlightActions: false,
+  appShell: true,
   onClose: () => {
     if (hubPilotMenuReturnState === 'CITY_SELECTION') {
       showSelector();
@@ -388,7 +604,10 @@ async function hubAccountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-na
     const response = await apiFetch(apiUrl(`/api/auth/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const result = await response.json() as { error?: string; message?: string; account?: HubAccountStatus; profile?: RemoteGarageProfile };
     if (!response.ok) return { ok: false, message: result.error ?? 'ACCOUNT REQUEST FAILED' };
-    if (result.account) hubAccount = result.account;
+    if (result.account) {
+      hubAccount = result.account;
+      refreshAppHeaderIdentity();
+    }
     if (result.profile) applyAuthoritativeHomeProfile(result.profile);
     if (path === 'logout') await clearNativeProviderState();
     hubPilotMenu.refresh(hubPilotMenuData());
@@ -436,7 +655,10 @@ async function refreshHubPilotData(): Promise<void> {
     const response = await apiFetch(apiUrl('/api/auth/status'), { cache: 'no-store' });
     const result = await response.json() as { account?: HubAccountStatus; profile?: RemoteGarageProfile };
     if (!response.ok) return;
-    if (result.account) hubAccount = result.account;
+    if (result.account) {
+      hubAccount = result.account;
+      refreshAppHeaderIdentity();
+    }
     if (result.profile) applyAuthoritativeHomeProfile(result.profile);
     if (hubPilotMenu.isOpen()) hubPilotMenu.refresh(hubPilotMenuData());
   } catch { /* cached authoritative profile keeps navigation usable */ }
@@ -445,8 +667,11 @@ async function refreshHubPilotData(): Promise<void> {
 async function openHubPilotMenu(section: Extract<PilotMenuSection, 'MISSIONS' | 'PROFILE' | 'SETTINGS'>): Promise<void> {
   hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : 'HANGAR';
   entryState = section;
+  if (garage.isOpen()) garage.close();
+  homeHangar.hide();
+  garage.hideShowcase();
   citySelector.hidden = true;
-  launchBackground.setActive(false);
+  showAppHeader(section === 'PROFILE' ? 'PROFILE' : section === 'SETTINGS' ? 'SETTINGS' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), section);
   await refreshHubPilotData();
 }
@@ -473,7 +698,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseAircraft: aircraftType }) });
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'PURCHASE FAILED'); return; }
-    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
     audioManager.playPurchaseSuccess();
   } catch { garage.showActionResult('SERVER UNAVAILABLE — PURCHASE NOT CHANGED'); }
 }, async (code) => {
@@ -483,7 +708,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testerCode: code }) });
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'CODE REJECTED'); return; }
-    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('Redspear Fighter Unlocked');
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity(); garage.showActionResult('Redspear Fighter Unlocked');
     audioManager.playReward();
   } catch { garage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
 }, async () => {
@@ -492,7 +717,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startFighterTrial: true }) });
     const result = await response.json() as GarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'TEST FLIGHT UNAVAILABLE'); return; }
-    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity(); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
   } catch { garage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
 }, async () => {
   recordGarageBusinessEvent('fighter_purchase_clicked');
@@ -501,7 +726,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
       const result = await purchaseNativeFirehawk();
       if (result.state === 'cancelled') { garage.showActionResult('PURCHASE CANCELLED'); return; }
       if (result.state === 'pending') { garage.showActionResult('PURCHASE PENDING'); return; }
-      garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
+      garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
       garage.showActionResult('FIREHAWK UNLOCKED · PURCHASE CONFIRMED');
       audioManager.playPurchaseSuccess();
     } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'UNABLE TO VERIFY PURCHASE. TRY AGAIN.'); }
@@ -514,12 +739,12 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     if (nativePurchaseProvider) {
       const result = await restoreNativeFirehawk();
       if (result.state === 'notFound') { garage.showActionResult('NO FIREHAWK PURCHASE FOUND'); return; }
-      garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
+      garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
       garage.showActionResult('FIREHAWK RESTORED'); audioManager.playReward(); return;
     }
     if (!code) { garage.showActionResult('PURCHASE RESTORE FAILED'); return; }
     const result = await restoreFirehawkPurchase(code);
-    garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile);
+    garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
     garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
 }, id => { void changeGarageCosmetic('purchaseCosmetic', id); }, id => { void changeGarageCosmetic('equipCosmetic', id); });
@@ -536,7 +761,7 @@ async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic'
     const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [action]: id }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
-    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile);
+    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
     garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'COSMETIC OWNED — SELECT TO EQUIP');
     if (action === 'purchaseCosmetic') audioManager.playPurchaseSuccess();
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }
@@ -550,7 +775,7 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
-  launchBackground.setActive(false);
+  showAppHeader('GARAGE');
   garage.open(garageProfile, true);
   if (result.state === 'cancelled') garage.showActionResult('CHECKOUT CANCELLED — FIREHAWK REMAINS LOCKED');
   else if (result.state === 'completed') {
@@ -570,7 +795,7 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION'): Promis
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
-  launchBackground.setActive(false);
+  showAppHeader('GARAGE');
   const request = ++garageOpenRequest;
   garage.open(garageProfile, true);
   try {
@@ -584,8 +809,6 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION'): Promis
   }
 }
 
-garageEntry.addEventListener('click', () => { void openStartGarage('CITY_SELECTION'); });
-
 function showHome(): Promise<void> {
   audioManager.setMenuMusicDesired(true);
   entryState = 'HANGAR';
@@ -594,29 +817,29 @@ function showHome(): Promise<void> {
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
   citySelector.hidden = true;
-  launchBackground.setActive(false);
   homeHangar.show(homeHangarData());
+  showAppHeader(undefined);
   return garage.showcase(homeHangar.stage, garageProfile);
 }
 
-function showSelector(message = ''): void {
+function showSelector(message = '', options: { preferDallas?: boolean } = {}): void {
   audioManager.setMenuMusicDesired(true);
   entryState = 'CITY_SELECTION';
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.dataset.view = 'cities';
-  renderCityHeader();
   garage.close();
-  cityClose.hidden = gameRoot.hidden;
-  cityHome.hidden = !gameRoot.hidden;
   citySelector.hidden = false;
-  launchBackground.setActive(true);
+  showAppHeader(undefined);
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.hidden = true;
-  citySelectTitle.textContent = 'CHOOSE A CITY';
-  citySelectDescription.textContent = 'Pick your city and start flying.';
+  citySelectTitle.textContent = 'CITY JOURNEY';
+  citySelectDescription.textContent = 'Choose your city.';
+  cityJourneyHint.classList.remove('is-dismissed');
+  cityJourneyIndex = preferredCityJourneyIndex(options.preferDallas === true);
+  renderCityJourney();
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
 }
@@ -647,6 +870,9 @@ async function startTrainingFromHub(): Promise<void> {
   const city = cities.find((candidate) => candidate.id === 'milwaukee' && candidate.status === 'available');
   if (!city || !cityCapabilities(city.id)?.tutorialEnabled) return;
   entryState = 'TUTORIAL';
+  if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
+  if (garage.isOpen()) garage.close();
+  showAppHeader(undefined);
   const url = apiUrl('/api/profile');
   url.searchParams.set('pilotId', garageIdentity.pilotId);
   url.searchParams.set('pilotName', garageIdentity.displayName);
@@ -694,6 +920,7 @@ function maybeBriefCityBeforeEntry(city: CityDefinition): Promise<boolean> {
 async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
   if (!trainingSession && !await maybeBriefCityBeforeEntry(city)) return;
+  appHeader.hide();
 
   if (!gameRoot.hidden) {
     if (activeCityFromUrl()?.id !== city.id) {
@@ -704,7 +931,6 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
     currentUrl.searchParams.set('time', timePreset);
     window.history.replaceState(null, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
     citySelector.hidden = true;
-    launchBackground.setActive(false);
     entryState = 'FLIGHT';
     audioManager.setMenuMusicDesired(false);
     window.dispatchEvent(new CustomEvent('airport-chaos-time-change', { detail: timePreset }));
@@ -717,7 +943,6 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   garage.hideShowcase();
   homeHangar.hide();
   citySelector.hidden = true;
-  launchBackground.setActive(false);
   citySelectionError.hidden = true;
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
@@ -733,6 +958,15 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
 
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
+  if (city.timePresets.length === 1) {
+    const preset = city.timePresets[0]!;
+    try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* launch with the configured time */ }
+    void enterCity(city, preset).catch((error: unknown) => {
+      console.error('[city-entry] Unable to initialize gameplay.', error);
+      showSelector('Unable to load this city.');
+    });
+    return;
+  }
   citySelector.dataset.view = 'time';
   cityOptions.hidden = true;
   timeOptions.replaceChildren();
@@ -769,28 +1003,7 @@ function chooseCity(city: CityDefinition): void {
   }
 }
 cityBack.addEventListener('click', () => showSelector());
-cityHome.addEventListener('click', closeTopUiLayer);
-cityClose.addEventListener('click', closeTopUiLayer);
-cityProfileEntry.addEventListener('click', () => { void openHubPilotMenu('PROFILE'); });
-citySettings.addEventListener('click', () => { void openHubPilotMenu('SETTINGS'); });
 window.addEventListener('airport-chaos-open-city-selector', () => showSelector());
-
-for (const city of cities) {
-  const option = document.createElement('article');
-  option.className = 'city-option';
-  const airportCount = cityAirports[city.id].length;
-  const cityRole = cityCapabilities(city.id)?.practiceMode ? 'Practice / training city' : 'Real gameplay city';
-  option.innerHTML = `<div class="city-option-copy"><strong>${city.displayName}</strong><span>${cityRole} • ${airportCount} airports</span><div class="city-time-list">${city.timePresets.map(preset => `<i>${preset.toUpperCase()}</i>`).join('')}</div></div>`;
-  option.classList.add(`city-${city.id}`);
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'entry-button entry-button-primary';
-  button.textContent = city.status === 'available' ? 'PLAY →' : 'COMING SOON';
-  button.disabled = city.status !== 'available';
-  button.addEventListener('click', () => chooseCity(city));
-  option.append(button);
-  cityOptions.append(option);
-}
 
 async function start(): Promise<void> {
   startupLoading.update(0.12);
@@ -799,7 +1012,7 @@ async function start(): Promise<void> {
   const reportStartupProgress = (): void => {
     startupLoading.update(0.12 + (brandReady ? 0.16 : 0) + (profileReady ? 0.42 : 0));
   };
-  const brandTask = Promise.all([loadAirportChaosLogo(), hubBrandReady, cityBrandReady]).finally(() => {
+  const brandTask = loadAirportChaosLogo().finally(() => {
     brandReady = true;
     reportStartupProgress();
   });
@@ -815,7 +1028,7 @@ async function start(): Promise<void> {
   if (new URLSearchParams(window.location.search).get('entry') === 'city') {
     const url = new URL(window.location.href); url.searchParams.delete('entry');
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-    showSelector();
+    showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
   } else await showHome();
   startupLoading.update(1);
   await startupLoading.finish();

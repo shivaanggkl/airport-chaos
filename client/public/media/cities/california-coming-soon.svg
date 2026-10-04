@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-label="California destination concept art">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#743b6f"/><stop offset=".52" stop-color="#e27a55"/><stop offset="1" stop-color="#163a58"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#2189a5"/><stop offset="1" stop-color="#082638"/></linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h960v540H0z"/>
+  <circle cx="700" cy="150" r="70" fill="#ffd88a" opacity=".88"/>
+  <path fill="url(#sea)" d="M0 300q170-35 340 8t345-4q145-35 275 4v232H0z"/>
+  <path fill="#172e3b" d="M0 335q100-72 206-29t177 65q89 29 167 169H0z"/>
+  <path fill="none" stroke="#9adbe4" stroke-width="5" opacity=".45" d="M394 407q155-58 330-22t236 5M443 445q150-46 305-14t212 8"/>
+  <path fill="#f8c04a" d="M255 220h17v93h-17zM235 220h57l-9 17h-39z" opacity=".9"/>
+  <path fill="none" stroke="#ffd66c" stroke-width="4" stroke-dasharray="16 13" d="M263 313q54 68 151 105" opacity=".8"/>
+  <text x="48" y="66" fill="#fff1c7" font-family="system-ui,sans-serif" font-size="22" font-weight="700" letter-spacing="7">WEST COAST CONCEPT</text>
+</svg>

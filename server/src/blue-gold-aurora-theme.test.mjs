@@ -37,20 +37,21 @@ test('major desktop and shared mobile surfaces use dark blue translucent glass',
   // City Selection now inherits the same reusable entry panel treatment as
   // the Pilot Hub instead of restating those colors on its layout class.
   for (const selector of ['.entry-content-panel', '.pilot-menu-card', '.garage-card', '.world-map-card']) {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const rule = css.match(new RegExp(`${escaped}\\s*\\{[^}]+\\}`))?.[0] ?? '';
+    const rule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .find((match) => match[1]?.split(',').some((part) => part.trim() === selector))?.[0] ?? '';
     assert.match(rule, /background:\s*var\(--ui-bg-(?:strong|soft)\)/, selector);
     assert.match(rule, /color:\s*var\(--ui-text\)/, selector);
   }
-  assert.match(css, /\.unified-flight-hud\s*\{[^}]+rgb\(24 52 74 \/ 72%\)[^}]+rgb\(23 117 223 \/ 18%\)/s);
+  assert.match(css, /\.unified-flight-hud\s*\{[^}]+rgb\(5 24 38 \/ 28%\)[^}]+rgb\(94 184 232 \/ 20%\)/s);
   // The octagon uses a translucent SVG face instead of a solid button fill.
   assert.match(css, /\.touch-stick\{[^}]+background:transparent/);
   assert.match(css, /\.touch-stick-frame-outer\{[^}]*fill:url\(#touch-stick-surface\)/);
   assert.match(css, /#real-players\.expanded, #city-territories\.expanded\s*\{[^}]+rgb\(24 52 74 \/ 58%\)/s);
 });
 
-test('screen overlays preserve vivid game and launch backgrounds', () => {
-  assert.match(css, /\.launch-background::after\s*\{[^}]+rgb\(16 37 54 \/ 24%\)/s);
+test('screen overlays preserve vivid game surfaces and a clean City Journey background', () => {
+  assert.match(css, /\.city-selector\s*\{[^}]+radial-gradient\(ellipse at 50% 10%, rgb\(57 169 249 \/ 20%\)[^}]+linear-gradient\(180deg, #12364d 0%, #0d2a3d 58%, #071923 100%\)/s);
+  assert.doesNotMatch(css, /\.launch-background/);
   assert.match(css, /\.garage-overlay\s*\{[^}]+background:\s*transparent;/s);
   assert.match(css, /\.pilot-menu-overlay\s*\{[^}]+background:\s*transparent;/s);
   assert.match(css, /\.world-map-overlay\s*\{[^}]+background:\s*transparent;/s);

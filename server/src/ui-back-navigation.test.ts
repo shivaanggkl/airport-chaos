@@ -93,8 +93,8 @@ test('screens register with the shared back stack and old Escape close branches 
   assert.match(tutorial, /id: 'flight-tutorial'[\s\S]*priority: uiBackPriority\.blockingModal/);
   assert.doesNotMatch(tutorial, /event\.key === 'Escape'\)[^{]*\{[^}]*this\.close/);
   assert.match(bootstrap, /id: 'city-selection'[\s\S]*close: returnFromCitySelection/);
-  assert.match(bootstrap, /cityHome\.addEventListener\('click', closeTopUiLayer\)/);
-  assert.match(bootstrap, /cityClose\.addEventListener\('click', closeTopUiLayer\)/);
+  assert.doesNotMatch(bootstrap, /cityHome|cityClose/);
+  assert.match(bootstrap, /cityBack\.addEventListener\('click', \(\) => showSelector\(\)\)/);
 });
 
 test('canonical closable panels expose their real content boundary to shared click-away', () => {

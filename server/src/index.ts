@@ -3489,6 +3489,7 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
       first.lifeState !== 'alive' || second.lifeState !== 'alive' ||
       !first.hasRespawnTransform || !second.hasRespawnTransform ||
       now < first.spawnProtectedUntil || now < second.spawnProtectedUntil ||
+      runwayCombatProtected(firstId, first) || runwayCombatProtected(secondId, second) ||
       now - first.lastStateAt > combatTransformFreshMs || now - second.lastStateAt > combatTransformFreshMs) return false;
   const relativeAllowance = Math.min(30, (Math.hypot(first.velocity.x, first.velocity.y, first.velocity.z) +
     Math.hypot(second.velocity.x, second.velocity.y, second.velocity.z)) * 0.1);

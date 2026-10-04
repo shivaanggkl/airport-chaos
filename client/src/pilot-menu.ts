@@ -12,6 +12,7 @@ export type PilotMenuOptions = {
   title?: string;
   closeLabel?: string | (() => string);
   showFlightActions?: boolean;
+  appShell?: boolean;
   onClose?: () => void;
 };
 
@@ -353,15 +354,23 @@ export class PilotMenu {
   private ensureContent(): HTMLDivElement {
     if (this.content) return this.content;
     const card = document.createElement('article');
-    card.className = 'pilot-menu-card';
+    card.className = 'pilot-menu-card app-shell-panel';
+    card.classList.toggle('is-app-shell-screen', this.options.appShell === true);
     const header = document.createElement('header');
     const heading = document.createElement('div');
-    const kicker = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
-    heading.append(kicker, textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker'), textElement('h1', 'What do you want to do?'));
-    void mountAirportChaosLogo(kicker, 'brand-logo-menu');
+    const kicker = textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker');
+    const title = textElement('h1', 'What do you want to do?');
+    title.dataset.pilotMenuTitle = '';
+    if (this.options.appShell) heading.append(kicker, title);
+    else {
+      const brand = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
+      heading.append(brand, kicker, title);
+      void mountAirportChaosLogo(brand, 'brand-logo-menu');
+    }
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const close = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
-    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus, close);
+    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus);
+    if (!this.options.appShell) actions.append(close);
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -383,7 +392,8 @@ export class PilotMenu {
     const navigation = document.createElement('nav');
     navigation.className = 'pilot-menu-navigation';
     navigation.setAttribute('aria-label', 'Pilot Menu sections');
-    for (const name of this.sections) {
+    const navigationSections = this.options.appShell ? this.sections.filter(name => name === 'PROGRESS') : this.sections;
+    for (const name of navigationSections) {
       const button = actionButton({ label: name, run: () => this.switchTo(name) });
       button.dataset.section = name;
       navigation.append(button);
@@ -414,6 +424,8 @@ export class PilotMenu {
     const content = this.ensureContent();
     const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
     if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
+    const title = this.element.querySelector<HTMLElement>('[data-pilot-menu-title]');
+    if (title) title.textContent = this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
     content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');

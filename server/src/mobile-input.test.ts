@@ -46,7 +46,7 @@ test('mobile radar stays available and shares the existing map action',()=>{
   const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
   assert.match(html,/id="radar-panel" role="button" tabindex="0"/);
   assert.match(main,/flightMapButtonElement\.addEventListener\('click', toggleWorldMapFromHud\);/);
-  assert.match(main,/radarPanelElement\.addEventListener\('click', toggleWorldMapFromHud\);/);
+  assert.match(main,/radarPanelElement\.addEventListener\('click', openTutorialMapFromRadar\);/);
   assert.doesNotMatch(css,/\.touch-controls-active :is\([^)]*#radar-panel/);
   assert.match(css,/\.touch-controls-active #right-flight-stack\{[^}]*top:[^;}]+;right:max\(8px,env\(safe-area-inset-right\)\);width:124px;/);
   assert.match(css,/\.touch-controls-active #radar-panel\{[^}]*width:88px;/);

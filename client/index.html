@@ -8,6 +8,7 @@
     <link rel="preload" as="image" href="/media/launch/airport-chaos-launch-poster.jpg" />
   </head>
   <body>
+    <header id="app-shell-header" class="app-shell-header" aria-label="Airport Chaos navigation" hidden></header>
     <main id="brand-loading" class="brand-loading" aria-label="Loading Airport Chaos">
       <div class="brand-loading-sky" aria-hidden="true"><i></i><i></i></div>
       <img class="brand-loading-logo" src="/brand/airport-chaos-logo.avif" alt="Airport Chaos" />
@@ -19,52 +20,26 @@
     </main>
     <main id="home-hangar" class="home-hangar" aria-label="Airport Chaos Pilot Hub" hidden>
       <div class="home-hangar-stage" data-home-hangar-stage aria-label="Equipped aircraft showcase"></div>
-      <header class="entry-shell-header home-hangar-header">
-        <div class="entry-shell-brand home-hangar-brand">AIRPORT CHAOS</div>
-        <div class="entry-shell-status home-hangar-status">
-          <button class="entry-status-card" type="button" data-home-profile-entry><small>PILOT</small><strong data-home-pilot>Pilot</strong></button>
-          <span class="entry-status-card entry-credits home-hangar-credits"><small>CREDITS</small><strong data-home-credits>0</strong></span>
-          <button class="entry-status-card entry-settings home-hangar-settings" type="button" data-home-settings aria-label="Settings"><span aria-hidden="true">⚙</span></button>
-        </div>
-      </header>
       <div class="home-hangar-aircraft-name" data-home-aircraft-name>BLUEJAY TRAINER</div>
-      <nav class="home-hangar-navigation" aria-label="Home navigation">
-        <button class="entry-button entry-button-secondary" type="button" data-home-aircraft>AIRCRAFT</button>
-        <button class="entry-button entry-button-secondary" type="button" data-home-missions>MISSIONS</button>
+      <div class="home-hangar-contextual">
         <button class="entry-button entry-button-primary home-hangar-fly" type="button" data-home-fly>FLY</button>
-        <button class="entry-button entry-button-secondary home-hangar-tutorial" type="button" data-home-tutorial>TUTORIAL</button>
-        <button class="entry-button entry-button-secondary" type="button" data-home-profile>PROFILE</button>
-      </nav>
+      </div>
     </main>
     <main id="city-selector" class="city-selector" hidden>
-      <div id="launch-background" class="launch-background" aria-hidden="true">
-        <img src="/media/launch/airport-chaos-launch-poster.jpg" alt="" fetchpriority="high" />
-        <video autoplay muted loop playsinline preload="none" poster="/media/launch/airport-chaos-launch-poster.jpg" tabindex="-1">
-          <source data-src="/media/launch/airport-chaos-launch.webm" type="video/webm" />
-          <source data-src="/media/launch/airport-chaos-launch.mp4" type="video/mp4" />
-        </video>
-      </div>
-      <header class="entry-shell-header city-select-header">
-        <div class="entry-shell-brand city-select-brand">AIRPORT CHAOS</div>
-        <div class="entry-shell-status">
-          <button class="entry-status-card" type="button" data-city-profile-entry><small>PILOT</small><strong data-city-pilot>Pilot</strong></button>
-          <span class="entry-status-card entry-credits"><small>CREDITS</small><strong data-city-credits>0</strong></span>
-          <button class="entry-status-card entry-settings" type="button" data-city-settings aria-label="Settings"><span aria-hidden="true">⚙</span></button>
-        </div>
-      </header>
-      <section class="entry-content-panel city-select-card">
+      <section class="entry-content-panel app-shell-panel city-select-card">
         <div class="city-select-heading">
           <div class="city-select-tagline">FLY • FIGHT • EXPLORE</div>
-          <h1 class="entry-page-title" id="city-select-title">CHOOSE A CITY</h1>
-          <p id="city-select-description">Pick your city and start flying.</p>
+          <h1 class="entry-page-title" id="city-select-title">CITY JOURNEY</h1>
+          <p id="city-select-description">Choose your city.</p>
         </div>
-        <div id="city-options" class="city-options"></div>
+        <div id="city-options" class="city-journey" role="listbox" aria-label="City Journey" tabindex="0">
+          <div class="city-journey-track" data-city-journey-track></div>
+          <div class="city-journey-dots" data-city-journey-dots aria-label="City position"></div>
+          <div class="city-journey-hint" data-city-journey-hint>SWIPE TO EXPLORE</div>
+        </div>
         <div id="time-options" class="city-options" hidden></div>
         <nav class="city-select-actions" aria-label="Destination navigation">
           <button id="city-back" class="entry-button entry-button-secondary" type="button" hidden>BACK TO CITIES</button>
-          <button id="city-home" class="entry-button entry-button-secondary" type="button">BACK TO PILOT HUB</button>
-          <button id="city-close" class="entry-button entry-button-secondary" type="button" aria-label="Back to Pilot Hub" hidden>BACK TO PILOT HUB</button>
-          <button id="garage-entry" class="entry-button entry-button-secondary" type="button">AIRCRAFT</button>
         </nav>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
         <div id="start-brand-signature"></div>
@@ -72,26 +47,34 @@
     </main>
     <div id="game-root" hidden>
     <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">
-      <button id="flight-menu-button" type="button" aria-label="Open pilot menu">☰</button>
-      <div class="flight-hud-reward-anchor">
-        <div class="flight-hud-reward-stats">
-          <span id="hud-credits" class="flight-hud-stat flight-hud-credits"><small>CREDITS</small><b>💰</b><strong id="credits">0</strong></span>
-          <span class="flight-hud-stat flight-hud-score"><small>SCORE</small><strong id="score">0</strong></span>
-        </div>
-        <div id="reward-feedback" class="reward-feedback hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="flight-hud-left">
+        <button id="flight-menu-button" type="button" aria-label="Open pilot menu">☰</button>
+        <button id="flight-exit-button" class="flight-exit-button" type="button">EXIT TO HUB</button>
       </div>
-      <span class="flight-hud-stat"><small>SPEED</small><strong id="speed">0</strong></span>
-      <span class="flight-hud-stat"><small>ALT</small><strong id="altitude">0</strong><i>FT</i></span>
-      <span class="flight-hud-stat flight-hud-health"><b>♥</b><strong id="health">100</strong></span>
-      <span id="heat-row" class="flight-hud-stat flight-hud-danger" title="More Danger means more attention and better rewards."><b>⚠</b><strong id="heat-level">0</strong></span>
-      <span class="flight-hud-stat flight-hud-mission"><small>MISSION</small><strong id="mission-progress">—</strong></span>
-      <button id="flight-garage-button" class="desktop-hud-action" type="button">GARAGE</button>
-      <button id="flight-world-button" class="desktop-hud-action" type="button">WORLD</button>
-      <button id="flight-map-button" type="button">MAP</button>
-      <button id="flight-account-button" class="flight-account-button" type="button" aria-label="Open login and profile">
-        <img id="flight-account-avatar" alt="" referrerpolicy="no-referrer" hidden />
-        <span id="flight-account-label">LOGIN</span>
-      </button>
+      <div class="flight-hud-center" aria-label="Flight status">
+        <span class="flight-hud-stat flight-hud-score"><small>SCORE</small><strong id="score">0</strong></span>
+        <span class="flight-hud-stat"><small>SPEED</small><strong id="speed">0</strong></span>
+        <span class="flight-hud-stat"><small>ALT</small><strong id="altitude">0</strong><i>FT</i></span>
+        <span class="flight-hud-stat flight-hud-health" aria-label="Aircraft health"><b>♥</b><strong id="health">100</strong></span>
+        <span id="heat-row" class="flight-hud-stat flight-hud-danger" title="Wanted level"><b>⚠</b><strong id="heat-level">0</strong></span>
+        <div class="flight-hud-reward-anchor">
+          <span id="hud-credits" class="flight-hud-stat flight-hud-credits flight-header-credits">
+            <span class="flight-header-credit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M14.8 8.8c-.7-.6-1.6-.9-2.8-.9-1.7 0-2.8.8-2.8 2 0 2.9 5.8 1.1 5.8 4 0 1.2-1.1 2.1-3 2.1-1.2 0-2.3-.4-3-1.1M12 6.4v11.2"/></svg></span>
+            <span class="flight-header-credit-copy"><small>CREDITS</small><strong id="credits">0</strong></span>
+          </span>
+          <div id="reward-feedback" class="reward-feedback hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+        </div>
+      </div>
+      <div class="flight-hud-utilities">
+        <button id="flight-map-button" type="button">MAP</button>
+        <button id="flight-garage-button" class="flight-header-control flight-header-garage" type="button" aria-label="Aircraft Garage">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8l9-5 9 5v12M6 20v-9h12v9M8 14h8M8 17h8"/></svg><span>GARAGE</span>
+        </button>
+        <button id="flight-account-button" class="flight-header-control flight-header-avatar flight-account-button" type="button" aria-label="Open profile">
+          <img id="flight-account-avatar" alt="" referrerpolicy="no-referrer" hidden />
+          <span id="flight-account-label" class="avatar-fallback"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.8 19c.8-3.2 3-5 6.2-5s5.4 1.8 6.2 5"/></svg></span>
+        </button>
+      </div>
     </nav>
     <aside id="practice-mode-label" class="practice-mode-label" hidden>MILWAUKEE — PRACTICE MODE <small>NO REWARDS</small></aside>
     <aside id="dallas-practice-suggestion" class="dallas-practice-suggestion" hidden aria-live="polite">
