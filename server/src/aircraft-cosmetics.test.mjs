@@ -56,7 +56,7 @@ test('Garage is aircraft-filtered and multiplayer reuses the same equipped cosme
   assert.match(garage, /UNLOCK — \$\{item\.creditPrice\.toLocaleString\(\)\} CREDITS/);
   assert.doesNotMatch(garage, /data-garage-premium hidden><b>REDSPEAR FIGHTER/);
   assert.match(garage, /data-garage-trial-summary>Trial: 5 minutes/);
-  assert.match(garage, /Fastest and most agile combat aircraft in Airport Chaos\./);
+  assert.match(garage, /aircraftRoles\[this\.selected\]/);
   assert.match(garage, /premium\.hidden = this\.selected !== 'fighter' \|\| \(owned && !this\.nativeStore\)/);
   assert.match(garage, /buy\.hidden = owned/);
   assert.match(garage, /trialSummary\.hidden = owned/);
@@ -64,6 +64,6 @@ test('Garage is aircraft-filtered and multiplayer reuses the same equipped cosme
   assert.match(client, /player\.equippedCosmetics[^\n]*applyEquippedLivery/);
   assert.match(server, /equippedCosmetics: player\.profile\?\.cosmetics\?\.equipped \?\? \{\}/);
   assert.match(server, /type: 'cosmeticChanged'[\s\S]*equipped: result\.profile\.cosmetics\.equipped/);
-  assert.match(css, /@media \(max-width: 680px\)[^\n]*\.garage-cosmetic-list/);
-  assert.match(css, /\.garage-premium \{ display:grid; gap:7px; margin:8px 0 0; \}/);
+  assert.match(css, /@media \(max-width:680px\)[\s\S]*\.garage-cosmetic-list/);
+  assert.match(css, /\.garage-premium \{ display:grid; gap:6px; margin:0 0 6px; \}/);
 });

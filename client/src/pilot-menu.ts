@@ -5,14 +5,18 @@ import { companyContact, contactLinks, sponsorLocations } from './company-contac
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
+import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
+import { legalConfig } from '../../shared/legal-config.mjs';
+import { legalPolicyHref } from './brand';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
-export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'HELP' | 'SETTINGS' | 'DATA LICENSES';
+export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
 export type PilotMenuOptions = {
   sections?: readonly PilotMenuSection[];
   title?: string;
   closeLabel?: string | (() => string);
   showFlightActions?: boolean;
   appShell?: boolean;
+  showContextStatus?: boolean;
   onClose?: () => void;
 };
 
@@ -70,14 +74,14 @@ export type PilotMenuAccountResult = { ok: boolean; message: string };
 export type PilotMenuData = {
   account: {
     state: 'guest' | 'account'; email?: string; pilotName: string;
+    notice?: PilotMenuAccountResult;
     providers: { password: boolean; google: boolean; apple: boolean };
     availableProviders: readonly ('google' | 'apple')[];
     level: number; xp: number; credits: number; score: number; ownedAircraft: number; badges: number;
-    signUp: (email: string, password: string) => Promise<PilotMenuAccountResult>;
-    signIn: (email: string, password: string) => Promise<PilotMenuAccountResult>;
+    continueAsGuest: () => void;
     logOut: () => Promise<PilotMenuAccountResult>;
     changeName: (pilotName: string) => Promise<PilotMenuAccountResult>;
-    providerAuth: (provider: 'google' | 'apple', action: 'login' | 'link') => Promise<PilotMenuAccountResult>;
+    providerAuth: (provider: 'google' | 'apple', action: 'login') => Promise<PilotMenuAccountResult>;
   };
   city: { name: string; timePreset: string; changeCity: () => void };
   intercity: { routes: readonly {routeId:string;destination:string;distanceLabel:string;recommendedAircraft:string;estimatedFlightTime:number;available:boolean;reason?:string;start:()=>void}[] };
@@ -143,6 +147,21 @@ function actionButton(action: PilotMenuAction): HTMLButtonElement {
   return button;
 }
 
+function providerIcon(provider: 'google' | 'apple'): SVGSVGElement {
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.classList.add('pilot-provider-icon');
+  icon.setAttribute('aria-hidden', 'true');
+  icon.setAttribute('focusable', 'false');
+  if (provider === 'google') {
+    icon.setAttribute('viewBox', '0 0 18 18');
+    icon.innerHTML = '<path fill="#EA4335" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.797 2.715v2.259h2.909c1.703-1.568 2.684-3.878 2.684-6.614z"/><path fill="#4285F4" d="M9 18c2.43 0 4.468-.806 5.956-2.181l-2.909-2.259c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.037-3.71H.956v2.332A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.963 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.281-1.71V4.958H.956A9 9 0 0 0 0 9c0 1.452.347 2.827.956 4.042l3.007-2.332z"/><path fill="#34A853" d="M9 3.58c1.321 0 2.507.454 3.441 1.345l2.581-2.582C13.464.891 11.426 0 9 0A9 9 0 0 0 .956 4.958L3.963 7.29C4.672 5.164 6.656 3.58 9 3.58z"/>';
+  } else {
+    icon.setAttribute('viewBox', '0 0 384 512');
+    icon.innerHTML = '<path fill="currentColor" d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-77.5-19.7C63.3 141.2 4 183.7 4 270.2 4 295.8 8.7 322.2 18.1 349c12.5 36.7 57.7 126.7 104.9 125.2 24.7-.6 42.2-17.5 74.4-17.5 31.2 0 47.3 17.5 74.8 17.5 47.6-.7 88.4-82.5 100.3-119.3-63.8-30.1-53.8-84.1-53.8-86.2zM260.7 104.5c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>';
+  }
+  return icon;
+}
+
 function externalLink(label: string, href: string): HTMLAnchorElement {
   const link = textElement('a', label);
   link.href = href;
@@ -171,6 +190,7 @@ export class PilotMenu {
   private lastSnapshot = '';
   private lastScrollInteractionAt = 0;
   private pointerActive = false;
+  private profileNameEditing = false;
   private advertisingOpen = false;
   private territoryLegendOpen = this.readLegendPreference();
 
@@ -179,7 +199,7 @@ export class PilotMenu {
     private readonly onSectionViewed?: (section: string) => void,
     private readonly options: PilotMenuOptions = {},
   ) {
-    this.sections = options.sections ?? ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'HELP', 'SETTINGS', 'DATA LICENSES'];
+    this.sections = options.sections ?? ['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP'];
     registerUiBackLayer({
       id: `pilot-menu-${++PilotMenu.instanceCount}`,
       priority: uiBackPriority.menu,
@@ -204,6 +224,7 @@ export class PilotMenu {
 
   private switchTo(name: PilotMenuSection): void {
     if (this.activeSection === name || !this.lastData) return;
+    this.profileNameEditing = false;
     this.sectionHistory.push(this.activeSection);
     this.activeSection = name;
     this.onSectionViewed?.(name);
@@ -242,9 +263,12 @@ export class PilotMenu {
   isActivelyScrolling(now = performance.now()): boolean { return now - this.lastScrollInteractionAt < 260; }
 
   open(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'): void {
-    if (!this.openState) this.sectionHistory.length = 0;
+    if (!this.openState) {
+      this.sectionHistory.length = 0;
+    }
     this.openState = true;
     this.activeSection = section;
+    this.profileNameEditing = false;
     this.lastSnapshot = '';
     this.element.hidden = false;
     const close = this.element.querySelector<HTMLButtonElement>('.pilot-menu-header-actions button');
@@ -264,8 +288,9 @@ export class PilotMenu {
     window.setTimeout(() => card.classList.remove('pilot-menu-mission-focus'), 1_600);
   }
 
-  refresh(data: PilotMenuData): void {
-    if (!this.openState || this.pointerActive || this.isActivelyScrolling()) return;
+  refresh(data: PilotMenuData, force = false): void {
+    if (!this.openState || (!force && (this.pointerActive || this.isActivelyScrolling()))) return;
+    if (!force && this.activeSection === 'PROFILE' && this.profileNameEditing) { this.lastData = data; return; }
     const snapshot = this.snapshot(data);
     if (snapshot === this.lastSnapshot) {
       if (this.activeSection === 'MISSIONS') this.updateActiveMission(data);
@@ -278,7 +303,7 @@ export class PilotMenu {
 
   private snapshot(data: PilotMenuData): string {
     switch (this.activeSection) {
-      case 'PROFILE': return JSON.stringify([this.activeSection, data.account.state, data.account.email, data.account.providers, data.account.pilotName, data.account.level, data.account.xp, data.account.credits, data.account.score, data.account.ownedAircraft, data.account.badges]);
+      case 'PROFILE': return JSON.stringify([this.activeSection, data.account.state, data.account.email, data.account.providers, data.account.pilotName, data.account.level, data.account.xp, data.account.credits, data.account.score, data.account.ownedAircraft, data.account.badges, data.account.notice]);
       case 'MISSIONS': return JSON.stringify([this.activeSection, data.missions.activeId,
         data.missions.activeCity, data.missions.entries.map(({ id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds }) =>
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
@@ -297,8 +322,10 @@ export class PilotMenu {
         data.territories.entries.map(({ id, ownedByYou }) => [id, ownedByYou]), data.leaderboards]);
       case 'GARAGE': return JSON.stringify([this.activeSection, data.garage.available, data.garage.reason]);
       case 'CONTROLS': return JSON.stringify([this.activeSection, data.flightPitch.inverted, data.flightPitch.touch, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout]);
-      case 'HELP': return this.activeSection;
-      case 'SETTINGS': return JSON.stringify([this.activeSection, data.hints.enabled, data.navigation.enabled, data.audio.muted]);
+      case 'AUDIO': return JSON.stringify([this.activeSection, data.audio.muted, data.audio.levels]);
+      case 'HELP': return JSON.stringify([this.activeSection, data.hints.enabled]);
+      case 'WORLD / CITIES': return JSON.stringify([this.activeSection, data.city.name, data.intercity.routes]);
+      case 'LEGAL / SUPPORT': return this.activeSection;
       case 'DATA LICENSES': return this.activeSection;
     }
   }
@@ -361,16 +388,14 @@ export class PilotMenu {
     const kicker = textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker');
     const title = textElement('h1', 'What do you want to do?');
     title.dataset.pilotMenuTitle = '';
-    if (this.options.appShell) heading.append(kicker, title);
-    else {
-      const brand = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
-      heading.append(brand, kicker, title);
-      void mountAirportChaosLogo(brand, 'brand-logo-menu');
-    }
+    const brand = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
+    heading.append(brand, kicker, title);
+    void mountAirportChaosLogo(brand, 'brand-logo-menu');
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const close = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
-    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions'; actions.append(cityStatus);
-    if (!this.options.appShell) actions.append(close);
+    const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions';
+    if (this.options.showContextStatus !== false) actions.append(cityStatus);
+    actions.append(close);
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -392,23 +417,15 @@ export class PilotMenu {
     const navigation = document.createElement('nav');
     navigation.className = 'pilot-menu-navigation';
     navigation.setAttribute('aria-label', 'Pilot Menu sections');
-    const navigationSections = this.options.appShell ? this.sections.filter(name => name === 'PROGRESS') : this.sections;
-    for (const name of navigationSections) {
+    for (const name of this.sections) {
       const button = actionButton({ label: name, run: () => this.switchTo(name) });
       button.dataset.section = name;
       navigation.append(button);
     }
     if (this.options.showFlightActions !== false) {
-      const changeCity = actionButton({ label: 'WORLD / CITIES', run: () => this.lastData?.city.changeCity() });
-      changeCity.classList.add('pilot-menu-navigation-action');
-      changeCity.title = 'Return to Choose a City';
       const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart(), intent: 'danger' });
       restart.classList.add('pilot-menu-navigation-action');
-      const cityGuide = actionButton({ label: 'CITY GUIDE', run: () => this.lastData?.cityGuide?.() });
-      cityGuide.classList.add('pilot-menu-navigation-action');
-      const exitFlight = actionButton({ label: 'EXIT FLIGHT', run: () => this.lastData?.exitFlight?.(), intent: 'danger' });
-      exitFlight.classList.add('pilot-menu-navigation-action');
-      navigation.append(changeCity, cityGuide, restart, exitFlight);
+      navigation.append(restart);
     }
     card.append(header, navigation, content);
     this.element.replaceChildren(card);
@@ -429,85 +446,151 @@ export class PilotMenu {
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
     content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');
+    const authenticationScreen = this.activeSection === 'PROFILE' && data.account.state === 'guest';
+    content.classList.toggle('pilot-menu-content-authentication', authenticationScreen);
+    this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-authentication', authenticationScreen);
     for (const button of this.navigation?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
       const sectionName = button.dataset.section;
-      button.hidden = (sectionName === 'TERRITORIES' && !data.territories.enabled) || (sectionName === 'PROGRESS' && !data.progression.enabled);
+      button.hidden = sectionName === 'TERRITORIES' && !data.territories.enabled;
       button.classList.toggle('active', button.dataset.section === this.activeSection);
       button.setAttribute('aria-current', button.dataset.section === this.activeSection ? 'page' : 'false');
     }
 
     if (this.activeSection === 'PROFILE') {
-      const profile = section('PROFILE / ACCOUNT');
       const account = data.account;
-      const identity = document.createElement('div'); identity.className = 'pilot-account-summary';
-      identity.append(
-        textElement('strong', account.pilotName),
-        textElement('span', account.state === 'account' ? account.email ?? 'ACCOUNT' : 'GUEST'),
-        textElement('span', `LEVEL ${account.level} · ${account.xp.toLocaleString()} XP`),
-        textElement('span', `${account.credits.toLocaleString()} CREDITS · ${account.score.toLocaleString()} SCORE`),
-        textElement('span', `${account.ownedAircraft} AIRCRAFT · ${account.badges} BADGES`),
-      );
-      profile.append(identity);
-      const message = textElement('p', '', 'pilot-account-message'); message.setAttribute('role', 'status'); message.hidden = true;
-      const run = async (button: HTMLButtonElement, action: () => Promise<PilotMenuAccountResult>) => {
-        button.disabled = true; message.hidden = false; message.textContent = 'PLEASE WAIT…';
-        try { const result = await action(); message.textContent = result.message; message.classList.toggle('error', !result.ok); }
-        catch { message.textContent = 'ACCOUNT SERVICE UNAVAILABLE'; message.classList.add('error'); }
-        finally { button.disabled = false; }
+      const profile = account.state === 'guest' ? document.createElement('section') : section('PROFILE');
+      profile.classList.add(account.state === 'guest' ? 'pilot-auth-card' : 'pilot-account-card');
+      const initialNotice = account.notice?.message === 'CHOOSE HOW TO PLAY' ? undefined : account.notice;
+      const message = textElement('p', initialNotice?.message ?? '', 'pilot-account-message'); message.setAttribute('role', 'status'); message.hidden = !initialNotice; message.classList.toggle('error', initialNotice?.ok === false);
+      message.setAttribute('aria-live', 'polite');
+      let actionPending = false;
+      const run = async (
+        button: HTMLButtonElement,
+        action: () => Promise<PilotMenuAccountResult>,
+        pendingMessage = 'Please wait…',
+        failureMessage = 'Account service unavailable. Please try again.',
+      ) => {
+        if (actionPending) return;
+        actionPending = true;
+        profile.setAttribute('aria-busy', 'true');
+        const label = button.querySelector<HTMLElement>('.pilot-provider-label') ?? button;
+        const originalLabel = label.textContent ?? '';
+        for (const control of profile.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) control.disabled = true;
+        label.textContent = 'PLEASE WAIT…';
+        message.hidden = false; message.textContent = pendingMessage; message.classList.remove('error');
+        try {
+          const result = await action();
+          message.textContent = result.message; message.classList.toggle('error', !result.ok);
+          return result;
+        }
+        catch {
+          message.textContent = failureMessage; message.classList.add('error');
+          return { ok: false, message: failureMessage };
+        }
+        finally {
+          actionPending = false;
+          if (profile.isConnected) {
+            profile.removeAttribute('aria-busy');
+            label.textContent = originalLabel;
+            for (const control of profile.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) control.disabled = false;
+          }
+        }
       };
-      const nameForm = document.createElement('form'); nameForm.className = 'pilot-account-form';
-      const nameInput = document.createElement('input'); nameInput.name = 'pilotName'; nameInput.value = account.pilotName; nameInput.minLength = 3; nameInput.maxLength = 20; nameInput.required = true; nameInput.dataset.pilotNameEditor = ''; nameInput.setAttribute('autocomplete', 'nickname'); nameInput.setAttribute('aria-label', 'Pilot name');
-      const nameButton = actionButton({ label: 'CHANGE NAME', run: () => undefined }); nameButton.type = 'submit';
-      nameForm.append(textElement('label', 'PILOT NAME'), nameInput, nameButton);
-      nameForm.addEventListener('submit', (event) => { event.preventDefault(); void run(nameButton, () => account.changeName(nameInput.value)); });
-      profile.append(nameForm);
       if (account.state === 'guest') {
-        profile.append(textElement('p', 'Create an account to use this pilot on another browser or device. Your current progress and purchases stay with this pilot.', 'pilot-menu-muted'));
+        profile.append(
+          textElement('span', 'AIRPORT CHAOS', 'pilot-auth-brand'),
+          textElement('h2', 'CHOOSE HOW TO PLAY'),
+          textElement('p', 'Sign in to save your progress on every device', 'pilot-auth-subtitle'),
+        );
         const providers = document.createElement('div'); providers.className = 'pilot-account-providers';
         for (const provider of account.availableProviders) {
-          const label = `CONTINUE WITH ${provider.toUpperCase()}`;
-          const button = actionButton({ label, intent: 'primary', run: () => void run(button, () => account.providerAuth(provider, 'login')) });
+          const label = `Continue with ${provider === 'google' ? 'Google' : 'Apple'}`;
+          const button = actionButton({ label: '', run: () => void run(button, () => account.providerAuth(provider, 'login'), 'Signing in…', 'Unable to sign in. Please try again.') });
           button.classList.add('pilot-provider-button', `pilot-provider-${provider}`);
+          button.setAttribute('aria-label', label);
+          button.append(providerIcon(provider), textElement('span', label, 'pilot-provider-label'), document.createElement('i'));
           providers.append(button);
         }
-        profile.append(providers);
-        const authForms = document.createElement('div'); authForms.className = 'pilot-account-auth-forms';
-        const makeAuthForm = (title: string, submitLabel: string, action: (email: string, password: string) => Promise<PilotMenuAccountResult>) => {
-          const form = document.createElement('form'); form.className = 'pilot-account-auth-form';
-          form.append(textElement('h3', title));
-          const email = document.createElement('input'); email.type = 'email'; email.required = true; email.maxLength = 254; email.autocomplete = 'email'; email.placeholder = 'Email'; email.setAttribute('aria-label', `${title} email`);
-          const password = document.createElement('input'); password.type = 'password'; password.required = true; password.minLength = 10; password.maxLength = 128; password.autocomplete = title === 'CREATE ACCOUNT' ? 'new-password' : 'current-password'; password.placeholder = title === 'CREATE ACCOUNT' ? 'Password (10+ characters)' : 'Password'; password.setAttribute('aria-label', `${title} password`);
-          const submit = actionButton({ label: submitLabel, run: () => undefined, intent: title === 'CREATE ACCOUNT' ? 'primary' : undefined }); submit.type = 'submit';
-          form.append(email, password, submit);
-          form.addEventListener('submit', (event) => { event.preventDefault(); void run(submit, () => action(email.value, password.value)); });
-          return form;
-        };
-        authForms.append(makeAuthForm('CREATE ACCOUNT', 'CREATE ACCOUNT', account.signUp), makeAuthForm('SIGN IN', 'SIGN IN', account.signIn));
-        profile.append(authForms, actionButton({ label: 'CONTINUE AS GUEST', run: closeTopUiLayer }));
-      } else {
-        profile.append(textElement('p', 'Your progression, purchases, aircraft and cosmetics are linked to this account.', 'pilot-menu-muted'));
-        const linked = document.createElement('div'); linked.className = 'pilot-account-linked';
-        linked.append(textElement('h3', 'LINKED ACCOUNTS'));
-        const methods: Array<{ provider: 'password' | 'google' | 'apple'; label: string }> = [
-          { provider: 'google', label: 'GOOGLE' }, { provider: 'apple', label: 'APPLE' }, { provider: 'password', label: 'EMAIL' },
-        ];
-        for (const method of methods) {
-          const row = document.createElement('div'); row.className = 'pilot-account-linked-row';
-          row.append(textElement('span', method.label), textElement('strong', account.providers[method.provider] ? 'CONNECTED' : 'NOT CONNECTED'));
-          if (method.provider !== 'password' && account.availableProviders.includes(method.provider) && !account.providers[method.provider]) {
-            const provider = method.provider;
-            const button = actionButton({ label: `LINK ${method.label}`, run: () => void run(button, () => account.providerAuth(provider, 'link')) });
-            row.append(button);
-          }
-          linked.append(row);
-        }
-        profile.append(
-          linked,
-          actionButton({ label: 'LOG OUT', intent: 'danger', run: () => { const button = this.content?.querySelector<HTMLButtonElement>('.pilot-menu-danger'); if (button) void run(button, account.logOut); } }),
+        const divider = document.createElement('div'); divider.className = 'pilot-auth-divider'; divider.append(document.createElement('span'), textElement('b', 'OR'), document.createElement('span'));
+        const guest = actionButton({ label: 'PLAY AS GUEST', run: account.continueAsGuest });
+        guest.classList.add('pilot-auth-guest');
+        const guestNote = textElement('p', 'Guest progress stays on this device', 'pilot-auth-guest-note');
+        const legal = document.createElement('p'); legal.className = 'pilot-auth-legal';
+        legal.append(
+          document.createTextNode('By continuing, you agree to our '), externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
+          document.createTextNode(' and acknowledge our '), externalLink('Privacy Policy', legalPolicyHref(legalConfig.policyRoutes.privacy)), document.createTextNode('.'),
         );
+        const back = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer }); back.classList.add('pilot-auth-back');
+        profile.append(providers, divider, guest, guestNote, message, legal, back);
+      } else {
+        profile.append(textElement('p', 'Your pilot identity and account.', 'pilot-profile-intro'));
+
+        const pilot = data.progression.pilotProgress;
+        const levelStartXp = pilotXpForLevel(pilot.level);
+        const levelRange = Math.max(1, pilot.nextLevelXp - levelStartXp);
+        const levelProgress = pilot.level >= 50 ? levelRange : Math.max(0, Math.min(levelRange, pilot.xp - levelStartXp));
+        const identity = document.createElement('div'); identity.className = 'pilot-profile-identity';
+        const emblem = textElement('span', '✦', 'pilot-profile-emblem'); emblem.setAttribute('aria-hidden', 'true');
+        const identityCopy = document.createElement('div'); identityCopy.className = 'pilot-profile-identity-text';
+        identityCopy.append(
+          textElement('strong', account.pilotName),
+          textElement('span', account.email ?? 'SIGNED-IN PILOT'),
+          textElement('b', `LEVEL ${pilot.level} · ${pilot.title}`),
+        );
+        const xp = document.createElement('div'); xp.className = 'pilot-profile-xp';
+        const xpBar = document.createElement('progress'); xpBar.max = levelRange; xpBar.value = levelProgress; xpBar.setAttribute('aria-label', `Level ${pilot.level} progress`);
+        xp.append(xpBar, textElement('span', `${pilot.xp.toLocaleString()} XP`));
+        identity.append(emblem, identityCopy, xp);
+
+        const stats = document.createElement('div'); stats.className = 'pilot-profile-stats';
+        for (const [label, value] of [
+          ['CREDITS', account.credits], ['SCORE', account.score], ['AIRCRAFT', account.ownedAircraft], ['BADGES', account.badges],
+        ] as const) {
+          const stat = document.createElement('div'); stat.className = 'pilot-profile-stat';
+          stat.append(textElement('strong', value.toLocaleString()), textElement('span', label));
+          stats.append(stat);
+        }
+
+        const accountPanel = document.createElement('div'); accountPanel.className = 'pilot-profile-account';
+        accountPanel.append(textElement('h3', 'ACCOUNT'));
+        const nameRow = document.createElement('div'); nameRow.className = 'pilot-profile-account-row';
+        const nameDetails = document.createElement('div');
+        nameDetails.append(textElement('span', 'PILOT NAME', 'pilot-profile-field-label'));
+        if (this.profileNameEditing) {
+          const nameForm = document.createElement('form'); nameForm.className = 'pilot-profile-name-form';
+          const nameInput = document.createElement('input'); nameInput.name = 'pilotName'; nameInput.value = account.pilotName; nameInput.minLength = 3; nameInput.maxLength = 20; nameInput.required = true; nameInput.dataset.pilotNameEditor = ''; nameInput.setAttribute('autocomplete', 'nickname'); nameInput.setAttribute('aria-label', 'Pilot name');
+          const cancel = actionButton({ label: 'CANCEL', run: () => { this.profileNameEditing = false; this.render(data, true); } });
+          const save = actionButton({ label: 'SAVE', intent: 'primary', run: () => undefined }); save.type = 'submit';
+          const formActions = document.createElement('div'); formActions.className = 'pilot-profile-name-actions'; formActions.append(cancel, save);
+          nameForm.append(nameInput, formActions);
+          nameForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (!nameInput.reportValidity()) return;
+            void (async () => {
+              const result = await run(save, () => account.changeName(nameInput.value), 'Saving…', 'Unable to update your pilot name. Please try again.');
+              if (!result?.ok) return;
+              this.profileNameEditing = false;
+              if (this.lastData) this.render(this.lastData, true);
+            })();
+          });
+          nameDetails.append(nameForm);
+        } else {
+          nameDetails.append(textElement('strong', account.pilotName));
+          nameRow.append(nameDetails, actionButton({ label: 'EDIT NAME', run: () => { this.profileNameEditing = true; this.render(data, true); } }));
+        }
+        if (this.profileNameEditing) nameRow.append(nameDetails);
+
+        const emailRow = document.createElement('div'); emailRow.className = 'pilot-profile-account-row';
+        const emailDetails = document.createElement('div');
+        emailDetails.append(textElement('span', 'SIGN-IN ACCOUNT', 'pilot-profile-field-label'), textElement('strong', account.email ?? 'ACCOUNT'));
+        emailRow.append(emailDetails);
+        const logout = actionButton({ label: 'LOG OUT', intent: 'danger', run: () => void run(logout, account.logOut) });
+        logout.classList.add('pilot-profile-logout');
+        accountPanel.append(nameRow, emailRow, message, logout);
+        profile.append(identity, stats, accountPanel);
       }
-      profile.append(message); content.append(profile);
-      if (data.nativeWebPromotion) {
+      content.append(profile);
+      if (data.nativeWebPromotion && account.state === 'account') {
         const web = section('PLAY ON WEB');
         web.classList.add('pilot-menu-web-promotion');
         web.append(textElement('p', 'Continue flying from any computer.', 'pilot-menu-muted'),
@@ -813,12 +896,14 @@ export class PilotMenu {
       );
       controls.append(camera);
     }
-    const session = section('SESSION');
-    session.append(actionButton({label:'BACK TO GAME',run:closeTopUiLayer,intent:'primary'}),actionButton({label:'RESTART / RESPAWN',run:data.restart,intent:'danger'}));
-    content.append(controls,session);
+    const navigation = section('NAVIGATION');
+    navigation.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: data.navigation.toggle }));
+    const graphics = section('GRAPHICS');
+    graphics.append(selectRow('GRAPHICS QUALITY',data.preferences.graphicsQuality,['auto','high','balanced','low'],value=>data.preferences.setGraphicsQuality(value as 'auto'|'high'|'balanced'|'low')),textElement('small','Graphics changes apply next time the city loads.','pilot-menu-muted'));
+    content.append(controls,navigation,graphics);
     }
 
-    if (this.activeSection === 'SETTINGS') {
+    if (this.activeSection === 'AUDIO') {
     const audio = section('Audio');
     audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: data.audio.toggle }));
     for (const category of ['master', 'music', 'engine', 'combat', 'ui'] as const) {
@@ -839,44 +924,66 @@ export class PilotMenu {
       audio.append(row);
     }
     content.append(audio);
-    const hints = section('Hints');
-    hints.append(
-      textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'),
-      actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: data.hints.toggle }),
-    );
-    content.append(hints);
-    const navigation = section('Navigation');
-    navigation.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: data.navigation.toggle }));
-    content.append(navigation);
-    const controls=section('Graphics');
-    const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
-    controls.append(selectRow('GRAPHICS QUALITY',data.preferences.graphicsQuality,['auto','high','balanced','low'],value=>data.preferences.setGraphicsQuality(value as 'auto'|'high'|'balanced'|'low')),textElement('small','Graphics changes apply next time the city loads.','pilot-menu-muted'));
-    content.append(controls);
-
-    const advertising = section('Advertising');
-    const sponsorInfo = document.createElement('div'); sponsorInfo.className = 'pilot-menu-sponsor-info';
-    sponsorInfo.append(textElement('p', 'Interested in advertising in Airport Chaos?'),
-      textElement('p', `Sponsor: ${sponsorLocations}`), textElement('p', companyContact.companyName));
-    const sponsorLinks = document.createElement('div'); sponsorLinks.innerHTML = contactLinks(); sponsorInfo.append(sponsorLinks);
-    sponsorInfo.hidden = !this.advertisingOpen;
-    advertising.append(actionButton({ label: 'Advertise in Airport Chaos', run: () => {
-      this.advertisingOpen = !this.advertisingOpen;
-      sponsorInfo.hidden = !this.advertisingOpen;
-    } }), sponsorInfo);
-    content.append(advertising);
     }
 
     if (this.activeSection === 'HELP') {
       const help = section('HELP');
       help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
       help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
+      help.append(actionButton({ label: 'OPEN CONTROLS', run: () => this.switchTo('CONTROLS') }));
       if(data.guide.enabled){
         help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
         help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
       }
       if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
       else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
-      content.append(help);
+      const hints = section('HINTS');
+      hints.append(
+        textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'),
+        actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: data.hints.toggle }),
+      );
+      content.append(help,hints);
+    }
+
+    if (this.activeSection === 'WORLD / CITIES') {
+      const world = section('WORLD / CITIES');
+      world.append(
+        textElement('p', `Current city: ${data.city.name}`, 'pilot-menu-muted'),
+        textElement('p', 'Choose an available destination and prepare your next flight.'),
+        actionButton({ label: 'CHOOSE CITY', run: data.city.changeCity, intent: 'primary' }),
+      );
+      if (data.intercity.routes.length) {
+        for (const route of data.intercity.routes) world.append(this.createCard({
+          name: route.destination,
+          detail: route.distanceLabel,
+          meta: `Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,
+          actions: [{ label: 'START ROUTE', run: route.start, disabled: !route.available, title: route.reason }],
+        }));
+      }
+      content.append(world);
+    }
+
+    if (this.activeSection === 'LEGAL / SUPPORT') {
+      const legal = section('LEGAL / SUPPORT');
+      const links = document.createElement('div'); links.className = 'pilot-menu-license-links';
+      links.append(
+        externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
+        externalLink('Privacy Policy', legalPolicyHref(legalConfig.policyRoutes.privacy)),
+        externalLink('Refund Policy', legalPolicyHref(legalConfig.policyRoutes.refund)),
+        externalLink('Support', legalPolicyHref(legalConfig.policyRoutes.support)),
+      );
+      legal.append(textElement('p', 'Policies and help for Airport Chaos.', 'pilot-menu-muted'), links);
+      const advertising = section('BUSINESS CONTACT');
+      const sponsorInfo = document.createElement('div'); sponsorInfo.className = 'pilot-menu-sponsor-info';
+      sponsorInfo.append(textElement('p', 'Interested in advertising in Airport Chaos?'),
+        textElement('p', `Sponsor: ${sponsorLocations}`), textElement('p', companyContact.companyName));
+      const sponsorLinks = document.createElement('div'); sponsorLinks.innerHTML = contactLinks(); sponsorInfo.append(sponsorLinks);
+      sponsorInfo.hidden = !this.advertisingOpen;
+      advertising.append(actionButton({ label: 'Advertise in Airport Chaos', run: () => {
+        this.advertisingOpen = !this.advertisingOpen;
+        sponsorInfo.hidden = !this.advertisingOpen;
+      } }), sponsorInfo);
+      content.append(legal,advertising);
     }
 
     if (this.activeSection === 'DATA LICENSES') {

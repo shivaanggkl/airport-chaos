@@ -81,7 +81,7 @@ test('short touch landscape keeps Pilot Menu header fixed with independent navig
   assert.match(css, /\(any-pointer:coarse\) and \(orientation:landscape\) and \(max-height:520px\)\{[\s\S]*\.pilot-menu-card\{[^}]*grid-template:[^}]*108px minmax\(0,1fr\);[^}]*height:100%;[^}]*max-height:100%;/);
   assert.match(css, /\.pilot-menu-navigation\{[^}]*overflow-y:auto;[^}]*overscroll-behavior:contain/);
   assert.match(css, /\.pilot-menu-content\{[^}]*min-width:0;[^}]*overflow-x:hidden/);
-  assert.match(css, /\.pilot-account-summary\{[^}]*padding:8px 10px;[^}]*font-size:14px/);
+  assert.match(css, /\.pilot-profile-identity\{[^}]*padding:10px/);
 });
 
 test('WKWebView and short landscape overlays use an explicit compact type scale', () => {
@@ -90,7 +90,7 @@ test('WKWebView and short landscape overlays use an explicit compact type scale'
 });
 
 test('short landscape restores two-column progress and Garage presentation', () => {
-  assert.match(css, /@media \(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.pilot-progress-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
-  assert.match(css, /\.garage-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1\.2fr\) minmax\(220px, \.8fr\);/);
-  assert.match(css, /\.garage-preview,[\s\S]*\.garage-preview canvas\s*\{[^}]*height:\s*164px;/);
+  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.pilot-progress-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(css, /\.garage-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\.48fr\) minmax\(270px,\.52fr\);/);
+  assert.match(css, /\.garage-preview,[\s\S]*\.garage-preview canvas\s*\{[^}]*height:\s*100%;/);
 });

@@ -1161,10 +1161,9 @@ let healthFlashTimer: number | undefined;
 let hitMarkerTimer: number | undefined;
 let damageFlashTimer: number | undefined;
 
-let audioMuted = persistedPlayer.muted;
 type AudioCategory = 'engine' | 'combat' | 'impacts' | 'ui';
 const audioLevels: AudioLevels = audioManager.getLevels();
-audioManager.setMuted(audioMuted);
+audioManager.setMuted(persistedPlayer.muted);
 function setAudioLevel(category: keyof AudioLevels, value: number): void {
   audioLevels[category] = THREE.MathUtils.clamp(Math.round(value), 0, 100);
   audioManager.setLevel(category, audioLevels[category]);
@@ -1182,7 +1181,7 @@ function writePlayerProgress(): void {
     // never overwrite migration data with the temporary Trainer state.
     selectedAircraft: profileHydrated ? aircraftType : persistedPlayer.selectedAircraft,
     displayName,
-    muted: audioMuted,
+    muted: audioManager.isMuted(),
     bestScore,
     discoveries: discoveredLocationsByCity,
     totalDistance,
@@ -1328,7 +1327,7 @@ function playLeaderSound(): void {
 function updateEngineAudio(): void {
   const speedAmount = THREE.MathUtils.clamp(currentSpeed / currentAircraft.maxSpeed, 0, 1);
   // The launch lift is audio-only. It never changes throttle, velocity, or the
-  // authoritative grounded aircraft state used by runway protection.
+  // authoritative grounded aircraft state.
   const engineAmount = Math.max(speedAmount, throttle * 0.72, flightLaunchEngineLift + cinematicDirector.engineLift()) + boostVisualStrength * 0.12;
   const profile = aircraftType === 'cargo' ? { base: 42, range: 58, weight: 1.22 }
     : aircraftType === 'privateJet' ? { base: 62, range: 72, weight: 0.92 }
@@ -1344,7 +1343,7 @@ function updateEngineAudio(): void {
 
 function toggleAudio(): void {
   activateAudio();
-  audioMuted = audioManager.toggleMuted();
+  audioManager.toggleMuted();
   savePlayerProgress(true);
 }
 
@@ -3066,6 +3065,20 @@ const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#
   if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action==='fire')fireWeaponOnce();}
   else heldActions.delete(action);
 },(value)=>{if(launchCinematicBlocksInput())return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);});
+window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
+  const latest=loadPlayerProgress();
+  persistedPlayer.muted=audioManager.isMuted();
+  persistedPlayer.hintsEnabled=latest.hintsEnabled;
+  persistedPlayer.navigationMarkersEnabled=latest.navigationMarkersEnabled;
+  contextualHints.setEnabled(latest.hintsEnabled);
+  navigationMarkersEnabled=latest.navigationMarkersEnabled;
+  navigationBeacons.setEnabled(navigationMarkersEnabled);
+  graphicsQualityMode=preferredGraphicsQuality();
+  Object.assign(audioLevels,audioManager.getLevels());
+  mobileInput.syncPreferences();
+  renderDesktopControlsHelp();
+  if(pilotMenu.isOpen())renderPilotMenu();
+});
 const desktopControlsHelpPreferenceKey = 'airport-chaos-desktop-controls-help-v1';
 let desktopControlsHelpCollapsed = false;
 try { desktopControlsHelpCollapsed = localStorage.getItem(desktopControlsHelpPreferenceKey) === 'collapsed'; } catch { /* default expanded */ }
@@ -3350,7 +3363,7 @@ function completeFlightLaunchCinematic(): void {
   document.body.style.removeProperty('--launch-hud-opacity');
   document.body.style.removeProperty('--launch-hud-fade-duration');
   document.body.classList.remove('launch-cinematic-pending', 'launch-cinematic-active');
-  maybeOpenFirstCityGuide();
+  offerDallasPracticeSuggestion(serverProfile);
 }
 
 function cancelPendingFlightLaunch(): void {
@@ -3776,7 +3789,7 @@ function cacheIdentityTransitionProfile(profile: NetworkProfile): void {
       credits: profile.credits,
       selectedAircraft: profile.selectedAircraft,
       displayName: profile.pilotName,
-      muted: audioMuted,
+      muted: audioManager.isMuted(),
       bestScore: profile.score,
       discoveries: profile.discoveries,
       totalDistance: profile.totalDistance,
@@ -3789,7 +3802,7 @@ function cacheIdentityTransitionProfile(profile: NetworkProfile): void {
   } catch { /* the secure session still controls the next profile load */ }
 }
 
-async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
+async function accountRequest(path: 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
   const rotatesIdentity = path !== 'pilot-name';
   if (rotatesIdentity) identityTransitionInProgress = true;
   try {
@@ -3816,7 +3829,10 @@ async function accountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name'
   }
 }
 
-async function providerAccountRequest(provider: 'google' | 'apple', action: 'login' | 'link'): Promise<{ ok: boolean; message: string }> {
+async function providerAccountRequest(provider: 'google' | 'apple', action: 'login'): Promise<{ ok: boolean; message: string }> {
+  if (clientAccount.state === 'account') {
+    return { ok: false, message: "You're already signed in. Log out first to use another account." };
+  }
   try {
     if (nativeAuthPlatform) {
       if (!availableNativeProviders.includes(provider)) return { ok: false, message: 'THIS PROVIDER IS NOT AVAILABLE ON THIS DEVICE' };
@@ -4510,11 +4526,6 @@ function openCityGuide(): void {
     { label: 'START FLYING', run: dismiss },
     { label: 'CITY MISSIONS', secondary: true, run: () => { markCityGuideSeen(); openPilotMenu('MISSIONS'); } },
   ], dismiss);
-}
-function maybeOpenFirstCityGuide(): void {
-  if (flightDialogOpen()) return;
-  if (!cityGuideSeen() && !guidedTutorialActive && !trainingRequested) openCityGuide();
-  else offerDallasPracticeSuggestion(serverProfile);
 }
 let pendingFirehawkPromotionMission: string | undefined;
 let firehawkPromotionSessionShown = false;
@@ -5448,8 +5459,7 @@ function pilotMenuData(): PilotMenuData {
         ...Object.values(serverProfile.mastery).flatMap((entry) => entry?.unlockedRewards ?? []).filter((reward) => /badge/i.test(reward)),
         ...(serverProfile.weeklyReward?.badge && serverProfile.weeklyReward.badgeExpiresAt > Date.now() ? [serverProfile.weeklyReward.badge] : []),
       ]).size,
-      signUp: (email, password) => accountRequest('signup', { email, password }),
-      signIn: (email, password) => accountRequest('login', { email, password }),
+      continueAsGuest: () => pilotMenu.close(),
       logOut: () => accountRequest('logout'),
       changeName: (pilotName) => accountRequest('pilot-name', { pilotName }),
       providerAuth: providerAccountRequest,
@@ -5522,6 +5532,7 @@ function pilotMenuData(): PilotMenuData {
       enabled: contextualHints.isEnabled(),
       toggle: () => {
         contextualHints.setEnabled(!contextualHints.isEnabled());
+        renderPilotMenu(true);
       },
     },
     navigation: {
@@ -5531,13 +5542,14 @@ function pilotMenuData(): PilotMenuData {
         persistedPlayer.navigationMarkersEnabled = navigationMarkersEnabled;
         navigationBeacons.setEnabled(navigationMarkersEnabled);
         savePlayerProgress();
+        renderPilotMenu(true);
       },
     },
     preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.supportsTouchControls(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));renderPilotMenu();},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
     restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     exitFlight: requestFlightExit,
     cityGuide: openCityGuide,
-    audio: { muted: audioMuted, toggle: toggleAudio, levels: audioLevels, setLevel: setAudioLevel },
+    audio: { muted: audioManager.isMuted(), toggle: toggleAudio, levels: audioManager.getLevels(), setLevel: setAudioLevel },
     flightPitch: { inverted: mobileInput.getPitchInverted(), touch: mobileInput.isTouchLayout(), setInverted: (inverted:boolean) => { mobileInput.setPitchInverted(inverted);renderPilotMenu(true); } },
     guide: { enabled: guidedTutorialActive, open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGuidedTutorial();} },
   };
@@ -5545,7 +5557,7 @@ function pilotMenuData(): PilotMenuData {
 
 function renderPilotMenu(force = false, section: PilotMenuSection = 'MISSIONS'): void {
   const data = pilotMenuData();
-  if (pilotMenu.isOpen()) pilotMenu.refresh(data);
+  if (pilotMenu.isOpen()) pilotMenu.refresh(data, force);
   else if (force) pilotMenu.open(data, section);
 }
 
@@ -5980,7 +5992,6 @@ function localFireBlockReason(): FireBlockedReason | undefined {
   if (flightTutorial.isOpen()) return 'menu';
   if (crashed || !runStarted || !localPlayerId) return 'invalid_state';
   if (localLifeState !== 'alive') return localLifeState === 'respawning' ? 'protection' : 'lifecycle';
-  if (onGround) return 'protection';
   if (!connectionReady()) return 'socket';
   if (fireCooldown > 0) return 'cooldown';
   return undefined;
@@ -6754,7 +6765,7 @@ function updateRemotePlayers(delta: number): void {
       const width = worldPerPixel * targetPixels;
       remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, Math.max(5.5, worldPerPixel * 32));
       remote.playerProxy.scale.set(width, width * (2 / 3), 1);
-      proxyMaterial.opacity = targeted ? 1 : THREE.MathUtils.lerp(0.66, 0.96, THREE.MathUtils.smoothstep(distance, 100, 600));
+      proxyMaterial.opacity = targeted ? 1 : distance <= COMBAT_RANGE ? 0.96 : 0.82;
     }
   }
 }
@@ -8750,8 +8761,6 @@ boundSocket.addEventListener('message', (event) => {
       applyServerProfile(message.profile);
     }
     if(message.tutorialMode&&cityRules.tutorialEnabled){cancelPendingFlightLaunch();applyServerSelectedAircraft(message.activeAircraftType,false,false);setGuidedTutorial(true);}
-    // The first-visit city guide takes priority over the existing practice
-    // suggestion; the suggestion can appear after the guide is dismissed.
     applySocialState(message.social);
     reconcileRemotePlayers(message.players);
     for (const player of message.players) updateRemotePlayer(player);
@@ -8763,7 +8772,7 @@ boundSocket.addEventListener('message', (event) => {
     const referralCode = new URLSearchParams(window.location.search).get('ref');
     if (referralCode) socket.send(JSON.stringify({ type: 'referralAttach', code: referralCode }));
     if (shouldBeginFlightLaunch) beginFlightLaunchCinematic();
-    else { cancelPendingFlightLaunch(); maybeOpenFirstCityGuide(); }
+    else { cancelPendingFlightLaunch(); offerDallasPracticeSuggestion(serverProfile); }
     sendLocalState();
     sendPlayerUpdate();
   } else if (!protocolReady || !profileHydrated) {

@@ -2,6 +2,7 @@ import type { FlightAction } from './flight-input';
 import {
   joystickInput,
   joystickKnobPosition,
+  joystickTenEdgeInput,
   mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
@@ -17,6 +18,7 @@ import {
 export {
   joystickInput,
   joystickKnobPosition,
+  joystickTenEdgeInput,
   mobileIdleBrakeRequested,
   pinchZoomFactor,
   throttleLeverState,
@@ -89,7 +91,7 @@ function safePlacement(control: MobileControlId, value: unknown, fallback: Mobil
   };
 }
 
-function preferredLayout(): MobileControlLayout {
+export function preferredMobileControlLayout(): MobileControlLayout {
   try {
     const stored = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? 'null') as Partial<MobileControlLayout> | null;
     const migrated = (control: MobileControlId): Partial<MobileControlPlacement> | undefined => {
@@ -111,8 +113,27 @@ function preferredLayout(): MobileControlLayout {
   }
 }
 
+export function persistMobileControlPlacement(control: MobileControlId, current: MobileControlLayout, next: Partial<MobileControlPlacement>): MobileControlLayout {
+  const layout = cloneLayout(current);
+  layout[control] = safePlacement(control, { ...layout[control], ...next }, defaultLayout[control]);
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* persistence is optional */ }
+  return layout;
+}
+
+export function resetPreferredMobileControlLayout(): MobileControlLayout {
+  const layout = cloneLayout(defaultLayout);
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* persistence is optional */ }
+  return layout;
+}
+
 export function preferredTouchMode(): TouchControlsMode {
   try { return normalizeTouchMode(localStorage.getItem(TOUCH_KEY)); } catch { return 'auto'; }
+}
+
+export function persistTouchMode(mode: TouchControlsMode): TouchControlsMode {
+  const normalized = normalizeTouchMode(mode);
+  try { localStorage.setItem(TOUCH_KEY, normalized); } catch { /* persistence is optional */ }
+  return normalized;
 }
 
 export function preferredGraphicsQuality(): GraphicsQualityMode {
@@ -122,7 +143,7 @@ export function preferredGraphicsQuality(): GraphicsQualityMode {
 export class MobileInputControls {
   private pitchInverted = preferredPitchInverted();
   private mode = preferredTouchMode();
-  private layout = preferredLayout();
+  private layout = preferredMobileControlLayout();
   private active = new Set<FlightAction>();
   private joystickPointer: number | undefined;
   private steeringInput = { x: 0, y: 0 };
@@ -216,8 +237,7 @@ export class MobileInputControls {
   }
 
   setMode(mode: TouchControlsMode) {
-    this.mode = normalizeTouchMode(mode);
-    try { localStorage.setItem(TOUCH_KEY, this.mode); } catch { /* Persistence is optional. */ }
+    this.mode = persistTouchMode(mode);
     this.reset();
     this.refresh();
   }
@@ -235,6 +255,14 @@ export class MobileInputControls {
     this.persistLayout();
     this.applyLayout();
     return this.getLayout();
+  }
+
+  syncPreferences() {
+    this.mode = preferredTouchMode();
+    this.pitchInverted = preferredPitchInverted();
+    this.layout = preferredMobileControlLayout();
+    this.applyLayout();
+    this.refresh();
   }
 
   reset() {
@@ -351,9 +379,10 @@ export class MobileInputControls {
       if (this.joystickPointer !== event.pointerId) return;
       event.preventDefault();
       const rect = stick.getBoundingClientRect();
-      const x = clamp((event.clientX - (rect.left + rect.width / 2)) / (rect.width * 0.42), -1, 1);
-      const y = clamp((event.clientY - (rect.top + rect.height / 2)) / (rect.height * 0.42), -1, 1);
-      this.steeringInput = joystickInput(x, y);
+      const x = (event.clientX - (rect.left + rect.width / 2)) / (rect.width * 0.48);
+      const y = (event.clientY - (rect.top + rect.height / 2)) / (rect.height * 0.48);
+      const tenEdgeInput = joystickTenEdgeInput(x, y);
+      this.steeringInput = joystickInput(tenEdgeInput.x, tenEdgeInput.y);
       const knob = joystickKnobPosition(x, y);
       stick.style.setProperty('--touch-x', `${knob.x}px`);
       stick.style.setProperty('--touch-y', `${knob.y}px`);

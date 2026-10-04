@@ -67,6 +67,16 @@ test('native auth uses official SDK adapters and never accepts client account au
   assert.match(entitlement, /com\.apple\.developer\.applesignin/);
 });
 
+test('web and native provider-link API requests are rejected before OAuth starts', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const nativeStart = server.slice(server.indexOf("if (requestUrl.pathname === '/api/auth/native/start')"), server.indexOf("if (requestUrl.pathname === '/api/auth/native/complete')"));
+  const oauthStart = server.slice(server.indexOf("if (requestUrl.pathname === '/api/auth/oauth/start')"), server.indexOf("if (requestUrl.pathname === '/api/auth/signup'"));
+  for (const route of [nativeStart, oauthStart]) {
+    assert.match(route, /if \(action === 'link'\) \{ jsonResponse\(response, 409, \{ error: 'ACCOUNT_LINKING_DISABLED' \}\); return; \}/);
+    assert.ok(route.indexOf("action === 'link'") < route.indexOf('beginOAuthFlow('));
+  }
+});
+
 test('reconnect backoff is bounded and jittered', () => {
   assert.equal(reconnectDelay(0, () => 0), 600);
   assert.equal(reconnectDelay(0, () => 1), 900);
@@ -107,12 +117,29 @@ test('iOS secure session transport keeps cookies native and constrains its produ
   assert.doesNotMatch(capacitor, /CapacitorHttp|CapacitorCookies/);
 });
 
-test('realtime ticket issuance requires an existing authoritative session', () => {
+test('realtime ticket issuance accepts a secure account or guest session', () => {
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   const route = server.slice(server.indexOf("if (requestUrl.pathname === '/api/realtime-ticket')"), server.indexOf('const publicPolicy'));
   assert.match(route, /pilotSessions\.resolveSession\(request\.headers\.cookie\)/);
-  assert.match(route, /jsonResponse\(response, 401, \{ error: 'Secure session required\.' \}\)/);
+  assert.match(route, /if \(!session\)[\s\S]*jsonResponse\(response, 401, \{ error: 'Secure session required\.' \}\)/);
   assert.doesNotMatch(route, /authenticatedIdentity\(/);
+});
+
+test('account and guest gameplay derive identity from a secure server session', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const sessionIdentity = server.slice(server.indexOf('function sessionIdentity('), server.indexOf('function closeSessionConnections('));
+  const profileRoute = server.slice(server.indexOf("if (requestUrl.pathname === '/api/profile')"), server.indexOf("if (request.method !== 'GET' && request.method !== 'HEAD')"));
+  const identityResolver = server.slice(server.indexOf('function authenticatedIdentity('), server.indexOf('function sessionIdentity('));
+  assert.match(sessionIdentity, /return session \? \{ pilotId: session\.pilotId/);
+  assert.doesNotMatch(profileRoute, /Sign in to continue\./);
+  assert.doesNotMatch(profileRoute, /payload\?\.(?:pilotId|accountId|userId)/);
+  assert.match(identityResolver, /if \(resolved\) return \{ pilotId: resolved\.pilotId/);
+});
+
+test('new password accounts are disabled while historical password records remain untouched', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const signup = server.slice(server.indexOf("if (requestUrl.pathname === '/api/auth/signup')"), server.indexOf("if (requestUrl.pathname === '/api/auth/login')"));
+  assert.match(signup, /jsonResponse\(response, 410,[\s\S]*Use Google or Apple to save progress across devices\./);
 });
 
 test('native offline recovery probes only while connectivity remains down', () => {

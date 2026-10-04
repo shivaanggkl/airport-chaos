@@ -77,6 +77,8 @@ test('flight screen uses one ordered HUD and no legacy utility panels', () => {
   const orderedIds = ['flight-menu-button', 'flight-exit-button', 'score', 'speed', 'altitude', 'health', 'heat-level', 'credits', 'flight-map-button', 'flight-garage-button', 'flight-account-button'];
   assert.deepEqual([...orderedIds].sort((left, right) => html.indexOf(`id="${left}"`) - html.indexOf(`id="${right}"`)), orderedIds);
   assert.match(html, /class="flight-hud-center"[\s\S]*id="score"[\s\S]*id="speed"[\s\S]*id="altitude"[\s\S]*id="health"[\s\S]*id="heat-level"[\s\S]*id="credits"/);
+  assert.match(styleSource, /\.flight-hud-center > :not\(:first-child\)\s*\{[^}]*border-left: 1px solid/);
+  assert.match(styleSource, /\.unified-flight-hud \.flight-hud-utilities\s*\{[^}]*gap: 8px;[^}]*padding: 0;[^}]*background: transparent;[^}]*border: 0;/);
   assert.doesNotMatch(html, /id="flight-(?:world|settings)-button"|id="flight-condition-status"/);
   assert.doesNotMatch(html, /id="mission-progress"|class="flight-hud-stat flight-hud-mission"/);
   assert.match(mainSource, /flightExitButtonElement\.addEventListener\('click', \(\) => requestFlightExit\(\)\)/);

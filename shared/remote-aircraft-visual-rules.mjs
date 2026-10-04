@@ -4,12 +4,13 @@ const smoothstep = (value, start, end) => {
 };
 
 /**
- * Screen-space width for the non-collidable remote-player contact marker.
- * The real aircraft mesh remains fixed at world scale and uses perspective.
+ * Screen-space width for the non-collidable remote-aircraft contact marker.
+ * Keep distant contacts readable without making them look artificially close.
  */
 export function remoteProxyPixelWidth(distance) {
   const safeDistance = Number.isFinite(distance) ? Math.max(0, distance) : 0;
-  if (safeDistance < 600) return 14 + 6 * smoothstep(safeDistance, 150, 600);
-  if (safeDistance < 2_500) return 20 + 4 * smoothstep(safeDistance, 600, 2_500);
-  return 24;
+  if (safeDistance < 550) return 20 + (16 - 20) * smoothstep(safeDistance, 350, 550);
+  if (safeDistance < 900) return 16;
+  if (safeDistance < 1_300) return 16 + (12 - 16) * smoothstep(safeDistance, 900, 1_300);
+  return 12;
 }

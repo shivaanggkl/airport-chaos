@@ -293,7 +293,7 @@ export class PilotSessionStore {
     returnTo: string,
     now = Date.now(),
   ): { state: string; nonce: string; codeVerifier?: string } | undefined {
-    if (action === 'link' ? !identity.accountId : Boolean(identity.accountId)) return undefined;
+    if (action === 'link' || identity.accountId) return undefined;
     const state = randomBytes(32).toString('base64url');
     const nonce = randomBytes(32).toString('base64url');
     const codeVerifier = provider === 'google' ? randomBytes(48).toString('base64url') : undefined;
@@ -332,6 +332,7 @@ export class PilotSessionStore {
     verified: { provider: ProviderName; subject: string; email?: string; displayName?: string; avatarUrl?: string; tokenHash: string; expiresAt: number },
     now = Date.now(),
   ): ProviderAuthResult {
+    if (flow.action === 'link') return { ok: false, error: 'ACCOUNT_LINKING_DISABLED' };
     if (flow.provider !== verified.provider || verified.expiresAt <= now) return { ok: false, error: 'Provider authentication failed.' };
     const email = normalizeAccountEmail(verified.email);
     const avatarUrl = normalizeProviderAvatarUrl(verified.provider, verified.avatarUrl);
@@ -350,11 +351,8 @@ export class PilotSessionStore {
       let guestPreserved = false;
       if (existing) {
         accountId = existing.account_id;
-        if (flow.action === 'link' && flow.session.accountId !== accountId) {
-          this.database.exec('ROLLBACK'); return { ok: false, error: 'That provider is linked to another account.' };
-        }
-        if (flow.action === 'login' && flow.session.accountId) {
-          this.database.exec('ROLLBACK'); return { ok: false, error: 'Use Link from your signed-in account.' };
+        if (flow.session.accountId) {
+          this.database.exec('ROLLBACK'); return { ok: false, error: "You're already signed in. Log out first to use another account." };
         }
         const link = this.database.prepare('SELECT pilot_id FROM account_profile_links WHERE account_id=?').get(accountId) as { pilot_id: string } | undefined;
         if (!link?.pilot_id) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Provider authentication failed.' }; }
@@ -369,20 +367,12 @@ export class PilotSessionStore {
           .get(email, flow.session.accountId ?? '') as { account_id: string } | undefined : undefined;
         if (collision) {
           this.database.exec('ROLLBACK');
-          return { ok: false, collision: true, error: 'Sign in to your existing account first, then link this provider.' };
+          return { ok: false, collision: true, error: 'That sign-in is already used by another account. Log out and sign in to that account.' };
         }
-        if (flow.action === 'link') {
-          if (!flow.session.accountId) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Sign in before linking a provider.' }; }
-          accountId = flow.session.accountId;
-          const link = this.database.prepare('SELECT pilot_id FROM account_profile_links WHERE account_id=?').get(accountId) as { pilot_id: string } | undefined;
-          if (!link?.pilot_id) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Provider authentication failed.' }; }
-          pilotId = link.pilot_id;
-        } else {
-          if (flow.session.accountId) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Use Link from your signed-in account.' }; }
-          accountId = randomUUID(); pilotId = flow.session.pilotId;
-          this.database.prepare('INSERT INTO accounts(account_id,created_at,updated_at) VALUES(?,?,?)').run(accountId, now, now);
-          this.database.prepare('INSERT INTO account_profile_links(account_id,pilot_id,linked_at) VALUES(?,?,?)').run(accountId, pilotId, now);
-        }
+        if (flow.session.accountId) { this.database.exec('ROLLBACK'); return { ok: false, error: "You're already signed in. Log out first to use another account." }; }
+        accountId = randomUUID(); pilotId = flow.session.pilotId;
+        this.database.prepare('INSERT INTO accounts(account_id,created_at,updated_at) VALUES(?,?,?)').run(accountId, now, now);
+        this.database.prepare('INSERT INTO account_profile_links(account_id,pilot_id,linked_at) VALUES(?,?,?)').run(accountId, pilotId, now);
         this.database.prepare(`INSERT INTO auth_identities(
           identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,provider_avatar_url,created_at,updated_at
         ) VALUES(?,?,?,?,?,NULL,?,?,?,?)`).run(randomUUID(), accountId, verified.provider, verified.subject, email ?? null, verified.displayName ?? null, avatarUrl ?? null, now, now);
@@ -404,8 +394,9 @@ export class PilotSessionStore {
   }
 
   async signUp(identity: SessionIdentity, emailValue: unknown, passwordValue: unknown, now = Date.now()): Promise<AuthResult> {
+    if (identity.accountId) return { ok: false, error: "You're already signed in. Log out first to use another account." };
     const email = normalizeAccountEmail(emailValue);
-    if (!email || !validAccountPassword(passwordValue) || identity.accountId) return { ok: false, error: 'Unable to create account with those details.' };
+    if (!email || !validAccountPassword(passwordValue)) return { ok: false, error: 'Unable to create account with those details.' };
     const passwordDigest = await passwordHash(passwordValue); const accountId = randomUUID();
     this.database.exec('BEGIN IMMEDIATE');
     try {
@@ -430,6 +421,7 @@ export class PilotSessionStore {
   }
 
   async signIn(identity: SessionIdentity, emailValue: unknown, passwordValue: unknown, now = Date.now()): Promise<AuthResult> {
+    if (identity.accountId) return { ok: false, error: "You're already signed in. Log out first to use another account." };
     const email = normalizeAccountEmail(emailValue); const usablePassword = validAccountPassword(passwordValue);
     const row = email ? this.database.prepare("SELECT account_id,password_hash FROM auth_identities WHERE provider='password' AND normalized_email=?").get(email) as { account_id: string; password_hash: string } | undefined : undefined;
     const digest = row?.password_hash ?? await this.dummyPasswordHash;

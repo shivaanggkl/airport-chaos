@@ -26,11 +26,11 @@ test('mission reminder is bounded, airborne-only, and opens Missions directly', 
   assert.match(main, /Practice Mode gives no permanent rewards/);
 });
 
-test('top HUD exposes responsive server-session login and avatar control', () => {
-  assert.match(html, /id="flight-account-button"[\s\S]*id="flight-account-avatar"[\s\S]*>LOGIN</);
+test('top HUD exposes the responsive server-session profile avatar control', () => {
+  assert.match(html, /id="flight-account-button"[\s\S]*id="flight-account-avatar"[\s\S]*id="flight-account-label"[\s\S]*avatar-fallback/);
   assert.match(main, /clientAccount\.state === 'account'/);
   assert.match(main, /flightAccountButtonElement\.addEventListener\('click', \(\) => openPilotMenu\('PROFILE'\)\)/);
   assert.match(main, /flightAccountAvatarElement\.addEventListener\('error'/);
   assert.match(css, /\.flight-account-button\.is-account[\s\S]*border-radius: 50%/);
-  assert.match(css, /@media\(max-width:700px\) and \(orientation:landscape\)[\s\S]*\.flight-account-button\.is-account/);
+  assert.match(css, /@media\s*\(max-width:\s*700px\) and \(orientation:\s*landscape\)[\s\S]*\.unified-flight-hud/);
 });

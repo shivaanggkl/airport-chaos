@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { legalConfig } from '../../shared/legal-config.mjs';
 
 // One optional source image is shared by DOM branding and cached house-ad
@@ -14,6 +15,10 @@ export const gameBrand = {
   // Add only verified, official destinations here. Empty by design today.
   socialLinks: [] as readonly { label: string; url: string }[],
 } as const;
+
+export function legalPolicyHref(path: string): string {
+  return Capacitor.isNativePlatform() ? new URL(path, gameBrand.gameUrl).href : path;
+}
 
 let logoPromise: Promise<HTMLImageElement | null> | undefined;
 
@@ -49,8 +54,11 @@ export function mountCompactBrandFooter(container: HTMLElement): void {
   const identity = document.createElement('span');
   identity.textContent = `${gameBrand.gameName} • Built by ${gameBrand.studioName}`;
   const links = document.createElement('nav');
+  links.setAttribute('aria-label', 'Legal and support');
   for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund', legalConfig.policyRoutes.refund], ['Support', legalConfig.policyRoutes.support]] as const) {
-    const link = document.createElement('a'); link.href = href; link.textContent = label;
+    const link = document.createElement('a');
+    link.href = legalPolicyHref(href);
+    link.textContent = label;
     link.target = '_blank'; link.rel = 'noopener noreferrer';
     links.append(link);
   }

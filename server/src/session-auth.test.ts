@@ -34,11 +34,14 @@ test('legacy pilot identity can be bound once and cookie—not query ID—is aut
   assert.throws(() => sessions.cookie(first.cookie, false, 100_000, 'None'), /require Secure/);
 });
 
-test('WebSocket tickets are session-bound, short-lived, and atomically single-use', () => {
+test('WebSocket tickets allow a secure guest and remain session-bound, short-lived, and atomically single-use', () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-ws-ticket-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
   const sessions = new PilotSessionStore(databasePath);
   const guest = sessions.issue(undefined, false, 1_000);
+  profiles.getOrCreate(guest.pilotId, 'Ticket Pilot');
   const identity = sessions.resolveSession(`airport_chaos_session=${guest.cookie}`, 2_000)!;
+  assert.equal(sessions.issueWebSocketTicket({ ...identity, pilotId: 'forged-pilot-000001' }, 2_500), undefined);
   const issued = sessions.issueWebSocketTicket(identity, 3_000)!;
   assert.ok(issued.expiresAt - 3_000 <= 30_000);
   assert.equal(sessions.consumeWebSocketTicket(issued.ticket, 4_000)?.pilotId, identity.pilotId);
@@ -49,6 +52,39 @@ test('WebSocket tickets are session-bound, short-lived, and atomically single-us
   const revoked = sessions.issueWebSocketTicket(identity, 6_000)!;
   sessions.revoke(identity.tokenHash, 6_001);
   assert.equal(sessions.consumeWebSocketTicket(revoked.ticket, 6_002), undefined, 'ticket cannot outlive its session');
+});
+
+test('an authenticated account cannot be replaced until logout', async () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-single-login-')), 'profiles.sqlite');
+  const profiles = new PlayerProfileStore(databasePath);
+  const sessions = new PilotSessionStore(databasePath);
+  const firstGuest = sessions.issue(undefined, false, 1_000);
+  profiles.getOrCreate(firstGuest.pilotId, 'First');
+  const first = await sessions.signUp(sessions.resolveSession(`airport_chaos_session=${firstGuest.cookie}`, 1_100)!, 'first@example.com', 'first account password', 1_200);
+  const secondGuest = sessions.issue(undefined, false, 1_300);
+  profiles.getOrCreate(secondGuest.pilotId, 'Second');
+  const second = await sessions.signUp(sessions.resolveSession(`airport_chaos_session=${secondGuest.cookie}`, 1_400)!, 'second@example.com', 'second account password', 1_500);
+  const firstIdentity = sessions.resolveSession(`airport_chaos_session=${first.cookie}`, 1_600)!;
+
+  const blocked = await sessions.signIn(firstIdentity, 'second@example.com', 'second account password', 1_700);
+  assert.deepEqual({ ok: blocked.ok, error: blocked.error }, {
+    ok: false,
+    error: "You're already signed in. Log out first to use another account.",
+  });
+  const blockedSignup = await sessions.signUp(firstIdentity, 'third@example.com', 'third account password', 1_750);
+  assert.equal(blockedSignup.error, "You're already signed in. Log out first to use another account.");
+  assert.equal(sessions.resolveSession(`airport_chaos_session=${first.cookie}`, 1_800)?.accountId, first.identity?.accountId);
+  assert.equal(sessions.beginOAuthFlow(firstIdentity, 'google', 'login', 'native:ios', 'native:ios', 1_900), undefined);
+
+  const logout = sessions.signOut(firstIdentity, 2_000);
+  const replacement = await sessions.signIn(
+    sessions.resolveSession(`airport_chaos_session=${logout.cookie}`, 2_100)!,
+    'second@example.com',
+    'second account password',
+    2_200,
+  );
+  assert.equal(replacement.ok, true);
+  assert.equal(replacement.identity?.accountId, second.identity?.accountId);
 });
 
 test('legacy unique-pilot session schema migrates without signing out existing guests', () => {
@@ -277,19 +313,46 @@ test('Google A logout cannot leak cached profile data into Google B and returnin
   assert.equal(sessions.resolveSession(`airport_chaos_session=${accountB.cookie}`, 9_000), undefined);
 });
 
-test('explicit provider linking supports password + Google + Apple on one account', async () => {
+test('new identity linking is disabled while historical multi-identity accounts keep working', async () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-provider-link-')), 'profiles.sqlite');
   const profiles = new PlayerProfileStore(databasePath); const sessions = new PilotSessionStore(databasePath);
   const guest = sessions.issue(undefined, false, 1_000); profiles.getOrCreate(guest.pilotId, 'Owner');
   const password = await sessions.signUp(sessions.resolveSession(`airport_chaos_session=${guest.cookie}`, 2_000)!, 'owner@example.com', 'a sufficiently strong password', 3_000);
-  const google = completeTestProvider(sessions, password.cookie!, 'google', 'link', 'google-linked', { email: 'owner@example.com', now: 4_000 });
-  const apple = completeTestProvider(sessions, google.cookie!, 'apple', 'link', 'apple-linked', { email: 'owner@privaterelay.appleid.com', displayName: 'First Login Name', now: 6_000 });
-  assert.equal(apple.ok, true); assert.equal(apple.identity?.pilotId, guest.pilotId);
-  const status = sessions.status(sessions.resolveSession(`airport_chaos_session=${apple.cookie}`, 7_000)!);
+  const signedIn = sessions.resolveSession(`airport_chaos_session=${password.cookie}`, 4_000)!;
+  assert.equal(sessions.beginOAuthFlow(signedIn, 'google', 'link', 'https://game.example/callback', 'https://game.example/', 4_001), undefined);
+  const rejected = sessions.completeProviderAuth({
+    provider: 'google', action: 'link', session: signedIn, nonce: 'stale-link-flow',
+    redirectUri: 'https://game.example/callback', returnTo: 'https://game.example/',
+  }, {
+    provider: 'google', subject: 'new-google-identity', email: 'owner@example.com',
+    tokenHash: 'a'.repeat(64), expiresAt: 100_000,
+  }, 4_002);
+  assert.deepEqual({ ok: rejected.ok, error: rejected.error }, { ok: false, error: 'ACCOUNT_LINKING_DISABLED' });
+  assert.equal(sessions.resolveSession(`airport_chaos_session=${password.cookie}`, 4_003)?.accountId, password.identity?.accountId);
+
+  const database = new DatabaseSync(databasePath);
+  const insertHistoricalIdentity = database.prepare(`INSERT INTO auth_identities(
+    identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,provider_avatar_url,created_at,updated_at
+  ) VALUES(?,?,?,?,?,NULL,?,NULL,?,?)`);
+  insertHistoricalIdentity.run('historical-google-identity', password.identity!.accountId!, 'google', 'historical-google-sub', 'google-owner@example.com', 'Historical Google', 5_000, 5_000);
+  insertHistoricalIdentity.run('historical-apple-identity', password.identity!.accountId!, 'apple', 'historical-apple-sub', 'apple-owner@privaterelay.appleid.com', 'Historical Apple', 5_000, 5_000);
+  database.close();
+
+  const status = sessions.status(signedIn);
   assert.deepEqual(status.state === 'account' ? status.providers : undefined, { password: true, google: true, apple: true });
+  for (const provider of ['google', 'apple'] as const) {
+    const freshGuest = sessions.issue(undefined, false, provider === 'google' ? 6_000 : 8_000);
+    profiles.getOrCreate(freshGuest.pilotId, 'Returning Pilot');
+    const login = completeTestProvider(sessions, freshGuest.cookie, provider, 'login', `historical-${provider}-sub`, {
+      now: provider === 'google' ? 6_100 : 8_100,
+    });
+    assert.equal(login.ok, true);
+    assert.equal(login.identity?.accountId, password.identity?.accountId);
+    assert.equal(login.identity?.pilotId, password.identity?.pilotId);
+  }
 });
 
-test('provider email collision never auto-merges accounts and directs explicit linking', async () => {
+test('provider email collision never auto-merges accounts or exposes account linking UX', async () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-provider-collision-')), 'profiles.sqlite');
   const profiles = new PlayerProfileStore(databasePath); const sessions = new PilotSessionStore(databasePath);
   const owner = sessions.issue(undefined, false, 1_000); profiles.getOrCreate(owner.pilotId, 'Owner');
@@ -297,7 +360,7 @@ test('provider email collision never auto-merges accounts and directs explicit l
   const other = sessions.issue(undefined, false, 4_000); profiles.getOrCreate(other.pilotId, 'Other');
   const collision = completeTestProvider(sessions, other.cookie, 'google', 'login', 'new-google-sub', { email: 'same@example.com', now: 5_000 });
   assert.equal(collision.ok, false); assert.equal(collision.collision, true);
-  assert.equal(collision.error, 'Sign in to your existing account first, then link this provider.');
+  assert.equal(collision.error, 'That sign-in is already used by another account. Log out and sign in to that account.');
   assert.ok(sessions.resolveSession(`airport_chaos_session=${other.cookie}`, 6_000), 'failed collision leaves the guest session usable');
 });
 
@@ -361,18 +424,17 @@ test('Apple callback state is cookie-independent, provider-bound, expiring, and 
   assert.equal(sessions.consumeOAuthFlow(expired.state, 'apple', 3_000 + 10 * 60_000 + 1), undefined, 'expired state is rejected');
 });
 
-test('an authenticated account cannot claim a provider identity already owned by another account', () => {
+test('an authenticated provider account cannot be replaced by another provider login', () => {
   const databasePath = join(mkdtempSync(join(tmpdir(), 'airport-chaos-provider-owner-')), 'profiles.sqlite');
   const profiles = new PlayerProfileStore(databasePath); const sessions = new PilotSessionStore(databasePath);
   const firstGuest = sessions.issue(undefined, false, 1_000); profiles.getOrCreate(firstGuest.pilotId, 'First');
-  completeTestProvider(sessions, firstGuest.cookie, 'google', 'login', 'owned-google-sub', { email: 'first@example.com', now: 2_000 });
+  const firstAccount = completeTestProvider(sessions, firstGuest.cookie, 'google', 'login', 'owned-google-sub', { email: 'first@example.com', now: 2_000 });
   const secondGuest = sessions.issue(undefined, false, 4_000); profiles.getOrCreate(secondGuest.pilotId, 'Second');
   const secondAccount = completeTestProvider(sessions, secondGuest.cookie, 'apple', 'login', 'second-apple-sub', { email: 'second@example.com', now: 5_000 });
-  const claim = completeTestProvider(sessions, secondAccount.cookie!, 'google', 'link', 'owned-google-sub', {
-    email: 'first@example.com', tokenHash: 'b'.repeat(64), now: 7_000,
-  });
-  assert.equal(claim.ok, false); assert.equal(claim.error, 'That provider is linked to another account.');
-  assert.ok(sessions.resolveSession(`airport_chaos_session=${secondAccount.cookie}`, 8_000), 'rejected link keeps current account session active');
+  const secondIdentity = sessions.resolveSession(`airport_chaos_session=${secondAccount.cookie}`, 7_000)!;
+  assert.equal(sessions.beginOAuthFlow(secondIdentity, 'google', 'login', 'https://game.example/callback', 'https://game.example/', 7_001), undefined);
+  assert.equal(sessions.resolveSession(`airport_chaos_session=${secondAccount.cookie}`, 8_000)?.accountId, secondAccount.identity?.accountId);
+  assert.notEqual(secondAccount.identity?.accountId, firstAccount.identity?.accountId);
 });
 
 test('client-shaped progress cannot set credits or paid ownership', () => {

@@ -69,9 +69,24 @@ export type AdPlacement = {
   blimpOrbit?: { radiusX: number; radiusZ: number; periodSeconds: number; phase?: number };
 };
 export type AdPlacementSpec = Omit<AdPlacement, 'creative' | 'sponsorName' | 'startAt' | 'endAt' | 'enabled'>;
+const airborneAdVisibilityMultiplier = 2;
+
 export function resolveAdPlacement(spec: AdPlacementSpec): AdPlacement {
   const campaign = sponsorCatalog[spec.campaignId];
-  return { ...spec, creative: campaign.creative, sponsorName: campaign.displayName,
+  const isAirborne = isSkyPlacement(spec.type);
+  const position = isAirborne
+    ? { ...spec.position, y: spec.position.y * airborneAdVisibilityMultiplier }
+    : spec.position;
+  const size = isAirborne
+    ? {
+        x: spec.size.x * airborneAdVisibilityMultiplier,
+        y: spec.size.y * airborneAdVisibilityMultiplier,
+        z: spec.type === 'SPONSOR_BLIMP'
+          ? spec.size.z * airborneAdVisibilityMultiplier
+          : spec.size.z,
+      }
+    : spec.size;
+  return { ...spec, position, size, creative: campaign.creative, sponsorName: campaign.displayName,
     startAt: '2025-01-01T00:00:00.000Z', endAt: '2035-12-31T23:59:59.000Z', enabled: true };
 }
 
@@ -370,6 +385,13 @@ function isSkyPlacement(type: AdPlacementType): boolean {
   return type === 'SKYBOARD' || type === 'SKY_GATE' || type === 'SPONSOR_BLIMP';
 }
 
+export function canCombatSuppressPlacement(type: AdPlacementType): boolean {
+  // A blimp is a large world object, not a flat HUD-ad surface. Hiding its
+  // whole group when the aiming circle crosses it causes visible close-range
+  // blinking as the projected bounds move around the combat threshold.
+  return type !== 'SPONSOR_BLIMP';
+}
+
 function visibleAtQuality(placement: AdPlacement, quality: 'high' | 'low'): boolean {
   if (quality === 'high') return true;
   if (placement.type !== 'HIGHWAY_BILLBOARD' && placement.type !== 'ROOFTOP_BILLBOARD' && placement.type !== 'GROUND_SPONSOR') return true;
@@ -402,6 +424,45 @@ function addSkyCreative(placement: AdPlacement, width: number, height: number, s
     lod.addLevel(faces, thresholds[index]);
   }
   return lod;
+}
+
+function addBlimpCreative(
+  placement: AdPlacement,
+  width: number,
+  height: number,
+  length: number,
+  diameter: number,
+  beam: number,
+): { lod: THREE.LOD; geometry: THREE.PlaneGeometry } {
+  const geometry = new THREE.PlaneGeometry(width, height, 12, 4);
+  const positions = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const radiusX = length * 0.5;
+  const radiusY = diameter * 0.5;
+  const radiusZ = beam * 0.5;
+  const surfaceOffset = Math.max(0.35, beam * 0.008);
+  for (let index = 0; index < positions.count; index += 1) {
+    const normalizedX = positions.getX(index) / radiusX;
+    const normalizedY = positions.getY(index) / radiusY;
+    const hullDepth = radiusZ * Math.sqrt(Math.max(0, 1 - normalizedX ** 2 - normalizedY ** 2));
+    positions.setZ(index, hullDepth + surfaceOffset);
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+
+  const lod = new THREE.LOD();
+  for (const [index, level] of (['near', 'mid', 'far'] as const).entries()) {
+    const material = skyFaceMaterialFor(placement.creative, level, width / height);
+    const faces = new THREE.Group();
+    for (const side of [1, -1]) {
+      const face = new THREE.Mesh(geometry, material);
+      face.name = `ad-${level}-${placement.id}-${side === 1 ? 'front' : 'back'}`;
+      if (side === -1) face.rotation.y = Math.PI;
+      faces.add(face);
+    }
+    lod.addLevel(faces, [0, 2_000, 5_000][index]);
+  }
+  return { lod, geometry };
 }
 
 function addFrameBar(group: THREE.Group, width: number, height: number, depth: number, x: number, y: number): void {
@@ -444,7 +505,7 @@ function addSkyGate(group: THREE.Group, placement: AdPlacement): void {
   addFrameBar(group, bannerWidth + 3.2, 2.4, 1.2, 0, height * 0.48);
 }
 
-function addSponsorBlimp(group: THREE.Group, placement: AdPlacement): void {
+function addSponsorBlimp(group: THREE.Group, placement: AdPlacement): THREE.PlaneGeometry {
   const { x: length, y: diameter, z: beam } = placement.size;
   const body = new THREE.Mesh(blimpBodyGeometry, blimpBodyMaterial);
   body.scale.set(length * 0.5, diameter * 0.5, beam * 0.5);
@@ -464,7 +525,9 @@ function addSponsorBlimp(group: THREE.Group, placement: AdPlacement): void {
     group.add(fin);
   }
   const { width, height } = skyCreativeSize(placement);
-  group.add(addSkyCreative(placement, width, height, beam * 0.45));
+  const creative = addBlimpCreative(placement, width, height, length, diameter, beam);
+  group.add(creative.lod);
+  return creative.geometry;
 }
 
 function applyBlimpOrbit(group: THREE.Group, placement: AdPlacement, worldSeconds: number): void {
@@ -508,11 +571,11 @@ function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: 
   group.rotation.set(placement.rotation.x, placement.rotation.y, placement.rotation.z);
 
   const ground = isGroundPlacement(placement.type);
-  const ownedGeometry = ground ? groundGeometryFor(placement, groundHeightAt) : undefined;
+  let ownedGeometry = ground ? groundGeometryFor(placement, groundHeightAt) : undefined;
   if (placement.type === 'SKYBOARD') addSkyboard(group, placement);
   else if (placement.type === 'SKY_GATE') addSkyGate(group, placement);
   else if (placement.type === 'SPONSOR_BLIMP') {
-    addSponsorBlimp(group, placement);
+    ownedGeometry = addSponsorBlimp(group, placement);
     applyBlimpOrbit(group, placement, Date.now() / 1000);
   }
   else {
@@ -710,7 +773,8 @@ export class AdPlacementManager {
           : isSkyPlacement(rendered.placement.type) ? 26 : 20;
       rendered.projectedPixels = Math.max(projectedHeight, projectedWidth);
       let combatOccluded = false;
-      if (combatActive && distance < (isSkyPlacement(rendered.placement.type) ? rendered.maxDistance : 2_500)) {
+      if (combatActive && canCombatSuppressPlacement(rendered.placement.type) &&
+        distance < (isSkyPlacement(rendered.placement.type) ? rendered.maxDistance : 2_500)) {
         projectedPoint.copy(placementPoint).project(camera);
         const screenX = (projectedPoint.x * 0.5 + 0.5) * window.innerWidth;
         const screenY = (-projectedPoint.y * 0.5 + 0.5) * window.innerHeight;

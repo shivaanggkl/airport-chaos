@@ -2,7 +2,7 @@ import { applyAircraftCosmetics } from './aircraft-cosmetics';
 import { aircraftRoles, identityText } from './visual-language';
 import * as THREE from 'three';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
-import { aircraftDefinitions, aircraftDisplayName, aircraftPitch, garageStats, type AircraftType } from './aircraft';
+import { aircraftDefinitions, aircraftDisplayName, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
 import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
@@ -119,7 +119,7 @@ export class AircraftGarage {
       close: () => this.close(),
       containsTarget: (target) => target instanceof Node && Boolean(this.element.querySelector('.garage-card')?.contains(target)),
     });
-    element.innerHTML = `<section class="garage-card app-shell-panel"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1></div><div class="garage-balance"><b data-garage-credits>0 Credits</b><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div data-garage-status></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div><div class="garage-list"></div></section>`;
+    element.innerHTML = `<section class="garage-card app-shell-panel"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1><p>Choose, compare and equip aircraft.</p></div><div class="garage-balance"><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-labelledby="garage-aircraft-heading"><h2 id="garage-aircraft-heading">AIRCRAFT</h2><div class="garage-list"></div></section></section>`;
     const cosmetics = document.createElement('section'); cosmetics.className = 'garage-cosmetics'; cosmetics.dataset.garageCosmetics = '';
     element.querySelector('.garage-card')!.append(cosmetics);
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
@@ -337,33 +337,39 @@ export class AircraftGarage {
     const owned = this.isPermanentlyOwned(this.selected);
     const trialUsable = this.selected === 'fighter' && this.isTrialUsable();
     const price = definition.access === 'credits' ? definition.creditsRequired : undefined;
-    const ownership = this.loadingProfile
-      ? 'SYNCING PROFILE…'
-      : trialUsable ? this.trialStatusText()
-      : owned ? (this.selected === this.profile.selectedAircraft ? 'OWNED · SELECTED' : 'OWNED')
-      : this.selected === this.profile.selectedAircraft ? 'SELECTED' : definition.access === 'premium' ? `Premium Aircraft · ${this.premiumPrice()}` : `${price!.toLocaleString()} ${identityText('credits')}`;
-    const equippedAppearance = cosmeticCatalog.find(item => item.id === this.profile.cosmetics?.equipped?.[`livery:${this.selected}`] && item.aircraftRestriction === this.selected)?.displayName ?? definition.livery.name;
-    const compactPremiumIdentity = this.selected === 'fighter' && !owned && !trialUsable;
-    this.element.querySelector('[data-garage-status]')!.textContent = compactPremiumIdentity
-      ? `Premium Fighter • ${this.premiumPrice()}`
-      : `${ownership} · ${equippedAppearance}`;
+    const equipped = this.selected === this.profile.selectedAircraft;
+    const statusRoot = this.element.querySelector<HTMLElement>('[data-garage-status]')!;
+    const statuses: Array<{ label: string; kind: string }> = [];
+    if (this.loadingProfile) statuses.push({ label: 'SYNCING PROFILE…', kind: 'syncing' });
+    else {
+      if (owned) statuses.push({ label: 'OWNED', kind: 'owned' });
+      if (equipped) statuses.push({ label: 'EQUIPPED', kind: 'equipped' });
+      if (!owned && definition.access === 'credits') statuses.push({ label: 'LOCKED', kind: 'locked' });
+      if (!owned && definition.access === 'premium') statuses.push({ label: 'PREMIUM', kind: 'premium' });
+      if (trialUsable) statuses.push({ label: this.trialStatusText(), kind: 'trial' });
+      else if (!owned && this.selected === 'fighter' && this.profile.fighterTrial?.status === 'available') statuses.push({ label: 'TRIAL AVAILABLE', kind: 'trial' });
+    }
+    statusRoot.replaceChildren(...statuses.map(({ label, kind }) => {
+      const chip = document.createElement('span'); chip.className = `garage-status garage-status-${kind}`; chip.textContent = label; return chip;
+    }));
     this.element.querySelector('[data-garage-details]')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('.garage-card')!.classList.toggle('is-firehawk', this.selected === 'fighter');
-    this.element.querySelector('[data-garage-credits]')!.textContent = `${this.profile.credits.toLocaleString()} ${identityText('credits')}`;
     this.element.querySelector('[data-garage-name]')!.textContent = aircraftDisplayName(this.selected);
-    this.element.querySelector('[data-garage-pitch]')!.textContent = this.selected === 'fighter'
-      ? 'Fastest and most agile combat aircraft in Airport Chaos.'
-      : this.selected === 'cargo'
-      ? `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)} · MAMMOTH CARGO BONUS: +40% Credits on eligible cargo missions`
-      : `${aircraftRoles[this.selected]} · ${aircraftPitch(definition)}`;
+    this.element.querySelector('[data-garage-pitch]')!.textContent = aircraftRoles[this.selected];
     this.element.querySelector('[data-garage-stats]')!.replaceChildren(...garageStats(definition).map(({ label, value }) => {
-      const row = document.createElement('div'); row.innerHTML = `<span>${label}</span><b>${'■'.repeat(value)}${'□'.repeat(5 - value)}</b>`; return row;
+      const row = document.createElement('div');
+      const name = document.createElement('span'); name.textContent = label;
+      const bars = document.createElement('b'); bars.setAttribute('aria-label', `${value} of 5`);
+      for (let index = 0; index < 5; index += 1) { const block = document.createElement('i'); block.classList.toggle('active', index < value); bars.append(block); }
+      row.append(name, bars); return row;
     }));
     const equip = this.element.querySelector<HTMLButtonElement>('[data-garage-equip]')!;
     const insufficient = price !== undefined && this.profile.credits < price;
+    equip.dataset.state = equipped ? 'equipped' : insufficient ? 'unaffordable' : owned ? 'equip' : 'unlock';
     equip.disabled = this.loadingProfile || this.actionPending || this.selected === this.profile.selectedAircraft || (!owned && (definition.access === 'premium' || insufficient));
-    equip.textContent = this.selected === this.profile.selectedAircraft ? 'EQUIPPED' : owned ? (this.selected === 'fighter' ? 'SELECT AIRCRAFT' : 'EQUIP AIRCRAFT') : definition.access === 'premium' ? 'Purchase Coming Soon' : insufficient ? `NEED ${(price! - this.profile.credits).toLocaleString()} MORE CREDITS` : `BUY · ${price!.toLocaleString()} CREDITS`;
+    equip.textContent = this.selected === this.profile.selectedAircraft ? 'EQUIPPED' : owned ? 'EQUIP' : definition.access === 'premium' ? 'UNLOCK FIREHAWK' : `UNLOCK — ${price!.toLocaleString()} CREDITS`;
     equip.hidden = definition.access === 'premium' && !owned;
+    this.element.querySelector<HTMLElement>('[data-garage-action-note]')!.textContent = insufficient ? `Need ${(price! - this.profile.credits).toLocaleString()} more Credits` : '';
     this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
     const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
@@ -394,8 +400,17 @@ export class AircraftGarage {
     tester.hidden = !canRedeem || !this.testerOpen;
     for (const [type, card] of this.cards) {
       const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
-      const access = type === 'fighter' && this.isTrialUsable() ? this.trialStatusText() : typeOwned ? 'OWNED' : data.access === 'premium' ? `Premium · ${this.premiumPrice()}` : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
-      card.classList.toggle('selected', type === this.selected); card.textContent = `${aircraftDisplayName(type)} · ${access}`;
+      const access = type === this.profile.selectedAircraft ? 'EQUIPPED'
+        : type === 'fighter' && this.isTrialUsable() ? this.trialStatusText()
+        : typeOwned ? 'OWNED'
+        : data.access === 'premium' ? 'PREMIUM'
+        : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
+      const name = document.createElement('strong'); name.textContent = data.callsign;
+      const state = document.createElement('small'); state.textContent = access;
+      card.replaceChildren(name, state);
+      card.classList.toggle('selected', type === this.selected);
+      card.setAttribute('aria-label', `${aircraftDisplayName(type)} — ${access}`);
+      card.setAttribute('aria-pressed', String(type === this.selected));
     }
     this.lastTrialSecond = this.trialRemainingSeconds();
     this.renderCosmetics();
@@ -411,8 +426,8 @@ export class AircraftGarage {
   private renderCosmetics(): void {
     const root = this.element.querySelector<HTMLElement>('[data-garage-cosmetics]')!;
     root.replaceChildren();
-    const heading = document.createElement('h2'); heading.textContent = 'AIRCRAFT COSMETICS';
-    const help = document.createElement('p'); help.textContent = 'Select an appearance to preview it.';
+    const heading = document.createElement('h2'); heading.textContent = 'APPEARANCE';
+    const help = document.createElement('p'); help.textContent = 'Select a finish to preview it.';
     const list = document.createElement('div'); list.className = 'garage-cosmetic-list';
     root.append(heading, help, list);
     const owned = new Set(this.profile.cosmetics?.ownedIds ?? []);
@@ -420,11 +435,11 @@ export class AircraftGarage {
     for (const item of cosmeticCatalog.filter(entry => entry.aircraftRestriction === this.selected)) {
       const slot = `livery:${this.selected}`;
       const equipped = this.profile.cosmetics?.equipped?.[slot] === item.id;
-      const selected = this.previewCosmetic === item.id;
-      const access = item.unlockType === 'included' ? (equipped ? 'INCLUDED · EQUIPPED' : 'INCLUDED WITH FIREHAWK')
+      const selected = this.previewCosmetic ? this.previewCosmetic === item.id : equipped;
+      const access = item.unlockType === 'included' ? (equipped ? 'EQUIPPED' : 'INCLUDED WITH FIREHAWK')
         : equipped ? 'EQUIPPED' : owned.has(item.id) ? 'OWNED'
-        : !ownsAircraft && this.selected !== 'trainer' ? `OWN AIRCRAFT · UNLOCK — ${item.creditPrice.toLocaleString()} CREDITS`
-        : `UNLOCK — ${item.creditPrice.toLocaleString()} CREDITS`;
+        : !ownsAircraft && this.selected !== 'trainer' ? 'AIRCRAFT REQUIRED'
+        : `${item.creditPrice.toLocaleString()} CREDITS`;
       const card = document.createElement('article'); card.className = 'garage-cosmetic-card';
       const button = document.createElement('button'); button.type = 'button'; button.className = 'garage-cosmetic';
       const name = document.createElement('strong'); name.textContent = item.displayName;
@@ -953,7 +968,7 @@ export class AircraftGarage {
     const trialSecond = this.trialRemainingSeconds();
     if (!this.showcaseHost && trialSecond !== this.lastTrialSecond) this.renderDetails();
     if (!this.dragging) {
-      if (this.showcaseHost) this.targetOrbitYaw = this.idleOrbitAnchor + Math.sin((performance.now() - this.idleOrbitStartedAt) * 0.00018) * 0.055;
+      if (this.showcaseHost) this.targetOrbitYaw = this.idleOrbitAnchor + (performance.now() - this.idleOrbitStartedAt) * 0.00022;
       else this.targetOrbitYaw += 0.002;
     }
     if (this.showcaseHost) {

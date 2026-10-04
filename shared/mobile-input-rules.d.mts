@@ -4,6 +4,7 @@ export declare function touchControlsEnabled(mode:TouchControlsMode,coarse:boole
 export declare function mobileControlStyle(x:number,y:number,scale:number):{left:string;top:string;scale:string};
 export declare function resolvedGraphicsQuality(mode:GraphicsQualityMode,coarse:boolean,narrow:boolean):'high'|'balanced'|'low';
 export declare function joystickInput(x:number,y:number,dead?:number,horizontalCurve?:number,verticalCurve?:number):{x:number;y:number};
+export declare function joystickTenEdgeInput(x:number,y:number):{x:number;y:number};
 export declare function joystickKnobPosition(x:number,y:number,maxTravel?:number):{x:number;y:number};
 export declare function throttleLeverState(pointerY:number,top:number,height:number,boostZoneRatio?:number):{throttle:number;boost:boolean;handlePercent:number};
 export declare function mobileIdleBrakeRequested(throttleTarget:number|undefined):boolean;

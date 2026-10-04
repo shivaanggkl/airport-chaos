@@ -16,7 +16,6 @@ export type AppShellHandlers = {
 };
 
 const garageIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8l9-5 9 5v12M6 20v-9h12v9M8 14h8M8 17h8"/></svg>';
-const creditsIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M14.8 8.8c-.7-.6-1.6-.9-2.8-.9-1.7 0-2.8.8-2.8 2 0 2.9 5.8 1.1 5.8 4 0 1.2-1.1 2.1-3 2.1-1.2 0-2.3-.4-3-1.1M12 6.4v11.2"/></svg>';
 const profileIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.8 19c.8-3.2 3-5 6.2-5s5.4 1.8 6.2 5"/></svg>';
 
 export class AppShellHeader {
@@ -48,7 +47,7 @@ export class AppShellHeader {
 
     const creditsCard = document.createElement('span');
     creditsCard.className = 'flight-header-credits app-shell-credits app-shell-center';
-    const creditMark = document.createElement('span'); creditMark.className = 'flight-header-credit-icon'; creditMark.innerHTML = creditsIcon;
+    const creditMark = document.createElement('span'); creditMark.className = 'flight-header-credit-icon'; creditMark.textContent = '$'; creditMark.setAttribute('aria-hidden', 'true');
     const creditCopy = document.createElement('span'); creditCopy.className = 'flight-header-credit-copy';
     const creditsLabel = document.createElement('small'); creditsLabel.textContent = 'CREDITS';
     this.credits = document.createElement('strong');

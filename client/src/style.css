@@ -271,14 +271,14 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
 .app-shell-brand.has-brand-logo::after { content: 'AIRPORT CHAOS'; color: var(--ui-gold-light); font-size: 15px; letter-spacing: .13em; text-shadow: 0 0 18px rgb(249 176 10 / 18%); }
 .app-shell-logo { width: 50px; height: 50px; object-fit: contain; filter: drop-shadow(0 5px 12px rgb(0 0 0 / 32%)); }
 .app-shell-center { justify-self: center; }
-.app-shell-utilities { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 3px; min-width: 0; padding: 5px; background: rgb(1 13 23 / 48%); border: 1px solid rgb(100 196 238 / 19%); border-radius: 14px; box-shadow: inset 0 1px rgb(255 255 255 / 4%), 0 8px 24px rgb(0 0 0 / 20%); }
+.app-shell-utilities { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 8px; min-width: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
 .flight-header-control {
   min-width: 42px;
   min-height: var(--flight-header-control-height);
   padding: 5px 11px;
   color: var(--ui-text);
-  background: transparent;
-  border: 1px solid transparent;
+  background: var(--flight-header-control-surface);
+  border: 1px solid var(--flight-header-control-border);
   border-radius: var(--flight-header-control-radius);
   box-shadow: inset 0 1px rgb(255 255 255 / 5%);
   font: 700 12px/1 var(--font-display);
@@ -296,16 +296,14 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
 }
 .flight-header-control:active { transform: translateY(1px); }
 .flight-header-control.is-active { color: var(--ui-gold-light); border-color: rgb(249 176 10 / 64%); box-shadow: inset 0 -2px var(--ui-gold), 0 5px 16px rgb(0 0 0 / 18%); }
-.flight-header-control svg,
-.flight-header-credit-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.flight-header-control svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .app-shell-garage,
 .flight-header-garage { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.flight-header-credits { display: flex; align-items: center; gap: 8px; min-height: var(--flight-header-control-height); padding: 4px 11px 4px 7px; color: var(--ui-text); background: rgb(249 176 10 / 6%); border: 1px solid rgb(249 176 10 / 15%); border-radius: var(--flight-header-control-radius); box-shadow: inset 0 1px rgb(255 255 255 / 4%); }
-.flight-header-credit-icon { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 auto; color: var(--identity-credits); background: rgb(249 176 10 / 10%); border: 1px solid rgb(249 176 10 / 22%); border-radius: 50%; }
-.flight-header-credit-icon svg { width: 17px; height: 17px; }
-.flight-header-credit-copy { display: grid; gap: 3px; }
+.flight-header-credits { display: flex; align-items: baseline; gap: 5px; min-height: 0; padding: 0; color: var(--ui-text); background: transparent; border: 0; box-shadow: none; }
+.flight-header-credit-icon { flex: 0 0 auto; color: var(--identity-credits); font: 800 11px/1 var(--font-display); }
+.flight-header-credit-copy { display: flex; align-items: baseline; gap: 5px; }
 .flight-header-credits small { color: var(--text-secondary); font: 600 10px/1 var(--font-display); letter-spacing: .04em; }
-.flight-header-credits strong { color: var(--identity-credits); font: 800 14px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.flight-header-credits strong { color: var(--identity-credits); font: 800 13px/1 var(--font-display); font-variant-numeric: tabular-nums; }
 .flight-header-avatar { position: relative; width: var(--flight-header-control-height); min-width: var(--flight-header-control-height); height: var(--flight-header-control-height); min-height: var(--flight-header-control-height); padding: 0; overflow: hidden; border-radius: 50%; border-color: rgb(249 176 10 / 58%); box-shadow: 0 0 0 1px rgb(57 169 249 / 24%), inset 0 1px rgb(255 255 255 / 7%); }
 .flight-header-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .flight-header-avatar .avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--ui-gold-light); background: radial-gradient(circle at 50% 35%, rgb(41 94 128 / 78%), rgb(12 37 56 / 92%)); }
@@ -317,15 +315,14 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
   .app-shell-brand { min-width: 0; padding-inline: 3px; }
   .app-shell-brand.has-brand-logo::after { display: none; }
   .app-shell-logo { width: 40px; height: 40px; }
-  .app-shell-utilities { gap: 2px; padding: 3px; border-radius: 12px; }
+  .app-shell-utilities { gap: 6px; }
   .app-shell-garage { min-width: 60px; padding-inline: 7px; font-size: 10px; }
-  .app-shell-credits { gap: 5px; padding: 3px 7px 3px 4px; }
-  .flight-header-credit-icon { width: 25px; height: 25px; }
-  .app-shell-credits small { font-size: 8px; }
-  .app-shell-credits strong { font-size: 11px; }
+  .flight-header-credits strong { font-size: 12px; }
+}
+@media (max-width: 480px) {
+  .flight-header-credits small { display: none; }
 }
 @media (max-width: 390px) {
-  .app-shell-credits small { display: none; }
   .app-shell-garage { min-width: 38px; padding-inline: 8px; }
   .app-shell-garage span { display: none; }
 }
@@ -363,18 +360,22 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
 .home-hangar.is-backgrounded * { animation-play-state: paused !important; }
 body:has(.brand-loading:not([hidden]):not(.is-leaving)) #tutorial-help,
 body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
-.home-hangar-stage { position: absolute; z-index: 2; inset: calc(var(--app-shell-header-total) + 4px) 3vw clamp(98px, 14dvh, 126px); min-width: 0; min-height: 0; }
+.home-hangar-stage { position: absolute; z-index: 2; inset: calc(var(--app-shell-header-total) + 4px) 3vw clamp(92px, 13dvh, 112px); min-width: 0; min-height: 0; }
 .home-hangar-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .home-hangar-stage canvas:active { cursor: grabbing; }
-.home-hangar-aircraft-name { position: absolute; z-index: 3; right: 18px; bottom: max(84px, calc(env(safe-area-inset-bottom) + 78px)); left: 18px; color: var(--ui-gold); text-align: center; font: 800 13px/1 var(--font-display); letter-spacing: .11em; pointer-events: none; }
-.home-hangar-contextual { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); left: max(18px, env(safe-area-inset-left)); display: flex; justify-content: center; }
+.home-hangar-aircraft-name { position: absolute; z-index: 3; right: 18px; bottom: max(82px, calc(env(safe-area-inset-bottom) + 76px)); left: 18px; color: var(--ui-gold); text-align: center; font: 800 13px/1 var(--font-display); letter-spacing: .11em; pointer-events: none; }
+.home-hangar-contextual { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(18px, env(safe-area-inset-left)); display: flex; justify-content: center; }
 .home-hangar-contextual .home-hangar-fly { min-width: 260px; min-height: 68px; font-size: 21px; }
+.home-brand-signature { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(18px, env(safe-area-inset-left)); display: flex; align-items: center; min-height: 68px; pointer-events: none; }
+.home-brand-signature .intro-brand-footer { width: 100%; border-top: 0; pointer-events: none; }
+.home-brand-signature .intro-brand-footer a { pointer-events: auto; }
 
 @media (max-width: 760px), (orientation: landscape) and (max-width: 1000px) and (max-height: 520px) {
-  .home-hangar-stage { inset: calc(var(--app-shell-header-total) + 2px) 0 82px; }
-  .home-hangar-aircraft-name { bottom: max(75px, calc(env(safe-area-inset-bottom) + 69px)); font-size: 10px; }
-  .home-hangar-contextual { right: max(8px, env(safe-area-inset-right)); bottom: max(7px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
+  .home-hangar-stage { inset: calc(var(--app-shell-header-total) + 2px) 0 88px; }
+  .home-hangar-aircraft-name { bottom: max(76px, calc(env(safe-area-inset-bottom) + 70px)); font-size: 10px; }
+  .home-hangar-contextual { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
   .home-hangar-contextual .home-hangar-fly { min-width: min(260px, 72vw); min-height: 58px; font-size: 18px; }
+  .home-brand-signature { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); min-height: 58px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -459,10 +460,11 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
 .game-brand-signature-start { margin: 0 auto; }
 .city-select-heading { text-align: center; text-shadow: 0 2px 14px rgb(1 12 22 / 82%); }
 .city-select-tagline { margin: 0 auto 9px; color: var(--ui-gold); text-align: center; font: 800 clamp(10px, 1.4vw, 13px)/1 var(--font-display); letter-spacing: .22em; }
-.intro-brand-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 14px; padding: 7px 42px 0 0; border-top: 1px solid rgb(57 169 249 / 18%); color: var(--ui-text-muted); font: 500 11px/1.2 var(--font-body); opacity: .72; }
-.intro-brand-footer nav { display: flex; flex-wrap: wrap; gap: 10px; }
-.intro-brand-footer a { color: var(--ui-text-muted); text-decoration: none; }
+.intro-brand-footer { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 4px 42px 0 0; border-top: 1px solid rgb(57 169 249 / 18%); color: var(--ui-text-muted); font: 500 11px/1.2 var(--font-body); opacity: .72; white-space: nowrap; }
+.intro-brand-footer nav { display: flex; flex-wrap: nowrap; gap: 2px; }
+.intro-brand-footer a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 6px; color: var(--ui-text-muted); text-decoration: none; border-radius: 4px; }
 .intro-brand-footer a:hover, .intro-brand-footer a:focus-visible { color: var(--ui-gold-light); text-decoration: underline; }
+.intro-brand-footer a:focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 1px; }
 
 .city-select-card p {
   margin: 9px 0 0;
@@ -694,8 +696,8 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
   .city-option button { min-width: 126px; min-height: 56px; padding-inline: 14px; }
   .city-select-actions { flex-wrap: wrap; }
   .city-select-actions .entry-button { flex: 1 1 160px; min-width: 0; }
-  .intro-brand-footer { display: grid; justify-content: center; text-align: center; }
-  .intro-brand-footer nav { justify-content: center; }
+  .intro-brand-footer { gap: 4px; padding-right: 0; font-size: 9px; }
+  .intro-brand-footer a { min-height: 36px; padding-inline: 8px; }
   .pilot-menu-header-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 
@@ -738,7 +740,9 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
   .city-option button { min-width: 112px; min-height: 54px; padding-inline: 12px; font-size: 14px; }
   .city-select-actions { gap: 6px; margin-top: -2px; }
   .city-select-actions .entry-button { min-width: 160px; min-height: 48px; padding: 7px 12px; }
-  .intro-brand-footer { gap: 3px 9px; padding: 3px 36px 0 0; font-size: 10px; line-height: 1.1; }
+  #start-brand-signature { position: fixed; z-index: 4; right: max(48px, calc(var(--safe-area-right) + 42px)); bottom: max(4px, var(--safe-area-bottom)); left: max(8px, var(--safe-area-left)); }
+  .intro-brand-footer { gap: 3px 9px; padding: 2px 0 0; font-size: 10px; line-height: 1.1; }
+  .intro-brand-footer a { min-height: 28px; padding: 3px 6px; }
   .game-brand-legal { display: none; }
 }
 
@@ -769,20 +773,6 @@ body:has(.app-shell-header:not([hidden])) :is(.garage-overlay, .pilot-menu-overl
   background: radial-gradient(circle at 50% 28%, rgb(24 66 92 / 96%), rgb(7 24 38 / 99%) 68%);
 }
 body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] { display: none; }
-.garage-cosmetics { padding:10px 16px 16px;border-top:1px solid var(--ui-border) }
-.garage-cosmetics h2 { margin:0 0 4px;color:var(--ui-gold);font:700 14px var(--font-display);letter-spacing:.1em }
-.garage-cosmetics>p { margin:0 0 8px;color:var(--text-secondary);font:500 var(--font-body-size)/var(--line-height-body) var(--font-body) }
-.garage-cosmetic-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px }
-.garage-cosmetic-card { display:grid;gap:5px;min-width:0 }
-.garage-cosmetic,.garage-cosmetic-action { min-height:48px;padding:7px 8px;color:var(--ui-text);text-align:left;border:1px solid var(--ui-border);border-radius:4px;background:var(--ui-glass-blue);font:600 var(--font-control-size)/1.3 var(--font-display);cursor:pointer }
-.garage-cosmetic-card:nth-child(even) .garage-cosmetic { background: var(--ui-glass-royal); }
-.garage-cosmetic { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;align-items:center }
-.garage-cosmetic strong { overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
-.garage-cosmetic small { grid-column:1/-1;color:var(--text-secondary);font:500 var(--font-meta-size)/var(--line-height-meta) var(--font-body) }
-.garage-cosmetic-swatches { display:flex;gap:3px }
-.garage-cosmetic-swatches i { width:13px;height:13px;border:1px solid rgb(23 48 66 / 28%);border-radius:50%;box-shadow:0 1px 3px rgb(23 48 66 / 24%) }
-.garage-cosmetic-action { min-height:40px;color:var(--ui-ocean-ink);text-align:center;border-color:rgb(249 176 10 / 58%);background:var(--ui-gradient-primary);text-shadow:0 1px 1px rgb(255 255 255 / 28%) }
-.garage-cosmetic-action:disabled { opacity:.48;cursor:default }
 .pilot-menu-overlay { position: fixed; z-index: 32; inset: 0; display: grid; place-items: center; padding: 18px; overflow: hidden; background: transparent; color: var(--ui-text); }
 .pilot-menu-overlay[hidden] { display: none; }
 .native-shell.editable-keyboard-open .pilot-menu-overlay {
@@ -810,6 +800,7 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .pilot-menu-navigation { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: thin; }
 .pilot-menu-navigation button { flex: none; white-space: nowrap; }
 .pilot-menu-navigation button.active { color: var(--ui-gold); background: var(--ui-gradient-selected); border-color: var(--ui-border-strong); box-shadow: inset 0 0 0 1px rgb(57 169 249 / 18%); }
+.pilot-menu-navigation-action.pilot-menu-danger { margin-left: auto; }
 .flight-decision-overlay { position: fixed; inset: 0; z-index: 1900; display: grid; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: rgb(4 16 31 / 58%); }
 .flight-decision-overlay[hidden] { display: none; }
 .flight-decision-card { width: min(460px, 100%); max-height: 92dvh; overflow: auto; padding: clamp(18px, 3vw, 28px); color: #eaf8ff; background: rgb(16 37 54 / 96%); border: 1px solid #486274; border-radius: 16px; box-shadow: 0 18px 54px rgb(0 0 0 / 38%), inset 0 0 0 1px rgb(56 215 244 / 12%); text-align: center; }
@@ -850,19 +841,39 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .pilot-menu-section:last-child { border-bottom: 0; }
 .pilot-menu-section h2 { margin: 0 0 9px; color: var(--ui-gold); font: 700 14px var(--font-display); letter-spacing: .1em; text-transform: uppercase; }
 .pilot-menu-section p { margin: 5px 0; color: var(--text-secondary); font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
-.pilot-account-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; margin: 10px 0 14px; padding: 14px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-cyan); color: var(--ui-text); font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
-.pilot-account-summary strong { grid-column: 1 / -1; color: var(--ui-gold); font: 800 20px/1.2 var(--font-display); letter-spacing: .04em; }
-.pilot-account-summary span:nth-child(2) { color: var(--ui-text-muted); }
-.pilot-account-form { display: grid; grid-template-columns: minmax(90px, auto) minmax(160px, 1fr) auto; align-items: center; gap: 8px; margin: 12px 0; }
-.pilot-account-form > label, .pilot-account-auth-form h3 { margin: 0; color: var(--ui-gold); font: 700 var(--font-meta-size) var(--font-display); letter-spacing: .08em; }
-.pilot-account-auth-forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.pilot-account-card { width: min(760px, 100%); margin-inline: auto; }
+.pilot-account-card > h2 { margin-bottom: 2px; }
+.pilot-account-card .pilot-profile-intro { margin: 0 0 14px; }
+.pilot-profile-identity { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: center; padding: 18px; border: 1px solid var(--ui-border-strong); border-radius: 9px; background: var(--ui-gradient-selected); }
+.pilot-profile-emblem { grid-row: 1 / span 2; display: grid; place-items: center; width: 58px; height: 58px; color: var(--ui-cyan); border: 1px solid rgb(126 226 255 / 52%); border-radius: 50%; background: rgb(23 117 223 / 18%); box-shadow: inset 0 0 18px rgb(57 169 249 / 12%); font: 800 25px/1 var(--font-display); }
+.pilot-profile-identity-text { display: grid; gap: 3px; min-width: 0; }
+.pilot-profile-identity-text strong { overflow: hidden; color: var(--ui-text); font: 800 clamp(19px, 3vw, 25px)/1.15 var(--font-display); letter-spacing: .035em; text-overflow: ellipsis; white-space: nowrap; }
+.pilot-profile-identity-text span { overflow-wrap: anywhere; color: var(--ui-text-muted); font: 500 var(--font-meta-size)/1.3 var(--font-body); }
+.pilot-profile-identity-text b { margin-top: 5px; color: var(--ui-gold); font: 700 13px/1.2 var(--font-display); letter-spacing: .08em; }
+.pilot-profile-xp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.pilot-profile-xp progress { width: 100%; height: 10px; overflow: hidden; accent-color: var(--ui-gold); }
+.pilot-profile-xp span { color: var(--ui-text); font: 700 var(--font-meta-size)/1 var(--font-display); white-space: nowrap; }
+.pilot-profile-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 12px 0; }
+.pilot-profile-stat { min-width: 0; padding: 13px 8px; text-align: center; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-cyan); }
+.pilot-profile-stat:nth-child(even) { background: var(--ui-glass-blue); }
+.pilot-profile-stat strong { display: block; overflow: hidden; color: var(--ui-text); font: 800 clamp(18px, 3vw, 26px)/1.05 system-ui, sans-serif; letter-spacing: -.02em; text-overflow: ellipsis; }
+.pilot-profile-stat span { display: block; margin-top: 6px; color: var(--ui-gold); font: 700 11px/1 var(--font-display); letter-spacing: .09em; }
+.pilot-profile-account { display: grid; gap: 0; padding: 15px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg-soft); }
+.pilot-profile-account > h3 { margin: 0 0 6px; color: var(--ui-gold); font: 700 13px/1.2 var(--font-display); letter-spacing: .1em; }
+.pilot-profile-account-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; min-width: 0; padding: 11px 0; border-bottom: 1px solid var(--ui-border); }
+.pilot-profile-account-row > div { display: grid; gap: 4px; min-width: 0; }
+.pilot-profile-account-row strong { overflow-wrap: anywhere; color: var(--ui-text); font: 600 var(--font-body-size)/1.3 var(--font-body); }
+.pilot-profile-field-label { color: var(--ui-text-muted); font: 700 11px/1.2 var(--font-display); letter-spacing: .09em; }
+.pilot-profile-name-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; min-width: 0; }
+.pilot-profile-name-actions { display: flex; gap: 6px; }
+.pilot-profile-account .pilot-account-message { margin: 8px 0 0 !important; }
+.pilot-profile-logout { justify-self: end; margin-top: 14px; }
 .pilot-account-providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
 .pilot-provider-button { min-height: 42px; }
 .pilot-account-linked { display: grid; gap: 7px; margin: 14px 0; padding: 12px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-blue); }
 .pilot-account-linked h3 { margin: 0 0 4px; color: var(--ui-gold); font: 700 var(--font-meta-size) var(--font-display); letter-spacing: .08em; }
 .pilot-account-linked-row { display: grid; grid-template-columns: minmax(70px, 1fr) minmax(110px, auto) auto; align-items: center; gap: 10px; min-height: 34px; color: var(--ui-text); }
 .pilot-account-linked-row strong { color: var(--ui-text-muted); font-size: var(--font-meta-size); }
-.pilot-account-auth-form { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-blue); }
 .pilot-account-message { min-height: 18px; margin-top: 10px !important; color: var(--ui-gold) !important; }
 .pilot-account-message.error { color: #ff9aab !important; }
 .pilot-menu-status { display: inline-block; margin: 3px 8px 3px 0; padding: 4px 7px; color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: 3px; background: rgb(23 117 223 / 12%); font: 600 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
@@ -922,39 +933,107 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .pilot-menu-stunt small { margin-top: 5px; color: var(--text-secondary); font: 500 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
 .pilot-menu-discovered { color: #79d9bb; font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
 .pilot-menu-controls { color: var(--ui-text) !important; font: 500 var(--font-body-size)/1.6 var(--font-body) !important; }
-@media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts, .pilot-progress-grid, .pilot-progress-aircraft-list, .pilot-account-auth-forms, .pilot-account-providers, .pilot-account-summary { grid-template-columns: 1fr; } .pilot-account-summary strong { grid-column: auto; } .pilot-account-form, .pilot-account-linked-row { grid-template-columns: 1fr; } .pilot-progress-aircraft { grid-column: auto; } }
+@media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts, .pilot-progress-grid, .pilot-progress-aircraft-list, .pilot-account-providers { grid-template-columns: 1fr; } .pilot-account-linked-row { grid-template-columns: 1fr; } .pilot-progress-aircraft { grid-column: auto; } .pilot-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .pilot-profile-identity { grid-template-columns: 1fr; justify-items: center; padding: 14px; text-align: center; } .pilot-profile-emblem { grid-row: auto; } .pilot-profile-identity-text strong { white-space: normal; } .pilot-profile-xp { width: 100%; } .pilot-profile-account { padding: 11px; } .pilot-profile-account-row { grid-template-columns: 1fr auto; } .pilot-profile-name-form { grid-template-columns: 1fr; } .pilot-profile-name-actions { justify-content: flex-end; } }
 @media (max-width: 520px) {
   .pilot-menu-mission-option { grid-template-columns: 1fr; }
   .pilot-menu-mission-option .pilot-menu-actions { grid-column: 1; grid-row: auto; margin-top: 6px; }
 }
-.garage-card { width: min(940px, 100%); max-height: min(760px, 94vh); overflow: auto; padding: 18px; color: var(--ui-text); border: 1px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-strong); box-shadow: var(--ui-shadow); backdrop-filter: blur(12px); }
-.garage-card.is-firehawk { max-height:min(800px,94vh); }
-.garage-card header { display: flex; justify-content: space-between; align-items: center; } .garage-card header span { color: var(--ui-gold); font: 700 13px var(--font-display); letter-spacing: .12em; } .garage-card h1,.garage-card h2 { margin: 3px 0 0; font-family: var(--font-display); letter-spacing: .06em; } .garage-card header button,.garage-details button { padding: 7px 10px; border: 1px solid var(--ui-border-strong); border-radius: 4px; color: var(--ui-text); background: var(--ui-glass-main); font: 600 var(--font-control-size) var(--font-display); cursor: pointer; } .garage-details button:not(:disabled):hover { background: rgb(23 117 223 / 22%); } .garage-details button:disabled { opacity: .52; cursor: default; }
-.garage-layout { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(230px, .75fr); gap: 18px; margin-top: 14px; } .garage-preview { min-height: 330px; position: relative; border: 1px solid var(--ui-border); background: radial-gradient(circle at 50% 38%, rgb(57 169 249 / 35%), rgb(23 117 223 / 16%) 52%, rgb(24 52 74 / 10%)); } .garage-preview canvas { width: 100%; height: 330px; display: block; touch-action: none; } .garage-preview-hint { position: absolute; bottom: 8px; left: 0; right: 0; color: var(--text-secondary); text-align: center; font: 500 var(--font-meta-size) var(--font-body); pointer-events: none; }
-.garage-details { padding: 14px; border: 1px solid var(--ui-border); background: var(--ui-glass-blue); } .garage-details [data-garage-status] { color: var(--ui-gold); font: 700 var(--font-meta-size) var(--font-display); letter-spacing: .06em; } .garage-details p { color: var(--text-secondary); font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); } .garage-stats { display: grid; gap: 7px; margin: 18px 0; } .garage-stats div { display:flex; justify-content:space-between; gap:12px; font:500 var(--font-meta-size)/var(--line-height-meta) var(--font-body); } .garage-stats b { color: var(--ui-gold); font-family: var(--font-display); letter-spacing: 1px; }
-.garage-list { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 14px; } .garage-aircraft { min-height: 46px; padding: 7px; color: var(--text-secondary); border: 1px solid var(--ui-border); background: var(--ui-glass-cyan); font: 600 var(--font-meta-size)/1.3 var(--font-display); cursor: pointer; } .garage-aircraft:nth-child(even) { background: var(--ui-glass-royal); } .garage-aircraft.selected { color: var(--ui-gold); border-color: var(--ui-cyan); background: var(--ui-gradient-selected); box-shadow: 0 0 0 1px rgb(57 169 249 / 28%), 0 6px 16px rgb(7 24 36 / 24%); }
-.garage-balance { display:flex; align-items:center; gap:12px; color:var(--ui-gold);font:700 var(--font-control-size) var(--font-display); } .garage-details [data-garage-message] { display:block; min-height:16px; margin-top:8px; color:var(--ui-gold);font:600 var(--font-meta-size) var(--font-body); } .garage-tester { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; } .garage-tester input,.garage-tester button { padding:7px 9px; border:1px solid var(--ui-border); border-radius:4px; color:var(--ui-text); background:var(--ui-bg); font:600 var(--font-control-size) var(--font-display); } .garage-tester[hidden] { display:none; }
-.garage-premium { display:grid; gap:7px; margin:8px 0 0; }
-.garage-premium[hidden], .garage-details button[hidden] { display:none; }
+.garage-card { display:grid; grid-template-rows:auto minmax(260px,1fr) auto auto; width:min(1120px,100%); height:min(820px,94dvh); max-height:min(820px,94dvh); overflow:hidden; padding:18px; color:var(--ui-text); border:1px solid var(--ui-border-strong); border-radius:10px; background:var(--ui-bg-strong); box-shadow:var(--ui-shadow); backdrop-filter:blur(12px); }
+.garage-card header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding-bottom:11px; border-bottom:1px solid var(--ui-border); }
+.garage-card header span { color:var(--ui-gold); font:700 13px var(--font-display); letter-spacing:.12em; }
+.garage-card header p { margin:4px 0 0; color:var(--text-secondary); font:500 var(--font-meta-size)/1.3 var(--font-body); }
+.garage-card h1,.garage-card h2 { margin:3px 0 0; font-family:var(--font-display); letter-spacing:.06em; }
+.garage-card h1 { font-size:clamp(25px,2.3vw,32px); line-height:1.05; }
+.garage-card header button,.garage-details button { min-height:40px; padding:7px 10px; border:1px solid var(--ui-border-strong); border-radius:4px; color:var(--ui-text); background:var(--ui-glass-main); font:600 var(--font-control-size) var(--font-display); cursor:pointer; }
+.garage-details button:not(:disabled):hover { background:rgb(23 117 223 / 22%); }
+.garage-details button:disabled { opacity:.52; cursor:default; }
+.garage-balance { display:flex; align-items:center; gap:12px; }
+.garage-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; min-height:0; margin-top:14px; }
+.garage-preview { position:relative; min-width:0; min-height:0; overflow:hidden; border:1px solid var(--ui-border); border-radius:6px; background:radial-gradient(circle at 50% 38%,rgb(57 169 249 / 35%),rgb(23 117 223 / 16%) 52%,rgb(24 52 74 / 10%)); }
+.garage-preview canvas { display:block; width:100%; height:100%; min-height:0; cursor:grab; touch-action:none; }
+.garage-preview canvas:active { cursor:grabbing; }
+.garage-preview-hint { position:absolute; right:0; bottom:8px; left:0; color:var(--text-secondary); text-align:center; font:500 var(--font-meta-size) var(--font-body); pointer-events:none; }
+.garage-details { display:flex; flex-direction:column; min-width:0; min-height:0; padding:16px; overflow:auto; border:1px solid var(--ui-border); border-radius:6px; background:var(--ui-glass-blue); }
+.garage-details > * { flex:0 0 auto; }
+.garage-statuses { display:flex; flex-wrap:wrap; gap:6px; min-height:24px; }
+.garage-status { display:inline-flex; align-items:center; min-height:23px; padding:3px 7px; color:var(--ui-text); border:1px solid var(--ui-border); border-radius:999px; background:rgb(23 117 223 / 16%); font:700 10px/1 var(--font-display); letter-spacing:.07em; }
+.garage-status-equipped,.garage-status-trial { color:var(--ui-ocean-ink); border-color:rgb(249 176 10 / 62%); background:var(--ui-gradient-primary); }
+.garage-status-premium { color:var(--ui-gold-light); border-color:rgb(249 176 10 / 48%); background:rgb(249 176 10 / 9%); }
+.garage-status-locked { color:var(--text-secondary); }
+.garage-details h2 { margin-top:8px; color:var(--ui-text); font-size:clamp(20px,2.3vw,28px); line-height:1.08; }
+.garage-details p { color:var(--text-secondary); font:500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
+.garage-details > [data-garage-pitch] { margin:5px 0 8px; color:var(--ui-gold); font-weight:700; }
+.garage-stats { display:grid; gap:3px; align-content:start; margin:6px 0 10px; }
+.garage-stats div { display:grid; grid-template-columns:minmax(94px,1fr) minmax(105px,1.1fr); align-items:center; gap:12px; min-height:17px; font:600 var(--font-meta-size)/1.2 var(--font-body); }
+.garage-stats b { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; }
+.garage-stats b i { height:8px; border:1px solid rgb(249 176 10 / 45%); border-radius:2px; background:rgb(249 176 10 / 8%); }
+.garage-stats b i.active { background:var(--ui-gold); box-shadow:0 0 6px rgb(249 176 10 / 18%); }
+.garage-details.is-firehawk .garage-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px 12px; }
+.garage-details.is-firehawk .garage-stats div { grid-template-columns:minmax(68px,1fr) minmax(82px,1fr); gap:6px; }
+.garage-actions { width:100%; margin-top:auto; padding-top:6px; }
+.garage-details > .garage-actions > [data-garage-equip],.garage-premium [data-garage-premium-buy] { width:100%; min-height:46px; color:var(--ui-ocean-ink); background:var(--ui-gradient-primary); border-color:rgb(249 176 10 / 58%); text-shadow:0 1px 1px rgb(255 255 255 / 28%); }
+.garage-details > .garage-actions > [data-garage-equip][data-state=equipped] { color:var(--ui-gold-light); border-color:rgb(249 176 10 / 42%); background:rgb(249 176 10 / 8%); text-shadow:none; opacity:1; }
+.garage-action-note { min-height:15px; margin:4px 0 0 !important; text-align:center; font-size:var(--font-meta-size) !important; }
+.garage-details [data-garage-message] { display:block; min-height:16px; margin-top:6px; color:var(--ui-gold); font:600 var(--font-meta-size) var(--font-body); text-align:center; }
+.garage-details [data-garage-message]:empty { display:none; }
+.garage-selector-section,.garage-cosmetics { min-width:0; padding-top:10px; }
+.garage-selector-section h2,.garage-cosmetics h2 { margin:0 0 6px; color:var(--ui-gold); font:700 13px/1 var(--font-display); letter-spacing:.11em; }
+.garage-list { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.garage-aircraft { display:grid; gap:3px; min-width:0; min-height:52px; padding:7px 9px; color:var(--text-secondary); text-align:left; border:1px solid var(--ui-border); border-radius:5px; background:var(--ui-glass-cyan); font-family:var(--font-display); cursor:pointer; }
+.garage-aircraft:nth-child(even) { background:var(--ui-glass-royal); }
+.garage-aircraft strong { overflow:hidden; color:var(--ui-text); font-size:13px; letter-spacing:.045em; text-overflow:ellipsis; white-space:nowrap; }
+.garage-aircraft small { overflow:hidden; color:var(--text-secondary); font-size:10px; letter-spacing:.05em; text-overflow:ellipsis; white-space:nowrap; }
+.garage-aircraft.selected { color:var(--ui-gold); border-color:var(--ui-cyan); background:var(--ui-gradient-selected); box-shadow:0 0 0 1px rgb(57 169 249 / 28%),0 6px 16px rgb(7 24 36 / 24%); }
+.garage-aircraft.selected strong { color:var(--ui-gold); }
+.garage-cosmetics { margin-top:10px; border-top:1px solid var(--ui-border); }
+.garage-cosmetics > p { margin:0 0 6px; color:var(--text-secondary); font:500 var(--font-meta-size)/1.25 var(--font-body); }
+.garage-cosmetic-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.garage-cosmetic-card { display:grid; gap:5px; min-width:0; }
+.garage-cosmetic,.garage-cosmetic-action { min-height:48px; padding:7px 8px; color:var(--ui-text); text-align:left; border:1px solid var(--ui-border); border-radius:5px; background:var(--ui-glass-blue); font:600 var(--font-control-size)/1.3 var(--font-display); cursor:pointer; }
+.garage-cosmetic-card:nth-child(even) .garage-cosmetic { background:var(--ui-glass-royal); }
+.garage-cosmetic { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 9px; align-items:center; }
+.garage-cosmetic strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.garage-cosmetic small { grid-column:1/-1; overflow:hidden; color:var(--text-secondary); font:500 var(--font-meta-size)/var(--line-height-meta) var(--font-body); text-overflow:ellipsis; white-space:nowrap; }
+.garage-cosmetic-swatches { display:flex; gap:3px; }
+.garage-cosmetic-swatches i { width:13px; height:13px; border:1px solid rgb(23 48 66 / 28%); border-radius:50%; box-shadow:0 1px 3px rgb(23 48 66 / 24%); }
+.garage-cosmetic[aria-pressed=true] { outline:2px solid var(--ui-cyan); color:var(--ui-gold); background:var(--ui-gradient-selected); }
+.garage-cosmetic-action { min-height:40px; color:var(--ui-ocean-ink); text-align:center; border-color:rgb(249 176 10 / 58%); background:var(--ui-gradient-primary); text-shadow:0 1px 1px rgb(255 255 255 / 28%); }
+.garage-cosmetic-action:disabled { opacity:.48; cursor:default; }
+.garage-tester { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+.garage-tester input,.garage-tester button { min-width:0; padding:7px 9px; border:1px solid var(--ui-border); border-radius:4px; color:var(--ui-text); background:var(--ui-bg); font:600 var(--font-control-size) var(--font-display); }
+.garage-tester[hidden] { display:none; }
+.garage-premium { display:grid; gap:6px; margin:0 0 6px; }
+.garage-premium[hidden],.garage-details button[hidden] { display:none; }
 .garage-premium > button { width:100%; }
-.garage-premium .garage-trial-row { display:flex;align-items:center;justify-content:space-between;gap:8px; }
-.garage-premium .garage-trial-summary { margin:0;color:var(--ui-gold);font:700 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
-.garage-premium .garage-purchase-disclosure { margin:0;color:var(--text-secondary);font:500 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
-.garage-premium [data-garage-restore] { padding:5px 8px;white-space:nowrap;font-size:var(--font-meta-size); }
-.garage-details.is-firehawk { padding:12px 14px; }
-.garage-details.is-firehawk h2 { font-size:22px;line-height:1.08; }
-.garage-details.is-firehawk > [data-garage-pitch] { margin:6px 0 0;font:500 var(--font-meta-size)/1.35 var(--font-body); }
-.garage-details.is-firehawk .garage-stats { gap:3px;margin:8px 0; }
-.garage-details.is-firehawk .garage-stats div { line-height:1.15; }
-.garage-details.is-firehawk > [data-garage-message]:empty { display:none; }
-.garage-card.is-firehawk .garage-layout,.garage-card.is-firehawk .garage-list { margin-top:10px; }
-.garage-card.is-firehawk .garage-cosmetics { padding:7px 16px 10px; }
-.garage-card.is-firehawk .garage-cosmetics h2 { margin-bottom:2px; }
-.garage-card.is-firehawk .garage-cosmetics > p { margin-bottom:5px; }
+.garage-premium .garage-trial-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.garage-premium .garage-trial-summary { margin:0; color:var(--ui-gold); font:700 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
+.garage-premium .garage-purchase-disclosure { margin:0; color:var(--text-secondary); font:500 10px/1.25 var(--font-body); }
+.garage-premium [data-garage-restore] { min-height:34px; padding:5px 8px; white-space:nowrap; font-size:var(--font-meta-size); }
 .garage-purchase-disclosure a { color:var(--ui-gold); }
 .fighter-trial-indicator { position:fixed; z-index:4; top:82px; left:50%; transform:translateX(-50%); padding:6px 10px; border:1px solid rgb(249 176 10 / 48%); border-radius:5px; color:var(--ui-text); background:var(--ui-bg); font:600 var(--font-meta-size) var(--font-display); pointer-events:none; }
 .fighter-trial-indicator.hidden { display:none; }
-@media (max-width: 680px) { .garage-layout { grid-template-columns: 1fr; } .garage-preview { min-height: 240px; } .garage-preview canvas { height: 240px; } .garage-list,.garage-cosmetic-list { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-height:740px) {
+  .garage-card { padding:12px 14px; }
+  .garage-card header { padding-bottom:7px; }
+  .garage-card header p,.garage-cosmetics > p { display:none; }
+  .garage-card h1 { font-size:26px; }
+  .garage-selector-section,.garage-cosmetics { padding-top:7px; }
+  .garage-selector-section h2,.garage-cosmetics h2 { margin-bottom:4px; }
+  .garage-aircraft,.garage-cosmetic { min-height:44px; }
+  .garage-cosmetics { margin-top:6px; }
+}
+@media (max-width:680px) {
+  .garage-card { display:block; max-height:94dvh; overflow-x:hidden; overflow-y:auto; }
+  .garage-layout { grid-template-columns:1fr; }
+  .garage-preview,.garage-preview canvas { min-height:clamp(210px,31dvh,280px); height:clamp(210px,31dvh,280px); }
+  .garage-details { overflow:visible; }
+  .garage-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 12px; }
+  .garage-stats div { grid-template-columns:minmax(54px,1fr) minmax(76px,1fr); gap:6px; }
+  .garage-list,.garage-cosmetic-list { display:flex; gap:7px; overflow-x:auto; padding:2px 2px 7px; scroll-snap-type:x proximity; scrollbar-width:thin; }
+  .garage-aircraft { flex:0 0 min(148px,42vw); scroll-snap-align:start; }
+  .garage-cosmetic-card { flex:0 0 min(168px,48vw); scroll-snap-align:start; }
+}
 
 #osm-attribution {
   position: absolute;
@@ -1562,6 +1641,10 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .flight-hud-left { justify-self: start; }
 .flight-hud-center { justify-self: center; }
 .flight-hud-utilities { justify-self: end; }
+.flight-hud-center > :not(:first-child) {
+  padding-left: var(--hud-gap);
+  border-left: 1px solid rgb(133 205 235 / 34%);
+}
 .flight-hud-reward-anchor { position: relative; align-self: stretch; display: flex; align-items: center; }
 .flight-hud-reward-stats { display: flex; align-items: center; gap: var(--hud-gap); }
 .flight-hud-health,
@@ -1611,29 +1694,11 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .flight-account-button .avatar-fallback svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .flight-account-button:focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 2px; }
 .unified-flight-hud .flight-hud-utilities {
-  gap: 3px;
-  padding: 4px;
-  background: rgb(1 13 23 / 48%);
-  border: 1px solid rgb(100 196 238 / 19%);
-  border-radius: 13px;
-  box-shadow: inset 0 1px rgb(255 255 255 / 4%), 0 8px 24px rgb(0 0 0 / 20%);
-}
-.unified-flight-hud .flight-hud-utilities .flight-header-control {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-.unified-flight-hud .flight-hud-utilities .flight-header-control:hover,
-.unified-flight-hud .flight-hud-utilities .flight-header-control:focus-visible {
-  color: var(--ui-gold);
-  background: linear-gradient(180deg, rgb(38 91 128 / 92%), rgb(20 56 82 / 92%));
-  border-color: rgb(105 211 255 / 55%);
-}
-.unified-flight-hud .flight-hud-center .flight-header-credits {
   gap: 8px;
-  padding: 4px 10px 4px 6px;
-  background: rgb(249 176 10 / 6%);
-  border-color: rgb(249 176 10 / 15%);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 .unified-flight-hud .landing-risk { color: #ff8b82; }
 
@@ -2416,7 +2481,7 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
 
 @media(max-width:900px),
        (any-pointer:coarse) and (orientation:landscape) and (max-height:520px){
-  body{overscroll-behavior:none}.controls-card{display:none}.pilot-menu-card{width:min(96vw,760px);max-height:94dvh;padding:12px}.pilot-menu-navigation{overflow-x:auto;flex-wrap:nowrap}.pilot-menu-navigation button,.pilot-menu-card button,.garage-card button,.flight-recap button{min-height:44px}.pilot-progress-grid{grid-template-columns:1fr}.garage-card{width:96vw;max-height:94dvh;overflow:auto}.garage-layout{grid-template-columns:1fr}.garage-preview,.garage-preview canvas{min-height:220px;height:220px}.garage-list{grid-template-columns:repeat(2,minmax(0,1fr))}.flight-recap{max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(14px,env(safe-area-inset-bottom))}}
+  body{overscroll-behavior:none}.controls-card{display:none}.pilot-menu-card{width:min(96vw,760px);max-height:94dvh;padding:12px}.pilot-menu-navigation{overflow-x:auto;flex-wrap:nowrap}.pilot-menu-navigation button,.pilot-menu-card button,.garage-card button,.flight-recap button{min-height:44px}.pilot-progress-grid{grid-template-columns:1fr}.flight-recap{max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(14px,env(safe-area-inset-bottom))}}
 @media(max-width:1000px) and (orientation:landscape),
        (any-pointer:coarse) and (orientation:landscape) and (max-height:520px){
   .pilot-menu-overlay{padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}
@@ -2427,7 +2492,7 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
   .pilot-menu-city-status{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .pilot-menu-navigation{grid-area:navigation;display:flex;flex-direction:column;gap:4px;min-height:0;padding:0 5px 0 0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
   .pilot-menu-navigation button{width:100%;min-height:32px;padding:5px 6px;text-align:left;white-space:normal;font-size:13px}
-  .pilot-menu-navigation-action{margin-top:2px}
+  .pilot-menu-navigation-action{margin-top:2px}.pilot-menu-navigation-action.pilot-menu-danger{margin-top:auto;margin-left:0}
   .pilot-menu-content{grid-area:content;min-width:0;padding-right:4px;overflow-x:hidden}
   .pilot-menu-section{padding:6px 0}
   .pilot-menu-section h2{margin-bottom:5px}
@@ -2435,9 +2500,13 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
   .pilot-menu-item{margin-top:5px;padding:7px 8px}
   .pilot-menu-actions{margin-top:6px}
   .pilot-menu-actions button{min-width:132px;min-height:42px}
-  .pilot-account-summary{gap:4px 12px;margin:5px 0 8px;padding:8px 10px;font-size:14px;line-height:1.35}
-  .pilot-account-summary strong{font-size:17px}
-  .pilot-account-form,.pilot-account-auth-forms,.pilot-account-providers{margin-block:7px}
+  .pilot-account-providers{margin-block:7px}
+  .pilot-profile-identity{gap:6px 10px;padding:10px}
+  .pilot-profile-emblem{width:46px;height:46px;font-size:20px}
+  .pilot-profile-stats{gap:6px;margin:7px 0}
+  .pilot-profile-stat{padding:8px 5px}
+  .pilot-profile-account{padding:9px}
+  .pilot-profile-account-row{padding:7px 0}
   .pilot-account-linked{gap:5px;margin-block:7px}
   .pilot-account-linked-row{padding:6px 8px}
 }
@@ -2477,8 +2546,8 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
 body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(max-width:1100px){.desktop-controls-help-items{gap:3px 8px}.desktop-controls-help-items span:not(:last-child)::after{margin-left:8px}.practice-mode-label{bottom:max(60px,calc(env(safe-area-inset-bottom) + 52px))}}
 @media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:4px;width:100%;padding:var(--safe-area-top) max(7px,var(--safe-area-right)) 0 max(7px,var(--safe-area-left))}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud button{min-width:34px;min-height:var(--flight-header-control-height);padding:3px 5px;font-size:10px}.mission-reminder{top:max(48px,calc(env(safe-area-inset-top) + 42px));max-width:calc(100vw - 160px);padding:5px 6px 5px 8px}.mission-reminder span{font-size:11px}.mission-reminder button{min-height:27px;padding:3px 5px;font-size:10px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
-@media(max-width:950px){.unified-flight-hud{grid-template:"left utilities" auto "center center" auto/minmax(0,1fr) auto;align-content:center;row-gap:4px;min-height:calc(106px + var(--safe-area-top));padding-bottom:5px}.flight-hud-left{grid-area:left}.flight-hud-center{grid-area:center;justify-self:center;flex-wrap:wrap;justify-content:center}.unified-flight-hud .flight-hud-utilities{grid-area:utilities;width:auto;justify-content:center;padding:3px}.mission-status-layer{top:max(144px,calc(var(--safe-area-top) + 138px))}}
-@media(max-width:480px){.flight-hud-left,.flight-hud-center{--hud-gap:3px}.unified-flight-hud button{padding-inline:5px}.unified-flight-hud .flight-exit-button{font-size:9px}.unified-flight-hud small{font-size:8px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-center .flight-header-credits small{display:none}.unified-flight-hud .flight-hud-utilities .flight-header-garage span{display:none}.unified-flight-hud .flight-hud-utilities .flight-header-garage{min-width:var(--flight-header-control-height)}}
+@media(max-width:950px){.unified-flight-hud{grid-template:"left utilities" auto "center center" auto/minmax(0,1fr) auto;align-content:center;row-gap:4px;min-height:calc(106px + var(--safe-area-top));padding-bottom:5px}.flight-hud-left{grid-area:left}.flight-hud-center{grid-area:center;justify-self:center;flex-wrap:wrap;justify-content:center}.unified-flight-hud .flight-hud-utilities{grid-area:utilities;width:auto;justify-content:center;padding:0}.mission-status-layer{top:max(144px,calc(var(--safe-area-top) + 138px))}}
+@media(max-width:480px){.flight-hud-left,.flight-hud-center{--hud-gap:3px}.unified-flight-hud button{padding-inline:5px}.unified-flight-hud .flight-exit-button{font-size:9px}.unified-flight-hud small{font-size:8px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-utilities .flight-header-garage span{display:none}.unified-flight-hud .flight-hud-utilities .flight-header-garage{min-width:var(--flight-header-control-height)}}
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
 @media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:var(--text-secondary)}
@@ -2951,10 +3020,11 @@ body[data-tutorial-control="cameraLook"] #game-root,body[data-tutorial-control="
 .training-intro{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:calc(var(--safe-area-top) + 16px) calc(var(--safe-area-right) + 16px) calc(var(--safe-area-bottom) + 16px) calc(var(--safe-area-left) + 16px);background:rgb(4 15 25 / 58%);backdrop-filter:blur(5px)}
 .training-intro[hidden]{display:none}.training-intro>div{width:min(470px,100%);max-height:100%;box-sizing:border-box;padding:24px;overflow:auto;border:1px solid var(--ui-border-strong);border-radius:10px;text-align:center;color:var(--ui-text);background:var(--ui-bg-strong);box-shadow:var(--ui-shadow)}
 .training-intro h1{margin:0;color:var(--ui-gold);font:900 clamp(22px,4vw,34px)/1.15 var(--font-display);letter-spacing:.05em}.training-intro p{margin:14px 0 18px;font:500 16px/1.45 var(--font-body)}.training-dialog-actions{display:flex;flex-direction:column;align-items:center;gap:5px}.training-intro button{min-height:44px;padding:10px 22px;color:var(--ui-ocean-ink);background:var(--ui-gradient-primary);border:1px solid rgb(249 176 10 / 70%);border-radius:5px;font:800 15px var(--font-display);cursor:pointer}.training-intro [data-training-start]{width:min(280px,100%)}.training-intro [data-training-skip]{color:var(--ui-text);background:transparent;border-color:transparent;font-size:13px}
-body[data-tutorial-control="joystick"] [data-touch-control="stick"],body[data-tutorial-control="takeoff"] [data-touch-control="stick"],body[data-tutorial-control="turnLeft"] [data-touch-control="stick"],body[data-tutorial-control="turnRight"] [data-touch-control="stick"],body[data-tutorial-control="climb"] [data-touch-control="stick"],body[data-tutorial-control="descend"] [data-touch-control="stick"],body[data-tutorial-control="landing"] [data-touch-control="stick"],body[data-tutorial-control="throttle"] [data-touch-control="throttle"],body[data-tutorial-control="landing"] [data-touch-control="throttle"],body[data-tutorial-control="fire"] [data-touch-control="fire"]{filter:drop-shadow(0 0 13px rgb(56 215 244 / 96%));outline:2px solid rgb(216 175 82 / 86%);outline-offset:5px;animation:tutorial-control-pulse 1.1s ease-in-out infinite}
+body[data-tutorial-control="joystick"] [data-touch-control="stick"],body[data-tutorial-control="takeoff"] [data-touch-control="stick"],body[data-tutorial-control="turnLeft"] [data-touch-control="stick"],body[data-tutorial-control="turnRight"] [data-touch-control="stick"],body[data-tutorial-control="climb"] [data-touch-control="stick"],body[data-tutorial-control="descend"] [data-touch-control="stick"],body[data-tutorial-control="landing"] [data-touch-control="stick"],body[data-tutorial-control="throttle"] [data-touch-control="throttle"],body[data-tutorial-control="landing"] [data-touch-control="throttle"],body[data-tutorial-control="fire"] [data-touch-control="fire"]{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:4px solid #ffd447;outline-offset:6px;box-shadow:0 0 0 5px rgb(255 196 32 / 20%),0 0 30px 9px rgb(255 196 32 / 46%);animation:tutorial-control-pulse 1.05s ease-in-out infinite}
+body[data-tutorial-control="throttle"] [data-touch-control="throttle"] .touch-throttle-track,body[data-tutorial-control="landing"] [data-touch-control="throttle"] .touch-throttle-track{border-color:#ffe078;background:repeating-linear-gradient(to bottom,rgb(255 199 40 / 11%) 0,rgb(255 199 40 / 11%) calc(20% - 1px),rgb(255 224 120 / 35%) calc(20% - 1px),rgb(255 224 120 / 35%) 20%),rgb(90 65 12 / 26%);box-shadow:inset 0 0 24px rgb(255 201 44 / 24%)}
 body[data-tutorial-control="targetLock"] #acquisition-circle{z-index:22;outline:2px solid var(--ui-gold);outline-offset:6px;animation:tutorial-control-pulse 1.1s ease-in-out infinite}
 body[data-tutorial-control="takeoff"] .touch-stick-up,body[data-tutorial-control="climb"] .touch-stick-up,body[data-tutorial-control="turnLeft"] .touch-stick-left,body[data-tutorial-control="turnRight"] .touch-stick-right,body[data-tutorial-control="descend"] .touch-stick-down{width:11px;height:11px;border-color:var(--ui-gold);filter:drop-shadow(0 0 6px var(--ui-gold))}
-@keyframes tutorial-control-pulse{0%,100%{filter:drop-shadow(0 0 7px rgb(56 215 244 / 62%))}50%{filter:drop-shadow(0 0 17px rgb(216 175 82 / 92%))}}
+@keyframes tutorial-control-pulse{0%,100%{filter:drop-shadow(0 0 10px rgb(255 205 50 / 78%));outline-color:#ffd447;box-shadow:0 0 0 4px rgb(255 196 32 / 16%),0 0 22px 6px rgb(255 196 32 / 34%)}50%{filter:drop-shadow(0 0 22px rgb(255 224 96 / 100%));outline-color:#fff0a3;box-shadow:0 0 0 7px rgb(255 210 58 / 28%),0 0 38px 12px rgb(255 196 32 / 62%)}}
 .garage-cosmetic[aria-pressed=true] {outline:2px solid var(--ui-cyan);color:var(--ui-gold);background:var(--ui-gradient-selected)}
 @media(max-width:950px) and (orientation:landscape){
   .guided-tutorial-panel{top:max(44px,calc(var(--safe-area-top) + 40px));left:max(8px,var(--safe-area-left));width:min(270px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));padding:8px}
@@ -3126,7 +3196,8 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
 
 /* Phone landscape needs its own density instead of inheriting the portrait-style
    one-column layout solely because the viewport is short. */
-@media (any-pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+@media (max-width: 950px) and (orientation: landscape),
+       (any-pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
   :is(.pilot-menu-overlay, .world-map-overlay, .garage-overlay, .flight-tutorial) {
     --font-body-size: 14px;
     --font-meta-size: 12px;
@@ -3206,19 +3277,20 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
   .pilot-progress-aircraft-list { margin-top: 5px; }
   .pilot-progress-aircraft-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  .pilot-account-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px 10px;
-    margin: 4px 0 6px;
-    padding: 6px 8px;
-    font-size: 14px;
-    line-height: 1.3;
-  }
-  .pilot-account-summary strong { grid-column: 1 / -1; font-size: 17px; }
-  .pilot-account-form,
-  .pilot-account-auth-forms,
   .pilot-account-providers { gap: 6px; margin-block: 5px; }
-  .pilot-account-auth-form,
+  .pilot-account-card .pilot-profile-intro { margin-bottom: 7px; }
+  .pilot-profile-identity { gap: 5px 9px; padding: 8px; }
+  .pilot-profile-emblem { width: 42px; height: 42px; font-size: 18px; }
+  .pilot-profile-identity-text strong { font-size: 17px; }
+  .pilot-profile-identity-text b { margin-top: 2px; font-size: 11px; }
+  .pilot-profile-xp progress { height: 8px; }
+  .pilot-profile-stats { gap: 5px; margin: 6px 0; }
+  .pilot-profile-stat { padding: 7px 4px; }
+  .pilot-profile-stat strong { font-size: 18px; }
+  .pilot-profile-stat span { margin-top: 3px; font-size: 9px; }
+  .pilot-profile-account { padding: 7px; }
+  .pilot-profile-account-row { padding: 6px 0; }
+  .pilot-profile-logout { margin-top: 8px; }
   .pilot-account-linked { padding: 7px; }
   .pilot-account-linked { gap: 4px; margin-block: 5px; }
   .pilot-account-linked-row { gap: 6px; min-height: 32px; padding: 4px 6px; }
@@ -3295,65 +3367,65 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
     max-width: 100%;
     min-width: 0;
     height: 100%;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
     padding: 7px 8px 8px;
     overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow-y: hidden;
   }
   .garage-card header {
-    position: sticky;
-    z-index: 3;
-    top: -7px;
     min-width: 0;
-    min-height: 44px;
+    min-height: 34px;
     gap: 8px;
-    padding-block: 3px;
-    background: var(--ui-bg-strong);
+    padding: 0 0 4px;
   }
   .garage-card header > * { min-width: 0; }
-  .garage-card header span { font-size: 11px; }
-  .garage-card h1 { margin-top: 1px; font-size: clamp(20px, 2.5vw, 24px); line-height: 1.1; }
-  .garage-card h2,
-  .garage-details.is-firehawk h2 { font-size: 18px; line-height: 1.15; }
-  .garage-balance {
-    flex: none;
-    gap: 6px;
-    font-size: 13px;
-    white-space: nowrap;
-  }
+  .garage-card header span { display:none; }
+  .garage-card header p { display:none; }
+  .garage-card h1 { margin-top:0; font-size:clamp(17px,2.4vw,21px); line-height:1.05; }
+  .garage-details h2 { margin-top:4px; font-size:17px; line-height:1.1; }
+  .garage-balance { flex:none; gap:6px; white-space:nowrap; }
   .garage-card header button,
-  .garage-details button { min-height: 40px; padding: 5px 8px; font-size: 14px; }
+  .garage-details button { min-height:36px; padding:4px 7px; font-size:12px; }
   .garage-layout {
-    grid-template-columns: minmax(0, 1.2fr) minmax(220px, .8fr);
+    grid-template-columns:minmax(0,.48fr) minmax(270px,.52fr);
+    min-height:0;
     gap: 8px;
     margin-top: 6px;
   }
   .garage-preview,
   .garage-preview canvas {
     min-width: 0;
-    min-height: 164px;
-    height: 164px;
+    min-height:0;
+    height:100%;
   }
   .garage-preview-hint { bottom: 4px; font-size: 11px; }
-  .garage-details,
-  .garage-details.is-firehawk { min-width: 0; padding: 7px 8px; }
-  .garage-details p,
-  .garage-details.is-firehawk > [data-garage-pitch] { margin: 4px 0; font-size: 13px; line-height: 1.3; }
-  .garage-stats,
-  .garage-details.is-firehawk .garage-stats { gap: 2px; margin: 5px 0; }
-  .garage-stats div { gap: 6px; font-size: 12px; line-height: 1.2; }
-  .garage-list {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 5px;
-    margin-top: 6px;
-  }
-  .garage-aircraft { min-height: 44px; padding: 5px; font-size: 12px; }
-  .garage-cosmetics,
-  .garage-card.is-firehawk .garage-cosmetics { padding: 6px 8px 8px; }
-  .garage-cosmetics > p { margin-bottom: 5px; font-size: 13px; line-height: 1.3; }
-  .garage-cosmetic-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .garage-details { min-width:0; padding:6px 8px; overflow:auto; }
+  .garage-statuses { gap:3px; min-height:19px; }
+  .garage-status { min-height:19px; padding:2px 5px; font-size:8px; }
+  .garage-details > [data-garage-pitch] { margin:2px 0 4px; font-size:11px; line-height:1.15; }
+  .garage-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px 12px; margin:2px 0 4px; }
+  .garage-stats div { grid-template-columns:minmax(52px,1fr) minmax(64px,1fr); gap:5px; min-height:16px; font-size:10px; line-height:1.1; }
+  .garage-stats b { gap:2px; }
+  .garage-stats b i { height:6px; }
+  .garage-details > .garage-actions > [data-garage-equip],
+  .garage-premium [data-garage-premium-buy] { min-height:36px; }
+  .garage-action-note { min-height:11px; margin-top:1px !important; font-size:9px !important; }
+  .garage-premium { gap:3px; margin-bottom:3px; }
+  .garage-premium .garage-trial-row { gap:4px; }
+  .garage-premium .garage-purchase-disclosure { font-size:8px; line-height:1.15; }
+  .garage-selector-section,.garage-cosmetics { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:center; gap:6px; padding-top:4px; }
+  .garage-selector-section h2,.garage-cosmetics h2 { margin:0; font-size:9px; }
+  .garage-list { grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+  .garage-aircraft { min-height:38px; padding:3px 6px; }
+  .garage-aircraft strong { font-size:11px; }
+  .garage-aircraft small { font-size:8px; }
+  .garage-cosmetics { margin-top:2px; }
+  .garage-cosmetics > p { display:none; }
+  .garage-cosmetic-list { grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
   .garage-cosmetic,
-  .garage-cosmetic-action { min-height: 44px; padding: 5px 6px; font-size: 12px; }
+  .garage-cosmetic-action { min-height:38px; padding:3px 6px; font-size:10px; }
+  .garage-cosmetic small { font-size:8px; }
+  .garage-cosmetic-swatches i { width:10px; height:10px; }
 }
 
 .gameplay-cinematic-banner {
@@ -3440,4 +3512,156 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
 
 @media (prefers-reduced-motion: reduce) {
   .gameplay-cinematic-banner.is-visible { animation-timing-function: linear; }
+}
+
+/* Focused consumer sign-in. Auth behavior remains in the existing Pilot Menu flow. */
+.pilot-menu-card.is-authentication {
+  grid-template: minmax(0, 1fr) / 1fr;
+  width: min(520px, 100%);
+  height: auto;
+  max-height: calc(100dvh - var(--app-shell-header-total) - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.pilot-menu-card.is-authentication > :is(header, .pilot-menu-navigation) { display: none; }
+.pilot-menu-content-authentication {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  overflow: auto;
+  scrollbar-gutter: auto;
+}
+.pilot-auth-card {
+  display: grid;
+  gap: 10px;
+  width: min(460px, 100%);
+  margin: auto;
+  padding: clamp(20px, 3vw, 26px);
+  box-sizing: border-box;
+  color: var(--ui-text);
+  text-align: center;
+  border: 1px solid rgb(105 211 255 / 42%);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgb(12 37 56 / 97%), rgb(7 25 40 / 98%));
+  box-shadow: 0 20px 50px rgb(0 8 18 / 36%), inset 0 1px rgb(255 255 255 / 5%);
+}
+.pilot-auth-brand {
+  color: var(--ui-gold);
+  font: 700 11px/1 var(--font-display);
+  letter-spacing: .2em;
+}
+.pilot-auth-card h2 {
+  margin: 0;
+  color: var(--ui-text);
+  font: 800 clamp(23px, 5vw, 28px)/1.1 var(--font-display);
+  letter-spacing: .07em;
+}
+.pilot-auth-card .pilot-auth-subtitle {
+  margin: -6px 0 2px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+.pilot-auth-card .pilot-account-providers {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0;
+}
+.pilot-menu-card .pilot-provider-button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  font: 600 15px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  text-shadow: none;
+}
+.pilot-provider-icon { display: block; width: 20px; height: 20px; }
+.pilot-menu-card .pilot-provider-google {
+  color: #202124;
+  border-color: #dadce0;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 16%);
+}
+.pilot-menu-card .pilot-provider-google:hover:not(:disabled),
+.pilot-menu-card .pilot-provider-google:focus-visible:not(:disabled) { color: #202124; border-color: #c6dafc; background: #f8faff; }
+.pilot-menu-card .pilot-provider-apple {
+  color: #fff;
+  border-color: #fff;
+  background: #000;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 22%);
+}
+.pilot-menu-card .pilot-provider-apple:hover:not(:disabled),
+.pilot-menu-card .pilot-provider-apple:focus-visible:not(:disabled) { color: #fff; border-color: #fff; background: #151515; }
+.pilot-auth-divider { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; color: var(--ui-text-muted); }
+.pilot-auth-divider span { height: 1px; background: rgb(126 183 210 / 28%); }
+.pilot-auth-divider b { font: 700 11px var(--font-display); letter-spacing: .12em; }
+.pilot-menu-card button.pilot-auth-guest {
+  min-height: 46px;
+  color: var(--ui-gold-light);
+  border-color: rgb(249 176 10 / 72%);
+  background: rgb(249 176 10 / 8%);
+  font-size: 14px;
+  letter-spacing: .08em;
+}
+.pilot-menu-card button.pilot-auth-guest:hover:not(:disabled),
+.pilot-menu-card button.pilot-auth-guest:focus-visible:not(:disabled) { color: #082236; background: var(--ui-gradient-primary); }
+.pilot-auth-guest-note { margin: -5px 0 0 !important; color: var(--ui-text-muted) !important; font-size: 12px !important; }
+.pilot-auth-card .pilot-account-message {
+  min-height: 0;
+  margin: -3px 0 0 !important;
+  padding: 8px 10px;
+  color: var(--ui-gold) !important;
+  border: 1px solid rgb(249 176 10 / 24%);
+  border-radius: 6px;
+  background: rgb(249 176 10 / 7%);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.pilot-auth-card .pilot-account-message.error { color: #ffadba !important; border-color: rgb(255 109 112 / 34%); background: rgb(208 1 45 / 10%); }
+.pilot-auth-legal { margin: -4px auto 0 !important; color: var(--ui-text-muted) !important; font-size: 11px !important; line-height: 1.45 !important; }
+.pilot-auth-legal a { color: var(--text-secondary); text-underline-offset: 2px; }
+.pilot-menu-card button.pilot-auth-back {
+  justify-self: center;
+  min-height: 32px;
+  margin-top: -4px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+}
+.pilot-auth-card[aria-busy='true'] { cursor: progress; }
+
+@media (max-width: 680px) {
+  .pilot-menu-card.is-authentication {
+    width: 100%;
+    height: auto;
+    max-height: calc(100dvh - var(--app-shell-header-total) - 16px);
+    padding: 0;
+  }
+  .pilot-auth-card { width: 100%; gap: 10px; padding: 18px max(18px, env(safe-area-inset-left), env(safe-area-inset-right)); border-radius: 13px; }
+  .pilot-auth-card h2 { font-size: 23px; }
+  .pilot-menu-card .pilot-provider-button,
+  .pilot-menu-card button.pilot-auth-guest { min-height: 46px; }
+}
+
+@media (any-pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .pilot-menu-card.is-authentication { display: grid; grid-template: minmax(0, 1fr) / 1fr; height: 100%; max-height: 100%; }
+  .pilot-menu-card.is-authentication .pilot-menu-content-authentication { grid-area: auto; padding: 0; }
+  .pilot-auth-card { gap: 8px; width: min(620px, 100%); padding: 14px 20px; }
+  .pilot-auth-card h2 { font-size: 20px; }
+  .pilot-auth-card .pilot-auth-subtitle { margin-bottom: 0; font-size: 13px; }
+  .pilot-auth-card .pilot-account-providers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .pilot-menu-card .pilot-provider-button,
+  .pilot-menu-card button.pilot-auth-guest { min-height: 42px; }
+  .pilot-auth-legal { max-width: 520px; }
 }

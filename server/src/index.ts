@@ -35,7 +35,6 @@ import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/chaos-event-rules.mjs';
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
-import { runwayCombatProtectionActive } from '../../shared/runway-combat-protection.mjs';
 import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
@@ -718,6 +717,7 @@ const httpServer = createServer(async (request, response) => {
         if (!platform || !provider || !action || (provider === 'apple' && platform !== 'ios')) {
           jsonResponse(response, 400, { error: 'Invalid provider request.' }); return;
         }
+        if (action === 'link') { jsonResponse(response, 409, { error: 'ACCOUNT_LINKING_DISABLED' }); return; }
         const ipLimit = limitedBy('native-auth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
         const pilotLimit = limitedBy('native-auth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
         if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
@@ -725,7 +725,7 @@ const httpServer = createServer(async (request, response) => {
         if (!config) { jsonResponse(response, 503, { error: 'That sign-in provider is not configured yet.' }); return; }
         const marker = `native:${platform}`;
         const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, marker, marker);
-        if (!flow) { jsonResponse(response, 409, { error: action === 'link' ? 'Sign in before linking a provider.' : 'Use Link from your signed-in account.' }); return; }
+        if (!flow) { jsonResponse(response, 409, { error: "You're already signed in. Log out first to use another account." }); return; }
         jsonResponse(response, 200, {
           state: flow.state,
           nonce: flow.nonce,
@@ -770,7 +770,7 @@ const httpServer = createServer(async (request, response) => {
           account: pilotSessions.status(result.identity), profile,
           message: result.guestPreserved
             ? 'Account loaded. This device guest profile was preserved separately.'
-            : flow.action === 'link' ? `${provider === 'google' ? 'Google' : 'Apple'} linked.` : 'Account loaded.',
+            : 'Account loaded.',
           guestPreserved: result.guestPreserved === true,
         });
         return;
@@ -780,36 +780,38 @@ const httpServer = createServer(async (request, response) => {
         const action = payload.action === 'link' || payload.action === 'login' ? payload.action : undefined;
         const returnTo = allowedOAuthReturn(payload.returnTo, String(request.headers.origin ?? ''), configuredWebOrigin);
         if (!provider || !action || !returnTo) { jsonResponse(response, 400, { error: 'Invalid provider request.' }); return; }
+        if (action === 'link') { jsonResponse(response, 409, { error: 'ACCOUNT_LINKING_DISABLED' }); return; }
         const ipLimit = limitedBy('oauth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
         const pilotLimit = limitedBy('oauth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
         if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
         const config = providerConfig(provider);
         if (!config) { jsonResponse(response, 503, { error: 'That sign-in provider is not configured yet.' }); return; }
         const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, config.redirectUri, returnTo);
-        if (!flow) { jsonResponse(response, 409, { error: action === 'link' ? 'Sign in before linking a provider.' : 'Use Link from your signed-in account.' }); return; }
+        if (!flow) { jsonResponse(response, 409, { error: "You're already signed in. Log out first to use another account." }); return; }
         jsonResponse(response, 200, { authorizationUrl: createAuthorizationUrl(config, {
           state: flow.state, nonce: flow.nonce, codeChallenge: flow.codeVerifier ? pkceChallenge(flow.codeVerifier) : undefined,
         }) });
         return;
       }
-      if (requestUrl.pathname === '/api/auth/signup' || requestUrl.pathname === '/api/auth/login') {
-        const signup = requestUrl.pathname.endsWith('/signup');
+      if (requestUrl.pathname === '/api/auth/signup') {
+        jsonResponse(response, 410, { error: 'Use Google or Apple to save progress across devices.' });
+        return;
+      }
+      if (requestUrl.pathname === '/api/auth/login') {
         const emailKey = authLimiterIdentity(payload.email);
-        const ipLimit = limitedBy(signup ? 'signup-ip' : 'login-ip', identity.clientIp, signup ? securityLimits.signupIp : securityLimits.loginIp);
-        const emailLimit = limitedBy(signup ? 'signup-email' : 'login-email', emailKey, signup ? securityLimits.signupEmail : securityLimits.loginEmail);
+        const ipLimit = limitedBy('login-ip', identity.clientIp, securityLimits.loginIp);
+        const emailLimit = limitedBy('login-email', emailKey, securityLimits.loginEmail);
         if (ipLimit.limited || emailLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, emailLimit.retryAfterMs)); return; }
-        const result = signup
-          ? await pilotSessions.signUp(identity.session, payload.email, payload.password)
-          : await pilotSessions.signIn(identity.session, payload.email, payload.password);
+        const result = await pilotSessions.signIn(identity.session, payload.email, payload.password);
         if (!result.ok || !result.identity || !result.cookie || !result.expiresAt) {
-          jsonResponse(response, signup ? 400 : 401, { error: result.error ?? 'Account request failed.' }); return;
+          jsonResponse(response, 401, { error: result.error ?? 'Account request failed.' }); return;
         }
         const profile = reconcilePaidFirehawk(profileStore.getOrCreate(result.identity.pilotId, 'Pilot'));
         response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
         closeSessionConnections(identity.session.tokenHash);
         jsonResponse(response, 200, {
           account: pilotSessions.status(result.identity), profile,
-          message: result.guestPreserved ? 'Account loaded. This device guest profile was preserved separately.' : signup ? 'Account created. Your current pilot progress is protected.' : 'Account loaded.',
+          message: result.guestPreserved ? 'Account loaded. This device guest profile was preserved separately.' : 'Account loaded.',
           guestPreserved: result.guestPreserved === true,
         });
         return;
@@ -826,6 +828,7 @@ const httpServer = createServer(async (request, response) => {
         return;
       }
       if (requestUrl.pathname === '/api/auth/pilot-name') {
+        if (!identity.session.accountId) { jsonResponse(response, 401, { error: 'Sign in to change your pilot name.' }); return; }
         const limit = limitedBy('pilot-name', identity.pilotId, securityLimits.namePilot);
         if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
         const name = normalizePilotName(payload.pilotName);
@@ -1005,6 +1008,7 @@ const httpServer = createServer(async (request, response) => {
     if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
     const identity = authenticatedIdentity(request, response); const sessionId = requestUrl.searchParams.get('sessionId') ?? '';
     if (!identity) return;
+    if (!identity.session.accountId) { jsonResponse(response, 401, { error: 'Sign in to view purchase status.' }); return; }
     const status = firehawkPayments.status(identity.pilotId, sessionId);
     if (status.status === 'completed') reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
     if (status.recoveryCode) analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'purchase_recovery_created', { source: 'stripe' });
@@ -1015,6 +1019,7 @@ const httpServer = createServer(async (request, response) => {
     if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
+    if (!identity.session.accountId) { jsonResponse(response, 401, { error: 'Sign in to restore purchases.' }); return; }
     const pilotLimit = limitedBy('recovery-pilot', identity.pilotId, securityLimits.recoveryPilot);
     const ipLimit = limitedBy('recovery-ip', identity.clientIp, securityLimits.recoveryIp);
     if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
@@ -3222,7 +3227,7 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
       owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs ||
       !target || targetId === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
       !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
-      target.lifeState !== 'alive' || now < target.spawnProtectedUntil || runwayCombatProtected(targetId, target) ||
+      target.lifeState !== 'alive' || now < target.spawnProtectedUntil ||
       now - target.lastStateAt > combatTransformFreshMs) return undefined;
   const local = targetInAircraftSpace(transform, target);
   if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
@@ -3243,13 +3248,12 @@ function currentLockedTarget(
   return validDynamicTarget(ownerId, owner, targetId, now, transform);
 }
 
-function canFire(playerId: string, player: PlayerState, now: number): boolean {
-  return fireBlockReason(playerId, player, now) === undefined;
+function canFire(player: PlayerState, now: number): boolean {
+  return fireBlockReason(player, now) === undefined;
 }
 
-function fireBlockReason(playerId: string, player: PlayerState, now: number): 'lifecycle' | 'runway_protected' | 'cooldown' | undefined {
+function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
   if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
-  if (runwayCombatProtected(playerId, player)) return 'runway_protected';
   if (now - player.lastFireAt < fireCooldownMs) return 'cooldown';
   return undefined;
 }
@@ -3302,7 +3306,7 @@ function validatedShotAim(player: PlayerState, reference: unknown, now: number):
 function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }): boolean {
   const now = Date.now();
   if (
-    !canFire(playerId, player, now) ||
+    !canFire(player, now) ||
     projectiles.size >= maxProjectiles
   ) {
     return false;
@@ -3369,8 +3373,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if (
     !owner || !victim || victimId === ownerId || victim.entityType !== 'player' ||
     victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil ||
-    !tutorialCombatPairAllowed(ownerId, owner, victimId, victim) ||
-    runwayCombatProtected(ownerId, owner) || runwayCombatProtected(victimId, victim)
+    !tutorialCombatPairAllowed(ownerId, owner, victimId, victim)
   ) return false;
 
   // The training target only accepts a hit during the FIRE lesson. A lucky
@@ -3489,7 +3492,6 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
       first.lifeState !== 'alive' || second.lifeState !== 'alive' ||
       !first.hasRespawnTransform || !second.hasRespawnTransform ||
       now < first.spawnProtectedUntil || now < second.spawnProtectedUntil ||
-      runwayCombatProtected(firstId, first) || runwayCombatProtected(secondId, second) ||
       now - first.lastStateAt > combatTransformFreshMs || now - second.lastStateAt > combatTransformFreshMs) return false;
   const relativeAllowance = Math.min(30, (Math.hypot(first.velocity.x, first.velocity.y, first.velocity.z) +
     Math.hypot(second.velocity.x, second.velocity.y, second.velocity.z)) * 0.1);
@@ -3515,7 +3517,7 @@ function createAssistedShot(
 ): boolean {
   const now = Date.now();
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
-  if (!target || !canFire(playerId, player, now)) return false;
+  if (!target || !canFire(player, now)) return false;
   const local = targetInAircraftSpace(fireTransform ?? player, target);
   if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
   player.lastFireAt = now;
@@ -3546,7 +3548,7 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   const bossPosition = eventRoutePosition(event, now);
   if (distanceToSegmentSquared(bossPosition, start.x, start.y, start.z, end) > 14 * 14) return false;
   const owner = players.get(ownerId);
-  if (!owner || owner.tutorialMode || owner.cityId !== cityId || owner.lifeState !== 'alive' || runwayCombatProtected(ownerId, owner)) return false;
+  if (!owner || owner.tutorialMode || owner.cityId !== cityId || owner.lifeState !== 'alive') return false;
   if (event.type === 'vipEscort') {
     event.bossHealth = Math.max(0, event.bossHealth - projectileDamage);
     if (event.bossHealth > 0) broadcastEvent(event);
@@ -3575,7 +3577,7 @@ function updateProjectiles(deltaSeconds: number): void {
 
   for (const projectile of projectiles.values()) {
     const owner = players.get(projectile.ownerId);
-    if (!owner || owner.entityType !== 'player' || owner.lifeState !== 'alive' || runwayCombatProtected(projectile.ownerId, owner)) {
+    if (!owner || owner.entityType !== 'player' || owner.lifeState !== 'alive') {
       removeProjectile(projectile.projectileId);
       continue;
     }
@@ -3601,8 +3603,7 @@ function updateProjectiles(deltaSeconds: number): void {
         player.cityId !== projectile.cityId ||
         !tutorialCombatPairAllowed(projectile.ownerId, owner, playerId, player) ||
         player.lifeState !== 'alive' ||
-        now < player.spawnProtectedUntil ||
-        runwayCombatProtected(playerId, player)
+        now < player.spawnProtectedUntil
       ) {
         continue;
       }
@@ -4410,16 +4411,6 @@ function runwayOrTaxiSpawnArea(player: PlayerState): { id: string } | undefined 
   return undefined;
 }
 
-function runwayCombatProtected(playerId: string, player: PlayerState): boolean {
-  const botGroundedPhase = player.bot && (player.bot.phase === 'spawn' || player.bot.phase === 'taxi' || player.bot.phase === 'land');
-  const airborne = player.isBot ? !botGroundedPhase : landingFlightState.get(playerId)?.airborne;
-  return runwayCombatProtectionActive({
-    lifeState: player.lifeState,
-    airborne,
-    groundedAtRunway: player.hasRespawnTransform && Boolean(runwayOrTaxiSpawnArea(player)),
-  });
-}
-
 function safeRespawnTransform(playerId: string, player: PlayerState, now: number): { position: Vector3; heading: number } {
   const airports = cityAirports[player.cityId];
   const preferredSlot = player.spawnSlot ?? 0;
@@ -4444,7 +4435,7 @@ function safeRespawnTransform(playerId: string, player: PlayerState, now: number
     }
   }
   // All defined runway slots being occupied is practically unreachable; the
-  // fallback remains on the configured runway and protection still disables collision.
+  // fallback remains on the configured runway with temporary spawn protection.
   return fallback ?? { position: { ...player.position }, heading: player.rotation.y };
 }
 
@@ -5413,7 +5404,7 @@ server.on('connection', (socket, request) => {
 
       if (message.type === 'fire') {
         const now = Date.now();
-        const blocked = fireBlockReason(playerId, player, now);
+        const blocked = fireBlockReason(player, now);
         if (blocked) {
           logFireBlocked(playerId, blocked, now);
           return;

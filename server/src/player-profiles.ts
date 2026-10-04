@@ -969,7 +969,7 @@ export class PlayerProfileStore {
     if (typeof requestedAircraft !== 'string' || !aircraftTypes.has(requestedAircraft as AircraftType)) return { ok: false, reason: 'UNKNOWN AIRCRAFT' };
     const aircraft = requestedAircraft as AircraftType;
     const price = aircraftCreditPrice(aircraft);
-    if (price === undefined) return { ok: false, reason: aircraft === 'fighter' ? 'PREMIUM — PURCHASE COMING SOON' : 'NOT AVAILABLE FOR CREDITS' };
+    if (price === undefined) return { ok: false, reason: aircraft === 'fighter' ? 'PREMIUM AIRCRAFT — NOT AVAILABLE FOR CREDITS' : 'NOT AVAILABLE FOR CREDITS' };
     this.database.exec('BEGIN IMMEDIATE');
     try {
       const row = this.getRow(pilotId);

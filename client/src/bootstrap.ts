@@ -8,7 +8,7 @@ import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-me
 import { BrandLoadingScreen } from './startup-loading';
 import { loadAirportChaosLogo, mountCompactBrandFooter } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
-import { cityCapabilities, cityDefinition } from '../../shared/city-registry.mjs';
+import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { apiFetch, apiUrl } from './transport';
 import { loadNativeFirehawkOffer, nativePurchaseProvider, purchaseNativeFirehawk, restoreNativeFirehawk } from './native-purchases';
@@ -17,8 +17,7 @@ import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
-import { showFlightDialog } from './flight-dialog';
-import { persistPitchInverted, preferredPitchInverted } from './mobile-input';
+import { persistMobileControlPlacement, persistPitchInverted, persistTouchMode, preferredGraphicsQuality, preferredMobileControlLayout, preferredPitchInverted, preferredTouchMode, resetPreferredMobileControlLayout } from './mobile-input';
 import milwaukeeJourneyImage from './help-assets/runway.avif';
 
 audioManager.install();
@@ -41,7 +40,9 @@ const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
+mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
+const PENDING_FLY_STORAGE_KEY = 'airport-chaos-pending-fly-v1';
 
 type GarageIdentity = {
   pilotId: string; displayName: string; credits: number; bestScore: number; selectedAircraft: AircraftType;
@@ -94,6 +95,9 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 let authoritativeHomeProfile: RemoteGarageProfile | undefined;
 let hubAccount: HubAccountStatus = { state: 'guest', providers: { password: false, google: false, apple: false } };
+let hubAccountNotice: PilotMenuData['account']['notice'];
+let hubFlyIntent = false;
+let hubFlyGateActive = false;
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
   garage: () => { void openStartGarage('HANGAR'); },
@@ -129,7 +133,7 @@ function cacheAuthoritativeProfile(profile: RemoteGarageProfile): void {
 }
 // Phase 1 entry flow. Future phases can replace CITY_SELECTION without
 // coupling Home Hangar to any one city or world implementation.
-type EntryState = 'STARTUP' | 'HANGAR' | 'CITY_SELECTION' | 'AIRCRAFT' | 'MISSIONS' | 'PROFILE' | 'SETTINGS' | 'TUTORIAL' | 'FLIGHT';
+type EntryState = 'STARTUP' | 'HANGAR' | 'CITY_SELECTION' | 'AIRCRAFT' | 'PILOT_MENU' | 'TUTORIAL' | 'FLIGHT';
 let entryState: EntryState = 'STARTUP';
 let garageReturnState: 'HANGAR' | 'CITY_SELECTION' = 'HANGAR';
 let hubPilotMenuReturnState: 'HANGAR' | 'CITY_SELECTION' = 'HANGAR';
@@ -405,7 +409,7 @@ cityOptions.addEventListener('pointercancel', event => {
 });
 
 const homeHangar = new HomeHangar(homeHangarElement, {
-  fly: () => showSelector(),
+  fly: () => { void requestHubFly(); },
 }, homeHangarData());
 
 let hubStoredPreferences: Record<string, unknown> = {};
@@ -414,18 +418,11 @@ let hubHintsEnabled = typeof hubStoredPreferences.hintsEnabled === 'boolean' ? h
 let hubNavigationEnabled = typeof hubStoredPreferences.navigationMarkersEnabled === 'boolean' ? hubStoredPreferences.navigationMarkersEnabled : true;
 let hubAudioMuted = typeof hubStoredPreferences.muted === 'boolean' ? hubStoredPreferences.muted : false;
 audioManager.setMuted(hubAudioMuted);
-let hubGraphicsQuality: PilotMenuData['preferences']['graphicsQuality'] = 'auto';
+let hubGraphicsQuality: PilotMenuData['preferences']['graphicsQuality'] = preferredGraphicsQuality();
 let hubPitchInverted=preferredPitchInverted();
-try {
-  const quality = localStorage.getItem('airport-chaos-graphics-quality-v1');
-  if (quality === 'high' || quality === 'balanced' || quality === 'low') hubGraphicsQuality = quality;
-} catch { /* use automatic quality */ }
+let hubTouchMode=preferredTouchMode();
 let hubAudioLevels: AudioLevels = audioManager.getLevels();
-const hubMobileLayout = {
-  stick: { x: 14, y: 72, scale: 1 },
-  throttle: { x: 75, y: 40, scale: 0.95 },
-  fire: { x: 75, y: 78, scale: 1 },
-};
+let hubMobileLayout = preferredMobileControlLayout();
 function saveHubPlayerPreferences(): void {
   try {
     hubStoredPreferences = { ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Record<string, unknown>,
@@ -434,22 +431,40 @@ function saveHubPlayerPreferences(): void {
   } catch { /* preferences remain active for this session */ }
 }
 
+function syncHubMenuPreferences(): void {
+  try {
+    hubStoredPreferences = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Record<string, unknown>;
+    hubHintsEnabled = typeof hubStoredPreferences.hintsEnabled === 'boolean' ? hubStoredPreferences.hintsEnabled : true;
+    hubNavigationEnabled = typeof hubStoredPreferences.navigationMarkersEnabled === 'boolean' ? hubStoredPreferences.navigationMarkersEnabled : true;
+  } catch { /* retain the current session values */ }
+  hubAudioMuted = audioManager.isMuted();
+  hubAudioLevels = audioManager.getLevels();
+  hubGraphicsQuality = preferredGraphicsQuality();
+  hubPitchInverted = preferredPitchInverted();
+  hubTouchMode = preferredTouchMode();
+  hubMobileLayout = preferredMobileControlLayout();
+}
+
+function notifySharedMenuPreferences(): void {
+  window.dispatchEvent(new Event('airport-chaos-menu-preferences-changed'));
+}
+
 const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
-  entryState = section === 'PROFILE' ? 'PROFILE' : section === 'SETTINGS' ? 'SETTINGS' : 'MISSIONS';
-  showAppHeader(section === 'PROFILE' ? 'PROFILE' : section === 'SETTINGS' ? 'SETTINGS' : undefined);
+  entryState = 'PILOT_MENU';
 }, {
-  sections: ['MISSIONS', 'PROGRESS', 'PROFILE', 'SETTINGS'],
-  title: 'PILOT HUB',
+  sections: ['PROFILE', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD / CITIES', 'LEGAL / SUPPORT', 'DATA LICENSES'],
+  title: 'PILOT MENU',
   closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB',
   showFlightActions: false,
-  appShell: true,
+  showContextStatus: false,
   onClose: () => {
+    if (hasPendingHubFly()) clearPendingHubFly();
+    hubAccountNotice = undefined;
     if (hubPilotMenuReturnState === 'CITY_SELECTION') {
       showSelector();
       return;
     }
-    entryState = 'HANGAR';
-    homeHangar.update(homeHangarData());
+    void showHome();
   },
 });
 
@@ -484,7 +499,7 @@ function hubPilotMenuData(): PilotMenuData {
     progress: 0,
     distance: 0,
     ownedByYou: false,
-    setWaypoint: () => showSelector(),
+    setWaypoint: () => { void requestHubFly(); },
   }));
   const objectives = (items: Array<{ label: string; progress: number; target: number; completed: boolean; reward: number }> | undefined) => (items ?? []).map(item => ({
     label: item.label, progress: item.progress, target: item.target, completed: item.completed, reward: item.reward,
@@ -513,12 +528,13 @@ function hubPilotMenuData(): PilotMenuData {
   const pilotProgress = profile?.pilotProgress ?? { xp: 0, level: 1, title: 'ROOKIE', nextLevelXp: 100 };
   const dailyStreak = profile?.dailyStreak ?? { current: 0, longest: 0, cycleDay: 0, nextReward: 0 };
   const referral = profile?.referral ?? { code: 'FLY', status: 'available', rewardedCount: 0 };
-  const accountResult = (path: 'signup' | 'login' | 'logout' | 'pilot-name', payload: Record<string, string> = {}) => hubAccountRequest(path, payload);
+  const accountResult = (path: 'logout' | 'pilot-name', payload: Record<string, string> = {}) => hubAccountRequest(path, payload);
   return {
     nativeWebPromotion: nativePurchaseProvider !== undefined,
     account: {
       state: hubAccount.state,
       email: hubAccount.email,
+      notice: hubAccountNotice,
       providers: hubAccount.providers,
       availableProviders: availableNativeProviders,
       pilotName: profile?.pilotName ?? garageIdentity.displayName,
@@ -528,13 +544,12 @@ function hubPilotMenuData(): PilotMenuData {
       score: profile?.score ?? 0,
       ownedAircraft: garageProfile.unlockedAircraft.length,
       badges: 0,
-      signUp: (email, password) => accountResult('signup', { email, password }),
-      signIn: (email, password) => accountResult('login', { email, password }),
+      continueAsGuest: continueHubAsGuest,
       logOut: () => accountResult('logout'),
       changeName: (pilotName) => accountResult('pilot-name', { pilotName }),
       providerAuth: hubProviderAccountRequest,
     },
-    city: { name: city.displayName, timePreset: 'PRE-FLIGHT', changeCity: showSelector },
+    city: { name: city.displayName, timePreset: 'PRE-FLIGHT', changeCity: () => { void requestHubFly(); } },
     intercity: { routes: [] },
     progression: {
       enabled: cityCapabilities(city.id)?.progressionEnabled === true,
@@ -558,7 +573,7 @@ function hubPilotMenuData(): PilotMenuData {
       activeId: active?.missionId,
       activeCity,
       entries: missions,
-      accept: () => showSelector(),
+      accept: () => { void requestHubFly(); },
       abandon: () => { void abandonHubMission(activeCity, active?.attemptId); },
     },
     players: { city: city.displayName, entries: [] },
@@ -571,35 +586,36 @@ function hubPilotMenuData(): PilotMenuData {
     garage: {
       available: true,
       open: () => { hubPilotMenu.close(false); void openStartGarage('HANGAR'); },
-      setAirportWaypoint: showSelector,
+      setAirportWaypoint: () => { void requestHubFly(); },
     },
-    hints: { enabled: hubHintsEnabled, toggle: () => { hubHintsEnabled = !hubHintsEnabled; saveHubPlayerPreferences(); hubPilotMenu.refresh(hubPilotMenuData()); } },
-    navigation: { enabled: hubNavigationEnabled, toggle: () => { hubNavigationEnabled = !hubNavigationEnabled; saveHubPlayerPreferences(); hubPilotMenu.refresh(hubPilotMenuData()); } },
+    hints: { enabled: hubHintsEnabled, toggle: () => { hubHintsEnabled = !hubHintsEnabled; saveHubPlayerPreferences(); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); } },
+    navigation: { enabled: hubNavigationEnabled, toggle: () => { hubNavigationEnabled = !hubNavigationEnabled; saveHubPlayerPreferences(); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); } },
     preferences: {
-      touchMode: 'auto', touchLayout: false,
-      setTouchMode: () => undefined,
+      touchMode: hubTouchMode, touchLayout: matchMedia('(pointer: coarse)').matches || innerWidth <= 900,
+      setTouchMode: (mode) => { hubTouchMode = persistTouchMode(mode); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); },
       graphicsQuality: hubGraphicsQuality,
-      setGraphicsQuality: (quality) => { hubGraphicsQuality = quality; try { localStorage.setItem('airport-chaos-graphics-quality-v1', quality); } catch { /* optional */ } },
+      setGraphicsQuality: (quality) => { hubGraphicsQuality = quality; try { localStorage.setItem('airport-chaos-graphics-quality-v1', quality); } catch { /* optional */ } notifySharedMenuPreferences(); },
       mobileLayout: hubMobileLayout,
-      setMobileControl: (control, placement) => { Object.assign(hubMobileLayout[control], placement); hubPilotMenu.refresh(hubPilotMenuData()); },
-      resetMobileLayout: () => hubMobileLayout,
+      setMobileControl: (control, placement) => { hubMobileLayout = persistMobileControlPlacement(control, hubMobileLayout, placement); notifySharedMenuPreferences(); },
+      resetMobileLayout: () => { hubMobileLayout = resetPreferredMobileControlLayout(); notifySharedMenuPreferences(); return hubMobileLayout; },
     },
-    flightPitch:{inverted:hubPitchInverted,touch:false,setInverted:(inverted)=>{hubPitchInverted=inverted;persistPitchInverted(inverted);hubPilotMenu.refresh(hubPilotMenuData());}},
+    flightPitch:{inverted:hubPitchInverted,touch:matchMedia('(pointer: coarse)').matches || innerWidth <= 900,setInverted:(inverted)=>{hubPitchInverted=inverted;persistPitchInverted(inverted);notifySharedMenuPreferences();hubPilotMenu.refresh(hubPilotMenuData(),true);}},
     restart: () => undefined,
     audio: {
       muted: hubAudioMuted,
-      toggle: () => { hubAudioMuted = audioManager.toggleMuted(); saveHubPlayerPreferences(); hubPilotMenu.refresh(hubPilotMenuData()); },
+      toggle: () => { hubAudioMuted = audioManager.toggleMuted(); saveHubPlayerPreferences(); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); },
       levels: hubAudioLevels,
       setLevel: (category, value) => {
         hubAudioLevels = { ...hubAudioLevels, [category]: Math.max(0, Math.min(100, Math.round(value))) };
         audioManager.setLevel(category, value);
+        notifySharedMenuPreferences();
       },
     },
     guide: { enabled: false, open: () => undefined, replay: () => undefined },
   };
 }
 
-async function hubAccountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
+async function hubAccountRequest(path: 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
   try {
     const response = await apiFetch(apiUrl(`/api/auth/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const result = await response.json() as { error?: string; message?: string; account?: HubAccountStatus; profile?: RemoteGarageProfile };
@@ -609,26 +625,41 @@ async function hubAccountRequest(path: 'signup' | 'login' | 'logout' | 'pilot-na
       refreshAppHeaderIdentity();
     }
     if (result.profile) applyAuthoritativeHomeProfile(result.profile);
-    if (path === 'logout') await clearNativeProviderState();
-    hubPilotMenu.refresh(hubPilotMenuData());
+    if (path === 'logout') {
+      clearPendingHubFly();
+      hubAccountNotice = undefined;
+      await clearNativeProviderState();
+    }
+    hubPilotMenu.refresh(hubPilotMenuData(), true);
     return { ok: true, message: result.message ?? 'ACCOUNT UPDATED' };
   } catch { return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' }; }
 }
 
-async function hubProviderAccountRequest(provider: 'google' | 'apple', action: 'login' | 'link'): Promise<{ ok: boolean; message: string }> {
+async function hubProviderAccountRequest(provider: 'google' | 'apple', action: 'login'): Promise<{ ok: boolean; message: string }> {
+  if (hubAccount.state === 'account') {
+    return { ok: false, message: "You're already signed in. Log out first to use another account." };
+  }
   try {
     if (nativeAuthPlatform) {
       const start = await apiFetch(apiUrl('/api/auth/native/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action }) });
       const challenge = await start.json() as Partial<NativeAuthChallenge> & { error?: string };
       if (!start.ok || challenge.provider !== provider || challenge.platform !== nativeAuthPlatform || !challenge.state || !challenge.nonce) return { ok: false, message: challenge.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
       const credential = await acquireNativeCredential(challenge as NativeAuthChallenge);
-      if (credential.cancelled) return { ok: true, message: 'SIGN-IN CANCELLED' };
+      if (credential.cancelled) {
+        if (hasPendingHubFly()) {
+          clearPendingHubFly();
+          hubPilotMenu.close(false);
+          void showHome();
+        }
+        return { ok: true, message: 'SIGN-IN CANCELLED' };
+      }
       const body = JSON.stringify({ provider, state: challenge.state, idToken: credential.idToken, ...(credential.displayName ? { displayName: credential.displayName } : {}) });
       credential.idToken = '';
       const complete = await apiFetch(apiUrl('/api/auth/native/complete'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       const result = await complete.json() as { error?: string; message?: string; account?: HubAccountStatus; profile?: RemoteGarageProfile };
       if (!complete.ok || !result.account || !result.profile) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN FAILED' };
-      hubAccount = result.account; applyAuthoritativeHomeProfile(result.profile); hubPilotMenu.refresh(hubPilotMenuData());
+      hubAccount = result.account; applyAuthoritativeHomeProfile(result.profile); hubPilotMenu.refresh(hubPilotMenuData(), true);
+      resumePendingHubFly();
       return { ok: true, message: result.message ?? 'ACCOUNT LOADED' };
     }
     const returnUrl = new URL(window.location.href);
@@ -664,16 +695,71 @@ async function refreshHubPilotData(): Promise<void> {
   } catch { /* cached authoritative profile keeps navigation usable */ }
 }
 
-async function openHubPilotMenu(section: Extract<PilotMenuSection, 'MISSIONS' | 'PROFILE' | 'SETTINGS'>): Promise<void> {
+function hasPendingHubFly(): boolean {
+  if (hubFlyIntent) return true;
+  try { return sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) === '1'; }
+  catch { return false; }
+}
+
+function rememberPendingHubFly(): void {
+  hubFlyIntent = true;
+  try { sessionStorage.setItem(PENDING_FLY_STORAGE_KEY, '1'); } catch { /* in-memory intent still works */ }
+}
+
+function clearPendingHubFly(): void {
+  hubFlyIntent = false;
+  try { sessionStorage.removeItem(PENDING_FLY_STORAGE_KEY); } catch { /* in-memory intent is already cleared */ }
+}
+
+function resumePendingHubFly(): boolean {
+  if (hubAccount.state !== 'account' || !hasPendingHubFly()) return false;
+  clearPendingHubFly();
+  hubAccountNotice = undefined;
+  hubPilotMenu.close(false);
+  showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+  return true;
+}
+
+function continueHubAsGuest(): void {
+  hubAccountNotice = undefined;
+  if (!hasPendingHubFly()) {
+    hubPilotMenu.close();
+    return;
+  }
+  clearPendingHubFly();
+  hubPilotMenu.close(false);
+  showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+}
+
+async function requestHubFly(): Promise<void> {
+  if (hubFlyGateActive || (hasPendingHubFly() && hubPilotMenu.isOpen())) return;
+  hubFlyGateActive = true;
+  try {
+    await refreshHubPilotData();
+    if (hubAccount.state === 'account') {
+      clearPendingHubFly();
+      showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+      return;
+    }
+    rememberPendingHubFly();
+    hubAccountNotice = { ok: true, message: 'CHOOSE HOW TO PLAY' };
+    await openHubPilotMenu('PROFILE', false);
+  } finally {
+    hubFlyGateActive = false;
+  }
+}
+
+async function openHubPilotMenu(section: PilotMenuSection, refresh = true): Promise<void> {
   hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : 'HANGAR';
-  entryState = section;
+  entryState = 'PILOT_MENU';
+  syncHubMenuPreferences();
   if (garage.isOpen()) garage.close();
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
-  showAppHeader(section === 'PROFILE' ? 'PROFILE' : section === 'SETTINGS' ? 'SETTINGS' : undefined);
+  appHeader.hide();
   hubPilotMenu.open(hubPilotMenuData(), section);
-  await refreshHubPilotData();
+  if (refresh) await refreshHubPilotData();
 }
 
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
@@ -897,29 +983,8 @@ async function startTrainingFromHub(): Promise<void> {
   }
 }
 
-function maybeBriefCityBeforeEntry(city: CityDefinition): Promise<boolean> {
-  const briefing = cityDefinition(city.id)?.briefing;
-  if (!briefing) return Promise.resolve(true);
-  const pilotId = authoritativeHomeProfile?.pilotId ?? garageIdentity.pilotId;
-  const key = `airport-chaos-city-guide-v1:${pilotId}:${city.id}`;
-  try { if (localStorage.getItem(key) === 'seen') return Promise.resolve(true); } catch { /* show on this visit */ }
-  return new Promise((resolve) => {
-    const markSeen = (): void => { try { localStorage.setItem(key, 'seen'); } catch { /* session-only */ } };
-    showFlightDialog(briefing.title, briefing.summary, [
-      { label: 'START FLYING', run: () => { markSeen(); resolve(true); } },
-      { label: 'CITY MISSIONS', secondary: true, run: () => {
-        markSeen();
-        hubMissionPreferredCity = city.id;
-        void openHubPilotMenu('MISSIONS');
-        resolve(false);
-      } },
-    ], () => resolve(false));
-  });
-}
-
 async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
-  if (!trainingSession && !await maybeBriefCityBeforeEntry(city)) return;
   appHeader.hide();
 
   if (!gameRoot.hidden) {
@@ -953,6 +1018,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
 
   await city.loadWorld();
   await import('./main');
+  notifySharedMenuPreferences();
   gameRoot.hidden = false;
 }
 
@@ -1019,16 +1085,37 @@ async function start(): Promise<void> {
   const profileTask = loadGarageProfile().catch(() => {
     // Cached local identity keeps the hub usable; all later mutations still
     // require the authoritative server endpoints.
-  }).finally(() => {
+  }).then(() => refreshHubPilotData()).finally(() => {
     profileReady = true;
     reportStartupProgress();
   });
   await Promise.all([brandTask, profileTask]);
   homeHangar.update(homeHangarData());
-  if (new URLSearchParams(window.location.search).get('entry') === 'city') {
-    const url = new URL(window.location.href); url.searchParams.delete('entry');
+  const url = new URL(window.location.href);
+  const authResult = url.searchParams.get('auth');
+  const directCityEntry = url.searchParams.get('entry') === 'city';
+  if (authResult || directCityEntry) {
+    url.searchParams.delete('auth');
+    url.searchParams.delete('provider');
+    url.searchParams.delete('linked');
+    url.searchParams.delete('entry');
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-    showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+  }
+  if (authResult === 'success' && resumePendingHubFly()) {
+    // The original FLY action continues without requiring another click.
+  } else if ((authResult === 'failed' || authResult === 'collision') && hasPendingHubFly()) {
+    hubAccountNotice = { ok: false, message: authResult === 'collision' ? 'THIS SIGN-IN BELONGS TO ANOTHER ACCOUNT' : 'SIGN-IN FAILED. TRY AGAIN.' };
+    await showHome();
+    await openHubPilotMenu('PROFILE', false);
+  } else if (hasPendingHubFly()) {
+    if (!resumePendingHubFly()) {
+      hubAccountNotice = { ok: true, message: 'CHOOSE HOW TO PLAY' };
+      await showHome();
+      await openHubPilotMenu('PROFILE', false);
+    }
+  } else if (directCityEntry) {
+    await showHome();
+    await requestHubFly();
   } else await showHome();
   startupLoading.update(1);
   await startupLoading.finish();

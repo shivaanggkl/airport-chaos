@@ -23,11 +23,12 @@ test('server kill identities render correctly for attacker, victim, and observer
   assert.match(server, /victimDisplayName: first\.displayName/);
 });
 
-test('exit flight and city guide use canonical menu and server mission abandon', () => {
+test('exit flight and city guide behavior remains available without cluttering active-flight menu navigation', () => {
   const menu = read('client/src/pilot-menu.ts');
   const main = read('client/src/main.ts');
-  assert.match(menu, /label: 'EXIT FLIGHT'/);
-  assert.match(menu, /label: 'CITY GUIDE'/);
+  assert.doesNotMatch(menu, /label: 'EXIT FLIGHT'|label: 'CITY GUIDE'/);
+  assert.match(main, /function openCityGuide\(\)/);
+  assert.match(main, /flightExitButtonElement\.addEventListener\('click', \(\) => requestFlightExit\(\)\)/);
   assert.match(main, /Current mission progress will be abandoned\./);
   assert.match(main, /abandonMission: \{ cityId: missionCityId, expectedAttemptId: activeMission\.attemptId \}/);
   assert.match(main, /latest\.pilotId !== serverProfile\.pilotId \|\| profileActiveMissionAttempt\(latest\)/);
@@ -72,7 +73,7 @@ test('native-only web placement uses a safe external link and no flight popup', 
   const menu = read('client/src/pilot-menu.ts');
   const main = read('client/src/main.ts');
   const bootstrap = read('client/src/bootstrap.ts');
-  assert.match(menu, /if \(data\.nativeWebPromotion\)/);
+  assert.match(menu, /if \(data\.nativeWebPromotion && account\.state === 'account'\)/);
   assert.match(menu, /externalLink\('fly\.vadensoftware\.com', 'https:\/\/fly\.vadensoftware\.com'\)/);
   assert.match(menu, /link\.rel = 'noopener noreferrer'/);
   assert.match(main, /nativeWebPromotion: nativePurchaseProvider !== undefined/);

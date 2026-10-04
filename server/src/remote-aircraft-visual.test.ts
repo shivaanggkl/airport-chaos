@@ -4,26 +4,25 @@ import test from 'node:test';
 import * as THREE from 'three';
 import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 
-test('remote aircraft-contact marker stays compact close and locatable far away', () => {
-  assert.equal(remoteProxyPixelWidth(25), 14);
-  assert.equal(remoteProxyPixelWidth(150), 14);
-  assert.ok(remoteProxyPixelWidth(350) > 14 && remoteProxyPixelWidth(350) < 20);
-  assert.equal(remoteProxyPixelWidth(600), 20);
-  assert.ok(remoteProxyPixelWidth(1_300) > 20 && remoteProxyPixelWidth(1_300) < 24);
-  assert.equal(remoteProxyPixelWidth(2_500), 24);
-  assert.equal(remoteProxyPixelWidth(12_000), 24);
+test('remote aircraft-contact marker stays readable close and compact far away', () => {
+  assert.equal(remoteProxyPixelWidth(25), 20);
+  assert.equal(remoteProxyPixelWidth(350), 20);
+  assert.equal(remoteProxyPixelWidth(550), 16);
+  assert.equal(remoteProxyPixelWidth(900), 16);
+  assert.equal(remoteProxyPixelWidth(1_300), 12);
+  assert.equal(remoteProxyPixelWidth(12_000), 12);
 
-  for (const threshold of [150, 600, 2_500]) {
+  for (const threshold of [350, 550, 900, 1_300]) {
     assert.ok(Math.abs(remoteProxyPixelWidth(threshold - 0.01) - remoteProxyPixelWidth(threshold + 0.01)) < 0.001);
   }
 });
 
-test('remote aircraft-contact marker never shrinks as distance increases', () => {
+test('remote aircraft-contact marker never grows as distance increases', () => {
   let previous = remoteProxyPixelWidth(0);
   for (let distance = 1; distance <= 12_000; distance += 1) {
     const current = remoteProxyPixelWidth(distance);
-    assert.ok(current >= previous, `marker shrank at ${distance}m`);
-    assert.ok(current >= 14 && current <= 24);
+    assert.ok(current <= previous, `marker grew at ${distance}m`);
+    assert.ok(current >= 12 && current <= 20);
     previous = current;
   }
 });
