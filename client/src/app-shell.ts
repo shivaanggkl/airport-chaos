@@ -1,7 +1,7 @@
 import { mountAirportChaosLogo } from './brand';
 import { visualLanguage } from './visual-language';
 
-export type AppShellActive = 'GARAGE' | 'PROFILE' | 'SETTINGS' | undefined;
+export type AppShellActive = 'GARAGE' | 'REWARDS' | 'PROFILE' | 'SETTINGS' | undefined;
 
 export type AppShellHeaderData = {
   active: AppShellActive;
@@ -18,14 +18,12 @@ export type AppShellHeaderData = {
 export type AppShellHandlers = {
   home: () => void;
   garage: () => void;
-  aircraft: () => void;
   rewards: () => void;
   profile: () => void;
   skyTokens?: () => void;
 };
 
 const garageIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8l9-5 9 5v12M6 20v-9h12v9M8 14h8M8 17h8"/></svg>';
-const aircraftIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13l8.8-3.2V4.5c0-1 .5-1.8 1.2-1.8s1.2.8 1.2 1.8v5.3L21 13v2l-6.8-1.3v4l2.2 1.5V21L13 20l-3.4 1v-1.8l2.2-1.5v-4L3 15z"/></svg>';
 const rewardsIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16v11H4zM3 7h18v4H3zM12 7v14M12 7H8.5C6.6 7 6 4.4 7.7 3.5 9.4 2.6 11 4.3 12 7Zm0 0h3.5c1.9 0 2.5-2.6.8-3.5C14.6 2.6 13 4.3 12 7Z"/></svg>';
 const profileIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.8 19c.8-3.2 3-5 6.2-5s5.4 1.8 6.2 5"/></svg>';
 
@@ -34,7 +32,6 @@ export class AppShellHeader {
   private readonly skyTokens: HTMLElement;
   private readonly tokenAdd: HTMLButtonElement;
   private readonly garage: HTMLButtonElement;
-  private readonly aircraft: HTMLButtonElement;
   private readonly rewards: HTMLButtonElement;
   private readonly rewardsIndicator: HTMLElement;
   private readonly avatar: HTMLButtonElement;
@@ -61,13 +58,6 @@ export class AppShellHeader {
     this.garage.setAttribute('aria-label', 'Aircraft Garage');
     this.garage.innerHTML = `${garageIcon}<span>GARAGE</span>`;
     this.garage.addEventListener('click', handlers.garage);
-
-    this.aircraft = document.createElement('button');
-    this.aircraft.type = 'button';
-    this.aircraft.className = 'flight-header-control app-shell-action app-shell-aircraft';
-    this.aircraft.setAttribute('aria-label', 'Aircraft');
-    this.aircraft.innerHTML = `${aircraftIcon}<span>AIRCRAFT</span>`;
-    this.aircraft.addEventListener('click', handlers.aircraft);
 
     this.rewards = document.createElement('button');
     this.rewards.type = 'button';
@@ -131,7 +121,7 @@ export class AppShellHeader {
     });
     this.avatar.append(this.avatarImage, this.avatarFallback);
 
-    utilities.append(this.garage, this.aircraft, this.rewards, this.avatar);
+    utilities.append(this.garage, this.rewards, this.avatar);
     this.element.replaceChildren(brand, wallet, utilities);
   }
 
@@ -140,9 +130,9 @@ export class AppShellHeader {
     this.tokenAdd.hidden = !data.tokenStoreAvailable;
     this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs);
     this.element.classList.toggle('is-hub', data.hubActions);
-    this.aircraft.hidden = !data.hubActions;
     this.rewards.hidden = !data.hubActions;
     this.setActive(this.garage, data.active === 'GARAGE');
+    this.setActive(this.rewards, data.active === 'REWARDS');
     this.setActive(this.avatar, data.active === 'PROFILE' || data.active === 'SETTINGS');
     this.element.hidden = false;
   }

@@ -3013,15 +3013,15 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
     if (result.profile) applyServerProfile(result.profile);
     aircraftGarage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
-}, (id) => sendCosmeticAction('purchaseCosmetic', id),
+}, (id, currency) => sendCosmeticAction('purchaseCosmetic', id, currency),
   (id) => sendCosmeticAction('equipCosmetic', id));
 if (nativePurchaseProvider) {
   aircraftGarage.setNativeStorePrice();
   void loadNativeFirehawkOffer().then(offer => aircraftGarage.setNativeStorePrice(offer?.localizedPrice)).catch(() => undefined);
 }
-function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmeticId: string): void {
+function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmeticId: string, currency: 'CREDITS' | 'SKY_TOKENS' = 'CREDITS'): void {
   if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); return; }
-  try { socket.send(JSON.stringify({ type, cosmeticId })); } catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); }
+  try { socket.send(JSON.stringify({ type, cosmeticId, ...(type === 'purchaseCosmetic' ? { currency } : {}) })); } catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); }
 }
 function openGarage(): boolean {
   if (!onGround || crashed) {
@@ -3038,6 +3038,7 @@ function openGarage(): boolean {
   }
   aircraftGarage.open({
     credits,
+    skyTokens,
     selectedAircraft: aircraftType,
     unlockedAircraft: flightTestMode ? (Object.keys(aircraftDefinitions) as AircraftType[]) : serverProfile.unlockedAircraft,
     economyVersion: serverProfile.economyVersion,
@@ -8487,6 +8488,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   updatePendingAircraftEquip();
   if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
     credits: profile.credits,
+    skyTokens: profile.skyTokens,
     selectedAircraft: profile.selectedAircraft,
     unlockedAircraft: profile.unlockedAircraft,
     economyVersion: profile.economyVersion,

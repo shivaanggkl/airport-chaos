@@ -75,15 +75,18 @@ test('cosmetics purchase requires the aircraft and remains authoritative and ide
   assert.equal(db.equipCosmetic('cosmetic-pilot', 'unknown').ok, false);
 });
 
-test('new pilots retain free legacy finishes and permanent Firehawk ownership includes Inferno', () => {
+test('new pilots receive free Bluejay paints, neutral locked-aircraft finishes, and permanent Firehawk Inferno', () => {
   const db = store();
   const initial = db.getOrCreate('cosmetic-defaults', 'Pilot');
-  assert.deepEqual(initial.cosmetics.ownedIds.sort(), ['bluejay-aurora', 'bluejay-classic', 'bluejay-skybolt', 'mammoth-sand', 'nightowl-forest']);
+  assert.deepEqual(initial.cosmetics.ownedIds.sort(), ['bluejay-aurora', 'bluejay-classic', 'bluejay-skybolt']);
   assert.equal(initial.cosmetics.equipped['livery:trainer'], 'bluejay-skybolt');
   assert.equal(db.equipCosmetic('cosmetic-defaults', 'bluejay-aurora').ok, true);
   db.awardServerReward('cosmetic-defaults', 100_000);
-  assert.equal(db.purchaseAircraft('cosmetic-defaults', 'cargo').profile?.cosmetics.equipped['livery:cargo'], 'mammoth-sand');
-  assert.equal(db.purchaseAircraft('cosmetic-defaults', 'privateJet').profile?.cosmetics.equipped['livery:privateJet'], 'nightowl-forest');
+  assert.equal(db.purchaseAircraft('cosmetic-defaults', 'cargo').profile?.cosmetics.equipped['livery:cargo'], undefined);
+  assert.equal(db.purchaseAircraft('cosmetic-defaults', 'privateJet').profile?.cosmetics.equipped['livery:privateJet'], undefined);
+  const trial = db.requestFighterTrial('cosmetic-defaults');
+  assert.equal(trial.ok, true);
+  assert.equal(trial.profile?.cosmetics.ownedIds.includes('firehawk-inferno'), false);
   const paid = db.grantAircraftEntitlements('cosmetic-defaults', ['fighter'], 'stripe:test')!;
   assert.equal(paid.cosmetics.ownedIds.includes('firehawk-inferno'), true);
   assert.equal(paid.cosmetics.equipped['livery:fighter'], 'firehawk-inferno');

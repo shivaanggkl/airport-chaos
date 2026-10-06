@@ -68,6 +68,7 @@ export class AircraftGarage {
   private profile: GarageProfile = { credits: 0, selectedAircraft: 'trainer', unlockedAircraft: ['trainer'] };
   private selected: AircraftType = 'trainer';
   private previewCosmetic?: string;
+  private readonly viewedCosmetics = new Set<string>();
   private pendingTimer = 0;
   private dragging = false;
   private pointerX = 0;
@@ -116,7 +117,7 @@ export class AircraftGarage {
     private readonly onPremiumPurchase?: () => void,
     private readonly onFighterModalViewed?: () => void,
     private readonly onRestorePurchase?: (code?: string) => void,
-    private readonly onPurchaseCosmetic?: (id: string) => void,
+    private readonly onPurchaseCosmetic?: (id: string, currency: 'CREDITS' | 'SKY_TOKENS') => void,
     private readonly onEquipCosmetic?: (id: string) => void,
     private readonly onTokenPurchase?: (type: AircraftType) => void,
     private readonly onGetTokens?: (missing: number) => void,
@@ -234,6 +235,7 @@ export class AircraftGarage {
     this.testerOpen = false;
     this.selected = this.profile.selectedAircraft;
     this.previewCosmetic = undefined;
+    this.viewedCosmetics.clear();
     this.element.hidden = false;
     this.resize();
     this.renderDetails();
@@ -475,6 +477,7 @@ export class AircraftGarage {
 
   private renderCosmetics(): void {
     const root = this.element.querySelector<HTMLElement>('[data-garage-cosmetics]')!;
+    const previousScroll = root.querySelector<HTMLElement>('.garage-cosmetic-list')?.scrollLeft ?? 0;
     root.replaceChildren();
     const heading = document.createElement('h2'); heading.textContent = 'APPEARANCE';
     const help = document.createElement('p'); help.textContent = 'Select a finish to preview it.';
@@ -486,10 +489,14 @@ export class AircraftGarage {
       const slot = `livery:${this.selected}`;
       const equipped = this.profile.cosmetics?.equipped?.[slot] === item.id;
       const selected = this.previewCosmetic ? this.previewCosmetic === item.id : equipped;
+      if (selected && !this.viewedCosmetics.has(item.id)) {
+        this.viewedCosmetics.add(item.id);
+        recordProductIntent('cosmetic_viewed', { cosmeticId: item.id, aircraftType: this.selected });
+      }
       const access = item.unlockType === 'included' ? (equipped ? 'EQUIPPED' : 'INCLUDED WITH FIREHAWK')
         : equipped ? 'EQUIPPED' : owned.has(item.id) ? 'OWNED'
         : !ownsAircraft && this.selected !== 'trainer' ? 'AIRCRAFT REQUIRED'
-        : `${item.creditPrice.toLocaleString()} CREDITS`;
+        : `${item.creditPrice.toLocaleString()} CREDITS · ${item.skyTokenPrice.toLocaleString()} SKY TOKENS`;
       const card = document.createElement('article'); card.className = 'garage-cosmetic-card';
       const button = document.createElement('button'); button.type = 'button'; button.className = 'garage-cosmetic';
       const name = document.createElement('strong'); name.textContent = item.displayName;
@@ -500,22 +507,55 @@ export class AircraftGarage {
       const state = document.createElement('small'); state.textContent = access;
       button.append(name, swatches, state);
       button.setAttribute('aria-pressed', String(selected));
-      button.onclick = () => { this.previewCosmetic = item.id; this.paintPreview(); this.renderCosmetics(); };
+      button.onclick = () => {
+        if (this.previewCosmetic !== item.id) recordProductIntent('cosmetic_previewed', { cosmeticId: item.id, aircraftType: this.selected });
+        this.previewCosmetic = item.id; this.paintPreview(); this.renderCosmetics();
+        root.querySelector<HTMLElement>('.garage-cosmetic[aria-pressed=true]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+      };
       card.append(button);
       if (selected && !equipped && item.unlockType !== 'included') {
-        const action = document.createElement('button'); action.type = 'button'; action.className = 'garage-cosmetic-action';
-        action.textContent = owned.has(item.id) ? 'EQUIP' : `UNLOCK — ${item.creditPrice.toLocaleString()} CREDITS`;
-        action.disabled = this.loadingProfile || this.actionPending || (!ownsAircraft && this.selected !== 'trainer') || (!owned.has(item.id) && this.profile.credits < item.creditPrice);
-        action.onclick = () => {
+        const beginAction = (currency?: 'CREDITS' | 'SKY_TOKENS'): void => {
+          if (currency) recordProductIntent('cosmetic_unlock_started', { cosmeticId: item.id, aircraftType: this.selected, currency: currency === 'CREDITS' ? 'credits' : 'sky_tokens' });
           this.actionPending = true; this.actionMessage = 'WAITING FOR SERVER…'; this.renderDetails();
           window.clearTimeout(this.pendingTimer);
           this.pendingTimer = window.setTimeout(() => this.showActionResult('SERVER DID NOT RESPOND — REOPEN GARAGE TO SYNC'), 8000);
-          if (owned.has(item.id)) this.onEquipCosmetic?.(item.id); else this.onPurchaseCosmetic?.(item.id);
+          if (currency) this.onPurchaseCosmetic?.(item.id, currency);
+          else this.onEquipCosmetic?.(item.id);
         };
-        card.append(action);
+        if (owned.has(item.id)) {
+          const action = document.createElement('button'); action.type = 'button'; action.className = 'garage-cosmetic-action';
+          action.textContent = 'EQUIP'; action.disabled = this.loadingProfile || this.actionPending || !ownsAircraft;
+          action.onclick = () => beginAction(); card.append(action);
+        } else if (item.unlockType === 'credits') {
+          const options = document.createElement('div'); options.className = 'garage-cosmetic-options';
+          const credits = document.createElement('button'); credits.type = 'button'; credits.className = 'garage-cosmetic-action';
+          credits.textContent = `UNLOCK · ${item.creditPrice.toLocaleString()} CREDITS`;
+          credits.disabled = this.loadingProfile || this.actionPending || !ownsAircraft || this.profile.credits < item.creditPrice;
+          credits.onclick = () => beginAction('CREDITS');
+          options.append(credits);
+          if (ownsAircraft && this.profile.credits < item.creditPrice) {
+            const need = document.createElement('small'); need.className = 'garage-cosmetic-note';
+            need.textContent = `Have ${this.profile.credits.toLocaleString()} · Need ${(item.creditPrice - this.profile.credits).toLocaleString()} more Credits`;
+            options.append(need);
+          }
+          const or = document.createElement('span'); or.className = 'garage-cosmetic-or'; or.textContent = 'OR'; options.append(or);
+          const tokens = document.createElement('button'); tokens.type = 'button'; tokens.className = 'garage-cosmetic-action garage-cosmetic-token-action';
+          const missing = Math.max(0, item.skyTokenPrice - (this.profile.skyTokens ?? 0));
+          tokens.textContent = missing && this.tokenCommerceEnabled ? `GET SKY TOKENS · ${item.skyTokenPrice}` : `UNLOCK · ${item.skyTokenPrice} SKY TOKENS`;
+          tokens.disabled = this.loadingProfile || this.actionPending || !ownsAircraft || (missing > 0 && !this.tokenCommerceEnabled);
+          tokens.onclick = () => missing ? this.onGetTokens?.(missing) : beginAction('SKY_TOKENS');
+          options.append(tokens);
+          if (ownsAircraft && missing) {
+            const need = document.createElement('small'); need.className = 'garage-cosmetic-note';
+            need.textContent = `Have ${(this.profile.skyTokens ?? 0).toLocaleString()} · Need ${missing.toLocaleString()} more Sky Tokens`;
+            options.append(need);
+          }
+          card.append(options);
+        }
       }
       list.append(card);
     }
+    list.scrollLeft = previousScroll;
   }
 
   private isPermanentlyOwned(type: AircraftType): boolean {
@@ -559,7 +599,7 @@ export class AircraftGarage {
       const current = profile.cosmetics?.equipped?.[slot];
       const valid = cosmeticCatalog.some(item => item.id === current && item.aircraftRestriction === type) && current !== undefined && ownedIds.has(current);
       if (valid && (type === 'trainer' || permanentlyOwned(type))) equipped[slot] = current;
-      else if ((type === 'trainer' || permanentlyOwned(type)) && ownedIds.has(fallbackLiveryIds[type])) equipped[slot] = fallbackLiveryIds[type];
+      else if ((type === 'trainer' || permanentlyOwned(type)) && fallbackLiveryIds[type] && ownedIds.has(fallbackLiveryIds[type])) equipped[slot] = fallbackLiveryIds[type];
     }
     return {
       credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0,

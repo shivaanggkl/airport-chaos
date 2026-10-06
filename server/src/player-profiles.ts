@@ -591,6 +591,16 @@ export class PlayerProfileStore {
     if (!tokenPurchaseColumns.some(column => column.name === 'payment_intent_id'))
       this.database.exec('ALTER TABLE sky_token_purchases ADD COLUMN payment_intent_id TEXT');
     this.database.exec('CREATE INDEX IF NOT EXISTS sky_token_purchases_payment_intent ON sky_token_purchases(payment_intent_id)');
+    // The legacy base paints were free for every existing pilot. Grant those
+    // records once before new accounts start under the priced catalog.
+    if (this.metadata('priced_legacy_paints_v1') !== 'complete') this.wallet.transaction(() => {
+      const grant = this.database.prepare(`INSERT OR IGNORE INTO pilot_cosmetics (pilot_id, cosmetic_id, acquired_at)
+        SELECT pilot_id, ?, ? FROM player_profiles`);
+      const now = Date.now();
+      grant.run('mammoth-sand', now);
+      grant.run('nightowl-forest', now);
+      this.setMetadata('priced_legacy_paints_v1', 'complete');
+    });
     for (const legacyRow of this.database.prepare('SELECT * FROM player_profiles WHERE economy_version < ?').all(ECONOMY_VERSION) as ProfileRow[]) {
       const storedEconomyVersion = boundedInteger(legacyRow.economy_version, 1_000);
       const entitlements = new Set(parseEntitlements(legacyRow.aircraft_entitlements));
@@ -827,7 +837,7 @@ export class PlayerProfileStore {
       const aircraftAvailable = type === 'trainer' || ownedAircraft.includes(type);
       if (aircraftAvailable && currentItem?.aircraftRestriction === type && ownedIds.has(currentItem.id)) continue;
       const fallback = fallbackLiveryIds[type];
-      if (aircraftAvailable && ownedIds.has(fallback)) equip.run(pilotId, slot, fallback);
+      if (aircraftAvailable && fallback && ownedIds.has(fallback)) equip.run(pilotId, slot, fallback);
       else remove.run(pilotId, slot);
     }
   }
@@ -1021,22 +1031,30 @@ export class PlayerProfileStore {
     return this.toProfile(this.getRow(pilotId)!);
   }
 
-  purchaseCosmetic(pilotId: string, cosmeticId: string, now = Date.now()): { ok: boolean; reason?: string; profile?: PlayerProfile } {
+  purchaseCosmetic(pilotId: string, cosmeticId: string, currency: unknown = 'CREDITS', now = Date.now()): { ok: boolean; purchased?: boolean; reason?: string; profile?: PlayerProfile } {
     return this.wallet.transaction((wallet) => {
       const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
       if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };
+      if (currency !== 'CREDITS' && currency !== 'SKY_TOKENS') return { ok: false, reason: 'CURRENCY UNAVAILABLE' };
       if (item.aircraftRestriction !== 'trainer' && !parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes(item.aircraftRestriction as AircraftType)) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
-      if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, profile: this.toProfile(row) };
+      if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, purchased: false, profile: this.toProfile(row) };
       if (item.unlockType !== 'credits' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
+      if (currency === 'SKY_TOKENS' && (!item.skyTokenPrice || item.unlockType !== 'credits')) return { ok: false, reason: 'COSMETIC NOT AVAILABLE FOR SKY TOKENS' };
       if (item.unlockType === 'credits') {
+        if (currency === 'SKY_TOKENS') {
+          const deficit = (this.database.prepare('SELECT sky_token_deficit FROM player_profiles WHERE pilot_id=?').get(pilotId) as { sky_token_deficit: number }).sky_token_deficit;
+          if (deficit > 0) return { ok: false, reason: 'REFUNDED SKY TOKENS MUST BE REPLACED FIRST' };
+        }
+        const price = currency === 'CREDITS' ? item.creditPrice : item.skyTokenPrice;
         const debit = wallet.debit({
-          pilotId, currency: 'CREDITS', amount: item.creditPrice, reason: 'COSMETIC_PURCHASE',
-          referenceId: `cosmetic:${cosmeticId}`, context: { cosmeticId }, createdAt: now,
+          pilotId, currency, amount: price, reason: currency === 'CREDITS' ? 'COSMETIC_PURCHASE' : 'SKY_TOKEN_SPEND',
+          idempotencyKey: `cosmetic:${cosmeticId}`, referenceId: `cosmetic:${cosmeticId}`,
+          context: { cosmeticId, aircraft: item.aircraftRestriction }, createdAt: now,
         });
-        if (!debit.ok) return { ok: false, reason: `NEED ${Math.max(0, item.creditPrice - row.credits).toLocaleString()} MORE CREDITS` };
+        if (!debit.ok || !debit.applied) return { ok: false, reason: `NEED ${Math.max(0, price - (currency === 'CREDITS' ? row.credits : row.sky_tokens)).toLocaleString()} MORE ${currency === 'CREDITS' ? 'CREDITS' : 'SKY TOKENS'}` };
       }
       this.database.prepare('INSERT INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
-      return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+      return { ok: true, purchased: true, profile: this.toProfile(this.getRow(pilotId)!) };
     });
   }
 

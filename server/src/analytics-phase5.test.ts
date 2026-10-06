@@ -13,7 +13,7 @@ import { PlayerWallet } from './player-wallet.js';
 test('intent ingestion accepts only bounded non-sensitive dimensions', () => {
   const sessionId = '11840a72-0b7d-4a53-a67a-94a6e8887730';
   assert.deepEqual(parseClientIntent({ event: 'city_selected', sessionId, cityId: 'dallas' }),
-    { event: 'city_selected', sessionId, cityId: 'dallas', aircraftType: undefined });
+    { event: 'city_selected', sessionId, cityId: 'dallas', aircraftType: undefined, cosmeticId: undefined, currency: undefined });
   assert.equal(parseClientIntent({ event: 'firehawk_purchase_succeeded', sessionId }), undefined);
   assert.equal(parseClientIntent({ event: 'city_selected', sessionId, cityId: 'dallas', email: 'secret@example.com' }), undefined);
   assert.equal(parseClientIntent({ event: 'city_selected', sessionId, cityId: 'a'.repeat(100) }), undefined);
