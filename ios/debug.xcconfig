@@ -1,1 +1,2 @@
 CAPACITOR_DEBUG = true
+AIRPORT_CHAOS_BACKEND_HOST = airport-chaos-staging.onrender.com

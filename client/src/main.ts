@@ -1,4 +1,5 @@
 import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
+import { PLAYER_STORAGE_KEY } from './player-storage';
 import * as THREE from 'three';
 import { actionKeyLabel, cameraControlLabels, keyboardActionBindings, menuBindings, type FlightAction } from './flight-input';
 import { isEditableControl, shouldIgnoreGameplayKeyboardEvent, shouldToggleDesktopControlsHelp } from './controls-help';
@@ -566,8 +567,6 @@ type AircraftVisuals = {
 function isAircraftType(value: unknown): value is AircraftType {
   return typeof value === 'string' && value in aircraftDefinitions;
 }
-
-const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 
 type PersistedPlayer = {
   version: 1;

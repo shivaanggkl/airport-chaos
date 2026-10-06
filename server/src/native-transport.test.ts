@@ -4,7 +4,7 @@ import test from 'node:test';
 import { NATIVE_APP_ORIGINS, PRODUCTION_BACKEND_ORIGIN, reconnectDelay, resolveTransport } from '../../shared/native-transport.mjs';
 import { isTrustedRequestOrigin, nativePlatformForOrigin } from './request-origin.js';
 
-test('native transport uses the single secure production backend while web remains same-origin', () => {
+test('native transport selects the build backend while web remains same-origin', () => {
   assert.equal(PRODUCTION_BACKEND_ORIGIN, 'https://fly.vadensoftware.com');
   assert.deepEqual(resolveTransport({ native: true, development: false, pageOrigin: 'capacitor://localhost' }), {
     apiOrigin: 'https://fly.vadensoftware.com', websocketOrigin: 'wss://fly.vadensoftware.com',
@@ -12,6 +12,12 @@ test('native transport uses the single secure production backend while web remai
   assert.deepEqual(resolveTransport({ native: true, development: false, pageOrigin: 'https://localhost' }), {
     apiOrigin: 'https://fly.vadensoftware.com', websocketOrigin: 'wss://fly.vadensoftware.com',
   });
+  assert.deepEqual(resolveTransport({ native: true, development: false, pageOrigin: 'capacitor://localhost', nativeBackendOrigin: 'https://airport-chaos-staging.onrender.com' }), {
+    apiOrigin: 'https://airport-chaos-staging.onrender.com', websocketOrigin: 'wss://airport-chaos-staging.onrender.com',
+  });
+  for (const invalid of ['http://airport-chaos-staging.onrender.com', 'https://airport-chaos-staging.onrender.com/api', 'https://user:pass@airport-chaos-staging.onrender.com']) {
+    assert.throws(() => resolveTransport({ native: true, development: false, pageOrigin: 'capacitor://localhost', nativeBackendOrigin: invalid }), /HTTPS origin/);
+  }
   assert.deepEqual(resolveTransport({ native: false, development: false, pageOrigin: 'https://fly.vadensoftware.com' }), {
     apiOrigin: 'https://fly.vadensoftware.com', websocketOrigin: 'wss://fly.vadensoftware.com',
   });
@@ -103,18 +109,53 @@ test('client uses one transport for REST and WebSocket and has no Capacitor serv
   assert.doesNotMatch(capacitor, /server:\s*\{[^}]*url:/s);
 });
 
-test('iOS secure session transport keeps cookies native and constrains its production boundary', () => {
+test('iOS secure session transport pins each build to its configured backend', () => {
   const swift = readFileSync(new URL('../../ios/App/App/SecureSessionTransport.swift', import.meta.url), 'utf8');
   const plist = readFileSync(new URL('../../ios/App/App/Info.plist', import.meta.url), 'utf8');
+  const debug = readFileSync(new URL('../../ios/debug.xcconfig', import.meta.url), 'utf8');
+  const project = readFileSync(new URL('../../ios/App/App.xcodeproj/project.pbxproj', import.meta.url), 'utf8');
+  const packageJson = readFileSync(new URL('../../package.json', import.meta.url), 'utf8');
   const capacitor = readFileSync(new URL('../../capacitor.config.ts', import.meta.url), 'utf8');
-  assert.match(swift, /https:\/\/fly\.vadensoftware\.com/);
+  assert.match(swift, /AirportChaosBackendHost/);
+  assert.match(swift, /url\.scheme == backendOrigin\.scheme, url\.host == backendOrigin\.host/);
+  assert.match(debug, /AIRPORT_CHAOS_BACKEND_HOST = airport-chaos-staging\.onrender\.com/);
+  assert.match(project, /\/\* Release \*\/[\s\S]*AIRPORT_CHAOS_BACKEND_HOST = fly\.vadensoftware\.com/);
+  const stagingSync = (JSON.parse(packageJson) as { scripts: Record<string, string> }).scripts['cap:sync:ios:staging'];
+  assert.equal(stagingSync, 'VITE_NATIVE_BACKEND_ORIGIN=https://airport-chaos-staging.onrender.com VITE_STAGING_TOKEN_STORE_PREVIEW=true npm run build:web && cap sync ios');
   assert.match(swift, /private let nativeOrigin = "capacitor:\/\/localhost"/);
   assert.match(swift, /lowerName != "set-cookie" && lowerName != "set-cookie2"/);
   assert.match(swift, /WKWebsiteDataStore\.default\(\)\.httpCookieStore\.setCookie/);
   assert.doesNotMatch(swift, /call\.resolve\([^)]*(?:cookie|token)/is);
-  assert.match(plist, /<key>WKAppBoundDomains<\/key>[\s\S]*<string>fly\.vadensoftware\.com<\/string>/);
+  assert.match(plist, /<key>AirportChaosBackendHost<\/key>[\s\S]*<string>\$\(AIRPORT_CHAOS_BACKEND_HOST\)<\/string>/);
+  assert.match(plist, /<key>WKAppBoundDomains<\/key>[\s\S]*<string>\$\(AIRPORT_CHAOS_BACKEND_HOST\)<\/string>/);
   assert.match(capacitor, /limitsNavigationsToAppBoundDomains:\s*true/);
   assert.doesNotMatch(capacitor, /CapacitorHttp|CapacitorCookies/);
+});
+
+test('staging iOS keeps its player cache separate from production', () => {
+  const storage = readFileSync(new URL('../../client/src/player-storage.ts', import.meta.url), 'utf8');
+  const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
+  const gameplay = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  assert.match(storage, /Capacitor\.isNativePlatform\(\) && nativeBackendOrigin/);
+  assert.match(storage, /`airport-chaos-player-v1:\$\{new URL\(nativeBackendOrigin\)\.host\}`/);
+  assert.match(storage, /: 'airport-chaos-player-v1'/);
+  assert.match(bootstrap, /import \{ PLAYER_STORAGE_KEY \} from '\.\/player-storage'/);
+  assert.match(gameplay, /import \{ PLAYER_STORAGE_KEY \} from '\.\/player-storage'/);
+});
+
+test('staging Token preview cannot start a native purchase', () => {
+  const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
+  const garage = readFileSync(new URL('../../client/src/garage.ts', import.meta.url), 'utf8');
+  const store = readFileSync(new URL('../../client/src/sky-token-store.ts', import.meta.url), 'utf8');
+  assert.match(bootstrap, /nativePurchaseProvider === 'apple' && apiOrigin === 'https:\/\/airport-chaos-staging\.onrender\.com' && import\.meta\.env\.VITE_STAGING_TOKEN_STORE_PREVIEW === 'true'/);
+  assert.match(bootstrap, /skyTokenStore\.open\([^;]+, !skyTokenCommerceEnabled\)/);
+  assert.match(garage, /tokenBuy\.disabled = [^;]+this\.tokenCommercePreview/);
+  assert.match(garage, /buy\.disabled = [^;]+this\.tokenCommercePreview/);
+  assert.match(garage, /tokens\.disabled = [^;]+this\.tokenCommercePreview/);
+  assert.match(store, /button\.disabled = previewOnly/);
+  assert.match(store, /if \(previewOnly \|\| this\.busy\) return/);
+  const nativeLogin = bootstrap.slice(bootstrap.indexOf("apiUrl('/api/auth/native/complete')"), bootstrap.indexOf('const returnUrl = new URL(window.location.href)'));
+  assert.match(nativeLogin, /await refreshSkyTokenCatalog\(\)/);
 });
 
 test('realtime ticket issuance accepts a secure account or guest session', () => {

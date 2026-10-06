@@ -6,6 +6,7 @@ export function resolveTransport(options: {
   development: boolean;
   pageOrigin: string;
   webSocketOverride?: string;
+  nativeBackendOrigin?: string;
 }): { apiOrigin: string; websocketOrigin: string };
 
 export function reconnectDelay(attempt: number, random?: () => number): number;

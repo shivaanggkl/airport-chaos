@@ -8,6 +8,8 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
         <string>Airport Chaos</string>
+	<key>AirportChaosBackendHost</key>
+	<string>$(AIRPORT_CHAOS_BACKEND_HOST)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -74,7 +76,7 @@
 	<key>WKAppBoundDomains</key>
 	<array>
 		<string>localhost</string>
-		<string>fly.vadensoftware.com</string>
+		<string>$(AIRPORT_CHAOS_BACKEND_HOST)</string>
 	</array>
 	<key>UIStatusBarHidden</key>
 	<true/>

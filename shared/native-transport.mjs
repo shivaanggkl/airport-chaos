@@ -12,10 +12,12 @@ function isLoopback(url) {
     (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'ws:' || url.protocol === 'wss:');
 }
 
-export function resolveTransport({ native, development, pageOrigin, webSocketOverride }) {
+export function resolveTransport({ native, development, pageOrigin, webSocketOverride, nativeBackendOrigin }) {
   if (native) {
-    const api = new URL(PRODUCTION_BACKEND_ORIGIN);
-    if (api.protocol !== 'https:') throw new Error('Native production transport requires HTTPS.');
+    const api = new URL(nativeBackendOrigin || PRODUCTION_BACKEND_ORIGIN);
+    if (api.protocol !== 'https:' || api.origin !== api.href.replace(/\/$/, '') || api.username || api.password) {
+      throw new Error('Native backend transport requires an HTTPS origin.');
+    }
     const websocket = new URL(api);
     websocket.protocol = 'wss:';
     return { apiOrigin: api.origin, websocketOrigin: websocket.origin };

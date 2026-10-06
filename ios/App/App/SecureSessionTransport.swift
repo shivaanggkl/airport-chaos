@@ -2,7 +2,7 @@ import Capacitor
 import Foundation
 import WebKit
 
-private final class ProductionSessionDelegate: NSObject, URLSessionTaskDelegate {
+private final class BackendSessionDelegate: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest,
@@ -19,12 +19,17 @@ final class SecureSessionHttpPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "request", returnType: CAPPluginReturnPromise)
     ]
 
-    private let backendOrigin = URL(string: "https://fly.vadensoftware.com")!
+    private var backendOrigin: URL? {
+        guard let host = Bundle.main.object(forInfoDictionaryKey: "AirportChaosBackendHost") as? String,
+              let url = URL(string: "https://\(host)"), url.host == host,
+              url.port == nil, url.path.isEmpty || url.path == "/" else { return nil }
+        return url
+    }
     private let nativeOrigin = "capacitor://localhost"
     private let allowedMethods = Set(["GET", "POST"])
 
     @objc func request(_ call: CAPPluginCall) {
-        guard let value = call.getString("url"), let url = URL(string: value),
+        guard let backendOrigin, let value = call.getString("url"), let url = URL(string: value),
               url.scheme == backendOrigin.scheme, url.host == backendOrigin.host,
               url.port == backendOrigin.port, url.user == nil, url.password == nil else {
             call.reject("Backend request origin rejected.")
@@ -59,7 +64,7 @@ final class SecureSessionHttpPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         let configuration = URLSessionConfiguration.default
         configuration.httpCookieStorage = .shared
         configuration.httpShouldSetCookies = true
-        let session = URLSession(configuration: configuration, delegate: ProductionSessionDelegate(), delegateQueue: nil)
+        let session = URLSession(configuration: configuration, delegate: BackendSessionDelegate(), delegateQueue: nil)
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             session.finishTasksAndInvalidate()
             guard let self else { return }
@@ -73,7 +78,7 @@ final class SecureSessionHttpPlugin: CAPInstancePlugin, CAPBridgedPlugin {
             }
 
             self.persistResponseCookies(response)
-            self.syncBackendCookiesToWebView {
+            self.syncBackendCookiesToWebView(backendOrigin: backendOrigin) {
                 var headers: [String: String] = [:]
                 for (rawName, rawValue) in response.allHeaderFields {
                     let name = String(describing: rawName)
@@ -102,7 +107,7 @@ final class SecureSessionHttpPlugin: CAPInstancePlugin, CAPBridgedPlugin {
         HTTPCookieStorage.shared.setCookies(cookies, for: url, mainDocumentURL: nil)
     }
 
-    private func syncBackendCookiesToWebView(completion: @escaping () -> Void) {
+    private func syncBackendCookiesToWebView(backendOrigin: URL, completion: @escaping () -> Void) {
         let cookies = HTTPCookieStorage.shared.cookies(for: backendOrigin) ?? []
         guard !cookies.isEmpty else {
             DispatchQueue.main.async(execute: completion)
