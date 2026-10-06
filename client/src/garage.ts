@@ -97,6 +97,7 @@ export class AircraftGarage {
   private readonly viewRight = new THREE.Vector3();
   private readonly viewUp = new THREE.Vector3();
   private readonly previewCorner = new THREE.Vector3();
+  private readonly showcaseVisualCorners: THREE.Vector3[] = [];
   private previewWidth = 0;
   private previewHeight = 0;
   private lastTrialSecond = -1;
@@ -958,7 +959,39 @@ export class AircraftGarage {
     return !this.previewBounds.isEmpty();
   }
 
+  private showcaseFitDistance(rotation: number): number {
+    if (this.showcaseVisualCorners.length === 0) return this.defaultDistance;
+    // Mesh corners are cached when the model is framed; project them as the Hub aircraft orbits.
+    const verticalTan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5) * 0.9;
+    const horizontalTan = verticalTan * this.camera.aspect;
+    const cosine = Math.cos(rotation), sine = Math.sin(rotation);
+    const tilt = THREE.MathUtils.clamp((this.orbitPitch - this.showcaseCameraPitch) * 0.35, -0.28, 0.28);
+    const tiltCosine = Math.cos(tilt), tiltSine = Math.sin(tilt);
+    // The showroom camera stays fixed while the aircraft scales, so include its focus offset.
+    const focusDepth = 1 + this.showcaseCameraFocus.dot(this.viewDirection) / this.showcaseCameraDistance;
+    const focusRight = this.showcaseCameraFocus.dot(this.viewRight) / this.showcaseCameraDistance;
+    const focusUp = this.showcaseCameraFocus.dot(this.viewUp) / this.showcaseCameraDistance;
+    let distance = 1;
+    for (const corner of this.showcaseVisualCorners) {
+      const tiltedX = corner.x * tiltCosine - corner.y * tiltSine;
+      const tiltedY = corner.x * tiltSine + corner.y * tiltCosine;
+      const rotatedX = tiltedX * cosine + corner.z * sine;
+      const rotatedZ = corner.z * cosine - tiltedX * sine;
+      const towardCamera = rotatedX * this.viewDirection.x + tiltedY * this.viewDirection.y + rotatedZ * this.viewDirection.z;
+      const right = rotatedX * this.viewRight.x + tiltedY * this.viewRight.y + rotatedZ * this.viewRight.z;
+      const up = rotatedX * this.viewUp.x + tiltedY * this.viewUp.y + rotatedZ * this.viewUp.z;
+      distance = Math.max(distance,
+        (right + horizontalTan * towardCamera) / (horizontalTan * focusDepth + focusRight),
+        (-right + horizontalTan * towardCamera) / (horizontalTan * focusDepth - focusRight),
+        (up + verticalTan * towardCamera) / (verticalTan * focusDepth + focusUp),
+        (-up + verticalTan * towardCamera) / (verticalTan * focusDepth - focusUp),
+      );
+    }
+    return distance;
+  }
+
   private framePreview(resetView: boolean): void {
+    this.showcaseVisualCorners.length = 0;
     if (resetView) {
       this.targetOrbitYaw = this.showcaseHost ? this.showcaseCameraYaw + this.showcaseAircraftYawOffset : 1.98;
       this.targetOrbitPitch = -0.01;
@@ -982,6 +1015,7 @@ export class AircraftGarage {
     } else this.previewContent.position.copy(this.previewCenter).multiplyScalar(-1);
     this.previewContent.updateMatrixWorld(true);
     if (!this.measureVisualBounds()) return;
+    if (this.showcaseHost) this.forEachVisualCorner(corner => this.showcaseVisualCorners.push(corner.clone()));
     this.previewBounds.getSize(this.previewSize);
     this.showcaseSet.position.set(0, 0, 0);
     this.showcaseShadow.position.y = 0.032;
@@ -1018,6 +1052,7 @@ export class AircraftGarage {
     if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
     else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     if (resetView) this.distance = this.targetDistance;
+    if (this.showcaseHost) this.distance = Math.max(this.distance, this.showcaseFitDistance(this.showcaseCameraYaw - this.orbitYaw));
     if (this.showcaseHost) {
       this.camera.far = 120;
       this.camera.updateProjectionMatrix();
@@ -1068,7 +1103,9 @@ export class AircraftGarage {
     }
     this.orbitYaw = THREE.MathUtils.lerp(this.orbitYaw, this.targetOrbitYaw, 0.12);
     this.orbitPitch = THREE.MathUtils.lerp(this.orbitPitch, this.targetOrbitPitch, 0.14);
-    this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, 0.14);
+    const showcaseMinimum = this.showcaseHost ? this.showcaseFitDistance(this.showcaseCameraYaw - this.orbitYaw) : 0;
+    this.distance = THREE.MathUtils.lerp(this.distance, this.showcaseHost ? Math.max(this.targetDistance, showcaseMinimum) : this.targetDistance, 0.14);
+    if (this.showcaseHost) this.distance = Math.max(this.distance, showcaseMinimum);
     if (this.showcaseHost) {
       const presentationScale = this.showcaseCameraDistance / Math.max(0.001, this.distance);
       this.aircraftPresentation.scale.setScalar(presentationScale);
