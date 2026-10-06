@@ -1,8 +1,15 @@
 import * as THREE from 'three';
+import {
+  canCombatSuppressPlacement,
+  isAirborneAdPlacement,
+  resolveAdPlacementPresentation,
+  type AdPlacementType,
+} from '../../shared/ad-placement-rules.mjs';
 import { airportChaosLogoUrl, loadAirportChaosLogo } from './brand';
 import { companyContact } from './company-contact';
 
-export type AdPlacementType = 'PREMIUM_BUILDING_WRAP' | 'GROUND_SPONSOR' | 'AIRPORT_GROUND_SPONSOR' | 'ROOFTOP_BILLBOARD' | 'AIRPORT_SPONSOR' | 'HIGHWAY_BILLBOARD' | 'SKYBOARD' | 'SKY_GATE' | 'SPONSOR_BLIMP' | 'RING_SPONSOR' | 'EVENT_SPONSOR' | 'AIRCRAFT_LIVERY';
+export { canCombatSuppressPlacement };
+export type { AdPlacementType };
 export type AdCreative = {
   reference: string;
   headline: string;
@@ -69,23 +76,10 @@ export type AdPlacement = {
   blimpOrbit?: { radiusX: number; radiusZ: number; periodSeconds: number; phase?: number };
 };
 export type AdPlacementSpec = Omit<AdPlacement, 'creative' | 'sponsorName' | 'startAt' | 'endAt' | 'enabled'>;
-const airborneAdVisibilityMultiplier = 2;
 
 export function resolveAdPlacement(spec: AdPlacementSpec): AdPlacement {
   const campaign = sponsorCatalog[spec.campaignId];
-  const isAirborne = isSkyPlacement(spec.type);
-  const position = isAirborne
-    ? { ...spec.position, y: spec.position.y * airborneAdVisibilityMultiplier }
-    : spec.position;
-  const size = isAirborne
-    ? {
-        x: spec.size.x * airborneAdVisibilityMultiplier,
-        y: spec.size.y * airborneAdVisibilityMultiplier,
-        z: spec.type === 'SPONSOR_BLIMP'
-          ? spec.size.z * airborneAdVisibilityMultiplier
-          : spec.size.z,
-      }
-    : spec.size;
+  const { position, size } = resolveAdPlacementPresentation(spec);
   return { ...spec, position, size, creative: campaign.creative, sponsorName: campaign.displayName,
     startAt: '2025-01-01T00:00:00.000Z', endAt: '2035-12-31T23:59:59.000Z', enabled: true };
 }
@@ -382,14 +376,7 @@ function isGroundPlacement(type: AdPlacementType): boolean {
 }
 
 function isSkyPlacement(type: AdPlacementType): boolean {
-  return type === 'SKYBOARD' || type === 'SKY_GATE' || type === 'SPONSOR_BLIMP';
-}
-
-export function canCombatSuppressPlacement(type: AdPlacementType): boolean {
-  // A blimp is a large world object, not a flat HUD-ad surface. Hiding its
-  // whole group when the aiming circle crosses it causes visible close-range
-  // blinking as the projected bounds move around the combat threshold.
-  return type !== 'SPONSOR_BLIMP';
+  return isAirborneAdPlacement(type);
 }
 
 function visibleAtQuality(placement: AdPlacement, quality: 'high' | 'low'): boolean {

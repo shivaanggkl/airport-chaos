@@ -18,8 +18,8 @@ public final class NativePurchasePlugin: CAPPlugin, CAPBridgedPlugin {
         Task {
             do {
                 guard let product = try await Product.products(for: [productID]).first,
-                      product.type == .nonConsumable else {
-                    call.reject("Firehawk is unavailable from the App Store.")
+                      product.type == expectedType(for: productID) else {
+                    call.reject("Product is unavailable from the App Store.")
                     return
                 }
                 call.resolve([
@@ -43,8 +43,8 @@ public final class NativePurchasePlugin: CAPPlugin, CAPBridgedPlugin {
         Task {
             do {
                 guard let product = try await Product.products(for: [productID]).first,
-                      product.type == .nonConsumable else {
-                    call.reject("Firehawk is unavailable from the App Store.")
+                      product.type == expectedType(for: productID) else {
+                    call.reject("Product is unavailable from the App Store.")
                     return
                 }
                 switch try await product.purchase(options: [.appAccountToken(accountToken)]) {
@@ -76,9 +76,11 @@ public final class NativePurchasePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc public func restore(_ call: CAPPluginCall) {
         guard let productID = validProductID(call) else { return }
         Task {
-            do {
-                try await AppStore.sync()
-                for await verification in Transaction.currentEntitlements {
+            if productID == "com.vadensoftware.airportchaos.firehawk" {
+                do { try await AppStore.sync() } catch { call.reject("Unable to restore purchases."); return }
+            }
+            let transactions = productID == "com.vadensoftware.airportchaos.firehawk" ? Transaction.currentEntitlements : Transaction.unfinished
+            for await verification in transactions {
                     guard case .verified(let transaction) = verification,
                           transaction.productID == productID,
                           transaction.revocationDate == nil else { continue }
@@ -89,11 +91,8 @@ public final class NativePurchasePlugin: CAPPlugin, CAPBridgedPlugin {
                         "signedTransaction": verification.jwsRepresentation
                     ])
                     return
-                }
-                call.resolve(["state": "notFound", "productId": productID])
-            } catch {
-                call.reject("Unable to restore purchases.")
             }
+            call.resolve(["state": "notFound", "productId": productID])
         }
     }
 
@@ -117,10 +116,16 @@ public final class NativePurchasePlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func validProductID(_ call: CAPPluginCall) -> String? {
         guard let productID = call.getString("productId"),
-              productID == "com.vadensoftware.airportchaos.firehawk" else {
+              ["com.vadensoftware.airportchaos.firehawk", "com.vadensoftware.airportchaos.skytokens100",
+               "com.vadensoftware.airportchaos.skytokens500", "com.vadensoftware.airportchaos.skytokens1200",
+               "com.vadensoftware.airportchaos.skytokens2400"].contains(productID) else {
             call.reject("Unknown product.")
             return nil
         }
         return productID
+    }
+
+    private func expectedType(for productID: String) -> Product.ProductType {
+        return productID == "com.vadensoftware.airportchaos.firehawk" ? .nonConsumable : .consumable
     }
 }

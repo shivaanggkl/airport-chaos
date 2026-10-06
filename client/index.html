@@ -43,8 +43,8 @@
           <button id="city-back" class="entry-button entry-button-secondary" type="button" hidden>BACK TO CITIES</button>
         </nav>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
-        <div id="start-brand-signature"></div>
       </section>
+      <div id="start-brand-signature"></div>
     </main>
     <div id="game-root" hidden>
     <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">
@@ -60,8 +60,12 @@
         <span id="heat-row" class="flight-hud-stat flight-hud-danger" title="Wanted level"><b>⚠</b><strong id="heat-level">0</strong></span>
         <div class="flight-hud-reward-anchor">
           <span id="hud-credits" class="flight-hud-stat flight-hud-credits flight-header-credits">
-            <span class="flight-header-credit-icon" aria-hidden="true">$</span>
+            <span class="flight-header-credit-icon" aria-hidden="true">🪙</span>
             <span class="flight-header-credit-copy"><small>CREDITS</small><strong id="credits">0</strong></span>
+          </span>
+          <span id="hud-sky-tokens" class="flight-hud-stat flight-hud-sky-tokens flight-header-credits flight-header-sky-tokens">
+            <span class="flight-header-sky-token-icon" aria-hidden="true">💎</span>
+            <span class="flight-header-credit-copy"><small>SKY TOKENS</small><strong id="sky-tokens">0</strong></span>
           </span>
           <div id="reward-feedback" class="reward-feedback hidden" role="status" aria-live="polite" aria-atomic="true"></div>
         </div>

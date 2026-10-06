@@ -13,7 +13,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.2"),
         .package(name: "AirportChaosNativeAuth", path: "../../../native-auth"),
-        .package(name: "CapacitorNetwork", path: "../../../node_modules/@capacitor/network")
+        .package(name: "CapacitorNetwork", path: "../../../node_modules/@capacitor/network"),
+        .package(name: "CapacitorShare", path: "../../../node_modules/@capacitor/share")
     ],
     targets: [
         .target(
@@ -22,7 +23,8 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "AirportChaosNativeAuth", package: "AirportChaosNativeAuth"),
-                .product(name: "CapacitorNetwork", package: "CapacitorNetwork")
+                .product(name: "CapacitorNetwork", package: "CapacitorNetwork"),
+                .product(name: "CapacitorShare", package: "CapacitorShare")
             ]
         )
     ]

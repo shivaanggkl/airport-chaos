@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createPrivateKey, randomUUID, X509Certificate } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import {
   Environment,
@@ -9,6 +9,7 @@ import {
 } from '@apple/app-store-server-library';
 import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
+import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 
 export type NativePurchaseProvider = 'apple' | 'google';
 export type PurchaseAccount = { accountId?: string; pilotId: string };
@@ -125,6 +126,14 @@ export class NativePurchaseLedger {
       (context_id,store_account_id,account_id,pilot_id,provider,intent,created_at,expires_at,consumed_at)
       VALUES(?,?,?,?,?,?,?,?,NULL)`).run(contextId, storeAccountId, identity.accountId, identity.pilotId, provider, resolvedIntent, now, now + contextLifetimeMs);
     return { contextId, storeAccountId, productId: productIds[provider] };
+  }
+
+  contextIntent(identity: PurchaseAccount, contextId: string, provider: NativePurchaseProvider, now = Date.now()): 'purchase' | 'restore' | undefined {
+    if (!identity.accountId) return undefined;
+    const row = this.database.prepare(`SELECT intent FROM firehawk_purchase_contexts WHERE context_id=? AND account_id=?
+      AND pilot_id=? AND provider=? AND expires_at>?`).get(contextId, identity.accountId, identity.pilotId, provider, now) as
+      { intent: 'purchase' | 'restore' } | undefined;
+    return row?.intent;
   }
 
   recordVerified(identity: PurchaseAccount, contextId: string, purchase: VerifiedNativePurchase, now = Date.now()): NativePurchaseGrant {
@@ -245,6 +254,7 @@ type GoogleProductPurchase = {
 export class NativePurchaseVerifier {
   readonly appleEnabled: boolean;
   readonly googleEnabled: boolean;
+  readonly googleRefundNotificationsEnabled: boolean;
   private readonly appleVerifier?: SignedDataVerifier;
   private readonly appleEnvironment?: Environment;
   private readonly googleAuth?: GoogleAuth;
@@ -255,7 +265,10 @@ export class NativePurchaseVerifier {
   constructor() {
     const environmentValue = process.env.AIRPORT_CHAOS_APPLE_IAP_ENVIRONMENT?.trim().toLowerCase();
     const environment = environmentValue === 'production' ? Environment.PRODUCTION : environmentValue === 'sandbox' ? Environment.SANDBOX : undefined;
-    const roots = (process.env.AIRPORT_CHAOS_APPLE_IAP_ROOT_CERTIFICATES_BASE64 ?? '').split(',').map(value => value.trim()).filter(Boolean).map(value => Buffer.from(value, 'base64'));
+    const roots = (process.env.AIRPORT_CHAOS_APPLE_IAP_ROOT_CERTIFICATES_BASE64 ?? '').split(',').map(value => value.trim()).filter(Boolean).flatMap(value => {
+      try { const root = Buffer.from(value, 'base64'); new X509Certificate(root); return [root]; }
+      catch { return []; }
+    });
     const appleIdValue = Number(process.env.AIRPORT_CHAOS_APPLE_IAP_APP_APPLE_ID);
     const appAppleId = Number.isSafeInteger(appleIdValue) && appleIdValue > 0 ? appleIdValue : undefined;
     if (environment && roots.length > 0 && (environment === Environment.SANDBOX || appAppleId)) {
@@ -269,6 +282,7 @@ export class NativePurchaseVerifier {
       try {
         const credentials = JSON.parse(serviceAccountValue) as { client_email?: string; private_key?: string };
         if (credentials.client_email && credentials.private_key) {
+          createPrivateKey(credentials.private_key);
           this.googleAuth = new GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/androidpublisher'] });
         }
       } catch { /* disabled rather than accepting malformed credentials */ }
@@ -276,6 +290,7 @@ export class NativePurchaseVerifier {
     this.googleEnabled = Boolean(this.googleAuth);
     this.googlePushAudience = process.env.AIRPORT_CHAOS_GOOGLE_PLAY_PUBSUB_AUDIENCE;
     this.googlePushServiceAccount = process.env.AIRPORT_CHAOS_GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT;
+    this.googleRefundNotificationsEnabled = this.googleEnabled && Boolean(this.googlePushAudience && this.googlePushServiceAccount);
   }
 
   async verifyApple(signedTransaction: string): Promise<VerifiedNativePurchase> {
@@ -298,12 +313,30 @@ export class NativePurchaseVerifier {
     };
   }
 
-  async decodeAppleNotification(signedPayload: string): Promise<{ notificationId: string; purchase?: VerifiedNativePurchase }> {
+  async verifySkyTokenApple(signedTransaction: string): Promise<VerifiedNativePurchase & { packId: SkyTokenPackId }> {
+    if (!this.appleVerifier || !this.appleEnvironment || signedTransaction.length < 100 || signedTransaction.length > 32_000) throw new Error('APPLE_PURCHASE_UNAVAILABLE');
+    const transaction = await this.appleVerifier.verifyAndDecodeTransaction(signedTransaction);
+    const packId = (Object.keys(skyTokenPacks) as SkyTokenPackId[]).find(id => skyTokenPacks[id].appleProductId === transaction.productId);
+    if (!packId || !safeIdentifier(transaction.transactionId, 128) || transaction.bundleId !== 'com.vadensoftware.airportchaos' ||
+        transaction.environment !== this.appleEnvironment || transaction.type !== Type.CONSUMABLE ||
+        transaction.inAppOwnershipType !== InAppOwnershipType.PURCHASED || transaction.quantity !== 1 ||
+        !Number.isFinite(transaction.purchaseDate)) throw new Error('APPLE_TOKEN_PURCHASE_INVALID');
+    const currency = typeof transaction.currency === 'string' ? transaction.currency.toLowerCase() : undefined;
+    const amountCents = Number.isSafeInteger(transaction.price) ? Math.round(transaction.price! / 10) : undefined;
+    return { provider: 'apple', providerTransactionId: transaction.transactionId,
+      productId: transaction.productId!, environment: this.appleEnvironment === Environment.PRODUCTION ? 'production' : 'sandbox',
+      purchasedAt: transaction.purchaseDate!, amountCents, currency, accountBinding: transaction.appAccountToken,
+      active: transaction.revocationDate === undefined, packId };
+  }
+
+  async decodeAppleNotification(signedPayload: string): Promise<{ notificationId: string; purchase?: VerifiedNativePurchase; tokenPurchase?: VerifiedNativePurchase & { packId: SkyTokenPackId } }> {
     if (!this.appleVerifier || signedPayload.length < 100 || signedPayload.length > 64_000) throw new Error('APPLE_NOTIFICATION_INVALID');
     const notification = await this.appleVerifier.verifyAndDecodeNotification(signedPayload);
     if (!safeIdentifier(notification.notificationUUID, 128)) throw new Error('APPLE_NOTIFICATION_INVALID');
     const signedTransaction = notification.data?.signedTransactionInfo;
-    return { notificationId: notification.notificationUUID, purchase: signedTransaction ? await this.verifyApple(signedTransaction) : undefined };
+    if (!signedTransaction) return { notificationId: notification.notificationUUID };
+    try { return { notificationId: notification.notificationUUID, purchase: await this.verifyApple(signedTransaction) }; }
+    catch { return { notificationId: notification.notificationUUID, tokenPurchase: await this.verifySkyTokenApple(signedTransaction) }; }
   }
 
   async verifyGoogle(purchaseToken: string): Promise<VerifiedNativePurchase> {
@@ -317,6 +350,18 @@ export class NativePurchaseVerifier {
       active: purchase.purchaseState === 0 && (purchase.refundableQuantity === undefined || purchase.refundableQuantity > 0),
       acknowledged: purchase.acknowledgementState === 1,
     };
+  }
+
+  async verifySkyTokenGoogle(purchaseToken: string, productId: string): Promise<VerifiedNativePurchase & { packId: SkyTokenPackId }> {
+    const packId = (Object.keys(skyTokenPacks) as SkyTokenPackId[]).find(id => skyTokenPacks[id].googleProductId === productId);
+    if (!packId) throw new Error('GOOGLE_TOKEN_PRODUCT_INVALID');
+    const purchase = await this.googlePurchase(purchaseToken, productId);
+    if (purchase.productId !== productId || (purchase.quantity ?? 1) !== 1 || ![0, 1].includes(purchase.consumptionState ?? -1) ||
+        !safeIdentifier(purchase.orderId, 256) || !Number.isFinite(Number(purchase.purchaseTimeMillis))) throw new Error('GOOGLE_TOKEN_PURCHASE_INVALID');
+    return { provider: 'google', providerTransactionId: digest(purchaseToken), productId,
+      environment: purchase.purchaseType === 0 ? 'sandbox' : 'production', purchasedAt: Number(purchase.purchaseTimeMillis),
+      accountBinding: purchase.obfuscatedExternalAccountId,
+      active: purchase.purchaseState === 0 && (purchase.refundableQuantity === undefined || purchase.refundableQuantity > 0), packId };
   }
 
   async acknowledgeGoogle(purchaseToken: string): Promise<void> {
@@ -339,12 +384,12 @@ export class NativePurchaseVerifier {
     } catch { return false; }
   }
 
-  private async googlePurchase(purchaseToken: string): Promise<GoogleProductPurchase> {
+  private async googlePurchase(purchaseToken: string, productId: string = firehawkProduct.googleProductId): Promise<GoogleProductPurchase> {
     if (!this.googleAuth || purchaseToken.length < 20 || purchaseToken.length > 4_096) throw new Error('GOOGLE_PURCHASE_UNAVAILABLE');
     const client = await this.googleAuth.getClient();
     const token = await client.getAccessToken();
     if (!token.token) throw new Error('GOOGLE_PURCHASE_UNAVAILABLE');
-    const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.vadensoftware.airportchaos/purchases/products/${encodeURIComponent(firehawkProduct.googleProductId)}/tokens/${encodeURIComponent(purchaseToken)}`;
+    const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.vadensoftware.airportchaos/purchases/products/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token.token}`, Accept: 'application/json' } });
     if (!response.ok) throw new Error('GOOGLE_PURCHASE_INVALID');
     return await response.json() as GoogleProductPurchase;
@@ -358,5 +403,35 @@ export function googleNotificationToken(body: unknown): string | undefined {
     const decoded = JSON.parse(Buffer.from(message.data, 'base64').toString('utf8')) as { oneTimeProductNotification?: { purchaseToken?: unknown; sku?: unknown } };
     const notification = decoded.oneTimeProductNotification;
     return notification?.sku === firehawkProduct.googleProductId && typeof notification.purchaseToken === 'string' ? notification.purchaseToken : undefined;
+  } catch { return undefined; }
+}
+
+export function googleSkyTokenNotification(body: unknown): { purchaseToken: string; productId: string } | undefined {
+  const message = body && typeof body === 'object' ? (body as { message?: { data?: unknown } }).message : undefined;
+  if (!message || typeof message.data !== 'string' || message.data.length > 32_000) return undefined;
+  try {
+    const decoded = JSON.parse(Buffer.from(message.data, 'base64').toString('utf8')) as
+      { oneTimeProductNotification?: { purchaseToken?: unknown; sku?: unknown } };
+    const notification = decoded.oneTimeProductNotification;
+    const productId = notification?.sku;
+    if (typeof productId !== 'string' || !Object.values(skyTokenPacks).some(pack => pack.googleProductId === productId) ||
+        typeof notification?.purchaseToken !== 'string') return undefined;
+    return { purchaseToken: notification.purchaseToken, productId };
+  } catch { return undefined; }
+}
+
+export function googleVoidedPurchaseNotification(body: unknown): string | undefined {
+  const message = body && typeof body === 'object' ? (body as { message?: { data?: unknown } }).message : undefined;
+  if (!message || typeof message.data !== 'string' || message.data.length > 32_000) return undefined;
+  try {
+    const decoded = JSON.parse(Buffer.from(message.data, 'base64').toString('utf8')) as {
+      packageName?: unknown;
+      voidedPurchaseNotification?: { productType?: unknown; refundType?: unknown; purchaseToken?: unknown };
+    };
+    const notice = decoded.voidedPurchaseNotification;
+    return decoded.packageName === 'com.vadensoftware.airportchaos' && notice?.productType === 2 &&
+      (notice.refundType === 1 || notice.refundType === undefined) &&
+      typeof notice.purchaseToken === 'string' && notice.purchaseToken.length >= 20 && notice.purchaseToken.length <= 4096
+      ? notice.purchaseToken : undefined;
   } catch { return undefined; }
 }

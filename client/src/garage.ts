@@ -5,11 +5,14 @@ import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-
 import { aircraftDefinitions, aircraftDisplayName, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
 import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
+import { recordProductIntent } from './product-analytics';
 import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 
 export type GarageProfile = {
   credits: number;
+  skyTokens?: number;
   selectedAircraft: AircraftType;
   unlockedAircraft: AircraftType[];
   economyVersion?: number;
@@ -78,6 +81,7 @@ export class AircraftGarage {
   private targetOrbitPitch = -0.01;
   private idleOrbitAnchor = 1.98;
   private idleOrbitStartedAt = performance.now();
+  private windowBlurred = false;
   private userAdjustedZoom = false;
   private raf = 0;
   private loadingProfile = false;
@@ -97,6 +101,9 @@ export class AircraftGarage {
   private lastTrialSecond = -1;
   private nativeStore = false;
   private nativeStorePrice?: string;
+  private tokenCommerceReady = false;
+  private tokenCommerceEnabled = false;
+  private tokenStoreUnavailable = false;
 
   constructor(
     private readonly element: HTMLElement,
@@ -111,6 +118,8 @@ export class AircraftGarage {
     private readonly onRestorePurchase?: (code?: string) => void,
     private readonly onPurchaseCosmetic?: (id: string) => void,
     private readonly onEquipCosmetic?: (id: string) => void,
+    private readonly onTokenPurchase?: (type: AircraftType) => void,
+    private readonly onGetTokens?: (missing: number) => void,
   ) {
     registerUiBackLayer({
       id: `aircraft-garage-${++AircraftGarage.instanceCount}`,
@@ -119,7 +128,7 @@ export class AircraftGarage {
       close: () => this.close(),
       containsTarget: (target) => target instanceof Node && Boolean(this.element.querySelector('.garage-card')?.contains(target)),
     });
-    element.innerHTML = `<section class="garage-card app-shell-panel"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1><p>Choose, compare and equip aircraft.</p></div><div class="garage-balance"><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-labelledby="garage-aircraft-heading"><h2 id="garage-aircraft-heading">AIRCRAFT</h2><div class="garage-list"></div></section></section>`;
+    element.innerHTML = `<section class="garage-card app-shell-panel"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1><p>Choose, compare and equip aircraft.</p></div><div class="garage-balance"><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-labelledby="garage-aircraft-heading"><h2 id="garage-aircraft-heading">AIRCRAFT</h2><div class="garage-list"></div></section></section>`;
     const cosmetics = document.createElement('section'); cosmetics.className = 'garage-cosmetics'; cosmetics.dataset.garageCosmetics = '';
     element.querySelector('.garage-card')!.append(cosmetics);
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
@@ -142,7 +151,7 @@ export class AircraftGarage {
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
     for (const type of aircraftDisplayOrder) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
-      card.addEventListener('click', () => { this.selected = type; this.previewCosmetic = undefined; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
+      card.addEventListener('click', () => { if (this.selected !== type) { recordProductIntent('aircraft_selected', { aircraftType: type }); recordProductIntent('aircraft_viewed', { aircraftType: type }); } this.selected = type; this.previewCosmetic = undefined; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
     }
     element.querySelector('[data-garage-close]')!.addEventListener('click', closeTopUiLayer);
@@ -153,6 +162,7 @@ export class AircraftGarage {
         this.actionPending = true; this.actionMessage = 'PURCHASE PENDING…'; this.renderDetails(); this.onPurchase?.(this.selected);
       }
     });
+    element.querySelector('[data-garage-token-buy]')!.addEventListener('click', () => this.requestTokenUnlock());
     const tester = element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const testerInput = tester.querySelector<HTMLInputElement>('input')!;
     element.querySelector('[data-garage-redeem-open]')!.addEventListener('click', () => {
@@ -165,6 +175,7 @@ export class AircraftGarage {
     element.querySelector('[data-garage-trial]')!.addEventListener('click', () => { if (!this.actionPending) { this.actionPending = true; this.actionMessage = 'STARTING TEST FLIGHT…'; this.renderDetails(); this.onStartFighterTrial?.(); } });
     element.querySelector('[data-garage-premium-buy]')!.addEventListener('click', () => {
       if (this.actionPending) return;
+      if (this.tokenCommerceEnabled) { this.requestTokenUnlock(); return; }
       this.actionPending = true; this.actionMessage = 'OPENING SECURE CHECKOUT…'; this.renderDetails(); this.onPremiumPurchase?.();
     });
     element.querySelector('[data-garage-restore]')!.addEventListener('click', () => {
@@ -193,12 +204,19 @@ export class AircraftGarage {
     }, { passive: false });
     window.addEventListener('resize', () => this.resize());
     new ResizeObserver(() => this.resize()).observe(canvas);
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        cancelAnimationFrame(this.raf);
-        this.raf = 0;
-      } else if (this.isPreviewActive()) this.startAnimation();
-    });
+    const pause = (): void => { cancelAnimationFrame(this.raf); this.raf = 0; };
+    const resume = (): void => {
+      if (document.hidden || this.windowBlurred || !this.isPreviewActive()) return;
+      if (this.showcaseHost) {
+        this.idleOrbitAnchor = this.orbitYaw;
+        this.targetOrbitYaw = this.orbitYaw;
+        this.idleOrbitStartedAt = performance.now();
+      }
+      this.startAnimation();
+    };
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); else resume(); });
+    window.addEventListener('blur', () => { this.windowBlurred = true; pause(); });
+    window.addEventListener('focus', () => { this.windowBlurred = false; resume(); });
   }
 
   private static instanceCount = 0;
@@ -302,6 +320,29 @@ export class AircraftGarage {
     if (this.isOpen()) this.renderDetails();
   }
 
+  setTokenCommerce(enabled: boolean): void {
+    this.tokenCommerceReady = true;
+    this.tokenCommerceEnabled = enabled;
+    this.tokenStoreUnavailable = false;
+    if (this.isOpen()) this.renderDetails();
+  }
+
+  setTokenStoreUnavailable(): void {
+    this.tokenCommerceReady = false;
+    this.tokenStoreUnavailable = true;
+    if (this.isOpen()) this.renderDetails();
+  }
+
+  private requestTokenUnlock(): void {
+    if (this.actionPending || !this.tokenCommerceEnabled) return;
+    const price = aircraftSkyTokenPrice(this.selected);
+    if (!price) return;
+    const missing = Math.max(0, price - (this.profile.skyTokens ?? 0));
+    if (missing) { this.onGetTokens?.(missing); return; }
+    this.actionPending = true; this.actionMessage = 'UNLOCKING AIRCRAFT…'; this.renderDetails();
+    this.onTokenPurchase?.(this.selected);
+  }
+
   private premiumPrice(): string { return this.nativeStore ? this.nativeStorePrice ?? 'STORE PRICE' : firehawkProduct.displayPrice; }
 
   private loadPreview(): Promise<void> {
@@ -369,20 +410,29 @@ export class AircraftGarage {
     equip.disabled = this.loadingProfile || this.actionPending || this.selected === this.profile.selectedAircraft || (!owned && (definition.access === 'premium' || insufficient));
     equip.textContent = this.selected === this.profile.selectedAircraft ? 'EQUIPPED' : owned ? 'EQUIP' : definition.access === 'premium' ? 'UNLOCK FIREHAWK' : `UNLOCK — ${price!.toLocaleString()} CREDITS`;
     equip.hidden = definition.access === 'premium' && !owned;
+    const tokenPrice = aircraftSkyTokenPrice(this.selected);
+    const tokenChoice = this.element.querySelector<HTMLElement>('[data-garage-token-choice]')!;
+    tokenChoice.hidden = !this.tokenCommerceEnabled || owned || definition.access !== 'credits';
+    const tokenBuy = this.element.querySelector<HTMLButtonElement>('[data-garage-token-buy]')!;
+    const tokenMissing = Math.max(0, (tokenPrice ?? 0) - (this.profile.skyTokens ?? 0));
+    tokenBuy.textContent = tokenMissing ? `GET SKY TOKENS · ${tokenPrice?.toLocaleString()} TO UNLOCK` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`;
+    tokenBuy.disabled = this.loadingProfile || this.actionPending;
     this.element.querySelector<HTMLElement>('[data-garage-action-note]')!.textContent = insufficient ? `Need ${(price! - this.profile.credits).toLocaleString()} more Credits` : '';
     this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
     const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
     premium.hidden = this.selected !== 'fighter' || (owned && !this.nativeStore);
     const buy = this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')!;
-    buy.textContent = this.nativeStore
-      ? this.nativeStorePrice ? `UNLOCK FOREVER — ${this.nativeStorePrice}` : 'STORE UNAVAILABLE'
-      : `${firehawkProduct.displayPrice} — PERMANENT UNLOCK`;
-    buy.disabled = this.loadingProfile || this.actionPending || (this.nativeStore && !this.nativeStorePrice);
+    buy.textContent = !this.tokenCommerceReady ? this.tokenStoreUnavailable ? 'STORE UNAVAILABLE' : 'CHECKING STORE…' : this.tokenCommerceEnabled
+      ? tokenMissing ? `GET SKY TOKENS · NEED ${tokenMissing.toLocaleString()} MORE` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`
+      : this.nativeStore
+        ? this.nativeStorePrice ? `UNLOCK FOREVER — ${this.nativeStorePrice}` : 'STORE UNAVAILABLE'
+        : `${firehawkProduct.displayPrice} — PERMANENT UNLOCK`;
+    buy.disabled = !this.tokenCommerceReady || this.loadingProfile || this.actionPending || (!this.tokenCommerceEnabled && this.nativeStore && !this.nativeStorePrice);
     buy.hidden = owned;
     const restore = this.element.querySelector<HTMLButtonElement>('[data-garage-restore]')!;
     restore.textContent = this.nativeStore ? 'RESTORE PURCHASES' : 'RESTORE PURCHASE';
-    this.element.querySelector<HTMLElement>('.garage-purchase-disclosure')!.hidden = this.nativeStore;
+    this.element.querySelector<HTMLElement>('.garage-purchase-disclosure')!.hidden = this.nativeStore || this.tokenCommerceEnabled;
     const trialState = this.profile.fighterTrial?.status ?? 'available';
     const remaining = this.trialRemainingSeconds();
     const trialSummary = this.element.querySelector<HTMLElement>('[data-garage-trial-summary]')!;
@@ -403,7 +453,7 @@ export class AircraftGarage {
       const access = type === this.profile.selectedAircraft ? 'EQUIPPED'
         : type === 'fighter' && this.isTrialUsable() ? this.trialStatusText()
         : typeOwned ? 'OWNED'
-        : data.access === 'premium' ? 'PREMIUM'
+        : data.access === 'premium' ? this.tokenCommerceEnabled ? `${aircraftSkyTokenPrice(type)!.toLocaleString()} SKY TOKENS` : 'PREMIUM'
         : data.access === 'free' ? 'FREE' : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
       const name = document.createElement('strong'); name.textContent = data.callsign;
       const state = document.createElement('small'); state.textContent = access;
@@ -921,9 +971,13 @@ export class AircraftGarage {
         towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
       );
     });
-    const wideShowcase = this.showcaseHost && this.camera.aspect > 2.55;
-    const showcaseDistanceScale = this.showcaseHost ? (wideShowcase ? 0.6 : 0.88) : 1;
-    this.defaultDistance = Math.max(1, framedDistance * (this.selected === 'fighter' ? 0.9 : 1) * showcaseDistanceScale);
+    // Leave room around the featured aircraft in the Hub at every aspect ratio.
+    const showcaseDistanceScale = this.showcaseHost ? 1.3 : 1;
+    // Firehawk's long swept-wing silhouette becomes widest on the showroom's
+    // three-quarter rotation. Give that shape enough room instead of applying
+    // the old extra enlargement that pushed it outside the Hub camera frame.
+    const aircraftDistanceScale = this.showcaseHost && this.selected === 'fighter' ? 1.2 : 1;
+    this.defaultDistance = Math.max(1, framedDistance * aircraftDistanceScale * showcaseDistanceScale);
     if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
     else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     if (resetView) this.distance = this.targetDistance;
@@ -964,7 +1018,7 @@ export class AircraftGarage {
   }
 
   private animate = (): void => {
-    if (!this.isPreviewActive() || document.hidden) { this.raf = 0; return; }
+    if (!this.isPreviewActive() || document.hidden || this.windowBlurred) { this.raf = 0; return; }
     const trialSecond = this.trialRemainingSeconds();
     if (!this.showcaseHost && trialSecond !== this.lastTrialSecond) this.renderDetails();
     if (!this.dragging) {
@@ -1003,6 +1057,6 @@ export class AircraftGarage {
   private startAnimation(): void {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
-    if (!document.hidden && this.isPreviewActive()) this.animate();
+    if (!document.hidden && !this.windowBlurred && this.isPreviewActive()) this.animate();
   }
 }

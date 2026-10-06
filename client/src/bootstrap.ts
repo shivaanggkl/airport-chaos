@@ -8,15 +8,20 @@ import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-me
 import { BrandLoadingScreen } from './startup-loading';
 import { loadAirportChaosLogo, mountCompactBrandFooter } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
+import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { apiFetch, apiUrl } from './transport';
-import { loadNativeFirehawkOffer, nativePurchaseProvider, purchaseNativeFirehawk, restoreNativeFirehawk } from './native-purchases';
+import { loadNativeFirehawkOffer, loadNativeSkyTokenOffers, nativePurchaseProvider, purchaseNativeFirehawk, purchaseNativeSkyTokenPack, recoverNativeSkyTokenPurchases, restoreNativeFirehawk } from './native-purchases';
 import { missionsForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
+import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
+import { Share } from '@capacitor/share';
+import { recordProductIntent } from './product-analytics';
 import { persistMobileControlPlacement, persistPitchInverted, persistTouchMode, preferredGraphicsQuality, preferredMobileControlLayout, preferredPitchInverted, preferredTouchMode, resetPreferredMobileControlLayout } from './mobile-input';
 import milwaukeeJourneyImage from './help-assets/runway.avif';
 
@@ -43,13 +48,60 @@ mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signat
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
 const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 const PENDING_FLY_STORAGE_KEY = 'airport-chaos-pending-fly-v1';
+const PENDING_REFERRAL_STORAGE_KEY = 'airport-chaos-pending-referral-v1';
+const referralCodePattern = /^(?:[A-Z0-9]{4}-[A-Z0-9]{4}|[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5})$/i;
+let activeReferralCode: string | undefined;
+function pendingReferralCode(): string | undefined {
+  try {
+    const code = sessionStorage.getItem(PENDING_REFERRAL_STORAGE_KEY);
+    return code && referralCodePattern.test(code) ? code.toUpperCase() : activeReferralCode;
+  } catch { return activeReferralCode; }
+}
+function setPendingReferralCode(code?: string): void {
+  activeReferralCode = code;
+  try {
+    if (code) sessionStorage.setItem(PENDING_REFERRAL_STORAGE_KEY, code.toUpperCase());
+    else sessionStorage.removeItem(PENDING_REFERRAL_STORAGE_KEY);
+  } catch { /* the current invite URL still works in this page session */ }
+}
+function referralUrl(code: string): string { return `https://fly.vadensoftware.com/invite/${encodeURIComponent(code)}`; }
+
+async function copyReferralInvite(code: string): Promise<{ ok: boolean; message: string }> {
+  const url = referralUrl(code);
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+    else {
+      const field = document.createElement('textarea');
+      field.value = url; field.style.position = 'fixed'; field.style.opacity = '0';
+      document.body.append(field); field.select();
+      const copied = document.execCommand('copy'); field.remove();
+      if (!copied) throw new Error('Clipboard unavailable');
+    }
+    return { ok: true, message: 'Invite link copied' };
+  } catch { return { ok: false, message: 'Unable to copy link. Select the link above to share it.' }; }
+}
+
+async function shareReferralInvite(code: string): Promise<{ ok: boolean; message: string }> {
+  const url = referralUrl(code);
+  const title = 'Fly Airport Chaos with me';
+  const text = 'Create a new pilot account with my invite and earn 500 Credits after your first real flight.';
+  try {
+    if (nativeAuthPlatform) await Share.share({ title, text, url, dialogTitle: 'Invite a pilot' });
+    else if (navigator.share) await navigator.share({ title, text, url });
+    else return copyReferralInvite(code);
+    return { ok: true, message: 'Invite ready to share' };
+  } catch (error) {
+    if (error instanceof Error && /cancel|abort/i.test(error.message)) return { ok: false, message: 'Sharing cancelled' };
+    return copyReferralInvite(code);
+  }
+}
 
 type GarageIdentity = {
   pilotId: string; displayName: string; credits: number; bestScore: number; selectedAircraft: AircraftType;
   totalDistance: number; successfulLandings: number; discoveries: Record<string, string[]>;
 };
 type RemoteGarageProfile = GarageProfile & {
-  pilotId?: string; pilotName?: string; score?: number;
+  pilotId?: string; pilotName?: string; score?: number; skyTokens?: number;
   totalDistance?: number; successfulLandings?: number;
   discoveries?: Record<string, string[]>;
   legacyImportPending?: boolean;
@@ -64,9 +116,13 @@ type RemoteGarageProfile = GarageProfile & {
   }>>;
   mastery?: Partial<Record<string, { xp: number; level: number; unlockedRewards: string[] }>>;
   dailyStreak?: { current: number; longest: number; cycleDay: number; nextReward: number };
+  dailyReward?: { schedule: number[]; nextDay: number; nextAmount: number; claimable: boolean; claimedDays: number[]; claimCount: number; lastClaimedAt?: number; nextEligibleAt: number };
   personalRecords?: Record<string, { value: number; cityId?: string; achievedAt: number }>;
   weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
-  referral?: { code: string; status: string; rewardedCount: number };
+  referral?: {
+    code: string; status: string; joinedCount: number; qualifiedCount: number; rewardedCount: number; earnedCredits: number;
+    inviterRewardsInWindow: number; inviterRewardsRemaining: number; nextInviterRewardAt?: number;
+  };
 };
 type HubAccountStatus = Pick<PilotMenuData['account'], 'state' | 'email' | 'providers'> & { avatarUrl?: string };
 function identity(): GarageIdentity {
@@ -92,27 +148,141 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
   const url = apiUrl('/api/profile'); url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
   void apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ analyticsEvent: event }) }).catch(() => undefined);
 }
-let garageProfile: GarageProfile = { credits: garageIdentity.credits, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
+let garageProfile: GarageProfile = { credits: garageIdentity.credits, skyTokens: 0, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
+let skyTokenCommerceEnabled = false;
+let skyTokenOffers: SkyTokenOffer[] = [];
+let skyTokenCatalogPilotId: string | undefined;
+let nativeSkyTokenRecoveryPilotId: string | undefined;
+let nativeSkyTokenPurchasePending = false;
+let nativeSkyTokenRecoveryInFlight = false;
 let authoritativeHomeProfile: RemoteGarageProfile | undefined;
 let hubAccount: HubAccountStatus = { state: 'guest', providers: { password: false, google: false, apple: false } };
 let hubAccountNotice: PilotMenuData['account']['notice'];
+let hubRewardNotice: string | undefined;
+let hubServerNow = Date.now();
+type RewardedAdAttemptStatus = 'CREATED' | 'AD_STARTED' | 'PENDING_VERIFICATION' | 'REWARDED' | 'CLOSED_WITHOUT_REWARD' | 'FAILED' | 'EXPIRED';
+type RewardedAdStatus = {
+  supported: boolean; provider?: 'ADMOB'; platform?: 'ios' | 'android'; rewardCredits: number; maxRewards: number; remaining: number;
+  windowStartedAt?: number; windowEndsAt?: number;
+  activeAttempt?: { attemptId: string; status: RewardedAdAttemptStatus; expiresAt: number };
+  serverNow: number;
+};
+let hubRewardedAdStatus: RewardedAdStatus | undefined;
+let hubRewardedAdNotice: string | undefined;
+let hubRewardedAdPhase: 'idle' | 'loading' | 'playing' | 'verifying' = 'idle';
+let rewardedAdPollGeneration = 0;
 let hubFlyIntent = false;
 let hubFlyGateActive = false;
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
   garage: () => { void openStartGarage('HANGAR'); },
+  aircraft: () => { void openStartGarage('HANGAR'); },
+  rewards: () => { void openHubRewards(); },
   profile: () => { void openHubPilotMenu('PROFILE'); },
+  skyTokens: () => { void openSkyTokenStore(); },
 });
+const skyTokenStore = new SkyTokenStore(async packId => {
+  try {
+    if (nativePurchaseProvider) {
+      const result = await purchaseNativeSkyTokenPack(packId);
+      if (result.state === 'cancelled') { skyTokenStore.setMessage('Purchase cancelled.'); return; }
+      if (result.state === 'pending') { nativeSkyTokenPurchasePending = true; skyTokenStore.setMessage('Purchase pending. Sky Tokens will arrive after verification.'); return; }
+      applyAuthoritativeHomeProfile(result.profile as RemoteGarageProfile);
+      garage.updateProfile(garageProfile);
+      skyTokenStore.updateBalance(garageProfile.skyTokens ?? 0);
+      skyTokenStore.setMessage(result.applied
+        ? `+${skyTokenPacks[packId].tokens.toLocaleString()} SKY TOKENS · REF ${result.reference ?? 'AVAILABLE'}`
+        : `Purchase already verified · REF ${result.reference ?? 'AVAILABLE'}`);
+      if (result.applied) audioManager.playPurchaseSuccess();
+      return;
+    }
+    const response = await apiFetch(apiUrl('/api/sky-tokens/checkout'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packId }) });
+    const result = await response.json() as { url?: string; error?: string };
+    if (!response.ok || !result.url) throw new Error(result.error ?? 'Checkout unavailable.');
+    const checkout = new URL(result.url);
+    if (checkout.protocol !== 'https:' || !checkout.hostname.endsWith('stripe.com')) throw new Error('Invalid checkout destination.');
+    window.location.assign(checkout.href);
+  } catch (error) { skyTokenStore.setMessage(error instanceof Error ? error.message : 'Unable to start purchase. Please try again.'); }
+});
+
+async function refreshSkyTokenCatalog(): Promise<void> {
+  if (hubAccount.state !== 'account') {
+    skyTokenCommerceEnabled = false; skyTokenOffers = []; skyTokenCatalogPilotId = undefined;
+    garage.setTokenCommerce(false); return;
+  }
+  if (skyTokenCatalogPilotId === garageIdentity.pilotId) return;
+  const response = await apiFetch(apiUrl('/api/sky-tokens/catalog'), { cache: 'no-store' });
+  if (!response.ok) throw new Error('Store configuration unavailable');
+  const result = await response.json() as { enabled?: boolean; packs?: Array<{ id: string; tokens: number; usdCents: number }> };
+  skyTokenCommerceEnabled = result.enabled === true;
+  const nativeOffers = skyTokenCommerceEnabled && nativePurchaseProvider ? await loadNativeSkyTokenOffers() : {};
+  skyTokenOffers = skyTokenCommerceEnabled ? (result.packs ?? []).flatMap(pack => {
+    const id = pack.id as SkyTokenPackId;
+    if (!Object.hasOwn(skyTokenPacks, id) || pack.tokens !== skyTokenPacks[id].tokens || pack.usdCents !== skyTokenPacks[id].usdCents) return [];
+    const price = nativePurchaseProvider ? nativeOffers[id]?.localizedPrice : `$${(pack.usdCents / 100).toFixed(2)}`;
+    return price ? [{ id, tokens: pack.tokens, price }] : [];
+  }) : [];
+  const completeCatalog = skyTokenOffers.length === Object.keys(skyTokenPacks).length;
+  skyTokenCatalogPilotId = !skyTokenCommerceEnabled || completeCatalog ? garageIdentity.pilotId : undefined;
+  if (skyTokenCommerceEnabled && !completeCatalog) garage.setTokenStoreUnavailable();
+  else garage.setTokenCommerce(skyTokenCommerceEnabled);
+  showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : undefined);
+  if (skyTokenCommerceEnabled && nativePurchaseProvider && nativeSkyTokenRecoveryPilotId !== garageIdentity.pilotId) {
+    nativeSkyTokenRecoveryPilotId = garageIdentity.pilotId;
+    void recoverPendingNativeSkyTokens();
+  }
+}
+
+async function recoverPendingNativeSkyTokens(): Promise<void> {
+  if (!nativePurchaseProvider || !skyTokenCommerceEnabled || hubAccount.state !== 'account' || nativeSkyTokenRecoveryInFlight) return;
+  const pilotId = garageIdentity.pilotId;
+  nativeSkyTokenRecoveryInFlight = true;
+  try {
+    const profile = await recoverNativeSkyTokenPurchases();
+    if (profile && hubAccount.state === 'account' && garageIdentity.pilotId === pilotId) {
+      applyAuthoritativeHomeProfile(profile as RemoteGarageProfile);
+      garage.updateProfile(garageProfile);
+      skyTokenStore.updateBalance(garageProfile.skyTokens ?? 0);
+      nativeSkyTokenPurchasePending = false;
+    }
+  } catch { /* An unfinished store purchase remains recoverable on the next resume. */ }
+  finally { nativeSkyTokenRecoveryInFlight = false; }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
+});
+
+async function openSkyTokenStore(missing = 0): Promise<void> {
+  if (!skyTokenCommerceEnabled || hubAccount.state !== 'account') return;
+  if (skyTokenOffers.length !== Object.keys(skyTokenPacks).length) { garage.showActionResult('STORE UNAVAILABLE — PLEASE TRY AGAIN LATER'); return; }
+  recordProductIntent('sky_token_store_viewed');
+  skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing);
+  if (nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
+}
 function showAppHeader(active: AppShellActive): void {
+  const homeData = homeHangarData();
   appHeader.show({
     active,
+    hubActions: entryState === 'HANGAR',
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
+    skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
+    tokenStoreAvailable: hubAccount.state === 'account' && skyTokenCommerceEnabled && skyTokenOffers.length === Object.keys(skyTokenPacks).length,
+    rewardsAvailable: homeData.rewardsAvailable,
+    rewardsAvailableInMs: homeData.rewardsAvailableInMs,
     avatarUrl: hubAccount.avatarUrl,
   });
 }
 function refreshAppHeaderIdentity(): void {
-  appHeader.updateIdentity(authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName, garageProfile.credits, hubAccount.avatarUrl);
+  appHeader.updateIdentity(
+    authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
+    garageProfile.credits,
+    Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
+    hubAccount.avatarUrl,
+  );
+  const homeData = homeHangarData();
+  appHeader.updateRewards(homeData.rewardsAvailable, homeData.rewardsAvailableInMs);
 }
 function cacheAuthoritativeProfile(profile: RemoteGarageProfile): void {
   try {
@@ -175,6 +345,7 @@ function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
   if (!unlockedAircraft.includes('trainer')) unlockedAircraft.unshift('trainer');
   return {
     credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0,
+    skyTokens: Number.isSafeInteger(profile.skyTokens) ? Math.max(0, profile.skyTokens!) : 0,
     selectedAircraft,
     unlockedAircraft,
     economyVersion: profile.economyVersion,
@@ -187,10 +358,14 @@ function normalizeGarageProfile(profile: GarageProfile): GarageProfile {
 
 function homeHangarData(): HomeHangarData {
   const profile = authoritativeHomeProfile;
+  const reward = profile?.dailyReward;
+  const rewardsAvailableInMs = reward ? Math.max(0, reward.nextEligibleAt - hubServerNow - Math.max(0, Date.now() - hubServerNow)) : undefined;
   return {
     pilotName: profile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     aircraftName: aircraftDisplayName(garageProfile.selectedAircraft),
+    rewardsAvailable: hubAccount.state === 'account' && Boolean(reward && (reward.claimable || rewardsAvailableInMs === 0)),
+    rewardsAvailableInMs: hubAccount.state === 'account' && reward && !reward.claimable ? rewardsAvailableInMs : undefined,
   };
 }
 
@@ -409,7 +584,7 @@ cityOptions.addEventListener('pointercancel', event => {
 });
 
 const homeHangar = new HomeHangar(homeHangarElement, {
-  fly: () => { void requestHubFly(); },
+  fly: () => { recordProductIntent('fly_clicked'); void requestHubFly(); },
 }, homeHangarData());
 
 let hubStoredPreferences: Record<string, unknown> = {};
@@ -451,13 +626,16 @@ function notifySharedMenuPreferences(): void {
 
 const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
   entryState = 'PILOT_MENU';
+  if (section === 'REWARDS') recordProductIntent('rewards_viewed');
+  if (section !== 'REWARDS') rewardedAdPollGeneration += 1;
 }, {
-  sections: ['PROFILE', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD / CITIES', 'LEGAL / SUPPORT', 'DATA LICENSES'],
+  sections: ['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD / CITIES', 'LEGAL / SUPPORT', 'DATA LICENSES'],
   title: 'PILOT MENU',
   closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB',
   showFlightActions: false,
   showContextStatus: false,
   onClose: () => {
+    rewardedAdPollGeneration += 1;
     if (hasPendingHubFly()) clearPendingHubFly();
     hubAccountNotice = undefined;
     if (hubPilotMenuReturnState === 'CITY_SELECTION') {
@@ -527,7 +705,7 @@ function hubPilotMenuData(): PilotMenuData {
   });
   const pilotProgress = profile?.pilotProgress ?? { xp: 0, level: 1, title: 'ROOKIE', nextLevelXp: 100 };
   const dailyStreak = profile?.dailyStreak ?? { current: 0, longest: 0, cycleDay: 0, nextReward: 0 };
-  const referral = profile?.referral ?? { code: 'FLY', status: 'available', rewardedCount: 0 };
+  const referral = profile?.referral;
   const accountResult = (path: 'logout' | 'pilot-name', payload: Record<string, string> = {}) => hubAccountRequest(path, payload);
   return {
     nativeWebPromotion: nativePurchaseProvider !== undefined,
@@ -559,7 +737,7 @@ function hubPilotMenuData(): PilotMenuData {
       dailyStreak,
       personalRecords: profile?.personalRecords ?? {},
       weeklyReward: profile?.weeklyReward,
-      referral,
+      referral: referral ?? { code: '', status: 'none', joinedCount: 0, qualifiedCount: 0, rewardedCount: 0, earnedCredits: 0, inviterRewardsInWindow: 0, inviterRewardsRemaining: 10 },
       aircraft: aircraftDisplayOrder.map(type => ({
         name: aircraftDefinitions[type].callsign,
         owned: garageProfile.unlockedAircraft.includes(type),
@@ -567,6 +745,26 @@ function hubPilotMenuData(): PilotMenuData {
         price: aircraftDefinitions[type].creditsRequired,
         neededCredits: Math.max(0, aircraftDefinitions[type].creditsRequired - garageProfile.credits),
       })),
+    },
+    rewards: {
+      authenticated: hubAccount.state === 'account',
+      notice: hubRewardNotice,
+      state: profile?.dailyReward
+        ? { ...profile.dailyReward, serverNow: hubServerNow }
+        : { schedule: [], nextDay: 1, nextAmount: 0, claimable: false, claimedDays: [], claimCount: 0, nextEligibleAt: Number.MAX_SAFE_INTEGER, serverNow: hubServerNow },
+      claim: claimDailyReward,
+      watchAndEarn: hubRewardedAdStatus?.supported && rewardedAdProvider ? {
+        state: hubRewardedAdStatus,
+        phase: hubRewardedAdPhase,
+        notice: hubRewardedAdNotice,
+        watch: watchRewardedAd,
+      } : undefined,
+      invite: hubAccount.state === 'account' && referral?.code ? {
+        ...referral,
+        url: referralUrl(referral.code),
+        share: () => shareReferralInvite(referral.code),
+        copy: () => copyReferralInvite(referral.code),
+      } : undefined,
     },
     missions: {
       practice: cityCapabilities(city.id)?.practiceMode === true,
@@ -626,8 +824,15 @@ async function hubAccountRequest(path: 'logout' | 'pilot-name', payload: Record<
     }
     if (result.profile) applyAuthoritativeHomeProfile(result.profile);
     if (path === 'logout') {
+      skyTokenCatalogPilotId = undefined; nativeSkyTokenRecoveryPilotId = undefined; nativeSkyTokenPurchasePending = false;
+      skyTokenCommerceEnabled = false; skyTokenOffers = [];
+      garage.setTokenCommerce(false); skyTokenStore.close();
       clearPendingHubFly();
       hubAccountNotice = undefined;
+      hubRewardedAdStatus = undefined;
+      hubRewardedAdNotice = undefined;
+      hubRewardedAdPhase = 'idle';
+      rewardedAdPollGeneration += 1;
       await clearNativeProviderState();
     }
     hubPilotMenu.refresh(hubPilotMenuData(), true);
@@ -641,7 +846,7 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
   }
   try {
     if (nativeAuthPlatform) {
-      const start = await apiFetch(apiUrl('/api/auth/native/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action }) });
+      const start = await apiFetch(apiUrl('/api/auth/native/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, referralCode: pendingReferralCode() }) });
       const challenge = await start.json() as Partial<NativeAuthChallenge> & { error?: string };
       if (!start.ok || challenge.provider !== provider || challenge.platform !== nativeAuthPlatform || !challenge.state || !challenge.nonce) return { ok: false, message: challenge.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
       const credential = await acquireNativeCredential(challenge as NativeAuthChallenge);
@@ -658,12 +863,12 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
       const complete = await apiFetch(apiUrl('/api/auth/native/complete'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       const result = await complete.json() as { error?: string; message?: string; account?: HubAccountStatus; profile?: RemoteGarageProfile };
       if (!complete.ok || !result.account || !result.profile) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN FAILED' };
-      hubAccount = result.account; applyAuthoritativeHomeProfile(result.profile); hubPilotMenu.refresh(hubPilotMenuData(), true);
+      hubAccount = result.account; setPendingReferralCode(); applyAuthoritativeHomeProfile(result.profile); hubPilotMenu.refresh(hubPilotMenuData(), true);
       resumePendingHubFly();
       return { ok: true, message: result.message ?? 'ACCOUNT LOADED' };
     }
     const returnUrl = new URL(window.location.href);
-    const response = await apiFetch(apiUrl('/api/auth/oauth/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, returnTo: returnUrl.toString() }) });
+    const response = await apiFetch(apiUrl('/api/auth/oauth/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, returnTo: returnUrl.toString(), referralCode: pendingReferralCode() }) });
     const result = await response.json() as { authorizationUrl?: string; error?: string };
     if (!response.ok || !result.authorizationUrl) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
     window.location.assign(result.authorizationUrl);
@@ -684,15 +889,153 @@ async function abandonHubMission(cityId: string | undefined, attemptId: string |
 async function refreshHubPilotData(): Promise<void> {
   try {
     const response = await apiFetch(apiUrl('/api/auth/status'), { cache: 'no-store' });
-    const result = await response.json() as { account?: HubAccountStatus; profile?: RemoteGarageProfile };
+    const result = await response.json() as { account?: HubAccountStatus; profile?: RemoteGarageProfile; serverNow?: number };
     if (!response.ok) return;
     if (result.account) {
       hubAccount = result.account;
       refreshAppHeaderIdentity();
     }
     if (result.profile) applyAuthoritativeHomeProfile(result.profile);
+    if (Number.isFinite(result.serverNow)) hubServerNow = result.serverNow!;
+    try { await refreshSkyTokenCatalog(); } catch { garage.setTokenStoreUnavailable(); }
+    refreshAppHeaderIdentity();
+    await refreshRewardedAdStatus();
+    homeHangar.update(homeHangarData());
     if (hubPilotMenu.isOpen()) hubPilotMenu.refresh(hubPilotMenuData());
   } catch { /* cached authoritative profile keeps navigation usable */ }
+}
+
+async function refreshRewardedAdStatus(): Promise<void> {
+  if (hubAccount.state !== 'account' || !rewardedAdProvider) {
+    hubRewardedAdStatus = undefined;
+    return;
+  }
+  try {
+    const response = await apiFetch(apiUrl('/api/rewarded-ads/status'), { cache: 'no-store' });
+    const result = await response.json() as { rewardedAds?: RewardedAdStatus };
+    hubRewardedAdStatus = response.ok && result.rewardedAds?.supported ? result.rewardedAds : undefined;
+  } catch { hubRewardedAdStatus = undefined; }
+}
+
+async function recordRewardedAdEvent(attemptId: string, event: 'started' | 'qualified' | 'closed' | 'failed'): Promise<void> {
+  const response = await apiFetch(apiUrl('/api/rewarded-ads/event'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId, event }),
+  });
+  const result = await response.json() as { rewardedAds?: RewardedAdStatus };
+  if (result.rewardedAds) hubRewardedAdStatus = result.rewardedAds;
+}
+
+async function waitForRewardedAdVerification(attemptId: string): Promise<void> {
+  const generation = ++rewardedAdPollGeneration;
+  for (let check = 0; check < 15; check += 1) {
+    if (generation !== rewardedAdPollGeneration || !hubPilotMenu.isSectionOpen('REWARDS')) return;
+    if (check > 0) await new Promise(resolve => window.setTimeout(resolve, 2_000));
+    const url = apiUrl('/api/rewarded-ads/attempt-status'); url.searchParams.set('attemptId', attemptId);
+    try {
+      const response = await apiFetch(url, { cache: 'no-store' });
+      const result = await response.json() as { attemptStatus?: RewardedAdAttemptStatus; status?: RewardedAdStatus; profile?: RemoteGarageProfile };
+      if (!response.ok || !result.attemptStatus || !result.status) continue;
+      hubRewardedAdStatus = result.status;
+      if (result.attemptStatus === 'REWARDED') {
+        if (result.profile) applyAuthoritativeHomeProfile(result.profile);
+        hubRewardedAdPhase = 'idle';
+        hubRewardedAdNotice = `+${result.status.rewardCredits.toLocaleString()} CREDITS`;
+        audioManager.playReward();
+        homeHangar.update(homeHangarData());
+        hubPilotMenu.refresh(hubPilotMenuData(), true);
+        return;
+      }
+      if (['FAILED', 'EXPIRED', 'CLOSED_WITHOUT_REWARD'].includes(result.attemptStatus)) {
+        hubRewardedAdPhase = 'idle';
+        hubRewardedAdNotice = result.attemptStatus === 'CLOSED_WITHOUT_REWARD' ? 'Finish the video to earn Credits.' : 'Unable to verify reward. Please try again.';
+        hubPilotMenu.refresh(hubPilotMenuData(), true);
+        return;
+      }
+    } catch { /* keep this bounded verification check recoverable */ }
+  }
+  if (generation === rewardedAdPollGeneration) {
+    hubRewardedAdPhase = 'idle';
+    hubRewardedAdNotice = "We're still verifying your reward. Your Credits will update after verification.";
+    hubPilotMenu.refresh(hubPilotMenuData(), true);
+  }
+}
+
+async function watchRewardedAd(): Promise<void> {
+  if (!rewardedAdProvider || hubAccount.state !== 'account' || hubRewardedAdPhase !== 'idle') return;
+  let attempt: RewardedAdAttempt | undefined;
+  hubRewardedAdPhase = 'loading'; hubRewardedAdNotice = undefined;
+  hubPilotMenu.refresh(hubPilotMenuData(), true);
+  try {
+    const response = await apiFetch(apiUrl('/api/rewarded-ads/attempt'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const result = await response.json() as { error?: string; attempt?: RewardedAdAttempt; rewardedAds?: RewardedAdStatus };
+    if (result.rewardedAds) hubRewardedAdStatus = result.rewardedAds;
+    if (!response.ok || !result.attempt) throw new Error(result.error ?? 'Unable to start video. Please try again.');
+    attempt = result.attempt;
+    await rewardedAdProvider.load(attempt);
+    await recordRewardedAdEvent(attempt.attemptId, 'started');
+    hubRewardedAdPhase = 'playing';
+    audioManager.setMenuMusicDesired(false);
+    const shown = await rewardedAdProvider.show();
+    audioManager.setMenuMusicDesired(true);
+    if (shown.state === 'qualified') {
+      await recordRewardedAdEvent(attempt.attemptId, 'qualified');
+      hubRewardedAdPhase = 'verifying'; hubRewardedAdNotice = "We're verifying your reward.";
+      hubPilotMenu.refresh(hubPilotMenuData(), true);
+      await waitForRewardedAdVerification(attempt.attemptId);
+      return;
+    }
+    await recordRewardedAdEvent(attempt.attemptId, shown.state === 'closed' ? 'closed' : 'failed');
+    hubRewardedAdPhase = 'idle';
+    hubRewardedAdNotice = shown.state === 'closed' ? 'Finish the video to earn Credits.' : 'Unable to start video. Please try again.';
+  } catch (error) {
+    audioManager.setMenuMusicDesired(true);
+    if (attempt) await recordRewardedAdEvent(attempt.attemptId, 'failed').catch(() => undefined);
+    hubRewardedAdPhase = 'idle';
+    if (error instanceof Error && error.message.includes('No video')) recordProductIntent('rewarded_ad_no_fill');
+    hubRewardedAdNotice = error instanceof Error && error.message.includes('No video')
+      ? 'No video available right now. Try again later.' : error instanceof Error ? error.message : 'Unable to start video. Please try again.';
+  }
+  hubPilotMenu.refresh(hubPilotMenuData(), true);
+}
+
+async function openHubRewards(): Promise<void> {
+  if (hubAccount.state !== 'account') {
+    hubAccountNotice = { ok: true, message: 'SIGN IN TO CLAIM DAILY REWARDS' };
+    await openHubPilotMenu('PROFILE');
+    return;
+  }
+  recordProductIntent('rewards_viewed');
+  await openHubPilotMenu('REWARDS');
+  if (hubRewardedAdStatus?.supported) recordProductIntent('rewarded_ad_offer_viewed');
+}
+
+async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
+  if (hubAccount.state !== 'account') return { ok: false, message: 'Sign in to claim Daily Rewards.' };
+  try {
+    const response = await apiFetch(apiUrl('/api/daily-reward'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const result = await response.json() as { error?: string; credits?: number; profile?: RemoteGarageProfile; dailyReward?: RemoteGarageProfile['dailyReward']; serverNow?: number };
+    if (Number.isFinite(result.serverNow)) hubServerNow = result.serverNow!;
+    if (!response.ok) {
+      if (result.dailyReward && authoritativeHomeProfile) authoritativeHomeProfile = { ...authoritativeHomeProfile, dailyReward: result.dailyReward };
+      hubRewardNotice = result.error ?? 'Unable to claim reward. Please try again.';
+      hubPilotMenu.refresh(hubPilotMenuData(), true);
+      homeHangar.update(homeHangarData());
+      refreshAppHeaderIdentity();
+      return { ok: false, message: hubRewardNotice };
+    }
+    if (!result.profile || !Number.isFinite(result.credits)) return { ok: false, message: 'Unable to claim reward. Please try again.' };
+    applyAuthoritativeHomeProfile(result.profile);
+    hubRewardNotice = `+${result.credits!.toLocaleString()} CREDITS`;
+    homeHangar.update(homeHangarData());
+    hubPilotMenu.refresh(hubPilotMenuData(), true);
+    return { ok: true, message: hubRewardNotice };
+  } catch {
+    return { ok: false, message: 'Unable to claim reward. Please try again.' };
+  }
 }
 
 function hasPendingHubFly(): boolean {
@@ -750,6 +1093,7 @@ async function requestHubFly(): Promise<void> {
 }
 
 async function openHubPilotMenu(section: PilotMenuSection, refresh = true): Promise<void> {
+  const hubSection = section === 'MISSIONS' ? 'PROFILE' : section;
   hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : 'HANGAR';
   entryState = 'PILOT_MENU';
   syncHubMenuPreferences();
@@ -758,7 +1102,7 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true): Prom
   garage.hideShowcase();
   citySelector.hidden = true;
   appHeader.hide();
-  hubPilotMenu.open(hubPilotMenuData(), section);
+  hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (refresh) await refreshHubPilotData();
 }
 
@@ -806,7 +1150,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity(); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
   } catch { garage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
 }, async () => {
-  recordGarageBusinessEvent('fighter_purchase_clicked');
+  recordProductIntent('firehawk_purchase_clicked');
   if (nativePurchaseProvider) {
     try {
       const result = await purchaseNativeFirehawk();
@@ -833,7 +1177,16 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
     garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
-}, id => { void changeGarageCosmetic('purchaseCosmetic', id); }, id => { void changeGarageCosmetic('equipCosmetic', id); });
+}, id => { void changeGarageCosmetic('purchaseCosmetic', id); }, id => { void changeGarageCosmetic('equipCosmetic', id); }, async type => {
+  try {
+    const response = await apiFetch(apiUrl('/api/profile'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purchaseAircraftWithSkyTokens: type }) });
+    const result = await response.json() as RemoteGarageProfile & { error?: string };
+    if (!response.ok) { garage.showActionResult(result.error ?? 'UNLOCK FAILED'); return; }
+    applyAuthoritativeHomeProfile(result); garage.updateProfile(garageProfile);
+    garage.showActionResult(`${aircraftDisplayName(type)} UNLOCKED`); audioManager.playPurchaseSuccess();
+  } catch { garage.showActionResult('SERVER UNAVAILABLE — SKY TOKENS NOT SPENT'); }
+}, missing => { void openSkyTokenStore(missing); });
 
 if (nativePurchaseProvider) {
   garage.setNativeStorePrice();
@@ -875,6 +1228,8 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
 
 async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION'): Promise<void> {
   if (entryState === 'AIRCRAFT') return;
+  recordProductIntent('garage_opened');
+  recordProductIntent('aircraft_viewed', { aircraftType: garageProfile.selectedAircraft });
   entryState = 'AIRCRAFT';
   garageReturnState = returnState;
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
@@ -895,7 +1250,9 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION'): Promis
   }
 }
 
+let hubViewRecorded = false;
 function showHome(): Promise<void> {
+  if (!hubViewRecorded || entryState !== 'HANGAR') { recordProductIntent('hub_viewed'); hubViewRecorded = true; }
   audioManager.setMenuMusicDesired(true);
   entryState = 'HANGAR';
   garageReturnState = 'HANGAR';
@@ -955,6 +1312,7 @@ async function startTrainingFromHub(): Promise<void> {
   if (entryState === 'TUTORIAL' || entryState === 'FLIGHT') return;
   const city = cities.find((candidate) => candidate.id === 'milwaukee' && candidate.status === 'available');
   if (!city || !cityCapabilities(city.id)?.tutorialEnabled) return;
+  recordProductIntent('city_selected', { cityId: city.id });
   entryState = 'TUTORIAL';
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
@@ -1007,7 +1365,6 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   garage.close();
   garage.hideShowcase();
   homeHangar.hide();
-  citySelector.hidden = true;
   citySelectionError.hidden = true;
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
@@ -1020,10 +1377,12 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   await import('./main');
   notifySharedMenuPreferences();
   gameRoot.hidden = false;
+  citySelector.hidden = true;
 }
 
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
+  recordProductIntent('city_selected', { cityId: city.id });
   if (city.timePresets.length === 1) {
     const preset = city.timePresets[0]!;
     try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* launch with the configured time */ }
@@ -1093,6 +1452,29 @@ async function start(): Promise<void> {
   homeHangar.update(homeHangarData());
   const url = new URL(window.location.href);
   const authResult = url.searchParams.get('auth');
+  const invitePathCode = /^\/invite\/([^/]+)\/?$/.exec(url.pathname)?.[1];
+  const incomingInviteCode = invitePathCode ?? url.searchParams.get('ref');
+  let inviteLanding = false;
+  if (authResult === 'success' || hubAccount.state === 'account') setPendingReferralCode();
+  else if (incomingInviteCode) {
+    inviteLanding = true;
+    if (referralCodePattern.test(incomingInviteCode)) {
+      try {
+        const lookup = await apiFetch(apiUrl(`/api/referrals/validate?code=${encodeURIComponent(incomingInviteCode)}`));
+        const result = await lookup.json() as { valid?: boolean };
+        if (lookup.ok && result.valid) {
+          setPendingReferralCode(incomingInviteCode.toUpperCase());
+          hubAccountNotice = { ok: true, message: 'Create a new pilot account to use this invite.' };
+        } else {
+          setPendingReferralCode();
+          hubAccountNotice = { ok: false, message: 'This invite is no longer valid.' };
+        }
+      } catch { hubAccountNotice = { ok: false, message: 'Unable to load invite. Please try again.' }; }
+    } else {
+      setPendingReferralCode();
+      hubAccountNotice = { ok: false, message: 'This invite is no longer valid.' };
+    }
+  }
   const directCityEntry = url.searchParams.get('entry') === 'city';
   if (authResult || directCityEntry) {
     url.searchParams.delete('auth');
@@ -1116,9 +1498,46 @@ async function start(): Promise<void> {
   } else if (directCityEntry) {
     await showHome();
     await requestHubFly();
-  } else await showHome();
+  } else {
+    await showHome();
+    if (inviteLanding && hubAccount.state === 'guest') await openHubPilotMenu('PROFILE', false);
+  }
   startupLoading.update(1);
   await startupLoading.finish();
+  const tokenCheckout = url.searchParams.get('token_checkout');
+  if (tokenCheckout === 'success' || tokenCheckout === 'cancel') {
+    const sessionId = url.searchParams.get('session_id') ?? '';
+    url.searchParams.delete('token_checkout'); url.searchParams.delete('session_id');
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    if (skyTokenCommerceEnabled) {
+      await openSkyTokenStore();
+      if (tokenCheckout === 'cancel') skyTokenStore.setMessage('Purchase cancelled.');
+      else if (/^cs_[A-Za-z0-9_]{8,256}$/.test(sessionId)) {
+        let paid = false;
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          const statusUrl = apiUrl('/api/sky-tokens/purchase-status'); statusUrl.searchParams.set('sessionId', sessionId);
+          const statusResponse = await apiFetch(statusUrl, { cache: 'no-store' });
+          if (statusResponse.ok) {
+            const status = await statusResponse.json() as { status: string; profile?: RemoteGarageProfile };
+            if (status.status === 'paid' && status.profile) {
+              applyAuthoritativeHomeProfile(status.profile); garage.updateProfile(garageProfile);
+              skyTokenStore.updateBalance(garageProfile.skyTokens ?? 0);
+              skyTokenStore.setMessage(`Purchase confirmed · REF ${sessionId.slice(-12)}`);
+              audioManager.playPurchaseSuccess(); paid = true; break;
+            }
+            if ((status.status === 'refunded' || status.status === 'partially_refunded') && status.profile) {
+              applyAuthoritativeHomeProfile(status.profile); garage.updateProfile(garageProfile);
+              skyTokenStore.updateBalance(garageProfile.skyTokens ?? 0);
+              skyTokenStore.setMessage(status.status === 'refunded' ? 'Purchase was refunded.' : 'Purchase partially refunded.');
+              paid = true; break;
+            }
+          }
+          if (attempt < 7) await new Promise(resolve => window.setTimeout(resolve, 1_500));
+        }
+        if (!paid) skyTokenStore.setMessage('We are verifying your purchase. Your balance will update when confirmed.');
+      }
+    }
+  }
   try {
     if (sessionStorage.getItem('airport-chaos-open-firehawk-garage') === '1') {
       sessionStorage.removeItem('airport-chaos-open-firehawk-garage');

@@ -1,38 +1,38 @@
 import { legalConfig } from '../../shared/legal-config.mjs';
-import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 
 type PolicyKey = keyof typeof legalConfig.policyRoutes;
 
 const support = `<a href="mailto:${legalConfig.supportEmail}">${legalConfig.supportEmail}</a>`;
 const sections: Record<PolicyKey, { title: string; updated: string; content: string }> = {
   terms: {
-    title: 'Terms of Use', updated: 'September 14, 2026',
+    title: 'Terms of Use', updated: 'October 5, 2026',
     content: `<h2>Using Airport Chaos</h2><p>${legalConfig.productName} is a browser-based game operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. Gameplay is free, with optional paid digital content. You must be legally able to make online purchases where you live, or have permission from a parent or guardian.</p>
-      <h2>Digital content</h2><p>A Firehawk purchase grants a permanent digital entitlement to the associated player profile. Keep your purchase recovery code so Support can help recover access. Credits and Score are game values only: they have no cash value and cannot be redeemed or transferred for money.</p>
+      <h2>Digital content</h2><p>Sky Tokens are optional digital game currency for eligible Airport Chaos content. They are not cryptocurrency, have no cash redemption value, cannot be transferred between players, and do not expire while the account remains valid, subject to applicable law. A permanent Firehawk unlock grants an entitlement to the associated player profile. Historical direct purchases remain restorable. Credits and Score are game values only and cannot be redeemed or transferred for money.</p>
       <h2>Fair play</h2><p>Do not cheat, exploit bugs, disrupt the service, or abuse other players. Access or features may be restricted when reasonably necessary to protect players, purchases, or the game.</p>
       <h2>Service changes</h2><p>Aircraft, missions, balance, cities, and other features may change as the game develops. Continuous, error-free, or uninterrupted availability is not guaranteed. The game and digital content are provided to the extent permitted by applicable law, without promises beyond those expressly stated here.</p>
-      <h2>Third-party services</h2><p>Purchases use Stripe Checkout and are also subject to Stripe’s applicable terms and privacy practices. Nothing here limits rights that cannot legally be limited.</p>
+      <h2>Third-party services</h2><p>Web purchases use Stripe Checkout; native app purchases use the applicable Apple App Store or Google Play billing service. Their applicable terms and privacy practices also apply. Nothing here limits rights that cannot legally be limited.</p>
       <h2>Questions</h2><p>For support, contact ${support}.</p>`,
   },
   privacy: {
-    title: 'Privacy Notice', updated: 'September 15, 2026',
+    title: 'Privacy Notice', updated: 'October 5, 2026',
     content: `<h2>Information used by the game</h2><p>Airport Chaos processes an anonymous pilot identifier, a live session identifier, gameplay and progression statistics, first-party analytics events, and an authentication cookie used to reconnect you to your player profile. Normal game accounts do not use or store raw passwords.</p>
       <h2>Trial-abuse prevention</h2><p>To limit repeated free-aircraft trials, Airport Chaos may derive a temporary security identifier from your network address using a server-secret keyed hash. The raw IP address is not stored for this purpose. The derived identifier expires after the limited 24-hour anti-abuse period.</p>
-      <h2>Purchases and support</h2><p>For purchases and support, we may store a purchase reference, recovery information, entitlement status, and the customer email Stripe provides. Payment card details are entered with and handled by Stripe; Airport Chaos does not store your card number.</p>
+      <h2>Purchases and support</h2><p>For purchases and support, we may store a purchase reference, provider, product, amount and currency, Sky Token wallet transactions, refund status, recovery information, and entitlement status. Payment card details are handled by the applicable payment provider; Airport Chaos does not store your card number.</p>
       <h2>Analytics and advertising</h2><p>Current analytics are first-party and raw analytics records are retained for approximately 180 days. Airport Chaos currently has no advertising tracking SDK. ${legalConfig.legalEntityName} does not sell personal information.</p>
-      <h2>Operator, storage, and choices</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. Live Session Score is temporary and resets when the session ends. Persistent profile data includes Credits, aircraft unlocks, City Level and Mastery, missions, gameplay statistics, discoveries, and entitlements. Weekly leaderboard category records may be stored separately, and Best Score may be saved locally in your browser. The session authentication cookie is necessary to associate this browser with that profile. For support, contact ${support}.</p>`,
+      <h2>Operator, storage, and choices</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}. Live Session Score is temporary and resets when the session ends. Persistent profile data includes Credits, Sky Tokens, aircraft unlocks, City Level and Mastery, missions, gameplay statistics, discoveries, and entitlements. Weekly leaderboard category records may be stored separately, and Best Score may be saved locally in your browser. The session authentication cookie is necessary to associate this browser with that profile. For support, contact ${support}.</p>`,
   },
   refund: {
-    title: 'Digital Purchase & Refund Policy', updated: 'September 14, 2026',
-    content: `<h2>Firehawk unlock</h2><p>The Firehawk permanent digital unlock currently costs ${firehawkProduct.displayPrice} ${firehawkProduct.currency.toUpperCase()}. Please use the free five-minute test flight before purchasing to confirm that the aircraft and game work for you.</p>
-      <h2>Purchase records</h2><p>After purchase, save the recovery code and purchase support reference. They help Support locate and restore the entitlement without exposing payment-card data.</p>
+    title: 'Digital Purchase & Refund Policy', updated: 'October 5, 2026',
+    content: `<h2>Sky Tokens and unlocks</h2><p>Optional Sky Token packs are offered at their displayed checkout or store price. The App Store and Google Play show their localized price before payment. Sky Tokens can unlock eligible aircraft permanently. Firehawk can be tried free for five minutes before unlocking.</p>
+      <h2>Purchase records</h2><p>Keep your Token purchase support reference. Historical direct Firehawk purchasers may use their recovery code and purchase reference to restore access.</p>
+      <h2>Refunds and reversals</h2><p>A provider-confirmed refund or reversal may remove the corresponding Sky Tokens. If those Tokens have already been used, future purchased Tokens first settle the resulting account deficit before becoming spendable. Existing aircraft are not automatically removed.</p>
       <h2>Operator and support</h2><p>${legalConfig.productName} is operated by ${legalConfig.legalEntityName}. ${legalConfig.publicBrand} is a product/brand operated by ${legalConfig.legalEntityName}.</p>
       <h2>Problems and refund requests</h2><p>For duplicate charges, an incorrect purchase, a missing entitlement, or a technical purchase problem, contact ${support} with the support reference. Refund requests are evaluated according to applicable law and the payment circumstances; this policy does not remove rights provided by law.</p>`,
   },
   support: {
-    title: 'Support', updated: 'September 26, 2026',
-    content: `<h2>Contact Airport Chaos support</h2><p>Email ${support} for help with gameplay access, technical problems, purchases, refunds, or restoring a Firehawk entitlement.</p>
-      <h2>Purchase help</h2><p>Include the purchase support reference or recovery code when available. Do not send payment-card details or passwords.</p>
+    title: 'Support', updated: 'October 5, 2026',
+    content: `<h2>Contact Airport Chaos support</h2><p>Email ${support} for help with gameplay access, technical problems, Sky Token purchases or refunds, or restoring a historical Firehawk entitlement.</p>
+      <h2>Purchase help</h2><p>Include the purchase support reference or historical recovery code when available. Do not send payment-card details or passwords.</p>
       <h2>Technical help</h2><p>Describe the city, device, browser or app, and the action that caused the problem. Screenshots are helpful when they do not contain private information.</p>`,
   },
 };

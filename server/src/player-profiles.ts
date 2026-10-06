@@ -1,17 +1,20 @@
 import { mkdirSync, statSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { capabilitiesForCity } from '../../shared/city-capabilities.mjs';
 import { missionForCity } from '../../shared/city-missions.mjs';
 import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircraftDisplayOrder, aircraftEntitlement, firehawkProduct } from '../../shared/aircraft-economy.mjs';
+import { aircraftSkyTokenPrice, skyTokenPack, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
-import { dailyPilotRewards, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayDistance, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
+import { pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
+import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits, dailyRewardForDay } from '../../shared/daily-rewards.mjs';
 import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
 import { tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { PlayerWallet, type WalletBalances, type WalletTransactionReason } from './player-wallet.js';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 export type CityId = 'milwaukee' | 'dallas';
@@ -20,6 +23,7 @@ export type PlayerProfile = {
   pilotId: string;
   pilotName: string;
   credits: number;
+  skyTokens: number;
   creditRevision: number;
   score: number;
   economyVersion: number;
@@ -41,13 +45,28 @@ export type PlayerProfile = {
   legacyImportPending: boolean;
   pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
   dailyStreak: { current: number; longest: number; cycleDay: number; lastClaimDay?: string; nextReward: number };
+  dailyReward: DailyRewardState;
   personalRecords: Record<string, { value: number; cityId?: CityId; achievedAt: number }>;
   weeklyReward?: { weekId: string; rank: number; category: string; credits: number; badge: string; badgeExpiresAt: number };
-  referral: { code: string; status: 'none' | 'pending' | 'qualified' | 'rewarded'; rewardedCount: number };
+  referral: {
+    code: string; status: 'none' | 'pending' | 'qualified' | 'rewarded';
+    joinedCount: number; qualifiedCount: number; rewardedCount: number; earnedCredits: number;
+    inviterRewardsInWindow: number; inviterRewardsRemaining: number; nextInviterRewardAt?: number;
+  };
   cosmetics: { ownedIds: string[]; equipped: Record<string, string> };
   season?: SeasonProgress;
   intercityRoute?: { routeId:string;fromCityId:CityId;toCityId:CityId;startedAt:number };
   tutorial: { version:'tutorial_v1'; status:'new'|'started'|'completed'|'skipped'; completedAt?:number };
+};
+export type DailyRewardState = {
+  schedule: readonly number[];
+  nextDay: number;
+  nextAmount: number;
+  claimable: boolean;
+  claimedDays: number[];
+  claimCount: number;
+  lastClaimedAt?: number;
+  nextEligibleAt: number;
 };
 export type SeasonProgress = {
   seasonId: string; name: string; theme: string; startsAt: number; endsAt: number; points: number;
@@ -110,6 +129,7 @@ type ProfileRow = {
   pilot_id: string;
   pilot_name: string;
   credits: number;
+  sky_tokens: number;
   credit_revision: number;
   score: number;
   selected_aircraft: string;
@@ -337,6 +357,7 @@ function parseObjectives(value: unknown, cityId: CityId, discoveredCount = 0): O
 export class PlayerProfileStore {
   private readonly database: DatabaseSync;
   private readonly databasePath: string;
+  private readonly wallet: PlayerWallet;
   private lastReceiptPruneAt = 0;
   private lastReceiptPruneCount = 0;
 
@@ -344,11 +365,13 @@ export class PlayerProfileStore {
     mkdirSync(dirname(filePath), { recursive: true });
     this.databasePath = filePath;
     this.database = new DatabaseSync(filePath);
+    this.database.exec('PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;');
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS player_profiles (
         pilot_id TEXT PRIMARY KEY,
         pilot_name TEXT NOT NULL,
-        credits INTEGER NOT NULL DEFAULT 0,
+        credits INTEGER NOT NULL DEFAULT 0 CHECK(credits >= 0),
+        sky_tokens INTEGER NOT NULL DEFAULT 0 CHECK(sky_tokens >= 0),
         credit_revision INTEGER NOT NULL DEFAULT 0,
         score INTEGER NOT NULL DEFAULT 0,
         selected_aircraft TEXT NOT NULL DEFAULT 'trainer',
@@ -406,6 +429,25 @@ export class PlayerProfileStore {
         current_streak INTEGER NOT NULL DEFAULT 0, longest_streak INTEGER NOT NULL DEFAULT 0,
         cycle_day INTEGER NOT NULL DEFAULT 0, last_claim_day TEXT
       );
+      CREATE TABLE IF NOT EXISTS pilot_daily_rewards (
+        pilot_id TEXT PRIMARY KEY,
+        next_day INTEGER NOT NULL DEFAULT 1 CHECK(next_day BETWEEN 1 AND 7),
+        claim_count INTEGER NOT NULL DEFAULT 0 CHECK(claim_count >= 0),
+        last_claimed_at INTEGER,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY(pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT
+      );
+      CREATE TABLE IF NOT EXISTS pilot_daily_reward_claims (
+        pilot_id TEXT NOT NULL,
+        claim_number INTEGER NOT NULL CHECK(claim_number > 0),
+        reward_day INTEGER NOT NULL CHECK(reward_day BETWEEN 1 AND 7),
+        credits INTEGER NOT NULL CHECK(credits > 0),
+        claimed_at INTEGER NOT NULL,
+        wallet_transaction_id TEXT NOT NULL UNIQUE,
+        PRIMARY KEY (pilot_id, claim_number),
+        FOREIGN KEY(pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+        FOREIGN KEY(wallet_transaction_id) REFERENCES wallet_transactions(transaction_id) ON DELETE RESTRICT
+      );
       CREATE TABLE IF NOT EXISTS pilot_records (
         pilot_id TEXT NOT NULL, record_type TEXT NOT NULL, value REAL NOT NULL,
         city_id TEXT, achieved_at INTEGER NOT NULL, PRIMARY KEY (pilot_id, record_type)
@@ -418,7 +460,11 @@ export class PlayerProfileStore {
       CREATE TABLE IF NOT EXISTS pilot_referrals (
         referred_pilot_id TEXT PRIMARY KEY, referrer_pilot_id TEXT NOT NULL, status TEXT NOT NULL,
         referred_network_id TEXT, referrer_network_id TEXT, gameplay_ms INTEGER NOT NULL DEFAULT 0,
-        qualified_action INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, qualified_at INTEGER, rewarded_at INTEGER
+        qualified_action INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, qualified_at INTEGER, rewarded_at INTEGER,
+        inviter_rewarded_at INTEGER, inviter_wallet_transaction_id TEXT, referred_wallet_transaction_id TEXT,
+        attribution_version INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY(referred_pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+        FOREIGN KEY(referrer_pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT
       );
       CREATE TABLE IF NOT EXISTS pilot_referral_codes (
         pilot_id TEXT PRIMARY KEY, referral_code TEXT NOT NULL UNIQUE
@@ -491,6 +537,75 @@ export class PlayerProfileStore {
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN fighter_trial TEXT NOT NULL DEFAULT '{"status":"available"}'`); } catch { /* already migrated */ }
     try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN score INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
     try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN credit_revision INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE pilot_referrals ADD COLUMN inviter_rewarded_at INTEGER'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE pilot_referrals ADD COLUMN inviter_wallet_transaction_id TEXT'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE pilot_referrals ADD COLUMN referred_wallet_transaction_id TEXT'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE pilot_referrals ADD COLUMN attribution_version INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
+    // Historical rewarded referrals already paid both pilots; preserve those
+    // payouts when enforcing the new rolling inviter limit.
+    this.database.exec("UPDATE pilot_referrals SET inviter_rewarded_at=rewarded_at WHERE status='rewarded' AND inviter_rewarded_at IS NULL AND referred_wallet_transaction_id IS NULL");
+    this.database.exec(`
+      CREATE INDEX IF NOT EXISTS pilot_referrals_referrer_created ON pilot_referrals(referrer_pilot_id, created_at);
+      CREATE INDEX IF NOT EXISTS pilot_referrals_referrer_rewarded ON pilot_referrals(referrer_pilot_id, inviter_rewarded_at);
+    `);
+    this.wallet = new PlayerWallet(this.database);
+    try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN sky_token_deficit INTEGER NOT NULL DEFAULT 0 CHECK(sky_token_deficit >= 0)'); } catch { /* already migrated */ }
+    this.database.exec(`CREATE TABLE IF NOT EXISTS sky_token_purchases (
+      provider TEXT NOT NULL CHECK(provider IN ('stripe','apple','google')),
+      provider_transaction_id TEXT NOT NULL,
+      pilot_id TEXT NOT NULL REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+      account_id TEXT NOT NULL,
+      pack_id TEXT NOT NULL,
+      payment_intent_id TEXT,
+      product_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL CHECK(quantity > 0),
+      amount_cents INTEGER,
+      currency TEXT,
+      environment TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'paid' CHECK(status IN ('paid','partially_refunded','refunded')),
+      refunded_quantity INTEGER NOT NULL DEFAULT 0 CHECK(refunded_quantity >= 0),
+      wallet_transaction_id TEXT REFERENCES wallet_transactions(transaction_id),
+      purchased_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY(provider,provider_transaction_id)
+    );
+    CREATE INDEX IF NOT EXISTS sky_token_purchases_pilot ON sky_token_purchases(pilot_id,purchased_at DESC);
+    CREATE TABLE IF NOT EXISTS sky_token_revocations (
+      provider TEXT NOT NULL CHECK(provider IN ('apple','google')),
+      provider_transaction_id TEXT NOT NULL,
+      recorded_at INTEGER NOT NULL,
+      PRIMARY KEY(provider,provider_transaction_id)
+    );
+    CREATE TABLE IF NOT EXISTS sky_token_purchase_contexts (
+      context_id TEXT PRIMARY KEY,
+      store_account_id TEXT NOT NULL UNIQUE,
+      pilot_id TEXT NOT NULL REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+      account_id TEXT NOT NULL,
+      provider TEXT NOT NULL CHECK(provider IN ('apple','google')),
+      pack_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      consumed_at INTEGER
+    );`);
+    const tokenPurchaseColumns = this.database.prepare('PRAGMA table_info(sky_token_purchases)').all() as Array<{ name: string }>;
+    if (!tokenPurchaseColumns.some(column => column.name === 'payment_intent_id'))
+      this.database.exec('ALTER TABLE sky_token_purchases ADD COLUMN payment_intent_id TEXT');
+    this.database.exec('CREATE INDEX IF NOT EXISTS sky_token_purchases_payment_intent ON sky_token_purchases(payment_intent_id)');
+    for (const legacyRow of this.database.prepare('SELECT * FROM player_profiles WHERE economy_version < ?').all(ECONOMY_VERSION) as ProfileRow[]) {
+      const storedEconomyVersion = boundedInteger(legacyRow.economy_version, 1_000);
+      const entitlements = new Set(parseEntitlements(legacyRow.aircraft_entitlements));
+      if (storedAircraftIncludes(legacyRow.owned_aircraft, 'fighter')) entitlements.add(aircraftEntitlement('fighter')!);
+      const migratedCredits = storedEconomyVersion < 1 && legacyRow.credits >= legacyDevCreditThreshold
+        ? migratedDevCredits
+        : Math.max(0, legacyRow.credits);
+      this.wallet.transaction((wallet) => {
+        this.database.prepare('UPDATE player_profiles SET economy_version = ?, aircraft_entitlements = ? WHERE pilot_id = ?')
+          .run(ECONOMY_VERSION, JSON.stringify([...entitlements]), legacyRow.pilot_id);
+        const difference = migratedCredits - legacyRow.credits;
+        if (difference > 0) wallet.credit({ pilotId: legacyRow.pilot_id, currency: 'CREDITS', amount: difference, reason: 'MIGRATION', referenceId: `economy-v${storedEconomyVersion}` });
+        if (difference < 0) wallet.debit({ pilotId: legacyRow.pilot_id, currency: 'CREDITS', amount: -difference, reason: 'MIGRATION', referenceId: `economy-v${storedEconomyVersion}` });
+      });
+    }
     // A single durable revision covers every existing credit award and spend
     // path without trusting any client-supplied reward amount.
     this.database.exec(`CREATE TRIGGER IF NOT EXISTS player_profiles_credit_revision
@@ -576,7 +691,7 @@ export class PlayerProfileStore {
   completeIntercityArrival(pilotId:string,currentCityId:CityId,now=Date.now()):{completed:boolean;credits:number;routeId?:string;profile?:PlayerProfile}{
     const row=this.getRow(pilotId);const active=this.activeIntercityRoute(pilotId);if(!row||!active||active.toCityId!==currentCityId)return{completed:false,credits:0,profile:row?this.toProfile(row):undefined};
     const route=routeDefinition(active.routeId)!;const credits=Math.max(0,Math.min(10_000,route.rewardProfile?.credits??0));
-    this.database.exec('BEGIN IMMEDIATE');try{const receipt=this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions (pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES (?,?,?,?,?)').run(pilotId,active.routeId,active.startedAt,now,credits);if(receipt.changes)this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(credits,pilotId);this.database.prepare('DELETE FROM pilot_intercity_routes WHERE pilot_id=? AND route_id=? AND started_at=?').run(pilotId,active.routeId,active.startedAt);this.database.exec('COMMIT');return{completed:receipt.changes>0,credits:receipt.changes?credits:0,routeId:active.routeId,profile:this.toProfile(this.getRow(pilotId)!)};}catch(error){this.database.exec('ROLLBACK');throw error;}
+    return this.wallet.transaction((wallet)=>{const receipt=this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions (pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES (?,?,?,?,?)').run(pilotId,active.routeId,active.startedAt,now,credits);if(receipt.changes&&credits>0)wallet.credit({pilotId,currency:'CREDITS',amount:credits,reason:'INTERCITY_REWARD',idempotencyKey:`intercity:${active.routeId}:${active.startedAt}`,referenceId:active.routeId,createdAt:now});this.database.prepare('DELETE FROM pilot_intercity_routes WHERE pilot_id=? AND route_id=? AND started_at=?').run(pilotId,active.routeId,active.startedAt);return{completed:receipt.changes>0,credits:receipt.changes?credits:0,routeId:active.routeId,profile:this.toProfile(this.getRow(pilotId)!)};});
   }
 
   seasonProgress(pilotId: string, cityId: CityId, now = Date.now()): SeasonProgress | undefined {
@@ -618,13 +733,13 @@ export class PlayerProfileStore {
     const season=activeSeasonAt(now,cityId);const row=this.getRow(pilotId);if(!season||!row)return{ok:false,reason:'NO ACTIVE SEASON'};
     const reward=season.rewards.find(item=>item.id===rewardId);const progress=this.seasonProgress(pilotId,cityId,now);if(!reward||!progress)return{ok:false,reason:'REWARD UNAVAILABLE',profile:this.toProfile(row)};
     if(progress.rewards.find(item=>item.id===rewardId)?.state==='locked')return{ok:false,reason:'EARN MORE SEASON POINTS',profile:this.toProfile(row)};
-    this.database.exec('BEGIN IMMEDIATE');try{const claim=this.database.prepare('INSERT OR IGNORE INTO pilot_season_claims (pilot_id,season_id,reward_id,claimed_at) VALUES (?,?,?,?)').run(pilotId,season.seasonId,rewardId,now);if(claim.changes){if(reward.type==='credits')this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(boundedInteger(reward.amount,100000),pilotId);else if(reward.type==='cosmetic'&&reward.value&&cosmeticCatalog.some(item=>item.id===reward.value))this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics (pilot_id,cosmetic_id,acquired_at) VALUES (?,?,?)').run(pilotId,reward.value,now);}this.database.exec('COMMIT');return{ok:true,profile:this.toProfile(this.getRow(pilotId)!)};}catch(error){this.database.exec('ROLLBACK');throw error;}
+    return this.wallet.transaction((wallet)=>{const claim=this.database.prepare('INSERT OR IGNORE INTO pilot_season_claims (pilot_id,season_id,reward_id,claimed_at) VALUES (?,?,?,?)').run(pilotId,season.seasonId,rewardId,now);if(claim.changes){if(reward.type==='credits'){const amount=boundedInteger(reward.amount,100000);if(amount>0)wallet.credit({pilotId,currency:'CREDITS',amount,reason:'SEASON_REWARD',idempotencyKey:`season:${season.seasonId}:${rewardId}`,referenceId:rewardId,createdAt:now});}else if(reward.type==='cosmetic'&&reward.value&&cosmeticCatalog.some(item=>item.id===reward.value))this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics (pilot_id,cosmetic_id,acquired_at) VALUES (?,?,?)').run(pilotId,reward.value,now);}return{ok:true,profile:this.toProfile(this.getRow(pilotId)!)};});
   }
 
   claimWeeklyEventReward(pilotId:string,cityId:CityId,weeklyEventId:string,now=Date.now()):{ok:boolean;reason?:string;profile?:PlayerProfile}{
     const season=activeSeasonAt(now,cityId);const weekly=activeWeeklyEventAt(season,now);const row=this.getRow(pilotId);
     if(!weekly||!row||weekly.weeklyEventId!==weeklyEventId)return{ok:false,reason:'WEEKLY EVENT UNAVAILABLE',profile:row?this.toProfile(row):undefined};
-    this.database.exec('BEGIN IMMEDIATE');try{const state=this.database.prepare('SELECT progress,rewarded_at FROM pilot_weekly_events WHERE pilot_id=? AND weekly_event_id=?').get(pilotId,weeklyEventId) as {progress:number;rewarded_at?:number}|undefined;if(!state||state.progress<weekly.target){this.database.exec('ROLLBACK');return{ok:false,reason:'WEEKLY OBJECTIVE INCOMPLETE',profile:this.toProfile(row)};}if(!state.rewarded_at){this.database.prepare('UPDATE pilot_weekly_events SET rewarded_at=? WHERE pilot_id=? AND weekly_event_id=?').run(now,pilotId,weeklyEventId);this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(weekly.credits,pilotId);this.database.prepare('UPDATE pilot_seasons SET points=MIN(100000000,points+?),updated_at=? WHERE pilot_id=? AND season_id=?').run(weekly.points,now,pilotId,season!.seasonId);}this.database.exec('COMMIT');return{ok:true,profile:this.toProfile(this.getRow(pilotId)!)};}catch(error){this.database.exec('ROLLBACK');throw error;}
+    return this.wallet.transaction((wallet)=>{const state=this.database.prepare('SELECT progress,rewarded_at FROM pilot_weekly_events WHERE pilot_id=? AND weekly_event_id=?').get(pilotId,weeklyEventId) as {progress:number;rewarded_at?:number}|undefined;if(!state||state.progress<weekly.target)return{ok:false,reason:'WEEKLY OBJECTIVE INCOMPLETE',profile:this.toProfile(row)};if(!state.rewarded_at){this.database.prepare('UPDATE pilot_weekly_events SET rewarded_at=? WHERE pilot_id=? AND weekly_event_id=?').run(now,pilotId,weeklyEventId);if(weekly.credits>0)wallet.credit({pilotId,currency:'CREDITS',amount:weekly.credits,reason:'WEEKLY_REWARD',idempotencyKey:`weekly-event:${weeklyEventId}`,referenceId:weeklyEventId,createdAt:now});this.database.prepare('UPDATE pilot_seasons SET points=MIN(100000000,points+?),updated_at=? WHERE pilot_id=? AND season_id=?').run(weekly.points,now,pilotId,season!.seasonId);}return{ok:true,profile:this.toProfile(this.getRow(pilotId)!)};});
   }
 
   pruneRewardReceipts(now = Date.now()): { deleted: number; at: number } {
@@ -720,8 +835,14 @@ export class PlayerProfileStore {
   getOrCreate(pilotId: string, pilotName: string): PlayerProfile {
     let row = this.getRow(pilotId);
     if (!row) {
-      this.database.prepare('INSERT INTO player_profiles (pilot_id, pilot_name, credits, economy_version) VALUES (?, ?, ?, ?)')
-        .run(pilotId, assignedPilotName(pilotName, pilotId), newPilotCredits, ECONOMY_VERSION);
+      this.wallet.transaction((wallet) => {
+        this.database.prepare('INSERT INTO player_profiles (pilot_id, pilot_name, credits, sky_tokens, economy_version) VALUES (?, ?, 0, 0, ?)')
+          .run(pilotId, assignedPilotName(pilotName, pilotId), ECONOMY_VERSION);
+        if (newPilotCredits > 0) wallet.credit({
+          pilotId, currency: 'CREDITS', amount: newPilotCredits, reason: 'MIGRATION',
+          referenceId: 'new-player-starting-balance',
+        });
+      });
       row = this.getRow(pilotId)!;
     } else {
       const automaticName = /^Pilot(?:-\d{3})?$/i.test(row.pilot_name.trim());
@@ -735,6 +856,165 @@ export class PlayerProfileStore {
     return this.toProfile(row);
   }
 
+  walletBalances(pilotId: string): WalletBalances | undefined {
+    return this.wallet.balances(pilotId);
+  }
+
+  createSkyTokenPurchaseContext(pilotId: string, accountId: string, provider: 'apple' | 'google', packId: SkyTokenPackId):
+    { contextId: string; storeAccountId: string; productId: string } | undefined {
+    const pack = skyTokenPack(packId);
+    if (!pack || !accountId || !this.getRow(pilotId)) return undefined;
+    const contextId = randomUUID();
+    const storeAccountId = createHash('sha256').update(`airport-chaos:tokens:${contextId}`).digest('base64url');
+    const now = Date.now();
+    this.database.prepare(`INSERT INTO sky_token_purchase_contexts
+      (context_id,store_account_id,pilot_id,account_id,provider,pack_id,created_at,expires_at)
+      VALUES (?,?,?,?,?,?,?,?)`).run(contextId, storeAccountId, pilotId, accountId, provider, packId, now, now + 30 * 60_000);
+    return { contextId, storeAccountId, productId: provider === 'apple' ? pack.appleProductId : pack.googleProductId };
+  }
+
+  recordVerifiedSkyTokenPurchase(input: {
+    pilotId: string; accountId: string; provider: 'stripe' | 'apple' | 'google'; transactionId: string;
+    packId: SkyTokenPackId; productId: string; paymentIntentId?: string; amountCents?: number; currency?: string;
+    environment: string; purchasedAt?: number; contextId?: string; accountBinding?: string; initialRefundedQuantity?: number;
+  }): { applied: boolean; profile: PlayerProfile; reference: string } {
+    const pack = skyTokenPack(input.packId);
+    if (!pack || !/^[A-Za-z0-9._:-]{8,512}$/.test(input.transactionId) || !input.accountId ||
+        (input.provider === 'apple' && input.productId !== pack.appleProductId) ||
+        (input.provider === 'google' && input.productId !== pack.googleProductId) ||
+        !Number.isSafeInteger(input.initialRefundedQuantity ?? 0) || (input.initialRefundedQuantity ?? 0) < 0 ||
+        (input.initialRefundedQuantity ?? 0) > pack.tokens ||
+        (input.provider !== 'stripe' && input.initialRefundedQuantity)) throw new Error('INVALID_TOKEN_PURCHASE');
+    return this.wallet.transaction((wallet) => {
+      const existing = this.database.prepare('SELECT pilot_id,account_id,pack_id,status FROM sky_token_purchases WHERE provider=? AND provider_transaction_id=?')
+        .get(input.provider, input.transactionId) as { pilot_id: string; account_id: string; pack_id: string; status: string } | undefined;
+      if (existing) {
+        if (existing.pilot_id !== input.pilotId || existing.account_id !== input.accountId || existing.pack_id !== input.packId) throw new Error('TOKEN_PURCHASE_ACCOUNT_MISMATCH');
+        if (existing.status === 'refunded' && input.provider !== 'stripe') throw new Error('TOKEN_PURCHASE_REFUNDED');
+        return { applied: false, profile: this.toProfile(this.getRow(input.pilotId)!), reference: input.transactionId.slice(-12) };
+      }
+      const row = this.getRow(input.pilotId);
+      if (!row) throw new Error('PROFILE_NOT_FOUND');
+      if (input.provider !== 'stripe') {
+        if (this.database.prepare('SELECT 1 FROM sky_token_revocations WHERE provider=? AND provider_transaction_id=?')
+          .get(input.provider, input.transactionId)) throw new Error('TOKEN_PURCHASE_REVOKED');
+        const context = this.database.prepare(`SELECT context_id,store_account_id,pilot_id,account_id,provider,pack_id,created_at,expires_at,consumed_at
+          FROM sky_token_purchase_contexts WHERE ${input.provider === 'apple' ? 'context_id' : 'store_account_id'}=?`)
+          .get(input.accountBinding ?? '') as
+          { context_id: string; store_account_id: string; pilot_id: string; account_id: string; provider: string; pack_id: string; created_at: number; expires_at: number; consumed_at: number | null } | undefined;
+        if (!context || context.consumed_at !== null || (input.contextId && context.context_id !== input.contextId) ||
+            (input.purchasedAt !== undefined && input.purchasedAt < context.created_at - 60_000) ||
+            context.pilot_id !== input.pilotId ||
+            context.account_id !== input.accountId || context.provider !== input.provider || context.pack_id !== input.packId ||
+            input.accountBinding !== (input.provider === 'apple' ? context.context_id : context.store_account_id)) throw new Error('TOKEN_PURCHASE_CONTEXT_INVALID');
+        input.contextId = context.context_id;
+      }
+      const deficit = (this.database.prepare('SELECT sky_token_deficit FROM player_profiles WHERE pilot_id=?').get(input.pilotId) as { sky_token_deficit: number }).sky_token_deficit;
+      const refunded = input.initialRefundedQuantity ?? 0;
+      const netTokens = pack.tokens - refunded;
+      const settled = Math.min(deficit, netTokens);
+      const granted = netTokens - settled;
+      let transactionId: string | null = null;
+      if (granted > 0) {
+        const before = wallet.balances(input.pilotId)?.skyTokens;
+        const purchaseKey = createHash('sha256').update(`${input.provider}:${input.transactionId}`).digest('hex');
+        const credit = wallet.credit({ pilotId: input.pilotId, currency: 'SKY_TOKENS', amount: granted, reason: 'SKY_TOKEN_PURCHASE',
+          idempotencyKey: `token:${purchaseKey}`, referenceId: input.transactionId.slice(0, 160),
+          context: { packId: input.packId, provider: input.provider, deficitSettled: settled } });
+        if (!credit.ok || !credit.applied || !credit.transactionId || before === undefined || credit.balance !== before + granted)
+          throw new Error('TOKEN_WALLET_GRANT_FAILED');
+        transactionId = credit.transactionId;
+      }
+      if (settled) this.database.prepare('UPDATE player_profiles SET sky_token_deficit=sky_token_deficit-? WHERE pilot_id=?').run(settled, input.pilotId);
+      this.database.prepare(`INSERT INTO sky_token_purchases
+        (provider,provider_transaction_id,pilot_id,account_id,pack_id,payment_intent_id,product_id,quantity,amount_cents,currency,environment,wallet_transaction_id,purchased_at,updated_at,refunded_quantity,status)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.provider, input.transactionId, input.pilotId, input.accountId, input.packId, input.paymentIntentId ?? null,
+          input.productId, pack.tokens, input.amountCents ?? null, input.currency ?? null, input.environment,
+          transactionId, input.purchasedAt ?? Date.now(), Date.now(), refunded,
+          refunded === pack.tokens ? 'refunded' : refunded > 0 ? 'partially_refunded' : 'paid');
+      if (input.provider !== 'stripe') this.database.prepare('UPDATE sky_token_purchase_contexts SET consumed_at=? WHERE context_id=? AND consumed_at IS NULL')
+        .run(Date.now(), input.contextId!);
+      return { applied: true, profile: this.toProfile(this.getRow(input.pilotId)!), reference: input.transactionId.slice(-12) };
+    });
+  }
+
+  refundVerifiedSkyTokenPurchase(provider: 'stripe' | 'apple' | 'google', transactionId: string, refundedQuantity: number): { applied: boolean; profile?: PlayerProfile } {
+    return this.wallet.transaction((wallet) => {
+      const purchase = this.database.prepare('SELECT pilot_id,quantity,refunded_quantity FROM sky_token_purchases WHERE provider=? AND provider_transaction_id=?')
+        .get(provider, transactionId) as { pilot_id: string; quantity: number; refunded_quantity: number } | undefined;
+      if (!purchase) {
+        if (provider !== 'stripe' && /^[A-Za-z0-9._:-]{8,512}$/.test(transactionId))
+          this.database.prepare('INSERT OR IGNORE INTO sky_token_revocations(provider,provider_transaction_id,recorded_at) VALUES (?,?,?)')
+            .run(provider, transactionId, Date.now());
+        return { applied: false };
+      }
+      if (!Number.isSafeInteger(refundedQuantity) || refundedQuantity < 0 || refundedQuantity > purchase.quantity) return { applied: false };
+      if (refundedQuantity <= purchase.refunded_quantity) return { applied: false, profile: this.toProfile(this.getRow(purchase.pilot_id)!) };
+      const delta = refundedQuantity - purchase.refunded_quantity;
+      const balance = wallet.balances(purchase.pilot_id)?.skyTokens ?? 0;
+      const removed = Math.min(balance, delta);
+      if (removed > 0) {
+        const refundKey = createHash('sha256').update(`${provider}:${transactionId}:${refundedQuantity}`).digest('hex');
+        const debit = wallet.debit({ pilotId: purchase.pilot_id, currency: 'SKY_TOKENS', amount: removed, reason: 'SKY_TOKEN_REFUND',
+          idempotencyKey: `refund:${refundKey}`, referenceId: transactionId.slice(0, 160) });
+        if (!debit.ok || !debit.applied) throw new Error('TOKEN_REFUND_WALLET_FAILED');
+      }
+      if (delta > removed) this.database.prepare('UPDATE player_profiles SET sky_token_deficit=sky_token_deficit+? WHERE pilot_id=?').run(delta - removed, purchase.pilot_id);
+      this.database.prepare(`UPDATE sky_token_purchases SET refunded_quantity=?,status=?,updated_at=? WHERE provider=? AND provider_transaction_id=?`)
+        .run(refundedQuantity, refundedQuantity === purchase.quantity ? 'refunded' : 'partially_refunded', Date.now(), provider, transactionId);
+      return { applied: true, profile: this.toProfile(this.getRow(purchase.pilot_id)!) };
+    });
+  }
+
+  skyTokenPurchaseForPaymentIntent(paymentIntentId: string): { transactionId: string; quantity: number; amountCents?: number } | undefined {
+    const row = this.database.prepare(`SELECT provider_transaction_id,quantity,amount_cents FROM sky_token_purchases
+      WHERE provider='stripe' AND payment_intent_id=? LIMIT 1`).get(paymentIntentId) as
+      { provider_transaction_id: string; quantity: number; amount_cents: number | null } | undefined;
+    return row ? { transactionId: row.provider_transaction_id, quantity: row.quantity, amountCents: row.amount_cents ?? undefined } : undefined;
+  }
+
+  skyTokenPurchaseQuantity(provider: 'apple' | 'google', transactionId: string): number | undefined {
+    const row = this.database.prepare('SELECT quantity FROM sky_token_purchases WHERE provider=? AND provider_transaction_id=?')
+      .get(provider, transactionId) as { quantity: number } | undefined;
+    return row?.quantity;
+  }
+
+  skyTokenPurchaseStatus(pilotId: string, transactionId: string): 'paid' | 'partially_refunded' | 'refunded' | 'pending' {
+    const row = this.database.prepare(`SELECT status FROM sky_token_purchases WHERE pilot_id=? AND provider='stripe' AND provider_transaction_id=?`)
+      .get(pilotId, transactionId) as { status: 'paid' | 'partially_refunded' | 'refunded' } | undefined;
+    return row?.status ?? 'pending';
+  }
+
+  purchaseAircraftWithSkyTokens(pilotId: string, requestedAircraft: unknown): { ok: boolean; reason?: string; profile?: PlayerProfile } {
+    if (typeof requestedAircraft !== 'string') return { ok: false, reason: 'UNKNOWN AIRCRAFT' };
+    const price = aircraftSkyTokenPrice(requestedAircraft);
+    if (!price) return { ok: false, reason: 'NOT AVAILABLE FOR SKY TOKENS' };
+    return this.wallet.transaction((wallet) => {
+      const row = this.getRow(pilotId);
+      if (!row) return { ok: false, reason: 'PROFILE NOT FOUND' };
+      const entitlements = parseEntitlements(row.aircraft_entitlements);
+      const owned = parseOwnedAircraft(row.owned_aircraft, entitlements);
+      if (owned.includes(requestedAircraft as AircraftType)) return { ok: true, profile: this.toProfile(row) };
+      const deficit = (this.database.prepare('SELECT sky_token_deficit FROM player_profiles WHERE pilot_id=?').get(pilotId) as { sky_token_deficit: number }).sky_token_deficit;
+      if (deficit > 0) return { ok: false, reason: 'REFUNDED SKY TOKENS MUST BE REPLACED FIRST', profile: this.toProfile(row) };
+      const debit = wallet.debit({ pilotId, currency: 'SKY_TOKENS', amount: price, reason: 'SKY_TOKEN_SPEND',
+        referenceId: `aircraft:${requestedAircraft}`, context: { aircraft: requestedAircraft } });
+      if (!debit.ok || !debit.applied) return { ok: false, reason: `NEED ${Math.max(0, price - row.sky_tokens).toLocaleString()} MORE SKY TOKENS`, profile: this.toProfile(row) };
+      if (requestedAircraft === 'fighter') {
+        const entitlement = aircraftEntitlement('fighter')!;
+        this.database.prepare('INSERT OR IGNORE INTO aircraft_entitlement_sources(pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)')
+          .run(pilotId, entitlement, 'sky_tokens', Date.now());
+        this.database.prepare('UPDATE player_profiles SET aircraft_entitlements=? WHERE pilot_id=?')
+          .run(JSON.stringify([...new Set([...entitlements, entitlement])]), pilotId);
+      } else {
+        owned.push(requestedAircraft as AircraftType);
+        this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?')
+          .run(JSON.stringify(aircraftOrder.filter(type => owned.includes(type))), pilotId);
+      }
+      return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+    });
+  }
+
   createFreshGuest(pilotId: string): PlayerProfile {
     this.getOrCreate(pilotId, 'Pilot');
     this.database.prepare('UPDATE player_profiles SET legacy_imported = 1 WHERE pilot_id = ?').run(pilotId);
@@ -742,19 +1022,22 @@ export class PlayerProfileStore {
   }
 
   purchaseCosmetic(pilotId: string, cosmeticId: string, now = Date.now()): { ok: boolean; reason?: string; profile?: PlayerProfile } {
-    const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
-    if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };
-    if (item.aircraftRestriction !== 'trainer' && !parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes(item.aircraftRestriction as AircraftType)) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
-    if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, profile: this.toProfile(row) };
-    if (item.unlockType !== 'credits' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
-    if (item.unlockType === 'credits' && row.credits < item.creditPrice) return { ok: false, reason: `NEED ${(item.creditPrice - row.credits).toLocaleString()} MORE CREDITS` };
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
-      if (item.unlockType === 'credits') this.database.prepare('UPDATE player_profiles SET credits=credits-? WHERE pilot_id=? AND credits>=?').run(item.creditPrice, pilotId, item.creditPrice);
-      this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
-      this.database.exec('COMMIT');
-    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
-    return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+    return this.wallet.transaction((wallet) => {
+      const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
+      if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };
+      if (item.aircraftRestriction !== 'trainer' && !parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes(item.aircraftRestriction as AircraftType)) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
+      if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, profile: this.toProfile(row) };
+      if (item.unlockType !== 'credits' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
+      if (item.unlockType === 'credits') {
+        const debit = wallet.debit({
+          pilotId, currency: 'CREDITS', amount: item.creditPrice, reason: 'COSMETIC_PURCHASE',
+          referenceId: `cosmetic:${cosmeticId}`, context: { cosmeticId }, createdAt: now,
+        });
+        if (!debit.ok) return { ok: false, reason: `NEED ${Math.max(0, item.creditPrice - row.credits).toLocaleString()} MORE CREDITS` };
+      }
+      this.database.prepare('INSERT INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
+      return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
+    });
   }
 
   equipCosmetic(pilotId: string, cosmeticId: string): { ok: boolean; reason?: string; profile?: PlayerProfile } {
@@ -766,23 +1049,66 @@ export class PlayerProfileStore {
     return { ok: true, profile: this.toProfile(row) };
   }
 
-  claimDailyStreak(pilotId: string, now = Date.now()): { profile: PlayerProfile; credits: number; claimed: boolean } | undefined {
-    const row = this.getRow(pilotId); if (!row) return undefined;
-    this.ensurePilotProgression(row);
-    const state = this.database.prepare('SELECT * FROM pilot_progression WHERE pilot_id=?').get(pilotId) as { current_streak: number; longest_streak: number; cycle_day: number; last_claim_day?: string };
-    const today = utcDayId(now);
-    if (state.last_claim_day === today) return { profile: this.toProfile(row), credits: 0, claimed: false };
-    const consecutive = state.last_claim_day && utcDayDistance(state.last_claim_day, today) === 1;
-    const current = consecutive ? state.current_streak + 1 : 1;
-    const cycleDay = consecutive ? state.cycle_day % 7 + 1 : 1;
-    const credits = dailyPilotRewards[cycleDay - 1];
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
-      this.database.prepare('UPDATE pilot_progression SET current_streak=?,longest_streak=MAX(longest_streak,?),cycle_day=?,last_claim_day=? WHERE pilot_id=?').run(current, current, cycleDay, today, pilotId);
-      this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(credits, pilotId);
-      this.database.exec('COMMIT');
-    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
-    return { profile: this.toProfile(this.getRow(pilotId)!), credits, claimed: true };
+  dailyRewardState(pilotId: string, now = Date.now()): DailyRewardState | undefined {
+    const profile = this.getRow(pilotId); if (!profile) return undefined;
+    this.ensurePilotProgression(profile);
+    const legacy = this.database.prepare('SELECT cycle_day,last_claim_day FROM pilot_progression WHERE pilot_id=?').get(pilotId) as { cycle_day?: number; last_claim_day?: string } | undefined;
+    const legacyDay = boundedInteger(legacy?.cycle_day, 7);
+    const legacyClaimedAt = legacy?.last_claim_day ? Date.parse(`${legacy.last_claim_day}T00:00:00.000Z`) : Number.NaN;
+    this.database.prepare(`INSERT OR IGNORE INTO pilot_daily_rewards(pilot_id,next_day,claim_count,last_claimed_at,updated_at)
+      VALUES(?,?,?,?,?)`).run(
+        pilotId,
+        legacyDay > 0 ? legacyDay % dailyRewardCredits.length + 1 : 1,
+        legacyDay,
+        Number.isFinite(legacyClaimedAt) ? legacyClaimedAt : null,
+        now,
+      );
+    const row = this.database.prepare('SELECT next_day,claim_count,last_claimed_at FROM pilot_daily_rewards WHERE pilot_id=?').get(pilotId) as
+      { next_day: number; claim_count: number; last_claimed_at?: number };
+    const nextDay = Math.max(1, Math.min(dailyRewardCredits.length, Math.floor(row.next_day)));
+    const lastClaimedAt = Number.isSafeInteger(row.last_claimed_at) ? row.last_claimed_at : undefined;
+    const nextEligibleAt = lastClaimedAt === undefined ? 0 : lastClaimedAt + DAILY_REWARD_COOLDOWN_MS;
+    return {
+      schedule: [...dailyRewardCredits],
+      nextDay,
+      nextAmount: dailyRewardForDay(nextDay)!,
+      claimable: lastClaimedAt === undefined || now >= nextEligibleAt,
+      claimedDays: nextDay === 1 ? [] : Array.from({ length: nextDay - 1 }, (_, index) => index + 1),
+      claimCount: boundedInteger(row.claim_count, Number.MAX_SAFE_INTEGER),
+      lastClaimedAt,
+      nextEligibleAt,
+    };
+  }
+
+  claimDailyReward(pilotId: string, now = Date.now()): { profile: PlayerProfile; credits: number; day: number; claimed: boolean; state: DailyRewardState } | undefined {
+    if (!Number.isSafeInteger(now) || now < 0 || !this.getRow(pilotId)) return undefined;
+    return this.wallet.transaction((wallet) => {
+      const before = this.dailyRewardState(pilotId, now)!;
+      if (!before.claimable) return { profile: this.toProfile(this.getRow(pilotId)!), credits: 0, day: before.nextDay, claimed: false, state: before };
+      const day = before.nextDay;
+      const credits = dailyRewardForDay(day)!;
+      const claimNumber = before.claimCount + 1;
+      const walletResult = wallet.credit({
+        pilotId,
+        currency: 'CREDITS',
+        amount: credits,
+        reason: 'DAILY_REWARD',
+        idempotencyKey: `daily-reward:${claimNumber}`,
+        referenceId: `daily-reward:${claimNumber}`,
+        context: { rewardDay: day },
+        createdAt: now,
+      });
+      if (!walletResult.ok || !walletResult.applied || !walletResult.transactionId) throw new Error('Daily reward wallet credit failed');
+      const nextDay = day % dailyRewardCredits.length + 1;
+      const advanced = this.database.prepare(`UPDATE pilot_daily_rewards SET next_day=?,claim_count=?,last_claimed_at=?,updated_at=?
+        WHERE pilot_id=? AND claim_count=?`).run(nextDay, claimNumber, now, now, pilotId, before.claimCount);
+      if (advanced.changes !== 1) throw new Error('Daily reward claim was not serialized');
+      this.database.prepare(`INSERT INTO pilot_daily_reward_claims
+        (pilot_id,claim_number,reward_day,credits,claimed_at,wallet_transaction_id) VALUES(?,?,?,?,?,?)`)
+        .run(pilotId, claimNumber, day, credits, now, walletResult.transactionId);
+      const state = this.dailyRewardState(pilotId, now)!;
+      return { profile: this.toProfile(this.getRow(pilotId)!), credits, day, claimed: true, state };
+    });
   }
 
   awardPilotXp(pilotId: string, amount: number): { profile: PlayerProfile; levelUp?: number; title?: string } | undefined {
@@ -810,10 +1136,32 @@ export class PlayerProfileStore {
   referralCode(pilotId: string): string {
     const existing = this.database.prepare('SELECT referral_code FROM pilot_referral_codes WHERE pilot_id=?').get(pilotId) as { referral_code?: string } | undefined;
     if (existing?.referral_code) return existing.referral_code;
-    const compact = createHash('sha256').update(`airport-chaos-ref:${pilotId}`).digest('base64url').slice(0, 8).toUpperCase();
-    const code = `${compact.slice(0, 4)}-${compact.slice(4)}`;
-    this.database.prepare('INSERT OR IGNORE INTO pilot_referral_codes(pilot_id,referral_code) VALUES(?,?)').run(pilotId, code);
-    return (this.database.prepare('SELECT referral_code FROM pilot_referral_codes WHERE pilot_id=?').get(pilotId) as { referral_code: string }).referral_code;
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const entropy = randomBytes(10);
+      const compact = Array.from(entropy, value => alphabet[value % alphabet.length]).join('');
+      const code = `${compact.slice(0, 5)}-${compact.slice(5)}`;
+      try {
+        this.database.prepare('INSERT INTO pilot_referral_codes(pilot_id,referral_code) VALUES(?,?)').run(pilotId, code);
+        return code;
+      } catch (error) {
+        if (!String(error).includes('UNIQUE constraint failed')) throw error;
+        const concurrent = this.database.prepare('SELECT referral_code FROM pilot_referral_codes WHERE pilot_id=?').get(pilotId) as { referral_code?: string } | undefined;
+        if (concurrent?.referral_code) return concurrent.referral_code;
+      }
+    }
+    throw new Error('Unable to allocate a referral code');
+  }
+
+  validReferralCode(code: unknown): boolean {
+    if (typeof code !== 'string' || !/^(?:[A-Z0-9]{4}-[A-Z0-9]{4}|[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5})$/i.test(code)) return false;
+    return Boolean(this.database.prepare(`SELECT 1 FROM pilot_referral_codes AS codes
+      JOIN account_profile_links AS links ON links.pilot_id=codes.pilot_id WHERE codes.referral_code=?`)
+      .get(code.toUpperCase()));
+  }
+
+  hasPendingReferral(pilotId: string): boolean {
+    return Boolean(this.database.prepare("SELECT 1 FROM pilot_referrals WHERE referred_pilot_id=? AND status='pending' AND attribution_version=1").get(pilotId));
   }
 
   registerNetworkIdentity(pilotId: string, networkId: string | undefined, now = Date.now()): void {
@@ -821,46 +1169,52 @@ export class PlayerProfileStore {
     this.database.prepare('INSERT INTO pilot_network_security VALUES(?,?,?) ON CONFLICT(pilot_id) DO UPDATE SET network_id=excluded.network_id,updated_at=excluded.updated_at').run(pilotId, networkId, now);
   }
 
-  attachReferral(referredPilotId: string, code: unknown, networkId?: string, now = Date.now()): boolean {
-    if (typeof code !== 'string' || !/^[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(code)) return false;
-    const referrer = this.database.prepare('SELECT pilot_id FROM pilot_referral_codes WHERE referral_code=?').get(code.toUpperCase()) as { pilot_id?: string } | undefined;
-    if (!referrer?.pilot_id || referrer.pilot_id === referredPilotId) return false;
-    const profile = this.getRow(referredPilotId);
-    if (!profile || profile.total_distance > 0 || profile.successful_landings > 0) return false;
-    const referrerNetwork = this.database.prepare('SELECT network_id FROM pilot_network_security WHERE pilot_id=?').get(referrer.pilot_id) as { network_id?: string } | undefined;
-    if (networkId && referrerNetwork?.network_id === networkId) return false;
-    return this.database.prepare(`INSERT OR IGNORE INTO pilot_referrals(referred_pilot_id,referrer_pilot_id,status,referred_network_id,created_at) VALUES(?,?,'pending',?,?)`).run(referredPilotId, referrer.pilot_id, networkId ?? null, now).changes > 0;
-  }
-
-  advanceReferral(pilotId: string, gameplayMs: number, qualifiedAction: boolean, now = Date.now()): { rewarded: boolean; inviterId?: string; profile?: PlayerProfile } {
-    const row = this.database.prepare('SELECT * FROM pilot_referrals WHERE referred_pilot_id=?').get(pilotId) as { referrer_pilot_id: string; status: string; gameplay_ms: number; qualified_action: number; created_at: number } | undefined;
-    if (!row || row.status === 'rewarded') return { rewarded: false };
-    const played = Math.min(86_400_000, row.gameplay_ms + Math.max(0, Math.floor(gameplayMs)));
-    const action = row.qualified_action || qualifiedAction ? 1 : 0;
-    this.database.prepare('UPDATE pilot_referrals SET gameplay_ms=?,qualified_action=? WHERE referred_pilot_id=?').run(played, action, pilotId);
-    if (played < 1_200_000 || !action) return { rewarded: false };
-    const recent = this.database.prepare("SELECT COUNT(*) AS count FROM pilot_referrals WHERE referrer_pilot_id=? AND rewarded_at>=?").get(row.referrer_pilot_id, now - 30 * 86_400_000) as { count: number };
-    if (recent.count >= 10) return { rewarded: false };
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
-      const changed = this.database.prepare("UPDATE pilot_referrals SET status='rewarded',qualified_at=?,rewarded_at=? WHERE referred_pilot_id=? AND status!='rewarded'").run(now, now, pilotId).changes;
-      if (!changed) { this.database.exec('ROLLBACK'); return { rewarded: false }; }
-      this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+500) WHERE pilot_id IN (?,?)').run(pilotId, row.referrer_pilot_id);
-      this.database.exec('COMMIT');
-    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
-    return { rewarded: true, inviterId: row.referrer_pilot_id, profile: this.toProfile(this.getRow(pilotId)!) };
+  qualifyReferral(pilotId: string, now = Date.now()): { rewarded: boolean; inviterRewarded: boolean; inviterId?: string; profile?: PlayerProfile } {
+    const row = this.database.prepare('SELECT referrer_pilot_id,status FROM pilot_referrals WHERE referred_pilot_id=? AND attribution_version=1').get(pilotId) as { referrer_pilot_id: string; status: string } | undefined;
+    if (!row || row.status === 'rewarded') return { rewarded: false, inviterRewarded: false };
+    return this.wallet.transaction((wallet) => {
+      const current = this.database.prepare('SELECT referrer_pilot_id,status FROM pilot_referrals WHERE referred_pilot_id=? AND attribution_version=1').get(pilotId) as { referrer_pilot_id: string; status: string } | undefined;
+      if (!current || current.status === 'rewarded') return { rewarded: false, inviterRewarded: false };
+      const recent = this.database.prepare('SELECT COUNT(*) AS count FROM pilot_referrals WHERE referrer_pilot_id=? AND inviter_rewarded_at>?')
+        .get(current.referrer_pilot_id, now - 30 * 86_400_000) as { count: number };
+      const referredBefore = wallet.balances(pilotId)?.credits;
+      const referredCredit = wallet.credit({
+        pilotId, currency:'CREDITS', amount:500, reason:'REFERRAL_NEW_PLAYER',
+        idempotencyKey:`referral:new:${pilotId}`, referenceId:pilotId, context:{ referrerPilotId: current.referrer_pilot_id }, createdAt:now,
+      });
+      if (!referredCredit.ok || !referredCredit.transactionId || referredCredit.balance !== (referredBefore ?? -1) + 500) {
+        throw new Error('Referred-player wallet credit failed');
+      }
+      const inviterRewarded = recent.count < 10;
+      const inviterBefore = inviterRewarded ? wallet.balances(current.referrer_pilot_id)?.credits : undefined;
+      const inviterCredit = inviterRewarded ? wallet.credit({
+        pilotId:current.referrer_pilot_id, currency:'CREDITS', amount:750, reason:'REFERRAL_INVITER',
+        idempotencyKey:`referral:inviter:${pilotId}`, referenceId:pilotId, context:{ referredPilotId: pilotId }, createdAt:now,
+      }) : undefined;
+      if (inviterRewarded && (!inviterCredit?.ok || !inviterCredit.transactionId || inviterCredit.balance !== (inviterBefore ?? -1) + 750)) {
+        throw new Error('Referral inviter wallet credit failed');
+      }
+      const changed = this.database.prepare(`UPDATE pilot_referrals SET status='rewarded',qualified_at=?,rewarded_at=?,inviter_rewarded_at=?,
+        inviter_wallet_transaction_id=?,referred_wallet_transaction_id=? WHERE referred_pilot_id=? AND status!='rewarded'`)
+        .run(now, now, inviterRewarded ? now : null, inviterCredit?.transactionId ?? null, referredCredit.transactionId, pilotId).changes;
+      if (!changed) throw new Error('Referral qualification was not serialized');
+      return { rewarded: true, inviterRewarded, inviterId: current.referrer_pilot_id, profile: this.toProfile(this.getRow(pilotId)!) };
+    });
   }
 
   awardPvpWin(challengeId: string, winnerId: string, opponentId: string, credits: number, now = Date.now()): { rewarded: boolean; profile?: PlayerProfile } {
     if (!/^[a-f0-9-]{36}$/i.test(challengeId) || winnerId === opponentId) return { rewarded: false };
-    const pairSince = this.database.prepare('SELECT MAX(created_at) AS at FROM pvp_reward_wins WHERE rewarded=1 AND ((winner_pilot_id=? AND opponent_pilot_id=?) OR (winner_pilot_id=? AND opponent_pilot_id=?))').get(winnerId, opponentId, opponentId, winnerId) as { at?: number };
-    const day = utcDayId(now);
-    const daily = this.database.prepare("SELECT COUNT(*) AS count FROM pvp_reward_wins WHERE winner_pilot_id=? AND rewarded=1 AND created_at>=?").get(winnerId, Date.parse(`${day}T00:00:00.000Z`)) as { count: number };
-    const rewarded = !(pairSince.at && now - pairSince.at < 30 * 60_000) && daily.count < 5;
-    const inserted = this.database.prepare('INSERT OR IGNORE INTO pvp_reward_wins VALUES(?,?,?,?,?)').run(challengeId, winnerId, opponentId, rewarded ? 1 : 0, now).changes;
-    if (!inserted) return { rewarded: false };
-    if (rewarded) this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(credits, winnerId);
-    return { rewarded, profile: this.toProfile(this.getRow(winnerId)!) };
+    return this.wallet.transaction((wallet) => {
+      const pairSince = this.database.prepare('SELECT MAX(created_at) AS at FROM pvp_reward_wins WHERE rewarded=1 AND ((winner_pilot_id=? AND opponent_pilot_id=?) OR (winner_pilot_id=? AND opponent_pilot_id=?))').get(winnerId, opponentId, opponentId, winnerId) as { at?: number };
+      const day = utcDayId(now);
+      const daily = this.database.prepare("SELECT COUNT(*) AS count FROM pvp_reward_wins WHERE winner_pilot_id=? AND rewarded=1 AND created_at>=?").get(winnerId, Date.parse(`${day}T00:00:00.000Z`)) as { count: number };
+      const rewarded = !(pairSince.at && now - pairSince.at < 30 * 60_000) && daily.count < 5;
+      const inserted = this.database.prepare('INSERT OR IGNORE INTO pvp_reward_wins VALUES(?,?,?,?,?)').run(challengeId, winnerId, opponentId, rewarded ? 1 : 0, now).changes;
+      if (!inserted) return { rewarded: false };
+      const amount = boundedInteger(credits, 100_000);
+      if (rewarded && amount > 0) wallet.credit({ pilotId:winnerId, currency:'CREDITS', amount, reason:'COMBAT_REWARD', idempotencyKey:`pvp:${challengeId}`, referenceId:challengeId, createdAt:now });
+      return { rewarded, profile: this.toProfile(this.getRow(winnerId)!) };
+    });
   }
 
   hasProfile(pilotId: string): boolean {
@@ -868,25 +1222,32 @@ export class PlayerProfileStore {
   }
 
   importLegacy(pilotId: string, legacy: LegacyProfileImport): PlayerProfile {
-    const row = this.getRow(pilotId);
-    if (!row || row.legacy_imported) return row ? this.toProfile(row) : this.getOrCreate(pilotId, 'Pilot');
-    const importedCredits = boundedInteger(legacy.credits, 1_000_000);
-    const credits = importedCredits >= legacyDevCreditThreshold
-      ? migratedDevCredits
-      : Math.max(boundedInteger(row.credits, 1_000_000), importedCredits);
-    const discoveries = parseDiscoveries(legacy.discoveries);
-    const usableAircraft = usableAircraftForRow(row);
-    const trial = parseFighterTrial(row.fighter_trial);
-    const requestedAircraft = trial.status === 'pending' || trial.status === 'active'
-      ? row.selected_aircraft
-      : legacy.selectedAircraft;
-    const selectedAircraft = selectedOwnedAircraft(requestedAircraft, usableAircraft);
-    this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, credits = ?, score = MAX(score, ?), selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
-      .run(
-        assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), credits, boundedInteger(legacy.score, 100_000_000), selectedAircraft,
-        boundedNumber(legacy.totalDistance, 10_000_000), boundedInteger(legacy.successfulLandings, 100_000), JSON.stringify(discoveries), pilotId,
-      );
-    return this.toProfile(this.getRow(pilotId)!);
+    if (!this.getRow(pilotId)) return this.getOrCreate(pilotId, 'Pilot');
+    return this.wallet.transaction((wallet) => {
+      const row = this.getRow(pilotId);
+      if (!row) throw new Error('Profile disappeared during legacy import');
+      if (row.legacy_imported) return this.toProfile(row);
+      const importedCredits = boundedInteger(legacy.credits, 1_000_000);
+      const credits = importedCredits >= legacyDevCreditThreshold
+        ? migratedDevCredits
+        : Math.max(boundedInteger(row.credits, 1_000_000), importedCredits);
+      const discoveries = parseDiscoveries(legacy.discoveries);
+      const usableAircraft = usableAircraftForRow(row);
+      const trial = parseFighterTrial(row.fighter_trial);
+      const requestedAircraft = trial.status === 'pending' || trial.status === 'active'
+        ? row.selected_aircraft
+        : legacy.selectedAircraft;
+      const selectedAircraft = selectedOwnedAircraft(requestedAircraft, usableAircraft);
+      this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, score = MAX(score, ?), selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
+        .run(
+          assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), boundedInteger(legacy.score, 100_000_000), selectedAircraft,
+          boundedNumber(legacy.totalDistance, 10_000_000), boundedInteger(legacy.successfulLandings, 100_000), JSON.stringify(discoveries), pilotId,
+        );
+      const difference = credits - boundedInteger(row.credits, 1_000_000);
+      if (difference > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: difference, reason: 'MIGRATION', referenceId: 'legacy-profile' });
+      if (difference < 0) wallet.debit({ pilotId, currency: 'CREDITS', amount: -difference, reason: 'MIGRATION', referenceId: 'legacy-profile' });
+      return this.toProfile(this.getRow(pilotId)!);
+    });
   }
 
   setPilotName(pilotId: string, pilotName: string): PlayerProfile | undefined {
@@ -899,22 +1260,26 @@ export class PlayerProfileStore {
   }
 
   updateProgress(pilotId: string, progress: ProfileProgress): PlayerProfile | undefined {
-    const row = this.getRow(pilotId);
-    if (!row) return undefined;
-    const discoveries = parseDiscoveries(progress.discoveries);
-    const mergedDiscoveries = rowDiscoveries(row);
-    let newDiscoveries = 0;
-    for (const cityId of cityIds) {
-      const previous = new Set(mergedDiscoveries[cityId] ?? []);
-      const maximum = capabilitiesForCity(cityId).discoveryTotal;
-      const merged = [...new Set([...previous, ...(discoveries[cityId] ?? [])])].slice(0, maximum);
-      newDiscoveries += Math.max(0, merged.length - previous.size);
-      mergedDiscoveries[cityId] = merged;
-    }
-    const currentAircraft = selectedOwnedAircraft(row.selected_aircraft, usableAircraftForRow(row));
-    this.database.prepare(`UPDATE player_profiles SET selected_aircraft = ?, total_distance = MAX(total_distance, ?), successful_landings = MAX(successful_landings, ?), discoveries = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?`)
-      .run(currentAircraft, boundedNumber(progress.totalDistance, 10_000_000), boundedInteger(progress.successfulLandings, 100_000), JSON.stringify(mergedDiscoveries), newDiscoveries * economyRewards.discovery, pilotId);
-    return this.toProfile(this.getRow(pilotId)!);
+    return this.wallet.transaction((wallet) => {
+      const row = this.getRow(pilotId);
+      if (!row) return undefined;
+      const discoveries = parseDiscoveries(progress.discoveries);
+      const mergedDiscoveries = rowDiscoveries(row);
+      let newDiscoveries = 0;
+      for (const cityId of cityIds) {
+        const previous = new Set(mergedDiscoveries[cityId] ?? []);
+        const maximum = capabilitiesForCity(cityId).discoveryTotal;
+        const merged = [...new Set([...previous, ...(discoveries[cityId] ?? [])])].slice(0, maximum);
+        newDiscoveries += Math.max(0, merged.length - previous.size);
+        mergedDiscoveries[cityId] = merged;
+      }
+      const currentAircraft = selectedOwnedAircraft(row.selected_aircraft, usableAircraftForRow(row));
+      this.database.prepare(`UPDATE player_profiles SET selected_aircraft = ?, total_distance = MAX(total_distance, ?), successful_landings = MAX(successful_landings, ?), discoveries = ? WHERE pilot_id = ?`)
+        .run(currentAircraft, boundedNumber(progress.totalDistance, 10_000_000), boundedInteger(progress.successfulLandings, 100_000), JSON.stringify(mergedDiscoveries), pilotId);
+      const reward = newDiscoveries * economyRewards.discovery;
+      if (reward > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: reward, reason: 'DISCOVERY_REWARD', referenceId: 'discoveries' });
+      return this.toProfile(this.getRow(pilotId)!);
+    });
   }
 
   equipAircraft(pilotId: string, requestedAircraft: unknown): PlayerProfile | undefined {
@@ -970,23 +1335,23 @@ export class PlayerProfileStore {
     const aircraft = requestedAircraft as AircraftType;
     const price = aircraftCreditPrice(aircraft);
     if (price === undefined) return { ok: false, reason: aircraft === 'fighter' ? 'PREMIUM AIRCRAFT — NOT AVAILABLE FOR CREDITS' : 'NOT AVAILABLE FOR CREDITS' };
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
+    return this.wallet.transaction((wallet) => {
       const row = this.getRow(pilotId);
-      if (!row) { this.database.exec('ROLLBACK'); return { ok: false, reason: 'PROFILE NOT FOUND' }; }
+      if (!row) return { ok: false, reason: 'PROFILE NOT FOUND' };
       const entitlements = parseEntitlements(row.aircraft_entitlements);
       const owned = parseOwnedAircraft(row.owned_aircraft, entitlements);
-      if (owned.includes(aircraft)) { this.database.exec('COMMIT'); return { ok: true, profile: this.toProfile(row) }; }
-      if (row.credits < price) { this.database.exec('ROLLBACK'); return { ok: false, reason: `NEED ${(price - row.credits).toLocaleString()} MORE CREDITS`, profile: this.toProfile(row) }; }
+      if (owned.includes(aircraft)) return { ok: true, profile: this.toProfile(row) };
+      const debit = wallet.debit({
+        pilotId, currency: 'CREDITS', amount: price, reason: 'AIRCRAFT_PURCHASE',
+        referenceId: `aircraft:${aircraft}`, context: { aircraft },
+      });
+      if (!debit.ok) return { ok: false, reason: `NEED ${Math.max(0, price - row.credits).toLocaleString()} MORE CREDITS`, profile: this.toProfile(row) };
       owned.push(aircraft);
-      this.database.prepare('UPDATE player_profiles SET credits = credits - ?, owned_aircraft = ? WHERE pilot_id = ? AND credits >= ?')
-        .run(price, JSON.stringify(aircraftOrder.filter((type) => owned.includes(type))), pilotId, price);
-      this.database.exec('COMMIT');
+      const granted = this.database.prepare('UPDATE player_profiles SET owned_aircraft = ? WHERE pilot_id = ?')
+        .run(JSON.stringify(aircraftOrder.filter((type) => owned.includes(type))), pilotId);
+      if (granted.changes !== 1) throw new Error('Aircraft grant failed after wallet debit');
       return { ok: true, profile: this.toProfile(this.getRow(pilotId)!) };
-    } catch (error) {
-      try { this.database.exec('ROLLBACK'); } catch { /* transaction already closed */ }
-      throw error;
-    }
+    });
   }
 
   grantAircraftEntitlements(pilotId: string, requestedAircraft: readonly AircraftType[], source = 'legacy'): PlayerProfile | undefined {
@@ -1048,13 +1413,18 @@ export class PlayerProfileStore {
     const issuedAt = rewardReceiptIssuedAt(rewardId);
     if (!row || issuedAt === undefined || now - issuedAt > rewardReceiptRetentionMs || issuedAt - now > rewardReceiptFutureToleranceMs || typeof source !== 'string' || !(source in economyRewards.contractCredits)) return undefined;
     const credits = economyRewards.contractCredits[source as keyof typeof economyRewards.contractCredits];
-    const prior = this.database.prepare('SELECT MAX(created_at) AS created_at FROM profile_reward_receipts WHERE pilot_id = ? AND reward_id LIKE ?')
-      .get(pilotId, 'contract:%') as { created_at?: number } | undefined;
-    if (prior?.created_at && now - prior.created_at < economyRewards.contractClaimCooldownMs) return this.toProfile(row);
-    const receipt = this.database.prepare('INSERT OR IGNORE INTO profile_reward_receipts (pilot_id, reward_id, created_at) VALUES (?, ?, ?)').run(pilotId, `contract:${source}:${rewardId}`, now);
-    if (receipt.changes === 0) return this.toProfile(row);
-    this.database.prepare('UPDATE player_profiles SET credits = MIN(1000000, credits + ?) WHERE pilot_id = ?').run(credits, pilotId);
-    return this.toProfile(this.getRow(pilotId)!);
+    return this.wallet.transaction((wallet) => {
+      const current = this.getRow(pilotId);
+      if (!current) return undefined;
+      const prior = this.database.prepare('SELECT MAX(created_at) AS created_at FROM profile_reward_receipts WHERE pilot_id = ? AND reward_id LIKE ?')
+        .get(pilotId, 'contract:%') as { created_at?: number } | undefined;
+      if (prior?.created_at && now - prior.created_at < economyRewards.contractClaimCooldownMs) return this.toProfile(current);
+      const receiptId = `contract:${source}:${rewardId}`;
+      const receipt = this.database.prepare('INSERT OR IGNORE INTO profile_reward_receipts (pilot_id, reward_id, created_at) VALUES (?, ?, ?)').run(pilotId, receiptId, now);
+      if (receipt.changes === 0) return this.toProfile(current);
+      wallet.credit({ pilotId, currency: 'CREDITS', amount: credits, reason: 'FLIGHT_REWARD', idempotencyKey: receiptId, referenceId: rewardId, createdAt: now });
+      return this.toProfile(this.getRow(pilotId)!);
+    });
   }
 
   recordFirehawkMissionFailure(pilotId: string, missionId: string, now = Date.now()): boolean {
@@ -1089,39 +1459,55 @@ export class PlayerProfileStore {
     } catch (error) { this.database.exec('ROLLBACK'); throw error; }
   }
 
-  awardServerReward(pilotId: string, credits: number, stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>): PlayerProfile | undefined {
+  awardServerReward(
+    pilotId: string,
+    credits: number,
+    stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>,
+    reason: WalletTransactionReason = 'FLIGHT_REWARD',
+    referenceId?: string,
+  ): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
-    this.database.prepare(`UPDATE player_profiles SET credits = MIN(1000000, credits + ?), kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
-      .run(
-        boundedInteger(credits, 100_000), boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
-        boundedInteger(stats?.challengeCompletions, 1_000_000), boundedInteger(stats?.eventCompletions, 1_000_000), pilotId,
-      );
+    this.wallet.transaction((wallet) => {
+      const amount = boundedInteger(credits, 100_000);
+      if (amount > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount, reason, referenceId });
+      this.database.prepare(`UPDATE player_profiles SET kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
+        .run(
+          boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
+          boundedInteger(stats?.challengeCompletions, 1_000_000), boundedInteger(stats?.eventCompletions, 1_000_000), pilotId,
+        );
+    });
     return this.toProfile(this.getRow(pilotId)!);
   }
 
-  awardServerRewardOnce(pilotId: string, rewardId: string, credits: number, stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>): { profile?: PlayerProfile; awarded: boolean } {
+  awardServerRewardOnce(
+    pilotId: string,
+    rewardId: string,
+    credits: number,
+    stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>,
+    reason: WalletTransactionReason = 'EVENT_REWARD',
+  ): { profile?: PlayerProfile; awarded: boolean } {
     const row = this.getRow(pilotId);
     const compactId = rewardId.replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 160);
     if (!row || !compactId) return { awarded: false };
     const now = Date.now();
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
+    return this.wallet.transaction((wallet) => {
       const receipt = this.database.prepare('INSERT OR IGNORE INTO profile_reward_receipts (pilot_id, reward_id, created_at) VALUES (?, ?, ?)')
         .run(pilotId, `server:${compactId}`, now);
       if (receipt.changes > 0) {
-        this.database.prepare(`UPDATE player_profiles SET credits = MIN(1000000, credits + ?), kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
+        const amount = boundedInteger(credits, 100_000);
+        if (amount > 0) wallet.credit({
+          pilotId, currency: 'CREDITS', amount, reason,
+          idempotencyKey: `server:${compactId}`, referenceId: compactId,
+        });
+        this.database.prepare(`UPDATE player_profiles SET kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
           .run(
-            boundedInteger(credits, 100_000), boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
+            boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
             boundedInteger(stats?.challengeCompletions, 1_000_000), boundedInteger(stats?.eventCompletions, 1_000_000), pilotId,
           );
       }
-      this.database.exec('COMMIT');
       return { profile: this.toProfile(this.getRow(pilotId)!), awarded: receipt.changes > 0 };
-    } catch (error) {
-      this.database.exec('ROLLBACK');
-      throw error;
-    }
+    });
   }
 
   saveActiveChaosEvent(pilotId: string, event: { id:string; type:string; cityId:string; startedAt:number; expiresAt:number; target?:unknown }): void {
@@ -1159,36 +1545,40 @@ export class PlayerProfileStore {
   }
 
   recordObjectiveActivity(pilotId: string, cityId: CityId, activity: ObjectiveActivity, amount = 1, airportId?: string): { profile: PlayerProfile; completed: ObjectiveItem[]; bonusCredits: number } | undefined {
-    const row = this.getRow(pilotId);
-    if (!row || amount <= 0 || !Number.isFinite(amount)) return undefined;
-    const all = this.objectiveStates(row);
-    const state = parseObjectives(all[cityId], cityId, (rowDiscoveries(row)[cityId] ?? []).length);
-    all[cityId] = state;
-    if (activity === 'landing') {
-      const capabilities = capabilitiesForCity(cityId);
-      if (!airportId || !capabilities.landableAirportIds.includes(airportId)) return { profile: this.toProfile(row), completed: [], bonusCredits: 0 };
-      const landed = new Set(state.landingAirportIds ?? []);
-      if (landed.has(airportId)) return { profile: this.toProfile(row), completed: [], bonusCredits: 0 };
-      landed.add(airportId);
-      state.landingAirportIds = [...landed];
-      amount = 1;
-    }
-    const completed: ObjectiveItem[] = [];
-    let credits = 0;
-    for (const item of [...state.daily, ...state.weekly]) {
-      if (item.activity !== activity || item.completed) continue;
-      item.progress = Math.min(item.target, item.progress + Math.floor(amount));
-      if (item.progress >= item.target) {
-        item.completed = true;
-        if (!item.rewarded) { item.rewarded = true; credits += item.reward; completed.push(item); }
+    if (amount <= 0 || !Number.isFinite(amount)) return undefined;
+    return this.wallet.transaction((wallet) => {
+      const row = this.getRow(pilotId);
+      if (!row) return undefined;
+      const all = this.objectiveStates(row);
+      const state = parseObjectives(all[cityId], cityId, (rowDiscoveries(row)[cityId] ?? []).length);
+      all[cityId] = state;
+      if (activity === 'landing') {
+        const capabilities = capabilitiesForCity(cityId);
+        if (!airportId || !capabilities.landableAirportIds.includes(airportId)) return { profile: this.toProfile(row), completed: [], bonusCredits: 0 };
+        const landed = new Set(state.landingAirportIds ?? []);
+        if (landed.has(airportId)) return { profile: this.toProfile(row), completed: [], bonusCredits: 0 };
+        landed.add(airportId);
+        state.landingAirportIds = [...landed];
+        amount = 1;
       }
-    }
-    let bonusCredits = 0;
-    if (!state.dailyBonusAwarded && state.daily.every((item) => item.completed)) { state.dailyBonusAwarded = true; bonusCredits += 100; }
-    if (!state.weeklyBonusAwarded && state.weekly.every((item) => item.completed)) { state.weeklyBonusAwarded = true; bonusCredits += 300; }
-    this.database.prepare('UPDATE player_profiles SET objectives = ?, credits = MIN(1000000, credits + ?) WHERE pilot_id = ?')
-      .run(JSON.stringify(all), credits + bonusCredits, pilotId);
-    return { profile: this.toProfile(this.getRow(pilotId)!), completed, bonusCredits };
+      const completed: ObjectiveItem[] = [];
+      let credits = 0;
+      for (const item of [...state.daily, ...state.weekly]) {
+        if (item.activity !== activity || item.completed) continue;
+        item.progress = Math.min(item.target, item.progress + Math.floor(amount));
+        if (item.progress >= item.target) {
+          item.completed = true;
+          if (!item.rewarded) { item.rewarded = true; credits += item.reward; completed.push(item); }
+        }
+      }
+      let bonusCredits = 0;
+      if (!state.dailyBonusAwarded && state.daily.every((item) => item.completed)) { state.dailyBonusAwarded = true; bonusCredits += 100; }
+      if (!state.weeklyBonusAwarded && state.weekly.every((item) => item.completed)) { state.weeklyBonusAwarded = true; bonusCredits += 300; }
+      this.database.prepare('UPDATE player_profiles SET objectives = ? WHERE pilot_id = ?').run(JSON.stringify(all), pilotId);
+      const reward = credits + bonusCredits;
+      if (reward > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: reward, reason: 'OBJECTIVE_REWARD', referenceId: `${cityId}:${activity}` });
+      return { profile: this.toProfile(this.getRow(pilotId)!), completed, bonusCredits };
+    });
   }
 
   awardMasteryXp(pilotId: string, cityId: CityId, amount: number): { profile: PlayerProfile; gained: number; levelUp?: number; rewards: string[] } | undefined {
@@ -1239,13 +1629,14 @@ export class PlayerProfileStore {
     const reward = best && weeklyRewardForRank(best.rank);
     if (!best || !reward) return undefined;
     const badgeExpiresAt = Date.parse(`${currentWeek}T00:00:00.000Z`) + 7 * 86_400_000;
-    this.database.exec('BEGIN IMMEDIATE');
-    try {
+    return this.wallet.transaction((wallet) => {
       const inserted = this.database.prepare('INSERT OR IGNORE INTO weekly_reward_claims VALUES(?,?,?,?,?,?,?,?)').run(pilotId, previousWeek, best.rank, best.category, reward.credits, reward.badge, badgeExpiresAt, now).changes;
-      if (inserted) this.database.prepare('UPDATE player_profiles SET credits=MIN(1000000,credits+?) WHERE pilot_id=?').run(reward.credits, pilotId);
-      this.database.exec('COMMIT');
-    } catch (error) { this.database.exec('ROLLBACK'); throw error; }
-    return { weekId: previousWeek, rank: best.rank, category: best.category, credits: reward.credits, badge: reward.badge, badgeExpiresAt };
+      if (inserted) wallet.credit({
+        pilotId, currency: 'CREDITS', amount: reward.credits, reason: 'WEEKLY_REWARD',
+        idempotencyKey: `weekly-rank:${previousWeek}`, referenceId: previousWeek, createdAt: now,
+      });
+      return { weekId: previousWeek, rank: best.rank, category: best.category, credits: reward.credits, badge: reward.badge, badgeExpiresAt };
+    });
   }
 
   missionState(pilotId: string, cityId: CityId): MissionCityState | undefined {
@@ -1294,22 +1685,26 @@ export class PlayerProfileStore {
   }
 
   completeMission(pilotId: string, cityId: CityId, attemptId: string, now = Date.now()): { profile: PlayerProfile; credits: number; score: number; missionId: string; cargoBonusCredits: number } | undefined {
-    const row = this.getRow(pilotId);
-    if (!row) return undefined;
-    const all = parseMissionStates(row.missions);
-    const active = all[cityId]?.active;
-    if (!active || active.attemptId !== attemptId) return undefined;
-    const mission = missionForCity(cityId, active.missionId);
-    if (!mission) return undefined;
-    const cargoReward = cargoCreditReward(mission.creditReward, row.selected_aircraft, 'mission', mission.id, mission.cargoCreditBonus === true);
-    const previous = all[cityId]!.completions[mission.id];
-    all[cityId]!.completions[mission.id] = { count: Math.min(1_000_000, (previous?.count ?? 0) + 1), lastCompletedAt: now };
-    all[cityId]!.active = undefined;
-    // Credits, attempt removal and replay cooldown commit in ONE SQLite row
-    // update. A repeated completion cannot pay or advance Score again.
-    this.database.prepare('UPDATE player_profiles SET missions = ?, credits = MIN(1000000, credits + ?), score = MIN(100000000, score + ?) WHERE pilot_id = ?')
-      .run(JSON.stringify(all), cargoReward.credits, mission.scoreReward, pilotId);
-    return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward, missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits };
+    return this.wallet.transaction((wallet) => {
+      const row = this.getRow(pilotId);
+      if (!row) return undefined;
+      const all = parseMissionStates(row.missions);
+      const active = all[cityId]?.active;
+      if (!active || active.attemptId !== attemptId) return undefined;
+      const mission = missionForCity(cityId, active.missionId);
+      if (!mission) return undefined;
+      const cargoReward = cargoCreditReward(mission.creditReward, row.selected_aircraft, 'mission', mission.id, mission.cargoCreditBonus === true);
+      const previous = all[cityId]!.completions[mission.id];
+      all[cityId]!.completions[mission.id] = { count: Math.min(1_000_000, (previous?.count ?? 0) + 1), lastCompletedAt: now };
+      all[cityId]!.active = undefined;
+      this.database.prepare('UPDATE player_profiles SET missions = ?, score = MIN(100000000, score + ?) WHERE pilot_id = ?')
+        .run(JSON.stringify(all), mission.scoreReward, pilotId);
+      if (cargoReward.credits > 0) wallet.credit({
+        pilotId, currency: 'CREDITS', amount: cargoReward.credits, reason: 'MISSION_REWARD',
+        idempotencyKey: `mission:${attemptId}`, referenceId: mission.id, context: { cityId }, createdAt: now,
+      });
+      return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward, missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits };
+    });
   }
 
   private getRow(pilotId: string): ProfileRow | undefined {
@@ -1337,7 +1732,7 @@ export class PlayerProfileStore {
   private streakState(pilotId: string): PlayerProfile['dailyStreak'] {
     const row = this.database.prepare('SELECT current_streak,longest_streak,cycle_day,last_claim_day FROM pilot_progression WHERE pilot_id=?').get(pilotId) as { current_streak?: number; longest_streak?: number; cycle_day?: number; last_claim_day?: string } | undefined;
     const cycleDay = boundedInteger(row?.cycle_day, 7);
-    return { current: boundedInteger(row?.current_streak, 100_000), longest: boundedInteger(row?.longest_streak, 100_000), cycleDay, lastClaimDay: row?.last_claim_day, nextReward: dailyPilotRewards[cycleDay % 7] };
+    return { current: boundedInteger(row?.current_streak, 100_000), longest: boundedInteger(row?.longest_streak, 100_000), cycleDay, lastClaimDay: row?.last_claim_day, nextReward: dailyRewardCredits[cycleDay % 7] };
   }
 
   private records(pilotId: string): PlayerProfile['personalRecords'] {
@@ -1347,24 +1742,24 @@ export class PlayerProfileStore {
 
   private referralState(pilotId: string): PlayerProfile['referral'] {
     const row = this.database.prepare('SELECT status FROM pilot_referrals WHERE referred_pilot_id=?').get(pilotId) as { status?: PlayerProfile['referral']['status'] } | undefined;
-    const count = this.database.prepare("SELECT COUNT(*) AS count FROM pilot_referrals WHERE referrer_pilot_id=? AND status='rewarded'").get(pilotId) as { count: number };
-    return { code: this.referralCode(pilotId), status: row?.status ?? 'none', rewardedCount: count.count };
+    const now = Date.now();
+    const totals = this.database.prepare(`SELECT COUNT(*) AS joined,
+      SUM(CASE WHEN status='rewarded' THEN 1 ELSE 0 END) AS qualified,
+      SUM(CASE WHEN inviter_rewarded_at IS NOT NULL THEN 1 ELSE 0 END) AS rewarded
+      FROM pilot_referrals WHERE referrer_pilot_id=?`).get(pilotId) as { joined: number; qualified: number | null; rewarded: number | null };
+    const rolling = this.database.prepare('SELECT COUNT(*) AS count,MIN(inviter_rewarded_at) AS oldest FROM pilot_referrals WHERE referrer_pilot_id=? AND inviter_rewarded_at>?')
+      .get(pilotId, now - 30 * 86_400_000) as { count: number; oldest: number | null };
+    const inviterRewardsInWindow = Math.min(10, rolling.count);
+    return {
+      code: this.referralCode(pilotId), status: row?.status ?? 'none',
+      joinedCount: totals.joined, qualifiedCount: totals.qualified ?? 0, rewardedCount: totals.rewarded ?? 0,
+      earnedCredits: (totals.rewarded ?? 0) * 750,
+      inviterRewardsInWindow, inviterRewardsRemaining: Math.max(0, 10 - inviterRewardsInWindow),
+      nextInviterRewardAt: inviterRewardsInWindow >= 10 && rolling.oldest ? rolling.oldest + 30 * 86_400_000 : undefined,
+    };
   }
 
   private toProfile(row: ProfileRow): PlayerProfile {
-    const storedEconomyVersion = boundedInteger(row.economy_version, 1_000);
-    if (storedEconomyVersion < ECONOMY_VERSION) {
-      const entitlements = new Set(parseEntitlements(row.aircraft_entitlements));
-      // Preserve both previously owned Fighters and the v1 tester entitlement
-      // under the one canonical entitlement used by future purchases too.
-      if (storedAircraftIncludes(row.owned_aircraft, 'fighter')) entitlements.add(aircraftEntitlement('fighter')!);
-      const migratedCredits = storedEconomyVersion < 1 && row.credits >= legacyDevCreditThreshold
-        ? migratedDevCredits
-        : Math.max(0, row.credits);
-      this.database.prepare('UPDATE player_profiles SET credits = ?, economy_version = ?, aircraft_entitlements = ? WHERE pilot_id = ?')
-        .run(migratedCredits, ECONOMY_VERSION, JSON.stringify([...entitlements]), row.pilot_id);
-      row = this.getRow(row.pilot_id)!;
-    }
     const credits = boundedInteger(row.credits, 1_000_000);
     const aircraftEntitlements = parseEntitlements(row.aircraft_entitlements);
     const fighterTrial = parseFighterTrial(row.fighter_trial);
@@ -1384,6 +1779,7 @@ export class PlayerProfileStore {
       pilotId: row.pilot_id,
       pilotName: profileName(row.pilot_name, 'Pilot'),
       credits,
+      skyTokens: boundedInteger(row.sky_tokens, 1_000_000_000),
       creditRevision: boundedInteger(row.credit_revision, Number.MAX_SAFE_INTEGER),
       score: boundedInteger(row.score, 100_000_000),
       economyVersion: ECONOMY_VERSION,
@@ -1405,6 +1801,7 @@ export class PlayerProfileStore {
       legacyImportPending: row.legacy_imported === 0,
       pilotProgress: this.pilotProgression(row.pilot_id),
       dailyStreak: this.streakState(row.pilot_id),
+      dailyReward: this.dailyRewardState(row.pilot_id)!,
       personalRecords: this.records(row.pilot_id),
       weeklyReward: (() => {
         const reward = this.database.prepare('SELECT * FROM weekly_reward_claims WHERE pilot_id=? ORDER BY awarded_at DESC LIMIT 1').get(row.pilot_id) as { week_id: string; rank: number; category: string; credits: number; badge: string; badge_expires_at: number } | undefined;

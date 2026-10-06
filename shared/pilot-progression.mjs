@@ -22,8 +22,6 @@ export function pilotTitleForLevel(level) {
   return 'ROOKIE';
 }
 
-export const dailyPilotRewards = Object.freeze([50, 75, 100, 125, 150, 200, 300]);
-
 export function utcDayId(now = Date.now()) { return new Date(now).toISOString().slice(0, 10); }
 
 export function utcDayDistance(fromDay, toDay) {

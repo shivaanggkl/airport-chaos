@@ -18,6 +18,7 @@ export const visualLanguage = {
   heat: { icon: '🔥', label: 'Danger', color: '#ff7862' },
   wanted: { icon: '🔥', label: 'Most Wanted', color: '#ff7862' },
   credits: { icon: '🪙', label: 'Credits', color: '#ffd865' },
+  skyTokens: { icon: '💎', label: 'Sky Tokens', color: '#73d8ed' },
   mastery: { icon: '✦', label: 'City Level', color: '#ffd865' },
   score: { icon: '★', label: 'Score', color: '#f4f7ff' },
   contact: { icon: '✉', label: 'Contact & Advertise', color: '#f4f7ff' },

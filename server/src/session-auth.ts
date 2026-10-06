@@ -28,13 +28,13 @@ export type AccountStatus = { state: 'guest' } | {
 };
 export type AuthResult = {
   ok: boolean; error?: string; identity?: SessionIdentity; cookie?: string;
-  expiresAt?: number; guestPreserved?: boolean;
+  expiresAt?: number; guestPreserved?: boolean; createdAccount?: boolean; referralAttributed?: boolean;
 };
 export type ProviderName = 'google' | 'apple';
 export type OAuthAction = 'login' | 'link';
 export type OAuthFlow = {
   provider: ProviderName; action: OAuthAction; session: SessionIdentity; nonce: string;
-  codeVerifier?: string; redirectUri: string; returnTo: string;
+  codeVerifier?: string; redirectUri: string; returnTo: string; referralCode?: string;
 };
 export type ProviderAuthResult = AuthResult & { collision?: boolean };
 
@@ -132,7 +132,7 @@ export class PilotSessionStore {
       CREATE TABLE IF NOT EXISTS oauth_flows (
         state_hash TEXT PRIMARY KEY, provider TEXT NOT NULL, action TEXT NOT NULL,
         session_token_hash TEXT NOT NULL, account_id TEXT, nonce TEXT NOT NULL,
-        code_verifier TEXT, redirect_uri TEXT NOT NULL, return_to TEXT NOT NULL,
+        code_verifier TEXT, redirect_uri TEXT NOT NULL, return_to TEXT NOT NULL, referral_code TEXT,
         created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, consumed_at INTEGER
       );
       CREATE INDEX IF NOT EXISTS oauth_flows_expiry ON oauth_flows(expires_at);
@@ -146,6 +146,7 @@ export class PilotSessionStore {
       );
       CREATE INDEX IF NOT EXISTS websocket_tickets_expiry ON websocket_tickets(expires_at);
     `);
+    try { this.database.exec('ALTER TABLE oauth_flows ADD COLUMN referral_code TEXT'); } catch { /* already migrated */ }
     // Unknown-email attempts do the same expensive password work as valid ones.
     this.dummyPasswordHash = passwordHash(randomBytes(24).toString('base64url'));
   }
@@ -285,6 +286,21 @@ export class PilotSessionStore {
     return { state: 'account', email: email ?? undefined, avatarUrl, providers };
   }
 
+  private attachReferralForNewAccount(pilotId: string, code: unknown, now: number): boolean {
+    if (typeof code !== 'string' || !/^(?:[A-Z0-9]{4}-[A-Z0-9]{4}|[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5})$/i.test(code)) return false;
+    if (!this.database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='pilot_referrals'").get()) return false;
+    const referrer = this.database.prepare(`SELECT codes.pilot_id FROM pilot_referral_codes AS codes
+      JOIN account_profile_links AS links ON links.pilot_id=codes.pilot_id
+      WHERE codes.referral_code=?`).get(code.toUpperCase()) as { pilot_id: string } | undefined;
+    if (!referrer || referrer.pilot_id === pilotId) return false;
+    // Pre-Phase-4 guest socket attribution was never a verified new-account
+    // relationship. A new signup may replace only that legacy pending row.
+    this.database.prepare("DELETE FROM pilot_referrals WHERE referred_pilot_id=? AND status='pending' AND attribution_version=0").run(pilotId);
+    return this.database.prepare(`INSERT OR IGNORE INTO pilot_referrals
+      (referred_pilot_id,referrer_pilot_id,status,created_at,attribution_version) VALUES(?,?,'pending',?,1)`)
+      .run(pilotId, referrer.pilot_id, now).changes === 1;
+  }
+
   beginOAuthFlow(
     identity: SessionIdentity,
     provider: ProviderName,
@@ -292,16 +308,19 @@ export class PilotSessionStore {
     redirectUri: string,
     returnTo: string,
     now = Date.now(),
+    referralCode?: unknown,
   ): { state: string; nonce: string; codeVerifier?: string } | undefined {
     if (action === 'link' || identity.accountId) return undefined;
     const state = randomBytes(32).toString('base64url');
     const nonce = randomBytes(32).toString('base64url');
     const codeVerifier = provider === 'google' ? randomBytes(48).toString('base64url') : undefined;
+    const normalizedReferralCode = typeof referralCode === 'string' && /^(?:[A-Z0-9]{4}-[A-Z0-9]{4}|[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5})$/i.test(referralCode)
+      ? referralCode.toUpperCase() : undefined;
     this.database.prepare(`INSERT INTO oauth_flows(
-      state_hash,provider,action,session_token_hash,account_id,nonce,code_verifier,redirect_uri,return_to,created_at,expires_at,consumed_at
-    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(
+      state_hash,provider,action,session_token_hash,account_id,nonce,code_verifier,redirect_uri,return_to,referral_code,created_at,expires_at,consumed_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(
       hashToken(state), provider, action, identity.tokenHash, identity.accountId ?? null, nonce,
-      codeVerifier ?? null, redirectUri, returnTo, now, now + 10 * 60_000,
+      codeVerifier ?? null, redirectUri, returnTo, normalizedReferralCode ?? null, now, now + 10 * 60_000,
     );
     return { state, nonce, codeVerifier };
   }
@@ -311,10 +330,10 @@ export class PilotSessionStore {
     const stateHash = hashToken(state);
     this.database.exec('BEGIN IMMEDIATE');
     try {
-      const row = this.database.prepare(`SELECT provider,action,session_token_hash,account_id,nonce,code_verifier,redirect_uri,return_to
+      const row = this.database.prepare(`SELECT provider,action,session_token_hash,account_id,nonce,code_verifier,redirect_uri,return_to,referral_code
         FROM oauth_flows WHERE state_hash=? AND provider=? AND consumed_at IS NULL AND expires_at>?`).get(stateHash, provider, now) as {
           provider: ProviderName; action: OAuthAction; session_token_hash: string; account_id: string | null;
-          nonce: string; code_verifier: string | null; redirect_uri: string; return_to: string;
+          nonce: string; code_verifier: string | null; redirect_uri: string; return_to: string; referral_code: string | null;
         } | undefined;
       if (!row) { this.database.exec('ROLLBACK'); return undefined; }
       const consumed = this.database.prepare('UPDATE oauth_flows SET consumed_at=? WHERE state_hash=? AND consumed_at IS NULL').run(now, stateHash);
@@ -323,7 +342,7 @@ export class PilotSessionStore {
         this.database.exec('ROLLBACK'); return undefined;
       }
       this.database.exec('COMMIT');
-      return { provider: row.provider, action: row.action, session, nonce: row.nonce, codeVerifier: row.code_verifier ?? undefined, redirectUri: row.redirect_uri, returnTo: row.return_to };
+      return { provider: row.provider, action: row.action, session, nonce: row.nonce, codeVerifier: row.code_verifier ?? undefined, redirectUri: row.redirect_uri, returnTo: row.return_to, referralCode: row.referral_code ?? undefined };
     } catch (error) { this.database.exec('ROLLBACK'); throw error; }
   }
 
@@ -349,6 +368,8 @@ export class PilotSessionStore {
       let accountId: string;
       let pilotId: string;
       let guestPreserved = false;
+      let createdAccount = false;
+      let referralAttributed = false;
       if (existing) {
         accountId = existing.account_id;
         if (flow.session.accountId) {
@@ -371,11 +392,13 @@ export class PilotSessionStore {
         }
         if (flow.session.accountId) { this.database.exec('ROLLBACK'); return { ok: false, error: "You're already signed in. Log out first to use another account." }; }
         accountId = randomUUID(); pilotId = flow.session.pilotId;
+        createdAccount = true;
         this.database.prepare('INSERT INTO accounts(account_id,created_at,updated_at) VALUES(?,?,?)').run(accountId, now, now);
         this.database.prepare('INSERT INTO account_profile_links(account_id,pilot_id,linked_at) VALUES(?,?,?)').run(accountId, pilotId, now);
         this.database.prepare(`INSERT INTO auth_identities(
           identity_id,account_id,provider,provider_subject,normalized_email,password_hash,provider_display_name,provider_avatar_url,created_at,updated_at
         ) VALUES(?,?,?,?,?,NULL,?,?,?,?)`).run(randomUUID(), accountId, verified.provider, verified.subject, email ?? null, verified.displayName ?? null, avatarUrl ?? null, now, now);
+        referralAttributed = this.attachReferralForNewAccount(pilotId, flow.referralCode, now);
       }
 
       const rotated = this.database.prepare('UPDATE pilot_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?')
@@ -385,7 +408,10 @@ export class PilotSessionStore {
       this.database.prepare('UPDATE player_profiles SET legacy_imported=1 WHERE pilot_id=?').run(pilotId);
       this.database.prepare('UPDATE accounts SET updated_at=? WHERE account_id=?').run(now, accountId);
       this.database.exec('COMMIT');
-      return { ok: true, identity: { pilotId, accountId, tokenHash: issued.tokenHash }, cookie: issued.cookie, expiresAt: issued.expiresAt, guestPreserved };
+      return {
+        ok: true, identity: { pilotId, accountId, tokenHash: issued.tokenHash }, cookie: issued.cookie,
+        expiresAt: issued.expiresAt, guestPreserved, createdAccount, referralAttributed,
+      };
     } catch (error) {
       this.database.exec('ROLLBACK');
       if (String(error).includes('UNIQUE constraint failed')) return { ok: false, error: 'Provider authentication failed.' };
@@ -393,7 +419,7 @@ export class PilotSessionStore {
     }
   }
 
-  async signUp(identity: SessionIdentity, emailValue: unknown, passwordValue: unknown, now = Date.now()): Promise<AuthResult> {
+  async signUp(identity: SessionIdentity, emailValue: unknown, passwordValue: unknown, now = Date.now(), referralCode?: unknown): Promise<AuthResult> {
     if (identity.accountId) return { ok: false, error: "You're already signed in. Log out first to use another account." };
     const email = normalizeAccountEmail(emailValue);
     if (!email || !validAccountPassword(passwordValue)) return { ok: false, error: 'Unable to create account with those details.' };
@@ -407,12 +433,13 @@ export class PilotSessionStore {
       this.database.prepare('INSERT INTO auth_identities(identity_id,account_id,provider,provider_subject,normalized_email,password_hash,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)')
         .run(randomUUID(), accountId, 'password', email, email, passwordDigest, now, now);
       this.database.prepare('INSERT INTO account_profile_links(account_id,pilot_id,linked_at) VALUES(?,?,?)').run(accountId, identity.pilotId, now);
+      const referralAttributed = this.attachReferralForNewAccount(identity.pilotId, referralCode, now);
       const rotated = this.database.prepare('UPDATE pilot_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?').run(now, identity.tokenHash, now);
       if (!rotated.changes) { this.database.exec('ROLLBACK'); return { ok: false, error: 'Unable to create account with those details.' }; }
       const issued = this.insertSession(identity.pilotId, accountId, now, accountSessionLifetimeMs);
       this.database.prepare('UPDATE player_profiles SET legacy_imported=1 WHERE pilot_id=?').run(identity.pilotId);
       this.database.exec('COMMIT');
-      return { ok: true, identity: { pilotId: identity.pilotId, accountId, tokenHash: issued.tokenHash }, cookie: issued.cookie, expiresAt: issued.expiresAt };
+      return { ok: true, identity: { pilotId: identity.pilotId, accountId, tokenHash: issued.tokenHash }, cookie: issued.cookie, expiresAt: issued.expiresAt, createdAccount: true, referralAttributed };
     } catch (error) {
       this.database.exec('ROLLBACK');
       if (String(error).includes('UNIQUE constraint failed')) return { ok: false, error: 'Unable to create account with those details.' };

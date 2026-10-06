@@ -23,8 +23,10 @@ import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
+import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
-import { NativePurchaseLedger, NativePurchaseVerifier, googleNotificationToken, type NativePurchaseProvider } from './native-purchases.js';
+import { SkyTokenPayments, productionWebOrigin } from './sky-token-payments.js';
+import { NativePurchaseLedger, NativePurchaseVerifier, googleNotificationToken, googleSkyTokenNotification, googleVoidedPurchaseNotification, type NativePurchaseProvider } from './native-purchases.js';
 import { PilotSessionStore, normalizeAccountEmail, shouldReplaceRealtimeConnection, type SessionIdentity } from './session-auth.js';
 import { createAuthorizationUrl, exchangeAndVerifyProviderCode, nativeProviderConfig, pkceChallenge, providerConfig, verifyNativeProviderToken, type NativeAuthPlatform, type OAuthProvider } from './oauth-providers.js';
 import { allowedOAuthReturn, rejectsApiRequestOrigin, sameOriginJsonRequest } from './auth-request-security.js';
@@ -32,10 +34,14 @@ import { applyCors, isNativeAppOrigin, isTrustedRequestOrigin, nativePlatformFor
 import { validateClientRotation, validateClientTransform } from './transform-validation.js';
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
+import { skyTokenPack, skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/chaos-event-rules.mjs';
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
 import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { REWARDED_AD_CREDITS } from '../../shared/rewarded-ads.mjs';
+import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from './rewarded-ads.js';
+import { ReferralFlightTracker } from './referral-flight.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -209,7 +215,6 @@ const dallasTerrain = (() => {
 const dallasAirportElevations = dallasTerrain.airportElevations;
 const activeChallenges = new Map<string, ActiveChallenge>();
 const flightRecordCandidates = new Map<string, { topSpeed: number; highestAltitude: number; distance: number }>();
-const connectionStartedAt = new Map<string, number>();
 type PvpChallenge = { id: string; mode: 'dogfight' | 'airportSprint'; challengerId: string; opponentId: string; cityId: CityId; destinationAirportId?: string; status: 'pending' | 'countdown' | 'active'; expiresAt: number; startsAt?: number };
 const pvpChallenges = new Map<string, PvpChallenge>();
 
@@ -242,6 +247,8 @@ function expirePvpChallenges(now: number): void {
 }
 const landingReceipts = new Map<string, number>();
 const landingFlightState = new Map<string, { baselineY: number; airborne: boolean }>();
+const airborneMilestones = new ReferralFlightTracker();
+const flightAnalytics = new Map<string, { startedAt: number; airborneMs: number; distanceMeters: number; startingScore: number; kills: number; landings: number; missions: number }>();
 const projectiles = new Map<string, ProjectileState>();
 const playerSockets = new Map<WebSocket, string>();
 const usedSpawnSlots = new Map<CityId, Set<number>>();
@@ -311,8 +318,11 @@ const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(file
 const profileStore = new PlayerProfileStore(profileDatabasePath);
 const analyticsStore = new AnalyticsStore(profileDatabasePath);
 const firehawkPayments = new FirehawkPayments(profileDatabasePath);
+const skyTokenPayments = new SkyTokenPayments(firehawkPayments.mode);
 const nativePurchaseLedger = new NativePurchaseLedger(profileDatabasePath);
 const nativePurchaseVerifier = new NativePurchaseVerifier();
+const rewardedAdStore = new RewardedAdStore(profileDatabasePath);
+const admobSsvVerifier = new AdMobSsvVerifier();
 const trialNetworkGuard = new TrialNetworkGuard(profileDatabasePath, process.env.AIRPORT_CHAOS_TRIAL_IP_SECRET);
 const firehawkPromotionShownConnections = new Set<string>();
 const firehawkPromotionRequestCounts = new Map<string, number>();
@@ -335,7 +345,12 @@ const securityLimits = {
   oauthCallbackIp: { limit: 30, windowMs: 15 * 60_000 },
   realtimeTicketPilot: { limit: 120, windowMs: 15 * 60_000 }, realtimeTicketIp: { limit: 240, windowMs: 15 * 60_000 },
   namePilot: { limit: 5, windowMs: 60 * 60_000 },
+  dailyRewardPilot: { limit: 12, windowMs: 15 * 60_000 }, dailyRewardIp: { limit: 30, windowMs: 15 * 60_000 },
+  rewardedAdPilot: { limit: 20, windowMs: 15 * 60_000 }, rewardedAdIp: { limit: 60, windowMs: 15 * 60_000 },
+  rewardedAdStatusPilot: { limit: 120, windowMs: 15 * 60_000 }, rewardedAdSsvIp: { limit: 1_000, windowMs: 15 * 60_000 },
   nativePurchasePilot: { limit: 12, windowMs: 15 * 60_000 }, nativePurchaseIp: { limit: 30, windowMs: 15 * 60_000 },
+  referralLookupIp: { limit: 30, windowMs: 60 * 60_000 },
+  analyticsIntentPilot: { limit: 120, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
 const playerClientIps = new Map<string, string>();
 const playerTrialNetworkIds = new Map<string, string>();
@@ -481,7 +496,7 @@ const wsPayloadWindow = {
 const fireBlockedDebugAt = new Map<string, number>();
 
 const port = Number(process.env.PORT ?? 8091);
-const configuredWebOrigin = process.env.AIRPORT_CHAOS_WEB_ORIGIN?.trim() || 'https://fly.vadensoftware.com';
+const configuredWebOrigin = process.env.AIRPORT_CHAOS_WEB_ORIGIN?.trim() || productionWebOrigin;
 const clientDist = resolve(fileURLToPath(new URL('../../client/dist/', import.meta.url)));
 const contentTypes: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -554,7 +569,7 @@ async function readRawBody(request: IncomingMessage, maximum = 1_048_576): Promi
 
 function checkoutOrigin(request: IncomingMessage): string {
   const host = (request.headers.host ?? '').toLowerCase();
-  return host.startsWith('localhost:') || host.startsWith('127.0.0.1:') ? `http://${host}` : 'https://fly.vadensoftware.com';
+  return host.startsWith('localhost:') || host.startsWith('127.0.0.1:') ? `http://${host}` : productionWebOrigin;
 }
 
 function secureCookieRequest(request: IncomingMessage): boolean {
@@ -583,6 +598,21 @@ function oauthProvider(value: unknown): OAuthProvider | undefined {
 
 function nativeAuthPlatform(request: IncomingMessage): NativeAuthPlatform | undefined {
   return nativePlatformForOrigin(String(request.headers.origin ?? ''));
+}
+
+function skyTokenCommerceAvailable(request: IncomingMessage): boolean {
+  const platform = nativeAuthPlatform(request);
+  if (platform === 'ios') return process.env.AIRPORT_CHAOS_SKY_TOKEN_COMMERCE_ENABLED === 'true' &&
+    process.env.AIRPORT_CHAOS_SKY_TOKEN_IOS_ENABLED === 'true' && nativePurchaseVerifier.appleEnabled;
+  if (platform === 'android') return process.env.AIRPORT_CHAOS_SKY_TOKEN_COMMERCE_ENABLED === 'true' &&
+    process.env.AIRPORT_CHAOS_SKY_TOKEN_ANDROID_ENABLED === 'true' && nativePurchaseVerifier.googleRefundNotificationsEnabled;
+  return skyTokenPayments.enabled;
+}
+
+function analyticsPlatform(request: IncomingMessage): NonNullable<AnalyticsContext['platform']> {
+  const native = nativeAuthPlatform(request);
+  if (native) return native;
+  return /\b(?:Mobile|Android|iPhone|iPad)\b/i.test(String(request.headers['user-agent'] ?? '')) ? 'mobile_web' : 'desktop_web';
 }
 
 function nativeProviderDisplayName(value: unknown): string | undefined {
@@ -621,6 +651,28 @@ const httpServer = createServer(async (request, response) => {
   if (rejectsApiRequestOrigin(request, requestUrl.pathname, configuredWebOrigin)) {
     jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
   }
+  if (requestUrl.pathname === '/api/rewarded-ads/admob/ssv') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    const callbackLimit = limitedBy('rewarded-ad-ssv-ip', trustedClientIp(request), securityLimits.rewardedAdSsvIp);
+    if (callbackLimit.limited) { rateLimited(response, callbackLimit.retryAfterMs); return; }
+    try {
+      const verified = await admobSsvVerifier.verify(request.url ?? '');
+      const granted = rewardedAdStore.grantVerifiedReward(verified);
+      if (granted.ok && granted.rewarded && !granted.duplicate && granted.pilotId) {
+        const context: AnalyticsContext = { pilotId: granted.pilotId, platform: granted.platform, ...analyticsHost(request.headers.host) };
+        analyticsStore.recordEvent(context, 'rewarded_ad_verified', { source: 'admob' });
+        analyticsStore.recordEvent(context, 'rewarded_ad_reward_granted', {
+          amount: REWARDED_AD_CREDITS, source: 'admob', metadata: { provider: 'ADMOB' },
+        });
+      }
+      if (!granted.ok) console.warn('[rewarded-ad] verified callback rejected', granted.code ?? 'unknown');
+      jsonResponse(response, 200, { ok: granted.ok, rewarded: granted.rewarded, duplicate: granted.duplicate });
+    } catch (error) {
+      console.warn('[rewarded-ad] callback verification failed', error instanceof Error ? error.message : 'unknown');
+      jsonResponse(response, 401, { error: 'Reward verification failed.' });
+    }
+    return;
+  }
   if (requestUrl.pathname === '/api/realtime-ticket') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
     if (requestOrigin !== 'capacitor://localhost' || !sameOriginJsonRequest(request, configuredWebOrigin)) {
@@ -637,6 +689,13 @@ const httpServer = createServer(async (request, response) => {
     const issued = pilotSessions.issueWebSocketTicket(identity.session);
     if (!issued) { jsonResponse(response, 401, { error: 'Secure session required.' }); return; }
     jsonResponse(response, 200, issued);
+    return;
+  }
+  if (requestUrl.pathname === '/api/referrals/validate') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    const lookupLimit = limitedBy('referral-lookup-ip', trustedClientIp(request), securityLimits.referralLookupIp);
+    if (lookupLimit.limited) { rateLimited(response, lookupLimit.retryAfterMs); return; }
+    jsonResponse(response, 200, { valid: profileStore.validReferralCode(requestUrl.searchParams.get('code')) });
     return;
   }
   const publicPolicy = request.method === 'GET' || request.method === 'HEAD' ? policyPage(requestUrl.pathname) : undefined;
@@ -686,6 +745,8 @@ const httpServer = createServer(async (request, response) => {
         redirectOAuthResult(response, flow.returnTo, provider, result.collision ? 'collision' : 'failed'); return;
       }
       profileStore.getOrCreate(result.identity.pilotId, verified.displayName ?? 'Pilot');
+      if (result.createdAccount) analyticsStore.recordEvent({ pilotId: result.identity.pilotId, ...analyticsHost(request.headers.host), platform: analyticsPlatform(request) }, 'account_created', { source: result.referralAttributed ? 'referral' : 'unknown' });
+      if (result.referralAttributed) analyticsStore.recordEvent({ pilotId: result.identity.pilotId, ...analyticsHost(request.headers.host) }, 'referral_signup_attributed');
       response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
       closeSessionConnections(flow.session.tokenHash);
       redirectOAuthResult(response, flow.returnTo, provider, 'success', flow.action === 'link');
@@ -702,7 +763,7 @@ const httpServer = createServer(async (request, response) => {
     if (requestUrl.pathname === '/api/auth/status') {
       if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
       const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
-      jsonResponse(response, 200, { account: pilotSessions.status(identity.session), profile });
+      jsonResponse(response, 200, { account: pilotSessions.status(identity.session), profile, serverNow: Date.now() });
       return;
     }
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
@@ -724,7 +785,7 @@ const httpServer = createServer(async (request, response) => {
         const config = nativeProviderConfig(provider, platform);
         if (!config) { jsonResponse(response, 503, { error: 'That sign-in provider is not configured yet.' }); return; }
         const marker = `native:${platform}`;
-        const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, marker, marker);
+        const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, marker, marker, Date.now(), payload.referralCode);
         if (!flow) { jsonResponse(response, 409, { error: "You're already signed in. Log out first to use another account." }); return; }
         jsonResponse(response, 200, {
           state: flow.state,
@@ -764,6 +825,8 @@ const httpServer = createServer(async (request, response) => {
           jsonResponse(response, result.collision ? 409 : 401, { error: result.error ?? 'Provider authentication failed.' }); return;
         }
         const profile = reconcilePaidFirehawk(profileStore.getOrCreate(result.identity.pilotId, verified.displayName ?? 'Pilot'));
+        if (result.createdAccount) analyticsStore.recordEvent({ pilotId: result.identity.pilotId, ...analyticsHost(request.headers.host), platform: analyticsPlatform(request) }, 'account_created', { source: result.referralAttributed ? 'referral' : 'unknown' });
+        if (result.referralAttributed) analyticsStore.recordEvent({ pilotId: result.identity.pilotId, ...analyticsHost(request.headers.host) }, 'referral_signup_attributed');
         response.setHeader('Set-Cookie', sessionCookie(request, result.cookie, result.expiresAt));
         closeSessionConnections(flow.session.tokenHash);
         jsonResponse(response, 200, {
@@ -786,7 +849,7 @@ const httpServer = createServer(async (request, response) => {
         if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
         const config = providerConfig(provider);
         if (!config) { jsonResponse(response, 503, { error: 'That sign-in provider is not configured yet.' }); return; }
-        const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, config.redirectUri, returnTo);
+        const flow = pilotSessions.beginOAuthFlow(identity.session, provider, action, config.redirectUri, returnTo, Date.now(), payload.referralCode);
         if (!flow) { jsonResponse(response, 409, { error: "You're already signed in. Log out first to use another account." }); return; }
         jsonResponse(response, 200, { authorizationUrl: createAuthorizationUrl(config, {
           state: flow.state, nonce: flow.nonce, codeChallenge: flow.codeVerifier ? pkceChallenge(flow.codeVerifier) : undefined,
@@ -852,6 +915,10 @@ const httpServer = createServer(async (request, response) => {
     const signedPayload = typeof payload?.signedPayload === 'string' ? payload.signedPayload : '';
     try {
       const notification = await nativePurchaseVerifier.decodeAppleNotification(signedPayload);
+      if (notification.tokenPurchase && !notification.tokenPurchase.active) {
+        const pack = skyTokenPacks[notification.tokenPurchase.packId];
+        profileStore.refundVerifiedSkyTokenPurchase('apple', notification.tokenPurchase.providerTransactionId, pack.tokens);
+      }
       if (!nativePurchaseLedger.recordNotification('apple', notification.notificationId)) {
         jsonResponse(response, 200, { received: true }); return;
       }
@@ -870,17 +937,74 @@ const httpServer = createServer(async (request, response) => {
     }
     const payload = await readJson(request);
     const purchaseToken = googleNotificationToken(payload);
-    if (!purchaseToken) { jsonResponse(response, 400, { error: 'Invalid notification.' }); return; }
+    const tokenNotification = googleSkyTokenNotification(payload);
+    const voidedToken = googleVoidedPurchaseNotification(payload);
+    if (!purchaseToken && !tokenNotification && !voidedToken) { jsonResponse(response, 400, { error: 'Invalid notification.' }); return; }
     try {
-      const purchase = await nativePurchaseVerifier.verifyGoogle(purchaseToken);
-      const notificationId = createHash('sha256').update(purchaseToken).digest('base64url');
-      if (nativePurchaseLedger.recordNotification('google', notificationId) && !purchase.active) {
-        revokeNativeFirehawk('google', purchase.providerTransactionId);
+      if (voidedToken) {
+        const transactionId = createHash('sha256').update(voidedToken).digest('base64url');
+        const quantity = profileStore.skyTokenPurchaseQuantity('google', transactionId) ?? 0;
+        profileStore.refundVerifiedSkyTokenPurchase('google', transactionId, quantity);
+        revokeNativeFirehawk('google', transactionId);
+      } else if (tokenNotification) {
+        const purchase = await nativePurchaseVerifier.verifySkyTokenGoogle(tokenNotification.purchaseToken, tokenNotification.productId);
+        if (!purchase.active) profileStore.refundVerifiedSkyTokenPurchase('google', purchase.providerTransactionId, skyTokenPacks[purchase.packId].tokens);
+      } else {
+        const purchase = await nativePurchaseVerifier.verifyGoogle(purchaseToken!);
+        const notificationId = createHash('sha256').update(purchaseToken!).digest('base64url');
+        if (nativePurchaseLedger.recordNotification('google', notificationId) && !purchase.active) revokeNativeFirehawk('google', purchase.providerTransactionId);
       }
       jsonResponse(response, 200, { received: true });
     } catch (error) {
       console.warn('[google-play] notification rejected', error instanceof Error ? error.message : 'invalid');
       jsonResponse(response, 400, { error: 'Invalid notification.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/sky-tokens/native/context') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    const provider = nativeAuthPlatform(request) === 'ios' ? 'apple' : nativeAuthPlatform(request) === 'android' ? 'google' : undefined;
+    if (!identity.session.accountId || !provider || !skyTokenCommerceAvailable(request)) { jsonResponse(response, 403, { error: 'Native Token purchases are unavailable.' }); return; }
+    const pilotLimit = limitedBy('native-purchase-pilot', identity.pilotId, securityLimits.nativePurchasePilot);
+    const ipLimit = limitedBy('native-purchase-ip', identity.clientIp, securityLimits.nativePurchaseIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
+    const payload = await readJson(request);
+    const packId = typeof payload?.packId === 'string' ? payload.packId : '';
+    if (!skyTokenPack(packId)) { jsonResponse(response, 400, { error: 'Unknown Token pack.' }); return; }
+    const context = profileStore.createSkyTokenPurchaseContext(identity.pilotId, identity.session.accountId, provider, packId as SkyTokenPackId);
+    if (!context) { jsonResponse(response, 400, { error: 'Unable to start purchase.' }); return; }
+    analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host) }, 'sky_token_purchase_started', { source: provider });
+    jsonResponse(response, 200, context); return;
+  }
+  if (requestUrl.pathname === '/api/sky-tokens/native/verify') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    const provider = nativeAuthPlatform(request) === 'ios' ? 'apple' : nativeAuthPlatform(request) === 'android' ? 'google' : undefined;
+    if (!identity.session.accountId || !provider) { jsonResponse(response, 403, { error: 'Native purchase is unavailable.' }); return; }
+    const payload = await readJson(request);
+    const contextId = typeof payload?.contextId === 'string' && /^[0-9a-f-]{36}$/i.test(payload.contextId) ? payload.contextId : '';
+    const signedTransaction = typeof payload?.signedTransaction === 'string' ? payload.signedTransaction : '';
+    const purchaseToken = typeof payload?.purchaseToken === 'string' ? payload.purchaseToken : '';
+    const productId = typeof payload?.productId === 'string' ? payload.productId : '';
+    try {
+      const verified = provider === 'apple' ? await nativePurchaseVerifier.verifySkyTokenApple(signedTransaction)
+        : await nativePurchaseVerifier.verifySkyTokenGoogle(purchaseToken, productId);
+      if (!verified.active) { jsonResponse(response, 400, { error: 'This purchase is not active.' }); return; }
+      const grant = profileStore.recordVerifiedSkyTokenPurchase({ pilotId: identity.pilotId, accountId: identity.session.accountId,
+        provider, transactionId: verified.providerTransactionId, packId: verified.packId, productId: verified.productId,
+        amountCents: verified.amountCents, currency: verified.currency, environment: verified.environment,
+        purchasedAt: verified.purchasedAt, contextId, accountBinding: verified.accountBinding });
+      if (grant.applied) analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host) },
+        'sky_token_purchase_succeeded', { amount: skyTokenPacks[verified.packId].tokens, source: provider });
+      jsonResponse(response, 200, { profile: grant.profile, reference: grant.reference, applied: grant.applied });
+    } catch (error) {
+      console.warn('[sky-tokens] native verification rejected', error instanceof Error ? error.message : 'invalid');
+      jsonResponse(response, 400, { error: 'Unable to verify purchase. Please try again.' });
     }
     return;
   }
@@ -897,6 +1021,7 @@ const httpServer = createServer(async (request, response) => {
     if (!provider || !action || (platform === 'ios' ? provider !== 'apple' : platform === 'android' ? provider !== 'google' : true)) {
       jsonResponse(response, 403, { error: 'Native store is unavailable.' }); return;
     }
+    if (action === 'purchase' && skyTokenCommerceAvailable(request)) { jsonResponse(response, 409, { error: 'Unlock Firehawk with Sky Tokens in the Garage.' }); return; }
     if ((provider === 'apple' && !nativePurchaseVerifier.appleEnabled) || (provider === 'google' && !nativePurchaseVerifier.googleEnabled)) {
       jsonResponse(response, 503, { error: 'Store verification is not configured yet.' }); return;
     }
@@ -907,6 +1032,8 @@ const httpServer = createServer(async (request, response) => {
     if (action === 'purchase' && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) { jsonResponse(response, 409, { error: 'Firehawk already owned.' }); return; }
     const context = nativePurchaseLedger.createContext({ accountId: identity.session.accountId, pilotId: identity.pilotId }, provider, action);
     if (!context) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
+    if (action === 'purchase') analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request),
+      aircraftType: 'fighter', ...analyticsHost(request.headers.host) }, 'firehawk_purchase_started', { source: provider });
     jsonResponse(response, 200, context);
     return;
   }
@@ -929,6 +1056,7 @@ const httpServer = createServer(async (request, response) => {
       const verified = provider === 'apple'
         ? await nativePurchaseVerifier.verifyApple(signedTransaction)
         : await nativePurchaseVerifier.verifyGoogle(purchaseToken);
+      const purchaseIntent = nativePurchaseLedger.contextIntent({ accountId: identity.session.accountId, pilotId: identity.pilotId }, contextId, provider);
       const grant = nativePurchaseLedger.recordVerified({ accountId: identity.session.accountId, pilotId: identity.pilotId }, contextId, verified);
       if (!grant.ok || !grant.source) {
         const message = grant.reason === 'ACCOUNT_MISMATCH' ? 'This store purchase belongs to another Airport Chaos account.' :
@@ -938,12 +1066,15 @@ const httpServer = createServer(async (request, response) => {
       const profile = profileStore.grantAircraftEntitlements(identity.pilotId, ['fighter'], grant.source);
       if (!profile) throw new Error('PROFILE_NOT_FOUND');
       if (provider === 'google' && !verified.acknowledged) await nativePurchaseVerifier.acknowledgeGoogle(purchaseToken);
-      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'fighter_purchase_completed', {
-        amount: verified.amountCents, source: provider, metadata: { environment: verified.environment, duplicate: grant.duplicate === true },
+      if (!grant.duplicate && purchaseIntent === 'purchase') analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'fighter_purchase_completed', {
+        amount: verified.amountCents, source: provider, metadata: { environment: verified.environment },
       });
+      if (purchaseIntent === 'restore') analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request),
+        aircraftType: 'fighter', ...analyticsHost(request.headers.host) }, 'firehawk_restore_succeeded', { source: contextId });
       jsonResponse(response, 200, { profile: reconcilePaidFirehawk(profile), transactionId: verified.providerTransactionId });
     } catch (error) {
       console.warn(`[${provider ?? 'native'}-purchase] verification rejected`, error instanceof Error ? error.message : 'invalid');
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'firehawk_purchase_failed', { source: provider ?? 'native' });
       jsonResponse(response, 400, { error: 'Unable to verify purchase. Try again.' });
     }
     return;
@@ -954,12 +1085,32 @@ const httpServer = createServer(async (request, response) => {
     try {
       if (!rawBody) throw new Error('INVALID_BODY');
       const event = firehawkPayments.verifyEvent(rawBody, request.headers['stripe-signature'] as string | undefined);
+      const tokenCheckout = await skyTokenPayments.paidCheckout(event);
+      if (tokenCheckout) {
+        const grant = profileStore.recordVerifiedSkyTokenPurchase({ ...tokenCheckout, provider: 'stripe' });
+        if (grant.applied && tokenCheckout.initialRefundedQuantity < skyTokenPacks[tokenCheckout.packId].tokens)
+          analyticsStore.recordEvent({ pilotId: tokenCheckout.pilotId, ...analyticsHost(request.headers.host) }, 'sky_token_purchase_succeeded',
+            { amount: skyTokenPacks[tokenCheckout.packId].tokens - tokenCheckout.initialRefundedQuantity, source: 'stripe' });
+      }
+      if (event.type === 'charge.refunded') {
+        const charge = event.data.object;
+        const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+        const tokenPurchase = paymentIntentId ? profileStore.skyTokenPurchaseForPaymentIntent(paymentIntentId) : undefined;
+        if (!tokenPurchase && paymentIntentId && await skyTokenPayments.isSkyTokenPaymentIntent(paymentIntentId))
+          throw new Error('TOKEN_REFUND_PURCHASE_PENDING');
+        if (tokenPurchase && charge.currency === 'usd' && charge.amount === tokenPurchase.amountCents && charge.amount > 0) {
+          const refundedQuantity = Math.floor(tokenPurchase.quantity * charge.amount_refunded / charge.amount);
+          const reversal = profileStore.refundVerifiedSkyTokenPurchase('stripe', tokenPurchase.transactionId, refundedQuantity);
+          if (reversal.applied) analyticsStore.recordEvent({ pilotId: reversal.profile!.pilotId, ...analyticsHost(request.headers.host) }, 'sky_token_purchase_refunded',
+            { amount: refundedQuantity, source: 'stripe' });
+        }
+      }
       const purchase = await firehawkPayments.recordPaidCheckout(event);
       if (purchase) {
         nativePurchaseLedger.recordStripePurchase({ transactionId: purchase.sessionId, originalId: purchase.paymentIntentId, accountId: purchase.accountId, pilotId: purchase.pilotId, mode: purchase.stripeMode });
-        profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter'], `stripe:${purchase.stripeMode}`);
+        const entitled = profileStore.grantAircraftEntitlements(purchase.pilotId, ['fighter'], `stripe:${purchase.stripeMode}`);
         const host = analyticsHost(request.headers.host);
-        analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: firehawkProduct.amountCents, source: 'stripe', metadata: { stripeMode: purchase.stripeMode } });
+        if (entitled?.aircraftEntitlements.includes(firehawkProduct.entitlement)) analyticsStore.recordEvent({ pilotId: purchase.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_purchase_completed', { amount: firehawkProduct.amountCents, source: 'stripe', metadata: { stripeMode: purchase.stripeMode } });
       }
       const refund = firehawkPayments.recordRefund(event);
       if (refund) {
@@ -980,6 +1131,46 @@ const httpServer = createServer(async (request, response) => {
     }
     return;
   }
+  if (requestUrl.pathname === '/api/sky-tokens/catalog') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    jsonResponse(response, 200, { enabled: Boolean(identity.session.accountId && skyTokenCommerceAvailable(request)),
+      packs: Object.entries(skyTokenPacks).map(([id, pack]) => ({ id, tokens: pack.tokens, usdCents: pack.usdCents })) });
+    return;
+  }
+  if (requestUrl.pathname === '/api/sky-tokens/checkout') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    if (!identity.session.accountId || nativeAuthPlatform(request) || !skyTokenPayments.enabled) { jsonResponse(response, 403, { error: 'Token purchases are unavailable.' }); return; }
+    const pilotLimit = limitedBy('checkout-pilot', identity.pilotId, securityLimits.checkoutPilot);
+    const ipLimit = limitedBy('checkout-ip', identity.clientIp, securityLimits.checkoutIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
+    const payload = await readJson(request);
+    const packId = typeof payload?.packId === 'string' ? payload.packId : '';
+    if (!skyTokenPack(packId)) { jsonResponse(response, 400, { error: 'Unknown Token pack.' }); return; }
+    try {
+      const checkout = await skyTokenPayments.createCheckout(identity.pilotId, identity.session.accountId, packId as SkyTokenPackId, configuredWebOrigin);
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host) }, 'sky_token_purchase_started', { source: 'stripe' });
+      jsonResponse(response, 200, checkout);
+    } catch {
+      jsonResponse(response, 503, { error: 'Token checkout is unavailable. Please try again.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/sky-tokens/purchase-status') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    const identity = authenticatedIdentity(request, response);
+    if (!identity) return;
+    if (!identity.session.accountId) { jsonResponse(response, 401, { error: 'Sign in to view purchases.' }); return; }
+    const sessionId = requestUrl.searchParams.get('sessionId') ?? '';
+    if (!/^cs_[A-Za-z0-9_]{8,256}$/.test(sessionId)) { jsonResponse(response, 400, { error: 'Invalid purchase reference.' }); return; }
+    jsonResponse(response, 200, { status: profileStore.skyTokenPurchaseStatus(identity.pilotId, sessionId),
+      profile: profileStore.getOrCreate(identity.pilotId, identity.pilotName) });
+    return;
+  }
   if (requestUrl.pathname === '/api/firehawk/checkout') {
     if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
     if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
@@ -990,16 +1181,18 @@ const httpServer = createServer(async (request, response) => {
     if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
     const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
     if (!identity.session.accountId) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
+    if (skyTokenPayments.enabled && !nativeAuthPlatform(request)) { jsonResponse(response, 409, { error: 'Unlock Firehawk with Sky Tokens in the Garage.' }); return; }
     if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) {
       response.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Firehawk already owned"}'); return;
     }
     try {
       const checkout = await firehawkPayments.createCheckout(identity.pilotId, identity.session.accountId, checkoutOrigin(request));
       const host = analyticsHost(request.headers.host);
-      analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe', metadata: { stripeMode: firehawkPayments.mode } });
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe', metadata: { stripeMode: firehawkPayments.mode } });
       response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(checkout));
     } catch (error) {
       console.warn('[stripe] checkout unavailable', error instanceof Error ? error.message : 'unknown');
+      analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'firehawk_purchase_failed', { source: 'stripe_checkout' });
       response.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Checkout is not available yet"}');
     }
     return;
@@ -1044,6 +1237,127 @@ const httpServer = createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
     response.end(analyticsStore.dashboardHtml(!includeDevelopment, Date.now(), firehawkPayments.metrics(), firehawkPayments.mode)); return;
   }
+  if (requestUrl.pathname === '/api/analytics/intent') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    const session = pilotSessions.resolveSession(request.headers.cookie);
+    if (!session || !sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const limited = limitedBy('analytics-intent-pilot', session.pilotId, securityLimits.analyticsIntentPilot);
+    if (limited.limited) { rateLimited(response, limited.retryAfterMs); return; }
+    const intent = parseClientIntent(await readJson(request));
+    if (!intent) { jsonResponse(response, 400, { error: 'Invalid analytics event.' }); return; }
+    const context: AnalyticsContext = {
+      pilotId: session.pilotId, sessionId: `${session.pilotId}:${intent.sessionId}`,
+      journeyId: `${session.pilotId}:${intent.sessionId}`,
+      cityId: intent.cityId, aircraftType: intent.aircraftType,
+      platform: analyticsPlatform(request), ...analyticsHost(request.headers.host),
+    };
+    analyticsStore.startSession(context);
+    analyticsStore.recordEvent(context, intent.event);
+    if (intent.event === 'rewards_viewed' && session.accountId) {
+      const dailyReward = profileStore.dailyRewardState(session.pilotId);
+      if (dailyReward?.claimable) analyticsStore.recordEvent(context, 'daily_reward_available',
+        { source: String(dailyReward.lastClaimedAt ?? 0), metadata: { day: dailyReward.nextDay } });
+    }
+    response.writeHead(204, { 'Cache-Control': 'no-store' }); response.end(); return;
+  }
+  if (requestUrl.pathname === '/api/daily-reward') {
+    if (request.method !== 'GET' && request.method !== 'POST') { response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return; }
+    const session = pilotSessions.resolveSession(request.headers.cookie);
+    if (!session?.accountId) { jsonResponse(response, 401, { error: 'Sign in to claim Daily Rewards.' }); return; }
+    profileStore.getOrCreate(session.pilotId, 'Pilot');
+    if (request.method === 'GET') {
+      const dailyReward = profileStore.dailyRewardState(session.pilotId);
+      if (dailyReward?.claimable) analyticsStore.recordEvent({ pilotId: session.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host) }, 'daily_reward_available',
+        { source: String(dailyReward.lastClaimedAt ?? 0), metadata: { day: dailyReward.nextDay } });
+      jsonResponse(response, 200, { dailyReward, serverNow: Date.now() });
+      return;
+    }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const payload = await readJson(request);
+    if (!payload || Object.keys(payload).length > 0) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
+    const clientIp = trustedClientIp(request);
+    const pilotLimit = limitedBy('daily-reward-pilot', session.pilotId, securityLimits.dailyRewardPilot);
+    const ipLimit = limitedBy('daily-reward-ip', clientIp, securityLimits.dailyRewardIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
+    try {
+      const before = profileStore.dailyRewardState(session.pilotId);
+      const result = profileStore.claimDailyReward(session.pilotId);
+      if (!result) { jsonResponse(response, 404, { error: 'Player profile unavailable.' }); return; }
+      if (!result.claimed) { jsonResponse(response, 409, { error: "Your next reward isn't ready yet.", dailyReward: result.state, serverNow: Date.now() }); return; }
+      analyticsStore.recordEvent({ pilotId: session.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host) }, 'daily_reward_claimed',
+        { amount: result.credits, metadata: { day: result.day, delaySeconds: before?.nextEligibleAt ? Math.max(0, Math.round((Date.now() - before.nextEligibleAt) / 1_000)) : 0 } });
+      jsonResponse(response, 200, { ...result, serverNow: Date.now() });
+    } catch (error) {
+      console.warn('[daily-reward] claim failed', error instanceof Error ? error.message : 'unknown');
+      jsonResponse(response, 503, { error: 'Unable to claim reward. Please try again.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname.startsWith('/api/rewarded-ads/')) {
+    const session = pilotSessions.resolveSession(request.headers.cookie);
+    const platform = nativeAuthPlatform(request);
+    if (!session?.accountId || !platform) { jsonResponse(response, 401, { error: 'Rewarded videos require a signed-in mobile account.' }); return; }
+    profileStore.getOrCreate(session.pilotId, 'Pilot');
+    const clientIp = trustedClientIp(request);
+    const statusRequest = request.method === 'GET';
+    const pilotLimit = limitedBy(statusRequest ? 'rewarded-ad-status-pilot' : 'rewarded-ad-pilot', session.pilotId,
+      statusRequest ? securityLimits.rewardedAdStatusPilot : securityLimits.rewardedAdPilot);
+    const ipLimit = limitedBy('rewarded-ad-ip', clientIp, securityLimits.rewardedAdIp);
+    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
+
+    if (requestUrl.pathname === '/api/rewarded-ads/status') {
+      if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+      jsonResponse(response, 200, { rewardedAds: rewardedAdStore.status(session.pilotId, platform) }); return;
+    }
+    if (requestUrl.pathname === '/api/rewarded-ads/attempt-status') {
+      if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+      const attemptId = requestUrl.searchParams.get('attemptId') ?? '';
+      const result = rewardedAdStore.attemptStatus(session.pilotId, attemptId);
+      if (!result) { jsonResponse(response, 404, { error: 'Reward attempt unavailable.' }); return; }
+      jsonResponse(response, 200, {
+        ...result,
+        profile: result.attemptStatus === 'REWARDED' ? reconcilePaidFirehawk(profileStore.getOrCreate(session.pilotId, 'Pilot')) : undefined,
+      });
+      return;
+    }
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
+    const payload = await readJson(request);
+    if (!payload) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
+    if (requestUrl.pathname === '/api/rewarded-ads/attempt') {
+      if (Object.keys(payload).length > 0) { jsonResponse(response, 400, { error: 'Invalid request.' }); return; }
+      const created = rewardedAdStore.createAttempt(session.pilotId, platform);
+      if (!created.ok) {
+        if (created.code === 'LIMIT_REACHED') analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, 'rewarded_ad_limit_reached', { source: platform });
+        const message = created.code === 'LIMIT_REACHED' ? 'All video rewards are claimed for this reward window.'
+          : created.code === 'ACTIVE_ATTEMPT' ? 'Another rewarded video is already active.'
+            : 'Rewarded videos are unavailable.';
+        jsonResponse(response, created.code === 'UNSUPPORTED' ? 404 : 409, { error: message, rewardedAds: created.status }); return;
+      }
+      analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, 'rewarded_ad_requested', {
+        amount: created.attempt.rewardCredits, source: platform, metadata: { provider: created.attempt.provider, remaining: created.status.remaining },
+      });
+      jsonResponse(response, 201, { attempt: created.attempt, rewardedAds: created.status }); return;
+    }
+    if (requestUrl.pathname === '/api/rewarded-ads/event') {
+      const attemptId = typeof payload.attemptId === 'string' ? payload.attemptId : '';
+      const event = (['started', 'qualified', 'closed', 'failed'] as const).includes(payload.event as RewardedAdClientEvent)
+        ? payload.event as RewardedAdClientEvent : undefined;
+      if (!event || Object.keys(payload).some((key) => key !== 'attemptId' && key !== 'event')) {
+        jsonResponse(response, 400, { error: 'Invalid request.' }); return;
+      }
+      const status = rewardedAdStore.recordClientEvent(session.pilotId, attemptId, event);
+      if (!status) { jsonResponse(response, 404, { error: 'Reward attempt unavailable.' }); return; }
+      const eventName = event === 'started' ? 'rewarded_ad_started'
+        : event === 'qualified' ? 'rewarded_ad_pending'
+          : event === 'closed' ? 'rewarded_ad_dismissed' : 'rewarded_ad_failed';
+      analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, eventName, {
+        amount: REWARDED_AD_CREDITS, source: platform, metadata: { provider: 'ADMOB', remaining: status.remaining },
+      });
+      jsonResponse(response, 200, { rewardedAds: status }); return;
+    }
+    jsonResponse(response, 404, { error: 'Not found.' }); return;
+  }
   if (requestUrl.pathname === '/api/profile') {
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
@@ -1066,7 +1380,12 @@ const httpServer = createServer(async (request, response) => {
           ? profileStore.getOrCreate(identity.pilotId, identity.pilotName)
           : profileStore.importLegacy(identity.pilotId, payload.legacy as LegacyProfileImport);
       }
-      else if (payload?.equipAircraft !== undefined) profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
+      else if (payload?.equipAircraft !== undefined) {
+        const previous = profileStore.getOrCreate(identity.pilotId, identity.pilotName).selectedAircraft;
+        profile = profileStore.equipAircraft(identity.pilotId, payload.equipAircraft);
+        if (profile && profile.selectedAircraft !== previous) analyticsStore.recordEvent({ pilotId: identity.pilotId,
+          platform: analyticsPlatform(request), aircraftType: profile.selectedAircraft, ...analyticsHost(request.headers.host) }, 'aircraft_equipped');
+      }
       else if (typeof payload?.purchaseCosmetic === 'string' || typeof payload?.equipCosmetic === 'string') {
         const result = typeof payload.purchaseCosmetic === 'string' ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic) : profileStore.equipCosmetic(identity.pilotId, payload.equipCosmetic as string);
         profile = result.profile; error = result.ok ? undefined : result.reason;
@@ -1082,6 +1401,20 @@ const httpServer = createServer(async (request, response) => {
         if (result.ok && profile && typeof payload.purchaseAircraft === 'string' && !before.unlockedAircraft.includes(payload.purchaseAircraft as AircraftType) && profile.unlockedAircraft.includes(payload.purchaseAircraft as AircraftType)) {
           const host = analyticsHost(request.headers.host);
           analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: payload.purchaseAircraft }, 'aircraft_unlocked', { source: 'credits' });
+        }
+      } else if (payload?.purchaseAircraftWithSkyTokens !== undefined) {
+        if (!identity.session.accountId || !skyTokenCommerceAvailable(request)) { error = 'Sky Token unlocks are unavailable.'; }
+        else {
+          const before = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
+          const result = profileStore.purchaseAircraftWithSkyTokens(identity.pilotId, payload.purchaseAircraftWithSkyTokens);
+          profile = result.profile; error = result.ok ? undefined : result.reason;
+          if (result.ok && profile && typeof payload.purchaseAircraftWithSkyTokens === 'string' &&
+              !before.unlockedAircraft.includes(payload.purchaseAircraftWithSkyTokens as AircraftType)) {
+            analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: payload.purchaseAircraftWithSkyTokens },
+              'aircraft_unlocked', { source: 'sky_tokens' });
+            analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: payload.purchaseAircraftWithSkyTokens },
+              'sky_token_spent', { amount: before.skyTokens - profile.skyTokens, source: 'garage' });
+          }
         }
       } else if (payload?.testerCode !== undefined) {
         const before = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
@@ -1354,7 +1687,11 @@ function awardSocialPlayer(playerId: string, score: number, credits: number, rea
   const reward = rewardWithHeat(playerId, score, credits);
   player.score += reward.score;
   persistScore(player, reward.score);
-  const profile = profileStore.awardServerReward(player.pilotId, reward.credits, { challengeCompletions: reason.includes('CHALLENGE WON') ? 1 : 0 });
+  const profile = profileStore.awardServerReward(
+    player.pilotId, reward.credits,
+    { challengeCompletions: reason.includes('CHALLENGE WON') ? 1 : 0 },
+    reason.includes('CHALLENGE WON') ? 'CHALLENGE_REWARD' : 'FLIGHT_REWARD',
+  );
   if (profile) sendProfile(playerId, profile, undefined, undefined, reason);
   if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'social' });
   sendToPlayer(playerId, { type: 'socialReward', score: reward.score, credits: reward.credits, reason });
@@ -1747,18 +2084,23 @@ function awardPilotProgress(playerId: string, amount: number): void {
   }
 }
 
-function advanceReferralProgress(playerId: string, gameplayMs: number, qualifiedAction: boolean, now = Date.now()): void {
+function qualifyReferralFromFlight(playerId: string, now = Date.now()): void {
   const player = players.get(playerId);
-  if (!isHumanPilot(player) || !progressionEnabled(player)) return;
-  const result = profileStore.advanceReferral(player.pilotId, gameplayMs, qualifiedAction, now);
+  if (!isHumanPilot(player) || !player.accountId || !progressionEnabled(player)) return;
+  const result = profileStore.qualifyReferral(player.pilotId, now);
   if (!result.rewarded) return;
   const referredProfile = result.profile ?? profileStore.getOrCreate(player.pilotId, player.displayName);
-  sendProfile(playerId, referredProfile, undefined, undefined, 'Referral Reward');
+  sendProfile(playerId, referredProfile, undefined, undefined, 'Referral Welcome Reward');
   recordAnalytics(playerId, 'referral_qualified', { metadata: { role: 'referred' } }, now);
+  recordAnalytics(playerId, 'referral_new_player_rewarded', { amount: 500 }, now);
+  const referredContext = analyticsContexts.get(playerId);
+  const inviterContext: AnalyticsContext = { pilotId: result.inviterId!,
+    environment: referredContext?.environment ?? 'production', host: referredContext?.host ?? 'unknown' };
+  if (!result.inviterRewarded) { analyticsStore.recordEvent(inviterContext, 'referral_cap_reached', {}, now); return; }
+  analyticsStore.recordEvent(inviterContext, 'referral_inviter_rewarded', { amount: 750 }, now);
   for (const [otherId, other] of players) if (isHumanPilot(other) && other.pilotId === result.inviterId) {
     const inviterProfile = profileStore.getOrCreate(other.pilotId, other.displayName);
     sendProfile(otherId, inviterProfile, undefined, undefined, 'Referral Reward');
-    recordAnalytics(otherId, 'referral_qualified', { metadata: { role: 'inviter' } }, now);
   }
 }
 
@@ -1838,9 +2180,10 @@ function missionSignal(playerId: string, signal: MissionSignal): void {
     sendToPlayer(playerId, { type: 'missionCompleted', missionId: reward.missionId, credits: reward.credits, score: reward.score });
     recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: 'mission' }, signal.at);
     recordAnalytics(playerId, 'mission_completed', { source: reward.missionId, amount: reward.credits, metadata: { mammothCargoBonus: reward.cargoBonusCredits, cargoBonusApplied: reward.cargoBonusCredits > 0 } }, signal.at);
+    const flightMetrics = flightAnalytics.get(playerId);
+    if (flightMetrics) flightMetrics.missions += 1;
     const mission = missionForCity(player.cityId, reward.missionId);
     if (mission) awardPilotProgress(playerId, pilotXpRewards.mission[mission.difficulty] ?? 0);
-    advanceReferralProgress(playerId, 0, true, signal.at);
     broadcastLeaderboard(player.cityId);
     updateKing(player.cityId);
   } else {
@@ -1988,7 +2331,7 @@ function passSkyChallengeGate(playerId: string, player: PlayerState, challengeId
   player.score += challengeScore;
   persistScore(player, challengeScore);
   const challengeCredits = canProgress ? challengeCreditReward(challenge.reward) : 0;
-  const profile = canProgress ? profileStore.awardServerReward(player.pilotId, challengeCredits, { challengeCompletions: 1 }) : undefined;
+  const profile = canProgress ? profileStore.awardServerReward(player.pilotId, challengeCredits, { challengeCompletions: 1 }, 'CHALLENGE_REWARD', challenge.id) : undefined;
   if (profile) sendProfile(playerId, profile, undefined, undefined, 'Sky Challenge');
   if (challengeCredits > 0) recordAnalytics(playerId, 'credits_earned', { amount: challengeCredits, source: 'challenge' }, now);
   recordObjectiveActivity(playerId, 'challenge');
@@ -2033,6 +2376,9 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   // and telemetry-consistency requirements together.
   landingReceipts.set(receiptKey, now);
   landingFlightState.set(playerId, { baselineY: player.position.y, airborne: false });
+  airborneMilestones.reset(playerId);
+  const flightMetrics = flightAnalytics.get(playerId);
+  if (flightMetrics) { flightMetrics.landings += 1; recordAnalytics(playerId, 'flight_landed', { source: airport.id }, now); }
   const quality = landingPrecisionScore(telemetry, envelope);
   const grade = landingGradeForScore(quality);
   completeLandingChaosEvent(playerId, player, airport.id, grade, now);
@@ -2048,7 +2394,7 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
     return;
   }
   const landingCredits = economyRewards.landing;
-  const landingProfile = profileStore.awardServerReward(player.pilotId, landingCredits);
+  const landingProfile = profileStore.awardServerReward(player.pilotId, landingCredits, undefined, 'LANDING_REWARD', airport.id);
   if (landingProfile) {
     const boundaryProfile = profileStore.consumeExpiredFighterTrial(player.pilotId, now) ?? landingProfile;
     player.profile = boundaryProfile;
@@ -2066,7 +2412,6 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   profileStore.updatePersonalRecord(player.pilotId, 'best_landing', quality, player.cityId, now);
   flushFlightRecords(playerId, player);
   awardPilotProgress(playerId, 25);
-  advanceReferralProgress(playerId, 0, true, now);
 }
 
 function broadcastEvent(event: CityEvent): void {
@@ -2145,7 +2490,7 @@ function awardEventPlayer(event: CityEvent, playerId: string, score: number, cre
   const cargoReward = cargoCreditReward(credits, player.aircraftType, 'event', event.type);
   const reward = rewardWithHeat(playerId, score, cargoReward.credits);
   if (isHumanPilot(player)) {
-    const result = profileStore.awardServerRewardOnce(player.pilotId, `chaos-event:${event.id}`, reward.credits, { eventCompletions: 1 });
+    const result = profileStore.awardServerRewardOnce(player.pilotId, `chaos-event:${event.id}`, reward.credits, { eventCompletions: 1 }, 'EVENT_REWARD');
     if (!result.awarded) return;
     persistScore(player, reward.score);
     const profile = profileStore.getOrCreate(player.pilotId, player.displayName);
@@ -2359,7 +2704,7 @@ function awardTerritory(playerId: string, territory: TerritoryRuntime, kind: 'ca
   player.score += reward.score;
   persistScore(player, reward.score);
   if (isHumanPilot(player)) {
-    const profile = profileStore.awardServerReward(player.pilotId, reward.credits);
+    const profile = profileStore.awardServerReward(player.pilotId, reward.credits, undefined, 'TERRITORY_REWARD', territory.definition.id);
     if (profile) sendProfile(playerId, profile, undefined, undefined, kind === 'capture' ? 'Territory Captured' : 'Territory Held');
     if (kind === 'capture') recordObjectiveActivity(playerId, 'territoryCapture');
     if (reward.credits > 0) recordAnalytics(playerId, 'credits_earned', { amount: reward.credits, source: kind === 'capture' ? 'territory_capture' : 'territory_control' }, now);
@@ -3432,7 +3777,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   killer.score += killReward.score;
   persistScore(killer, killReward.score);
   if (isHumanPilot(killer)) {
-    const killerProfile = progressionEnabled(killer) ? profileStore.awardServerReward(killer.pilotId, killReward.credits, { kills: victim.isBot ? 0 : 1 }) : undefined;
+    if (eligibleForReward) { const metrics = flightAnalytics.get(ownerId); if (metrics) metrics.kills += 1; recordAnalytics(ownerId, 'combat_kill', { source: victim.isBot ? 'bot' : 'pilot' }, now); }
+    const killerProfile = progressionEnabled(killer) ? profileStore.awardServerReward(killer.pilotId, killReward.credits, { kills: victim.isBot ? 0 : 1 }, 'COMBAT_REWARD') : undefined;
     if (killerProfile) sendProfile(ownerId, killerProfile, undefined, undefined, victim.isBot ? 'AI Pilot Destroyed' : 'Enemy Destroyed');
     if (killerProfile && killReward.credits > 0) recordAnalytics(ownerId, 'credits_earned', { amount: killReward.credits, source: victim.isBot ? 'bot_combat' : 'player_combat' }, now);
     if (eligibleForReward) awardPilotProgress(ownerId, victim.isBot ? 15 : 40);
@@ -3470,6 +3816,7 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
   if (isHumanPilot(victim)) {
     flushFlightRecords(victimId, victim);
     recordAnalytics(victimId, 'crash', { source: 'destruction' }, now);
+    if (flightAnalytics.has(victimId)) recordAnalytics(victimId, 'flight_crashed', { source: 'combat' }, now);
     const victimProfile = progressionEnabled(victim) ? profileStore.awardServerReward(victim.pilotId, 0, { deaths: 1 }) : undefined;
     if (victimProfile) {
       const boundaryProfile = profileStore.consumeExpiredFighterTrial(victim.pilotId, now) ?? victimProfile;
@@ -4460,6 +4807,7 @@ function resetHumanToSafeRunway(playerId: string, player: PlayerState, profile: 
   playerChaos.delete(playerId);
   activeChallenges.delete(playerId);
   landingFlightState.delete(playerId);
+  airborneMilestones.reset(playerId);
   airportRepairStays.delete(playerId);
   removeTerritoryContribution(playerId);
   const activeRiskZone = cityEvents.get(player.cityId);
@@ -4520,6 +4868,7 @@ function clearPlayerRuntimeState(playerId: string): void {
   playerChaos.delete(playerId);
   activeChallenges.delete(playerId);
   landingFlightState.delete(playerId);
+  airborneMilestones.reset(playerId);
   playerHeat.delete(playerId);
   clearRepairState(playerId);
   for (const key of landingReceipts.keys()) if (key.startsWith(`${playerId}:`)) landingReceipts.delete(key);
@@ -4799,10 +5148,19 @@ function removeHumanConnection(socket: WebSocket): void {
   playerSockets.delete(socket);
   if (!player) return;
   const analyticsContext = analyticsContexts.get(playerId);
+  const flight = flightAnalytics.get(playerId);
+  if (analyticsContext && flight) {
+    const endedAt = Date.now();
+    analyticsStore.recordEvent({ ...analyticsContext, cityId: player.cityId, aircraftType: player.aircraftType }, 'flight_ended', {
+      amount: analyticsStore.flightCreditsEarned(player.pilotId, flight.startedAt, endedAt),
+      metadata: { durationSeconds: Math.round((endedAt - flight.startedAt) / 1_000), airborneSeconds: Math.round(flight.airborneMs / 1_000),
+        distanceMeters: Math.round(flight.distanceMeters), score: Math.max(0, player.score - flight.startingScore),
+        kills: flight.kills, landings: flight.landings, missions: flight.missions },
+    }, endedAt);
+  }
+  flightAnalytics.delete(playerId);
   if (analyticsContext) analyticsStore.endSession({ ...analyticsContext, cityId: player.cityId, aircraftType: player.aircraftType });
   analyticsContexts.delete(playerId);
-  advanceReferralProgress(playerId, Math.max(0, Date.now() - (connectionStartedAt.get(playerId) ?? Date.now())), false);
-  connectionStartedAt.delete(playerId);
   playerClientIps.delete(playerId);
   playerTrialNetworkIds.delete(playerId);
   firehawkPromotionShownConnections.delete(playerId);
@@ -4857,8 +5215,6 @@ server.on('connection', (socket, request) => {
   const tutorialMode = Boolean(cityCapabilities(cityId)?.tutorialEnabled && profile.tutorial.status === 'started');
   const intercityArrival=tutorialMode ? {completed:false,credits:0} : profileStore.completeIntercityArrival(identity.pilotId,cityId);
   if(intercityArrival.completed&&intercityArrival.profile)profile=intercityArrival.profile;
-  const dailyClaim = !tutorialMode && cityCapabilities(cityId)?.progressionEnabled ? profileStore.claimDailyStreak(identity.pilotId) : undefined;
-  if (dailyClaim) profile = dailyClaim.profile;
   const priorWeeklyRewardId = profile.weeklyReward?.weekId;
   const weeklyReward = !tutorialMode && cityCapabilities(cityId)?.progressionEnabled ? profileStore.finalizePreviousWeeklyReward(identity.pilotId) : undefined;
   const weeklyRewardNew = Boolean(weeklyReward && weeklyReward.weekId !== priorWeeklyRewardId);
@@ -4899,7 +5255,6 @@ server.on('connection', (socket, request) => {
     spawnSlot,
   });
   lastSentCredits.set(playerId, profile.credits);
-  connectionStartedAt.set(playerId, Date.now());
   playerSockets.set(socket, playerId);
   const restoredChaosEvent = profileStore.activeChaosEvent(profile.pilotId);
   const currentChaosEvent = cityEvents.get(cityId);
@@ -4912,9 +5267,17 @@ server.on('connection', (socket, request) => {
   const trialNetworkId = trialNetworkGuard.identify(clientIp);
   if (trialNetworkId) { playerTrialNetworkIds.set(playerId, trialNetworkId); profileStore.registerNetworkIdentity(profile.pilotId, trialNetworkId); }
   const host = analyticsHost(request.headers.host);
-  const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, cityId, aircraftType: profile.selectedAircraft, ...host };
+  const journeyToken = new URL(request.url ?? '/', 'http://localhost').searchParams.get('analyticsSession');
+  const journeyId = journeyToken && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(journeyToken) ? `${profile.pilotId}:${journeyToken}` : undefined;
+  const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, journeyId, cityId, aircraftType: profile.selectedAircraft, platform: analyticsPlatform(request), ...host };
   analyticsContexts.set(playerId, analyticsContext);
   analyticsStore.startSession(analyticsContext);
+  if (!tutorialMode) {
+    const startedAt = Date.now();
+    flightAnalytics.set(playerId, { startedAt, airborneMs: 0, distanceMeters: 0, startingScore: players.get(playerId)?.score ?? 0, kills: 0, landings: 0, missions: 0 });
+    analyticsStore.recordEvent(analyticsContext, 'flight_started', {}, startedAt);
+    analyticsStore.recordEvent(analyticsContext, 'game_started', {}, startedAt);
+  }
   analyticsStore.recordEvent(analyticsContext,'city_entered',{source:intercityArrival.completed?'intercity':'direct'});
   if(intercityArrival.completed)analyticsStore.recordEvent(analyticsContext,'intercity_route_completed',{amount:intercityArrival.credits,source:intercityArrival.routeId});
   if (activatedTrialOnConnect) analyticsStore.recordEvent(analyticsContext, 'fighter_trial_started', { source: 'garage' });
@@ -4978,10 +5341,6 @@ server.on('connection', (socket, request) => {
   );
   if(tutorialMode&&profileStore.nextPendingTutorialStep(profile.pilotId)==='landing')sendTutorialLandingApproach(playerId,players.get(playerId)!);
   broadcastToCity(cityId, { type: 'cosmeticChanged', playerId, equipped: profile.cosmetics.equipped });
-  if (dailyClaim?.claimed) {
-    sendSocketMessage(socket, { type: 'dailyStreakClaimed', day: dailyClaim.profile.dailyStreak.cycleDay, streak: dailyClaim.profile.dailyStreak.current, credits: dailyClaim.credits });
-    analyticsStore.recordEvent(analyticsContext, 'daily_streak_claimed', { amount: dailyClaim.credits, metadata: { day: dailyClaim.profile.dailyStreak.cycleDay } });
-  }
   if (weeklyRewardNew && weeklyReward) {
     sendSocketMessage(socket, { type: 'weeklyRewardClaimed', reward: weeklyReward });
     analyticsStore.recordEvent(analyticsContext, 'weekly_reward_awarded', { amount: weeklyReward.credits, metadata: { rank: weeklyReward.rank, category: weeklyReward.category } });
@@ -5189,6 +5548,7 @@ server.on('connection', (socket, request) => {
           sendToPlayer(playerId, { type: 'equipRejected', equipRequestId: requestId, reason: 'STOP AT AN AIRPORT TO CHANGE AIRCRAFT' });
           return;
         }
+        const previousAircraft = player.aircraftType;
         const profile = profileStore.equipAircraft(player.pilotId, message.aircraftType);
         if (!profile || profile.selectedAircraft !== message.aircraftType) {
           sendToPlayer(playerId, { type: 'equipRejected', equipRequestId: requestId, reason: 'AIRCRAFT LOCKED — CHOOSE AN OWNED AIRCRAFT' });
@@ -5197,6 +5557,7 @@ server.on('connection', (socket, request) => {
         player.profile = profile;
         player.selectionRevision = (player.selectionRevision ?? 0) + 1;
         player.aircraftType = profile.selectedAircraft;
+        if (previousAircraft !== player.aircraftType) recordAnalytics(playerId, 'aircraft_equipped');
         player.health = maxHealthForAircraft(player.aircraftType);
         sendProfile(playerId, profile, undefined, requestId);
         broadcastToCity(player.cityId, {
@@ -5464,11 +5825,6 @@ server.on('connection', (socket, request) => {
         sendToPlayer(playerId, { type: 'pvpChallengeState', challenge });
         recordAnalytics(playerId, 'pvp_challenge_sent', { metadata: { mode } }); return;
       }
-      if (message.type === 'referralAttach') {
-        const attached = profileStore.attachReferral(player.pilotId, message.code, playerTrialNetworkIds.get(playerId));
-        if (attached) { player.profile = profileStore.getOrCreate(player.pilotId, player.displayName); sendProfile(playerId, player.profile); recordAnalytics(playerId, 'referral_attached'); }
-        return;
-      }
       if (message.type === 'pvpChallengeResponse') {
         if (!cityCapabilities(player.cityId)?.competitiveEnabled) return;
         const challenge = typeof message.challengeId === 'string' ? pvpChallenges.get(message.challengeId) : undefined;
@@ -5555,6 +5911,7 @@ server.on('connection', (socket, request) => {
       if (!flight) landingFlightState.set(playerId, { baselineY: player.position.y, airborne: false });
       else if (player.position.y >= flight.baselineY + 8) flight.airborne = true;
       if (isHumanPilot(player) && flight?.airborne && !wasAirborne) {
+        if (player.accountId && progressionEnabled(player)) airborneMilestones.begin(playerId);
         const departure = cityAirports[player.cityId].find((airport) => {
           const dx = player.position.x - airport.x; const dz = player.position.z - airport.z;
           const along = dx * Math.sin(airport.heading) + dz * Math.cos(airport.heading);
@@ -5567,7 +5924,22 @@ server.on('connection', (socket, request) => {
         if(player.tutorialMode){profileStore.recordTrainingEvidence(player.pilotId,1);completeServerTutorialStep(playerId,player,'takeoff',stateNow);sendToPlayer(playerId,{type:'tutorialSignal',signal:'airborne'});}
       }
       if (isHumanPilot(player) && flight?.airborne && player.lifeState === 'alive') {
+        const aboveTerrain = player.position.y >= botTerrainHeight(player.cityId, player.position.x, player.position.z) + 8;
+        if (wasAirborne && aboveTerrain && velocityLength >= 10) {
+          const metrics = flightAnalytics.get(playerId);
+          if (metrics) metrics.airborneMs += Math.min(2_000, Math.max(0, stateSeconds * 1_000));
+        }
+        if (wasAirborne && airborneMilestones.has(playerId) && player.accountId && progressionEnabled(player)) {
+          if (aboveTerrain && velocityLength >= 10 && airborneMilestones.advance(playerId, stateSeconds * 1_000)) {
+            const context = analyticsContexts.get(playerId);
+            if (context) analyticsStore.recordActivation({ ...context, cityId: player.cityId, aircraftType: player.aircraftType }, stateNow);
+            if (profileStore.hasPendingReferral(player.pilotId)) qualifyReferralFromFlight(playerId, stateNow);
+            airborneMilestones.reset(playerId);
+          }
+        }
         const acceptedTravel = Math.min(traveled, velocityCap * stateSeconds * 1.15);
+        const metrics = flightAnalytics.get(playerId);
+        if (metrics) metrics.distanceMeters += acceptedTravel;
         player.missionDistanceMeters = (player.missionDistanceMeters ?? 0) + acceptedTravel;
         if (progressionEnabled(player)) {
           const candidate = flightRecordCandidates.get(playerId) ?? { topSpeed: 0, highestAltitude: 0, distance: 0 };

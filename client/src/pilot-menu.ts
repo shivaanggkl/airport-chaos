@@ -8,8 +8,9 @@ import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
 import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { legalPolicyHref } from './brand';
+import { recordProductIntent } from './product-analytics';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
-export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
+export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
 export type PilotMenuOptions = {
   sections?: readonly PilotMenuSection[];
   title?: string;
@@ -98,6 +99,24 @@ export type PilotMenuData = {
       rewards:readonly {id:string;points:number;label:string;state:'locked'|'claimable'|'claimed'}[];
       missions:readonly {id:string;label:string;progress:number;target:number;completed:boolean}[];
       weeklyEvent?:{weeklyEventId:string;title:string;description:string;progress:number;target:number;completed:boolean;rewarded:boolean;weekEnd:number} };
+  };
+  rewards?: {
+    authenticated: boolean;
+    notice?: string;
+    state: { schedule: readonly number[]; nextDay: number; nextAmount: number; claimable: boolean; claimedDays: readonly number[]; claimCount: number; lastClaimedAt?: number; nextEligibleAt: number; serverNow: number };
+    claim: () => Promise<PilotMenuAccountResult>;
+    watchAndEarn?: {
+      notice?: string;
+      phase: 'idle' | 'loading' | 'playing' | 'verifying';
+      state: { rewardCredits: number; maxRewards: number; remaining: number; windowEndsAt?: number; serverNow: number; activeAttempt?: { attemptId: string; status: string; expiresAt: number } };
+      watch: () => Promise<void>;
+    };
+    invite?: {
+      code: string; url: string; joinedCount: number; qualifiedCount: number; earnedCredits: number;
+      inviterRewardsInWindow: number; inviterRewardsRemaining: number; nextInviterRewardAt?: number;
+      share: () => Promise<PilotMenuAccountResult>;
+      copy: () => Promise<PilotMenuAccountResult>;
+    };
   };
   missions: { practice: boolean; activeId?: string; activeCity?: string; entries: readonly PilotMenuMission[]; accept: (id: string, replace: boolean) => void; abandon: () => void };
   players: { city: string; entries: readonly PilotMenuPlayer[] };
@@ -192,6 +211,9 @@ export class PilotMenu {
   private pointerActive = false;
   private profileNameEditing = false;
   private advertisingOpen = false;
+  private inviteOpen = false;
+  private inviteNotice = '';
+  private rewardsTimer?: number;
   private territoryLegendOpen = this.readLegendPreference();
 
   constructor(
@@ -260,6 +282,7 @@ export class PilotMenu {
   }
 
   isOpen(): boolean { return this.openState; }
+  isSectionOpen(section: PilotMenuSection): boolean { return this.openState && this.activeSection === section; }
   isActivelyScrolling(now = performance.now()): boolean { return now - this.lastScrollInteractionAt < 260; }
 
   open(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'): void {
@@ -309,6 +332,8 @@ export class PilotMenu {
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
         data.territories.entries.map(({ id, controller, contested, progress }) => [id, controller, contested, progress]),
         data.missions.entries.some((entry) => entry.cooldownUntil > Date.now()) ? Math.floor(Date.now() / 60_000) : 0]);
+      case 'REWARDS': return JSON.stringify([this.activeSection, data.rewards?.authenticated, data.rewards?.state, data.rewards?.watchAndEarn,
+        data.rewards?.invite && { ...data.rewards.invite, share: undefined, copy: undefined }, Math.floor(Date.now() / 60_000)]);
       case 'MAP': return this.activeSection;
       case 'PLAYERS': return JSON.stringify([this.activeSection, data.players.entries.map(({ name, aircraft, distance, lifecycle, score, altitudeMeters, kills, isLocal, isBot, ownedTerritories, mostWanted, king }) =>
         [name, aircraft, distance && Math.round(distance / 100), lifecycle, score, altitudeMeters === undefined ? undefined : Math.round(altitudeMeters / 30), kills, isLocal, isBot, ownedTerritories, mostWanted, king])]);
@@ -435,6 +460,8 @@ export class PilotMenu {
   }
 
   private render(data: PilotMenuData, switched = false): void {
+    if (this.rewardsTimer !== undefined) window.clearTimeout(this.rewardsTimer);
+    this.rewardsTimer = undefined;
     this.lastData?.map.unmount();
     this.lastData = data;
     this.lastSnapshot = this.snapshot(data);
@@ -740,6 +767,162 @@ export class PilotMenu {
     content.append(territories);
     }
 
+    if (this.activeSection === 'REWARDS' && data.rewards) {
+      const rewards = section('DAILY REWARDS');
+      rewards.classList.add('pilot-rewards');
+      rewards.append(
+        textElement('p', 'Come back regularly and collect Credits.', 'pilot-menu-muted'),
+        textElement('p', 'Miss a day? Your reward progress waits for you.', 'pilot-rewards-friendly'),
+      );
+      const state = data.rewards.state;
+      const remaining = Math.max(0, state.nextEligibleAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
+      const available = state.claimable || remaining === 0;
+      const grid = document.createElement('div'); grid.className = 'pilot-rewards-grid';
+      state.schedule.forEach((amount, index) => {
+        const day = index + 1;
+        const tile = document.createElement('div'); tile.className = 'pilot-reward-tile';
+        const claimed = state.claimedDays.includes(day);
+        tile.classList.toggle('is-claimed', claimed);
+        tile.classList.toggle('is-available', day === state.nextDay && available);
+        tile.classList.toggle('is-day-seven', day === 7);
+        tile.append(
+          textElement('span', `DAY ${day}`),
+          textElement('strong', amount.toLocaleString()),
+          textElement('small', claimed ? '✓ CLAIMED' : day === state.nextDay && available ? 'AVAILABLE' : 'CREDITS'),
+        );
+        grid.append(tile);
+      });
+      rewards.append(grid);
+      const claimArea = document.createElement('div'); claimArea.className = 'pilot-reward-claim';
+      claimArea.append(
+        textElement('span', available ? "TODAY'S REWARD" : 'NEXT REWARD'),
+        textElement('strong', `🪙 ${state.nextAmount.toLocaleString()} CREDITS`),
+      );
+      const minutes = Math.max(0, Math.ceil(remaining / 60_000));
+      const status = textElement('p', data.rewards.notice ?? (available ? '' : `Next reward in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
+      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, intent: 'primary', disabled: !available || !data.rewards.authenticated, run: () => undefined });
+      claim.addEventListener('click', () => {
+        if (claim.disabled) return;
+        recordProductIntent('daily_reward_claim_clicked');
+        claim.disabled = true;
+        const label = claim.textContent;
+        claim.textContent = 'CLAIMING…';
+        void data.rewards!.claim().then((result) => {
+          status.textContent = result.message;
+          if (!result.ok) { claim.disabled = false; claim.textContent = label; }
+        }).catch(() => {
+          status.textContent = 'Unable to claim reward. Please try again.';
+          claim.disabled = false;
+          claim.textContent = label;
+        });
+      });
+      claimArea.append(claim, status);
+      rewards.append(claimArea);
+      const rewardsLayout = document.createElement('div');
+      rewardsLayout.className = 'pilot-rewards-layout';
+      rewardsLayout.append(rewards);
+      const watchData = data.rewards.watchAndEarn;
+      let watchRemaining = Number.POSITIVE_INFINITY;
+      if (watchData) {
+        const watch = section('WATCH & EARN');
+        watch.classList.add('pilot-watch-earn');
+        const state = watchData.state;
+        watchRemaining = state.windowEndsAt === undefined ? Number.POSITIVE_INFINITY
+          : Math.max(0, state.windowEndsAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
+        const availableCount = state.remaining <= 0 && watchRemaining === 0 ? state.maxRewards : state.remaining;
+        const capped = availableCount <= 0 && watchRemaining > 0;
+        const pending = watchData.phase === 'verifying' || state.activeAttempt?.status === 'PENDING_VERIFICATION';
+        watch.append(
+          textElement('strong', `🪙 ${state.rewardCredits.toLocaleString()} CREDITS`, 'pilot-watch-value'),
+          textElement('p', 'Watch a short sponsored video and earn bonus Credits.', 'pilot-menu-muted'),
+        );
+        const availability = capped
+          ? 'ALL VIDEO REWARDS CLAIMED'
+          : `${availableCount} ${availableCount === 1 ? 'reward' : 'rewards'} available`;
+        watch.append(textElement('p', availability, 'pilot-watch-availability'));
+        if (capped) {
+          const minutesUntilReset = Math.max(0, Math.ceil(watchRemaining / 60_000));
+          watch.append(textElement('p', `More rewards available in ${Math.floor(minutesUntilReset / 60)}h ${minutesUntilReset % 60}m`, 'pilot-watch-status'));
+        } else {
+          const buttonLabel = watchData.phase === 'loading' ? 'FINDING VIDEO…'
+            : pending ? 'VERIFYING REWARD…'
+              : watchData.phase === 'playing' ? 'VIDEO PLAYING…' : 'WATCH VIDEO';
+          const watchButton = actionButton({
+            label: buttonLabel,
+            intent: 'primary',
+            disabled: watchData.phase !== 'idle' || Boolean(state.activeAttempt),
+            run: () => { void watchData.watch(); },
+          });
+          watch.append(watchButton);
+        }
+        if (watchData.notice) watch.append(textElement('p', watchData.notice, 'pilot-watch-status'));
+        rewardsLayout.append(watch);
+      }
+      const inviteData = data.rewards.invite;
+      if (inviteData) {
+        const invite = section('INVITE PILOTS');
+        invite.classList.add('pilot-invite');
+        invite.append(textElement('p', 'Invite a friend to fly Airport Chaos.', 'pilot-menu-muted'));
+        const values = document.createElement('div'); values.className = 'pilot-invite-values';
+        values.append(
+          textElement('span', inviteData.inviterRewardsRemaining > 0 ? 'YOU GET 750 CREDITS' : 'YOUR REWARD LIMIT IS REACHED'),
+          textElement('span', 'YOUR FRIEND GETS 500 CREDITS'),
+        );
+        invite.append(values, textElement('p', 'Rewards unlock after your friend creates a new account and flies for 60 seconds.', 'pilot-menu-muted'));
+        const openInvite = actionButton({ label: this.inviteOpen ? 'HIDE INVITE' : 'INVITE FRIENDS', run: () => {
+          this.inviteOpen = !this.inviteOpen;
+          if (this.inviteOpen) recordProductIntent('referral_screen_viewed');
+          this.inviteNotice = '';
+          if (this.lastData) this.render(this.lastData);
+        } });
+        openInvite.setAttribute('aria-expanded', String(this.inviteOpen));
+        invite.append(openInvite);
+        if (this.inviteOpen) {
+          const panel = document.createElement('div'); panel.className = 'pilot-invite-panel';
+          panel.append(textElement('strong', 'INVITE A PILOT'));
+          const counts = textElement('p', `Joined ${inviteData.joinedCount} · Qualified ${inviteData.qualifiedCount} · Earned ${inviteData.earnedCredits.toLocaleString()} Credits`, 'pilot-menu-muted');
+          panel.append(counts);
+          if (inviteData.inviterRewardsRemaining === 0) {
+            const remaining = Math.max(0, (inviteData.nextInviterRewardAt ?? 0) - Date.now());
+            const hours = Math.ceil(remaining / 3_600_000);
+            panel.append(textElement('p', `Inviter reward limit reached. Your friends can still earn 500 Credits. Your next inviter reward is available in ${Math.floor(hours / 24)}d ${hours % 24}h.`, 'pilot-invite-cap'));
+          } else {
+            panel.append(textElement('p', `${inviteData.inviterRewardsRemaining} of 10 inviter rewards available this period.`, 'pilot-invite-cap'));
+          }
+          const link = textElement('input', '') as HTMLInputElement;
+          link.value = inviteData.url; link.readOnly = true; link.setAttribute('aria-label', 'Invite link');
+          link.addEventListener('focus', () => link.select());
+          const actions = document.createElement('div'); actions.className = 'pilot-invite-actions';
+          const notice = textElement('p', this.inviteNotice, 'pilot-invite-notice');
+          const share = actionButton({ label: 'SHARE INVITE', intent: 'primary', run: () => {
+            share.disabled = true;
+            recordProductIntent('referral_share_started');
+            void inviteData.share().then(result => { this.inviteNotice = result.message; notice.textContent = result.message; })
+              .catch(() => { this.inviteNotice = 'Unable to share invite. Please try again.'; notice.textContent = this.inviteNotice; })
+              .finally(() => { share.disabled = false; });
+          } });
+          const copy = actionButton({ label: 'COPY LINK', run: () => {
+            copy.disabled = true;
+            recordProductIntent('referral_link_copied');
+            void inviteData.copy().then(result => { this.inviteNotice = result.message; notice.textContent = result.message; })
+              .catch(() => { this.inviteNotice = 'Unable to copy link. Please try again.'; notice.textContent = this.inviteNotice; })
+              .finally(() => { copy.disabled = false; });
+          } });
+          actions.append(share, copy);
+          panel.append(link, actions, notice);
+          invite.append(panel);
+        }
+        rewardsLayout.append(invite);
+      }
+      content.append(rewardsLayout);
+      const nextRefresh = Math.min(available ? Number.POSITIVE_INFINITY : remaining, watchRemaining);
+      if (Number.isFinite(nextRefresh)) {
+        this.rewardsTimer = window.setTimeout(() => {
+          if (this.openState && this.activeSection === 'REWARDS' && this.lastData) this.render(this.lastData);
+        }, Math.min(nextRefresh, 60_000));
+      }
+    }
+
     if (this.activeSection === 'PROGRESS') {
     const progress = section('PROGRESS');
     const cards = document.createElement('div'); cards.className = 'pilot-progress-grid';
@@ -751,8 +934,6 @@ export class PilotMenu {
     const pilot = data.progression.pilotProgress;
     const pilotCard = this.progressCard('pilot-level', '✦ PILOT LEVEL', `Level ${pilot.level} · ${pilot.title}`, `${pilot.xp.toLocaleString()} XP`);
     const pilotBar = document.createElement('progress'); pilotBar.max = Math.max(1, pilot.nextLevelXp); pilotBar.value = Math.min(pilot.xp, pilot.nextLevelXp); pilotCard.append(pilotBar); cards.append(pilotCard);
-    const streak = data.progression.dailyStreak;
-    cards.append(this.progressCard('daily-streak', '☀ DAILY STREAK', `${streak.current} DAYS · BEST ${streak.longest}`, `Next reward: ${streak.nextReward} Credits`));
     const dailyPlan = this.progressCard('daily-plan', '☀ DAILY FLIGHT PLAN', `${data.objectives.daily.filter(item => item.completed).length} / ${data.objectives.daily.length} COMPLETE`, 'Finish today’s short flight goals. Resets at UTC midnight.');
     for (const item of data.objectives.daily) {
       const row = document.createElement('div'); row.className = 'pilot-progress-detail';
@@ -775,9 +956,6 @@ export class PilotMenu {
     for (const [key, record] of Object.entries(data.progression.personalRecords)) recordsCard.append(textElement('div', `${recordLabels[key] ?? key.toUpperCase()} · ${Math.round(record.value).toLocaleString()}`, 'pilot-progress-detail'));
     cards.append(recordsCard);
     if (data.progression.pvpChallenge) cards.append(this.progressCard('pvp', '⚔ PvP CHALLENGE', data.progression.pvpChallenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT', data.progression.pvpChallenge.status.toUpperCase()));
-    const referral = data.progression.referral;
-    const invite = this.progressCard('referral', '↗ INVITE FRIENDS', referral.code, `Both earn 500 Credits after they become an active pilot. · ${referral.rewardedCount} rewarded`);
-    invite.append(actionButton({ label: 'COPY INVITE LINK', run: () => navigator.clipboard?.writeText(`https://fly.vadensoftware.com/?ref=${referral.code}`) })); cards.append(invite);
     const cityLevel = this.progressCard('level', `🏙 CITY LEVEL`, `Level ${data.mastery.level}`, `Your ${data.mastery.city} progress.`);
     const levelBar = document.createElement('progress'); levelBar.className = 'pilot-progress-level-bar';
     levelBar.max = Math.max(1, data.mastery.nextXp - data.mastery.levelStartXp);
@@ -799,7 +977,7 @@ export class PilotMenu {
         missionCard.append(missionBar);
       }
     }
-    missionCard.append(actionButton({ label: 'VIEW MISSIONS', run: () => this.switchTo('MISSIONS') }));
+    if (this.sections.includes('MISSIONS')) missionCard.append(actionButton({ label: 'VIEW MISSIONS', run: () => this.switchTo('MISSIONS') }));
     cards.append(missionCard);
 
     const owned = data.territories.entries.filter((entry) => entry.ownedByYou);
@@ -1007,6 +1185,8 @@ export class PilotMenu {
 
   close(notify = true): void {
     this.lastData?.map.unmount();
+    if (this.rewardsTimer !== undefined) window.clearTimeout(this.rewardsTimer);
+    this.rewardsTimer = undefined;
     this.openState = false;
     this.pointerActive = false;
     this.element.hidden = true;

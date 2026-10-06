@@ -8,15 +8,16 @@ import { PlayerProfileStore } from './player-profiles.js';
 
 function store() { return new PlayerProfileStore(join(mkdtempSync(join(tmpdir(), 'airport-retention-')), 'profiles.sqlite')); }
 
-test('daily streak is idempotent, advances, resets, and cycles after day seven', () => {
+test('daily rewards use a 20-hour cooldown, preserve progress after missed days, and cycle after day seven', () => {
   const db = store(); db.getOrCreate('pilot-a', 'Pilot A');
   const day = Date.UTC(2026, 0, 1);
-  assert.equal(db.claimDailyStreak('pilot-a', day)?.credits, 50);
-  assert.equal(db.claimDailyStreak('pilot-a', day)?.credits, 0);
-  for (let index = 1; index < 7; index += 1) db.claimDailyStreak('pilot-a', day + index * 86_400_000);
-  assert.equal(db.claimDailyStreak('pilot-a', day + 7 * 86_400_000)?.credits, 50);
-  const reset = db.claimDailyStreak('pilot-a', day + 10 * 86_400_000);
-  assert.equal(reset?.profile.dailyStreak.current, 1);
+  assert.equal(db.claimDailyReward('pilot-a', day)?.credits, 250);
+  assert.equal(db.claimDailyReward('pilot-a', day + 19 * 60 * 60_000)?.claimed, false);
+  for (let index = 1; index < 7; index += 1) db.claimDailyReward('pilot-a', day + index * 20 * 60 * 60_000);
+  assert.equal(db.dailyRewardState('pilot-a', day + 7 * 20 * 60 * 60_000)?.nextDay, 1);
+  const afterMissedDays = db.claimDailyReward('pilot-a', day + 10 * 86_400_000);
+  assert.equal(afterMissedDays?.day, 1);
+  assert.equal(afterMissedDays?.credits, 250);
 });
 
 test('daily flight plan is compact, solo-achievable, and reward progress is idempotent', () => {
@@ -47,16 +48,6 @@ test('PvP reward is idempotent, pair-cooled, and practice remains playable', () 
   assert.equal(db.awardPvpWin('00000000-0000-4000-8000-000000000001', 'winner', 'loser', 200, now).rewarded, true);
   assert.equal(db.awardPvpWin('00000000-0000-4000-8000-000000000001', 'winner', 'loser', 200, now).rewarded, false);
   assert.equal(db.awardPvpWin('00000000-0000-4000-8000-000000000002', 'winner', 'loser', 200, now + 1_000).rewarded, false);
-});
-
-test('referral attaches only to a new different profile and rewards once after qualification', () => {
-  const db = store(); db.getOrCreate('inviter', 'Inviter'); db.getOrCreate('new-pilot', 'New Pilot');
-  const code = db.referralCode('inviter');
-  assert.equal(db.attachReferral('new-pilot', code, 'network-b'), true);
-  assert.equal(db.attachReferral('new-pilot', code, 'network-b'), false);
-  assert.equal(db.advanceReferral('new-pilot', 1_199_999, true).rewarded, false);
-  assert.equal(db.advanceReferral('new-pilot', 1, false).rewarded, true);
-  assert.equal(db.advanceReferral('new-pilot', 1, true).rewarded, false);
 });
 
 test('weekly payout chooses one best placement and is idempotent', () => {

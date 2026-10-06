@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dailyPilotRewards, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayDistance, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
+import { dailyRewardCredits } from '../../shared/daily-rewards.mjs';
+import { pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayDistance, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 
 test('pilot curve, cap, and titles follow the approved progression', () => {
   assert.equal(pilotXpForLevel(1), 0);
@@ -14,7 +15,7 @@ test('pilot curve, cap, and titles follow the approved progression', () => {
 });
 
 test('daily cycle and weekly placement rewards are bounded', () => {
-  assert.equal(dailyPilotRewards.reduce((sum, value) => sum + value, 0), 1_000);
+  assert.equal(dailyRewardCredits.reduce((sum, value) => sum + value, 0), 4_000);
   assert.equal(utcDayDistance('2026-09-16', '2026-09-17'), 1);
   assert.deepEqual(weeklyRewardForRank(1), { maxRank: 1, credits: 1000, badge: 'WEEKLY ACE' });
   assert.equal(weeklyRewardForRank(11), undefined);

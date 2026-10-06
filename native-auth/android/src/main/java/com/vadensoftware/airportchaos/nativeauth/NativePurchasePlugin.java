@@ -1,6 +1,7 @@
 package com.vadensoftware.airportchaos.nativeauth;
 
 import com.android.billingclient.api.BillingClient;
+import com.android.billingclient.api.ConsumeParams;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
@@ -23,6 +24,7 @@ public final class NativePurchasePlugin extends Plugin implements PurchasesUpdat
     private static final String FIREHAWK_PRODUCT_ID = "firehawk";
     private BillingClient billingClient;
     private PluginCall pendingPurchaseCall;
+    private String pendingProductId;
 
     @Override
     public void load() {
@@ -83,9 +85,11 @@ public final class NativePurchasePlugin extends Plugin implements PurchasesUpdat
                 .setObfuscatedAccountId(accountId)
                 .build();
             pendingPurchaseCall = call;
+            pendingProductId = productId;
             BillingResult launch = billingClient.launchBillingFlow(getActivity(), params);
             if (launch.getResponseCode() != BillingClient.BillingResponseCode.OK) {
                 pendingPurchaseCall = null;
+                pendingProductId = null;
                 call.reject("Unable to open Google Play purchase.");
             }
         });
@@ -118,18 +122,35 @@ public final class NativePurchasePlugin extends Plugin implements PurchasesUpdat
 
     @PluginMethod
     public void finish(PluginCall call) {
-        call.resolve();
+        String productId = validProductId(call);
+        if (productId == null) return;
+        if (FIREHAWK_PRODUCT_ID.equals(productId)) { call.resolve(); return; }
+        String purchaseToken = call.getString("purchaseToken");
+        if (purchaseToken == null || purchaseToken.length() < 20 || purchaseToken.length() > 4096) {
+            call.reject("Purchase token is invalid.");
+            return;
+        }
+        ensureConnected(call, () -> billingClient.consumeAsync(
+            ConsumeParams.newBuilder().setPurchaseToken(purchaseToken).build(),
+            (result, consumedToken) -> {
+                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK ||
+                    result.getResponseCode() == BillingClient.BillingResponseCode.ITEM_NOT_OWNED) call.resolve();
+                else call.reject("Unable to finish verified purchase.");
+            }
+        ));
     }
 
     @Override
     public void onPurchasesUpdated(BillingResult result, List<Purchase> purchases) {
         PluginCall call = pendingPurchaseCall;
+        String productId = pendingProductId;
         pendingPurchaseCall = null;
+        pendingProductId = null;
         if (call == null) return;
         if (result.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
             JSObject cancelled = new JSObject();
             cancelled.put("state", "cancelled");
-            cancelled.put("productId", FIREHAWK_PRODUCT_ID);
+            cancelled.put("productId", productId);
             call.resolve(cancelled);
             return;
         }
@@ -138,16 +159,16 @@ public final class NativePurchasePlugin extends Plugin implements PurchasesUpdat
             return;
         }
         for (Purchase purchase : purchases) {
-            if (!purchase.getProducts().contains(FIREHAWK_PRODUCT_ID)) continue;
+            if (!purchase.getProducts().contains(productId)) continue;
             if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
                 JSObject pending = new JSObject();
                 pending.put("state", "pending");
-                pending.put("productId", FIREHAWK_PRODUCT_ID);
+                pending.put("productId", productId);
                 call.resolve(pending);
                 return;
             }
             if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                call.resolve(purchasePayload(purchase, FIREHAWK_PRODUCT_ID));
+                call.resolve(purchasePayload(purchase, productId));
                 return;
             }
         }
@@ -204,7 +225,9 @@ public final class NativePurchasePlugin extends Plugin implements PurchasesUpdat
 
     private String validProductId(PluginCall call) {
         String productId = call.getString("productId");
-        if (!FIREHAWK_PRODUCT_ID.equals(productId)) {
+        if (!FIREHAWK_PRODUCT_ID.equals(productId) && !"sky_tokens_100".equals(productId) &&
+            !"sky_tokens_500".equals(productId) && !"sky_tokens_1200".equals(productId) &&
+            !"sky_tokens_2400".equals(productId)) {
             call.reject("Unknown product.");
             return null;
         }

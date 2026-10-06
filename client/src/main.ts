@@ -19,6 +19,7 @@ import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { GameplayFeedbackSystem } from './gameplay-feedback';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
+import { productAnalyticsSessionId } from './product-analytics';
 import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tutorialLockPreviewInstruction,tutorialDetectedInstruction,tutorialLandingCoachStage,tutorialLandingCoachInstruction,tutorialTakeoffRecoveryInstruction,tutorialTurnProgress,type TutorialBindings,type TutorialLandingCoachStage,type TutorialLessonStep,type TutorialStepStatus}from'../../shared/tutorial-flight-rules.mjs';
@@ -975,6 +976,7 @@ let onGround = true;
 let takeoffRollMeters = 0;
 let landedFeedbackTime = 0;
 let credits = persistedPlayer.credits;
+let skyTokens = 0;
 let distanceFlown = 0;
 let totalDistance = persistedPlayer.totalDistance;
 let distanceCreditProgress = 0;
@@ -1062,6 +1064,7 @@ let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
 let purchaseSequence = 0;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
+const skyTokensElement = document.querySelector<HTMLSpanElement>('#sky-tokens')!;
 const activeMissionOverlayElement = document.querySelector<HTMLElement>('#active-mission-overlay')!;
 const activeMissionTitleElement = document.querySelector<HTMLElement>('#active-mission-title')!;
 const activeMissionObjectiveElement = document.querySelector<HTMLElement>('#active-mission-objective')!;
@@ -1833,6 +1836,8 @@ function updateContextualHints(): void {
 function updateProgressHud(): void {
   creditsElement.textContent = credits.toLocaleString();
   creditsElement.title = `${credits.toLocaleString()} Credits`;
+  skyTokensElement.textContent = skyTokens.toLocaleString();
+  skyTokensElement.title = `${skyTokens.toLocaleString()} Sky Tokens`;
 }
 
 function showProgressMessage(message: string): void {
@@ -3530,6 +3535,7 @@ type NetworkProfile = {
   pilotId: string;
   pilotName: string;
   credits: number;
+  skyTokens?: number;
   creditRevision: number;
   score: number;
   economyVersion: number;
@@ -3599,7 +3605,6 @@ type ServerMessage =
   | { type: 'firehawkPromotionReady'; missionId: string }
   | { type: 'firehawkPromotionOffer'; missionId: string; trialEligible: boolean; displayPrice: string }
   | { type: 'weeklyLeaderboards'; weeklyLeaderboards: NetworkWeeklyLeaderboard[] }
-  | { type: 'dailyStreakClaimed'; day: number; streak: number; credits: number }
   | { type: 'weeklyRewardClaimed'; reward: { rank: number; category: string; credits: number; badge: string } }
   | { type: 'takeoffConfirmed'; airportId?: string; confirmedAt: number }
   | { type: 'tutorialSignal'; signal: 'airborne' | 'targetInRange' | 'targetLocked' | 'targetHit' | 'completed' }
@@ -3692,6 +3697,7 @@ function createSafeNetworkProfile(): NetworkProfile {
     pilotId: persistedPlayer.pilotId,
     pilotName: persistedPlayer.displayName,
     credits: persistedPlayer.credits,
+    skyTokens: 0,
     creditRevision: 0,
     score: persistedPlayer.bestScore,
     economyVersion: 0,
@@ -3728,6 +3734,7 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
   return typeof profile.pilotId === 'string' &&
     typeof profile.pilotName === 'string' &&
     typeof profile.credits === 'number' && Number.isFinite(profile.credits) && profile.credits >= 0 &&
+    (profile.skyTokens === undefined || (Number.isSafeInteger(profile.skyTokens) && profile.skyTokens >= 0)) &&
     typeof profile.creditRevision === 'number' && Number.isSafeInteger(profile.creditRevision) && profile.creditRevision >= 0 &&
     typeof profile.score === 'number' && Number.isFinite(profile.score) && profile.score >= 0 &&
     typeof profile.economyVersion === 'number' && Number.isSafeInteger(profile.economyVersion) && profile.economyVersion >= 0 &&
@@ -8188,6 +8195,7 @@ async function realtimeSocketUrl(): Promise<URL> {
   url.searchParams.set('pilotId', persistedPlayer.pilotId);
   url.searchParams.set('pilotName', displayName);
   url.searchParams.set('protocol', String(PROTOCOL_VERSION));
+  url.searchParams.set('analyticsSession', productAnalyticsSessionId());
   if (chaosQaMode) url.searchParams.set('chaosqa', '1');
   return url;
 }
@@ -8452,6 +8460,7 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   persistedPlayer.pilotId = profile.pilotId;
   persistedPlayer.selectedAircraft = profile.selectedAircraft;
   credits = profile.credits;
+  skyTokens = profile.skyTokens ?? 0;
   updateProgressHud();
   if (creditUpdate.toastDelta > 0 && creditUpdate.rewardId) {
     seenCreditRewardIds.add(creditUpdate.rewardId);
@@ -8769,8 +8778,6 @@ boundSocket.addEventListener('message', (event) => {
     weeklyLeaderboards = message.weeklyLeaderboards ?? [];
     applyCityEvent(message.event);
     flushProfileRewards();
-    const referralCode = new URLSearchParams(window.location.search).get('ref');
-    if (referralCode) socket.send(JSON.stringify({ type: 'referralAttach', code: referralCode }));
     if (shouldBeginFlightLaunch) beginFlightLaunchCinematic();
     else { cancelPendingFlightLaunch(); offerDallasPracticeSuggestion(serverProfile); }
     sendLocalState();
@@ -8898,8 +8905,6 @@ boundSocket.addEventListener('message', (event) => {
     showProgressMessage(`${message.action.toUpperCase()} · CHAOS x${message.multiplier}`);
   } else if (message.type === 'chaosReward') {
     showProgressMessage(message.reason);
-  } else if (message.type === 'dailyStreakClaimed') {
-    showProgressMessage(`DAY ${message.day} PILOT STREAK · REWARD APPLIED`);
   } else if (message.type === 'pvpChallengeInvite') {
     if(guidedTutorialActive){socket.send(JSON.stringify({type:'pvpChallengeResponse',challengeId:message.challenge.id,accept:false}));return;}
     const accepted = window.confirm(`${message.challenge.mode === 'dogfight' ? 'DOGFIGHT' : 'AIRPORT SPRINT'} CHALLENGE\nAccept?`);

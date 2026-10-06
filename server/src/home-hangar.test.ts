@@ -24,7 +24,7 @@ test('cold entry shows the real-progress brand loader before the Pilot Hub', () 
 test('Pilot Hub FLY and city back preserve the existing city selection flow', () => {
   const bootstrap = read('client/src/bootstrap.ts');
   const main = read('client/src/main.ts');
-  assert.match(bootstrap, /fly: \(\) => \{ void requestHubFly\(\); \}/);
+  assert.match(bootstrap, /fly: \(\) => \{ recordProductIntent\('fly_clicked'\); void requestHubFly\(\); \}/);
   assert.match(bootstrap, /async function requestHubFly\(\)[\s\S]*refreshHubPilotData\(\)[\s\S]*hubAccount\.state === 'account'[\s\S]*showSelector[\s\S]*rememberPendingHubFly\(\)[\s\S]*openHubPilotMenu\('PROFILE', false\)/);
   assert.match(bootstrap, /function resumePendingHubFly\(\)[\s\S]*hubAccount\.state !== 'account'[\s\S]*clearPendingHubFly\(\)[\s\S]*showSelector/);
   assert.match(bootstrap, /function continueHubAsGuest\(\)[\s\S]*hasPendingHubFly\(\)[\s\S]*clearPendingHubFly\(\)[\s\S]*showSelector/);
@@ -94,6 +94,17 @@ test('Pilot Hub and City Journey share accessible legal and support footer links
   assert.match(css, /\.intro-brand-footer a \{[^}]*min-height: 30px[^}]*padding: 5px 6px/);
 });
 
+test('flight entry keeps the city visible until gameplay is ready and the launch wait is visible', () => {
+  const bootstrap = read('client/src/bootstrap.ts');
+  const css = read('client/src/style.css');
+  const game = read('client/src/main.ts');
+  assert.match(bootstrap, /await city\.loadWorld\(\);\s*await import\('\.\/main'\);\s*notifySharedMenuPreferences\(\);\s*gameRoot\.hidden = false;\s*citySelector\.hidden = true;/);
+  assert.doesNotMatch(css, /#game-root\.launch-cinematic-pending > canvas \{ opacity: 0;/);
+  assert.match(css, /#game-root\.launch-cinematic-active > :not\(canvas\)/);
+  assert.match(game, /skyTokens\?: number;[\s\S]*profile\.skyTokens === undefined \|\| \(Number\.isSafeInteger\(profile\.skyTokens\)/);
+  assert.match(game, /skyTokens = profile\.skyTokens \?\? 0;/);
+});
+
 test('Pilot Hub is one connected Three.js garage with aircraft-only presentation controls', () => {
   const html = read('client/index.html');
   const garage = read('client/src/garage.ts');
@@ -140,7 +151,7 @@ test('Pilot Hub is one connected Three.js garage with aircraft-only presentation
   assert.match(garage, /this\.aircraftPresentation\.scale\.setScalar\(presentationScale\)[\s\S]*this\.preview\.rotation\.y = this\.showcaseCameraYaw - this\.orbitYaw/);
   assert.doesNotMatch(garage, /if \(this\.showcaseHost\)[\s\S]{0,300}this\.camera\.position\.set/);
   assert.match(css, /\.home-hangar \{[\s\S]*background: #102536/);
-  assert.match(css, /\.app-shell-brand\.has-brand-logo::after \{ content: 'AIRPORT CHAOS'/);
+  assert.match(css, /\.app-shell-brand\.has-brand-logo::after \{ display: none/);
   assert.doesNotMatch(`${html}\n${garage}\n${css}`, /skydeck-|createDallasStaticBackground|dallas-static-background/);
   assert.doesNotMatch(dallasSkyline, /createDallasStaticBackground|dallas-static-background/);
   assert.doesNotMatch(garage, /DallasChunkStreamer|generateDallasSkyline|dallas-world|showcaseGrid|cartPlacements|mechanicalDetails/);
@@ -162,13 +173,17 @@ test('Pilot Hub routes to canonical Garage and profile screens without duplicate
   const menu = read('client/src/pilot-menu.ts');
   const server = read('server/src/index.ts');
   assert.match(bootstrap, /garage: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
+  assert.match(bootstrap, /aircraft: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
+  assert.match(bootstrap, /rewards: \(\) => \{ void openHubRewards\(\); \}/);
   assert.match(bootstrap, /profile: \(\) => \{ void openHubPilotMenu\('PROFILE'\); \}/);
   assert.doesNotMatch(bootstrap, /settings: \(\) => \{ void openHubPilotMenu\('SETTINGS'\); \}/);
   assert.match(bootstrap, /const hubPilotMenu = new PilotMenu\(pilotMenuOverlay/);
-  assert.match(bootstrap, /sections: \['PROFILE', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD \/ CITIES', 'LEGAL \/ SUPPORT', 'DATA LICENSES'\]/);
+  assert.match(bootstrap, /sections: \['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD \/ CITIES', 'LEGAL \/ SUPPORT', 'DATA LICENSES'\]/);
+  assert.match(bootstrap, /const hubSection = section === 'MISSIONS' \? 'PROFILE' : section/);
   assert.match(bootstrap, /closeLabel: \(\) => hubPilotMenuReturnState === 'CITY_SELECTION' \? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB'/);
   assert.match(bootstrap, /onClose: \(\) => \{[\s\S]*hubPilotMenuReturnState === 'CITY_SELECTION'[\s\S]*showSelector\(\)[\s\S]*void showHome\(\)/);
   assert.match(menu, /options\.sections \?\? \['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP'\]/);
+  assert.match(menu, /if \(this\.sections\.includes\('MISSIONS'\)\) missionCard\.append/);
   assert.doesNotMatch(menu, /\| 'SETTINGS'/);
   assert.match(menu, /this\.activeSection === 'AUDIO'/);
   assert.match(menu, /this\.activeSection === 'HELP'[\s\S]*OPEN CONTROLS[\s\S]*Hints On/);
@@ -206,26 +221,37 @@ test('Hub renderer and ambient motion pause offscreen or in the background', () 
   const home = read('client/src/home-hangar.ts');
   const css = read('client/src/style.css');
   assert.match(garage, /document\.addEventListener\('visibilitychange'/);
-  assert.match(garage, /if \(document\.hidden\)[\s\S]*cancelAnimationFrame\(this\.raf\)/);
-  assert.match(garage, /if \(!this\.isPreviewActive\(\) \|\| document\.hidden\)/);
+  assert.match(garage, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(document\.hidden\) pause\(\); else resume\(\); \}\)/);
+  assert.match(garage, /window\.addEventListener\('blur'[^\n]*this\.windowBlurred = true; pause\(\)/);
+  assert.match(garage, /window\.addEventListener\('focus'[^\n]*this\.windowBlurred = false; resume\(\)/);
+  assert.match(garage, /this\.idleOrbitAnchor = this\.orbitYaw;[\s\S]*this\.targetOrbitYaw = this\.orbitYaw;[\s\S]*this\.idleOrbitStartedAt = performance\.now\(\)/);
+  assert.match(garage, /if \(!this\.isPreviewActive\(\) \|\| document\.hidden \|\| this\.windowBlurred\)/);
   assert.match(garage, /this\.idleOrbitAnchor \+ \(performance\.now\(\) - this\.idleOrbitStartedAt\) \* 0\.00022/);
   assert.match(garage, /else this\.targetOrbitYaw \+= 0\.002/);
   assert.match(home, /classList\.toggle\('is-backgrounded', document\.hidden\)/);
   assert.match(css, /\.home-hangar\.is-backgrounded \* \{ animation-play-state: paused !important; \}/);
 });
 
-test('one flight-themed app shell keeps the exact utility order with safe areas', () => {
+test('Pilot Hub keeps FLY primary and moves management actions into the shared header', () => {
   const html = read('client/index.html');
   const css = read('client/src/style.css');
   const bootstrap = read('client/src/bootstrap.ts');
   const shell = read('client/src/app-shell.ts');
   assert.equal((html.match(/id="app-shell-header"/g) ?? []).length, 1);
-  assert.doesNotMatch(html, /entry-shell-header|home-hangar-navigation|data-home-missions|data-home-tutorial|data-home-profile(?:[ >])/);
-  assert.match(shell, /utilities\.append\(this\.garage, this\.avatar\)/);
-  assert.match(shell, /this\.element\.replaceChildren\(brand, creditsCard, utilities\)/);
+  assert.doesNotMatch(html, /entry-shell-header|home-hangar-navigation|data-home-tutorial/);
+  assert.match(html, /home-hangar-contextual[\s\S]*data-home-fly/);
+  assert.doesNotMatch(html, /data-home-(?:aircraft|missions|rewards|profile)(?:\s|=|>)/);
+  assert.match(shell, /utilities\.append\(this\.garage, this\.aircraft, this\.rewards, this\.avatar\)/);
+  assert.match(shell, /this\.element\.replaceChildren\(brand, wallet, utilities\)/);
+  assert.match(shell, /creditMark\.textContent = visualLanguage\.credits\.icon/);
+  assert.match(shell, /tokenMark\.textContent = visualLanguage\.skyTokens\.icon/);
+  assert.match(html, /flight-header-credit-icon[^>]*[^$]*>🪙<\/span>/);
+  assert.match(html, /id="sky-tokens">0<\/strong>/);
   assert.doesNotMatch(shell, /HOME|FLY|TUTORIAL|MISSIONS|pilotLabel|this\.pilot|app-shell-menu/);
   assert.match(shell, /brand\.addEventListener\('click', handlers\.home\)/);
   assert.match(shell, /this\.garage\.addEventListener\('click', handlers\.garage\)/);
+  assert.match(shell, /this\.aircraft\.addEventListener\('click', handlers\.aircraft\)/);
+  assert.match(shell, /this\.rewards\.addEventListener\('click', handlers\.rewards\)/);
   assert.match(shell, /this\.avatar\.addEventListener\('click', handlers\.profile\)/);
   assert.doesNotMatch(shell, /handlers\.settings|this\.settings|settingsIcon/);
   assert.match(shell, /setActive\(this\.garage, data\.active === 'GARAGE'\)/);
@@ -235,6 +261,7 @@ test('one flight-themed app shell keeps the exact utility order with safe areas'
   assert.match(css, /--flight-header-surface:[^;]+/);
   assert.match(css, /\.app-shell-header[^}]*height: var\(--app-shell-header-total\)[^}]*var\(--safe-area-right\)[^}]*var\(--safe-area-left\)/);
   assert.match(css, /\.app-shell-utilities \{[^}]*gap: 8px;[^}]*padding: 0;[^}]*background: transparent;[^}]*border: 0;/);
+  assert.match(css, /\.app-shell-header\.is-hub \.app-shell-action[^}]*flex: 1 1 0/);
   assert.match(css, /\.app-shell-center \{ justify-self: center; \}/);
   assert.match(css, /\.flight-header-control \{[^}]*min-height: var\(--flight-header-control-height\)[^}]*background: var\(--flight-header-control-surface\)[^}]*border: 1px solid var\(--flight-header-control-border\)/);
   assert.match(css, /\.flight-header-avatar \{[^}]*border-radius: 50%/);
@@ -244,8 +271,10 @@ test('one flight-themed app shell keeps the exact utility order with safe areas'
   assert.match(html, /entry-button entry-button-primary home-hangar-fly/);
   assert.match(bootstrap, /button\.className = 'entry-button entry-button-primary'/);
   assert.match(css, /\.home-hangar-contextual \.home-hangar-fly[^}]*min-height: 68px/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-width: 1000px\) and \(max-height: 520px\)[\s\S]*\.home-hangar-contextual \{ bottom: max\(8px, env\(safe-area-inset-bottom\)\); \}/);
   assert.match(css, /@media \(max-width: 480px\)[\s\S]*\.flight-header-credits small \{ display: none; \}/);
-  assert.match(read('client/src/garage.ts'), /const showcaseDistanceScale = this\.showcaseHost \? \(wideShowcase \? 0\.6 : 0\.88\) : 1/);
+  assert.match(read('client/src/garage.ts'), /const showcaseDistanceScale = this\.showcaseHost \? 1\.3 : 1/);
+  assert.match(read('client/src/garage.ts'), /const aircraftDistanceScale = this\.showcaseHost && this\.selected === 'fighter' \? 1\.2 : 1/);
   assert.doesNotMatch(read('client/src/garage.ts'), /wideShowcase \? -0\.03 : -0\.05/);
   assert.match(read('client/src/garage.ts'), /this\.aircraftPresentation\.position\.set\(0, 0, 0\)/);
   assert.match(read('client/src/garage.ts'), /if \(this\.isPreviewActive\(\)\) this\.framePreview\(false\)/);

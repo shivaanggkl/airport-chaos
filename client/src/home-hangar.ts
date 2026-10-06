@@ -2,6 +2,8 @@ export type HomeHangarData = {
   pilotName: string;
   credits: number;
   aircraftName: string;
+  rewardsAvailable: boolean;
+  rewardsAvailableInMs?: number;
 };
 
 type HomeHangarHandlers = {

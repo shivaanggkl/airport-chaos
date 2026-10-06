@@ -1,0 +1,37 @@
+# Create a separate Render Blueprint from this file on the staging branch.
+# Keep the production render.yaml and its service untouched.
+services:
+  - type: web
+    name: airport-chaos-staging
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: AIRPORT_CHAOS_PROFILE_DB
+        value: /var/data/staging-player-profiles.sqlite
+      - key: AIRPORT_CHAOS_WEB_ORIGIN
+        value: https://airport-chaos-staging.onrender.com
+      - key: AIRPORT_CHAOS_TRIAL_IP_SECRET
+        generateValue: true
+      - key: STRIPE_MODE
+        value: test
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      # Add the test-mode webhook signing secret after registering this URL.
+      # Checkout remains unavailable until this secret is configured.
+      - key: AIRPORT_CHAOS_SKY_TOKEN_COMMERCE_ENABLED
+        value: "true"
+      - key: AIRPORT_CHAOS_SKY_TOKEN_LIVE_ENABLED
+        value: "false"
+      - key: AIRPORT_CHAOS_SKY_TOKEN_IOS_ENABLED
+        value: "false"
+      - key: AIRPORT_CHAOS_SKY_TOKEN_ANDROID_ENABLED
+        value: "false"
+    disk:
+      name: airport-chaos-staging-data
+      mountPath: /var/data
+      sizeGB: 1

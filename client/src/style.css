@@ -148,17 +148,16 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 /* The world canvas stays live while the normal-flight launch camera hands off.
    Every gameplay layer shares one fade and remains non-interactive until the
    exact chase-camera pose is restored. */
-#game-root:is(.launch-cinematic-pending, .launch-cinematic-active) > :not(canvas):not(.flight-launch-title) {
+#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title) {
   opacity: var(--launch-hud-opacity, 0) !important;
   pointer-events: none !important;
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
 }
-body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
+body.launch-cinematic-active #tutorial-help {
   opacity: var(--launch-hud-opacity, 0) !important;
   pointer-events: none !important;
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
 }
-#game-root.launch-cinematic-pending > canvas { opacity: 0; }
 #game-root.launch-cinematic-active > canvas { opacity: 1; transition: opacity 180ms ease-out; }
 .flight-launch-title {
   position: fixed;
@@ -223,7 +222,7 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
   right: 0;
   left: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: clamp(12px, 2vw, 28px);
@@ -253,10 +252,12 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
   display: flex;
   flex: 0 1 auto;
   align-items: center;
+  justify-self: start;
   gap: 11px;
+  width: max-content;
   min-width: 0;
   min-height: 50px;
-  padding: 3px 12px 3px 4px;
+  padding: 3px 4px;
   overflow: hidden;
   color: var(--ui-text);
   background: transparent;
@@ -268,9 +269,10 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
   cursor: pointer;
 }
 .app-shell-brand:hover { background: rgb(57 169 249 / 8%); border-color: rgb(94 184 232 / 22%); }
-.app-shell-brand.has-brand-logo::after { content: 'AIRPORT CHAOS'; color: var(--ui-gold-light); font-size: 15px; letter-spacing: .13em; text-shadow: 0 0 18px rgb(249 176 10 / 18%); }
+.app-shell-brand.has-brand-logo::after { display: none; }
 .app-shell-logo { width: 50px; height: 50px; object-fit: contain; filter: drop-shadow(0 5px 12px rgb(0 0 0 / 32%)); }
 .app-shell-center { justify-self: center; }
+.app-shell-wallet { position: absolute; top: calc(var(--safe-area-top) + var(--app-shell-header-height) / 2); left: 50%; display: flex; align-items: baseline; gap: 14px; min-width: 0; transform: translate(-50%, -50%); }
 .app-shell-utilities { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 8px; min-width: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
 .flight-header-control {
   min-width: 42px;
@@ -297,25 +299,55 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
 .flight-header-control:active { transform: translateY(1px); }
 .flight-header-control.is-active { color: var(--ui-gold-light); border-color: rgb(249 176 10 / 64%); box-shadow: inset 0 -2px var(--ui-gold), 0 5px 16px rgb(0 0 0 / 18%); }
 .flight-header-control svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.app-shell-garage,
-.flight-header-garage { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.app-shell-action,
+.flight-header-garage { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.app-shell-action[hidden] { display: none; }
+.app-shell-rewards [data-rewards-indicator] { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border: 1px solid rgb(255 255 255 / 72%); border-radius: 50%; background: #ff4d55; box-shadow: 0 0 8px rgb(255 77 85 / 72%); }
+.app-shell-rewards [data-rewards-indicator][hidden] { display: none; }
+.app-shell-header.is-hub .app-shell-utilities .app-shell-avatar { flex: 0 0 var(--flight-header-control-height); min-width: var(--flight-header-control-height); padding: 0; }
 .flight-header-credits { display: flex; align-items: baseline; gap: 5px; min-height: 0; padding: 0; color: var(--ui-text); background: transparent; border: 0; box-shadow: none; }
 .flight-header-credit-icon { flex: 0 0 auto; color: var(--identity-credits); font: 800 11px/1 var(--font-display); }
+.flight-header-sky-token-icon { flex: 0 0 auto; color: var(--identity-skyTokens); font: 800 11px/1 var(--font-display); }
 .flight-header-credit-copy { display: flex; align-items: baseline; gap: 5px; }
 .flight-header-credits small { color: var(--text-secondary); font: 600 10px/1 var(--font-display); letter-spacing: .04em; }
 .flight-header-credits strong { color: var(--identity-credits); font: 800 13px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.flight-header-sky-tokens strong { color: var(--identity-skyTokens); }
+.app-shell-token-add { display: inline-grid; width: 22px; height: 22px; padding: 0; place-items: center; color: var(--ui-ocean-ink); background: var(--ui-gold); border: 0; border-radius: 50%; font: 900 16px/1 var(--font-display); cursor: pointer; }
+.app-shell-token-add[hidden] { display: none; }
+.app-shell-token-add:focus-visible { outline: 2px solid var(--ui-text); outline-offset: 2px; }
+.sky-token-overlay { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); background: rgb(2 13 24 / 78%); }
+.sky-token-overlay[hidden] { display: none; }
+.sky-token-panel { width: min(520px, 100%); max-height: 100%; overflow: auto; padding: clamp(14px, 3vw, 24px); color: var(--ui-text); background: #102b40; border: 1px solid rgb(105 211 255 / 45%); border-radius: 14px; box-shadow: 0 20px 60px rgb(0 0 0 / 40%); }
+.sky-token-panel header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.sky-token-panel h2 { margin: 0; color: var(--ui-gold); font: 800 22px/1.1 var(--font-display); }
+.sky-token-close { min-height: 36px; color: var(--ui-text); background: transparent; border: 1px solid rgb(105 211 255 / 45%); border-radius: 6px; cursor: pointer; }
+.sky-token-panel > p { margin: 10px 0; }
+.sky-token-recommendation { color: var(--ui-gold); font-size: 13px; }
+.sky-token-recommendation:empty { display: none; }
+.sky-token-pack-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sky-token-pack { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 54px; padding: 9px 11px; color: var(--ui-text); background: rgb(29 72 99 / 85%); border: 1px solid rgb(105 211 255 / 45%); border-radius: 8px; cursor: pointer; }
+.sky-token-pack:hover, .sky-token-pack:focus-visible { border-color: var(--ui-gold); }
+.sky-token-pack strong { font-size: 13px; text-align: left; }
+.sky-token-pack span { color: var(--ui-gold); white-space: nowrap; }
+.sky-token-pack:disabled { opacity: .6; cursor: wait; }
+.sky-token-message { min-height: 18px; color: var(--ui-gold); font-size: 13px; }
+.sky-token-disclosure, .sky-token-legal { color: var(--text-secondary); font-size: 11px; }
+.sky-token-legal { display: flex; gap: 16px; }
+.sky-token-legal a { color: inherit; }
+@media (max-width: 470px) { .sky-token-pack-list { grid-template-columns: 1fr; } }
 .flight-header-avatar { position: relative; width: var(--flight-header-control-height); min-width: var(--flight-header-control-height); height: var(--flight-header-control-height); min-height: var(--flight-header-control-height); padding: 0; overflow: hidden; border-radius: 50%; border-color: rgb(249 176 10 / 58%); box-shadow: 0 0 0 1px rgb(57 169 249 / 24%), inset 0 1px rgb(255 255 255 / 7%); }
 .flight-header-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .flight-header-avatar .avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--ui-gold-light); background: radial-gradient(circle at 50% 35%, rgb(41 94 128 / 78%), rgb(12 37 56 / 92%)); }
+.flight-header-avatar img[hidden], .flight-header-avatar .avatar-fallback[hidden] { display: none; }
 .flight-header-avatar .avatar-fallback svg { width: 21px; height: 21px; }
 .app-shell-header button:focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 2px; }
 @media (max-width: 560px) {
   :root { --flight-header-height: 54px; --flight-header-control-height: 38px; --app-shell-header-height: 58px; }
   .app-shell-header { gap: 6px; padding-inline: max(8px, var(--safe-area-left)) max(8px, var(--safe-area-right)); }
   .app-shell-brand { min-width: 0; padding-inline: 3px; }
-  .app-shell-brand.has-brand-logo::after { display: none; }
   .app-shell-logo { width: 40px; height: 40px; }
   .app-shell-utilities { gap: 6px; }
+  .app-shell-wallet { gap: 8px; }
   .app-shell-garage { min-width: 60px; padding-inline: 7px; font-size: 10px; }
   .flight-header-credits strong { font-size: 12px; }
 }
@@ -329,6 +361,32 @@ body:is(.launch-cinematic-pending, .launch-cinematic-active) #tutorial-help {
 @media (orientation: landscape) and (max-height: 520px) {
   :root { --flight-header-height: 50px; --flight-header-control-height: 36px; --app-shell-header-height: 54px; }
   .app-shell-logo { width: 36px; height: 36px; }
+  .app-shell-wallet small { display: none; }
+}
+
+@media (max-width: 1100px) {
+  .app-shell-header.is-hub { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-inline: max(10px, var(--safe-area-left)) max(10px, var(--safe-area-right)); }
+  .app-shell-header.is-hub .app-shell-utilities { gap: 5px; }
+  .app-shell-header.is-hub .app-shell-action { min-width: 0; padding-inline: 7px; gap: 5px; font-size: 10px; }
+  .app-shell-header.is-hub .app-shell-action svg { width: 17px; height: 17px; }
+}
+
+@media (max-width: 760px) and (orientation: portrait) {
+  :root { --app-shell-header-height: 108px; }
+  .app-shell-header.is-hub { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 54px 46px; align-content: center; }
+  .app-shell-header.is-hub .app-shell-brand { grid-column: 1; grid-row: 1; }
+  .app-shell-header.is-hub .app-shell-wallet { top: calc(var(--safe-area-top) + 27px); }
+  .app-shell-header.is-hub .app-shell-utilities { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; width: 100%; }
+  .app-shell-header.is-hub .app-shell-action { flex: 1 1 0; min-height: 40px; padding-inline: 6px; }
+  .app-shell-header.is-hub .app-shell-garage span { display: inline; }
+}
+@media (max-width: 800px) and (orientation: landscape) {
+  :root { --app-shell-header-height: 96px; }
+  .app-shell-header.is-hub { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 48px 42px; align-content: center; }
+  .app-shell-header.is-hub .app-shell-brand { grid-column: 1; grid-row: 1; }
+  .app-shell-header.is-hub .app-shell-wallet { top: calc(var(--safe-area-top) + 24px); }
+  .app-shell-header.is-hub .app-shell-utilities { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; width: 100%; }
+  .app-shell-header.is-hub .app-shell-action { flex: 1 1 0; min-height: 38px; }
 }
 
 .entry-button { min-height: var(--entry-control-height); padding: 10px 18px; border-radius: var(--entry-control-radius); box-shadow: var(--ui-shadow); font: 600 var(--font-control-size)/1.15 var(--font-display); letter-spacing: .04em; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
@@ -364,18 +422,29 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
 .home-hangar-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .home-hangar-stage canvas:active { cursor: grabbing; }
 .home-hangar-aircraft-name { position: absolute; z-index: 3; right: 18px; bottom: max(82px, calc(env(safe-area-inset-bottom) + 76px)); left: 18px; color: var(--ui-gold); text-align: center; font: 800 13px/1 var(--font-display); letter-spacing: .11em; pointer-events: none; }
-.home-hangar-contextual { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(18px, env(safe-area-inset-left)); display: flex; justify-content: center; }
-.home-hangar-contextual .home-hangar-fly { min-width: 260px; min-height: 68px; font-size: 21px; }
-.home-brand-signature { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(18px, env(safe-area-inset-left)); display: flex; align-items: center; min-height: 68px; pointer-events: none; }
-.home-brand-signature .intro-brand-footer { width: 100%; border-top: 0; pointer-events: none; }
-.home-brand-signature .intro-brand-footer a { pointer-events: auto; }
+.home-hangar-contextual { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(34px, calc(env(safe-area-inset-bottom) + 26px)); left: max(18px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: center; gap: 10px; }
+.home-hangar-contextual .home-hangar-fly { min-width: 230px; min-height: 68px; font-size: 21px; }
+.home-brand-signature, #start-brand-signature { position: absolute; z-index: 4; right: max(48px, calc(var(--safe-area-right) + 42px)); bottom: max(8px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: flex; align-items: center; min-height: 68px; pointer-events: none; }
+#start-brand-signature { position: fixed; }
+.home-brand-signature .intro-brand-footer, #start-brand-signature .intro-brand-footer { width: 100%; pointer-events: none; }
+.home-brand-signature .intro-brand-footer a, #start-brand-signature .intro-brand-footer a { pointer-events: auto; }
 
 @media (max-width: 760px), (orientation: landscape) and (max-width: 1000px) and (max-height: 520px) {
   .home-hangar-stage { inset: calc(var(--app-shell-header-total) + 2px) 0 88px; }
   .home-hangar-aircraft-name { bottom: max(76px, calc(env(safe-area-inset-bottom) + 70px)); font-size: 10px; }
-  .home-hangar-contextual { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); }
-  .home-hangar-contextual .home-hangar-fly { min-width: min(260px, 72vw); min-height: 58px; font-size: 18px; }
-  .home-brand-signature { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(8px, env(safe-area-inset-left)); min-height: 58px; }
+  .home-hangar-contextual { right: max(8px, env(safe-area-inset-right)); bottom: max(30px, calc(env(safe-area-inset-bottom) + 24px)); left: max(8px, env(safe-area-inset-left)); gap: 6px; }
+  .home-hangar-contextual .home-hangar-fly { min-width: min(190px, 40vw); min-height: 52px; font-size: 18px; }
+  .home-brand-signature, #start-brand-signature { right: max(48px, calc(var(--safe-area-right) + 42px)); bottom: max(8px, var(--safe-area-bottom)); left: max(8px, var(--safe-area-left)); min-height: 58px; }
+}
+
+@media (orientation: landscape) and (max-width: 1000px) and (max-height: 520px) {
+  /* Keep the compact Hub controls and footer in one bottom lane. The old
+     elevated action row crossed both the aircraft name and legal footer. */
+  .home-hangar-contextual { bottom: max(8px, env(safe-area-inset-bottom)); }
+  .home-hangar-contextual .home-hangar-fly { min-width: min(176px, 32vw); }
+  .home-brand-signature, #start-brand-signature { min-height: 52px; }
+  .home-brand-signature .intro-brand-footer, #start-brand-signature .intro-brand-footer { font-size: 9px; }
+  .home-brand-signature .intro-brand-footer a, #start-brand-signature .intro-brand-footer a { min-height: 40px; padding-inline: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -460,7 +529,7 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
 .game-brand-signature-start { margin: 0 auto; }
 .city-select-heading { text-align: center; text-shadow: 0 2px 14px rgb(1 12 22 / 82%); }
 .city-select-tagline { margin: 0 auto 9px; color: var(--ui-gold); text-align: center; font: 800 clamp(10px, 1.4vw, 13px)/1 var(--font-display); letter-spacing: .22em; }
-.intro-brand-footer { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 4px 42px 0 0; border-top: 1px solid rgb(57 169 249 / 18%); color: var(--ui-text-muted); font: 500 11px/1.2 var(--font-body); opacity: .72; white-space: nowrap; }
+.intro-brand-footer { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 4px 0 0; border-top: 0; color: var(--ui-text-muted); font: 500 11px/1.2 var(--font-body); opacity: .72; white-space: nowrap; }
 .intro-brand-footer nav { display: flex; flex-wrap: nowrap; gap: 2px; }
 .intro-brand-footer a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 6px; color: var(--ui-text-muted); text-decoration: none; border-radius: 4px; }
 .intro-brand-footer a:hover, .intro-brand-footer a:focus-visible { color: var(--ui-gold-light); text-decoration: underline; }
@@ -718,9 +787,9 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
   .city-select-card p { margin-top: 3px; font-size: 14px; }
   .city-journey {
     --journey-card-width: min(56vw, 490px);
-    --journey-card-height: 224px;
+    --journey-card-height: clamp(160px, calc(100dvh - var(--app-shell-header-total) - 169px), 224px);
     --journey-side-offset: min(43vw, 390px);
-    height: 258px;
+    height: calc(var(--journey-card-height) + 34px);
   }
   .city-journey-track { bottom: 28px; }
   .city-journey-card { grid-template-columns: minmax(0, 1.4fr) minmax(155px, .8fr); grid-template-rows: 1fr auto; gap: 8px 12px; padding: 9px; }
@@ -740,7 +809,7 @@ body:has(.home-hangar:not([hidden])) #tutorial-help { display: none; }
   .city-option button { min-width: 112px; min-height: 54px; padding-inline: 12px; font-size: 14px; }
   .city-select-actions { gap: 6px; margin-top: -2px; }
   .city-select-actions .entry-button { min-width: 160px; min-height: 48px; padding: 7px 12px; }
-  #start-brand-signature { position: fixed; z-index: 4; right: max(48px, calc(var(--safe-area-right) + 42px)); bottom: max(4px, var(--safe-area-bottom)); left: max(8px, var(--safe-area-left)); }
+  #start-brand-signature { bottom: max(8px, var(--safe-area-bottom)); }
   .intro-brand-footer { gap: 3px 9px; padding: 2px 0 0; font-size: 10px; line-height: 1.1; }
   .intro-brand-footer a { min-height: 28px; padding: 3px 6px; }
   .game-brand-legal { display: none; }
@@ -878,6 +947,41 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .pilot-account-message.error { color: #ff9aab !important; }
 .pilot-menu-status { display: inline-block; margin: 3px 8px 3px 0; padding: 4px 7px; color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: 3px; background: rgb(23 117 223 / 12%); font: 600 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
 .pilot-progress-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.pilot-rewards { width: min(760px, 100%); margin-inline: auto; }
+.pilot-rewards-layout { display: grid; gap: 14px; width: min(760px, 100%); margin-inline: auto; }
+.pilot-rewards-layout .pilot-rewards { width: 100%; }
+.pilot-rewards-friendly { font-size: var(--font-meta-size) !important; }
+.pilot-rewards-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; margin: 16px 0; }
+.pilot-reward-tile { display: grid; gap: 6px; min-width: 0; padding: 13px 6px; text-align: center; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-glass-cyan); }
+.pilot-reward-tile > span,.pilot-reward-tile > small { color: var(--ui-text-muted); font: 700 10px/1.1 var(--font-display); letter-spacing: .06em; }
+.pilot-reward-tile > strong { color: var(--ui-text); font: 800 clamp(16px,2vw,22px)/1 var(--font-display); }
+.pilot-reward-tile.is-claimed { opacity: .64; border-color: rgb(84 201 155 / 42%); }
+.pilot-reward-tile.is-claimed > small { color: var(--meaning-safe); }
+.pilot-reward-tile.is-available { border-color: var(--ui-gold); background: rgb(249 176 10 / 16%); box-shadow: inset 0 0 0 1px rgb(249 176 10 / 20%); }
+.pilot-reward-tile.is-available > :is(span,small),.pilot-reward-tile.is-day-seven > span { color: var(--ui-gold); }
+.pilot-reward-tile.is-day-seven { border-width: 2px; }
+.pilot-reward-claim { display: grid; justify-items: center; gap: 8px; padding: 16px; text-align: center; border: 1px solid var(--ui-border-strong); border-radius: 8px; background: var(--ui-gradient-selected); }
+.pilot-reward-claim > span { color: var(--ui-gold); font: 700 11px/1 var(--font-display); letter-spacing: .1em; }
+.pilot-reward-claim > strong { color: var(--ui-text); font: 800 clamp(21px,4vw,30px)/1.1 var(--font-display); }
+.pilot-reward-claim > button { min-width: min(300px,100%); min-height: 46px; }
+.pilot-reward-status { min-height: 20px; margin: 0 !important; color: var(--ui-gold) !important; }
+.pilot-watch-earn { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; padding: 14px 16px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-glass-blue); }
+.pilot-watch-earn > h2 { grid-column: 1 / -1; }
+.pilot-watch-earn > p { margin: 0 !important; }
+.pilot-watch-value { color: var(--ui-text); font: 800 clamp(19px, 3vw, 27px)/1.1 var(--font-display); }
+.pilot-watch-availability { color: var(--ui-gold) !important; font: 700 var(--font-meta-size)/1.3 var(--font-display) !important; letter-spacing: .04em; }
+.pilot-watch-earn > button { grid-column: 2; grid-row: 2 / span 3; min-width: 190px; min-height: 46px; }
+.pilot-watch-status { grid-column: 1 / -1; color: var(--ui-gold) !important; font-size: var(--font-meta-size) !important; }
+.pilot-invite { display: grid; gap: 8px; padding: 12px 16px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-glass-blue); }
+.pilot-invite > p { margin: 0 !important; }
+.pilot-invite-values { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--ui-gold); font: 700 var(--font-meta-size)/1.3 var(--font-display); }
+.pilot-invite > button { justify-self: start; min-height: 44px; }
+.pilot-invite-panel { display: grid; gap: 9px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--ui-border); }
+.pilot-invite-panel > p { margin: 0 !important; }
+.pilot-invite-panel > input { width: 100%; min-width: 0; padding: 10px; color: var(--ui-text); background: var(--ui-glass-cyan); border: 1px solid var(--ui-border); border-radius: 6px; }
+.pilot-invite-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pilot-invite-actions > button { min-height: 44px; }
+.pilot-invite-cap, .pilot-invite-notice { color: var(--ui-gold) !important; font-size: var(--font-meta-size) !important; }
 .pilot-progress-card { --progress-accent: var(--ui-royal); min-width: 0; padding: 14px; border: 1px solid var(--ui-border); border-left: 3px solid var(--progress-accent); border-radius: 7px; background: var(--ui-glass-cyan); }
 .pilot-progress-card:nth-child(even) { background: var(--ui-glass-blue); }
 .pilot-progress-credits { --progress-accent: var(--ui-gold); }
@@ -934,6 +1038,20 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .pilot-menu-discovered { color: #79d9bb; font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
 .pilot-menu-controls { color: var(--ui-text) !important; font: 500 var(--font-body-size)/1.6 var(--font-body) !important; }
 @media (max-width: 680px) { .pilot-menu-overlay { padding: 8px; } .pilot-menu-card { height: calc(100vh - 16px); padding: 14px; } .pilot-menu-stunts, .pilot-progress-grid, .pilot-progress-aircraft-list, .pilot-account-providers { grid-template-columns: 1fr; } .pilot-account-linked-row { grid-template-columns: 1fr; } .pilot-progress-aircraft { grid-column: auto; } .pilot-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .pilot-rewards-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; margin: 9px 0; } .pilot-reward-tile { gap: 3px; padding: 8px 4px; } .pilot-reward-claim { gap: 5px; padding: 10px; } }
+@media (max-width: 680px) { .pilot-watch-earn { grid-template-columns: 1fr; padding: 11px; } .pilot-watch-earn > button { grid-column: 1; grid-row: auto; width: 100%; min-width: 0; } }
+@media (max-width: 680px) { .pilot-invite { padding: 10px; } .pilot-invite > button { width: 100%; } .pilot-invite-actions > button { flex: 1 1 120px; } }
+@media (max-height: 560px) and (min-width: 700px) { .pilot-rewards-layout:has(.pilot-watch-earn) { grid-template-columns: minmax(0, 1.7fr) minmax(230px, .8fr); width: 100%; align-items: start; } .pilot-rewards-grid { margin-block: 8px; } .pilot-reward-tile { gap: 3px; padding-block: 7px; } .pilot-reward-claim { grid-template-columns: 1fr auto; padding: 9px; } .pilot-reward-claim > button { min-width: 190px; } .pilot-watch-earn { grid-template-columns: 1fr; } .pilot-watch-earn > button { grid-column: 1; grid-row: auto; min-width: 0; } }
+@media (max-height: 560px) and (min-width: 700px) { .pilot-rewards-layout:has(.pilot-invite) { grid-template-columns: minmax(0, 1.7fr) minmax(230px, .8fr); width: 100%; align-items: start; } .pilot-rewards-layout:has(.pilot-invite) > .pilot-rewards { grid-row: 1 / span 2; } .pilot-rewards-layout:has(.pilot-invite) > .pilot-invite { grid-column: 2; } }
+@media (max-width: 520px) and (orientation: portrait) {
+  .home-hangar-aircraft-name { bottom: max(134px, calc(var(--safe-area-bottom) + 128px)); }
+  .home-hangar-contextual { flex-direction: column; bottom: max(74px, calc(var(--safe-area-bottom) + 68px)); }
+  .home-hangar-contextual .home-hangar-fly { min-width: min(260px,80vw); }
+  .home-brand-signature, #start-brand-signature { min-height: 40px; }
+  .home-brand-signature { right: max(8px, var(--safe-area-right)); }
+  .intro-brand-footer { justify-content: center; }
+  .intro-brand-footer > span { display: none; }
+}
 @media (max-width: 520px) { .pilot-profile-identity { grid-template-columns: 1fr; justify-items: center; padding: 14px; text-align: center; } .pilot-profile-emblem { grid-row: auto; } .pilot-profile-identity-text strong { white-space: normal; } .pilot-profile-xp { width: 100%; } .pilot-profile-account { padding: 11px; } .pilot-profile-account-row { grid-template-columns: 1fr auto; } .pilot-profile-name-form { grid-template-columns: 1fr; } .pilot-profile-name-actions { justify-content: flex-end; } }
 @media (max-width: 520px) {
   .pilot-menu-mission-option { grid-template-columns: 1fr; }
@@ -975,6 +1093,10 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .garage-details > .garage-actions > [data-garage-equip],.garage-premium [data-garage-premium-buy] { width:100%; min-height:46px; color:var(--ui-ocean-ink); background:var(--ui-gradient-primary); border-color:rgb(249 176 10 / 58%); text-shadow:0 1px 1px rgb(255 255 255 / 28%); }
 .garage-details > .garage-actions > [data-garage-equip][data-state=equipped] { color:var(--ui-gold-light); border-color:rgb(249 176 10 / 42%); background:rgb(249 176 10 / 8%); text-shadow:none; opacity:1; }
 .garage-action-note { min-height:15px; margin:4px 0 0 !important; text-align:center; font-size:var(--font-meta-size) !important; }
+.garage-token-choice { display: grid; gap: 3px; margin-top: 5px; text-align: center; color: var(--text-secondary); font: 700 10px/1 var(--font-display); }
+.garage-token-choice[hidden] { display: none; }
+.garage-token-choice button { width: 100%; min-height: 42px; color: var(--ui-gold); background: rgb(35 78 104 / 75%); border: 1px solid rgb(105 211 255 / 50%); border-radius: 6px; cursor: pointer; }
+.garage-token-choice button:focus-visible, .garage-token-choice button:hover { border-color: var(--ui-gold); }
 .garage-details [data-garage-message] { display:block; min-height:16px; margin-top:6px; color:var(--ui-gold); font:600 var(--font-meta-size) var(--font-body); text-align:center; }
 .garage-details [data-garage-message]:empty { display:none; }
 .garage-selector-section,.garage-cosmetics { min-width:0; padding-top:10px; }
