@@ -35,6 +35,7 @@ import { validateClientRotation, validateClientTransform } from './transform-val
 import { policyPage } from './legal-pages.js';
 import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { skyTokenPack, skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
+import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/chaos-event-rules.mjs';
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
@@ -349,6 +350,7 @@ const securityLimits = {
   rewardedAdPilot: { limit: 20, windowMs: 15 * 60_000 }, rewardedAdIp: { limit: 60, windowMs: 15 * 60_000 },
   rewardedAdStatusPilot: { limit: 120, windowMs: 15 * 60_000 }, rewardedAdSsvIp: { limit: 1_000, windowMs: 15 * 60_000 },
   nativePurchasePilot: { limit: 12, windowMs: 15 * 60_000 }, nativePurchaseIp: { limit: 30, windowMs: 15 * 60_000 },
+  cosmeticPurchasePilot: { limit: 30, windowMs: 15 * 60_000 },
   referralLookupIp: { limit: 30, windowMs: 60 * 60_000 },
   analyticsIntentPilot: { limit: 120, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateLimitRule>;
@@ -1252,7 +1254,8 @@ const httpServer = createServer(async (request, response) => {
       platform: analyticsPlatform(request), ...analyticsHost(request.headers.host),
     };
     analyticsStore.startSession(context);
-    analyticsStore.recordEvent(context, intent.event);
+    analyticsStore.recordEvent(context, intent.event, intent.cosmeticId ? { source: intent.cosmeticId,
+      metadata: intent.currency ? { currency: intent.currency } : {} } : {});
     if (intent.event === 'rewards_viewed' && session.accountId) {
       const dailyReward = profileStore.dailyRewardState(session.pilotId);
       if (dailyReward?.claimable) analyticsStore.recordEvent(context, 'daily_reward_available',
@@ -1387,8 +1390,25 @@ const httpServer = createServer(async (request, response) => {
           platform: analyticsPlatform(request), aircraftType: profile.selectedAircraft, ...analyticsHost(request.headers.host) }, 'aircraft_equipped');
       }
       else if (typeof payload?.purchaseCosmetic === 'string' || typeof payload?.equipCosmetic === 'string') {
-        const result = typeof payload.purchaseCosmetic === 'string' ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic) : profileStore.equipCosmetic(identity.pilotId, payload.equipCosmetic as string);
-        profile = result.profile; error = result.ok ? undefined : result.reason;
+        const purchasing = typeof payload.purchaseCosmetic === 'string';
+        if (purchasing) {
+          const limit = limitedBy('cosmetic-purchase-pilot', identity.pilotId, securityLimits.cosmeticPurchasePilot);
+          if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
+        }
+        const currency = purchasing ? payload.cosmeticCurrency ?? 'CREDITS' : undefined;
+        if (currency === 'SKY_TOKENS' && !identity.session.accountId) error = 'SIGN IN TO SPEND SKY TOKENS';
+        else {
+          const result: { ok: boolean; purchased?: boolean; reason?: string; profile?: PlayerProfile } = purchasing
+            ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic as string, currency)
+            : profileStore.equipCosmetic(identity.pilotId, payload.equipCosmetic as string);
+          profile = result.profile; error = result.ok ? undefined : result.reason;
+          if (result.ok && (purchasing ? result.purchased : true)) {
+            const item = cosmeticCatalog.find(entry => entry.id === (purchasing ? payload.purchaseCosmetic : payload.equipCosmetic));
+            if (item) analyticsStore.recordEvent({ pilotId: identity.pilotId, aircraftType: item.aircraftRestriction,
+              platform: analyticsPlatform(request), ...analyticsHost(request.headers.host) }, purchasing ? 'cosmetic_unlocked' : 'cosmetic_equipped',
+              { source: item.id, metadata: purchasing ? { currency: currency === 'SKY_TOKENS' ? 'sky_tokens' : 'credits' } : {} });
+          }
+        }
       }
       else if (payload?.startFighterTrial === true) {
         const result = profileStore.requestFighterTrial(identity.pilotId);
@@ -5395,6 +5415,7 @@ server.on('connection', (socket, request) => {
         tutorialStepStatus?: unknown;
         tutorialResetReason?: unknown;
         cosmeticId?: unknown;
+        currency?: unknown;
         weeklyEventId?: unknown;
         routeId?: unknown;
       } & Partial<Transform>;
@@ -5627,9 +5648,17 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type === 'purchaseCosmetic' && typeof message.cosmeticId === 'string') {
-        const result = profileStore.purchaseCosmetic(player.pilotId, message.cosmeticId);
+        const limit = limitedBy('cosmetic-purchase-pilot', player.pilotId, securityLimits.cosmeticPurchasePilot);
+        if (limit.limited) {
+          sendToPlayer(playerId, { type: 'cosmeticResult', action: 'purchase', cosmeticId: message.cosmeticId, ok: false, reason: rateLimitMessage });
+          return;
+        }
+        const result: { ok: boolean; purchased?: boolean; reason?: string; profile?: PlayerProfile } = message.currency === 'SKY_TOKENS' && !player.accountId
+          ? { ok: false, reason: 'SIGN IN TO SPEND SKY TOKENS' }
+          : profileStore.purchaseCosmetic(player.pilotId, message.cosmeticId, message.currency ?? 'CREDITS');
         if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
-        if (result.ok) recordAnalytics(playerId, 'cosmetic_unlocked', { source: message.cosmeticId });
+        if (result.purchased) recordAnalytics(playerId, 'cosmetic_unlocked', { source: message.cosmeticId,
+          metadata: { currency: message.currency === 'SKY_TOKENS' ? 'sky_tokens' : 'credits' } });
         sendToPlayer(playerId, { type: 'cosmeticResult', action: 'purchase', cosmeticId: message.cosmeticId, ok: result.ok, reason: result.reason });
         return;
       }

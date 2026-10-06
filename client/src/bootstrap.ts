@@ -176,7 +176,6 @@ let hubFlyGateActive = false;
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
   garage: () => { void openStartGarage('HANGAR'); },
-  aircraft: () => { void openStartGarage('HANGAR'); },
   rewards: () => { void openHubRewards(); },
   profile: () => { void openHubPilotMenu('PROFILE'); },
   skyTokens: () => { void openSkyTokenStore(); },
@@ -264,7 +263,7 @@ function showAppHeader(active: AppShellActive): void {
   const homeData = homeHangarData();
   appHeader.show({
     active,
-    hubActions: entryState === 'HANGAR',
+    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU',
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
@@ -626,11 +625,13 @@ function notifySharedMenuPreferences(): void {
 
 const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
   entryState = 'PILOT_MENU';
+  showAppHeader(section === 'REWARDS' ? 'REWARDS' : section === 'PROFILE' ? 'PROFILE' : undefined);
   if (section === 'REWARDS') recordProductIntent('rewards_viewed');
   if (section !== 'REWARDS') rewardedAdPollGeneration += 1;
 }, {
   sections: ['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD / CITIES', 'LEGAL / SUPPORT', 'DATA LICENSES'],
   title: 'PILOT MENU',
+  appShell: true,
   closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : 'BACK TO PILOT HUB',
   showFlightActions: false,
   showContextStatus: false,
@@ -1094,14 +1095,14 @@ async function requestHubFly(): Promise<void> {
 
 async function openHubPilotMenu(section: PilotMenuSection, refresh = true): Promise<void> {
   const hubSection = section === 'MISSIONS' ? 'PROFILE' : section;
-  hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : 'HANGAR';
+  if (!hubPilotMenu.isOpen()) hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : 'HANGAR';
   entryState = 'PILOT_MENU';
   syncHubMenuPreferences();
   if (garage.isOpen()) garage.close();
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
-  appHeader.hide();
+  showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (refresh) await refreshHubPilotData();
 }
@@ -1177,7 +1178,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
     garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
-}, id => { void changeGarageCosmetic('purchaseCosmetic', id); }, id => { void changeGarageCosmetic('equipCosmetic', id); }, async type => {
+}, (id, currency) => { void changeGarageCosmetic('purchaseCosmetic', id, currency); }, id => { void changeGarageCosmetic('equipCosmetic', id); }, async type => {
   try {
     const response = await apiFetch(apiUrl('/api/profile'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ purchaseAircraftWithSkyTokens: type }) });
@@ -1193,14 +1194,14 @@ if (nativePurchaseProvider) {
   void loadNativeFirehawkOffer().then(offer => garage.setNativeStorePrice(offer?.localizedPrice)).catch(() => undefined);
 }
 
-async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string): Promise<void> {
+async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string, currency: 'CREDITS' | 'SKY_TOKENS' = 'CREDITS'): Promise<void> {
   try {
     const url = apiUrl('/api/profile');
     url.searchParams.set('pilotId', garageIdentity.pilotId);
-    const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [action]: id }) });
+    const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [action]: id, ...(action === 'purchaseCosmetic' ? { cosmeticCurrency: currency } : {}) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
-    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
+    applyAuthoritativeHomeProfile(result as RemoteGarageProfile); garage.updateProfile(garageProfile);
     garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'COSMETIC OWNED — SELECT TO EQUIP');
     if (action === 'purchaseCosmetic') audioManager.playPurchaseSuccess();
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }

@@ -5,6 +5,8 @@ export const clientIntentProperties = {
   rewarded_ad_no_fill: [],
   referral_screen_viewed: [], referral_share_started: [], referral_link_copied: [],
   garage_opened: [], aircraft_viewed: ['aircraftType'], aircraft_selected: ['aircraftType'],
+  cosmetic_viewed: ['cosmeticId', 'aircraftType'], cosmetic_previewed: ['cosmeticId', 'aircraftType'],
+  cosmetic_unlock_started: ['cosmeticId', 'aircraftType', 'currency'],
   firehawk_purchase_clicked: [],
   sky_token_store_viewed: [],
 } as const;
@@ -12,7 +14,7 @@ export const clientIntentProperties = {
 export type ClientIntentEvent = keyof typeof clientIntentProperties;
 const safeDimension = /^[a-zA-Z][a-zA-Z0-9_-]{0,39}$/;
 
-export function parseClientIntent(value: unknown): { event: ClientIntentEvent; cityId?: string; aircraftType?: string; sessionId: string } | undefined {
+export function parseClientIntent(value: unknown): { event: ClientIntentEvent; cityId?: string; aircraftType?: string; cosmeticId?: string; currency?: string; sessionId: string } | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const payload = value as Record<string, unknown>;
   if (typeof payload.event !== 'string' || !Object.hasOwn(clientIntentProperties, payload.event)) return undefined;
@@ -23,7 +25,9 @@ export function parseClientIntent(value: unknown): { event: ClientIntentEvent; c
   for (const key of clientIntentProperties[event]) if (typeof payload[key] !== 'string' || !safeDimension.test(payload[key])) return undefined;
   return { event, sessionId: payload.sessionId,
     cityId: typeof payload.cityId === 'string' ? payload.cityId : undefined,
-    aircraftType: typeof payload.aircraftType === 'string' ? payload.aircraftType : undefined };
+    aircraftType: typeof payload.aircraftType === 'string' ? payload.aircraftType : undefined,
+    cosmeticId: typeof payload.cosmeticId === 'string' ? payload.cosmeticId : undefined,
+    currency: typeof payload.currency === 'string' ? payload.currency : undefined };
 }
 
 /** New server milestones. Legacy event names remain readable for historical reports. */

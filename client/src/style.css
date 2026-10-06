@@ -860,6 +860,7 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
   width: min(var(--app-shell-content-width), 100%);
   max-height: calc(100dvh - var(--app-shell-header-total) - 32px);
 }
+.pilot-menu-card.is-app-shell-screen > header .has-brand-logo { display: none; }
 .pilot-menu-card > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--ui-border); }
 .pilot-menu-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable; touch-action: pan-y; }
 .pilot-menu-content-map { overflow: hidden; padding-right: 0; scrollbar-gutter: auto; }
@@ -1122,6 +1123,11 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .garage-cosmetic[aria-pressed=true] { outline:2px solid var(--ui-cyan); color:var(--ui-gold); background:var(--ui-gradient-selected); }
 .garage-cosmetic-action { min-height:40px; color:var(--ui-ocean-ink); text-align:center; border-color:rgb(249 176 10 / 58%); background:var(--ui-gradient-primary); text-shadow:0 1px 1px rgb(255 255 255 / 28%); }
 .garage-cosmetic-action:disabled { opacity:.48; cursor:default; }
+.garage-cosmetic-options { display:grid; gap:3px; }
+.garage-cosmetic-options .garage-cosmetic-action { min-height:34px; padding:5px; text-align:center; font-size:11px; }
+.garage-cosmetic-token-action { color:var(--ui-text); background:var(--ui-glass-blue); border-color:var(--ui-cyan); text-shadow:none; }
+.garage-cosmetic-or { color:var(--text-secondary); text-align:center; font:700 9px/1 var(--font-display); }
+.garage-cosmetic-note { color:var(--text-secondary); text-align:center; font:500 10px/1.2 var(--font-body); }
 .garage-tester { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
 .garage-tester input,.garage-tester button { min-width:0; padding:7px 9px; border:1px solid var(--ui-border); border-radius:4px; color:var(--ui-text); background:var(--ui-bg); font:600 var(--font-control-size) var(--font-display); }
 .garage-tester[hidden] { display:none; }
@@ -3548,6 +3554,8 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
   .garage-cosmetic-action { min-height:38px; padding:3px 6px; font-size:10px; }
   .garage-cosmetic small { font-size:8px; }
   .garage-cosmetic-swatches i { width:10px; height:10px; }
+  .garage-cosmetic-options .garage-cosmetic-action { min-height:28px; padding:3px; font-size:9px; }
+  .garage-cosmetic-note { font-size:8px; }
 }
 
 .gameplay-cinematic-banner {

@@ -173,7 +173,7 @@ test('Pilot Hub routes to canonical Garage and profile screens without duplicate
   const menu = read('client/src/pilot-menu.ts');
   const server = read('server/src/index.ts');
   assert.match(bootstrap, /garage: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
-  assert.match(bootstrap, /aircraft: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
+  assert.doesNotMatch(bootstrap, /aircraft: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
   assert.match(bootstrap, /rewards: \(\) => \{ void openHubRewards\(\); \}/);
   assert.match(bootstrap, /profile: \(\) => \{ void openHubPilotMenu\('PROFILE'\); \}/);
   assert.doesNotMatch(bootstrap, /settings: \(\) => \{ void openHubPilotMenu\('SETTINGS'\); \}/);
@@ -241,7 +241,9 @@ test('Pilot Hub keeps FLY primary and moves management actions into the shared h
   assert.doesNotMatch(html, /entry-shell-header|home-hangar-navigation|data-home-tutorial/);
   assert.match(html, /home-hangar-contextual[\s\S]*data-home-fly/);
   assert.doesNotMatch(html, /data-home-(?:aircraft|missions|rewards|profile)(?:\s|=|>)/);
-  assert.match(shell, /utilities\.append\(this\.garage, this\.aircraft, this\.rewards, this\.avatar\)/);
+  assert.match(shell, /utilities\.append\(this\.garage, this\.rewards, this\.avatar\)/);
+  assert.match(bootstrap, /hubActions: entryState === 'HANGAR' \|\| entryState === 'PILOT_MENU'/);
+  assert.match(bootstrap, /appShell: true/);
   assert.match(shell, /this\.element\.replaceChildren\(brand, wallet, utilities\)/);
   assert.match(shell, /creditMark\.textContent = visualLanguage\.credits\.icon/);
   assert.match(shell, /tokenMark\.textContent = visualLanguage\.skyTokens\.icon/);
@@ -250,7 +252,7 @@ test('Pilot Hub keeps FLY primary and moves management actions into the shared h
   assert.doesNotMatch(shell, /HOME|FLY|TUTORIAL|MISSIONS|pilotLabel|this\.pilot|app-shell-menu/);
   assert.match(shell, /brand\.addEventListener\('click', handlers\.home\)/);
   assert.match(shell, /this\.garage\.addEventListener\('click', handlers\.garage\)/);
-  assert.match(shell, /this\.aircraft\.addEventListener\('click', handlers\.aircraft\)/);
+  assert.doesNotMatch(shell, /this\.aircraft\.addEventListener\('click', handlers\.aircraft\)/);
   assert.match(shell, /this\.rewards\.addEventListener\('click', handlers\.rewards\)/);
   assert.match(shell, /this\.avatar\.addEventListener\('click', handlers\.profile\)/);
   assert.doesNotMatch(shell, /handlers\.settings|this\.settings|settingsIcon/);
@@ -273,8 +275,8 @@ test('Pilot Hub keeps FLY primary and moves management actions into the shared h
   assert.match(css, /\.home-hangar-contextual \.home-hangar-fly[^}]*min-height: 68px/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-width: 1000px\) and \(max-height: 520px\)[\s\S]*\.home-hangar-contextual \{ bottom: max\(8px, env\(safe-area-inset-bottom\)\); \}/);
   assert.match(css, /@media \(max-width: 480px\)[\s\S]*\.flight-header-credits small \{ display: none; \}/);
-  assert.match(read('client/src/garage.ts'), /const showcaseDistanceScale = this\.showcaseHost \? 1\.3 : 1/);
-  assert.match(read('client/src/garage.ts'), /const aircraftDistanceScale = this\.showcaseHost && this\.selected === 'fighter' \? 1\.2 : 1/);
+  assert.match(read('client/src/garage.ts'), /const showcaseDistanceScale = this\.showcaseHost \? \(wideShowcase \? 0\.6 : 0\.88\) : 1/);
+  assert.match(read('client/src/garage.ts'), /this\.selected === 'fighter' \? 0\.9 : 1/);
   assert.doesNotMatch(read('client/src/garage.ts'), /wideShowcase \? -0\.03 : -0\.05/);
   assert.match(read('client/src/garage.ts'), /this\.aircraftPresentation\.position\.set\(0, 0, 0\)/);
   assert.match(read('client/src/garage.ts'), /if \(this\.isPreviewActive\(\)\) this\.framePreview\(false\)/);

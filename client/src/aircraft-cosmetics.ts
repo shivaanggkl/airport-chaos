@@ -8,16 +8,24 @@ const paintFinish = Object.freeze({
   AC_LIVERY_ACCENT: Object.freeze({ roughness: 0.18, metalness: 0.42 }),
 });
 
+// An owned Mammoth or Nightowl still needs a visible base finish before any
+// catalog paint is unlocked. These neutral colors are internal, not products.
+const unpaintedAppearance = {
+  cargo: { base: 0x8d9da9, primary: 0xd2dce3, accent: 0x526b7d },
+  privateJet: { base: 0xb7c6d1, primary: 0xe0e8ed, accent: 0x60798b },
+} as const;
+
 // Retain the selection on the root so asynchronously loaded GLBs use the same
 // palette as the fallback, Garage, and replicated aircraft.
 export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType, equipped: Record<string, string>): void {
   root.userData.equippedCosmetics = { ...equipped };
   const definition = aircraftDefinitions[type];
   const item = cosmeticCatalog.find(entry => entry.id === equipped[`livery:${type}`] && entry.aircraftRestriction === type);
+  const base = type === 'cargo' || type === 'privateJet' ? unpaintedAppearance[type] : definition.livery;
   const palette = {
-    AC_LIVERY_BASE: item?.visualConfig.base ?? definition.livery.baseColor,
-    AC_LIVERY_PRIMARY: item?.visualConfig.primary ?? definition.livery.primaryColor,
-    AC_LIVERY_ACCENT: item?.visualConfig.accent ?? definition.livery.accentColor,
+    AC_LIVERY_BASE: item?.visualConfig.base ?? ('base' in base ? base.base : base.baseColor),
+    AC_LIVERY_PRIMARY: item?.visualConfig.primary ?? ('primary' in base ? base.primary : base.primaryColor),
+    AC_LIVERY_ACCENT: item?.visualConfig.accent ?? ('accent' in base ? base.accent : base.accentColor),
   };
   root.traverse(object => {
     if (!(object instanceof THREE.Mesh)) return;
