@@ -50,7 +50,7 @@ export class SkyTokenStore {
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !this.overlay.hidden) this.close(); });
   }
 
-  open(balance: number, offers: readonly SkyTokenOffer[], missing = 0): void {
+  open(balance: number, offers: readonly SkyTokenOffer[], missing = 0, previewOnly = false): void {
     this.balance.textContent = `${balance.toLocaleString()} Sky Tokens`;
     const order = [500, 1200, 2400, 100];
     const orderedOffers = [...offers].sort((a, b) => order.indexOf(a.tokens) - order.indexOf(b.tokens));
@@ -61,20 +61,21 @@ export class SkyTokenStore {
     for (const offer of orderedOffers) {
       if (!skyTokenPacks[offer.id] || offer.tokens !== skyTokenPacks[offer.id].tokens) continue;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'sky-token-pack';
+      button.disabled = previewOnly;
       const quantity = document.createElement('strong'); quantity.textContent = `${offer.tokens.toLocaleString()} Sky Tokens`;
       const price = document.createElement('span'); price.textContent = offer.price;
       button.append(quantity, price);
       button.addEventListener('click', () => {
-        if (this.busy) return;
+        if (previewOnly || this.busy) return;
         this.setBusy(true);
         void this.buy(offer.id).catch(() => this.setMessage('Unable to start purchase. Please try again.'))
           .finally(() => this.setBusy(false));
       });
       this.list.append(button);
     }
-    this.message.textContent = '';
+    this.message.textContent = previewOnly ? 'Purchases are unavailable in this staging build.' : '';
     this.overlay.hidden = false;
-    (this.list.querySelector('button') ?? this.overlay.querySelector<HTMLButtonElement>('.sky-token-close'))?.focus();
+    (this.list.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? this.overlay.querySelector<HTMLButtonElement>('.sky-token-close'))?.focus();
   }
 
   updateBalance(balance: number): void { this.balance.textContent = `${balance.toLocaleString()} Sky Tokens`; }

@@ -10,9 +10,10 @@ import { loadAirportChaosLogo, mountCompactBrandFooter } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
+import { PLAYER_STORAGE_KEY } from './player-storage';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
-import { apiFetch, apiUrl } from './transport';
+import { apiFetch, apiOrigin, apiUrl } from './transport';
 import { loadNativeFirehawkOffer, loadNativeSkyTokenOffers, nativePurchaseProvider, purchaseNativeFirehawk, purchaseNativeSkyTokenPack, recoverNativeSkyTokenPurchases, restoreNativeFirehawk } from './native-purchases';
 import { missionsForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
@@ -46,7 +47,6 @@ const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overla
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
-const PLAYER_STORAGE_KEY = 'airport-chaos-player-v1';
 const PENDING_FLY_STORAGE_KEY = 'airport-chaos-pending-fly-v1';
 const PENDING_REFERRAL_STORAGE_KEY = 'airport-chaos-pending-referral-v1';
 const referralCodePattern = /^(?:[A-Z0-9]{4}-[A-Z0-9]{4}|[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5})$/i;
@@ -151,6 +151,7 @@ function recordGarageBusinessEvent(event: 'fighter_modal_viewed' | 'fighter_purc
 let garageProfile: GarageProfile = { credits: garageIdentity.credits, skyTokens: 0, selectedAircraft: garageIdentity.selectedAircraft, unlockedAircraft: ['trainer'] };
 let skyTokenCommerceEnabled = false;
 let skyTokenOffers: SkyTokenOffer[] = [];
+const stagingTokenStorePreview = nativePurchaseProvider === 'apple' && apiOrigin === 'https://airport-chaos-staging.onrender.com' && import.meta.env.VITE_STAGING_TOKEN_STORE_PREVIEW === 'true';
 let skyTokenCatalogPilotId: string | undefined;
 let nativeSkyTokenRecoveryPilotId: string | undefined;
 let nativeSkyTokenPurchasePending = false;
@@ -215,16 +216,16 @@ async function refreshSkyTokenCatalog(): Promise<void> {
   const result = await response.json() as { enabled?: boolean; packs?: Array<{ id: string; tokens: number; usdCents: number }> };
   skyTokenCommerceEnabled = result.enabled === true;
   const nativeOffers = skyTokenCommerceEnabled && nativePurchaseProvider ? await loadNativeSkyTokenOffers() : {};
-  skyTokenOffers = skyTokenCommerceEnabled ? (result.packs ?? []).flatMap(pack => {
+  skyTokenOffers = skyTokenCommerceEnabled || stagingTokenStorePreview ? (result.packs ?? []).flatMap(pack => {
     const id = pack.id as SkyTokenPackId;
     if (!Object.hasOwn(skyTokenPacks, id) || pack.tokens !== skyTokenPacks[id].tokens || pack.usdCents !== skyTokenPacks[id].usdCents) return [];
-    const price = nativePurchaseProvider ? nativeOffers[id]?.localizedPrice : `$${(pack.usdCents / 100).toFixed(2)}`;
+    const price = nativePurchaseProvider && skyTokenCommerceEnabled ? nativeOffers[id]?.localizedPrice : `$${(pack.usdCents / 100).toFixed(2)}`;
     return price ? [{ id, tokens: pack.tokens, price }] : [];
   }) : [];
   const completeCatalog = skyTokenOffers.length === Object.keys(skyTokenPacks).length;
-  skyTokenCatalogPilotId = !skyTokenCommerceEnabled || completeCatalog ? garageIdentity.pilotId : undefined;
+  skyTokenCatalogPilotId = (!skyTokenCommerceEnabled && !stagingTokenStorePreview) || completeCatalog ? garageIdentity.pilotId : undefined;
   if (skyTokenCommerceEnabled && !completeCatalog) garage.setTokenStoreUnavailable();
-  else garage.setTokenCommerce(skyTokenCommerceEnabled);
+  else garage.setTokenCommerce(skyTokenCommerceEnabled, stagingTokenStorePreview && !skyTokenCommerceEnabled && completeCatalog);
   showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : undefined);
   if (skyTokenCommerceEnabled && nativePurchaseProvider && nativeSkyTokenRecoveryPilotId !== garageIdentity.pilotId) {
     nativeSkyTokenRecoveryPilotId = garageIdentity.pilotId;
@@ -253,10 +254,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function openSkyTokenStore(missing = 0): Promise<void> {
-  if (!skyTokenCommerceEnabled || hubAccount.state !== 'account') return;
+  if ((!skyTokenCommerceEnabled && !stagingTokenStorePreview) || hubAccount.state !== 'account') return;
   if (skyTokenOffers.length !== Object.keys(skyTokenPacks).length) { garage.showActionResult('STORE UNAVAILABLE — PLEASE TRY AGAIN LATER'); return; }
   recordProductIntent('sky_token_store_viewed');
-  skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing);
+  skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing, !skyTokenCommerceEnabled);
   if (nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
 }
 function showAppHeader(active: AppShellActive): void {
@@ -267,7 +268,7 @@ function showAppHeader(active: AppShellActive): void {
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
-    tokenStoreAvailable: hubAccount.state === 'account' && skyTokenCommerceEnabled && skyTokenOffers.length === Object.keys(skyTokenPacks).length,
+    tokenStoreAvailable: hubAccount.state === 'account' && (skyTokenCommerceEnabled || stagingTokenStorePreview) && skyTokenOffers.length === Object.keys(skyTokenPacks).length,
     rewardsAvailable: homeData.rewardsAvailable,
     rewardsAvailableInMs: homeData.rewardsAvailableInMs,
     avatarUrl: hubAccount.avatarUrl,
@@ -864,7 +865,10 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
       const complete = await apiFetch(apiUrl('/api/auth/native/complete'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       const result = await complete.json() as { error?: string; message?: string; account?: HubAccountStatus; profile?: RemoteGarageProfile };
       if (!complete.ok || !result.account || !result.profile) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN FAILED' };
-      hubAccount = result.account; setPendingReferralCode(); applyAuthoritativeHomeProfile(result.profile); hubPilotMenu.refresh(hubPilotMenuData(), true);
+      hubAccount = result.account; setPendingReferralCode(); applyAuthoritativeHomeProfile(result.profile);
+      try { await refreshSkyTokenCatalog(); } catch { garage.setTokenStoreUnavailable(); }
+      showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : undefined);
+      hubPilotMenu.refresh(hubPilotMenuData(), true);
       resumePendingHubFly();
       return { ok: true, message: result.message ?? 'ACCOUNT LOADED' };
     }

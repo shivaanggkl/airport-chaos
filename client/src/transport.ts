@@ -6,6 +6,7 @@ const transport = resolveTransport({
   development: import.meta.env.DEV,
   pageOrigin: window.location.origin,
   webSocketOverride: import.meta.env.VITE_WS_URL,
+  nativeBackendOrigin: import.meta.env.VITE_NATIVE_BACKEND_ORIGIN,
 });
 
 export const apiOrigin = transport.apiOrigin;

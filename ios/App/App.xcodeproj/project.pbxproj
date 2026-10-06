@@ -328,6 +328,7 @@
 		504EC3181FED79650016851F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				AIRPORT_CHAOS_BACKEND_HOST = fly.vadensoftware.com;
 				AIRPORT_CHAOS_ADMOB_APP_ID = "ca-app-pub-0000000000000000~0000000000";
 				AIRPORT_CHAOS_GOOGLE_IOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.358368665752-g2sl0rlt5vs2u4e88u2217atjusqv035;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
