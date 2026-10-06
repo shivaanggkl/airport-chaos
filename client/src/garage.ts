@@ -563,6 +563,7 @@ export class AircraftGarage {
     }
     return {
       credits: Number.isFinite(profile.credits) ? Math.max(0, profile.credits) : 0,
+      skyTokens: Number.isSafeInteger(profile.skyTokens) ? Math.max(0, profile.skyTokens!) : 0,
       selectedAircraft,
       unlockedAircraft,
       economyVersion: profile.economyVersion,
