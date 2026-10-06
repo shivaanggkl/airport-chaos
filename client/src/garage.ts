@@ -972,13 +972,9 @@ export class AircraftGarage {
         towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
       );
     });
-    // Leave room around the featured aircraft in the Hub at every aspect ratio.
-    const showcaseDistanceScale = this.showcaseHost ? 1.3 : 1;
-    // Firehawk's long swept-wing silhouette becomes widest on the showroom's
-    // three-quarter rotation. Give that shape enough room instead of applying
-    // the old extra enlargement that pushed it outside the Hub camera frame.
-    const aircraftDistanceScale = this.showcaseHost && this.selected === 'fighter' ? 1.2 : 1;
-    this.defaultDistance = Math.max(1, framedDistance * aircraftDistanceScale * showcaseDistanceScale);
+    const wideShowcase = this.showcaseHost && this.camera.aspect > 2.55;
+    const showcaseDistanceScale = this.showcaseHost ? (wideShowcase ? 0.6 : 0.88) : 1;
+    this.defaultDistance = Math.max(1, framedDistance * (this.selected === 'fighter' ? 0.9 : 1) * showcaseDistanceScale);
     if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
     else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     if (resetView) this.distance = this.targetDistance;
