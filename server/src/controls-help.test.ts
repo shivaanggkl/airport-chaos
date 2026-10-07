@@ -71,13 +71,17 @@ test('desktop controls state is persistent and has no auto-hide path', () => {
 
 test('flight screen uses one ordered HUD and no legacy utility panels', () => {
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
-  for (const id of ['credits', 'score', 'speed', 'altitude', 'health', 'heat-level']) {
+  for (const id of ['credits', 'speed', 'altitude', 'health', 'heat-level']) {
     assert.equal(html.match(new RegExp(`id="${id}"`, 'g'))?.length, 1);
   }
-  const orderedIds = ['flight-menu-button', 'flight-exit-button', 'score', 'speed', 'altitude', 'health', 'heat-level', 'credits', 'flight-map-button', 'flight-garage-button', 'flight-account-button'];
+  const orderedIds = ['flight-menu-button', 'flight-exit-button', 'credits', 'health', 'heat-level', 'speed', 'altitude', 'flight-map-button', 'flight-garage-button', 'flight-account-button'];
   assert.deepEqual([...orderedIds].sort((left, right) => html.indexOf(`id="${left}"`) - html.indexOf(`id="${right}"`)), orderedIds);
-  assert.match(html, /class="flight-hud-center"[\s\S]*id="score"[\s\S]*id="speed"[\s\S]*id="altitude"[\s\S]*id="health"[\s\S]*id="heat-level"[\s\S]*id="credits"/);
-  assert.match(styleSource, /\.flight-hud-center > :not\(:first-child\)\s*\{[^}]*border-left: 1px solid/);
+  assert.match(html, /class="flight-hud-panel flight-hud-rewards"[\s\S]*id="credits"/);
+  assert.doesNotMatch(html, /id="score"/);
+  assert.match(html, /class="flight-hud-panel flight-hud-vitals"[\s\S]*id="health"[\s\S]*id="heat-level"/);
+  assert.match(html, /class="flight-hud-panel flight-hud-motion"[\s\S]*id="speed"[\s\S]*id="altitude"/);
+  assert.doesNotMatch(html, /id="(?:hud-sky-tokens|sky-tokens)"/);
+  assert.match(styleSource, /\.flight-hud-panel > :not\(:first-child\)\s*\{[^}]*border-left:/);
   assert.match(styleSource, /\.unified-flight-hud \.flight-hud-utilities\s*\{[^}]*gap: 8px;[^}]*padding: 0;[^}]*background: transparent;[^}]*border: 0;/);
   assert.doesNotMatch(html, /id="flight-(?:world|settings)-button"|id="flight-condition-status"/);
   assert.doesNotMatch(html, /id="mission-progress"|class="flight-hud-stat flight-hud-mission"/);

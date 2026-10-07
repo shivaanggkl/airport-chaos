@@ -9,12 +9,14 @@ export const clientIntentProperties = {
   cosmetic_unlock_started: ['cosmeticId', 'aircraftType', 'currency'],
   firehawk_purchase_clicked: [],
   sky_token_store_viewed: [],
+  store_opened: [], store_category_viewed: ['category'], store_item_viewed: ['itemId', 'itemType', 'category'],
+  store_unlock_started: ['itemId', 'itemType', 'category', 'currency'], store_view_in_garage: ['itemId', 'itemType'], store_get_tokens_opened: [],
 } as const;
 
 export type ClientIntentEvent = keyof typeof clientIntentProperties;
 const safeDimension = /^[a-zA-Z][a-zA-Z0-9_-]{0,39}$/;
 
-export function parseClientIntent(value: unknown): { event: ClientIntentEvent; cityId?: string; aircraftType?: string; cosmeticId?: string; currency?: string; sessionId: string } | undefined {
+export function parseClientIntent(value: unknown): { event: ClientIntentEvent; cityId?: string; aircraftType?: string; cosmeticId?: string; currency?: string; itemId?: string; itemType?: string; category?: string; sessionId: string } | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const payload = value as Record<string, unknown>;
   if (typeof payload.event !== 'string' || !Object.hasOwn(clientIntentProperties, payload.event)) return undefined;
@@ -27,7 +29,10 @@ export function parseClientIntent(value: unknown): { event: ClientIntentEvent; c
     cityId: typeof payload.cityId === 'string' ? payload.cityId : undefined,
     aircraftType: typeof payload.aircraftType === 'string' ? payload.aircraftType : undefined,
     cosmeticId: typeof payload.cosmeticId === 'string' ? payload.cosmeticId : undefined,
-    currency: typeof payload.currency === 'string' ? payload.currency : undefined };
+    currency: typeof payload.currency === 'string' ? payload.currency : undefined,
+    ...(typeof payload.itemId === 'string' ? { itemId: payload.itemId } : {}),
+    ...(typeof payload.itemType === 'string' ? { itemType: payload.itemType } : {}),
+    ...(typeof payload.category === 'string' ? { category: payload.category } : {}) };
 }
 
 /** New server milestones. Legacy event names remain readable for historical reports. */
@@ -38,6 +43,7 @@ export const serverMilestoneEvents = [
   'firehawk_purchase_started', 'firehawk_purchase_succeeded', 'firehawk_purchase_failed',
   'sky_token_purchase_started', 'sky_token_purchase_succeeded', 'sky_token_purchase_failed', 'sky_token_purchase_refunded', 'sky_token_spent',
   'firehawk_restore_succeeded',
+  'store_unlock_succeeded', 'store_unlock_failed',
 ] as const;
 
 /** Accept historical call sites, but persist only the canonical name going forward. */

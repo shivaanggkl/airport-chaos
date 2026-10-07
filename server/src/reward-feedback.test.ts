@@ -11,10 +11,10 @@ test('reward feedback formats credit, score, and combined rewards on one line', 
   assert.doesNotMatch(formatRewardFeedback(5, 100), /\n|^[•\s]|[•\s]$/);
 });
 
-test('reward feedback is anchored once inside the shared Credits and Score HUD group', () => {
+test('reward feedback is anchored once to the Credits HUD panel', () => {
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
   assert.equal(html.match(/id="reward-feedback"/g)?.length, 1);
-  assert.match(html, /class="flight-hud-center"[\s\S]*id="score"[\s\S]*class="flight-hud-reward-anchor"[\s\S]*id="credits"[\s\S]*id="reward-feedback"/);
+  assert.match(html, /class="flight-hud-center"[\s\S]*class="flight-hud-reward-anchor"[\s\S]*id="credits"[\s\S]*id="reward-feedback"/);
   assert.doesNotMatch(html, /id="flight-notifications"[^>]*>[\s\S]*id="reward-feedback"/);
 });
 

@@ -46,8 +46,8 @@ export const contextualHintDefinitions = {
     durationMs: 5_000,
   },
   garage: {
-    title: 'GARAGE AVAILABLE',
-    body: 'You are safely landed. Press TAB, then open Garage to compare and equip aircraft.',
+    title: 'AIRCRAFTS AVAILABLE',
+    body: 'You are safely landed. Press TAB, then open Aircrafts to compare and equip aircraft.',
     durationMs: 5_000,
   },
   combat: {
