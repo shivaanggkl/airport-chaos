@@ -32,21 +32,22 @@ export class AircraftGarage {
   private readonly ambientLight = new THREE.HemisphereLight(0xffe5c2, 0x23313a, 2.35);
   private readonly keyLight = new THREE.DirectionalLight(0xffd6a0, 3.05);
   private readonly rimLight = new THREE.DirectionalLight(0x8ddfff, 1.15);
+  private readonly showcaseWarmLight = new THREE.DirectionalLight(0xffb347, 1.05);
   private readonly showcaseShadow = new THREE.Mesh(
     new THREE.CircleGeometry(1, 48),
-    new THREE.MeshBasicMaterial({ color: 0x010508, transparent: true, opacity: 0.3, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x0b2235, transparent: true, opacity: 0.48, depthWrite: false }),
   );
   private readonly showcaseShadowMid = new THREE.Mesh(
     new THREE.CircleGeometry(1, 40),
-    new THREE.MeshBasicMaterial({ color: 0x02070a, transparent: true, opacity: 0.09, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x0b2235, transparent: true, opacity: 0.17, depthWrite: false }),
   );
   private readonly showcaseShadowOuter = new THREE.Mesh(
     new THREE.CircleGeometry(1, 40),
-    new THREE.MeshBasicMaterial({ color: 0x02070a, transparent: true, opacity: 0.045, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x0b2235, transparent: true, opacity: 0.09, depthWrite: false }),
   );
   private readonly showcaseSet = new THREE.Group();
   private readonly backgroundAircraftSet = new THREE.Group();
-  private readonly garageGuideMaterial = new THREE.MeshBasicMaterial({ color: 0x38d7f4, transparent: true, opacity: 0.38, toneMapped: false });
+  private readonly garageGuideMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, toneMapped: false });
   private readonly showcaseCameraDistance = 18;
   private readonly showcaseCameraYaw = Math.PI / 2;
   private readonly showcaseCameraPitch = THREE.MathUtils.degToRad(4);
@@ -131,7 +132,7 @@ export class AircraftGarage {
       close: () => this.close(),
       containsTarget: (target) => target instanceof Node && Boolean(this.element.querySelector('.garage-card')?.contains(target)),
     });
-    element.innerHTML = `<section class="garage-card app-shell-panel"><header><div><span>HANGAR</span><h1>AIRCRAFT GARAGE</h1><p>Choose, compare and equip aircraft.</p></div><div class="garage-balance"><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-labelledby="garage-aircraft-heading"><h2 id="garage-aircraft-heading">AIRCRAFT</h2><div class="garage-list"></div></section></section>`;
+    element.innerHTML = `<section class="garage-card app-shell-panel"><header><div><span>HANGAR</span><h1>AIRCRAFTS</h1><p>Choose, compare and equip aircraft.</p></div><div class="garage-balance"><button type="button" data-garage-close>Close</button></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG ROTATE · WHEEL ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button></div><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><button type="button" data-garage-equip></button><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-labelledby="garage-aircraft-heading"><h2 id="garage-aircraft-heading">AIRCRAFT</h2><div class="garage-list"></div></section></section>`;
     const cosmetics = document.createElement('section'); cosmetics.className = 'garage-cosmetics'; cosmetics.dataset.garageCosmetics = '';
     element.querySelector('.garage-card')!.append(cosmetics);
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
@@ -150,7 +151,9 @@ export class AircraftGarage {
     this.buildShowcaseSet();
     this.keyLight.position.set(-7, 8, 6);
     this.rimLight.position.set(7, 3, -5);
-    this.scene.add(this.ambientLight, this.keyLight, this.rimLight, this.showcaseSet, this.aircraftPresentation);
+    this.showcaseWarmLight.position.set(-4, 4, -6);
+    this.showcaseWarmLight.visible = false;
+    this.scene.add(this.ambientLight, this.keyLight, this.rimLight, this.showcaseWarmLight, this.showcaseSet, this.aircraftPresentation);
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
     for (const type of aircraftDisplayOrder) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
@@ -262,6 +265,15 @@ export class AircraftGarage {
     this.renderDetails();
     void this.loadPreview();
     if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.();
+  }
+
+  focusCosmetic(id: string): void {
+    const item = cosmeticCatalog.find(entry => entry.id === id);
+    if (!item || !this.isOpen()) return;
+    this.focusAircraft(item.aircraftRestriction as AircraftType);
+    this.previewCosmetic = id;
+    this.paintPreview();
+    this.renderCosmetics();
   }
 
   showcase(host: HTMLElement, profile: GarageProfile): Promise<void> {
@@ -521,7 +533,7 @@ export class AircraftGarage {
           if (currency) recordProductIntent('cosmetic_unlock_started', { cosmeticId: item.id, aircraftType: this.selected, currency: currency === 'CREDITS' ? 'credits' : 'sky_tokens' });
           this.actionPending = true; this.actionMessage = 'WAITING FOR SERVER…'; this.renderDetails();
           window.clearTimeout(this.pendingTimer);
-          this.pendingTimer = window.setTimeout(() => this.showActionResult('SERVER DID NOT RESPOND — REOPEN GARAGE TO SYNC'), 8000);
+          this.pendingTimer = window.setTimeout(() => this.showActionResult('SERVER DID NOT RESPOND — REOPEN AIRCRAFTS TO SYNC'), 8000);
           if (currency) this.onPurchaseCosmetic?.(item.id, currency);
           else this.onEquipCosmetic?.(item.id);
         };
@@ -618,24 +630,25 @@ export class AircraftGarage {
   }
 
   private buildShowcaseSet(): void {
-    const deepNavy = 0x102536;
-    const graphiteBlue = 0x263c4a;
-    const steel = 0x486274;
-    const lightSteel = 0x7893a4;
-    const cyan = 0x38d7f4;
-    const coolWhite = 0xeaf8ff;
-    const gold = 0xd8af52;
+    const graphiteBlue = 0x163458;
+    const steel = 0x1e4d7a;
+    const lightSteel = 0x28547d;
+    const cyan = 0x35d6ff;
+    const coolWhite = 0xf6fbff;
+    const gold = 0xffb347;
+    const violet = 0x8e63ff;
     const panelGeometry = new THREE.BoxGeometry(1, 1, 1);
     const transform = new THREE.Object3D();
     const finishInstances = (mesh: THREE.InstancedMesh) => {
       mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.computeBoundingSphere();
       this.showcaseSet.add(mesh);
     };
 
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: lightSteel, roughness: 0.48, metalness: 0.58, emissive: deepNavy, emissiveIntensity: 0.16 });
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.46, metalness: 0.58, emissive: deepNavy, emissiveIntensity: 0.5 });
-    const ceilingMaterial = new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.62, emissive: graphiteBlue, emissiveIntensity: 0.35 });
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x4779ab, roughness: 0.27, metalness: 0.3, emissive: steel, emissiveIntensity: 0.24 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x2b5789, roughness: 0.47, metalness: 0.36, emissive: steel, emissiveIntensity: 0.38 });
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.55, emissive: graphiteBlue, emissiveIntensity: 0.42 });
     const floor = new THREE.Mesh(new THREE.BoxGeometry(32, 0.18, 32), floorMaterial);
     floor.position.set(-0.1, -0.09, 0);
     const backWall = new THREE.Mesh(new THREE.BoxGeometry(0.34, 7.3, 32), wallMaterial);
@@ -647,9 +660,101 @@ export class AircraftGarage {
     ceiling.position.set(-0.1, 7.14, 0);
     this.showcaseSet.add(floor, backWall, leftWall, rightWall, ceiling);
 
+    // Baked color on the floor gives the command deck its reflected-light look
+    // without a reflection pass or additional work during the orbit.
+    const reflectionCanvas = document.createElement('canvas');
+    reflectionCanvas.width = reflectionCanvas.height = 512;
+    const reflectionContext = reflectionCanvas.getContext('2d');
+    if (reflectionContext) {
+      const reflectedGlow = (x: number, y: number, radius: number, color: string) => {
+        const glow = reflectionContext.createRadialGradient(x, y, 0, x, y, radius);
+        glow.addColorStop(0, color); glow.addColorStop(1, 'transparent');
+        reflectionContext.fillStyle = glow;
+        reflectionContext.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      };
+      const floorSheen = reflectionContext.createLinearGradient(80, 0, 512, 0);
+      floorSheen.addColorStop(0, 'transparent');
+      floorSheen.addColorStop(0.5, 'rgba(53, 214, 255, 0.08)');
+      floorSheen.addColorStop(0.78, 'rgba(171, 225, 255, 0.24)');
+      floorSheen.addColorStop(1, 'rgba(142, 99, 255, 0.1)');
+      reflectionContext.fillStyle = floorSheen; reflectionContext.fillRect(0, 0, 512, 512);
+      reflectedGlow(250, 255, 182, 'rgba(53, 214, 255, 0.42)');
+      reflectedGlow(212, 258, 94, 'rgba(246, 196, 69, 0.32)');
+      reflectedGlow(332, 120, 102, 'rgba(142, 99, 255, 0.28)');
+      reflectedGlow(332, 392, 102, 'rgba(142, 99, 255, 0.28)');
+      reflectedGlow(410, 255, 180, 'rgba(111, 230, 255, 0.16)');
+      for (const side of [-1, 1]) {
+        const y = 256 + side * 176;
+        const streak = reflectionContext.createLinearGradient(0, y - 18, 0, y + 18);
+        streak.addColorStop(0, 'transparent'); streak.addColorStop(0.5, 'rgba(111, 230, 255, 0.28)'); streak.addColorStop(1, 'transparent');
+        reflectionContext.fillStyle = streak;
+        reflectionContext.fillRect(54, y - 18, 390, 36);
+        const lightPool = reflectionContext.createRadialGradient(225, y, 0, 225, y, 82);
+        lightPool.addColorStop(0, side < 0 ? 'rgba(255, 179, 71, 0.52)' : 'rgba(53, 214, 255, 0.48)');
+        lightPool.addColorStop(1, 'transparent');
+        reflectionContext.fillStyle = lightPool;
+        reflectionContext.fillRect(143, y - 82, 164, 164);
+        for (const [x, width, alpha] of [[295, 76, 0.42], [385, 58, 0.28]] as const) {
+          const reflectedStrip = reflectionContext.createLinearGradient(0, y - 18, 0, y + 18);
+          reflectedStrip.addColorStop(0, 'transparent');
+          reflectedStrip.addColorStop(0.5, `rgba(171, 225, 255, ${alpha})`);
+          reflectedStrip.addColorStop(1, 'transparent');
+          reflectionContext.fillStyle = reflectedStrip;
+          reflectionContext.fillRect(x, y - 18, width, 36);
+        }
+      }
+      const reflectionTexture = new THREE.CanvasTexture(reflectionCanvas);
+      reflectionTexture.colorSpace = THREE.SRGBColorSpace; reflectionTexture.generateMipmaps = false;
+      const floorReflections = new THREE.Mesh(
+        new THREE.PlaneGeometry(31.6, 31.6),
+        new THREE.MeshBasicMaterial({ map: reflectionTexture, transparent: true, depthWrite: false, toneMapped: false }),
+      );
+      floorReflections.rotation.x = -Math.PI / 2; floorReflections.position.set(-0.1, 0.009, 0);
+      this.showcaseSet.add(floorReflections);
+    }
+
+    // The side bays retain the same walls and frames, with a painted sunset
+    // visible through their rear openings as in the approved reference.
+    const vistaCanvas = document.createElement('canvas');
+    vistaCanvas.width = vistaCanvas.height = 512;
+    const vistaContext = vistaCanvas.getContext('2d');
+    if (vistaContext) {
+      const sky = vistaContext.createLinearGradient(0, 0, 0, 512);
+      sky.addColorStop(0, '#7856C8'); sky.addColorStop(0.45, '#D98BB3');
+      sky.addColorStop(0.69, '#FFBC72'); sky.addColorStop(1, '#37558C');
+      vistaContext.fillStyle = sky; vistaContext.fillRect(0, 0, 512, 512);
+      for (const [x, y, radius] of [[90, 292, 96], [364, 310, 140]] as const) {
+        const haze = vistaContext.createRadialGradient(x, y, 0, x, y, radius);
+        haze.addColorStop(0, 'rgba(255, 221, 156, 0.56)'); haze.addColorStop(1, 'transparent');
+        vistaContext.fillStyle = haze; vistaContext.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      }
+      vistaContext.fillStyle = '#2F4674';
+      vistaContext.fillRect(0, 399, 512, 113);
+      for (const [x, width, height] of [[18, 53, 40], [89, 82, 23], [214, 74, 34], [322, 92, 48], [442, 70, 28]] as const) {
+        vistaContext.fillRect(x, 399 - height, width, height);
+      }
+      vistaContext.fillRect(168, 270, 17, 130);
+      vistaContext.fillRect(146, 274, 61, 9);
+      vistaContext.beginPath(); vistaContext.moveTo(176, 210); vistaContext.lineTo(164, 270); vistaContext.lineTo(188, 270); vistaContext.fill();
+      vistaContext.strokeStyle = '#FFCE8D'; vistaContext.lineWidth = 8; vistaContext.strokeRect(8, 8, 496, 496);
+      const vistaTexture = new THREE.CanvasTexture(vistaCanvas);
+      vistaTexture.colorSpace = THREE.SRGBColorSpace; vistaTexture.generateMipmaps = false;
+      for (const side of [-1, 1]) {
+        for (const [x, width] of [[-13.75, 3.64], [0.7, 8.4]] as const) {
+          const vista = new THREE.Mesh(
+            new THREE.PlaneGeometry(width, 5.6),
+            new THREE.MeshBasicMaterial({ map: vistaTexture, side: THREE.DoubleSide, toneMapped: false }),
+          );
+          vista.position.set(x, 3.55, side * 15.44);
+          vista.rotation.y = side === -1 ? 0 : Math.PI;
+          this.showcaseSet.add(vista);
+        }
+      }
+    }
+
     const heroPad = new THREE.Mesh(
       new THREE.CylinderGeometry(5.15, 5.3, 0.12, 64),
-      new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.34, metalness: 0.72, emissive: deepNavy, emissiveIntensity: 0.2 }),
+      new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.28, metalness: 0.72, emissive: steel, emissiveIntensity: 0.17 }),
     );
     heroPad.position.y = 0.06;
     const padInset = new THREE.Mesh(
@@ -657,12 +762,17 @@ export class AircraftGarage {
       new THREE.MeshStandardMaterial({ color: steel, roughness: 0.42, metalness: 0.6, transparent: true, opacity: 0.82 }),
     );
     padInset.rotation.x = -Math.PI / 2; padInset.position.y = 0.126;
-    const padRingMaterial = new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+    const padRingMaterial = new THREE.MeshBasicMaterial({ color: 0x6fe6ff, transparent: true, opacity: 0.98, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
     const padOuterRing = new THREE.Mesh(new THREE.RingGeometry(4.7, 4.83, 72), padRingMaterial);
     padOuterRing.rotation.x = -Math.PI / 2; padOuterRing.position.y = 0.132;
-    const padInnerRing = new THREE.Mesh(new THREE.RingGeometry(3.72, 3.78, 72), padRingMaterial.clone());
+    const padInnerRing = new THREE.Mesh(new THREE.RingGeometry(3.72, 3.78, 72), new THREE.MeshBasicMaterial({ color: gold, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
     padInnerRing.rotation.x = -Math.PI / 2; padInnerRing.position.y = 0.134;
-    this.showcaseSet.add(heroPad, padInset, padOuterRing, padInnerRing);
+    const padHalo = new THREE.Mesh(
+      new THREE.RingGeometry(4.48, 5.06, 72),
+      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }),
+    );
+    padHalo.rotation.x = -Math.PI / 2; padHalo.position.y = 0.13;
+    this.showcaseSet.add(heroPad, padInset, padOuterRing, padInnerRing, padHalo);
 
     const floorGuides = new THREE.InstancedMesh(panelGeometry, this.garageGuideMaterial, 8);
     for (let index = 0; index < 4; index += 1) {
@@ -670,19 +780,21 @@ export class AircraftGarage {
       const lane = index % 2 === 0 ? 6.2 : 11.6;
       transform.position.set(-1.0, 0.018, side * lane); transform.rotation.set(0, 0, 0); transform.scale.set(22, 0.025, 0.055); transform.updateMatrix();
       floorGuides.setMatrixAt(index, transform.matrix);
+      floorGuides.setColorAt(index, new THREE.Color(index % 2 === 0 ? cyan : gold));
       transform.position.set(-8.9 + (index % 2) * 2.3, 0.022, side * lane); transform.scale.set(0.07, 0.025, 2.9); transform.updateMatrix();
       floorGuides.setMatrixAt(index + 4, transform.matrix);
+      floorGuides.setColorAt(index + 4, new THREE.Color(index % 2 === 0 ? cyan : violet));
     }
     finishInstances(floorGuides);
 
     const backPanelFrames = new THREE.InstancedMesh(
       panelGeometry,
-      new THREE.MeshStandardMaterial({ color: steel, roughness: 0.42, metalness: 0.62 }),
+      new THREE.MeshStandardMaterial({ color: 0x31679a, roughness: 0.42, metalness: 0.56, emissive: cyan, emissiveIntensity: 0.05 }),
       9,
     );
     const backPanelInsets = new THREE.InstancedMesh(
       panelGeometry,
-      new THREE.MeshStandardMaterial({ color: graphiteBlue, roughness: 0.58, metalness: 0.44 }),
+      new THREE.MeshStandardMaterial({ color: 0x21436e, roughness: 0.58, metalness: 0.32, emissive: violet, emissiveIntensity: 0.08 }),
       9,
     );
     const backPanelSeams = new THREE.InstancedMesh(panelGeometry, this.garageGuideMaterial, 9);
@@ -692,8 +804,28 @@ export class AircraftGarage {
       backPanelFrames.setMatrixAt(index, transform.matrix);
       transform.position.x = -15.49; transform.scale.set(0.08, 5.52, 2.76); transform.updateMatrix(); backPanelInsets.setMatrixAt(index, transform.matrix);
       transform.position.set(-15.42, 0.68, z); transform.scale.set(0.035, 0.035, 2.42); transform.updateMatrix(); backPanelSeams.setMatrixAt(index, transform.matrix);
+      backPanelSeams.setColorAt(index, new THREE.Color(index % 3 === 1 ? violet : cyan));
     }
     finishInstances(backPanelFrames); finishInstances(backPanelInsets); finishInstances(backPanelSeams);
+
+    const wallGlowCanvas = document.createElement('canvas');
+    wallGlowCanvas.width = 512; wallGlowCanvas.height = 128;
+    const wallGlowContext = wallGlowCanvas.getContext('2d');
+    if (wallGlowContext) {
+      for (const [x, color] of [[94, 'rgba(142, 99, 255, 0.27)'], [255, 'rgba(53, 214, 255, 0.16)'], [420, 'rgba(142, 99, 255, 0.27)']] as const) {
+        const glow = wallGlowContext.createRadialGradient(x, 58, 0, x, 58, 100);
+        glow.addColorStop(0, color); glow.addColorStop(1, 'transparent');
+        wallGlowContext.fillStyle = glow; wallGlowContext.fillRect(x - 100, 0, 200, 128);
+      }
+      const wallGlowTexture = new THREE.CanvasTexture(wallGlowCanvas);
+      wallGlowTexture.colorSpace = THREE.SRGBColorSpace; wallGlowTexture.generateMipmaps = false;
+      const wallGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(29, 5.8),
+        new THREE.MeshBasicMaterial({ map: wallGlowTexture, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+      );
+      wallGlow.rotation.y = Math.PI / 2; wallGlow.position.set(-15.33, 3.7, 0);
+      this.showcaseSet.add(wallGlow);
+    }
 
     const showroomPads = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(2.45, 2.58, 0.18, 40),
@@ -702,7 +834,7 @@ export class AircraftGarage {
     );
     const showroomRings = new THREE.InstancedMesh(
       new THREE.RingGeometry(2.22, 2.31, 48),
-      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.52, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }),
       this.showroomAircraftPlacements.length,
     );
     this.showroomAircraftPlacements.forEach((placement, index) => {
@@ -741,9 +873,24 @@ export class AircraftGarage {
       for (const x of [-13.4, -9.4, -5.4, -1.4]) {
         transform.position.set(x, 3.55, side * 15.48); transform.rotation.set(0, 0, 0); transform.scale.set(0.18, 2.7, 0.07); transform.updateMatrix();
         verticalServiceLights.setMatrixAt(verticalLightIndex++, transform.matrix);
+        verticalServiceLights.setColorAt(verticalLightIndex - 1, new THREE.Color(x === -9.4 ? gold : x === -5.4 ? violet : cyan));
       }
     }
     finishInstances(verticalServiceLights);
+    const serviceLightHalos = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: coolWhite, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false }),
+      8,
+    );
+    verticalLightIndex = 0;
+    for (const side of [-1, 1]) {
+      for (const x of [-13.4, -9.4, -5.4, -1.4]) {
+        transform.position.set(x, 3.55, side * 15.45); transform.rotation.set(0, 0, 0); transform.scale.set(0.62, 3.15, 0.035); transform.updateMatrix();
+        serviceLightHalos.setMatrixAt(verticalLightIndex, transform.matrix);
+        serviceLightHalos.setColorAt(verticalLightIndex++, new THREE.Color(x === -9.4 ? gold : x === -5.4 ? violet : cyan));
+      }
+    }
+    finishInstances(serviceLightHalos);
     const rearServiceLights = new THREE.InstancedMesh(
       panelGeometry,
       new THREE.MeshBasicMaterial({ color: coolWhite, toneMapped: false }),
@@ -752,8 +899,32 @@ export class AircraftGarage {
     [-14.2, -9.15, -4.65, 4.65, 9.15, 14.2].forEach((z, index) => {
       transform.position.set(-15.37, 3.45, z); transform.rotation.set(0, 0, 0); transform.scale.set(0.065, 2.75, 0.09); transform.updateMatrix();
       rearServiceLights.setMatrixAt(index, transform.matrix);
+      rearServiceLights.setColorAt(index, new THREE.Color(index % 3 === 0 ? gold : cyan));
     });
     finishInstances(rearServiceLights);
+
+    const lampCanvas = document.createElement('canvas');
+    lampCanvas.width = lampCanvas.height = 128;
+    const lampContext = lampCanvas.getContext('2d');
+    if (lampContext) {
+      const lampGlow = lampContext.createRadialGradient(64, 64, 2, 64, 64, 63);
+      lampGlow.addColorStop(0, 'rgba(255, 248, 214, 0.95)');
+      lampGlow.addColorStop(0.16, 'rgba(255, 179, 71, 0.75)');
+      lampGlow.addColorStop(1, 'transparent');
+      lampContext.fillStyle = lampGlow; lampContext.fillRect(0, 0, 128, 128);
+      const lampTexture = new THREE.CanvasTexture(lampCanvas);
+      lampTexture.colorSpace = THREE.SRGBColorSpace; lampTexture.generateMipmaps = false;
+      const wallLamps = new THREE.InstancedMesh(
+        new THREE.PlaneGeometry(1.5, 1.5),
+        new THREE.MeshBasicMaterial({ map: lampTexture, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+        8,
+      );
+      [-13.4, -9.4, -5.4, -1.4, 1.4, 5.4, 9.4, 13.4].forEach((z, index) => {
+        transform.position.set(-15.29, 5.95, z); transform.rotation.set(0, Math.PI / 2, 0); transform.scale.set(1, 1, 1); transform.updateMatrix();
+        wallLamps.setMatrixAt(index, transform.matrix);
+      });
+      finishInstances(wallLamps);
+    }
 
     const ceilingRibs = new THREE.InstancedMesh(
       panelGeometry,
@@ -766,6 +937,7 @@ export class AircraftGarage {
       transform.position.set(-0.1, 6.93, z); transform.rotation.set(0, 0, 0); transform.scale.set(30.5, 0.24, 0.32); transform.updateMatrix();
       ceilingRibs.setMatrixAt(index, transform.matrix);
       transform.position.y = 6.79; transform.scale.set(26.5, 0.025, 0.055); transform.updateMatrix(); ceilingEdges.setMatrixAt(index, transform.matrix);
+      ceilingEdges.setColorAt(index, new THREE.Color(index === 2 || index === 4 ? violet : cyan));
     }
     finishInstances(ceilingRibs); finishInstances(ceilingEdges);
     const ceilingLights = new THREE.InstancedMesh(
@@ -775,8 +947,30 @@ export class AircraftGarage {
     );
     [-11.2, -7.4, 7.4, 11.2].forEach((z, index) => {
       transform.position.set(-2.2, 6.76, z); transform.rotation.set(0, 0, 0); transform.scale.set(13.8, 0.09, 0.72); transform.updateMatrix(); ceilingLights.setMatrixAt(index, transform.matrix);
+      ceilingLights.setColorAt(index, new THREE.Color(index % 2 === 0 ? cyan : gold));
     });
     finishInstances(ceilingLights);
+    const ceilingLightCores = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: coolWhite, transparent: true, opacity: 0.44, depthWrite: false, toneMapped: false }),
+      4,
+    );
+    [-11.2, -7.4, 7.4, 11.2].forEach((z, index) => {
+      transform.position.set(-2.2, 6.735, z); transform.rotation.set(0, 0, 0); transform.scale.set(13.4, 0.025, 0.32); transform.updateMatrix();
+      ceilingLightCores.setMatrixAt(index, transform.matrix);
+    });
+    finishInstances(ceilingLightCores);
+    const ceilingLightHalos = new THREE.InstancedMesh(
+      panelGeometry,
+      new THREE.MeshBasicMaterial({ color: coolWhite, transparent: true, opacity: 0.16, depthWrite: false, toneMapped: false }),
+      4,
+    );
+    [-11.2, -7.4, 7.4, 11.2].forEach((z, index) => {
+      transform.position.set(-2.2, 6.68, z); transform.rotation.set(0, 0, 0); transform.scale.set(14.4, 0.025, 1.45); transform.updateMatrix();
+      ceilingLightHalos.setMatrixAt(index, transform.matrix);
+      ceilingLightHalos.setColorAt(index, new THREE.Color(index % 2 === 0 ? cyan : gold));
+    });
+    finishInstances(ceilingLightHalos);
 
     const ceilingRingHousing = new THREE.Mesh(
       new THREE.TorusGeometry(5.25, 0.34, 10, 72),
@@ -785,27 +979,50 @@ export class AircraftGarage {
     ceilingRingHousing.rotation.x = Math.PI / 2; ceilingRingHousing.position.set(-0.9, 6.45, 0);
     const ceilingRing = new THREE.Mesh(
       new THREE.TorusGeometry(5.25, 0.11, 8, 72),
-      new THREE.MeshBasicMaterial({ color: cyan, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x6fe6ff, transparent: true, opacity: 1, toneMapped: false }),
     );
     ceilingRing.rotation.x = Math.PI / 2; ceilingRing.position.set(-0.75, 6.12, 0);
     const ceilingInnerRing = new THREE.Mesh(
       new THREE.TorusGeometry(3.45, 0.09, 8, 64),
-      new THREE.MeshBasicMaterial({ color: coolWhite, transparent: true, opacity: 0.9, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0xf6c445, transparent: true, opacity: 1, toneMapped: false }),
     );
     ceilingInnerRing.rotation.x = Math.PI / 2; ceilingInnerRing.position.set(-0.65, 6.08, 0);
-    this.showcaseSet.add(ceilingRingHousing, ceilingRing, ceilingInnerRing);
+    const ringHalo = new THREE.Mesh(
+      new THREE.TorusGeometry(5.25, 0.38, 8, 72),
+      new THREE.MeshBasicMaterial({ color: cyan, transparent: true, opacity: 0.18, depthWrite: false, toneMapped: false }),
+    );
+    ringHalo.rotation.x = Math.PI / 2; ringHalo.position.copy(ceilingRing.position); ringHalo.position.y -= 0.03;
+    const innerRingHalo = new THREE.Mesh(
+      new THREE.TorusGeometry(3.45, 0.32, 8, 64),
+      new THREE.MeshBasicMaterial({ color: gold, transparent: true, opacity: 0.2, depthWrite: false, toneMapped: false }),
+    );
+    innerRingHalo.rotation.x = Math.PI / 2; innerRingHalo.position.copy(ceilingInnerRing.position); innerRingHalo.position.y -= 0.03;
+    this.showcaseSet.add(ceilingRingHousing, ceilingRing, ceilingInnerRing, ringHalo, innerRingHalo);
 
     const displayCanvas = document.createElement('canvas');
     displayCanvas.width = 384; displayCanvas.height = 160;
     const displayContext = displayCanvas.getContext('2d');
     if (displayContext) {
-      displayContext.fillStyle = '#102536'; displayContext.fillRect(0, 0, 384, 160);
-      displayContext.strokeStyle = '#486274'; displayContext.lineWidth = 3; displayContext.strokeRect(6, 6, 372, 148);
-      displayContext.strokeStyle = '#38D7F4'; displayContext.lineWidth = 3; displayContext.beginPath();
-      displayContext.moveTo(40, 80); displayContext.lineTo(138, 80); displayContext.lineTo(176, 48);
-      displayContext.lineTo(208, 48); displayContext.lineTo(246, 80); displayContext.lineTo(344, 80);
-      displayContext.moveTo(192, 28); displayContext.lineTo(192, 132); displayContext.moveTo(92, 116); displayContext.lineTo(292, 116); displayContext.stroke();
-      displayContext.strokeStyle = '#EAF8FF'; displayContext.lineWidth = 2; displayContext.beginPath(); displayContext.arc(192, 80, 26, 0, Math.PI * 2); displayContext.stroke();
+      const screen = displayContext.createLinearGradient(0, 0, 384, 160);
+      screen.addColorStop(0, '#102B52'); screen.addColorStop(0.58, '#174A7B'); screen.addColorStop(1, '#102B52');
+      displayContext.fillStyle = screen; displayContext.fillRect(0, 0, 384, 160);
+      displayContext.strokeStyle = '#35D6FF'; displayContext.lineWidth = 3; displayContext.strokeRect(6, 6, 372, 148);
+      displayContext.strokeStyle = 'rgba(111, 230, 255, 0.22)'; displayContext.lineWidth = 1;
+      for (const y of [32, 80, 128]) { displayContext.beginPath(); displayContext.moveTo(26, y); displayContext.lineTo(358, y); displayContext.stroke(); }
+      displayContext.beginPath(); displayContext.ellipse(192, 80, 98, 62, 0, 0, Math.PI * 2); displayContext.stroke();
+      displayContext.save(); displayContext.translate(192, 80);
+      displayContext.shadowColor = '#35D6FF'; displayContext.shadowBlur = 18;
+      displayContext.strokeStyle = '#6FE6FF'; displayContext.lineWidth = 4;
+      displayContext.beginPath();
+      displayContext.moveTo(0, -55); displayContext.lineTo(10, -13); displayContext.lineTo(75, 10);
+      displayContext.lineTo(75, 22); displayContext.lineTo(11, 12); displayContext.lineTo(12, 55);
+      displayContext.lineTo(1, 47); displayContext.lineTo(0, 31); displayContext.lineTo(-1, 47);
+      displayContext.lineTo(-12, 55); displayContext.lineTo(-11, 12); displayContext.lineTo(-75, 22);
+      displayContext.lineTo(-75, 10); displayContext.lineTo(-10, -13); displayContext.closePath(); displayContext.stroke();
+      displayContext.restore();
+      displayContext.strokeStyle = '#FFB347'; displayContext.lineWidth = 3;
+      displayContext.beginPath(); displayContext.moveTo(15, 21); displayContext.lineTo(15, 47);
+      displayContext.moveTo(15, 21); displayContext.lineTo(42, 21); displayContext.stroke();
       const displayTexture = new THREE.CanvasTexture(displayCanvas);
       displayTexture.colorSpace = THREE.SRGBColorSpace; displayTexture.generateMipmaps = false;
       const techDisplays = new THREE.InstancedMesh(
@@ -826,9 +1043,13 @@ export class AircraftGarage {
     signCanvas.width = 512; signCanvas.height = 128;
     const context = signCanvas.getContext('2d');
     if (context) {
-      context.fillStyle = '#102536'; context.fillRect(0, 0, 512, 128);
-      context.strokeStyle = '#38D7F4'; context.lineWidth = 5; context.strokeRect(7, 7, 498, 114);
-      context.fillStyle = '#EAF8FF'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      const signGradient = context.createLinearGradient(0, 0, 512, 128);
+      signGradient.addColorStop(0, '#0F2746'); signGradient.addColorStop(0.5, '#1E4D7A'); signGradient.addColorStop(1, '#0F2746');
+      context.fillStyle = signGradient; context.fillRect(0, 0, 512, 128);
+      context.shadowColor = '#35D6FF'; context.shadowBlur = 14;
+      context.strokeStyle = '#35D6FF'; context.lineWidth = 5; context.strokeRect(7, 7, 498, 114);
+      context.shadowBlur = 0;
+      context.fillStyle = '#F6FBFF'; context.textAlign = 'center'; context.textBaseline = 'middle';
       context.font = '700 46px Arial, sans-serif'; context.fillText('AIRPORT CHAOS', 256, 64);
       const signTexture = new THREE.CanvasTexture(signCanvas);
       signTexture.colorSpace = THREE.SRGBColorSpace; signTexture.generateMipmaps = false;
@@ -898,15 +1119,16 @@ export class AircraftGarage {
   }
 
   private setShowcaseLighting(active: boolean): void {
+    this.showcaseWarmLight.visible = active;
     if (active) {
-      this.ambientLight.color.setHex(0xeaf8ff);
-      this.ambientLight.groundColor.setHex(0x486274);
-      this.ambientLight.intensity = 1.95;
-      this.keyLight.color.setHex(0xeaf8ff);
-      this.keyLight.intensity = 2.55;
+      this.ambientLight.color.setHex(0xd9edff);
+      this.ambientLight.groundColor.setHex(0x1e4d7a);
+      this.ambientLight.intensity = 2.05;
+      this.keyLight.color.setHex(0xfff1da);
+      this.keyLight.intensity = 3.45;
       this.keyLight.position.set(5, 9, 3);
-      this.rimLight.color.setHex(0x38d7f4);
-      this.rimLight.intensity = 0.5;
+      this.rimLight.color.setHex(0x6fe6ff);
+      this.rimLight.intensity = 1.18;
       this.rimLight.position.set(-5, 2.8, 7);
       return;
     }
@@ -961,13 +1183,12 @@ export class AircraftGarage {
     return !this.previewBounds.isEmpty();
   }
 
-  private showcaseFitDistance(rotation: number): number {
+  private showcaseFitDistance(rotation: number, tilt: number): number {
     if (this.showcaseVisualCorners.length === 0) return this.defaultDistance;
     // Mesh corners are cached when the model is framed; project them as the Hub aircraft orbits.
-    const verticalTan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5) * 0.9;
+    const verticalTan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5) * 0.97;
     const horizontalTan = verticalTan * this.camera.aspect;
     const cosine = Math.cos(rotation), sine = Math.sin(rotation);
-    const tilt = THREE.MathUtils.clamp((this.orbitPitch - this.showcaseCameraPitch) * 0.35, -0.28, 0.28);
     const tiltCosine = Math.cos(tilt), tiltSine = Math.sin(tilt);
     // The showroom camera stays fixed while the aircraft scales, so include its focus offset.
     const focusDepth = 1 + this.showcaseCameraFocus.dot(this.viewDirection) / this.showcaseCameraDistance;
@@ -1051,11 +1272,21 @@ export class AircraftGarage {
     const wideShowcase = this.showcaseHost && this.camera.aspect > 2.55;
     const showcaseDistanceScale = this.showcaseHost ? (wideShowcase ? 0.6 : 0.88) : 1;
     this.defaultDistance = Math.max(1, framedDistance * (this.selected === 'fighter' ? 0.9 : 1) * showcaseDistanceScale);
+    if (this.showcaseHost) {
+      // Fit the full orbit once so the Hub aircraft never changes size as it turns.
+      for (const tilt of [-0.28, 0, 0.28]) {
+        for (let step = 0; step < 72; step += 1) {
+          this.defaultDistance = Math.max(this.defaultDistance, this.showcaseFitDistance(step * Math.PI / 36, tilt));
+        }
+      }
+      // Keep the fixed-orbit framing while using the extra width on landscape screens.
+      this.defaultDistance *= this.camera.aspect > 2.55 ? 0.68 : this.camera.aspect > 1.3 ? 0.8 : 0.86;
+    }
     if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
     else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     if (resetView) this.distance = this.targetDistance;
-    if (this.showcaseHost) this.distance = Math.max(this.distance, this.showcaseFitDistance(this.showcaseCameraYaw - this.orbitYaw));
     if (this.showcaseHost) {
+      this.distance = this.targetDistance;
       this.camera.far = 120;
       this.camera.updateProjectionMatrix();
       this.setShowcaseCamera();
@@ -1105,9 +1336,7 @@ export class AircraftGarage {
     }
     this.orbitYaw = THREE.MathUtils.lerp(this.orbitYaw, this.targetOrbitYaw, 0.12);
     this.orbitPitch = THREE.MathUtils.lerp(this.orbitPitch, this.targetOrbitPitch, 0.14);
-    const showcaseMinimum = this.showcaseHost ? this.showcaseFitDistance(this.showcaseCameraYaw - this.orbitYaw) : 0;
-    this.distance = THREE.MathUtils.lerp(this.distance, this.showcaseHost ? Math.max(this.targetDistance, showcaseMinimum) : this.targetDistance, 0.14);
-    if (this.showcaseHost) this.distance = Math.max(this.distance, showcaseMinimum);
+    this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, 0.14);
     if (this.showcaseHost) {
       const presentationScale = this.showcaseCameraDistance / Math.max(0.001, this.distance);
       this.aircraftPresentation.scale.setScalar(presentationScale);

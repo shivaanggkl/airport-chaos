@@ -1021,7 +1021,6 @@ let checkpointFlashIndex = -1;
 let checkpointFlashTime = 0;
 let displayName = persistedPlayer.displayName;
 
-const scoreElement = document.querySelector<HTMLSpanElement>('#score')!;
 const finalScoreElement = document.querySelector<HTMLSpanElement>('#final-score')!;
 const crashOverlay = document.querySelector<HTMLDivElement>('#crash-overlay')!;
 const endTitleElement = document.querySelector<HTMLDivElement>('#end-title')!;
@@ -1063,7 +1062,6 @@ let equipSequence = 0;
 let pendingEquip: { id: number; aircraftType: AircraftType; sentAt: number } | undefined;
 let purchaseSequence = 0;
 const creditsElement = document.querySelector<HTMLSpanElement>('#credits')!;
-const skyTokensElement = document.querySelector<HTMLSpanElement>('#sky-tokens')!;
 const activeMissionOverlayElement = document.querySelector<HTMLElement>('#active-mission-overlay')!;
 const activeMissionTitleElement = document.querySelector<HTMLElement>('#active-mission-title')!;
 const activeMissionObjectiveElement = document.querySelector<HTMLElement>('#active-mission-objective')!;
@@ -1362,10 +1360,6 @@ function showActiveCheckpoint(): void {
   });
 }
 
-function updateScoreDisplay(): void {
-  scoreElement.textContent = score.toLocaleString();
-}
-
 function checkCheckpoint(): void {
   let checkpointOffset = -1;
   for (let offset = 0; offset <= 2; offset += 1) {
@@ -1389,7 +1383,6 @@ function checkCheckpoint(): void {
   speedBonus = Math.min(10, Math.floor(checkpointsPassed / 2) * 2);
   remainingTime = Math.min(14, Math.max(10, remainingTime) + 2);
   activeCheckpoint = (passedCheckpoint + 1) % checkpointRings.length;
-  updateScoreDisplay();
   showActiveCheckpoint();
   checkpointFlashIndex = passedCheckpoint;
   checkpointFlashTime = 0.45;
@@ -1432,9 +1425,9 @@ function setFlightState(state: FlightState): void {
 }
 
 function updateFlightHud(): void {
-  const speedKnots = Math.round(currentSpeed * METERS_PER_SECOND_TO_KNOTS).toString();
+  const speedKnots = Math.round(currentSpeed * METERS_PER_SECOND_TO_KNOTS).toLocaleString();
   speedElement.textContent = speedKnots;
-  const altitudeFeet = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
+  const altitudeFeet = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toLocaleString();
   altitudeElement.textContent = altitudeFeet;
   // Guidance must remain visible when the pilot is misaligned and assist is
   // unavailable. It observes the same touchdown predicate, not a new envelope.
@@ -1835,8 +1828,6 @@ function updateContextualHints(): void {
 function updateProgressHud(): void {
   creditsElement.textContent = credits.toLocaleString();
   creditsElement.title = `${credits.toLocaleString()} Credits`;
-  skyTokensElement.textContent = skyTokens.toLocaleString();
-  skyTokensElement.title = `${skyTokens.toLocaleString()} Sky Tokens`;
 }
 
 function showProgressMessage(message: string): void {
@@ -2385,7 +2376,6 @@ if (cityWorld.skyChallenges?.length) {
       score += points;
       queueRewardFeedback(0, points);
       recordBestScore(score);
-      updateScoreDisplay();
       sendPlayerUpdate();
     },
     onCredits: () => { /* completion credits arrive through the server profile */ },
@@ -2403,7 +2393,6 @@ stuntCombo = new StuntComboSystem(cityWorld.stuntZones ?? [], {
     score += points;
     queueRewardFeedback(0, points);
     recordBestScore(score);
-    updateScoreDisplay();
     sendPlayerUpdate();
   },
   onCredits: () => { /* stunt Credits are banked by the server Chaos path */ },
@@ -2841,7 +2830,7 @@ function endRun(message: EndReason, title: string = message): void {
   if (message === 'CRASHED') airplane.position.y = Math.max(groundPlaneY(airplane.position.x, airplane.position.z), airplane.position.y);
   recordBestScore(score);
   speedElement.textContent = '0';
-  altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
+  altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toLocaleString();
   endTitleElement.textContent = title;
   finalScoreElement.textContent = score.toString();
   crashOverlay.classList.remove('hidden');
@@ -2859,7 +2848,6 @@ function endRun(message: EndReason, title: string = message): void {
   velocity.set(0, 0, 0);
   setFlightState('CRASHED');
   playEndSound(message);
-  updateScoreDisplay();
 }
 
 function restartGame(notifyServer = true): void {
@@ -2916,7 +2904,6 @@ function restartGame(notifyServer = true): void {
   flightRecapElement.hidden = true;
   updateHealthDisplay();
   updateFlightHud();
-  updateScoreDisplay();
   showActiveCheckpoint();
   updateCamera(1);
   if (notifyServer) sendRespawn();
@@ -3024,7 +3011,7 @@ function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmetic
 }
 function openGarage(): boolean {
   if (!onGround || crashed) {
-    showProgressMessage('GARAGE AVAILABLE WHEN SAFELY ON GROUND');
+    showProgressMessage('AIRCRAFTS AVAILABLE WHEN SAFELY ON GROUND');
     return false;
   }
   // The Garage owns the whole screen while open. Clear held flight input and
@@ -5336,7 +5323,7 @@ function pilotMenuData(): PilotMenuData {
     const unavailableReason = accessReason
       ? accessReason
       : required && aircraftType !== required
-        ? `Requires ${aircraftDefinitions[required].name} — equip it in Garage.`
+        ? `Requires ${aircraftDefinitions[required].name} — equip it in Aircrafts.`
         : undefined;
     activities.push({
       name: challenge.name,
@@ -8744,7 +8731,7 @@ boundSocket.addEventListener('message', (event) => {
     }
     spawnPosition.y = groundPlaneY(spawnPosition.x, spawnPosition.z);
     airplane.position.copy(spawnPosition);
-    altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toString();
+    altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toLocaleString();
     if (matchMedia('(pointer: coarse)').matches || innerWidth <= 900) socket.send(JSON.stringify({ type:'analyticsEvent', event:'mobile_layout_used', mode:innerWidth <= 600 ? 'narrow' : 'wide' }));
     serverProfile = message.profile;
     applyTutorialStepStates(message.tutorialSteps);
@@ -8843,7 +8830,6 @@ boundSocket.addEventListener('message', (event) => {
     completedMissionUntil = Date.now() + 12_000;
     score += message.score;
     recordBestScore(score);
-    updateScoreDisplay();
     const missionName = missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION';
     cinematicDirector.requestMissionComplete(
       `${message.missionId}:${completedMissionUntil}`,
@@ -8875,7 +8861,6 @@ boundSocket.addEventListener('message', (event) => {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    updateScoreDisplay();
     showProgressMessage(message.reason);
     flightRecap.eventResults.push(message.reason);
     sendPlayerUpdate();
@@ -8895,14 +8880,12 @@ boundSocket.addEventListener('message', (event) => {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    updateScoreDisplay();
     showProgressMessage(message.reason);
     sendPlayerUpdate();
   } else if (message.type === 'chaosState') {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    updateScoreDisplay();
     showProgressMessage(`${message.action.toUpperCase()} · CHAOS x${message.multiplier}`);
   } else if (message.type === 'chaosReward') {
     showProgressMessage(message.reason);
@@ -9028,7 +9011,6 @@ boundSocket.addEventListener('message', (event) => {
     score += message.score;
     queueRewardFeedback(0, message.score);
     recordBestScore(score);
-    updateScoreDisplay();
     showProgressMessage('SKY CHALLENGE COMPLETE');
   } else if (message.type === 'projectileRemove') {
     removeClientProjectile(message.projectileId);
@@ -9128,7 +9110,6 @@ boundSocket.addEventListener('message', (event) => {
       score = Math.max(score, message.killerScore);
       recordBestScore(score);
       handleContractKill();
-      updateScoreDisplay();
       showCombatMessage(killNotice(message, localPlayerId), true);
     }
   } else if (message.type === 'respawn') {
@@ -9266,7 +9247,6 @@ document.addEventListener('visibilitychange', () => {
 
 updateCamera(1);
 showActiveCheckpoint();
-updateScoreDisplay();
 updateProgressHud();
 updateHealthDisplay();
 updatePendingAircraftEquip();

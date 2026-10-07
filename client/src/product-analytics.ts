@@ -4,7 +4,8 @@ export type ProductIntent =
   | 'hub_viewed' | 'fly_clicked' | 'city_selected' | 'rewards_viewed' | 'daily_reward_claim_clicked'
   | 'rewarded_ad_offer_viewed' | 'rewarded_ad_no_fill' | 'referral_screen_viewed' | 'referral_share_started' | 'referral_link_copied'
   | 'garage_opened' | 'aircraft_viewed' | 'aircraft_selected' | 'cosmetic_viewed' | 'cosmetic_previewed' | 'cosmetic_unlock_started'
-  | 'firehawk_purchase_clicked' | 'sky_token_store_viewed';
+  | 'firehawk_purchase_clicked' | 'sky_token_store_viewed'
+  | 'store_opened' | 'store_category_viewed' | 'store_item_viewed' | 'store_unlock_started' | 'store_view_in_garage' | 'store_get_tokens_opened';
 
 const sessionKey = 'airport-chaos-analytics-session-v1';
 let memorySessionId: string | undefined;
@@ -21,7 +22,7 @@ export function productAnalyticsSessionId(): string {
 }
 
 /** Intent-only telemetry; failure never blocks the player's action. */
-export function recordProductIntent(event: ProductIntent, dimension?: { cityId?: string; aircraftType?: string; cosmeticId?: string; currency?: string }): void {
+export function recordProductIntent(event: ProductIntent, dimension?: { cityId?: string; aircraftType?: string; cosmeticId?: string; currency?: string; itemId?: string; itemType?: string; category?: string }): void {
   const payload = { event, sessionId: productAnalyticsSessionId(), ...dimension };
   void apiFetch(apiUrl('/api/analytics/intent'), {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),

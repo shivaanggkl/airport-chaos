@@ -18,6 +18,11 @@ test('intent ingestion accepts only bounded non-sensitive dimensions', () => {
   assert.equal(parseClientIntent({ event: 'city_selected', sessionId, cityId: 'dallas', email: 'secret@example.com' }), undefined);
   assert.equal(parseClientIntent({ event: 'city_selected', sessionId, cityId: 'a'.repeat(100) }), undefined);
   assert.equal(parseClientIntent({ event: 'city_selected', sessionId: 'forged', cityId: 'dallas' }), undefined);
+  assert.equal(parseClientIntent({ event: 'store_unlock_succeeded', sessionId, itemId: 'cargo' }), undefined);
+  assert.deepEqual(parseClientIntent({ event: 'store_unlock_started', sessionId, itemId: 'cargo', itemType: 'aircraft', category: 'featured', currency: 'credits' }),
+    { event: 'store_unlock_started', sessionId, cityId: undefined, aircraftType: undefined, cosmeticId: undefined,
+      currency: 'credits', itemId: 'cargo', itemType: 'aircraft', category: 'featured' });
+  assert.equal(parseClientIntent({ event: 'store_item_viewed', sessionId, itemId: 'cargo', itemType: 'aircraft', category: 'featured', email: 'secret@example.com' }), undefined);
 });
 
 test('existing analytics tables gain platform and journey dimensions without losing events', () => {

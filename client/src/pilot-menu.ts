@@ -443,7 +443,7 @@ export class PilotMenu {
     navigation.className = 'pilot-menu-navigation';
     navigation.setAttribute('aria-label', 'Pilot Menu sections');
     for (const name of this.sections) {
-      const button = actionButton({ label: name, run: () => this.switchTo(name) });
+      const button = actionButton({ label: name === 'GARAGE' ? 'AIRCRAFTS' : name, run: () => this.switchTo(name) });
       button.dataset.section = name;
       navigation.append(button);
     }
@@ -469,7 +469,7 @@ export class PilotMenu {
     const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
     if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
     const title = this.element.querySelector<HTMLElement>('[data-pilot-menu-title]');
-    if (title) title.textContent = this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection;
+    if (title) title.textContent = this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection === 'GARAGE' ? 'AIRCRAFTS' : this.activeSection;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
     content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');
@@ -1012,16 +1012,16 @@ export class PilotMenu {
       if (plane.owned) row.classList.add('owned');
       aircraftList.append(row);
     }
-    aircraft.append(aircraftList, actionButton({ label: 'OPEN GARAGE', run: data.garage.open, disabled: !data.garage.available, title: data.garage.reason }));
-    if (!data.garage.available) aircraft.append(textElement('small', 'Land and stop at an airport to open Garage.', 'pilot-progress-detail'));
+    aircraft.append(aircraftList, actionButton({ label: 'OPEN AIRCRAFTS', run: data.garage.open, disabled: !data.garage.available, title: data.garage.reason }));
+    if (!data.garage.available) aircraft.append(textElement('small', 'Land and stop at an airport to open Aircrafts.', 'pilot-progress-detail'));
     cards.append(aircraft);
     progress.append(cards); content.append(progress);
     }
 
     if (this.activeSection === 'GARAGE') {
-    const garageSection = section('Garage');
+    const garageSection = section('Aircrafts');
     garageSection.append(textElement('p', 'Choose, compare and equip aircraft. Land at an airport and stop safely to change aircraft.', 'pilot-menu-muted'));
-    garageSection.append(actionButton({ label: data.garage.available ? 'Open Garage' : 'Garage unavailable in flight', run: data.garage.open, disabled: !data.garage.available, title: data.garage.reason }));
+    garageSection.append(actionButton({ label: data.garage.available ? 'Open Aircrafts' : 'Aircrafts unavailable in flight', run: data.garage.open, disabled: !data.garage.available, title: data.garage.reason }));
     if (!data.garage.available) garageSection.append(actionButton({ label: 'Set Airport Waypoint', run: data.garage.setAirportWaypoint }));
     if (!data.garage.available && data.garage.reason) garageSection.append(textElement('small', data.garage.reason, 'pilot-menu-muted'));
     content.append(garageSection);

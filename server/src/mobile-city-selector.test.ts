@@ -10,12 +10,12 @@ test('City Journey replaces the city grid while reusing the existing time and la
   assert.match(html, /id="app-shell-header" class="app-shell-header"/);
   assert.doesNotMatch(html, /id="launch-background"|<video/);
   assert.doesNotMatch(bootstrap, /setupLaunchBackground|launchBackground/);
-  assert.match(css, /\.city-selector\s*\{[^}]+radial-gradient\(ellipse at 50% 10%[^}]+linear-gradient\(180deg, #12364d 0%, #0d2a3d 58%, #071923 100%\)/s);
+  assert.match(css, /\.city-selector\s*\{[^}]*hangar\.jpg[^}]*var\(--ac-bg-deep\)/);
   assert.match(html, /id="city-options" class="city-journey"[\s\S]*data-city-journey-track[\s\S]*data-city-journey-dots[\s\S]*SWIPE TO EXPLORE/);
   assert.match(html, /id="city-back"[^>]*hidden>BACK TO CITIES<\/button>/);
   assert.doesNotMatch(html, /id="city-home"|id="city-close"|id="garage-entry"/);
   assert.match(bootstrap, /cityJourneyEntries[\s\S]*MILWAUKEE[\s\S]*TRAINING CITY[\s\S]*DALLAS[\s\S]*CITY 01[\s\S]*CALIFORNIA[\s\S]*COMING SOON[\s\S]*NEW YORK/);
-  assert.match(bootstrap, /id: 'milwaukee'[\s\S]*artImage: milwaukeeJourneyImage[\s\S]*id: 'dallas'[\s\S]*airport-chaos-launch-poster\.jpg[\s\S]*id: 'california'[\s\S]*california-coming-soon\.svg[\s\S]*id: 'new-york'[\s\S]*new-york-coming-soon\.svg/);
+  assert.match(bootstrap, /id: 'milwaukee'[\s\S]*artImage: milwaukeeJourneyImage[\s\S]*id: 'dallas'[\s\S]*city-journey\/dallas\.jpg[\s\S]*id: 'california'[\s\S]*california-coming-soon\.svg[\s\S]*id: 'new-york'[\s\S]*new-york-coming-soon\.svg/);
   assert.match(bootstrap, /--journey-art-image'[\s\S]*entry\.artImage[\s\S]*--journey-art-position', entry\.artPosition/);
   assert.match(bootstrap, /authoritativeHomeProfile\?\.tutorial\?\.status === 'completed'/);
   assert.match(bootstrap, /city\.status === 'available' && Boolean\(city\.loadWorld\)/);
@@ -26,6 +26,9 @@ test('City Journey replaces the city grid while reusing the existing time and la
   assert.match(bootstrap, /citySelector\.dataset\.view = 'time'/);
   assert.match(bootstrap, /Bright daytime flying/);
   assert.match(bootstrap, /Evening city atmosphere/);
+  assert.match(bootstrap, /city-time-art/);
+  assert.match(css, /\.city-time-day \.city-time-art[^}]*day\.jpg/);
+  assert.match(css, /\.city-time-dusk \.city-time-art[^}]*dusk\.jpg/);
   assert.match(bootstrap, /localStorage\.setItem\(`airport-chaos-time-\$\{city\.id\}`/);
   assert.match(bootstrap, /void enterCity\(city, preset\)/);
   assert.match(bootstrap, /button\.className = 'entry-button entry-button-primary city-journey-cta'/);
@@ -56,14 +59,14 @@ test('City Journey keeps card nodes for smooth side-card, navigation, and drag t
   assert.match(css, /transition:\s*transform 320ms cubic-bezier\(\.2, \.75, \.25, 1\), opacity 280ms ease-out/);
   assert.match(css, /\.city-journey\.is-dragging \.city-journey-card\s*\{[^}]*transition:\s*none/);
   assert.match(css, /\.city-journey-card:not\(\.is-selected\) \.city-journey-cta\s*\{[^}]*visibility:\s*hidden/);
-  assert.match(css, /@media \(max-width: 680px\)[\s\S]*--journey-card-width:\s*78vw;[\s\S]*--journey-side-offset:\s*70vw/);
-  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.city-select-card\s*\{[^}]*top:\s*calc\(var\(--app-shell-header-total\) \+ 6px\);[^}]*bottom:\s*auto;[^}]*width:\s*min\(var\(--entry-content-width\),[^}]*padding:\s*10px 12px;/);
-  assert.match(css, /\.city-select-card\s*\{[^}]*grid-template-rows:\s*repeat\(5, auto\);[^}]*gap:\s*clamp\(10px, 1\.3vw, 16px\)/);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*--journey-card-width:\s*84vw;[\s\S]*--journey-side-offset:\s*70vw/);
+  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.city-select-card\s*\{[^}]*top:\s*calc\(var\(--app-shell-header-total\) \+ 2px\);[^}]*bottom:\s*auto;[^}]*width:\s*min\(var\(--entry-content-width\),[^}]*padding:\s*3px 10px;/);
+  assert.match(css, /\.city-select-card\s*\{[^}]*grid-template-rows:\s*repeat\(5, auto\);[^}]*gap:\s*clamp\(8px, 1vw, 12px\)/);
   assert.match(css, /\.city-select-card\s*\{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*box-shadow:\s*none;[^}]*backdrop-filter:\s*none;/);
-  assert.match(css, /--journey-card-height:\s*224px;[\s\S]*\.city-journey-card\s*\{[^}]*grid-template-columns:/);
+  assert.match(css, /--journey-card-height:\s*clamp\(160px,[\s\S]*\.city-journey-card\s*\{[^}]*grid-template-columns:/);
   assert.match(css, /\.city-select-actions \.entry-button\s*\{[^}]*min-height:\s*48px;/);
-  assert.match(css, /\.city-select-actions\s*\{[^}]*margin-top:\s*-6px;/);
-  assert.match(css, /\.intro-brand-footer\s*\{[^}]*padding:\s*7px 42px 0 0;[^}]*font:\s*500 11px\/1\.2[^}]*opacity:\s*\.72/);
+  assert.match(css, /\.city-select-actions\s*\{[^}]*margin-top:\s*2px;/);
+  assert.match(css, /\.city-selector #start-brand-signature\s*\{[^}]*min-height:\s*42px;/);
   assert.match(css, /body:has\(\.city-selector:not\(\[hidden\]\)\) \.tutorial-help\s*\{[^}]*right:\s*max\(24px, var\(--safe-area-right\)\);[^}]*bottom:\s*max\(24px, var\(--safe-area-bottom\)\);[^}]*left:\s*auto/);
   assert.doesNotMatch(css, /\.garage-entry|brand-logo-home|city-select-kicker/);
 });
@@ -86,7 +89,7 @@ test('short touch landscape keeps Pilot Menu header fixed with independent navig
 
 test('WKWebView and short landscape overlays use an explicit compact type scale', () => {
   assert.match(css, /html\s*\{[^}]*-webkit-text-size-adjust:\s*100%;[^}]*text-size-adjust:\s*100%;/);
-  assert.match(css, /@media \(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*--font-body-size:\s*14px;[\s\S]*--font-meta-size:\s*12px;[\s\S]*\.pilot-progress-card \.pilot-progress-value\s*\{[^}]*font-size:\s*clamp\(18px, 2\.2vw, 22px\);/);
+  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*--font-body-size:\s*14px;[\s\S]*--font-meta-size:\s*12px;[\s\S]*\.pilot-progress-card \.pilot-progress-value\s*\{[^}]*font-size:\s*clamp\(18px, 2\.2vw, 22px\);/);
 });
 
 test('short landscape restores two-column progress and Garage presentation', () => {

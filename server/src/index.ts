@@ -1254,8 +1254,9 @@ const httpServer = createServer(async (request, response) => {
       platform: analyticsPlatform(request), ...analyticsHost(request.headers.host),
     };
     analyticsStore.startSession(context);
-    analyticsStore.recordEvent(context, intent.event, intent.cosmeticId ? { source: intent.cosmeticId,
-      metadata: intent.currency ? { currency: intent.currency } : {} } : {});
+    analyticsStore.recordEvent(context, intent.event, intent.cosmeticId || intent.itemId ? { source: intent.itemId ?? intent.cosmeticId,
+      metadata: { ...(intent.currency ? { currency: intent.currency } : {}), ...(intent.itemType ? { itemType: intent.itemType } : {}), ...(intent.category ? { category: intent.category } : {}) } }
+      : intent.category ? { metadata: { category: intent.category } } : {});
     if (intent.event === 'rewards_viewed' && session.accountId) {
       const dailyReward = profileStore.dailyRewardState(session.pilotId);
       if (dailyReward?.claimable) analyticsStore.recordEvent(context, 'daily_reward_available',
@@ -1374,6 +1375,7 @@ const httpServer = createServer(async (request, response) => {
       const payload = await readJson(request);
       let profile: PlayerProfile | undefined;
       let error: string | undefined;
+      let storeUnlockChanged = false;
       if (payload?.analyticsEvent === 'fighter_modal_viewed' || payload?.analyticsEvent === 'fighter_purchase_clicked') {
         profile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
         const host = analyticsHost(request.headers.host);
@@ -1402,6 +1404,7 @@ const httpServer = createServer(async (request, response) => {
             ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic as string, currency)
             : profileStore.equipCosmetic(identity.pilotId, payload.equipCosmetic as string);
           profile = result.profile; error = result.ok ? undefined : result.reason;
+          if (purchasing && result.ok && result.purchased) storeUnlockChanged = true;
           if (result.ok && (purchasing ? result.purchased : true)) {
             const item = cosmeticCatalog.find(entry => entry.id === (purchasing ? payload.purchaseCosmetic : payload.equipCosmetic));
             if (item) analyticsStore.recordEvent({ pilotId: identity.pilotId, aircraftType: item.aircraftRestriction,
@@ -1419,6 +1422,7 @@ const httpServer = createServer(async (request, response) => {
         const result = profileStore.purchaseAircraft(identity.pilotId, payload.purchaseAircraft);
         profile = result.profile; error = result.ok ? undefined : result.reason;
         if (result.ok && profile && typeof payload.purchaseAircraft === 'string' && !before.unlockedAircraft.includes(payload.purchaseAircraft as AircraftType) && profile.unlockedAircraft.includes(payload.purchaseAircraft as AircraftType)) {
+          storeUnlockChanged = true;
           const host = analyticsHost(request.headers.host);
           analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: payload.purchaseAircraft }, 'aircraft_unlocked', { source: 'credits' });
         }
@@ -1430,6 +1434,7 @@ const httpServer = createServer(async (request, response) => {
           profile = result.profile; error = result.ok ? undefined : result.reason;
           if (result.ok && profile && typeof payload.purchaseAircraftWithSkyTokens === 'string' &&
               !before.unlockedAircraft.includes(payload.purchaseAircraftWithSkyTokens as AircraftType)) {
+            storeUnlockChanged = true;
             analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: payload.purchaseAircraftWithSkyTokens },
               'aircraft_unlocked', { source: 'sky_tokens' });
             analyticsStore.recordEvent({ pilotId: identity.pilotId, ...analyticsHost(request.headers.host), aircraftType: payload.purchaseAircraftWithSkyTokens },
@@ -1467,6 +1472,15 @@ const httpServer = createServer(async (request, response) => {
         if (typeof cityId !== 'string' || !cityIds.has(cityId as CityId) || typeof expectedAttemptId !== 'string') error = 'Invalid mission state';
         else profile = profileStore.abandonMission(identity.pilotId, cityId as CityId, expectedAttemptId);
       } else if (payload) profile = profileStore.updateProgress(identity.pilotId, payload.progress ?? {});
+      if (payload?.storeSource === true) {
+        const itemId = typeof payload.purchaseCosmetic === 'string' ? payload.purchaseCosmetic
+          : typeof payload.purchaseAircraft === 'string' ? payload.purchaseAircraft
+            : typeof payload.purchaseAircraftWithSkyTokens === 'string' ? payload.purchaseAircraftWithSkyTokens : undefined;
+        if (itemId && /^[a-zA-Z][a-zA-Z0-9_-]{0,39}$/.test(itemId) && (storeUnlockChanged || error || !profile)) {
+          analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host) },
+            storeUnlockChanged ? 'store_unlock_succeeded' : 'store_unlock_failed', { source: itemId });
+        }
+      }
       response.writeHead(profile && !error ? 200 : error === rateLimitMessage ? 429 : 400, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(profile && !error ? reconcilePaidFirehawk(profile) : { error: error ?? 'Invalid profile update' }));
       return;
