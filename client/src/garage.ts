@@ -646,8 +646,8 @@ export class AircraftGarage {
       this.showcaseSet.add(mesh);
     };
 
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x4779ab, roughness: 0.27, metalness: 0.3, emissive: steel, emissiveIntensity: 0.24 });
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x2b5789, roughness: 0.47, metalness: 0.36, emissive: steel, emissiveIntensity: 0.38 });
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x5186b9, roughness: 0.27, metalness: 0.3, emissive: steel, emissiveIntensity: 0.28 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x356a9a, roughness: 0.47, metalness: 0.36, emissive: steel, emissiveIntensity: 0.43 });
     const ceilingMaterial = new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.55, emissive: graphiteBlue, emissiveIntensity: 0.42 });
     const floor = new THREE.Mesh(new THREE.BoxGeometry(32, 0.18, 32), floorMaterial);
     floor.position.set(-0.1, -0.09, 0);
@@ -674,14 +674,14 @@ export class AircraftGarage {
       };
       const floorSheen = reflectionContext.createLinearGradient(80, 0, 512, 0);
       floorSheen.addColorStop(0, 'transparent');
-      floorSheen.addColorStop(0.5, 'rgba(53, 214, 255, 0.08)');
-      floorSheen.addColorStop(0.78, 'rgba(171, 225, 255, 0.24)');
-      floorSheen.addColorStop(1, 'rgba(142, 99, 255, 0.1)');
+      floorSheen.addColorStop(0.5, 'rgba(53, 214, 255, 0.12)');
+      floorSheen.addColorStop(0.78, 'rgba(171, 225, 255, 0.29)');
+      floorSheen.addColorStop(1, 'rgba(142, 99, 255, 0.15)');
       reflectionContext.fillStyle = floorSheen; reflectionContext.fillRect(0, 0, 512, 512);
       reflectedGlow(250, 255, 182, 'rgba(53, 214, 255, 0.42)');
-      reflectedGlow(212, 258, 94, 'rgba(246, 196, 69, 0.32)');
-      reflectedGlow(332, 120, 102, 'rgba(142, 99, 255, 0.28)');
-      reflectedGlow(332, 392, 102, 'rgba(142, 99, 255, 0.28)');
+      reflectedGlow(212, 258, 94, 'rgba(246, 196, 69, 0.43)');
+      reflectedGlow(332, 120, 102, 'rgba(142, 99, 255, 0.34)');
+      reflectedGlow(332, 392, 102, 'rgba(142, 99, 255, 0.34)');
       reflectedGlow(410, 255, 180, 'rgba(111, 230, 255, 0.16)');
       for (const side of [-1, 1]) {
         const y = 256 + side * 176;
@@ -812,7 +812,7 @@ export class AircraftGarage {
     wallGlowCanvas.width = 512; wallGlowCanvas.height = 128;
     const wallGlowContext = wallGlowCanvas.getContext('2d');
     if (wallGlowContext) {
-      for (const [x, color] of [[94, 'rgba(142, 99, 255, 0.27)'], [255, 'rgba(53, 214, 255, 0.16)'], [420, 'rgba(142, 99, 255, 0.27)']] as const) {
+      for (const [x, color] of [[94, 'rgba(142, 99, 255, 0.36)'], [255, 'rgba(53, 214, 255, 0.23)'], [420, 'rgba(142, 99, 255, 0.36)']] as const) {
         const glow = wallGlowContext.createRadialGradient(x, 58, 0, x, 58, 100);
         glow.addColorStop(0, color); glow.addColorStop(1, 'transparent');
         wallGlowContext.fillStyle = glow; wallGlowContext.fillRect(x - 100, 0, 200, 128);

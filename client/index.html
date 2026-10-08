@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Airport Chaos</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='27'%3E%E2%9C%88%3C/text%3E%3C/svg%3E" />
-    <link rel="preload" as="image" href="/media/launch/airport-chaos-loading.avif" type="image/avif" />
+    <link rel="preload" as="image" href="/media/launch/airport-chaos-launch-poster.jpg" />
   </head>
   <body>
     <header id="app-shell-header" class="app-shell-header" aria-label="Airport Chaos navigation" hidden></header>
     <main id="brand-loading" class="brand-loading" aria-label="Loading Airport Chaos">
+      <div class="brand-loading-sky" aria-hidden="true"><i></i><i></i></div>
+      <img class="brand-loading-logo" src="/brand/airport-chaos-logo.avif" alt="Airport Chaos" />
       <div class="brand-loading-progress">
         <span>LOADING FLIGHT SYSTEMS...</span>
         <progress data-startup-progress max="1" value="0" aria-label="Startup progress"></progress>

@@ -30,6 +30,8 @@ export type AtmosphereZone = {
 export type AmbientTrafficConfig = {
   routes: ReadonlyArray<AmbientTrafficRoute>;
   clouds?: ReadonlyArray<AmbientCloud>;
+  maxVisibleCloudClusters?: number;
+  prioritizeVisibleClouds?: boolean;
   atmosphereZones?: ReadonlyArray<AtmosphereZone>;
 };
 export type EventTrafficVisualState = {
@@ -40,7 +42,7 @@ export type EventTrafficVisualState = {
   eventCombatMode?: EventCombatMode;
 };
 
-type CloudCluster = { group: THREE.Group; cloud: AmbientCloud; distance: number };
+type CloudCluster = { group: THREE.Group; cloud: AmbientCloud; distance: number; priority: number };
 type StormCell = { zone: AtmosphereZone; group: THREE.Group; lightning: THREE.Line; distance: number };
 
 type Actor = {
@@ -101,6 +103,8 @@ const farImpostorStart = 7_500;
 const farImpostorBlendEnd = 9_000;
 const forward = new THREE.Vector3(0, 0, -1);
 const direction = new THREE.Vector3();
+const cloudViewDirection = new THREE.Vector3();
+const cloudOffset = new THREE.Vector3();
 const trafficBodyGeometry = new THREE.CapsuleGeometry(0.45, 2.8, 4, 8);
 const trafficWingGeometry = new THREE.BoxGeometry(1, 1, 1);
 const rotorGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -269,6 +273,8 @@ export class AmbientTrafficSystem {
   private simulationAccumulator = 0;
   private elapsed = 0;
   private readonly ambientEnabled: boolean;
+  private readonly maxVisibleCloudClusters: number;
+  private readonly prioritizeVisibleClouds: boolean;
   private tutorialMode = false;
   setTutorialMode(active: boolean): void { this.tutorialMode = active; }
   private nearestAmbientRoute = Number.POSITIVE_INFINITY;
@@ -284,6 +290,8 @@ export class AmbientTrafficSystem {
     // the same deterministic traffic without a second AI implementation.
     this.eventRoutes = config.routes;
     this.ambientEnabled = ambientEnabled;
+    this.maxVisibleCloudClusters = config.maxVisibleCloudClusters ?? maxCloudClusters;
+    this.prioritizeVisibleClouds = config.prioritizeVisibleClouds ?? false;
     this.atmosphereZones = config.atmosphereZones ?? [];
     if (config.clouds?.length) this.addClouds(config.clouds);
     if (this.atmosphereZones.length) this.addAtmosphereZones(this.atmosphereZones);
@@ -305,7 +313,7 @@ export class AmbientTrafficSystem {
       this.syncAmbientRoutes(playerPosition);
       for (const actor of this.actors) if (!actor.serverControlled) this.advance(actor, tickSeconds);
       this.updateLod(playerPosition, camera);
-      this.updateClouds(playerPosition);
+      this.updateClouds(playerPosition, camera);
       this.updateAtmosphere(playerPosition);
     }
     const blend = this.simulationAccumulator / tickSeconds;
@@ -659,7 +667,7 @@ export class AmbientTrafficSystem {
         cluster.add(puff);
       }
       this.cloudGroup.add(cluster);
-      this.cloudClusters.push({ group: cluster, cloud, distance: Number.POSITIVE_INFINITY });
+      this.cloudClusters.push({ group: cluster, cloud, distance: Number.POSITIVE_INFINITY, priority: Number.POSITIVE_INFINITY });
     }
     this.scene.add(this.cloudGroup);
   }
@@ -710,18 +718,26 @@ export class AmbientTrafficSystem {
     }
   }
 
-  private updateClouds(playerPosition: THREE.Vector3): void {
+  private updateClouds(playerPosition: THREE.Vector3, camera: THREE.PerspectiveCamera): void {
     const wrap = (value: number, center: number): number =>
       center + THREE.MathUtils.euclideanModulo(value - center + cloudPatternSpan * 0.5, cloudPatternSpan) - cloudPatternSpan * 0.5;
+    camera.getWorldDirection(cloudViewDirection);
     for (const cluster of this.cloudClusters) {
       const x = wrap(cluster.cloud.x, playerPosition.x);
       const z = wrap(cluster.cloud.z, playerPosition.z);
       cluster.group.position.set(x, this.heightAt(x, z) + cluster.cloud.altitude, z);
-      cluster.distance = Math.hypot(x - playerPosition.x, z - playerPosition.z);
+      // Select nearby clouds in three dimensions. Horizontal-only ranking
+      // filled the low sky while leaving a climbing pilot with no cloud layer.
+      cluster.distance = cluster.group.position.distanceTo(playerPosition);
+      cloudOffset.copy(cluster.group.position).sub(camera.position);
+      const alignment = cloudOffset.dot(cloudViewDirection) / Math.max(cloudOffset.length(), 1);
+      // Spend the small visible-cloud budget on the pilot's view, rather than
+      // hiding most of it behind the aircraft or outside the camera frustum.
+      cluster.priority = cluster.distance + (this.prioritizeVisibleClouds && alignment < 0.7 ? 24_000 : 0);
     }
-    this.cloudClusters.sort((left, right) => left.distance - right.distance);
+    this.cloudClusters.sort((left, right) => left.priority - right.priority);
     for (let index = 0; index < this.cloudClusters.length; index += 1) {
-      this.cloudClusters[index].group.visible = index < maxCloudClusters && this.cloudClusters[index].distance <= 22_000;
+      this.cloudClusters[index].group.visible = index < this.maxVisibleCloudClusters && this.cloudClusters[index].distance <= 22_000;
     }
   }
 

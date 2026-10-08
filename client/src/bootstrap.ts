@@ -51,7 +51,50 @@ const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
-const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, openMissionDetails, closeMissionDetails);
+const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, playJourneyMission, openMissionDetails, closeMissionDetails);
+let journeyAttemptId: string | undefined;
+
+function abandonPendingJourneyLaunch(): void {
+  const attemptId = journeyAttemptId;
+  journeyAttemptId = undefined;
+  if (!attemptId) return;
+  void apiFetch(apiUrl('/api/journey/dallas/mission-01/abandon'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId }),
+  }).catch(() => undefined);
+}
+
+async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string } | undefined> {
+  try {
+    const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
+    if (!response.ok) { missionJourney.setStageOneProgress(false, false); return undefined; }
+    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string };
+    missionJourney.setStageOneProgress(progress.eligible === true, progress.completed === true);
+    return { completed: progress.completed === true, firstAttemptId: progress.firstAttemptId };
+  } catch {
+    missionJourney.setStageOneProgress(false, false);
+    return undefined;
+  }
+}
+
+async function playJourneyMission(): Promise<void> {
+  try {
+    const response = await apiFetch(apiUrl('/api/journey/dallas/mission-01/launch'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    if (!response.ok) throw new Error('Mission launch was not authorized');
+    const result = await response.json() as { attempt?: { attemptId?: string } };
+    if (!result.attempt?.attemptId) throw new Error('Mission attempt was missing');
+    journeyAttemptId = result.attempt.attemptId;
+    const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
+    if (!dallas) throw new Error('Dallas is unavailable');
+    missionJourney.hide();
+    citySelector.hidden = false;
+    showTimeSelection(dallas, 'MISSION_JOURNEY');
+  } catch (error) {
+    console.error('[journey] Mission launch failed', error);
+    await refreshJourneyProgress();
+  }
+}
 const PENDING_FLY_STORAGE_KEY = 'airport-chaos-pending-fly-v1';
 const PENDING_STORE_STORAGE_KEY = 'airport-chaos-pending-store-v1';
 const PENDING_REFERRAL_STORAGE_KEY = 'airport-chaos-pending-referral-v1';
@@ -1519,7 +1562,8 @@ function showSelector(message = '', options: { preferDallas?: boolean } = {}): v
   citySelectionError.hidden = !message;
 }
 
-function showMissionJourney(pushHistory = true): void {
+function showMissionJourney(pushHistory = true, refreshProgress = true): void {
+  abandonPendingJourneyLaunch();
   if (pushHistory && window.history.state?.airportChaosEntryView !== 'MISSION_JOURNEY') {
     window.history.pushState({ airportChaosEntryView: 'MISSION_JOURNEY' }, '', window.location.href);
   }
@@ -1533,6 +1577,7 @@ function showMissionJourney(pushHistory = true): void {
   garage.hideShowcase();
   citySelector.hidden = true;
   missionJourney.show(window.history.state?.missionDetailsOpen === true);
+  if (refreshProgress) void refreshJourneyProgress();
   showAppHeader(undefined);
 }
 
@@ -1555,6 +1600,7 @@ function closeMissionDetails(): void {
 }
 
 function openMissionFreeFlight(): void {
+  abandonPendingJourneyLaunch();
   const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
   if (!dallas) return;
   missionJourneyReturnPending = false;
@@ -1670,6 +1716,8 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   url.searchParams.set('time', city.timePresets.includes(timePreset) ? timePreset : 'day');
   if (trainingSession) url.searchParams.set('training', '1');
   else url.searchParams.delete('training');
+  if (city.id === 'dallas' && journeyAttemptId) url.searchParams.set('journeyAttempt', journeyAttemptId);
+  else url.searchParams.delete('journeyAttempt');
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 
   await city.loadWorld();
@@ -1797,11 +1845,14 @@ async function start(): Promise<void> {
     }
   }
   const directCityEntry = url.searchParams.get('entry') === 'city';
-  if (authResult || directCityEntry) {
+  const directJourneyEntry = url.searchParams.get('entry') === 'journey';
+  const journeyReceipt = url.searchParams.get('journeyReceipt');
+  if (authResult || directCityEntry || directJourneyEntry) {
     url.searchParams.delete('auth');
     url.searchParams.delete('provider');
     url.searchParams.delete('linked');
     url.searchParams.delete('entry');
+    url.searchParams.delete('journeyReceipt');
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }
   if (authResult === 'success' && resumePendingHubFly()) {
@@ -1815,6 +1866,14 @@ async function start(): Promise<void> {
       hubAccountNotice = { ok: true, message: 'CHOOSE HOW TO PLAY' };
       await showHome();
       await openHubPilotMenu('PROFILE', false);
+    }
+  } else if (directJourneyEntry && hubAccount.state === 'account') {
+    await showHome();
+    showMissionJourney(false, false);
+    const progress = await refreshJourneyProgress();
+    if (journeyReceipt && progress?.completed) {
+      if (progress.firstAttemptId === journeyReceipt) missionJourney.celebrateStageOne();
+      else missionJourney.advanceToStageTwo();
     }
   } else if (directCityEntry) {
     await showHome();

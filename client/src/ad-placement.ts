@@ -74,6 +74,7 @@ export type AdPlacement = {
   freestanding?: boolean;
   targetAircraftType?: 'trainer' | 'privateJet' | 'cargo' | 'fighter';
   blimpOrbit?: { radiusX: number; radiusZ: number; periodSeconds: number; phase?: number };
+  cameraFacing?: boolean;
 };
 export type AdPlacementSpec = Omit<AdPlacement, 'creative' | 'sponsorName' | 'startAt' | 'endAt' | 'enabled'>;
 
@@ -739,6 +740,12 @@ export class AdPlacementManager {
     frustum.setFromProjectionMatrix(viewProjection);
 
     for (const rendered of this.rendered) {
+      if (rendered.placement.cameraFacing) {
+        rendered.group.rotation.y = Math.atan2(
+          camera.position.x - rendered.group.position.x,
+          camera.position.z - rendered.group.position.z,
+        );
+      }
       if (rendered.placement.type === 'SKY_GATE') {
         placementPoint.set(0, rendered.placement.size.y * 0.37, 0);
         rendered.group.localToWorld(placementPoint);

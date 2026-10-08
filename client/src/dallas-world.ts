@@ -15,7 +15,9 @@ import type { WorldMapLayer } from './world-map';
 import type { NavigationDestination } from './navigation-beacons';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import { dfwSpeedGates } from '../../shared/city-challenges.mjs';
+import { airborneAdVisibilityMultiplier } from '../../shared/ad-placement-rules.mjs';
 import { CityVisualLayer, type CityVisualConfig, type CityVisualQuality, type CityTimeOfDay } from './city-visuals';
+import { DallasScenery } from './dallas-scenery';
 
 export const WORLD_METERS_PER_UNIT = 1;
 export const WORLD_SIZE = 50_000;
@@ -40,6 +42,7 @@ export type WaterBounds = ImportedWater;
 
 let dallasStreamer: DallasChunkStreamer | undefined;
 let cityVisualLayer: CityVisualLayer | undefined;
+let dallasScenery: DallasScenery | undefined;
 let visualQuality: CityVisualQuality = 'high';
 let timeOfDay: CityTimeOfDay = 'day';
 let horizonMaterial: THREE.MeshStandardMaterial | undefined;
@@ -144,7 +147,23 @@ export const discoveries: ReadonlyArray<DiscoveryDefinition> = [
 // Ambient-only routes stay deliberately clear of runway surfaces. They use the
 // same city coordinates as the flight world and can later be promoted into
 // scripted traffic events without entering player/network combat state.
+// World heights are meters above local terrain; the HUD shows feet. These
+// extra layers cover roughly 21k–50k ft without removing existing low clouds.
+const upperDallasClouds: NonNullable<AmbientTrafficConfig['clouds']> = [6_400, 9_200, 12_100, 15_240].flatMap((altitude, band) =>
+  [-19_000, -6_000, 7_000, 20_000].flatMap((x, column) =>
+    [-19_000, -6_000, 7_000, 20_000].map((z, row) => ({
+      x: x + (band % 2 ? 1_300 : -1_300),
+      z: z + (band % 2 ? -1_100 : 1_100),
+      altitude,
+      width: 1_750 + ((column + row + band) % 3) * 230,
+      depth: 760 + ((column * 2 + row + band) % 3) * 110,
+    })),
+  ),
+);
+
 export const ambientTrafficConfig: AmbientTrafficConfig = {
+  maxVisibleCloudClusters: 9,
+  prioritizeVisibleClouds: true,
   routes: [
     {
       id: 'civilian-dfw-love', kind: 'civilian', aircraftType: 'trainer', speed: 58,
@@ -455,6 +474,29 @@ export const ambientTrafficConfig: AmbientTrafficConfig = {
     { x: 21_000, z: -5_200, altitude: 2_420, width: 1_560, depth: 830 },
     { x: 9_300, z: -16_800, altitude: 2_380, width: 1_860, depth: 930 },
     { x: -8_400, z: -20_400, altitude: 2_360, width: 1_460, depth: 770 },
+    // A second high layer follows the whole map, not just the western ad
+    // corridor. The ambient system still renders only the nearest clusters.
+    { x: -20_500, z: -18_000, altitude: 4_600, width: 2_100, depth: 880 },
+    { x: -11_000, z: -18_500, altitude: 5_100, width: 1_800, depth: 760 },
+    { x: -1_000, z: -18_000, altitude: 4_850, width: 2_250, depth: 920 },
+    { x: 9_000, z: -18_000, altitude: 5_600, width: 1_950, depth: 810 },
+    { x: 19_000, z: -18_000, altitude: 4_950, width: 2_300, depth: 940 },
+    { x: -19_000, z: -8_000, altitude: 5_700, width: 2_100, depth: 890 },
+    { x: -9_000, z: -8_000, altitude: 4_450, width: 1_950, depth: 800 },
+    { x: 1_000, z: -8_000, altitude: 5_250, width: 2_200, depth: 900 },
+    { x: 11_000, z: -8_000, altitude: 4_650, width: 1_850, depth: 780 },
+    { x: 21_000, z: -8_000, altitude: 5_400, width: 2_150, depth: 870 },
+    { x: -20_000, z: 3_000, altitude: 4_900, width: 2_200, depth: 910 },
+    { x: -10_000, z: 3_000, altitude: 5_500, width: 1_900, depth: 810 },
+    { x: 0, z: 3_000, altitude: 4_700, width: 2_100, depth: 880 },
+    { x: 10_000, z: 3_000, altitude: 5_850, width: 2_250, depth: 900 },
+    { x: 20_000, z: 3_000, altitude: 4_500, width: 1_900, depth: 800 },
+    { x: -19_000, z: 15_000, altitude: 5_300, width: 2_150, depth: 870 },
+    { x: -9_000, z: 15_000, altitude: 4_550, width: 1_850, depth: 790 },
+    { x: 1_000, z: 15_000, altitude: 5_750, width: 2_300, depth: 920 },
+    { x: 11_000, z: 15_000, altitude: 4_850, width: 2_000, depth: 820 },
+    { x: 21_000, z: 15_000, altitude: 5_450, width: 2_200, depth: 900 },
+    ...upperDallasClouds,
   ],
   atmosphereZones: [
     { id: 'white-rock-storm', type: 'storm', x: 6_400, z: -8_900, radius: 1_050, altitude: 2_200, strength: 0.42, active: false },
@@ -654,6 +696,12 @@ const adPosition = (x: number, z: number, height: number): { x: number; y: numbe
   y: getTerrainHeight(x, z) + height,
   z,
 });
+// Airborne ads are enlarged and moved upward by the shared presentation rule.
+// Author new upper-sky sites in actual AGL meters so the rendered height still
+// matches the flight HUD's requested 5k–45k ft bands.
+const upperSkyAdPosition = (x: number, z: number, altitude: number) => ({
+  x, y: (getTerrainHeight(x, z) + altitude) / airborneAdVisibilityMultiplier, z,
+});
 const adRotation = (y: number): { x: number; y: number; z: number } => ({ x: 0, y, z: 0 });
 const terminalWallSign = (airportId: AirportId, lateral: number, height: number, longitudinal = 0): { x: number; y: number; z: number } => {
   const airport = airports.find((candidate) => candidate.id === airportId)!;
@@ -681,6 +729,22 @@ const highwayAdSize = { x: 68, y: 21, z: 1 };
 const skyboardSize = { x: 380, y: 115, z: 0.4 };
 const skyGateSize = { x: 230, y: 150, z: 1 };
 const sponsorBlimpSize = { x: 310, y: 88, z: 82 };
+// A sparse 4×4 map grid at three heights gives every Dallas region a nearby
+// sky banner from roughly 5k–45k ft. Existing ad LOD and impression rules apply.
+const upperDallasSkyboards: AdPlacementSpec[] = [1_650, 7_700, 13_716].flatMap((altitude, band) =>
+  [-19_000, -6_000, 7_000, 20_000].flatMap((x, column) =>
+    [-19_000, -6_000, 7_000, 20_000].map((z, row) => ({
+      id: `dallas-skyboard-upper-${band}-${column}-${row}`,
+      cityId: 'dallas',
+      type: 'SKYBOARD' as const,
+      position: upperSkyAdPosition(x, z, altitude),
+      rotation: adRotation((column + row) % 2 ? 0.35 : 1.45),
+      cameraFacing: true,
+      size: skyboardSize,
+      campaignId: (['airport-chaos', 'vaden-software', 'available-standard'] as const)[(column + row + band) % 3],
+    })),
+  ),
+);
 // Endpoints are measured OSM wall edges, not bounding-box approximations.
 // The normal is chosen away from the footprint center so the impression
 // facing test and the visible creative agree on angled buildings.
@@ -808,6 +872,21 @@ export const adPlacements: ReadonlyArray<AdPlacement> = ([
   { id: 'dallas-skyboard-addison-west', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-6_100, -18_100, 920), rotation: adRotation(-2.75), size: skyboardSize, campaignId: 'available-premium' },
   { id: 'dallas-skyboard-executive-north', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-8_000, 7_000, 800), rotation: adRotation(2.9), size: skyboardSize, campaignId: 'airport-chaos' },
   { id: 'dallas-skyboard-executive-trinity', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-4_700, 3_800, 1_060), rotation: adRotation(-0.58), size: skyboardSize, campaignId: 'available-premium' },
+  // Sparse high/outer corridors keep a visible destination during climbs and
+  // travel away from the original west-Dallas cluster. Existing LOD handles culling.
+  { id: 'dallas-skyboard-dfw-high', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-19_500, -18_700, 2_350), rotation: adRotation(0.8), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-las-high', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-12_000, -15_000, 3_150), rotation: adRotation(1.1), size: skyboardSize, campaignId: 'vaden-software' },
+  { id: 'dallas-skyboard-northwest', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-18_000, 3_500, 2_100), rotation: adRotation(0.45), size: skyboardSize, campaignId: 'available-standard' },
+  { id: 'dallas-skyboard-north-high', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-9_500, 16_500, 3_650), rotation: adRotation(-0.3), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-executive-high', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-3_000, 9_000, 2_650), rotation: adRotation(-0.5), size: skyboardSize, campaignId: 'vaden-software' },
+  { id: 'dallas-skyboard-downtown-high', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(3_000, 3_500, 3_950), rotation: adRotation(0.5), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-white-rock', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(8_000, -9_500, 1_650), rotation: adRotation(-0.9), size: skyboardSize, campaignId: 'available-standard' },
+  { id: 'dallas-skyboard-white-rock-high', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(11_500, -15_000, 3_500), rotation: adRotation(-1.1), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-east', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(16_000, -2_000, 2_400), rotation: adRotation(1.6), size: skyboardSize, campaignId: 'vaden-software' },
+  { id: 'dallas-skyboard-far-east', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(20_000, 13_000, 3_850), rotation: adRotation(1.4), size: skyboardSize, campaignId: 'available-standard' },
+  { id: 'dallas-skyboard-southwest', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(-15_000, 18_000, 1_900), rotation: adRotation(0.2), size: skyboardSize, campaignId: 'airport-chaos' },
+  { id: 'dallas-skyboard-southeast', cityId: 'dallas', type: 'SKYBOARD', position: adPosition(7_500, 18_000, 2_850), rotation: adRotation(-0.7), size: skyboardSize, campaignId: 'available-standard' },
+  ...upperDallasSkyboards,
   { id: 'dallas-skygate-dfw-las', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-16_650, -9_350, 670), rotation: adRotation(1.18), size: skyGateSize, campaignId: 'available-premium' },
   { id: 'dallas-skygate-las-east', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-11_250, -10_200, 720), rotation: adRotation(1.05), size: skyGateSize, campaignId: 'vaden-software' },
   { id: 'dallas-skygate-downtown-west', cityId: 'dallas', type: 'SKY_GATE', position: adPosition(-2_450, -1_800, 720), rotation: adRotation(0.86), size: skyGateSize, campaignId: 'available-standard' },
@@ -818,6 +897,10 @@ export const adPlacements: ReadonlyArray<AdPlacement> = ([
   // no AI, transform stream, combat presence, or blimp-vs-aircraft collision.
   { id: 'dallas-blimp-las-downtown', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(-7_500, -5_850, 1_250), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 850, radiusZ: 430, periodSeconds: 900 }, campaignId: 'available-premium' },
   { id: 'dallas-blimp-love-addison', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(-4_700, -15_600, 1_180), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 470, radiusZ: 1_050, periodSeconds: 1_050, phase: 0.31 }, campaignId: 'airport-chaos' },
+  { id: 'dallas-blimp-dfw-north', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(-19_000, -2_000, 1_750), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 650, radiusZ: 450, periodSeconds: 1_000, phase: 0.18 }, campaignId: 'airport-chaos' },
+  { id: 'dallas-blimp-white-rock', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(7_500, -7_000, 1_950), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 600, radiusZ: 720, periodSeconds: 1_100, phase: 0.42 }, campaignId: 'vaden-software' },
+  { id: 'dallas-blimp-east', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(17_000, 7_000, 2_500), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 780, radiusZ: 520, periodSeconds: 1_200, phase: 0.64 }, campaignId: 'available-premium' },
+  { id: 'dallas-blimp-south', cityId: 'dallas', type: 'SPONSOR_BLIMP', position: adPosition(1_000, 15_000, 2_100), rotation: adRotation(0), size: sponsorBlimpSize, blimpOrbit: { radiusX: 520, radiusZ: 760, periodSeconds: 1_060, phase: 0.81 }, campaignId: 'airport-chaos' },
   { id: 'dallas-trainer-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'airport-chaos', targetAircraftType: 'trainer' },
   { id: 'dallas-private-jet-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'vaden-software', targetAircraftType: 'privateJet' },
   { id: 'dallas-cargo-livery', cityId: 'dallas', type: 'AIRCRAFT_LIVERY', position: adPosition(centralAirport.x - 1_900, centralAirport.z, 4), rotation: adRotation(0), size: { x: 2.2, y: 0.58, z: 0.1 }, campaignId: 'airport-chaos', targetAircraftType: 'cargo' },
@@ -1245,6 +1328,8 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   addDallasSkyline(scene, obstacleBounds);
   addDowntownDistrict(scene, obstacleBounds, airports, getTerrainHeight);
   addTrinityRiver(scene, waterBounds);
+  dallasScenery?.dispose();
+  dallasScenery = new DallasScenery(scene, waterBounds, getTerrainHeight, visualQuality);
   cityVisualLayer?.dispose();
   cityVisualLayer = new CityVisualLayer(scene, cityVisualConfig, getTerrainHeight, visualQuality, timeOfDay === 'dusk');
   const arena = cityVisualConfig.arena!;
@@ -1289,15 +1374,19 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
 }
 
 export function updateWorldStreaming(position: THREE.Vector3, velocity?: THREE.Vector3): void { dallasStreamer?.update(position, velocity); }
-export function updateWorldVisuals(delta: number): void {
+export function updateWorldVisuals(delta: number, playerPosition?: THREE.Vector3): void {
   waterTimeUniform.value += delta;
   cityVisualLayer?.update(delta);
+  if (playerPosition) dallasScenery?.update(delta, playerPosition);
 }
 export function hasWorldBuildingDetailAt(x: number, z: number): boolean { return dallasStreamer?.hasNearDetailAt(x, z) ?? false; }
 export function getWorldStreamingStats(): import('./dallas-streamer').DallasStreamingStats | undefined { return dallasStreamer?.getStats(); }
 export function getWorldStreamingVisualDebug(position: THREE.Vector3, camera: THREE.Camera): import('./dallas-streamer').DallasChunkVisualDebug[] | undefined {
   return dallasStreamer?.getVisualDebug(position, camera);
 }
-export function disposeWorldStreaming(): void { dallasStreamer?.dispose(); dallasStreamer = undefined; }
+export function disposeWorldStreaming(): void {
+  dallasStreamer?.dispose(); dallasStreamer = undefined;
+  dallasScenery?.dispose(); dallasScenery = undefined;
+}
 
 export type { ImportedRoadSegment };

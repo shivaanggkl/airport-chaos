@@ -27,7 +27,7 @@ export type CityWorldModule = Omit<typeof import('./world'), 'WORLD_SIZE'> & {
   getWorldStreamingVisualDebug?: (position: import('three').Vector3, camera: import('three').Camera) => import('./dallas-streamer').DallasChunkVisualDebug[] | undefined;
   configureWorldVisuals?: (options: { quality: import('./city-visuals').CityVisualQuality; timeOfDay: import('./city-visuals').CityTimeOfDay }) => void;
   setTimeOfDay?: (preset: import('./city-visuals').CityTimeOfDay) => void;
-  updateWorldVisuals?: (delta: number) => void;
+  updateWorldVisuals?: (delta: number, playerPosition?: import('three').Vector3) => void;
   disposeWorldStreaming?: () => void;
 };
 

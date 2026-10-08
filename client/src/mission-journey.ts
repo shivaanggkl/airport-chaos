@@ -1,7 +1,7 @@
 import './mission-journey.css';
 
 type ChapterNumber = 1 | 2 | 3 | 4;
-type StageImplementation = 'planned';
+type StageImplementation = 'playable' | 'planned';
 
 export type MissionJourneyStage = Readonly<{
   id: string;
@@ -21,10 +21,10 @@ const stagePositions: readonly (readonly [number, number])[] = [
 ];
 
 export const missionJourneyStages: readonly MissionJourneyStage[] = stagePositions.map(([x, y], index) => ({
-  id: `dallas-mission-${String(index + 1).padStart(2, '0')}`,
+  id: index === 0 ? 'journey-dallas-01' : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
   number: index + 1,
   chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
-  implementation: 'planned',
+  implementation: index === 0 ? 'playable' : 'planned',
   x,
   y,
 }));
@@ -56,8 +56,10 @@ export class MissionJourney {
   private readonly stageButtons: HTMLButtonElement[] = [];
   private selectedStage = 1;
   private panelOpen = false;
+  private stageOneCompleted = false;
+  private stageOneEligible = false;
 
-  constructor(private readonly element: HTMLElement, onCities: () => void, onFreeFlight: () => void, private readonly onPanelOpen: () => void, onPanelClose: () => void) {
+  constructor(private readonly element: HTMLElement, onCities: () => void, onFreeFlight: () => void, onPlayMission: () => void, private readonly onPanelOpen: () => void, onPanelClose: () => void) {
     element.classList.add('mission-journey');
     element.setAttribute('aria-label', 'Dallas Mission Journey');
     element.innerHTML = `
@@ -80,11 +82,13 @@ export class MissionJourney {
         </div>
         <aside class="mission-journey-detail" aria-label="Selected mission details" aria-hidden="true" aria-live="polite">
           <div class="mission-journey-detail-card">
-            <div class="mission-journey-detail-top"><span data-mission-index>MISSION 1</span><span class="mission-journey-status">COMING SOON</span><button type="button" class="mission-journey-detail-close" aria-label="Close mission details" data-mission-close>×</button></div>
+            <div class="mission-journey-detail-top"><span data-mission-index>MISSION 01</span><span class="mission-journey-status" data-mission-status>COMING SOON</span><button type="button" class="mission-journey-detail-close" aria-label="Close mission details" data-mission-close>×</button></div>
+            <h2 class="mission-journey-mission-title" data-mission-title></h2>
             <p class="mission-journey-type" data-mission-type>CHAPTER 1 · TAKE OFF</p>
-            <figure class="mission-journey-preview"><div role="img" aria-label="Dallas city aviation preview"></div><figcaption>DALLAS CITY PREVIEW</figcaption></figure>
-            <p class="mission-journey-objective">Coming soon. Explore Dallas in Free Flight while this mission is developed.</p>
-            <div class="mission-journey-detail-bottom"><button type="button" class="mission-journey-play" disabled>MISSION COMING SOON</button><button type="button" class="mission-journey-free" data-mission-free>FREE FLIGHT <span aria-hidden="true">›</span></button></div>
+            <figure class="mission-journey-preview"><div role="img" aria-label="Dallas city aviation preview"></div><figcaption data-mission-caption>DALLAS CITY PREVIEW</figcaption></figure>
+            <p class="mission-journey-objective" data-mission-objective></p>
+            <div class="mission-journey-facts" data-mission-facts hidden></div>
+            <div class="mission-journey-detail-bottom"><button type="button" class="mission-journey-play" data-mission-play disabled>MISSION COMING SOON</button><button type="button" class="mission-journey-free" data-mission-free>FREE FLIGHT <span aria-hidden="true">›</span></button></div>
           </div>
         </aside>
       </div>`;
@@ -95,6 +99,7 @@ export class MissionJourney {
     this.detail.inert = true;
     element.querySelectorAll<HTMLButtonElement>('[data-mission-cities]').forEach(button => button.addEventListener('click', onCities));
     element.querySelector<HTMLButtonElement>('[data-mission-free]')!.addEventListener('click', onFreeFlight);
+    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', onPlayMission);
     element.querySelector<HTMLButtonElement>('[data-mission-close]')!.addEventListener('click', onPanelClose);
     this.detail.addEventListener('transitionend', event => {
       if (event.propertyName === 'width' && this.panelOpen) this.revealSelectedStage();
@@ -112,16 +117,21 @@ export class MissionJourney {
       path.setAttribute('class', className);
       route.append(path);
     }
+    const completedRoute = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    completedRoute.setAttribute('d', routePath(missionJourneyStages.slice(0, 2)));
+    completedRoute.setAttribute('class', 'mission-journey-route-completed');
+    completedRoute.setAttribute('pathLength', '1');
+    route.append(completedRoute);
     const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
     for (const stage of missionJourneyStages) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'mission-journey-node';
+      button.className = 'mission-journey-node is-locked';
       if (stage.number % 6 === 0) button.classList.add('is-finale');
       if (stage.number === 24) button.classList.add('is-final');
       button.style.left = `${stage.x / 10}%`;
       button.style.top = `${stage.y / 5.2}%`;
-      button.setAttribute('aria-label', `Mission ${stage.number}, coming soon`);
+      button.setAttribute('aria-label', `Mission ${stage.number}, locked, select to preview`);
       button.dataset.stage = String(stage.number);
       const number = document.createElement('span');
       number.textContent = String(stage.number);
@@ -139,17 +149,56 @@ export class MissionJourney {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault();
       const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-      this.select(Math.min(24, Math.max(1, this.selectedStage + offset)));
-      this.stageButtons[this.selectedStage - 1]?.focus();
+      const next = Math.min(24, Math.max(1, this.selectedStage + offset));
+      this.select(next);
+      this.stageButtons[next - 1]?.focus();
     });
     document.addEventListener('visibilitychange', () => {
       this.element.classList.toggle('is-paused', document.hidden);
     });
     this.select(1, false);
+    this.setStageOneProgress(false, false);
   }
 
   get isOpen(): boolean { return !this.element.hidden; }
   get isPanelOpen(): boolean { return this.panelOpen; }
+
+  setStageOneProgress(eligible: boolean, completed: boolean): void {
+    this.stageOneEligible = eligible;
+    this.stageOneCompleted = completed;
+    this.element.classList.toggle('has-stage-one-complete', completed);
+    this.stageButtons.forEach((button, index) => {
+      const number = index + 1;
+      const reached = number === 1 || number === 2 && completed;
+      button.classList.toggle('is-locked', !reached);
+      button.classList.toggle('is-completed', number === 1 && completed);
+      button.classList.toggle('is-current', number === 1 && !completed);
+      button.classList.toggle('is-next', number === 2 && completed);
+      button.classList.toggle('is-selected', number === this.selectedStage);
+      button.setAttribute('aria-pressed', String(number === this.selectedStage));
+      if (number === 1) button.dataset.progressLabel = eligible ? 'CURRENT MISSION' : 'START HERE';
+      button.setAttribute('aria-label', number === 1
+        ? completed ? 'Mission 1, completed, select to replay or preview' : eligible ? 'Mission 1, current mission, select to preview' : 'Mission 1, starting preview, select for details'
+        : number === 2 && reached ? 'Mission 2, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
+      const lock = button.querySelector('small');
+      if (lock) lock.hidden = reached;
+    });
+    this.renderDetails();
+  }
+
+  celebrateStageOne(): void {
+    this.select(1, false);
+    this.setPanelOpen(false);
+    this.stageButtons[0]?.classList.add('is-newly-completed');
+    this.element.classList.add('is-progressing');
+    window.setTimeout(() => {
+      this.stageButtons[0]?.classList.remove('is-newly-completed');
+      this.element.classList.remove('is-progressing');
+      if (this.isOpen) this.select(2);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
+  }
+
+  advanceToStageTwo(): void { this.select(2); }
 
   show(panelOpen = false): void {
     this.element.hidden = false;
@@ -185,8 +234,7 @@ export class MissionJourney {
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
-    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${number}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-type]')!.textContent = `CHAPTER ${stage.chapter} · ${chapterNames[stage.chapter - 1]}`;
+    this.renderDetails();
     if (!this.panelOpen && animate) {
       this.setPanelOpen(true);
       this.onPanelOpen();
@@ -195,6 +243,37 @@ export class MissionJourney {
       this.detailCard.animate([{ opacity: .75, transform: 'translateX(7px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 220, easing: 'ease-out' });
     }
     if (animate && this.isOpen) this.revealSelectedStage();
+  }
+
+  private renderDetails(): void {
+    const stage = missionJourneyStages[this.selectedStage - 1]!;
+    const first = stage.number === 1;
+    const second = stage.number === 2;
+    const locked = !first && !(second && this.stageOneCompleted);
+    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent =
+      `MISSION ${String(stage.number).padStart(2, '0')}${first || second ? ' · ROOKIE LEAGUE' : ''}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = first ? 'DFW SKY RUSH' : second ? 'HUNTER SHOWDOWN' : '';
+    const status = this.detail.querySelector<HTMLElement>('[data-mission-status]')!;
+    status.textContent = first
+      ? this.stageOneCompleted ? 'COMPLETED' : this.stageOneEligible ? 'CURRENT MISSION' : 'PREVIEW'
+      : locked ? 'LOCKED' : 'COMING SOON';
+    status.classList.toggle('is-locked', locked);
+    this.detail.querySelector<HTMLElement>('[data-mission-type]')!.textContent = first ? 'SPEED CHALLENGE'
+      : second ? 'ROOKIE LEAGUE' : `CHAPTER ${stage.chapter} · ${chapterNames[stage.chapter - 1]}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = first
+      ? 'Take off from DFW and fly through all 4 glowing gates before time runs out!'
+      : locked ? 'Complete earlier missions to reach this stage. Mission details are coming soon.'
+        : 'Your next challenge is being prepared.';
+    const facts = this.detail.querySelector<HTMLElement>('[data-mission-facts]')!;
+    facts.hidden = !first;
+    if (first) facts.innerHTML = '<span>START: DFW RUNWAY</span><span>CHECKPOINTS: 4 GATES</span><span>RACE TIME: 1:02</span><span>RECOMMENDED: BLUEJAY</span><span>FIRST-CLEAR REWARD: 250 CREDITS</span>';
+    this.detail.querySelector<HTMLElement>('[data-mission-caption]')!.textContent = first ? 'DFW GAMEPLAY PREVIEW' : 'DALLAS CITY PREVIEW';
+    this.detail.querySelector<HTMLElement>('.mission-journey-preview')!.classList.toggle('is-dfw-preview', first);
+    const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
+    play.disabled = !first || !this.stageOneEligible;
+    play.textContent = first
+      ? this.stageOneEligible ? this.stageOneCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'PLAY UNAVAILABLE'
+      : locked ? 'MISSION LOCKED' : 'MISSION COMING SOON';
   }
 
   private revealSelectedStage(): void {

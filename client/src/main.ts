@@ -15,6 +15,8 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, type CityId } from './cities';
 import { entityCapabilities, type EntityType } from './entity-types';
 import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
+import { JourneyGateSystem } from './journey-gates';
+import { journeyDallas01 } from '../../shared/journey-mission.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
@@ -105,6 +107,15 @@ if (!activeCity || activeCity.status !== 'available') throw new Error('A playabl
 const cityId = activeCity.id;
 const cityRules = cityCapabilities(cityId)!;
 const trainingRequested = new URLSearchParams(window.location.search).get('training') === '1';
+let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
+const journeyMode = cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
+type JourneyAttemptState = {
+  attemptId: string; status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
+  gateIndex: number; deadlineAt: number | null; finishTimeMs: number | null;
+  firstClearCredits: number; failureReason: string | null;
+};
+let journeyAttempt: JourneyAttemptState | null = null;
+let journeyServerTimeOffset = 0;
 type FlightLaunchState = 'disabled' | 'pending' | 'active' | 'complete';
 const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const flightLaunchTitle = document.createElement('div');
@@ -1025,10 +1036,23 @@ const finalScoreElement = document.querySelector<HTMLSpanElement>('#final-score'
 const crashOverlay = document.querySelector<HTMLDivElement>('#crash-overlay')!;
 const endTitleElement = document.querySelector<HTMLDivElement>('#end-title')!;
 const crashActions=document.querySelector<HTMLElement>('.crash-actions')!;
-document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListener('click',()=>restartGame());
+document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListener('click',()=>{ if (journeyMode) void retryJourneyMission(); else restartGame(); });
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
+if (journeyMode) skyChallengeElement.innerHTML = '<strong>MISSION 01 · DFW SKY RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div>';
+const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
+const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
+const journeyHudSegments = [...skyChallengeElement.querySelectorAll<HTMLElement>('.journey-hud-segments i')];
+const journeyResultElement = document.createElement('div');
+journeyResultElement.className = 'journey-result hidden';
+journeyResultElement.innerHTML = '<div class="journey-result-card"><p>MISSION 01 · ROOKIE LEAGUE</p><h2 data-journey-result-title></h2><strong>DFW SKY RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
+flightGameRoot.append(journeyResultElement);
+journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.addEventListener('click', () => {
+  if (journeyAttempt?.status === 'COMPLETED') void exitFlightToHub(false, true);
+  else void retryJourneyMission();
+});
+journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.addEventListener('click', () => void exitFlightToHub(false, true));
 const dynamicEventElement = document.querySelector<HTMLElement>('#dynamic-event')!;
 const dynamicEventNameElement = document.querySelector<HTMLElement>('#dynamic-event-name')!;
 const dynamicEventObjectiveElement = document.querySelector<HTMLElement>('#dynamic-event-objective')!;
@@ -1042,6 +1066,7 @@ const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overla
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
 const flightExitButtonElement = document.querySelector<HTMLButtonElement>('#flight-exit-button')!;
+if (journeyMode) flightExitButtonElement.textContent = 'EXIT TO JOURNEY';
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
 const flightAccountButtonElement = document.querySelector<HTMLButtonElement>('#flight-account-button')!;
@@ -1100,7 +1125,7 @@ function dismissDallasPracticeSuggestion(): void {
   try { localStorage.setItem(dallasPracticeSuggestionKey, 'dismissed'); } catch { /* session dismissal still applies */ }
 }
 function offerDallasPracticeSuggestion(profile: NetworkProfile): void {
-  if (cityId !== 'dallas' || profile.tutorial.status !== 'new' || profile.totalDistance > 500 || profile.successfulLandings > 0 || profile.kills > 0 || profile.deaths > 0 || dallasPracticeSuggestionDismissed) return;
+  if (journeyMode || cityId !== 'dallas' || profile.tutorial.status !== 'new' || profile.totalDistance > 500 || profile.successfulLandings > 0 || profile.kills > 0 || profile.deaths > 0 || dallasPracticeSuggestionDismissed) return;
   try { if (localStorage.getItem(dallasPracticeSuggestionKey) === 'dismissed') return; } catch { /* show once this session */ }
   dallasPracticeSuggestionElement.hidden = false;
 }
@@ -1216,6 +1241,7 @@ window.addEventListener('pagehide', () => savePlayerProgress(true));
 
 let contextualHintDismissed: readonly ContextualHintId[] = persistedPlayer.dismissedHints;
 function renderContextualHint(id: ContextualHintId | null): void {
+  if (journeyMode) id = null;
   contextualHintElement.classList.toggle('hidden', id === null);
   if (!id) return;
   const definition = contextualHintDefinitions[id];
@@ -1234,8 +1260,10 @@ const contextualHints = new ContextualHintSystem(
 contextualHintDismissElement.addEventListener('click', closeTopUiLayer);
 // Returning pilots receive the compact runway reminder; first-time pilots see
 // the visual guide first, then enter the same contextual hint sequence.
-contextualHints.trigger('missionBoard');
-contextualHints.trigger('runwayControls');
+if (!journeyMode) {
+  contextualHints.trigger('missionBoard');
+  contextualHints.trigger('runwayControls');
+}
 
 function recordBestScore(candidate: number): void {
   if (candidate <= bestScore) return;
@@ -1770,6 +1798,8 @@ function updateRadar(direction: THREE.Vector3): void {
   }
   const challengeMarker = skyChallenges?.getRadarMarker(airplane.position);
   if (challengeMarker) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
+  const journeyTarget = journeyGates?.target();
+  if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `GATE ${journeyTarget.index + 1}`);
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
   if (cityEvent && eventObjective && (cityEvent.lifecycle === 'available' || cityEvent.lifecycle === 'active')) {
     const missionEvent = activeMissionDefinition?.type === 'event' && activeMissionDefinition.requirements.eventType === cityEvent.eventType;
@@ -1819,7 +1849,7 @@ function updateContextualHints(): void {
   if (flightTutorial.isOpen()) return;
   contextualHints.update();
   if (!crashed && health < maxHealthForAircraft(aircraftType) * 0.65) contextualHints.trigger('repair');
-  if (runStarted && onGround && !crashed) contextualHints.trigger('runwayControls');
+  if (!journeyMode && runStarted && onGround && !crashed) contextualHints.trigger('runwayControls');
   if (!runStarted || onGround || crashed) return;
   const altitude = altitudeAboveTerrain();
   if (altitude >= 80 && currentSpeed >= currentAircraft.takeoffSpeed * 1.2 && boostMeter > 8) contextualHints.trigger('boost');
@@ -1889,6 +1919,7 @@ function queueRewardFeedback(creditDelta = 0, scoreDelta = 0): void {
 }
 
 let skyChallenges: SkyChallengeSystem | undefined;
+const journeyGates = journeyMode ? new JourneyGateSystem(scene, getTerrainHeight) : undefined;
 let stuntCombo: StuntComboSystem | undefined;
 const stuntFrame: StuntFrame = {
   delta: 0, airborne: false, position: airplane.position, altitude: 0, speed: 0,
@@ -2225,10 +2256,50 @@ function applySocialState(state: NetworkSocialState | undefined): void {
 }
 
 function updateSkyChallengeHud(): void {
+  if (journeyMode) { updateJourneyHud(); return; }
   const challenge = skyChallenges?.getHud() ?? null;
   skyChallengeElement.classList.toggle('hidden', challenge === null);
   if (!challenge) return;
   skyChallengeElement.textContent = `${challenge.name} · GATE ${challenge.gate}/${challenge.total} · COMBO x${challenge.combo} · ${Math.ceil(challenge.timeRemaining)}s`;
+}
+
+function updateJourneyHud(): void {
+  skyChallengeElement.classList.add('journey-hud');
+  skyChallengeElement.classList.toggle('hidden', journeyAttempt?.status === 'COMPLETED' || journeyAttempt?.status === 'FAILED' || journeyAttempt?.status === 'ABANDONED');
+  const gateIndex = journeyAttempt?.gateIndex ?? 0;
+  const racing = journeyAttempt?.status === 'RACING';
+  const timeLeft = racing && journeyAttempt?.deadlineAt
+    ? Math.max(0, Math.ceil((journeyAttempt.deadlineAt - Date.now() - journeyServerTimeOffset) / 1000)) : null;
+  const target = journeyGates?.target();
+  const distance = target ? Math.round(Math.hypot(airplane.position.x - target.x, airplane.position.y - target.y, airplane.position.z - target.z)) : 0;
+  if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt ? racing ? 'PASS THROUGH THE NEXT GLOWING GATE' : 'TAKE OFF AND REACH GATE 1' : 'CONNECTING TO MISSION';
+  const timeLabel = timeLeft === null ? 'NOT STARTED' : `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`;
+  if (journeyHudProgress) journeyHudProgress.textContent = `GATES ${gateIndex}/4 · TIME ${timeLabel} · NEXT ${gateIndex < 4 ? `GATE ${gateIndex + 1} · ${distance.toLocaleString()}m` : 'FINISH'}`;
+  journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
+}
+
+function showJourneyResult(attempt: JourneyAttemptState): void {
+  if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
+  const success = attempt.status === 'COMPLETED';
+  clearHeldActions();
+  boostActive = false;
+  journeyGates?.setProgress(attempt.gateIndex, false);
+  crashOverlay.classList.add('hidden');
+  flightRecapElement.hidden = true;
+  journeyResultElement.classList.remove('hidden');
+  journeyResultElement.classList.toggle('is-success', success);
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success
+    ? attempt.firstClearCredits > 0 ? 'MISSION COMPLETE!' : 'MISSION COMPLETED' : 'MISSION FAILED';
+  const finishSeconds = Math.max(0, (attempt.finishTimeMs ?? 0) / 1000);
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
+    ? `4/4 GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
+    : attempt.failureReason === 'TIME_UP' ? "TIME'S UP" : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED' : 'FLIGHT INTERRUPTED';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-reward]')!.textContent = success
+    ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits} CREDITS · STAGE 2 PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
+    : 'NO CREDITS LOST';
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
+  if (success) audioManager.playReward();
 }
 
 function eventObjectiveForLocal(event: NetworkCityEvent): NetworkVector | undefined {
@@ -2369,7 +2440,7 @@ dynamicEventSkipElement.addEventListener('click', () => {
   updateDynamicEventHud();
 });
 
-if (cityWorld.skyChallenges?.length) {
+if (cityWorld.skyChallenges?.length && !journeyMode) {
   skyChallenges = new SkyChallengeSystem(scene, cityWorld.skyChallenges, getTerrainHeight, {
     onScore: (points) => {
       if (!cityRules.progressionEnabled) return;
@@ -2816,6 +2887,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
 function endRun(message: EndReason, title: string = message): void {
   if (crashed) return;
   cinematicDirector.clearPresentation();
+  if (journeyMode && connectionReady()) socket.send(JSON.stringify({ type: 'journeyCrash' }));
   if (message === 'CRASHED' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'crash' }));
   crashed = true;
   landingSpeedCueElement.classList.add('hidden');
@@ -2833,7 +2905,7 @@ function endRun(message: EndReason, title: string = message): void {
   altitudeElement.textContent = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toLocaleString();
   endTitleElement.textContent = title;
   finalScoreElement.textContent = score.toString();
-  crashOverlay.classList.remove('hidden');
+  crashOverlay.classList.toggle('hidden', journeyMode);
   const guidedTrainingCrash=cityRules.tutorialEnabled&&guidedTutorialActive&&guidedTutorialStep!=='freePractice'&&message!=='TIME UP';
   crashActions.hidden=guidedTrainingCrash;
   if(guidedTrainingCrash){
@@ -2841,7 +2913,7 @@ function endRun(message: EndReason, title: string = message): void {
     window.clearTimeout(tutorialCrashResetTimer);
     tutorialCrashResetTimer=window.setTimeout(()=>requestTutorialRunReset('crash'),350);
   }
-  showFlightRecap('FLIGHT COMPLETE');
+  if (!journeyMode) showFlightRecap('FLIGHT COMPLETE');
   cameraShakeTime = 0.35;
   currentSpeed = 0;
   verticalSpeed = 0;
@@ -3589,6 +3661,8 @@ type ServerMessage =
   | { type: 'missionResult'; missionId: string; ok: boolean; reason?: string; confirmationRequired?: boolean; attemptId?: string }
   | { type: 'missionCompleted'; missionId: string; credits: number; score: number }
   | { type: 'missionFailed'; missionId: string; reason: string }
+  | { type: 'journeyAttempt'; attempt: JourneyAttemptState; serverNow: number }
+  | { type: 'journeyUnavailable'; reason: string }
   | { type: 'firehawkPromotionReady'; missionId: string }
   | { type: 'firehawkPromotionOffer'; missionId: string; trialEligible: boolean; displayPrice: string }
   | { type: 'weeklyLeaderboards'; weeklyLeaderboards: NetworkWeeklyLeaderboard[] }
@@ -5471,7 +5545,7 @@ function pilotMenuData(): PilotMenuData {
         const progress = active ? missionProgress(definition, active) : undefined;
         return {
           id: definition.id, name: definition.displayName, detail: definition.retired ? 'This retired mission is no longer available. Choose another mission.' : definition.description, difficulty: definition.difficulty, retired: definition.retired,
-          unavailableReason: missionUnavailableReason(definition),
+          unavailableReason: journeyMode ? 'Finish or leave DFW Sky Rush first.' : missionUnavailableReason(definition),
           territoryIds: missionRequirements(definition, active),
           credits: definition.creditReward, score: definition.scoreReward,
           completions: completion?.count ?? 0, cooldownUntil: (completion?.lastCompletedAt ?? 0) + definition.replayCooldownMs,
@@ -5479,8 +5553,11 @@ function pilotMenuData(): PilotMenuData {
           setWaypoint: target ? () => setWaypoint(target.x, target.z, target.label) : undefined,
         };
       }),
-      accept: (missionId, replace) => socket.send(JSON.stringify({ type: 'missionAccept', missionId, replaceMission: replace,
-        expectedAttemptId: replace ? activeMissionAttemptId : undefined })),
+      accept: (missionId, replace) => {
+        if (journeyMode) return;
+        socket.send(JSON.stringify({ type: 'missionAccept', missionId, replaceMission: replace,
+          expectedAttemptId: replace ? activeMissionAttemptId : undefined }));
+      },
       abandon: () => socket.send(JSON.stringify({ type: 'missionAbandon', missionCityId: profileActiveMissionCity(serverProfile), expectedAttemptId: activeMissionAttemptId })),
     },
     progression: {
@@ -5642,6 +5719,7 @@ function hideMissionReminder(startCooldown = true): void {
 }
 
 function cityHasAvailableMission(): boolean {
+  if (journeyMode) return false;
   const now = performance.now();
   if (now - missionAvailabilityCheckedAt < 1_000) return missionAvailable;
   missionAvailabilityCheckedAt = now;
@@ -7909,7 +7987,8 @@ function animate(): void {
   updateDestructionEffects(delta);
   if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
   else updateOsmCityChunks(airplane.position);
-  cityWorld.updateWorldVisuals?.(delta);
+  cityWorld.updateWorldVisuals?.(delta, airplane.position);
+  journeyGates?.update(delta);
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
   if (!guidedTutorialActive && !crashed && runStarted) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
@@ -8183,6 +8262,7 @@ async function realtimeSocketUrl(): Promise<URL> {
   url.searchParams.set('pilotName', displayName);
   url.searchParams.set('protocol', String(PROTOCOL_VERSION));
   url.searchParams.set('analyticsSession', productAnalyticsSessionId());
+  if (journeyMode) url.searchParams.set('journeyAttempt', journeyAttemptId);
   if (chaosQaMode) url.searchParams.set('chaosqa', '1');
   return url;
 }
@@ -8498,6 +8578,13 @@ function openWorldSelector(): void {
 let flightExitPending = false;
 function requestFlightExit(openFirehawkGarage = false): void {
   if (flightExitPending) return;
+  if (journeyMode) {
+    showFlightDialog('Exit mission?', 'Return to Mission Journey?', [
+      { label: 'STAY', secondary: true, run: () => undefined },
+      { label: 'EXIT TO JOURNEY', run: () => { void exitFlightToHub(false, true); } },
+    ]);
+    return;
+  }
   if (guidedTutorialActive) {
     showFlightDialog('Exit training?', 'Return to the Pilot Hub?', [
       { label: 'STAY', secondary: true, run: () => undefined },
@@ -8512,10 +8599,17 @@ function requestFlightExit(openFirehawkGarage = false): void {
     { label: 'EXIT TO HUB', run: () => { void exitFlightToHub(openFirehawkGarage); } },
   ]);
 }
-async function exitFlightToHub(openFirehawkGarage = false): Promise<void> {
+async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = false): Promise<void> {
   if (flightExitPending) return;
   flightExitPending = true;
   closeFlightDialog();
+  if (returnToJourney && journeyMode && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) {
+    try {
+      await apiFetch(apiUrl('/api/journey/dallas/mission-01/abandon'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: journeyAttemptId }),
+      });
+    } catch { /* Closing the socket also interrupts an unfinished attempt. */ }
+  }
   const activeMission = profileActiveMissionAttempt(serverProfile);
   if (activeMission && !flightTestMode) {
     const missionCityId = profileActiveMissionCity(serverProfile);
@@ -8571,7 +8665,40 @@ async function exitFlightToHub(openFirehawkGarage = false): Promise<void> {
   url.searchParams.delete(CITY_QUERY_PARAM);
   url.searchParams.delete('time');
   url.searchParams.delete('training');
+  url.searchParams.delete('journeyAttempt');
+  if (returnToJourney) {
+    url.searchParams.set('entry', 'journey');
+    if (journeyAttempt?.status === 'COMPLETED') url.searchParams.set('journeyReceipt', journeyAttemptId);
+  }
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+}
+
+async function retryJourneyMission(): Promise<void> {
+  if (!journeyMode || !journeyAttempt || journeyAttempt.status === 'COMPLETED') return;
+  const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
+  retryButton.disabled = true;
+  try {
+    const response = await apiFetch(apiUrl('/api/journey/dallas/mission-01/launch'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    if (!response.ok) throw new Error('Retry was not authorized');
+    const result = await response.json() as { attempt?: { attemptId?: string } };
+    if (!result.attempt?.attemptId) throw new Error('Retry attempt was missing');
+    journeyAttemptId = result.attempt.attemptId;
+    const url = new URL(window.location.href);
+    url.searchParams.set('journeyAttempt', journeyAttemptId);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    journeyAttempt = null;
+    journeyGates?.setProgress(0, true);
+    journeyResultElement.classList.add('hidden');
+    restartGame(false);
+    await replaceRealtimeSocket('Journey retry');
+    updateJourneyHud();
+  } catch {
+    showProgressMessage('MISSION RETRY UNAVAILABLE · CHECK CONNECTION');
+  } finally {
+    retryButton.disabled = false;
+  }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
   const destination = (event as CustomEvent<{ cityId: CityId; timePreset: 'day' | 'dusk';intercity?:boolean;practiceSuggestion?:boolean }>).detail;
@@ -8691,6 +8818,25 @@ boundSocket.addEventListener('message', (event) => {
   }
   if (message.type === 'protocolMismatch') {
     blockProtocolConnection(`Version mismatch (server v${message.expectedProtocolVersion}) — reload/restart server`);
+    return;
+  }
+  if (message.type === 'journeyUnavailable') {
+    journeyGates?.setProgress(0, false);
+    showProgressMessage(message.reason);
+    return;
+  }
+  if (message.type === 'journeyAttempt') {
+    if (!journeyMode || message.attempt.attemptId !== journeyAttemptId) return;
+    const previousGate = journeyAttempt?.gateIndex ?? 0;
+    journeyAttempt = message.attempt;
+    journeyServerTimeOffset = message.serverNow - Date.now();
+    journeyGates?.setProgress(message.attempt.gateIndex, message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING');
+    if (message.attempt.gateIndex > previousGate) {
+      playCheckpointSound();
+      showProgressMessage(`GATE ${message.attempt.gateIndex}/4 CLEARED`);
+    }
+    updateJourneyHud();
+    if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') showJourneyResult(message.attempt);
     return;
   }
   if (message.type === 'welcome') {
