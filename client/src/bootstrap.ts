@@ -5,6 +5,7 @@ import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './a
 import { HomeHangar, type HomeHangarData } from './home-hangar';
 import { AppShellHeader, type AppShellActive } from './app-shell';
 import { GameStore } from './game-store';
+import { MissionJourney } from './mission-journey';
 import type { StoreItem, StoreCategory } from './store-catalog';
 import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
@@ -35,6 +36,7 @@ const gameRoot = document.querySelector<HTMLElement>('#game-root')!;
 const brandLoadingElement = document.querySelector<HTMLElement>('#brand-loading')!;
 const homeHangarElement = document.querySelector<HTMLElement>('#home-hangar')!;
 const gameStoreElement = document.querySelector<HTMLElement>('#game-store')!;
+const missionJourneyElement = document.querySelector<HTMLElement>('#mission-journey')!;
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
 const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
 const cityJourneyTrack = cityOptions.querySelector<HTMLElement>('[data-city-journey-track]')!;
@@ -48,8 +50,8 @@ const citySelectionError = document.querySelector<HTMLElement>('#city-selection-
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
-mountCompactBrandFooter(document.querySelector<HTMLElement>('#start-brand-signature')!);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
+const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, openMissionDetails, closeMissionDetails);
 const PENDING_FLY_STORAGE_KEY = 'airport-chaos-pending-fly-v1';
 const PENDING_STORE_STORAGE_KEY = 'airport-chaos-pending-store-v1';
 const PENDING_REFERRAL_STORAGE_KEY = 'airport-chaos-pending-referral-v1';
@@ -181,9 +183,9 @@ let hubFlyGateActive = false;
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
   store: () => { void openGameStore(); },
-  garage: () => { void openStartGarage('HANGAR'); },
+  garage: () => { void openStartGarage(entryState === 'STORE' || (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE') ? 'STORE' : missionJourneyReturnPending ? 'MISSION_JOURNEY' : 'HANGAR'); },
   rewards: () => { void openHubRewards(); },
-  profile: () => { void openHubPilotMenu('PROFILE', true, true); },
+  profile: () => { void openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending); },
   skyTokens: () => { void openSkyTokenStore(); },
 });
 const skyTokenStore = new SkyTokenStore(async packId => {
@@ -277,10 +279,14 @@ async function openSkyTokenStore(missing = 0): Promise<void> {
   if (nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
 }
 function showAppHeader(active: AppShellActive): void {
+  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY') {
+    appHeader.hide();
+    return;
+  }
   const homeData = homeHangarData();
   appHeader.show({
     active,
-    hubActions: entryState === 'HANGAR' || entryState === 'CITY_SELECTION' || entryState === 'PILOT_MENU' || entryState === 'STORE' || entryState === 'AIRCRAFT',
+    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU' || entryState === 'STORE' || entryState === 'AIRCRAFT',
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
@@ -319,10 +325,12 @@ function cacheAuthoritativeProfile(profile: RemoteGarageProfile): void {
 }
 // Phase 1 entry flow. Future phases can replace CITY_SELECTION without
 // coupling Home Hangar to any one city or world implementation.
-type EntryState = 'STARTUP' | 'HANGAR' | 'CITY_SELECTION' | 'AIRCRAFT' | 'STORE' | 'PILOT_MENU' | 'TUTORIAL' | 'FLIGHT';
+type EntryState = 'STARTUP' | 'HANGAR' | 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'AIRCRAFT' | 'STORE' | 'PILOT_MENU' | 'TUTORIAL' | 'FLIGHT';
 let entryState: EntryState = 'STARTUP';
-let garageReturnState: 'HANGAR' | 'CITY_SELECTION' | 'STORE' = 'HANGAR';
-let hubPilotMenuReturnState: 'HANGAR' | 'CITY_SELECTION' | 'STORE' = 'HANGAR';
+let garageReturnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'STORE' = 'HANGAR';
+let hubPilotMenuReturnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'STORE' = 'HANGAR';
+let missionJourneyReturnPending = false;
+let timeSelectionReturnState: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELECTION';
 let hubMissionPreferredCity: CityDefinition['id'] | undefined;
 let garageOpenRequest = 0;
 function applyAuthoritativeHomeProfile(profile: RemoteGarageProfile): void {
@@ -649,7 +657,7 @@ const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
   sections: ['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD / CITIES', 'LEGAL / SUPPORT', 'DATA LICENSES'],
   title: 'PILOT MENU',
   appShell: true,
-  closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : hubPilotMenuReturnState === 'STORE' ? 'BACK TO STORE' : 'BACK TO PILOT HUB',
+  closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : hubPilotMenuReturnState === 'MISSION_JOURNEY' ? 'BACK TO MISSIONS' : hubPilotMenuReturnState === 'STORE' ? 'BACK TO STORE' : 'BACK TO PILOT HUB',
   showFlightActions: false,
   showContextStatus: false,
   onClose: () => {
@@ -660,7 +668,16 @@ const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
       showSelector();
       return;
     }
-    if (hubPilotMenuReturnState === 'STORE') { void openGameStore(false); return; }
+    if (hubPilotMenuReturnState === 'MISSION_JOURNEY') {
+      if (window.history.state?.airportChaosEntryView === 'PILOT_MENU') window.history.back();
+      else showMissionJourney(false);
+      return;
+    }
+    if (hubPilotMenuReturnState === 'STORE') {
+      if (missionJourneyReturnPending && window.history.state?.airportChaosEntryView === 'PILOT_MENU') window.history.back();
+      else void openGameStore(false);
+      return;
+    }
     void showHome();
   },
 });
@@ -1031,11 +1048,11 @@ async function watchRewardedAd(): Promise<void> {
 async function openHubRewards(): Promise<void> {
   if (hubAccount.state !== 'account') {
     hubAccountNotice = { ok: true, message: 'SIGN IN TO CLAIM DAILY REWARDS' };
-    await openHubPilotMenu('PROFILE', true, true);
+    await openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending);
     return;
   }
   recordProductIntent('rewards_viewed');
-  await openHubPilotMenu('REWARDS', true, true);
+  await openHubPilotMenu('REWARDS', true, !missionJourneyReturnPending);
   if (hubRewardedAdStatus?.supported) recordProductIntent('rewarded_ad_offer_viewed');
 }
 
@@ -1123,7 +1140,9 @@ async function requestHubFly(): Promise<void> {
 async function openHubPilotMenu(section: PilotMenuSection, refresh = true, returnToHub = false): Promise<void> {
   const hubSection = section === 'MISSIONS' ? 'PROFILE' : section;
   if (returnToHub) hubPilotMenuReturnState = 'HANGAR';
-  else if (!hubPilotMenu.isOpen()) hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : entryState === 'STORE' ? 'STORE' : 'HANGAR';
+  else if (!hubPilotMenu.isOpen()) hubPilotMenuReturnState = entryState === 'CITY_SELECTION' ? 'CITY_SELECTION' : entryState === 'MISSION_JOURNEY' ? 'MISSION_JOURNEY' : entryState === 'STORE' ? 'STORE' : entryState === 'AIRCRAFT' && missionJourneyReturnPending ? garageReturnState === 'STORE' ? 'STORE' : 'MISSION_JOURNEY' : 'HANGAR';
+  if (entryState === 'MISSION_JOURNEY' || (missionJourneyReturnPending && entryState === 'STORE')) window.history.pushState({ airportChaosEntryView: 'PILOT_MENU' }, '', window.location.href);
+  else if (entryState === 'AIRCRAFT' && missionJourneyReturnPending) window.history.replaceState({ airportChaosEntryView: 'PILOT_MENU' }, '', window.location.href);
   entryState = 'PILOT_MENU';
   syncHubMenuPreferences();
   if (garage.isOpen()) garage.close();
@@ -1131,6 +1150,7 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   gameStore.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
+  missionJourney.hide();
   showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (refresh) await refreshHubPilotData();
@@ -1148,6 +1168,10 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
 }, undefined, () => {
   if (entryState === 'AIRCRAFT') {
     if (garageReturnState === 'CITY_SELECTION') showSelector();
+    else if (garageReturnState === 'MISSION_JOURNEY') {
+      if (window.history.state?.airportChaosEntryView === 'AIRCRAFT') window.history.back();
+      else showMissionJourney(false);
+    }
     else if (garageReturnState === 'STORE') {
       if (window.history.state?.airportChaosStoreView === 'GARAGE') window.history.back();
       else void openGameStore(false);
@@ -1228,10 +1252,7 @@ if (nativePurchaseProvider) {
 }
 
 const gameStore = new GameStore(gameStoreElement, {
-  close: () => {
-    if (window.history.state?.airportChaosStoreView) window.history.replaceState(null, '', window.location.href);
-    gameStore.close(); void showHome();
-  },
+  close: closeGameStore,
   unlock: unlockStoreItem,
   trial: startStoreFirehawkTrial,
   getTokens: missing => { recordProductIntent('store_get_tokens_opened'); void openSkyTokenStore(missing); },
@@ -1241,15 +1262,34 @@ const gameStore = new GameStore(gameStoreElement, {
 });
 
 garageOverlay.addEventListener('click', event => {
-  if (event.target === garageOverlay && entryState === 'AIRCRAFT') void showHome();
+  if (event.target === garageOverlay && entryState === 'AIRCRAFT') {
+    if (garageReturnState === 'MISSION_JOURNEY' || garageReturnState === 'STORE') garage.close();
+    else void showHome();
+  }
 });
 pilotMenuOverlay.addEventListener('click', event => {
-  if (event.target === pilotMenuOverlay && entryState === 'PILOT_MENU') void showHome();
+  if (event.target === pilotMenuOverlay && entryState === 'PILOT_MENU') {
+    if (hubPilotMenuReturnState === 'MISSION_JOURNEY' || hubPilotMenuReturnState === 'STORE') hubPilotMenu.close();
+    else void showHome();
+  }
 });
 gameStoreElement.addEventListener('click', event => {
   if (entryState !== 'STORE' || !(event.target instanceof Element)) return;
-  if (event.target.matches('.game-store, .store-frame, .store-content, .store-grid')) void showHome();
+  if (event.target.matches('.game-store, .store-frame, .store-content, .store-grid')) closeGameStore();
 });
+
+function closeGameStore(): void {
+  if (missionJourneyReturnPending) {
+    const storeView = window.history.state?.airportChaosStoreView;
+    gameStore.close();
+    if (storeView === 'DETAIL') window.history.go(-2);
+    else if (storeView === 'STORE') window.history.back();
+    else showMissionJourney(false);
+    return;
+  }
+  if (window.history.state?.airportChaosStoreView) window.history.replaceState(null, '', window.location.href);
+  gameStore.close(); void showHome();
+}
 
 async function openGameStore(recordOpen = true): Promise<void> {
   if (entryState === 'FLIGHT' || entryState === 'TUTORIAL') return;
@@ -1258,13 +1298,14 @@ async function openGameStore(recordOpen = true): Promise<void> {
   const wasOpen = gameStore.isOpen();
   entryState = 'STORE';
   if (recordOpen && fromState !== 'STORE') {
-    if (window.history.state?.airportChaosStoreView) window.history.replaceState({ airportChaosStoreView: 'STORE' }, '', window.location.href);
+    if (window.history.state?.airportChaosStoreView || (missionJourneyReturnPending && fromState !== 'MISSION_JOURNEY' && window.history.state?.airportChaosEntryView)) window.history.replaceState({ airportChaosStoreView: 'STORE' }, '', window.location.href);
     else window.history.pushState({ airportChaosStoreView: 'STORE' }, '', window.location.href);
   }
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
-  homeHangar.hide(); garage.hideShowcase(); citySelector.hidden = true;
+  homeHangar.hide(); garage.hideShowcase(); citySelector.hidden = true; missionJourney.hide();
   showAppHeader('STORE');
+  gameStore.setBackLabel(missionJourneyReturnPending ? 'BACK TO MISSIONS' : 'BACK TO HUB');
   if (recordOpen || !wasOpen) gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
   try {
     if (hubAccount.state === 'account') {
@@ -1284,12 +1325,38 @@ async function openStoreItemInGarage(item: StoreItem): Promise<void> {
 }
 
 window.addEventListener('popstate', () => {
+  if (entryState === 'CITY_SELECTION' && citySelector.dataset.view === 'time') {
+    if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') showMissionJourney(false);
+    else showSelector();
+    return;
+  }
+  if (entryState === 'CITY_SELECTION' && citySelector.dataset.view === 'cities' && window.history.state?.airportChaosEntryView !== 'CITY_SELECTION') {
+    void showHome();
+    return;
+  }
+  if (entryState === 'MISSION_JOURNEY' && missionJourney.isPanelOpen && window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY' && !window.history.state?.missionDetailsOpen) {
+    missionJourney.closePanel();
+    return;
+  }
+  if (missionJourneyReturnPending && window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') {
+    showMissionJourney(false);
+    return;
+  }
+  if (entryState === 'MISSION_JOURNEY' && (window.history.state?.airportChaosEntryView === 'CITY_SELECTION' || !window.history.state?.airportChaosEntryView)) {
+    showSelector();
+    return;
+  }
+  if (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE' && window.history.state?.airportChaosStoreView === 'STORE') {
+    hubPilotMenu.close(false);
+    void openGameStore(false);
+    return;
+  }
   if (entryState === 'AIRCRAFT' && garageReturnState === 'STORE') {
     if (garage.isOpen()) garage.close();
     else void openGameStore(false);
   } else if (entryState === 'STORE') {
     if (window.history.state?.airportChaosStoreView === 'STORE') gameStore.dismissDetailFromHistory();
-    else if (!window.history.state?.airportChaosStoreView) { gameStore.close(); void showHome(); }
+    else if (!window.history.state?.airportChaosStoreView) { gameStore.close(); if (missionJourneyReturnPending) showMissionJourney(false); else void showHome(); }
   }
 });
 
@@ -1369,8 +1436,16 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
   window.history.replaceState(null, '', `${clean.pathname}${clean.search}${clean.hash}`);
 }).catch(() => garage.showActionResult('PURCHASE VERIFICATION UNAVAILABLE'));
 
-async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'STORE'): Promise<void> {
+async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'STORE'): Promise<void> {
   if (entryState === 'AIRCRAFT') return;
+  if (returnState === 'MISSION_JOURNEY') {
+    if (entryState === 'MISSION_JOURNEY') window.history.pushState({ airportChaosEntryView: 'AIRCRAFT' }, '', window.location.href);
+    else if (window.history.state?.airportChaosEntryView === 'PILOT_MENU') window.history.replaceState({ airportChaosEntryView: 'AIRCRAFT' }, '', window.location.href);
+  } else if (returnState === 'STORE' && window.history.state?.airportChaosStoreView === 'STORE') {
+    window.history.pushState({ airportChaosStoreView: 'GARAGE' }, '', window.location.href);
+  } else if (returnState === 'STORE' && window.history.state?.airportChaosEntryView === 'PILOT_MENU') {
+    window.history.replaceState({ airportChaosStoreView: 'GARAGE' }, '', window.location.href);
+  }
   recordProductIntent('garage_opened');
   recordProductIntent('aircraft_viewed', { aircraftType: garageProfile.selectedAircraft });
   entryState = 'AIRCRAFT';
@@ -1381,6 +1456,7 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'STORE
   gameStore.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
+  missionJourney.hide();
   showAppHeader('GARAGE');
   const request = ++garageOpenRequest;
   garage.open(garageProfile, true);
@@ -1398,34 +1474,42 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'STORE
 let hubViewRecorded = false;
 function showHome(): Promise<void> {
   if (!hubViewRecorded || entryState !== 'HANGAR') { recordProductIntent('hub_viewed'); hubViewRecorded = true; }
-  if (window.history.state?.airportChaosStoreView) window.history.replaceState(null, '', window.location.href);
+  if (window.history.state?.airportChaosStoreView || window.history.state?.airportChaosEntryView) window.history.replaceState(null, '', window.location.href);
   audioManager.setMenuMusicDesired(true);
   entryState = 'HANGAR';
+  missionJourneyReturnPending = false;
   garageReturnState = 'HANGAR';
   garageOpenRequest += 1;
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
   gameStore.close();
   citySelector.hidden = true;
+  missionJourney.hide();
   homeHangar.show(homeHangarData());
   showAppHeader(undefined);
   return garage.showcase(homeHangar.stage, garageProfile);
 }
 
 function showSelector(message = '', options: { preferDallas?: boolean } = {}): void {
+  if (entryState === 'HANGAR' && window.history.state?.airportChaosEntryView !== 'CITY_SELECTION') {
+    window.history.pushState({ airportChaosEntryView: 'CITY_SELECTION' }, '', window.location.href);
+  }
+  if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') window.history.replaceState(null, '', window.location.href);
   audioManager.setMenuMusicDesired(true);
   entryState = 'CITY_SELECTION';
+  missionJourneyReturnPending = false;
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   homeHangar.hide();
   gameStore.hide();
   garage.hideShowcase();
+  missionJourney.hide();
   citySelector.dataset.view = 'cities';
   garage.close();
   citySelector.hidden = false;
   showAppHeader(undefined);
   cityOptions.hidden = false;
   timeOptions.hidden = true;
-  cityBack.hidden = true;
+  cityBack.textContent = 'BACK TO PILOT HUB';
   citySelectTitle.textContent = 'CITY JOURNEY';
   citySelectDescription.textContent = 'Choose your city.';
   cityJourneyHint.classList.remove('is-dismissed');
@@ -1435,9 +1519,74 @@ function showSelector(message = '', options: { preferDallas?: boolean } = {}): v
   citySelectionError.hidden = !message;
 }
 
+function showMissionJourney(pushHistory = true): void {
+  if (pushHistory && window.history.state?.airportChaosEntryView !== 'MISSION_JOURNEY') {
+    window.history.pushState({ airportChaosEntryView: 'MISSION_JOURNEY' }, '', window.location.href);
+  }
+  audioManager.setMenuMusicDesired(true);
+  entryState = 'MISSION_JOURNEY';
+  missionJourneyReturnPending = true;
+  if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
+  if (garage.isOpen()) garage.close();
+  gameStore.close();
+  homeHangar.hide();
+  garage.hideShowcase();
+  citySelector.hidden = true;
+  missionJourney.show(window.history.state?.missionDetailsOpen === true);
+  showAppHeader(undefined);
+}
+
+function leaveMissionJourney(): void {
+  if (missionJourney.isPanelOpen && window.history.state?.missionDetailsOpen) {
+    window.history.go(-2);
+    return;
+  }
+  if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') window.history.back();
+  else showSelector();
+}
+
+function openMissionDetails(): void {
+  if (entryState === 'MISSION_JOURNEY') window.history.pushState({ airportChaosEntryView: 'MISSION_JOURNEY', missionDetailsOpen: true }, '', window.location.href);
+}
+
+function closeMissionDetails(): void {
+  if (window.history.state?.missionDetailsOpen) window.history.back();
+  else missionJourney.closePanel();
+}
+
+function openMissionFreeFlight(): void {
+  const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
+  if (!dallas) return;
+  missionJourneyReturnPending = false;
+  missionJourney.hide();
+  entryState = 'CITY_SELECTION';
+  citySelector.hidden = false;
+  showTimeSelection(dallas, 'MISSION_JOURNEY');
+  showAppHeader(undefined);
+}
+
+registerUiBackLayer({
+  id: 'mission-journey-details',
+  priority: uiBackPriority.menu,
+  isActive: () => missionJourney.isOpen && missionJourney.isPanelOpen,
+  close: closeMissionDetails,
+});
+
+registerUiBackLayer({
+  id: 'mission-journey',
+  priority: uiBackPriority.surface,
+  isActive: () => missionJourney.isOpen,
+  close: leaveMissionJourney,
+});
+
 function returnFromCitySelection(): void {
+  if (citySelector.dataset.view === 'time') {
+    returnFromTimeSelection();
+    return;
+  }
   if (gameRoot.hidden) {
-    void showHome();
+    if (window.history.state?.airportChaosEntryView === 'CITY_SELECTION') window.history.back();
+    else void showHome();
     return;
   }
   // A running city owns long-lived render/network resources. Reloading the
@@ -1453,7 +1602,7 @@ registerUiBackLayer({
   priority: uiBackPriority.surface,
   isActive: () => !citySelector.hidden,
   close: returnFromCitySelection,
-  containsTarget: (target) => target instanceof Node && Boolean(citySelector.querySelector('.city-select-card')?.contains(target)),
+  containsTarget: (target) => target instanceof Node && (Boolean(citySelector.querySelector('.city-select-card')?.contains(target)) || cityBack.contains(target)),
 });
 
 async function startTrainingFromHub(): Promise<void> {
@@ -1491,6 +1640,8 @@ async function startTrainingFromHub(): Promise<void> {
 
 async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
+  missionJourneyReturnPending = false;
+  missionJourney.hide();
   appHeader.hide();
 
   if (!gameRoot.hidden) {
@@ -1531,6 +1682,10 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
   recordProductIntent('city_selected', { cityId: city.id });
+  if (city.id === 'dallas') {
+    showMissionJourney();
+    return;
+  }
   if (city.timePresets.length === 1) {
     const preset = city.timePresets[0]!;
     try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* launch with the configured time */ }
@@ -1540,11 +1695,19 @@ function chooseCity(city: CityDefinition): void {
     });
     return;
   }
+  showTimeSelection(city);
+}
+
+function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELECTION'): void {
+  timeSelectionReturnState = returnTo;
+  if (window.history.state?.airportChaosEntryView !== 'TIME_SELECTION') {
+    window.history.pushState({ airportChaosEntryView: 'TIME_SELECTION' }, '', window.location.href);
+  }
   citySelector.dataset.view = 'time';
   cityOptions.hidden = true;
   timeOptions.replaceChildren();
   timeOptions.hidden = false;
-  cityBack.hidden = false;
+  cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSIONS' : 'BACK TO CITIES';
   citySelectTitle.textContent = 'CHOOSE TIME';
   citySelectDescription.textContent = `${city.displayName} · Day and Dusk share the same pilots and city.`;
   let preferred = 'dusk';
@@ -1580,7 +1743,12 @@ function chooseCity(city: CityDefinition): void {
     timeOptions.append(option);
   }
 }
-cityBack.addEventListener('click', () => showSelector());
+function returnFromTimeSelection(): void {
+  if (window.history.state?.airportChaosEntryView === 'TIME_SELECTION') window.history.back();
+  else if (timeSelectionReturnState === 'MISSION_JOURNEY') showMissionJourney(false);
+  else showSelector();
+}
+cityBack.addEventListener('click', returnFromCitySelection);
 window.addEventListener('airport-chaos-open-city-selector', () => showSelector());
 
 async function start(): Promise<void> {

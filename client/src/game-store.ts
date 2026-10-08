@@ -70,6 +70,7 @@ export class GameStore {
   }
 
   isOpen(): boolean { return !this.element.hidden; }
+  setBackLabel(label: string): void { this.element.querySelector<HTMLButtonElement>('[data-store-back]')!.textContent = label; }
   getContext(): { category: StoreCategory; itemId?: string } { return { category: this.category, itemId: this.selectedId }; }
   restoreContext(category: StoreCategory, itemId?: string): void {
     if (categories.includes(category)) this.category = category;

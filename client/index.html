@@ -5,13 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Airport Chaos</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='27'%3E%E2%9C%88%3C/text%3E%3C/svg%3E" />
-    <link rel="preload" as="image" href="/media/launch/airport-chaos-launch-poster.jpg" />
+    <link rel="preload" as="image" href="/media/launch/airport-chaos-loading.avif" type="image/avif" />
   </head>
   <body>
     <header id="app-shell-header" class="app-shell-header" aria-label="Airport Chaos navigation" hidden></header>
     <main id="brand-loading" class="brand-loading" aria-label="Loading Airport Chaos">
-      <div class="brand-loading-sky" aria-hidden="true"><i></i><i></i></div>
-      <img class="brand-loading-logo" src="/brand/airport-chaos-logo.avif" alt="Airport Chaos" />
       <div class="brand-loading-progress">
         <span>LOADING FLIGHT SYSTEMS...</span>
         <progress data-startup-progress max="1" value="0" aria-label="Startup progress"></progress>
@@ -27,7 +25,9 @@
       <div id="home-brand-signature" class="home-brand-signature"></div>
     </main>
     <main id="game-store" class="game-store" aria-label="Airport Chaos Store" hidden></main>
+    <main id="mission-journey" class="mission-journey" aria-label="Dallas Mission Journey" hidden></main>
     <main id="city-selector" class="city-selector" hidden>
+      <button id="city-back" class="entry-button entry-button-secondary city-context-back" type="button">BACK TO PILOT HUB</button>
       <section class="entry-content-panel app-shell-panel city-select-card">
         <div class="city-select-heading">
           <div class="city-select-tagline">FLY • FIGHT • EXPLORE</div>
@@ -40,12 +40,8 @@
           <div class="city-journey-hint" data-city-journey-hint>SWIPE TO EXPLORE</div>
         </div>
         <div id="time-options" class="city-options" hidden></div>
-        <nav class="city-select-actions" aria-label="Destination navigation">
-          <button id="city-back" class="entry-button entry-button-secondary" type="button" hidden>BACK TO CITIES</button>
-        </nav>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
       </section>
-      <div id="start-brand-signature"></div>
     </main>
     <div id="game-root" hidden>
     <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">

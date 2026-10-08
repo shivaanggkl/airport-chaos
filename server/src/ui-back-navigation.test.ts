@@ -94,7 +94,8 @@ test('screens register with the shared back stack and old Escape close branches 
   assert.doesNotMatch(tutorial, /event\.key === 'Escape'\)[^{]*\{[^}]*this\.close/);
   assert.match(bootstrap, /id: 'city-selection'[\s\S]*close: returnFromCitySelection/);
   assert.doesNotMatch(bootstrap, /cityHome|cityClose/);
-  assert.match(bootstrap, /cityBack\.addEventListener\('click', \(\) => showSelector\(\)\)/);
+  assert.match(bootstrap, /cityBack\.addEventListener\('click', returnFromCitySelection\)/);
+  assert.match(bootstrap, /function returnFromTimeSelection\(\): void \{[\s\S]*window\.history\.back\(\)/);
 });
 
 test('canonical closable panels expose their real content boundary to shared click-away', () => {

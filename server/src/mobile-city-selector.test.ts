@@ -12,7 +12,8 @@ test('City Journey replaces the city grid while reusing the existing time and la
   assert.doesNotMatch(bootstrap, /setupLaunchBackground|launchBackground/);
   assert.match(css, /\.city-selector\s*\{[^}]*hangar\.jpg[^}]*var\(--ac-bg-deep\)/);
   assert.match(html, /id="city-options" class="city-journey"[\s\S]*data-city-journey-track[\s\S]*data-city-journey-dots[\s\S]*SWIPE TO EXPLORE/);
-  assert.match(html, /id="city-back"[^>]*hidden>BACK TO CITIES<\/button>/);
+  assert.match(html, /id="city-back"[^>]*>BACK TO PILOT HUB<\/button>/);
+  assert.doesNotMatch(html, /id="start-brand-signature"/);
   assert.doesNotMatch(html, /id="city-home"|id="city-close"|id="garage-entry"/);
   assert.match(bootstrap, /cityJourneyEntries[\s\S]*MILWAUKEE[\s\S]*TRAINING CITY[\s\S]*DALLAS[\s\S]*CITY 01[\s\S]*CALIFORNIA[\s\S]*COMING SOON[\s\S]*NEW YORK/);
   assert.match(bootstrap, /id: 'milwaukee'[\s\S]*artImage: milwaukeeJourneyImage[\s\S]*id: 'dallas'[\s\S]*city-journey\/dallas\.jpg[\s\S]*id: 'california'[\s\S]*california-coming-soon\.svg[\s\S]*id: 'new-york'[\s\S]*new-york-coming-soon\.svg/);
@@ -39,8 +40,9 @@ test('City Journey replaces the city grid while reusing the existing time and la
 test('City Journey launches a city with one configured time and offers selection for multiple times', () => {
   assert.match(bootstrap, /function chooseCity\(city: CityDefinition\): void \{[\s\S]*city\.timePresets\.length === 1[\s\S]*const preset = city\.timePresets\[0\]![\s\S]*void enterCity\(city, preset\)[\s\S]*return;[\s\S]*citySelector\.dataset\.view = 'time'/);
   assert.match(bootstrap, /for \(const preset of city\.timePresets\)/);
-  const chooseCitySource = bootstrap.slice(bootstrap.indexOf('function chooseCity'), bootstrap.indexOf("cityBack.addEventListener"));
-  assert.doesNotMatch(chooseCitySource, /milwaukee|dallas/i);
+  const chooseCitySource = bootstrap.slice(bootstrap.indexOf('function chooseCity'), bootstrap.indexOf('function showTimeSelection'));
+  assert.match(chooseCitySource, /city\.id === 'dallas'[\s\S]*showMissionJourney\(\)/);
+  assert.doesNotMatch(chooseCitySource, /milwaukee/i);
 });
 
 test('City Journey keeps card nodes for smooth side-card, navigation, and drag transitions', () => {
@@ -60,13 +62,13 @@ test('City Journey keeps card nodes for smooth side-card, navigation, and drag t
   assert.match(css, /\.city-journey\.is-dragging \.city-journey-card\s*\{[^}]*transition:\s*none/);
   assert.match(css, /\.city-journey-card:not\(\.is-selected\) \.city-journey-cta\s*\{[^}]*visibility:\s*hidden/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*--journey-card-width:\s*84vw;[\s\S]*--journey-side-offset:\s*70vw/);
-  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.city-select-card\s*\{[^}]*top:\s*calc\(var\(--app-shell-header-total\) \+ 2px\);[^}]*bottom:\s*auto;[^}]*width:\s*min\(var\(--entry-content-width\),[^}]*padding:\s*3px 10px;/);
-  assert.match(css, /\.city-select-card\s*\{[^}]*grid-template-rows:\s*repeat\(5, auto\);[^}]*gap:\s*clamp\(8px, 1vw, 12px\)/);
+  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\) and \(max-height: 520px\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.city-select-card\s*\{[^}]*top:\s*calc\(var\(--safe-area-top\) \+ 46px\);[^}]*bottom:\s*auto;[^}]*width:\s*min\(var\(--entry-content-width\),[^}]*padding:\s*3px 10px;/);
+  assert.match(css, /\.city-select-card\s*\{[^}]*grid-template-rows:\s*repeat\(2, auto\);[^}]*gap:\s*clamp\(8px, 1vw, 12px\)/);
   assert.match(css, /\.city-select-card\s*\{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*box-shadow:\s*none;[^}]*backdrop-filter:\s*none;/);
   assert.match(css, /--journey-card-height:\s*clamp\(160px,[\s\S]*\.city-journey-card\s*\{[^}]*grid-template-columns:/);
-  assert.match(css, /\.city-select-actions \.entry-button\s*\{[^}]*min-height:\s*48px;/);
-  assert.match(css, /\.city-select-actions\s*\{[^}]*margin-top:\s*2px;/);
-  assert.match(css, /\.city-selector #start-brand-signature\s*\{[^}]*min-height:\s*42px;/);
+  assert.match(css, /\.city-context-back\s*\{[^}]*min-height:\s*46px;/);
+  assert.match(bootstrap, /cityBack\.textContent = 'BACK TO PILOT HUB'/);
+  assert.match(bootstrap, /cityBack\.textContent = returnTo === 'MISSION_JOURNEY' \? 'BACK TO MISSIONS' : 'BACK TO CITIES'/);
   assert.match(css, /body:has\(\.city-selector:not\(\[hidden\]\)\) \.tutorial-help\s*\{[^}]*right:\s*max\(24px, var\(--safe-area-right\)\);[^}]*bottom:\s*max\(24px, var\(--safe-area-bottom\)\);[^}]*left:\s*auto/);
   assert.doesNotMatch(css, /\.garage-entry|brand-logo-home|city-select-kicker/);
 });
