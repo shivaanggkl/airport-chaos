@@ -24,11 +24,18 @@ test('server warning events reuse authoritative human and bot combat state', () 
   assert.match(server, /sendToPlayer\(previousTargetId, \{ type: 'combatThreat', attackerId: playerId, locked: false \}\)/);
   assert.match(server, /sendToPlayer\(targetId, \{ type: 'combatThreat', attackerId: playerId, locked: true \}\)/);
   assert.match(server, /if \(targetId\) sendToPlayer\(targetId, \{ type: 'combatThreat', attackerId: playerId, locked: true \}\)/);
-  assert.match(server, /const botLockTargetId = combatTarget && combatSolution && !combatSolution\.reason/);
+  assert.match(server, /const botLockTargetId = canAttack && combatTarget && combatSolution && !combatSolution\.reason/);
   assert.match(server, /setServerLock\(botId, player, botLockTargetId\)/);
   assert.match(server, /player\.lastFireAt = now;\s*sendIncomingFire\(targetId, playerId\);\s*const muzzle/);
   assert.match(server, /if \(player\.lockedTargetId === targetId\) sendIncomingFire\(targetId, botId\)/);
   assert.doesNotMatch(server, /combatThreat[\s\S]{0,120}(?:hunterDetectionRange|radarRange)/);
+});
+
+test('the assigned Journey Hunter retaliates only after its pilot lands a confirmed hit', () => {
+  assert.match(server, /attempt\.targetId === victimId &&\s*!victim\.bot\.journeyProvoked/);
+  assert.match(server, /victim\.bot\.journeyProvoked = true;\s*beginHunterApproach\(victim, victim\.bot, ownerId, owner, now\)/);
+  assert.match(server, /const canAttack = !bot\.journeyAttemptId \|\| bot\.journeyProvoked === true/);
+  assert.match(server, /if \(canAttack && combatTarget && combatSolution && now >= Math\.max\(bot\.nextFireAt, bot\.attackFireAfter\)\)/);
 });
 
 test('one shared warning drives HUD, radar, audio, and stale-threat cleanup', () => {

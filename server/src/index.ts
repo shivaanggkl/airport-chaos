@@ -103,6 +103,7 @@ type BotRuntime = {
   personality: BotPersonality;
   journeyAttemptId?: string;
   journeyTargetPlayerId?: string;
+  journeyProvoked?: boolean;
   phase: BotPhase;
   route: Vector3[];
   routeIndex: number;
@@ -3879,6 +3880,15 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
   victim.health = Math.max(0, victim.health - projectileDamage);
+  if (victim.bot?.journeyAttemptId && victim.bot.journeyTargetPlayerId === ownerId && !owner.isBot &&
+    playerJourneyAttempts.get(ownerId) === victim.bot.journeyAttemptId) {
+    const attempt = journeyStore.get(owner.pilotId, victim.bot.journeyAttemptId);
+    if (victim.health > 0 && attempt?.missionId === journeyDallas02.id && attempt.status === 'RACING' && attempt.targetId === victimId &&
+      !victim.bot.journeyProvoked) {
+      victim.bot.journeyProvoked = true;
+      beginHunterApproach(victim, victim.bot, ownerId, owner, now);
+    }
+  }
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
   }
@@ -4857,14 +4867,15 @@ function updateBots(now: number): void {
     }
     const combatTarget = combatNavigation?.target;
     const combatSolution = combatTarget ? botFireSolution(player, combatTarget[1], Boolean(bot.defenseTerritoryId)) : undefined;
-    const botLockTargetId = combatTarget && combatSolution && !combatSolution.reason &&
+    const canAttack = !bot.journeyAttemptId || bot.journeyProvoked === true;
+    const botLockTargetId = canAttack && combatTarget && combatSolution && !combatSolution.reason &&
       combatTarget[1].lifeState === 'alive' && now >= combatTarget[1].spawnProtectedUntil
       ? combatTarget[0]
       : undefined;
     // Bot warning state reuses the active combat target and the exact firing
     // solution below. Proximity and radar presence never create a lock.
     setServerLock(botId, player, botLockTargetId);
-    if (combatTarget && combatSolution && now >= Math.max(bot.nextFireAt, bot.attackFireAfter)) {
+    if (canAttack && combatTarget && combatSolution && now >= Math.max(bot.nextFireAt, bot.attackFireAfter)) {
       const [targetId, target] = combatTarget;
       const solution = combatSolution;
       // Attack-pass shots use the normal ballistic projectile pipeline. The
