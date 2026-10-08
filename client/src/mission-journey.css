@@ -115,7 +115,7 @@
 .mission-journey-node small[hidden] { display: none; }
 .mission-journey-node small::before { content: ''; position: absolute; top: -8px; left: 2px; width: 6px; height: 7px; border: 2px solid #d5e9f5; border-bottom: 0; border-radius: 5px 5px 0 0; }
 .mission-journey-node.is-finale:not(.is-locked), .mission-journey-node.is-current { width: clamp(55px, 4.8vw, 68px); height: clamp(55px, 4.8vw, 68px); color: #fffaf0; border-color: #fff1ad; background: radial-gradient(circle at 34% 18%, #fff5be, #ffb945 42%, #e78022 70%, #9d4f22 100%); box-shadow: inset 0 3px rgb(255 252 223 / 86%), inset 0 -5px rgb(130 64 22 / 40%), 0 6px 13px rgb(84 45 30 / 54%), 0 0 0 3px rgb(255 201 79 / 36%), 0 0 19px 6px rgb(255 184 41 / 64%); }
-.mission-journey-node.is-next { border-color: #fff1ad; box-shadow: inset 0 3px rgb(250 253 255 / 80%), inset 0 -5px rgb(3 47 111 / 65%), 0 5px 10px rgb(6 38 86 / 53%), 0 0 0 3px rgb(255 201 79 / 48%), 0 0 17px 5px rgb(54 217 255 / 68%); }
+.mission-journey-node.is-next { color: #fffaf0; border-color: #fff1ad; background: radial-gradient(circle at 34% 18%, #fff5be, #ffb945 42%, #e78022 70%, #9d4f22 100%); box-shadow: inset 0 3px rgb(255 252 223 / 86%), inset 0 -5px rgb(130 64 22 / 40%), 0 6px 13px rgb(84 45 30 / 54%), 0 0 0 3px rgb(255 201 79 / 48%), 0 0 19px 6px rgb(255 184 41 / 64%); }
 .mission-journey.is-progressing .mission-journey-node.is-next { filter: saturate(.5) brightness(.75); }
 .mission-journey-node.is-locked { color: #ccdae9; border-color: #8ca8bd; background: radial-gradient(circle at 35% 17%, #7897b0, #416786 46%, #274b6c 76%, #193b5c); box-shadow: inset 0 2px rgb(240 248 255 / 35%), inset 0 -4px rgb(13 42 72 / 55%), 0 3px 7px rgb(6 38 86 / 38%); cursor: pointer; }
 .mission-journey-node.is-locked .mission-journey-node-gloss { opacity: .45; }
@@ -130,9 +130,10 @@
   box-shadow: inset 0 4px rgb(255 252 223 / 90%), inset 0 -5px rgb(3 47 111 / 45%), 0 6px 15px rgb(6 38 86 / 55%), 0 0 0 8px rgb(54 217 255 / 38%), 0 0 22px 9px rgb(54 217 255 / 70%);
 }
 .mission-journey-node.is-locked.is-selected { border-color: #d8e7f1; outline-color: #b4d3e8; box-shadow: inset 0 3px rgb(240 248 255 / 36%), 0 6px 12px rgb(6 38 86 / 50%), 0 0 0 5px rgb(163 205 229 / 28%); }
+.mission-journey-node.is-next.is-selected { border-color: #fff7c5; outline-color: #ffc94f; box-shadow: inset 0 4px rgb(255 252 223 / 90%), inset 0 -5px rgb(130 64 22 / 40%), 0 6px 15px rgb(84 45 30 / 55%), 0 0 0 8px rgb(255 201 79 / 38%), 0 0 22px 9px rgb(255 201 79 / 75%); }
 .mission-journey-node.is-current::before, .mission-journey-node.is-next::before { position: absolute; bottom: calc(100% + 12px); left: 50%; width: max-content; padding: 5px 7px; border-radius: 6px; color: #103966; background: #ffe48a; box-shadow: 0 3px 8px rgb(56 52 69 / 36%); font: 900 10px/1 var(--font-display); transform: translateX(-50%); }
 .mission-journey-node.is-current::before { content: attr(data-progress-label); }
-.mission-journey-node.is-next::before { content: 'NEXT · COMING SOON'; background: #d7f5ff; }
+.mission-journey-node.is-next::before { content: 'NEXT · COMING SOON'; }
 .mission-journey.is-progressing .mission-journey-node.is-next::before { opacity: 0; }
 .mission-journey-node.is-current.is-selected { box-shadow: inset 0 4px rgb(255 252 223 / 90%), inset 0 -5px rgb(130 64 22 / 40%), 0 6px 15px rgb(84 45 30 / 55%), 0 0 0 8px rgb(54 217 255 / 38%), 0 0 22px 9px rgb(255 201 79 / 75%); }
 .mission-journey-node.is-current { animation: mission-selected-halo 3s ease-in-out infinite; }

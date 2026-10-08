@@ -55,6 +55,7 @@ export class MissionJourney {
   private readonly detailCard: HTMLElement;
   private readonly stageButtons: HTMLButtonElement[] = [];
   private selectedStage = 1;
+  private userSelectedStage = false;
   private panelOpen = false;
   private stageOneCompleted = false;
   private stageOneEligible = false;
@@ -141,7 +142,7 @@ export class MissionJourney {
       const lock = document.createElement('small');
       lock.setAttribute('aria-hidden', 'true');
       button.append(gloss, number, lock);
-      button.addEventListener('click', () => this.select(stage.number));
+      button.addEventListener('click', () => this.select(stage.number, true, true));
       nodes.append(button);
       this.stageButtons.push(button);
     }
@@ -150,7 +151,7 @@ export class MissionJourney {
       event.preventDefault();
       const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
       const next = Math.min(24, Math.max(1, this.selectedStage + offset));
-      this.select(next);
+      this.select(next, true, true);
       this.stageButtons[next - 1]?.focus();
     });
     document.addEventListener('visibilitychange', () => {
@@ -164,8 +165,10 @@ export class MissionJourney {
   get isPanelOpen(): boolean { return this.panelOpen; }
 
   setStageOneProgress(eligible: boolean, completed: boolean): void {
+    const newlyCompleted = completed && !this.stageOneCompleted;
     this.stageOneEligible = eligible;
     this.stageOneCompleted = completed;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 2;
     this.element.classList.toggle('has-stage-one-complete', completed);
     this.stageButtons.forEach((button, index) => {
       const number = index + 1;
@@ -184,6 +187,7 @@ export class MissionJourney {
       if (lock) lock.hidden = reached;
     });
     this.renderDetails();
+    if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
   }
 
   celebrateStageOne(): void {
@@ -225,9 +229,10 @@ export class MissionJourney {
     this.detail.setAttribute('aria-hidden', String(!open));
   }
 
-  private select(number: number, animate = true): void {
+  private select(number: number, animate = true, userSelected = false): void {
     const stage = missionJourneyStages[number - 1];
     if (!stage) return;
+    if (userSelected) this.userSelectedStage = true;
     this.selectedStage = number;
     this.stageButtons.forEach((button, index) => {
       const selected = index === number - 1;

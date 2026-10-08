@@ -83,6 +83,7 @@ type PlayerState = Transform & {
   lastAcceptedTransformAt: number;
   chaosQaEnabled: boolean;
   tutorialMode: boolean;
+  milwaukeeBotsProvoked?: boolean;
   trainingOwnerId?: string;
   selectionRevision?: number;
   spawnSlot?: number;
@@ -3822,6 +3823,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   // early ballistic shot must not destroy the lesson target or skip LOCK.
   if(victim.trainingOwnerId&&ownerId===victim.trainingOwnerId&&profileStore.nextPendingTutorialStep(owner.pilotId)!=='fire')return false;
 
+  if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
   victim.health = Math.max(0, victim.health - projectileDamage);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
@@ -4073,6 +4075,7 @@ function updateProjectiles(deltaSeconds: number): void {
 function desiredBotCount(cityId: CityId): number {
   const humans = [...players.values()].filter((player) => player.cityId === cityId && !player.isBot && !player.tutorialMode).length;
   if (humans === 0) return 0;
+  if (cityId === 'milwaukee') return 3;
   if (humans <= 2) return 7 - humans;
   if (humans <= 5) return 8 - humans;
   if (humans <= 8) return 9 - humans;
@@ -4280,7 +4283,7 @@ function reconcileBots(cityId: CityId): void {
   const removable = bots
     .filter(([, bot]) => !bot.bot?.defenseTerritoryId)
     .map(([id, bot]) => ({ id, distance: humans.length ? Math.min(...humans.map((human) => Math.hypot(bot.position.x - human.position.x, bot.position.z - human.position.z))) : Infinity }))
-    .filter((candidate) => candidate.distance >= 1_800 || humans.length === 0)
+    .filter((candidate) => cityId === 'milwaukee' || candidate.distance >= 1_800 || humans.length === 0)
     .sort((left, right) => right.distance - left.distance)[0];
   if (removable) removeBot(removable.id);
 }
@@ -4290,11 +4293,11 @@ function wrapAngle(value: number): number {
 }
 
 function botCombatTarget(botId: string, bot: PlayerState, now: number): [string, PlayerState] | undefined {
-  if (bot.bot?.personality !== 'hunter' || bot.position.y - botTerrainHeight(bot.cityId, bot.position.x, bot.position.z) < botCombatClearance) return undefined;
+  if ((bot.cityId !== 'milwaukee' && bot.bot?.personality !== 'hunter') || bot.position.y - botTerrainHeight(bot.cityId, bot.position.x, bot.position.z) < botCombatClearance) return undefined;
   const candidate = [...players.entries()]
     // Hunters add pressure to real pilots only. Bots remain route traffic and
     // never form a self-sustaining bot-vs-bot combat loop.
-    .filter(([id, target]) => id !== botId && !target.isBot && !target.tutorialMode && !playerJourneyRunwayPrep.has(id) && target.cityId === bot.cityId && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
+    .filter(([id, target]) => id !== botId && !target.isBot && !target.tutorialMode && !playerJourneyRunwayPrep.has(id) && target.cityId === bot.cityId && (bot.cityId !== 'milwaukee' || target.milwaukeeBotsProvoked) && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
     .filter((candidate) => candidate.distance > 90 && candidate.distance < hunterDetectionRange)
     .filter((candidate) => {
@@ -4637,7 +4640,7 @@ function clearHunterCombat(player: PlayerState, bot: BotRuntime): void {
 }
 
 function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRuntime, now: number): { waypoint: Vector3; target?: [string, PlayerState] } | undefined {
-  if (bot.personality !== 'hunter' && !bot.defenseTerritoryId) return undefined;
+  if (player.cityId !== 'milwaukee' && bot.personality !== 'hunter' && !bot.defenseTerritoryId) return undefined;
   let target = hunterTarget(botId, player, bot, now);
   if (!isHunterCombatPhase(bot.phase)) {
     const assigned = bot.defenseTargetId ? players.get(bot.defenseTargetId) : undefined;
