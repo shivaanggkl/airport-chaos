@@ -4212,8 +4212,11 @@ function safeBotWaypoint(cityId: CityId, from: Vector3, waypoint: Vector3, clear
   return requiredY > waypoint.y ? { ...waypoint, y: requiredY } : waypoint;
 }
 
+const dallasBotAirports = cityAirports.dallas.filter(airport => airport.id !== 'dfw');
+function botAirports(cityId: CityId) { return cityId === 'dallas' ? dallasBotAirports : cityAirports[cityId]; }
+
 function airportRoute(cityId: CityId, startIndex: number, personality: BotPersonality): Vector3[] {
-  const airports = cityAirports[cityId];
+  const airports = botAirports(cityId);
   const origin = airports[startIndex % airports.length];
   const destination = airports[(startIndex + 1) % airports.length];
   const altitude = Math.max(botAirborneClearance, personality === 'racer' ? 820 : personality === 'hunter' ? 680 : personality === 'explorer' ? 520 : 410);
@@ -4247,7 +4250,7 @@ function botAircraft(personality: BotPersonality): AircraftType {
 function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; attacker: PlayerState },
   journeySpawn?: { attemptId: string; targetPlayerId: string; target: PlayerState }): string {
   const personality = journeySpawn ? 'hunter' : botPersonalities[(nextBotSerial - 1) % botPersonalities.length];
-  const airports = cityAirports[cityId];
+  const airports = botAirports(cityId);
   const homeAirportIndex = (nextBotSerial - 1) % airports.length;
   const home = airports[homeAirportIndex];
   const id = `bot:${cityId}:${nextBotSerial}`;
@@ -4861,7 +4864,8 @@ function updateBots(now: number): void {
     if (!player.isBot || !bot) continue;
     if (player.lifeState === 'destroyed') {
       if (now < bot.respawnAt) continue;
-      const airport = cityAirports[player.cityId][bot.homeAirportIndex % cityAirports[player.cityId].length];
+      const airports = botAirports(player.cityId);
+      const airport = airports[bot.homeAirportIndex % airports.length];
       player.position = { x: airport.x, y: botRunwayHeight(player.cityId, airport.x, airport.z) + 1.2, z: airport.z + airport.runwayLength * 0.34 };
       player.rotation = { x: 0, y: airport.heading, z: 0 };
       player.velocity = { x: 0, y: 0, z: 0 };
@@ -4970,7 +4974,7 @@ function updateBots(now: number): void {
           bot.routeIndex = 0;
           bot.phase = 'cruise';
         } else {
-          bot.homeAirportIndex = (bot.homeAirportIndex + 1) % cityAirports[player.cityId].length;
+          bot.homeAirportIndex = (bot.homeAirportIndex + 1) % botAirports(player.cityId).length;
           bot.route = airportRoute(player.cityId, bot.homeAirportIndex, bot.personality);
           bot.routeIndex = 0;
           bot.phase = 'taxi';

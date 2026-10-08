@@ -9,6 +9,7 @@ import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { legalPolicyHref } from './brand';
 import { recordProductIntent } from './product-analytics';
+import { hapticsManager } from './haptics-manager';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
 export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
 export type PilotMenuOptions = {
@@ -138,6 +139,7 @@ export type PilotMenuData = {
   cityGuide?: () => void;
   nativeWebPromotion?: boolean;
   audio: { muted: boolean; toggle: () => void; levels: { master: number; music: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'music' | 'engine' | 'combat' | 'ui', value: number) => void };
+  haptics: { available: boolean; enabled: boolean; toggle: () => void };
   guide: { enabled: boolean; open: () => void; replay:()=>void };
 };
 
@@ -1030,7 +1032,7 @@ export class PilotMenu {
 
     if (this.activeSection === 'CONTROLS') {
     const controls = section('CONTROLS');
-    const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>change(select.value));row.append(select);return row;};
+    const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>{change(select.value);hapticsManager.emit('selection');});row.append(select);return row;};
     controls.append(
       textElement('p',data.flightPitch.touch
         ? 'NORMAL: joystick UP = + ALT and DOWN = − ALT. INVERTED: joystick DOWN = + ALT and UP = − ALT.'
@@ -1051,11 +1053,12 @@ export class PilotMenu {
           const row=document.createElement('label');const value=textElement('output',property==='scale'?`${Math.round(data.preferences.mobileLayout[control][property]*100)}%`:`${Math.round(data.preferences.mobileLayout[control][property])}%`);
           const slider=document.createElement('input');slider.type='range';slider.min=String(min);slider.max=String(max);slider.step=String(step);slider.value=String(data.preferences.mobileLayout[control][property]);
           slider.addEventListener('input',()=>{const next=Number(slider.value);value.textContent=property==='scale'?`${Math.round(next*100)}%`:`${Math.round(next)}%`;data.preferences.setMobileControl(control,{[property]:next});});
+          slider.addEventListener('change', () => hapticsManager.emit('selection'));
           row.append(textElement('span',label),slider,value);editor.append(row);
         }
         controls.append(editor);
       }
-      controls.append(actionButton({label:'RESET MOBILE CONTROLS',run:()=>{data.preferences.mobileLayout=data.preferences.resetMobileLayout();this.render(data,true);}}));
+      controls.append(actionButton({label:'RESET MOBILE CONTROLS',run:()=>{data.preferences.mobileLayout=data.preferences.resetMobileLayout();hapticsManager.emit('selection');this.render(data,true);}}));
     }else{
       controls.append(textElement('p','Keyboard and mouse reference for desktop flight.','pilot-menu-muted'));
       for(const group of controlGroups){
@@ -1075,7 +1078,7 @@ export class PilotMenu {
       controls.append(camera);
     }
     const navigation = section('NAVIGATION');
-    navigation.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: data.navigation.toggle }));
+    navigation.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: () => { data.navigation.toggle(); hapticsManager.emit('selection'); } }));
     const graphics = section('GRAPHICS');
     graphics.append(selectRow('GRAPHICS QUALITY',data.preferences.graphicsQuality,['auto','high','balanced','low'],value=>data.preferences.setGraphicsQuality(value as 'auto'|'high'|'balanced'|'low')),textElement('small','Graphics changes apply next time the city loads.','pilot-menu-muted'));
     content.append(controls,navigation,graphics);
@@ -1083,7 +1086,8 @@ export class PilotMenu {
 
     if (this.activeSection === 'AUDIO') {
     const audio = section('Audio');
-    audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: data.audio.toggle }));
+    audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: () => { data.audio.toggle(); hapticsManager.emit('selection'); } }));
+    audio.append(actionButton({ label: data.haptics.available ? `HAPTICS: ${data.haptics.enabled ? 'ON' : 'OFF'}` : 'HAPTICS: UNAVAILABLE ON WEB', run: data.haptics.toggle, disabled: !data.haptics.available }));
     for (const category of ['master', 'music', 'engine', 'combat', 'ui'] as const) {
       const row = document.createElement('label');
       row.className = 'pilot-menu-audio-row';
@@ -1098,6 +1102,7 @@ export class PilotMenu {
         value.textContent = `${level}%`;
         data.audio.setLevel(category, level);
       });
+      slider.addEventListener('change', () => hapticsManager.emit('selection'));
       row.append(title, slider, value);
       audio.append(row);
     }
@@ -1118,7 +1123,7 @@ export class PilotMenu {
       const hints = section('HINTS');
       hints.append(
         textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'),
-        actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: data.hints.toggle }),
+        actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: () => { data.hints.toggle(); hapticsManager.emit('selection'); } }),
       );
       content.append(help,hints);
     }

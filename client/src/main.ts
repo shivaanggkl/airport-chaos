@@ -60,6 +60,7 @@ import type {
 } from './world';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
+import { emitConfirmedJourneyFeedback, emitConfirmedProfileRewardFeedback, hapticsManager } from './haptics-manager';
 import {
   FLIGHT_LAUNCH_MIN_SKIP_MS,
   FLIGHT_LAUNCH_SKIP_BLEND_MS,
@@ -3106,6 +3107,7 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
       if (result.profile) applyServerProfile(result.profile);
       aircraftGarage.showActionResult('FIREHAWK UNLOCKED · PURCHASE CONFIRMED');
       audioManager.playPurchaseSuccess();
+      hapticsManager.emit('rewardSuccess', 'aircraft:fighter');
     } catch (error) { aircraftGarage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'UNABLE TO VERIFY PURCHASE. TRY AGAIN.'); }
     return;
   }
@@ -5676,6 +5678,11 @@ function pilotMenuData(): PilotMenuData {
     exitFlight: requestFlightExit,
     cityGuide: openCityGuide,
     audio: { muted: audioManager.isMuted(), toggle: toggleAudio, levels: audioManager.getLevels(), setLevel: setAudioLevel },
+    haptics: { available: hapticsManager.isAvailable(), enabled: hapticsManager.isEnabled(), toggle: () => {
+      hapticsManager.setEnabled(!hapticsManager.isEnabled());
+      if (hapticsManager.isEnabled()) hapticsManager.emit('selection');
+      renderPilotMenu(true);
+    } },
     flightPitch: { inverted: mobileInput.getPitchInverted(), touch: mobileInput.isTouchLayout(), setInverted: (inverted:boolean) => { mobileInput.setPitchInverted(inverted);renderPilotMenu(true); } },
     guide: { enabled: guidedTutorialActive, open: () => { pilotMenu.close(); showFirstRunGuide(); },replay:()=>{pilotMenu.close();restartGuidedTutorial();} },
   };
@@ -8570,6 +8577,10 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   }
   if (equipConfirmed) {
     pendingEquip = undefined;
+    hapticsManager.emit('confirmation');
+  }
+  if (profileHydrated && profile.pilotId === serverProfile.pilotId) {
+    emitConfirmedProfileRewardFeedback(hapticsManager, serverProfile, profile, _creditReason);
   }
   selectionRevision = revision;
   authoritativeSelectionApplied = true;
@@ -8883,10 +8894,12 @@ boundSocket.addEventListener('message', (event) => {
   }
   if (message.type === 'journeyAttempt') {
     if (!journeyMode || message.attempt.attemptId !== journeyAttemptId) return;
+    const previousAttempt = journeyAttempt;
     const previousGate = journeyAttempt?.gateIndex ?? 0;
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
+    emitConfirmedJourneyFeedback(hapticsManager, previousAttempt, message.attempt);
     journeyServerTimeOffset = message.serverNow - Date.now();
     journeyGates?.setProgress(message.attempt.gateIndex, message.attempt.missionId === 'journey-dallas-01' &&
       (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING'));
@@ -8902,7 +8915,9 @@ boundSocket.addEventListener('message', (event) => {
       showProgressMessage(`GATE ${message.attempt.gateIndex}/4 CLEARED`);
     }
     updateJourneyHud();
-    if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') showJourneyResult(message.attempt);
+    if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
+      showJourneyResult(message.attempt);
+    }
     return;
   }
   if (message.type === 'welcome') {
@@ -9038,6 +9053,7 @@ boundSocket.addEventListener('message', (event) => {
     if (message.ok && pilotMenu.isOpen()) pilotMenu.close();
     else if (pilotMenu.isOpen()) renderPilotMenu();
   } else if (message.type === 'missionCompleted') {
+    if (activeMissionAttemptId) hapticsManager.emit('missionSuccess', activeMissionAttemptId);
     activeMissionAttemptId = undefined;
     completedMissionUntil = Date.now() + 12_000;
     score += message.score;
@@ -9051,6 +9067,7 @@ boundSocket.addEventListener('message', (event) => {
     updateMissionHud();
     sendPlayerUpdate();
   } else if (message.type === 'missionFailed') {
+    if (activeMissionAttemptId) hapticsManager.emit('failure', activeMissionAttemptId);
     activeMissionAttemptId = undefined;
     completedMissionUntil = 0;
     showProgressMessage(`MISSION FAILED · ${missionForCity(cityId, message.missionId)?.displayName ?? 'MISSION'} · ${message.reason}`);
@@ -9126,7 +9143,7 @@ boundSocket.addEventListener('message', (event) => {
     }
   } else if (message.type === 'aircraftPurchaseResult') {
     aircraftGarage.showActionResult(message.ok ? 'AIRCRAFT PURCHASED — NOW OWNED' : (message.reason ?? 'PURCHASE FAILED'));
-    if (message.ok) audioManager.playPurchaseSuccess();
+    if (message.ok) { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `aircraft:${message.aircraftType ?? message.purchaseRequestId}`); }
   } else if (message.type === 'testerCodeResult') {
     aircraftGarage.showActionResult(message.reason);
     if (message.ok) audioManager.playReward();
@@ -9210,9 +9227,11 @@ boundSocket.addEventListener('message', (event) => {
   } else if (message.type === 'weeklyRewardClaimed') {
     gameplayFeedback.push({ type: 'weekly', primaryText: 'WEEKLY REWARD', secondaryText: `#${message.reward.rank} · REWARD APPLIED · ${message.reward.badge}`, intensity: 'major' });
     audioManager.playReward();
+    hapticsManager.emit('rewardSuccess', `weekly:${message.reward.category}:${message.reward.badge}`);
   } else if (message.type === 'cosmeticResult') {
     aircraftGarage.showActionResult(message.ok ? `${message.action.toUpperCase()} COMPLETE` : (message.reason ?? 'COSMETIC UNAVAILABLE'));
-    if (message.ok && message.action === 'purchase') audioManager.playPurchaseSuccess();
+    if (message.ok && message.action === 'purchase') { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `cosmetic:${message.cosmeticId}`); }
+    else if (message.ok && message.action === 'equip') hapticsManager.emit('confirmation');
   } else if (message.type === 'cosmeticChanged') {
     const remote = remotePlayers.get(message.playerId);
     if (remote) applyEquippedLivery(remote.plane, remote.aircraftType, message.equipped);
@@ -9236,6 +9255,7 @@ boundSocket.addEventListener('message', (event) => {
     }
     if (message.playerId === localPlayerId) {
       applyLocalHull(message.health, message.maxHealth);
+      if (message.health > 0) hapticsManager.emit('damage');
       updateHealthDisplay(true);
       showCombatMessage(`-${message.damage} DAMAGE`);
       showDamageFeedback();
@@ -9295,6 +9315,7 @@ boundSocket.addEventListener('message', (event) => {
       }
     }
     if (message.playerId === localPlayerId) {
+      if (!journeyMode) hapticsManager.emit('failure', `crash:${message.playerId}:${lastDestructionAt}`);
       localLifeState = 'destroyed';
       health = 0;
       updateHealthDisplay(true);
@@ -9316,6 +9337,9 @@ boundSocket.addEventListener('message', (event) => {
     if (message.killerId === localPlayerId && message.cause !== 'collision') {
       // This reward cue is driven only by the server-confirmed destruction
       // event, after duplicate destruction messages have been rejected.
+      if (!(journeyMode && journeyAttempt?.status === 'COMPLETED' && journeyAttempt.targetId === message.playerId)) {
+        hapticsManager.emit('destruction', message.playerId);
+      }
       audioManager.playDestroyConfirm();
       flightRecap.kills += 1;
       gameplayFeedback.push({ type: 'combat', primaryText: killNotice(message, localPlayerId), intensity: 'medium' });

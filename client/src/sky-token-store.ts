@@ -1,6 +1,7 @@
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { legalPolicyHref } from './brand';
+import { hapticsManager } from './haptics-manager';
 
 export type SkyTokenOffer = { id: SkyTokenPackId; tokens: number; price: string };
 
@@ -67,6 +68,7 @@ export class SkyTokenStore {
       button.append(quantity, price);
       button.addEventListener('click', () => {
         if (previewOnly || this.busy) return;
+        hapticsManager.emit('selection');
         this.setBusy(true);
         void this.buy(offer.id).catch(() => this.setMessage('Unable to start purchase. Please try again.'))
           .finally(() => this.setBusy(false));

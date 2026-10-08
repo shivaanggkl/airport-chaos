@@ -2,6 +2,7 @@ import './game-store.css';
 import type { GarageProfile } from './garage';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { recordProductIntent } from './product-analytics';
+import { hapticsManager } from './haptics-manager';
 import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, type StoreCategory, type StoreItem } from './store-catalog';
 
 type Currency = 'CREDITS' | 'SKY_TOKENS';
@@ -95,6 +96,7 @@ export class GameStore {
   }
   setCategory(category: StoreCategory): void {
     if (category === this.category) return;
+    hapticsManager.emit('selection');
     this.category = category; this.selectedId = undefined;
     recordProductIntent('store_category_viewed', { category: category.toLowerCase() });
     this.render();
@@ -105,6 +107,7 @@ export class GameStore {
     if (!id && this.selectedId && window.history.state?.airportChaosStoreView === 'DETAIL') { window.history.back(); return; }
     if (id && !this.selectedId && this.isOpen()) window.history.pushState({ airportChaosStoreView: 'DETAIL' }, '', window.location.href);
     this.selectedId = id && storeItemById(id) ? id : undefined;
+    if (this.selectedId) hapticsManager.emit('selection');
     this.notice.textContent = '';
     if (this.selectedId) {
       const item = storeItemById(this.selectedId)!;

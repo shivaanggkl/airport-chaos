@@ -33,7 +33,8 @@ const tokenIcon = '<svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGrad
 export class AppShellHeader {
   private readonly credits: HTMLElement;
   private readonly skyTokens: HTMLElement;
-  private readonly tokenAdd: HTMLButtonElement;
+  private readonly tokenCard: HTMLButtonElement;
+  private readonly tokenAdd: HTMLElement;
   private readonly garage: HTMLButtonElement;
   private readonly store: HTMLButtonElement;
   private readonly rewards: HTMLButtonElement;
@@ -95,20 +96,22 @@ export class AppShellHeader {
     this.credits = document.createElement('strong');
     creditCopy.append(creditsLabel, this.credits);
     creditsCard.append(creditMark, creditCopy);
-    const tokensCard = document.createElement('span');
-    tokensCard.className = 'flight-header-credits flight-header-sky-tokens app-shell-sky-tokens';
+    this.tokenCard = document.createElement('button');
+    this.tokenCard.type = 'button';
+    this.tokenCard.className = 'flight-header-credits flight-header-sky-tokens app-shell-sky-tokens';
+    this.tokenCard.setAttribute('aria-label', 'Get Sky Tokens');
+    this.tokenCard.addEventListener('click', () => handlers.skyTokens?.());
     const tokenMark = document.createElement('span'); tokenMark.className = 'flight-header-sky-token-icon app-shell-currency-icon'; tokenMark.innerHTML = tokenIcon; tokenMark.setAttribute('aria-hidden', 'true');
     const tokenCopy = document.createElement('span'); tokenCopy.className = 'flight-header-credit-copy';
     const tokensLabel = document.createElement('small'); tokensLabel.textContent = 'SKY TOKENS';
     this.skyTokens = document.createElement('strong');
     tokenCopy.append(tokensLabel, this.skyTokens);
-    tokensCard.append(tokenMark, tokenCopy);
-    this.tokenAdd = document.createElement('button');
-    this.tokenAdd.type = 'button'; this.tokenAdd.className = 'app-shell-token-add';
-    this.tokenAdd.textContent = '+'; this.tokenAdd.setAttribute('aria-label', 'Get Sky Tokens');
-    this.tokenAdd.addEventListener('click', () => handlers.skyTokens?.());
-    tokensCard.append(this.tokenAdd);
-    wallet.append(creditsCard, tokensCard);
+    this.tokenCard.append(tokenMark, tokenCopy);
+    this.tokenAdd = document.createElement('span');
+    this.tokenAdd.className = 'app-shell-token-add';
+    this.tokenAdd.textContent = '+'; this.tokenAdd.setAttribute('aria-hidden', 'true');
+    this.tokenCard.append(this.tokenAdd);
+    wallet.append(creditsCard, this.tokenCard);
 
     this.avatar = document.createElement('button');
     this.avatar.type = 'button';
@@ -139,6 +142,7 @@ export class AppShellHeader {
 
   show(data: AppShellHeaderData): void {
     this.updateIdentity(data.pilotName, data.credits, data.skyTokens, data.avatarUrl);
+    this.tokenCard.disabled = !data.tokenStoreAvailable;
     this.tokenAdd.hidden = !data.tokenStoreAvailable;
     this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs);
     this.element.classList.toggle('is-hub', data.hubActions);
@@ -154,6 +158,7 @@ export class AppShellHeader {
   updateIdentity(pilotName: string, credits: number, skyTokens: number, avatarUrl?: string): void {
     this.credits.textContent = credits.toLocaleString();
     this.skyTokens.textContent = skyTokens.toLocaleString();
+    this.tokenCard.setAttribute('aria-label', `Get Sky Tokens, ${skyTokens.toLocaleString()} available`);
     this.avatar.setAttribute('aria-label', `Open ${pilotName || 'pilot'} profile`);
     this.avatarFallback.hidden = false;
     this.avatarImage.hidden = true;

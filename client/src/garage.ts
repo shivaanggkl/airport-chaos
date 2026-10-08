@@ -8,6 +8,7 @@ import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-eco
 import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { recordProductIntent } from './product-analytics';
+import { hapticsManager } from './haptics-manager';
 import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 
 export type GarageProfile = {
@@ -157,7 +158,7 @@ export class AircraftGarage {
     this.camera.position.set(0, 2.2, this.distance); this.camera.lookAt(0, 0, 0);
     for (const type of aircraftDisplayOrder) {
       const card = document.createElement('button'); card.type = 'button'; card.className = 'garage-aircraft';
-      card.addEventListener('click', () => { if (this.selected !== type) { recordProductIntent('aircraft_selected', { aircraftType: type }); recordProductIntent('aircraft_viewed', { aircraftType: type }); } this.selected = type; this.previewCosmetic = undefined; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
+      card.addEventListener('click', () => { if (this.selected !== type) { hapticsManager.emit('selection'); recordProductIntent('aircraft_selected', { aircraftType: type }); recordProductIntent('aircraft_viewed', { aircraftType: type }); } this.selected = type; this.previewCosmetic = undefined; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
     }
     element.querySelector('[data-garage-close]')!.addEventListener('click', closeTopUiLayer);

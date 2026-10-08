@@ -23,6 +23,7 @@ import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
+import { hapticsManager } from './haptics-manager';
 import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
 import { Share } from '@capacitor/share';
 import { recordProductIntent } from './product-analytics';
@@ -231,11 +232,11 @@ let hubFlyIntent = false;
 let hubFlyGateActive = false;
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
-  store: () => { void openGameStore(); },
-  garage: () => { void openStartGarage(entryState === 'STORE' || (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE') ? 'STORE' : missionJourneyReturnPending ? 'MISSION_JOURNEY' : 'HANGAR'); },
-  rewards: () => { void openHubRewards(); },
-  profile: () => { void openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending); },
-  skyTokens: () => { void openSkyTokenStore(); },
+  store: () => { hapticsManager.emit('selection'); void openGameStore(); },
+  garage: () => { hapticsManager.emit('selection'); void openStartGarage(entryState === 'STORE' || (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE') ? 'STORE' : missionJourneyReturnPending ? 'MISSION_JOURNEY' : 'HANGAR'); },
+  rewards: () => { hapticsManager.emit('selection'); void openHubRewards(); },
+  profile: () => { hapticsManager.emit('selection'); void openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending); },
+  skyTokens: () => { hapticsManager.emit('selection'); void openSkyTokenStore(); },
 });
 const skyTokenStore = new SkyTokenStore(async packId => {
   try {
@@ -250,7 +251,7 @@ const skyTokenStore = new SkyTokenStore(async packId => {
       skyTokenStore.setMessage(result.applied
         ? `+${skyTokenPacks[packId].tokens.toLocaleString()} SKY TOKENS · REF ${result.reference ?? 'AVAILABLE'}`
         : `Purchase already verified · REF ${result.reference ?? 'AVAILABLE'}`);
-      if (result.applied) audioManager.playPurchaseSuccess();
+      if (result.applied) { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', result.reference ? `tokens:${result.reference}` : undefined); }
       return;
     }
     const response = await apiFetch(apiUrl('/api/sky-tokens/checkout'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packId }) });
@@ -532,6 +533,7 @@ function createCityJourneyCards(): void {
       event.stopPropagation();
       const state = cityJourneyState(entry);
       if (performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
+      hapticsManager.emit('selection');
       if (state.training) void startTrainingFromHub();
       else chooseCity(state.city);
     });
@@ -539,6 +541,7 @@ function createCityJourneyCards(): void {
 
     card.addEventListener('click', () => {
       if (performance.now() < cityJourneyClickBlockedUntil || index === cityJourneyIndex || Math.abs(index - cityJourneyIndex) !== 1) return;
+      hapticsManager.emit('selection');
       setCityJourneyIndex(index);
     });
     cityJourneyTrack.append(card);
@@ -547,7 +550,7 @@ function createCityJourneyCards(): void {
     dot.type = 'button';
     dot.className = 'city-journey-dot';
     dot.setAttribute('aria-label', `Show ${entry.title}`);
-    dot.addEventListener('click', () => setCityJourneyIndex(index));
+    dot.addEventListener('click', () => { if (index !== cityJourneyIndex) hapticsManager.emit('selection'); setCityJourneyIndex(index); });
     cityJourneyDots.append(dot);
     cityJourneyViews.push({ card, status, cta: button, dot });
   });
@@ -657,7 +660,7 @@ cityOptions.addEventListener('pointercancel', event => {
 });
 
 const homeHangar = new HomeHangar(homeHangarElement, {
-  fly: () => { recordProductIntent('fly_clicked'); void requestHubFly(); },
+  fly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly(); },
 }, homeHangarData());
 
 let hubStoredPreferences: Record<string, unknown> = {};
@@ -894,6 +897,11 @@ function hubPilotMenuData(): PilotMenuData {
         notifySharedMenuPreferences();
       },
     },
+    haptics: { available: hapticsManager.isAvailable(), enabled: hapticsManager.isEnabled(), toggle: () => {
+      hapticsManager.setEnabled(!hapticsManager.isEnabled());
+      if (hapticsManager.isEnabled()) hapticsManager.emit('selection');
+      hubPilotMenu.refresh(hubPilotMenuData(), true);
+    } },
     guide: { enabled: false, open: () => undefined, replay: () => undefined },
   };
 }
@@ -1035,6 +1043,7 @@ async function waitForRewardedAdVerification(attemptId: string): Promise<void> {
         hubRewardedAdPhase = 'idle';
         hubRewardedAdNotice = `+${result.status.rewardCredits.toLocaleString()} CREDITS`;
         audioManager.playReward();
+        hapticsManager.emit('rewardSuccess', `ad:${attemptId}`);
         homeHangar.update(homeHangarData());
         hubPilotMenu.refresh(hubPilotMenuData(), true);
         return;
@@ -1124,6 +1133,7 @@ async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
     if (!result.profile || !Number.isFinite(result.credits)) return { ok: false, message: 'Unable to claim reward. Please try again.' };
     applyAuthoritativeHomeProfile(result.profile);
     hubRewardNotice = `+${result.credits!.toLocaleString()} CREDITS`;
+    hapticsManager.emit('rewardSuccess', `daily:${result.profile.dailyReward?.lastClaimedAt ?? result.serverNow ?? hubServerNow}`);
     homeHangar.update(homeHangarData());
     hubPilotMenu.refresh(hubPilotMenuData(), true);
     return { ok: true, message: hubRewardNotice };
@@ -1206,12 +1216,14 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
 }
 
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
+  const previouslySelected = garageProfile.selectedAircraft;
   const url = apiUrl('/api/profile');
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
   const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ equipAircraft: selectedAircraft }) });
   if (!response.ok) return;
   const profile = await response.json() as RemoteGarageProfile;
   applyAuthoritativeHomeProfile(profile);
+  if (profile.selectedAircraft !== previouslySelected) hapticsManager.emit('confirmation');
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* server profile remains authoritative */ }
   if (garage.isOpen()) garage.open(garageProfile);
 }, undefined, () => {
@@ -1237,6 +1249,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     if (!response.ok) { garage.showActionResult(result.error ?? 'PURCHASE FAILED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
     audioManager.playPurchaseSuccess();
+    hapticsManager.emit('rewardSuccess', `aircraft:${aircraftType}`);
   } catch { garage.showActionResult('SERVER UNAVAILABLE — PURCHASE NOT CHANGED'); }
 }, async (code) => {
   try {
@@ -1247,6 +1260,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     if (!response.ok) { garage.showActionResult(result.error ?? 'CODE REJECTED'); return; }
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity(); garage.showActionResult('Redspear Fighter Unlocked');
     audioManager.playReward();
+    hapticsManager.emit('rewardSuccess', 'aircraft:fighter');
   } catch { garage.showActionResult('SERVER UNAVAILABLE — CODE NOT REDEEMED'); }
 }, async () => {
   try {
@@ -1266,6 +1280,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
       garageProfile = normalizeGarageProfile(result.profile as GarageProfile); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
       garage.showActionResult('FIREHAWK UNLOCKED · PURCHASE CONFIRMED');
       audioManager.playPurchaseSuccess();
+      hapticsManager.emit('rewardSuccess', 'aircraft:fighter');
     } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'UNABLE TO VERIFY PURCHASE. TRY AGAIN.'); }
     return;
   }
@@ -1291,7 +1306,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     const result = await response.json() as RemoteGarageProfile & { error?: string };
     if (!response.ok) { garage.showActionResult(result.error ?? 'UNLOCK FAILED'); return; }
     applyAuthoritativeHomeProfile(result); garage.updateProfile(garageProfile);
-    garage.showActionResult(`${aircraftDisplayName(type)} UNLOCKED`); audioManager.playPurchaseSuccess();
+    garage.showActionResult(`${aircraftDisplayName(type)} UNLOCKED`); audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `aircraft:${type}`);
   } catch { garage.showActionResult('SERVER UNAVAILABLE — SKY TOKENS NOT SPENT'); }
 }, missing => { void openSkyTokenStore(missing); });
 
@@ -1438,6 +1453,7 @@ async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKEN
     garage.updateProfile(garageProfile);
     gameStore.update(garageProfile, true);
     audioManager.playPurchaseSuccess();
+    hapticsManager.emit('rewardSuccess', `store:${item.id}`);
     return { ok: true, message: `${item.name} UNLOCKED · OPEN AIRCRAFTS TO EQUIP` };
   } catch { return { ok: false, message: 'SERVER UNAVAILABLE — NO CURRENCY SPENT' }; }
 }
@@ -1461,7 +1477,8 @@ async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic'
     if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
     applyAuthoritativeHomeProfile(result as RemoteGarageProfile); garage.updateProfile(garageProfile);
     garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'COSMETIC OWNED — SELECT TO EQUIP');
-    if (action === 'purchaseCosmetic') audioManager.playPurchaseSuccess();
+    if (action === 'purchaseCosmetic') { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `cosmetic:${id}`); }
+    else hapticsManager.emit('confirmation');
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }
 }
 
@@ -1480,6 +1497,7 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
     const profile = await loadGarageProfile(); garage.updateProfile(profile);
     garage.showActionResult(`FIREHAWK UNLOCKED · PURCHASE CONFIRMED · REF ${result.reference ?? 'AVAILABLE'}${result.recoveryCode ? ` · SAVE RECOVERY CODE: ${result.recoveryCode}` : ''}`);
     audioManager.playPurchaseSuccess();
+    hapticsManager.emit('rewardSuccess', `checkout:${result.reference ?? 'firehawk'}`);
   } else garage.showActionResult('PAYMENT RECEIVED — VERIFYING · YOUR UNLOCK WILL APPEAR SHORTLY');
   const clean = new URL(window.location.href); clean.searchParams.delete('checkout'); clean.searchParams.delete('session_id');
   window.history.replaceState(null, '', `${clean.pathname}${clean.search}${clean.hash}`);
@@ -1786,6 +1804,7 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     button.className = 'entry-button entry-button-primary';
     button.textContent = preset === preferred ? 'Play (preferred)' : 'Play';
     button.addEventListener('click', () => {
+      hapticsManager.emit('selection');
       try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
       void enterCity(city, preset).catch((error: unknown) => {
         console.error('[city-entry] Unable to initialize gameplay.', error);
@@ -1921,7 +1940,7 @@ async function start(): Promise<void> {
               if (gameStore.isOpen()) gameStore.update(garageProfile, true);
               skyTokenStore.updateBalance(garageProfile.skyTokens ?? 0);
               skyTokenStore.setMessage(`Purchase confirmed · REF ${sessionId.slice(-12)}`);
-              audioManager.playPurchaseSuccess(); paid = true; break;
+              audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `tokens:${sessionId}`); paid = true; break;
             }
             if ((status.status === 'refunded' || status.status === 'partially_refunded') && status.profile) {
               applyAuthoritativeHomeProfile(status.profile); garage.updateProfile(garageProfile);

@@ -1,4 +1,5 @@
 import './mission-journey.css';
+import { hapticsManager } from './haptics-manager';
 
 type ChapterNumber = 1 | 2 | 3 | 4;
 type StageImplementation = 'playable' | 'planned';
@@ -101,9 +102,9 @@ export class MissionJourney {
     this.detailCard = element.querySelector('.mission-journey-detail-card')!;
     this.detail.inert = true;
     element.querySelectorAll<HTMLButtonElement>('[data-mission-cities]').forEach(button => button.addEventListener('click', onCities));
-    element.querySelector<HTMLButtonElement>('[data-mission-free]')!.addEventListener('click', onFreeFlight);
-    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', onPlayMission);
-    element.querySelector<HTMLButtonElement>('[data-mission-close]')!.addEventListener('click', onPanelClose);
+    element.querySelector<HTMLButtonElement>('[data-mission-free]')!.addEventListener('click', () => { hapticsManager.emit('confirmation'); onFreeFlight(); });
+    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => { hapticsManager.emit('confirmation'); onPlayMission(); });
+    element.querySelector<HTMLButtonElement>('[data-mission-close]')!.addEventListener('click', () => { hapticsManager.emit('selection'); onPanelClose(); });
     this.detail.addEventListener('transitionend', event => {
       if (event.propertyName === 'width' && this.panelOpen) this.revealSelectedStage();
     });
@@ -271,7 +272,7 @@ export class MissionJourney {
   private select(number: number, animate = true, userSelected = false): void {
     const stage = missionJourneyStages[number - 1];
     if (!stage) return;
-    if (userSelected) this.userSelectedStage = true;
+    if (userSelected) { this.userSelectedStage = true; hapticsManager.emit('selection'); }
     this.selectedStage = number;
     this.stageButtons.forEach((button, index) => {
       const selected = index === number - 1;
