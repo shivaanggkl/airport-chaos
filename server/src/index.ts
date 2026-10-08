@@ -13,6 +13,7 @@ import { missionForCity, missionsForCity, type CityMission } from '../../shared/
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { crossesJourneyGate, journeyDallas01, journeyDallas02 } from '../../shared/journey-mission.mjs';
+import { boundJourneyHunterPoint, insideJourneyHunterArena, journeyHunterSteeringTarget, keepJourneyHunterInside } from './journey-hunter-airspace.js';
 import { JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
 import { airportForCity, cityAirports } from '../../shared/city-airports.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
@@ -104,6 +105,8 @@ type BotRuntime = {
   journeyAttemptId?: string;
   journeyTargetPlayerId?: string;
   journeyProvoked?: boolean;
+  journeyPilotOutside?: boolean;
+  journeyReturnGraceUntil?: number;
   phase: BotPhase;
   route: Vector3[];
   routeIndex: number;
@@ -2130,6 +2133,7 @@ const nextJourneyHunterReplacement = new Map<string, number>();
 function ensureJourneyHunter(playerId: string, pilot: PlayerState, active: JourneyAttempt, now: number): void {
   if (active.missionId !== journeyDallas02.id || !['APPROACH', 'RACING'].includes(active.status) ||
     pilot.lifeState !== 'alive' || !playerJourneyDfwTakeoff.has(playerId)) return;
+  if (!insideJourneyHunterArena(pilot.position)) return;
   if (active.status === 'APPROACH') {
     const dfw = cityAirports.dallas.find(airport => airport.id === 'dfw')!;
     const dx = pilot.position.x - dfw.x;
@@ -2143,7 +2147,8 @@ function ensureJourneyHunter(playerId: string, pilot: PlayerState, active: Journ
   const current = active.targetId ? players.get(active.targetId) : undefined;
   const targetInReach = current && Math.hypot(current.position.x - pilot.position.x, current.position.y - pilot.position.y,
     current.position.z - pilot.position.z) <= 7_000;
-  if (current?.bot?.journeyAttemptId === active.attemptId && current.lifeState === 'alive' && current.health > 0 && targetInReach) return;
+  if (current?.bot?.journeyAttemptId === active.attemptId && current.lifeState === 'alive' && current.health > 0 &&
+    (targetInReach || current.bot.journeyPilotOutside || now < (current.bot.journeyReturnGraceUntil ?? 0))) return;
   if (now < (nextJourneyHunterReplacement.get(active.attemptId) ?? 0)) return;
   nextJourneyHunterReplacement.set(active.attemptId, now + 10_000);
   if (current?.bot?.journeyAttemptId === active.attemptId) removeBot(active.targetId!);
@@ -3873,6 +3878,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil || playerJourneyRunwayPrep.has(victimId) ||
     !tutorialCombatPairAllowed(ownerId, owner, victimId, victim)
   ) return false;
+  if ((owner.bot?.journeyTargetPlayerId === victimId && !insideJourneyHunterArena(victim.position)) ||
+    (victim.bot?.journeyTargetPlayerId === ownerId && !insideJourneyHunterArena(owner.position))) return false;
 
   // The training target only accepts a hit during the FIRE lesson. A lucky
   // early ballistic shot must not destroy the lesson target or skip LOCK.
@@ -4253,13 +4260,15 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   const name = `${botNames[(nextBotSerial - 1) % botNames.length]}-${20 + ((nextBotSerial * 7) % 80)}`;
   const botAircraftType = botAircraft(personality);
   const journeySlot = journeySpawn ? [...players.values()].filter(player => player.bot?.journeyAttemptId).length : 0;
-  const spawnX = journeySpawn
+  const proposedSpawnX = journeySpawn
     ? journeySpawn.target.position.x + 2_400 + journeySlot * 90 : defenseSpawn
     ? defenseSpawn.attacker.position.x >= defenseSpawn.territory.center.x ? defenseSpawn.territory.bounds.minX - 500 : defenseSpawn.territory.bounds.maxX + 500
     : home.x;
-  const spawnZ = journeySpawn
+  const proposedSpawnZ = journeySpawn
     ? journeySpawn.target.position.z + 300
     : defenseSpawn ? defenseSpawn.territory.center.z : home.z + home.runwayLength * 0.34;
+  const { x: spawnX, z: spawnZ } = journeySpawn ? boundJourneyHunterPoint({ x: proposedSpawnX, z: proposedSpawnZ })
+    : { x: proposedSpawnX, z: proposedSpawnZ };
   const spawnY = journeySpawn ? Math.max(botSafeFloor(cityId, spawnX, spawnZ, botCombatClearance) + 90, journeySpawn.target.position.y + 200)
     : defenseSpawn ? botSafeFloor(cityId, spawnX, spawnZ, botCruiseClearance) : botRunwayHeight(cityId, home.x, home.z) + 1.2;
   const spawnHeading = journeySpawn ? Math.atan2(spawnX - journeySpawn.target.position.x, spawnZ - journeySpawn.target.position.z) : defenseSpawn
@@ -4585,14 +4594,15 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
   const forward = hunterForward(player);
   const nextX = player.position.x + forward.x * bot.speed * delta;
   const nextZ = player.position.z + forward.z * bot.speed * delta;
+  const nextPosition = bot.journeyAttemptId ? keepJourneyHunterInside({ x: nextX, z: nextZ }) : { x: nextX, z: nextZ };
   const clearance = isHunterCombatPhase(bot.phase) ? botCombatClearance : bot.phase === 'takeoff' || bot.phase === 'land' ? 2 : botCruiseClearance;
   const safeFloor = Math.max(
     botSafeFloor(player.cityId, player.position.x, player.position.z, clearance),
-    botSafeFloor(player.cityId, (player.position.x + nextX) * 0.5, (player.position.z + nextZ) * 0.5, clearance),
-    botSafeFloor(player.cityId, nextX, nextZ, clearance),
+    botSafeFloor(player.cityId, (player.position.x + nextPosition.x) * 0.5, (player.position.z + nextPosition.z) * 0.5, clearance),
+    botSafeFloor(player.cityId, nextPosition.x, nextPosition.z, clearance),
   );
-  player.position.x = nextX;
-  player.position.z = nextZ;
+  player.position.x = nextPosition.x;
+  player.position.z = nextPosition.z;
   const nextY = player.position.y + player.velocity.y * delta;
   player.position.y = Math.max(safeFloor, nextY);
   // Terrain clearance is a positional safety correction, not lift. Turning
@@ -4733,10 +4743,22 @@ function clearHunterCombat(player: PlayerState, bot: BotRuntime): void {
 
 function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRuntime, now: number): { waypoint: Vector3; target?: [string, PlayerState] } | undefined {
   if (player.cityId !== 'milwaukee' && bot.personality !== 'hunter' && !bot.defenseTerritoryId) return undefined;
+  const missionPilot = bot.journeyTargetPlayerId ? players.get(bot.journeyTargetPlayerId) : undefined;
+  if (missionPilot && !insideJourneyHunterArena(missionPilot.position)) {
+    bot.journeyPilotOutside = true;
+    clearHunterCombat(player, bot);
+    return { waypoint: safeBotWaypoint(player.cityId, player.position,
+      { ...boundJourneyHunterPoint(missionPilot.position), y: player.position.y }, botCombatClearance) };
+  }
+  if (bot.journeyPilotOutside) {
+    bot.journeyPilotOutside = false;
+    bot.journeyReturnGraceUntil = now + 30_000;
+    clearHunterCombat(player, bot);
+  }
   let target = hunterTarget(botId, player, bot, now);
   if (!isHunterCombatPhase(bot.phase)) {
     const assigned = bot.defenseTargetId ? players.get(bot.defenseTargetId) : undefined;
-    const journeyTarget = bot.journeyTargetPlayerId ? players.get(bot.journeyTargetPlayerId) : undefined;
+    const journeyTarget = missionPilot;
     const availableJourneyTarget = journeyTarget && journeyTarget.cityId === player.cityId && journeyTarget.lifeState === 'alive' &&
       journeyTarget.hasRespawnTransform && !playerJourneyRunwayPrep.has(bot.journeyTargetPlayerId!) && now - journeyTarget.lastStateAt < 1_500
       ? [bot.journeyTargetPlayerId!, journeyTarget] as [string, PlayerState] : undefined;
@@ -4884,7 +4906,10 @@ function updateBots(now: number): void {
       const canShoot = !target.isBot && target.lifeState === 'alive' && now >= target.spawnProtectedUntil &&
         !solution.reason;
       if (canShoot && Math.random() < (bot.defenseTerritoryId ? 0.92 : 0.84)) {
-        const variance = (Math.random() - 0.5) * (bot.defenseTerritoryId ? 0.01 : 0.028);
+        // Halve only Mission 2's angular scatter. Its firing rate, ballistic
+        // lead, damage and ordinary Hunter behavior remain unchanged.
+        const spread = bot.defenseTerritoryId ? 0.01 : bot.journeyAttemptId ? 0.014 : 0.028;
+        const variance = (Math.random() - 0.5) * spread;
         if (createProjectile(botId, player, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + variance * 0.45 })) {
           bot.attackShots = (bot.attackShots ?? 0) + 1;
           bot.noFireReason = undefined;
@@ -4907,7 +4932,10 @@ function updateBots(now: number): void {
     }
 
     const followingCombatWaypoint = Boolean(combatNavigation);
-    const target = combatNavigation?.waypoint ?? bot.route[Math.min(bot.routeIndex, bot.route.length - 1)];
+    const requestedTarget = combatNavigation?.waypoint ?? bot.route[Math.min(bot.routeIndex, bot.route.length - 1)];
+    const target = requestedTarget && bot.journeyAttemptId
+      ? { ...requestedTarget, ...journeyHunterSteeringTarget(player.position, hunterForward(player), requestedTarget) }
+      : requestedTarget;
     if (!target) continue;
     const dx = target.x - player.position.x;
     const dy = target.y - player.position.y;
@@ -6168,11 +6196,7 @@ server.on('connection', (socket, request) => {
       const journeyAttemptId = playerJourneyAttempts.get(playerId);
       if (journeyAttemptId && playerJourneyDfwTakeoff.has(playerId) && player.lifeState === 'alive' && !firstValidTransform && flight?.airborne) {
         const active = journeyStore.get(player.pilotId, journeyAttemptId);
-        if (active?.missionId === journeyDallas02.id && (active.status === 'APPROACH' || active.status === 'RACING') &&
-          (Math.abs(player.position.x - journeyDallas02.arenaCenter.x) > journeyDallas02.arenaRadius ||
-            Math.abs(player.position.z - journeyDallas02.arenaCenter.z) > journeyDallas02.arenaRadius)) {
-          failPlayerJourney(playerId, 'INVALID', stateNow);
-        } else if (active?.missionId === journeyDallas02.id && (active.status === 'APPROACH' || active.status === 'RACING')) {
+        if (active?.missionId === journeyDallas02.id && (active.status === 'APPROACH' || active.status === 'RACING')) {
           ensureJourneyHunter(playerId, player, active, stateNow);
         } else if (active?.status === 'RACING' && active.deadlineAt && stateNow > active.deadlineAt) {
           failPlayerJourney(playerId, 'TIME_UP', stateNow);

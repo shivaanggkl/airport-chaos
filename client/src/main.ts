@@ -2301,16 +2301,18 @@ function updateJourneyHud(): void {
     }
     const hp = Math.max(0, Math.min(200, journeyAttempt?.targetHealth ?? 200));
     const engaged = distance !== null && distance < 1_800;
+    const outsideDallas = Math.abs(airplane.position.x - journeyDallas02.arenaCenter.x) > journeyDallas02.arenaRadius ||
+      Math.abs(airplane.position.z - journeyDallas02.arenaCenter.z) > journeyDallas02.arenaRadius;
     const nearDallasEdge = Math.abs(airplane.position.x - journeyDallas02.arenaCenter.x) > journeyDallas02.arenaRadius - 5_000 ||
       Math.abs(airplane.position.z - journeyDallas02.arenaCenter.z) > journeyDallas02.arenaRadius - 5_000;
-    if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt.status === 'APPROACH'
-      ? onGround ? 'TAKE OFF TO BEGIN' : 'CLIMB CLEAR OF THE RUNWAY'
+    if (journeyHudObjective) journeyHudObjective.textContent = outsideDallas ? 'RETURN TO DALLAS TO REJOIN THE FIGHT'
+      : journeyAttempt.status === 'APPROACH' ? onGround ? 'TAKE OFF TO BEGIN' : 'CLIMB CLEAR OF THE RUNWAY'
       : nearDallasEdge ? 'TURN BACK TOWARD DALLAS'
       : engaged ? 'DESTROY THE MARKED HUNTER' : distance !== null && distance > 5_000
         ? 'FOLLOW THE GOLD RADAR MARKER' : 'FIND THE MARKED AI HUNTER';
-    if (journeyHudProgress) journeyHudProgress.textContent = journeyAttempt?.status === 'APPROACH'
+    if (journeyHudProgress) journeyHudProgress.textContent = journeyAttempt?.status === 'APPROACH' && !outsideDallas
       ? 'TARGET: HUNTER · ENEMY HP: 200/200 · STATUS: PREPARING'
-      : `TARGET: HUNTER · ENEMY HP: ${hp}/200 · ${distance === null ? 'DISTANCE: LOCATING' : `${distance.toLocaleString()}m ${direction}`} · STATUS: ${engaged ? 'ENGAGED' : 'LOCATING'}`;
+      : `TARGET: HUNTER · ENEMY HP: ${hp}/200 · ${distance === null ? 'DISTANCE: LOCATING' : `${distance.toLocaleString()}m ${direction}`} · STATUS: ${outsideDallas ? 'RETURN TO DALLAS' : engaged ? 'ENGAGED' : 'LOCATING'}`;
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / 2}%`);
     return;
   }
