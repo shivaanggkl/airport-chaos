@@ -1547,6 +1547,9 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .journey-hud-segments { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; padding-top: 2px; }
 .journey-hud-segments i { height: 7px; border: 1px solid rgb(111 230 255 / 45%); border-radius: 8px; background: rgb(15 39 70 / 85%); }
 .journey-hud-segments i.is-cleared { border-color: #f6c445; background: linear-gradient(90deg,#35d6ff,#f6c445); box-shadow: 0 0 9px rgb(53 214 255 / 55%); }
+.journey-hud-segments[hidden], .journey-hud-enemy[hidden] { display: none; }
+.journey-hud-enemy { height: 9px; overflow: hidden; border: 1px solid #6fe6ff; border-radius: 8px; background: rgb(15 39 70 / 80%); }
+.journey-hud-enemy i { display: block; width: var(--enemy-health, 100%); height: 100%; border-radius: inherit; background: linear-gradient(90deg,#35d6ff,#f6c445); box-shadow: 0 0 8px rgb(53 214 255 / 50%); transition: width 220ms ease-out; }
 .journey-result { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); background: rgb(15 39 70 / 78%); backdrop-filter: blur(8px); }
 .journey-result.hidden { display: none; }
 .journey-result-card { width: min(500px,100%); max-height: 100%; overflow-y: auto; padding: clamp(18px,4vw,34px); border: 2px solid #6fe6ff; border-radius: 20px; color: #f6fbff; text-align: center; background: linear-gradient(145deg,#1e4d7a,#0f2746); box-shadow: 0 18px 45px rgb(15 39 70 / 55%), inset 0 2px rgb(246 251 255 / 30%), 0 0 30px rgb(53 214 255 / 25%); }

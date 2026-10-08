@@ -16,7 +16,7 @@ import { entityCapabilities, type EntityType } from './entity-types';
 import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
-import { journeyDallas01 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02 } from '../../shared/journey-mission.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
@@ -110,7 +110,8 @@ const trainingRequested = new URLSearchParams(window.location.search).get('train
 let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
 const journeyMode = cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
-  attemptId: string; status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
+  attemptId: string; missionId: string; targetId: string | null; targetHealth: number;
+  status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
   gateIndex: number; deadlineAt: number | null; finishTimeMs: number | null;
   firstClearCredits: number; failureReason: string | null;
 };
@@ -1040,13 +1041,15 @@ document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListe
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
-if (journeyMode) skyChallengeElement.innerHTML = '<strong>MISSION 01 · DFW SKY RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div>';
+if (journeyMode) skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION 01 · DFW SKY RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
+const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
 const journeyHudSegments = [...skyChallengeElement.querySelectorAll<HTMLElement>('.journey-hud-segments i')];
+const journeyHudEnemy = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-enemy');
 const journeyResultElement = document.createElement('div');
 journeyResultElement.className = 'journey-result hidden';
-journeyResultElement.innerHTML = '<div class="journey-result-card"><p>MISSION 01 · ROOKIE LEAGUE</p><h2 data-journey-result-title></h2><strong>DFW SKY RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
+journeyResultElement.innerHTML = '<div class="journey-result-card"><p data-journey-result-heading>MISSION 01 · ROOKIE LEAGUE</p><h2 data-journey-result-title></h2><strong data-journey-result-name>DFW SKY RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
 flightGameRoot.append(journeyResultElement);
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.addEventListener('click', () => {
   if (journeyAttempt?.status === 'COMPLETED') void exitFlightToHub(false, true);
@@ -1791,6 +1794,10 @@ function updateRadar(direction: THREE.Vector3): void {
     const hunter = remotePlayers.get(activeMission.targetId);
     if (hunter?.lifeState === 'alive') drawRadarMarker(direction, hunter.plane.position.x, hunter.plane.position.z, 'mission', 'HUNTER');
   }
+  if (journeyAttempt?.missionId === 'journey-dallas-02' && journeyAttempt.targetId) {
+    const hunter = remotePlayers.get(journeyAttempt.targetId);
+    if (hunter?.lifeState === 'alive') drawRadarMarker(direction, hunter.plane.position.x, hunter.plane.position.z, 'mission', 'HUNTER');
+  }
   const missionLocation = activeMissionDefinition && activeMission ? missionLocationTarget(activeMissionDefinition, activeMission) : undefined;
   if (missionLocation) drawRadarMarker(direction, missionLocation.x, missionLocation.z, 'mission', 'NEXT');
   for (const ambient of ambientTraffic?.getRadarEntities(airplane.position, radarRange) ?? []) {
@@ -1920,6 +1927,7 @@ function queueRewardFeedback(creditDelta = 0, scoreDelta = 0): void {
 
 let skyChallenges: SkyChallengeSystem | undefined;
 const journeyGates = journeyMode ? new JourneyGateSystem(scene, getTerrainHeight) : undefined;
+journeyGates?.setProgress(0, false);
 let stuntCombo: StuntComboSystem | undefined;
 const stuntFrame: StuntFrame = {
   delta: 0, airborne: false, position: airplane.position, altitude: 0, speed: 0,
@@ -2266,6 +2274,46 @@ function updateSkyChallengeHud(): void {
 function updateJourneyHud(): void {
   skyChallengeElement.classList.add('journey-hud');
   skyChallengeElement.classList.toggle('hidden', journeyAttempt?.status === 'COMPLETED' || journeyAttempt?.status === 'FAILED' || journeyAttempt?.status === 'ABANDONED');
+  if (!journeyAttempt) {
+    if (journeyHudHeading) journeyHudHeading.textContent = 'MISSION · CONNECTING';
+    if (journeyHudObjective) journeyHudObjective.textContent = 'CONNECTING TO MISSION';
+    if (journeyHudProgress) journeyHudProgress.textContent = '';
+    const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
+    if (segments) segments.hidden = true;
+    if (journeyHudEnemy) journeyHudEnemy.hidden = true;
+    return;
+  }
+  const hunterMission = journeyAttempt?.missionId === 'journey-dallas-02';
+  if (journeyHudHeading) journeyHudHeading.textContent = hunterMission ? 'MISSION 02 · HUNTER SHOWDOWN' : 'MISSION 01 · DFW SKY RUSH';
+  const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
+  if (segments) segments.hidden = hunterMission;
+  if (journeyHudEnemy) journeyHudEnemy.hidden = !hunterMission;
+  if (hunterMission) {
+    const target = journeyAttempt?.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
+    const distance = target?.lifeState === 'alive' ? Math.round(target.plane.position.distanceTo(airplane.position)) : null;
+    let direction = '';
+    if (target?.lifeState === 'alive') {
+      const dx = target.plane.position.x - airplane.position.x;
+      const dz = target.plane.position.z - airplane.position.z;
+      const forward = -dx * Math.sin(airplane.rotation.y) - dz * Math.cos(airplane.rotation.y);
+      const right = dx * Math.cos(airplane.rotation.y) - dz * Math.sin(airplane.rotation.y);
+      direction = forward > Math.abs(right) ? 'AHEAD' : forward < -Math.abs(right) ? 'BEHIND' : right > 0 ? 'RIGHT' : 'LEFT';
+    }
+    const hp = Math.max(0, Math.min(200, journeyAttempt?.targetHealth ?? 200));
+    const engaged = distance !== null && distance < 1_800;
+    const nearDallasEdge = Math.abs(airplane.position.x - journeyDallas02.arenaCenter.x) > journeyDallas02.arenaRadius - 5_000 ||
+      Math.abs(airplane.position.z - journeyDallas02.arenaCenter.z) > journeyDallas02.arenaRadius - 5_000;
+    if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt.status === 'APPROACH'
+      ? onGround ? 'TAKE OFF TO BEGIN' : 'CLIMB CLEAR OF THE RUNWAY'
+      : nearDallasEdge ? 'TURN BACK TOWARD DALLAS'
+      : engaged ? 'DESTROY THE MARKED HUNTER' : distance !== null && distance > 5_000
+        ? 'FOLLOW THE GOLD RADAR MARKER' : 'FIND THE MARKED AI HUNTER';
+    if (journeyHudProgress) journeyHudProgress.textContent = journeyAttempt?.status === 'APPROACH'
+      ? 'TARGET: HUNTER · ENEMY HP: 200/200 · STATUS: PREPARING'
+      : `TARGET: HUNTER · ENEMY HP: ${hp}/200 · ${distance === null ? 'DISTANCE: LOCATING' : `${distance.toLocaleString()}m ${direction}`} · STATUS: ${engaged ? 'ENGAGED' : 'LOCATING'}`;
+    if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / 2}%`);
+    return;
+  }
   const gateIndex = journeyAttempt?.gateIndex ?? 0;
   const racing = journeyAttempt?.status === 'RACING';
   const timeLeft = racing && journeyAttempt?.deadlineAt
@@ -2281,6 +2329,7 @@ function updateJourneyHud(): void {
 function showJourneyResult(attempt: JourneyAttemptState): void {
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
   const success = attempt.status === 'COMPLETED';
+  const hunterMission = attempt.missionId === 'journey-dallas-02';
   clearHeldActions();
   boostActive = false;
   journeyGates?.setProgress(attempt.gateIndex, false);
@@ -2288,14 +2337,18 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   flightRecapElement.hidden = true;
   journeyResultElement.classList.remove('hidden');
   journeyResultElement.classList.toggle('is-success', success);
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = hunterMission ? 'MISSION 02 · ROOKIE LEAGUE' : 'MISSION 01 · ROOKIE LEAGUE';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = hunterMission ? 'HUNTER SHOWDOWN' : 'DFW SKY RUSH';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success
     ? attempt.firstClearCredits > 0 ? 'MISSION COMPLETE!' : 'MISSION COMPLETED' : 'MISSION FAILED';
   const finishSeconds = Math.max(0, (attempt.finishTimeMs ?? 0) / 1000);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? `4/4 GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
-    : attempt.failureReason === 'TIME_UP' ? "TIME'S UP" : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED' : 'FLIGHT INTERRUPTED';
+    ? hunterMission ? 'AI HUNTER DESTROYED · 200 HP DEFEATED'
+      : `4/4 GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
+    : attempt.failureReason === 'TIME_UP' ? "TIME'S UP" : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED'
+      : hunterMission && attempt.failureReason === 'INVALID' ? 'LEFT DALLAS AIRSPACE' : 'FLIGHT INTERRUPTED';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-reward]')!.textContent = success
-    ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits} CREDITS · STAGE 2 PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
+    ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits} CREDITS · STAGE ${hunterMission ? '3' : '2'} PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
     : 'NO CREDITS LOST';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
@@ -4063,9 +4116,9 @@ function paintPlayerIdentityTag(label: THREE.Sprite, name: string, type: Aircraf
   const prefix = missionTarget ? '🎯 ' : king && !isBot ? '♛ ' : '';
   const title = band === 'close' ? `${prefix}${name}` : `${prefix}${name} · ${distanceText}`;
   context.fillText(title, ownershipColors.length ? 191 : 160, 29, ownershipColors.length ? 238 : 292);
-  context.fillStyle = identityColor;
+  context.fillStyle = missionTarget ? visualLanguage.mission.color : identityColor;
   context.font = '700 18px ui-sans-serif, system-ui, sans-serif';
-  const detail = missionTarget ? 'TARGET: HUNTER' : band === 'close'
+  const detail = missionTarget ? 'MISSION TARGET · HUNTER' : band === 'close'
     ? `${isBot ? 'AI · ' : ''}${aircraftDefinitions[type].callsign} · ${distanceText}`
     : isBot ? 'AI PILOT' : locked ? 'LOCKED' : targeted ? 'TARGET' : 'REAL PLAYER';
   context.fillText(altitudeText ? `${detail} · ${altitudeText}` : detail, 160, 59, 292);
@@ -5545,7 +5598,7 @@ function pilotMenuData(): PilotMenuData {
         const progress = active ? missionProgress(definition, active) : undefined;
         return {
           id: definition.id, name: definition.displayName, detail: definition.retired ? 'This retired mission is no longer available. Choose another mission.' : definition.description, difficulty: definition.difficulty, retired: definition.retired,
-          unavailableReason: journeyMode ? 'Finish or leave DFW Sky Rush first.' : missionUnavailableReason(definition),
+          unavailableReason: journeyMode ? 'Finish or leave your Journey mission first.' : missionUnavailableReason(definition),
           territoryIds: missionRequirements(definition, active),
           credits: definition.creditReward, score: definition.scoreReward,
           completions: completion?.count ?? 0, cooldownUntil: (completion?.lastCompletedAt ?? 0) + definition.replayCooldownMs,
@@ -6792,14 +6845,15 @@ function updateRemotePlayers(delta: number): void {
     const identityVisible = remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
     const targeted = selectedCombatTarget?.remote === remote;
+    const missionTarget = serverProfile.missions[cityId]?.active?.targetId === remote.playerId ||
+      journeyAttempt?.missionId === 'journey-dallas-02' && journeyAttempt.targetId === remote.playerId;
     const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
     identityLabelProjection.copy(remote.plane.position).project(camera);
     const nearReticle = Math.abs(identityLabelProjection.x) < 0.18 && Math.abs(identityLabelProjection.y) < 0.24;
     remote.identityTag.visible = identityVisible && distance > 35 && distance <= 7_000 &&
-      identityLabelProjection.z > -1 && identityLabelProjection.z < 1 && (targeted || !nearReticle);
+      identityLabelProjection.z > -1 && identityLabelProjection.z < 1 && (targeted || missionTarget || !nearReticle);
     if (remote.identityTag.visible) {
       const locked = Boolean(targeted && selectedCombatTarget?.locked);
-      const missionTarget = serverProfile.missions[cityId]?.active?.targetId === remote.playerId;
       const now = performance.now();
       const missionTargetChanged = remote.identityTag.userData.missionTarget !== missionTarget;
       if (missionTargetChanged || now >= (remote.identityTag.userData.nextPaintAt as number ?? 0)) {
@@ -8605,7 +8659,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   closeFlightDialog();
   if (returnToJourney && journeyMode && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) {
     try {
-      await apiFetch(apiUrl('/api/journey/dallas/mission-01/abandon'), {
+      await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/abandon`), {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: journeyAttemptId }),
       });
     } catch { /* Closing the socket also interrupts an unfinished attempt. */ }
@@ -8678,7 +8732,7 @@ async function retryJourneyMission(): Promise<void> {
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
   retryButton.disabled = true;
   try {
-    const response = await apiFetch(apiUrl('/api/journey/dallas/mission-01/launch'), {
+    const response = await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
     if (!response.ok) throw new Error('Retry was not authorized');
@@ -8688,8 +8742,8 @@ async function retryJourneyMission(): Promise<void> {
     const url = new URL(window.location.href);
     url.searchParams.set('journeyAttempt', journeyAttemptId);
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    journeyGates?.setProgress(0, journeyAttempt.missionId === 'journey-dallas-01');
     journeyAttempt = null;
-    journeyGates?.setProgress(0, true);
     journeyResultElement.classList.add('hidden');
     restartGame(false);
     await replaceRealtimeSocket('Journey retry');
@@ -8828,9 +8882,19 @@ boundSocket.addEventListener('message', (event) => {
   if (message.type === 'journeyAttempt') {
     if (!journeyMode || message.attempt.attemptId !== journeyAttemptId) return;
     const previousGate = journeyAttempt?.gateIndex ?? 0;
+    const previousTargetId = journeyAttempt?.targetId;
+    const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
     journeyServerTimeOffset = message.serverNow - Date.now();
-    journeyGates?.setProgress(message.attempt.gateIndex, message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING');
+    journeyGates?.setProgress(message.attempt.gateIndex, message.attempt.missionId === 'journey-dallas-01' &&
+      (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING'));
+    if (message.attempt.missionId === 'journey-dallas-02' && message.attempt.targetId !== previousTargetId && message.attempt.targetId)
+      showProgressMessage(previousTargetId ? 'NEW HUNTER TARGET ACQUIRED' : 'HUNTER TARGET ACQUIRED');
+    if (message.attempt.missionId === 'journey-dallas-02' && journeyAttempt.status === 'RACING' &&
+      previousTargetId === message.attempt.targetId && previousHealth !== undefined &&
+      message.attempt.targetHealth > 0 && message.attempt.targetHealth < previousHealth) {
+      showProgressMessage(`HUNTER HIT · ${message.attempt.targetHealth}/200 HP`);
+    }
     if (message.attempt.gateIndex > previousGate) {
       playCheckpointSound();
       showProgressMessage(`GATE ${message.attempt.gateIndex}/4 CLEARED`);

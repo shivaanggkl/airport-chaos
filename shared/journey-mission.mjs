@@ -1,4 +1,5 @@
 import { dfwSpeedGates } from './city-challenges.mjs';
+import { cityAirports } from './city-airports.mjs';
 
 export const journeyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
@@ -8,6 +9,12 @@ export const journeyDallas01 = Object.freeze({
   timeLimitMs: 62_000,
   firstClearCredits: 250,
   gates: dfwSpeedGates,
+});
+
+export const journeyDallas02 = Object.freeze({
+  id: 'journey-dallas-02', cityId: 'dallas', name: 'HUNTER SHOWDOWN',
+  chapter: 'ROOKIE LEAGUE', firstClearCredits: 350, targetHealth: 200,
+  arenaRadius: 25_000, arenaCenter: Object.freeze({ x: cityAirports.dallas[0].x, z: cityAirports.dallas[0].z }),
 });
 
 // Cross the face of the ring in route order, within its illuminated opening.
