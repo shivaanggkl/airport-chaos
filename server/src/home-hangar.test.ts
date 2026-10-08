@@ -32,7 +32,7 @@ test('Pilot Hub FLY and city back preserve the existing city selection flow', ()
   assert.match(bootstrap, /authResult === 'success' && resumePendingHubFly\(\)/);
   assert.match(bootstrap, /authResult === 'failed' \|\| authResult === 'collision'[\s\S]*openHubPilotMenu\('PROFILE', false\)/);
   assert.match(bootstrap, /function showSelector[\s\S]*entryState = 'CITY_SELECTION';[\s\S]*citySelector\.hidden = false/);
-  assert.match(bootstrap, /cityBack\.addEventListener\('click', \(\) => showSelector\(\)\)/);
+  assert.match(bootstrap, /cityBack\.addEventListener\('click', returnFromCitySelection\)/);
   assert.match(bootstrap, /id: 'city-selection'[\s\S]*close: returnFromCitySelection/);
   assert.match(bootstrap, /function chooseCity[\s\S]*void enterCity\(city, preset\)/);
   assert.match(bootstrap, /await city\.loadWorld\(\);\s*await import\('\.\/main'\);/);
@@ -81,13 +81,14 @@ test('Pilot Hub reuses the Garage renderer, selected-aircraft loader, and cached
   assert.match(bootstrap, /aircraftName: aircraftDisplayName\(garageProfile\.selectedAircraft\)/);
 });
 
-test('Pilot Hub and City Journey share accessible legal and support footer links', () => {
+test('Pilot Hub keeps accessible legal and support footer links outside the fly flow', () => {
   const html = read('client/index.html');
   const bootstrap = read('client/src/bootstrap.ts');
   const brand = read('client/src/brand.ts');
   const css = read('client/src/style.css');
-  assert.match(html, /id="home-brand-signature"[\s\S]*id="start-brand-signature"/);
-  assert.equal((bootstrap.match(/mountCompactBrandFooter\(/g) ?? []).length, 2);
+  assert.match(html, /id="home-brand-signature"/);
+  assert.doesNotMatch(html, /id="start-brand-signature"/);
+  assert.equal((bootstrap.match(/mountCompactBrandFooter\(/g) ?? []).length, 1);
   assert.match(brand, /\['Terms', legalConfig\.policyRoutes\.terms\][\s\S]*\['Privacy', legalConfig\.policyRoutes\.privacy\][\s\S]*\['Refund', legalConfig\.policyRoutes\.refund\][\s\S]*\['Support', legalConfig\.policyRoutes\.support\]/);
   assert.match(brand, /function legalPolicyHref\(path: string\)[\s\S]*Capacitor\.isNativePlatform\(\) \? new URL\(path, gameBrand\.gameUrl\)\.href : path/);
   assert.match(brand, /link\.target = '_blank'; link\.rel = 'noopener noreferrer'/);
@@ -173,15 +174,15 @@ test('Pilot Hub routes to canonical Garage and profile screens without duplicate
   const css = read('client/src/style.css');
   const menu = read('client/src/pilot-menu.ts');
   const server = read('server/src/index.ts');
-  assert.match(bootstrap, /garage: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
+  assert.match(bootstrap, /garage: \(\) => \{ void openStartGarage\([\s\S]*?'HANGAR'\); \}/);
   assert.doesNotMatch(bootstrap, /aircraft: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
   assert.match(bootstrap, /rewards: \(\) => \{ void openHubRewards\(\); \}/);
-  assert.match(bootstrap, /profile: \(\) => \{ void openHubPilotMenu\('PROFILE', true, true\); \}/);
+  assert.match(bootstrap, /profile: \(\) => \{ void openHubPilotMenu\('PROFILE', true, !missionJourneyReturnPending\); \}/);
   assert.doesNotMatch(bootstrap, /settings: \(\) => \{ void openHubPilotMenu\('SETTINGS'\); \}/);
   assert.match(bootstrap, /const hubPilotMenu = new PilotMenu\(pilotMenuOverlay/);
   assert.match(bootstrap, /sections: \['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD \/ CITIES', 'LEGAL \/ SUPPORT', 'DATA LICENSES'\]/);
   assert.match(bootstrap, /const hubSection = section === 'MISSIONS' \? 'PROFILE' : section/);
-  assert.match(bootstrap, /closeLabel: \(\) => hubPilotMenuReturnState === 'CITY_SELECTION' \? 'BACK TO CITY SELECTION' : hubPilotMenuReturnState === 'STORE' \? 'BACK TO STORE' : 'BACK TO PILOT HUB'/);
+  assert.match(bootstrap, /closeLabel: \(\) => hubPilotMenuReturnState === 'CITY_SELECTION' \? 'BACK TO CITY SELECTION' : hubPilotMenuReturnState === 'MISSION_JOURNEY' \? 'BACK TO MISSIONS' : hubPilotMenuReturnState === 'STORE' \? 'BACK TO STORE' : 'BACK TO PILOT HUB'/);
   assert.match(bootstrap, /onClose: \(\) => \{[\s\S]*hubPilotMenuReturnState === 'CITY_SELECTION'[\s\S]*showSelector\(\)[\s\S]*void showHome\(\)/);
   assert.match(menu, /options\.sections \?\? \['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP'\]/);
   assert.match(menu, /if \(this\.sections\.includes\('MISSIONS'\)\) missionCard\.append/);
@@ -243,7 +244,7 @@ test('Pilot Hub keeps FLY primary and moves management actions into the shared h
   assert.match(html, /home-hangar-contextual[\s\S]*data-home-fly/);
   assert.doesNotMatch(html, /data-home-(?:aircraft|missions|rewards|profile)(?:\s|=|>)/);
   assert.match(shell, /utilities\.append\(this\.store, this\.garage, this\.rewards, this\.avatar\)/);
-  assert.match(bootstrap, /hubActions: entryState === 'HANGAR' \|\| entryState === 'CITY_SELECTION' \|\| entryState === 'PILOT_MENU' \|\| entryState === 'STORE' \|\| entryState === 'AIRCRAFT'/);
+  assert.match(bootstrap, /hubActions: entryState === 'HANGAR' \|\| entryState === 'PILOT_MENU' \|\| entryState === 'STORE' \|\| entryState === 'AIRCRAFT'/);
   assert.match(bootstrap, /appShell: true/);
   assert.match(shell, /this\.element\.replaceChildren\(brand, wallet, utilities\)/);
   assert.match(shell, /creditMark\.innerHTML = creditIcon/);
