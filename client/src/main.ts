@@ -110,7 +110,7 @@ const trainingRequested = new URLSearchParams(window.location.search).get('train
 let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
 const journeyMode = cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
-  attemptId: string; missionId: string; targetId: string | null; targetHealth: number;
+  attemptId: string; missionId: string; targetId: string | null; targetHealth: number; targetEngaged?: boolean;
   status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
   gateIndex: number; deadlineAt: number | null; finishTimeMs: number | null;
   firstClearCredits: number; failureReason: string | null;
@@ -2300,7 +2300,7 @@ function updateJourneyHud(): void {
       direction = forward > Math.abs(right) ? 'AHEAD' : forward < -Math.abs(right) ? 'BEHIND' : right > 0 ? 'RIGHT' : 'LEFT';
     }
     const hp = Math.max(0, Math.min(200, journeyAttempt?.targetHealth ?? 200));
-    const engaged = distance !== null && distance < 1_800;
+    const engaged = journeyAttempt.targetEngaged === true;
     const outsideDallas = Math.abs(airplane.position.x - journeyDallas02.arenaCenter.x) > journeyDallas02.arenaRadius ||
       Math.abs(airplane.position.z - journeyDallas02.arenaCenter.z) > journeyDallas02.arenaRadius;
     const nearDallasEdge = Math.abs(airplane.position.x - journeyDallas02.arenaCenter.x) > journeyDallas02.arenaRadius - 5_000 ||
@@ -2309,7 +2309,7 @@ function updateJourneyHud(): void {
       : journeyAttempt.status === 'APPROACH' ? onGround ? 'TAKE OFF TO BEGIN' : 'CLIMB CLEAR OF THE RUNWAY'
       : nearDallasEdge ? 'TURN BACK TOWARD DALLAS'
       : engaged ? 'DESTROY THE MARKED HUNTER' : distance !== null && distance > 5_000
-        ? 'FOLLOW THE GOLD RADAR MARKER' : 'FIND THE MARKED AI HUNTER';
+        ? 'FOLLOW THE GOLD RADAR MARKER' : 'LOCK OR HIT THE MARKED HUNTER';
     if (journeyHudProgress) journeyHudProgress.textContent = journeyAttempt?.status === 'APPROACH' && !outsideDallas
       ? 'TARGET: HUNTER · ENEMY HP: 200/200 · STATUS: PREPARING'
       : `TARGET: HUNTER · ENEMY HP: ${hp}/200 · ${distance === null ? 'DISTANCE: LOCATING' : `${distance.toLocaleString()}m ${direction}`} · STATUS: ${outsideDallas ? 'RETURN TO DALLAS' : engaged ? 'ENGAGED' : 'LOCATING'}`;

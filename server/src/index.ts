@@ -1684,6 +1684,7 @@ function setServerLock(playerId: string, player: PlayerState, targetId?: string,
   }
   const previousTargetId = player.lockedTargetId;
   player.lockedTargetId = targetId;
+  if (targetId && !player.isBot) provokeJourneyHunter(playerId, player, targetId, Date.now());
   sendLockState(playerId, targetId);
   if (previousTargetId) sendToPlayer(previousTargetId, { type: 'combatThreat', attackerId: playerId, locked: false });
   if (targetId) sendToPlayer(targetId, { type: 'combatThreat', attackerId: playerId, locked: true });
@@ -2123,6 +2124,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   const target = attempt.targetId ? players.get(attempt.targetId) : undefined;
   sendToPlayer(playerId, { type: 'journeyAttempt', attempt: {
     ...attempt, targetHealth: target?.bot?.journeyAttemptId === attempt.attemptId && target.lifeState === 'alive' ? target.health : 0,
+    targetEngaged: target?.bot?.journeyAttemptId === attempt.attemptId && target.bot.journeyProvoked === true,
   }, serverNow: Date.now() });
 }
 function removeJourneyHunter(attempt: JourneyAttempt): void {
@@ -2145,8 +2147,8 @@ function ensureJourneyHunter(playerId: string, pilot: PlayerState, active: Journ
       Math.abs(lateral) <= Math.max(dfw.runwayWidth * 3, 160)) return;
   }
   const current = active.targetId ? players.get(active.targetId) : undefined;
-  const targetInReach = current && Math.hypot(current.position.x - pilot.position.x, current.position.y - pilot.position.y,
-    current.position.z - pilot.position.z) <= 7_000;
+  const targetInReach = current && (!current.bot?.journeyProvoked || Math.hypot(current.position.x - pilot.position.x,
+    current.position.y - pilot.position.y, current.position.z - pilot.position.z) <= 10_000);
   if (current?.bot?.journeyAttemptId === active.attemptId && current.lifeState === 'alive' && current.health > 0 &&
     (targetInReach || current.bot.journeyPilotOutside || now < (current.bot.journeyReturnGraceUntil ?? 0))) return;
   if (now < (nextJourneyHunterReplacement.get(active.attemptId) ?? 0)) return;
@@ -3887,15 +3889,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
   victim.health = Math.max(0, victim.health - projectileDamage);
-  if (victim.bot?.journeyAttemptId && victim.bot.journeyTargetPlayerId === ownerId && !owner.isBot &&
-    playerJourneyAttempts.get(ownerId) === victim.bot.journeyAttemptId) {
-    const attempt = journeyStore.get(owner.pilotId, victim.bot.journeyAttemptId);
-    if (victim.health > 0 && attempt?.missionId === journeyDallas02.id && attempt.status === 'RACING' && attempt.targetId === victimId &&
-      !victim.bot.journeyProvoked) {
-      victim.bot.journeyProvoked = true;
-      beginHunterApproach(victim, victim.bot, ownerId, owner, now);
-    }
-  }
+  if (victim.health > 0 && !owner.isBot) provokeJourneyHunter(ownerId, owner, victimId, now);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
   }
@@ -4259,19 +4253,19 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   const id = `bot:${cityId}:${nextBotSerial}`;
   const name = `${botNames[(nextBotSerial - 1) % botNames.length]}-${20 + ((nextBotSerial * 7) % 80)}`;
   const botAircraftType = botAircraft(personality);
-  const journeySlot = journeySpawn ? [...players.values()].filter(player => player.bot?.journeyAttemptId).length : 0;
+  const downtown = journeySpawn ? territoriesForCity('dallas').find(territory => territory.id === 'downtown')! : undefined;
   const proposedSpawnX = journeySpawn
-    ? journeySpawn.target.position.x + 2_400 + journeySlot * 90 : defenseSpawn
+    ? downtown!.center.x : defenseSpawn
     ? defenseSpawn.attacker.position.x >= defenseSpawn.territory.center.x ? defenseSpawn.territory.bounds.minX - 500 : defenseSpawn.territory.bounds.maxX + 500
     : home.x;
   const proposedSpawnZ = journeySpawn
-    ? journeySpawn.target.position.z + 300
+    ? downtown!.bounds.minZ + 2_400
     : defenseSpawn ? defenseSpawn.territory.center.z : home.z + home.runwayLength * 0.34;
   const { x: spawnX, z: spawnZ } = journeySpawn ? boundJourneyHunterPoint({ x: proposedSpawnX, z: proposedSpawnZ })
     : { x: proposedSpawnX, z: proposedSpawnZ };
-  const spawnY = journeySpawn ? Math.max(botSafeFloor(cityId, spawnX, spawnZ, botCombatClearance) + 90, journeySpawn.target.position.y + 200)
+  const spawnY = journeySpawn ? botSafeFloor(cityId, spawnX, spawnZ, botCombatClearance) + 180
     : defenseSpawn ? botSafeFloor(cityId, spawnX, spawnZ, botCruiseClearance) : botRunwayHeight(cityId, home.x, home.z) + 1.2;
-  const spawnHeading = journeySpawn ? Math.atan2(spawnX - journeySpawn.target.position.x, spawnZ - journeySpawn.target.position.z) : defenseSpawn
+  const spawnHeading = journeySpawn ? Math.PI : defenseSpawn
     ? Math.atan2(spawnX - defenseSpawn.territory.center.x, spawnZ - defenseSpawn.territory.center.z)
     : home.heading;
   nextBotSerial += 1;
@@ -4283,6 +4277,14 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     respawnAt: 0, homeAirportIndex, combatPhaseUntil: 0, combatWaypointRefreshAt: 0, attackFireAfter: 0, combatTurnSign: 1, bankControl: 0,
     blindZoneEscapeUntil: 0, defenseSpawned: Boolean(defenseSpawn),
   };
+  if (downtown) {
+    bot.route = [
+      { x: downtown.center.x - 1_100, y: spawnY, z: downtown.bounds.minZ + 2_400 },
+      { x: downtown.center.x - 1_100, y: spawnY, z: downtown.bounds.minZ + 4_300 },
+      { x: downtown.center.x + 1_100, y: spawnY, z: downtown.bounds.minZ + 4_300 },
+      { x: downtown.center.x + 1_100, y: spawnY, z: downtown.bounds.minZ + 2_400 },
+    ].map(point => safeBotWaypoint(cityId, { x: spawnX, y: spawnY, z: spawnZ }, point, botCombatClearance));
+  }
   const player: PlayerState = {
     pilotId: id, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId, position: { x: spawnX, y: spawnY, z: spawnZ },
@@ -4293,7 +4295,6 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     chaosQaEnabled: false, tutorialMode:false, territoryIds: new Set(), bot,
   };
   players.set(id, player);
-  if (journeySpawn) beginHunterApproach(player, bot, journeySpawn.targetPlayerId, journeySpawn.target, Date.now());
   broadcastToCity(cityId, botStateMessage(id, player, 'playerState'));
   return id;
 }
@@ -4612,6 +4613,18 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
   player.velocity.z = (player.position.z - previous.z) / delta;
 }
 
+function provokeJourneyHunter(pilotId: string, pilot: PlayerState, targetId: string, now: number): void {
+  const hunter = players.get(targetId);
+  const bot = hunter?.bot;
+  if (!hunter || !bot?.journeyAttemptId || bot.journeyTargetPlayerId !== pilotId || bot.journeyProvoked ||
+    hunter.lifeState !== 'alive' || playerJourneyAttempts.get(pilotId) !== bot.journeyAttemptId) return;
+  const attempt = journeyStore.get(pilot.pilotId, bot.journeyAttemptId);
+  if (attempt?.missionId !== journeyDallas02.id || attempt.status !== 'RACING' || attempt.targetId !== targetId) return;
+  bot.journeyProvoked = true;
+  beginHunterApproach(hunter, bot, pilotId, pilot, now);
+  sendJourneyState(pilotId, attempt);
+}
+
 function beginHunterApproach(player: PlayerState, bot: BotRuntime, targetId: string, target: PlayerState, now: number): void {
   const forward = hunterForward(player);
   const offsetX = target.position.x - player.position.x;
@@ -4630,14 +4643,15 @@ function beginHunterApproach(player: PlayerState, bot: BotRuntime, targetId: str
 
 function beginHunterAttackPass(player: PlayerState, bot: BotRuntime, target: PlayerState, now: number): void {
   const forward = hunterForward(player);
+  const beyond = bot.journeyAttemptId ? 3_000 : 1_000;
   // Freeze a point beyond the target. The pilot commits through the merge,
   // rather than steering back as soon as the target crosses the nose.
   bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
-    x: target.position.x + forward.x * 1_000,
+    x: target.position.x + forward.x * beyond,
     y: target.position.y,
-    z: target.position.z + forward.z * 1_000,
+    z: target.position.z + forward.z * beyond,
   }, botCombatClearance);
-  const passDistance = Math.hypot(target.position.x - player.position.x, target.position.z - player.position.z) + 1_000;
+  const passDistance = Math.hypot(target.position.x - player.position.x, target.position.z - player.position.z) + beyond;
   bot.combatPhaseUntil = now + Math.max(2_800, Math.min(13_000, passDistance / Math.max(90, bot.speed) * 1_250));
   // A Hunter needs a beat to recognize the opening; this prevents instant,
   // perfect fire exactly when it transitions into a pass.
@@ -4652,7 +4666,7 @@ function beginHunterExtend(player: PlayerState, bot: BotRuntime, now: number): v
     console.log(`HUNTER_NO_FIRE ${bot.noFireReason ?? 'window_closed'} target=${bot.combatTargetId ?? 'none'}`);
   }
   const forward = hunterForward(player);
-  const separation = Math.max(1_800, Math.min(3_000,
+  const separation = bot.journeyAttemptId ? 3_000 : Math.max(1_800, Math.min(3_000,
     botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 2.2));
   bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
     x: player.position.x + forward.x * separation,
@@ -4690,7 +4704,7 @@ function beginHunterBlindZoneExtend(
     escapeZ /= length;
   }
   const separation = Math.max(
-    hunterMinimumHorizontalSeparation * 1.2,
+    bot.journeyAttemptId ? 3_000 : hunterMinimumHorizontalSeparation * 1.2,
     botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 2,
   );
   bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
@@ -4713,7 +4727,7 @@ function beginHunterReposition(player: PlayerState, bot: BotRuntime, target: Pla
   // another approach is considered. Anchor it around the target so a vertical
   // stack cannot satisfy repositioning through altitude difference alone.
   const radius = Math.max(
-    hunterMinimumHorizontalSeparation,
+    bot.journeyAttemptId ? 3_000 : hunterMinimumHorizontalSeparation,
     botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 1.35,
   );
   const origin = target?.position ?? player.position;
@@ -4743,6 +4757,10 @@ function clearHunterCombat(player: PlayerState, bot: BotRuntime): void {
 
 function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRuntime, now: number): { waypoint: Vector3; target?: [string, PlayerState] } | undefined {
   if (player.cityId !== 'milwaukee' && bot.personality !== 'hunter' && !bot.defenseTerritoryId) return undefined;
+  if (bot.journeyAttemptId && !bot.journeyProvoked) {
+    clearHunterCombat(player, bot);
+    return undefined;
+  }
   const missionPilot = bot.journeyTargetPlayerId ? players.get(bot.journeyTargetPlayerId) : undefined;
   if (missionPilot && !insideJourneyHunterArena(missionPilot.position)) {
     bot.journeyPilotOutside = true;
@@ -4804,7 +4822,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     if (target && (bot.journeyTargetPlayerId === target[0] ||
       Math.hypot(target[1].position.x - player.position.x, target[1].position.z - player.position.z) < hunterPursuitRange)) {
       const horizontal = hunterHorizontalSeparation(player, target[1]);
-      if (horizontal < hunterMinimumHorizontalSeparation || now < bot.blindZoneEscapeUntil) {
+      if (horizontal < (bot.journeyAttemptId ? 3_000 : hunterMinimumHorizontalSeparation) || now < bot.blindZoneEscapeUntil) {
         beginHunterBlindZoneExtend(
           player,
           bot,
@@ -4946,12 +4964,17 @@ function updateBots(now: number): void {
       player.velocity = { x: 0, y: 0, z: 0 };
       bot.routeIndex += 1;
       if (bot.phase === 'taxi') bot.phase = 'takeoff';
-      if (bot.routeIndex === bot.route.length - 1) bot.phase = 'land';
+      if (bot.routeIndex === bot.route.length - 1 && !bot.journeyAttemptId) bot.phase = 'land';
       if (bot.routeIndex >= bot.route.length) {
-        bot.homeAirportIndex = (bot.homeAirportIndex + 1) % cityAirports[player.cityId].length;
-        bot.route = airportRoute(player.cityId, bot.homeAirportIndex, bot.personality);
-        bot.routeIndex = 0;
-        bot.phase = 'taxi';
+        if (bot.journeyAttemptId && !bot.journeyProvoked) {
+          bot.routeIndex = 0;
+          bot.phase = 'cruise';
+        } else {
+          bot.homeAirportIndex = (bot.homeAirportIndex + 1) % cityAirports[player.cityId].length;
+          bot.route = airportRoute(player.cityId, bot.homeAirportIndex, bot.personality);
+          bot.routeIndex = 0;
+          bot.phase = 'taxi';
+        }
       }
     } else {
       advanceBotFlight(player, bot, target, delta);

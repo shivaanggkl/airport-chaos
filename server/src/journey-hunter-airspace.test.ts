@@ -28,3 +28,21 @@ test('Mission 2 pauses pursuit outside Dallas and resumes without invalidating t
   assert.doesNotMatch(server, /active\?\.missionId === journeyDallas02\.id[\s\S]{0,250}failPlayerJourney\(playerId, 'INVALID'/);
   assert.match(server, /bot\.journeyAttemptId \? 0\.014 : 0\.028/);
 });
+
+test('Mission 2 Hunter patrols downtown until a verified pilot lock or hit', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  assert.match(server, /const downtown = journeySpawn \? territoriesForCity\('dallas'\)\.find\(territory => territory\.id === 'downtown'\)/);
+  assert.match(server, /if \(bot\.journeyAttemptId && !bot\.journeyProvoked\) \{\s*clearHunterCombat\(player, bot\);\s*return undefined;/);
+  assert.match(server, /if \(targetId && !player\.isBot\) provokeJourneyHunter\(playerId, player, targetId, Date\.now\(\)\)/);
+  assert.match(server, /if \(victim\.health > 0 && !owner\.isBot\) provokeJourneyHunter\(ownerId, owner, victimId, now\)/);
+  assert.match(server, /attempt\.status !== 'RACING' \|\| attempt\.targetId !== targetId/);
+  assert.match(server, /!current\.bot\?\.journeyProvoked \|\| Math\.hypot/);
+  assert.doesNotMatch(server, /if \(journeySpawn\) beginHunterApproach/);
+});
+
+test('Mission 2 uses longer attack runs without changing ordinary Hunters', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  assert.match(server, /const beyond = bot\.journeyAttemptId \? 3_000 : 1_000/);
+  assert.match(server, /const separation = bot\.journeyAttemptId \? 3_000 : Math\.max\(1_800/);
+  assert.match(server, /bot\.journeyAttemptId \? 3_000 : hunterMinimumHorizontalSeparation/);
+});

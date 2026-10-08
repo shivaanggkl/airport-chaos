@@ -31,9 +31,9 @@ test('server warning events reuse authoritative human and bot combat state', () 
   assert.doesNotMatch(server, /combatThreat[\s\S]{0,120}(?:hunterDetectionRange|radarRange)/);
 });
 
-test('the assigned Journey Hunter retaliates only after its pilot lands a confirmed hit', () => {
-  assert.match(server, /attempt\.targetId === victimId &&\s*!victim\.bot\.journeyProvoked/);
-  assert.match(server, /victim\.bot\.journeyProvoked = true;\s*beginHunterApproach\(victim, victim\.bot, ownerId, owner, now\)/);
+test('the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target', () => {
+  assert.match(server, /attempt\.status !== 'RACING' \|\| attempt\.targetId !== targetId/);
+  assert.match(server, /bot\.journeyProvoked = true;\s*beginHunterApproach\(hunter, bot, pilotId, pilot, now\)/);
   assert.match(server, /const canAttack = !bot\.journeyAttemptId \|\| bot\.journeyProvoked === true/);
   assert.match(server, /if \(canAttack && combatTarget && combatSolution && now >= Math\.max\(bot\.nextFireAt, bot\.attackFireAfter\)\)/);
 });
