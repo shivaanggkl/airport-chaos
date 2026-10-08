@@ -4212,8 +4212,11 @@ function safeBotWaypoint(cityId: CityId, from: Vector3, waypoint: Vector3, clear
   return requiredY > waypoint.y ? { ...waypoint, y: requiredY } : waypoint;
 }
 
-const dallasBotAirports = cityAirports.dallas.filter(airport => airport.id !== 'dfw');
-function botAirports(cityId: CityId) { return cityId === 'dallas' ? dallasBotAirports : cityAirports[cityId]; }
+const botAirportsByCity = {
+  dallas: cityAirports.dallas.filter(airport => airport.id !== 'dfw'),
+  milwaukee: cityAirports.milwaukee.filter(airport => airport.id !== 'central'),
+};
+function botAirports(cityId: CityId) { return botAirportsByCity[cityId]; }
 
 function airportRoute(cityId: CityId, startIndex: number, personality: BotPersonality): Vector3[] {
   const airports = botAirports(cityId);
