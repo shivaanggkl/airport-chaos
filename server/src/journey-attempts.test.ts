@@ -156,7 +156,7 @@ test('Hunter Showdown stays locked until Mission 1, binds one target, and pays o
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('White Rock uses the existing low course and rejects a high swept crossing without failing the attempt', () => {
+test('White Rock accepts either ring face but keeps its altitude and opening limits', () => {
   assert.equal(journeyDallas03.startAirportId, 'love');
   assert.equal(journeyDallas03.timeLimitMs, 64_000);
   assert.deepEqual(journeyDallas03.gates.map(gate => gate.maxAltitude), [290, 275, 290, 310]);
@@ -174,8 +174,15 @@ test('White Rock uses the existing low course and rejects a high swept crossing 
     const [lowFrom, lowTo] = segment(gate.altitude);
     const [highFrom, highTo] = segment(gate.maxAltitude + 5);
     assert.equal(journeyGateCrossing(lowFrom, lowTo, index, 0, journeyDallas03), 'VALID');
+    assert.equal(journeyGateCrossing(lowTo, lowFrom, index, 0, journeyDallas03), 'VALID');
     assert.equal(journeyGateCrossing(highFrom, highTo, index, 0, journeyDallas03), 'TOO_HIGH');
-    assert.equal(journeyGateCrossing(lowTo, lowFrom, index, 0, journeyDallas03), false);
+    assert.equal(journeyGateCrossing(highTo, highFrom, index, 0, journeyDallas03), 'TOO_HIGH');
+    const outside = { x: -normalZ * gate.radius * 2, z: normalX * gate.radius * 2 };
+    assert.equal(journeyGateCrossing(
+      { x: lowTo.x + outside.x, y: lowTo.y, z: lowTo.z + outside.z },
+      { x: lowFrom.x + outside.x, y: lowFrom.y, z: lowFrom.z + outside.z },
+      index, 0, journeyDallas03,
+    ), false);
   }
 });
 

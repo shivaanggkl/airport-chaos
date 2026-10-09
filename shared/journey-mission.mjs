@@ -23,7 +23,8 @@ export const journeyDallas03 = Object.freeze({
   startAirportId: 'love', gates: whiteRockLowGates,
 });
 
-// Cross the face of the ring in route order, within its illuminated opening.
+// Cross the face of the next ring within its illuminated opening. White Rock
+// accepts either approach direction; DFW Sky Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   const gate = mission.gates[gateIndex];
@@ -38,7 +39,9 @@ export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission 
   const normalZ = directionZ / length;
   const before = (from.x - gate.x) * normalX + (from.z - gate.z) * normalZ;
   const after = (to.x - gate.x) * normalX + (to.z - gate.z) * normalZ;
-  if (before >= 0 || after < 0 || after === before) return false;
+  const forward = before < 0 && after >= 0;
+  const reverse = mission.id === journeyDallas03.id && before > 0 && after <= 0;
+  if (!forward && !reverse) return false;
   const fraction = -before / (after - before);
   const x = from.x + (to.x - from.x) * fraction - gate.x;
   const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
