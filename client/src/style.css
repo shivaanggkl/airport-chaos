@@ -3437,6 +3437,7 @@ body[data-tutorial-control="takeoff"] .touch-stick-up,body[data-tutorial-control
 .practice-mode-label small { margin-left: 5px; color: var(--text-secondary); font-size: 11px; }
 .practice-mode-label[hidden], .dallas-practice-suggestion[hidden] { display: none; }
 .flight-hud-danger[hidden], #social-panel[hidden], .map-intelligence-panel[hidden], #city-territories[hidden], #territory-capture[hidden], #territory-defense-alert[hidden] { display: none !important; }
+.mission-focus-active :is(#city-territories, #territory-capture, #territory-defense-alert, #dynamic-event, #contract-panel, #active-contract, #active-mission-overlay, #contextual-hint) { display: none !important; }
 .dallas-practice-suggestion { position: fixed; z-index: 30; top: max(72px, calc(env(safe-area-inset-top) + 68px)); left: 50%; display: flex; align-items: center; gap: 10px; width: min(620px, calc(100vw - 32px)); box-sizing: border-box; padding: 7px 9px; transform: translateX(-50%); color: var(--ui-text); background: var(--ui-bg-strong); border: 1px solid var(--ui-border-strong); border-radius: 7px; box-shadow: var(--ui-shadow); font: 500 var(--font-body-size)/var(--line-height-body) var(--font-body); }
 .dallas-practice-suggestion span { flex: 1; }
 .dallas-practice-suggestion div { display: flex; gap: 5px; }

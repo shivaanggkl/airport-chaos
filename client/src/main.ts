@@ -18,6 +18,7 @@ import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
 import { ObjectiveGuidance, confirmedGateObjective, formatObjectiveDistance, type MissionObjective } from './objective-guidance';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05 } from '../../shared/journey-mission.mjs';
+import { missionFocusForAttempt, type MissionFocusConfig } from '../../shared/mission-focus.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
@@ -113,12 +114,16 @@ let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyA
 const journeyMode = cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
   attemptId: string; missionId: string; targetId: string | null; targetHealth: number; targetEngaged?: boolean;
+  aiIsolated?: boolean;
   status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
   gateIndex: number; deadlineAt: number | null; finishTimeMs: number | null;
   holdMs: number;
   firstClearCredits: number; failureReason: string | null;
 };
 let journeyAttempt: JourneyAttemptState | null = null;
+let missionFocus: MissionFocusConfig | null = null;
+let botIsolationActive = false;
+const focusedBotsAreSafe = () => botIsolationActive;
 let journeyServerTimeOffset = 0;
 type FlightLaunchState = 'disabled' | 'pending' | 'active' | 'complete';
 const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
@@ -686,6 +691,27 @@ const navigationBeacons = new NavigationBeaconSystem(
   getTerrainHeight,
 );
 navigationBeacons.setEnabled(navigationMarkersEnabled);
+
+function applyMissionFocus(attempt: JourneyAttemptState | null): void {
+  const next = missionFocusForAttempt(attempt);
+  const nextBotIsolation = next !== null && attempt?.aiIsolated === true;
+  if (missionFocus === next && botIsolationActive === nextBotIsolation) return;
+  missionFocus = next;
+  botIsolationActive = nextBotIsolation;
+  flightGameRoot.classList.toggle('mission-focus-active', next !== null);
+  navigationBeacons.setEnabled(navigationMarkersEnabled && (next?.showUnrelatedAirportLabels ?? true) && (next?.showUnrelatedLandmarkLabels ?? true));
+  ambientTraffic?.setMissionFocus(next !== null && !next.showAmbientAIAircraft);
+  territoryBorderRefreshAt = 0;
+  if (next) for (const entry of territoryBorders) { entry.wall.visible = false; entry.label.hidden = true; }
+  if (focusedBotsAreSafe() && selectedCombatTarget?.remote.isBot) clearCombatTarget();
+  if (focusedBotsAreSafe()) for (const [id, projectile] of clientProjectiles) {
+    if (projectile.ownerIsBot) removeClientProjectile(id);
+  }
+  updateDynamicEventHud();
+  updateContractPanel();
+  updateCaptureHud();
+  updateTerritoryLabels();
+}
 
 function createAirplane(type: AircraftType, remote = false): THREE.Group {
   const definition = aircraftDefinitions[type];
@@ -1769,11 +1795,11 @@ function updateRadar(direction: THREE.Vector3): void {
   radarContext.moveTo(8, center);
   radarContext.lineTo(width - 8, center);
   radarContext.stroke();
-  drawRadarTerritories(direction);
+  if (!missionFocus || missionFocus.showUnrelatedTerritoryLabels) drawRadarTerritories(direction);
   const activeMission = serverProfile.missions[cityId]?.active;
   const activeMissionDefinition = activeMission && missionForCity(cityId, activeMission.missionId);
 
-  for (const airport of airports) {
+  if (missionFocus?.showUnrelatedAirportLabels !== false) for (const airport of airports) {
     drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
   }
   for (const beacon of repairsForCity(cityId)) {
@@ -1794,7 +1820,7 @@ function updateRadar(direction: THREE.Vector3): void {
       formatRelativeAltitude(track.altitudeMeters - altitudeAboveTerrain()));
   }
   for (const remote of remotePlayers.values()) {
-    if (!remote.isBot || !remoteIdentityVisible(remote)) continue;
+    if (!remote.isBot || (focusedBotsAreSafe() && missionFocus?.showAmbientAIMarkers === false) || !remoteIdentityVisible(remote)) continue;
     drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', '', false, remote.heatLevel >= 4,
       selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
       primaryTerritoryColorForPlayer(remote.playerId), lockingThreatIds.has(remote.playerId),
@@ -1809,12 +1835,12 @@ function updateRadar(direction: THREE.Vector3): void {
     if (hunter?.lifeState === 'alive') drawRadarMarker(direction, hunter.plane.position.x, hunter.plane.position.z, 'mission', 'HUNTER');
   }
   const missionLocation = activeMissionDefinition && activeMission ? missionLocationTarget(activeMissionDefinition, activeMission) : undefined;
-  if (missionLocation) drawRadarMarker(direction, missionLocation.x, missionLocation.z, 'mission', 'NEXT');
-  for (const ambient of ambientTraffic?.getRadarEntities(airplane.position, radarRange) ?? []) {
+  if (missionLocation && !missionFocus) drawRadarMarker(direction, missionLocation.x, missionLocation.z, 'mission', 'NEXT');
+  if (!missionFocus) for (const ambient of ambientTraffic?.getRadarEntities(airplane.position, radarRange) ?? []) {
     drawRadarMarker(direction, ambient.x, ambient.z, entityCapabilities(ambient.entityType, ambient.eventCombatMode).radarMarker);
   }
   const challengeMarker = skyChallenges?.getRadarMarker(airplane.position);
-  if (challengeMarker) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
+  if (challengeMarker && !missionFocus) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
   const journeyTarget = journeyGates?.target();
   if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `GATE ${journeyTarget.index + 1}`);
   if (journeyAttempt?.missionId === journeyDallas04.id && journeyAttempt.status !== 'COMPLETED') {
@@ -1822,12 +1848,12 @@ function updateRadar(direction: THREE.Vector3): void {
     if (whiteRock) drawRadarMarker(direction, whiteRock.center.x, whiteRock.center.z, 'mission', 'WHITE ROCK');
   }
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
-  if (cityEvent && eventObjective && (cityEvent.lifecycle === 'available' || cityEvent.lifecycle === 'active')) {
+  if (!missionFocus && cityEvent && eventObjective && (cityEvent.lifecycle === 'available' || cityEvent.lifecycle === 'active')) {
     const missionEvent = activeMissionDefinition?.type === 'event' && activeMissionDefinition.requirements.eventType === cityEvent.eventType;
     const label = cityEvent.eventType === 'aceIntercept' ? 'ACE' : cityEvent.eventType === 'vipEscort' ? 'VIP' : cityEvent.eventType === 'goldenSkyRun' ? 'GATE' : 'MISSION';
     drawRadarMarker(direction, eventObjective.x, eventObjective.z, missionEvent ? 'mission' : cityEvent.eventType === 'mostWanted' ? 'wanted' : 'event', missionEvent ? label : '');
   }
-  if (waypoint) drawRadarMarker(direction, waypoint.x, waypoint.z, 'waypoint');
+  if (waypoint && !missionFocus) drawRadarMarker(direction, waypoint.x, waypoint.z, 'waypoint');
 
   radarContext.fillStyle = '#f8fbff';
   radarContext.beginPath();
@@ -1867,7 +1893,7 @@ function updateNavigationHud(): void {
 }
 
 function updateContextualHints(): void {
-  if (flightTutorial.isOpen()) return;
+  if (flightTutorial.isOpen() || missionFocus) return;
   contextualHints.update();
   if (!crashed && health < maxHealthForAircraft(aircraftType) * 0.65) contextualHints.trigger('repair');
   if (!journeyMode && runStarted && onGround && !crashed) contextualHints.trigger('runwayControls');
@@ -1892,7 +1918,7 @@ const gameplayFeedback = new GameplayFeedbackSystem(document.querySelector<HTMLE
 let lastAtcCalloutAt = -20_000;
 const atcCalloutKeys = new Map<string, number>();
 function queueAtcCallout(key: string, primaryText: string, secondaryText?: string): void {
-  if(guidedTutorialActive)return;
+  if(guidedTutorialActive || missionFocus)return;
   const now = performance.now();
   if (now - lastAtcCalloutAt < 6_000 || now - (atcCalloutKeys.get(key) ?? -30_000) < 20_000) return;
   lastAtcCalloutAt = now;
@@ -2180,7 +2206,7 @@ function updateTerritoryBorderVisibility(now: number): void {
     const dx = Math.max(definition.bounds.minX - airplane.position.x, 0, airplane.position.x - definition.bounds.maxX);
     const dz = Math.max(definition.bounds.minZ - airplane.position.z, 0, airplane.position.z - definition.bounds.maxZ);
     const distanceSquared = dx * dx + dz * dz;
-    wall.visible = !territoryWallsQaDisabled && !guidedTutorialActive && distanceSquared < territoryWallCullDistance * territoryWallCullDistance;
+    wall.visible = !territoryWallsQaDisabled && !guidedTutorialActive && !missionFocus && distanceSquared < territoryWallCullDistance * territoryWallCullDistance;
   }
   if (pulsingTerritory && pulsingTerritory.pulseUntil > now) {
     const remaining = (pulsingTerritory.pulseUntil - now) / 1_400;
@@ -2193,6 +2219,10 @@ function updateTerritoryBorderVisibility(now: number): void {
 }
 
 function updateTerritoryLabels(): void {
+  if (missionFocus?.showUnrelatedTerritoryLabels === false) {
+    for (const entry of territoryBorders) entry.label.hidden = true;
+    return;
+  }
   let first = -1, second = -1, firstPriority = Infinity, secondPriority = Infinity;
   for (let index = 0; index < territoryBorders.length; index += 1) {
     const entry = territoryBorders[index];
@@ -2247,7 +2277,7 @@ function updateCaptureHud(): void {
     return state?.capturingPlayerId === localPlayerId &&
       territoryContains(definition, airplane.position);
   }) : undefined;
-  territoryCaptureElement.classList.toggle('hidden', !capturing || journeyAttempt?.missionId === journeyDallas04.id);
+  territoryCaptureElement.classList.toggle('hidden', !capturing || Boolean(missionFocus) || journeyAttempt?.missionId === journeyDallas04.id);
   if (capturing) {
     const state = territoryState.get(capturing.id);
     const text = `${capturing.displayName.toUpperCase()} · CAPTURING ${Math.min(100, Math.max(0, state?.captureProgress ?? 0))}%${state?.defenderBotId ? '\n⚠ DEFENDER INBOUND' : ''}`;
@@ -2466,7 +2496,7 @@ function eventObjectiveForLocal(event: NetworkCityEvent): NetworkVector | undefi
 function updateDynamicEventHud(): void {
   const event = cityEvent;
   const objective = event ? eventObjectiveForLocal(event) : undefined;
-  const visible = event !== null && event.id !== skippedEventId && (event.lifecycle === 'available' || event.lifecycle === 'active') && objective !== undefined;
+  const visible = !missionFocus && event !== null && event.id !== skippedEventId && (event.lifecycle === 'available' || event.lifecycle === 'active') && objective !== undefined;
   dynamicEventElement.classList.toggle('hidden', !visible);
   if (!event || !objective || !visible) return;
   const remaining = Math.max(0, Math.ceil((event.expiresAt - Date.now()) / 1000));
@@ -2485,6 +2515,12 @@ function updateDynamicEventHud(): void {
 }
 
 function updateEventVisual(): void {
+  if (missionFocus?.showUnrelatedChallengeMarkers === false) {
+    for (const gate of chaosGates) gate.visible = false;
+    missionEventMarker.visible = false;
+    eventCrate.visible = false;
+    return;
+  }
   const event = cityEvent;
   const pulse = 1 + Math.sin(performance.now() * 0.006) * 0.075;
   for (const gate of chaosGates) gate.visible = false;
@@ -2561,7 +2597,7 @@ function applyCityEvent(event: NetworkCityEvent | undefined): void {
   updateDynamicEventHud();
   updateMissionHud();
   refreshPilotMenu();
-  if (event && (event.lifecycle === 'available' || event.lifecycle === 'active')) {
+  if (!missionFocus && event && (event.lifecycle === 'available' || event.lifecycle === 'active')) {
     contextualHints.trigger('liveEvent');
     if (event.eventType === 'mostWanted') contextualHints.trigger('mostWanted');
   }
@@ -2624,12 +2660,14 @@ if (cityWorld.discoveries?.length) {
         savePlayerProgress();
         queueProfileProgress();
       }
-      showProgressMessage(cityRules.practiceMode ? `PRACTICE DISCOVERY: ${definition.name}` : `DISCOVERED: ${definition.name}`);
-      gameplayFeedback.push({ type: 'secret', primaryText: definition.type === 'secret' ? 'SECRET DISCOVERED' : 'PLACE DISCOVERED', secondaryText: cityRules.practiceMode ? `${definition.name.toUpperCase()} · PRACTICE — NO REWARDS` : definition.name.toUpperCase(), intensity: definition.type === 'secret' ? 'major' : 'medium' });
+      if (!missionFocus) {
+        showProgressMessage(cityRules.practiceMode ? `PRACTICE DISCOVERY: ${definition.name}` : `DISCOVERED: ${definition.name}`);
+        gameplayFeedback.push({ type: 'secret', primaryText: definition.type === 'secret' ? 'SECRET DISCOVERED' : 'PLACE DISCOVERED', secondaryText: cityRules.practiceMode ? `${definition.name.toUpperCase()} · PRACTICE — NO REWARDS` : definition.name.toUpperCase(), intensity: definition.type === 'secret' ? 'major' : 'medium' });
+      }
       flightRecap.discoveries += 1;
       if (definition.type === 'secret' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'secret_discovered' }));
       updateProgressHud();
-      contextualHints.trigger('discovery');
+      if (!missionFocus) contextualHints.trigger('discovery');
     },
     onSetComplete: (setId, bonus) => {
       if (bonus <= 0) return;
@@ -2638,7 +2676,7 @@ if (cityWorld.discoveries?.length) {
         savePlayerProgress();
         queueProfileProgress();
       }
-      showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE${cityRules.practiceMode ? ' · PRACTICE — NO REWARDS' : ''}`);
+      if (!missionFocus) showProgressMessage(`${setId.replaceAll('-', ' ').toUpperCase()} COMPLETE${cityRules.practiceMode ? ' · PRACTICE — NO REWARDS' : ''}`);
     },
   });
 }
@@ -2711,7 +2749,7 @@ function contractDetail(contract: ContractDefinition): string {
 }
 
 function updateContractPanel(): void {
-  contractPanelElement.classList.toggle('hidden', availableContract === null);
+  contractPanelElement.classList.toggle('hidden', availableContract === null || Boolean(missionFocus));
   if (!availableContract) return;
   const accessReason = aircraftAccessReason(availableContract.aircraftType);
   contractTypeElement.textContent = contractTitle(availableContract.type);
@@ -3278,7 +3316,7 @@ window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
   persistedPlayer.navigationMarkersEnabled=latest.navigationMarkersEnabled;
   contextualHints.setEnabled(latest.hintsEnabled);
   navigationMarkersEnabled=latest.navigationMarkersEnabled;
-  navigationBeacons.setEnabled(navigationMarkersEnabled);
+  navigationBeacons.setEnabled(navigationMarkersEnabled && (missionFocus?.showUnrelatedAirportLabels ?? true) && (missionFocus?.showUnrelatedLandmarkLabels ?? true));
   graphicsQualityMode=preferredGraphicsQuality();
   Object.assign(audioLevels,audioManager.getLevels());
   mobileInput.syncPreferences();
@@ -4161,6 +4199,7 @@ type ClientProjectile = {
   pendingAge: number;
   speed: number;
   local: boolean;
+  ownerIsBot: boolean;
   spawnedAt: number;
   lastAuthoritativeAt: number;
 };
@@ -4633,7 +4672,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
     });
   }
   for (const [id, remote] of remotePlayers) {
-    if (!remote.isBot || !remoteIdentityVisible(remote)) continue;
+    if (!remote.isBot || (focusedBotsAreSafe() && missionFocus?.showAmbientAIMarkers === false) || !remoteIdentityVisible(remote)) continue;
     mapPlayers.push({
       id,
       x: remote.plane.position.x,
@@ -5755,7 +5794,7 @@ function pilotMenuData(): PilotMenuData {
       toggle: () => {
         navigationMarkersEnabled = !navigationMarkersEnabled;
         persistedPlayer.navigationMarkersEnabled = navigationMarkersEnabled;
-        navigationBeacons.setEnabled(navigationMarkersEnabled);
+  navigationBeacons.setEnabled(navigationMarkersEnabled && (missionFocus?.showUnrelatedAirportLabels ?? true) && (missionFocus?.showUnrelatedLandmarkLabels ?? true));
         savePlayerProgress();
         renderPilotMenu(true);
       },
@@ -6330,6 +6369,7 @@ function createProjectileVisual(): ClientProjectile {
     pendingAge: 0,
     speed: 520,
     local: false,
+    ownerIsBot: false,
     spawnedAt: 0,
     lastAuthoritativeAt: 0,
   };
@@ -6522,6 +6562,8 @@ function spawnImpactFeedback(playerId: string): void {
 
 function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn' }>): void {
   if (clientProjectiles.has(message.projectileId)) return;
+  const ownerIsBot = remotePlayers.get(message.ownerId)?.isBot === true;
+  if (focusedBotsAreSafe() && ownerIsBot) return;
   if (clientProjectiles.size >= maxClientProjectiles) {
     const oldestProjectileId = clientProjectiles.keys().next().value as string | undefined;
     if (oldestProjectileId) removeClientProjectile(oldestProjectileId);
@@ -6534,6 +6576,7 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   projectile.direction.set(message.direction.x, message.direction.y, message.direction.z).normalize();
   projectile.speed = message.speed;
   projectile.local = message.ownerId === localPlayerId;
+  projectile.ownerIsBot = ownerIsBot;
   projectile.authoritativePosition.set(message.position.x, message.position.y, message.position.z);
   projectile.pendingAge = 0;
   projectile.spawnedAt = performance.now();
@@ -6937,7 +6980,15 @@ function updateRemotePlayers(delta: number): void {
     const interpolation = remote.interpolationElapsed / remote.interpolationDuration;
     remote.plane.position.lerpVectors(remote.previousPosition, remote.targetPosition, interpolation);
     remote.plane.quaternion.slerpQuaternions(remote.previousQuaternion, remote.targetQuaternion, interpolation);
-    remote.plane.visible = remote.lifeState === 'alive';
+    const hiddenBot = remote.isBot && focusedBotsAreSafe() && missionFocus?.showAmbientAIAircraft === false;
+    remote.plane.visible = remote.lifeState === 'alive' && !hiddenBot;
+    if (hiddenBot) {
+      remote.identityTag.visible = false;
+      remote.hullTag.visible = false;
+      remote.playerProxy.visible = false;
+      remote.targetBrackets.visible = false;
+      continue;
+    }
     const identityVisible = remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
     const targeted = selectedCombatTarget?.remote === remote;
@@ -7301,7 +7352,7 @@ function updatePlayerInteractions(): void {
   interactionSweepStart.copy(previousInteractionPosition);
   previousInteractionPosition.copy(airplane.position);
   for (const remote of remotePlayers.values()) {
-    if (remote.lifeState !== 'alive' || !entityCapabilities(remote.entityType).collidable) {
+    if (remote.lifeState !== 'alive' || (remote.isBot && focusedBotsAreSafe() && missionFocus?.showAmbientAIAircraft === false) || !entityCapabilities(remote.entityType).collidable) {
       remote.nearMissActive = false;
       continue;
     }
@@ -8852,6 +8903,7 @@ async function retryJourneyMission(): Promise<void> {
     journeyGateClearedUntil = 0;
     journeyTooHighUntil = 0;
     journeyAttempt = null;
+    applyMissionFocus(null);
     journeyResultElement.classList.add('hidden');
     restartGame(false);
     await replaceRealtimeSocket('Journey retry');
@@ -8983,6 +9035,7 @@ boundSocket.addEventListener('message', (event) => {
     return;
   }
   if (message.type === 'journeyUnavailable') {
+    applyMissionFocus(null);
     journeyGates?.setProgress(0, false);
     missionObjective = null;
     missionObjectiveGuidance?.setObjective(null);
@@ -9003,6 +9056,7 @@ boundSocket.addEventListener('message', (event) => {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
+    applyMissionFocus(journeyAttempt);
     if (message.attempt.missionId === journeyDallas04.id && previousAttempt?.status === 'APPROACH' && message.attempt.status === 'RACING') {
       hapticsManager.emit('confirmation', `${message.attempt.attemptId}:captured`);
       showProgressMessage('WHITE ROCK CAPTURED · HOLD FOR 30 SECONDS');
@@ -9214,8 +9268,10 @@ boundSocket.addEventListener('message', (event) => {
   } else if (message.type === 'eventClear') {
     applyCityEvent(undefined);
   } else if (message.type === 'eventAnnouncement') {
-    showProgressMessage(cityRules.practiceMode ? `${message.name ?? 'SKY EVENT'} · PRACTICE — NO REWARDS` : `${message.name ?? 'SKY EVENT'}`);
-    gameplayFeedback.push({ type: 'chaos-moment', primaryText: 'CHAOS MOMENT', secondaryText: message.name ?? 'SKY EVENT', intensity: 'major' });
+    if (!missionFocus) {
+      showProgressMessage(cityRules.practiceMode ? `${message.name ?? 'SKY EVENT'} · PRACTICE — NO REWARDS` : `${message.name ?? 'SKY EVENT'}`);
+      gameplayFeedback.push({ type: 'chaos-moment', primaryText: 'CHAOS MOMENT', secondaryText: message.name ?? 'SKY EVENT', intensity: 'major' });
+    }
   } else if (message.type === 'eventReward') {
     score += message.score;
     queueRewardFeedback(0, message.score);
@@ -9224,7 +9280,7 @@ boundSocket.addEventListener('message', (event) => {
     flightRecap.eventResults.push(message.reason);
     sendPlayerUpdate();
   } else if (message.type === 'eventProgress') {
-    showProgressMessage(message.message);
+    if (!missionFocus) showProgressMessage(message.message);
     if (message.target) setActivityWaypoint(message.target.x, message.target.z, 'CARGO DELIVERY');
   } else if (message.type === 'socialState') {
     applySocialState(message);
@@ -9309,6 +9365,7 @@ boundSocket.addEventListener('message', (event) => {
     if (message.cityId === cityId) applyTerritoryState(message.territories);
     updateMissionHud();
   } else if (message.type === 'territoryNotice') {
+    if (missionFocus) return;
     const territory = territoryDefinition(message.territoryId);
     if (territory && (message.kind === 'enter' || message.kind === 'exit')) pulseTerritoryBoundary(territory.id);
     if (message.kind === 'enter' && territory?.id === journeyDallas04.territoryId && journeyAttempt?.missionId === journeyDallas04.id &&
@@ -9330,11 +9387,11 @@ boundSocket.addEventListener('message', (event) => {
     }
   } else if (message.type === 'territoryReward') {
     const territory = territoryDefinition(message.territoryId);
-    showProgressMessage(`${territory?.displayName.toUpperCase() ?? 'TERRITORY'} ${message.kind === 'capture' ? 'CAPTURED' : 'HELD'}`);
+    if (!missionFocus) showProgressMessage(`${territory?.displayName.toUpperCase() ?? 'TERRITORY'} ${message.kind === 'capture' ? 'CAPTURED' : 'HELD'}`);
   } else if (message.type === 'objectiveComplete') {
-    showProgressMessage(`OBJECTIVE COMPLETE: ${message.label.toUpperCase()}`);
+    if (!missionFocus) showProgressMessage(`OBJECTIVE COMPLETE: ${message.label.toUpperCase()}`);
   } else if (message.type === 'objectiveProgress') {
-    showProgressMessage(`DAILY: ${message.label.toUpperCase()} ${message.progress}/${message.target}`);
+    if (!missionFocus) showProgressMessage(`DAILY: ${message.label.toUpperCase()} ${message.progress}/${message.target}`);
   } else if (message.type === 'masteryLevel') {
     if (message.cityId === cityId) showProgressMessage(`${cityId.toUpperCase()} CITY LEVEL ${message.level}`);
   } else if (message.type === 'landingScored') {
@@ -9532,8 +9589,13 @@ boundSocket.addEventListener('close', (event) => {
   }
   window.clearTimeout(welcomeTimeout);
   if (boundSocket !== socket) return;
+  if (missionFocus) {
+    missionObjective = null;
+    missionObjectiveGuidance?.hide();
+  }
   clearCombatThreats();
   cityHumanRoster.clear();
+  applyMissionFocus(null);
   humanRadarTracks.clear();
   playersPanel.update([], null);
   cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);

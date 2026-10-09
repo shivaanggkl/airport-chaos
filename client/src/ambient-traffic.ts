@@ -276,7 +276,9 @@ export class AmbientTrafficSystem {
   private readonly maxVisibleCloudClusters: number;
   private readonly prioritizeVisibleClouds: boolean;
   private tutorialMode = false;
+  private missionFocus = false;
   setTutorialMode(active: boolean): void { this.tutorialMode = active; }
+  setMissionFocus(active: boolean): void { this.missionFocus = active; }
   private nearestAmbientRoute = Number.POSITIVE_INFINITY;
 
   constructor(
@@ -320,7 +322,7 @@ export class AmbientTrafficSystem {
     for (const actor of this.actors) {
       actor.root.position.lerpVectors(actor.previousPosition, actor.targetPosition, blend);
       actor.root.quaternion.slerpQuaternions(actor.previousQuaternion, actor.targetQuaternion, blend);
-      actor.root.visible = !this.tutorialMode && (actor.detailVisible || actor.silhouetteVisible || actor.impostorVisible);
+      actor.root.visible = !this.tutorialMode && !this.missionFocus && (actor.detailVisible || actor.silhouetteVisible || actor.impostorVisible);
       actor.detail.visible = actor.detailVisible;
       actor.silhouette.visible = actor.silhouetteVisible;
       actor.impostor.visible = actor.impostorVisible;
