@@ -12,6 +12,12 @@ export const whiteRockLowGates = Object.freeze([
   { x: 6_450, z: -9_050, altitude: 150, radius: 64, maxAltitude: 290 },
   { x: 7_950, z: -8_000, altitude: 165, radius: 68, maxAltitude: 310 },
 ]);
+export const downtownPrecisionGates = Object.freeze([
+  { x: -2_400, z: -1_700, altitude: 390, radius: 42 },
+  { x: -980, z: -720, altitude: 470, radius: 38 },
+  { x: 640, z: -1_160, altitude: 420, radius: 38 },
+  { x: 1_100, z: 480, altitude: 500, radius: 42 },
+]);
 export const cityChallenges = {
   dallas: [
     ['dfw-speed', 4, 62, 180], ['downtown-precision', 4, 72, 280], ['trinity-inverted', 3, 54, 340], ['white-rock-low', 4, 64, 240],

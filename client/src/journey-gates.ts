@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { journeyDallas01, journeyDallas03 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas03, journeyDallas05 } from '../../shared/journey-mission.mjs';
 
 const cyan = new THREE.MeshBasicMaterial({ color: 0x64eaff, transparent: true, opacity: .94, depthWrite: false });
 const ice = new THREE.MeshBasicMaterial({ color: 0xe4ffff, transparent: true, opacity: .82, depthWrite: false });
 const gold = new THREE.MeshBasicMaterial({ color: 0xffcb50, transparent: true, opacity: .96, depthWrite: false });
 const ringShape = new THREE.TorusGeometry(1, .08, 8, 48);
 const innerShape = new THREE.TorusGeometry(.86, .019, 6, 48);
+const precisionOpeningShape = new THREE.TorusGeometry(.92, .015, 6, 48);
 const accentShape = new THREE.TorusGeometry(1.09, .048, 6, 24, Math.PI * .48);
 
 export class JourneyGateSystem {
@@ -17,7 +18,7 @@ export class JourneyGateSystem {
   private flashTime = 0;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
-    private readonly mission: typeof journeyDallas01 | typeof journeyDallas03 = journeyDallas01) {
+    private readonly mission: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 = journeyDallas01) {
     for (const [index, gate] of mission.gates.entries()) {
       const group = new THREE.Group();
       group.name = `${mission.id}-gate-${index + 1}`;
@@ -27,7 +28,7 @@ export class JourneyGateSystem {
       const previous = mission.gates[Math.max(0, index - 1)]!;
       group.lookAt(gate.x + next.x - previous.x, group.position.y, gate.z + next.z - previous.z);
       const rim = new THREE.Mesh(ringShape, cyan);
-      const core = new THREE.Mesh(innerShape, ice);
+      const core = new THREE.Mesh(mission.id === journeyDallas05.id ? precisionOpeningShape : innerShape, ice);
       const accent = new THREE.Mesh(accentShape, gold);
       accent.rotation.z = -.3;
       const burst = new THREE.Mesh(ringShape, gold.clone());
@@ -57,7 +58,7 @@ export class JourneyGateSystem {
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
-    if (this.active && current) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
+    if (this.active && current && this.mission.id !== journeyDallas05.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
     if (this.flashTime > 0) {
       this.flashTime = Math.max(0, this.flashTime - delta);
       const burst = this.gates[this.flashIndex]?.children[3] as THREE.Mesh | undefined;
@@ -79,7 +80,8 @@ export class JourneyGateSystem {
           ? part === 2 ? gold : part === 1 ? ice : cyan
           : ice;
       });
-      if (index !== this.current) group.scale.setScalar(this.mission.gates[index]!.radius * .82);
+      if (index !== this.current || this.mission.id === journeyDallas05.id)
+        group.scale.setScalar(this.mission.gates[index]!.radius * (index === this.current ? 1 : .82));
     });
   }
 

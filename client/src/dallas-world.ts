@@ -14,7 +14,7 @@ import type { ImportedObstacle, ImportedRoadSegment, ImportedWater } from './osm
 import type { WorldMapLayer } from './world-map';
 import type { NavigationDestination } from './navigation-beacons';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
-import { dfwSpeedGates, whiteRockLowGates } from '../../shared/city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates } from '../../shared/city-challenges.mjs';
 import { airborneAdVisibilityMultiplier } from '../../shared/ad-placement-rules.mjs';
 import { CityVisualLayer, type CityVisualConfig, type CityVisualQuality, type CityTimeOfDay } from './city-visuals';
 import { DallasScenery } from './dallas-scenery';
@@ -514,12 +514,7 @@ export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
   },
   {
     id: 'downtown-precision', name: `${place.downtown} PRECISION`, type: 'precision', reward: 280, timeLimit: 72, sponsor: { type: 'RING_SPONSOR', campaignId: 'airport-chaos' },
-    gates: [
-      { x: -2_400, z: -1_700, altitude: 390, radius: 42 },
-      { x: -980, z: -720, altitude: 470, radius: 38 },
-      { x: 640, z: -1_160, altitude: 420, radius: 38 },
-      { x: 1_100, z: 480, altitude: 500, radius: 42 },
-    ],
+    gates: downtownPrecisionGates,
   },
   {
     id: 'trinity-inverted', name: 'TRINITY INVERTED', type: 'inverted', reward: 340, timeLimit: 54,

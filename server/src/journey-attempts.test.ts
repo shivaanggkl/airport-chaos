@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+import { downtownPrecisionGates } from '../../shared/city-challenges.mjs';
 
 test('Claim the Skies requires Mission 3, resets on exit, pauses on contest, and credits first clear once', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-territory-journey-test-'));
@@ -285,6 +286,84 @@ test('White Rock unlocks after Hunter, starts its 64-second timer at Gate 1, and
     const check = new DatabaseSync(path);
     assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'white-rock-pilot'").get() as { credits: number }).credits, 1050);
     assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reason = 'MISSION_REWARD'").get() as { count: number }).count, 3);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Downtown Needle shares the existing narrow course and accepts only the real forward opening', () => {
+  assert.equal(journeyDallas05.startAirportId, 'love');
+  assert.equal(journeyDallas05.timeLimitMs, 72_000);
+  assert.deepEqual(journeyDallas05.gates, downtownPrecisionGates);
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [42, 38, 38, 42]);
+  for (let index = 0; index < 4; index += 1) {
+    const gate = journeyDallas05.gates[index]!;
+    const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
+    const next = journeyDallas05.gates[Math.min(3, index + 1)]!;
+    const length = Math.hypot(next.x - previous.x, next.z - previous.z);
+    const nx = (next.x - previous.x) / length;
+    const nz = (next.z - previous.z) / length;
+    const before = { x: gate.x - nx * 50, y: gate.altitude, z: gate.z - nz * 50 };
+    const after = { x: gate.x + nx * 50, y: gate.altitude, z: gate.z + nz * 50 };
+    assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas05), 'VALID');
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas05), false);
+    assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, index, 0, journeyDallas05), false);
+    const offset = gate.radius;
+    assert.equal(journeyGateCrossing(
+      { ...before, x: before.x - nz * offset, z: before.z + nx * offset },
+      { ...after, x: after.x - nz * offset, z: after.z + nx * offset }, index, 0, journeyDallas05,
+    ), false);
+  }
+});
+
+test('Downtown Needle needs Mission 4 and credits exactly 600 once across retry and replay', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-downtown-journey-test-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('downtown-pilot', 0, 0), ('other-pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    assert.throws(() => store.launch('downtown-pilot', 'trainer', 1_000, journeyDallas05.id), /locked/);
+    const fixture = new DatabaseSync(path);
+    fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
+      .run('downtown-pilot', journeyDallas04.id, 'qa-prerequisite', 500, 30_000);
+    fixture.close();
+    const expired = store.launch('downtown-pilot', 'trainer', 2_000, journeyDallas05.id);
+    assert.equal(expired.status, 'READY');
+    store.approach('downtown-pilot', expired.attemptId);
+    assert.equal(store.get('downtown-pilot', expired.attemptId)?.deadlineAt, null);
+    assert.equal(store.acceptGate('other-pilot', expired.attemptId, 0, 3_000), undefined);
+    assert.equal(store.acceptGate('downtown-pilot', expired.attemptId, 1, 3_000), undefined);
+    assert.equal(store.acceptGate('downtown-pilot', expired.attemptId, 0, 3_000)?.deadlineAt, 75_000);
+    assert.equal(store.acceptGate('downtown-pilot', expired.attemptId, 3, 4_000), undefined);
+    assert.equal(store.acceptGate('downtown-pilot', expired.attemptId, 0, 4_000), undefined);
+    assert.equal(store.acceptGate('downtown-pilot', expired.attemptId, 1, 75_001), undefined);
+    assert.equal(store.fail('downtown-pilot', expired.attemptId, 'TIME_UP', 75_001)?.status, 'FAILED');
+    const attempt = store.launch('downtown-pilot', 'trainer', 80_000, journeyDallas05.id);
+    assert.equal(attempt.gateIndex, 0);
+    assert.equal(attempt.deadlineAt, null);
+    store.approach('downtown-pilot', attempt.attemptId);
+    for (let gate = 0; gate < 4; gate += 1) {
+      const result = store.acceptGate('downtown-pilot', attempt.attemptId, gate, 81_000 + gate * 10_000);
+      assert.equal(result?.gateIndex, gate + 1);
+      if (gate === 3) {
+        assert.equal(result?.status, 'COMPLETED');
+        assert.equal(result?.finishTimeMs, 30_000);
+        assert.equal(result?.firstClearCredits, 600);
+      }
+    }
+    assert.equal(store.acceptGate('downtown-pilot', attempt.attemptId, 3, 111_100), undefined);
+    assert.equal(new JourneyAttemptStore(path).progress('downtown-pilot', journeyDallas05.id).firstAttemptId, attempt.attemptId);
+    const replay = store.launch('downtown-pilot', 'trainer', 120_000, journeyDallas05.id);
+    store.approach('downtown-pilot', replay.attemptId);
+    assert.equal(store.acceptGate('downtown-pilot', attempt.attemptId, 0, 121_000), undefined);
+    for (let gate = 0; gate < 4; gate += 1) {
+      const result = store.acceptGate('downtown-pilot', replay.attemptId, gate, 121_000 + gate * 10_000);
+      if (gate === 3) assert.equal(result?.firstClearCredits, 0);
+    }
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'downtown-pilot'").get() as { credits: number }).credits, 600);
+    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id = 'journey-dallas-05'").get() as { count: number }).count, 1);
     check.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

@@ -71,10 +71,12 @@
 .mission-journey.has-stage-two-complete .mission-journey-route-completed-two { opacity: 1; }
 .mission-journey.has-stage-three-complete .mission-journey-route-completed-three { opacity: 1; }
 .mission-journey.has-stage-four-complete .mission-journey-route-completed-four { opacity: 1; }
+.mission-journey.has-stage-five-complete .mission-journey-route-completed-five { opacity: 1; }
 .mission-journey.is-progressing .mission-journey-route-completed { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-two .mission-journey-route-completed-two { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-three .mission-journey-route-completed-three { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-four .mission-journey-route-completed-four { animation: mission-route-unlock 1100ms ease-out both; }
+.mission-journey.is-progressing-five .mission-journey-route-completed-five { animation: mission-route-unlock 1100ms ease-out both; }
 @keyframes mission-route-flow { to { stroke-dashoffset: -160; } }
 @keyframes mission-route-unlock { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .mission-journey-chapter {
