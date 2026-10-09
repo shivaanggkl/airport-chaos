@@ -1100,6 +1100,13 @@ journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!
   else void retryJourneyMission();
 });
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.addEventListener('click', () => void exitFlightToHub(false, true));
+registerUiBackLayer({
+  id: 'journey-result',
+  priority: uiBackPriority.blockingModal + 30,
+  isActive: () => !journeyResultElement.classList.contains('hidden'),
+  close: () => { void exitFlightToHub(false, true); },
+  containsTarget: (target) => target instanceof Node && journeyResultElement.contains(target),
+});
 const dynamicEventElement = document.querySelector<HTMLElement>('#dynamic-event')!;
 const dynamicEventNameElement = document.querySelector<HTMLElement>('#dynamic-event-name')!;
 const dynamicEventObjectiveElement = document.querySelector<HTMLElement>('#dynamic-event-objective')!;
@@ -1113,7 +1120,7 @@ const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overla
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
 const flightExitButtonElement = document.querySelector<HTMLButtonElement>('#flight-exit-button')!;
-if (journeyMode) flightExitButtonElement.textContent = 'EXIT TO JOURNEY';
+if (journeyMode) document.querySelector<HTMLElement>('#flight-exit-label')!.textContent = 'EXIT TO JOURNEY';
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
 const flightAccountButtonElement = document.querySelector<HTMLButtonElement>('#flight-account-button')!;
@@ -8914,6 +8921,7 @@ function requestFlightExit(openFirehawkGarage = false): void {
 async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = false): Promise<void> {
   if (flightExitPending) return;
   flightExitPending = true;
+  const completedJourneyExit = returnToJourney && journeyMode && journeyAttempt?.status === 'COMPLETED';
   closeFlightDialog();
   if (returnToJourney && journeyMode && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) {
     try {
@@ -8957,12 +8965,14 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   clearReconnectTimer();
   if (socket && socket.readyState !== WebSocket.CLOSED) {
     const closingSocket = socket;
-    const closed = new Promise<boolean>((resolve) => {
+    const closed = completedJourneyExit ? undefined : new Promise<boolean>((resolve) => {
       const timeout = window.setTimeout(() => resolve(false), 3_000);
       closingSocket.addEventListener('close', () => { window.clearTimeout(timeout); resolve(true); }, { once: true });
     });
     try { closingSocket.close(1000, 'Exit flight'); } catch { /* close result is checked below */ }
-    if (!await closed) {
+    // The server has already committed a completed Journey result. A suspended
+    // iOS WebSocket may never deliver its close event after backgrounding.
+    if (closed && !await closed) {
       realtimeStopped = false;
       flightExitPending = false;
       showProgressMessage('COULD NOT END FLIGHT SESSION · TRY AGAIN');

@@ -172,8 +172,7 @@
   width: var(--mission-panel-width);
   max-height: 100%;
   min-height: 0;
-  padding: clamp(13px, 1.2vw, 18px);
-  overflow-y: auto;
+  padding: clamp(14px, 1.3vw, 20px);
   color: #103966;
   border: 2px solid #e8bf60;
   border-radius: 19px;
@@ -190,19 +189,18 @@
 .mission-journey-status.is-locked { color: #385b76; background: linear-gradient(#edf6fb, #cbdde9); }
 .mission-journey-detail-close { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0 0 3px; color: #194d75; border: 1px solid #8cc8e3; border-radius: 12px; background: linear-gradient(#ffffff, #dceffa); box-shadow: inset 0 1px #fff, 0 3px 6px rgb(24 80 122 / 20%); font: 700 28px/1 var(--font-body) !important; transition: filter 180ms ease, transform 180ms ease; }
 .mission-journey-detail-close:hover { filter: brightness(1.06); transform: translateY(-2px); }
-.mission-journey-mission-title { margin: 8px 0 0; color: #103966; font: 900 clamp(18px, 1.6vw, 23px)/1.1 var(--font-display); }
+.mission-journey-mission-title { margin: 18px 0 0; color: #103966; font: 900 clamp(22px, 2vw, 29px)/1.1 var(--font-display); }
 .mission-journey-mission-title:empty { display: none; }
-.mission-journey-type { margin: 7px 0 10px; padding: 10px 11px; color: #0875d9; border: 1px solid #c8e7f7; border-radius: 9px; background: #e8f5fd; font: 800 clamp(11px, .95vw, 13px)/1.2 var(--font-display); letter-spacing: .04em; }
-.mission-journey-preview { position: relative; flex: 0 0 177px; min-height: 110px; margin: 0; overflow: hidden; border: 2px solid #a9dce9; border-radius: 11px; box-shadow: inset 0 0 0 1px rgb(250 254 255 / 70%), 0 3px 9px rgb(32 99 150 / 20%); }
-.mission-journey-preview > div { position: absolute; inset: 0; background: url('/media/city-journey/day.jpg') center 58% / cover no-repeat; }
-.mission-journey-preview.is-dfw-preview > div { background-image: url('/media/mission-journey/dfw-sky-rush.jpg'); background-position: center 70%; }
-.mission-journey-preview.is-territory-preview-pending > div { background: linear-gradient(145deg, #173c67, #08264c); }
-.mission-journey-preview figcaption { position: absolute; right: 0; bottom: 0; left: 0; padding: 15px 10px 7px; color: #f7fbff; background: linear-gradient(transparent, rgb(13 52 96 / 85%)); font: 800 10px/1 var(--font-display); letter-spacing: .12em; }
-.mission-journey-objective { margin: 10px 0; padding: 11px 12px; color: #315376; border: 1px solid #d3e9f7; border-radius: 9px; background: #edf7fd; font: 600 clamp(12px, 1vw, 15px)/1.3 var(--font-body); }
-.mission-journey-facts:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 9px; color: #214b72; font: 800 clamp(10px, .85vw, 12px)/1.25 var(--font-display); }
-.mission-journey-facts span:last-child { grid-column: 1 / -1; color: #8a5917; }
-.mission-journey-detail-bottom { display: grid; gap: 8px; margin-top: auto; padding-top: 10px; }
-.mission-journey-play { min-height: 48px; border-radius: 10px; font-weight: 900; }
+.mission-journey-objective { margin: 12px 0 0; color: #315376; font: 650 clamp(14px, 1.15vw, 17px)/1.35 var(--font-body); }
+.mission-journey-facts:not([hidden]) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 17px; }
+.mission-journey-fact { display: grid; min-width: 0; min-height: 82px; align-content: center; justify-items: center; gap: 6px; padding: 8px 3px; color: #164b77; border: 1px solid #c5e5f5; border-radius: 12px; background: linear-gradient(#f5fbff, #e4f4fd); box-shadow: inset 0 1px #fff, 0 2px 5px rgb(31 101 148 / 11%); text-align: center; }
+.mission-journey-fact svg { width: 24px; height: 24px; color: #089ed1; filter: drop-shadow(0 1px 1px rgb(4 76 128 / 18%)); }
+.mission-journey-fact span { font: 900 clamp(9px, .86vw, 12px)/1.15 var(--font-display); white-space: nowrap; }
+.mission-journey-reward { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; color: #8a5917; font: 900 clamp(12px, 1vw, 15px)/1.2 var(--font-display); }
+.mission-journey-reward[hidden] { display: none; }
+.mission-journey-reward::before { display: grid; flex: 0 0 25px; width: 25px; height: 25px; place-items: center; border: 1px solid #e8be61; border-radius: 50%; background: linear-gradient(#ffedac, #e9b94d); box-shadow: 0 2px 4px rgb(151 99 23 / 20%); content: '$'; font: 900 15px/1 var(--font-display); }
+.mission-journey-detail-bottom { display: grid; margin-top: 17px; }
+.mission-journey-play { min-height: 54px; border-radius: 11px; font-size: clamp(12px, 1.15vw, 16px); font-weight: 900; }
 .mission-journey-play { color: #4d4c49; border: 2px solid #d5bf8b; background: linear-gradient(#f6e6b6, #e4d4a9); box-shadow: inset 0 2px rgb(255 255 255 / 68%); cursor: not-allowed !important; }
 .mission-journey-play:not(:disabled) { color: #103966; border-color: #fff4b1; background: linear-gradient(#fff3a2, #ffc94f 55%, #ffae35); box-shadow: inset 0 2px #fff9d0, 0 4px 12px rgb(185 108 19 / 35%); cursor: pointer !important; }
 .mission-journey-play:not(:disabled):hover, .mission-journey-play:not(:disabled):focus-visible { filter: brightness(1.08); }
@@ -217,7 +215,11 @@
 .mission-journey-free-copy small { color: #53e9ff; font: 800 clamp(8px, .8vw, 12px)/1.2 var(--font-display); letter-spacing: .09em; white-space: nowrap; }
 .mission-journey-free-arrow { flex: 0 0 auto; width: clamp(20px, 2.1vw, 32px); height: clamp(20px, 2.1vw, 32px); fill: none; stroke: #ffd35b; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 2px #152d54); }
 @media (max-height: 760px) and (min-width: 1001px) {
-  .mission-journey-preview { flex-basis: 145px; }
+  .mission-journey-mission-title { margin-top: 10px; }
+  .mission-journey-facts:not([hidden]) { margin-top: 10px; }
+  .mission-journey-fact { min-height: 68px; }
+  .mission-journey-reward { margin-top: 10px; }
+  .mission-journey-detail-bottom { margin-top: 10px; }
 }
 @media (max-width: 1000px) {
   .mission-journey-airport-mark, .mission-journey-dallas-mark { display: none; }
@@ -228,8 +230,7 @@
   .mission-journey-board-scroll { height: 100%; overflow-x: auto; overflow-y: hidden; border-radius: 10px; scrollbar-width: thin; }
   .mission-journey-board { width: 900px; height: 100%; }
   .mission-journey:not(.is-panel-open) .mission-journey-board { width: max(820px, 100%); }
-  .mission-journey-detail-card { max-height: none; }
-  .mission-journey-preview { flex-basis: 150px; }
+  .mission-journey-detail-card { max-height: 100%; }
 }
 @media (max-width: 640px) {
   .mission-journey-topbar { display: grid; grid-template-areas: 'heading' 'back'; grid-template-columns: 1fr; flex: 0 0 103px; gap: 4px; padding: 5px max(8px, var(--safe-area-right)) 0 max(8px, var(--safe-area-left)); }
@@ -245,7 +246,6 @@
   .mission-journey-detail { width: 100%; max-height: 0; transition: max-height 230ms ease, visibility 0s linear 230ms; }
   .mission-journey.is-panel-open .mission-journey-detail { width: 100%; max-height: min(60vh, 490px); transition: max-height 230ms ease; }
   .mission-journey-detail-card { width: 100%; max-height: min(60vh, 490px); padding: 12px; }
-  .mission-journey-preview { flex-basis: 140px; }
 }
 @media (max-width: 640px) and (orientation: portrait) {
   .mission-journey-layout { padding-bottom: calc(88px + var(--safe-area-bottom)); }
@@ -263,22 +263,26 @@
   .mission-journey-heading p { font-size: 8px; }
   .mission-journey-back { min-width: 0; min-height: 40px; height: 40px; }
   .mission-journey-back { gap: 5px; padding-inline: 7px; font-size: 9px; }
-  .mission-journey-layout { --mission-panel-width: clamp(255px, 34vw, 310px); flex-direction: row; flex: 1 1 auto; min-height: 0; padding-bottom: max(5px, var(--safe-area-bottom)); }
+  .mission-journey-layout { --mission-panel-width: clamp(310px, 40vw, 360px); flex-direction: row; flex: 1 1 auto; min-height: 0; padding-bottom: max(5px, var(--safe-area-bottom)); }
   .mission-journey.is-panel-open .mission-journey-layout { gap: 6px; }
   .mission-journey-board-scroll { flex: 1 1 auto; height: 100%; overflow: auto; }
   .mission-journey-board { width: 900px; height: 330px; }
   .mission-journey-detail { width: 0; height: 100%; max-height: none; }
   .mission-journey.is-panel-open .mission-journey-detail { width: var(--mission-panel-width); max-height: none; }
-  .mission-journey-detail-card { width: var(--mission-panel-width); height: 100%; max-height: 100%; padding: 7px; border-radius: 13px; }
+  .mission-journey-detail-card { width: var(--mission-panel-width); max-height: 100%; padding: 6px 9px; border-radius: 13px; }
   .mission-journey-detail-top { font-size: 10px; }
   .mission-journey-status { padding: 5px; font-size: 8px; }
   .mission-journey-detail-close { flex-basis: 44px; width: 44px; height: 44px; }
-  .mission-journey-type { margin: 3px 0 5px; padding: 5px 7px; font-size: 9px; }
-  .mission-journey-preview { flex-basis: 54px; min-height: 54px; }
-  .mission-journey-preview figcaption { padding: 9px 6px 4px; font-size: 7px; }
-  .mission-journey-objective { margin: 5px 0; padding: 5px 7px; font-size: 10px; }
-  .mission-journey-detail-bottom { padding-top: 2px; }
-  .mission-journey-play { min-height: 44px; font-size: 9px; }
+  .mission-journey-mission-title { margin-top: 2px; font-size: 19px; }
+  .mission-journey-objective { margin-top: 4px; font-size: 12px; line-height: 1.25; }
+  .mission-journey-facts:not([hidden]) { gap: 4px; margin-top: 4px; }
+  .mission-journey-fact { min-height: 44px; gap: 2px; padding: 3px 1px; border-radius: 7px; }
+  .mission-journey-fact svg { width: 17px; height: 17px; }
+  .mission-journey-fact span { font-size: 9px; }
+  .mission-journey-reward { gap: 5px; margin-top: 5px; font-size: 11px; }
+  .mission-journey-reward::before { flex-basis: 18px; width: 18px; height: 18px; font-size: 11px; }
+  .mission-journey-detail-bottom { margin-top: 4px; }
+  .mission-journey-play { min-height: 44px; font-size: 11px; }
   .mission-journey-free-dock { flex-basis: calc(58px + var(--safe-area-bottom)); padding-bottom: max(4px, var(--safe-area-bottom)); }
   .mission-journey-free { width: min(275px, 100%); height: 51px; padding-inline: 17px; border-width: 2px; }
   .mission-journey-free-plane { width: 30px; height: 30px; }

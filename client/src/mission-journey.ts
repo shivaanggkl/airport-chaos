@@ -1,5 +1,6 @@
 import './mission-journey.css';
 import { hapticsManager } from './haptics-manager';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05 } from '../../shared/journey-mission.mjs';
 
 type ChapterNumber = 1 | 2 | 3 | 4;
 type StageImplementation = 'playable' | 'planned';
@@ -13,7 +14,25 @@ export type MissionJourneyStage = Readonly<{
   y: number;
 }>;
 
-const chapterNames = ['TAKE OFF', 'CITY SKIES', 'HIGHER GROUND', 'FINAL APPROACH'] as const;
+type FactIcon = 'location' | 'gate' | 'timer' | 'target' | 'health' | 'capture';
+type MissionFact = Readonly<{ icon: FactIcon; label: string }>;
+type MissionCard = Readonly<{ title: string; objective: string; facts: readonly [MissionFact, MissionFact, MissionFact]; reward: number }>;
+const seconds = (milliseconds: number): string => `${milliseconds / 1000} SEC`;
+const missionCards: readonly MissionCard[] = [
+  { title: journeyDallas01.name, objective: 'Take off. Fly through 4 glowing gates. Beat the clock!', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'gate', label: `${journeyDallas01.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas01.timeLimitMs) }], reward: journeyDallas01.firstClearCredits },
+  { title: journeyDallas02.name, objective: 'Find the marked AI Hunter and defeat it!', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'target', label: '1 HUNTER' }, { icon: 'health', label: `${journeyDallas02.targetHealth} HP` }], reward: journeyDallas02.firstClearCredits },
+  { title: journeyDallas03.name, objective: 'Fly through 4 low-altitude gates before time runs out!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: `${journeyDallas03.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas03.timeLimitMs) }], reward: journeyDallas03.firstClearCredits },
+  { title: journeyDallas04.name, objective: 'Capture White Rock and hold control for 30 seconds!', facts: [{ icon: 'location', label: 'WHITE ROCK' }, { icon: 'capture', label: 'CAPTURE' }, { icon: 'timer', label: `HOLD ${seconds(journeyDallas04.holdMs)}` }], reward: journeyDallas04.firstClearCredits },
+  { title: journeyDallas05.name, objective: 'Fly accurately through 4 narrow downtown gates!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas05.timeLimitMs) }], reward: journeyDallas05.firstClearCredits },
+];
+const factIcons: Readonly<Record<FactIcon, string>> = {
+  location: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
+  gate: '<circle cx="12" cy="12" r="8"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+  target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>',
+  health: '<path d="M12 22s-8-4.6-8-11V5l8-3 8 3v6c0 6.4-8 11-8 11Z"/><path d="M8 12h8m-4-4v8"/>',
+  capture: '<path d="M5 22V3m0 1c5-3 9 3 15 0v11c-6 3-10-3-15 0"/>',
+};
 const stagePositions: readonly (readonly [number, number])[] = [
   [92, 239], [172, 247], [251, 267], [328, 297], [403, 320], [480, 325],
   [407, 100], [486, 100], [565, 108], [639, 120], [703, 128], [770, 136],
@@ -94,10 +113,9 @@ export class MissionJourney {
           <div class="mission-journey-detail-card">
             <div class="mission-journey-detail-top"><span data-mission-index>MISSION 01</span><span class="mission-journey-status" data-mission-status>COMING SOON</span><button type="button" class="mission-journey-detail-close" aria-label="Close mission details" data-mission-close>×</button></div>
             <h2 class="mission-journey-mission-title" data-mission-title></h2>
-            <p class="mission-journey-type" data-mission-type>CHAPTER 1 · TAKE OFF</p>
-            <figure class="mission-journey-preview"><div role="img" aria-label="Dallas city aviation preview"></div><figcaption data-mission-caption>DALLAS CITY PREVIEW</figcaption></figure>
             <p class="mission-journey-objective" data-mission-objective></p>
             <div class="mission-journey-facts" data-mission-facts hidden></div>
+            <p class="mission-journey-reward" data-mission-reward hidden></p>
             <div class="mission-journey-detail-bottom"><button type="button" class="mission-journey-play" data-mission-play disabled>MISSION COMING SOON</button></div>
           </div>
         </aside>
@@ -395,56 +413,35 @@ export class MissionJourney {
 
   private renderDetails(): void {
     const stage = missionJourneyStages[this.selectedStage - 1]!;
-    const first = stage.number === 1;
-    const second = stage.number === 2;
-    const third = stage.number === 3;
-    const fourth = stage.number === 4;
-    const fifth = stage.number === 5;
-    const sixth = stage.number === 6;
-    const locked = !first && !(second && this.stageOneCompleted) && !(third && this.stageTwoCompleted) && !(fourth && this.stageThreeCompleted) && !(fifth && this.stageFourCompleted) && !(sixth && this.stageFiveCompleted);
-    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent =
-      `MISSION ${String(stage.number).padStart(2, '0')}${stage.number <= 6 ? ' · ROOKIE LEAGUE' : ''}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = first ? 'DFW SKY RUSH' : second ? 'HUNTER SHOWDOWN' : third ? 'WHITE ROCK SKIMMER' : fourth ? 'CLAIM THE SKIES' : fifth ? 'DOWNTOWN NEEDLE' : sixth ? 'ROOKIE CHAMPIONSHIP' : '';
+    const card = missionCards[stage.number - 1];
+    const completed = [this.stageOneCompleted, this.stageTwoCompleted, this.stageThreeCompleted, this.stageFourCompleted, this.stageFiveCompleted][stage.number - 1] === true;
+    const eligible = [this.stageOneEligible, this.stageTwoEligible, this.stageThreeEligible, this.stageFourEligible, this.stageFiveEligible][stage.number - 1] === true;
+    const reached = stage.number === 6 && this.stageFiveCompleted;
+    const locked = (!card && !reached) || (!!card && !eligible && !completed);
+    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card?.title ?? (stage.number === 6 ? 'ROOKIE CHAMPIONSHIP' : 'MISSION COMING SOON');
     const status = this.detail.querySelector<HTMLElement>('[data-mission-status]')!;
-    status.textContent = first
-      ? this.stageOneCompleted ? 'COMPLETED' : this.stageOneEligible ? 'CURRENT MISSION' : 'PREVIEW'
-      : second ? this.stageTwoCompleted ? 'COMPLETED' : this.stageTwoEligible ? 'CURRENT MISSION' : 'LOCKED'
-        : third ? this.stageThreeCompleted ? 'COMPLETED' : this.stageThreeEligible ? 'CURRENT MISSION' : 'LOCKED'
-        : fourth ? this.stageFourCompleted ? 'COMPLETED' : this.stageFourEligible ? 'CURRENT MISSION' : 'LOCKED'
-          : fifth ? this.stageFiveCompleted ? 'COMPLETED' : this.stageFiveEligible ? 'CURRENT MISSION' : 'LOCKED'
-          : locked ? 'LOCKED' : 'COMING SOON';
+    status.textContent = completed ? 'COMPLETED' : locked ? 'LOCKED' : card ? 'AVAILABLE' : 'COMING SOON';
     status.classList.toggle('is-locked', locked);
-    this.detail.querySelector<HTMLElement>('[data-mission-type]')!.textContent = first ? 'SPEED CHALLENGE'
-      : second ? 'AIR COMBAT' : third ? 'LOW-ALTITUDE CHALLENGE' : fourth ? 'TERRITORY CONTROL' : fifth ? 'PRECISION FLIGHT' : `CHAPTER ${stage.chapter} · ${chapterNames[stage.chapter - 1]}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = first
-      ? 'Take off from DFW and fly through all 4 glowing gates before time runs out!'
-      : second ? 'Take off from DFW, find the marked AI Hunter, and defeat it in an aerial battle!'
-        : third ? 'Take off from Love Field and fly through 4 glowing gates near White Rock Lake. Stay below the altitude limits and beat the clock!'
-          : fourth ? 'Fly to White Rock, take control of its airspace, and defend it for 30 seconds!'
-          : fifth ? 'Take off from Love Field and fly through 4 narrow glowing gates over Downtown Dallas. Make every turn count and beat the clock!'
-        : locked ? 'Complete earlier missions to reach this stage. Mission details are coming soon.'
-          : sixth ? 'Your next challenge is being prepared.' : 'Your next flight challenge is being prepared.';
+    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = card?.objective ?? (locked ? 'Complete earlier missions to unlock this stage. Details are coming soon.' : 'Your next challenge is being prepared.');
     const facts = this.detail.querySelector<HTMLElement>('[data-mission-facts]')!;
-    facts.hidden = !(first || second || third || fourth || fifth);
-    if (first) facts.innerHTML = '<span>START: DFW RUNWAY</span><span>CHECKPOINTS: 4 GATES</span><span>RACE TIME: 1:02</span><span>RECOMMENDED: BLUEJAY</span><span>FIRST-CLEAR REWARD: 250 CREDITS</span>';
-    if (second) facts.innerHTML = `<span>START: DFW RUNWAY</span><span>TARGET: 1 AI HUNTER</span><span>ENEMY HEALTH: 200 HP</span><span>TIME LIMIT: NONE</span><span>RECOMMENDED AIRCRAFT: BLUEJAY</span><span>${this.stageTwoCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 350 CREDITS'}</span>`;
-    if (third) facts.innerHTML = `<span>START: DALLAS LOVE FIELD</span><span>CHECKPOINTS: 4 GATES</span><span>TIME LIMIT: 1:04</span><span>AIRCRAFT: BLUEJAY RECOMMENDED</span><span>${this.stageThreeCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 450 CREDITS'}</span>`;
-    if (fourth) facts.innerHTML = `<span>START: LOVE FIELD</span><span>TARGET: WHITE ROCK</span><span>OBJECTIVE: CAPTURE + HOLD</span><span>HOLD TIME: 30 SECONDS</span><span>TIME LIMIT: NONE</span><span>RECOMMENDED: BLUEJAY</span><span>${this.stageFourCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 500 CREDITS'}</span>`;
-    if (fifth) facts.innerHTML = `<span>START: LOVE FIELD</span><span>CHECKPOINTS: 4 GATES</span><span>TIME LIMIT: 1:12</span><span>RECOMMENDED: BLUEJAY</span><span>${this.stageFiveCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 600 CREDITS'}</span>`;
-    this.detail.querySelector<HTMLElement>('[data-mission-caption]')!.textContent = fifth ? 'DOWNTOWN GAMEPLAY IMAGE PENDING' : fourth ? 'WHITE ROCK GAMEPLAY IMAGE PENDING' : first || second ? 'DFW GAMEPLAY PREVIEW' : 'DALLAS CITY PREVIEW';
-    this.detail.querySelector<HTMLElement>('.mission-journey-preview > div')!.setAttribute('aria-label', fifth ? 'Downtown gameplay image pending' : fourth ? 'White Rock gameplay image pending' : first || second ? 'DFW gameplay preview' : 'Dallas city aviation preview');
-    const preview = this.detail.querySelector<HTMLElement>('.mission-journey-preview')!;
-    preview.classList.toggle('is-dfw-preview', first || second);
-    preview.classList.toggle('is-territory-preview-pending', fourth || fifth);
+    facts.hidden = !card;
+    facts.replaceChildren();
+    for (const fact of card?.facts ?? []) {
+      const item = document.createElement('div');
+      item.className = 'mission-journey-fact';
+      item.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${factIcons[fact.icon]}</svg>`;
+      const label = document.createElement('span');
+      label.textContent = fact.label;
+      item.append(label);
+      facts.append(item);
+    }
+    const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
+    reward.hidden = !card;
+    reward.textContent = card ? `${card.reward} CREDITS${completed ? ' · CLAIMED' : ''}` : '';
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
-    play.disabled = first ? !this.stageOneEligible : second ? !this.stageTwoEligible : third ? !this.stageThreeEligible : fourth ? !this.stageFourEligible : fifth ? !this.stageFiveEligible : true;
-    play.textContent = first
-      ? this.stageOneEligible ? this.stageOneCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'PLAY UNAVAILABLE'
-      : second ? this.stageTwoEligible ? this.stageTwoCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
-        : third ? this.stageThreeEligible ? this.stageThreeCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
-        : fourth ? this.stageFourEligible ? this.stageFourCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
-          : fifth ? this.stageFiveEligible ? this.stageFiveCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
-          : locked ? 'MISSION LOCKED' : 'MISSION COMING SOON';
+    play.disabled = !card || !eligible;
+    play.textContent = !card ? locked ? 'LOCKED' : 'COMING SOON' : completed ? 'REPLAY MISSION' : !eligible ? 'LOCKED' : 'PLAY MISSION';
   }
 
   private revealSelectedStage(): void {
