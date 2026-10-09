@@ -14,6 +14,7 @@ import { advanceMission, initializeMissionAttempt, type MissionSignal } from './
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05 } from '../../shared/journey-mission.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
+import { focusedTerritoryCaptureId, focusedTerritoryParticipantAllowed, isFocusedTerritoryDefender } from './focused-territory-defender.js';
 import { boundJourneyHunterPoint, insideJourneyHunterArena, journeyHunterSteeringTarget, keepJourneyHunterInside } from './journey-hunter-airspace.js';
 import { JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
 import { airportForCity, cityAirports } from '../../shared/city-airports.mjs';
@@ -335,6 +336,27 @@ const whiteRockJourneyTerritory = territoriesForCity('dallas').find(territory =>
 const playerJourneyAttempts = new Map<string, string>();
 // Populated only from authenticated Journey attempts, never client intent.
 const missionFocusedPlayers = new Set<string>();
+const missionFocusHunterTargets = new Map<string, string>();
+const missionFocusTerritoryAttempts = new Map<string, string>();
+function assignedFocusedHunter(botId: string, pilotId: string): boolean {
+  const hunter = players.get(botId)?.bot;
+  return missionFocusedPlayers.has(pilotId) && missionFocusHunterTargets.get(pilotId) === botId &&
+    hunter?.journeyTargetPlayerId === pilotId && hunter.journeyAttemptId === playerJourneyAttempts.get(pilotId);
+}
+function assignedFocusedDefender(botId: string, pilotId: string): boolean {
+  if (!missionFocusedPlayers.has(pilotId)) return false;
+  const territory = territoryStates(journeyDallas04.cityId).find(state => state.definition.id === journeyDallas04.territoryId);
+  const defender = players.get(botId);
+  return isFocusedTerritoryDefender(missionFocusTerritoryAttempts.get(pilotId), playerJourneyAttempts.get(pilotId),
+    pilotId, botId, journeyDallas04.territoryId, territory, defender);
+}
+function allowedFocusedBot(botId: string, pilotId: string): boolean {
+  return assignedFocusedHunter(botId, pilotId) || assignedFocusedDefender(botId, pilotId);
+}
+function focusedBotInteractionExcluded(firstId: string, first: PlayerState, secondId: string, second: PlayerState): boolean {
+  return excludesFocusedBotInteraction(missionFocusedPlayers.has(firstId), first.isBot, missionFocusedPlayers.has(secondId), second.isBot,
+    second.isBot && allowedFocusedBot(secondId, firstId), first.isBot && allowedFocusedBot(firstId, secondId));
+}
 const playerJourneyDfwTakeoff = new Set<string>();
 const playerJourneyLoveTakeoff = new Set<string>();
 const playerJourneyRunwayPrep = new Set<string>();
@@ -2147,6 +2169,12 @@ function sendToPlayer(playerId: string, message: object): void {
 function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   if (missionFocusForAttempt(attempt)) missionFocusedPlayers.add(playerId);
   else missionFocusedPlayers.delete(playerId);
+  if (missionFocusedPlayers.has(playerId) && attempt.missionId === journeyDallas02.id && attempt.targetId)
+    missionFocusHunterTargets.set(playerId, attempt.targetId);
+  else missionFocusHunterTargets.delete(playerId);
+  if (missionFocusedPlayers.has(playerId) && attempt.missionId === journeyDallas04.id)
+    missionFocusTerritoryAttempts.set(playerId, attempt.attemptId);
+  else missionFocusTerritoryAttempts.delete(playerId);
   if (attempt.status === 'COMPLETED' || attempt.status === 'FAILED' || attempt.status === 'ABANDONED')
     nextJourneyHunterReplacement.delete(attempt.attemptId);
   const target = attempt.targetId ? players.get(attempt.targetId) : undefined;
@@ -2849,7 +2877,7 @@ function territoryStates(cityId: CityId): TerritoryRuntime[] {
   return [...states.values()];
 }
 
-function territorySnapshot(cityId: CityId): Array<{ id: string; controllerId?: string; controllerName?: string; capturingPlayerId?: string; defenderBotId?: string; captureProgress: number; contested: boolean }> {
+function territorySnapshot(cityId: CityId): Array<{ id: string; controllerId?: string; controllerName?: string; capturingPlayerId?: string; defenderBotId?: string; captureProgress: number; contested: boolean; captureContested: boolean }> {
   return territoryStates(cityId).map((territory) => ({
     id: territory.definition.id,
     controllerId: territory.controllerId,
@@ -2858,6 +2886,7 @@ function territorySnapshot(cityId: CityId): Array<{ id: string; controllerId?: s
     defenderBotId: territory.defenderBotId,
     captureProgress: Math.round(territory.captureProgress),
     contested: territory.contested || Boolean(territory.controllerId && territory.capturingPlayerId && territory.capturingPlayerId !== territory.controllerId),
+    captureContested: territory.contested,
   }));
 }
 
@@ -3103,10 +3132,14 @@ function updateTerritories(now: number): void {
       }
       player.territoryIds = membership.current;
     }
-    const activePlayers = [...players.entries()].filter(([playerId, player]) => player.cityId === cityId && !missionFocusedPlayers.has(playerId) &&
+    const activePlayers = [...players.entries()].filter(([playerId, player]) => player.cityId === cityId &&
+      focusedTerritoryParticipantAllowed(missionFocusedPlayers.has(playerId), missionFocusTerritoryAttempts.get(playerId),
+        playerJourneyAttempts.get(playerId)) &&
       territoryCaptureAltitudeEligible(player) && isTerritoryActive(playerId, player, now));
-    const captureTerritoryByPlayer = new Map(activePlayers.map(([playerId, player]) =>
-      [playerId, primaryTerritoryAt(definitions, player.position)?.id]));
+    const captureTerritoryByPlayer = new Map(activePlayers.map(([playerId, player]) => {
+      const territoryId = primaryTerritoryAt(definitions, player.position)?.id;
+      return [playerId, focusedTerritoryCaptureId(territoryId, missionFocusTerritoryAttempts.get(playerId), journeyDallas04.territoryId)];
+    }));
     let changed = false;
     let urgentChanged = false;
     let ownershipChanged = false;
@@ -3118,7 +3151,9 @@ function updateTerritories(now: number): void {
         captureTerritoryByPlayer.get(id) === territory.definition.id);
       const humansInside = inside.filter(([, pilot]) => !pilot.isBot);
       const intruder = territory.controllerId ? humansInside.find(([id]) => id !== territory.controllerId)?.[0] : undefined;
+      const previousDefenderId = territory.defenderBotId;
       updateTerritoryDefense(territory, intruder, now);
+      if (territory.defenderBotId !== previousDefenderId) { changed = true; urgentChanged = true; }
       // Ambient AI and the summoned defender must not veto a human's capture.
       // Multiple opposing humans can still contest each other. With no humans,
       // retain the existing bot-only territory participation rule.
@@ -3744,7 +3779,8 @@ function closestLockTarget(
       !tutorialCombatPairAllowed(ownerId, player, targetId, target) ||
       target.lifeState !== 'alive' ||
       now < target.spawnProtectedUntil ||
-      now - target.lastStateAt > combatTransformFreshMs
+      now - target.lastStateAt > combatTransformFreshMs ||
+      focusedBotInteractionExcluded(ownerId, player, targetId, target)
     ) continue;
     const offset = {
       x: target.position.x - origin.x,
@@ -3797,7 +3833,7 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
   if (!aim || aim.targetId !== targetId || now - aim.updatedAt > 500 ||
       owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs ||
       !target || targetId === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
-      excludesFocusedBotInteraction(missionFocusedPlayers.has(ownerId), owner.isBot, missionFocusedPlayers.has(targetId), target.isBot) ||
+      focusedBotInteractionExcluded(ownerId, owner, targetId, target) ||
       !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
       target.lifeState !== 'alive' || now < target.spawnProtectedUntil ||
       now - target.lastStateAt > combatTransformFreshMs) return undefined;
@@ -3945,7 +3981,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if (
     !owner || !victim || victimId === ownerId || victim.entityType !== 'player' ||
     victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil || playerJourneyRunwayPrep.has(victimId) ||
-    excludesFocusedBotInteraction(missionFocusedPlayers.has(ownerId), owner.isBot, missionFocusedPlayers.has(victimId), victim.isBot) ||
+    focusedBotInteractionExcluded(ownerId, owner, victimId, victim) ||
     !tutorialCombatPairAllowed(ownerId, owner, victimId, victim)
   ) return false;
   if ((owner.bot?.journeyTargetPlayerId === victimId && !insideJourneyHunterArena(victim.position)) ||
@@ -4086,7 +4122,7 @@ function markPlayerDestroyed(victimId: string, victim: PlayerState, now: number)
 function applyAircraftCollision(firstId: string, secondId: string, now: number): boolean {
   const first = players.get(firstId), second = players.get(secondId);
   if (!first || !second || first.tutorialMode || second.tutorialMode || playerJourneyRunwayPrep.has(firstId) || playerJourneyRunwayPrep.has(secondId) || firstId === secondId || first.cityId !== second.cityId ||
-      excludesFocusedBotInteraction(missionFocusedPlayers.has(firstId), first.isBot, missionFocusedPlayers.has(secondId), second.isBot) ||
+      focusedBotInteractionExcluded(firstId, first, secondId, second) ||
       first.entityType !== 'player' || second.entityType !== 'player' ||
       first.lifeState !== 'alive' || second.lifeState !== 'alive' ||
       !first.hasRespawnTransform || !second.hasRespawnTransform ||
@@ -4203,7 +4239,7 @@ function updateProjectiles(deltaSeconds: number): void {
         !tutorialCombatPairAllowed(projectile.ownerId, owner, playerId, player) ||
         player.lifeState !== 'alive' ||
         playerJourneyRunwayPrep.has(playerId) ||
-        excludesFocusedBotInteraction(missionFocusedPlayers.has(projectile.ownerId), owner.isBot, missionFocusedPlayers.has(playerId), player.isBot) ||
+        focusedBotInteractionExcluded(projectile.ownerId, owner, playerId, player) ||
         now < player.spawnProtectedUntil
       ) {
         continue;
@@ -4473,7 +4509,8 @@ function botCombatTarget(botId: string, bot: PlayerState, now: number): [string,
   const candidate = [...players.entries()]
     // Hunters add pressure to real pilots only. Bots remain route traffic and
     // never form a self-sustaining bot-vs-bot combat loop.
-    .filter(([id, target]) => id !== botId && !target.isBot && !target.tutorialMode && !playerJourneyRunwayPrep.has(id) && !missionFocusedPlayers.has(id) && target.cityId === bot.cityId &&
+    .filter(([id, target]) => id !== botId && !target.isBot && !target.tutorialMode && !playerJourneyRunwayPrep.has(id) &&
+      (!missionFocusedPlayers.has(id) || allowedFocusedBot(botId, id)) && target.cityId === bot.cityId &&
       (!bot.bot?.journeyTargetPlayerId || id === bot.bot.journeyTargetPlayerId) &&
       (bot.cityId !== 'milwaukee' || target.milwaukeeBotsProvoked) && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
@@ -4499,7 +4536,9 @@ function hunterForward(player: PlayerState): Vector3 {
 function hunterTarget(botId: string, player: PlayerState, bot: BotRuntime, now: number): [string, PlayerState] | undefined {
   const targetId = bot.combatTargetId;
   const target = targetId ? players.get(targetId) : undefined;
-  if (!targetId || !target || targetId === botId || target.isBot || target.tutorialMode || playerJourneyRunwayPrep.has(targetId) || missionFocusedPlayers.has(targetId) || target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil) return undefined;
+  if (!targetId || !target || targetId === botId || target.isBot || target.tutorialMode || playerJourneyRunwayPrep.has(targetId) ||
+    (missionFocusedPlayers.has(targetId) && !allowedFocusedBot(botId, targetId)) ||
+    target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil) return undefined;
   return [targetId, target];
 }
 
@@ -4853,10 +4892,12 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
   if (!isHunterCombatPhase(bot.phase)) {
     const assigned = bot.defenseTargetId ? players.get(bot.defenseTargetId) : undefined;
     const journeyTarget = missionPilot;
-    const availableJourneyTarget = journeyTarget && !missionFocusedPlayers.has(bot.journeyTargetPlayerId!) && journeyTarget.cityId === player.cityId && journeyTarget.lifeState === 'alive' &&
+    const availableJourneyTarget = journeyTarget && (!missionFocusedPlayers.has(bot.journeyTargetPlayerId!) || assignedFocusedHunter(botId, bot.journeyTargetPlayerId!)) &&
+      journeyTarget.cityId === player.cityId && journeyTarget.lifeState === 'alive' &&
       journeyTarget.hasRespawnTransform && !playerJourneyRunwayPrep.has(bot.journeyTargetPlayerId!) && now - journeyTarget.lastStateAt < 1_500
       ? [bot.journeyTargetPlayerId!, journeyTarget] as [string, PlayerState] : undefined;
-    const candidate: [string, PlayerState] | undefined = bot.defenseTerritoryId && assigned && !missionFocusedPlayers.has(bot.defenseTargetId!) && assigned.lifeState === 'alive' &&
+    const candidate: [string, PlayerState] | undefined = bot.defenseTerritoryId && assigned &&
+      (!missionFocusedPlayers.has(bot.defenseTargetId!) || allowedFocusedBot(botId, bot.defenseTargetId!)) && assigned.lifeState === 'alive' &&
       assigned.cityId === player.cityId && !assigned.isBot && !assigned.tutorialMode && now < (bot.defenseReleaseAt ?? 0)
       ? [bot.defenseTargetId!, assigned] : availableJourneyTarget ?? botCombatTarget(botId, player, now);
     if (!candidate) return undefined;
@@ -5518,6 +5559,8 @@ function removeHumanConnection(socket: WebSocket): void {
   failPlayerJourney(playerId, 'INTERRUPTED');
   playerJourneyAttempts.delete(playerId);
   missionFocusedPlayers.delete(playerId);
+  missionFocusHunterTargets.delete(playerId);
+  missionFocusTerritoryAttempts.delete(playerId);
   playerJourneyLoveTakeoff.delete(playerId);
   playerJourneyDfwTakeoff.delete(playerId);
   playerJourneyRunwayPrep.delete(playerId);
@@ -5637,6 +5680,10 @@ server.on('connection', (socket, request) => {
   if (journeyAttempt) {
     playerJourneyAttempts.set(playerId, journeyAttempt.attemptId);
     if (missionFocusForAttempt(journeyAttempt)) missionFocusedPlayers.add(playerId);
+    if (missionFocusedPlayers.has(playerId) && journeyAttempt.missionId === journeyDallas02.id && journeyAttempt.targetId)
+      missionFocusHunterTargets.set(playerId, journeyAttempt.targetId);
+    if (missionFocusedPlayers.has(playerId) && journeyAttempt.missionId === journeyDallas04.id)
+      missionFocusTerritoryAttempts.set(playerId, journeyAttempt.attemptId);
     if (journeyAttempt.status === 'APPROACH') playerJourneyRunwayPrep.add(playerId);
   }
   const restoredChaosEvent = profileStore.activeChaosEvent(profile.pilotId);

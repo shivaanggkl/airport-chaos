@@ -25,6 +25,14 @@ export function confirmedGateObjective(attempt: ConfirmedGateAttempt, gates: rea
   };
 }
 
+/** Mission 2 follows only the live bot named by the confirmed attempt. */
+export function confirmedHunterObjective(attempt: { attemptId: string; targetId: string | null; status: string },
+  target: { id: string; position: THREE.Vector3; isBot: boolean; lifeState: string } | undefined): MissionObjective | null {
+  if ((attempt.status !== 'APPROACH' && attempt.status !== 'RACING') || !attempt.targetId ||
+    target?.id !== attempt.targetId || !target.isBot || target.lifeState !== 'alive') return null;
+  return { id: `${attempt.attemptId}:${target.id}`, label: 'HUNTER', position: target.position, radius: 9 };
+}
+
 type ScreenRect = { left: number; top: number; right: number; bottom: number };
 type SafeInsets = { left: number; right: number; top: number; bottom: number };
 export type ObjectivePlacement = { kind: 'marker' | 'arrow'; x: number; y: number; angle: number };
@@ -113,6 +121,75 @@ export function projectMissionObjective(
 
 export function formatObjectiveDistance(meters: number): string {
   return meters >= 1_000 ? `${(meters / 1_000).toFixed(1)} KM` : `${Math.round(meters)} M`;
+}
+
+/** Presentation only; the server remains responsible for low-altitude gate acceptance. */
+export function lowAltitudeGateInstruction(gateNumber: number, grounded: boolean, distanceMeters: number,
+  altitudeAgl: number, maxAltitude: number, rejectedTooHigh: boolean, justCleared: boolean): string {
+  if (justCleared) return `GATE ${gateNumber - 1} CLEARED!`;
+  if (grounded) return 'TAKE OFF — FOLLOW THE GOLD ARROW';
+  if (altitudeAgl > maxAltitude && (rejectedTooHigh || distanceMeters <= 200)) return 'TOO HIGH — DESCEND';
+  if (distanceMeters <= 900 && altitudeAgl > maxAltitude + 15) return `GATE ${gateNumber} BELOW — DESCEND`;
+  if (distanceMeters <= 250 && altitudeAgl <= maxAltitude) return `FLY THROUGH GATE ${gateNumber}`;
+  return `FOLLOW THE ARROW TO GATE ${gateNumber}`;
+}
+
+export type PrecisionTurnSide = 'LEFT' | 'RIGHT' | null;
+
+/** Signed target bearing in the aircraft's existing forward/right coordinate frame. */
+export function precisionGateBearing(aircraftX: number, aircraftZ: number, yaw: number,
+  gateX: number, gateZ: number): { angle: number; horizontalDistance: number } {
+  const dx = gateX - aircraftX;
+  const dz = gateZ - aircraftZ;
+  const forward = -dx * Math.sin(yaw) - dz * Math.cos(yaw);
+  const right = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+  return { angle: Math.atan2(right, forward), horizontalDistance: Math.hypot(dx, dz) };
+}
+
+/** Presentation only. The ring opening and crossing still belong to the server. */
+export function precisionGateGuidance(gateNumber: number, grounded: boolean, distanceMeters: number,
+  horizontalDistance: number, heightDifference: number, gateRadius: number, bearingRadians: number,
+  previousTurnSide: PrecisionTurnSide, justCleared: boolean, announceSharpTurn: boolean,
+): { instruction: string; turnSide: PrecisionTurnSide } {
+  if (grounded) return { instruction: 'TAKE OFF — FOLLOW THE GOLD ARROW', turnSide: null };
+  const angle = Math.abs(bearingRadians);
+  // Keep a turn cue until aligned, and resist switching sides during a turn.
+  const turnSide = gateNumber === 4 && (angle > Math.PI * 55 / 180 || previousTurnSide && angle > Math.PI * 30 / 180)
+    ? previousTurnSide && (angle < Math.PI * 70 / 180 || angle > Math.PI * 150 / 180)
+      ? previousTurnSide : bearingRadians > 0 ? 'RIGHT' : 'LEFT'
+    : null;
+  if (justCleared) return { instruction: `GATE ${gateNumber - 1} CLEARED!`, turnSide };
+  if (turnSide && announceSharpTurn) return { instruction: 'SHARP TURN AHEAD', turnSide };
+  if (turnSide) return { instruction: `GATE 4 — TURN ${turnSide}`, turnSide };
+  const heightTolerance = gateRadius * .92 * .5;
+  if (distanceMeters <= 900 && heightDifference > heightTolerance) return { instruction: `GATE ${gateNumber} ABOVE — CLIMB`, turnSide: null };
+  if (distanceMeters <= 900 && heightDifference < -heightTolerance) return { instruction: `GATE ${gateNumber} BELOW — DESCEND`, turnSide: null };
+  if (horizontalDistance <= Math.max(160, gateRadius * 4) && angle <= Math.PI / 6 &&
+    Math.abs(heightDifference) <= heightTolerance) return { instruction: `FLY THROUGH GATE ${gateNumber}`, turnSide: null };
+  return { instruction: `FOLLOW THE ARROW TO GATE ${gateNumber}`, turnSide: null };
+}
+
+export type TerritoryGuidance = {
+  phase: 'NAVIGATE' | 'CAPTURING' | 'BLOCKED' | 'CONTESTED' | 'DEFENDING' | 'RETURN' | 'RECAPTURE';
+  instruction: string;
+  target: 'territory' | 'defender' | null;
+};
+
+/** Selects a presentation target from server-owned territory and attempt state. */
+export function territoryGuidance(grounded: boolean, inside: boolean, owned: boolean, contested: boolean,
+  captureProgress: number, defenderId: string | undefined, defenderVisible: boolean, hadControl: boolean): TerritoryGuidance {
+  if (grounded) return { phase: 'NAVIGATE', instruction: 'TAKE OFF — FOLLOW THE GOLD ARROW', target: 'territory' };
+  if (!inside) return hadControl
+    ? { phase: owned ? 'RETURN' : 'RECAPTURE', instruction: owned ? 'RETURN TO WHITE ROCK' : 'RECAPTURE WHITE ROCK', target: 'territory' }
+    : { phase: 'NAVIGATE', instruction: 'FLY INTO THE HIGHLIGHTED AREA', target: 'territory' };
+  if (contested) return { phase: 'CONTESTED', instruction: 'TERRITORY CONTESTED — DEFEND IT', target: null };
+  if (owned) return { phase: 'DEFENDING', instruction: 'HOLD THE AREA FOR 30 SECONDS', target: null };
+  if (captureProgress >= 95 && defenderId) return defenderVisible
+    ? { phase: 'BLOCKED', instruction: 'DEFEAT THE MARKED DEFENDER', target: 'defender' }
+    : { phase: 'BLOCKED', instruction: 'DEFENDER ACTIVE — LOCATING TARGET', target: null };
+  if (captureProgress >= 95) return { phase: 'BLOCKED', instruction: 'CAPTURE BLOCKED — DEFENSE ACTIVE', target: null };
+  if (hadControl && captureProgress === 0) return { phase: 'RECAPTURE', instruction: 'RECAPTURE WHITE ROCK', target: 'territory' };
+  return { phase: 'CAPTURING', instruction: 'STAY INSIDE TO CAPTURE', target: null };
 }
 
 /** Optional coaching is per confirmed objective. Runway time never counts. */

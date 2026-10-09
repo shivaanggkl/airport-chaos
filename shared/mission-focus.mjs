@@ -1,8 +1,8 @@
-import { journeyDallas01 } from './journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05 } from './journey-mission.mjs';
 
 const activeStatuses = new Set(['APPROACH', 'RACING']);
 
-const dfwSkyRushFocus = Object.freeze({
+const journeyFocus = Object.freeze({
   showMissionObjectives: true,
   showUnrelatedLandmarkLabels: false,
   showUnrelatedAirportLabels: false,
@@ -14,11 +14,15 @@ const dfwSkyRushFocus = Object.freeze({
 
 /** Only a server-confirmed active Journey attempt enables focus. */
 export function missionFocusForAttempt(attempt) {
-  return attempt?.missionId === journeyDallas01.id && activeStatuses.has(attempt.status)
-    ? dfwSkyRushFocus : null;
+  return (attempt?.missionId === journeyDallas01.id || attempt?.missionId === journeyDallas02.id ||
+    attempt?.missionId === journeyDallas03.id || attempt?.missionId === journeyDallas04.id ||
+    attempt?.missionId === journeyDallas05.id) && activeStatuses.has(attempt.status)
+    ? journeyFocus : null;
 }
 
-/** Shared bots cannot interact with a focused pilot in either direction. */
-export function excludesFocusedBotInteraction(firstFocused, firstIsBot, secondFocused, secondIsBot) {
-  return (firstFocused && secondIsBot) || (secondFocused && firstIsBot);
+/** Only a server-owned assigned Hunter can interact with its focused Mission 2 pilot. */
+export function excludesFocusedBotInteraction(firstFocused, firstIsBot, secondFocused, secondIsBot,
+  firstAllowsSecondBot = false, secondAllowsFirstBot = false) {
+  return (firstFocused && secondIsBot && !firstAllowsSecondBot) ||
+    (secondFocused && firstIsBot && !secondAllowsFirstBot);
 }

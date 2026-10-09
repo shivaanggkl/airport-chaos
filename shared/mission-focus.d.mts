@@ -9,4 +9,5 @@ export type MissionFocusConfig = Readonly<{
 }>;
 
 export function missionFocusForAttempt(attempt: { missionId: string; status: string } | null | undefined): MissionFocusConfig | null;
-export function excludesFocusedBotInteraction(firstFocused: boolean, firstIsBot: boolean, secondFocused: boolean, secondIsBot: boolean): boolean;
+export function excludesFocusedBotInteraction(firstFocused: boolean, firstIsBot: boolean, secondFocused: boolean, secondIsBot: boolean,
+  firstAllowsSecondBot?: boolean, secondAllowsFirstBot?: boolean): boolean;

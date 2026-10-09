@@ -92,7 +92,7 @@ test('server capture, world walls, Map, and Radar consume the shared territory b
   assert.match(main, /territoryPulseMesh\.geometry = entry\.wall\.geometry/);
   assert.doesNotMatch(main, /const border = new THREE\.Group\(\)/);
   assert.match(main, /territoryWallCullDistance = 10_000/);
-  assert.match(main, /function drawRadarTerritories\(direction: THREE\.Vector3\)/);
+  assert.match(main, /function drawRadarTerritories\(direction: THREE\.Vector3, onlyId\?: string\)/);
   assert.match(main, /drawRadarTerritories\(direction\);/);
   assert.match(map, /territory\.bounds\.minX[\s\S]*territory\.bounds\.maxZ/);
   const shared = readFileSync(new URL('../../shared/city-territories.mjs', import.meta.url), 'utf8');

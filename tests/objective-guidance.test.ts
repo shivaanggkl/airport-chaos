@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as THREE from 'three';
-import { journeyDallas01 } from '../shared/journey-mission.mjs';
-import { ObjectiveApproachHint, ObjectiveGuidance, confirmedGateObjective, formatObjectiveDistance, projectMissionObjective } from '../client/src/objective-guidance';
+import { journeyDallas01, journeyDallas03, journeyDallas05 } from '../shared/journey-mission.mjs';
+import { ObjectiveApproachHint, ObjectiveGuidance, confirmedGateObjective, confirmedHunterObjective, formatObjectiveDistance, lowAltitudeGateInstruction, precisionGateBearing, precisionGateGuidance, projectMissionObjective, territoryGuidance } from '../client/src/objective-guidance';
 
 function camera(): THREE.PerspectiveCamera {
   const result = new THREE.PerspectiveCamera(60, 844 / 390, 2, 10_000);
@@ -93,6 +93,121 @@ test('only confirmed active attempts select the next gate and retry selects Gate
   assert.equal(formatObjectiveDistance(200), '200 M');
 });
 
+test('White Rock guidance uses shared confirmed gate definitions and resets on retry', () => {
+  const from = (gateIndex: number, status = 'RACING', attemptId = 'white-rock') =>
+    confirmedGateObjective({ attemptId, gateIndex, status }, journeyDallas03.gates, () => 24);
+  assert.equal(from(0, 'APPROACH')?.label, 'GATE 1');
+  for (let index = 0; index < 4; index++) {
+    const objective = from(index);
+    assert.equal(objective?.position.x, journeyDallas03.gates[index].x);
+    assert.equal(objective?.position.y, journeyDallas03.gates[index].altitude + 24);
+    assert.equal(objective?.radius, journeyDallas03.gates[index].radius);
+  }
+  assert.equal(from(3)?.label, 'GATE 4');
+  assert.equal(from(4, 'COMPLETED'), null);
+  assert.equal(from(0, 'APPROACH', 'retry')?.label, 'GATE 1');
+  assert.notEqual(from(0, 'APPROACH', 'retry')?.id, from(0, 'APPROACH')?.id);
+});
+
+test('White Rock instructions respond to distance and AGL without advancing a gate', () => {
+  const instruction = (distance: number, altitudeAgl: number, rejected = false) =>
+    lowAltitudeGateInstruction(3, false, distance, altitudeAgl, 290, rejected, false);
+  assert.equal(lowAltitudeGateInstruction(1, true, 8_000, 0, 290, false, false), 'TAKE OFF — FOLLOW THE GOLD ARROW');
+  assert.equal(instruction(2_000, 350), 'FOLLOW THE ARROW TO GATE 3');
+  assert.equal(instruction(850, 315), 'GATE 3 BELOW — DESCEND');
+  assert.equal(instruction(180, 295), 'TOO HIGH — DESCEND');
+  assert.equal(instruction(300, 295, true), 'TOO HIGH — DESCEND');
+  assert.equal(instruction(300, 285, true), 'FOLLOW THE ARROW TO GATE 3');
+  assert.equal(instruction(180, 285), 'FLY THROUGH GATE 3');
+  assert.equal(lowAltitudeGateInstruction(3, false, 500, 285, 290, false, true), 'GATE 2 CLEARED!');
+});
+
+test('Downtown objectives follow only accepted precision gates and reset for a new attempt', () => {
+  const from = (gateIndex: number, status = 'RACING', attemptId = 'downtown') =>
+    confirmedGateObjective({ attemptId, gateIndex, status }, journeyDallas05.gates, () => 17);
+  assert.equal(from(0, 'APPROACH')?.label, 'GATE 1');
+  for (let index = 0; index < 4; index++) {
+    assert.equal(from(index)?.position.x, journeyDallas05.gates[index].x);
+    assert.equal(from(index)?.position.y, journeyDallas05.gates[index].altitude + 17);
+    assert.equal(from(index)?.radius, journeyDallas05.gates[index].radius);
+  }
+  assert.equal(from(2)?.label, 'GATE 3');
+  assert.equal(from(3)?.label, 'GATE 4');
+  assert.equal(from(4, 'COMPLETED'), null);
+  assert.equal(from(3, 'FAILED'), null);
+  assert.notEqual(from(0, 'APPROACH', 'retry')?.id, from(0, 'APPROACH')?.id);
+});
+
+test('Downtown guidance gives altitude, alignment, and stable actual-heading Gate 4 turns', () => {
+  assert.ok(precisionGateBearing(0, 0, 0, 100, -100).angle > 0); // target right of northbound aircraft
+  assert.ok(precisionGateBearing(0, 0, 0, -100, -100).angle < 0);
+  assert.ok(Math.abs(precisionGateBearing(0, 0, Math.PI / 2, 100, -100).angle) > Math.PI / 2);
+  assert.equal(precisionGateBearing(0, 0, 0, 0, -100).horizontalDistance, 100);
+  const cue = (gate: number, distance: number, horizontal: number, height: number, bearing: number,
+    previous: 'LEFT' | 'RIGHT' | null = null, cleared = false, announce = false) =>
+    precisionGateGuidance(gate, false, distance, horizontal, height, 40, bearing, previous, cleared, announce);
+  assert.equal(precisionGateGuidance(1, true, 8000, 8000, 100, 40, 0, null, false, false).instruction,
+    'TAKE OFF — FOLLOW THE GOLD ARROW');
+  assert.equal(cue(2, 3000, 3000, 100, 0).instruction, 'FOLLOW THE ARROW TO GATE 2');
+  assert.equal(cue(2, 500, 500, 30, 0).instruction, 'GATE 2 ABOVE — CLIMB');
+  assert.equal(cue(2, 500, 500, -30, 0).instruction, 'GATE 2 BELOW — DESCEND');
+  assert.equal(cue(2, 120, 100, 0, 0).instruction, 'FLY THROUGH GATE 2');
+  assert.equal(cue(2, 120, 100, 0, Math.PI / 2).instruction, 'FOLLOW THE ARROW TO GATE 2');
+  assert.equal(cue(4, 600, 600, 0, Math.PI / 2, null, false, true).instruction, 'SHARP TURN AHEAD');
+  const right = cue(4, 600, 600, 0, Math.PI / 2);
+  const left = cue(4, 600, 600, 0, -Math.PI / 2);
+  assert.equal(right.instruction, 'GATE 4 — TURN RIGHT');
+  assert.equal(left.instruction, 'GATE 4 — TURN LEFT');
+  assert.equal(cue(4, 500, 500, 0, .8, right.turnSide).turnSide, 'RIGHT');
+  assert.equal(cue(4, 500, 500, 0, -Math.PI + .01, right.turnSide).turnSide, 'RIGHT');
+  assert.equal(cue(4, 500, 500, 0, -Math.PI / 2, right.turnSide).turnSide, 'LEFT');
+  assert.equal(cue(4, 500, 500, 0, .4, right.turnSide).turnSide, null);
+  assert.equal(cue(4, 600, 600, 0, Math.PI / 2, null, true).instruction, 'GATE 3 CLEARED!');
+});
+
+test('territory guidance selects the real capture, defender, contest, hold and return objectives', () => {
+  const state = (grounded: boolean, inside: boolean, owned: boolean, contested: boolean,
+    capture: number, defenderId?: string, visible = false, hadControl = false) =>
+    territoryGuidance(grounded, inside, owned, contested, capture, defenderId, visible, hadControl);
+  assert.deepEqual(state(true, false, false, false, 0),
+    { phase: 'NAVIGATE', instruction: 'TAKE OFF — FOLLOW THE GOLD ARROW', target: 'territory' });
+  assert.deepEqual(state(false, false, false, false, 0),
+    { phase: 'NAVIGATE', instruction: 'FLY INTO THE HIGHLIGHTED AREA', target: 'territory' });
+  assert.equal(state(false, true, false, false, 65).instruction, 'STAY INSIDE TO CAPTURE');
+  assert.deepEqual(state(false, true, false, false, 95, 'defender-a', true),
+    { phase: 'BLOCKED', instruction: 'DEFEAT THE MARKED DEFENDER', target: 'defender' });
+  assert.deepEqual(state(false, true, false, false, 95, 'defender-a', false),
+    { phase: 'BLOCKED', instruction: 'DEFENDER ACTIVE — LOCATING TARGET', target: null });
+  assert.deepEqual(state(false, true, false, false, 95),
+    { phase: 'BLOCKED', instruction: 'CAPTURE BLOCKED — DEFENSE ACTIVE', target: null });
+  assert.deepEqual(state(false, true, true, false, 0),
+    { phase: 'DEFENDING', instruction: 'HOLD THE AREA FOR 30 SECONDS', target: null });
+  assert.deepEqual(state(false, true, true, true, 0),
+    { phase: 'CONTESTED', instruction: 'TERRITORY CONTESTED — DEFEND IT', target: null });
+  assert.deepEqual(state(false, false, true, false, 0, undefined, false, true),
+    { phase: 'RETURN', instruction: 'RETURN TO WHITE ROCK', target: 'territory' });
+  assert.deepEqual(state(false, false, false, false, 0, undefined, false, true),
+    { phase: 'RECAPTURE', instruction: 'RECAPTURE WHITE ROCK', target: 'territory' });
+  assert.deepEqual(state(false, true, false, false, 0, undefined, false, true),
+    { phase: 'RECAPTURE', instruction: 'RECAPTURE WHITE ROCK', target: 'territory' });
+});
+
+test('Hunter guidance follows only the live assigned bot and clears on replacement or completion', () => {
+  const position = new THREE.Vector3(500, 220, -700);
+  const attempt = { attemptId: 'mission-2-attempt', targetId: 'hunter-a', status: 'RACING' };
+  const hunter = { id: 'hunter-a', position, isBot: true, lifeState: 'alive' };
+  const objective = confirmedHunterObjective(attempt, hunter);
+  assert.equal(objective?.label, 'HUNTER');
+  assert.equal(objective?.position, position);
+  assert.equal(confirmedHunterObjective(attempt, { ...hunter, id: 'hunter-b' }), null);
+  assert.equal(confirmedHunterObjective(attempt, { ...hunter, isBot: false }), null);
+  assert.equal(confirmedHunterObjective(attempt, { ...hunter, lifeState: 'destroyed' }), null);
+  assert.equal(confirmedHunterObjective({ ...attempt, targetId: 'hunter-b' }, hunter), null);
+  assert.equal(confirmedHunterObjective({ ...attempt, status: 'COMPLETED' }, hunter), null);
+  assert.equal(confirmedHunterObjective({ ...attempt, status: 'FAILED' }, hunter), null);
+  assert.notEqual(confirmedHunterObjective({ ...attempt, targetId: 'hunter-b' }, { ...hunter, id: 'hunter-b' })?.id, objective?.id);
+});
+
 test('lost hint waits until airborne, appears once, and clears on approach', () => {
   const hint = new ObjectiveApproachHint();
   assert.equal(hint.update('gate-1', 1200, false, true, 0), false);
@@ -153,6 +268,19 @@ test('guidance shows one marker or arrow and removes both after completion or ex
     guidance.setObjective(retry);
     guidance.update(view, gate.position, 1, false, true, 400);
     assert.match(marker.textContent, /GATE 1/);
+    const hunterPosition = new THREE.Vector3(1000, 0, -500);
+    guidance.setObjective(confirmedHunterObjective({ attemptId: 'hunter-attempt', targetId: 'hunter', status: 'RACING' },
+      { id: 'hunter', position: hunterPosition, isBot: true, lifeState: 'alive' }));
+    view.position.set(0, 0, 0);
+    view.lookAt(0, 0, -1);
+    view.updateMatrixWorld(true);
+    guidance.update(view, new THREE.Vector3(), 1, true, true, 600);
+    assert.equal(arrow.hidden, false);
+    assert.match(arrow.children[1].textContent, /HUNTER/);
+    hunterPosition.set(0, 0, -400);
+    guidance.update(view, new THREE.Vector3(), 1, true, true, 800);
+    assert.equal(marker.hidden, false);
+    assert.equal(guidance.distanceMeters, 400);
     guidance.setObjective(null);
     assert.equal(marker.hidden, true);
     assert.equal(arrow.hidden, true);
