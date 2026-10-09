@@ -18,6 +18,11 @@ export const downtownPrecisionGates = Object.freeze([
   { x: 640, z: -1_160, altitude: 420, radius: 38 },
   { x: 1_100, z: 480, altitude: 500, radius: 42 },
 ]);
+export const lasColinasFlybyGates = Object.freeze([
+  { x: -15_400, z: -10_200, altitude: 330, radius: 70 },
+  { x: -13_700, z: -9_400, altitude: 360, radius: 68 },
+  { x: -12_100, z: -8_500, altitude: 340, radius: 70 },
+]);
 export const cityChallenges = {
   dallas: [
     ['dfw-speed', 4, 62, 180], ['downtown-precision', 4, 72, 280], ['trinity-inverted', 3, 54, 340], ['white-rock-low', 4, 64, 240],

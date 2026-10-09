@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
-import { downtownPrecisionGates } from '../../shared/city-challenges.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+import { downtownPrecisionGates, lasColinasFlybyGates } from '../../shared/city-challenges.mjs';
 
 test('Claim the Skies requires Mission 3, resets on exit, pauses on contest, and credits first clear once', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-territory-journey-test-'));
@@ -364,6 +364,103 @@ test('Downtown Needle needs Mission 4 and credits exactly 600 once across retry 
     const check = new DatabaseSync(path);
     assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'downtown-pilot'").get() as { credits: number }).credits, 600);
     assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id = 'journey-dallas-05'").get() as { count: number }).count, 1);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Rookie Championship uses six ordered real openings and leaves landing after Gate 6', () => {
+  assert.equal(journeyDallas06.gates.length, 6);
+  assert.deepEqual(journeyDallas06.gates.slice(0, 3), lasColinasFlybyGates.slice().reverse());
+  assert.equal(journeyDallas06.startAirportId, 'love');
+  assert.equal(journeyDallas06.finishAirportId, 'dfw');
+  assert.equal(journeyDallas06.timeLimitMs, 120_000);
+  for (let index = 0; index < journeyDallas06.gates.length; index += 1) {
+    const gate = journeyDallas06.gates[index]!;
+    const previous = journeyDallas06.gates[Math.max(0, index - 1)]!;
+    const next = journeyDallas06.gates[Math.min(5, index + 1)]!;
+    const length = Math.hypot(next.x - previous.x, next.z - previous.z);
+    const nx = (next.x - previous.x) / length;
+    const nz = (next.z - previous.z) / length;
+    const before = { x: gate.x - nx * 80, y: gate.altitude, z: gate.z - nz * 80 };
+    const after = { x: gate.x + nx * 80, y: gate.altitude, z: gate.z + nz * 80 };
+    assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas06), 'VALID');
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas06), false);
+    assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, index, 0, journeyDallas06), false);
+  }
+});
+
+test('Rookie Championship requires Mission 5, a qualifying DFW landing, and awards 750 once', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-championship-journey-test-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('champion', 0, 0), ('other', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    assert.throws(() => store.launch('champion', 'trainer', 1_000, journeyDallas06.id), /locked/);
+    const fixture = new DatabaseSync(path);
+    fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
+      .run('champion', journeyDallas05.id, 'qa-prerequisite', 500, 60_000);
+    fixture.close();
+    const expired = store.launch('champion', 'trainer', 600, journeyDallas06.id);
+    store.approach('champion', expired.attemptId);
+    assert.equal(store.acceptGate('champion', expired.attemptId, 0, 700)?.deadlineAt, 120_700);
+    assert.equal(store.acceptGate('champion', expired.attemptId, 1, 120_701), undefined);
+    assert.equal(store.fail('champion', expired.attemptId, 'TIME_UP', 120_701)?.status, 'FAILED');
+    const first = store.launch('champion', 'trainer', 1_000, journeyDallas06.id);
+    assert.equal(first.phase, 'PREPARING');
+    assert.equal(first.gateIndex, 0);
+    assert.equal(first.deadlineAt, null);
+    assert.equal(store.completeChampionshipLanding('champion', first.attemptId, 'dfw', 950, 1_500), undefined);
+    assert.equal(store.approach('champion', first.attemptId)?.phase, 'APPROACH_GATES');
+    assert.equal(store.acceptGate('other', first.attemptId, 0, 2_000), undefined);
+    assert.equal(store.acceptGate('champion', first.attemptId, 1, 2_000), undefined);
+    assert.equal(store.acceptGate('champion', first.attemptId, 0, 2_000)?.deadlineAt, 122_000);
+    assert.equal(store.acceptGate('champion', first.attemptId, 0, 2_100), undefined);
+    assert.equal(store.acceptGate('champion', first.attemptId, 5, 2_500), undefined);
+    for (let index = 1; index < 6; index += 1) {
+      const result = store.acceptGate('champion', first.attemptId, index, 2_000 + index * 10_000);
+      assert.equal(result?.gateIndex, index + 1);
+      if (index === 4) assert.equal(store.completeChampionshipLanding('champion', first.attemptId, 'dfw', 950, 50_100), undefined);
+    }
+    const landingPhase = store.get('champion', first.attemptId)!;
+    assert.equal(landingPhase.phase, 'LANDING');
+    assert.equal(landingPhase.status, 'RACING');
+    assert.equal(landingPhase.deadlineAt, null);
+    assert.equal(landingPhase.finishTimeMs, 50_000);
+    assert.equal(store.acceptGate('champion', first.attemptId, 5, 53_000), undefined);
+    assert.equal(store.progress('champion', journeyDallas06.id).completed, false);
+    assert.equal(store.completeChampionshipLanding('other', first.attemptId, 'dfw', 950, 60_000), undefined);
+    assert.equal(store.completeChampionshipLanding('champion', first.attemptId, 'dfw', 0, 60_000), undefined);
+    assert.equal(store.completeChampionshipLanding('champion', first.attemptId, 'dfw', 649, 60_000)?.failureReason, 'LANDING_TOO_ROUGH');
+    assert.equal(store.progress('champion', journeyDallas06.id).completed, false);
+    const wrongAirport = store.launch('champion', 'trainer', 60_100, journeyDallas06.id);
+    store.approach('champion', wrongAirport.attemptId);
+    for (let index = 0; index < 6; index += 1) store.acceptGate('champion', wrongAirport.attemptId, index, 61_000 + index * 1_000);
+    assert.equal(store.completeChampionshipLanding('champion', wrongAirport.attemptId, 'love', 950, 68_000)?.failureReason, 'WRONG_AIRPORT');
+    assert.equal(store.progress('champion', journeyDallas06.id).completed, false);
+    const retry = store.launch('champion', 'trainer', 70_000, journeyDallas06.id);
+    store.approach('champion', retry.attemptId);
+    assert.equal(store.acceptGate('champion', first.attemptId, 0, 71_000), undefined);
+    for (let index = 0; index < 6; index += 1) store.acceptGate('champion', retry.attemptId, index, 71_000 + index * 10_000);
+    const complete = store.completeChampionshipLanding('champion', retry.attemptId, 'dfw', 650, 150_000);
+    assert.equal(complete?.status, 'COMPLETED');
+    assert.equal(complete?.landingGrade, 'SMOOTH');
+    assert.equal(complete?.firstClearCredits, 750);
+    assert.equal(store.completeChampionshipLanding('champion', retry.attemptId, 'dfw', 950, 151_000), undefined);
+    assert.equal(new JourneyAttemptStore(path).progress('champion', journeyDallas06.id).firstAttemptId, retry.attemptId);
+    const replay = store.launch('champion', 'trainer', 160_000, journeyDallas06.id);
+    store.approach('champion', replay.attemptId);
+    for (let index = 0; index < 6; index += 1) store.acceptGate('champion', replay.attemptId, index, 161_000 + index * 10_000);
+    assert.equal(store.completeChampionshipLanding('champion', replay.attemptId, 'dfw', 940, 240_000)?.firstClearCredits, 0);
+    const crashed = store.launch('champion', 'trainer', 250_000, journeyDallas06.id);
+    store.approach('champion', crashed.attemptId);
+    store.acceptGate('champion', crashed.attemptId, 0, 251_000);
+    assert.equal(store.fail('champion', crashed.attemptId, 'CRASHED', 251_500)?.failureReason, 'CRASHED');
+    assert.equal(store.completeChampionshipLanding('champion', crashed.attemptId, 'dfw', 950, 252_000), undefined);
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'champion'").get() as { credits: number }).credits, 750);
+    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id = 'journey-dallas-06' AND amount = 750").get() as { count: number }).count, 1);
     check.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

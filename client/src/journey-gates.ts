@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { journeyDallas01, journeyDallas03, journeyDallas05 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas03, journeyDallas05, journeyDallas06 } from '../../shared/journey-mission.mjs';
 
 const cyan = new THREE.MeshBasicMaterial({ color: 0x64eaff, transparent: true, opacity: .94, depthWrite: false });
 const ice = new THREE.MeshBasicMaterial({ color: 0xe4ffff, transparent: true, opacity: .82, depthWrite: false });
@@ -18,7 +18,7 @@ export class JourneyGateSystem {
   private flashTime = 0;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
-    private readonly mission: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 = journeyDallas01) {
+    private readonly mission: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 = journeyDallas01) {
     for (const [index, gate] of mission.gates.entries()) {
       const group = new THREE.Group();
       group.name = `${mission.id}-gate-${index + 1}`;
@@ -42,7 +42,7 @@ export class JourneyGateSystem {
   }
 
   setProgress(gatesPassed: number, active: boolean): void {
-    const next = Math.max(0, Math.min(4, gatesPassed));
+    const next = Math.max(0, Math.min(this.mission.gates.length, gatesPassed));
     if (next > this.current) { this.flashIndex = this.current; this.flashTime = .5; }
     this.current = next;
     this.active = active;

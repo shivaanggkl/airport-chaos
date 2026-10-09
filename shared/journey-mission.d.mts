@@ -23,6 +23,11 @@ export const journeyDallas05: Readonly<{
   timeLimitMs: 72000; firstClearCredits: 600; startAirportId: 'love';
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
+export const journeyDallas06: Readonly<{
+  id: 'journey-dallas-06'; cityId: 'dallas'; name: 'ROOKIE CHAMPIONSHIP'; chapter: 'ROOKIE LEAGUE';
+  timeLimitMs: 120000; firstClearCredits: 750; startAirportId: 'love'; finishAirportId: 'dfw';
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

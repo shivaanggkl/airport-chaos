@@ -1,5 +1,6 @@
 // Compact runway validation data for authoritative server touchdown checks.
 // Rendering/world generation remains owned by each city world module.
+export const aircraftGroundOffset = 1.2;
 export const cityAirports = {
   dallas: [
     { id: 'dfw', x: -22_800, z: -13_600, heading: 0, runwayWidth: 60, runwayLength: 4100 },

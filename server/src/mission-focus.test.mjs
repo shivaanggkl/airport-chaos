@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { focusedTerritoryCaptureId, focusedTerritoryParticipantAllowed, isFocusedTerritoryDefender } from './focused-territory-defender.js';
 
-test('only active Missions 1–5 attempts have focus rules', () => {
+test('only active Missions 1–6 attempts have focus rules', () => {
   for (const status of ['APPROACH', 'RACING']) {
     const config = missionFocusForAttempt({ missionId: 'journey-dallas-01', status });
     assert.equal(config?.showMissionObjectives, true);
@@ -18,7 +18,7 @@ test('only active Missions 1–5 attempts have focus rules', () => {
   for (const status of ['READY', 'COMPLETED', 'FAILED', 'ABANDONED']) {
     assert.equal(missionFocusForAttempt({ missionId: 'journey-dallas-01', status }), null);
   }
-  for (const missionId of ['journey-dallas-02', 'journey-dallas-03', 'journey-dallas-04', 'journey-dallas-05']) {
+  for (const missionId of ['journey-dallas-02', 'journey-dallas-03', 'journey-dallas-04', 'journey-dallas-05', 'journey-dallas-06']) {
     for (const status of ['APPROACH', 'RACING']) {
       assert.deepEqual(missionFocusForAttempt({ missionId, status }),
         missionFocusForAttempt({ missionId: 'journey-dallas-01', status }));
@@ -27,7 +27,7 @@ test('only active Missions 1–5 attempts have focus rules', () => {
       assert.equal(missionFocusForAttempt({ missionId, status }), null);
     }
   }
-  for (const missionId of ['journey-dallas-06']) {
+  for (const missionId of ['journey-dallas-07']) {
     assert.equal(missionFocusForAttempt({ missionId, status: 'RACING' }), null);
   }
   assert.equal(missionFocusForAttempt({ missionId: 'journey-dallas-03', status: 'READY', aiIsolated: true }), null);

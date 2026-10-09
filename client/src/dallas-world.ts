@@ -14,7 +14,7 @@ import type { ImportedObstacle, ImportedRoadSegment, ImportedWater } from './osm
 import type { WorldMapLayer } from './world-map';
 import type { NavigationDestination } from './navigation-beacons';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
-import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates } from '../../shared/city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates } from '../../shared/city-challenges.mjs';
 import { airborneAdVisibilityMultiplier } from '../../shared/ad-placement-rules.mjs';
 import { CityVisualLayer, type CityVisualConfig, type CityVisualQuality, type CityTimeOfDay } from './city-visuals';
 import { DallasScenery } from './dallas-scenery';
@@ -557,11 +557,7 @@ export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
   },
   {
     id: 'las-colinas-flyby', name: `${place.lasColinas} FLYBY`, type: 'flyby', reward: 230, timeLimit: 64,
-    gates: [
-      { x: -15_400, z: -10_200, altitude: 330, radius: 70 },
-      { x: -13_700, z: -9_400, altitude: 360, radius: 68 },
-      { x: -12_100, z: -8_500, altitude: 340, radius: 70 },
-    ],
+    gates: lasColinasFlybyGates,
   },
 ];
 export const mapLayer: WorldMapLayer = {

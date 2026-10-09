@@ -1,6 +1,6 @@
 import './mission-journey.css';
 import { hapticsManager } from './haptics-manager';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06 } from '../../shared/journey-mission.mjs';
 
 type ChapterNumber = 1 | 2 | 3 | 4;
 type StageImplementation = 'playable' | 'planned';
@@ -14,7 +14,7 @@ export type MissionJourneyStage = Readonly<{
   y: number;
 }>;
 
-type FactIcon = 'location' | 'gate' | 'timer' | 'target' | 'health' | 'capture';
+type FactIcon = 'location' | 'gate' | 'timer' | 'target' | 'health' | 'capture' | 'landing';
 type MissionFact = Readonly<{ icon: FactIcon; label: string }>;
 type MissionCard = Readonly<{ title: string; objective: string; facts: readonly [MissionFact, MissionFact, MissionFact]; reward: number }>;
 const seconds = (milliseconds: number): string => `${milliseconds / 1000} SEC`;
@@ -24,6 +24,7 @@ const missionCards: readonly MissionCard[] = [
   { title: journeyDallas03.name, objective: 'Fly through 4 low-altitude gates before time runs out!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: `${journeyDallas03.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas03.timeLimitMs) }], reward: journeyDallas03.firstClearCredits },
   { title: journeyDallas04.name, objective: 'Capture White Rock and hold control for 30 seconds!', facts: [{ icon: 'location', label: 'WHITE ROCK' }, { icon: 'capture', label: 'CAPTURE' }, { icon: 'timer', label: `HOLD ${seconds(journeyDallas04.holdMs)}` }], reward: journeyDallas04.firstClearCredits },
   { title: journeyDallas05.name, objective: 'Fly accurately through 4 narrow downtown gates!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas05.timeLimitMs) }], reward: journeyDallas05.firstClearCredits },
+  { title: journeyDallas06.name, objective: 'Fly through 6 glowing gates, then make a smooth landing!', facts: [{ icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:00 RACE' }, { icon: 'landing', label: 'SMOOTH LANDING' }], reward: journeyDallas06.firstClearCredits },
 ];
 const factIcons: Readonly<Record<FactIcon, string>> = {
   location: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
@@ -32,6 +33,7 @@ const factIcons: Readonly<Record<FactIcon, string>> = {
   target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>',
   health: '<path d="M12 22s-8-4.6-8-11V5l8-3 8 3v6c0 6.4-8 11-8 11Z"/><path d="M8 12h8m-4-4v8"/>',
   capture: '<path d="M5 22V3m0 1c5-3 9 3 15 0v11c-6 3-10-3-15 0"/>',
+  landing: '<path d="M2 19h20M5 15l7 3 7-3M12 3v13m-3-3 3 3 3-3"/>',
 };
 const stagePositions: readonly (readonly [number, number])[] = [
   [92, 239], [172, 247], [251, 267], [328, 297], [403, 320], [480, 325],
@@ -41,10 +43,10 @@ const stagePositions: readonly (readonly [number, number])[] = [
 ];
 
 export const missionJourneyStages: readonly MissionJourneyStage[] = stagePositions.map(([x, y], index) => ({
-  id: index < 5 ? `journey-dallas-0${index + 1}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
+  id: index < 6 ? `journey-dallas-0${index + 1}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
   number: index + 1,
   chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
-  implementation: index < 5 ? 'playable' : 'planned',
+  implementation: index < 6 ? 'playable' : 'planned',
   x,
   y,
 }));
@@ -87,6 +89,8 @@ export class MissionJourney {
   private stageFourEligible = false;
   private stageFiveCompleted = false;
   private stageFiveEligible = false;
+  private stageSixCompleted = false;
+  private stageSixEligible = false;
 
   constructor(private readonly element: HTMLElement, onCities: () => void, onFreeFlight: () => void, onPlayMission: () => void, private readonly onPanelOpen: () => void, onPanelClose: () => void) {
     element.classList.add('mission-journey');
@@ -173,6 +177,10 @@ export class MissionJourney {
     fifthCompletedRoute.setAttribute('d', routePath(missionJourneyStages.slice(4, 6)));
     fifthCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-five');
     route.append(fifthCompletedRoute);
+    const sixthCompletedRoute = completedRoute.cloneNode() as SVGPathElement;
+    sixthCompletedRoute.setAttribute('d', 'M 480 325 C 515 245, 395 205, 407 100');
+    sixthCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-six');
+    route.append(sixthCompletedRoute);
     const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
     for (const stage of missionJourneyStages) {
       const button = document.createElement('button');
@@ -260,6 +268,15 @@ export class MissionJourney {
     if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
   }
 
+  setStageSixProgress(eligible: boolean, completed: boolean): void {
+    const newlyCompleted = completed && !this.stageSixCompleted;
+    this.stageSixEligible = eligible;
+    this.stageSixCompleted = completed;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 7;
+    this.renderProgress();
+    if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
+  }
+
   private renderProgress(): void {
     const completed = this.stageOneCompleted;
     this.element.classList.toggle('has-stage-one-complete', completed);
@@ -267,13 +284,14 @@ export class MissionJourney {
     this.element.classList.toggle('has-stage-three-complete', this.stageThreeCompleted);
     this.element.classList.toggle('has-stage-four-complete', this.stageFourCompleted);
     this.element.classList.toggle('has-stage-five-complete', this.stageFiveCompleted);
+    this.element.classList.toggle('has-stage-six-complete', this.stageSixCompleted);
     this.stageButtons.forEach((button, index) => {
       const number = index + 1;
-      const reached = number === 1 || number === 2 && completed || number === 3 && this.stageTwoCompleted || number === 4 && this.stageThreeCompleted || number === 5 && this.stageFourCompleted || number === 6 && this.stageFiveCompleted;
+      const reached = number === 1 || number === 2 && completed || number === 3 && this.stageTwoCompleted || number === 4 && this.stageThreeCompleted || number === 5 && this.stageFourCompleted || number === 6 && this.stageFiveCompleted || number === 7 && this.stageSixCompleted;
       button.classList.toggle('is-locked', !reached);
-      button.classList.toggle('is-completed', number === 1 && completed || number === 2 && this.stageTwoCompleted || number === 3 && this.stageThreeCompleted || number === 4 && this.stageFourCompleted || number === 5 && this.stageFiveCompleted);
+      button.classList.toggle('is-completed', number === 1 && completed || number === 2 && this.stageTwoCompleted || number === 3 && this.stageThreeCompleted || number === 4 && this.stageFourCompleted || number === 5 && this.stageFiveCompleted || number === 6 && this.stageSixCompleted);
       button.classList.toggle('is-current', number === 1 && !completed);
-      button.classList.toggle('is-next', number === 2 && completed && !this.stageTwoCompleted || number === 3 && this.stageTwoCompleted && !this.stageThreeCompleted || number === 4 && this.stageThreeCompleted && !this.stageFourCompleted || number === 5 && this.stageFourCompleted && !this.stageFiveCompleted || number === 6 && this.stageFiveCompleted);
+      button.classList.toggle('is-next', number === 2 && completed && !this.stageTwoCompleted || number === 3 && this.stageTwoCompleted && !this.stageThreeCompleted || number === 4 && this.stageThreeCompleted && !this.stageFourCompleted || number === 5 && this.stageFourCompleted && !this.stageFiveCompleted || number === 6 && this.stageFiveCompleted && !this.stageSixCompleted || number === 7 && this.stageSixCompleted);
       button.classList.toggle('is-selected', number === this.selectedStage);
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
       if (number === 1) button.dataset.progressLabel = this.stageOneEligible ? 'CURRENT MISSION' : 'START HERE';
@@ -281,14 +299,16 @@ export class MissionJourney {
       if (number === 3) button.dataset.progressLabel = this.stageThreeCompleted ? 'COMPLETED' : 'CURRENT MISSION';
       if (number === 4) button.dataset.progressLabel = this.stageFourCompleted ? 'COMPLETED' : 'CURRENT MISSION';
       if (number === 5) button.dataset.progressLabel = this.stageFiveCompleted ? 'COMPLETED' : 'CURRENT MISSION';
-      if (number === 6) button.dataset.progressLabel = 'NEXT · COMING SOON';
+      if (number === 6) button.dataset.progressLabel = this.stageSixCompleted ? 'COMPLETED' : 'CURRENT MISSION';
+      if (number === 7) button.dataset.progressLabel = 'NEXT · COMING SOON';
       button.setAttribute('aria-label', number === 1
         ? completed ? 'Mission 1, completed, select to replay or preview' : this.stageOneEligible ? 'Mission 1, current mission, select to preview' : 'Mission 1, starting preview, select for details'
         : number === 2 && reached ? this.stageTwoCompleted ? 'Mission 2, completed, select to replay or preview' : 'Mission 2, current mission, select to play'
           : number === 3 && reached ? this.stageThreeCompleted ? 'Mission 3, completed, select to replay or preview' : 'Mission 3, current mission, select to play'
             : number === 4 && reached ? this.stageFourCompleted ? 'Mission 4, completed, select to replay or preview' : 'Mission 4, current mission, select to play'
               : number === 5 && reached ? this.stageFiveCompleted ? 'Mission 5, completed, select to replay or preview' : 'Mission 5, current mission, select to play'
-                : number === 6 && reached ? 'Mission 6, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
+                : number === 6 && reached ? this.stageSixCompleted ? 'Mission 6, completed, select to replay or preview' : 'Mission 6, current mission, select to play'
+                  : number === 7 && reached ? 'Mission 7, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
       const lock = button.querySelector('small');
       if (lock) lock.hidden = reached;
     });
@@ -365,6 +385,20 @@ export class MissionJourney {
 
   advanceToStageSix(): void { this.select(6); }
 
+  celebrateStageSix(): void {
+    this.select(6, false);
+    this.setPanelOpen(false);
+    this.stageButtons[5]?.classList.add('is-newly-completed');
+    this.element.classList.add('is-progressing-six');
+    window.setTimeout(() => {
+      this.stageButtons[5]?.classList.remove('is-newly-completed');
+      this.element.classList.remove('is-progressing-six');
+      if (this.isOpen) this.select(7);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
+  }
+
+  advanceToStageSeven(): void { this.select(7); }
+
   show(panelOpen = false): void {
     this.element.hidden = false;
     this.element.classList.toggle('is-paused', document.hidden);
@@ -414,12 +448,12 @@ export class MissionJourney {
   private renderDetails(): void {
     const stage = missionJourneyStages[this.selectedStage - 1]!;
     const card = missionCards[stage.number - 1];
-    const completed = [this.stageOneCompleted, this.stageTwoCompleted, this.stageThreeCompleted, this.stageFourCompleted, this.stageFiveCompleted][stage.number - 1] === true;
-    const eligible = [this.stageOneEligible, this.stageTwoEligible, this.stageThreeEligible, this.stageFourEligible, this.stageFiveEligible][stage.number - 1] === true;
-    const reached = stage.number === 6 && this.stageFiveCompleted;
+    const completed = [this.stageOneCompleted, this.stageTwoCompleted, this.stageThreeCompleted, this.stageFourCompleted, this.stageFiveCompleted, this.stageSixCompleted][stage.number - 1] === true;
+    const eligible = [this.stageOneEligible, this.stageTwoEligible, this.stageThreeEligible, this.stageFourEligible, this.stageFiveEligible, this.stageSixEligible][stage.number - 1] === true;
+    const reached = stage.number === 7 && this.stageSixCompleted;
     const locked = (!card && !reached) || (!!card && !eligible && !completed);
-    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card?.title ?? (stage.number === 6 ? 'ROOKIE CHAMPIONSHIP' : 'MISSION COMING SOON');
+    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}${stage.number === 6 ? ' · CHAPTER 1 FINALE' : ''}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card?.title ?? (stage.number === 7 ? 'ADDISON SKY CLIMB' : 'MISSION COMING SOON');
     const status = this.detail.querySelector<HTMLElement>('[data-mission-status]')!;
     status.textContent = completed ? 'COMPLETED' : locked ? 'LOCKED' : card ? 'AVAILABLE' : 'COMING SOON';
     status.classList.toggle('is-locked', locked);

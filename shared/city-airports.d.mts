@@ -6,5 +6,6 @@ export type CityAirport = Readonly<{
   runwayWidth: number;
   runwayLength: number;
 }>;
+export const aircraftGroundOffset: number;
 export const cityAirports: Record<'milwaukee' | 'dallas', readonly CityAirport[]>;
 export function airportForCity(cityId: 'milwaukee' | 'dallas', airportId: string): CityAirport | undefined;

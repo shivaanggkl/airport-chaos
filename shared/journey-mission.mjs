@@ -1,4 +1,4 @@
-import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates } from './city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 
 export const journeyDallas01 = Object.freeze({
@@ -33,6 +33,18 @@ export const journeyDallas05 = Object.freeze({
   id: 'journey-dallas-05', cityId: 'dallas', name: 'DOWNTOWN NEEDLE',
   chapter: 'ROOKIE LEAGUE', timeLimitMs: 72_000, firstClearCredits: 600,
   startAirportId: 'love', gates: downtownPrecisionGates,
+});
+
+export const journeyDallas06 = Object.freeze({
+  id: 'journey-dallas-06', cityId: 'dallas', name: 'ROOKIE CHAMPIONSHIP',
+  chapter: 'ROOKIE LEAGUE', timeLimitMs: 120_000, firstClearCredits: 750,
+  startAirportId: 'love', finishAirportId: 'dfw',
+  gates: Object.freeze([
+    ...lasColinasFlybyGates.slice().reverse(),
+    { x: -17_800, z: -9_000, altitude: 430, radius: 70 },
+    { x: -20_500, z: -7_300, altitude: 350, radius: 68 },
+    { x: -22_800, z: -8_600, altitude: 250, radius: 70 },
+  ]),
 });
 
 // Cross the face of the next ring within its illuminated opening. White Rock

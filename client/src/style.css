@@ -1631,6 +1631,9 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
 @media (max-height: 520px) { .mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow) { font-size: 10px; } .mission-objective-arrow { min-width: 164px; min-height: 36px; } .mission-objective-arrow-icon { font-size: 22px; } }
 .journey-hud-segments { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; padding-top: 2px; }
+.journey-hud-segments i:nth-child(n+5) { display: none; }
+.journey-championship .journey-hud-segments { grid-template-columns: repeat(6,1fr); }
+.journey-championship .journey-hud-segments i:nth-child(n+5) { display: block; }
 .journey-hud-segments i { height: 7px; border: 1px solid rgb(111 230 255 / 45%); border-radius: 8px; background: rgb(15 39 70 / 85%); }
 .journey-hud-segments i.is-cleared { border-color: #f6c445; background: linear-gradient(90deg,#35d6ff,#f6c445); box-shadow: 0 0 9px rgb(53 214 255 / 55%); }
 .journey-hud-segments[hidden], .journey-hud-enemy[hidden] { display: none; }
