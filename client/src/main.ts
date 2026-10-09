@@ -16,6 +16,7 @@ import { entityCapabilities, type EntityType } from './entity-types';
 import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
+import { ObjectiveGuidance, confirmedGateObjective, formatObjectiveDistance, type MissionObjective } from './objective-guidance';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05 } from '../../shared/journey-mission.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
@@ -1043,12 +1044,18 @@ document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListe
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
-if (journeyMode) skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION 01 · DFW SKY RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
+if (journeyMode) skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION 01 · DFW SKY RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
+const journeyHudTarget = skyChallengeElement.querySelector<HTMLElement>('[data-journey-target]');
+const journeyHudTimer = skyChallengeElement.querySelector<HTMLElement>('[data-journey-timer]');
+const journeyHudHint = skyChallengeElement.querySelector<HTMLElement>('[data-journey-hint]');
 const journeyHudSegments = [...skyChallengeElement.querySelectorAll<HTMLElement>('.journey-hud-segments i')];
 const journeyHudEnemy = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-enemy');
+const missionObjectiveGuidance = journeyMode ? new ObjectiveGuidance(flightGameRoot) : undefined;
+let missionObjective: MissionObjective | null = null;
+let journeyGateClearedUntil = 0;
 const journeyResultElement = document.createElement('div');
 journeyResultElement.className = 'journey-result hidden';
 journeyResultElement.innerHTML = '<div class="journey-result-card"><p data-journey-result-heading>MISSION 01 · ROOKIE LEAGUE</p><h2 data-journey-result-title></h2><strong data-journey-result-name>DFW SKY RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
@@ -2285,6 +2292,8 @@ function updateSkyChallengeHud(): void {
 function updateJourneyHud(): void {
   skyChallengeElement.classList.add('journey-hud');
   skyChallengeElement.classList.toggle('hidden', journeyAttempt?.status === 'COMPLETED' || journeyAttempt?.status === 'FAILED' || journeyAttempt?.status === 'ABANDONED');
+  const dfwMission = journeyAttempt?.missionId === journeyDallas01.id;
+  for (const item of [journeyHudTarget, journeyHudTimer, journeyHudHint]) if (item) item.hidden = !dfwMission;
   if (!journeyAttempt) {
     if (journeyHudHeading) journeyHudHeading.textContent = 'MISSION · CONNECTING';
     if (journeyHudObjective) journeyHudObjective.textContent = 'CONNECTING TO MISSION';
@@ -2358,6 +2367,24 @@ function updateJourneyHud(): void {
     ? Math.max(0, Math.ceil((journeyAttempt.deadlineAt - Date.now() - journeyServerTimeOffset) / 1000)) : null;
   const target = journeyGates?.target();
   const distance = target ? Math.round(Math.hypot(airplane.position.x - target.x, airplane.position.y - target.y, airplane.position.z - target.z)) : 0;
+  if (dfwMission) {
+    const distanceMeters = target ? distance * WORLD_METERS_PER_UNIT : 0;
+    const cleared = gateIndex > 0 && performance.now() < journeyGateClearedUntil;
+    if (journeyHudObjective) journeyHudObjective.textContent = cleared ? `GATE ${gateIndex} CLEARED!`
+      : onGround ? 'TAKE OFF AND FOLLOW THE GOLD ARROW'
+        : distanceMeters <= 200 ? `FLY THROUGH THE GLOWING GATE ${gateIndex + 1}`
+          : gateIndex === 0 ? 'FOLLOW THE GOLD ARROW TO GATE 1' : `FOLLOW THE ARROW TO GATE ${gateIndex + 1}`;
+    if (journeyHudProgress) journeyHudProgress.textContent = cleared ? `${gateIndex}/4 COMPLETE` : `GATES: ${gateIndex}/4`;
+    if (journeyHudTarget) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
+    if (journeyHudTimer) journeyHudTimer.textContent = timeLeft === null ? 'TIMER STARTS AT GATE 1'
+      : `TIME LEFT: ${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`;
+    if (journeyHudHint) {
+      journeyHudHint.hidden = !contextualHints.isEnabled() || !missionObjectiveGuidance?.hintVisible;
+      journeyHudHint.textContent = journeyHudHint.hidden ? '' : `FOLLOW THE GOLD ARROW TO FIND GATE ${gateIndex + 1}`;
+    }
+    journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
+    return;
+  }
   const direction = precisionMission && target ? (() => {
     const dx = target.x - airplane.position.x;
     const dz = target.z - airplane.position.z;
@@ -8139,6 +8166,9 @@ function animate(): void {
   cinematicDirector.update(performance.now());
   updateCamera(delta);
   updateLockCircle();
+  if (crashed) missionObjectiveGuidance?.hide();
+  else if (missionObjective) missionObjectiveGuidance?.update(camera, airplane.position, WORLD_METERS_PER_UNIT,
+    !onGround && runStarted, contextualHints.isEnabled());
   adPlacementManager.update(camera, delta, airplane, selectedCombatTarget !== null, lockCircleCenterX, lockCircleCenterY, lockCircleRadius);
   navigationTimer += delta;
   progressionHudTimer += delta;
@@ -8797,6 +8827,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
     url.searchParams.set('entry', 'journey');
     if (journeyAttempt?.status === 'COMPLETED') url.searchParams.set('journeyReceipt', journeyAttemptId);
   }
+  missionObjectiveGuidance?.dispose();
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -8816,6 +8847,9 @@ async function retryJourneyMission(): Promise<void> {
     url.searchParams.set('journeyAttempt', journeyAttemptId);
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     journeyGates?.setProgress(0, journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas05.id);
+    missionObjective = null;
+    missionObjectiveGuidance?.setObjective(null);
+    journeyGateClearedUntil = 0;
     journeyTooHighUntil = 0;
     journeyAttempt = null;
     journeyResultElement.classList.add('hidden');
@@ -8950,6 +8984,8 @@ boundSocket.addEventListener('message', (event) => {
   }
   if (message.type === 'journeyUnavailable') {
     journeyGates?.setProgress(0, false);
+    missionObjective = null;
+    missionObjectiveGuidance?.setObjective(null);
     showProgressMessage(message.reason);
     return;
   }
@@ -8987,6 +9023,11 @@ boundSocket.addEventListener('message', (event) => {
     journeyServerTimeOffset = message.serverNow - Date.now();
     journeyGates?.setProgress(message.attempt.gateIndex, (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas05.id) &&
       (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING'));
+    missionObjective = message.attempt.missionId === journeyDallas01.id
+      ? confirmedGateObjective(message.attempt, journeyDallas01.gates, getTerrainHeight) : null;
+    missionObjectiveGuidance?.setObjective(missionObjective);
+    if (message.attempt.missionId === journeyDallas01.id && previousAttempt?.attemptId === message.attempt.attemptId &&
+      message.attempt.gateIndex > previousGate && message.attempt.gateIndex < 4) journeyGateClearedUntil = performance.now() + 1_400;
     if (message.attempt.gateIndex !== previousGate) journeyTooHighUntil = 0;
     if (message.attempt.missionId === 'journey-dallas-02' && message.attempt.targetId !== previousTargetId && message.attempt.targetId)
       showProgressMessage(previousTargetId ? 'NEW HUNTER TARGET ACQUIRED' : 'HUNTER TARGET ACQUIRED');
@@ -9002,6 +9043,7 @@ boundSocket.addEventListener('message', (event) => {
     updateJourneyHud();
     if (message.attempt.missionId === journeyDallas04.id) refreshTerritoryBorders();
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
+      missionObjectiveGuidance?.hide();
       showJourneyResult(message.attempt);
     }
     return;
