@@ -1,4 +1,4 @@
-import { dfwSpeedGates } from './city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 
 export const journeyDallas01 = Object.freeze({
@@ -17,13 +17,19 @@ export const journeyDallas02 = Object.freeze({
   arenaRadius: 25_000, arenaCenter: Object.freeze({ x: cityAirports.dallas[0].x, z: cityAirports.dallas[0].z }),
 });
 
+export const journeyDallas03 = Object.freeze({
+  id: 'journey-dallas-03', cityId: 'dallas', name: 'WHITE ROCK SKIMMER',
+  chapter: 'ROOKIE LEAGUE', timeLimitMs: 64_000, firstClearCredits: 450,
+  startAirportId: 'love', gates: whiteRockLowGates,
+});
+
 // Cross the face of the ring in route order, within its illuminated opening.
 // The caller supplies the authoritative terrain elevation at the gate.
-export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
-  const gate = journeyDallas01.gates[gateIndex];
+export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
+  const gate = mission.gates[gateIndex];
   if (!gate || !Number.isFinite(terrainHeight)) return false;
-  const previous = journeyDallas01.gates[Math.max(0, gateIndex - 1)];
-  const next = journeyDallas01.gates[Math.min(journeyDallas01.gates.length - 1, gateIndex + 1)];
+  const previous = mission.gates[Math.max(0, gateIndex - 1)];
+  const next = mission.gates[Math.min(mission.gates.length - 1, gateIndex + 1)];
   const directionX = next.x - previous.x;
   const directionZ = next.z - previous.z;
   const length = Math.hypot(directionX, directionZ);
@@ -37,5 +43,10 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   const x = from.x + (to.x - from.x) * fraction - gate.x;
   const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
   const z = from.z + (to.z - from.z) * fraction - gate.z;
-  return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2;
+  if (x * x + z * z > (gate.radius * 0.92) ** 2) return false;
+  if (gate.maxAltitude !== undefined && y + gate.altitude > gate.maxAltitude) return 'TOO_HIGH';
+  return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2 ? 'VALID' : false;
+}
+export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
+  return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';
 }

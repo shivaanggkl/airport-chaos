@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
-export type HapticEvent = 'selection' | 'confirmation' | 'checkpoint' | 'rewardSuccess' | 'missionSuccess' | 'damage' | 'destruction' | 'failure';
+export type HapticEvent = 'selection' | 'confirmation' | 'checkpoint' | 'rewardSuccess' | 'missionSuccess' | 'combatSuccess' | 'damage' | 'destruction' | 'failure';
 
 type HapticAdapter = Pick<typeof Haptics, 'impact' | 'notification'>;
 type HapticsDependencies = {
@@ -13,9 +13,9 @@ type HapticsDependencies = {
 };
 
 const preferenceKey = 'airport-chaos-haptics-enabled-v1';
-const onceEvents = new Set<HapticEvent>(['checkpoint', 'rewardSuccess', 'missionSuccess', 'destruction', 'failure']);
+const onceEvents = new Set<HapticEvent>(['checkpoint', 'rewardSuccess', 'missionSuccess', 'combatSuccess', 'destruction', 'failure']);
 const cooldownMs: Record<HapticEvent, number> = {
-  selection: 100, confirmation: 100, checkpoint: 100, rewardSuccess: 0, missionSuccess: 0, damage: 300, destruction: 0, failure: 0,
+  selection: 100, confirmation: 100, checkpoint: 100, rewardSuccess: 0, missionSuccess: 0, combatSuccess: 0, damage: 300, destruction: 0, failure: 0,
 };
 
 export class HapticsManager {
@@ -57,22 +57,25 @@ export class HapticsManager {
       if (this.delivered.size > 128) this.delivered.delete(this.delivered.values().next().value!);
     }
     try {
-      const feedback = event === 'rewardSuccess' || event === 'missionSuccess' || event === 'failure'
+      const feedback = () => event === 'rewardSuccess' || event === 'missionSuccess' || event === 'combatSuccess' || event === 'failure'
         ? this.dependencies.adapter.notification({ type: event === 'failure' ? NotificationType.Warning : NotificationType.Success })
         : this.dependencies.adapter.impact({ style: event === 'confirmation' || event === 'damage' || event === 'destruction' ? ImpactStyle.Heavy : ImpactStyle.Medium });
-      void Promise.resolve(feedback).catch(() => undefined);
+      const doubleCombatFeedback = event === 'damage' || event === 'destruction' || event === 'combatSuccess';
+      void Promise.resolve(feedback()).then(() => {
+        if (doubleCombatFeedback && this.isEnabled() && this.dependencies.visible()) return feedback();
+      }).catch(() => undefined);
     } catch { /* Haptics never interrupts the action it accompanies. */ }
   }
 }
 
 export const hapticsManager = new HapticsManager();
 
-type JourneyFeedbackState = { attemptId: string; status: string; gateIndex: number };
+type JourneyFeedbackState = { attemptId: string; missionId?: string; status: string; gateIndex: number };
 
 export function emitConfirmedJourneyFeedback(manager: HapticsManager, previous: JourneyFeedbackState | null, current: JourneyFeedbackState): void {
   if (!previous || previous.attemptId !== current.attemptId) return;
   if (previous.status !== current.status && current.status === 'COMPLETED') {
-    manager.emit('missionSuccess', current.attemptId);
+    manager.emit(current.missionId === 'journey-dallas-02' ? 'combatSuccess' : 'missionSuccess', current.attemptId);
     return;
   }
   if (previous.status !== current.status && current.status === 'FAILED') {

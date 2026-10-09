@@ -22,7 +22,7 @@ function fixture(values = new Map<string, string>()) {
   return { manager, calls, values, advance: (ms: number) => { clock += ms; }, setVisible: (value: boolean) => { visible = value; }, setNative: (value: boolean) => { native = value; }, setReject: (value: boolean) => { reject = value; } };
 }
 
-test('semantic events use the intended native feedback and independent cooldowns', () => {
+test('combat hits and aircraft destruction deliver two impacts without bypassing cooldowns', async () => {
   const f = fixture();
   f.manager.emit('selection');
   f.manager.emit('selection');
@@ -38,12 +38,14 @@ test('semantic events use the intended native feedback and independent cooldowns
   f.manager.emit('destruction', 'victim-1');
   f.manager.emit('rewardSuccess', 'purchase');
   f.manager.emit('failure', 'failed-attempt');
+  await Promise.resolve();
   assert.deepEqual(f.calls, [
     `impact:${ImpactStyle.Medium}`, `impact:${ImpactStyle.Heavy}`,
     `impact:${ImpactStyle.Heavy}`, `impact:${ImpactStyle.Heavy}`,
     `impact:${ImpactStyle.Medium}`, `notification:${NotificationType.Success}`,
     `impact:${ImpactStyle.Heavy}`,
     `notification:${NotificationType.Success}`, `notification:${NotificationType.Warning}`,
+    `impact:${ImpactStyle.Heavy}`, `impact:${ImpactStyle.Heavy}`, `impact:${ImpactStyle.Heavy}`,
   ]);
 });
 
@@ -69,12 +71,27 @@ test('native rejection cannot reject the game event handler', async () => {
   const f = fixture();
   f.setReject(true);
   assert.doesNotThrow(() => f.manager.emit('selection'));
+  assert.doesNotThrow(() => f.manager.emit('damage'));
   await Promise.resolve();
   await Promise.resolve();
-  assert.deepEqual(f.calls, [`impact:${ImpactStyle.Medium}`]);
+  assert.deepEqual(f.calls, [`impact:${ImpactStyle.Medium}`, `impact:${ImpactStyle.Heavy}`]);
 });
 
-test('the gameplay Journey handler vibrates on confirmed gates, victory, and failure only once', () => {
+test('turning haptics off or hiding the app cancels the second combat pulse', async () => {
+  const f = fixture();
+  f.manager.emit('damage');
+  f.setVisible(false);
+  await Promise.resolve();
+  assert.deepEqual(f.calls, [`impact:${ImpactStyle.Heavy}`]);
+  f.setVisible(true);
+  f.advance(300);
+  f.manager.emit('damage');
+  f.manager.setEnabled(false);
+  await Promise.resolve();
+  assert.deepEqual(f.calls, [`impact:${ImpactStyle.Heavy}`, `impact:${ImpactStyle.Heavy}`]);
+});
+
+test('the gameplay Journey handler doubles confirmed Hunter victory without duplicate completion feedback', async () => {
   const f = fixture();
   const active = { attemptId: 'flight-1', status: 'RACING', gateIndex: 0 };
   emitConfirmedJourneyFeedback(f.manager, null, { ...active, gateIndex: 2 }); // Restored history is silent.
@@ -85,11 +102,16 @@ test('the gameplay Journey handler vibrates on confirmed gates, victory, and fai
   emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 3 }, { ...active, status: 'COMPLETED', gateIndex: 4 });
   emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 3 }, { ...active, status: 'COMPLETED', gateIndex: 4 });
   emitConfirmedJourneyFeedback(f.manager, { attemptId: 'flight-2', status: 'RACING', gateIndex: 0 }, { attemptId: 'flight-2', status: 'COMPLETED', gateIndex: 0 });
+  const hunter = { attemptId: 'hunter', missionId: 'journey-dallas-02', status: 'RACING', gateIndex: 0 };
+  emitConfirmedJourneyFeedback(f.manager, hunter, { ...hunter, status: 'COMPLETED' });
+  emitConfirmedJourneyFeedback(f.manager, hunter, { ...hunter, status: 'COMPLETED' });
   emitConfirmedJourneyFeedback(f.manager, { attemptId: 'flight-3', status: 'RACING', gateIndex: 0 }, { attemptId: 'flight-3', status: 'FAILED', gateIndex: 0 });
+  await Promise.resolve();
   assert.deepEqual(f.calls, [
     `impact:${ImpactStyle.Medium}`, `impact:${ImpactStyle.Medium}`, `impact:${ImpactStyle.Medium}`,
-    `notification:${NotificationType.Success}`, `notification:${NotificationType.Success}`,
+    `notification:${NotificationType.Success}`, `notification:${NotificationType.Success}`, `notification:${NotificationType.Success}`,
     `notification:${NotificationType.Warning}`,
+    `notification:${NotificationType.Success}`,
   ]);
 });
 

@@ -9,4 +9,11 @@ export const journeyDallas02: Readonly<{
   firstClearCredits: 350; targetHealth: 200; arenaRadius: 25000;
   arenaCenter: Readonly<{ x: number; z: number }>;
 }>;
+export const journeyDallas03: Readonly<{
+  id: 'journey-dallas-03'; cityId: 'dallas'; name: 'WHITE ROCK SKIMMER'; chapter: 'ROOKIE LEAGUE';
+  timeLimitMs: 64000; firstClearCredits: 450; startAirportId: 'love';
+  gates: readonly { x: number; z: number; altitude: number; radius: number; maxAltitude: number }[];
+}>;
+export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
+  mission?: typeof journeyDallas01 | typeof journeyDallas03): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

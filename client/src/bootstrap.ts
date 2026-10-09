@@ -54,7 +54,7 @@ const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
 const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
-let journeyAttemptMission: 'mission-01' | 'mission-02' = 'mission-01';
+let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' = 'mission-01';
 
 function abandonPendingJourneyLaunch(): void {
   const attemptId = journeyAttemptId;
@@ -65,24 +65,27 @@ function abandonPendingJourneyLaunch(): void {
   }).catch(() => undefined);
 }
 
-async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string } } | undefined> {
+async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string }; mission03?: { completed: boolean; firstAttemptId?: string } } | undefined> {
   try {
     const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
-    if (!response.ok) { missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); return undefined; }
-    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
+    if (!response.ok) { missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); return undefined; }
+    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
     missionJourney.setStageOneProgress(progress.eligible === true, progress.completed === true);
     missionJourney.setStageTwoProgress(progress.mission02?.eligible === true, progress.mission02?.completed === true);
+    missionJourney.setStageThreeProgress(progress.mission03?.eligible === true, progress.mission03?.completed === true);
     return { completed: progress.completed === true, firstAttemptId: progress.firstAttemptId,
-      mission02: { completed: progress.mission02?.completed === true, firstAttemptId: progress.mission02?.firstAttemptId } };
+      mission02: { completed: progress.mission02?.completed === true, firstAttemptId: progress.mission02?.firstAttemptId },
+      mission03: { completed: progress.mission03?.completed === true, firstAttemptId: progress.mission03?.firstAttemptId } };
   } catch {
     missionJourney.setStageOneProgress(false, false);
     missionJourney.setStageTwoProgress(false, false);
+    missionJourney.setStageThreeProgress(false, false);
     return undefined;
   }
 }
 
 async function playJourneyMission(): Promise<void> {
-  const mission = missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
+  const mission = missionJourney.selectedMissionNumber === 3 ? 'mission-03' : missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
   try {
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -1896,10 +1899,14 @@ async function start(): Promise<void> {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();
-    if (journeyReceipt && progress?.mission02?.completed && progress.mission02.firstAttemptId === journeyReceipt) {
+    if (journeyReceipt && progress?.mission03?.completed && progress.mission03.firstAttemptId === journeyReceipt) {
+      missionJourney.celebrateStageThree();
+    } else if (journeyReceipt && progress?.mission02?.completed && progress.mission02.firstAttemptId === journeyReceipt) {
       missionJourney.celebrateStageTwo();
     } else if (journeyReceipt && progress?.completed && progress.firstAttemptId === journeyReceipt) {
       missionJourney.celebrateStageOne();
+    } else if (journeyReceipt && progress?.mission03?.completed) {
+      missionJourney.advanceToStageFour();
     } else if (journeyReceipt && progress?.mission02?.completed) {
       missionJourney.advanceToStageThree();
     } else if (journeyReceipt && progress?.completed) {

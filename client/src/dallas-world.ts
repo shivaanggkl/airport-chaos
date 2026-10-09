@@ -14,7 +14,7 @@ import type { ImportedObstacle, ImportedRoadSegment, ImportedWater } from './osm
 import type { WorldMapLayer } from './world-map';
 import type { NavigationDestination } from './navigation-beacons';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
-import { dfwSpeedGates } from '../../shared/city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates } from '../../shared/city-challenges.mjs';
 import { airborneAdVisibilityMultiplier } from '../../shared/ad-placement-rules.mjs';
 import { CityVisualLayer, type CityVisualConfig, type CityVisualQuality, type CityTimeOfDay } from './city-visuals';
 import { DallasScenery } from './dallas-scenery';
@@ -531,12 +531,7 @@ export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
   },
   {
     id: 'white-rock-low', name: 'WHITE ROCK LOW RUN', type: 'lowAltitude', reward: 240, timeLimit: 64,
-    gates: [
-      { x: 2_900, z: -7_100, altitude: 145, radius: 68, maxAltitude: 290 },
-      { x: 4_550, z: -8_080, altitude: 135, radius: 64, maxAltitude: 275 },
-      { x: 6_450, z: -9_050, altitude: 150, radius: 64, maxAltitude: 290 },
-      { x: 7_950, z: -8_000, altitude: 165, radius: 68, maxAltitude: 310 },
-    ],
+    gates: whiteRockLowGates,
   },
   {
     id: 'trinity-dive', name: 'TRINITY DIVE RECOVERY', type: 'dive', reward: 310, timeLimit: 58,

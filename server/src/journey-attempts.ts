@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallas01, journeyDallas02 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03 } from '../../shared/journey-mission.mjs';
 import { PlayerWallet } from './player-wallet.js';
 
 export type JourneyAttemptStatus = 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
@@ -77,8 +77,9 @@ export class JourneyAttemptStore {
   }
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
-    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id) throw new Error('Unknown Journey mission');
+    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id) throw new Error('Unknown Journey mission');
     if (missionId === journeyDallas02.id && !this.progress(pilotId).completed) throw new Error('Journey mission is locked');
+    if (missionId === journeyDallas03.id && !this.progress(pilotId, journeyDallas02.id).completed) throw new Error('Journey mission is locked');
     return this.wallet.transaction(() => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);
@@ -99,7 +100,8 @@ export class JourneyAttemptStore {
   acceptGate(pilotId: string, attemptId: string, gateIndex: number, now = Date.now()): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
-      if (!current || current.missionId !== journeyDallas01.id || current.gateIndex !== gateIndex || !['APPROACH', 'RACING'].includes(current.status)) return undefined;
+      const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas03.id ? journeyDallas03 : undefined;
+      if (!current || !mission || current.gateIndex !== gateIndex || !['APPROACH', 'RACING'].includes(current.status)) return undefined;
       if (gateIndex === 0 && current.status !== 'APPROACH') return undefined;
       if (gateIndex > 0 && (current.status !== 'RACING' || !current.startedAt || !current.deadlineAt || now > current.deadlineAt ||
         !current.lastGateAt || now - current.lastGateAt < 350)) return undefined;
@@ -113,7 +115,7 @@ export class JourneyAttemptStore {
           best_time_ms = MIN(best_time_ms, ?) WHERE pilot_id = ? AND mission_id = ?`).run(finishTimeMs, pilotId, current.missionId);
         if (first) {
           const before = wallet.balances(pilotId)?.credits ?? 0;
-          const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas01.firstClearCredits,
+          const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: mission.firstClearCredits,
             reason: 'MISSION_REWARD', idempotencyKey: `journey:${current.missionId}`, referenceId: current.missionId, createdAt: now });
           if (!reward.ok) throw new Error('Journey first-clear reward failed');
           credited = Math.max(0, (reward.balance ?? before) - before);
@@ -124,7 +126,7 @@ export class JourneyAttemptStore {
       } else {
         this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', gate_index = ?,
           started_at = COALESCE(started_at, ?), deadline_at = COALESCE(deadline_at, ?), last_gate_at = ? WHERE attempt_id = ?`)
-          .run(gateIndex + 1, now, now + journeyDallas01.timeLimitMs, now, attemptId);
+          .run(gateIndex + 1, now, now + mission.timeLimitMs, now, attemptId);
       }
       return this.get(pilotId, attemptId);
     });
