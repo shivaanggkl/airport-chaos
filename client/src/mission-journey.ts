@@ -22,10 +22,10 @@ const stagePositions: readonly (readonly [number, number])[] = [
 ];
 
 export const missionJourneyStages: readonly MissionJourneyStage[] = stagePositions.map(([x, y], index) => ({
-  id: index < 3 ? `journey-dallas-0${index + 1}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
+  id: index < 4 ? `journey-dallas-0${index + 1}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
   number: index + 1,
   chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
-  implementation: index < 3 ? 'playable' : 'planned',
+  implementation: index < 4 ? 'playable' : 'planned',
   x,
   y,
 }));
@@ -64,6 +64,8 @@ export class MissionJourney {
   private stageTwoEligible = false;
   private stageThreeCompleted = false;
   private stageThreeEligible = false;
+  private stageFourCompleted = false;
+  private stageFourEligible = false;
 
   constructor(private readonly element: HTMLElement, onCities: () => void, onFreeFlight: () => void, onPlayMission: () => void, private readonly onPanelOpen: () => void, onPanelClose: () => void) {
     element.classList.add('mission-journey');
@@ -143,6 +145,10 @@ export class MissionJourney {
     thirdCompletedRoute.setAttribute('d', routePath(missionJourneyStages.slice(2, 4)));
     thirdCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-three');
     route.append(thirdCompletedRoute);
+    const fourthCompletedRoute = completedRoute.cloneNode() as SVGPathElement;
+    fourthCompletedRoute.setAttribute('d', routePath(missionJourneyStages.slice(3, 5)));
+    fourthCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-four');
+    route.append(fourthCompletedRoute);
     const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
     for (const stage of missionJourneyStages) {
       const button = document.createElement('button');
@@ -189,7 +195,7 @@ export class MissionJourney {
     const newlyCompleted = completed && !this.stageOneCompleted;
     this.stageOneEligible = eligible;
     this.stageOneCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageThreeCompleted ? 4 : this.stageTwoCompleted ? 3 : 2;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFourCompleted ? 5 : this.stageThreeCompleted ? 4 : this.stageTwoCompleted ? 3 : 2;
     this.renderProgress();
     if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
   }
@@ -198,7 +204,7 @@ export class MissionJourney {
     const newlyCompleted = completed && !this.stageTwoCompleted;
     this.stageTwoEligible = eligible;
     this.stageTwoCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageThreeCompleted ? 4 : 3;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFourCompleted ? 5 : this.stageThreeCompleted ? 4 : 3;
     this.renderProgress();
     if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
   }
@@ -207,7 +213,16 @@ export class MissionJourney {
     const newlyCompleted = completed && !this.stageThreeCompleted;
     this.stageThreeEligible = eligible;
     this.stageThreeCompleted = completed;
-    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 4;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = this.stageFourCompleted ? 5 : 4;
+    this.renderProgress();
+    if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
+  }
+
+  setStageFourProgress(eligible: boolean, completed: boolean): void {
+    const newlyCompleted = completed && !this.stageFourCompleted;
+    this.stageFourEligible = eligible;
+    this.stageFourCompleted = completed;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 5;
     this.renderProgress();
     if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
   }
@@ -217,24 +232,27 @@ export class MissionJourney {
     this.element.classList.toggle('has-stage-one-complete', completed);
     this.element.classList.toggle('has-stage-two-complete', this.stageTwoCompleted);
     this.element.classList.toggle('has-stage-three-complete', this.stageThreeCompleted);
+    this.element.classList.toggle('has-stage-four-complete', this.stageFourCompleted);
     this.stageButtons.forEach((button, index) => {
       const number = index + 1;
-      const reached = number === 1 || number === 2 && completed || number === 3 && this.stageTwoCompleted || number === 4 && this.stageThreeCompleted;
+      const reached = number === 1 || number === 2 && completed || number === 3 && this.stageTwoCompleted || number === 4 && this.stageThreeCompleted || number === 5 && this.stageFourCompleted;
       button.classList.toggle('is-locked', !reached);
-      button.classList.toggle('is-completed', number === 1 && completed || number === 2 && this.stageTwoCompleted || number === 3 && this.stageThreeCompleted);
+      button.classList.toggle('is-completed', number === 1 && completed || number === 2 && this.stageTwoCompleted || number === 3 && this.stageThreeCompleted || number === 4 && this.stageFourCompleted);
       button.classList.toggle('is-current', number === 1 && !completed);
-      button.classList.toggle('is-next', number === 2 && completed && !this.stageTwoCompleted || number === 3 && this.stageTwoCompleted && !this.stageThreeCompleted || number === 4 && this.stageThreeCompleted);
+      button.classList.toggle('is-next', number === 2 && completed && !this.stageTwoCompleted || number === 3 && this.stageTwoCompleted && !this.stageThreeCompleted || number === 4 && this.stageThreeCompleted && !this.stageFourCompleted || number === 5 && this.stageFourCompleted);
       button.classList.toggle('is-selected', number === this.selectedStage);
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
       if (number === 1) button.dataset.progressLabel = this.stageOneEligible ? 'CURRENT MISSION' : 'START HERE';
       if (number === 2) button.dataset.progressLabel = 'CURRENT MISSION';
       if (number === 3) button.dataset.progressLabel = this.stageThreeCompleted ? 'COMPLETED' : 'CURRENT MISSION';
-      if (number === 4) button.dataset.progressLabel = 'NEXT · COMING SOON';
+      if (number === 4) button.dataset.progressLabel = this.stageFourCompleted ? 'COMPLETED' : 'CURRENT MISSION';
+      if (number === 5) button.dataset.progressLabel = 'NEXT · COMING SOON';
       button.setAttribute('aria-label', number === 1
         ? completed ? 'Mission 1, completed, select to replay or preview' : this.stageOneEligible ? 'Mission 1, current mission, select to preview' : 'Mission 1, starting preview, select for details'
         : number === 2 && reached ? this.stageTwoCompleted ? 'Mission 2, completed, select to replay or preview' : 'Mission 2, current mission, select to play'
           : number === 3 && reached ? this.stageThreeCompleted ? 'Mission 3, completed, select to replay or preview' : 'Mission 3, current mission, select to play'
-            : number === 4 && reached ? 'Mission 4, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
+            : number === 4 && reached ? this.stageFourCompleted ? 'Mission 4, completed, select to replay or preview' : 'Mission 4, current mission, select to play'
+              : number === 5 && reached ? 'Mission 5, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
       const lock = button.querySelector('small');
       if (lock) lock.hidden = reached;
     });
@@ -282,6 +300,20 @@ export class MissionJourney {
   }
 
   advanceToStageFour(): void { this.select(4); }
+
+  celebrateStageFour(): void {
+    this.select(4, false);
+    this.setPanelOpen(false);
+    this.stageButtons[3]?.classList.add('is-newly-completed');
+    this.element.classList.add('is-progressing-four');
+    window.setTimeout(() => {
+      this.stageButtons[3]?.classList.remove('is-newly-completed');
+      this.element.classList.remove('is-progressing-four');
+      if (this.isOpen) this.select(5);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
+  }
+
+  advanceToStageFive(): void { this.select(5); }
 
   show(panelOpen = false): void {
     this.element.hidden = false;
@@ -335,41 +367,48 @@ export class MissionJourney {
     const second = stage.number === 2;
     const third = stage.number === 3;
     const fourth = stage.number === 4;
-    const locked = !first && !(second && this.stageOneCompleted) && !(third && this.stageTwoCompleted) && !(fourth && this.stageThreeCompleted);
+    const fifth = stage.number === 5;
+    const locked = !first && !(second && this.stageOneCompleted) && !(third && this.stageTwoCompleted) && !(fourth && this.stageThreeCompleted) && !(fifth && this.stageFourCompleted);
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent =
-      `MISSION ${String(stage.number).padStart(2, '0')}${stage.number <= 4 ? ' · ROOKIE LEAGUE' : ''}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = first ? 'DFW SKY RUSH' : second ? 'HUNTER SHOWDOWN' : third ? 'WHITE ROCK SKIMMER' : fourth ? 'CLAIM THE SKIES' : '';
+      `MISSION ${String(stage.number).padStart(2, '0')}${stage.number <= 5 ? ' · ROOKIE LEAGUE' : ''}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = first ? 'DFW SKY RUSH' : second ? 'HUNTER SHOWDOWN' : third ? 'WHITE ROCK SKIMMER' : fourth ? 'CLAIM THE SKIES' : fifth ? 'DOWNTOWN NEEDLE' : '';
     const status = this.detail.querySelector<HTMLElement>('[data-mission-status]')!;
     status.textContent = first
       ? this.stageOneCompleted ? 'COMPLETED' : this.stageOneEligible ? 'CURRENT MISSION' : 'PREVIEW'
       : second ? this.stageTwoCompleted ? 'COMPLETED' : this.stageTwoEligible ? 'CURRENT MISSION' : 'LOCKED'
         : third ? this.stageThreeCompleted ? 'COMPLETED' : this.stageThreeEligible ? 'CURRENT MISSION' : 'LOCKED'
-        : locked ? 'LOCKED' : 'COMING SOON';
+        : fourth ? this.stageFourCompleted ? 'COMPLETED' : this.stageFourEligible ? 'CURRENT MISSION' : 'LOCKED'
+          : locked ? 'LOCKED' : 'COMING SOON';
     status.classList.toggle('is-locked', locked);
     this.detail.querySelector<HTMLElement>('[data-mission-type]')!.textContent = first ? 'SPEED CHALLENGE'
-      : second ? 'AIR COMBAT' : third ? 'LOW-ALTITUDE CHALLENGE' : fourth ? 'ROOKIE LEAGUE' : `CHAPTER ${stage.chapter} · ${chapterNames[stage.chapter - 1]}`;
+      : second ? 'AIR COMBAT' : third ? 'LOW-ALTITUDE CHALLENGE' : fourth ? 'TERRITORY CONTROL' : `CHAPTER ${stage.chapter} · ${chapterNames[stage.chapter - 1]}`;
     this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = first
       ? 'Take off from DFW and fly through all 4 glowing gates before time runs out!'
       : second ? 'Take off from DFW, find the marked AI Hunter, and defeat it in an aerial battle!'
         : third ? 'Take off from Love Field and fly through 4 glowing gates near White Rock Lake. Stay below the altitude limits and beat the clock!'
-          : fourth && !locked ? 'Your next flight challenge is being prepared.'
+          : fourth ? 'Fly to White Rock, take control of its airspace, and defend it for 30 seconds!'
+          : fifth && !locked ? 'Your next flight challenge is being prepared.'
         : locked ? 'Complete earlier missions to reach this stage. Mission details are coming soon.'
           : 'Your next flight challenge is being prepared.';
     const facts = this.detail.querySelector<HTMLElement>('[data-mission-facts]')!;
-    facts.hidden = !(first || second || third);
+    facts.hidden = !(first || second || third || fourth);
     if (first) facts.innerHTML = '<span>START: DFW RUNWAY</span><span>CHECKPOINTS: 4 GATES</span><span>RACE TIME: 1:02</span><span>RECOMMENDED: BLUEJAY</span><span>FIRST-CLEAR REWARD: 250 CREDITS</span>';
     if (second) facts.innerHTML = `<span>START: DFW RUNWAY</span><span>TARGET: 1 AI HUNTER</span><span>ENEMY HEALTH: 200 HP</span><span>TIME LIMIT: NONE</span><span>RECOMMENDED AIRCRAFT: BLUEJAY</span><span>${this.stageTwoCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 350 CREDITS'}</span>`;
     if (third) facts.innerHTML = `<span>START: DALLAS LOVE FIELD</span><span>CHECKPOINTS: 4 GATES</span><span>TIME LIMIT: 1:04</span><span>AIRCRAFT: BLUEJAY RECOMMENDED</span><span>${this.stageThreeCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 450 CREDITS'}</span>`;
-    this.detail.querySelector<HTMLElement>('[data-mission-caption]')!.textContent = first || second ? 'DFW GAMEPLAY PREVIEW' : 'DALLAS CITY PREVIEW';
-    this.detail.querySelector<HTMLElement>('.mission-journey-preview > div')!.setAttribute('aria-label', first || second ? 'DFW gameplay preview' : 'Dallas city aviation preview');
-    this.detail.querySelector<HTMLElement>('.mission-journey-preview')!.classList.toggle('is-dfw-preview', first || second);
+    if (fourth) facts.innerHTML = `<span>START: LOVE FIELD</span><span>TARGET: WHITE ROCK</span><span>OBJECTIVE: CAPTURE + HOLD</span><span>HOLD TIME: 30 SECONDS</span><span>TIME LIMIT: NONE</span><span>RECOMMENDED: BLUEJAY</span><span>${this.stageFourCompleted ? 'FIRST-CLEAR REWARD: CLAIMED' : 'FIRST-CLEAR REWARD: 500 CREDITS'}</span>`;
+    this.detail.querySelector<HTMLElement>('[data-mission-caption]')!.textContent = fourth ? 'WHITE ROCK GAMEPLAY IMAGE PENDING' : first || second ? 'DFW GAMEPLAY PREVIEW' : 'DALLAS CITY PREVIEW';
+    this.detail.querySelector<HTMLElement>('.mission-journey-preview > div')!.setAttribute('aria-label', fourth ? 'White Rock gameplay image pending' : first || second ? 'DFW gameplay preview' : 'Dallas city aviation preview');
+    const preview = this.detail.querySelector<HTMLElement>('.mission-journey-preview')!;
+    preview.classList.toggle('is-dfw-preview', first || second);
+    preview.classList.toggle('is-territory-preview-pending', fourth);
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
-    play.disabled = first ? !this.stageOneEligible : second ? !this.stageTwoEligible : third ? !this.stageThreeEligible : true;
+    play.disabled = first ? !this.stageOneEligible : second ? !this.stageTwoEligible : third ? !this.stageThreeEligible : fourth ? !this.stageFourEligible : true;
     play.textContent = first
       ? this.stageOneEligible ? this.stageOneCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'PLAY UNAVAILABLE'
       : second ? this.stageTwoEligible ? this.stageTwoCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
         : third ? this.stageThreeEligible ? this.stageThreeCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
-        : locked ? 'MISSION LOCKED' : 'MISSION COMING SOON';
+        : fourth ? this.stageFourEligible ? this.stageFourCompleted ? 'REPLAY MISSION' : 'PLAY MISSION' : 'MISSION LOCKED'
+          : locked ? 'MISSION LOCKED' : 'MISSION COMING SOON';
   }
 
   private revealSelectedStage(): void {

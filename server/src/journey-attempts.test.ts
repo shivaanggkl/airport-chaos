@@ -4,7 +4,53 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+
+test('Claim the Skies requires Mission 3, resets on exit, pauses on contest, and credits first clear once', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-territory-journey-test-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('territory-pilot', 0, 0), ('other-pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    assert.throws(() => store.launch('territory-pilot', 'trainer', 1_000, journeyDallas04.id), /locked/);
+    const fixture = new DatabaseSync(path);
+    fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
+      .run('territory-pilot', journeyDallas03.id, 'qa-prerequisite', 500, 60_000);
+    fixture.close();
+    const first = store.launch('territory-pilot', 'trainer', 1_000, journeyDallas04.id);
+    store.approach('territory-pilot', first.attemptId);
+    assert.equal(store.updateTerritoryHold('other-pilot', first.attemptId, 'OWNED', 1_400), undefined);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'CAPTURING', 1_400)?.holdMs, 0);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 1_800)?.status, 'RACING');
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 2_200)?.holdMs, 400);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'CONTESTED', 2_600)?.holdMs, 400);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 10_000)?.holdMs, 400);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'CAPTURING', 10_200)?.status, 'APPROACH');
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 10_300)?.holdMs, 0);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OUTSIDE', 10_400)?.holdMs, 0);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 10_800)?.holdMs, 0);
+    let result;
+    for (let index = 1; index <= 75; index += 1) result = store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 10_800 + index * 400);
+    assert.equal(result?.status, 'COMPLETED');
+    assert.equal(result?.firstClearCredits, 500);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 41_200), undefined);
+    assert.equal(store.progress('territory-pilot', journeyDallas04.id).firstAttemptId, first.attemptId);
+    const replay = store.launch('territory-pilot', 'trainer', 50_000, journeyDallas04.id);
+    store.approach('territory-pilot', replay.attemptId);
+    store.updateTerritoryHold('territory-pilot', replay.attemptId, 'OWNED', 50_400);
+    assert.equal(store.updateTerritoryHold('territory-pilot', first.attemptId, 'OWNED', 50_800), undefined);
+    for (let index = 1; index <= 75; index += 1) result = store.updateTerritoryHold('territory-pilot', replay.attemptId, 'OWNED', 50_400 + index * 400);
+    assert.equal(result?.status, 'COMPLETED');
+    assert.equal(result?.firstClearCredits, 0);
+    assert.equal(new JourneyAttemptStore(path).progress('territory-pilot', journeyDallas04.id).completed, true);
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'territory-pilot'").get() as { credits: number }).credits, 500);
+    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id = 'journey-dallas-04'").get() as { count: number }).count, 1);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 

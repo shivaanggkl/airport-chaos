@@ -70,9 +70,11 @@
 .mission-journey.has-stage-one-complete .mission-journey-route-completed-two { opacity: 0; }
 .mission-journey.has-stage-two-complete .mission-journey-route-completed-two { opacity: 1; }
 .mission-journey.has-stage-three-complete .mission-journey-route-completed-three { opacity: 1; }
+.mission-journey.has-stage-four-complete .mission-journey-route-completed-four { opacity: 1; }
 .mission-journey.is-progressing .mission-journey-route-completed { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-two .mission-journey-route-completed-two { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-three .mission-journey-route-completed-three { animation: mission-route-unlock 1100ms ease-out both; }
+.mission-journey.is-progressing-four .mission-journey-route-completed-four { animation: mission-route-unlock 1100ms ease-out both; }
 @keyframes mission-route-flow { to { stroke-dashoffset: -160; } }
 @keyframes mission-route-unlock { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .mission-journey-chapter {
@@ -192,6 +194,7 @@
 .mission-journey-preview { position: relative; flex: 0 0 177px; min-height: 110px; margin: 0; overflow: hidden; border: 2px solid #a9dce9; border-radius: 11px; box-shadow: inset 0 0 0 1px rgb(250 254 255 / 70%), 0 3px 9px rgb(32 99 150 / 20%); }
 .mission-journey-preview > div { position: absolute; inset: 0; background: url('/media/city-journey/day.jpg') center 58% / cover no-repeat; }
 .mission-journey-preview.is-dfw-preview > div { background-image: url('/media/mission-journey/dfw-sky-rush.jpg'); background-position: center 70%; }
+.mission-journey-preview.is-territory-preview-pending > div { background: linear-gradient(145deg, #173c67, #08264c); }
 .mission-journey-preview figcaption { position: absolute; right: 0; bottom: 0; left: 0; padding: 15px 10px 7px; color: #f7fbff; background: linear-gradient(transparent, rgb(13 52 96 / 85%)); font: 800 10px/1 var(--font-display); letter-spacing: .12em; }
 .mission-journey-objective { margin: 10px 0; padding: 11px 12px; color: #315376; border: 1px solid #d3e9f7; border-radius: 9px; background: #edf7fd; font: 600 clamp(12px, 1vw, 15px)/1.3 var(--font-body); }
 .mission-journey-facts:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 9px; color: #214b72; font: 800 clamp(10px, .85vw, 12px)/1.25 var(--font-display); }

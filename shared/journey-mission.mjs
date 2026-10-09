@@ -23,6 +23,12 @@ export const journeyDallas03 = Object.freeze({
   startAirportId: 'love', gates: whiteRockLowGates,
 });
 
+export const journeyDallas04 = Object.freeze({
+  id: 'journey-dallas-04', cityId: 'dallas', name: 'CLAIM THE SKIES',
+  chapter: 'ROOKIE LEAGUE', firstClearCredits: 500,
+  startAirportId: 'love', territoryId: 'white-rock', holdMs: 30_000,
+});
+
 // Cross the face of the next ring within its illuminated opening. White Rock
 // accepts either approach direction; DFW Sky Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.

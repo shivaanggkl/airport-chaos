@@ -16,7 +16,7 @@ import { entityCapabilities, type EntityType } from './entity-types';
 import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
-import { journeyDallas01, journeyDallas02, journeyDallas03 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04 } from '../../shared/journey-mission.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
 import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
@@ -114,6 +114,7 @@ type JourneyAttemptState = {
   attemptId: string; missionId: string; targetId: string | null; targetHealth: number; targetEngaged?: boolean;
   status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
   gateIndex: number; deadlineAt: number | null; finishTimeMs: number | null;
+  holdMs: number;
   firstClearCredits: number; failureReason: string | null;
 };
 let journeyAttempt: JourneyAttemptState | null = null;
@@ -1734,9 +1735,10 @@ function drawRadarTerritories(direction: THREE.Vector3): void {
       else radarContext.lineTo(point.x, point.y);
     });
     radarContext.closePath();
-    radarContext.strokeStyle = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
-    radarContext.globalAlpha = state?.contested ? 0.58 : 0.28;
-    radarContext.lineWidth = state?.contested ? 2 : 1;
+    const journeyTarget = journeyAttempt?.missionId === journeyDallas04.id && definition.id === journeyDallas04.territoryId;
+    radarContext.strokeStyle = state?.controllerId || journeyTarget ? definition.fixedColor : neutralTerritoryColor;
+    radarContext.globalAlpha = journeyTarget ? 0.9 : state?.contested ? 0.58 : 0.28;
+    radarContext.lineWidth = journeyTarget ? 2.5 : state?.contested ? 2 : 1;
     radarContext.stroke();
   }
   radarContext.restore();
@@ -1808,6 +1810,10 @@ function updateRadar(direction: THREE.Vector3): void {
   if (challengeMarker) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
   const journeyTarget = journeyGates?.target();
   if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `GATE ${journeyTarget.index + 1}`);
+  if (journeyAttempt?.missionId === journeyDallas04.id && journeyAttempt.status !== 'COMPLETED') {
+    const whiteRock = territoryDefinition(journeyDallas04.territoryId);
+    if (whiteRock) drawRadarMarker(direction, whiteRock.center.x, whiteRock.center.z, 'mission', 'WHITE ROCK');
+  }
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
   if (cityEvent && eventObjective && (cityEvent.lifecycle === 'available' || cityEvent.lifecycle === 'active')) {
     const missionEvent = activeMissionDefinition?.type === 'event' && activeMissionDefinition.requirements.eventType === cityEvent.eventType;
@@ -2147,12 +2153,14 @@ function refreshTerritoryBorders(): void {
     const state = territoryState.get(definition.id);
     const appearance: TerritoryAppearance = state?.contested ? 'contested' : !state?.controllerId ? 'neutral' : state.controllerId === localPlayerId ? 'own' : 'enemy';
     entry.appearance = appearance;
-    entry.displayColor = state?.controllerId ? definition.fixedColor : neutralTerritoryColor;
-    entry.missionTarget = missionTerritories.includes(definition.id);
+    entry.missionTarget = missionTerritories.includes(definition.id) || journeyAttempt?.missionId === journeyDallas04.id &&
+      journeyAttempt.status !== 'COMPLETED' && definition.id === journeyDallas04.territoryId;
+    entry.displayColor = state?.controllerId || entry.missionTarget ? definition.fixedColor : neutralTerritoryColor;
     applyTerritoryBorderStyle(entry);
     entry.owner.textContent = state?.contested ? 'CONTESTED' : state?.controllerId ? `Owned by ${state.controllerName ?? 'another pilot'}` : 'NEUTRAL';
     entry.label.style.setProperty('--territory-accent', entry.displayColor);
     entry.label.classList.toggle('mission', entry.missionTarget);
+    entry.label.classList.toggle('journey-target', journeyAttempt?.missionId === journeyDallas04.id && definition.id === journeyDallas04.territoryId);
     entry.label.classList.toggle('contested', appearance === 'contested');
   }
 }
@@ -2232,7 +2240,7 @@ function updateCaptureHud(): void {
     return state?.capturingPlayerId === localPlayerId &&
       territoryContains(definition, airplane.position);
   }) : undefined;
-  territoryCaptureElement.classList.toggle('hidden', !capturing);
+  territoryCaptureElement.classList.toggle('hidden', !capturing || journeyAttempt?.missionId === journeyDallas04.id);
   if (capturing) {
     const state = territoryState.get(capturing.id);
     const text = `${capturing.displayName.toUpperCase()} · CAPTURING ${Math.min(100, Math.max(0, state?.captureProgress ?? 0))}%${state?.defenderBotId ? '\n⚠ DEFENDER INBOUND' : ''}`;
@@ -2288,11 +2296,33 @@ function updateJourneyHud(): void {
   }
   const hunterMission = journeyAttempt?.missionId === 'journey-dallas-02';
   const whiteRockMission = journeyAttempt.missionId === journeyDallas03.id;
-  if (journeyHudHeading) journeyHudHeading.textContent = hunterMission ? 'MISSION 02 · HUNTER SHOWDOWN'
+  const territoryMission = journeyAttempt.missionId === journeyDallas04.id;
+  if (journeyHudHeading) journeyHudHeading.textContent = territoryMission ? 'MISSION 04 · CLAIM THE SKIES' : hunterMission ? 'MISSION 02 · HUNTER SHOWDOWN'
     : whiteRockMission ? 'MISSION 03 · WHITE ROCK SKIMMER' : 'MISSION 01 · DFW SKY RUSH';
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
-  if (segments) segments.hidden = hunterMission;
-  if (journeyHudEnemy) journeyHudEnemy.hidden = !hunterMission;
+  if (segments) segments.hidden = hunterMission || territoryMission;
+  if (journeyHudEnemy) journeyHudEnemy.hidden = !hunterMission && !territoryMission;
+  if (territoryMission) {
+    const definition = territoryDefinition(journeyDallas04.territoryId);
+    const state = territoryState.get(journeyDallas04.territoryId);
+    const inside = definition ? territoryContains(definition, airplane.position) : false;
+    const distance = definition ? Math.round(Math.hypot(airplane.position.x - definition.center.x, airplane.position.z - definition.center.z)) : 0;
+    const owned = state?.controllerId === localPlayerId;
+    const contested = state?.contested === true;
+    const phase = !inside || onGround ? 'NAVIGATE' : contested ? 'CONTESTED' : owned ? 'DEFENDING' : 'CAPTURING';
+    const capture = state?.capturingPlayerId === localPlayerId ? state.captureProgress : 0;
+    const defenderBlocking = phase === 'CAPTURING' && Boolean(state?.defenderBotId) && capture >= 95;
+    const hold = Math.min(30, Math.floor((journeyAttempt.holdMs ?? 0) / 1_000));
+    if (journeyHudObjective) journeyHudObjective.textContent = phase === 'NAVIGATE' ? 'FLY TO WHITE ROCK TERRITORY'
+      : phase === 'CONTESTED' ? 'TERRITORY CONTESTED'
+        : phase === 'DEFENDING' ? 'WHITE ROCK CAPTURED · MAINTAIN CONTROL'
+          : defenderBlocking ? 'DEFENDER ACTIVE — DEFEAT DEFENDER TO CAPTURE' : 'CAPTURE WHITE ROCK AIRSPACE';
+    if (journeyHudProgress) journeyHudProgress.textContent = phase === 'NAVIGATE' ? `TARGET: WHITE ROCK · DISTANCE: ${distance.toLocaleString()}m · STATUS: NAVIGATE`
+      : phase === 'CAPTURING' ? `CAPTURE: ${Math.round(capture)}% · STATUS: ${defenderBlocking ? 'DEFENDER BLOCKING' : 'CAPTURING'}`
+        : `HOLD: ${hold}/30 SEC · STATUS: ${phase}`;
+    if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${phase === 'CAPTURING' ? capture : journeyAttempt.holdMs / journeyDallas04.holdMs * 100}%`);
+    return;
+  }
   if (hunterMission) {
     const target = journeyAttempt?.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
     const distance = target?.lifeState === 'alive' ? Math.round(target.plane.position.distanceTo(airplane.position)) : null;
@@ -2347,6 +2377,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const success = attempt.status === 'COMPLETED';
   const hunterMission = attempt.missionId === 'journey-dallas-02';
   const whiteRockMission = attempt.missionId === journeyDallas03.id;
+  const territoryMission = attempt.missionId === journeyDallas04.id;
   clearHeldActions();
   boostActive = false;
   journeyGates?.setProgress(attempt.gateIndex, false);
@@ -2354,18 +2385,19 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   flightRecapElement.hidden = true;
   journeyResultElement.classList.remove('hidden');
   journeyResultElement.classList.toggle('is-success', success);
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = `MISSION ${whiteRockMission ? '03' : hunterMission ? '02' : '01'} · ROOKIE LEAGUE`;
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = whiteRockMission ? 'WHITE ROCK SKIMMER' : hunterMission ? 'HUNTER SHOWDOWN' : 'DFW SKY RUSH';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = `MISSION ${territoryMission ? '04' : whiteRockMission ? '03' : hunterMission ? '02' : '01'} · ROOKIE LEAGUE`;
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = territoryMission ? 'CLAIM THE SKIES' : whiteRockMission ? 'WHITE ROCK SKIMMER' : hunterMission ? 'HUNTER SHOWDOWN' : 'DFW SKY RUSH';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success
     ? attempt.firstClearCredits > 0 ? 'MISSION COMPLETE!' : 'MISSION COMPLETED' : 'MISSION FAILED';
   const finishSeconds = Math.max(0, (attempt.finishTimeMs ?? 0) / 1000);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
-    ? hunterMission ? 'AI HUNTER DESTROYED · 200 HP DEFEATED'
+    ? territoryMission ? 'WHITE ROCK CONTROLLED · 30 SECONDS DEFENDED'
+      : hunterMission ? 'AI HUNTER DESTROYED · 200 HP DEFEATED'
       : `4/4 GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
     : attempt.failureReason === 'TIME_UP' ? "TIME'S UP" : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED'
       : hunterMission && attempt.failureReason === 'INVALID' ? 'LEFT DALLAS AIRSPACE' : 'FLIGHT INTERRUPTED';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-reward]')!.textContent = success
-    ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits} CREDITS · STAGE ${whiteRockMission ? '4' : hunterMission ? '3' : '2'} PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
+    ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits} CREDITS · STAGE ${territoryMission ? '5' : whiteRockMission ? '4' : hunterMission ? '3' : '2'} PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
     : 'NO CREDITS LOST';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
@@ -4624,8 +4656,8 @@ function updateWorldMap(direction: THREE.Vector3): void {
         id: definition.id,
         label: definition.displayName,
         bounds: definition.bounds,
-        color: state?.controllerId ? definition.fixedColor : neutralTerritoryColor,
-        missionTarget: missionTerritories.includes(definition.id),
+        color: state?.controllerId || journeyAttempt?.missionId === journeyDallas04.id && definition.id === journeyDallas04.territoryId ? definition.fixedColor : neutralTerritoryColor,
+        missionTarget: missionTerritories.includes(definition.id) || journeyAttempt?.missionId === journeyDallas04.id && definition.id === journeyDallas04.territoryId,
         controllerName: state?.controllerName,
         status: state?.contested ? 'Contested' : state?.controllerId === localPlayerId ? 'Owned by you' : state?.controllerName ? `Owned by ${state.controllerName}` : 'Neutral',
         captureProgress: state?.captureProgress ?? 0,
@@ -8688,7 +8720,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   closeFlightDialog();
   if (returnToJourney && journeyMode && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) {
     try {
-      await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === journeyDallas03.id ? 'mission-03' : journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/abandon`), {
+      await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === journeyDallas04.id ? 'mission-04' : journeyAttempt.missionId === journeyDallas03.id ? 'mission-03' : journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/abandon`), {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: journeyAttemptId }),
       });
     } catch { /* Closing the socket also interrupts an unfinished attempt. */ }
@@ -8761,7 +8793,7 @@ async function retryJourneyMission(): Promise<void> {
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
   retryButton.disabled = true;
   try {
-    const response = await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === journeyDallas03.id ? 'mission-03' : journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/launch`), {
+    const response = await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === journeyDallas04.id ? 'mission-04' : journeyAttempt.missionId === journeyDallas03.id ? 'mission-03' : journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
     if (!response.ok) throw new Error('Retry was not authorized');
@@ -8923,6 +8955,10 @@ boundSocket.addEventListener('message', (event) => {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
+    if (message.attempt.missionId === journeyDallas04.id && previousAttempt?.status === 'APPROACH' && message.attempt.status === 'RACING') {
+      hapticsManager.emit('confirmation', `${message.attempt.attemptId}:captured`);
+      showProgressMessage('WHITE ROCK CAPTURED · HOLD FOR 30 SECONDS');
+    }
     if (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas03.id) {
       if (journeyGateMissionId !== message.attempt.missionId) {
         journeyGates?.dispose();
@@ -8952,6 +8988,7 @@ boundSocket.addEventListener('message', (event) => {
       showProgressMessage(`GATE ${message.attempt.gateIndex}/4 CLEARED`);
     }
     updateJourneyHud();
+    if (message.attempt.missionId === journeyDallas04.id) refreshTerritoryBorders();
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
       showJourneyResult(message.attempt);
     }
@@ -9220,6 +9257,9 @@ boundSocket.addEventListener('message', (event) => {
   } else if (message.type === 'territoryNotice') {
     const territory = territoryDefinition(message.territoryId);
     if (territory && (message.kind === 'enter' || message.kind === 'exit')) pulseTerritoryBoundary(territory.id);
+    if (message.kind === 'enter' && territory?.id === journeyDallas04.territoryId && journeyAttempt?.missionId === journeyDallas04.id &&
+      (journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING'))
+      hapticsManager.emit('selection', `${journeyAttempt.attemptId}:white-rock-entry`);
     if (territory && message.kind === 'underAttack') {
       gameplayFeedback.push({ type:'territory-contest', primaryText:'TERRITORY CONTESTED', secondaryText:territory.displayName.toUpperCase(), intensity:'medium' });
       territoryDefenseAlertId = territory.id;

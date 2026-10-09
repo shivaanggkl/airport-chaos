@@ -14,6 +14,10 @@ export const journeyDallas03: Readonly<{
   timeLimitMs: 64000; firstClearCredits: 450; startAirportId: 'love';
   gates: readonly { x: number; z: number; altitude: number; radius: number; maxAltitude: number }[];
 }>;
+export const journeyDallas04: Readonly<{
+  id: 'journey-dallas-04'; cityId: 'dallas'; name: 'CLAIM THE SKIES'; chapter: 'ROOKIE LEAGUE';
+  firstClearCredits: 500; startAirportId: 'love'; territoryId: 'white-rock'; holdMs: 30000;
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
   mission?: typeof journeyDallas01 | typeof journeyDallas03): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

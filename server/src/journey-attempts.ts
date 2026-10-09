@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallas01, journeyDallas02, journeyDallas03 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04 } from '../../shared/journey-mission.mjs';
 import { PlayerWallet } from './player-wallet.js';
 
 export type JourneyAttemptStatus = 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
@@ -10,6 +10,7 @@ export type JourneyAttempt = {
   status: JourneyAttemptStatus; gateIndex: number; createdAt: number; startedAt: number | null;
   deadlineAt: number | null; lastGateAt: number | null; finishedAt: number | null;
   finishTimeMs: number | null; firstClearCredits: number; failureReason: string | null;
+  holdMs: number; holdUpdatedAt: number | null;
 };
 
 type AttemptRow = {
@@ -18,6 +19,7 @@ type AttemptRow = {
   status: JourneyAttemptStatus; gate_index: number; created_at: number; started_at: number | null;
   deadline_at: number | null; last_gate_at: number | null; finished_at: number | null;
   finish_time_ms: number | null; first_clear_credits: number; failure_reason: string | null;
+  hold_ms: number; hold_updated_at: number | null;
 };
 
 function attempt(row: AttemptRow): JourneyAttempt {
@@ -28,6 +30,7 @@ function attempt(row: AttemptRow): JourneyAttempt {
     deadlineAt: row.deadline_at, lastGateAt: row.last_gate_at, finishedAt: row.finished_at,
     finishTimeMs: row.finish_time_ms, firstClearCredits: row.first_clear_credits,
     failureReason: row.failure_reason,
+    holdMs: row.hold_ms, holdUpdatedAt: row.hold_updated_at,
   };
 }
 
@@ -62,6 +65,8 @@ export class JourneyAttemptStore {
     `);
     const columns = this.database.prepare('PRAGMA table_info(journey_attempts)').all() as { name: string }[];
     if (!columns.some(column => column.name === 'target_id')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN target_id TEXT');
+    if (!columns.some(column => column.name === 'hold_ms')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN hold_ms INTEGER NOT NULL DEFAULT 0');
+    if (!columns.some(column => column.name === 'hold_updated_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN hold_updated_at INTEGER');
   }
 
   get(pilotId: string, attemptId: string): JourneyAttempt | undefined {
@@ -77,9 +82,10 @@ export class JourneyAttemptStore {
   }
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
-    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id) throw new Error('Unknown Journey mission');
+    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id) throw new Error('Unknown Journey mission');
     if (missionId === journeyDallas02.id && !this.progress(pilotId).completed) throw new Error('Journey mission is locked');
     if (missionId === journeyDallas03.id && !this.progress(pilotId, journeyDallas02.id).completed) throw new Error('Journey mission is locked');
+    if (missionId === journeyDallas04.id && !this.progress(pilotId, journeyDallas03.id).completed) throw new Error('Journey mission is locked');
     return this.wallet.transaction(() => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);
@@ -163,6 +169,42 @@ export class JourneyAttemptStore {
       }
       this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', finished_at = ?, first_clear_credits = ?
         WHERE pilot_id = ? AND attempt_id = ? AND status = 'RACING'`).run(now, credited, pilotId, attemptId);
+      return this.get(pilotId, attemptId);
+    });
+  }
+
+  updateTerritoryHold(pilotId: string, attemptId: string, state: 'OUTSIDE' | 'CAPTURING' | 'CONTESTED' | 'OWNED', now = Date.now()): JourneyAttempt | undefined {
+    return this.wallet.transaction(wallet => {
+      const current = this.get(pilotId, attemptId);
+      if (!current || current.missionId !== journeyDallas04.id || !['APPROACH', 'RACING'].includes(current.status)) return undefined;
+      if (state === 'OUTSIDE' || state === 'CAPTURING') {
+        if (current.holdMs || current.holdUpdatedAt || current.status === 'RACING') this.database.prepare(`UPDATE journey_attempts SET hold_ms = 0, hold_updated_at = NULL, status = 'APPROACH'
+          WHERE attempt_id = ?`).run(attemptId);
+      } else if (state === 'CONTESTED') {
+        if (current.holdUpdatedAt) this.database.prepare('UPDATE journey_attempts SET hold_updated_at = NULL WHERE attempt_id = ?').run(attemptId);
+      } else {
+        const elapsed = current.holdUpdatedAt === null ? 0 : Math.max(0, Math.min(600, now - current.holdUpdatedAt));
+        const holdMs = Math.min(journeyDallas04.holdMs, current.holdMs + elapsed);
+        if (holdMs === journeyDallas04.holdMs) {
+          const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
+            (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
+            .run(pilotId, journeyDallas04.id, attemptId, now, now - (current.startedAt ?? now)).changes === 1;
+          if (!first) this.database.prepare('UPDATE journey_completions SET clear_count = clear_count + 1 WHERE pilot_id = ? AND mission_id = ?')
+            .run(pilotId, journeyDallas04.id);
+          let credited = 0;
+          if (first) {
+            const before = wallet.balances(pilotId)?.credits ?? 0;
+            const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas04.firstClearCredits,
+              reason: 'MISSION_REWARD', idempotencyKey: `journey:${journeyDallas04.id}`, referenceId: journeyDallas04.id, createdAt: now });
+            if (!reward.ok) throw new Error('Journey territory reward failed');
+            credited = Math.max(0, (reward.balance ?? before) - before);
+          }
+          this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', hold_ms = ?, hold_updated_at = NULL,
+            finished_at = ?, finish_time_ms = ?, first_clear_credits = ? WHERE attempt_id = ?`)
+            .run(holdMs, now, now - (current.startedAt ?? now), credited, attemptId);
+        } else this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = COALESCE(started_at, ?),
+          hold_ms = ?, hold_updated_at = ? WHERE attempt_id = ?`).run(now, holdMs, now, attemptId);
+      }
       return this.get(pilotId, attemptId);
     });
   }

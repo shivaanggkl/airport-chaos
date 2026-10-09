@@ -3283,6 +3283,7 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 .territory-world-label[hidden] { display: none; }
 .territory-world-label span { color: var(--territory-accent, #e2eaf0); font-size: 11px; }
 .territory-world-label.mission { border-width: 2px; }
+.territory-world-label.journey-target { box-shadow: 0 0 14px rgb(35 223 255 / 50%), inset 0 0 0 1px rgb(255 211 91 / 70%); }
 .territory-world-label.contested span { color: #ffb331; }
 
 @media (max-width: 560px) {
