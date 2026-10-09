@@ -5079,7 +5079,6 @@ function updateBots(now: number): void {
     const horizontal = Math.hypot(dx, dz);
     const distance = Math.hypot(horizontal, dy);
     if (!followingCombatWaypoint && distance <= Math.max(26, bot.speed * delta * 1.25)) {
-      player.velocity = { x: 0, y: 0, z: 0 };
       bot.routeIndex += 1;
       if (bot.phase === 'taxi') bot.phase = 'takeoff';
       if (bot.routeIndex === bot.route.length - 1 && !bot.journeyAttemptId) bot.phase = 'land';
@@ -5093,6 +5092,17 @@ function updateBots(now: number): void {
           bot.routeIndex = 0;
           bot.phase = 'taxi';
         }
+      }
+      // The Journey Hunter keeps flying through patrol turns. A zero-velocity
+      // tick here made its authoritative transform pause for 200 ms per corner.
+      const nextPatrolWaypoint = bot.journeyAttemptId && !bot.journeyProvoked ? bot.route[bot.routeIndex] : undefined;
+      if (nextPatrolWaypoint) {
+        advanceBotFlight(player, bot, {
+          ...nextPatrolWaypoint,
+          ...journeyHunterSteeringTarget(player.position, hunterForward(player), nextPatrolWaypoint),
+        }, delta);
+      } else {
+        player.velocity = { x: 0, y: 0, z: 0 };
       }
     } else {
       advanceBotFlight(player, bot, target, delta);

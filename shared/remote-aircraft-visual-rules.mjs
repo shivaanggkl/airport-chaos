@@ -14,3 +14,11 @@ export function remoteProxyPixelWidth(distance) {
   if (safeDistance < 1_300) return 16 + (12 - 16) * smoothstep(safeDistance, 900, 1_300);
   return 12;
 }
+
+/** Keep 5 Hz bot transforms moving between packets without changing authority. */
+export function remoteInterpolationDuration(previous, packetInterval, isBot) {
+  const target = isBot
+    ? Math.max(0.24, Math.min(0.33, packetInterval * 1.2))
+    : Math.max(0.09, Math.min(0.2, packetInterval * 1.08));
+  return previous + (target - previous) * 0.35;
+}

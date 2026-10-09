@@ -37,7 +37,7 @@ import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, ty
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { missionHudObjective, missionHudProgress } from '../../shared/mission-hud.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
-import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit-receipts.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
@@ -6948,8 +6948,8 @@ function updateRemotePlayer(player: NetworkPlayer): void {
       targetPosition,
       targetQuaternion,
       velocity: new THREE.Vector3(),
-      interpolationElapsed: 0.1,
-      interpolationDuration: 0.1,
+      interpolationElapsed: player.isBot ? 0.24 : 0.1,
+      interpolationDuration: player.isBot ? 0.24 : 0.1,
       timeSinceUpdate: 0,
       nearMissActive: false,
       aircraftType: player.aircraftType,
@@ -7000,9 +7000,9 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   remote.velocity.lerp(combatOffset, 0.55);
   remote.targetPosition.set(player.position.x, player.position.y, player.position.z);
   remote.targetQuaternion.setFromEuler(remoteEuler);
-  // Smooth packet-interval jitter without increasing the 10Hz network rate.
-  const observedBlend = THREE.MathUtils.clamp(remote.timeSinceUpdate * 1.08, 0.09, 0.2);
-  remote.interpolationDuration = THREE.MathUtils.lerp(remote.interpolationDuration, observedBlend, 0.35);
+  // Bots update at 5 Hz. Leave room for packet jitter so they do not stop
+  // between snapshots; humans retain their existing 10 Hz blend.
+  remote.interpolationDuration = remoteInterpolationDuration(remote.interpolationDuration, remote.timeSinceUpdate, remote.isBot);
   remote.interpolationElapsed = 0;
   remote.timeSinceUpdate = 0;
   const lifeStateChanged = remote.lifeState !== lifeState;
@@ -8273,7 +8273,8 @@ function animate(): void {
     stabilityQaTiming.lastFrameStartedAt = qaFrameStartedAt;
   }
   if (stabilityQaMode) stabilityQaFrames += 1;
-  const delta = Math.min(clock.getDelta(), 0.05);
+  const realDelta = clock.getDelta();
+  const delta = Math.min(realDelta, 0.05);
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   if (!crashed && runStarted) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -8286,7 +8287,7 @@ function animate(): void {
       updateRunTimer(delta);
     }
   }
-  updateRemotePlayers(delta);
+  updateRemotePlayers(realDelta);
   updateCombatThreatWarning();
   updateGuidedTutorial();
   updateCombatTarget(delta);

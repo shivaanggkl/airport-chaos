@@ -2,7 +2,40 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
-import { remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+
+test('5 Hz Hunter snapshots keep visual motion continuous across ordinary packet jitter', () => {
+  const packetTimes = [0, 0.2, 0.41, 0.61, 0.84, 1.04, 1.25];
+  let prior = 0;
+  let target = 0;
+  let rendered = 0;
+  let elapsed = 0.24;
+  let duration = 0.24;
+  let nextPacket = 1;
+  let stationaryFrames = 0;
+  for (let frame = 1; frame <= 75; frame += 1) {
+    const now = frame / 60;
+    if (nextPacket < packetTimes.length && now >= packetTimes[nextPacket]) {
+      prior = rendered;
+      target = packetTimes[nextPacket] * 100;
+      duration = remoteInterpolationDuration(duration, packetTimes[nextPacket] - packetTimes[nextPacket - 1], true);
+      elapsed = 0;
+      nextPacket += 1;
+    }
+    const before = rendered;
+    elapsed = Math.min(duration, elapsed + 1 / 60);
+    rendered = prior + (target - prior) * elapsed / duration;
+    if (now > 0.25 && now < 1.24 && rendered - before < 0.001) stationaryFrames += 1;
+  }
+  assert.equal(stationaryFrames, 0, 'Hunter must not pause between normal 200–230 ms snapshots');
+  assert.ok(Math.abs(rendered - target) < 25, 'visual lag stays below one 5 Hz movement step');
+  assert.equal(remoteInterpolationDuration(0.1, 0.1, false), 0.1028, '10 Hz human blend remains unchanged');
+});
+
+test('remote interpolation uses elapsed wall time when rendering frames are slow', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  assert.match(main, /const realDelta = clock\.getDelta\(\);[\s\S]*?updateRemotePlayers\(realDelta\)/);
+});
 
 test('remote aircraft-contact marker stays readable close and compact far away', () => {
   assert.equal(remoteProxyPixelWidth(25), 20);
