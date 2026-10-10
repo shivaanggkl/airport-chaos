@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { PlayerProfileStore } from './player-profiles.js';
 import { normalizeTutorialState, nextTutorialStep, tutorialDetectedInstruction, tutorialInstruction, tutorialLandingApproach, tutorialLandingCoachInstruction, tutorialLandingCoachStage, tutorialLandingInstruction, tutorialLockPreviewInstruction, tutorialStepPrerequisitesResolved, tutorialSteps, tutorialTakeoffRecoveryInstruction, tutorialTurnProgress, TUTORIAL_VERSION, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
@@ -279,9 +280,63 @@ test('completed tutorial can be explicitly replayed without granting credits', (
   const db = new PlayerProfileStore(join(mkdtempSync(join(tmpdir(), 'airport-tutorial-')), 'profiles.sqlite'));
   db.getOrCreate('tutorial-pilot', 'Pilot');
   assert.equal(db.setTutorialState('tutorial-pilot', 'started')?.tutorial.status, 'started');
+  for(const step of tutorialSteps.slice(0,-1))db.recordTutorialStepStatus('tutorial-pilot',step,'skipped');
+  db.recordTutorialStepStatus('tutorial-pilot','landing','completed');
+  db.recordTrainingEvidence('tutorial-pilot',8);
   assert.equal(db.setTutorialState('tutorial-pilot', 'completed', 123)?.tutorial.status, 'completed');
   assert.equal(db.setTutorialState('tutorial-pilot', 'started', 456)?.tutorial.status, 'started');
   assert.equal(db.getOrCreate('tutorial-pilot', 'Pilot').credits, 0);
+});
+
+test('new pilots must finish Milwaukee training before Dallas; existing pilots retain access', () => {
+  const path=join(mkdtempSync(join(tmpdir(),'airport-training-unlock-')),'profiles.sqlite');
+  const store=new PlayerProfileStore(path);
+  const pilot=store.getOrCreate('new-training-pilot','Pilot');
+  assert.equal(pilot.tutorial.dallasUnlocked,false);
+  assert.equal(store.setTutorialState(pilot.pilotId,'completed'),undefined);
+  store.setTutorialState(pilot.pilotId,'started');
+  for(const step of tutorialSteps.slice(0,-1))store.recordTutorialStepStatus(pilot.pilotId,step,'skipped');
+  store.recordTutorialStepStatus(pilot.pilotId,'landing','skipped');
+  assert.equal(store.trainingCompletionVerified(pilot.pilotId),false);
+  store.setTutorialState(pilot.pilotId,'skipped');
+  assert.equal(store.dallasUnlocked(pilot.pilotId),false);
+  store.resetTutorialRun(pilot.pilotId);
+  store.setTutorialState(pilot.pilotId,'started');
+  for(const step of tutorialSteps.slice(0,-1))store.recordTutorialStepStatus(pilot.pilotId,step,'skipped');
+  store.recordTutorialStepStatus(pilot.pilotId,'landing','completed');
+  assert.equal(store.trainingCompletionVerified(pilot.pilotId),false);
+  store.recordTrainingEvidence(pilot.pilotId,8);
+  assert.equal(store.trainingCompletionVerified(pilot.pilotId),true);
+  assert.equal(store.setTutorialState(pilot.pilotId,'completed')?.tutorial.dallasUnlocked,true);
+  store.setTutorialState(pilot.pilotId,'started');
+  assert.equal(store.dallasUnlocked(pilot.pilotId),true,'training replay does not relock Dallas');
+
+  const legacy=store.getOrCreate('existing-training-pilot','Pilot');
+  const db=new DatabaseSync(path);
+  db.prepare('DELETE FROM pilot_tutorial_state WHERE pilot_id=?').run(legacy.pilotId);
+  db.close();
+  assert.equal(store.getOrCreate(legacy.pilotId,'Pilot').tutorial.dallasUnlocked,true);
+  const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+  assert.match(server,/if \(!dallasUnlocked\) \{ jsonResponse\(response, 403, \{ error: 'Complete Milwaukee training to unlock Dallas\.'/);
+  assert.match(server,/cityId === 'dallas' && !entryProfile\.tutorial\.dallasUnlocked/);
+});
+
+test('an existing tutorial table migrates without locking existing pilots', () => {
+  const path=join(mkdtempSync(join(tmpdir(),'airport-training-migration-')),'profiles.sqlite');
+  const seeded=new PlayerProfileStore(path);
+  seeded.getOrCreate('existing-pilot','Pilot');
+  const oldDb=new DatabaseSync(path);
+  oldDb.exec('ALTER TABLE pilot_tutorial_state DROP COLUMN required');
+  oldDb.close();
+  const store=new PlayerProfileStore(path);
+  const existing=store.getOrCreate('existing-pilot','Pilot');
+  assert.equal(existing.tutorial.dallasUnlocked,true);
+  const fresh=store.getOrCreate('new-pilot','Pilot');
+  assert.equal(fresh.tutorial.dallasUnlocked,false);
+  const migrated=new DatabaseSync(path);
+  assert.equal((migrated.prepare('SELECT required FROM pilot_tutorial_state WHERE pilot_id=?').get(existing.pilotId) as {required:number}).required,0);
+  assert.equal((migrated.prepare('SELECT required FROM pilot_tutorial_state WHERE pilot_id=?').get(fresh.pilotId) as {required:number}).required,1);
+  migrated.close();
 });
 
 test('server tutorial evidence survives reconnect/restart, is idempotent, and never grants rewards', () => {
@@ -299,7 +354,9 @@ test('server tutorial evidence survives reconnect/restart, is idempotent, and ne
   assert.equal(reopened.trainingEvidence(before.pilotId),15);
   const after=reopened.getOrCreate(before.pilotId,'Pilot');
   assert.equal(after.credits,before.credits);assert.equal(after.score,before.score);
-  reopened.setTutorialState(before.pilotId,'completed');
+  for(const step of tutorialSteps.slice(0,-1))reopened.recordTutorialStepStatus(before.pilotId,step,'skipped');
+  reopened.recordTutorialStepStatus(before.pilotId,'landing','completed');
+  assert.equal(reopened.setTutorialState(before.pilotId,'completed')?.tutorial.dallasUnlocked,true);
   reopened.setTutorialState(before.pilotId,'started');
   assert.equal(reopened.trainingEvidence(before.pilotId),0);
 });
@@ -363,8 +420,9 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(server, /owner\.lockedTargetId===targetId[\s\S]*completeServerTutorialStep\(target\.trainingOwnerId,owner,'targetLock',now\)/);
   assert.match(server, /nextPendingTutorialStep\(owner\.pilotId\)!=='fire'/);
   assert.match(server, /lesson!=='approach'&&lesson!=='targetLock'&&lesson!=='fire'/);
-  assert.match(server, /tutorialState\.status==='completed'&&!profileStore\.tutorialStepsResolved\(identity\.pilotId\)/);
-  assert.match(server, /message\.tutorialStatus==='completed'&&!profileStore\.tutorialStepsResolved\(player\.pilotId\)/);
+  assert.match(server, /tutorialState\.status==='completed'&&\(!profileStore\.tutorialStepsResolved\(identity\.pilotId\)/);
+  assert.match(server, /message\.tutorialStatus==='completed'&&\(!profileStore\.tutorialStepsResolved\(player\.pilotId\)/);
+  assert.match(server, /!profileStore\.trainingCompletionVerified\(identity\.pilotId\)/);
   assert.match(server, /completeServerTutorialStep\(playerId,player,'landing',now\)/);
   assert.match(server, /if\(result\.nextStep==='landing'\)sendTutorialLandingApproach\(playerId,player\)/);
   assert.match(server, /landingFlightState\.set\(playerId,\{baselineY:approach\.position\.y-8,airborne:true\}\)/);

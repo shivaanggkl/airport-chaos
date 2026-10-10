@@ -1455,77 +1455,78 @@ const httpServer = createServer(async (request, response) => {
     if (!identity) return;
     if (!identity.session.accountId) { jsonResponse(response, 403, { error: 'Sign in to play Journey missions.' }); return; }
     const journeyProfile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
+    const dallasUnlocked = journeyProfile.tutorial.dallasUnlocked;
     if (requestUrl.pathname === '/api/journey/dallas' && request.method === 'GET') {
       jsonResponse(response, 200, { missionId: journeyDallas01.id,
-        eligible: journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+        eligible: dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
         ...journeyStore.progress(identity.pilotId), mission02: {
-          eligible: journeyStore.progress(identity.pilotId).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas02.id),
         }, mission03: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas02.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas02.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas03.id),
         }, mission04: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas03.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas03.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas04.id),
         }, mission05: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas04.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas04.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas05.id),
         }, mission06: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas05.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas05.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas06.id),
         }, mission07: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas06.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas06.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas07.id),
         }, mission08: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas07.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas07.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas08.id),
         }, mission09: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas08.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas08.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas09.id),
         }, mission10: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas09.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas09.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas10.id),
         }, mission11: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas10.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas10.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas11.id),
         }, mission12: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas11.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas11.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas12.id),
         }, mission13: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas12.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas12.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas13.id),
         }, mission14: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas13.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas13.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas14.id),
         }, mission15: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas14.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas14.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas15.id),
         }, mission16: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas15.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas15.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas16.id),
         }, mission17: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas16.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas16.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas17.id),
         }, mission18: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas17.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas17.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas18.id),
         }, mission19: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas18.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas18.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas19.id),
         }, mission20: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas19.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas19.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas20.id),
         }, mission21: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas20.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas20.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas21.id),
         }, mission22: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas21.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas21.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas22.id),
         }, mission23: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas22.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas22.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas23.id),
         }, mission24: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas23.id).completed && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: journeyStore.progress(identity.pilotId, journeyDallas23.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas24.id),
         } }); return;
     }
@@ -1534,6 +1535,7 @@ const httpServer = createServer(async (request, response) => {
     const payload = await readJson(request);
     if (journeyAction?.[2] === 'launch') {
       if (!payload || Object.keys(payload).length !== 0) { jsonResponse(response, 400, { error: 'Invalid mission launch.' }); return; }
+      if (!dallasUnlocked) { jsonResponse(response, 403, { error: 'Complete Milwaukee training to unlock Dallas.' }); return; }
       const limit = limitedBy('journey-launch-pilot', identity.pilotId, securityLimits.journeyLaunchPilot);
       if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
       if (!journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft)) { jsonResponse(response, 403, { error: 'Aircraft is unavailable.' }); return; }
@@ -1723,8 +1725,9 @@ const httpServer = createServer(async (request, response) => {
         const tutorialState=payload.tutorialState as {version?:unknown;status?:unknown;freshRun?:unknown};
         if(tutorialState.version==='tutorial_v1'&&(tutorialState.status==='started'||tutorialState.status==='completed'||tutorialState.status==='skipped')){
           const sessions=[...players.entries()].filter(([,player])=>player.pilotId===identity.pilotId&&player.tutorialMode);
-          if(tutorialState.status==='completed'&&!profileStore.tutorialStepsResolved(identity.pilotId)){
-            response.writeHead(400,{'Content-Type':'application/json'});response.end(JSON.stringify({error:'Training completion requires every lesson to be completed or intentionally skipped.'}));return;
+          if(tutorialState.status==='completed'&&(!profileStore.tutorialStepsResolved(identity.pilotId)||
+              (!profileStore.dallasUnlocked(identity.pilotId)&&!profileStore.trainingCompletionVerified(identity.pilotId)))){
+            response.writeHead(400,{'Content-Type':'application/json'});response.end(JSON.stringify({error:'Finish Milwaukee training, including a verified landing.'}));return;
           }
           if(tutorialState.status!=='started')for(const [id,player] of sessions){
             removeTrainingTarget(id);removePlayerProjectiles(id);
@@ -6488,6 +6491,13 @@ server.on('connection', (socket, request) => {
     socket.close(4003, 'Secure session required');
     return;
   }
+  const entryProfile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
+  if ((cityId === 'dallas' && !entryProfile.tutorial.dallasUnlocked) ||
+      (cityId === 'milwaukee' && !entryProfile.tutorial.dallasUnlocked && entryProfile.tutorial.status !== 'started')) {
+    sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Complete Milwaukee training to unlock Dallas.' });
+    socket.close(4003, 'Training required');
+    return;
+  }
   let connectionKind = 'NEW';
   // A persistent profile may be active on multiple authenticated devices.
   // Replace only another socket from this exact first-party session; a Web
@@ -6499,7 +6509,6 @@ server.on('connection', (socket, request) => {
     removeHumanConnection(otherSocket);
     otherSocket.close(4001, 'Session opened in another tab');
   }
-  profileStore.getOrCreate(identity.pilotId, identity.pilotName);
   let profile = profileStore.consumeExpiredFighterTrial(identity.pilotId)!;
   const activatedTrialOnConnect = profile.fighterTrial.status === 'pending';
   if (activatedTrialOnConnect) profile = profileStore.activateFighterTrial(identity.pilotId)!;
@@ -6830,7 +6839,8 @@ server.on('connection', (socket, request) => {
 
       if(message.type==='tutorialState'&&(message.tutorialStatus==='started'||message.tutorialStatus==='completed'||message.tutorialStatus==='skipped')){
         if(!cityCapabilities(player.cityId)?.tutorialEnabled)return;
-        if(message.tutorialStatus==='completed'&&!profileStore.tutorialStepsResolved(player.pilotId))return;
+        if(message.tutorialStatus==='completed'&&(!profileStore.tutorialStepsResolved(player.pilotId)||
+            (!profileStore.dallasUnlocked(player.pilotId)&&!profileStore.trainingCompletionVerified(player.pilotId))))return;
         if(message.tutorialStatus!=='started'){
           removeTrainingTarget(playerId);removePlayerProjectiles(playerId);
           profileStore.setTutorialState(player.pilotId,message.tutorialStatus,Date.now());

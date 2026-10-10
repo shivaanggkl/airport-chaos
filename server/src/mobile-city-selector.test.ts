@@ -42,7 +42,8 @@ test('City Journey launches a city with one configured time and offers selection
   assert.match(bootstrap, /for \(const preset of city\.timePresets\)/);
   const chooseCitySource = bootstrap.slice(bootstrap.indexOf('function chooseCity'), bootstrap.indexOf('function showTimeSelection'));
   assert.match(chooseCitySource, /city\.id === 'dallas'[\s\S]*showMissionJourney\(\)/);
-  assert.doesNotMatch(chooseCitySource, /milwaukee/i);
+  assert.doesNotMatch(chooseCitySource, /city\.id === 'milwaukee'/);
+  assert.match(chooseCitySource, /city\.id === 'dallas' && !dallasUnlocked\(\)/);
 });
 
 test('City Journey keeps card nodes for smooth side-card, navigation, and drag transitions', () => {

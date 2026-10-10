@@ -56,7 +56,7 @@ export type PlayerProfile = {
   cosmetics: { ownedIds: string[]; equipped: Record<string, string> };
   season?: SeasonProgress;
   intercityRoute?: { routeId:string;fromCityId:CityId;toCityId:CityId;startedAt:number };
-  tutorial: { version:'tutorial_v1'; status:'new'|'started'|'completed'|'skipped'; completedAt?:number };
+  tutorial: { version:'tutorial_v1'; status:'new'|'started'|'completed'|'skipped'; completedAt?:number; dallasUnlocked:boolean };
 };
 export type DailyRewardState = {
   schedule: readonly number[];
@@ -519,7 +519,7 @@ export class PlayerProfileStore {
       );
       CREATE TABLE IF NOT EXISTS pilot_tutorial_state (
         pilot_id TEXT PRIMARY KEY, version TEXT NOT NULL, status TEXT NOT NULL,
-        updated_at INTEGER NOT NULL, completed_at INTEGER
+        updated_at INTEGER NOT NULL, completed_at INTEGER, required INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS pilot_tutorial_steps (
         pilot_id TEXT NOT NULL, step TEXT NOT NULL, status TEXT NOT NULL, updated_at INTEGER NOT NULL,
@@ -622,6 +622,7 @@ export class PlayerProfileStore {
       AFTER UPDATE OF credits ON player_profiles WHEN NEW.credits != OLD.credits
       BEGIN UPDATE player_profiles SET credit_revision = OLD.credit_revision + 1 WHERE pilot_id = NEW.pilot_id; END`);
     try { this.database.exec('ALTER TABLE pilot_tutorial_state ADD COLUMN evidence INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
+    try { this.database.exec('ALTER TABLE pilot_tutorial_state ADD COLUMN required INTEGER NOT NULL DEFAULT 0'); } catch { /* already migrated */ }
     this.pruneRewardReceipts();
     this.database.exec(`
       CREATE INDEX IF NOT EXISTS profile_reward_receipts_pilot_created ON profile_reward_receipts (pilot_id, created_at DESC);
@@ -632,6 +633,7 @@ export class PlayerProfileStore {
 
   setTutorialState(pilotId:string,status:'started'|'completed'|'skipped',now=Date.now()):PlayerProfile|undefined{
     const row=this.getRow(pilotId);if(!row)return undefined;
+    if(status==='completed'&&!this.dallasUnlocked(pilotId)&&!this.trainingCompletionVerified(pilotId))return undefined;
     if(status==='started'&&this.toProfile(row).tutorial.status==='completed')this.resetTutorialRun(pilotId);
     const next=status;
     this.database.prepare(`INSERT INTO pilot_tutorial_state(pilot_id,version,status,updated_at,completed_at) VALUES (?,?,?,?,?)
@@ -664,6 +666,15 @@ export class PlayerProfileStore {
   }
 
   tutorialStepsResolved(pilotId:string):boolean{return this.nextPendingTutorialStep(pilotId)===undefined;}
+
+  dallasUnlocked(pilotId:string):boolean{
+    const state=this.database.prepare('SELECT required,completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {required:number;completed_at:number|null}|undefined;
+    return !state?.required || Number.isFinite(state.completed_at);
+  }
+
+  trainingCompletionVerified(pilotId:string):boolean{
+    return this.tutorialStepsResolved(pilotId) && this.tutorialStepStates(pilotId).landing==='completed' && (this.trainingEvidence(pilotId)&8)!==0;
+  }
 
   recordTutorialStepStatus(pilotId:string,step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>,now=Date.now(),enforceOrder=true):{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>}{
     const states=this.tutorialStepStates(pilotId);
@@ -848,6 +859,8 @@ export class PlayerProfileStore {
       this.wallet.transaction((wallet) => {
         this.database.prepare('INSERT INTO player_profiles (pilot_id, pilot_name, credits, sky_tokens, economy_version) VALUES (?, ?, 0, 0, ?)')
           .run(pilotId, assignedPilotName(pilotName, pilotId), ECONOMY_VERSION);
+        this.database.prepare("INSERT INTO pilot_tutorial_state (pilot_id, version, status, updated_at, required) VALUES (?, 'tutorial_v1', 'new', ?, 1)")
+          .run(pilotId, Date.now());
         if (newPilotCredits > 0) wallet.credit({
           pilotId, currency: 'CREDITS', amount: newPilotCredits, reason: 'MIGRATION',
           referenceId: 'new-player-starting-balance',
@@ -1832,7 +1845,7 @@ export class PlayerProfileStore {
       },
       season: this.seasonProgress(row.pilot_id, 'dallas'),
       intercityRoute: this.activeIntercityRoute(row.pilot_id),
-      tutorial: (()=>{const state=this.database.prepare('SELECT version,status,completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(row.pilot_id) as {version?:string;status?:string;completed_at?:number}|undefined;const status=state?.status==='started'||state?.status==='completed'||state?.status==='skipped'?state.status:'new';return{version:'tutorial_v1' as const,status,completedAt:Number.isFinite(state?.completed_at)?state!.completed_at:undefined};})(),
+      tutorial: (()=>{const state=this.database.prepare('SELECT version,status,completed_at,required FROM pilot_tutorial_state WHERE pilot_id=?').get(row.pilot_id) as {version?:string;status?:string;completed_at?:number;required?:number}|undefined;const status=state?.status==='started'||state?.status==='completed'||state?.status==='skipped'?state.status:'new';return{version:'tutorial_v1' as const,status,completedAt:Number.isFinite(state?.completed_at)?state!.completed_at:undefined,dallasUnlocked:!state?.required||Number.isFinite(state?.completed_at)};})(),
 };
   }
 

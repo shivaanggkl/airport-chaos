@@ -219,7 +219,7 @@ type RemoteGarageProfile = GarageProfile & {
   totalDistance?: number; successfulLandings?: number;
   discoveries?: Record<string, string[]>;
   legacyImportPending?: boolean; legendaryPilot?: boolean;
-  tutorial?: { version: 'tutorial_v1'; status: 'new' | 'started' | 'completed' | 'skipped'; completedAt?: number };
+  tutorial?: { version: 'tutorial_v1'; status: 'new' | 'started' | 'completed' | 'skipped'; completedAt?: number; dallasUnlocked: boolean };
   kills?: number; deaths?: number;
   pilotProgress?: { xp: number; level: number; title: string; nextLevelXp: number };
   missions?: Partial<Record<string, { active?: { missionId: string; attemptId?: string; progress: number }; completions: Record<string, { count: number; lastCompletedAt: number }> }>>;
@@ -528,6 +528,10 @@ function journeyCity(entry: CityJourneyEntry): CityDefinition | undefined {
   return entry.cityId ? cities.find(city => city.id === entry.cityId && city.status === 'available' && Boolean(city.loadWorld)) : undefined;
 }
 
+function dallasUnlocked(): boolean {
+  return authoritativeHomeProfile?.tutorial?.dallasUnlocked === true;
+}
+
 function cityJourneyState(entry: CityJourneyEntry): { status: string; cta: string; city?: CityDefinition; training?: boolean; disabled?: boolean } {
   const city = journeyCity(entry);
   if (!city) {
@@ -535,14 +539,16 @@ function cityJourneyState(entry: CityJourneyEntry): { status: string; cta: strin
     return { status: '', cta: label, disabled: true };
   }
   if (entry.id === 'milwaukee') {
-    const completed = authoritativeHomeProfile?.tutorial?.status === 'completed';
+    const completed = Boolean(authoritativeHomeProfile?.tutorial?.completedAt);
     return { city, status: completed ? '✓ TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: !completed };
   }
+  if (entry.id === 'dallas' && !dallasUnlocked()) return { city, status: 'COMPLETE MILWAUKEE TRAINING FIRST', cta: 'LOCKED', disabled: true };
   return { city, status: '✓ UNLOCKED', cta: 'FLY NOW' };
 }
 
 function preferredCityJourneyIndex(preferDallas = false): number {
   const dallasIndex = cityJourneyEntries.findIndex(entry => entry.id === 'dallas');
+  if (!dallasUnlocked()) return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
   if (preferDallas && dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
   try {
     const stored = localStorage.getItem(CITY_JOURNEY_SELECTION_KEY);
@@ -1637,7 +1643,7 @@ function showSelector(message = '', options: { preferDallas?: boolean } = {}): v
   timeOptions.hidden = true;
   cityBack.textContent = 'BACK TO PILOT HUB';
   citySelectTitle.textContent = 'CITY JOURNEY';
-  citySelectDescription.textContent = 'Choose your city.';
+  citySelectDescription.textContent = dallasUnlocked() ? 'Choose your city.' : 'Start Milwaukee training to unlock Dallas.';
   cityJourneyHint.classList.remove('is-dismissed');
   cityJourneyIndex = preferredCityJourneyIndex(options.preferDallas === true);
   renderCityJourney();
@@ -1646,6 +1652,7 @@ function showSelector(message = '', options: { preferDallas?: boolean } = {}): v
 }
 
 function showMissionJourney(pushHistory = true, refreshProgress = true): void {
+  if (!dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   abandonPendingJourneyLaunch();
   if (pushHistory && window.history.state?.airportChaosEntryView !== 'MISSION_JOURNEY') {
     window.history.pushState({ airportChaosEntryView: 'MISSION_JOURNEY' }, '', window.location.href);
@@ -1683,6 +1690,7 @@ function closeMissionDetails(): void {
 }
 
 function openMissionFreeFlight(): void {
+  if (!dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   abandonPendingJourneyLaunch();
   const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
   if (!dallas) return;
@@ -1769,6 +1777,7 @@ async function startTrainingFromHub(): Promise<void> {
 
 async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
+  if (city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   missionJourneyReturnPending = false;
   missionJourney.hide();
   appHeader.hide();
@@ -1812,6 +1821,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
 
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
+  if (city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   recordProductIntent('city_selected', { cityId: city.id });
   if (city.id === 'dallas') {
     showMissionJourney();
