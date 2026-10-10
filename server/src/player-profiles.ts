@@ -668,8 +668,9 @@ export class PlayerProfileStore {
   tutorialStepsResolved(pilotId:string):boolean{return this.nextPendingTutorialStep(pilotId)===undefined;}
 
   dallasUnlocked(pilotId:string):boolean{
-    const state=this.database.prepare('SELECT required,completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {required:number;completed_at:number|null}|undefined;
-    return !state?.required || Number.isFinite(state.completed_at);
+    const state=this.database.prepare('SELECT completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {completed_at:number|null}|undefined;
+    // Completion is the unlock receipt, including for profiles created before this gate shipped.
+    return Number.isFinite(state?.completed_at);
   }
 
   trainingCompletionVerified(pilotId:string):boolean{
@@ -1845,7 +1846,7 @@ export class PlayerProfileStore {
       },
       season: this.seasonProgress(row.pilot_id, 'dallas'),
       intercityRoute: this.activeIntercityRoute(row.pilot_id),
-      tutorial: (()=>{const state=this.database.prepare('SELECT version,status,completed_at,required FROM pilot_tutorial_state WHERE pilot_id=?').get(row.pilot_id) as {version?:string;status?:string;completed_at?:number;required?:number}|undefined;const status=state?.status==='started'||state?.status==='completed'||state?.status==='skipped'?state.status:'new';return{version:'tutorial_v1' as const,status,completedAt:Number.isFinite(state?.completed_at)?state!.completed_at:undefined,dallasUnlocked:!state?.required||Number.isFinite(state?.completed_at)};})(),
+      tutorial: (()=>{const state=this.database.prepare('SELECT version,status,completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(row.pilot_id) as {version?:string;status?:string;completed_at?:number}|undefined;const status=state?.status==='started'||state?.status==='completed'||state?.status==='skipped'?state.status:'new';return{version:'tutorial_v1' as const,status,completedAt:Number.isFinite(state?.completed_at)?state!.completed_at:undefined,dallasUnlocked:Number.isFinite(state?.completed_at)};})(),
 };
   }
 

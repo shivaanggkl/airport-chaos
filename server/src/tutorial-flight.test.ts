@@ -288,7 +288,7 @@ test('completed tutorial can be explicitly replayed without granting credits', (
   assert.equal(db.getOrCreate('tutorial-pilot', 'Pilot').credits, 0);
 });
 
-test('new pilots must finish Milwaukee training before Dallas; existing pilots retain access', () => {
+test('Dallas stays locked for every unfinished Milwaukee training, including older profiles', () => {
   const path=join(mkdtempSync(join(tmpdir(),'airport-training-unlock-')),'profiles.sqlite');
   const store=new PlayerProfileStore(path);
   const pilot=store.getOrCreate('new-training-pilot','Pilot');
@@ -313,15 +313,17 @@ test('new pilots must finish Milwaukee training before Dallas; existing pilots r
 
   const legacy=store.getOrCreate('existing-training-pilot','Pilot');
   const db=new DatabaseSync(path);
+  db.prepare('UPDATE pilot_tutorial_state SET required=0 WHERE pilot_id=?').run(legacy.pilotId);
+  assert.equal(store.getOrCreate(legacy.pilotId,'Pilot').tutorial.dallasUnlocked,false);
   db.prepare('DELETE FROM pilot_tutorial_state WHERE pilot_id=?').run(legacy.pilotId);
   db.close();
-  assert.equal(store.getOrCreate(legacy.pilotId,'Pilot').tutorial.dallasUnlocked,true);
+  assert.equal(store.getOrCreate(legacy.pilotId,'Pilot').tutorial.dallasUnlocked,false);
   const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
   assert.match(server,/if \(!dallasUnlocked\) \{ jsonResponse\(response, 403, \{ error: 'Complete Milwaukee training to unlock Dallas\.'/);
   assert.match(server,/cityId === 'dallas' && !entryProfile\.tutorial\.dallasUnlocked/);
 });
 
-test('an existing tutorial table migrates without locking existing pilots', () => {
+test('an existing tutorial table migrates without treating unfinished training as complete', () => {
   const path=join(mkdtempSync(join(tmpdir(),'airport-training-migration-')),'profiles.sqlite');
   const seeded=new PlayerProfileStore(path);
   seeded.getOrCreate('existing-pilot','Pilot');
@@ -330,13 +332,18 @@ test('an existing tutorial table migrates without locking existing pilots', () =
   oldDb.close();
   const store=new PlayerProfileStore(path);
   const existing=store.getOrCreate('existing-pilot','Pilot');
-  assert.equal(existing.tutorial.dallasUnlocked,true);
+  assert.equal(existing.tutorial.dallasUnlocked,false);
   const fresh=store.getOrCreate('new-pilot','Pilot');
   assert.equal(fresh.tutorial.dallasUnlocked,false);
   const migrated=new DatabaseSync(path);
   assert.equal((migrated.prepare('SELECT required FROM pilot_tutorial_state WHERE pilot_id=?').get(existing.pilotId) as {required:number}).required,0);
   assert.equal((migrated.prepare('SELECT required FROM pilot_tutorial_state WHERE pilot_id=?').get(fresh.pilotId) as {required:number}).required,1);
   migrated.close();
+  store.setTutorialState(existing.pilotId,'started');
+  for(const step of tutorialSteps.slice(0,-1))store.recordTutorialStepStatus(existing.pilotId,step,'skipped');
+  store.recordTutorialStepStatus(existing.pilotId,'landing','completed');
+  store.recordTrainingEvidence(existing.pilotId,8);
+  assert.equal(store.setTutorialState(existing.pilotId,'completed')?.tutorial.dallasUnlocked,true);
 });
 
 test('server tutorial evidence survives reconnect/restart, is idempotent, and never grants rewards', () => {

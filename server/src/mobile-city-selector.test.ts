@@ -44,6 +44,8 @@ test('City Journey launches a city with one configured time and offers selection
   assert.match(chooseCitySource, /city\.id === 'dallas'[\s\S]*showMissionJourney\(\)/);
   assert.doesNotMatch(chooseCitySource, /city\.id === 'milwaukee'/);
   assert.match(chooseCitySource, /city\.id === 'dallas' && !dallasUnlocked\(\)/);
+  assert.match(bootstrap, /entry\.id === 'dallas' && !dallasUnlocked\(\)[\s\S]*cta: 'LOCKED', disabled: true/);
+  assert.match(bootstrap, /function preferredCityJourneyIndex\([\s\S]*if \(!dallasUnlocked\(\)\) return Math\.max\(0, cityJourneyEntries\.findIndex\(entry => entry\.id === 'milwaukee'\)\)/);
 });
 
 test('City Journey keeps card nodes for smooth side-card, navigation, and drag transitions', () => {
