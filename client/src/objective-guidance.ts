@@ -197,6 +197,24 @@ export function precisionGateGuidance(gateNumber: number, grounded: boolean, dis
   return { instruction: `FOLLOW THE ARROW TO GATE ${gateNumber}`, turnSide: null };
 }
 
+/** Presentation only. Turn side follows the aircraft's actual heading, with a quiet alignment band. */
+export function slalomGateGuidance(gateNumber: number, grounded: boolean, distanceMeters: number,
+  horizontalDistance: number, heightDifference: number, gateRadius: number, bearingRadians: number,
+  previousTurnSide: PrecisionTurnSide, justCleared: boolean,
+): { instruction: string; turnSide: PrecisionTurnSide } {
+  if (grounded) return { instruction: 'TAKE OFF — FOLLOW THE GOLD ARROW', turnSide: null };
+  const angle = Math.abs(bearingRadians);
+  const turnSide = angle >= Math.PI * 30 / 180 || previousTurnSide && angle >= Math.PI * 18 / 180
+    ? previousTurnSide && (angle < Math.PI * 110 / 180 || angle > Math.PI * 155 / 180)
+      ? previousTurnSide : bearingRadians > 0 ? 'RIGHT' : 'LEFT'
+    : null;
+  if (justCleared) return { instruction: `GATE ${gateNumber - 1} CLEARED!`, turnSide };
+  if (turnSide) return { instruction: `GATE ${gateNumber} — TURN ${turnSide}`, turnSide };
+  if (horizontalDistance <= Math.max(240, gateRadius * 3) && angle <= Math.PI / 10 &&
+    Math.abs(heightDifference) <= gateRadius * .6) return { instruction: `FLY THROUGH GATE ${gateNumber}`, turnSide: null };
+  return { instruction: `FOLLOW THE ARROW TO GATE ${gateNumber}`, turnSide: null };
+}
+
 export type TerritoryGuidance = {
   phase: 'NAVIGATE' | 'CAPTURING' | 'BLOCKED' | 'CONTESTED' | 'DEFENDING' | 'RETURN' | 'RECAPTURE';
   instruction: string;

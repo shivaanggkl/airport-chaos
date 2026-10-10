@@ -83,7 +83,7 @@ export function emitConfirmedJourneyFeedback(manager: HapticsManager, previous: 
     return;
   }
   if (current.gateIndex > previous.gateIndex &&
-    (current.missionId === 'journey-dallas-06' ? current.gateIndex <= 6 : current.gateIndex < 4)) {
+    (current.missionId === 'journey-dallas-06' ? current.gateIndex <= 6 : current.missionId === 'journey-dallas-10' ? current.gateIndex < 5 : current.gateIndex < 4)) {
     manager.emit('checkpoint', `${current.attemptId}:${current.gateIndex}`);
   }
 }

@@ -1634,6 +1634,8 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-hud-segments i:nth-child(n+5) { display: none; }
 .journey-championship .journey-hud-segments { grid-template-columns: repeat(6,1fr); }
 .journey-championship .journey-hud-segments i:nth-child(n+5) { display: block; }
+.journey-slalom .journey-hud-segments { grid-template-columns: repeat(5,1fr); }
+.journey-slalom .journey-hud-segments i:nth-child(5) { display: block; }
 .journey-hud-segments i { height: 7px; border: 1px solid rgb(111 230 255 / 45%); border-radius: 8px; background: rgb(15 39 70 / 85%); }
 .journey-hud-segments i.is-cleared { border-color: #f6c445; background: linear-gradient(90deg,#35d6ff,#f6c445); box-shadow: 0 0 9px rgb(53 214 255 / 55%); }
 .journey-hud-segments[hidden], .journey-hud-enemy[hidden] { display: none; }

@@ -46,6 +46,11 @@ export const journeyDallas09: Readonly<{
   heartId: 'outer-northwest-heart';
   heart: { id: string; kind: 'heart'; x: number; z: number; radius: number; altitudeAgl: number };
 }>;
+export const journeyDallas10: Readonly<{
+  id: 'journey-dallas-10'; cityId: 'dallas'; name: 'SKYLINE SLALOM'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 85000; firstClearCredits: 1150; startAirportId: 'love';
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

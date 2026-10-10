@@ -80,6 +80,21 @@ export const journeyDallas09 = Object.freeze({
   heart: recoveryHeart,
 });
 
+// A broad, low-variation S course west of the authored downtown skyline.
+// Shared by rendering and server swept-crossing validation.
+export const journeyDallas10 = Object.freeze({
+  id: 'journey-dallas-10', cityId: 'dallas', name: 'SKYLINE SLALOM',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 85_000, firstClearCredits: 1_150,
+  startAirportId: 'love',
+  gates: Object.freeze([
+    { x: -4_400, z: -3_300, altitude: 390, radius: 100 },
+    { x: -2_800, z: -1_700, altitude: 400, radius: 100 },
+    { x: -4_400, z: -100, altitude: 410, radius: 100 },
+    { x: -2_800, z: 1_500, altitude: 400, radius: 100 },
+    { x: -4_400, z: 3_100, altitude: 410, radius: 100 },
+  ]),
+});
+
 // Cross the face of the next ring within its illuminated opening. White Rock
 // accepts either approach direction; DFW Sky Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.
