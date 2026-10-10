@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { test } from 'node:test';
+import { journeyDallas16, journeyDallas17 } from '../../shared/journey-mission.mjs';
+import { cityAirports, aircraftGroundOffset } from '../../shared/city-airports.mjs';
+import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
+import { landingPrecisionScore } from '../../shared/landing-scoring.mjs';
+import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
+import { observedChampionshipTouchdown } from './championship-landing.js';
+import { JourneyAttemptStore } from './journey-attempts.js';
+
+test('Critical Approach requires Mission 16, repairs once, keeps low landing scores, then pays once', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-critical-approach-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot',0,0),('other',0,0),('capped',999950,0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    assert.throws(() => store.launch('pilot', 'trainer', 1000, journeyDallas17.id), /locked/);
+    const fixture = new DatabaseSync(path);
+    for (const pilot of ['pilot', 'capped']) fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
+      .run(pilot, journeyDallas16.id, `m16-${pilot}`, 500, 60_000);
+    fixture.close();
+    const first = store.launch('pilot', 'trainer', 1_000, journeyDallas17.id);
+    assert.equal(store.collectCriticalHeart('pilot', first.attemptId, journeyDallas17.heartId, 1_100), undefined);
+    const ready = store.approach('pilot', first.attemptId, 1_200);
+    assert.equal(ready?.phase, 'REPAIR');
+    assert.equal(store.recordCriticalLanding('pilot', first.attemptId, 'dfw', 1000, 2_000), undefined);
+    assert.equal(store.collectCriticalHeart('other', first.attemptId, journeyDallas17.heartId, 2_000), undefined);
+    assert.equal(store.collectCriticalHeart('pilot', first.attemptId, 'outer-northwest-heart', 2_000), undefined);
+    const repaired = store.collectCriticalHeart('pilot', first.attemptId, journeyDallas17.heartId, 3_000);
+    assert.equal(repaired?.phase, 'LANDING');
+    assert.equal(repaired?.repairCollectedAt, 3_000);
+    assert.equal(store.collectCriticalHeart('pilot', first.attemptId, journeyDallas17.heartId, 3_100), undefined);
+    assert.equal(store.recordCriticalLanding('pilot', first.attemptId, 'love', 1000, 4_000), undefined);
+    assert.equal(store.recordCriticalLanding('pilot', first.attemptId, 'dfw', 779, 4_000)?.landingScore, 779);
+    assert.equal(store.get('pilot', first.attemptId)?.status, 'RACING');
+    assert.equal(store.get('pilot', first.attemptId)?.repairCollectedAt, 3_000);
+    assert.equal(store.recordCriticalLanding('pilot', first.attemptId, 'dfw', 780, 5_000)?.status, 'COMPLETED');
+    assert.equal(store.get('pilot', first.attemptId)?.firstClearCredits, 2_250);
+    assert.equal(store.recordCriticalLanding('pilot', first.attemptId, 'dfw', 1000, 5_100), undefined);
+    const replay = store.launch('pilot', 'trainer', 6_000, journeyDallas17.id);
+    store.approach('pilot', replay.attemptId, 6_100);
+    store.collectCriticalHeart('pilot', replay.attemptId, journeyDallas17.heartId, 6_200);
+    assert.equal(store.recordCriticalLanding('pilot', replay.attemptId, 'dfw', 1000, 7_000)?.firstClearCredits, 0);
+    assert.equal(store.progress('pilot', journeyDallas17.id).firstAttemptId, first.attemptId);
+    const capped = store.launch('capped', 'trainer', 8_000, journeyDallas17.id);
+    store.approach('capped', capped.attemptId, 8_100);
+    store.collectCriticalHeart('capped', capped.attemptId, journeyDallas17.heartId, 8_200);
+    assert.equal(store.recordCriticalLanding('capped', capped.attemptId, 'dfw', 780, 9_000)?.firstClearCredits, 50);
+    const check = new DatabaseSync(path);
+    assert.equal(check.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits, 2250);
+    assert.equal(check.prepare("SELECT credits FROM player_profiles WHERE pilot_id='capped'").get().credits, 1_000_000);
+    assert.equal(check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id='journey-dallas-17'").get().count, 2);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Critical Approach uses the real DFW runway and a server-observed touchdown', () => {
+  const mission = journeyDallas17;
+  const dfw = cityAirports.dallas.find(airport => airport.id === mission.finishAirportId);
+  assert.ok(dfw);
+  const spawn = authorizedJourneyAirborneSpawn({ missionId: mission.id, status: 'APPROACH' }, mission, () => 165);
+  assert.deepEqual(spawn.position, { x: -22800, y: 635, z: -22500 });
+  assert.equal(spawn.heading, Math.PI);
+  assert.equal(authorizedJourneyAirborneSpawn({ missionId: mission.id, status: 'FAILED' }, mission, () => 165), undefined);
+  assert.equal(mission.heart.x, dfw.x);
+  assert.ok(mission.heart.z < dfw.z - dfw.runwayLength / 2);
+  const plane = aircraftFlightEnvelope.trainer;
+  const envelope = { speed: plane.safeLandingSpeed, descent: plane.safeDescentRate, tilt: plane.landingTilt };
+  const runwayY = 175 + aircraftGroundOffset;
+  const current = { x: dfw.x, y: runwayY, z: dfw.z - 1100 };
+  const previous = { ...current, y: runwayY + .8 };
+  const velocity = { x: 0, y: -2, z: 52 };
+  const rotation = { x: 0, y: Math.PI, z: 0 };
+  const telemetry = observedChampionshipTouchdown(previous, current, velocity, rotation, dfw, runwayY, envelope);
+  assert.ok(telemetry);
+  assert.ok(landingPrecisionScore(telemetry, envelope) >= mission.requiredLandingScore);
+  assert.equal(observedChampionshipTouchdown(current, current, velocity, rotation, dfw, runwayY, envelope), null);
+  assert.equal(observedChampionshipTouchdown(previous, { ...current, x: current.x + 90 }, velocity, rotation, dfw, runwayY, envelope), null);
+});

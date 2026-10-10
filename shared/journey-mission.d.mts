@@ -68,6 +68,70 @@ export const journeyDallas13: Readonly<{
   speedThresholds: Readonly<Record<'trainer' | 'privateJet' | 'cargo' | 'fighter', number>>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
+export const journeyDallas14: Readonly<{
+  id: 'journey-dallas-14'; cityId: 'dallas'; name: 'ESCAPE VECTOR'; chapter: 'HIGH STAKES';
+  firstClearCredits: 1800; startAirportId: 'love'; escapeDistance: 450; escapeMs: 10000;
+}>;
+export const journeyDallas15: Readonly<{
+  id: 'journey-dallas-15'; cityId: 'dallas'; name: 'ACE INTERCEPT'; chapter: 'HIGH STAKES';
+  firstClearCredits: 1950; startAirportId: 'love'; bossName: 'ACE HUNTER'; bossHealth: 300;
+}>;
+export const journeyDallas16: Readonly<{
+  id: 'journey-dallas-16'; cityId: 'dallas'; name: 'CROSSFIRE ESCAPE'; chapter: 'HIGH STAKES';
+  firstClearCredits: 2100; startAirportId: 'love';
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
+export const journeyDallas17: Readonly<{
+  id: 'journey-dallas-17'; cityId: 'dallas'; name: 'CRITICAL APPROACH'; chapter: 'HIGH STAKES';
+  firstClearCredits: 2250; startHealthFraction: 0.45; finishAirportId: 'dfw'; requiredLandingScore: 780;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  heartId: 'mission-17-dfw-heart';
+  heart: Readonly<{ id: string; kind: 'heart'; x: number; z: number; radius: number; altitudeAgl: number }>;
+}>;
+export const journeyDallas18: Readonly<{
+  id: 'journey-dallas-18'; cityId: 'dallas'; name: 'SKY SIEGE'; chapter: 'HIGH STAKES';
+  firstClearCredits: 2400; startAirportId: 'love'; territoryId: 'las-colinas';
+  captureMs: 24000; defenseMs: 40000; defenseRadius: 2800; hunterDelayMs: 2500;
+}>;
+export const journeyDallas19: Readonly<{
+  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'WANTED BREAKOUT'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 2550; prepareMs: 3000; timeLimitMs: 75000;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  hunterOffset: Readonly<{ x: number; z: number }>;
+  exit: Readonly<{ x: number; z: number; altitude: number; radius: number; normalX: number; normalZ: number }>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
+export const journeyDallas20: Readonly<{
+  id: 'journey-dallas-20'; cityId: 'dallas'; name: 'SKYLINE SWITCHBACK'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 2700; startAirportId: 'love'; timeLimitMs: 110000;
+  gates: readonly { x: number; z: number; altitude: number; radius: number;
+    normalX: number; normalY: number; normalZ: number }[];
+}>;
+export const journeyDallas21: Readonly<{
+  id: 'journey-dallas-21'; cityId: 'dallas'; name: 'TWO FRONTS'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 2850; startAirportId: 'love'; alphaTerritoryId: 'addison';
+  bravoTerritoryId: 'dallas-executive'; captureMs: 6000; transferMs: 120000;
+}>;
+export const journeyDallas22: Readonly<{
+  id: 'journey-dallas-22'; cityId: 'dallas'; name: 'PERFECT APPROACH'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 3000; prepareMs: 3000; finishAirportId: 'dfw'; approachRestartZ: number;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number;
+    normalX: number; normalY: number; normalZ: number }[];
+}>;
+export const journeyDallas23: Readonly<{
+  id: 'journey-dallas-23'; cityId: 'dallas'; name: 'DOUBLE TROUBLE'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 3150; startAirportId: 'love'; hunterHealth: 200;
+  heartId: 'mission-23-repair-heart'; heartRadius: 115; hunterTwoDelayMs: 2500;
+}>;
+export const journeyDallas24: Readonly<{
+  id: 'journey-dallas-24'; cityId: 'dallas'; name: 'LEGENDARY CHAMPIONSHIP'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 4000; startAirportId: 'love'; finishAirportId: 'dfw'; bossHealth: 300;
+  gates: readonly { x: number; z: number; altitude: number; radius: number;
+    normalX: number; normalY: number; normalZ: number }[];
+}>;
+export function journeyExitCrossing(from: JourneyPoint, to: JourneyPoint, terrainHeight: number,
+  mission?: typeof journeyDallas19): boolean;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

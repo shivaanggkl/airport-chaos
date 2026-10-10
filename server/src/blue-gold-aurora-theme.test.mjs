@@ -36,13 +36,21 @@ test('Ocean Aurora and Sunset Glass palette remnants are removed', () => {
 test('major desktop and shared mobile surfaces use dark blue translucent glass', () => {
   // City Selection now inherits the same reusable entry panel treatment as
   // the Pilot Hub instead of restating those colors on its layout class.
-  for (const selector of ['.entry-content-panel', '.pilot-menu-card', '.garage-card', '.world-map-card']) {
+  for (const selector of ['.entry-content-panel', '.world-map-card']) {
     const rule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .find((match) => match[1]?.split(',').some((part) => part.trim() === selector))?.[0] ?? '';
     assert.match(rule, /background:\s*var\(--ui-bg-(?:strong|soft)\)/, selector);
     assert.match(rule, /color:\s*var\(--ui-text\)/, selector);
   }
-  assert.match(css, /\.unified-flight-hud\s*\{[^}]+rgb\(5 24 38 \/ 28%\)[^}]+rgb\(94 184 232 \/ 20%\)/s);
+  for (const selector of ['.pilot-menu-card', '.garage-card']) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rule = [...css.matchAll(new RegExp(`${escaped}\\s*\\{[^}]+\\}`, 'g'))]
+      .map(match => match[0]).find(match => /background:\s*radial-gradient/.test(match)) ?? '';
+    assert.match(rule, /color:\s*var\(--ui-text\)/, selector);
+    assert.match(rule, /background:\s*radial-gradient\([^}]+var\(--ac-bg-deep\)/, selector);
+    assert.match(rule, /backdrop-filter:\s*blur\(12px\)/, selector);
+  }
+  assert.match(css, /\.unified-flight-hud\s*\{[^}]+color:\s*var\(--ui-text\)[^}]+pointer-events:\s*none/s);
   // The octagon uses a translucent SVG face instead of a solid button fill.
   assert.match(css, /\.touch-stick\{[^}]+background:transparent/);
   assert.match(css, /\.touch-stick-frame-outer\{[^}]*fill:url\(#touch-stick-surface\)/);
@@ -50,7 +58,7 @@ test('major desktop and shared mobile surfaces use dark blue translucent glass',
 });
 
 test('screen overlays preserve vivid game surfaces and a clean City Journey background', () => {
-  assert.match(css, /\.city-selector\s*\{[^}]+radial-gradient\(ellipse at 50% 10%, rgb\(57 169 249 \/ 20%\)[^}]+linear-gradient\(180deg, #12364d 0%, #0d2a3d 58%, #071923 100%\)/s);
+  assert.match(css, /\.city-selector\s*\{[^}]+linear-gradient\([^}]+url\('\/media\/city-journey\/hangar\.jpg'\)[^}]+var\(--ac-bg-deep\)/s);
   assert.doesNotMatch(css, /\.launch-background/);
   assert.match(css, /\.garage-overlay\s*\{[^}]+background:\s*transparent;/s);
   assert.match(css, /\.pilot-menu-overlay\s*\{[^}]+background:\s*transparent;/s);
@@ -69,7 +77,6 @@ test('gold actions, blue selections, and crimson destructive actions stay distin
 test('decorative blue-cyan typography uses Tower Gold without recoloring blue chrome', () => {
   for (const selector of [
     '.pilot-menu-section h2',
-    '.pilot-menu-navigation button.active',
     '.garage-aircraft.selected',
     '.world-map-card header strong',
     '.radar-title',
@@ -85,7 +92,7 @@ test('decorative blue-cyan typography uses Tower Gold without recoloring blue ch
   // navigation headings and selected aircraft labels stay gold.
   assert.match(css, /\.human-player-altitude\s*\{[^}]+color:\s*var\(--ui-cyan\)/);
   assert.match(css, /\.pilot-menu-navigation button\.active[^}]+background:\s*var\(--ui-gradient-selected\)/s);
-  assert.match(css, /\.garage-aircraft\.selected[^}]+border-color:\s*var\(--ui-cyan\)/s);
+  assert.match(css, /\.garage-aircraft\.selected[^}]+border-color:\s*var\(--ac-cyan-highlight\)/s);
   assert.match(css, /\.airport-key\s*\{[^}]+color:\s*#73d8ed/s);
   assert.match(css, /\.city-territory-row\.you > strong\s*\{[^}]+color:\s*#82e9ff/s);
 });

@@ -58,7 +58,7 @@ test('tutorial entry is city-scoped and practice progression is server-authorita
   assert.match(serverMain, /const tutorialMode = Boolean\(cityCapabilities\(cityId\)\?\.tutorialEnabled && profile\.tutorial\.status === 'started'\)/);
   assert.match(serverMain, /return Boolean\(player && !player\.tutorialMode && cityCapabilities\(player\.cityId\)\?\.progressionEnabled\)/);
   assert.match(serverMain, /tutorialCombatPairAllowed/);
-  assert.match(serverMain, /!target\.isBot && !target\.tutorialMode && !playerJourneyRunwayPrep\.has\(id\) && target\.cityId === bot\.cityId/);
+  assert.match(serverMain, /!target\.isBot && !target\.tutorialMode && !playerJourneyRunwayPrep\.has\(id\) &&\s*\(!missionFocusedPlayers\.has\(id\) \|\| allowedFocusedBot\(botId, id\)\) && target\.cityId === bot\.cityId/);
   assert.match(serverMain, /!player\.isBot && !player\.tutorialMode/);
   assert.match(serverMain, /type: 'tutorialSignal', signal: 'targetHit'/);
   assert.match(serverMain, /if \(!progressionEnabled\(player\)\) \{ sendProfile\(playerId, player\.profile\); return; \}/);

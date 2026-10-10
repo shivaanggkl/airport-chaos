@@ -79,7 +79,7 @@ export type PilotMenuData = {
     notice?: PilotMenuAccountResult;
     providers: { password: boolean; google: boolean; apple: boolean };
     availableProviders: readonly ('google' | 'apple')[];
-    level: number; xp: number; credits: number; score: number; ownedAircraft: number; badges: number;
+    level: number; xp: number; credits: number; score: number; ownedAircraft: number; badges: number; legendaryPilot?: boolean;
     continueAsGuest: () => void;
     logOut: () => Promise<PilotMenuAccountResult>;
     changeName: (pilotName: string) => Promise<PilotMenuAccountResult>;
@@ -573,6 +573,7 @@ export class PilotMenu {
         const xpBar = document.createElement('progress'); xpBar.max = levelRange; xpBar.value = levelProgress; xpBar.setAttribute('aria-label', `Level ${pilot.level} progress`);
         xp.append(xpBar, textElement('span', `${pilot.xp.toLocaleString()} XP`));
         identity.append(emblem, identityCopy, xp);
+        if (account.legendaryPilot) profile.append(textElement('p', '✦ LEGENDARY PILOT · AIRPORT CHAOS JOURNEY · 24/24', 'pilot-profile-intro'));
 
         const stats = document.createElement('div'); stats.className = 'pilot-profile-stats';
         for (const [label, value] of [

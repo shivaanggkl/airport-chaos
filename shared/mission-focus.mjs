@@ -1,4 +1,4 @@
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13 } from './journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from './journey-mission.mjs';
 
 const activeStatuses = new Set(['APPROACH', 'RACING']);
 
@@ -20,7 +20,7 @@ export function missionFocusForAttempt(attempt) {
     attempt?.missionId === journeyDallas07.id || attempt?.missionId === journeyDallas08.id ||
     attempt?.missionId === journeyDallas09.id || attempt?.missionId === journeyDallas10.id ||
     attempt?.missionId === journeyDallas11.id || attempt?.missionId === journeyDallas12.id ||
-    attempt?.missionId === journeyDallas13.id) && activeStatuses.has(attempt.status)
+    attempt?.missionId === journeyDallas13.id || attempt?.missionId === journeyDallas14.id || attempt?.missionId === journeyDallas15.id || attempt?.missionId === journeyDallas16.id || attempt?.missionId === journeyDallas17.id || attempt?.missionId === journeyDallas18.id || attempt?.missionId === journeyDallas19.id || attempt?.missionId === journeyDallas20.id || attempt?.missionId === journeyDallas21.id || attempt?.missionId === journeyDallas22.id || attempt?.missionId === journeyDallas23.id || attempt?.missionId === journeyDallas24.id) && activeStatuses.has(attempt.status)
     ? journeyFocus : null;
 }
 

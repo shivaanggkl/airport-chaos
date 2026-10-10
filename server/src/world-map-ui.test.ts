@@ -33,7 +33,7 @@ test('mobile Map keeps the geographic view dominant with always-visible intellig
 });
 
 test('short touch landscape Map is bounded by its safe-area container', () => {
-  assert.match(css, /@media \(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.world-map-card\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*height:\s*100%;/);
+  assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),[\s\S]*?\.world-map-card\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*height:\s*100%;/);
   assert.match(css, /\.world-map-view,[\s\S]*#world-map-canvas\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/);
   assert.match(css, /\.map-legend\s*\{[^}]*flex-wrap:\s*wrap;[^}]*white-space:\s*normal;/);
   assert.match(css, /\.map-intelligence\s*\{[^}]*flex:\s*0 0 clamp\(112px, 32dvh, 138px\);[^}]*width:\s*100%;[^}]*min-width:\s*0;/);

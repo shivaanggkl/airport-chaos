@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { focusedTerritoryCaptureId, focusedTerritoryParticipantAllowed, isFocusedTerritoryDefender } from './focused-territory-defender.js';
 
-test('only active Missions 1–13 attempts have focus rules', () => {
+test('only active Missions 1–24 attempts have focus rules', () => {
   for (const status of ['APPROACH', 'RACING']) {
     const config = missionFocusForAttempt({ missionId: 'journey-dallas-01', status });
     assert.equal(config?.showMissionObjectives, true);
@@ -18,7 +18,7 @@ test('only active Missions 1–13 attempts have focus rules', () => {
   for (const status of ['READY', 'COMPLETED', 'FAILED', 'ABANDONED']) {
     assert.equal(missionFocusForAttempt({ missionId: 'journey-dallas-01', status }), null);
   }
-  for (const missionId of ['journey-dallas-02', 'journey-dallas-03', 'journey-dallas-04', 'journey-dallas-05', 'journey-dallas-06', 'journey-dallas-07', 'journey-dallas-08', 'journey-dallas-09', 'journey-dallas-10', 'journey-dallas-11', 'journey-dallas-12', 'journey-dallas-13']) {
+  for (const missionId of ['journey-dallas-02', 'journey-dallas-03', 'journey-dallas-04', 'journey-dallas-05', 'journey-dallas-06', 'journey-dallas-07', 'journey-dallas-08', 'journey-dallas-09', 'journey-dallas-10', 'journey-dallas-11', 'journey-dallas-12', 'journey-dallas-13', 'journey-dallas-14', 'journey-dallas-15', 'journey-dallas-16', 'journey-dallas-17', 'journey-dallas-18', 'journey-dallas-19', 'journey-dallas-20', 'journey-dallas-21', 'journey-dallas-22', 'journey-dallas-23', 'journey-dallas-24']) {
     for (const status of ['APPROACH', 'RACING']) {
       assert.deepEqual(missionFocusForAttempt({ missionId, status }),
         missionFocusForAttempt({ missionId: 'journey-dallas-01', status }));
@@ -27,7 +27,7 @@ test('only active Missions 1–13 attempts have focus rules', () => {
       assert.equal(missionFocusForAttempt({ missionId, status }), null);
     }
   }
-  for (const missionId of ['journey-dallas-14']) {
+  for (const missionId of ['journey-dallas-25']) {
     assert.equal(missionFocusForAttempt({ missionId, status: 'RACING' }), null);
   }
   assert.equal(missionFocusForAttempt({ missionId: 'journey-dallas-03', status: 'READY', aiIsolated: true }), null);
@@ -81,7 +81,7 @@ test('bot interaction exclusion is reciprocal and leaves humans and other pilots
 
 test('only the server-owned attempt and bot owner authorize the Hunter exception across combat paths', () => {
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.match(server, /missionFocusHunterTargets\.set\(playerId, attempt\.targetId\)/);
+  assert.match(server, /missionFocusHunterTargets\.set\(playerId, focusedTargetId\)/);
   assert.match(server, /attempt\.missionId === journeyDallas02\.id \|\| attempt\.missionId === journeyDallas09\.id/);
   assert.match(server, /hunter\?\.journeyTargetPlayerId === pilotId && hunter\.journeyAttemptId === playerJourneyAttempts\.get\(pilotId\)/);
   assert.match(server, /focusedBotInteractionExcluded\(ownerId, owner, victimId, victim\)/);

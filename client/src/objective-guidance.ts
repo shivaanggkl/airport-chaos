@@ -61,6 +61,21 @@ export function pendulumGateGuidance(gateNumber: number, onGround: boolean, dist
   return gateNumber === 6 ? 'FINAL GATE — FINISH STRONG!' : `FLY THROUGH GATE ${gateNumber}`;
 }
 
+/** Geometry-driven vertical cue with a dead band so small pitch changes do not flicker. */
+export function switchbackGateGuidance(gateNumber: number, onGround: boolean, distance: number,
+  heightDifference: number, bearingAngle: number, radius: number,
+  previousCue: 'CLIMB' | 'DESCEND' | 'ALIGNED', cleared: boolean): { instruction: string; cue: 'CLIMB' | 'DESCEND' | 'ALIGNED' } {
+  if (onGround) return { instruction: 'TAKE OFF — FOLLOW THE GOLD ARROW', cue: 'ALIGNED' };
+  if (cleared) return { instruction: `GATE ${gateNumber - 1} CLEARED!`, cue: previousCue };
+  const enter = radius * .7, leave = radius * .45;
+  const cue = heightDifference > (previousCue === 'CLIMB' ? leave : enter) ? 'CLIMB'
+    : heightDifference < -(previousCue === 'DESCEND' ? leave : enter) ? 'DESCEND' : 'ALIGNED';
+  if (Math.abs(bearingAngle) > Math.PI * .55) return { instruction: `FOLLOW THE GOLD ARROW TO GATE ${gateNumber}`, cue };
+  if (cue === 'CLIMB') return { instruction: `CLIMB — REACH GATE ${gateNumber}`, cue };
+  if (cue === 'DESCEND') return { instruction: gateNumber === 6 ? 'FINAL DESCENT — REACH GATE 6' : `DESCEND — REACH GATE ${gateNumber}`, cue };
+  return { instruction: `FLY THROUGH GATE ${gateNumber}`, cue };
+}
+
 /** Advisory speed cue; the server alone decides whether a crossing counts. */
 export function redlineGateGuidance(gateNumber: number, onGround: boolean, distanceMeters: number,
   ready: boolean, tooSlow: boolean, cleared: boolean): string {

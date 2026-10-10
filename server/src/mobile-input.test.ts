@@ -30,7 +30,8 @@ test('every mobile Controls preference changes its supported behavior',()=>{
   assert.deepEqual(mobileControlStyle(25,61,.85),{left:'25%',top:'61%',scale:'0.85'});
   const input=readFileSync(new URL('../../client/src/mobile-input.ts',import.meta.url),'utf8');
   const menu=readFileSync(new URL('../../client/src/pilot-menu.ts',import.meta.url),'utf8');
-  assert.match(input,/localStorage\.setItem\(TOUCH_KEY, this\.mode\)[\s\S]*this\.reset\(\);[\s\S]*this\.refresh\(\)/);
+  assert.match(input,/persistTouchMode\(mode: TouchControlsMode\)[\s\S]*localStorage\.setItem\(TOUCH_KEY, normalized\)/);
+  assert.match(input,/setMode\(mode: TouchControlsMode\)\s*\{\s*this\.mode = persistTouchMode\(mode\);\s*this\.reset\(\);\s*this\.refresh\(\)/);
   assert.match(input,/supportsTouchControls\(\) \{ return matchMedia\('\(pointer: coarse\)'\)\.matches \|\| innerWidth <= 900; \}/);
   assert.match(input,/localStorage\.setItem\(LAYOUT_KEY, JSON\.stringify\(this\.layout\)\)/);
   assert.match(input,/mobileControlStyle\(placement\.x, placement\.y, placement\.scale\)[\s\S]*--touch-left[\s\S]*--touch-top[\s\S]*--touch-scale/);
@@ -111,7 +112,7 @@ test('mobile pilot menu protects active taps and uses a vertical content layout'
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
   assert.match(menu,/this\.pointerActive = true;[\s\S]*window\.addEventListener\('pointerup', releasePointer/);
-  assert.match(menu,/!this\.openState \|\| this\.pointerActive \|\| this\.isActivelyScrolling\(\)/);
+  assert.match(menu,/!this\.openState \|\| \(!force && \(this\.pointerActive \|\| this\.isActivelyScrolling\(\)\)\)/);
   assert.match(main,/message\.ok && pilotMenu\.isOpen\(\)\) pilotMenu\.close\(\)/);
   assert.match(css,/\.pilot-menu-navigation\{grid-area:navigation;display:flex;flex-direction:column;/);
 });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { journeyDallas01, journeyDallas03, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas03, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas19, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
 
 const cyan = new THREE.MeshBasicMaterial({ color: 0x64eaff, transparent: true, opacity: .94, depthWrite: false });
 const ice = new THREE.MeshBasicMaterial({ color: 0xe4ffff, transparent: true, opacity: .82, depthWrite: false });
@@ -18,7 +18,7 @@ export class JourneyGateSystem {
   private flashTime = 0;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
-    private readonly mission: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 = journeyDallas01) {
+    private readonly mission: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas19 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
     for (const [index, gate] of mission.gates.entries()) {
       const group = new THREE.Group();
       group.name = `${mission.id}-gate-${index + 1}`;
@@ -26,9 +26,13 @@ export class JourneyGateSystem {
       group.scale.setScalar(gate.radius);
       const next = mission.gates[Math.min(index + 1, mission.gates.length - 1)]!;
       const previous = mission.gates[Math.max(0, index - 1)]!;
-      group.lookAt(gate.x + next.x - previous.x, group.position.y, gate.z + next.z - previous.z);
+      if (mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id) {
+        const face = mission.id === journeyDallas24.id ? journeyDallas24.gates[index]! : mission.id === journeyDallas22.id ? journeyDallas22.gates[index]! : journeyDallas20.gates[index]!;
+        group.lookAt(gate.x + face.normalX, group.position.y + face.normalY, gate.z + face.normalZ);
+      } else group.lookAt(gate.x + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalX : next.x - previous.x),
+        group.position.y, gate.z + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalZ : next.z - previous.z));
       const rim = new THREE.Mesh(ringShape, cyan);
-      const core = new THREE.Mesh(mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id ? precisionOpeningShape : innerShape, ice);
+      const core = new THREE.Mesh(mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, ice);
       const accent = new THREE.Mesh(accentShape, gold);
       accent.rotation.z = -.3;
       const burst = new THREE.Mesh(ringShape, gold.clone());
@@ -58,8 +62,8 @@ export class JourneyGateSystem {
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
-    if (this.active && current && this.mission.id !== journeyDallas05.id && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
-    if (this.active && current && (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id))
+    if (this.active && current && this.mission.id !== journeyDallas05.id && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas19.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
+    if (this.active && current && (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id))
       current.children[2]!.scale.setScalar(1 + .025 * Math.sin(this.phase * 2.5));
     if (this.flashTime > 0) {
       this.flashTime = Math.max(0, this.flashTime - delta);
@@ -76,15 +80,15 @@ export class JourneyGateSystem {
   private refresh(): void {
     this.gates.forEach((group, index) => {
       group.visible = (this.active && (index === this.current || index === this.current + 1 ||
-        (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id) && index > this.current)) ||
+        (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
       group.children.slice(0, 3).forEach((object, part) => {
         if (object instanceof THREE.Mesh) object.material = index === this.current
           ? part === 2 ? gold : part === 1 ? ice : cyan
           : ice;
       });
-      if (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id) group.children[2]!.scale.setScalar(this.mission.id === journeyDallas12.id && index === 2 ? 1.2 : 1);
-      if (index !== this.current || this.mission.id === journeyDallas05.id || this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id)
+      if (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) group.children[2]!.scale.setScalar(this.mission.id === journeyDallas12.id && index === 2 ? 1.2 : 1);
+      if (index !== this.current || this.mission.id === journeyDallas05.id || this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id)
         group.scale.setScalar(this.mission.gates[index]!.radius * (index === this.current ? 1 : .82));
     });
   }

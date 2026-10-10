@@ -145,12 +145,153 @@ export const journeyDallas13 = Object.freeze({
   ]),
 });
 
+export const journeyDallas14 = Object.freeze({
+  id: 'journey-dallas-14', cityId: 'dallas', name: 'ESCAPE VECTOR',
+  chapter: 'HIGH STAKES', firstClearCredits: 1_800,
+  startAirportId: 'love', escapeDistance: 450, escapeMs: 10_000,
+});
+
+export const journeyDallas15 = Object.freeze({
+  id: 'journey-dallas-15', cityId: 'dallas', name: 'ACE INTERCEPT',
+  chapter: 'HIGH STAKES', firstClearCredits: 1_950,
+  startAirportId: 'love', bossName: 'ACE HUNTER', bossHealth: 300,
+});
+
+// Broad northbound turns through open airspace west of Addison. No race clock:
+// the Hunters, introduced at confirmed gates 1 and 3, supply the pressure.
+export const journeyDallas16 = Object.freeze({
+  id: 'journey-dallas-16', cityId: 'dallas', name: 'CROSSFIRE ESCAPE',
+  chapter: 'HIGH STAKES', firstClearCredits: 2_100, startAirportId: 'love',
+  gates: Object.freeze([
+    { x: -5_140, z: -10_700, altitude: 470, radius: 145 },
+    { x: -6_050, z: -13_300, altitude: 485, radius: 145 },
+    { x: -4_700, z: -15_900, altitude: 500, radius: 145 },
+    { x: -6_050, z: -18_500, altitude: 485, radius: 145 },
+    { x: -5_000, z: -21_100, altitude: 470, radius: 145 },
+  ]),
+});
+
+// North-to-south DFW recovery corridor; the Heart is mission-owned and does
+// not become a Free Flight pickup. Runway approach follows DFW's real axis.
+export const journeyDallas17 = Object.freeze({
+  id: 'journey-dallas-17', cityId: 'dallas', name: 'CRITICAL APPROACH',
+  chapter: 'HIGH STAKES', firstClearCredits: 2_250,
+  startHealthFraction: 0.45, finishAirportId: 'dfw', requiredLandingScore: 780,
+  airborneSpawn: Object.freeze({ x: -22_800, z: -22_500, altitude: 470, heading: Math.PI, speed: 120 }),
+  heartId: 'mission-17-dfw-heart',
+  heart: Object.freeze({ id: 'mission-17-dfw-heart', kind: 'heart', x: -22_800, z: -19_500, radius: 115, altitudeAgl: 380 }),
+});
+
+// The capture uses the existing Las Colinas territory rectangle. The smaller
+// mission-only defense circle gives the pilot a readable aerial area to hold.
+export const journeyDallas18 = Object.freeze({
+  id: 'journey-dallas-18', cityId: 'dallas', name: 'SKY SIEGE',
+  chapter: 'HIGH STAKES', firstClearCredits: 2_400,
+  startAirportId: 'love', territoryId: 'las-colinas',
+  captureMs: 24_000, defenseMs: 40_000, defenseRadius: 2_800,
+  hunterDelayMs: 2_500,
+});
+
+// The one broad exit is fixed northwest of the downtown skyline, beyond DFW.
+export const journeyDallas19 = Object.freeze({
+  id: 'journey-dallas-19', cityId: 'dallas', name: 'WANTED BREAKOUT',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 2_550,
+  prepareMs: 3_000, timeLimitMs: 75_000,
+  airborneSpawn: Object.freeze({ x: -2_600, z: -3_000, altitude: 1_200, heading: 0.795, speed: 220 }),
+  hunterOffset: Object.freeze({ x: 1_200, z: 8_500 }),
+  exit: Object.freeze({ x: -24_000, z: -24_000, altitude: 1_200, radius: 330,
+    normalX: -21.4 / Math.hypot(21.4, 21), normalZ: -21 / Math.hypot(21.4, 21) }),
+  gates: Object.freeze([{ x: -24_000, z: -24_000, altitude: 1_200, radius: 330 }]),
+});
+
+// Love Field to the open west side of the skyline. Each forward leg has room
+// for a 170 m pitch reversal; normals follow the measured 3D approach slopes.
+export const journeyDallas20 = Object.freeze({
+  id: 'journey-dallas-20', cityId: 'dallas', name: 'SKYLINE SWITCHBACK',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 2_700,
+  startAirportId: 'love', timeLimitMs: 110_000,
+  gates: Object.freeze([
+    { x: -4_400, z: -3_300, altitude: 560, radius: 90, normalX: .16180, normalY: .11984, normalZ: .97952 },
+    { x: -3_900, z: -1_900, altitude: 390, radius: 90, normalX: .33405, normalY: -.11630, normalZ: .93535 },
+    { x: -3_400, z: -500, altitude: 560, radius: 90, normalX: .33412, normalY: .11451, normalZ: .93555 },
+    { x: -3_000, z: 900, altitude: 390, radius: 90, normalX: .27302, normalY: -.11097, normalZ: .95558 },
+    { x: -2_600, z: 2_300, altitude: 560, radius: 90, normalX: .27239, normalY: .12996, normalZ: .95337 },
+    { x: -2_200, z: 3_700, altitude: 390, radius: 90, normalX: .27271, normalY: -.12070, normalZ: .95449 },
+  ]),
+});
+
+export const journeyDallas21 = Object.freeze({
+  id: 'journey-dallas-21', cityId: 'dallas', name: 'TWO FRONTS',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 2_850,
+  startAirportId: 'love', alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
+  captureMs: 6_000, transferMs: 120_000,
+});
+
+// North-to-south on DFW's existing runway axis. Gate 3 leaves a long, clear
+// stabilization leg before the north threshold and the server's touchdown zone.
+export const journeyDallas22 = Object.freeze({
+  id: 'journey-dallas-22', cityId: 'dallas', name: 'PERFECT APPROACH',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 3_000,
+  prepareMs: 3_000, finishAirportId: 'dfw', approachRestartZ: -23_400,
+  airborneSpawn: Object.freeze({ x: -22_800, z: -23_800, altitude: 525, heading: Math.PI, speed: 120 }),
+  gates: Object.freeze([
+    { x: -22_800, z: -22_500, altitude: 460, radius: 180, normalX: 0, normalY: -0.04494, normalZ: 0.99899 },
+    { x: -22_800, z: -21_000, altitude: 370, radius: 125, normalX: 0, normalY: -0.06750, normalZ: 0.99772 },
+    { x: -22_800, z: -19_000, altitude: 240, radius: 80, normalX: 0, normalY: -0.07375, normalZ: 0.99727 },
+  ]),
+});
+
+export const journeyDallas23 = Object.freeze({
+  id: 'journey-dallas-23', cityId: 'dallas', name: 'DOUBLE TROUBLE',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 3_150, startAirportId: 'love',
+  hunterHealth: 200, heartId: 'mission-23-repair-heart', heartRadius: 115,
+  hunterTwoDelayMs: 2_500,
+});
+
+// One forward route from Love Field into the open west side of downtown.
+export const journeyDallas24 = Object.freeze({
+  id: 'journey-dallas-24', cityId: 'dallas', name: 'LEGENDARY CHAMPIONSHIP',
+  chapter: 'LEGENDARY SKIES', startAirportId: 'love', finishAirportId: 'dfw',
+  firstClearCredits: 4_000, bossHealth: 300,
+  gates: Object.freeze([
+    { x: -6_000, z: -10_500, altitude: 500, radius: 190, normalX: -.301, normalY: .105, normalZ: -.948 },
+    { x: -7_600, z: -11_800, altitude: 570, radius: 130, normalX: -.775, normalY: .033, normalZ: -.631 },
+    { x: -9_500, z: -13_100, altitude: 620, radius: 82, normalX: -.825, normalY: .017, normalZ: -.565 },
+  ]),
+});
+
+/** Swept crossing for a single exit with an explicit arrival direction. */
+export function journeyExitCrossing(from, to, terrainHeight, mission = journeyDallas19) {
+  const gate = mission.exit;
+  if (!Number.isFinite(terrainHeight)) return false;
+  const before = (from.x - gate.x) * gate.normalX + (from.z - gate.z) * gate.normalZ;
+  const after = (to.x - gate.x) * gate.normalX + (to.z - gate.z) * gate.normalZ;
+  if (!(before < 0 && after >= 0)) return false;
+  const fraction = -before / (after - before);
+  const x = from.x + (to.x - from.x) * fraction - gate.x;
+  const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
+  const z = from.z + (to.z - from.z) * fraction - gate.z;
+  return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2;
+}
+
 // Cross the face of the next ring within its illuminated opening. White Rock
 // accepts either approach direction; DFW Sky Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   const gate = mission.gates[gateIndex];
   if (!gate || !Number.isFinite(terrainHeight)) return false;
+  if (mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id) {
+    const centerY = terrainHeight + gate.altitude;
+    const nx = gate.normalX, ny = gate.normalY, nz = gate.normalZ;
+    const before = (from.x - gate.x) * nx + (from.y - centerY) * ny + (from.z - gate.z) * nz;
+    const after = (to.x - gate.x) * nx + (to.y - centerY) * ny + (to.z - gate.z) * nz;
+    if (!(before < 0 && after >= 0)) return false;
+    const fraction = -before / (after - before);
+    const dx = from.x + (to.x - from.x) * fraction - gate.x;
+    const dy = from.y + (to.y - from.y) * fraction - centerY;
+    const dz = from.z + (to.z - from.z) * fraction - gate.z;
+    return dx * dx + dy * dy + dz * dz <= (gate.radius * .92) ** 2 ? 'VALID' : false;
+  }
   const previous = mission.gates[Math.max(0, gateIndex - 1)];
   const next = mission.gates[Math.min(mission.gates.length - 1, gateIndex + 1)];
   const directionX = next.x - previous.x;

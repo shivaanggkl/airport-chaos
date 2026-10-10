@@ -115,6 +115,22 @@ test('the gameplay Journey handler doubles confirmed Hunter victory without dupl
   ]);
 });
 
+test('Switchback confirms five checkpoints and one final victory without replay pulses', async () => {
+  const f = fixture();
+  const active = { attemptId: 'switchback', missionId: 'journey-dallas-20', status: 'RACING', gateIndex: 0 };
+  for (let gate = 1; gate <= 5; gate += 1) {
+    f.advance(150);
+    emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: gate - 1 }, { ...active, gateIndex: gate });
+  }
+  emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 5 }, { ...active, status: 'COMPLETED', gateIndex: 6 });
+  emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 5 }, { ...active, status: 'COMPLETED', gateIndex: 6 });
+  await Promise.resolve();
+  assert.deepEqual(f.calls, [
+    ...Array(5).fill(`impact:${ImpactStyle.Medium}`),
+    `notification:${NotificationType.Success}`,
+  ]);
+});
+
 test('season and weekly rewards vibrate only when a confirmed claim changes their state', () => {
   const f = fixture();
   const before = { season: { seasonId: 's1', rewards: [{ id: 'r1', state: 'claimable' }], weeklyEvent: { weeklyEventId: 'w1', rewarded: false } } };

@@ -24,7 +24,7 @@ test('cold entry shows the real-progress brand loader before the Pilot Hub', () 
 test('Pilot Hub FLY and city back preserve the existing city selection flow', () => {
   const bootstrap = read('client/src/bootstrap.ts');
   const main = read('client/src/main.ts');
-  assert.match(bootstrap, /fly: \(\) => \{ recordProductIntent\('fly_clicked'\); void requestHubFly\(\); \}/);
+  assert.match(bootstrap, /fly: \(\) => \{ hapticsManager\.emit\('selection'\); recordProductIntent\('fly_clicked'\); void requestHubFly\(\); \}/);
   assert.match(bootstrap, /async function requestHubFly\(\)[\s\S]*refreshHubPilotData\(\)[\s\S]*hubAccount\.state === 'account'[\s\S]*showSelector[\s\S]*rememberPendingHubFly\(\)[\s\S]*openHubPilotMenu\('PROFILE', false\)/);
   assert.match(bootstrap, /function resumePendingHubFly\(\)[\s\S]*hubAccount\.state !== 'account'[\s\S]*clearPendingHubFly\(\)[\s\S]*showSelector/);
   assert.match(bootstrap, /function continueHubAsGuest\(\)[\s\S]*hasPendingHubFly\(\)[\s\S]*clearPendingHubFly\(\)[\s\S]*showSelector/);
@@ -174,10 +174,10 @@ test('Pilot Hub routes to canonical Garage and profile screens without duplicate
   const css = read('client/src/style.css');
   const menu = read('client/src/pilot-menu.ts');
   const server = read('server/src/index.ts');
-  assert.match(bootstrap, /garage: \(\) => \{ void openStartGarage\([\s\S]*?'HANGAR'\); \}/);
+  assert.match(bootstrap, /garage: \(\) => \{ hapticsManager\.emit\('selection'\); void openStartGarage\([\s\S]*?'HANGAR'\); \}/);
   assert.doesNotMatch(bootstrap, /aircraft: \(\) => \{ void openStartGarage\('HANGAR'\); \}/);
-  assert.match(bootstrap, /rewards: \(\) => \{ void openHubRewards\(\); \}/);
-  assert.match(bootstrap, /profile: \(\) => \{ void openHubPilotMenu\('PROFILE', true, !missionJourneyReturnPending\); \}/);
+  assert.match(bootstrap, /rewards: \(\) => \{ hapticsManager\.emit\('selection'\); void openHubRewards\(\); \}/);
+  assert.match(bootstrap, /profile: \(\) => \{ hapticsManager\.emit\('selection'\); void openHubPilotMenu\('PROFILE', true, !missionJourneyReturnPending\); \}/);
   assert.doesNotMatch(bootstrap, /settings: \(\) => \{ void openHubPilotMenu\('SETTINGS'\); \}/);
   assert.match(bootstrap, /const hubPilotMenu = new PilotMenu\(pilotMenuOverlay/);
   assert.match(bootstrap, /sections: \['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD \/ CITIES', 'LEGAL \/ SUPPORT', 'DATA LICENSES'\]/);
@@ -250,7 +250,7 @@ test('Pilot Hub keeps FLY primary and moves management actions into the shared h
   assert.match(shell, /creditMark\.innerHTML = creditIcon/);
   assert.match(shell, /tokenMark\.innerHTML = tokenIcon/);
   assert.match(shell, /this\.garage\.innerHTML = `\$\{aircraftIcon\}<span>AIRCRAFTS<\/span>`/);
-  assert.match(shell, /this\.tokenAdd\.addEventListener\('click', \(\) => handlers\.skyTokens\?\.\(\)\)/);
+  assert.match(shell, /this\.tokenCard\.addEventListener\('click', \(\) => handlers\.skyTokens\?\.\(\)\)/);
   assert.match(shell, /this\.rewardsIndicator\.textContent = '1'/);
   assert.match(html, /id="hud-credits"/);
   assert.doesNotMatch(html, /id="(?:hud-sky-tokens|sky-tokens)"/);
