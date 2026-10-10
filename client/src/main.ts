@@ -714,6 +714,7 @@ navigationBeacons.setEnabled(navigationMarkersEnabled);
 
 function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   const next = missionFocusForAttempt(attempt);
+  adPlacementManager.setEnabled(!(next && attempt?.missionId === journeyDallas08.id));
   const nextBotIsolation = next !== null && attempt?.aiIsolated === true;
   const nextHunterId = next && (attempt?.missionId === journeyDallas02.id || attempt?.missionId === journeyDallas09.id) ? attempt.targetId : null;
   if (missionFocus === next && botIsolationActive === nextBotIsolation && focusedHunterId === nextHunterId) return;
@@ -2465,11 +2466,11 @@ function updateJourneyHud(): void {
     const instruction = onGround ? 'TAKE OFF — FOLLOW THE GOLD ARROW'
       : !leader ? 'FOLLOW THE ARROW TO THE LEADER'
         : status === 'VALID' ? 'GOOD POSITION — KEEP FOLLOWING!'
-          : status === 'GET_BEHIND' ? 'GET BEHIND THE LEADER'
+          : status === 'GET_BEHIND' ? journeyAttempt.holdMs > 0 ? 'GET BACK BEHIND THE LEADER' : 'GET BEHIND THE LEADER'
             : status === 'TOO_CLOSE' ? 'SLOW DOWN — GIVE SPACE'
               : status === 'TOO_FAR' ? 'GET CLOSER'
                 : status === 'ALTITUDE' ? "MATCH THE LEADER'S ALTITUDE"
-                  : status === 'ALIGN' ? 'GET BACK BEHIND THE LEADER' : 'FOLLOW THE ARROW TO THE LEADER';
+                  : status === 'ALIGN' ? "MATCH THE LEADER'S DIRECTION" : 'FOLLOW THE AI LEADER';
     if (journeyHudObjective) journeyHudObjective.textContent = instruction;
     if (journeyHudProgress) journeyHudProgress.textContent = `FOLLOW TIME: ${Math.min(15, Math.floor(journeyAttempt.holdMs / 1_000))}/15 SEC${status === 'VALID' ? '' : journeyAttempt.holdMs > 0 ? ' · PAUSED' : ''}`;
     if (journeyHudTarget) journeyHudTarget.textContent = `TARGET: AI LEADER${distance === null ? '' : ` · ${formatObjectiveDistance(distance)}`}`;

@@ -665,6 +665,7 @@ export function attachAircraftLivery(
 
 export class AdPlacementManager {
   private readonly rendered: RenderedPlacement[];
+  private enabled = true;
   private elapsed = 0;
   private debugElapsed = 0;
   private readonly debugElement?: HTMLDivElement;
@@ -702,7 +703,17 @@ export class AdPlacementManager {
     }
   }
 
+  setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (!enabled) for (const rendered of this.rendered) {
+      rendered.group.visible = false;
+      rendered.metrics.continuousVisibleSeconds = 0;
+    }
+  }
+
   update(camera: THREE.Camera, delta: number, localLiveryPlane?: THREE.Group, combatActive = false, combatX = 0, combatY = 0, combatRadius = 0): void {
+    if (!this.enabled) return;
     if (localLiveryPlane) localLiveryPlane.getWorldPosition(aircraftPoint);
     for (const ring of ringSponsors) {
       ring.group.getWorldPosition(placementPoint);
