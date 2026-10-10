@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
 import { landingGradeForScore, type LandingGrade } from '../../shared/landing-scoring.mjs';
 import { PlayerWallet } from './player-wallet.js';
 
@@ -94,13 +94,15 @@ export class JourneyAttemptStore {
   }
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
-    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id) throw new Error('Unknown Journey mission');
+    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id) throw new Error('Unknown Journey mission');
     if (missionId === journeyDallas02.id && !this.progress(pilotId).completed) throw new Error('Journey mission is locked');
     if (missionId === journeyDallas03.id && !this.progress(pilotId, journeyDallas02.id).completed) throw new Error('Journey mission is locked');
     if (missionId === journeyDallas04.id && !this.progress(pilotId, journeyDallas03.id).completed) throw new Error('Journey mission is locked');
     if (missionId === journeyDallas05.id && !this.progress(pilotId, journeyDallas04.id).completed) throw new Error('Journey mission is locked');
     if (missionId === journeyDallas06.id && !this.progress(pilotId, journeyDallas05.id).completed) throw new Error('Journey mission is locked');
     if (missionId === journeyDallas07.id && !this.progress(pilotId, journeyDallas06.id).completed) throw new Error('Journey mission is locked');
+    if (missionId === journeyDallas08.id && !this.progress(pilotId, journeyDallas07.id).completed) throw new Error('Journey mission is locked');
+    if (missionId === journeyDallas09.id && !this.progress(pilotId, journeyDallas08.id).completed) throw new Error('Journey mission is locked');
     return this.wallet.transaction(() => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);
@@ -203,13 +205,86 @@ export class JourneyAttemptStore {
 
   assignHunter(pilotId: string, attemptId: string, targetId: string, previousTargetId: string | null = null, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    if (!current || current.missionId !== journeyDallas02.id || !targetId ||
+    if (!current || (current.missionId !== journeyDallas02.id && current.missionId !== journeyDallas09.id) || !targetId ||
       (current.status === 'APPROACH' ? previousTargetId !== null : current.status !== 'RACING' || current.targetId !== previousTargetId)) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', target_id = ?, started_at = COALESCE(started_at, ?)
       WHERE pilot_id = ? AND attempt_id = ? AND status = ? AND target_id IS ?`)
       .run(targetId, now, pilotId, attemptId, current.status, previousTargetId).changes;
     if (changed !== 1) return undefined;
     return this.get(pilotId, attemptId);
+  }
+
+  /** Called only by the server after its own swept physical pickup check. */
+  completeHeartRecovery(pilotId: string, attemptId: string, heartId: string, now = Date.now()): JourneyAttempt | undefined {
+    return this.wallet.transaction(wallet => {
+      const current = this.get(pilotId, attemptId);
+      if (!current || current.missionId !== journeyDallas09.id || current.status !== 'RACING' ||
+        !current.targetId || heartId !== journeyDallas09.heartId ||
+        !this.progress(pilotId, journeyDallas08.id).completed) return undefined;
+      const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
+        (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,0)`)
+        .run(pilotId, current.missionId, attemptId, now).changes === 1;
+      if (!first) this.database.prepare('UPDATE journey_completions SET clear_count = clear_count + 1 WHERE pilot_id = ? AND mission_id = ?')
+        .run(pilotId, current.missionId);
+      let credited = 0;
+      if (first) {
+        const before = wallet.balances(pilotId)?.credits ?? 0;
+        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas09.firstClearCredits,
+          reason: 'MISSION_REWARD', idempotencyKey: `journey:${current.missionId}`, referenceId: current.missionId, createdAt: now });
+        if (!reward.ok) throw new Error('Journey recovery reward failed');
+        credited = Math.max(0, (reward.balance ?? before) - before);
+      }
+      this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', finished_at = ?,
+        first_clear_credits = ? WHERE pilot_id = ? AND attempt_id = ? AND status = 'RACING'`)
+        .run(now, credited, pilotId, attemptId);
+      return this.get(pilotId, attemptId);
+    });
+  }
+
+  assignLeader(pilotId: string, attemptId: string, targetId: string, previousTargetId: string | null = null, now = Date.now()): JourneyAttempt | undefined {
+    const current = this.get(pilotId, attemptId);
+    if (!current || current.missionId !== journeyDallas08.id || !targetId ||
+      (current.status === 'APPROACH' ? previousTargetId !== null : current.status !== 'RACING' || current.targetId !== previousTargetId)) return undefined;
+    const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', target_id = ?, hold_updated_at = NULL,
+      started_at = COALESCE(started_at, ?) WHERE pilot_id = ? AND attempt_id = ? AND status = ? AND target_id IS ?`)
+      .run(targetId, now, pilotId, attemptId, current.status, previousTargetId).changes;
+    return changed === 1 ? this.get(pilotId, attemptId) : undefined;
+  }
+
+  updateFormationHold(pilotId: string, attemptId: string, targetId: string, valid: boolean, now = Date.now()): JourneyAttempt | undefined {
+    return this.wallet.transaction(wallet => {
+      const current = this.get(pilotId, attemptId);
+      if (!current || current.missionId !== journeyDallas08.id || current.status !== 'RACING' || current.targetId !== targetId) return undefined;
+      if (!valid) {
+        if (current.holdUpdatedAt !== null) this.database.prepare('UPDATE journey_attempts SET hold_updated_at = NULL WHERE attempt_id = ?').run(attemptId);
+        return this.get(pilotId, attemptId);
+      }
+      const elapsed = current.holdUpdatedAt === null ? 0 : now > current.holdUpdatedAt && now - current.holdUpdatedAt <= 400
+        ? now - current.holdUpdatedAt : 0;
+      const holdMs = Math.min(journeyDallas08.followMs, current.holdMs + elapsed);
+      if (holdMs < journeyDallas08.followMs) {
+        this.database.prepare('UPDATE journey_attempts SET hold_ms = ?, hold_updated_at = ? WHERE attempt_id = ?')
+          .run(holdMs, now, attemptId);
+        return this.get(pilotId, attemptId);
+      }
+      const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
+        (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
+        .run(pilotId, journeyDallas08.id, attemptId, now, now - (current.startedAt ?? now)).changes === 1;
+      if (!first) this.database.prepare('UPDATE journey_completions SET clear_count = clear_count + 1 WHERE pilot_id = ? AND mission_id = ?')
+        .run(pilotId, journeyDallas08.id);
+      let credited = 0;
+      if (first) {
+        const before = wallet.balances(pilotId)?.credits ?? 0;
+        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas08.firstClearCredits,
+          reason: 'MISSION_REWARD', idempotencyKey: `journey:${journeyDallas08.id}`, referenceId: journeyDallas08.id, createdAt: now });
+        if (!reward.ok) throw new Error('Journey formation reward failed');
+        credited = Math.max(0, (reward.balance ?? before) - before);
+      }
+      this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', hold_ms = ?, hold_updated_at = NULL,
+        finished_at = ?, finish_time_ms = ?, first_clear_credits = ? WHERE attempt_id = ? AND status = 'RACING'`)
+        .run(holdMs, now, now - (current.startedAt ?? now), credited, attemptId);
+      return this.get(pilotId, attemptId);
+    });
   }
 
   completeHunter(pilotId: string, attemptId: string, targetId: string, now = Date.now()): JourneyAttempt | undefined {

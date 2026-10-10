@@ -1,0 +1,80 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { test } from 'node:test';
+import { cityAirports } from '../../shared/city-airports.mjs';
+import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
+import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
+import { JourneyAttemptStore } from './journey-attempts.js';
+
+test('Mission 9 uses the existing northwest Dallas Heart in reachable airspace', () => {
+  const heart = journeyDallas09.heart;
+  assert.ok(heart);
+  assert.equal(heart.id, journeyDallas09.heartId);
+  assert.equal(heart.kind, 'heart');
+  const dfw = cityAirports.dallas.find(airport => airport.id === journeyDallas09.startAirportId)!;
+  assert.ok(Math.abs(Math.hypot(heart.x - dfw.x, heart.z - dfw.z) - 9_426) < 2);
+  assert.equal(journeyDallas09.startHealthFraction, .6);
+  assert.equal(journeyDallas09.firstClearCredits, 1_050);
+});
+
+test('Mission 9 eligibility, assignment, pickup completion and wallet are idempotent', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-heart-journey-test-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0), ('other', 0, 0), ('capped', 999950, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    assert.throws(() => store.launch('pilot', 'trainer', 1_000, journeyDallas09.id), /locked/);
+    const fixture = new DatabaseSync(path);
+    for (const pilot of ['pilot', 'capped']) fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
+      .run(pilot, journeyDallas08.id, 'mission-08-clear', 500, 0);
+    fixture.close();
+    const first = store.launch('pilot', 'trainer', 1_000, journeyDallas09.id);
+    assert.equal(missionFocusForAttempt(first), null);
+    assert.equal(store.completeHeartRecovery('pilot', first.attemptId, journeyDallas09.heartId), undefined);
+    assert.equal(store.approach('pilot', first.attemptId)?.status, 'APPROACH');
+    assert.ok(missionFocusForAttempt(store.get('pilot', first.attemptId)));
+    assert.equal(store.completeHeartRecovery('pilot', first.attemptId, journeyDallas09.heartId), undefined);
+    assert.equal(store.assignHunter('other', first.attemptId, 'hunter'), undefined);
+    assert.equal(store.assignHunter('pilot', first.attemptId, 'hunter', null, 1_100)?.status, 'RACING');
+    assert.equal(store.assignHunter('pilot', first.attemptId, 'other-hunter', null, 1_200), undefined);
+    assert.equal(store.completeHeartRecovery('other', first.attemptId, journeyDallas09.heartId), undefined);
+    assert.equal(store.completeHeartRecovery('pilot', first.attemptId, 'outer-northeast-heart'), undefined);
+    const interrupted = store.launch('pilot', 'trainer', 1_300, journeyDallas09.id);
+    assert.equal(store.completeHeartRecovery('pilot', first.attemptId, journeyDallas09.heartId), undefined);
+    assert.equal(store.approach('pilot', interrupted.attemptId)?.status, 'APPROACH');
+    assert.equal(store.assignHunter('pilot', interrupted.attemptId, 'failed-hunter', null, 1_400)?.status, 'RACING');
+    assert.equal(store.fail('pilot', interrupted.attemptId, 'CRASHED', 1_500)?.status, 'FAILED');
+    assert.equal(store.completeHeartRecovery('pilot', interrupted.attemptId, journeyDallas09.heartId), undefined);
+    const disconnected = store.launch('pilot', 'trainer', 1_520, journeyDallas09.id);
+    store.approach('pilot', disconnected.attemptId);
+    store.assignHunter('pilot', disconnected.attemptId, 'disconnected-hunter', null, 1_530);
+    assert.equal(store.fail('pilot', disconnected.attemptId, 'INTERRUPTED', 1_540)?.status, 'FAILED');
+    assert.equal(store.completeHeartRecovery('pilot', disconnected.attemptId, journeyDallas09.heartId), undefined);
+    const retry = store.launch('pilot', 'trainer', 1_600, journeyDallas09.id);
+    store.approach('pilot', retry.attemptId);
+    store.assignHunter('pilot', retry.attemptId, 'retry-hunter', null, 1_700);
+    const won = store.completeHeartRecovery('pilot', retry.attemptId, journeyDallas09.heartId, 20_000);
+    assert.equal(won?.status, 'COMPLETED');
+    assert.equal(won?.firstClearCredits, 1_050);
+    assert.equal(store.completeHeartRecovery('pilot', retry.attemptId, journeyDallas09.heartId, 20_001), undefined);
+    assert.equal(missionFocusForAttempt(won), null);
+    const replay = store.launch('pilot', 'trainer', 30_000, journeyDallas09.id);
+    store.approach('pilot', replay.attemptId);
+    store.assignHunter('pilot', replay.attemptId, 'replay-hunter', null, 30_100);
+    assert.equal(store.completeHeartRecovery('pilot', replay.attemptId, journeyDallas09.heartId, 40_000)?.firstClearCredits, 0);
+    const capped = store.launch('capped', 'trainer', 50_000, journeyDallas09.id);
+    store.approach('capped', capped.attemptId);
+    store.assignHunter('capped', capped.attemptId, 'capped-hunter', null, 50_100);
+    assert.equal(store.completeHeartRecovery('capped', capped.attemptId, journeyDallas09.heartId, 60_000)?.firstClearCredits, 50);
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get() as { credits: number }).credits, 1_050);
+    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE pilot_id = 'pilot' AND reference_id = ?").get(journeyDallas09.id) as { count: number }).count, 1);
+    assert.equal((check.prepare("SELECT amount FROM wallet_transactions WHERE pilot_id = 'capped' AND reference_id = ?").get(journeyDallas09.id) as { amount: number }).amount, 50);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

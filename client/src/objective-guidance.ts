@@ -5,6 +5,7 @@ export type MissionObjective = {
   label: string;
   position: THREE.Vector3;
   radius: number;
+  onscreenMarker?: boolean;
 };
 
 type ConfirmedGateAttempt = { attemptId: string; gateIndex: number; status: string };
@@ -328,7 +329,7 @@ export class ObjectiveGuidance {
       this.marker.textContent = label;
       this.arrowText.textContent = label;
     }
-    this.marker.hidden = placement.kind !== 'marker';
+    this.marker.hidden = placement.kind !== 'marker' || target.onscreenMarker === false;
     this.arrow.hidden = placement.kind !== 'arrow';
     const visible = placement.kind === 'marker' ? this.marker : this.arrow;
     visible.style.transform = `translate(-50%, -50%) translate(${placement.x.toFixed(1)}px, ${placement.y.toFixed(1)}px)`;

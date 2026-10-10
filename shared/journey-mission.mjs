@@ -1,5 +1,6 @@
 import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
+import { repairsForCity } from './city-repairs.mjs';
 
 export const journeyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
@@ -51,6 +52,32 @@ export const journeyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'SKY ELEVATOR',
   chapter: 'SKY ADVENTURES', timeLimitMs: 66_000, firstClearCredits: 850,
   startAirportId: 'addison', gates: addisonClimbGates,
+});
+
+export const journeyDallas08 = Object.freeze({
+  id: 'journey-dallas-08', cityId: 'dallas', name: 'STAY ON HIS SIX',
+  chapter: 'SKY ADVENTURES', firstClearCredits: 950,
+  startAirportId: 'love', followMs: 15_000,
+  minDistance: 80, maxDistance: 280, maxTailAngle: 40 * Math.PI / 180,
+  maxHeadingDifference: 45 * Math.PI / 180, maxAltitudeDifference: 100,
+  // A broad circuit northwest of Love Field. The server's existing bot
+  // steering and terrain clearance determine the actual flown trajectory.
+  leaderRoute: Object.freeze([
+    { x: -5_140, z: -10_500 }, { x: -5_900, z: -13_200 },
+    { x: -8_600, z: -15_200 }, { x: -11_200, z: -13_700 },
+    { x: -12_000, z: -10_600 }, { x: -9_800, z: -8_500 },
+    { x: -7_100, z: -8_900 },
+  ]),
+});
+
+const recoveryHeart = repairsForCity('dallas').find(beacon => beacon.id === 'outer-northwest-heart' && beacon.kind === 'heart');
+if (!recoveryHeart) throw new Error('Dallas recovery Heart is unavailable');
+export const journeyDallas09 = Object.freeze({
+  id: 'journey-dallas-09', cityId: 'dallas', name: 'ONE HEART LEFT',
+  chapter: 'SKY ADVENTURES', firstClearCredits: 1_050,
+  startAirportId: 'dfw', startHealthFraction: 0.6,
+  heartId: recoveryHeart.id,
+  heart: recoveryHeart,
 });
 
 // Cross the face of the next ring within its illuminated opening. White Rock

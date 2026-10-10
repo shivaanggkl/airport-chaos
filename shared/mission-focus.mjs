@@ -1,4 +1,4 @@
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07 } from './journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09 } from './journey-mission.mjs';
 
 const activeStatuses = new Set(['APPROACH', 'RACING']);
 
@@ -17,11 +17,12 @@ export function missionFocusForAttempt(attempt) {
   return (attempt?.missionId === journeyDallas01.id || attempt?.missionId === journeyDallas02.id ||
     attempt?.missionId === journeyDallas03.id || attempt?.missionId === journeyDallas04.id ||
     attempt?.missionId === journeyDallas05.id || attempt?.missionId === journeyDallas06.id ||
-    attempt?.missionId === journeyDallas07.id) && activeStatuses.has(attempt.status)
+    attempt?.missionId === journeyDallas07.id || attempt?.missionId === journeyDallas08.id ||
+    attempt?.missionId === journeyDallas09.id) && activeStatuses.has(attempt.status)
     ? journeyFocus : null;
 }
 
-/** Only a server-owned assigned Hunter can interact with its focused Mission 2 pilot. */
+/** Only a server-owned assigned Hunter can interact with its focused Journey pilot. */
 export function excludesFocusedBotInteraction(firstFocused, firstIsBot, secondFocused, secondIsBot,
   firstAllowsSecondBot = false, secondAllowsFirstBot = false) {
   return (firstFocused && secondIsBot && !firstAllowsSecondBot) ||

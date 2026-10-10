@@ -1,6 +1,6 @@
 import './mission-journey.css';
 import { hapticsManager } from './haptics-manager';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
 
 type ChapterNumber = 1 | 2 | 3 | 4;
 type StageImplementation = 'playable' | 'planned';
@@ -26,6 +26,8 @@ const missionCards: readonly MissionCard[] = [
   { title: journeyDallas05.name, objective: 'Fly accurately through 4 narrow downtown gates!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas05.timeLimitMs) }], reward: journeyDallas05.firstClearCredits },
   { title: journeyDallas06.name, objective: 'Fly through 6 glowing gates, then make a smooth landing!', facts: [{ icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:00 RACE' }, { icon: 'landing', label: 'SMOOTH LANDING' }], reward: journeyDallas06.firstClearCredits },
   { title: journeyDallas07.name, objective: 'Climb through 4 glowing gates. Reach the highest gate before time runs out!', facts: [{ icon: 'location', label: 'ADDISON' }, { icon: 'gate', label: `${journeyDallas07.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas07.timeLimitMs) }], reward: journeyDallas07.firstClearCredits },
+  { title: journeyDallas08.name, objective: 'Get behind the AI aircraft and follow it for 15 seconds!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: 'FOLLOW AI' }, { icon: 'timer', label: seconds(journeyDallas08.followMs) }], reward: journeyDallas08.firstClearCredits },
+  { title: journeyDallas09.name, objective: 'Your aircraft is damaged! Escape the Hunter and reach the glowing Repair Heart!', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'health', label: '60% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }], reward: journeyDallas09.firstClearCredits },
 ];
 const factIcons: Readonly<Record<FactIcon, string>> = {
   location: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
@@ -44,10 +46,10 @@ const stagePositions: readonly (readonly [number, number])[] = [
 ];
 
 export const missionJourneyStages: readonly MissionJourneyStage[] = stagePositions.map(([x, y], index) => ({
-  id: index < 7 ? `journey-dallas-0${index + 1}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
+  id: index < 9 ? `journey-dallas-0${index + 1}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
   number: index + 1,
   chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
-  implementation: index < 7 ? 'playable' : 'planned',
+  implementation: index < 9 ? 'playable' : 'planned',
   x,
   y,
 }));
@@ -94,6 +96,10 @@ export class MissionJourney {
   private stageSixEligible = false;
   private stageSevenCompleted = false;
   private stageSevenEligible = false;
+  private stageEightCompleted = false;
+  private stageEightEligible = false;
+  private stageNineCompleted = false;
+  private stageNineEligible = false;
 
   constructor(private readonly element: HTMLElement, onCities: () => void, onFreeFlight: () => void, onPlayMission: () => void, private readonly onPanelOpen: () => void, onPanelClose: () => void) {
     element.classList.add('mission-journey');
@@ -188,6 +194,14 @@ export class MissionJourney {
     seventhCompletedRoute.setAttribute('d', routePath(missionJourneyStages.slice(6, 8)));
     seventhCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-seven');
     route.append(seventhCompletedRoute);
+    const eighthCompletedRoute = completedRoute.cloneNode() as SVGPathElement;
+    eighthCompletedRoute.setAttribute('d', routePath(missionJourneyStages.slice(7, 9)));
+    eighthCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-eight');
+    route.append(eighthCompletedRoute);
+    const ninthCompletedRoute = completedRoute.cloneNode() as SVGPathElement;
+    ninthCompletedRoute.setAttribute('d', routePath(missionJourneyStages.slice(8, 10)));
+    ninthCompletedRoute.setAttribute('class', 'mission-journey-route-completed mission-journey-route-completed-nine');
+    route.append(ninthCompletedRoute);
     const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
     for (const stage of missionJourneyStages) {
       const button = document.createElement('button');
@@ -293,6 +307,24 @@ export class MissionJourney {
     if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
   }
 
+  setStageEightProgress(eligible: boolean, completed: boolean): void {
+    const newlyCompleted = completed && !this.stageEightCompleted;
+    this.stageEightEligible = eligible;
+    this.stageEightCompleted = completed;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 9;
+    this.renderProgress();
+    if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
+  }
+
+  setStageNineProgress(eligible: boolean, completed: boolean): void {
+    const newlyCompleted = completed && !this.stageNineCompleted;
+    this.stageNineEligible = eligible;
+    this.stageNineCompleted = completed;
+    if (newlyCompleted && !this.userSelectedStage) this.selectedStage = 10;
+    this.renderProgress();
+    if (newlyCompleted && !this.userSelectedStage && this.isOpen) this.revealSelectedStage();
+  }
+
   private renderProgress(): void {
     const completed = this.stageOneCompleted;
     this.element.classList.toggle('has-stage-one-complete', completed);
@@ -302,13 +334,15 @@ export class MissionJourney {
     this.element.classList.toggle('has-stage-five-complete', this.stageFiveCompleted);
     this.element.classList.toggle('has-stage-six-complete', this.stageSixCompleted);
     this.element.classList.toggle('has-stage-seven-complete', this.stageSevenCompleted);
+    this.element.classList.toggle('has-stage-eight-complete', this.stageEightCompleted);
+    this.element.classList.toggle('has-stage-nine-complete', this.stageNineCompleted);
     this.stageButtons.forEach((button, index) => {
       const number = index + 1;
-      const reached = number === 1 || number === 2 && completed || number === 3 && this.stageTwoCompleted || number === 4 && this.stageThreeCompleted || number === 5 && this.stageFourCompleted || number === 6 && this.stageFiveCompleted || number === 7 && this.stageSixCompleted || number === 8 && this.stageSevenCompleted;
+      const reached = number === 1 || number === 2 && completed || number === 3 && this.stageTwoCompleted || number === 4 && this.stageThreeCompleted || number === 5 && this.stageFourCompleted || number === 6 && this.stageFiveCompleted || number === 7 && this.stageSixCompleted || number === 8 && this.stageSevenCompleted || number === 9 && this.stageEightCompleted || number === 10 && this.stageNineCompleted;
       button.classList.toggle('is-locked', !reached);
-      button.classList.toggle('is-completed', number === 1 && completed || number === 2 && this.stageTwoCompleted || number === 3 && this.stageThreeCompleted || number === 4 && this.stageFourCompleted || number === 5 && this.stageFiveCompleted || number === 6 && this.stageSixCompleted || number === 7 && this.stageSevenCompleted);
+      button.classList.toggle('is-completed', number === 1 && completed || number === 2 && this.stageTwoCompleted || number === 3 && this.stageThreeCompleted || number === 4 && this.stageFourCompleted || number === 5 && this.stageFiveCompleted || number === 6 && this.stageSixCompleted || number === 7 && this.stageSevenCompleted || number === 8 && this.stageEightCompleted || number === 9 && this.stageNineCompleted);
       button.classList.toggle('is-current', number === 1 && !completed);
-      button.classList.toggle('is-next', number === 2 && completed && !this.stageTwoCompleted || number === 3 && this.stageTwoCompleted && !this.stageThreeCompleted || number === 4 && this.stageThreeCompleted && !this.stageFourCompleted || number === 5 && this.stageFourCompleted && !this.stageFiveCompleted || number === 6 && this.stageFiveCompleted && !this.stageSixCompleted || number === 7 && this.stageSixCompleted && !this.stageSevenCompleted || number === 8 && this.stageSevenCompleted);
+      button.classList.toggle('is-next', number === 2 && completed && !this.stageTwoCompleted || number === 3 && this.stageTwoCompleted && !this.stageThreeCompleted || number === 4 && this.stageThreeCompleted && !this.stageFourCompleted || number === 5 && this.stageFourCompleted && !this.stageFiveCompleted || number === 6 && this.stageFiveCompleted && !this.stageSixCompleted || number === 7 && this.stageSixCompleted && !this.stageSevenCompleted || number === 8 && this.stageSevenCompleted && !this.stageEightCompleted || number === 9 && this.stageEightCompleted && !this.stageNineCompleted || number === 10 && this.stageNineCompleted);
       button.classList.toggle('is-selected', number === this.selectedStage);
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
       if (number === 1) button.dataset.progressLabel = this.stageOneEligible ? 'CURRENT MISSION' : 'START HERE';
@@ -318,7 +352,9 @@ export class MissionJourney {
       if (number === 5) button.dataset.progressLabel = this.stageFiveCompleted ? 'COMPLETED' : 'CURRENT MISSION';
       if (number === 6) button.dataset.progressLabel = this.stageSixCompleted ? 'COMPLETED' : 'CURRENT MISSION';
       if (number === 7) button.dataset.progressLabel = this.stageSevenCompleted ? 'COMPLETED' : this.stageSevenEligible ? 'CURRENT MISSION' : 'LOCKED';
-      if (number === 8) button.dataset.progressLabel = this.stageSevenCompleted ? 'NEXT · COMING SOON' : 'LOCKED';
+      if (number === 8) button.dataset.progressLabel = this.stageEightCompleted ? 'COMPLETED' : this.stageEightEligible ? 'CURRENT MISSION' : 'LOCKED';
+      if (number === 9) button.dataset.progressLabel = this.stageNineCompleted ? 'COMPLETED' : this.stageNineEligible ? 'CURRENT MISSION' : 'LOCKED';
+      if (number === 10) button.dataset.progressLabel = this.stageNineCompleted ? 'NEXT · COMING SOON' : 'LOCKED';
       button.setAttribute('aria-label', number === 1
         ? completed ? 'Mission 1, completed, select to replay or preview' : this.stageOneEligible ? 'Mission 1, current mission, select to preview' : 'Mission 1, starting preview, select for details'
         : number === 2 && reached ? this.stageTwoCompleted ? 'Mission 2, completed, select to replay or preview' : 'Mission 2, current mission, select to play'
@@ -327,7 +363,9 @@ export class MissionJourney {
               : number === 5 && reached ? this.stageFiveCompleted ? 'Mission 5, completed, select to replay or preview' : 'Mission 5, current mission, select to play'
                 : number === 6 && reached ? this.stageSixCompleted ? 'Mission 6, completed, select to replay or preview' : 'Mission 6, current mission, select to play'
                   : number === 7 && reached ? this.stageSevenCompleted ? 'Mission 7, completed, select to replay or preview' : 'Mission 7, current mission, select to play'
-                    : number === 8 && reached ? 'Mission 8, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
+                    : number === 8 && reached ? this.stageEightCompleted ? 'Mission 8, completed, select to replay or preview' : 'Mission 8, current mission, select to play'
+                      : number === 9 && reached ? this.stageNineCompleted ? 'Mission 9, completed, select to replay or preview' : 'Mission 9, current mission, select to play'
+                        : number === 10 && reached ? 'Mission 10, next mission preview, coming soon' : `Mission ${number}, locked, select to preview`);
       const lock = button.querySelector('small');
       if (lock) lock.hidden = reached;
     });
@@ -432,6 +470,34 @@ export class MissionJourney {
 
   advanceToStageEight(): void { this.select(8); }
 
+  celebrateStageEight(): void {
+    this.select(8, false);
+    this.setPanelOpen(false);
+    this.stageButtons[7]?.classList.add('is-newly-completed');
+    this.element.classList.add('is-progressing-eight');
+    window.setTimeout(() => {
+      this.stageButtons[7]?.classList.remove('is-newly-completed');
+      this.element.classList.remove('is-progressing-eight');
+      if (this.isOpen) this.select(9);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
+  }
+
+  advanceToStageNine(): void { this.select(9); }
+
+  celebrateStageNine(): void {
+    this.select(9, false);
+    this.setPanelOpen(false);
+    this.stageButtons[8]?.classList.add('is-newly-completed');
+    this.element.classList.add('is-progressing-nine');
+    window.setTimeout(() => {
+      this.stageButtons[8]?.classList.remove('is-newly-completed');
+      this.element.classList.remove('is-progressing-nine');
+      if (this.isOpen) this.select(10);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
+  }
+
+  advanceToStageTen(): void { this.select(10); }
+
   show(panelOpen = false): void {
     this.element.hidden = false;
     this.element.classList.toggle('is-paused', document.hidden);
@@ -481,12 +547,12 @@ export class MissionJourney {
   private renderDetails(): void {
     const stage = missionJourneyStages[this.selectedStage - 1]!;
     const card = missionCards[stage.number - 1];
-    const completed = [this.stageOneCompleted, this.stageTwoCompleted, this.stageThreeCompleted, this.stageFourCompleted, this.stageFiveCompleted, this.stageSixCompleted, this.stageSevenCompleted][stage.number - 1] === true;
-    const eligible = [this.stageOneEligible, this.stageTwoEligible, this.stageThreeEligible, this.stageFourEligible, this.stageFiveEligible, this.stageSixEligible, this.stageSevenEligible][stage.number - 1] === true;
-    const reached = stage.number === 8 && this.stageSevenCompleted;
+    const completed = [this.stageOneCompleted, this.stageTwoCompleted, this.stageThreeCompleted, this.stageFourCompleted, this.stageFiveCompleted, this.stageSixCompleted, this.stageSevenCompleted, this.stageEightCompleted, this.stageNineCompleted][stage.number - 1] === true;
+    const eligible = [this.stageOneEligible, this.stageTwoEligible, this.stageThreeEligible, this.stageFourEligible, this.stageFiveEligible, this.stageSixEligible, this.stageSevenEligible, this.stageEightEligible, this.stageNineEligible][stage.number - 1] === true;
+    const reached = stage.number === 10 && this.stageNineCompleted;
     const locked = (!card && !reached) || (!!card && !eligible && !completed);
-    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}${stage.number === 6 ? ' · CHAPTER 1 FINALE' : stage.number === 7 ? ' · CHAPTER 2' : ''}`;
-    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card?.title ?? (stage.number === 8 ? 'STAY ON HIS SIX' : 'MISSION COMING SOON');
+    this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}${stage.number === 6 ? ' · CHAPTER 1 FINALE' : stage.number >= 7 && stage.number <= 9 ? ' · CHAPTER 2' : ''}`;
+    this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card?.title ?? (stage.number === 10 ? 'SKYLINE SLALOM' : 'MISSION COMING SOON');
     const status = this.detail.querySelector<HTMLElement>('[data-mission-status]')!;
     status.textContent = completed ? 'COMPLETED' : locked ? 'LOCKED' : card ? 'AVAILABLE' : 'COMING SOON';
     status.classList.toggle('is-locked', locked);

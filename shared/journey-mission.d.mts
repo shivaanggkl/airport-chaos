@@ -33,6 +33,19 @@ export const journeyDallas07: Readonly<{
   timeLimitMs: 66000; firstClearCredits: 850; startAirportId: 'addison';
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
+export const journeyDallas08: Readonly<{
+  id: 'journey-dallas-08'; cityId: 'dallas'; name: 'STAY ON HIS SIX'; chapter: 'SKY ADVENTURES';
+  firstClearCredits: 950; startAirportId: 'love'; followMs: 15000;
+  minDistance: 80; maxDistance: 280; maxTailAngle: number;
+  maxHeadingDifference: number; maxAltitudeDifference: 100;
+  leaderRoute: readonly Readonly<{ x: number; z: number }>[];
+}>;
+export const journeyDallas09: Readonly<{
+  id: 'journey-dallas-09'; cityId: 'dallas'; name: 'ONE HEART LEFT'; chapter: 'SKY ADVENTURES';
+  firstClearCredits: 1050; startAirportId: 'dfw'; startHealthFraction: 0.6;
+  heartId: 'outer-northwest-heart';
+  heart: { id: string; kind: 'heart'; x: number; z: number; radius: number; altitudeAgl: number };
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
   mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
