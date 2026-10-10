@@ -714,7 +714,7 @@ navigationBeacons.setEnabled(navigationMarkersEnabled);
 
 function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   const next = missionFocusForAttempt(attempt);
-  adPlacementManager.setEnabled(!(next && attempt?.missionId === journeyDallas08.id));
+  adPlacementManager.setEnabled(!(next && (attempt?.missionId === journeyDallas08.id || attempt?.missionId === journeyDallas09.id)));
   const nextBotIsolation = next !== null && attempt?.aiIsolated === true;
   const nextHunterId = next && (attempt?.missionId === journeyDallas02.id || attempt?.missionId === journeyDallas09.id) ? attempt.targetId : null;
   if (missionFocus === next && botIsolationActive === nextBotIsolation && focusedHunterId === nextHunterId) return;
@@ -2453,7 +2453,7 @@ function updateJourneyHud(): void {
         : distance !== null && distance < 1_000 ? 'REPAIR HEART AHEAD'
           : performance.now() < recoveryHunterNoticeUntil ? 'HUNTER INCOMING — KEEP MOVING!'
             : 'FOLLOW THE ARROW TO THE HEART';
-    if (journeyHudProgress) journeyHudProgress.textContent = `HEALTH: ${health}/${maxHealth}`;
+    if (journeyHudProgress) journeyHudProgress.textContent = `HEALTH: ${Math.round(health / maxHealth * 100)}%`;
     if (journeyHudTarget) journeyHudTarget.textContent = `HEART: ${distance === null ? 'LOCATING' : formatObjectiveDistance(distance)}`;
     if (journeyHudTimer) journeyHudTimer.textContent = journeyAttempt.targetEngaged ? 'HUNTER: PURSUING' : 'TARGET: REPAIR HEART';
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${Math.max(0, health / maxHealth * 100)}%`);
@@ -2680,7 +2680,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : `4/4 GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
     : attempt.failureReason === 'LANDING_TOO_ROUGH' ? 'SMOOTH LANDING REQUIRED'
       : attempt.failureReason === 'WRONG_AIRPORT' ? 'LAND AT DFW TO WIN'
-      : attempt.failureReason === 'TIME_UP' ? "TIME'S UP" : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED'
+      : attempt.failureReason === 'TIME_UP' ? "TIME'S UP" : attempt.failureReason === 'CRASHED' ? recoveryMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
       : hunterMission && attempt.failureReason === 'INVALID' ? 'LEFT DALLAS AIRSPACE' : 'FLIGHT INTERRUPTED';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-reward]')!.textContent = success
     ? attempt.firstClearCredits > 0 ? recoveryMission || formationMission || elevatorMission || championshipMission ? `+${attempt.firstClearCredits} CREDITS · FIRST COMPLETION ONLY`

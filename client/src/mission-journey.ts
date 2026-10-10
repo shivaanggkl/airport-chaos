@@ -27,7 +27,7 @@ const missionCards: readonly MissionCard[] = [
   { title: journeyDallas06.name, objective: 'Fly through 6 glowing gates, then make a smooth landing!', facts: [{ icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:00 RACE' }, { icon: 'landing', label: 'SMOOTH LANDING' }], reward: journeyDallas06.firstClearCredits },
   { title: journeyDallas07.name, objective: 'Climb through 4 glowing gates. Reach the highest gate before time runs out!', facts: [{ icon: 'location', label: 'ADDISON' }, { icon: 'gate', label: `${journeyDallas07.gates.length} GATES` }, { icon: 'timer', label: seconds(journeyDallas07.timeLimitMs) }], reward: journeyDallas07.firstClearCredits },
   { title: journeyDallas08.name, objective: 'Get behind the AI aircraft and follow it for 15 seconds!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: 'FOLLOW AI' }, { icon: 'timer', label: seconds(journeyDallas08.followMs) }], reward: journeyDallas08.firstClearCredits },
-  { title: journeyDallas09.name, objective: 'Your aircraft is damaged! Escape the Hunter and reach the glowing Repair Heart!', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'health', label: '60% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }], reward: journeyDallas09.firstClearCredits },
+  { title: journeyDallas09.name, objective: 'Escape the Hunter. Reach the glowing Repair Heart!', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'health', label: '60% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }], reward: journeyDallas09.firstClearCredits },
 ];
 const factIcons: Readonly<Record<FactIcon, string>> = {
   location: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
