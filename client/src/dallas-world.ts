@@ -14,7 +14,7 @@ import type { ImportedObstacle, ImportedRoadSegment, ImportedWater } from './osm
 import type { WorldMapLayer } from './world-map';
 import type { NavigationDestination } from './navigation-beacons';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
-import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates } from '../../shared/city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from '../../shared/city-challenges.mjs';
 import { airborneAdVisibilityMultiplier } from '../../shared/ad-placement-rules.mjs';
 import { CityVisualLayer, type CityVisualConfig, type CityVisualQuality, type CityTimeOfDay } from './city-visuals';
 import { DallasScenery } from './dallas-scenery';
@@ -538,12 +538,7 @@ export const skyChallenges: ReadonlyArray<SkyChallengeDefinition> = [
   },
   {
     id: 'addison-climb', name: `${place.addison} DEPARTURE CLIMB`, type: 'climb', reward: 280, timeLimit: 66,
-    gates: [
-      { x: dallasLocations.addison.x - 180, z: dallasLocations.addison.z + 1_550, altitude: 310, radius: 76 },
-      { x: dallasLocations.addison.x - 80, z: dallasLocations.addison.z + 3_100, altitude: 680, radius: 72 },
-      { x: dallasLocations.addison.x + 120, z: dallasLocations.addison.z + 4_600, altitude: 1_080, radius: 70 },
-      { x: dallasLocations.addison.x + 260, z: dallasLocations.addison.z + 6_100, altitude: 1_460, radius: 72 },
-    ],
+    gates: addisonClimbGates,
   },
   {
     id: 'downtown-corkscrew', name: 'SKYLINE CORKSCREW', type: 'corkscrew', reward: 360, timeLimit: 70,

@@ -134,7 +134,34 @@ export function lowAltitudeGateInstruction(gateNumber: number, grounded: boolean
   return `FOLLOW THE ARROW TO GATE ${gateNumber}`;
 }
 
+/** Presentation guidance for the shared ascending course; it never accepts a gate. */
+export function climbGateInstruction(gateNumber: number, grounded: boolean, distanceMeters: number,
+  heightDifference: number, gateRadius: number, speed: number, takeoffSpeed: number, justCleared: boolean,
+  departureTurnSide: PrecisionTurnSide = null, clearOfRunway = true): string {
+  if (justCleared) return `GATE ${gateNumber - 1} CLEARED!`;
+  if (grounded) return 'TAKE OFF — CLIMB CLEAR OF RUNWAY';
+  if (gateNumber === 1 && !clearOfRunway) return 'CLIMB CLEAR OF RUNWAY';
+  if (gateNumber === 1 && departureTurnSide) return `GATE 1 — TURN ${departureTurnSide}`;
+  if (heightDifference > gateRadius * .5 && distanceMeters <= 1_700) {
+    if (speed < takeoffSpeed * 1.2) return 'GAIN SPEED TO KEEP CLIMBING';
+    return `CLIMB TO GATE ${gateNumber}`;
+  }
+  if (distanceMeters <= Math.max(210, gateRadius * 3) && Math.abs(heightDifference) <= gateRadius * .7)
+    return `FLY THROUGH GATE ${gateNumber}`;
+  return `FOLLOW THE ARROW TO GATE ${gateNumber}`;
+}
+
 export type PrecisionTurnSide = 'LEFT' | 'RIGHT' | null;
+
+/** The configured Addison departure points away from Gate 1; keep the initial turn cue stable until aligned. */
+export function climbDepartureTurnSide(gateNumber: number, grounded: boolean, bearingRadians: number,
+  previousTurnSide: PrecisionTurnSide): PrecisionTurnSide {
+  if (gateNumber !== 1 || grounded || !Number.isFinite(bearingRadians)) return null;
+  const angle = Math.abs(bearingRadians);
+  if (angle < Math.PI / 4) return null;
+  if (previousTurnSide) return previousTurnSide;
+  return angle > Math.PI * 5 / 9 ? bearingRadians < 0 ? 'LEFT' : 'RIGHT' : null;
+}
 
 /** Signed target bearing in the aircraft's existing forward/right coordinate frame. */
 export function precisionGateBearing(aircraftX: number, aircraftZ: number, yaw: number,

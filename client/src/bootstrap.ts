@@ -54,7 +54,7 @@ const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
 const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
-let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' = 'mission-01';
+let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' = 'mission-01';
 
 function abandonPendingJourneyLaunch(): void {
   const attemptId = journeyAttemptId;
@@ -65,23 +65,25 @@ function abandonPendingJourneyLaunch(): void {
   }).catch(() => undefined);
 }
 
-async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string }; mission03?: { completed: boolean; firstAttemptId?: string }; mission04?: { completed: boolean; firstAttemptId?: string }; mission05?: { completed: boolean; firstAttemptId?: string }; mission06?: { completed: boolean; firstAttemptId?: string } } | undefined> {
+async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string }; mission03?: { completed: boolean; firstAttemptId?: string }; mission04?: { completed: boolean; firstAttemptId?: string }; mission05?: { completed: boolean; firstAttemptId?: string }; mission06?: { completed: boolean; firstAttemptId?: string }; mission07?: { completed: boolean; firstAttemptId?: string } } | undefined> {
   try {
     const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
-    if (!response.ok) { missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); return undefined; }
-    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
+    if (!response.ok) { missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); missionJourney.setStageSevenProgress(false, false); return undefined; }
+    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission07?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
     missionJourney.setStageOneProgress(progress.eligible === true, progress.completed === true);
     missionJourney.setStageTwoProgress(progress.mission02?.eligible === true, progress.mission02?.completed === true);
     missionJourney.setStageThreeProgress(progress.mission03?.eligible === true, progress.mission03?.completed === true);
     missionJourney.setStageFourProgress(progress.mission04?.eligible === true, progress.mission04?.completed === true);
     missionJourney.setStageFiveProgress(progress.mission05?.eligible === true, progress.mission05?.completed === true);
     missionJourney.setStageSixProgress(progress.mission06?.eligible === true, progress.mission06?.completed === true);
+    missionJourney.setStageSevenProgress(progress.mission07?.eligible === true, progress.mission07?.completed === true);
     return { completed: progress.completed === true, firstAttemptId: progress.firstAttemptId,
       mission02: { completed: progress.mission02?.completed === true, firstAttemptId: progress.mission02?.firstAttemptId },
       mission03: { completed: progress.mission03?.completed === true, firstAttemptId: progress.mission03?.firstAttemptId },
       mission04: { completed: progress.mission04?.completed === true, firstAttemptId: progress.mission04?.firstAttemptId },
       mission05: { completed: progress.mission05?.completed === true, firstAttemptId: progress.mission05?.firstAttemptId },
-      mission06: { completed: progress.mission06?.completed === true, firstAttemptId: progress.mission06?.firstAttemptId } };
+      mission06: { completed: progress.mission06?.completed === true, firstAttemptId: progress.mission06?.firstAttemptId },
+      mission07: { completed: progress.mission07?.completed === true, firstAttemptId: progress.mission07?.firstAttemptId } };
   } catch {
     missionJourney.setStageOneProgress(false, false);
     missionJourney.setStageTwoProgress(false, false);
@@ -89,12 +91,13 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
     missionJourney.setStageFourProgress(false, false);
     missionJourney.setStageFiveProgress(false, false);
     missionJourney.setStageSixProgress(false, false);
+    missionJourney.setStageSevenProgress(false, false);
     return undefined;
   }
 }
 
 async function playJourneyMission(): Promise<void> {
-  const mission = missionJourney.selectedMissionNumber === 6 ? 'mission-06' : missionJourney.selectedMissionNumber === 5 ? 'mission-05' : missionJourney.selectedMissionNumber === 4 ? 'mission-04' : missionJourney.selectedMissionNumber === 3 ? 'mission-03' : missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
+  const mission = missionJourney.selectedMissionNumber === 7 ? 'mission-07' : missionJourney.selectedMissionNumber === 6 ? 'mission-06' : missionJourney.selectedMissionNumber === 5 ? 'mission-05' : missionJourney.selectedMissionNumber === 4 ? 'mission-04' : missionJourney.selectedMissionNumber === 3 ? 'mission-03' : missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
   try {
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -1908,7 +1911,9 @@ async function start(): Promise<void> {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();
-    if (journeyReceipt && progress?.mission06?.completed && progress.mission06.firstAttemptId === journeyReceipt) {
+    if (journeyReceipt && progress?.mission07?.completed && progress.mission07.firstAttemptId === journeyReceipt) {
+      missionJourney.celebrateStageSeven();
+    } else if (journeyReceipt && progress?.mission06?.completed && progress.mission06.firstAttemptId === journeyReceipt) {
       missionJourney.celebrateStageSix();
     } else if (journeyReceipt && progress?.mission05?.completed && progress.mission05.firstAttemptId === journeyReceipt) {
       missionJourney.celebrateStageFive();
@@ -1920,6 +1925,8 @@ async function start(): Promise<void> {
       missionJourney.celebrateStageTwo();
     } else if (journeyReceipt && progress?.completed && progress.firstAttemptId === journeyReceipt) {
       missionJourney.celebrateStageOne();
+    } else if (journeyReceipt && progress?.mission07?.completed) {
+      missionJourney.advanceToStageEight();
     } else if (journeyReceipt && progress?.mission06?.completed) {
       missionJourney.advanceToStageSeven();
     } else if (journeyReceipt && progress?.mission05?.completed) {

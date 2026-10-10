@@ -23,6 +23,13 @@ export const lasColinasFlybyGates = Object.freeze([
   { x: -13_700, z: -9_400, altitude: 360, radius: 68 },
   { x: -12_100, z: -8_500, altitude: 340, radius: 70 },
 ]);
+// Existing Addison departure-climb course, shared by Free Flight rendering and Journey validation.
+export const addisonClimbGates = Object.freeze([
+  { x: -3_880, z: -19_550, altitude: 310, radius: 76 },
+  { x: -3_780, z: -18_000, altitude: 680, radius: 72 },
+  { x: -3_580, z: -16_500, altitude: 1_080, radius: 70 },
+  { x: -3_440, z: -15_000, altitude: 1_460, radius: 72 },
+]);
 export const cityChallenges = {
   dallas: [
     ['dfw-speed', 4, 62, 180], ['downtown-precision', 4, 72, 280], ['trinity-inverted', 3, 54, 340], ['white-rock-low', 4, 64, 240],

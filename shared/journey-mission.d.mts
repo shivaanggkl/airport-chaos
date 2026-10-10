@@ -28,6 +28,11 @@ export const journeyDallas06: Readonly<{
   timeLimitMs: 120000; firstClearCredits: 750; startAirportId: 'love'; finishAirportId: 'dfw';
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
+export const journeyDallas07: Readonly<{
+  id: 'journey-dallas-07'; cityId: 'dallas'; name: 'SKY ELEVATOR'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 66000; firstClearCredits: 850; startAirportId: 'addison';
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

@@ -1,4 +1,4 @@
-import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates } from './city-challenges.mjs';
+import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 
 export const journeyDallas01 = Object.freeze({
@@ -45,6 +45,12 @@ export const journeyDallas06 = Object.freeze({
     { x: -20_500, z: -7_300, altitude: 350, radius: 68 },
     { x: -22_800, z: -8_600, altitude: 250, radius: 70 },
   ]),
+});
+
+export const journeyDallas07 = Object.freeze({
+  id: 'journey-dallas-07', cityId: 'dallas', name: 'SKY ELEVATOR',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 66_000, firstClearCredits: 850,
+  startAirportId: 'addison', gates: addisonClimbGates,
 });
 
 // Cross the face of the next ring within its illuminated opening. White Rock
