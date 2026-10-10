@@ -95,6 +95,22 @@ export const journeyDallas10 = Object.freeze({
   ]),
 });
 
+// A straight, obstacle-clear corridor west of Downtown. The first four
+// gates descend; the final gate asks for a controlled recovery climb.
+export const journeyDallas11 = Object.freeze({
+  id: 'journey-dallas-11', cityId: 'dallas', name: 'GRAVITY DROP',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 75_000, firstClearCredits: 1_250,
+  prepareMs: 3_000,
+  airborneSpawn: Object.freeze({ x: -5_000, z: -9_000, altitude: 1_650, heading: Math.PI, speed: 220 }),
+  gates: Object.freeze([
+    { x: -5_000, z: -6_500, altitude: 1_550, radius: 110 },
+    { x: -5_000, z: -3_500, altitude: 1_250, radius: 110 },
+    { x: -5_000, z: -500, altitude: 950, radius: 110 },
+    { x: -5_000, z: 2_500, altitude: 650, radius: 110 },
+    { x: -5_000, z: 5_500, altitude: 950, radius: 110 },
+  ]),
+});
+
 // Cross the face of the next ring within its illuminated opening. White Rock
 // accepts either approach direction; DFW Sky Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.

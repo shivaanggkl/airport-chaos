@@ -26,6 +26,25 @@ export function confirmedGateObjective(attempt: ConfirmedGateAttempt, gates: rea
   };
 }
 
+/** The dive cue follows the confirmed gate and current geometry, including a
+ * missed gate behind the aircraft. It never treats altitude as a ceiling. */
+export function gravityDropGuidance(gateNumber: number, distance: number, heightDifference: number,
+  bearingAngle: number, radius: number, preparing: boolean, cleared: boolean): string {
+  if (preparing) return 'GET READY — FOLLOW THE GOLD ARROW';
+  if (cleared && gateNumber !== 5) return `GATE ${gateNumber - 1} CLEARED!`;
+  if (Math.abs(bearingAngle) > Math.PI * .55) return `FOLLOW THE GOLD ARROW TO GATE ${gateNumber}`;
+  const aligned = distance < radius * 3.2 && Math.abs(heightDifference) < radius * .65 &&
+    Math.abs(bearingAngle) < .38;
+  if (gateNumber === 5) return aligned ? 'LEVEL OUT — FLY THROUGH GATE 5'
+    : heightDifference > radius * .45 ? 'PULL UP — REACH THE FINAL GATE'
+      : heightDifference < -radius * .7 ? 'GATE 5 BELOW — DESCEND'
+        : 'FLY THROUGH GATE 5';
+  if (aligned || gateNumber === 1 && Math.abs(heightDifference) <= radius) return `FLY THROUGH GATE ${gateNumber}`;
+  if (heightDifference < -radius * .45) return `NOSE DOWN — REACH GATE ${gateNumber}`;
+  if (heightDifference > radius * .7) return `GATE ${gateNumber} ABOVE — CLIMB`;
+  return `FLY THROUGH GATE ${gateNumber}`;
+}
+
 /** Mission 2 follows only the live bot named by the confirmed attempt. */
 export function confirmedHunterObjective(attempt: { attemptId: string; targetId: string | null; status: string },
   target: { id: string; position: THREE.Vector3; isBot: boolean; lifeState: string } | undefined): MissionObjective | null {

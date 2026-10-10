@@ -82,6 +82,7 @@
 .mission-journey.has-stage-eight-complete .mission-journey-route-completed-eight { opacity: 1; }
 .mission-journey.has-stage-nine-complete .mission-journey-route-completed-nine { opacity: 1; }
 .mission-journey.has-stage-ten-complete .mission-journey-route-completed-ten { opacity: 1; }
+.mission-journey.has-stage-eleven-complete .mission-journey-route-completed-eleven { opacity: 1; }
 .mission-journey.is-progressing .mission-journey-route-completed { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-two .mission-journey-route-completed-two { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-three .mission-journey-route-completed-three { animation: mission-route-unlock 1100ms ease-out both; }
@@ -92,6 +93,7 @@
 .mission-journey.is-progressing-eight .mission-journey-route-completed-eight { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-nine .mission-journey-route-completed-nine { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-ten .mission-journey-route-completed-ten { animation: mission-route-unlock 1100ms ease-out both; }
+.mission-journey.is-progressing-eleven .mission-journey-route-completed-eleven { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-six .mission-journey-chapter-1 { box-shadow: 0 0 22px rgb(255 213 89 / 90%), inset 0 0 12px rgb(255 213 89 / 35%); }
 @keyframes mission-route-flow { to { stroke-dashoffset: -160; } }
 @keyframes mission-route-unlock { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
@@ -212,6 +214,7 @@
 .mission-journey-fact { display: grid; min-width: 0; min-height: 82px; align-content: center; justify-items: center; gap: 6px; padding: 8px 3px; color: #164b77; border: 1px solid #c5e5f5; border-radius: 12px; background: linear-gradient(#f5fbff, #e4f4fd); box-shadow: inset 0 1px #fff, 0 2px 5px rgb(31 101 148 / 11%); text-align: center; }
 .mission-journey-fact svg { width: 24px; height: 24px; color: #089ed1; filter: drop-shadow(0 1px 1px rgb(4 76 128 / 18%)); }
 .mission-journey-fact span { font: 900 clamp(9px, .86vw, 12px)/1.15 var(--font-display); white-space: nowrap; }
+.mission-journey-fact.is-long span { white-space: normal; overflow-wrap: anywhere; }
 .mission-journey-reward { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; color: #8a5917; font: 900 clamp(12px, 1vw, 15px)/1.2 var(--font-display); }
 .mission-journey-reward[hidden] { display: none; }
 .mission-journey-reward::before { display: grid; flex: 0 0 25px; width: 25px; height: 25px; place-items: center; border: 1px solid #e8be61; border-radius: 50%; background: linear-gradient(#ffedac, #e9b94d); box-shadow: 0 2px 4px rgb(151 99 23 / 20%); content: '$'; font: 900 15px/1 var(--font-display); }

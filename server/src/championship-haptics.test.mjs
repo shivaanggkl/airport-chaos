@@ -25,3 +25,16 @@ test('Skyline Slalom confirms Gates 1–4 once and reserves victory feedback for
   emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED', gateIndex: 5 });
   assert.deepEqual(events, ['checkpoint', 'checkpoint', 'checkpoint', 'checkpoint', 'missionSuccess']);
 });
+
+test('Gravity Drop confirms Gates 1–4 once and reserves victory feedback for Gate 5', () => {
+  const events = [];
+  const manager = { emit(event) { events.push(event); } };
+  let previous = { attemptId: 'drop', missionId: 'journey-dallas-11', status: 'APPROACH', gateIndex: 0 };
+  for (let gateIndex = 1; gateIndex <= 4; gateIndex += 1) {
+    const next = { ...previous, status: 'RACING', gateIndex };
+    emitConfirmedJourneyFeedback(manager, previous, next);
+    previous = next;
+  }
+  emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED', gateIndex: 5 });
+  assert.deepEqual(events, ['checkpoint', 'checkpoint', 'checkpoint', 'checkpoint', 'missionSuccess']);
+});

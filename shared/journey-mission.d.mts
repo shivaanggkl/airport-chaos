@@ -51,6 +51,12 @@ export const journeyDallas10: Readonly<{
   timeLimitMs: 85000; firstClearCredits: 1150; startAirportId: 'love';
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
+export const journeyDallas11: Readonly<{
+  id: 'journey-dallas-11'; cityId: 'dallas'; name: 'GRAVITY DROP'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 75000; firstClearCredits: 1250; prepareMs: 3000;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
