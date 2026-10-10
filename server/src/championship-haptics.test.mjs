@@ -38,3 +38,16 @@ test('Gravity Drop confirms Gates 1–4 once and reserves victory feedback for G
   emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED', gateIndex: 5 });
   assert.deepEqual(events, ['checkpoint', 'checkpoint', 'checkpoint', 'checkpoint', 'missionSuccess']);
 });
+
+test('Sky Pendulum confirms Gates 1–5 once and reserves victory feedback for Gate 6', () => {
+  const events = [];
+  const manager = { emit(event) { events.push(event); } };
+  let previous = { attemptId: 'pendulum', missionId: 'journey-dallas-12', status: 'APPROACH', gateIndex: 0 };
+  for (let gateIndex = 1; gateIndex <= 5; gateIndex += 1) {
+    const next = { ...previous, status: 'RACING', gateIndex };
+    emitConfirmedJourneyFeedback(manager, previous, next);
+    previous = next;
+  }
+  emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED', gateIndex: 6 });
+  assert.deepEqual(events, ['checkpoint', 'checkpoint', 'checkpoint', 'checkpoint', 'checkpoint', 'missionSuccess']);
+});

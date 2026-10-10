@@ -57,6 +57,17 @@ export const journeyDallas11: Readonly<{
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
+export const journeyDallas12: Readonly<{
+  id: 'journey-dallas-12'; cityId: 'dallas'; name: 'SKY PENDULUM'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 120000; firstClearCredits: 1500; startAirportId: 'love';
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
+export const journeyDallas13: Readonly<{
+  id: 'journey-dallas-13'; cityId: 'dallas'; name: 'REDLINE RUSH'; chapter: 'HIGH STAKES';
+  timeLimitMs: 90000; firstClearCredits: 1650; startAirportId: 'love';
+  speedThresholds: Readonly<Record<'trainer' | 'privateJet' | 'cargo' | 'fighter', number>>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+}>;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

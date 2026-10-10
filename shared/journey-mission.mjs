@@ -111,6 +111,40 @@ export const journeyDallas11 = Object.freeze({
   ]),
 });
 
+// Northbound from Love Field through clear airspace west of Addison. The
+// 1.35 km legs make the 150 m climb and descent achievable at Bluejay pitch.
+export const journeyDallas12 = Object.freeze({
+  id: 'journey-dallas-12', cityId: 'dallas', name: 'SKY PENDULUM',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 120_000, firstClearCredits: 1_500,
+  startAirportId: 'love',
+  gates: Object.freeze([
+    { x: -5_140, z: -11_200, altitude: 550, radius: 110 },
+    { x: -5_140, z: -12_550, altitude: 700, radius: 110 },
+    { x: -5_140, z: -13_900, altitude: 850, radius: 110 },
+    { x: -5_140, z: -15_250, altitude: 700, radius: 110 },
+    { x: -5_140, z: -16_600, altitude: 550, radius: 110 },
+    { x: -5_140, z: -17_950, altitude: 400, radius: 110 },
+  ]),
+});
+
+// Northbound open-air corridor from Love Field. The wider rings and slight
+// lateral bends reward sustained speed rather than precision steering.
+export const journeyDallas13 = Object.freeze({
+  id: 'journey-dallas-13', cityId: 'dallas', name: 'REDLINE RUSH',
+  chapter: 'HIGH STAKES', timeLimitMs: 90_000, firstClearCredits: 1_650,
+  startAirportId: 'love',
+  // Rounded to 10 world units/s from 75% of each aircraft's sustained
+  // straight-flight speed at the mobile FAST position (~85% throttle).
+  speedThresholds: Object.freeze({ trainer: 640, privateJet: 830, cargo: 660, fighter: 960 }),
+  gates: Object.freeze([
+    { x: -5_140, z: -10_500, altitude: 480, radius: 135 },
+    { x: -5_300, z: -12_000, altitude: 480, radius: 135 },
+    { x: -5_120, z: -13_100, altitude: 485, radius: 135 },
+    { x: -5_320, z: -14_200, altitude: 480, radius: 135 },
+    { x: -5_140, z: -15_300, altitude: 480, radius: 135 },
+  ]),
+});
+
 // Cross the face of the next ring within its illuminated opening. White Rock
 // accepts either approach direction; DFW Sky Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.

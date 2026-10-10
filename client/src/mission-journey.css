@@ -73,6 +73,8 @@
 .mission-journey.has-stage-one-complete .mission-journey-route-completed-eight { opacity: 0; }
 .mission-journey.has-stage-one-complete .mission-journey-route-completed-nine { opacity: 0; }
 .mission-journey.has-stage-one-complete .mission-journey-route-completed-ten { opacity: 0; }
+.mission-journey.has-stage-one-complete .mission-journey-route-completed-twelve { opacity: 0; }
+.mission-journey.has-stage-one-complete .mission-journey-route-completed-thirteen { opacity: 0; }
 .mission-journey.has-stage-two-complete .mission-journey-route-completed-two { opacity: 1; }
 .mission-journey.has-stage-three-complete .mission-journey-route-completed-three { opacity: 1; }
 .mission-journey.has-stage-four-complete .mission-journey-route-completed-four { opacity: 1; }
@@ -83,6 +85,8 @@
 .mission-journey.has-stage-nine-complete .mission-journey-route-completed-nine { opacity: 1; }
 .mission-journey.has-stage-ten-complete .mission-journey-route-completed-ten { opacity: 1; }
 .mission-journey.has-stage-eleven-complete .mission-journey-route-completed-eleven { opacity: 1; }
+.mission-journey.has-stage-twelve-complete .mission-journey-route-completed-twelve { opacity: 1; }
+.mission-journey.has-stage-thirteen-complete .mission-journey-route-completed-thirteen { opacity: 1; }
 .mission-journey.is-progressing .mission-journey-route-completed { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-two .mission-journey-route-completed-two { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-three .mission-journey-route-completed-three { animation: mission-route-unlock 1100ms ease-out both; }
@@ -94,6 +98,9 @@
 .mission-journey.is-progressing-nine .mission-journey-route-completed-nine { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-ten .mission-journey-route-completed-ten { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-eleven .mission-journey-route-completed-eleven { animation: mission-route-unlock 1100ms ease-out both; }
+.mission-journey.is-progressing-twelve .mission-journey-route-completed-twelve { animation: mission-route-unlock 1100ms ease-out both; }
+.mission-journey.is-progressing-twelve .mission-journey-chapter-2 { box-shadow: 0 0 22px rgb(255 213 89 / 90%), inset 0 0 12px rgb(255 213 89 / 35%); }
+.mission-journey.is-progressing-thirteen .mission-journey-route-completed-thirteen { animation: mission-route-unlock 1100ms ease-out both; }
 .mission-journey.is-progressing-six .mission-journey-chapter-1 { box-shadow: 0 0 22px rgb(255 213 89 / 90%), inset 0 0 12px rgb(255 213 89 / 35%); }
 @keyframes mission-route-flow { to { stroke-dashoffset: -160; } }
 @keyframes mission-route-unlock { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }

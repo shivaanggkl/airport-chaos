@@ -45,6 +45,34 @@ export function gravityDropGuidance(gateNumber: number, distance: number, height
   return `FLY THROUGH GATE ${gateNumber}`;
 }
 
+/** One confirmed target for the climb, peak and descent. Corrective altitude
+ * cues follow the aircraft's actual position, including a missed approach. */
+export function pendulumGateGuidance(gateNumber: number, onGround: boolean, distance: number,
+  heightDifference: number, bearingAngle: number, radius: number, cleared: boolean): string {
+  if (onGround) return 'TAKE OFF — FOLLOW THE GOLD ARROW';
+  if (cleared && gateNumber === 4) return 'PEAK REACHED — SWING DOWN!';
+  if (cleared) return `GATE ${gateNumber - 1} CLEARED!`;
+  if (Math.abs(bearingAngle) > Math.PI * .55) return `FOLLOW THE GOLD ARROW TO GATE ${gateNumber}`;
+  if (distance < radius * 3.2 && Math.abs(heightDifference) < radius * .65 && Math.abs(bearingAngle) < .38)
+    return `FLY THROUGH GATE ${gateNumber}`;
+  if (heightDifference > radius * .65) return `CLIMB — REACH GATE ${gateNumber}`;
+  if (heightDifference < -radius * .65) return gateNumber === 4 ? 'SWING DOWN — REACH GATE 4'
+    : gateNumber === 6 ? 'FINAL GATE — FINISH STRONG!' : `DESCEND — REACH GATE ${gateNumber}`;
+  return gateNumber === 6 ? 'FINAL GATE — FINISH STRONG!' : `FLY THROUGH GATE ${gateNumber}`;
+}
+
+/** Advisory speed cue; the server alone decides whether a crossing counts. */
+export function redlineGateGuidance(gateNumber: number, onGround: boolean, distanceMeters: number,
+  ready: boolean, tooSlow: boolean, cleared: boolean): string {
+  if (onGround) return 'TAKE OFF — FOLLOW THE GOLD ARROW';
+  if (tooSlow) return `TOO SLOW — TRY GATE ${gateNumber} AGAIN`;
+  if (cleared) return `GATE ${gateNumber - 1} CLEARED!`;
+  if (gateNumber === 1) return distanceMeters > 700 ? 'FOLLOW THE ARROW TO GATE 1' : 'FLY THROUGH GATE 1';
+  if (!ready) return 'SPEED UP — INCREASE THROTTLE';
+  if (gateNumber === 5) return 'FINAL SPEED GATE — GO!';
+  return `SPEED READY — FLY THROUGH GATE ${gateNumber}`;
+}
+
 /** Mission 2 follows only the live bot named by the confirmed attempt. */
 export function confirmedHunterObjective(attempt: { attemptId: string; targetId: string | null; status: string },
   target: { id: string; position: THREE.Vector3; isBot: boolean; lifeState: string } | undefined): MissionObjective | null {
