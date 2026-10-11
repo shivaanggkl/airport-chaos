@@ -81,7 +81,8 @@ export class GoldenFlightPath {
       if (this.approach.dot(this.direct) < .5) this.approach.copy(this.direct);
       else this.approach.add(this.direct).normalize();
     }
-    this.start.copy(position).addScaledVector(this.approach, Math.min(55, distance * .02));
+    this.start.copy(position).addScaledVector(this.approach, -5);
+    this.start.y -= 3;
     this.controlA.copy(this.start).addScaledVector(this.approach, bend);
     this.controlA.y += (this.target.y - this.start.y) * .25;
     this.controlB.copy(this.target).addScaledVector(passedPlane ? this.direct : this.normal, -bend);
@@ -89,13 +90,18 @@ export class GoldenFlightPath {
     this.derivativeB.copy(this.controlB).sub(this.controlA);
     this.derivativeC.copy(this.target).sub(this.controlB);
     this.cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
-    const maxWidth = Math.min(260, Math.max(180, distance * .06));
+    const maxWidth = Math.min(230, Math.max(145, distance * .08));
+    const visualDrop = Math.min(240, Math.max(140, distance * .12));
     for (let i = 0; i <= SEGMENTS; i += 1) {
       const t = i / SEGMENTS, q = 1 - t;
       this.point.copy(this.start).multiplyScalar(q * q * q)
         .addScaledVector(this.controlA, 3 * q * q * t)
         .addScaledVector(this.controlB, 3 * q * t * t)
         .addScaledVector(this.target, t * t * t);
+      // Keep the guide below the flight corridor so it reads as a path from the chase camera.
+      // It rises to the actual gate center and never asks the player to fly below the terrain.
+      this.point.y = Math.max(this.point.y - visualDrop * Math.sin(Math.PI * t) ** 2,
+        this.heightAt(this.point.x, this.point.z) + 70);
       const dx = 3 * q * q * this.derivativeA.x + 6 * q * t * this.derivativeB.x + 3 * t * t * this.derivativeC.x;
       const dy = 3 * q * q * this.derivativeA.y + 6 * q * t * this.derivativeB.y + 3 * t * t * this.derivativeC.y;
       const dz = 3 * q * q * this.derivativeA.z + 6 * q * t * this.derivativeB.z + 3 * t * t * this.derivativeC.z;
@@ -105,7 +111,8 @@ export class GoldenFlightPath {
       const lateralY = this.cameraRight.y - dy / tangentLength * along;
       const lateralZ = this.cameraRight.z - dz / tangentLength * along;
       const lateralLength = Math.hypot(lateralX, lateralY, lateralZ) || 1;
-      const halfWidth = maxWidth * Math.sin(Math.PI * t) * .5;
+      const halfWidth = Math.min(maxWidth, this.point.distanceTo(camera.position) * .25)
+        * (1 - t) * Math.min(1, t * 10) * .5;
       const edge = i * 6, center = i * 3;
       this.ribbonPositions[edge] = this.point.x + lateralX / lateralLength * halfWidth;
       this.ribbonPositions[edge + 1] = this.point.y + lateralY / lateralLength * halfWidth;

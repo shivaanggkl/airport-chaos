@@ -48,6 +48,7 @@ test('Mission 4 pathway has visible screen width from the chase camera at the ai
   const camera = new THREE.PerspectiveCamera(65, 1280 / 585, 0.1, 30_000);
   camera.position.set(spawn.x - 150, spawn.altitude + 70, spawn.z - 150);
   camera.lookAt(gate.x, gate.altitude, gate.z);
+  camera.updateMatrixWorld();
   slalom.setProgress(0, true);
   slalom.update(.1, new THREE.Vector3(spawn.x, spawn.altitude, spawn.z),
     new THREE.Vector3(gate.x - spawn.x, 0, gate.z - spawn.z), camera);
@@ -56,7 +57,34 @@ test('Mission 4 pathway has visible screen width from the chase camera at the ai
   const index = 12 * 2;
   const left = new THREE.Vector3(positions.getX(index), positions.getY(index), positions.getZ(index)).project(camera);
   const right = new THREE.Vector3(positions.getX(index + 1), positions.getY(index + 1), positions.getZ(index + 1)).project(camera);
-  assert.ok(Math.abs(left.x - right.x) * 640 > 20, 'pathway must cover visible pixels, not lie edge-on');
+  assert.ok(Math.abs(left.x - right.x) * 640 > 20,
+    `pathway must cover visible pixels, not lie edge-on (${Math.abs(left.x - right.x) * 640})`);
+  slalom.dispose();
+});
+
+test('Mission 4 pathway extends below the chase aircraft instead of forming a patch inside the gate', () => {
+  const scene = new THREE.Scene();
+  const slalom = new JourneyGateSystem(scene, () => 0, journeyDallas04);
+  const gate = journeyDallas04.gates[0];
+  const direction = new THREE.Vector3(gate.x - journeyDallas04.airborneSpawn.x, 0,
+    gate.z - journeyDallas04.airborneSpawn.z).normalize();
+  const player = new THREE.Vector3(gate.x, gate.altitude, gate.z).addScaledVector(direction, -1600);
+  const camera = new THREE.PerspectiveCamera(58, 1280 / 585, 0.1, 30_000);
+  camera.position.copy(player).addScaledVector(direction, -20);
+  camera.position.y += 5;
+  camera.lookAt(player.clone().addScaledVector(direction, 10).add(new THREE.Vector3(0, 1, 0)));
+  camera.updateMatrixWorld();
+  slalom.setProgress(0, true);
+  slalom.update(.1, player, direction.clone().multiplyScalar(650), camera);
+  const pathway = scene.getObjectByName('mission-04-blue-pathway') as THREE.Group;
+  const center = (pathway.children[1] as THREE.Line).geometry.getAttribute('position') as THREE.BufferAttribute;
+  const midpoint = new THREE.Vector3(center.getX(12), center.getY(12), center.getZ(12));
+  const gateCenter = new THREE.Vector3(gate.x, gate.altitude, gate.z);
+  const midpointScreenY = (1 - midpoint.project(camera).y) * 585 / 2;
+  const gateScreenY = (1 - gateCenter.project(camera).y) * 585 / 2;
+  assert.ok(midpointScreenY - gateScreenY > 80,
+    `the guide should read below the gate in the real chase view (${midpointScreenY} versus ${gateScreenY})`);
+  assert.ok(center.getY(12) >= 70, 'the guide should stay above the terrain');
   slalom.dispose();
 });
 
