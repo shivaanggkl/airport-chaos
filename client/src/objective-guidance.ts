@@ -456,11 +456,15 @@ export class ObjectiveGuidance {
 export function fixedGateDirection(player: Readonly<{ x: number; y: number; z: number }>,
   target: Readonly<{ x: number; y: number; z: number }>, heading: number, radius: number,
   previousHorizontal = 0, previousVertical = 0): { arrow: string; horizontal: number; vertical: number } {
-  const angle = precisionGateBearing(player.x, player.z, heading, target.x, target.z).angle;
-  const horizontal = Math.abs(angle) > (previousHorizontal ? .22 : .36)
+  const bearing = precisionGateBearing(player.x, player.z, heading, target.x, target.z);
+  // A distant gate can be missed at a small bearing error. Use its actual
+  // opening to decide when "straight ahead" is a useful cue.
+  const alignedAngle = Math.max(.04, Math.min(.15, Math.atan2(radius * .7, bearing.horizontalDistance)));
+  const angle = bearing.angle;
+  const horizontal = Math.abs(angle) > alignedAngle * (previousHorizontal ? .7 : 1)
     ? Math.abs(angle) > Math.PI * .85 && previousHorizontal ? previousHorizontal : Math.sign(angle) : 0;
   const height = target.y - player.y;
   const vertical = Math.abs(height) > radius * (previousVertical ? .35 : .55) ? Math.sign(height) : 0;
-  const arrows = [['↙', '←', '↖'], ['↓', '➜', '↑'], ['↘', '→', '↗']];
+  const arrows = [['↙', '←', '↖'], ['↓', '↑', '↑'], ['↘', '→', '↗']];
   return { arrow: arrows[horizontal + 1]![vertical + 1]!, horizontal, vertical };
 }

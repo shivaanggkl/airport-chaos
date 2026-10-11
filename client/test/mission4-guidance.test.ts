@@ -26,12 +26,20 @@ test('Mission 4 has one active gold gate and no route or prediction objects acro
 test('fixed gate cue follows aircraft heading and altitude with a dead band', () => {
   const player = { x: 0, y: 0, z: 0 };
   const radius = 100;
-  assert.equal(fixedGateDirection(player, { x: 0, y: 0, z: -1000 }, 0, radius).arrow, '➜');
+  assert.equal(fixedGateDirection(player, { x: 0, y: 0, z: -1000 }, 0, radius).arrow, '↑');
   assert.equal(fixedGateDirection(player, { x: -1000, y: 0, z: -1000 }, 0, radius).arrow, '←');
   assert.equal(fixedGateDirection(player, { x: 1000, y: 0, z: -1000 }, 0, radius).arrow, '→');
   assert.equal(fixedGateDirection(player, { x: 0, y: 100, z: -1000 }, 0, radius).arrow, '↑');
   assert.equal(fixedGateDirection(player, { x: 0, y: -100, z: -1000 }, 0, radius).arrow, '↓');
   assert.equal(fixedGateDirection(player, { x: 1000, y: 100, z: -1000 }, 0, radius).arrow, '↗');
   assert.equal(fixedGateDirection(player, { x: 300, y: 0, z: -1000 }, 0, radius, 1, 0).horizontal, 1);
-  assert.equal(fixedGateDirection(player, { x: 300, y: 0, z: -1000 }, 0, radius, 0, 0).horizontal, 0);
+  assert.equal(fixedGateDirection(player, { x: 300, y: 0, z: -1000 }, 0, radius, 0, 0).horizontal, 1);
+  assert.equal(fixedGateDirection(player, { x: -1400, y: 0, z: -9800 }, 0, 320).arrow, '←',
+    'a gate visibly left at long range needs a left cue even at a small bearing');
+  assert.equal(fixedGateDirection(player, { x: 30, y: 0, z: -9800 }, 0, 320).arrow, '↑');
+  const gate1 = journeyDallas04.gates[0], gate2 = journeyDallas04.gates[1];
+  assert.equal(fixedGateDirection({ x: gate1.x, y: gate1.altitude, z: gate1.z },
+    { x: gate2.x, y: gate2.altitude, z: gate2.z },
+    journeyDallas04.airborneSpawn.heading, journeyDallas04.gates[1].radius).arrow, '←',
+  'the actual Gate 1 to Gate 2 approach in the reported screenshots must indicate left');
 });
