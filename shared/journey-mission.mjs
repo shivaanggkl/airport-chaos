@@ -1,4 +1,4 @@
-import { downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
+import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 import { repairsForCity } from './city-repairs.mjs';
 
@@ -84,20 +84,42 @@ export const journeyDallas04 = Object.freeze({
 });
 
 export const journeyDallas05 = Object.freeze({
-  id: 'journey-dallas-05', cityId: 'dallas', name: 'DOWNTOWN NEEDLE',
-  chapter: 'ROOKIE LEAGUE', timeLimitMs: 72_000, firstClearCredits: 600,
-  startAirportId: 'love', gates: downtownPrecisionGates,
+  id: 'journey-dallas-05', cityId: 'dallas', name: 'NEEDLE RUSH',
+  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 600,
+  airborneSpawn: Object.freeze({ x: -23_000, z: -23_000, altitude: 850, heading: -3 * Math.PI / 4, speed: 650 }),
+  // A single broad sweep past the Trinity River and around Downtown. The
+  // southwest-bound precision approaches are long and nearly straight.
+  gates: Object.freeze([
+    { x: -20_000, z: -20_000, altitude: 850, radius: 320 },
+    { x: -12_000, z: -10_000, altitude: 850, radius: 310 },
+    { x: -4_000, z: 2_000, altitude: 855, radius: 300 },
+    { x: 7_000, z: 10_000, altitude: 860, radius: 270 },
+    { x: 21_000, z: 18_000, altitude: 870, radius: 260 },
+    { x: 23_000, z: 5_000, altitude: 860, radius: 260 },
+    { x: 20_000, z: -9_000, altitude: 855, radius: 255 },
+    { x: 7_000, z: -17_000, altitude: 850, radius: 225 },
+    { x: -8_000, z: -20_000, altitude: 850, radius: 225 },
+    { x: -22_000, z: -14_000, altitude: 850, radius: 340 },
+  ]),
 });
 
 export const journeyDallas06 = Object.freeze({
-  id: 'journey-dallas-06', cityId: 'dallas', name: 'ROOKIE CHAMPIONSHIP',
-  chapter: 'ROOKIE LEAGUE', timeLimitMs: 120_000, firstClearCredits: 750,
-  startAirportId: 'love', finishAirportId: 'dfw',
+  id: 'journey-dallas-06', cityId: 'dallas', name: 'GOLDEN CHAMPIONSHIP',
+  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 750,
+  airborneSpawn: Object.freeze({ x: -23_000, z: -23_000, altitude: 850, heading: -3 * Math.PI / 4, speed: 650 }),
+  // A wide sweep above the Trinity and Downtown. The late precision gates
+  // sit on long, nearly level approaches before the generous finish.
   gates: Object.freeze([
-    ...lasColinasFlybyGates.slice().reverse(),
-    { x: -17_800, z: -9_000, altitude: 430, radius: 70 },
-    { x: -20_500, z: -7_300, altitude: 350, radius: 68 },
-    { x: -22_800, z: -8_600, altitude: 250, radius: 70 },
+    { x: -20_000, z: -20_000, altitude: 850, radius: 320 },
+    { x: -10_000, z: -12_000, altitude: 855, radius: 310 },
+    { x: -4_000, z: 2_300, altitude: 860, radius: 300 },
+    { x: 7_000, z: 12_000, altitude: 940, radius: 300 },
+    { x: 17_000, z: 20_000, altitude: 1_020, radius: 290 },
+    { x: 24_000, z: 16_000, altitude: 1_100, radius: 290 },
+    { x: 23_000, z: 3_000, altitude: 1_100, radius: 270 },
+    { x: 16_000, z: -11_000, altitude: 1_095, radius: 270 },
+    { x: 1_000, z: -19_000, altitude: 1_090, radius: 240 },
+    { x: -15_000, z: -17_000, altitude: 1_090, radius: 340 },
   ]),
 });
 

@@ -237,29 +237,6 @@ export function precisionGateBearing(aircraftX: number, aircraftZ: number, yaw: 
   return { angle: Math.atan2(right, forward), horizontalDistance: Math.hypot(dx, dz) };
 }
 
-/** Presentation only. The ring opening and crossing still belong to the server. */
-export function precisionGateGuidance(gateNumber: number, grounded: boolean, distanceMeters: number,
-  horizontalDistance: number, heightDifference: number, gateRadius: number, bearingRadians: number,
-  previousTurnSide: PrecisionTurnSide, justCleared: boolean, announceSharpTurn: boolean,
-): { instruction: string; turnSide: PrecisionTurnSide } {
-  if (grounded) return { instruction: 'TAKE OFF — FOLLOW THE GOLD ARROW', turnSide: null };
-  const angle = Math.abs(bearingRadians);
-  // Keep a turn cue until aligned, and resist switching sides during a turn.
-  const turnSide = gateNumber === 4 && (angle > Math.PI * 55 / 180 || previousTurnSide && angle > Math.PI * 30 / 180)
-    ? previousTurnSide && (angle < Math.PI * 70 / 180 || angle > Math.PI * 150 / 180)
-      ? previousTurnSide : bearingRadians > 0 ? 'RIGHT' : 'LEFT'
-    : null;
-  if (justCleared) return { instruction: `GATE ${gateNumber - 1} CLEARED!`, turnSide };
-  if (turnSide && announceSharpTurn) return { instruction: 'SHARP TURN AHEAD', turnSide };
-  if (turnSide) return { instruction: `GATE 4 — TURN ${turnSide}`, turnSide };
-  const heightTolerance = gateRadius * .92 * .5;
-  if (distanceMeters <= 900 && heightDifference > heightTolerance) return { instruction: `GATE ${gateNumber} ABOVE — CLIMB`, turnSide: null };
-  if (distanceMeters <= 900 && heightDifference < -heightTolerance) return { instruction: `GATE ${gateNumber} BELOW — DESCEND`, turnSide: null };
-  if (horizontalDistance <= Math.max(160, gateRadius * 4) && angle <= Math.PI / 6 &&
-    Math.abs(heightDifference) <= heightTolerance) return { instruction: `FLY THROUGH GATE ${gateNumber}`, turnSide: null };
-  return { instruction: `FOLLOW THE ARROW TO GATE ${gateNumber}`, turnSide: null };
-}
-
 /** Presentation only. Turn side follows the aircraft's actual heading, with a quiet alignment band. */
 export function slalomGateGuidance(gateNumber: number, grounded: boolean, distanceMeters: number,
   horizontalDistance: number, heightDifference: number, gateRadius: number, bearingRadians: number,

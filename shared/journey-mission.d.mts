@@ -24,13 +24,15 @@ export const journeyDallas04: Readonly<{
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas05: Readonly<{
-  id: 'journey-dallas-05'; cityId: 'dallas'; name: 'DOWNTOWN NEEDLE'; chapter: 'ROOKIE LEAGUE';
-  timeLimitMs: 72000; firstClearCredits: 600; startAirportId: 'love';
+  id: 'journey-dallas-05'; cityId: 'dallas'; name: 'NEEDLE RUSH'; chapter: 'GOLDEN GATES';
+  timeLimitMs: 160000; firstClearCredits: 600;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas06: Readonly<{
-  id: 'journey-dallas-06'; cityId: 'dallas'; name: 'ROOKIE CHAMPIONSHIP'; chapter: 'ROOKIE LEAGUE';
-  timeLimitMs: 120000; firstClearCredits: 750; startAirportId: 'love'; finishAirportId: 'dfw';
+  id: 'journey-dallas-06'; cityId: 'dallas'; name: 'GOLDEN CHAMPIONSHIP'; chapter: 'GOLDEN GATES';
+  timeLimitMs: 160000; firstClearCredits: 750;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas07: Readonly<{
