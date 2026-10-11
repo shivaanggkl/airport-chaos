@@ -58,8 +58,11 @@ export const journeyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'STAY ON HIS SIX',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
   startAirportId: 'love', followMs: 15_000,
-  minDistance: 80, maxDistance: 280, maxTailAngle: 40 * Math.PI / 180,
+  minDistance: 80, maxDistance: 450, maxTailAngle: 40 * Math.PI / 180,
   maxHeadingDifference: 45 * Math.PI / 180, maxAltitudeDifference: 100,
+  // Match the free Bluejay's MED throttle so pilots can hold formation
+  // without boost or a purchased aircraft.
+  leaderCruiseFactor: 0.45,
   // A broad circuit northwest of Love Field. The server's existing bot
   // steering and terrain clearance determine the actual flown trajectory.
   leaderRoute: Object.freeze([

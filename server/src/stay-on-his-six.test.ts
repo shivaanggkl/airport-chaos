@@ -6,18 +6,21 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { journeyDallas07, journeyDallas08 } from '../../shared/journey-mission.mjs';
 import { journeyFormationStatus } from '../../shared/journey-formation.mjs';
+import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
+import { throttleSpeedTarget } from '../../shared/flight-control-rules.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 
-const leader = { position: { x: 0, y: 400, z: 0 }, heading: 0, speed: 600, airborne: true };
-const pilot = { position: { x: 0, y: 400, z: 160 }, heading: 0, speed: 600, airborne: true };
+const leader = { position: { x: 0, y: 400, z: 0 }, heading: 0, speed: 450, airborne: true };
+const pilot = { position: { x: 0, y: 400, z: 160 }, heading: 0, speed: 450, airborne: true };
 
 test('formation follows the actual leader heading, altitude, movement and rear sector', () => {
   assert.equal(journeyFormationStatus(pilot, leader), 'VALID');
   assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, z: -160 } }, leader), 'GET_BEHIND');
   assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, x: 160, z: 0 } }, leader), 'GET_BEHIND');
   assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, z: 70 } }, leader), 'TOO_CLOSE');
-  assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, z: 300 } }, leader), 'TOO_FAR');
+  assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, z: 400 } }, leader), 'VALID');
+  assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, z: 451 } }, leader), 'TOO_FAR');
   assert.equal(journeyFormationStatus({ ...pilot, position: { ...pilot.position, y: 501 } }, leader), 'ALTITUDE');
   assert.equal(journeyFormationStatus({ ...pilot, heading: Math.PI / 2 }, leader), 'ALIGN');
   assert.equal(journeyFormationStatus({ ...pilot, airborne: false }, leader), 'AIRBORNE_REQUIRED');
@@ -28,6 +31,13 @@ test('formation follows the actual leader heading, altitude, movement and rear s
   assert.equal(journeyDallas08.leaderRoute.length, 7);
   assert.equal(journeyDallas08.startAirportId, 'love');
   assert.equal(journeyDallas08.followMs, 15_000);
+  assert.equal(aircraftFlightEnvelope.trainer.maxSpeed * journeyDallas08.leaderCruiseFactor,
+    throttleSpeedTarget(0.5, aircraftFlightEnvelope.trainer));
+  const shortestLeg = Math.min(...journeyDallas08.leaderRoute.map((point, index) => {
+    const next = journeyDallas08.leaderRoute[(index + 1) % journeyDallas08.leaderRoute.length]!;
+    return Math.hypot(next.x - point.x, next.z - point.z);
+  }));
+  assert.ok(shortestLeg / (aircraftFlightEnvelope.trainer.maxSpeed * journeyDallas08.leaderCruiseFactor) > 5);
 });
 
 test('Mission 8 unlock, accumulated hold, target identity, replay, cap and ledger are authoritative', () => {

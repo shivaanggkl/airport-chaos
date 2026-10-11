@@ -5459,7 +5459,8 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
   player.rotation.y = wrapAngle(player.rotation.y + (Math.sign(turnStep) === Math.sign(headingError) && Math.abs(turnStep) > Math.abs(headingError) ? headingError : turnStep));
 
   const hardTurn = Math.abs(Math.sin(player.rotation.z));
-  const cruiseSpeed = envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
+  const cruiseSpeed = envelope.maxSpeed * (bot.journeyLeader ? journeyDallas08.leaderCruiseFactor
+    : bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
   // Induced drag during a bank forces a wide, energy-losing turn instead of a
   // full-speed orbit.  The cap is the normal player aircraft maximum, not a bot bonus.
   bot.desiredSpeed = Math.max(envelope.stallSpeed * 1.1, cruiseSpeed * (1 - hardTurn * 0.16));
@@ -5886,7 +5887,12 @@ function updateBots(now: number): void {
     const dz = target.z - player.position.z;
     const horizontal = Math.hypot(dx, dz);
     const distance = Math.hypot(horizontal, dy);
-    if (!followingCombatWaypoint && distance <= Math.max(26, bot.speed * delta * 1.25)) {
+    // Begin the leader's next turn before reaching the waypoint so it does
+    // not steer back toward the old point after carrying past it.
+    const arrivalRadius = bot.journeyLeader
+      ? Math.max(26, bot.speed * delta * 1.25, botMinimumTurnRadius(player.aircraftType, bot.speed) * 0.75)
+      : Math.max(26, bot.speed * delta * 1.25);
+    if (!followingCombatWaypoint && distance <= arrivalRadius) {
       bot.routeIndex += 1;
       if (bot.phase === 'taxi') bot.phase = 'takeoff';
       if (bot.routeIndex === bot.route.length - 1 && !bot.journeyAttemptId) bot.phase = 'land';

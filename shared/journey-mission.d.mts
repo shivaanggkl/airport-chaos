@@ -36,8 +36,9 @@ export const journeyDallas07: Readonly<{
 export const journeyDallas08: Readonly<{
   id: 'journey-dallas-08'; cityId: 'dallas'; name: 'STAY ON HIS SIX'; chapter: 'SKY ADVENTURES';
   firstClearCredits: 950; startAirportId: 'love'; followMs: 15000;
-  minDistance: 80; maxDistance: 280; maxTailAngle: number;
+  minDistance: 80; maxDistance: 450; maxTailAngle: number;
   maxHeadingDifference: number; maxAltitudeDifference: 100;
+  leaderCruiseFactor: 0.45;
   leaderRoute: readonly Readonly<{ x: number; z: number }>[];
 }>;
 export const journeyDallas09: Readonly<{

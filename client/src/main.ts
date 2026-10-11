@@ -2706,7 +2706,7 @@ function updateJourneyHud(): void {
         : status === 'VALID' ? 'GOOD POSITION — KEEP FOLLOWING!'
           : status === 'GET_BEHIND' ? journeyAttempt.holdMs > 0 ? 'GET BACK BEHIND THE LEADER' : 'GET BEHIND THE LEADER'
             : status === 'TOO_CLOSE' ? 'SLOW DOWN — GIVE SPACE'
-              : status === 'TOO_FAR' ? 'GET CLOSER'
+              : status === 'TOO_FAR' ? `GET WITHIN ${journeyDallas08.maxDistance} M`
                 : status === 'ALTITUDE' ? "MATCH THE LEADER'S ALTITUDE"
                   : status === 'ALIGN' ? "MATCH THE LEADER'S DIRECTION" : 'FOLLOW THE AI LEADER';
     if (journeyHudObjective) journeyHudObjective.textContent = instruction;
