@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas19, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
-import { GoldenFlightPath } from './golden-flight-path';
 
 const goldenRace = (id: string): boolean => id === journeyDallas01.id || id === journeyDallas02.id || id === journeyDallas03.id || id === journeyDallas04.id;
 
@@ -23,7 +22,6 @@ const accentShape = new THREE.TorusGeometry(1.09, .048, 6, 24, Math.PI * .48);
 
 export class JourneyGateSystem {
   private readonly gates: THREE.Group[] = [];
-  private readonly flightPath: GoldenFlightPath | undefined;
   private current = 0;
   private active = true;
   private phase = 0;
@@ -61,7 +59,6 @@ export class JourneyGateSystem {
       scene.add(group);
       this.gates.push(group);
     }
-    this.flightPath = mission.id === journeyDallas04.id ? new GoldenFlightPath(scene, heightAt) : undefined;
     this.refresh();
   }
 
@@ -71,7 +68,6 @@ export class JourneyGateSystem {
     if (next > this.current) { this.flashIndex = this.mission.id === journeyDallas04.id ? -1 : this.current; this.flashTime = .5; }
     this.current = next;
     this.active = active;
-    this.flightPath?.setGate(next, active);
     this.refresh();
   }
 
@@ -80,8 +76,7 @@ export class JourneyGateSystem {
     return this.active && gate ? { x: gate.x, y: this.heightAt(gate.x, gate.z) + gate.altitude, z: gate.z, index: this.current } : undefined;
   }
 
-  update(delta: number, player?: THREE.Vector3, velocity?: THREE.Vector3, camera?: THREE.Camera): void {
-    if (player && velocity && camera) this.flightPath?.update(delta, player, velocity, camera);
+  update(delta: number): void {
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
@@ -133,7 +128,6 @@ export class JourneyGateSystem {
   }
 
   dispose(): void {
-    this.flightPath?.dispose();
     for (const gate of this.gates) {
       (gate.children[3] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.dispose();
       if (goldenRace(this.mission.id))

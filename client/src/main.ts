@@ -8835,6 +8835,7 @@ function animate(): void {
   if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
   else updateOsmCityChunks(airplane.position);
   cityWorld.updateWorldVisuals?.(delta, airplane.position);
+  journeyGates?.update(delta);
 
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
@@ -8862,7 +8863,6 @@ function animate(): void {
   updateEventVisual();
   cinematicDirector.update(performance.now());
   updateCamera(delta);
-  journeyGates?.update(delta, airplane.position, velocity, camera);
   updateLockCircle();
   syncAceObjective();
   syncLegendaryObjective();
