@@ -5,19 +5,33 @@ import { JourneyGateSystem } from '../src/journey-gates';
 import { fixedGateDirection } from '../src/objective-guidance';
 import { journeyDallas03, journeyDallas04 } from '../../shared/journey-mission.mjs';
 
-test('Mission 4 has one active gold gate and no route or prediction objects across transitions', () => {
+test('Mission 4 shows one active gold gate and a blue pathway without prediction circles', () => {
   const scene = new THREE.Scene();
   const slalom = new JourneyGateSystem(scene, () => 0, journeyDallas04);
-  assert.equal(scene.getObjectByName('mission-04-flight-guide'), undefined);
+  const pathway = scene.getObjectByName('mission-04-blue-pathway') as THREE.Group;
+  assert.ok(pathway);
+  assert.equal(pathway.visible, false);
   assert.equal(scene.getObjectByName('mission-04-crossing-prediction'), undefined);
   assert.deepEqual(scene.children.filter((child) => child.visible).map((child) => child.name), ['journey-dallas-04-gate-1']);
   slalom.setProgress(1, true);
-  slalom.update(.1);
-  assert.deepEqual(scene.children.filter((child) => child.visible).map((child) => child.name), ['journey-dallas-04-gate-2']);
+  slalom.update(.1, new THREE.Vector3(-19_000, 850, -18_000), new THREE.Vector3(500, 0, 250));
+  assert.deepEqual(scene.children.filter((child) => child.visible).map((child) => child.name),
+    ['journey-dallas-04-gate-2', 'mission-04-blue-pathway']);
+  const ribbon = (pathway.children[0] as THREE.Mesh).geometry.getAttribute('position') as THREE.BufferAttribute;
+  assert.ok(Number.isFinite(ribbon.getX(12)));
+  assert.notEqual(ribbon.getX(12), ribbon.getX(13), 'the pathway has a visible ribbon width');
+  const center = (pathway.children[1] as THREE.Line).geometry.getAttribute('position') as THREE.BufferAttribute;
+  assert.equal(center.getX(center.count - 1), journeyDallas04.gates[1].x);
+  slalom.setProgress(2, true);
+  slalom.update(.1, new THREE.Vector3(-15_000, 850, -15_000), new THREE.Vector3(500, 0, 250));
+  assert.equal(center.getX(center.count - 1), journeyDallas04.gates[2].x,
+    'the pathway changes only after confirmed gate progress');
   slalom.setProgress(10, false);
+  assert.equal(pathway.visible, false);
   slalom.dispose();
   assert.equal(scene.children.length, 0);
   const ascent = new JourneyGateSystem(scene, () => 0, journeyDallas03);
+  assert.equal(scene.getObjectByName('mission-04-blue-pathway'), undefined);
   assert.equal(scene.children.filter((child) => child.visible).length, 2, 'Mission 3 preview behavior is preserved');
   ascent.dispose();
   assert.equal(scene.children.length, 0);
