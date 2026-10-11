@@ -82,7 +82,7 @@ test('bot interaction exclusion is reciprocal and leaves humans and other pilots
 test('only the server-owned attempt and bot owner authorize the Hunter exception across combat paths', () => {
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(server, /missionFocusHunterTargets\.set\(playerId, focusedTargetId\)/);
-  assert.match(server, /attempt\.missionId === journeyDallas02\.id \|\| attempt\.missionId === journeyDallas09\.id/);
+  assert.match(server, /attempt\.missionId === journeyDallas09\.id \|\| attempt\.missionId === journeyDallas14\.id/);
   assert.match(server, /hunter\?\.journeyTargetPlayerId === pilotId && hunter\.journeyAttemptId === playerJourneyAttempts\.get\(pilotId\)/);
   assert.match(server, /focusedBotInteractionExcluded\(ownerId, owner, victimId, victim\)/);
   assert.match(server, /focusedBotInteractionExcluded\(projectile\.ownerId, owner, playerId, player\)/);

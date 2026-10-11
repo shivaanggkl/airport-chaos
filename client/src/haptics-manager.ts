@@ -75,7 +75,7 @@ type JourneyFeedbackState = { attemptId: string; missionId?: string; status: str
 export function emitConfirmedJourneyFeedback(manager: HapticsManager, previous: JourneyFeedbackState | null, current: JourneyFeedbackState): void {
   if (!previous || previous.attemptId !== current.attemptId) return;
   if (previous.status !== current.status && current.status === 'COMPLETED') {
-    manager.emit(current.missionId === 'journey-dallas-02' ? 'combatSuccess' : 'missionSuccess', current.attemptId);
+    manager.emit('missionSuccess', current.attemptId);
     return;
   }
   if (previous.status !== current.status && current.status === 'FAILED') {

@@ -6,9 +6,10 @@ export const journeyDallas01: Readonly<{
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas02: Readonly<{
-  id: 'journey-dallas-02'; cityId: 'dallas'; name: 'HUNTER SHOWDOWN'; chapter: 'ROOKIE LEAGUE';
-  firstClearCredits: 350; targetHealth: 200; arenaRadius: 25000;
-  arenaCenter: Readonly<{ x: number; z: number }>;
+  id: 'journey-dallas-02'; cityId: 'dallas'; name: 'LAKE RACER'; chapter: 'GOLDEN GATES';
+  firstClearCredits: 350; timeLimitMs: 150000;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas03: Readonly<{
   id: 'journey-dallas-03'; cityId: 'dallas'; name: 'WHITE ROCK SKIMMER'; chapter: 'ROOKIE LEAGUE';
@@ -135,5 +136,5 @@ export const journeyDallas24: Readonly<{
 export function journeyExitCrossing(from: JourneyPoint, to: JourneyPoint, terrainHeight: number,
   mission?: typeof journeyDallas19): boolean;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

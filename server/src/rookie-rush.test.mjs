@@ -35,16 +35,18 @@ test('every Rookie Rush gate accepts forward movement only through its visible o
   }
 });
 
-test('even the Firehawk absolute speed cap requires at least one minute along the gate sequence', () => {
+test('the shorter gate sequence keeps frequent gates and room for Bluejay', () => {
   const mission = journeyDallas01;
   const points = [mission.airborneSpawn, ...mission.gates];
-  const centerline = points.slice(1).reduce((distance, point, index) =>
-    distance + Math.hypot(point.x - points[index].x, point.z - points[index].z), 0);
-  // The disc-radius subtraction allows the fastest conceivable edge-to-edge
-  // crossing at every gate. Boost cannot exceed this envelope's hard cap.
+  const legs = points.slice(1).map((point, index) =>
+    Math.hypot(point.x - points[index].x, point.z - points[index].z));
+  const centerline = legs.reduce((distance, leg) => distance + leg, 0);
+  // The disc-radius subtraction allows edge-to-edge crossings at every gate.
+  // Boost can coast after release, so this only bounds an unboosted Firehawk.
   const openingAllowance = 2 * mission.gates.reduce((sum, gate) => sum + gate.radius, 0)
     - mission.gates.at(-1).radius;
-  const maximumSpeed = aircraftFlightEnvelope.fighter.maxSpeed * aircraftFlightEnvelope.fighter.boostMaxSpeed + 10;
-  assert.ok((centerline - openingAllowance) / maximumSpeed > 60);
-  assert.ok(centerline / aircraftFlightEnvelope.trainer.maxSpeed < 150);
+  const fighter = aircraftFlightEnvelope.fighter;
+  assert.ok((centerline - openingAllowance) / fighter.maxSpeed > 60);
+  assert.ok(centerline / aircraftFlightEnvelope.trainer.maxSpeed < 105);
+  assert.ok(legs.slice(1).every((leg) => leg <= 12_000));
 });

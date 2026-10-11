@@ -249,46 +249,107 @@ test('first-clear receipt reports only Credits actually added at the wallet cap'
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Hunter Showdown airspace is centered on its DFW start', () => {
-  const dfw = cityAirports.dallas.find(airport => airport.id === 'dfw')!;
-  assert.deepEqual(journeyDallas02.arenaCenter, { x: dfw.x, z: dfw.z });
-  assert.ok(Math.abs(dfw.x - journeyDallas02.arenaCenter.x) < journeyDallas02.arenaRadius - 5_000);
-  assert.ok(Math.abs(dfw.z - journeyDallas02.arenaCenter.z) < journeyDallas02.arenaRadius - 5_000);
-});
-
-test('Hunter Showdown stays locked until Mission 1, binds one target, and pays only its first clear', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'airport-hunter-journey-test-'));
+test('Lake Racer is a distinct ten-gate race with protected historical rewards', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-lake-racer-test-'));
   const path = join(directory, 'profiles.sqlite');
   const setup = new DatabaseSync(path);
-  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('hunter-pilot', 0, 0), ('other-pilot', 0, 0)");
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('lake-pilot', 0, 0), ('other-pilot', 0, 0)");
   setup.close();
   try {
     const store = new JourneyAttemptStore(path);
-    assert.throws(() => store.launch('hunter-pilot', 'trainer', 1_000, journeyDallas02.id), /locked/);
-    const gateMission = store.launch('hunter-pilot', 'trainer', 1_000);
-    store.approach('hunter-pilot', gateMission.attemptId);
-    store.startRookieRush('hunter-pilot', gateMission.attemptId, 1_500);
-    for (let gate = 0; gate < journeyDallas01.gates.length; gate += 1) store.acceptGate('hunter-pilot', gateMission.attemptId, gate, 2_000 + gate * 1_000);
-    const first = store.launch('hunter-pilot', 'trainer', 10_000, journeyDallas02.id);
-    assert.equal(first.status, 'READY');
-    assert.equal(store.assignHunter('hunter-pilot', first.attemptId, 'bot:one'), undefined);
-    store.approach('hunter-pilot', first.attemptId);
-    assert.equal(store.assignHunter('hunter-pilot', first.attemptId, 'bot:one', null, 11_000)?.targetId, 'bot:one');
-    assert.equal(store.assignHunter('hunter-pilot', first.attemptId, 'bot:two', null), undefined);
-    assert.equal(store.completeHunter('other-pilot', first.attemptId, 'bot:one'), undefined);
-    assert.equal(store.completeHunter('hunter-pilot', first.attemptId, 'bot:two'), undefined);
-    assert.equal(store.assignHunter('hunter-pilot', first.attemptId, 'bot:two', 'bot:one', 12_000)?.targetId, 'bot:two');
-    assert.equal(store.completeHunter('hunter-pilot', first.attemptId, 'bot:one'), undefined);
-    assert.equal(store.completeHunter('hunter-pilot', first.attemptId, 'bot:two', 20_000)?.firstClearCredits, 350);
-    assert.equal(store.completeHunter('hunter-pilot', first.attemptId, 'bot:two'), undefined);
-    assert.equal(store.progress('hunter-pilot', journeyDallas02.id).firstAttemptId, first.attemptId);
-    const replay = store.launch('hunter-pilot', 'trainer', 30_000, journeyDallas02.id);
-    store.approach('hunter-pilot', replay.attemptId);
-    store.assignHunter('hunter-pilot', replay.attemptId, 'bot:three');
-    assert.equal(store.completeHunter('hunter-pilot', replay.attemptId, 'bot:three')?.firstClearCredits, 0);
+    assert.throws(() => store.launch('lake-pilot', 'trainer', 1_000, journeyDallas02.id), /locked/);
+    const rookie = store.launch('lake-pilot', 'trainer', 1_000);
+    store.approach('lake-pilot', rookie.attemptId);
+    store.startRookieRush('lake-pilot', rookie.attemptId, 1_500);
+    for (let gate = 0; gate < journeyDallas01.gates.length; gate += 1)
+      store.acceptGate('lake-pilot', rookie.attemptId, gate, 2_000 + gate * 1_000);
+    const race = store.launch('lake-pilot', 'trainer', 20_000, journeyDallas02.id);
+    assert.equal(race.status, 'READY');
+    assert.equal(race.lakeGateIndex, 0);
+    assert.equal(store.assignHunter('lake-pilot', race.attemptId, 'bot:one'), undefined);
+    store.approach('lake-pilot', race.attemptId);
+    assert.equal(store.acceptGate('lake-pilot', race.attemptId, 0, 20_100), undefined);
+    const started = store.startRookieRush('lake-pilot', race.attemptId, 20_200);
+    assert.equal(started?.deadlineAt, 170_200);
+    assert.equal(store.startRookieRush('lake-pilot', race.attemptId, 21_000), undefined);
+    assert.equal(store.acceptGate('other-pilot', race.attemptId, 0, 21_000), undefined);
+    assert.equal(store.acceptGate('lake-pilot', race.attemptId, 1, 21_000), undefined);
+    assert.equal(store.completeHunter('lake-pilot', race.attemptId, 'bot:one'), undefined);
+    for (let gate = 0; gate < journeyDallas02.gates.length; gate += 1) {
+      const result = store.acceptGate('lake-pilot', race.attemptId, gate, 21_000 + gate * 1_000);
+      assert.equal(result?.gateIndex, gate + 1);
+    }
+    assert.equal(store.get('lake-pilot', race.attemptId)?.firstClearCredits, 350);
+    assert.equal(store.lakeRacerBestTime('lake-pilot'), 9_800);
+    assert.equal(store.progress('lake-pilot', journeyDallas02.id).firstAttemptId, race.attemptId);
+    const replay = store.launch('lake-pilot', 'trainer', 40_000, journeyDallas02.id);
+    store.approach('lake-pilot', replay.attemptId);
+    store.startRookieRush('lake-pilot', replay.attemptId, 40_200);
+    for (let gate = 0; gate < journeyDallas02.gates.length; gate += 1)
+      store.acceptGate('lake-pilot', replay.attemptId, gate, 41_000 + gate * 1_000);
+    assert.equal(store.get('lake-pilot', replay.attemptId)?.firstClearCredits, 0);
+    const expired = store.launch('lake-pilot', 'trainer', 60_000, journeyDallas02.id);
+    store.approach('lake-pilot', expired.attemptId);
+    store.startRookieRush('lake-pilot', expired.attemptId, 60_100);
+    assert.equal(store.acceptGate('lake-pilot', expired.attemptId, 0, 210_100), undefined);
+    assert.equal(store.fail('lake-pilot', expired.attemptId, 'TIME_UP', 210_100)?.status, 'FAILED');
+    assert.equal(store.acceptGate('lake-pilot', expired.attemptId, 0, 210_101), undefined);
+    const retry = store.launch('lake-pilot', 'trainer', 211_000, journeyDallas02.id);
+    assert.equal(retry.lakeGateIndex, 0);
+    assert.equal(retry.deadlineAt, null);
+    assert.equal(store.get('lake-pilot', expired.attemptId)?.status, 'FAILED');
+    store.approach('lake-pilot', retry.attemptId);
+    store.startRookieRush('lake-pilot', retry.attemptId, 211_100);
+    assert.equal(store.fail('lake-pilot', retry.attemptId, 'CRASHED', 212_000)?.status, 'FAILED');
+    const afterCrash = store.launch('lake-pilot', 'trainer', 213_000, journeyDallas02.id);
+    assert.equal(afterCrash.gateIndex, 0);
+    assert.equal(afterCrash.deadlineAt, null);
     const check = new DatabaseSync(path);
-    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'hunter-pilot'").get() as { credits: number }).credits, 600);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'lake-pilot'").get() as { credits: number }).credits, 600);
     assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reason = 'MISSION_REWARD'").get() as { count: number }).count, 2);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('historical Hunter Showdown clears retain unlocks but never pay Lake Racer again', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-lake-history-test-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec(`CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL);
+    INSERT INTO player_profiles VALUES ('veteran', 600, 0);
+    CREATE TABLE journey_attempts (
+      attempt_id TEXT PRIMARY KEY, pilot_id TEXT NOT NULL, mission_id TEXT NOT NULL,
+      city_id TEXT NOT NULL, aircraft_type TEXT NOT NULL, status TEXT NOT NULL,
+      gate_index INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
+      started_at INTEGER, deadline_at INTEGER, last_gate_at INTEGER, finished_at INTEGER,
+      finish_time_ms INTEGER, first_clear_credits INTEGER NOT NULL DEFAULT 0, failure_reason TEXT
+    );
+    INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,status,created_at,finished_at)
+      VALUES ('old-hunter','veteran','journey-dallas-02','dallas','trainer','COMPLETED',1000,2000);`);
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    const history = new DatabaseSync(path);
+    history.prepare(`INSERT INTO journey_completions (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms)
+      VALUES (?,?,?,?,?)`).run('veteran', journeyDallas01.id, 'old-rookie', 1_000, 100_000);
+    history.prepare(`INSERT INTO journey_completions (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms)
+      VALUES (?,?,?,?,?)`).run('veteran', journeyDallas02.id, 'old-hunter', 2_000, 0);
+    history.close();
+    assert.equal(store.get('veteran', 'old-hunter')?.lakeGateIndex, -1);
+    assert.equal(store.progress('veteran', journeyDallas02.id).completed, true);
+    assert.equal(store.progress('veteran', journeyDallas02.id).bestTimeMs, undefined);
+    assert.equal(store.lakeRacerBestTime('veteran'), undefined);
+    const race = store.launch('veteran', 'trainer', 10_000, journeyDallas02.id);
+    store.approach('veteran', race.attemptId);
+    store.startRookieRush('veteran', race.attemptId, 10_100);
+    for (let gate = 0; gate < journeyDallas02.gates.length; gate += 1)
+      store.acceptGate('veteran', race.attemptId, gate, 11_000 + gate * 1_000);
+    assert.equal(store.get('veteran', race.attemptId)?.firstClearCredits, 0);
+    assert.equal(store.lakeRacerBestTime('veteran'), 9_900);
+    assert.equal(store.progress('veteran', journeyDallas02.id).bestTimeMs, 9_900);
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'veteran'").get() as { credits: number }).credits, 600);
+    assert.equal((check.prepare("SELECT first_attempt_id FROM journey_completions WHERE pilot_id = 'veteran' AND mission_id = ?").get(journeyDallas02.id) as { first_attempt_id: string }).first_attempt_id, 'old-hunter');
     check.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
@@ -323,7 +384,7 @@ test('White Rock accepts either ring face but keeps its altitude and opening lim
   }
 });
 
-test('White Rock unlocks after Hunter, starts its 64-second timer at Gate 1, and awards 450 Credits once', () => {
+test('White Rock unlocks after Lake Racer, starts its 64-second timer at Gate 1, and awards 450 Credits once', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-white-rock-journey-test-'));
   const path = join(directory, 'profiles.sqlite');
   const setup = new DatabaseSync(path);
@@ -337,10 +398,11 @@ test('White Rock unlocks after Hunter, starts its 64-second timer at Gate 1, and
     store.startRookieRush('white-rock-pilot', first.attemptId, 1_500);
     for (let gate = 0; gate < journeyDallas01.gates.length; gate += 1) store.acceptGate('white-rock-pilot', first.attemptId, gate, 2_000 + gate * 1_000);
     assert.throws(() => store.launch('white-rock-pilot', 'trainer', 7_000, journeyDallas03.id), /locked/);
-    const hunter = store.launch('white-rock-pilot', 'trainer', 8_000, journeyDallas02.id);
-    store.approach('white-rock-pilot', hunter.attemptId);
-    store.assignHunter('white-rock-pilot', hunter.attemptId, 'hunter:assigned');
-    store.completeHunter('white-rock-pilot', hunter.attemptId, 'hunter:assigned', 9_000);
+    const lake = store.launch('white-rock-pilot', 'trainer', 8_000, journeyDallas02.id);
+    store.approach('white-rock-pilot', lake.attemptId);
+    store.startRookieRush('white-rock-pilot', lake.attemptId, 8_100);
+    for (let gate = 0; gate < journeyDallas02.gates.length; gate += 1)
+      store.acceptGate('white-rock-pilot', lake.attemptId, gate, 8_200 + gate * 1_000);
 
     const expired = store.launch('white-rock-pilot', 'trainer', 10_000, journeyDallas03.id);
     store.approach('white-rock-pilot', expired.attemptId);

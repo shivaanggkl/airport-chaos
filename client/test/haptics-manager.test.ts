@@ -91,7 +91,7 @@ test('turning haptics off or hiding the app cancels the second combat pulse', as
   assert.deepEqual(f.calls, [`impact:${ImpactStyle.Heavy}`, `impact:${ImpactStyle.Heavy}`]);
 });
 
-test('the gameplay Journey handler doubles confirmed Hunter victory without duplicate completion feedback', async () => {
+test('the gameplay Journey handler gives Lake Racer one confirmed victory without duplicate feedback', async () => {
   const f = fixture();
   const active = { attemptId: 'flight-1', status: 'RACING', gateIndex: 0 };
   emitConfirmedJourneyFeedback(f.manager, null, { ...active, gateIndex: 2 }); // Restored history is silent.
@@ -102,16 +102,15 @@ test('the gameplay Journey handler doubles confirmed Hunter victory without dupl
   emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 3 }, { ...active, status: 'COMPLETED', gateIndex: 4 });
   emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 3 }, { ...active, status: 'COMPLETED', gateIndex: 4 });
   emitConfirmedJourneyFeedback(f.manager, { attemptId: 'flight-2', status: 'RACING', gateIndex: 0 }, { attemptId: 'flight-2', status: 'COMPLETED', gateIndex: 0 });
-  const hunter = { attemptId: 'hunter', missionId: 'journey-dallas-02', status: 'RACING', gateIndex: 0 };
-  emitConfirmedJourneyFeedback(f.manager, hunter, { ...hunter, status: 'COMPLETED' });
-  emitConfirmedJourneyFeedback(f.manager, hunter, { ...hunter, status: 'COMPLETED' });
+  const lake = { attemptId: 'lake', missionId: 'journey-dallas-02', status: 'RACING', gateIndex: 9 };
+  emitConfirmedJourneyFeedback(f.manager, lake, { ...lake, status: 'COMPLETED', gateIndex: 10 });
+  emitConfirmedJourneyFeedback(f.manager, lake, { ...lake, status: 'COMPLETED', gateIndex: 10 });
   emitConfirmedJourneyFeedback(f.manager, { attemptId: 'flight-3', status: 'RACING', gateIndex: 0 }, { attemptId: 'flight-3', status: 'FAILED', gateIndex: 0 });
   await Promise.resolve();
   assert.deepEqual(f.calls, [
     `impact:${ImpactStyle.Medium}`, `impact:${ImpactStyle.Medium}`, `impact:${ImpactStyle.Medium}`,
     `notification:${NotificationType.Success}`, `notification:${NotificationType.Success}`, `notification:${NotificationType.Success}`,
     `notification:${NotificationType.Warning}`,
-    `notification:${NotificationType.Success}`,
   ]);
 });
 

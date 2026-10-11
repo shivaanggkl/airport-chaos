@@ -10,6 +10,7 @@ export type JourneyAttempt = {
   attemptId: string; pilotId: string; missionId: string; cityId: string; aircraftType: string;
   targetId: string | null; secondaryTargetId: string | null;
   status: JourneyAttemptStatus; gateIndex: number; createdAt: number; startedAt: number | null;
+  lakeGateIndex: number;
   prepareUntil: number | null;
   deadlineAt: number | null; lastGateAt: number | null; finishedAt: number | null;
   finishTimeMs: number | null; firstClearCredits: number; failureReason: string | null;
@@ -35,6 +36,7 @@ type AttemptRow = {
   hold_ms: number; hold_updated_at: number | null;
   capture_ms: number;
   championship_gate_index: number; rookie_gate_index: number; landing_grade: LandingGrade | null;
+  lake_gate_index: number;
   landing_score: number | null; repair_collected_at: number | null;
   approach_cycle: number;
   double_phase: JourneyAttempt['doublePhase']; heart_x: number | null; heart_y: number | null; heart_z: number | null;
@@ -45,7 +47,8 @@ function attempt(row: AttemptRow): JourneyAttempt {
   return {
     attemptId: row.attempt_id, pilotId: row.pilot_id, missionId: row.mission_id,
     cityId: row.city_id, aircraftType: row.aircraft_type, targetId: row.target_id, secondaryTargetId: row.secondary_target_id, status: row.status,
-    gateIndex: row.mission_id === journeyDallas01.id ? row.rookie_gate_index : row.mission_id === journeyDallas06.id || row.mission_id === journeyDallas10.id || row.mission_id === journeyDallas11.id || row.mission_id === journeyDallas12.id || row.mission_id === journeyDallas13.id || row.mission_id === journeyDallas16.id || row.mission_id === journeyDallas20.id || row.mission_id === journeyDallas22.id || row.mission_id === journeyDallas24.id ? row.championship_gate_index : row.gate_index,
+    gateIndex: row.mission_id === journeyDallas01.id ? row.rookie_gate_index : row.mission_id === journeyDallas02.id ? Math.max(0, row.lake_gate_index) : row.mission_id === journeyDallas06.id || row.mission_id === journeyDallas10.id || row.mission_id === journeyDallas11.id || row.mission_id === journeyDallas12.id || row.mission_id === journeyDallas13.id || row.mission_id === journeyDallas16.id || row.mission_id === journeyDallas20.id || row.mission_id === journeyDallas22.id || row.mission_id === journeyDallas24.id ? row.championship_gate_index : row.gate_index,
+    lakeGateIndex: row.lake_gate_index,
     ...(row.mission_id === journeyDallas06.id ? { phase: row.status === 'READY' ? 'PREPARING'
       : row.status === 'APPROACH' ? 'APPROACH_GATES'
       : row.status === 'RACING' ? row.championship_gate_index === 6 ? 'LANDING' : 'RACING' : row.status } : {}),
@@ -115,6 +118,10 @@ export class JourneyAttemptStore {
       this.database.prepare('UPDATE journey_attempts SET rookie_gate_index = gate_index WHERE mission_id = ?')
         .run(journeyDallas01.id);
     }
+    // -1 marks historical Hunter Showdown attempts; new Lake Racer attempts
+    // start at zero. Historical completions remain authoritative for rewards.
+    if (!columns.some(column => column.name === 'lake_gate_index'))
+      this.database.exec('ALTER TABLE journey_attempts ADD COLUMN lake_gate_index INTEGER NOT NULL DEFAULT -1 CHECK(lake_gate_index BETWEEN -1 AND 10)');
     if (!columns.some(column => column.name === 'landing_grade')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN landing_grade TEXT');
     if (!columns.some(column => column.name === 'prepare_until')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN prepare_until INTEGER');
     if (!columns.some(column => column.name === 'repair_collected_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN repair_collected_at INTEGER');
@@ -136,7 +143,9 @@ export class JourneyAttemptStore {
   progress(pilotId: string, missionId: string = journeyDallas01.id): { completed: boolean; firstAttemptId?: string; bestTimeMs?: number } {
     const row = this.database.prepare('SELECT first_attempt_id, best_time_ms FROM journey_completions WHERE pilot_id = ? AND mission_id = ?')
       .get(pilotId, missionId) as { first_attempt_id: string; best_time_ms: number } | undefined;
-    return row ? { completed: true, firstAttemptId: row.first_attempt_id, bestTimeMs: row.best_time_ms } : { completed: false };
+    if (!row) return { completed: false };
+    const bestTimeMs = missionId === journeyDallas02.id ? this.lakeRacerBestTime(pilotId) : row.best_time_ms;
+    return { completed: true, firstAttemptId: row.first_attempt_id, ...(bestTimeMs === undefined ? {} : { bestTimeMs }) };
   }
 
   /** Keep four-gate historical records while comparing only ten-gate race times. */
@@ -144,6 +153,13 @@ export class JourneyAttemptStore {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
       WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND rookie_gate_index = 10`)
       .get(pilotId, journeyDallas01.id) as { best: number | null };
+    return row.best ?? undefined;
+  }
+
+  lakeRacerBestTime(pilotId: string): number | undefined {
+    const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND lake_gate_index = 10`)
+      .get(pilotId, journeyDallas02.id) as { best: number | null };
     return row.best ?? undefined;
   }
 
@@ -178,12 +194,13 @@ export class JourneyAttemptStore {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);
       const attemptId = randomUUID();
-      this.database.prepare("INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,target_id,secondary_target_id,status,created_at,double_phase,legendary_phase) VALUES (?,?,?,?,?,?,?,'READY',?,?,?)")
+      this.database.prepare("INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,target_id,secondary_target_id,status,created_at,double_phase,legendary_phase,lake_gate_index) VALUES (?,?,?,?,?,?,?,'READY',?,?,?,?)")
         .run(attemptId, pilotId, missionId, journeyDallas01.cityId, aircraftType,
           missionId === journeyDallas21.id ? journeyDallas21.alphaTerritoryId : null,
           missionId === journeyDallas21.id ? journeyDallas21.bravoTerritoryId : null, now,
           missionId === journeyDallas23.id ? 'TAKEOFF' : null,
-          missionId === journeyDallas24.id ? 'GATES' : null);
+          missionId === journeyDallas24.id ? 'GATES' : null,
+          missionId === journeyDallas02.id ? 0 : -1);
       return this.get(pilotId, attemptId)!;
     });
   }
@@ -196,11 +213,15 @@ export class JourneyAttemptStore {
     return current?.status === 'APPROACH' ? current : undefined;
   }
 
-  /** Start Rookie Rush on the first accepted airborne control update, after loading. */
+  /** Start an airborne Golden Gates race on the first accepted control update. */
   startRookieRush(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    const current = this.get(pilotId, attemptId);
+    const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : undefined;
+    if (!mission) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?, deadline_at = ?
-      WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ? AND status = 'APPROACH' AND started_at IS NULL`)
-      .run(now, now + journeyDallas01.timeLimitMs, pilotId, attemptId, journeyDallas01.id).changes;
+      WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ? AND status = 'APPROACH' AND started_at IS NULL
+      AND (mission_id != ? OR lake_gate_index = 0)`)
+      .run(now, now + mission.timeLimitMs, pilotId, attemptId, mission.id, journeyDallas02.id).changes;
     return changed ? this.get(pilotId, attemptId) : undefined;
   }
 
@@ -323,11 +344,12 @@ export class JourneyAttemptStore {
   acceptGate(pilotId: string, attemptId: string, gateIndex: number, now = Date.now(), verifiedSpeed?: number): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
-      const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : current?.missionId === journeyDallas07.id ? journeyDallas07 : current?.missionId === journeyDallas10.id ? journeyDallas10 : current?.missionId === journeyDallas11.id ? journeyDallas11 : current?.missionId === journeyDallas12.id ? journeyDallas12 : current?.missionId === journeyDallas13.id ? journeyDallas13 : current?.missionId === journeyDallas16.id ? journeyDallas16 : current?.missionId === journeyDallas20.id ? journeyDallas20 : undefined;
-      if (!current || !mission || current.gateIndex !== gateIndex || !['APPROACH', 'RACING'].includes(current.status)) return undefined;
-      if (current.missionId === journeyDallas01.id && (!current.startedAt || !current.deadlineAt || now >= current.deadlineAt)) return undefined;
+      const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : current?.missionId === journeyDallas07.id ? journeyDallas07 : current?.missionId === journeyDallas10.id ? journeyDallas10 : current?.missionId === journeyDallas11.id ? journeyDallas11 : current?.missionId === journeyDallas12.id ? journeyDallas12 : current?.missionId === journeyDallas13.id ? journeyDallas13 : current?.missionId === journeyDallas16.id ? journeyDallas16 : current?.missionId === journeyDallas20.id ? journeyDallas20 : undefined;
+      if (!current || !mission || current.gateIndex !== gateIndex || !['APPROACH', 'RACING'].includes(current.status) ||
+        current.missionId === journeyDallas02.id && current.lakeGateIndex < 0) return undefined;
+      if ((current.missionId === journeyDallas01.id || current.missionId === journeyDallas02.id) && (!current.startedAt || !current.deadlineAt || now >= current.deadlineAt)) return undefined;
       if (current.missionId === journeyDallas11.id && (current.prepareUntil === null || now < current.prepareUntil)) return undefined;
-      if (gateIndex === 0 && current.status !== (current.missionId === journeyDallas01.id ? 'RACING' : 'APPROACH')) return undefined;
+      if (gateIndex === 0 && current.status !== (current.missionId === journeyDallas01.id || current.missionId === journeyDallas02.id ? 'RACING' : 'APPROACH')) return undefined;
       if (gateIndex > 0 && (current.status !== 'RACING' || !current.startedAt || current.missionId !== journeyDallas16.id && (!current.deadlineAt ||
         (current.missionId === journeyDallas20.id ? now >= current.deadlineAt : now > current.deadlineAt)) ||
         !current.lastGateAt || now - current.lastGateAt < 350)) return undefined;
@@ -359,11 +381,11 @@ export class JourneyAttemptStore {
           if (!reward.ok) throw new Error('Journey first-clear reward failed');
           credited = Math.max(0, (reward.balance ?? before) - before);
         }
-        this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', ${current.missionId === journeyDallas01.id ? 'rookie_gate_index' : current.missionId === journeyDallas10.id || current.missionId === journeyDallas11.id || current.missionId === journeyDallas12.id || current.missionId === journeyDallas13.id || current.missionId === journeyDallas16.id || current.missionId === journeyDallas20.id ? 'championship_gate_index' : 'gate_index'} = ?, last_gate_at = ?,
+        this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', ${current.missionId === journeyDallas01.id ? 'rookie_gate_index' : current.missionId === journeyDallas02.id ? 'lake_gate_index' : current.missionId === journeyDallas10.id || current.missionId === journeyDallas11.id || current.missionId === journeyDallas12.id || current.missionId === journeyDallas13.id || current.missionId === journeyDallas16.id || current.missionId === journeyDallas20.id ? 'championship_gate_index' : 'gate_index'} = ?, last_gate_at = ?,
           finished_at = ?, finish_time_ms = ?, first_clear_credits = ? WHERE attempt_id = ?`)
           .run(gateIndex + 1, now, now, finishTimeMs, credited, attemptId);
       } else {
-        this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', ${current.missionId === journeyDallas01.id ? 'rookie_gate_index' : current.missionId === journeyDallas10.id || current.missionId === journeyDallas11.id || current.missionId === journeyDallas12.id || current.missionId === journeyDallas13.id || current.missionId === journeyDallas16.id || current.missionId === journeyDallas20.id ? 'championship_gate_index' : 'gate_index'} = ?,
+        this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', ${current.missionId === journeyDallas01.id ? 'rookie_gate_index' : current.missionId === journeyDallas02.id ? 'lake_gate_index' : current.missionId === journeyDallas10.id || current.missionId === journeyDallas11.id || current.missionId === journeyDallas12.id || current.missionId === journeyDallas13.id || current.missionId === journeyDallas16.id || current.missionId === journeyDallas20.id ? 'championship_gate_index' : 'gate_index'} = ?,
           started_at = COALESCE(started_at, ?), deadline_at = COALESCE(deadline_at, ?), last_gate_at = ? WHERE attempt_id = ?`)
           .run(gateIndex + 1, now, current.missionId === journeyDallas16.id ? null : now + ('timeLimitMs' in mission ? mission.timeLimitMs : 0), now, attemptId);
       }
@@ -424,7 +446,7 @@ export class JourneyAttemptStore {
 
   assignHunter(pilotId: string, attemptId: string, targetId: string, previousTargetId: string | null = null, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    if (!current || (current.missionId !== journeyDallas02.id && current.missionId !== journeyDallas09.id && current.missionId !== journeyDallas14.id && current.missionId !== journeyDallas15.id) || !targetId ||
+    if (!current || (current.missionId !== journeyDallas09.id && current.missionId !== journeyDallas14.id && current.missionId !== journeyDallas15.id) || !targetId ||
       (current.status === 'APPROACH' ? previousTargetId !== null : current.status !== 'RACING' || current.targetId !== previousTargetId)) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', target_id = ?, started_at = COALESCE(started_at, ?)
       WHERE pilot_id = ? AND attempt_id = ? AND status = ? AND target_id IS ?`)
@@ -597,9 +619,9 @@ export class JourneyAttemptStore {
   completeHunter(pilotId: string, attemptId: string, targetId: string, now = Date.now()): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
-      if (!current || (current.missionId !== journeyDallas02.id && current.missionId !== journeyDallas15.id) ||
+      if (!current || current.missionId !== journeyDallas15.id ||
         current.status !== 'RACING' || current.targetId !== targetId ||
-        !this.progress(pilotId, current.missionId === journeyDallas15.id ? journeyDallas14.id : journeyDallas01.id).completed) return undefined;
+        !this.progress(pilotId, journeyDallas14.id).completed) return undefined;
       const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
         (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,0)`)
         .run(pilotId, current.missionId, attemptId, now).changes === 1;
@@ -608,7 +630,7 @@ export class JourneyAttemptStore {
       let credited = 0;
       if (first) {
         const before = wallet.balances(pilotId)?.credits ?? 0;
-        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: current.missionId === journeyDallas15.id ? journeyDallas15.firstClearCredits : journeyDallas02.firstClearCredits,
+        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas15.firstClearCredits,
           reason: 'MISSION_REWARD', idempotencyKey: `journey:${current.missionId}`, referenceId: current.missionId, createdAt: now });
         if (!reward.ok) throw new Error('Journey Hunter reward failed');
         credited = Math.max(0, (reward.balance ?? before) - before);

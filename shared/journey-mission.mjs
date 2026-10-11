@@ -10,27 +10,39 @@ export const journeyDallas01 = Object.freeze({
   timeLimitMs: 150_000,
   firstClearCredits: 250,
   airborneSpawn: Object.freeze({ x: -23_000, z: -23_000, altitude: 760, heading: -Math.PI / 2, speed: 650 }),
-  // A forward course around the open southern, eastern and northern Dallas
-  // airspace. Its long flight path prevents the fast Firehawk from skipping the
-  // intended race duration without changing any aircraft handling.
+  // A forward course through open southern, eastern and northern Dallas
+  // airspace, with roughly 11 km between gates after the nearby first gate.
   gates: Object.freeze([
     { x: -20_000, z: -23_000, altitude: 760, radius: 290 },
-    { x: -10_000, z: -23_000, altitude: 760, radius: 270 },
-    { x: 2_000, z: -23_000, altitude: 770, radius: 250 },
-    { x: 14_000, z: -21_000, altitude: 790, radius: 235 },
-    { x: 23_000, z: -12_000, altitude: 810, radius: 225 },
-    { x: 23_000, z: 2_000, altitude: 820, radius: 215 },
-    { x: 23_000, z: 19_000, altitude: 850, radius: 205 },
-    { x: 8_000, z: 23_000, altitude: 830, radius: 195 },
-    { x: -8_000, z: 23_000, altitude: 790, radius: 190 },
-    { x: -23_000, z: 23_000, altitude: 770, radius: 300 },
+    { x: -8_700, z: -23_000, altitude: 760, radius: 270 },
+    { x: 2_600, z: -23_000, altitude: 770, radius: 250 },
+    { x: 13_900, z: -23_000, altitude: 790, radius: 235 },
+    { x: 21_000, z: -18_000, altitude: 810, radius: 225 },
+    { x: 21_000, z: -7_500, altitude: 820, radius: 215 },
+    { x: 21_000, z: 3_000, altitude: 850, radius: 205 },
+    { x: 18_000, z: 14_000, altitude: 830, radius: 195 },
+    { x: 7_000, z: 18_000, altitude: 790, radius: 190 },
+    { x: -3_000, z: 18_000, altitude: 770, radius: 300 },
   ]),
 });
 
 export const journeyDallas02 = Object.freeze({
-  id: 'journey-dallas-02', cityId: 'dallas', name: 'HUNTER SHOWDOWN',
-  chapter: 'ROOKIE LEAGUE', firstClearCredits: 350, targetHealth: 200,
-  arenaRadius: 25_000, arenaCenter: Object.freeze({ x: cityAirports.dallas[0].x, z: cityAirports.dallas[0].z }),
+  id: 'journey-dallas-02', cityId: 'dallas', name: 'LAKE RACER',
+  chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 150_000,
+  airborneSpawn: Object.freeze({ x: -15_000, z: -22_000, altitude: 800, heading: -1.89, speed: 650 }),
+  // A broad, forward S through the White Rock Lake area and open East Dallas.
+  gates: Object.freeze([
+    { x: -12_000, z: -21_000, altitude: 800, radius: 320 },
+    { x: -3_000, z: -16_000, altitude: 800, radius: 300 },
+    { x: 8_000, z: -10_000, altitude: 810, radius: 290 },
+    { x: 20_000, z: -6_000, altitude: 820, radius: 280 },
+    { x: 22_000, z: 5_000, altitude: 820, radius: 280 },
+    { x: 12_000, z: 11_000, altitude: 810, radius: 270 },
+    { x: 0, z: 14_000, altitude: 800, radius: 270 },
+    { x: -10_000, z: 16_000, altitude: 800, radius: 280 },
+    { x: -10_000, z: 23_000, altitude: 800, radius: 290 },
+    { x: 1_000, z: 21_000, altitude: 800, radius: 340 },
+  ]),
 });
 
 export const journeyDallas03 = Object.freeze({
