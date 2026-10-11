@@ -9,10 +9,10 @@ export class GoldenFlightPath {
   private readonly centerPositions = new Float32Array((SEGMENTS + 1) * 3);
   private readonly ribbonGeometry = new THREE.BufferGeometry();
   private readonly centerGeometry = new THREE.BufferGeometry();
-  private readonly ribbonMaterial = new THREE.MeshBasicMaterial({ color: 0x21c3f7, transparent: true,
-    opacity: .29, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  private readonly ribbonMaterial = new THREE.MeshBasicMaterial({ color: 0x14bff3, transparent: true,
+    opacity: .52, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
   private readonly centerMaterial = new THREE.LineBasicMaterial({ color: 0xa4f6ff, transparent: true,
-    opacity: .72, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
   private readonly ribbon: THREE.Mesh;
   private readonly center: THREE.Line;
   private readonly group = new THREE.Group();
@@ -28,6 +28,7 @@ export class GoldenFlightPath {
   private readonly derivativeA = new THREE.Vector3();
   private readonly derivativeB = new THREE.Vector3();
   private readonly derivativeC = new THREE.Vector3();
+  private readonly cameraRight = new THREE.Vector3();
   private gateIndex = 0;
   private elapsed = Infinity;
 
@@ -54,7 +55,7 @@ export class GoldenFlightPath {
     this.elapsed = Infinity;
   }
 
-  update(delta: number, position: THREE.Vector3, velocity: THREE.Vector3): void {
+  update(delta: number, position: THREE.Vector3, velocity: THREE.Vector3, camera: THREE.Camera): void {
     if (!this.group.visible) return;
     this.elapsed += delta;
     if (this.elapsed < .08) return;
@@ -87,7 +88,8 @@ export class GoldenFlightPath {
     this.derivativeA.copy(this.controlA).sub(this.start);
     this.derivativeB.copy(this.controlB).sub(this.controlA);
     this.derivativeC.copy(this.target).sub(this.controlB);
-    const maxWidth = Math.min(150, Math.max(75, distance * .025));
+    this.cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    const maxWidth = Math.min(260, Math.max(180, distance * .06));
     for (let i = 0; i <= SEGMENTS; i += 1) {
       const t = i / SEGMENTS, q = 1 - t;
       this.point.copy(this.start).multiplyScalar(q * q * q)
@@ -95,17 +97,22 @@ export class GoldenFlightPath {
         .addScaledVector(this.controlB, 3 * q * t * t)
         .addScaledVector(this.target, t * t * t);
       const dx = 3 * q * q * this.derivativeA.x + 6 * q * t * this.derivativeB.x + 3 * t * t * this.derivativeC.x;
+      const dy = 3 * q * q * this.derivativeA.y + 6 * q * t * this.derivativeB.y + 3 * t * t * this.derivativeC.y;
       const dz = 3 * q * q * this.derivativeA.z + 6 * q * t * this.derivativeB.z + 3 * t * t * this.derivativeC.z;
-      const length = Math.hypot(dx, dz) || 1;
+      const tangentLength = Math.hypot(dx, dy, dz) || 1;
+      const along = (this.cameraRight.x * dx + this.cameraRight.y * dy + this.cameraRight.z * dz) / tangentLength;
+      const lateralX = this.cameraRight.x - dx / tangentLength * along;
+      const lateralY = this.cameraRight.y - dy / tangentLength * along;
+      const lateralZ = this.cameraRight.z - dz / tangentLength * along;
+      const lateralLength = Math.hypot(lateralX, lateralY, lateralZ) || 1;
       const halfWidth = maxWidth * Math.sin(Math.PI * t) * .5;
-      const lateralX = -dz / length * halfWidth, lateralZ = dx / length * halfWidth;
       const edge = i * 6, center = i * 3;
-      this.ribbonPositions[edge] = this.point.x + lateralX;
-      this.ribbonPositions[edge + 1] = this.point.y;
-      this.ribbonPositions[edge + 2] = this.point.z + lateralZ;
-      this.ribbonPositions[edge + 3] = this.point.x - lateralX;
-      this.ribbonPositions[edge + 4] = this.point.y;
-      this.ribbonPositions[edge + 5] = this.point.z - lateralZ;
+      this.ribbonPositions[edge] = this.point.x + lateralX / lateralLength * halfWidth;
+      this.ribbonPositions[edge + 1] = this.point.y + lateralY / lateralLength * halfWidth;
+      this.ribbonPositions[edge + 2] = this.point.z + lateralZ / lateralLength * halfWidth;
+      this.ribbonPositions[edge + 3] = this.point.x - lateralX / lateralLength * halfWidth;
+      this.ribbonPositions[edge + 4] = this.point.y - lateralY / lateralLength * halfWidth;
+      this.ribbonPositions[edge + 5] = this.point.z - lateralZ / lateralLength * halfWidth;
       this.centerPositions[center] = this.point.x;
       this.centerPositions[center + 1] = this.point.y + .5;
       this.centerPositions[center + 2] = this.point.z;

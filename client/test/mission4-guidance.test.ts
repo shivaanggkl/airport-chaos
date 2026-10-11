@@ -13,8 +13,11 @@ test('Mission 4 shows one active gold gate and a blue pathway without prediction
   assert.equal(pathway.visible, false);
   assert.equal(scene.getObjectByName('mission-04-crossing-prediction'), undefined);
   assert.deepEqual(scene.children.filter((child) => child.visible).map((child) => child.name), ['journey-dallas-04-gate-1']);
+  const camera = new THREE.PerspectiveCamera(65, 1280 / 585, 0.1, 30_000);
+  camera.position.set(-22_150, 920, -20_150);
+  camera.lookAt(-19_000, 850, -18_000);
   slalom.setProgress(1, true);
-  slalom.update(.1, new THREE.Vector3(-19_000, 850, -18_000), new THREE.Vector3(500, 0, 250));
+  slalom.update(.1, new THREE.Vector3(-19_000, 850, -18_000), new THREE.Vector3(500, 0, 250), camera);
   assert.deepEqual(scene.children.filter((child) => child.visible).map((child) => child.name),
     ['journey-dallas-04-gate-2', 'mission-04-blue-pathway']);
   const ribbon = (pathway.children[0] as THREE.Mesh).geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -23,7 +26,7 @@ test('Mission 4 shows one active gold gate and a blue pathway without prediction
   const center = (pathway.children[1] as THREE.Line).geometry.getAttribute('position') as THREE.BufferAttribute;
   assert.equal(center.getX(center.count - 1), journeyDallas04.gates[1].x);
   slalom.setProgress(2, true);
-  slalom.update(.1, new THREE.Vector3(-15_000, 850, -15_000), new THREE.Vector3(500, 0, 250));
+  slalom.update(.1, new THREE.Vector3(-15_000, 850, -15_000), new THREE.Vector3(500, 0, 250), camera);
   assert.equal(center.getX(center.count - 1), journeyDallas04.gates[2].x,
     'the pathway changes only after confirmed gate progress');
   slalom.setProgress(10, false);
@@ -35,6 +38,26 @@ test('Mission 4 shows one active gold gate and a blue pathway without prediction
   assert.equal(scene.children.filter((child) => child.visible).length, 2, 'Mission 3 preview behavior is preserved');
   ascent.dispose();
   assert.equal(scene.children.length, 0);
+});
+
+test('Mission 4 pathway has visible screen width from the chase camera at the airborne start', () => {
+  const scene = new THREE.Scene();
+  const slalom = new JourneyGateSystem(scene, () => 0, journeyDallas04);
+  const spawn = journeyDallas04.airborneSpawn;
+  const gate = journeyDallas04.gates[0];
+  const camera = new THREE.PerspectiveCamera(65, 1280 / 585, 0.1, 30_000);
+  camera.position.set(spawn.x - 150, spawn.altitude + 70, spawn.z - 150);
+  camera.lookAt(gate.x, gate.altitude, gate.z);
+  slalom.setProgress(0, true);
+  slalom.update(.1, new THREE.Vector3(spawn.x, spawn.altitude, spawn.z),
+    new THREE.Vector3(gate.x - spawn.x, 0, gate.z - spawn.z), camera);
+  const pathway = scene.getObjectByName('mission-04-blue-pathway') as THREE.Group;
+  const positions = (pathway.children[0] as THREE.Mesh).geometry.getAttribute('position') as THREE.BufferAttribute;
+  const index = 12 * 2;
+  const left = new THREE.Vector3(positions.getX(index), positions.getY(index), positions.getZ(index)).project(camera);
+  const right = new THREE.Vector3(positions.getX(index + 1), positions.getY(index + 1), positions.getZ(index + 1)).project(camera);
+  assert.ok(Math.abs(left.x - right.x) * 640 > 20, 'pathway must cover visible pixels, not lie edge-on');
+  slalom.dispose();
 });
 
 test('fixed gate cue follows aircraft heading and altitude with a dead band', () => {

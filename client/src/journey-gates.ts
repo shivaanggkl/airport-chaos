@@ -81,8 +81,8 @@ export class JourneyGateSystem {
     return this.active && gate ? { x: gate.x, y: this.heightAt(gate.x, gate.z) + gate.altitude, z: gate.z, index: this.current } : undefined;
   }
 
-  update(delta: number, player?: THREE.Vector3, velocity?: THREE.Vector3): void {
-    if (player && velocity) this.flightPath?.update(delta, player, velocity);
+  update(delta: number, player?: THREE.Vector3, velocity?: THREE.Vector3, camera?: THREE.Camera): void {
+    if (player && velocity && camera) this.flightPath?.update(delta, player, velocity, camera);
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
