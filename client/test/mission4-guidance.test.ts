@@ -17,6 +17,10 @@ test('Mission 4 shows only the active gold gate and cleans up on exit', () => {
   const halo = (gateGroup.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material;
   assert.equal(halo.opacity, .08, 'Mission 4 gate glow stays restrained and steady');
   assert.equal((gateGroup.children[0] as THREE.Mesh<THREE.TorusGeometry>).geometry.parameters.tube, .08);
+  for (const part of gateGroup.children.slice(0, 3)) {
+    assert.equal((part as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.transparent, true,
+      'the gate must render after opaque terrain instead of losing its lower half at the horizon');
+  }
   slalom.setProgress(2, true);
   slalom.update(.1);
   assert.deepEqual(scene.children.filter((child) => child.visible).map((child) => child.name),
