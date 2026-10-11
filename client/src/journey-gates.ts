@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas19, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
-import { GoldenFlightGuide } from './golden-flight-guide';
 
 const goldenRace = (id: string): boolean => id === journeyDallas01.id || id === journeyDallas02.id || id === journeyDallas03.id || id === journeyDallas04.id;
 
@@ -11,10 +10,14 @@ const rookieGold = new THREE.MeshBasicMaterial({ color: 0xf7c948, transparent: t
 const rookieInner = new THREE.MeshBasicMaterial({ color: 0xfff4c9, transparent: true, opacity: .97, depthWrite: false });
 const rookieAmber = new THREE.MeshBasicMaterial({ color: 0xffb529, transparent: true, opacity: .98, depthWrite: false });
 const rookiePreview = new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: .42, depthWrite: false });
+const slalomGold = new THREE.MeshBasicMaterial({ color: 0xf7c948, toneMapped: false, depthWrite: false });
+const slalomInner = new THREE.MeshBasicMaterial({ color: 0xfff4c9, toneMapped: false, depthWrite: false });
+const slalomAccent = new THREE.MeshBasicMaterial({ color: 0xffd766, toneMapped: false, depthWrite: false });
 const ringShape = new THREE.TorusGeometry(1, .08, 8, 48);
 const rookieRingShape = new THREE.TorusGeometry(1, .12, 8, 48);
 const rookieHaloShape = new THREE.TorusGeometry(1, .22, 8, 48);
 const innerShape = new THREE.TorusGeometry(.86, .019, 6, 48);
+const slalomInnerShape = new THREE.TorusGeometry(.86, .035, 6, 48);
 const precisionOpeningShape = new THREE.TorusGeometry(.92, .015, 6, 48);
 const accentShape = new THREE.TorusGeometry(1.09, .048, 6, 24, Math.PI * .48);
 
@@ -25,11 +28,9 @@ export class JourneyGateSystem {
   private phase = 0;
   private flashIndex = -1;
   private flashTime = 0;
-  private readonly flightGuide?: GoldenFlightGuide;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
     private readonly mission: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas19 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
-    if (mission.id === journeyDallas04.id) this.flightGuide = new GoldenFlightGuide(scene, heightAt);
     for (const [index, gate] of mission.gates.entries()) {
       const group = new THREE.Group();
       group.name = `${mission.id}-gate-${index + 1}`;
@@ -43,16 +44,19 @@ export class JourneyGateSystem {
       } else group.lookAt(gate.x + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalX : next.x - previous.x),
         group.position.y, gate.z + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalZ : next.z - previous.z));
       const rookie = goldenRace(mission.id);
-      const rim = new THREE.Mesh(rookie ? rookieRingShape : ringShape, rookie ? rookieGold : cyan);
-      const core = new THREE.Mesh(mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, rookie ? rookieInner : ice);
-      const accent = new THREE.Mesh(accentShape, rookie ? rookieAmber : gold);
+      const slalom = mission.id === journeyDallas04.id;
+      const rim = new THREE.Mesh(rookie ? rookieRingShape : ringShape, slalom ? slalomGold : rookie ? rookieGold : cyan);
+      const core = new THREE.Mesh(slalom ? slalomInnerShape : mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, slalom ? slalomInner : rookie ? rookieInner : ice);
+      const accent = new THREE.Mesh(accentShape, slalom ? slalomAccent : rookie ? rookieAmber : gold);
       accent.rotation.z = -.3;
+      if (slalom) accent.scale.setScalar(.98); // Keep the solid highlight inside the accepted outer rim.
       const burst = new THREE.Mesh(ringShape, gold.clone());
       (burst.material as THREE.MeshBasicMaterial).opacity = 0;
       burst.visible = false;
       group.add(rim, core, accent, burst);
       if (rookie) group.add(new THREE.Mesh(rookieHaloShape,
-        new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: .16, depthWrite: false })));
+        new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: slalom ? .3 : .16,
+          blending: slalom ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, toneMapped: !slalom })));
       scene.add(group);
       this.gates.push(group);
     }
@@ -62,10 +66,9 @@ export class JourneyGateSystem {
   setProgress(gatesPassed: number, active: boolean): void {
     const next = Math.max(0, Math.min(this.mission.gates.length, gatesPassed));
     if (goldenRace(this.mission.id) && next === 0) { this.flashIndex = -1; this.flashTime = 0; }
-    if (next > this.current) { this.flashIndex = this.current; this.flashTime = .5; }
+    if (next > this.current) { this.flashIndex = this.mission.id === journeyDallas04.id ? -1 : this.current; this.flashTime = .5; }
     this.current = next;
     this.active = active;
-    this.flightGuide?.setGate(next, active);
     this.refresh();
   }
 
@@ -74,13 +77,13 @@ export class JourneyGateSystem {
     return this.active && gate ? { x: gate.x, y: this.heightAt(gate.x, gate.z) + gate.altitude, z: gate.z, index: this.current } : undefined;
   }
 
-  update(delta: number, position?: THREE.Vector3, velocity?: THREE.Vector3): void {
-    if (position && velocity) this.flightGuide?.update(delta, position, velocity);
+  update(delta: number): void {
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
     if (this.active && current && goldenRace(this.mission.id)) {
-      (current.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = .15 + .045 * Math.sin(this.phase * 2.5);
+      (current.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity =
+        this.mission.id === journeyDallas04.id ? .29 + .055 * Math.sin(this.phase * 2.5) + this.flashTime * .28 : .15 + .045 * Math.sin(this.phase * 2.5);
       current.children[2]!.rotation.z = this.phase * .65;
     }
     if (this.active && current && !goldenRace(this.mission.id) && this.mission.id !== journeyDallas05.id && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas19.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
@@ -100,15 +103,16 @@ export class JourneyGateSystem {
 
   private refresh(): void {
     this.gates.forEach((group, index) => {
-      group.visible = (this.active && (index === this.current || index === this.current + 1 ||
+      group.visible = (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
         (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
       if (goldenRace(this.mission.id)) {
         const active = index === this.current;
-        (group.children[0] as THREE.Mesh).material = active ? rookieGold : rookiePreview;
-        (group.children[1] as THREE.Mesh).material = active ? rookieInner : rookiePreview;
-        (group.children[2] as THREE.Mesh).material = active ? rookieAmber : rookiePreview;
-        (group.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = active ? .16 : .07;
+        const slalom = this.mission.id === journeyDallas04.id;
+        (group.children[0] as THREE.Mesh).material = active ? slalom ? slalomGold : rookieGold : rookiePreview;
+        (group.children[1] as THREE.Mesh).material = active ? slalom ? slalomInner : rookieInner : rookiePreview;
+        (group.children[2] as THREE.Mesh).material = active ? slalom ? slalomAccent : rookieAmber : rookiePreview;
+        (group.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = active ? slalom ? .3 : .16 : .07;
         group.scale.setScalar(this.mission.gates[index]!.radius);
         return;
       }
@@ -124,7 +128,6 @@ export class JourneyGateSystem {
   }
 
   dispose(): void {
-    this.flightGuide?.dispose();
     for (const gate of this.gates) {
       (gate.children[3] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.dispose();
       if (goldenRace(this.mission.id))

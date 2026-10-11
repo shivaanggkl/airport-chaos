@@ -663,7 +663,7 @@ test('Rookie Championship requires Mission 5, a qualifying DFW landing, and awar
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Downtown Slalom gates accept only sequential forward crossings through the real opening', () => {
+test('Downtown Slalom gates accept sequential forward crossings through the solid ring', () => {
   assert.equal(journeyDallas04.gates.length, 10);
   assert.equal(journeyDallas04.timeLimitMs, 160_000);
   assert.equal(journeyDallas04.firstClearCredits, 500);
@@ -677,7 +677,7 @@ test('Downtown Slalom gates accept only sequential forward crossings through the
     const after = { x: gate.x + nx * 90, y: gate.altitude, z: gate.z + nz * 90 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas04), 'VALID');
     assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas04), false);
-    const tangentX = -nz * gate.radius, tangentZ = nx * gate.radius;
+    const tangentX = -nz * (gate.radius * 1.12 + 2.6), tangentZ = nx * (gate.radius * 1.12 + 2.6);
     assert.equal(journeyGateCrossing({ ...before, x: before.x + tangentX, z: before.z + tangentZ },
       { ...after, x: after.x + tangentX, z: after.z + tangentZ }, index, 0, journeyDallas04), false);
   }

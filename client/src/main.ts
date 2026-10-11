@@ -744,6 +744,7 @@ function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   }
   const criticalHeart = repairHeartSprites.get(journeyDallas17.heartId);
   if (criticalHeart) criticalHeart.visible = attempt?.missionId === journeyDallas17.id && attempt.phase === 'REPAIR';
+  flightGameRoot.classList.toggle('mission4-clean-hud', next !== null && attempt?.missionId === journeyDallas04.id);
   if (missionFocus === next && botIsolationActive === nextBotIsolation && focusedHunterId === nextHunterId) return;
   missionFocus = next;
   botIsolationActive = nextBotIsolation;
@@ -2468,7 +2469,7 @@ function updateJourneyHud(): void {
   skyChallengeElement.classList.toggle('journey-championship', championshipMission || pendulumMission || switchbackMission);
   skyChallengeElement.classList.toggle('journey-rookie-rush', dfwMission || lakeMission || ascentMission || downtownMission);
   skyChallengeElement.classList.toggle('journey-slalom', slalomMission || gravityMission || redlineMission);
-  for (const item of [journeyHudTarget, journeyHudTimer]) if (item) item.hidden = !dfwMission && !lakeMission && !ascentMission && !downtownMission && !precisionMission && !championshipMission && !elevatorMission && !formationMission && !recoveryMission && !slalomMission && !gravityMission && !pendulumMission && !redlineMission && !escapeMission && !aceMission && !crossfireMission && !criticalMission && !siegeMission && !breakoutMission && !switchbackMission && !twoFrontsMission && !perfectMission && !doubleMission && !legendaryMission;
+  for (const item of [journeyHudTarget, journeyHudTimer]) if (item) item.hidden = !dfwMission && !lakeMission && !ascentMission && !downtownMission && !precisionMission && !championshipMission && !elevatorMission && !formationMission && !recoveryMission && !slalomMission && !gravityMission && !pendulumMission && !redlineMission && !escapeMission && !aceMission && !crossfireMission && !criticalMission && !siegeMission && !breakoutMission && !switchbackMission && !twoFrontsMission && !perfectMission && !doubleMission && !legendaryMission || downtownMission && item === journeyHudTarget;
   if (journeyHudHint) journeyHudHint.hidden = !dfwMission && !lakeMission && !ascentMission && !downtownMission;
   if (!journeyAttempt) {
     if (journeyHudHeading) journeyHudHeading.textContent = 'MISSION · CONNECTING';
@@ -2864,7 +2865,7 @@ function updateJourneyHud(): void {
     if (journeyHudObjective) journeyHudObjective.textContent = cleared ? `GOLDEN GATE ${gateIndex} CLEARED!`
       : gateAbove ? `CLIMB TO GOLDEN GATE ${gateIndex + 1}` : 'FLY THROUGH ALL GOLDEN GATES';
     if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
-    if (journeyHudTarget) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
+    if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
     if (journeyHudTimer) journeyHudTimer.textContent = `TIME LEFT: ${Math.floor((timeLeft ?? mission.timeLimitMs / 1000) / 60).toString().padStart(2, '0')}:${String((timeLeft ?? mission.timeLimitMs / 1000) % 60).padStart(2, '0')}`;
     skyChallengeElement.classList.toggle('journey-timer-urgent', timeLeft !== null && timeLeft <= 10);
     if (journeyHudHint) {
@@ -8834,7 +8835,7 @@ function animate(): void {
   if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
   else updateOsmCityChunks(airplane.position);
   cityWorld.updateWorldVisuals?.(delta, airplane.position);
-  journeyGates?.update(delta, airplane.position, velocity);
+  journeyGates?.update(delta);
 
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
@@ -8871,7 +8872,7 @@ function animate(): void {
   syncTwoFrontsObjective();
   if (crashed) missionObjectiveGuidance?.hide();
   else if (missionObjective) missionObjectiveGuidance?.update(camera, airplane.position, WORLD_METERS_PER_UNIT,
-    !onGround && runStarted, contextualHints.isEnabled());
+    !onGround && runStarted, contextualHints.isEnabled(), performance.now(), airplane.rotation.y);
   adPlacementManager.update(camera, delta, airplane, selectedCombatTarget !== null, lockCircleCenterX, lockCircleCenterY, lockCircleRadius);
   navigationTimer += delta;
   progressionHudTimer += delta;
@@ -9825,7 +9826,8 @@ boundSocket.addEventListener('message', (event) => {
       : message.attempt.missionId === journeyDallas16.id
         ? confirmedGateObjective(message.attempt, journeyDallas16.gates, getTerrainHeight)
       : message.attempt.missionId === journeyDallas04.id
-        ? confirmedGateObjective(message.attempt, journeyDallas04.gates, getTerrainHeight)
+        ? (() => { const gate = confirmedGateObjective(message.attempt, journeyDallas04.gates, getTerrainHeight);
+          return gate ? { ...gate, fixedTop: true } : null; })()
       : message.attempt.missionId === journeyDallas03.id
         ? confirmedGateObjective(message.attempt, journeyDallas03.gates, getTerrainHeight)
         : message.attempt.missionId === journeyDallas05.id

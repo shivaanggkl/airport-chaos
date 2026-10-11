@@ -330,7 +330,7 @@ export function journeyExitCrossing(from, to, terrainHeight, mission = journeyDa
   return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2;
 }
 
-// The plane used by both server crossings and the Mission 4 visual guide.
+// The plane used by authoritative gate crossings.
 export function journeyGatePlane(mission, gateIndex) {
   const gate = mission.gates[gateIndex];
   if (!gate) return null;
@@ -343,7 +343,7 @@ export function journeyGatePlane(mission, gateIndex) {
   return { normalX: directionX / length, normalZ: directionZ / length };
 }
 
-// Cross the face of the next ring within its illuminated opening.
+// Cross the face of the next ring within its accepted collision region.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   const gate = mission.gates[gateIndex];
@@ -371,9 +371,12 @@ export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission 
   const x = from.x + (to.x - from.x) * fraction - gate.x;
   const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
   const z = from.z + (to.z - from.z) * fraction - gate.z;
-  if (x * x + z * z > (gate.radius * 0.92) ** 2) return false;
+  // Mission 4's solid torus reaches 1.12 radii. Include the existing 2.5-unit
+  // aircraft collision sphere, but never the decorative 1.22-radius halo.
+  const acceptedRadius = mission.id === journeyDallas04.id ? gate.radius * 1.12 + 2.5 + 1e-6 : gate.radius * .92;
+  if (x * x + z * z > acceptedRadius ** 2) return false;
   if (gate.maxAltitude !== undefined && y + gate.altitude > gate.maxAltitude) return 'TOO_HIGH';
-  return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2 ? 'VALID' : false;
+  return x * x + y * y + z * z <= acceptedRadius ** 2 ? 'VALID' : false;
 }
 export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';

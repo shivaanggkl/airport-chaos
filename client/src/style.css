@@ -1629,6 +1629,16 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-marker { padding: 5px 8px; }
 .mission-objective-arrow { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 174px; min-height: 42px; padding: 5px 9px; }
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
+.mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 62px); left: 50%; }
+.mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #target-feedback, #combat-threat-warning, #combat-message, #leader-message, .touch-fire) { display: none !important; }
+.mission4-clean-hud #desktop-controls-help-items span:nth-child(4) { display: none; }
+@media (max-width: 800px) and (orientation: landscape) {
+  .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 118px); }
+  .mission4-clean-hud .sky-challenge.journey-hud { width: min(220px, calc(100vw - 28px)); }
+}
+@media (max-width: 600px) and (orientation: landscape) {
+  .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 202px); }
+}
 @media (max-height: 520px) { .mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow) { font-size: 10px; } .mission-objective-arrow { min-width: 164px; min-height: 36px; } .mission-objective-arrow-icon { font-size: 22px; } }
 .journey-hud-segments { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; padding-top: 2px; }
 .journey-hud-segments i:nth-child(n+5) { display: none; }

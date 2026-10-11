@@ -6,6 +6,7 @@ export type MissionObjective = {
   position: THREE.Vector3;
   radius: number;
   onscreenMarker?: boolean;
+  fixedTop?: boolean;
 };
 
 type ConfirmedGateAttempt = { attemptId: string; gateIndex: number; status: string };
@@ -356,6 +357,8 @@ export class ObjectiveGuidance {
   private nextBoundsAt = 0;
   private nextLabelAt = 0;
   private lastLabel = '';
+  private horizontalCue = 0;
+  private verticalCue = 0;
   distanceMeters = 0;
   hintVisible = false;
 
@@ -374,17 +377,41 @@ export class ObjectiveGuidance {
   }
 
   setObjective(objective: MissionObjective | null): void {
-    if (this.objective?.id !== objective?.id) this.hint.reset();
+    if (this.objective?.id !== objective?.id) {
+      this.hint.reset();
+      this.horizontalCue = 0;
+      this.verticalCue = 0;
+      this.nextLabelAt = 0;
+    }
     this.objective = objective;
+    this.layer.classList.toggle('fixed-gate-guidance', objective?.fixedTop === true);
     if (!objective) this.hide();
   }
 
   update(camera: THREE.PerspectiveCamera, player: THREE.Vector3, metersPerUnit: number,
-    airborne: boolean, hintsEnabled: boolean, now = performance.now()): void {
+    airborne: boolean, hintsEnabled: boolean, now = performance.now(), heading = 0): void {
     if (!this.objective) return;
     const target = this.objective;
     this.distanceMeters = player.distanceTo(target.position) * metersPerUnit;
     this.hintVisible = this.hint.update(target.id, this.distanceMeters, airborne, hintsEnabled, now);
+    if (target.fixedTop) {
+      const cue = fixedGateDirection(player, target.position, heading, target.radius,
+        this.horizontalCue, this.verticalCue);
+      this.horizontalCue = cue.horizontal;
+      this.verticalCue = cue.vertical;
+      this.arrowIcon.textContent = cue.arrow;
+      const label = `${target.label} · ${formatObjectiveDistance(this.distanceMeters)}`;
+      if (label !== this.lastLabel && now >= this.nextLabelAt) {
+        this.lastLabel = label;
+        this.nextLabelAt = now + 150;
+        this.arrowText.textContent = label;
+      }
+      this.marker.hidden = true;
+      this.arrow.hidden = false;
+      this.arrow.style.transform = 'translateX(-50%)';
+      this.arrowIcon.style.transform = '';
+      return;
+    }
     if (now >= this.nextBoundsAt) {
       this.nextBoundsAt = now + 350;
       this.obstacles = ['#sky-challenge', '#right-flight-stack', '#touch-controls [data-touch-control="stick"]',
@@ -423,4 +450,17 @@ export class ObjectiveGuidance {
   }
 
   dispose(): void { this.layer.remove(); }
+}
+
+/** Stable aircraft-relative cues for Mission 4's fixed navigation box. */
+export function fixedGateDirection(player: Readonly<{ x: number; y: number; z: number }>,
+  target: Readonly<{ x: number; y: number; z: number }>, heading: number, radius: number,
+  previousHorizontal = 0, previousVertical = 0): { arrow: string; horizontal: number; vertical: number } {
+  const angle = precisionGateBearing(player.x, player.z, heading, target.x, target.z).angle;
+  const horizontal = Math.abs(angle) > (previousHorizontal ? .22 : .36)
+    ? Math.abs(angle) > Math.PI * .85 && previousHorizontal ? previousHorizontal : Math.sign(angle) : 0;
+  const height = target.y - player.y;
+  const vertical = Math.abs(height) > radius * (previousVertical ? .35 : .55) ? Math.sign(height) : 0;
+  const arrows = [['↙', '←', '↖'], ['↓', '➜', '↑'], ['↘', '→', '↗']];
+  return { arrow: arrows[horizontal + 1]![vertical + 1]!, horizontal, vertical };
 }
