@@ -11,14 +11,13 @@ const rookieGold = new THREE.MeshBasicMaterial({ color: 0xf7c948, transparent: t
 const rookieInner = new THREE.MeshBasicMaterial({ color: 0xfff4c9, transparent: true, opacity: .97, depthWrite: false });
 const rookieAmber = new THREE.MeshBasicMaterial({ color: 0xffb529, transparent: true, opacity: .98, depthWrite: false });
 const rookiePreview = new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: .42, depthWrite: false });
-const slalomGold = new THREE.MeshBasicMaterial({ color: 0xf7c948, toneMapped: false, depthWrite: false });
-const slalomInner = new THREE.MeshBasicMaterial({ color: 0xfff4c9, toneMapped: false, depthWrite: false });
-const slalomAccent = new THREE.MeshBasicMaterial({ color: 0xffd766, toneMapped: false, depthWrite: false });
+const slalomGold = new THREE.MeshBasicMaterial({ color: 0xe6af34, depthWrite: false });
+const slalomInner = new THREE.MeshBasicMaterial({ color: 0xffdfa3, depthWrite: false });
+const slalomAccent = new THREE.MeshBasicMaterial({ color: 0xf3c659, depthWrite: false });
 const ringShape = new THREE.TorusGeometry(1, .08, 8, 48);
 const rookieRingShape = new THREE.TorusGeometry(1, .12, 8, 48);
 const rookieHaloShape = new THREE.TorusGeometry(1, .22, 8, 48);
 const innerShape = new THREE.TorusGeometry(.86, .019, 6, 48);
-const slalomInnerShape = new THREE.TorusGeometry(.86, .035, 6, 48);
 const precisionOpeningShape = new THREE.TorusGeometry(.92, .015, 6, 48);
 const accentShape = new THREE.TorusGeometry(1.09, .048, 6, 24, Math.PI * .48);
 
@@ -47,8 +46,8 @@ export class JourneyGateSystem {
         group.position.y, gate.z + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalZ : next.z - previous.z));
       const rookie = goldenRace(mission.id);
       const slalom = mission.id === journeyDallas04.id;
-      const rim = new THREE.Mesh(rookie ? rookieRingShape : ringShape, slalom ? slalomGold : rookie ? rookieGold : cyan);
-      const core = new THREE.Mesh(slalom ? slalomInnerShape : mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, slalom ? slalomInner : rookie ? rookieInner : ice);
+      const rim = new THREE.Mesh(rookie && !slalom ? rookieRingShape : ringShape, slalom ? slalomGold : rookie ? rookieGold : cyan);
+      const core = new THREE.Mesh(mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, slalom ? slalomInner : rookie ? rookieInner : ice);
       const accent = new THREE.Mesh(accentShape, slalom ? slalomAccent : rookie ? rookieAmber : gold);
       accent.rotation.z = -.3;
       if (slalom) accent.scale.setScalar(.98); // Keep the solid highlight inside the accepted outer rim.
@@ -57,8 +56,8 @@ export class JourneyGateSystem {
       burst.visible = false;
       group.add(rim, core, accent, burst);
       if (rookie) group.add(new THREE.Mesh(rookieHaloShape,
-        new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: slalom ? .3 : .16,
-          blending: slalom ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, toneMapped: !slalom })));
+        new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: slalom ? .08 : .16,
+          depthWrite: false })));
       scene.add(group);
       this.gates.push(group);
     }
@@ -87,8 +86,9 @@ export class JourneyGateSystem {
     this.phase += delta;
     const current = this.gates[this.current];
     if (this.active && current && goldenRace(this.mission.id)) {
-      (current.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity =
-        this.mission.id === journeyDallas04.id ? .29 + .055 * Math.sin(this.phase * 2.5) + this.flashTime * .28 : .15 + .045 * Math.sin(this.phase * 2.5);
+      if (this.mission.id !== journeyDallas04.id)
+        (current.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity =
+          .15 + .045 * Math.sin(this.phase * 2.5);
       current.children[2]!.rotation.z = this.phase * .65;
     }
     if (this.active && current && !goldenRace(this.mission.id) && this.mission.id !== journeyDallas05.id && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas19.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
@@ -117,7 +117,7 @@ export class JourneyGateSystem {
         (group.children[0] as THREE.Mesh).material = active ? slalom ? slalomGold : rookieGold : rookiePreview;
         (group.children[1] as THREE.Mesh).material = active ? slalom ? slalomInner : rookieInner : rookiePreview;
         (group.children[2] as THREE.Mesh).material = active ? slalom ? slalomAccent : rookieAmber : rookiePreview;
-        (group.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = active ? slalom ? .3 : .16 : .07;
+        (group.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = active ? slalom ? .08 : .16 : .07;
         group.scale.setScalar(this.mission.gates[index]!.radius);
         return;
       }

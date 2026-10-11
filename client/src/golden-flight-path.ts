@@ -9,10 +9,10 @@ export class GoldenFlightPath {
   private readonly centerPositions = new Float32Array((SEGMENTS + 1) * 3);
   private readonly ribbonGeometry = new THREE.BufferGeometry();
   private readonly centerGeometry = new THREE.BufferGeometry();
-  private readonly ribbonMaterial = new THREE.MeshBasicMaterial({ color: 0x14bff3, transparent: true,
-    opacity: .52, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
-  private readonly centerMaterial = new THREE.LineBasicMaterial({ color: 0xa4f6ff, transparent: true,
-    opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
+  private readonly ribbonMaterial = new THREE.MeshBasicMaterial({ color: 0x21b9e8, transparent: true,
+    opacity: .3, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
+  private readonly centerMaterial = new THREE.LineBasicMaterial({ color: 0x79d8ed, transparent: true,
+    opacity: .55, depthWrite: false, toneMapped: false, fog: false });
   private readonly ribbon: THREE.Mesh;
   private readonly center: THREE.Line;
   private readonly group = new THREE.Group();
@@ -30,7 +30,6 @@ export class GoldenFlightPath {
   private readonly derivativeC = new THREE.Vector3();
   private readonly cameraRight = new THREE.Vector3();
   private gateIndex = 0;
-  private elapsed = Infinity;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number) {
     const triangles: number[] = [];
@@ -52,14 +51,10 @@ export class GoldenFlightPath {
   setGate(index: number, active: boolean): void {
     this.gateIndex = index;
     this.group.visible = active && index < journeyDallas04.gates.length;
-    this.elapsed = Infinity;
   }
 
-  update(delta: number, position: THREE.Vector3, velocity: THREE.Vector3, camera: THREE.Camera): void {
+  update(_delta: number, position: THREE.Vector3, velocity: THREE.Vector3, camera: THREE.Camera): void {
     if (!this.group.visible) return;
-    this.elapsed += delta;
-    if (this.elapsed < .08) return;
-    this.elapsed = 0;
     const gate = journeyDallas04.gates[this.gateIndex];
     const plane = journeyGatePlane(journeyDallas04, this.gateIndex);
     if (!gate || !plane || !Number.isFinite(position.x + position.y + position.z)) return;
@@ -90,7 +85,7 @@ export class GoldenFlightPath {
     this.derivativeB.copy(this.controlB).sub(this.controlA);
     this.derivativeC.copy(this.target).sub(this.controlB);
     this.cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
-    const maxWidth = Math.min(230, Math.max(145, distance * .08));
+    const maxWidth = Math.min(95, Math.max(60, distance * .035));
     const visualDrop = Math.min(240, Math.max(140, distance * .12));
     for (let i = 0; i <= SEGMENTS; i += 1) {
       const t = i / SEGMENTS, q = 1 - t;
@@ -111,7 +106,7 @@ export class GoldenFlightPath {
       const lateralY = this.cameraRight.y - dy / tangentLength * along;
       const lateralZ = this.cameraRight.z - dz / tangentLength * along;
       const lateralLength = Math.hypot(lateralX, lateralY, lateralZ) || 1;
-      const halfWidth = Math.min(maxWidth, this.point.distanceTo(camera.position) * .25)
+      const halfWidth = Math.min(maxWidth, this.point.distanceTo(camera.position) * .16)
         * (1 - t) * Math.min(1, t * 10) * .5;
       const edge = i * 6, center = i * 3;
       this.ribbonPositions[edge] = this.point.x + lateralX / lateralLength * halfWidth;

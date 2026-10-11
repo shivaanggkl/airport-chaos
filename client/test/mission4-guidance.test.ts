@@ -25,6 +25,13 @@ test('Mission 4 shows one active gold gate and a blue pathway without prediction
   assert.notEqual(ribbon.getX(12), ribbon.getX(13), 'the pathway has a visible ribbon width');
   const center = (pathway.children[1] as THREE.Line).geometry.getAttribute('position') as THREE.BufferAttribute;
   assert.equal(center.getX(center.count - 1), journeyDallas04.gates[1].x);
+  const midX = center.getX(12);
+  slalom.update(.016, new THREE.Vector3(-18_950, 850, -17_975), new THREE.Vector3(500, 0, 250), camera);
+  assert.notEqual(center.getX(12), midX, 'the path follows each rendered flight frame without strobing');
+  const gateGroup = scene.getObjectByName('journey-dallas-04-gate-2') as THREE.Group;
+  const halo = (gateGroup.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material;
+  assert.equal(halo.opacity, .08, 'Mission 4 gate glow stays restrained and steady');
+  assert.equal((gateGroup.children[0] as THREE.Mesh<THREE.TorusGeometry>).geometry.parameters.tube, .08);
   slalom.setProgress(2, true);
   slalom.update(.1, new THREE.Vector3(-15_000, 850, -15_000), new THREE.Vector3(500, 0, 250), camera);
   assert.equal(center.getX(center.count - 1), journeyDallas04.gates[2].x,
@@ -36,6 +43,8 @@ test('Mission 4 shows one active gold gate and a blue pathway without prediction
   const ascent = new JourneyGateSystem(scene, () => 0, journeyDallas03);
   assert.equal(scene.getObjectByName('mission-04-blue-pathway'), undefined);
   assert.equal(scene.children.filter((child) => child.visible).length, 2, 'Mission 3 preview behavior is preserved');
+  const ascentGate = scene.getObjectByName('journey-dallas-03-gate-1') as THREE.Group;
+  assert.equal((ascentGate.children[0] as THREE.Mesh<THREE.TorusGeometry>).geometry.parameters.tube, .12);
   ascent.dispose();
   assert.equal(scene.children.length, 0);
 });
@@ -57,8 +66,9 @@ test('Mission 4 pathway has visible screen width from the chase camera at the ai
   const index = 12 * 2;
   const left = new THREE.Vector3(positions.getX(index), positions.getY(index), positions.getZ(index)).project(camera);
   const right = new THREE.Vector3(positions.getX(index + 1), positions.getY(index + 1), positions.getZ(index + 1)).project(camera);
-  assert.ok(Math.abs(left.x - right.x) * 640 > 20,
-    `pathway must cover visible pixels, not lie edge-on (${Math.abs(left.x - right.x) * 640})`);
+  const widthPx = Math.abs(left.x - right.x) * 640;
+  assert.ok(widthPx > 6 && widthPx < 20,
+    `pathway should remain visible but slim in the chase view (${widthPx}px)`);
   slalom.dispose();
 });
 
