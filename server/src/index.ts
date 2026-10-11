@@ -22,6 +22,7 @@ import { aceDamageAuthorized } from './journey-ace.js';
 import { CrossfireFireCoordinator } from './journey-crossfire.js';
 import { escapeInterval } from './journey-escape.js';
 import { JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
+import { stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
 import { SpeedGateTracker } from './speed-gate-validation.js';
 import { observedChampionshipTouchdown } from './championship-landing.js';
 import { aircraftGroundOffset, airportForCity, cityAirports } from '../../shared/city-airports.mjs';
@@ -355,7 +356,8 @@ const cityEvents = new Map<CityId, CityEvent>();
 const lastEventTypes = new Map<CityId, DynamicEventType>();
 const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url)));
 const profileStore = new PlayerProfileStore(profileDatabasePath);
-const journeyStore = new JourneyAttemptStore(profileDatabasePath);
+const stagingJourneyQaUnlockAll = stagingJourneyQaUnlockEnabled();
+const journeyStore = new JourneyAttemptStore(profileDatabasePath, stagingJourneyQaUnlockAll);
 const whiteRockJourneyTerritory = territoriesForCity('dallas').find(territory => territory.id === journeyDallas04.territoryId)!;
 const siegeJourneyTerritory = territoriesForCity('dallas').find(territory => territory.id === journeyDallas18.territoryId)!;
 const twoFrontAlpha = territoriesForCity('dallas').find(territory => territory.id === journeyDallas21.alphaTerritoryId)!;
@@ -1460,73 +1462,73 @@ const httpServer = createServer(async (request, response) => {
       jsonResponse(response, 200, { missionId: journeyDallas01.id,
         eligible: dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
         ...journeyStore.progress(identity.pilotId), mission02: {
-          eligible: journeyStore.progress(identity.pilotId).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas02.id),
         }, mission03: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas02.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas02.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas03.id),
         }, mission04: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas03.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas03.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas04.id),
         }, mission05: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas04.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas04.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas05.id),
         }, mission06: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas05.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas05.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas06.id),
         }, mission07: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas06.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas06.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas07.id),
         }, mission08: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas07.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas07.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas08.id),
         }, mission09: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas08.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas08.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas09.id),
         }, mission10: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas09.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas09.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas10.id),
         }, mission11: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas10.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas10.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas11.id),
         }, mission12: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas11.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas11.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas12.id),
         }, mission13: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas12.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas12.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas13.id),
         }, mission14: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas13.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas13.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas14.id),
         }, mission15: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas14.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas14.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas15.id),
         }, mission16: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas15.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas15.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas16.id),
         }, mission17: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas16.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas16.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas17.id),
         }, mission18: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas17.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas17.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas18.id),
         }, mission19: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas18.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas18.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas19.id),
         }, mission20: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas19.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas19.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas20.id),
         }, mission21: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas20.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas20.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas21.id),
         }, mission22: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas21.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas21.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas22.id),
         }, mission23: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas22.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas22.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas23.id),
         }, mission24: {
-          eligible: journeyStore.progress(identity.pilotId, journeyDallas23.id).completed && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas23.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas24.id),
         } }); return;
     }
@@ -1540,62 +1542,64 @@ const httpServer = createServer(async (request, response) => {
       if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
       if (!journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft)) { jsonResponse(response, 403, { error: 'Aircraft is unavailable.' }); return; }
       const missionId = journeyAction[1] === 'mission-24' ? journeyDallas24.id : journeyAction[1] === 'mission-23' ? journeyDallas23.id : journeyAction[1] === 'mission-22' ? journeyDallas22.id : journeyAction[1] === 'mission-21' ? journeyDallas21.id : journeyAction[1] === 'mission-20' ? journeyDallas20.id : journeyAction[1] === 'mission-19' ? journeyDallas19.id : journeyAction[1] === 'mission-18' ? journeyDallas18.id : journeyAction[1] === 'mission-17' ? journeyDallas17.id : journeyAction[1] === 'mission-16' ? journeyDallas16.id : journeyAction[1] === 'mission-15' ? journeyDallas15.id : journeyAction[1] === 'mission-14' ? journeyDallas14.id : journeyAction[1] === 'mission-13' ? journeyDallas13.id : journeyAction[1] === 'mission-12' ? journeyDallas12.id : journeyAction[1] === 'mission-11' ? journeyDallas11.id : journeyAction[1] === 'mission-10' ? journeyDallas10.id : journeyAction[1] === 'mission-09' ? journeyDallas09.id : journeyAction[1] === 'mission-08' ? journeyDallas08.id : journeyAction[1] === 'mission-07' ? journeyDallas07.id : journeyAction[1] === 'mission-06' ? journeyDallas06.id : journeyAction[1] === 'mission-05' ? journeyDallas05.id : journeyAction[1] === 'mission-04' ? journeyDallas04.id : journeyAction[1] === 'mission-03' ? journeyDallas03.id : journeyAction[1] === 'mission-02' ? journeyDallas02.id : journeyDallas01.id;
-      if (missionId === journeyDallas02.id && !journeyStore.progress(identity.pilotId).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 1 first.' }); return;
-      }
-      if (missionId === journeyDallas03.id && !journeyStore.progress(identity.pilotId, journeyDallas02.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 2 first.' }); return;
-      }
-      if (missionId === journeyDallas04.id && !journeyStore.progress(identity.pilotId, journeyDallas03.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 3 first.' }); return;
-      }
-      if (missionId === journeyDallas05.id && !journeyStore.progress(identity.pilotId, journeyDallas04.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 4 first.' }); return;
-      }
-      if (missionId === journeyDallas06.id && !journeyStore.progress(identity.pilotId, journeyDallas05.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 5 first.' }); return;
-      }
-      if (missionId === journeyDallas07.id && !journeyStore.progress(identity.pilotId, journeyDallas06.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 6 first.' }); return;
-      }
-      if (missionId === journeyDallas08.id && !journeyStore.progress(identity.pilotId, journeyDallas07.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 7 first.' }); return;
-      }
-      if (missionId === journeyDallas09.id && !journeyStore.progress(identity.pilotId, journeyDallas08.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 8 first.' }); return;
-      }
-      if (missionId === journeyDallas10.id && !journeyStore.progress(identity.pilotId, journeyDallas09.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 9 first.' }); return;
-      }
-      if (missionId === journeyDallas11.id && !journeyStore.progress(identity.pilotId, journeyDallas10.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 10 first.' }); return;
-      }
-      if (missionId === journeyDallas12.id && !journeyStore.progress(identity.pilotId, journeyDallas11.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 11 first.' }); return;
-      }
-      if (missionId === journeyDallas13.id && !journeyStore.progress(identity.pilotId, journeyDallas12.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 12 first.' }); return;
-      }
-      if (missionId === journeyDallas14.id && !journeyStore.progress(identity.pilotId, journeyDallas13.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 13 first.' }); return;
-      }
-      if (missionId === journeyDallas15.id && !journeyStore.progress(identity.pilotId, journeyDallas14.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 14 first.' }); return;
-      }
-      if (missionId === journeyDallas16.id && !journeyStore.progress(identity.pilotId, journeyDallas15.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 15 first.' }); return;
-      }
-      if (missionId === journeyDallas17.id && !journeyStore.progress(identity.pilotId, journeyDallas16.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 16 first.' }); return;
-      }
-      if (missionId === journeyDallas19.id && !journeyStore.progress(identity.pilotId, journeyDallas18.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
-      if (missionId === journeyDallas20.id && !journeyStore.progress(identity.pilotId, journeyDallas19.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
-      if (missionId === journeyDallas21.id && !journeyStore.progress(identity.pilotId, journeyDallas20.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
-      if (missionId === journeyDallas22.id && !journeyStore.progress(identity.pilotId, journeyDallas21.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
-      if (missionId === journeyDallas23.id && !journeyStore.progress(identity.pilotId, journeyDallas22.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
-      if (missionId === journeyDallas24.id && !journeyStore.progress(identity.pilotId, journeyDallas23.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
-      if (missionId === journeyDallas18.id && !journeyStore.progress(identity.pilotId, journeyDallas17.id).completed) {
-        jsonResponse(response, 403, { error: 'Complete Mission 17 first.' }); return;
+      if (!stagingJourneyQaUnlockAll) {
+        if (missionId === journeyDallas02.id && !journeyStore.progress(identity.pilotId).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 1 first.' }); return;
+        }
+        if (missionId === journeyDallas03.id && !journeyStore.progress(identity.pilotId, journeyDallas02.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 2 first.' }); return;
+        }
+        if (missionId === journeyDallas04.id && !journeyStore.progress(identity.pilotId, journeyDallas03.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 3 first.' }); return;
+        }
+        if (missionId === journeyDallas05.id && !journeyStore.progress(identity.pilotId, journeyDallas04.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 4 first.' }); return;
+        }
+        if (missionId === journeyDallas06.id && !journeyStore.progress(identity.pilotId, journeyDallas05.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 5 first.' }); return;
+        }
+        if (missionId === journeyDallas07.id && !journeyStore.progress(identity.pilotId, journeyDallas06.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 6 first.' }); return;
+        }
+        if (missionId === journeyDallas08.id && !journeyStore.progress(identity.pilotId, journeyDallas07.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 7 first.' }); return;
+        }
+        if (missionId === journeyDallas09.id && !journeyStore.progress(identity.pilotId, journeyDallas08.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 8 first.' }); return;
+        }
+        if (missionId === journeyDallas10.id && !journeyStore.progress(identity.pilotId, journeyDallas09.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 9 first.' }); return;
+        }
+        if (missionId === journeyDallas11.id && !journeyStore.progress(identity.pilotId, journeyDallas10.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 10 first.' }); return;
+        }
+        if (missionId === journeyDallas12.id && !journeyStore.progress(identity.pilotId, journeyDallas11.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 11 first.' }); return;
+        }
+        if (missionId === journeyDallas13.id && !journeyStore.progress(identity.pilotId, journeyDallas12.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 12 first.' }); return;
+        }
+        if (missionId === journeyDallas14.id && !journeyStore.progress(identity.pilotId, journeyDallas13.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 13 first.' }); return;
+        }
+        if (missionId === journeyDallas15.id && !journeyStore.progress(identity.pilotId, journeyDallas14.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 14 first.' }); return;
+        }
+        if (missionId === journeyDallas16.id && !journeyStore.progress(identity.pilotId, journeyDallas15.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 15 first.' }); return;
+        }
+        if (missionId === journeyDallas17.id && !journeyStore.progress(identity.pilotId, journeyDallas16.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 16 first.' }); return;
+        }
+        if (missionId === journeyDallas19.id && !journeyStore.progress(identity.pilotId, journeyDallas18.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
+        if (missionId === journeyDallas20.id && !journeyStore.progress(identity.pilotId, journeyDallas19.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
+        if (missionId === journeyDallas21.id && !journeyStore.progress(identity.pilotId, journeyDallas20.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
+        if (missionId === journeyDallas22.id && !journeyStore.progress(identity.pilotId, journeyDallas21.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
+        if (missionId === journeyDallas23.id && !journeyStore.progress(identity.pilotId, journeyDallas22.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
+        if (missionId === journeyDallas24.id && !journeyStore.progress(identity.pilotId, journeyDallas23.id).completed) { jsonResponse(response, 403, { error: 'Journey mission is locked.' }); return; }
+        if (missionId === journeyDallas18.id && !journeyStore.progress(identity.pilotId, journeyDallas17.id).completed) {
+          jsonResponse(response, 403, { error: 'Complete Mission 17 first.' }); return;
+        }
       }
       if (Object.values(journeyProfile.missions).some(state => state?.active)) {
         jsonResponse(response, 409, { error: 'Finish or leave your current flight mission first.' }); return;
@@ -6535,52 +6539,55 @@ server.on('connection', (socket, request) => {
     if (!identity.session.accountId || cityId !== journeyDallas01.cityId || tutorialMode ||
       !candidate || candidate.aircraftType !== activeAircraftType ||
       !profile.unlockedAircraft.includes(activeAircraftType) ||
-      candidate.missionId === journeyDallas02.id && !journeyStore.progress(profile.pilotId).completed ||
-      candidate.missionId === journeyDallas03.id && !journeyStore.progress(profile.pilotId, journeyDallas02.id).completed ||
-      candidate.missionId === journeyDallas04.id && !journeyStore.progress(profile.pilotId, journeyDallas03.id).completed ||
-      candidate.missionId === journeyDallas05.id && !journeyStore.progress(profile.pilotId, journeyDallas04.id).completed ||
-      candidate.missionId === journeyDallas06.id && !journeyStore.progress(profile.pilotId, journeyDallas05.id).completed ||
-      candidate.missionId === journeyDallas07.id && !journeyStore.progress(profile.pilotId, journeyDallas06.id).completed ||
-      candidate.missionId === journeyDallas08.id && !journeyStore.progress(profile.pilotId, journeyDallas07.id).completed ||
-      candidate.missionId === journeyDallas09.id && !journeyStore.progress(profile.pilotId, journeyDallas08.id).completed ||
-      candidate.missionId === journeyDallas10.id && !journeyStore.progress(profile.pilotId, journeyDallas09.id).completed) {
+      !stagingJourneyQaUnlockAll && (
+        candidate.missionId === journeyDallas02.id && !journeyStore.progress(profile.pilotId).completed ||
+        candidate.missionId === journeyDallas03.id && !journeyStore.progress(profile.pilotId, journeyDallas02.id).completed ||
+        candidate.missionId === journeyDallas04.id && !journeyStore.progress(profile.pilotId, journeyDallas03.id).completed ||
+        candidate.missionId === journeyDallas05.id && !journeyStore.progress(profile.pilotId, journeyDallas04.id).completed ||
+        candidate.missionId === journeyDallas06.id && !journeyStore.progress(profile.pilotId, journeyDallas05.id).completed ||
+        candidate.missionId === journeyDallas07.id && !journeyStore.progress(profile.pilotId, journeyDallas06.id).completed ||
+        candidate.missionId === journeyDallas08.id && !journeyStore.progress(profile.pilotId, journeyDallas07.id).completed ||
+        candidate.missionId === journeyDallas09.id && !journeyStore.progress(profile.pilotId, journeyDallas08.id).completed ||
+        candidate.missionId === journeyDallas10.id && !journeyStore.progress(profile.pilotId, journeyDallas09.id).completed)) {
       sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission attempt is no longer available. Return to Journey and retry.' });
       socket.close(4003, 'Journey attempt unavailable');
       return;
     }
-    if (candidate.missionId === journeyDallas13.id && !journeyStore.progress(profile.pilotId, journeyDallas12.id).completed) {
-      socket.close(4003, 'Journey mission is locked'); return;
-    }
-    if (candidate.missionId === journeyDallas15.id && !journeyStore.progress(profile.pilotId, journeyDallas14.id).completed) {
-      socket.close(4003, 'Journey mission is locked'); return;
-    }
-    if (candidate.missionId === journeyDallas16.id && !journeyStore.progress(profile.pilotId, journeyDallas15.id).completed) {
-      socket.close(4003, 'Journey mission is locked'); return;
-    }
-    if (candidate.missionId === journeyDallas17.id && !journeyStore.progress(profile.pilotId, journeyDallas16.id).completed) {
-      socket.close(4003, 'Journey mission is locked'); return;
-    }
-    if (candidate.missionId === journeyDallas19.id && !journeyStore.progress(profile.pilotId, journeyDallas18.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
-    if (candidate.missionId === journeyDallas20.id && !journeyStore.progress(profile.pilotId, journeyDallas19.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
-    if (candidate.missionId === journeyDallas21.id && !journeyStore.progress(profile.pilotId, journeyDallas20.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
-    if (candidate.missionId === journeyDallas22.id && !journeyStore.progress(profile.pilotId, journeyDallas21.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
-    if (candidate.missionId === journeyDallas23.id && !journeyStore.progress(profile.pilotId, journeyDallas22.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
-    if (candidate.missionId === journeyDallas24.id && !journeyStore.progress(profile.pilotId, journeyDallas23.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
-    if (candidate.missionId === journeyDallas18.id && !journeyStore.progress(profile.pilotId, journeyDallas17.id).completed) {
-      socket.close(4003, 'Journey mission is locked'); return;
-    }
-    if (candidate.missionId === journeyDallas14.id && !journeyStore.progress(profile.pilotId, journeyDallas13.id).completed) {
-      socket.close(4003, 'Journey mission is locked'); return;
-    }
-    if (candidate.missionId === journeyDallas12.id && !journeyStore.progress(profile.pilotId, journeyDallas11.id).completed) {
-      sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission attempt is no longer available. Return to Journey and retry.' });
-      socket.close(4003, 'Journey attempt unavailable');
-      return;
-    }
-    if (candidate.missionId === journeyDallas11.id && !journeyStore.progress(profile.pilotId, journeyDallas10.id).completed) {
-      sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission attempt is no longer available. Return to Journey and retry.' });
-      socket.close(4003, 'Journey attempt unavailable');
-      return;
+    if (!stagingJourneyQaUnlockAll) {
+      if (candidate.missionId === journeyDallas13.id && !journeyStore.progress(profile.pilotId, journeyDallas12.id).completed) {
+        socket.close(4003, 'Journey mission is locked'); return;
+      }
+      if (candidate.missionId === journeyDallas15.id && !journeyStore.progress(profile.pilotId, journeyDallas14.id).completed) {
+        socket.close(4003, 'Journey mission is locked'); return;
+      }
+      if (candidate.missionId === journeyDallas16.id && !journeyStore.progress(profile.pilotId, journeyDallas15.id).completed) {
+        socket.close(4003, 'Journey mission is locked'); return;
+      }
+      if (candidate.missionId === journeyDallas17.id && !journeyStore.progress(profile.pilotId, journeyDallas16.id).completed) {
+        socket.close(4003, 'Journey mission is locked'); return;
+      }
+      if (candidate.missionId === journeyDallas19.id && !journeyStore.progress(profile.pilotId, journeyDallas18.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
+      if (candidate.missionId === journeyDallas20.id && !journeyStore.progress(profile.pilotId, journeyDallas19.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
+      if (candidate.missionId === journeyDallas21.id && !journeyStore.progress(profile.pilotId, journeyDallas20.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
+      if (candidate.missionId === journeyDallas22.id && !journeyStore.progress(profile.pilotId, journeyDallas21.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
+      if (candidate.missionId === journeyDallas23.id && !journeyStore.progress(profile.pilotId, journeyDallas22.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
+      if (candidate.missionId === journeyDallas24.id && !journeyStore.progress(profile.pilotId, journeyDallas23.id).completed) { socket.close(4003, 'Journey mission is locked'); return; }
+      if (candidate.missionId === journeyDallas18.id && !journeyStore.progress(profile.pilotId, journeyDallas17.id).completed) {
+        socket.close(4003, 'Journey mission is locked'); return;
+      }
+      if (candidate.missionId === journeyDallas14.id && !journeyStore.progress(profile.pilotId, journeyDallas13.id).completed) {
+        socket.close(4003, 'Journey mission is locked'); return;
+      }
+      if (candidate.missionId === journeyDallas12.id && !journeyStore.progress(profile.pilotId, journeyDallas11.id).completed) {
+        sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission attempt is no longer available. Return to Journey and retry.' });
+        socket.close(4003, 'Journey attempt unavailable');
+        return;
+      }
+      if (candidate.missionId === journeyDallas11.id && !journeyStore.progress(profile.pilotId, journeyDallas10.id).completed) {
+        sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission attempt is no longer available. Return to Journey and retry.' });
+        socket.close(4003, 'Journey attempt unavailable');
+        return;
+      }
     }
     journeyAttempt = candidate.status === 'READY'
       ? journeyStore.approach(profile.pilotId, requestedJourneyAttemptId)
