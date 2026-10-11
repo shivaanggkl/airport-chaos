@@ -1,15 +1,30 @@
-import { dfwSpeedGates, whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
+import { whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 import { repairsForCity } from './city-repairs.mjs';
 
 export const journeyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
   cityId: 'dallas',
-  name: 'DFW SKY RUSH',
-  chapter: 'ROOKIE LEAGUE',
-  timeLimitMs: 62_000,
+  name: 'ROOKIE RUSH',
+  chapter: 'GOLDEN GATES',
+  timeLimitMs: 150_000,
   firstClearCredits: 250,
-  gates: dfwSpeedGates,
+  airborneSpawn: Object.freeze({ x: -23_000, z: -23_000, altitude: 760, heading: -Math.PI / 2, speed: 650 }),
+  // A forward course around the open southern, eastern and northern Dallas
+  // airspace. Its long flight path prevents the fast Firehawk from skipping the
+  // intended race duration without changing any aircraft handling.
+  gates: Object.freeze([
+    { x: -20_000, z: -23_000, altitude: 760, radius: 290 },
+    { x: -10_000, z: -23_000, altitude: 760, radius: 270 },
+    { x: 2_000, z: -23_000, altitude: 770, radius: 250 },
+    { x: 14_000, z: -21_000, altitude: 790, radius: 235 },
+    { x: 23_000, z: -12_000, altitude: 810, radius: 225 },
+    { x: 23_000, z: 2_000, altitude: 820, radius: 215 },
+    { x: 23_000, z: 19_000, altitude: 850, radius: 205 },
+    { x: 8_000, z: 23_000, altitude: 830, radius: 195 },
+    { x: -8_000, z: 23_000, altitude: 790, radius: 190 },
+    { x: -23_000, z: 23_000, altitude: 770, radius: 300 },
+  ]),
 });
 
 export const journeyDallas02 = Object.freeze({
@@ -278,7 +293,7 @@ export function journeyExitCrossing(from, to, terrainHeight, mission = journeyDa
 }
 
 // Cross the face of the next ring within its illuminated opening. White Rock
-// accepts either approach direction; DFW Sky Rush keeps its forward route.
+// accepts either approach direction; Rookie Rush keeps its forward route.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   const gate = mission.gates[gateIndex];

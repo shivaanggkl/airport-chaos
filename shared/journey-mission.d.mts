@@ -1,7 +1,8 @@
 export type JourneyPoint = Readonly<{ x: number; y: number; z: number }>;
 export const journeyDallas01: Readonly<{
-  id: 'journey-dallas-01'; cityId: 'dallas'; name: 'DFW SKY RUSH'; chapter: 'ROOKIE LEAGUE';
-  timeLimitMs: 62000; firstClearCredits: 250;
+  id: 'journey-dallas-01'; cityId: 'dallas'; name: 'ROOKIE RUSH'; chapter: 'GOLDEN GATES';
+  timeLimitMs: 150000; firstClearCredits: 250;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas02: Readonly<{

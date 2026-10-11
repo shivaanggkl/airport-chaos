@@ -69,6 +69,8 @@ test('staging-era Journey rows and progress survive the additive mission schema 
       CREATE INDEX journey_attempts_pilot_created ON journey_attempts(pilot_id, created_at DESC);
       INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,status,created_at)
         VALUES ('old-attempt','existing-pilot','journey-dallas-13','dallas','trainer','COMPLETED',100);
+      INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,status,gate_index,created_at)
+        VALUES ('old-rookie','existing-pilot','journey-dallas-01','dallas','trainer','COMPLETED',4,90);
       CREATE TABLE journey_completions (
         pilot_id TEXT NOT NULL, mission_id TEXT NOT NULL, first_attempt_id TEXT NOT NULL,
         completed_at INTEGER NOT NULL, best_time_ms INTEGER NOT NULL,
@@ -76,18 +78,22 @@ test('staging-era Journey rows and progress survive the additive mission schema 
         FOREIGN KEY(pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT
       );
       INSERT INTO journey_completions VALUES ('existing-pilot','journey-dallas-13','old-attempt',200,100,1);
+      INSERT INTO journey_completions VALUES ('existing-pilot','journey-dallas-01','old-rookie',180,49000,1);
     `);
     legacy.close();
     const store = new JourneyAttemptStore(path);
     assert.equal(store.progress('existing-pilot', missions[12].id).completed, true);
     assert.equal(store.get('existing-pilot', 'old-attempt')?.missionId, missions[12].id);
+    assert.equal(store.get('existing-pilot', 'old-rookie')?.gateIndex, 4);
+    assert.equal(store.progress('existing-pilot', missions[0].id).bestTimeMs, 49000);
+    assert.equal(store.rookieRushBestTime('existing-pilot'), undefined, 'four-gate history is not a ten-gate best');
     assert.equal(store.launch('existing-pilot', 'trainer', 300, missions[13].id).missionId, missions[13].id);
     const reopened = new JourneyAttemptStore(path);
     assert.equal(reopened.progress('existing-pilot', missions[12].id).firstAttemptId, 'old-attempt');
     const check = new DatabaseSync(path);
     assert.equal(check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'existing-pilot'").get().credits, 700);
     const columns = new Set(check.prepare('PRAGMA table_info(journey_attempts)').all().map(column => column.name));
-    for (const name of ['championship_gate_index', 'capture_ms', 'approach_cycle', 'double_phase', 'legendary_phase', 'heart_x', 'heart_y', 'heart_z'])
+    for (const name of ['rookie_gate_index', 'championship_gate_index', 'capture_ms', 'approach_cycle', 'double_phase', 'legendary_phase', 'heart_x', 'heart_y', 'heart_z'])
       assert.equal(columns.has(name), true, name);
     check.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }

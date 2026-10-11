@@ -4,7 +4,13 @@ import { journeyDallas01, journeyDallas03, journeyDallas05, journeyDallas06, jou
 const cyan = new THREE.MeshBasicMaterial({ color: 0x64eaff, transparent: true, opacity: .94, depthWrite: false });
 const ice = new THREE.MeshBasicMaterial({ color: 0xe4ffff, transparent: true, opacity: .82, depthWrite: false });
 const gold = new THREE.MeshBasicMaterial({ color: 0xffcb50, transparent: true, opacity: .96, depthWrite: false });
+const rookieGold = new THREE.MeshBasicMaterial({ color: 0xf7c948, transparent: true, opacity: .98, depthWrite: false });
+const rookieInner = new THREE.MeshBasicMaterial({ color: 0xfff4c9, transparent: true, opacity: .97, depthWrite: false });
+const rookieAmber = new THREE.MeshBasicMaterial({ color: 0xffb529, transparent: true, opacity: .98, depthWrite: false });
+const rookiePreview = new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: .42, depthWrite: false });
 const ringShape = new THREE.TorusGeometry(1, .08, 8, 48);
+const rookieRingShape = new THREE.TorusGeometry(1, .12, 8, 48);
+const rookieHaloShape = new THREE.TorusGeometry(1, .22, 8, 48);
 const innerShape = new THREE.TorusGeometry(.86, .019, 6, 48);
 const precisionOpeningShape = new THREE.TorusGeometry(.92, .015, 6, 48);
 const accentShape = new THREE.TorusGeometry(1.09, .048, 6, 24, Math.PI * .48);
@@ -31,14 +37,17 @@ export class JourneyGateSystem {
         group.lookAt(gate.x + face.normalX, group.position.y + face.normalY, gate.z + face.normalZ);
       } else group.lookAt(gate.x + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalX : next.x - previous.x),
         group.position.y, gate.z + (mission.id === journeyDallas19.id ? journeyDallas19.exit.normalZ : next.z - previous.z));
-      const rim = new THREE.Mesh(ringShape, cyan);
-      const core = new THREE.Mesh(mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, ice);
-      const accent = new THREE.Mesh(accentShape, gold);
+      const rookie = mission.id === journeyDallas01.id;
+      const rim = new THREE.Mesh(rookie ? rookieRingShape : ringShape, rookie ? rookieGold : cyan);
+      const core = new THREE.Mesh(mission.id === journeyDallas05.id || mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas19.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, rookie ? rookieInner : ice);
+      const accent = new THREE.Mesh(accentShape, rookie ? rookieAmber : gold);
       accent.rotation.z = -.3;
       const burst = new THREE.Mesh(ringShape, gold.clone());
       (burst.material as THREE.MeshBasicMaterial).opacity = 0;
       burst.visible = false;
       group.add(rim, core, accent, burst);
+      if (rookie) group.add(new THREE.Mesh(rookieHaloShape,
+        new THREE.MeshBasicMaterial({ color: 0xffd766, transparent: true, opacity: .16, depthWrite: false })));
       scene.add(group);
       this.gates.push(group);
     }
@@ -47,6 +56,7 @@ export class JourneyGateSystem {
 
   setProgress(gatesPassed: number, active: boolean): void {
     const next = Math.max(0, Math.min(this.mission.gates.length, gatesPassed));
+    if (this.mission.id === journeyDallas01.id && next === 0) { this.flashIndex = -1; this.flashTime = 0; }
     if (next > this.current) { this.flashIndex = this.current; this.flashTime = .5; }
     this.current = next;
     this.active = active;
@@ -62,7 +72,11 @@ export class JourneyGateSystem {
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
-    if (this.active && current && this.mission.id !== journeyDallas05.id && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas19.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
+    if (this.active && current && this.mission.id === journeyDallas01.id) {
+      (current.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = .15 + .045 * Math.sin(this.phase * 2.5);
+      current.children[2]!.rotation.z = this.phase * .65;
+    }
+    if (this.active && current && this.mission.id !== journeyDallas01.id && this.mission.id !== journeyDallas05.id && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas19.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
     if (this.active && current && (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id))
       current.children[2]!.scale.setScalar(1 + .025 * Math.sin(this.phase * 2.5));
     if (this.flashTime > 0) {
@@ -70,7 +84,7 @@ export class JourneyGateSystem {
       const burst = this.gates[this.flashIndex]?.children[3] as THREE.Mesh | undefined;
       if (burst) {
         burst.visible = this.flashTime > 0;
-        burst.scale.setScalar(1.04 + (1 - this.flashTime / .5) * .4);
+        burst.scale.setScalar(1.04 + (1 - this.flashTime / .5) * (this.mission.id === journeyDallas01.id && this.flashIndex === this.mission.gates.length - 1 ? .75 : .4));
         (burst.material as THREE.MeshBasicMaterial).opacity = this.flashTime * 1.6;
       }
       if (this.flashTime === 0) this.refresh();
@@ -82,6 +96,15 @@ export class JourneyGateSystem {
       group.visible = (this.active && (index === this.current || index === this.current + 1 ||
         (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas19.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
+      if (this.mission.id === journeyDallas01.id) {
+        const active = index === this.current;
+        (group.children[0] as THREE.Mesh).material = active ? rookieGold : rookiePreview;
+        (group.children[1] as THREE.Mesh).material = active ? rookieInner : rookiePreview;
+        (group.children[2] as THREE.Mesh).material = active ? rookieAmber : rookiePreview;
+        (group.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = active ? .16 : .07;
+        group.scale.setScalar(this.mission.gates[index]!.radius);
+        return;
+      }
       group.children.slice(0, 3).forEach((object, part) => {
         if (object instanceof THREE.Mesh) object.material = index === this.current
           ? part === 2 ? gold : part === 1 ? ice : cyan
@@ -96,6 +119,8 @@ export class JourneyGateSystem {
   dispose(): void {
     for (const gate of this.gates) {
       (gate.children[3] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.dispose();
+      if (this.mission.id === journeyDallas01.id)
+        (gate.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.dispose();
       this.scene.remove(gate);
     }
   }
