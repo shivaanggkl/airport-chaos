@@ -99,6 +99,7 @@ export class MissionJourney {
   private panelOpen = false;
   private stageOneCompleted = false;
   private stageOneEligible = false;
+  private signInRequired = false;
   private stageTwoCompleted = false;
   private stageTwoEligible = false;
   private stageThreeCompleted = false;
@@ -328,6 +329,11 @@ export class MissionJourney {
   get isOpen(): boolean { return !this.element.hidden; }
   get isPanelOpen(): boolean { return this.panelOpen; }
   get selectedMissionNumber(): number { return this.selectedStage; }
+
+  setSignInRequired(required: boolean): void {
+    this.signInRequired = required;
+    this.renderProgress();
+  }
 
   setStageOneProgress(eligible: boolean, completed: boolean): void {
     const newlyCompleted = completed && !this.stageOneCompleted;
@@ -980,8 +986,9 @@ export class MissionJourney {
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}${stage.number === 6 ? ' · CHAPTER 1 FINALE' : stage.number === 12 ? ' · CHAPTER 2 FINALE' : stage.number >= 7 && stage.number <= 11 ? ' · CHAPTER 2' : stage.number === 18 ? ' · CHAPTER 3 FINALE' : stage.number >= 13 && stage.number <= 17 ? ' · CHAPTER 3' : stage.number >= 19 ? ' · CHAPTER 4' : ''}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card?.title ?? (stage.number === 24 ? 'LEGENDARY CHAMPIONSHIP' : 'MISSION COMING SOON');
     const status = this.detail.querySelector<HTMLElement>('[data-mission-status]')!;
-    status.textContent = completed ? 'COMPLETED' : locked ? 'LOCKED' : card ? 'AVAILABLE' : 'COMING SOON';
-    status.classList.toggle('is-locked', locked);
+    const signInRequired = this.signInRequired && stage.number === 1 && !completed;
+    status.textContent = completed ? 'COMPLETED' : signInRequired ? 'SIGN IN REQUIRED' : locked ? 'LOCKED' : card ? 'AVAILABLE' : 'COMING SOON';
+    status.classList.toggle('is-locked', locked && !signInRequired);
     this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = card?.objective ?? (locked ? 'Complete earlier missions to unlock this stage. Details are coming soon.' : 'Your next challenge is being prepared.');
     const facts = this.detail.querySelector<HTMLElement>('[data-mission-facts]')!;
     facts.hidden = !card;
@@ -1000,8 +1007,8 @@ export class MissionJourney {
     reward.hidden = !card;
     reward.textContent = card ? `${card.reward} CREDITS${completed ? ' · CLAIMED' : ''}${stage.number === 24 ? ' · LEGENDARY PILOT' : ''}` : '';
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
-    play.disabled = !card || !eligible;
-    play.textContent = !card ? locked ? 'LOCKED' : 'COMING SOON' : completed ? 'REPLAY MISSION' : !eligible ? 'LOCKED' : 'PLAY MISSION';
+    play.disabled = !card || (!eligible && !signInRequired);
+    play.textContent = !card ? locked ? 'LOCKED' : 'COMING SOON' : completed ? 'REPLAY MISSION' : signInRequired ? 'SIGN IN TO PLAY' : !eligible ? 'LOCKED' : 'PLAY MISSION';
   }
 
   private revealSelectedStage(): void {

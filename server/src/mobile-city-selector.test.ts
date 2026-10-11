@@ -4,7 +4,17 @@ import test from 'node:test';
 
 const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
+const missionJourney = readFileSync(new URL('../../client/src/mission-journey.ts', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+
+test('a trained guest sees a sign-in action instead of a locked first mission', () => {
+  assert.match(bootstrap, /entry\.id === 'dallas' && hubAccount\.state !== 'account'[\s\S]*SIGN IN FOR MISSIONS/);
+  assert.match(bootstrap, /missionJourney\.setSignInRequired\(hubAccount\.state !== 'account'\)/);
+  assert.match(bootstrap, /if \(hubAccount\.state !== 'account'\) \{\s*hubAccountNotice = \{ ok: true, message: 'SIGN IN TO PLAY MISSIONS' \};\s*await openHubPilotMenu\('PROFILE', false\)/);
+  assert.match(missionJourney, /this\.signInRequired && stage\.number === 1 && !completed/);
+  assert.match(missionJourney, /signInRequired \? 'SIGN IN TO PLAY'/);
+  assert.match(missionJourney, /play\.disabled = !card \|\| \(!eligible && !signInRequired\)/);
+});
 
 test('City Journey replaces the city grid while reusing the existing time and launch flow', () => {
   assert.match(html, /id="app-shell-header" class="app-shell-header"/);
