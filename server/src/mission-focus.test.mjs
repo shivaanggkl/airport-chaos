@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
-import { focusedTerritoryCaptureId, focusedTerritoryParticipantAllowed, isFocusedTerritoryDefender } from './focused-territory-defender.js';
 
 test('only active Missions 1–24 attempts have focus rules', () => {
   for (const status of ['APPROACH', 'RACING']) {
@@ -34,35 +33,10 @@ test('only active Missions 1–24 attempts have focus rules', () => {
   assert.equal(missionFocusForAttempt(null), null);
 });
 
-test('only the live White Rock defender assigned to this focused pilot is interactive', () => {
-  const territory = { defenderBotId: 'defender-a', capturingPlayerId: 'pilot-a' };
-  const defender = { lifeState: 'alive', bot: { defenseTerritoryId: 'white-rock', defenseTargetId: 'pilot-a' } };
-  const allowed = (focusedAttemptId, linkedAttemptId, pilotId, botId, state = territory, bot = defender) =>
-    isFocusedTerritoryDefender(focusedAttemptId, linkedAttemptId, pilotId, botId, 'white-rock', state, bot);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'defender-a'), true);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'defender-a', { ...territory, capturingPlayerId: 'pilot-b' }), true);
-  assert.equal(allowed(undefined, 'attempt-a', 'pilot-a', 'defender-a'), false);
-  assert.equal(allowed('attempt-old', 'attempt-new', 'pilot-a', 'defender-a'), false);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-b', 'defender-a'), false);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'other-bot'), false);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'defender-a', { ...territory, defenderBotId: undefined }), false);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'defender-a', territory, { ...defender, lifeState: 'destroyed' }), false);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'defender-a', territory,
-    { ...defender, bot: { ...defender.bot, defenseTerritoryId: 'downtown' } }), false);
-  assert.equal(allowed('attempt-a', 'attempt-a', 'pilot-a', 'defender-a', territory,
-    { ...defender, bot: { ...defender.bot, defenseTargetId: 'pilot-b' } }), false);
-  assert.equal(excludesFocusedBotInteraction(true, false, false, true, true), false);
-  assert.equal(excludesFocusedBotInteraction(true, false, false, true, false), true);
-});
-
-test('focused Mission 4 pilot contributes only to White Rock with the linked attempt', () => {
-  assert.equal(focusedTerritoryParticipantAllowed(false, undefined, undefined), true);
-  assert.equal(focusedTerritoryParticipantAllowed(true, 'attempt-a', 'attempt-a'), true);
-  assert.equal(focusedTerritoryParticipantAllowed(true, undefined, 'attempt-a'), false);
-  assert.equal(focusedTerritoryParticipantAllowed(true, 'attempt-old', 'attempt-new'), false);
-  assert.equal(focusedTerritoryCaptureId('white-rock', 'attempt-a', 'white-rock'), 'white-rock');
-  assert.equal(focusedTerritoryCaptureId('downtown', 'attempt-a', 'white-rock'), undefined);
-  assert.equal(focusedTerritoryCaptureId('downtown', undefined, 'white-rock'), 'downtown');
+test('focused Mission 4 race never assigns a territory defender', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(server, /missionFocusTerritoryAttempts/);
+  assert.doesNotMatch(server, /assignedFocusedDefender/);
 });
 
 test('bot interaction exclusion is reciprocal and leaves humans and other pilots unchanged', () => {
@@ -88,8 +62,5 @@ test('only the server-owned attempt and bot owner authorize the Hunter exception
   assert.match(server, /focusedBotInteractionExcluded\(projectile\.ownerId, owner, playerId, player\)/);
   assert.match(server, /focusedBotInteractionExcluded\(firstId, first, secondId, second\)/);
   assert.match(server, /missionFocusHunterTargets\.delete\(playerId\)/);
-  assert.match(server, /missionFocusTerritoryAttempts\.set\(playerId, attempt\.attemptId\)/);
-  assert.match(server, /missionFocusTerritoryAttempts\.delete\(playerId\)/);
-  assert.match(server, /isFocusedTerritoryDefender\(missionFocusTerritoryAttempts\.get\(pilotId\), playerJourneyAttempts\.get\(pilotId\)/);
   assert.doesNotMatch(server, /message\.aiIsolated|message\.missionFocusHunterTarget/);
 });

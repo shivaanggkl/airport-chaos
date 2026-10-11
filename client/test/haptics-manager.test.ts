@@ -114,6 +114,24 @@ test('the gameplay Journey handler gives Lake Racer one confirmed victory withou
   ]);
 });
 
+test('Golden Ascent emits each confirmed intermediate gate and one final success', () => {
+  const f = fixture();
+  const ascent = { attemptId: 'ascent', missionId: 'journey-dallas-03', status: 'RACING', gateIndex: 8 };
+  emitConfirmedJourneyFeedback(f.manager, ascent, { ...ascent, gateIndex: 9 });
+  emitConfirmedJourneyFeedback(f.manager, ascent, { ...ascent, gateIndex: 9 });
+  emitConfirmedJourneyFeedback(f.manager, { ...ascent, gateIndex: 9 }, { ...ascent, status: 'COMPLETED', gateIndex: 10 });
+  assert.deepEqual(f.calls, [`impact:${ImpactStyle.Medium}`, `notification:${NotificationType.Success}`]);
+});
+
+test('Downtown Slalom emits confirmed gate and finish feedback once', () => {
+  const f = fixture();
+  const active = { attemptId: 'slalom', missionId: 'journey-dallas-04', status: 'RACING', gateIndex: 8 };
+  emitConfirmedJourneyFeedback(f.manager, active, { ...active, gateIndex: 9 });
+  emitConfirmedJourneyFeedback(f.manager, active, { ...active, gateIndex: 9 });
+  emitConfirmedJourneyFeedback(f.manager, { ...active, gateIndex: 9 }, { ...active, status: 'COMPLETED', gateIndex: 10 });
+  assert.deepEqual(f.calls, [`impact:${ImpactStyle.Medium}`, `notification:${NotificationType.Success}`]);
+});
+
 test('Switchback confirms five checkpoints and one final victory without replay pulses', async () => {
   const f = fixture();
   const active = { attemptId: 'switchback', missionId: 'journey-dallas-20', status: 'RACING', gateIndex: 0 };

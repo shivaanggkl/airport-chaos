@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas19, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas19, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { GoldenFlightGuide } from './golden-flight-guide';
 
-const goldenRace = (id: string): boolean => id === journeyDallas01.id || id === journeyDallas02.id;
+const goldenRace = (id: string): boolean => id === journeyDallas01.id || id === journeyDallas02.id || id === journeyDallas03.id || id === journeyDallas04.id;
 
 const cyan = new THREE.MeshBasicMaterial({ color: 0x64eaff, transparent: true, opacity: .94, depthWrite: false });
 const ice = new THREE.MeshBasicMaterial({ color: 0xe4ffff, transparent: true, opacity: .82, depthWrite: false });
@@ -24,9 +25,11 @@ export class JourneyGateSystem {
   private phase = 0;
   private flashIndex = -1;
   private flashTime = 0;
+  private readonly flightGuide?: GoldenFlightGuide;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
-    private readonly mission: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas19 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
+    private readonly mission: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas19 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
+    if (mission.id === journeyDallas04.id) this.flightGuide = new GoldenFlightGuide(scene, heightAt);
     for (const [index, gate] of mission.gates.entries()) {
       const group = new THREE.Group();
       group.name = `${mission.id}-gate-${index + 1}`;
@@ -62,6 +65,7 @@ export class JourneyGateSystem {
     if (next > this.current) { this.flashIndex = this.current; this.flashTime = .5; }
     this.current = next;
     this.active = active;
+    this.flightGuide?.setGate(next, active);
     this.refresh();
   }
 
@@ -70,7 +74,8 @@ export class JourneyGateSystem {
     return this.active && gate ? { x: gate.x, y: this.heightAt(gate.x, gate.z) + gate.altitude, z: gate.z, index: this.current } : undefined;
   }
 
-  update(delta: number): void {
+  update(delta: number, position?: THREE.Vector3, velocity?: THREE.Vector3): void {
+    if (position && velocity) this.flightGuide?.update(delta, position, velocity);
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
     const current = this.gates[this.current];
@@ -119,6 +124,7 @@ export class JourneyGateSystem {
   }
 
   dispose(): void {
+    this.flightGuide?.dispose();
     for (const gate of this.gates) {
       (gate.children[3] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.dispose();
       if (goldenRace(this.mission.id))

@@ -12,13 +12,16 @@ export const journeyDallas02: Readonly<{
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas03: Readonly<{
-  id: 'journey-dallas-03'; cityId: 'dallas'; name: 'WHITE ROCK SKIMMER'; chapter: 'ROOKIE LEAGUE';
-  timeLimitMs: 64000; firstClearCredits: 450; startAirportId: 'love';
-  gates: readonly { x: number; z: number; altitude: number; radius: number; maxAltitude: number }[];
+  id: 'journey-dallas-03'; cityId: 'dallas'; name: 'GOLDEN ASCENT'; chapter: 'GOLDEN GATES';
+  timeLimitMs: 160000; firstClearCredits: 450;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas04: Readonly<{
-  id: 'journey-dallas-04'; cityId: 'dallas'; name: 'CLAIM THE SKIES'; chapter: 'ROOKIE LEAGUE';
-  firstClearCredits: 500; startAirportId: 'love'; territoryId: 'white-rock'; holdMs: 30000;
+  id: 'journey-dallas-04'; cityId: 'dallas'; name: 'DOWNTOWN SLALOM'; chapter: 'GOLDEN GATES';
+  firstClearCredits: 500; timeLimitMs: 160000;
+  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
+  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas05: Readonly<{
   id: 'journey-dallas-05'; cityId: 'dallas'; name: 'DOWNTOWN NEEDLE'; chapter: 'ROOKIE LEAGUE';
@@ -135,6 +138,8 @@ export const journeyDallas24: Readonly<{
 }>;
 export function journeyExitCrossing(from: JourneyPoint, to: JourneyPoint, terrainHeight: number,
   mission?: typeof journeyDallas19): boolean;
+export function journeyGatePlane(mission: Readonly<{ gates: readonly { x: number; z: number }[] }>, gateIndex: number):
+  { normalX: number; normalZ: number } | null;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;

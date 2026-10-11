@@ -1,4 +1,4 @@
-import { whiteRockLowGates, downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
+import { downtownPrecisionGates, lasColinasFlybyGates, addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 import { repairsForCity } from './city-repairs.mjs';
 
@@ -46,15 +46,41 @@ export const journeyDallas02 = Object.freeze({
 });
 
 export const journeyDallas03 = Object.freeze({
-  id: 'journey-dallas-03', cityId: 'dallas', name: 'WHITE ROCK SKIMMER',
-  chapter: 'ROOKIE LEAGUE', timeLimitMs: 64_000, firstClearCredits: 450,
-  startAirportId: 'love', gates: whiteRockLowGates,
+  id: 'journey-dallas-03', cityId: 'dallas', name: 'GOLDEN ASCENT',
+  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 450,
+  airborneSpawn: Object.freeze({ x: -18_000, z: -22_000, altitude: 800, heading: -Math.PI / 2, speed: 650 }),
+  // A broad rising S from North Dallas through Addison, then open Dallas sky.
+  gates: Object.freeze([
+    { x: -15_000, z: -22_000, altitude: 860, radius: 320 },
+    { x: -4_000, z: -22_000, altitude: 1_100, radius: 305 },
+    { x: 7_000, z: -22_000, altitude: 1_340, radius: 290 },
+    { x: 19_000, z: -21_000, altitude: 1_600, radius: 275 },
+    { x: 21_000, z: -11_000, altitude: 1_890, radius: 265 },
+    { x: 12_000, z: -2_000, altitude: 2_160, radius: 255 },
+    { x: 0, z: -4_000, altitude: 2_440, radius: 245 },
+    { x: -12_000, z: -4_000, altitude: 2_720, radius: 240 },
+    { x: -22_000, z: 4_000, altitude: 3_000, radius: 240 },
+    { x: -21_000, z: 16_800, altitude: 3_280, radius: 340 },
+  ]),
 });
 
 export const journeyDallas04 = Object.freeze({
-  id: 'journey-dallas-04', cityId: 'dallas', name: 'CLAIM THE SKIES',
-  chapter: 'ROOKIE LEAGUE', firstClearCredits: 500,
-  startAirportId: 'love', territoryId: 'white-rock', holdMs: 30_000,
+  id: 'journey-dallas-04', cityId: 'dallas', name: 'DOWNTOWN SLALOM',
+  chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 160_000,
+  airborneSpawn: Object.freeze({ x: -22_000, z: -20_000, altitude: 850, heading: -2.16, speed: 650 }),
+  // A broad S across Downtown and its open northern and southern approaches.
+  gates: Object.freeze([
+    { x: -19_000, z: -18_000, altitude: 850, radius: 340 },
+    { x: -9_000, z: -13_000, altitude: 855, radius: 320 },
+    { x: 0, z: -9_000, altitude: 860, radius: 300 },
+    { x: 0, z: -2_000, altitude: 860, radius: 290 },
+    { x: 9_000, z: 7_000, altitude: 850, radius: 280 },
+    { x: -6_000, z: 11_000, altitude: 845, radius: 270 },
+    { x: -16_000, z: 8_000, altitude: 850, radius: 265 },
+    { x: -20_000, z: 19_000, altitude: 855, radius: 270 },
+    { x: -9_000, z: 22_000, altitude: 850, radius: 275 },
+    { x: 8_000, z: 21_000, altitude: 850, radius: 350 },
+  ]),
 });
 
 export const journeyDallas05 = Object.freeze({
@@ -304,8 +330,20 @@ export function journeyExitCrossing(from, to, terrainHeight, mission = journeyDa
   return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2;
 }
 
-// Cross the face of the next ring within its illuminated opening. White Rock
-// accepts either approach direction; Rookie Rush keeps its forward route.
+// The plane used by both server crossings and the Mission 4 visual guide.
+export function journeyGatePlane(mission, gateIndex) {
+  const gate = mission.gates[gateIndex];
+  if (!gate) return null;
+  const previous = mission.gates[Math.max(0, gateIndex - 1)];
+  const next = mission.gates[Math.min(mission.gates.length - 1, gateIndex + 1)];
+  const directionX = next.x - previous.x;
+  const directionZ = next.z - previous.z;
+  const length = Math.hypot(directionX, directionZ);
+  if (length < 1) return null;
+  return { normalX: directionX / length, normalZ: directionZ / length };
+}
+
+// Cross the face of the next ring within its illuminated opening.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   const gate = mission.gates[gateIndex];
@@ -322,19 +360,13 @@ export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission 
     const dz = from.z + (to.z - from.z) * fraction - gate.z;
     return dx * dx + dy * dy + dz * dz <= (gate.radius * .92) ** 2 ? 'VALID' : false;
   }
-  const previous = mission.gates[Math.max(0, gateIndex - 1)];
-  const next = mission.gates[Math.min(mission.gates.length - 1, gateIndex + 1)];
-  const directionX = next.x - previous.x;
-  const directionZ = next.z - previous.z;
-  const length = Math.hypot(directionX, directionZ);
-  if (length < 1) return false;
-  const normalX = directionX / length;
-  const normalZ = directionZ / length;
+  const plane = journeyGatePlane(mission, gateIndex);
+  if (!plane) return false;
+  const { normalX, normalZ } = plane;
   const before = (from.x - gate.x) * normalX + (from.z - gate.z) * normalZ;
   const after = (to.x - gate.x) * normalX + (to.z - gate.z) * normalZ;
   const forward = before < 0 && after >= 0;
-  const reverse = mission.id === journeyDallas03.id && before > 0 && after <= 0;
-  if (!forward && !reverse) return false;
+  if (!forward) return false;
   const fraction = -before / (after - before);
   const x = from.x + (to.x - from.x) * fraction - gate.x;
   const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
