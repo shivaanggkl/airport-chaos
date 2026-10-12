@@ -11,7 +11,9 @@ import { aircraftDefinitions, aircraftDisplayName, aircraftEffectAnchors, aircra
 import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
-import { CITY_QUERY_PARAM, activeCityFromUrl, type CityId } from './cities';
+import { CITY_QUERY_PARAM, activeCityFromUrl, getCity, resolveCityTimePreset, type CityId } from './cities';
+import type { CityTimeOfDay } from './city-visuals';
+import { createTimeVisuals } from './time-visuals';
 import { entityCapabilities, type EntityType } from './entity-types';
 import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
@@ -184,12 +186,14 @@ const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
-let worldTimeOfDay: 'day' | 'dusk' = isDallas && new URLSearchParams(window.location.search).get('time') === 'dusk' ? 'dusk' : 'day';
+let worldTimeOfDay: CityTimeOfDay = resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
+const timeVisuals = createTimeVisuals(isDallas);
+let visualConfig = timeVisuals[worldTimeOfDay];
 let graphicsQualityMode:GraphicsQualityMode=preferredGraphicsQuality();
 const resolvedQuality=resolvedGraphicsQuality(graphicsQualityMode,matchMedia('(pointer: coarse)').matches,innerWidth<=900);
 const worldVisualQuality = new URLSearchParams(window.location.search).get('visualquality') === 'low'||resolvedQuality!=='high' ? 'low' : 'high';
 cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
-let SKY_COLOR = worldTimeOfDay === 'dusk' ? 0x33405e : isDallas ? 0x5aaee0 : 0x76c9ed;
+let SKY_COLOR: number = visualConfig.background;
 const CAMERA_NEAR = 2;
 const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
 const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
@@ -221,6 +225,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = isDallas ? 1.23 : 1.16;
+if (isDallas && worldTimeOfDay === 'evening') renderer.toneMappingExposure = 0.82;
 renderer.setClearColor(SKY_COLOR, 1);
 document.querySelector<HTMLElement>('#game-root')!.prepend(renderer.domElement);
 preloadAircraftAssets();
@@ -236,10 +241,10 @@ function resizeRenderer(): void {
 
 resizeRenderer();
 
-const skyAmbient = new THREE.HemisphereLight(worldTimeOfDay === 'dusk' ? 0xb8c8e8 : isDallas ? 0xd4efff : 0xd9f3ff, worldTimeOfDay === 'dusk' ? 0x53604e : isDallas ? 0x587443 : 0x5d764a, worldTimeOfDay === 'dusk' ? 1.4 : isDallas ? 2.78 : 2.55);
+const skyAmbient = new THREE.HemisphereLight(visualConfig.ambientSky, visualConfig.ambientGround, visualConfig.ambientIntensity);
 scene.add(skyAmbient);
-const sun = new THREE.DirectionalLight(worldTimeOfDay === 'dusk' ? 0xffae78 : isDallas ? 0xffd39a : 0xffe2ae, worldTimeOfDay === 'dusk' ? 1.68 : isDallas ? 3.72 : 3.45);
-sun.position.set(-2400, 4200, 1800);
+const sun = new THREE.DirectionalLight(visualConfig.sunColor, visualConfig.sunIntensity);
+sun.position.set(visualConfig.sunPosition[0], visualConfig.sunPosition[1], visualConfig.sunPosition[2]);
 sun.castShadow = false;
 scene.add(sun);
 
@@ -252,15 +257,50 @@ const skyDome = new THREE.Mesh(
     fog: false,
     toneMapped: false,
     uniforms: {
-      horizonColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0xaa644a : isDallas ? 0xaedcf0 : 0xc4e8f4) },
-      middleColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x51476f : isDallas ? 0xaedcf0 : 0xc4e8f4) },
-      zenithColor: { value: new THREE.Color(worldTimeOfDay === 'dusk' ? 0x1b2d58 : isDallas ? 0x217fbe : 0x2d9dd4) },
-      gradientLow: { value: worldTimeOfDay === 'dusk' ? -0.10 : -0.18 },
-      gradientHigh: { value: worldTimeOfDay === 'dusk' ? 0.34 : 0.82 },
-      duskAmount: { value: worldTimeOfDay === 'dusk' ? 1 : 0 },
+      horizonColor: { value: new THREE.Color(visualConfig.horizon) },
+      middleColor: { value: new THREE.Color(visualConfig.middle) },
+      zenithColor: { value: new THREE.Color(visualConfig.zenith) },
+      gradientLow: { value: visualConfig.gradientLow },
+      gradientHigh: { value: visualConfig.gradientHigh },
+      duskAmount: { value: visualConfig.duskAmount },
+      eveningAmount: { value: visualConfig.eveningAmount },
+      sunDirection: { value: new THREE.Vector3(...visualConfig.sunPosition).normalize() },
     },
-    vertexShader: 'varying float vHeight; void main() { vHeight = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform vec3 horizonColor; uniform vec3 middleColor; uniform vec3 zenithColor; uniform float gradientLow; uniform float gradientHigh; uniform float duskAmount; varying float vHeight; void main() { float dayT = smoothstep(gradientLow, gradientHigh, vHeight); vec3 dayColor = mix(horizonColor, zenithColor, dayT); float duskUpperT = smoothstep(0.08, 0.40, vHeight); vec3 duskBase = mix(middleColor * 0.48, mix(middleColor, zenithColor, duskUpperT), smoothstep(-0.30, 0.025, vHeight)); float warmBand = smoothstep(-0.015, 0.002, vHeight) * (1.0 - smoothstep(0.025, 0.065, vHeight)); vec3 duskColor = mix(duskBase, horizonColor, warmBand * 0.62); gl_FragColor = vec4(mix(dayColor, duskColor, duskAmount), 1.0); }',
+    vertexShader: 'varying float vHeight; varying vec3 vDirection; void main() { vDirection = normalize(position); vHeight = vDirection.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform vec3 horizonColor; uniform vec3 middleColor; uniform vec3 zenithColor;
+      uniform vec3 sunDirection;
+      uniform float gradientLow; uniform float gradientHigh; uniform float duskAmount; uniform float eveningAmount;
+      varying float vHeight; varying vec3 vDirection;
+      void main() {
+        float dayT = smoothstep(gradientLow, gradientHigh, vHeight);
+        vec3 dayColor = mix(horizonColor, zenithColor, dayT);
+        float duskUpperT = smoothstep(0.08, 0.40, vHeight);
+        vec3 duskBase = mix(middleColor * 0.48, mix(middleColor, zenithColor, duskUpperT), smoothstep(-0.30, 0.025, vHeight));
+        float warmBand = smoothstep(-0.015, 0.002, vHeight) * (1.0 - smoothstep(0.025, 0.065, vHeight));
+        vec3 duskColor = mix(duskBase, horizonColor, warmBand * 0.62);
+        vec3 color = mix(dayColor, duskColor, duskAmount);
+        if (eveningAmount > 0.5) {
+          float height = max(vHeight, 0.0);
+          vec3 atmosphere = mix(horizonColor, middleColor, smoothstep(-0.035, 0.30, vHeight));
+          atmosphere = mix(atmosphere, zenithColor, smoothstep(0.10, 0.80, height));
+          float sunFacing = max(dot(normalize(vDirection), sunDirection), 0.0);
+          float sunAzimuth = max(dot(normalize(vDirection.xz + vec2(0.00001)), normalize(sunDirection.xz)), 0.0);
+          float horizonHaze = 1.0 - smoothstep(-0.04, 0.34, vHeight);
+          atmosphere = mix(atmosphere, vec3(0.68, 0.35, 0.30), horizonHaze * 0.12);
+          float warmScatter = pow(sunAzimuth, 4.0) * horizonHaze;
+          atmosphere = mix(atmosphere, vec3(1.0, 0.39, 0.23), warmScatter * 0.70);
+          float angle = acos(clamp(sunFacing, -1.0, 1.0));
+          float aureole = 1.0 - smoothstep(0.025, 0.22, angle);
+          atmosphere += vec3(1.0, 0.50, 0.17) * aureole * 0.19;
+          float disc = 1.0 - smoothstep(0.018, 0.025, angle);
+          atmosphere = mix(atmosphere, vec3(1.0, 0.74, 0.38), disc);
+          color = atmosphere;
+        }
+        gl_FragColor = vec4(color, 1.0);
+        if (eveningAmount > 0.5) gl_FragColor = linearToOutputTexel(gl_FragColor);
+      }
+    `,
   }),
 );
 skyDome.renderOrder = -10;
@@ -313,30 +353,35 @@ skyDome.add(duskSky);
   duskSky.add(moonHalo, moon);
 }
 
-function setLocalTimePreset(preset: 'day' | 'dusk'): void {
+function setLocalTimePreset(requestedPreset: unknown): void {
+  const preset = resolveCityTimePreset(activeCity!, requestedPreset);
   if (!isDallas || preset === worldTimeOfDay) return;
   worldTimeOfDay = preset;
-  const dusk = preset === 'dusk';
-  SKY_COLOR = dusk ? 0x33405e : 0x5aaee0;
+  visualConfig = timeVisuals[preset];
+  SKY_COLOR = visualConfig.background;
   (scene.background as THREE.Color).setHex(SKY_COLOR);
-  skyAmbient.color.setHex(dusk ? 0xb8c8e8 : 0xd4efff);
-  skyAmbient.groundColor.setHex(dusk ? 0x53604e : 0x587443);
-  skyAmbient.intensity = dusk ? 1.4 : 2.78;
-  sun.color.setHex(dusk ? 0xffae78 : 0xffd39a);
-  sun.intensity = dusk ? 1.68 : 3.72;
+  skyAmbient.color.setHex(visualConfig.ambientSky);
+  skyAmbient.groundColor.setHex(visualConfig.ambientGround);
+  skyAmbient.intensity = visualConfig.ambientIntensity;
+  sun.color.setHex(visualConfig.sunColor);
+  sun.intensity = visualConfig.sunIntensity;
+  sun.position.set(visualConfig.sunPosition[0], visualConfig.sunPosition[1], visualConfig.sunPosition[2]);
+  renderer.toneMappingExposure = preset === 'evening' ? 0.82 : 1.23;
   const uniforms = (skyDome.material as THREE.ShaderMaterial).uniforms;
-  (uniforms.horizonColor.value as THREE.Color).setHex(dusk ? 0xaa644a : 0xaedcf0);
-  (uniforms.middleColor.value as THREE.Color).setHex(dusk ? 0x51476f : 0xaedcf0);
-  (uniforms.zenithColor.value as THREE.Color).setHex(dusk ? 0x1b2d58 : 0x217fbe);
-  uniforms.gradientLow.value = dusk ? -0.10 : -0.18;
-  uniforms.gradientHigh.value = dusk ? 0.34 : 0.82;
-  uniforms.duskAmount.value = dusk ? 1 : 0;
-  duskSky.visible = dusk;
+  (uniforms.horizonColor.value as THREE.Color).setHex(visualConfig.horizon);
+  (uniforms.middleColor.value as THREE.Color).setHex(visualConfig.middle);
+  (uniforms.zenithColor.value as THREE.Color).setHex(visualConfig.zenith);
+  uniforms.gradientLow.value = visualConfig.gradientLow;
+  uniforms.gradientHigh.value = visualConfig.gradientHigh;
+  uniforms.duskAmount.value = visualConfig.duskAmount;
+  uniforms.eveningAmount.value = visualConfig.eveningAmount;
+  (uniforms.sunDirection.value as THREE.Vector3).copy(sun.position).normalize();
+  duskSky.visible = preset === 'dusk';
   ambientTraffic?.setTimeOfDay(preset);
   cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: preset });
   cityWorld.setTimeOfDay?.(preset);
 }
-window.addEventListener('airport-chaos-time-change', (event) => setLocalTimePreset((event as CustomEvent<'day' | 'dusk'>).detail));
+window.addEventListener('airport-chaos-time-change', (event) => setLocalTimePreset((event as CustomEvent<unknown>).detail));
 
 const depthOffsetDirection = renderer.capabilities.reversedDepthBuffer ? 1 : -1;
 const { obstacleBounds, mountainBounds, waterBounds } = createWorld(scene, depthOffsetDirection);
@@ -8651,14 +8696,15 @@ function updateCamera(delta: number): void {
   const targetFar = THREE.MathUtils.lerp(CAMERA_BASE_FAR, CAMERA_HIGH_FAR, altitudeFactor);
   if (scene.fog instanceof THREE.Fog) {
     const targetFogNear = WORLD_SIZE > 20_000
-      ? THREE.MathUtils.lerp(7000, 11_000, altitudeFactor)
+      ? THREE.MathUtils.lerp(worldTimeOfDay === 'evening' ? 3500 : 7000, worldTimeOfDay === 'evening' ? 7500 : 11_000, altitudeFactor)
       : THREE.MathUtils.lerp(4500, 9000, altitudeFactor);
     const targetFogFar = WORLD_SIZE > 20_000
-      ? THREE.MathUtils.lerp(28_000, 38_000, altitudeFactor)
+      ? THREE.MathUtils.lerp(worldTimeOfDay === 'evening' ? 19_000 : 28_000, worldTimeOfDay === 'evening' ? 32_000 : 38_000, altitudeFactor)
       : THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
     if (Math.abs(scene.fog.near - targetFogNear) >= 10) scene.fog.near = targetFogNear;
     if (Math.abs(scene.fog.far - targetFogFar) >= 10) scene.fog.far = targetFogFar;
     if (worldTimeOfDay === 'dusk') scene.fog.color.setRGB(0.18 + altitudeFactor * 0.055, 0.21 + altitudeFactor * 0.06, 0.32 + altitudeFactor * 0.075);
+    else if (worldTimeOfDay === 'evening') scene.fog.color.setRGB(0.23 + altitudeFactor * 0.03, 0.30 + altitudeFactor * 0.035, 0.31 + altitudeFactor * 0.035);
     else if (isDallas) scene.fog.color.setRGB(0.5 + altitudeFactor * 0.14, 0.71 + altitudeFactor * 0.11, 0.8 + altitudeFactor * 0.1);
     else scene.fog.color.setRGB(0.57 + altitudeFactor * 0.13, 0.76 + altitudeFactor * 0.1, 0.84 + altitudeFactor * 0.09);
   }
@@ -9510,7 +9556,7 @@ async function retryJourneyMission(): Promise<void> {
   }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
-  const destination = (event as CustomEvent<{ cityId: CityId; timePreset: 'day' | 'dusk';intercity?:boolean;practiceSuggestion?:boolean }>).detail;
+  const destination = (event as CustomEvent<{ cityId: CityId; timePreset: CityTimeOfDay;intercity?:boolean;practiceSuggestion?:boolean }>).detail;
   const activeMission = profileActiveMissionAttempt(serverProfile);
   const confirmationRequired = !destination.intercity && (Boolean(activeMission) || !destination.practiceSuggestion);
   if (confirmationRequired&&!window.confirm(activeMission ? 'Change city? Your active mission will end.' : 'Leave this flight and change city?')) return;
@@ -9531,7 +9577,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
   socket?.close();
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, destination.cityId);
-  url.searchParams.set('time', destination.timePreset);
+  url.searchParams.set('time', resolveCityTimePreset(getCity(destination.cityId)!, destination.timePreset));
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 });
 

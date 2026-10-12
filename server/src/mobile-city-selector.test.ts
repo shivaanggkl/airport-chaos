@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
@@ -36,10 +36,13 @@ test('City Journey replaces the city grid while reusing the existing time and la
   assert.match(bootstrap, /citySelector\.dataset\.view = 'cities'/);
   assert.match(bootstrap, /citySelector\.dataset\.view = 'time'/);
   assert.match(bootstrap, /Bright daytime flying/);
-  assert.match(bootstrap, /Evening city atmosphere/);
+  assert.match(bootstrap, /Twilight sky and city lights/);
+  assert.match(bootstrap, /Beautiful golden-hour flying/);
   assert.match(bootstrap, /city-time-art/);
   assert.match(css, /\.city-time-day \.city-time-art[^}]*day\.jpg/);
   assert.match(css, /\.city-time-dusk \.city-time-art[^}]*dusk\.jpg/);
+  assert.match(css, /\.city-time-evening \.city-time-art[^}]*evening\.png/);
+  assert.ok(existsSync(new URL('../../client/public/media/city-journey/evening.png', import.meta.url)));
   assert.match(bootstrap, /localStorage\.setItem\(`airport-chaos-time-\$\{city\.id\}`/);
   assert.match(bootstrap, /void enterCity\(city, preset\)/);
   assert.match(bootstrap, /button\.className = 'entry-button entry-button-primary city-journey-cta'/);

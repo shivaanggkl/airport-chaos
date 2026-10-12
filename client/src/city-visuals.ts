@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // Decorative geometry is deliberately separate from streamed city cells and
 // gameplay entities. Future cities supply coordinates; mobile can use `low`.
 export type CityVisualQuality = 'high' | 'low';
-export type CityTimeOfDay = 'day' | 'dusk';
+export type CityTimeOfDay = 'day' | 'dusk' | 'evening';
 export type VisualAirport = {
   x: number; z: number; heading: number; runwayWidth: number; runwayLength: number;
   apronLateral: number; runwayLaterals?: readonly number[];

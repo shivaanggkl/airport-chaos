@@ -1,3 +1,5 @@
+import type { CityTimeOfDay } from './city-visuals';
+
 export type DiscoveryType =
   | 'landmark'
   | 'airstrip'
@@ -21,7 +23,7 @@ export type DiscoveryDefinition = {
   setId?: string;
   setBonus?: number;
   mapVisible?: boolean;
-  timePreset?: 'day' | 'dusk';
+  timePreset?: CityTimeOfDay;
 };
 
 export type DiscoveryMapMarker = {
@@ -49,7 +51,7 @@ export class DiscoverySystem {
     private readonly callbacks: DiscoveryCallbacks,
   ) {}
 
-  update(delta: number, position: { x: number; z: number }, altitude: number, timePreset?: 'day' | 'dusk'): void {
+  update(delta: number, position: { x: number; z: number }, altitude: number, timePreset?: CityTimeOfDay): void {
     this.checkElapsed += delta;
     if (this.checkElapsed < 0.18) return;
     this.checkElapsed = 0;

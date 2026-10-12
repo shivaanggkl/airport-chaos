@@ -1,5 +1,6 @@
 import './style.css';
-import { CITY_QUERY_PARAM, activeCityFromUrl, cities, type CityDefinition } from './cities';
+import { CITY_QUERY_PARAM, activeCityFromUrl, cities, resolveCityTimePreset, type CityDefinition } from './cities';
+import type { CityTimeOfDay } from './city-visuals';
 import { AircraftGarage, type GarageProfile } from './garage';
 import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
 import { HomeHangar, type HomeHangarData } from './home-hangar';
@@ -1783,8 +1784,9 @@ async function startTrainingFromHub(): Promise<void> {
   }
 }
 
-async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day', trainingSession = false): Promise<void> {
+async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
+  const timePreset = resolveCityTimePreset(city, requestedTimePreset);
   if (city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   missionJourneyReturnPending = false;
   missionJourney.hide();
@@ -1813,7 +1815,7 @@ async function enterCity(city: CityDefinition, timePreset: 'day' | 'dusk' = 'day
   citySelectionError.hidden = true;
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
-  url.searchParams.set('time', city.timePresets.includes(timePreset) ? timePreset : 'day');
+  url.searchParams.set('time', timePreset);
   if (trainingSession) url.searchParams.set('training', '1');
   else url.searchParams.delete('training');
   if (city.id === 'dallas' && journeyAttemptId) url.searchParams.set('journeyAttempt', journeyAttemptId);
@@ -1858,9 +1860,10 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
   timeOptions.hidden = false;
   cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSIONS' : 'BACK TO CITIES';
   citySelectTitle.textContent = 'CHOOSE TIME';
-  citySelectDescription.textContent = `${city.displayName} · Day and Dusk share the same pilots and city.`;
+  citySelectDescription.textContent = `${city.displayName} · Choose a time to fly.`;
   let preferred = 'dusk';
   try { preferred = localStorage.getItem(`airport-chaos-time-${city.id}`) ?? 'dusk'; } catch { /* default dusk */ }
+  preferred = resolveCityTimePreset(city, preferred);
   for (const preset of city.timePresets) {
     const option = document.createElement('article');
     option.className = 'city-option city-time-option';
@@ -1875,11 +1878,11 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     const label = document.createElement('strong');
     label.textContent = preset.toUpperCase();
     const description = document.createElement('span');
-    description.textContent = preset === 'day' ? 'Bright daytime flying' : 'Evening city atmosphere';
+    description.textContent = preset === 'day' ? 'Bright daytime flying' : preset === 'dusk' ? 'Twilight sky and city lights' : 'Beautiful golden-hour flying';
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'entry-button entry-button-primary';
-    button.textContent = preset === preferred ? 'Play (preferred)' : 'Play';
+    button.textContent = 'Play';
     button.addEventListener('click', () => {
       hapticsManager.emit('selection');
       try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }

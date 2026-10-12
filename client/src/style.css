@@ -953,6 +953,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   margin: 0 auto;
 }
 .city-options:has(.city-option:only-child) { grid-template-columns: minmax(0, 720px); justify-content: center; }
+.city-options:has(.city-time-evening) { grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(1080px, 100%); gap: clamp(8px, 1.4vw, 18px); }
 .city-options[hidden], #city-back[hidden] { display: none; }
 
 .city-option {
@@ -1000,6 +1001,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .city-time-art { align-self: stretch; min-height: 0; background-size: cover; background-position: center; border-radius: 12px 12px 0 0; border-bottom: 1px solid rgb(111 230 255 / 36%); }
 .city-time-day .city-time-art { background-image: url('/media/city-journey/day.jpg'); }
 .city-time-dusk .city-time-art { background-image: url('/media/city-journey/dusk.jpg'); }
+.city-time-evening .city-time-art { background-image: url('/media/city-journey/evening.png'); }
 .city-time-option .city-option-copy { text-align: center; }
 .city-time-option strong { color: var(--ac-text-primary); font-size: clamp(25px, 2.6vw, 32px); }
 .city-time-option span { margin-top: 2px; color: var(--ac-text-secondary); }
@@ -1021,9 +1023,12 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   .city-journey-cta { min-width: 170px; min-height: 52px; font-size: 17px; }
   .city-journey-hint { display: none; }
   .city-options { grid-template-columns: 1fr; gap: 10px; }
+  .city-options:has(.city-time-evening) { grid-template-columns: 1fr; }
   .city-time-option,
-  .city-time-option:nth-child(even) { min-height: 305px; grid-template-rows: minmax(140px, 1fr) auto auto; gap: 9px; padding: 0 0 10px; }
-  .city-time-option button { min-height: 52px; padding-inline: 12px; }
+  .city-time-option:nth-child(even) { min-height: 190px; grid-template-rows: minmax(96px, 1fr) auto 42px; gap: 4px; padding: 0 0 7px; }
+  .city-time-option strong { font-size: 22px; }
+  .city-time-option span { font-size: 13px; }
+  .city-time-option button { min-height: 42px; padding-inline: 12px; }
   .intro-brand-footer { gap: 4px; padding-right: 0; font-size: 9px; }
   .intro-brand-footer a { min-height: 36px; padding-inline: 8px; }
   .pilot-menu-header-actions { flex-wrap: wrap; justify-content: flex-end; }
@@ -1060,6 +1065,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   .city-journey-dots { bottom: -1px; }
   .city-journey-hint { display: none; }
   .city-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .city-options:has(.city-time-evening) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .city-time-option,
   .city-time-option:nth-child(even) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(70px, 1fr) auto 38px; height: clamp(165px, calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 145px), 225px); min-height: 0; padding: 0 0 4px; gap: 2px; }
   .city-time-option strong { font-size: clamp(17px, 2.5vw, 22px); }

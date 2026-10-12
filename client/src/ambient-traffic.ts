@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { attachAircraftAsset, type AircraftAssetType } from './assets';
 import type { EntityType, EventCombatMode } from './entity-types';
+import type { CityTimeOfDay } from './city-visuals';
 
 export type AmbientTrafficKind = 'civilian' | 'privateJet' | 'cargo' | 'helicopter' | 'highAltitude';
 export type AmbientTrafficWaypoint = { x: number; z: number; altitude: number };
@@ -299,9 +300,9 @@ export class AmbientTrafficSystem {
     if (this.atmosphereZones.length) this.addAtmosphereZones(this.atmosphereZones);
   }
 
-  setTimeOfDay(preset: 'day' | 'dusk'): void {
+  setTimeOfDay(preset: CityTimeOfDay): void {
     const dusk = preset === 'dusk';
-    cloudMaterial.color.setHex(dusk ? 0xbac4dc : 0xf4fbff);
+    cloudMaterial.color.setHex(dusk ? 0xbac4dc : preset === 'evening' ? 0xf5e9df : 0xf4fbff);
     cloudMaterial.opacity = dusk ? 0.64 : 0.7;
     stormCloudMaterial.color.setHex(dusk ? 0x8995b2 : 0xd4dbe0);
     stormCloudMaterial.opacity = dusk ? 0.62 : 0.68;

@@ -46,6 +46,14 @@ let dallasScenery: DallasScenery | undefined;
 let visualQuality: CityVisualQuality = 'high';
 let timeOfDay: CityTimeOfDay = 'day';
 let horizonMaterial: THREE.MeshStandardMaterial | undefined;
+let terrainMaterial: THREE.MeshStandardMaterial | undefined;
+let streamedBuildingMaterials: THREE.MeshStandardMaterial[] = [];
+let streamedWaterMaterial: THREE.MeshStandardMaterial | undefined;
+const streamedBuildingColors = {
+  day: [0xd0b69a, 0xa7bbc0, 0xb8b6ae, 0x3589aa, 0x8b998c],
+  dusk: [0xa79488, 0x829ba4, 0x8f9394, 0x2e6681, 0x7c8178],
+  evening: [0xa98b73, 0x536e73, 0x476c52, 0x30718b, 0x71806d],
+} as const;
 export function configureWorldVisuals(options: { quality: CityVisualQuality; timeOfDay: CityTimeOfDay }): void {
   visualQuality = options.quality;
   timeOfDay = options.timeOfDay;
@@ -59,8 +67,23 @@ export function setTimeOfDay(preset: CityTimeOfDay): void {
     glass.emissive.setHex(dusk ? 0x315063 : 0x000000);
     glass.emissiveIntensity = dusk ? 0.2 : 0;
   }
-  landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : 0x075e96);
-  horizonMaterial?.color.setHex(dusk ? 0x3d5147 : 0x4c7847);
+  landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : preset === 'evening' ? 0x176b94 : 0x075e96);
+  airportMaterials.runway.color.setHex(preset === 'evening' ? 0x414a4a : 0x18252b);
+  airportMaterials.taxiway.color.setHex(preset === 'evening' ? 0x566260 : 0x34454c);
+  horizonMaterial?.color.setHex(dusk ? 0x3d5147 : preset === 'evening' ? 0x41694a : 0x4c7847);
+  terrainMaterial?.color.setHex(preset === 'evening' ? 0xbcd0ac : 0xffffff);
+  streamedBuildingMaterials.forEach((material, index) => {
+    material.color.setHex(streamedBuildingColors[preset][index]!);
+    if (index === 3) {
+      material.emissive.setHex(dusk ? 0x102b3c : 0x000000);
+      material.emissiveIntensity = dusk ? 0.18 : 0;
+    }
+  });
+  if (streamedWaterMaterial) {
+    streamedWaterMaterial.color.setHex(dusk ? 0x173e6f : preset === 'evening' ? 0x146d96 : 0x075f99);
+    streamedWaterMaterial.emissive.setHex(dusk ? 0x241f40 : 0x043950);
+    streamedWaterMaterial.emissiveIntensity = dusk ? 0.2 : 0.24;
+  }
   cityVisualLayer?.setDusk(dusk);
 }
 type CompactElevationData = {
@@ -907,7 +930,8 @@ function makeTerrain(): THREE.Mesh {
   positions.needsUpdate = true;
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+  terrainMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  return new THREE.Mesh(geometry, terrainMaterial);
 }
 
 const airportMaterials = {
@@ -1319,6 +1343,13 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     obstacleBounds.push({ x: site.x, z: site.z, halfX: site.kind === 'crane' ? 70 : 20, halfZ: 20, height: 92, baseY: getTerrainHeight(site.x, site.z), polygon: [] });
   }
   dallasStreamer?.dispose();
+  streamedBuildingMaterials = streamedBuildingColors[timeOfDay].map((color, index) => new THREE.MeshStandardMaterial({
+    color, roughness: [0.88, 0.72, 0.6, 0.22, 0.8][index],
+    metalness: [0, 0, 0.07, 0.3, 0.1][index],
+    emissive: dusk && index === 3 ? 0x102b3c : 0x000000,
+    emissiveIntensity: dusk && index === 3 ? 0.18 : 0,
+  }));
+  streamedWaterMaterial = enhanceWaterMaterial(new THREE.MeshStandardMaterial({ color: dusk ? 0x173e6f : timeOfDay === 'evening' ? 0x146d96 : 0x075f99, emissive: dusk ? 0x241f40 : 0x043950, emissiveIntensity: dusk ? 0.2 : 0.24, roughness: 0.2, metalness: 0.24 }));
   dallasStreamer = new DallasChunkStreamer(scene, {
     // The runtime chunks are already LOD-specific and collision grids are
     // static gameplay data. Avoid building throwaway duplicate arrays while
@@ -1326,14 +1357,8 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     collectCollisionData: false,
     isBuildingExcluded: inDallasCore,
     roadMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection }),
-    buildingMaterials: [
-      new THREE.MeshStandardMaterial({ color: dusk ? 0xa79488 : 0xd0b69a, roughness: 0.88 }),
-      new THREE.MeshStandardMaterial({ color: dusk ? 0x829ba4 : 0xa7bbc0, roughness: 0.72 }),
-      new THREE.MeshStandardMaterial({ color: dusk ? 0x8f9394 : 0xb8b6ae, roughness: 0.6, metalness: 0.07 }),
-      new THREE.MeshStandardMaterial({ color: dusk ? 0x2e6681 : 0x3589aa, roughness: 0.22, metalness: 0.3, emissive: dusk ? 0x102b3c : 0x000000, emissiveIntensity: dusk ? 0.18 : 0 }),
-      new THREE.MeshStandardMaterial({ color: dusk ? 0x7c8178 : 0x8b998c, roughness: 0.8, metalness: 0.1 }),
-    ],
-    waterMaterial: enhanceWaterMaterial(new THREE.MeshStandardMaterial({ color: dusk ? 0x173e6f : 0x075f99, emissive: dusk ? 0x241f40 : 0x043950, emissiveIntensity: dusk ? 0.2 : 0.24, roughness: 0.2, metalness: 0.24 })),
+    buildingMaterials: streamedBuildingMaterials,
+    waterMaterial: streamedWaterMaterial,
     landMaterials: [
       new THREE.MeshStandardMaterial({ color: 0x3d8a51, roughness: 1 }), // parks/open green
       new THREE.MeshStandardMaterial({ color: 0x256a48, roughness: 1 }), // woodland
@@ -1351,6 +1376,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     isExcluded: (x, z, padding) => airports.some((airport) => Math.abs(x - airport.x) < airportSafetyWidth[airport.id] + padding && Math.abs(z - airport.z) < airport.runwayLength / 2 + 500 + padding)
       || (Math.abs(x - arena.x) < arena.radiusX + 35 + padding && Math.abs(z - arena.z) < arena.radiusZ + 35 + padding),
   });
+  setTimeOfDay(timeOfDay);
   return { obstacleBounds, mountainBounds, waterBounds };
 }
 
@@ -1367,6 +1393,8 @@ export function getWorldStreamingVisualDebug(position: THREE.Vector3, camera: TH
 }
 export function disposeWorldStreaming(): void {
   dallasStreamer?.dispose(); dallasStreamer = undefined;
+  streamedBuildingMaterials = [];
+  streamedWaterMaterial = undefined;
   dallasScenery?.dispose(); dallasScenery = undefined;
 }
 

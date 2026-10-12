@@ -1,3 +1,5 @@
+import type { CityTimeOfDay } from './city-visuals';
+
 export type CityId = 'milwaukee' | 'dallas';
 export type CityStatus = 'available' | 'coming-soon';
 export type VisualQaPreset = {
@@ -38,7 +40,7 @@ export type CityDefinition = {
   spawn: { airportId: string };
   spawnBrandPlacement?: { forwardDistance: number; clearanceAgl: number; width: number; height: number; campaignId: import('./ad-placement').SponsorCampaignId };
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
-  timePresets: readonly ('day' | 'dusk')[];
+  timePresets: readonly CityTimeOfDay[];
   loadWorld?: () => Promise<CityWorldModule>;
 };
 
@@ -62,13 +64,18 @@ export const cities: readonly CityDefinition[] = [
     spawn: { airportId: 'dfw' },
     spawnBrandPlacement: { forwardDistance: 3000, clearanceAgl: 50, width: 420, height: 144, campaignId: 'airport-chaos' },
     bounds: { minX: -25_000, maxX: 25_000, minZ: -25_000, maxZ: 25_000 },
-    timePresets: ['day', 'dusk'],
+    timePresets: ['day', 'dusk', 'evening'],
     loadWorld: () => import('./dallas-world'),
   },
 ];
 
 export function getCity(cityId: string | null): CityDefinition | undefined {
   return cities.find((city) => city.id === cityId);
+}
+
+export function resolveCityTimePreset(city: CityDefinition, value: unknown): CityTimeOfDay {
+  return typeof value === 'string' && city.timePresets.includes(value as CityTimeOfDay)
+    ? value as CityTimeOfDay : 'day';
 }
 
 export function activeCityFromUrl(): CityDefinition | undefined {
