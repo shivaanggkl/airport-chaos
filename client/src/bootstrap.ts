@@ -4,6 +4,7 @@ import type { CityTimeOfDay } from './city-visuals';
 import { AircraftGarage, type GarageProfile } from './garage';
 import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
 import { HomeHangar, type HomeHangarData } from './home-hangar';
+import { LAUNCH_MODE_PARAM, type LaunchMode } from './launch-mode';
 import { AppShellHeader, type AppShellActive } from './app-shell';
 import { GameStore } from './game-store';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
@@ -150,6 +151,7 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
 }
 
 async function playJourneyMission(): Promise<void> {
+  cityJourneyMode = 'missions';
   if (hubAccount.state !== 'account' && !guestQaJourneyAccess) {
     hubAccountNotice = { ok: true, message: 'SIGN IN TO PLAY MISSIONS' };
     await openHubPilotMenu('PROFILE', false);
@@ -528,7 +530,7 @@ type CityJourneyEntry = Readonly<{
 }>;
 const CITY_JOURNEY_SELECTION_KEY = 'airport-chaos-city-journey-selection-v1';
 const CITY_JOURNEY_MODE_KEY = 'airport-chaos-city-journey-mode-v1';
-type CityJourneyMode = 'missions' | 'free-fly';
+type CityJourneyMode = LaunchMode;
 let cityJourneyMode: CityJourneyMode = (() => {
   try { return sessionStorage.getItem(CITY_JOURNEY_MODE_KEY) === 'free-fly' ? 'free-fly' : 'missions'; }
   catch { return 'missions'; }
@@ -1671,6 +1673,7 @@ function showHome(): Promise<void> {
   if (window.history.state?.airportChaosStoreView || window.history.state?.airportChaosEntryView) window.history.replaceState(null, '', window.location.href);
   audioManager.setMenuMusicDesired(true);
   entryState = 'HANGAR';
+  abandonPendingJourneyLaunch();
   missionJourneyReturnPending = false;
   garageReturnState = 'HANGAR';
   garageOpenRequest += 1;
@@ -1691,7 +1694,7 @@ function closeCityHelp(restoreFocus = false): void {
 
 function showSelector(message = '', options: { preferDallas?: boolean; mode?: CityJourneyMode } = {}): void {
   if (options.mode) cityJourneyMode = options.mode;
-  if (cityJourneyMode === 'free-fly') abandonPendingJourneyLaunch();
+  abandonPendingJourneyLaunch();
   try { sessionStorage.setItem(CITY_JOURNEY_MODE_KEY, cityJourneyMode); } catch { /* in-memory mode remains available */ }
   cityJourneyLaunching = false;
   cityJourneyTransitionUntil = 0;
@@ -1758,7 +1761,7 @@ function leaveMissionJourney(): void {
     return;
   }
   if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') window.history.back();
-  else showSelector();
+  else showSelector('', { mode: 'missions' });
 }
 
 function openMissionDetails(): void {
@@ -1890,9 +1893,10 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
   url.searchParams.set('time', timePreset);
+  url.searchParams.set(LAUNCH_MODE_PARAM, cityJourneyMode);
   if (trainingSession) url.searchParams.set('training', '1');
   else url.searchParams.delete('training');
-  if (city.id === 'dallas' && journeyAttemptId) url.searchParams.set('journeyAttempt', journeyAttemptId);
+  if (cityJourneyMode === 'missions' && city.id === 'dallas' && journeyAttemptId) url.searchParams.set('journeyAttempt', journeyAttemptId);
   else url.searchParams.delete('journeyAttempt');
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 
@@ -1916,7 +1920,7 @@ function chooseCity(city: CityDefinition): void {
     showMissionJourney();
     return;
   }
-  if (city.timePresets.length === 1) {
+  if (cityJourneyMode === 'missions' && city.timePresets.length === 1) {
     const preset = city.timePresets[0]!;
     try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* launch with the configured time */ }
     void enterCity(city, preset).catch((error: unknown) => {
@@ -1925,7 +1929,7 @@ function chooseCity(city: CityDefinition): void {
     });
     return;
   }
-  showTimeSelection(city);
+  showTimeSelection(city, 'CITY_SELECTION');
 }
 
 function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELECTION'): void {
@@ -1938,7 +1942,7 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
   cityOptions.hidden = true;
   timeOptions.replaceChildren();
   timeOptions.hidden = false;
-  cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSIONS' : 'BACK TO CITIES';
+  cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSION JOURNEY' : 'BACK TO CITIES';
   citySelectTitle.textContent = 'CHOOSE TIME';
   citySelectDescription.textContent = `${city.displayName} · Choose a time to fly.`;
   let preferred = 'dusk';

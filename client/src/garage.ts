@@ -724,23 +724,34 @@ export class AircraftGarage {
     const vistaContext = vistaCanvas.getContext('2d');
     if (vistaContext) {
       const sky = vistaContext.createLinearGradient(0, 0, 0, 512);
-      sky.addColorStop(0, '#7856C8'); sky.addColorStop(0.45, '#D98BB3');
-      sky.addColorStop(0.69, '#FFBC72'); sky.addColorStop(1, '#37558C');
+      sky.addColorStop(0, '#6385CC'); sky.addColorStop(0.42, '#E999B5');
+      sky.addColorStop(0.72, '#FFD17E'); sky.addColorStop(1, '#597AA0');
       vistaContext.fillStyle = sky; vistaContext.fillRect(0, 0, 512, 512);
+      for (const [x, y, width] of [[20, 112, 122], [278, 170, 155], [64, 220, 90]] as const) {
+        const cloud = vistaContext.createLinearGradient(x, y, x + width, y + 16);
+        cloud.addColorStop(0, 'transparent'); cloud.addColorStop(0.5, 'rgba(255, 217, 174, 0.47)'); cloud.addColorStop(1, 'transparent');
+        vistaContext.fillStyle = cloud; vistaContext.fillRect(x, y, width, 16);
+      }
       for (const [x, y, radius] of [[90, 292, 96], [364, 310, 140]] as const) {
         const haze = vistaContext.createRadialGradient(x, y, 0, x, y, radius);
         haze.addColorStop(0, 'rgba(255, 221, 156, 0.56)'); haze.addColorStop(1, 'transparent');
         vistaContext.fillStyle = haze; vistaContext.fillRect(x - radius, y - radius, radius * 2, radius * 2);
       }
-      vistaContext.fillStyle = '#2F4674';
+      vistaContext.fillStyle = '#426486';
       vistaContext.fillRect(0, 399, 512, 113);
-      for (const [x, width, height] of [[18, 53, 40], [89, 82, 23], [214, 74, 34], [322, 92, 48], [442, 70, 28]] as const) {
+      for (const [x, width, height] of [[0, 34, 49], [41, 38, 69], [82, 35, 33], [120, 26, 81], [216, 48, 89], [270, 31, 54], [307, 45, 106], [357, 37, 71], [399, 35, 92], [440, 72, 46]] as const) {
         vistaContext.fillRect(x, 399 - height, width, height);
       }
-      vistaContext.fillRect(168, 270, 17, 130);
-      vistaContext.fillRect(146, 274, 61, 9);
-      vistaContext.beginPath(); vistaContext.moveTo(176, 210); vistaContext.lineTo(164, 270); vistaContext.lineTo(188, 270); vistaContext.fill();
-      vistaContext.strokeStyle = '#FFCE8D'; vistaContext.lineWidth = 8; vistaContext.strokeRect(8, 8, 496, 496);
+      // Reunion Tower's lit sphere makes the side vista read as Dallas.
+      vistaContext.fillRect(164, 280, 13, 120);
+      vistaContext.beginPath(); vistaContext.arc(170, 268, 30, 0, Math.PI * 2); vistaContext.fill();
+      vistaContext.strokeStyle = '#FFD879'; vistaContext.lineWidth = 4;
+      vistaContext.beginPath(); vistaContext.arc(170, 268, 26, 0, Math.PI * 2); vistaContext.stroke();
+      for (let y = 326; y < 395; y += 15) {
+        vistaContext.fillStyle = 'rgba(255, 207, 128, 0.55)';
+        for (let x = 47; x < 492; x += 13) if ((x + y) % 4) vistaContext.fillRect(x, y, 2, 3);
+      }
+      vistaContext.strokeStyle = '#FFD69A'; vistaContext.lineWidth = 7; vistaContext.strokeRect(8, 8, 496, 496);
       const vistaTexture = new THREE.CanvasTexture(vistaCanvas);
       vistaTexture.colorSpace = THREE.SRGBColorSpace; vistaTexture.generateMipmaps = false;
       for (const side of [-1, 1]) {

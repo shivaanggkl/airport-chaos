@@ -12,6 +12,7 @@ import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
 import { CITY_QUERY_PARAM, activeCityFromUrl, getCity, resolveCityTimePreset, type CityId } from './cities';
+import { LAUNCH_MODE_PARAM, launchModeFromUrl } from './launch-mode';
 import type { CityTimeOfDay } from './city-visuals';
 import { createTimeVisuals } from './time-visuals';
 import { entityCapabilities, type EntityType } from './entity-types';
@@ -116,7 +117,8 @@ const cityId = activeCity.id;
 const cityRules = cityCapabilities(cityId)!;
 const trainingRequested = new URLSearchParams(window.location.search).get('training') === '1';
 let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
-const journeyMode = cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
+const launchMode = launchModeFromUrl(window.location.search);
+const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
   attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean;
   aiIsolated?: boolean;
@@ -1411,7 +1413,7 @@ window.addEventListener('pagehide', () => savePlayerProgress(true));
 
 let contextualHintDismissed: readonly ContextualHintId[] = persistedPlayer.dismissedHints;
 function renderContextualHint(id: ContextualHintId | null): void {
-  if (journeyMode) id = null;
+  if (journeyMode || launchMode === 'free-fly' && id === 'missionBoard') id = null;
   contextualHintElement.classList.toggle('hidden', id === null);
   if (!id) return;
   const definition = contextualHintDefinitions[id];
@@ -1431,7 +1433,7 @@ contextualHintDismissElement.addEventListener('click', closeTopUiLayer);
 // Returning pilots receive the compact runway reminder; first-time pilots see
 // the visual guide first, then enter the same contextual hint sequence.
 if (!journeyMode) {
-  contextualHints.trigger('missionBoard');
+  if (launchMode !== 'free-fly') contextualHints.trigger('missionBoard');
   contextualHints.trigger('runwayControls');
 }
 
@@ -6039,7 +6041,7 @@ function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttemp
 let completedMissionUntil = 0;
 
 function updateMissionHud(): void {
-  const active = serverProfile.missions[cityId]?.active;
+  const active = launchMode === 'free-fly' ? undefined : serverProfile.missions[cityId]?.active;
   const definition = active && missionForCity(cityId, active.missionId);
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
@@ -6418,7 +6420,7 @@ function hideMissionReminder(startCooldown = true): void {
 }
 
 function cityHasAvailableMission(): boolean {
-  if (journeyMode) return false;
+  if (journeyMode || launchMode === 'free-fly') return false;
   const now = performance.now();
   if (now - missionAvailabilityCheckedAt < 1_000) return missionAvailable;
   missionAvailabilityCheckedAt = now;
@@ -9561,6 +9563,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   url.searchParams.delete('time');
   url.searchParams.delete('training');
   url.searchParams.delete('journeyAttempt');
+  url.searchParams.delete(LAUNCH_MODE_PARAM);
   if (returnToJourney) {
     url.searchParams.set('entry', 'journey');
     if (journeyAttempt?.status === 'COMPLETED') url.searchParams.set('journeyReceipt', journeyAttemptId);

@@ -4200,3 +4200,84 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
 }
 .monster-boss-hud > .mission-objective-docked[hidden] { display: none; }
 body:has(#world-map-overlay:not(.hidden)) .mission-objective-docked { display: none; }
+
+/* Airport Hub: keep the Three.js aircraft and hangar interactive behind live controls. */
+:root { --hub-header-total: calc(92px + var(--safe-area-top)); }
+.home-hangar-stage { inset: calc(var(--hub-header-total) + 2px) 0 max(38px, var(--safe-area-bottom)); }
+.home-hangar-aircraft-name { bottom: calc(max(42px, var(--safe-area-bottom)) + clamp(125px, 18vh, 174px) + 18px); font-size: clamp(13px, 1.35vw, 22px); text-shadow: 0 3px 10px #04142d, 0 0 13px #052745; }
+.home-hangar-contextual { right: max(20px, var(--safe-area-right)); bottom: calc(max(38px, var(--safe-area-bottom)) + 8px); left: max(20px, var(--safe-area-left)); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(1500px, calc(100% - max(40px, var(--safe-area-left)) - max(40px, var(--safe-area-right)))); margin-inline: auto; gap: clamp(12px, 1.6vw, 28px); }
+.home-hangar-mode { position: relative; display: grid; grid-template-columns: clamp(84px, 11vw, 170px) minmax(0, 1fr) auto; align-items: center; gap: clamp(8px, 1.2vw, 22px); min-width: 0; height: clamp(125px, 18vh, 174px); padding: clamp(10px, 1.3vw, 18px); color: #f7fbff; text-align: left; background: linear-gradient(95deg, rgb(7 29 70 / 94%), rgb(3 33 76 / 88%)); border: 3px solid var(--mode-accent); border-radius: clamp(15px, 1.5vw, 25px); box-shadow: inset 0 2px rgb(255 255 255 / 26%), inset 0 -4px rgb(0 9 28 / 40%), 0 9px 20px rgb(0 10 34 / 44%), 0 0 18px var(--mode-glow); cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease; }
+.home-hangar-mode::before { position: absolute; inset: 3px 6px auto; height: 42%; border-radius: inherit; background: linear-gradient(rgb(129 195 240 / 16%), transparent); content: ''; pointer-events: none; }
+.home-hangar-mode:hover, .home-hangar-mode:focus-visible { transform: translateY(-3px); box-shadow: inset 0 2px rgb(255 255 255 / 35%), 0 12px 22px rgb(0 10 34 / 48%), 0 0 26px var(--mode-glow); }
+.home-hangar-mode:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.home-hangar-mode:active { transform: translateY(1px); }
+.home-hangar-missions { --mode-accent: #ffd66a; --mode-glow: rgb(255 198 58 / 36%); }
+.home-hangar-free-fly { --mode-accent: #49eaff; --mode-glow: rgb(45 223 255 / 38%); }
+.home-hangar-mode > img { width: 100%; height: calc(clamp(125px, 18vh, 174px) - 30px); object-fit: contain; filter: drop-shadow(0 5px 6px rgb(0 6 25 / 40%)); pointer-events: none; }
+.home-hangar-mode-copy { display: grid; gap: clamp(3px, .55vw, 9px); min-width: 0; }
+.home-hangar-mode-copy strong { font: 900 clamp(26px, 3vw, 55px)/.95 var(--font-display); letter-spacing: .045em; white-space: nowrap; text-shadow: 0 3px 6px #031a3a; }
+.home-hangar-mode-copy > span { font: 500 clamp(12px, 1.35vw, 25px)/1.2 var(--font-body); white-space: nowrap; }
+.home-hangar-mode-copy small { color: var(--mode-accent); font: 900 clamp(11px, 1.25vw, 24px)/1 var(--font-display); letter-spacing: .16em; white-space: nowrap; }
+.home-hangar-mode-arrow { align-self: center; color: var(--mode-accent); font: 800 clamp(38px, 4vw, 75px)/.65 var(--font-body); text-shadow: 0 2px 6px rgb(0 10 34 / 55%); }
+.home-brand-signature { right: 0; bottom: 0; left: 0; min-height: max(38px, var(--safe-area-bottom)); background: linear-gradient(90deg, #072854, #07376f 50%, #072854); }
+.home-brand-signature .intro-brand-footer { width: 100%; padding: 4px max(20px, var(--safe-area-right)) 4px max(20px, var(--safe-area-left)); color: #d8e7f6; background: none; border: 0; border-radius: 0; font-size: clamp(11px, 1vw, 17px); opacity: 1; }
+.home-brand-signature .intro-brand-footer a { color: #d8e7f6; font-size: inherit; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub { grid-template-columns: minmax(135px, 1fr) auto minmax(330px, 1fr); gap: clamp(8px, 1.5vw, 25px); height: var(--hub-header-total); padding: var(--safe-area-top) max(18px, var(--safe-area-right)) 0 max(18px, var(--safe-area-left)); background: linear-gradient(180deg, #071d43 0%, #092a5b 75%, #062550 100%); border-bottom: 3px solid #36e4ff; backdrop-filter: none; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-brand,
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-brand.has-brand-logo { width: clamp(122px, 12vw, 220px); height: calc(var(--hub-header-total) - var(--safe-area-top) - 6px); min-height: 0; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-logo { object-fit: contain; border-radius: 0; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-brand::after,
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action::before,
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action::after,
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .flight-header-credits::before,
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-sky-tokens::after { display: none; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet { position: static; display: flex; width: auto; gap: clamp(14px, 1.7vw, 32px); transform: none; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .flight-header-credits { width: auto; min-width: 0; height: auto; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; animation: none; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-credits { flex: 0 0 auto; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-sky-tokens { flex: 0 0 auto; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .flight-header-credit-copy { flex-direction: column; align-items: flex-start; gap: 3px; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet strong { font-size: clamp(18px, 1.65vw, 31px); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet small { font-size: clamp(9px, .78vw, 14px); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-currency-icon { width: clamp(29px, 3vw, 55px); height: clamp(29px, 3vw, 55px); flex-basis: clamp(29px, 3vw, 55px); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-token-add { width: clamp(18px, 1.8vw, 31px); height: clamp(18px, 1.8vw, 31px); font-size: clamp(13px, 1.2vw, 22px); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utilities { justify-content: flex-end; gap: clamp(5px, 1vw, 18px); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action:not(.app-shell-avatar) { flex: 0 1 clamp(65px, 5.7vw, 108px); width: clamp(65px, 5.7vw, 108px); height: calc(var(--hub-header-total) - var(--safe-area-top) - 7px); min-width: 0; padding: 1px 0; gap: 0; color: #f6fbff; background: transparent; border: 0; border-radius: 0; box-shadow: none; animation: none; }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action:not(.app-shell-avatar):is(:hover, :focus-visible) { background: rgb(75 194 244 / 13%); filter: brightness(1.08); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action img { width: clamp(42px, 4.4vw, 74px); height: clamp(42px, 4.4vw, 74px); object-fit: contain; filter: drop-shadow(0 3px 5px rgb(0 8 29 / 45%)); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action span { font-size: clamp(9px, .75vw, 14px); }
+body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar { flex: 0 0 clamp(46px, 4.6vw, 78px); width: clamp(46px, 4.6vw, 78px); min-width: 0; height: clamp(46px, 4.6vw, 78px); min-height: 0; margin-left: clamp(3px, 1vw, 15px); border: 3px solid #35dcff; border-radius: 50%; background: #093260; box-shadow: 0 0 16px rgb(35 210 255 / 56%); }
+body:has(.home-hangar:not([hidden])) .app-shell-rewards [data-rewards-indicator] { top: 1px; right: 3px; width: 14px; height: 14px; border: 2px solid #fff2b0; background: #ffc72f; }
+
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --hub-header-total: calc(65px + var(--safe-area-top)); }
+  .home-hangar-contextual { bottom: calc(max(28px, var(--safe-area-bottom)) + 3px); gap: 10px; }
+  .home-hangar-mode { grid-template-columns: clamp(48px, 9vw, 78px) minmax(0, 1fr) 16px; height: clamp(88px, 27vh, 112px); gap: 5px; padding: 6px 9px; border-width: 2px; border-radius: 12px; }
+  .home-hangar-mode > img { height: calc(clamp(88px, 27vh, 112px) - 16px); }
+  .home-hangar-mode-copy strong { font-size: clamp(20px, 3.1vw, 29px); }
+  .home-hangar-mode-copy > span { font-size: clamp(9px, 1.4vw, 13px); }
+  .home-hangar-mode-copy small { font-size: clamp(9px, 1.3vw, 12px); letter-spacing: .08em; }
+  .home-hangar-mode-arrow { font-size: 31px; }
+  .home-hangar-aircraft-name { bottom: calc(max(28px, var(--safe-area-bottom)) + clamp(88px, 27vh, 112px) + 12px); font-size: 12px; }
+  .home-brand-signature { min-height: max(28px, var(--safe-area-bottom)); }
+  .home-brand-signature .intro-brand-footer { font-size: 10px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub { grid-template-columns: minmax(105px, 1fr) auto minmax(220px, 1fr); gap: 4px; padding-inline: max(8px, var(--safe-area-left)) max(8px, var(--safe-area-right)); }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-brand,
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-brand.has-brand-logo { width: clamp(95px, 14vw, 135px); }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet { gap: 7px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet strong { font-size: 15px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet small { font-size: 8px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-currency-icon { width: 26px; height: 26px; flex-basis: 26px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action:not(.app-shell-avatar) { width: 54px; height: 55px; flex-basis: 54px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action img { width: 36px; height: 36px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action span { font-size: 8px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar { width: 44px; min-width: 44px; height: 44px; flex-basis: 44px; }
+}
+@media (orientation: portrait) {
+  .home-hangar-contextual { grid-template-columns: 1fr; bottom: max(42px, var(--safe-area-bottom)); width: min(590px, calc(100% - 24px)); }
+  .home-hangar-mode { height: clamp(88px, 13vh, 130px); grid-template-columns: 80px minmax(0, 1fr) 20px; }
+  .home-hangar-mode > img { height: calc(clamp(88px, 13vh, 130px) - 20px); }
+  .home-hangar-mode-copy strong { font-size: clamp(24px, 6vw, 33px); }
+  .home-hangar-mode-copy > span { font-size: clamp(10px, 2.5vw, 14px); }
+  .home-hangar-mode-copy small { font-size: 11px; }
+  .home-hangar-aircraft-name { bottom: calc(max(42px, var(--safe-area-bottom)) + 2 * clamp(88px, 13vh, 130px) + 24px); }
+}

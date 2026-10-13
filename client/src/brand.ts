@@ -55,7 +55,7 @@ export function mountCompactBrandFooter(container: HTMLElement): void {
   identity.textContent = `${gameBrand.gameName} • Built by ${gameBrand.studioName}`;
   const links = document.createElement('nav');
   links.setAttribute('aria-label', 'Legal and support');
-  for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund', legalConfig.policyRoutes.refund], ['Support', legalConfig.policyRoutes.support]] as const) {
+  for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refunds', legalConfig.policyRoutes.refund], ['Support', legalConfig.policyRoutes.support]] as const) {
     const link = document.createElement('a');
     link.href = legalPolicyHref(href);
     link.textContent = label;
