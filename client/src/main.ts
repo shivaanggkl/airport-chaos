@@ -66,6 +66,7 @@ import type {
 } from './world';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
+import { MonsterArrivalView, type MonsterStateMessage } from './monster-arrival';
 import { emitConfirmedJourneyFeedback, emitConfirmedProfileRewardFeedback, hapticsManager } from './haptics-manager';
 import {
   FLIGHT_LAUNCH_MIN_SKIP_MS,
@@ -377,6 +378,7 @@ function setLocalTimePreset(requestedPreset: unknown): void {
   uniforms.eveningAmount.value = visualConfig.eveningAmount;
   (uniforms.sunDirection.value as THREE.Vector3).copy(sun.position).normalize();
   duskSky.visible = preset === 'dusk';
+  territoryWallMaterial.uniforms.curtainAlpha.value = preset === 'evening' ? 0 : preset === 'dusk' ? 0.38 : 0.3;
   ambientTraffic?.setTimeOfDay(preset);
   cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: preset });
   cityWorld.setTimeOfDay?.(preset);
@@ -790,6 +792,7 @@ function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   const criticalHeart = repairHeartSprites.get(journeyDallas17.heartId);
   if (criticalHeart) criticalHeart.visible = attempt?.missionId === journeyDallas17.id && attempt.phase === 'REPAIR';
   flightGameRoot.classList.toggle('mission4-clean-hud', next !== null && attempt?.missionId === journeyDallas04.id);
+  flightGameRoot.classList.toggle('monster-arrival-focus', next !== null && attempt?.missionId === journeyDallas19.id);
   if (missionFocus === next && botIsolationActive === nextBotIsolation && focusedHunterId === nextHunterId) return;
   missionFocus = next;
   botIsolationActive = nextBotIsolation;
@@ -1981,6 +1984,11 @@ function updateRadar(direction: THREE.Vector3): void {
   if (challengeMarker && !missionFocus) drawRadarMarker(direction, challengeMarker.x, challengeMarker.z, 'challenge');
   const journeyTarget = journeyGates?.target();
   if (journeyTarget) drawRadarMarker(direction, journeyTarget.x, journeyTarget.z, 'mission', `GATE ${journeyTarget.index + 1}`);
+  if (journeyAttempt?.missionId === journeyDallas19.id &&
+    (journeyAttempt.status === 'APPROACH' || journeyAttempt.status === 'RACING') &&
+    missionObjective?.id === `${journeyAttempt.attemptId}:monster`) {
+    drawRadarMarker(direction, missionObjective.position.x, missionObjective.position.z, 'mission', 'MONSTER');
+  }
   if (journeyAttempt?.missionId === journeyDallas09.id && missionFocus && journeyDallas09.heart)
     drawRadarMarker(direction, journeyDallas09.heart.x, journeyDallas09.heart.z, 'mission', 'HEART');
   const eventObjective = cityEvent ? eventObjectiveForLocal(cityEvent) : undefined;
@@ -2103,6 +2111,11 @@ function queueRewardFeedback(creditDelta = 0, scoreDelta = 0): void {
 
 let skyChallenges: SkyChallengeSystem | undefined;
 let journeyGates: JourneyGateSystem | undefined;
+let monsterView: MonsterArrivalView | undefined;
+const monsterBossHud = document.createElement('div');
+monsterBossHud.className = 'monster-boss-hud hidden';
+monsterBossHud.innerHTML = '<strong>MONSTER</strong><div><i></i></div><span>100%</span>';
+skyChallengeElement.append(monsterBossHud);
 let journeyGateMissionId = '';
 let redlineTooSlowGate = -1;
 let redlineTooSlowUntil = 0;
@@ -2181,9 +2194,12 @@ const territoryWallFragmentShader = `
 `;
 function createTerritoryWallMaterial(pulse = false): THREE.ShaderMaterial {
   const dusk = worldTimeOfDay === 'dusk';
+  const evening = worldTimeOfDay === 'evening';
   return new THREE.ShaderMaterial({
     uniforms: {
-      curtainAlpha: { value: pulse ? 0.18 : dusk ? 0.38 : 0.3 },
+      // The large additive curtain washes out miles of terrain in Evening.
+      // Keep its ground perimeter and core visible without the filled plane.
+      curtainAlpha: { value: pulse ? 0.18 : evening ? 0 : dusk ? 0.38 : 0.3 },
       haloAlpha: { value: pulse ? 0.5 : dusk ? 0.42 : 0.34 },
       coreAlpha: { value: pulse ? 0.7 : 0.9 },
       fadeStart: { value: territoryWallFadeStart },
@@ -2522,11 +2538,12 @@ function updateJourneyHud(): void {
     if (journeyHudEnemy) journeyHudEnemy.hidden = true;
     return;
   }
-  if (journeyHudHeading) journeyHudHeading.textContent = legendaryMission ? 'MISSION 24 · LEGENDARY CHAMPIONSHIP' : doubleMission ? 'MISSION 23 · DOUBLE TROUBLE' : perfectMission ? 'MISSION 22 · PERFECT APPROACH' : twoFrontsMission ? 'MISSION 21 · TWO FRONTS' : switchbackMission ? 'MISSION 20 · SKYLINE SWITCHBACK' : breakoutMission ? 'MISSION 19 · WANTED BREAKOUT' : siegeMission ? 'MISSION 18 · SKY SIEGE' : criticalMission ? 'MISSION 17 · CRITICAL APPROACH' : crossfireMission ? 'MISSION 16 · CROSSFIRE ESCAPE' : aceMission ? 'MISSION 15 · ACE INTERCEPT' : escapeMission ? 'MISSION 14 · ESCAPE VECTOR' : redlineMission ? 'MISSION 13 · REDLINE RUSH' : pendulumMission ? 'MISSION 12 · SKY PENDULUM' : gravityMission ? 'MISSION 11 · GRAVITY DROP' : slalomMission ? 'MISSION 10 · SKYLINE SLALOM' : recoveryMission ? 'MISSION 09 · ONE HEART LEFT' : formationMission ? 'MISSION 08 · STAY ON HIS SIX' : elevatorMission ? 'MISSION 07 · SKY ELEVATOR' : championshipMission ? 'MISSION 06 · GOLDEN CHAMPIONSHIP' : precisionMission ? 'MISSION 05 · NEEDLE RUSH' : downtownMission ? 'MISSION 04 · DOWNTOWN SLALOM' : lakeMission ? 'MISSION 02 · LAKE RACER'
+  if (journeyHudHeading) journeyHudHeading.textContent = legendaryMission ? 'MISSION 24 · LEGENDARY CHAMPIONSHIP' : doubleMission ? 'MISSION 23 · DOUBLE TROUBLE' : perfectMission ? 'MISSION 22 · PERFECT APPROACH' : twoFrontsMission ? 'MISSION 21 · TWO FRONTS' : switchbackMission ? 'MISSION 20 · SKYLINE SWITCHBACK' : breakoutMission ? 'MONSTER ARRIVAL' : siegeMission ? 'MISSION 18 · SKY SIEGE' : criticalMission ? 'MISSION 17 · CRITICAL APPROACH' : crossfireMission ? 'MISSION 16 · CROSSFIRE ESCAPE' : aceMission ? 'MISSION 15 · ACE INTERCEPT' : escapeMission ? 'MISSION 14 · ESCAPE VECTOR' : redlineMission ? 'MISSION 13 · REDLINE RUSH' : pendulumMission ? 'MISSION 12 · SKY PENDULUM' : gravityMission ? 'MISSION 11 · GRAVITY DROP' : slalomMission ? 'MISSION 10 · SKYLINE SLALOM' : recoveryMission ? 'MISSION 09 · ONE HEART LEFT' : formationMission ? 'MISSION 08 · STAY ON HIS SIX' : elevatorMission ? 'MISSION 07 · SKY ELEVATOR' : championshipMission ? 'MISSION 06 · GOLDEN CHAMPIONSHIP' : precisionMission ? 'MISSION 05 · NEEDLE RUSH' : downtownMission ? 'MISSION 04 · DOWNTOWN SLALOM' : lakeMission ? 'MISSION 02 · LAKE RACER'
     : ascentMission ? 'MISSION 03 · GOLDEN ASCENT' : 'ROOKIE RUSH';
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
   if (segments) segments.hidden = formationMission || recoveryMission || escapeMission || aceMission || criticalMission || siegeMission || breakoutMission || twoFrontsMission || doubleMission || legendaryMission;
-  if (journeyHudEnemy) journeyHudEnemy.hidden = !formationMission && !recoveryMission && !escapeMission && !aceMission && !siegeMission && !breakoutMission && !twoFrontsMission && !(doubleMission && journeyAttempt.doublePhase !== 'REPAIR') && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
+  if (journeyHudEnemy) journeyHudEnemy.hidden = !formationMission && !recoveryMission && !escapeMission && !aceMission && !siegeMission && !twoFrontsMission && !(doubleMission && journeyAttempt.doublePhase !== 'REPAIR') && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
+  monsterBossHud.classList.toggle('hidden', !breakoutMission || journeyAttempt.status !== 'APPROACH' && journeyAttempt.status !== 'RACING');
   if (legendaryMission) {
     const phase = journeyAttempt.legendaryPhase;
     const ace = phase === 'ACE' && journeyAttempt.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
@@ -2587,25 +2604,15 @@ function updateJourneyHud(): void {
     return;
   }
   if (breakoutMission) {
-    const exit = journeyDallas19.exit;
-    const distance = Math.hypot(airplane.position.x - exit.x,
-      airplane.position.y - getTerrainHeight(exit.x, exit.z) - exit.altitude,
-      airplane.position.z - exit.z) * WORLD_METERS_PER_UNIT;
-    const preparing = journeyAttempt.status === 'APPROACH';
-    const secondsLeft = journeyAttempt.deadlineAt === null ? 0
+    const secondsLeft = journeyAttempt.deadlineAt === null ? journeyDallas19.timeLimitMs / 1_000
       : Math.max(0, Math.ceil((journeyAttempt.deadlineAt - Date.now() - journeyServerTimeOffset) / 1_000));
-    const prepSeconds = journeyAttempt.prepareUntil === null || journeyAttempt.prepareUntil === undefined ? 0
-      : Math.max(1, Math.ceil((journeyAttempt.prepareUntil - Date.now() - journeyServerTimeOffset) / 1_000));
-    if (journeyHudObjective) journeyHudObjective.textContent = preparing ? 'GET READY — ESCAPE THE LOCKDOWN!'
-      : distance < 750 ? 'FLY THROUGH THE GOLD EXIT!'
-      : distance < 3_000 ? 'ESCAPE CORRIDOR AHEAD'
-      : journeyAttempt.targetEngaged && health < maxHealth * 0.75 ? 'HUNTER INCOMING — KEEP MOVING!'
-      : 'FOLLOW THE GOLD ARROW';
-    if (journeyHudProgress) journeyHudProgress.textContent = preparing
-      ? `WANTED — AIRSPACE LOCKDOWN! · ${prepSeconds}…` : `TIME LEFT: ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
-    if (journeyHudTarget) journeyHudTarget.textContent = `EXIT: ${formatObjectiveDistance(distance)}`;
-    if (journeyHudTimer) journeyHudTimer.textContent = `HEALTH: ${Math.round(health / maxHealth * 100)}% · HUNTER: ${journeyAttempt.targetId && journeyAttempt.targetHealth > 0 ? 'PURSUING' : journeyAttempt.targetId ? 'DEFEATED' : 'NOT ENGAGED'}`;
-    if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${preparing ? 100 : secondsLeft / (journeyDallas19.timeLimitMs / 1_000) * 100}%`);
+    if (journeyHudObjective) journeyHudObjective.textContent = 'Destroy the monster';
+    if (journeyHudProgress) journeyHudProgress.textContent = `Time left: ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
+    if (journeyHudTarget) journeyHudTarget.hidden = true;
+    if (journeyHudTimer) journeyHudTimer.hidden = true;
+    const percent = Math.max(0, Math.min(100, (journeyAttempt.targetHealth ?? journeyDallas19.bossHealth) / journeyDallas19.bossHealth * 100));
+    monsterBossHud.style.setProperty('--monster-health', `${percent}%`);
+    monsterBossHud.querySelector('span')!.textContent = `${Math.round(percent)}%`;
     return;
   }
   if (aceMission) {
@@ -2921,8 +2928,8 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   flightRecapElement.hidden = true;
   journeyResultElement.classList.remove('hidden');
   journeyResultElement.classList.toggle('is-success', success);
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = dfwMission ? 'MISSION 01 · GOLDEN GATES' : lakeMission ? 'MISSION 02 · GOLDEN GATES' : ascentMission ? 'MISSION 03 · GOLDEN GATES' : downtownMission ? 'MISSION 04 · GOLDEN GATES' : precisionMission ? 'MISSION 05 · GOLDEN GATES' : legendaryMission ? 'MISSION 24 · CHAPTER 4 FINALE' : doubleMission ? 'MISSION 23 · CHAPTER 4' : perfectMission ? 'MISSION 22 · CHAPTER 4' : twoFrontsMission ? 'MISSION 21 · CHAPTER 4' : switchbackMission ? 'MISSION 20 · CHAPTER 4' : breakoutMission ? 'MISSION 19 · CHAPTER 4' : siegeMission ? 'MISSION 18 · CHAPTER 3 FINALE' : criticalMission ? 'MISSION 17 · CHAPTER 3' : crossfireMission ? 'MISSION 16 · CHAPTER 3' : aceMission ? 'MISSION 15 · CHAPTER 3' : escapeMission ? 'MISSION 14 · CHAPTER 3' : redlineMission ? 'MISSION 13 · CHAPTER 3' : pendulumMission ? 'MISSION 12 · CHAPTER 2 FINALE' : gravityMission ? 'MISSION 11 · CHAPTER 2' : slalomMission ? 'MISSION 10 · CHAPTER 2' : recoveryMission ? 'MISSION 09 · CHAPTER 2' : formationMission ? 'MISSION 08 · CHAPTER 2' : elevatorMission ? 'MISSION 07 · CHAPTER 2' : championshipMission ? 'MISSION 06 · CHAPTER 1 FINALE' : 'ROOKIE LEAGUE';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? 'WANTED BREAKOUT' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'ACE INTERCEPT' : escapeMission ? 'ESCAPE VECTOR' : redlineMission ? 'REDLINE RUSH' : pendulumMission ? 'SKY PENDULUM' : gravityMission ? 'GRAVITY DROP' : slalomMission ? 'SKYLINE SLALOM' : recoveryMission ? 'ONE HEART LEFT' : formationMission ? 'STAY ON HIS SIX' : elevatorMission ? 'SKY ELEVATOR' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = dfwMission ? 'MISSION 01 · GOLDEN GATES' : lakeMission ? 'MISSION 02 · GOLDEN GATES' : ascentMission ? 'MISSION 03 · GOLDEN GATES' : downtownMission ? 'MISSION 04 · GOLDEN GATES' : precisionMission ? 'MISSION 05 · GOLDEN GATES' : legendaryMission ? 'MISSION 24 · CHAPTER 4 FINALE' : doubleMission ? 'MISSION 23 · CHAPTER 4' : perfectMission ? 'MISSION 22 · CHAPTER 4' : twoFrontsMission ? 'MISSION 21 · CHAPTER 4' : switchbackMission ? 'MISSION 20 · CHAPTER 4' : breakoutMission ? (success ? 'CITY DEFENDERS' : '') : siegeMission ? 'MISSION 18 · CHAPTER 3 FINALE' : criticalMission ? 'MISSION 17 · CHAPTER 3' : crossfireMission ? 'MISSION 16 · CHAPTER 3' : aceMission ? 'MISSION 15 · CHAPTER 3' : escapeMission ? 'MISSION 14 · CHAPTER 3' : redlineMission ? 'MISSION 13 · CHAPTER 3' : pendulumMission ? 'MISSION 12 · CHAPTER 2 FINALE' : gravityMission ? 'MISSION 11 · CHAPTER 2' : slalomMission ? 'MISSION 10 · CHAPTER 2' : recoveryMission ? 'MISSION 09 · CHAPTER 2' : formationMission ? 'MISSION 08 · CHAPTER 2' : elevatorMission ? 'MISSION 07 · CHAPTER 2' : championshipMission ? 'MISSION 06 · CHAPTER 1 FINALE' : 'ROOKIE LEAGUE';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? (success ? 'MONSTER ARRIVAL' : '') : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'ACE INTERCEPT' : escapeMission ? 'ESCAPE VECTOR' : redlineMission ? 'REDLINE RUSH' : pendulumMission ? 'SKY PENDULUM' : gravityMission ? 'GRAVITY DROP' : slalomMission ? 'SKYLINE SLALOM' : recoveryMission ? 'ONE HEART LEFT' : formationMission ? 'STAY ON HIS SIX' : elevatorMission ? 'SKY ELEVATOR' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success
     ? legendaryMission ? 'LEGENDARY CHAMPION!' : legendaryMission || doubleMission || perfectMission || twoFrontsMission || switchbackMission || breakoutMission ? 'MISSION COMPLETE!' : siegeMission ? 'CHAPTER 3 COMPLETE!' : pendulumMission ? 'CHAPTER 2 COMPLETE!' : championshipMission && attempt.chapterOneComplete ? 'CHAPTER 1 COMPLETE!' : criticalMission || crossfireMission || aceMission || escapeMission || redlineMission || gravityMission || slalomMission || attempt.firstClearCredits > 0 ? 'MISSION COMPLETE!' : 'MISSION COMPLETED'
     : 'MISSION FAILED';
@@ -2934,7 +2941,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : perfectMission ? `PERFECT LANDING ACHIEVED! · 3/3 APPROACH GATES CLEARED · LANDING SCORE: ${attempt.landingScore ?? 0}/1000`
       : twoFrontsMission ? `BOTH TERRITORIES SECURED · TRANSFER TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
       : switchbackMission ? `6/6 GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
-      : breakoutMission ? `YOU BROKE OUT OF THE LOCKDOWN! · ESCAPE TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
+      : breakoutMission ? `Monster defeated. Downtown saved. Time: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
       : siegeMission ? 'HIGH STAKES · TERRITORY SUCCESSFULLY DEFENDED'
       : criticalMission ? `AIRCRAFT REPAIRED · LANDING SCORE: ${attempt.landingScore ?? 0}/1000`
       : crossfireMission ? 'YOU ESCAPED THE CROSSFIRE! · 5/5 GATES CLEARED'
@@ -2950,14 +2957,14 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : attempt.failureReason === 'ACE_INTERRUPTED' ? 'ACE ENCOUNTER INTERRUPTED'
       : attempt.failureReason === 'CROSSFIRE_INTERRUPTED' ? 'CROSSFIRE ENCOUNTER INTERRUPTED'
       : attempt.failureReason === 'DEFENSE_INTERRUPTED' ? 'DEFENSE INTERRUPTED'
-      : attempt.failureReason === 'TIME_UP' ? breakoutMission ? 'LOCKDOWN COMPLETE — TIME EXPIRED' : twoFrontsMission ? 'TIME EXPIRED' : "TIME'S UP" : attempt.failureReason === 'CRASHED' ? recoveryMission || escapeMission || aceMission || breakoutMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
+      : attempt.failureReason === 'TIME_UP' ? breakoutMission ? 'The monster destroyed Downtown' : twoFrontsMission ? 'TIME EXPIRED' : "TIME'S UP" : attempt.failureReason === 'MONSTER_KILLED' ? 'Your aircraft was destroyed' : attempt.failureReason === 'CRASHED' ? breakoutMission ? 'Your aircraft crashed' : recoveryMission || escapeMission || aceMission || breakoutMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
       : 'FLIGHT INTERRUPTED';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-reward]')!.textContent = success
     ? legendaryMission ? `+${attempt.firstClearCredits} CREDITS${attempt.firstClearCredits === 0 ? ' · WALLET CAP OR REPLAY' : ' · FIRST CLEAR'} · LEGENDARY PILOT`
       : attempt.firstClearCredits > 0 ? doubleMission || perfectMission || twoFrontsMission || switchbackMission || breakoutMission || siegeMission || crossfireMission || aceMission || escapeMission || redlineMission || pendulumMission || gravityMission || slalomMission || recoveryMission || formationMission || elevatorMission || championshipMission ? `+${attempt.firstClearCredits} CREDITS · FIRST COMPLETION ONLY`
       : `+${attempt.firstClearCredits} CREDITS · STAGE ${precisionMission ? '6' : downtownMission ? '5' : ascentMission ? '4' : lakeMission ? '3' : '2'} PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
-    : 'NO CREDITS LOST';
-  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? legendaryMission ? 'CONTINUE TO JOURNEY' : 'CONTINUE' : 'RETRY MISSION';
+    : breakoutMission ? 'Credits lost: 0' : 'NO CREDITS LOST';
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? legendaryMission ? 'CONTINUE TO JOURNEY' : 'CONTINUE' : breakoutMission ? 'TRY AGAIN' : 'RETRY MISSION';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
   if (success) { audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
 }
@@ -4342,6 +4349,8 @@ type ServerMessage =
   | { type: 'missionCompleted'; missionId: string; credits: number; score: number }
   | { type: 'missionFailed'; missionId: string; reason: string }
   | { type: 'journeyAttempt'; attempt: JourneyAttemptState; serverNow: number }
+  | MonsterStateMessage
+  | { type: 'monsterFinal'; attemptId: string; kind: 'defeat' | 'timeout'; at: number }
   | { type: 'journeyGateTooHigh'; gateIndex: number }
   | { type: 'journeyGateTooSlow'; attemptId: string; gateIndex: number }
   | { type: 'journeyUnavailable'; reason: string }
@@ -6685,6 +6694,39 @@ const projectileGlowMaterial = new THREE.MeshBasicMaterial({
   depthWrite: false,
   toneMapped: false,
 });
+// Mission 19 presentation only; pooled tracers restore their normal styling on reuse.
+const monsterTracerCoreMaterial = new THREE.MeshBasicMaterial({
+  color: 0xfff2a6, transparent: true, opacity: 1, blending: THREE.AdditiveBlending,
+  depthWrite: false, toneMapped: false,
+});
+const monsterTracerGlowMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffac20, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending,
+  depthWrite: false, toneMapped: false,
+});
+const monsterTracerCoreGeometry = new THREE.CylinderGeometry(0.15, 0.15, 9, 8).rotateX(Math.PI / 2).translate(0, 0, -4.5);
+const monsterTracerGlowGeometry = new THREE.CylinderGeometry(0.39, 0.39, 11.5, 8).rotateX(Math.PI / 2).translate(0, 0, -5.75);
+function updateMonsterTracerSize(mesh: THREE.Group): void {
+  if (!mesh.userData.monsterTracer) return;
+  // Preserve a bright distant streak without an oversized block at the muzzle.
+  const distance = camera.position.distanceTo(mesh.position);
+  const width = 6 * THREE.MathUtils.clamp(distance / 500, 0.16, 1);
+  const length = THREE.MathUtils.clamp(distance / 200, 1, 3);
+  mesh.children[0]!.scale.set(width, width, length);
+  mesh.children[1]!.scale.copy(mesh.children[0]!.scale);
+}
+function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
+  const monsterShot = local && journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.status === 'RACING';
+  const glow = mesh.children[0] as THREE.Mesh;
+  const core = mesh.children[1] as THREE.Mesh;
+  mesh.userData.monsterTracer = monsterShot;
+  glow.geometry = monsterShot ? monsterTracerGlowGeometry : projectileGlowGeometry;
+  core.geometry = monsterShot ? monsterTracerCoreGeometry : projectileGeometry;
+  glow.material = monsterShot ? monsterTracerGlowMaterial : projectileGlowMaterial;
+  core.material = monsterShot ? monsterTracerCoreMaterial : projectileMaterial;
+  glow.scale.set(monsterShot ? 6 : 1, monsterShot ? 6 : 1, monsterShot ? 3 : 1);
+  core.scale.copy(glow.scale);
+  updateMonsterTracerSize(mesh);
+}
 const projectileForward = new THREE.Vector3(0, 0, -1);
 const clientProjectiles = new Map<string, ClientProjectile>();
 const projectilePool: ClientProjectile[] = [];
@@ -6838,6 +6880,7 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   else updateOsmCityChunks(airplane.position);
   updateCamera(1);
   sendLocalState();
+
 }
 
 if (visualQaMode && cityWorld.visualQaPresets) {
@@ -6983,6 +7026,7 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.direction.copy(projectileDirection);
   predicted.speed = ballisticShotSpeed(velocity, predicted.direction);
   predicted.local = true;
+  styleMissionProjectile(predicted.mesh, true);
   predicted.ownerId = localPlayerId ?? '';
   predicted.pendingAge = 0;
   predicted.mesh.position.copy(projectileOrigin);
@@ -7080,6 +7124,7 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   projectile.direction.set(message.direction.x, message.direction.y, message.direction.z).normalize();
   projectile.speed = message.speed;
   projectile.local = message.ownerId === localPlayerId;
+  styleMissionProjectile(projectile.mesh, projectile.local);
   projectile.ownerIsBot = ownerIsBot;
   projectile.ownerId = message.ownerId;
   projectile.authoritativePosition.set(message.position.x, message.position.y, message.position.z);
@@ -7150,8 +7195,10 @@ function updateProjectiles(delta: number): void {
     }
     projectile.mesh.position.lerp(projectile.authoritativePosition, positionBlend);
     projectile.mesh.quaternion.setFromUnitVectors(projectileForward, projectile.direction);
+    updateMonsterTracerSize(projectile.mesh);
   }
   for (const [clientShotId, projectile] of predictedProjectiles) {
+    updateMonsterTracerSize(projectile.mesh);
     projectile.pendingAge += delta;
     projectile.mesh.position.addScaledVector(projectile.direction, delta * projectile.speed);
     if (projectile.pendingAge < pendingTracerLifetime) continue;
@@ -8791,7 +8838,10 @@ function animate(): void {
   const realDelta = clock.getDelta();
   const delta = Math.min(realDelta, 0.05);
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
-  if (!crashed && runStarted) {
+  // Mission 19's airborne aircraft becomes controllable with the server clock.
+  // Keep the spawn fixed while the authenticated attempt is still preparing.
+  if (!crashed && runStarted && !(journeyMode && journeyAttempt?.missionId === journeyDallas19.id &&
+    journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
     // larger than 8m, including a thrust allowance. No extra render/network ticks.
     const travelSpeed = velocity.length() + currentAircraft.acceleration * (currentAircraft.boostThrust ?? 1) / currentAircraft.inertia * delta;
@@ -8815,6 +8865,7 @@ function animate(): void {
   else updateOsmCityChunks(airplane.position);
   cityWorld.updateWorldVisuals?.(delta, airplane.position);
   journeyGates?.update(delta);
+  monsterView?.update(delta);
 
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
@@ -9515,6 +9566,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
     if (journeyAttempt?.status === 'COMPLETED') url.searchParams.set('journeyReceipt', journeyAttemptId);
   }
   missionObjectiveGuidance?.dispose();
+  monsterView?.dispose(); monsterView = undefined;
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -9534,7 +9586,7 @@ async function retryJourneyMission(): Promise<void> {
     const url = new URL(window.location.href);
     url.searchParams.set('journeyAttempt', journeyAttemptId);
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    journeyGates?.setProgress(0, journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas07.id || journeyAttempt.missionId === journeyDallas10.id || journeyAttempt.missionId === journeyDallas11.id || journeyAttempt.missionId === journeyDallas12.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas16.id || journeyAttempt.missionId === journeyDallas19.id || journeyAttempt.missionId === journeyDallas20.id || journeyAttempt.missionId === journeyDallas22.id || journeyAttempt.missionId === journeyDallas24.id);
+    journeyGates?.setProgress(0, journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas07.id || journeyAttempt.missionId === journeyDallas10.id || journeyAttempt.missionId === journeyDallas11.id || journeyAttempt.missionId === journeyDallas12.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas16.id || journeyAttempt.missionId === journeyDallas20.id || journeyAttempt.missionId === journeyDallas22.id || journeyAttempt.missionId === journeyDallas24.id);
     missionObjective = null;
     missionObjectiveGuidance?.setObjective(null);
     journeyGateClearedUntil = 0;
@@ -9543,6 +9595,8 @@ async function retryJourneyMission(): Promise<void> {
     elevatorDepartureAttemptId = null;
     redlineTooSlowUntil = 0;
     redlineSpeedReady = false;
+    monsterView?.dispose(); monsterView = undefined;
+    monsterBossHud.classList.add('hidden');
     journeyAttempt = null;
     applyMissionFocus(null);
     journeyResultElement.classList.add('hidden');
@@ -9699,6 +9753,22 @@ boundSocket.addEventListener('message', (event) => {
     updateJourneyHud();
     return;
   }
+  if (message.type === 'monsterState') {
+    if (journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.attemptId === message.attemptId) {
+      monsterView?.setState(message);
+      if (missionObjective?.id === `${message.attemptId}:monster`)
+        missionObjective.position.set(message.x, message.y + journeyDallas19.monster.height * .6, message.z);
+    }
+    return;
+  }
+  if (message.type === 'monsterFinal') {
+    if (journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.attemptId === message.attemptId) {
+      monsterView?.finish(message.kind);
+      if (message.kind === 'timeout') audioManager.playTone(95, 0.5, 'sawtooth', 0.16, 35, 0, 'impacts');
+      else audioManager.playTone(145, 0.8, 'sawtooth', 0.13, 38, 0, 'impacts');
+    }
+    return;
+  }
   if (message.type === 'journeyAttempt') {
     if (!journeyMode || message.attempt.attemptId !== journeyAttemptId) return;
     const previousAttempt = journeyAttempt;
@@ -9706,6 +9776,20 @@ boundSocket.addEventListener('message', (event) => {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
+    if (message.attempt.missionId === journeyDallas19.id &&
+      (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING')) {
+      if (!monsterView) {
+        monsterView = new MonsterArrivalView(scene,
+          getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z),
+          getTerrainHeight(-2191, -1201), camera, undefined, getTerrainHeight, () => renderer.domElement.height);
+        monsterView.onFootfall = () => audioManager.playTone(68, 0.3, 'triangle', 0.13, 28, 0, 'impacts');
+        monsterView.onWarning = () => audioManager.playTone(105, 0.55, 'sawtooth', 0.1, 44, 0, 'impacts');
+        monsterView.onProjectile = () => audioManager.playTone(290, 0.24, 'sawtooth', 0.07, 105, 0, 'weapons');
+        monsterView.onHit = () => audioManager.playHitConfirm();
+        monsterView.onDestruction = () => audioManager.playTone(75, 0.65, 'sawtooth', 0.15, 28, 0, 'impacts');
+      }
+    } else if (monsterView && (message.attempt.missionId !== journeyDallas19.id ||
+      message.attempt.status === 'READY')) { monsterView.dispose(); monsterView = undefined; }
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED' ||
       championshipLandingIntentPending?.attemptId !== message.attempt.attemptId) championshipLandingIntentPending = undefined;
     applyMissionFocus(journeyAttempt);
@@ -9726,10 +9810,6 @@ boundSocket.addEventListener('message', (event) => {
       showProgressMessage('TERRITORY CAPTURED! · DEFEND FOR 40 SECONDS');
       pulseTerritoryBoundary(journeyDallas18.territoryId);
     }
-    if (message.attempt.missionId === journeyDallas19.id && previousAttempt?.status === 'APPROACH' && message.attempt.status === 'RACING')
-      showProgressMessage('WANTED — FLY TO THE EXIT!');
-    if (message.attempt.missionId === journeyDallas19.id && !previousTargetId && message.attempt.targetId)
-      showProgressMessage('HUNTER INCOMING — KEEP MOVING!');
     if (message.attempt.missionId === journeyDallas18.id && !previousTargetId && message.attempt.targetId) {
       showProgressMessage('HUNTER INCOMING — DEFEND!');
     }
@@ -9761,11 +9841,11 @@ boundSocket.addEventListener('message', (event) => {
       hapticsManager.emit('checkpoint', `${message.attempt.attemptId}:escape-distance`);
     if (message.attempt.missionId === journeyDallas09.id && !previousTargetId && message.attempt.targetId)
       recoveryHunterNoticeUntil = performance.now() + 2_400;
-    if (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas07.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas19.id || message.attempt.missionId === journeyDallas20.id) {
+    if (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas07.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) {
       if (journeyGateMissionId !== message.attempt.missionId) {
         journeyGates?.dispose();
         journeyGates = new JourneyGateSystem(scene, getTerrainHeight,
-          message.attempt.missionId === journeyDallas24.id ? journeyDallas24 : message.attempt.missionId === journeyDallas22.id ? journeyDallas22 : message.attempt.missionId === journeyDallas20.id ? journeyDallas20 : message.attempt.missionId === journeyDallas19.id ? journeyDallas19 : message.attempt.missionId === journeyDallas16.id ? journeyDallas16 : message.attempt.missionId === journeyDallas13.id ? journeyDallas13 : message.attempt.missionId === journeyDallas12.id ? journeyDallas12 : message.attempt.missionId === journeyDallas11.id ? journeyDallas11 : message.attempt.missionId === journeyDallas10.id ? journeyDallas10 : message.attempt.missionId === journeyDallas07.id ? journeyDallas07 : message.attempt.missionId === journeyDallas06.id ? journeyDallas06 : message.attempt.missionId === journeyDallas05.id ? journeyDallas05 : message.attempt.missionId === journeyDallas04.id ? journeyDallas04 : message.attempt.missionId === journeyDallas03.id ? journeyDallas03 : message.attempt.missionId === journeyDallas02.id ? journeyDallas02 : journeyDallas01);
+          message.attempt.missionId === journeyDallas24.id ? journeyDallas24 : message.attempt.missionId === journeyDallas22.id ? journeyDallas22 : message.attempt.missionId === journeyDallas20.id ? journeyDallas20 : message.attempt.missionId === journeyDallas16.id ? journeyDallas16 : message.attempt.missionId === journeyDallas13.id ? journeyDallas13 : message.attempt.missionId === journeyDallas12.id ? journeyDallas12 : message.attempt.missionId === journeyDallas11.id ? journeyDallas11 : message.attempt.missionId === journeyDallas10.id ? journeyDallas10 : message.attempt.missionId === journeyDallas07.id ? journeyDallas07 : message.attempt.missionId === journeyDallas06.id ? journeyDallas06 : message.attempt.missionId === journeyDallas05.id ? journeyDallas05 : message.attempt.missionId === journeyDallas04.id ? journeyDallas04 : message.attempt.missionId === journeyDallas03.id ? journeyDallas03 : message.attempt.missionId === journeyDallas02.id ? journeyDallas02 : journeyDallas01);
         journeyGateMissionId = message.attempt.missionId;
       }
     } else if (journeyGates) {
@@ -9775,7 +9855,7 @@ boundSocket.addEventListener('message', (event) => {
     }
     emitConfirmedJourneyFeedback(hapticsManager, previousAttempt, message.attempt);
     journeyServerTimeOffset = message.serverNow - Date.now();
-    journeyGates?.setProgress(message.attempt.gateIndex, (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas07.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas19.id || message.attempt.missionId === journeyDallas20.id) &&
+    journeyGates?.setProgress(message.attempt.gateIndex, (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas07.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) &&
       (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING') && message.attempt.phase !== 'LANDING' && (message.attempt.missionId !== journeyDallas24.id || message.attempt.legendaryPhase === 'GATES'));
     missionObjective = message.attempt.missionId === journeyDallas24.id
       ? message.attempt.legendaryPhase === 'GATES' ? confirmedGateObjective(message.attempt, journeyDallas24.gates, getTerrainHeight)
@@ -9794,11 +9874,11 @@ boundSocket.addEventListener('message', (event) => {
         })() : criticalLandingObjective(message.attempt)
       : (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id)
       ? confirmedGateObjective(message.attempt, message.attempt.missionId === journeyDallas02.id ? journeyDallas02.gates : journeyDallas01.gates, getTerrainHeight)
-      : message.attempt.missionId === journeyDallas19.id
-        ? (() => {
-            const exit = confirmedGateObjective(message.attempt, journeyDallas19.gates, getTerrainHeight);
-            return exit ? { ...exit, label: 'ESCAPE EXIT' } : null;
-          })()
+      : message.attempt.missionId === journeyDallas19.id && (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING')
+        ? { id: `${message.attempt.attemptId}:monster`, label: 'MONSTER', dock: monsterBossHud,
+            position: new THREE.Vector3(journeyDallas19.monster.x,
+              getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z) + journeyDallas19.monster.height * .6,
+              journeyDallas19.monster.z), radius: 180 }
       : message.attempt.missionId === journeyDallas16.id
         ? confirmedGateObjective(message.attempt, journeyDallas16.gates, getTerrainHeight)
       : message.attempt.missionId === journeyDallas04.id
@@ -9857,7 +9937,14 @@ boundSocket.addEventListener('message', (event) => {
     if (message.attempt.missionId === journeyDallas18.id || message.attempt.missionId === journeyDallas21.id) refreshTerritoryBorders();
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
       missionObjectiveGuidance?.hide();
-      showJourneyResult(message.attempt);
+      if (message.attempt.missionId === journeyDallas19.id && message.attempt.status === 'FAILED' &&
+        message.attempt.failureReason === 'TIME_UP' && monsterView) {
+        const failedAttempt = message.attempt;
+        window.setTimeout(() => {
+          if (journeyAttempt?.attemptId === failedAttempt.attemptId && journeyAttempt.status === 'FAILED')
+            showJourneyResult(failedAttempt);
+        }, 2_100);
+      } else showJourneyResult(message.attempt);
     }
     return;
   }
@@ -9943,7 +10030,8 @@ boundSocket.addEventListener('message', (event) => {
       airplane.rotation.set(0, heading, 0, 'YXZ');
       currentSpeed = message.airborneSpawn.speed; verticalSpeed = 0;
       velocity.set(-Math.sin(heading) * currentSpeed, 0, -Math.cos(heading) * currentSpeed);
-      throttle = .55; mobileInput.setThrottleState(throttle);
+      throttle = journeyAttempt?.missionId === journeyDallas19.id ? .32 : .55;
+      mobileInput.setThrottleState(throttle);
       setFlightState('FLYING');
       updateCamera(1);
     }

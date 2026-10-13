@@ -10,7 +10,7 @@ const css = readFileSync(new URL('../../client/src/style.css', import.meta.url),
 test('a trained guest sees a sign-in action instead of a locked first mission', () => {
   assert.match(bootstrap, /entry\.id === 'dallas' && hubAccount\.state !== 'account'[\s\S]*SIGN IN FOR MISSIONS/);
   assert.match(bootstrap, /missionJourney\.setSignInRequired\(hubAccount\.state !== 'account'\)/);
-  assert.match(bootstrap, /if \(hubAccount\.state !== 'account'\) \{\s*hubAccountNotice = \{ ok: true, message: 'SIGN IN TO PLAY MISSIONS' \};\s*await openHubPilotMenu\('PROFILE', false\)/);
+  assert.match(bootstrap, /if \(hubAccount\.state !== 'account' && !guestQaJourneyAccess\) \{\s*hubAccountNotice = \{ ok: true, message: 'SIGN IN TO PLAY MISSIONS' \};\s*await openHubPilotMenu\('PROFILE', false\)/);
   assert.match(missionJourney, /this\.signInRequired && stage\.number === 1 && !completed/);
   assert.match(missionJourney, /signInRequired \? 'SIGN IN TO PLAY'/);
   assert.match(missionJourney, /play\.disabled = !card \|\| \(!eligible && !signInRequired\)/);

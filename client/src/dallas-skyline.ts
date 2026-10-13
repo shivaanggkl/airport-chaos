@@ -1,6 +1,41 @@
 import * as THREE from 'three';
 import { dallasFacadePalette, generateDallasSkyline } from '../../shared/dallas-skyline.mjs';
 import type { AirportDefinition, ObstacleBounds } from './dallas-world';
+import { monsterDamageSites, setMappedMonsterDamage } from './osm-city';
+
+let monsterDamageScene: THREE.Scene | undefined;
+let monsterDamageDebris: THREE.Group | undefined;
+
+/** Reversible substitution of existing mapped west-Downtown buildings. */
+export function setDowntownMonsterDamage(active: boolean): void {
+  if (!monsterDamageScene || active === Boolean(monsterDamageDebris)) return;
+  setMappedMonsterDamage(active);
+  if (active) {
+    const group = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({ color: 0x786b61, roughness: 1, flatShading: true });
+    for (const site of monsterDamageSites) {
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(site.width * .8, 8, site.depth * .8), material);
+      slab.position.set(site.x, site.y + 8, site.z);
+      slab.rotation.z = .12; group.add(slab);
+      for (const sign of [-1, 1]) {
+        const fragment = new THREE.Mesh(new THREE.BoxGeometry(site.width * .35, 7, site.depth * .42), material);
+        fragment.position.set(site.x + sign * site.width * .25, site.y + 12,
+          site.z + sign * site.depth * .2);
+        fragment.rotation.set(sign * .2, 0, sign * .27); group.add(fragment);
+      }
+    }
+    monsterDamageDebris = group;
+    monsterDamageScene.add(group);
+  } else if (monsterDamageDebris) {
+    monsterDamageScene.remove(monsterDamageDebris);
+    monsterDamageDebris.traverse(object => {
+      if (object instanceof THREE.Mesh) object.geometry.dispose();
+    });
+    const material = (monsterDamageDebris.children[0] as THREE.Mesh | undefined)?.material;
+    if (material && !Array.isArray(material)) (material as THREE.Material).dispose();
+    monsterDamageDebris = undefined;
+  }
+}
 
 export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.MeshStandardMaterial {
   const material=new THREE.MeshStandardMaterial({color:dallasFacadePalette[index],roughness:index===5||index===6||index===7?.72:.3,metalness:.22});
@@ -30,6 +65,8 @@ export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.Me
 }
 
 export function addDowntownDistrict(scene:THREE.Scene, obstacles:ObstacleBounds[], airports:ReadonlyArray<AirportDefinition>, heightAt:(x:number,z:number)=>number):void {
+  setDowntownMonsterDamage(false);
+  monsterDamageScene = scene;
   const buildings=generateDallasSkyline(airports,obstacles);
   const geometry=new THREE.BoxGeometry(1,1,1);
   const matrix=new THREE.Object3D();

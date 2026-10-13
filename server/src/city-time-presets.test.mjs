@@ -25,7 +25,7 @@ test('Evening sun is before sunset while Day and Dusk retain their light values'
   const presets = createTimeVisuals(true);
   assert.equal(presets.day.sunIntensity, 3.72);
   assert.equal(presets.dusk.sunIntensity, 1.68);
-  assert.equal(presets.evening.sunIntensity, 2.2);
+  assert.equal(presets.evening.sunIntensity, 2.25);
   assert.equal(presets.evening.duskAmount, 0);
   assert.equal(presets.evening.eveningAmount, 1);
   const [x, y, z] = presets.evening.sunPosition;

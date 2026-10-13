@@ -5,7 +5,19 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { JourneyAttemptStore } from './journey-attempts.js';
-import { stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
+import { localJourneyQaUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
+
+test('local QA unlock requires a disposable database and cannot activate in production or Render', () => {
+  const local = {
+    AIRPORT_CHAOS_LOCAL_QA_UNLOCK_ALL: 'true', AIRPORT_CHAOS_DEV_QA: '1',
+    AIRPORT_CHAOS_PROFILE_DB: '/private/tmp/airport-chaos-monster-qa.sqlite',
+  };
+  assert.equal(localJourneyQaUnlockEnabled(local), true);
+  assert.equal(localJourneyQaUnlockEnabled({ ...local, NODE_ENV: 'production' }), false);
+  assert.equal(localJourneyQaUnlockEnabled({ ...local, RENDER_SERVICE_ID: 'srv-production' }), false);
+  assert.equal(localJourneyQaUnlockEnabled({ ...local, AIRPORT_CHAOS_PROFILE_DB: '/srv/profiles.sqlite' }), false);
+  assert.equal(localJourneyQaUnlockEnabled({ ...local, AIRPORT_CHAOS_DEV_QA: '0' }), false);
+});
 
 test('QA unlock requires the explicit switch on the exact staging service and branch', () => {
   const staging = {

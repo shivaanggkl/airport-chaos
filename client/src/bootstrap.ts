@@ -55,6 +55,7 @@ const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
 const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
+let guestQaJourneyAccess = false;
 let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';
 
 function abandonPendingJourneyLaunch(): void {
@@ -69,8 +70,9 @@ function abandonPendingJourneyLaunch(): void {
 async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string }; mission03?: { completed: boolean; firstAttemptId?: string }; mission04?: { completed: boolean; firstAttemptId?: string }; mission05?: { completed: boolean; firstAttemptId?: string }; mission06?: { completed: boolean; firstAttemptId?: string }; mission07?: { completed: boolean; firstAttemptId?: string }; mission08?: { completed: boolean; firstAttemptId?: string }; mission09?: { completed: boolean; firstAttemptId?: string }; mission10?: { completed: boolean; firstAttemptId?: string }; mission11?: { completed: boolean; firstAttemptId?: string }; mission12?: { completed: boolean; firstAttemptId?: string }; mission13?: { completed: boolean; firstAttemptId?: string }; mission14?: { completed: boolean; firstAttemptId?: string }; mission15?: { completed: boolean; firstAttemptId?: string }; mission16?: { completed: boolean; firstAttemptId?: string }; mission17?: { completed: boolean; firstAttemptId?: string }; mission18?: { completed: boolean; firstAttemptId?: string }; mission19?: { completed: boolean; firstAttemptId?: string }; mission20?: { completed: boolean; firstAttemptId?: string }; mission21?: { completed: boolean; firstAttemptId?: string }; mission22?: { completed: boolean; firstAttemptId?: string }; mission23?: { completed: boolean; firstAttemptId?: string }; mission24?: { completed: boolean; firstAttemptId?: string } } | undefined> {
   try {
     const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
-    if (!response.ok) { if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData(); missionJourney.setSignInRequired(hubAccount.state !== 'account'); missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); missionJourney.setStageSevenProgress(false, false); missionJourney.setStageEightProgress(false, false); missionJourney.setStageNineProgress(false, false); missionJourney.setStageTenProgress(false, false); missionJourney.setStageElevenProgress(false, false); missionJourney.setStageTwelveProgress(false, false); missionJourney.setStageThirteenProgress(false, false); missionJourney.setStageFourteenProgress(false, false); missionJourney.setStageFifteenProgress(false, false); missionJourney.setStageSixteenProgress(false, false); missionJourney.setStageSeventeenProgress(false, false); missionJourney.setStageEighteenProgress(false, false); return undefined; }
-    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission07?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission08?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission09?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission10?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission11?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission12?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission13?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission14?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission15?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission16?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission17?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission18?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission19?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission20?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission21?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission22?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission23?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission24?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
+    if (!response.ok) { guestQaJourneyAccess = false; if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData(); missionJourney.setSignInRequired(hubAccount.state !== 'account'); missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); missionJourney.setStageSevenProgress(false, false); missionJourney.setStageEightProgress(false, false); missionJourney.setStageNineProgress(false, false); missionJourney.setStageTenProgress(false, false); missionJourney.setStageElevenProgress(false, false); missionJourney.setStageTwelveProgress(false, false); missionJourney.setStageThirteenProgress(false, false); missionJourney.setStageFourteenProgress(false, false); missionJourney.setStageFifteenProgress(false, false); missionJourney.setStageSixteenProgress(false, false); missionJourney.setStageSeventeenProgress(false, false); missionJourney.setStageEighteenProgress(false, false); return undefined; }
+    const progress = await response.json() as { guestQaAccess?: boolean; eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission07?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission08?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission09?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission10?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission11?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission12?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission13?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission14?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission15?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission16?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission17?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission18?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission19?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission20?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission21?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission22?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission23?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission24?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
+    guestQaJourneyAccess = progress.guestQaAccess === true;
     missionJourney.setSignInRequired(false);
     missionJourney.setStageOneProgress(progress.eligible === true, progress.completed === true);
     missionJourney.setStageTwoProgress(progress.mission02?.eligible === true, progress.mission02?.completed === true);
@@ -121,6 +123,7 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
       mission23: { completed: progress.mission23?.completed === true, firstAttemptId: progress.mission23?.firstAttemptId },
       mission24: { completed: progress.mission24?.completed === true, firstAttemptId: progress.mission24?.firstAttemptId } };
   } catch {
+    guestQaJourneyAccess = false;
     missionJourney.setStageOneProgress(false, false);
     missionJourney.setStageTwoProgress(false, false);
     missionJourney.setStageThreeProgress(false, false);
@@ -142,7 +145,7 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
 }
 
 async function playJourneyMission(): Promise<void> {
-  if (hubAccount.state !== 'account') {
+  if (hubAccount.state !== 'account' && !guestQaJourneyAccess) {
     hubAccountNotice = { ok: true, message: 'SIGN IN TO PLAY MISSIONS' };
     await openHubPilotMenu('PROFILE', false);
     return;
@@ -550,7 +553,7 @@ function cityJourneyState(entry: CityJourneyEntry): { status: string; cta: strin
     return { city, status: completed ? '✓ TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: !completed };
   }
   if (entry.id === 'dallas' && !dallasUnlocked()) return { city, status: 'COMPLETE MILWAUKEE TRAINING FIRST', cta: 'LOCKED', disabled: true };
-  if (entry.id === 'dallas' && hubAccount.state !== 'account') return { city, status: '✓ UNLOCKED · SIGN IN FOR MISSIONS', cta: 'FLY NOW' };
+  if (entry.id === 'dallas' && hubAccount.state !== 'account' && !guestQaJourneyAccess) return { city, status: '✓ UNLOCKED · SIGN IN FOR MISSIONS', cta: 'FLY NOW' };
   return { city, status: '✓ UNLOCKED', cta: 'FLY NOW' };
 }
 
@@ -569,6 +572,14 @@ function preferredCityJourneyIndex(preferDallas = false): number {
 
 function dismissCityJourneyHint(): void {
   cityJourneyHint.classList.add('is-dismissed');
+}
+
+function activateCityJourneyCard(index: number): void {
+  const state = cityJourneyState(cityJourneyEntries[index]!);
+  if (performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
+  hapticsManager.emit('selection');
+  if (state.training) void startTrainingFromHub();
+  else chooseCity(state.city);
 }
 
 function createCityJourneyCards(): void {
@@ -603,16 +614,13 @@ function createCityJourneyCards(): void {
     button.className = 'entry-button entry-button-primary city-journey-cta';
     button.addEventListener('click', event => {
       event.stopPropagation();
-      const state = cityJourneyState(entry);
-      if (performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
-      hapticsManager.emit('selection');
-      if (state.training) void startTrainingFromHub();
-      else chooseCity(state.city);
+      activateCityJourneyCard(index);
     });
     card.append(button);
 
     card.addEventListener('click', () => {
-      if (performance.now() < cityJourneyClickBlockedUntil || index === cityJourneyIndex || Math.abs(index - cityJourneyIndex) !== 1) return;
+      if (index === cityJourneyIndex) { activateCityJourneyCard(index); return; }
+      if (performance.now() < cityJourneyClickBlockedUntil || Math.abs(index - cityJourneyIndex) !== 1) return;
       hapticsManager.emit('selection');
       setCityJourneyIndex(index);
     });
@@ -645,6 +653,7 @@ function renderCityJourney(): void {
     view.cta.disabled = state.disabled === true;
     view.cta.setAttribute('aria-disabled', state.disabled === true ? 'true' : 'false');
     view.cta.tabIndex = offset === 0 ? 0 : -1;
+    view.card.classList.toggle('is-enterable', offset === 0 && !state.disabled && Boolean(state.city));
     view.dot.classList.toggle('is-selected', offset === 0);
     view.dot.setAttribute('aria-current', offset === 0 ? 'true' : 'false');
     view.dot.textContent = offset === 0 ? '●' : '○';
@@ -1674,7 +1683,7 @@ function showMissionJourney(pushHistory = true, refreshProgress = true): void {
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
-  missionJourney.setSignInRequired(hubAccount.state !== 'account');
+  missionJourney.setSignInRequired(hubAccount.state !== 'account' && !guestQaJourneyAccess);
   missionJourney.show(window.history.state?.missionDetailsOpen === true);
   if (refreshProgress) void refreshJourneyProgress();
   showAppHeader(undefined);
@@ -1960,6 +1969,11 @@ async function start(): Promise<void> {
     url.searchParams.delete('journeyReceipt');
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }
+  let directJourneyAvailable = hubAccount.state === 'account';
+  if (directJourneyEntry && !directJourneyAvailable) {
+    await refreshJourneyProgress();
+    directJourneyAvailable = guestQaJourneyAccess;
+  }
   if (authResult === 'success' && resumePendingHubFly()) {
     // The original FLY action continues without requiring another click.
   } else if ((authResult === 'failed' || authResult === 'collision') && hasPendingHubFly()) {
@@ -1972,7 +1986,7 @@ async function start(): Promise<void> {
       await showHome();
       await openHubPilotMenu('PROFILE', false);
     }
-  } else if (directJourneyEntry && hubAccount.state === 'account') {
+  } else if (directJourneyEntry && directJourneyAvailable) {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();

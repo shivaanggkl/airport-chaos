@@ -13,3 +13,5 @@ server/data/
 *.mobileprovision
 android/key.properties
 native-auth/android/build/
+
+native-auth/android/.gradle/

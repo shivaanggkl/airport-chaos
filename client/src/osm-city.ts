@@ -84,6 +84,19 @@ type BuildingMassing = {
 };
 
 const streamedChunkGroups: StreamedChunkGroups[] = [];
+// Existing mapped west-Downtown footprints, kept separate only so Mission 19
+// can reversibly replace them during its timeout presentation at every LOD.
+export const monsterDamageSites = [
+  { x: -2191, z: -1201, y: 122, width: 165, depth: 124 },
+  { x: -2140, z: -1155, y: 122.1, width: 126, depth: 99 },
+  { x: -2214, z: -1329, y: 122, width: 128, depth: 102 },
+] as const;
+const monsterTargetMeshes = new Set<THREE.Mesh>();
+let monsterDamageActive = false;
+export function setMappedMonsterDamage(active: boolean): void {
+  monsterDamageActive = active;
+  for (const mesh of monsterTargetMeshes) mesh.visible = !active;
+}
 const roadWidths = [9, 11, 14, 18, 30, 4] as const;
 const roadColors = [0x41484c, 0x3c4347, 0x363d42, 0x30383d, 0x293238, 0x665f55] as const;
 const color = new THREE.Color();
@@ -238,6 +251,7 @@ export function addOsmCityData(
     // legacy derived LODs or collision return arrays just to discard them.
     collectCollisionData?: boolean;
     isBuildingExcluded?: (x:number,z:number)=>boolean;
+    monsterDamageTargets?: boolean;
     streamRadius?: number;
     midRadius?: number;
     farRadius?: number;
@@ -354,6 +368,8 @@ export function addOsmCityData(
       // mapped facades retain UVs; unused UV arrays cost many MiB downtown.
       ...((material as THREE.MeshStandardMaterial).map ? { uvs: [] } : {}),
     }));
+    const targetBuffers = options.monsterDamageTargets
+      ? options.buildingMaterials.map((): GeometryBuffers => ({ positions: [], normals: [], indices: [] })) : undefined;
     const midMasses = new Map<string, BuildingMassing>();
     const farMasses = new Map<string, BuildingMassing>();
     for (const building of chunk.b) {
@@ -365,7 +381,10 @@ export function addOsmCityData(
       if (options.isExcluded(box.x, box.z, Math.max(box.maxX - box.minX, box.maxZ - box.minZ) / 2 + 8)) continue;
       if (options.isBuildingExcluded?.(box.x, box.z)) continue;
       const baseY = (cityData.v >= 3 ? building[3] : options.heightAt(box.x, box.z)) + 0.08;
-      addBuilding(buildingBuffers[family] ?? buildingBuffers[2], points, baseY, height);
+      const isTarget = targetBuffers && monsterDamageSites.some(site =>
+        Math.abs(box.x - site.x) < 5 && Math.abs(box.z - site.z) < 5);
+      const buffers = isTarget ? targetBuffers[family] ?? targetBuffers[2] : buildingBuffers[family] ?? buildingBuffers[2];
+      addBuilding(buffers, points, baseY, height);
       if (buildDerivedLods) {
         addMassing(midMasses, box, height, 360);
         addMassing(farMasses, box, height, 1000);
@@ -378,6 +397,14 @@ export function addOsmCityData(
         buildingMesh.name = `osm-building-${family}`;
         chunkGroup.add(buildingMesh);
       }
+    });
+    targetBuffers?.forEach((buffers, family) => {
+      if (!buffers.positions.length) return;
+      const mesh = new THREE.Mesh(createGeometry(buffers), options.buildingMaterials[family]);
+      mesh.name = 'osm-monster-damage-target';
+      mesh.visible = !monsterDamageActive;
+      monsterTargetMeshes.add(mesh);
+      chunkGroup.add(mesh);
     });
 
     const waterBuffers: GeometryBuffers = { positions: [], normals: [] };
@@ -480,7 +507,10 @@ export function disposeOsmGroups(groups: ReadonlyArray<THREE.Group>): void {
   for (const group of groups) {
     group.removeFromParent();
     group.traverse((object) => {
-      if (object instanceof THREE.Mesh) object.geometry.dispose();
+      if (object instanceof THREE.Mesh) {
+        monsterTargetMeshes.delete(object);
+        object.geometry.dispose();
+      }
     });
     group.clear();
   }

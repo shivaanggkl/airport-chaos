@@ -68,7 +68,7 @@ export function setTimeOfDay(preset: CityTimeOfDay): void {
     glass.emissiveIntensity = dusk ? 0.2 : 0;
   }
   landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : preset === 'evening' ? 0x176b94 : 0x075e96);
-  airportMaterials.runway.color.setHex(preset === 'evening' ? 0x414a4a : 0x18252b);
+  airportMaterials.runway.color.setHex(preset === 'evening' ? 0x737b79 : 0x18252b);
   airportMaterials.taxiway.color.setHex(preset === 'evening' ? 0x566260 : 0x34454c);
   horizonMaterial?.color.setHex(dusk ? 0x3d5147 : preset === 'evening' ? 0x41694a : 0x4c7847);
   terrainMaterial?.color.setHex(preset === 'evening' ? 0xbcd0ac : 0xffffff);
@@ -1356,6 +1356,7 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     // parsing a streamed render chunk.
     collectCollisionData: false,
     isBuildingExcluded: inDallasCore,
+    monsterDamageTargets: true,
     roadMaterial: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection }),
     buildingMaterials: streamedBuildingMaterials,
     waterMaterial: streamedWaterMaterial,

@@ -5,3 +5,13 @@ export function stagingJourneyQaUnlockEnabled(env: NodeJS.ProcessEnv = process.e
     && env.RENDER_SERVICE_ID === 'srv-db246fflot8c73dp2p40'
     && env.RENDER_GIT_BRANCH === 'staging';
 }
+
+// Isolated local QA may use an ephemeral profile database without recording
+// artificial clears. Never accept this switch on Render or a production server.
+export function localJourneyQaUnlockEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.AIRPORT_CHAOS_LOCAL_QA_UNLOCK_ALL === 'true'
+    && env.AIRPORT_CHAOS_DEV_QA === '1'
+    && env.NODE_ENV !== 'production'
+    && !env.RENDER_SERVICE_ID
+    && /^\/private\/tmp\/airport-chaos-[^/]+\.sqlite$/.test(env.AIRPORT_CHAOS_PROFILE_DB ?? '');
+}

@@ -102,12 +102,10 @@ export const journeyDallas18: Readonly<{
   captureMs: 24000; defenseMs: 40000; defenseRadius: 2800; hunterDelayMs: 2500;
 }>;
 export const journeyDallas19: Readonly<{
-  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'WANTED BREAKOUT'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 2550; prepareMs: 3000; timeLimitMs: 75000;
+  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'MONSTER ARRIVAL'; chapter: 'CITY DEFENDERS';
+  firstClearCredits: 2550; prepareMs: 0; timeLimitMs: 150000; bossHealth: 2500;
+  monster: Readonly<{ x: number; z: number; height: number }>;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
-  hunterOffset: Readonly<{ x: number; z: number }>;
-  exit: Readonly<{ x: number; z: number; altitude: number; radius: number; normalX: number; normalZ: number }>;
-  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas20: Readonly<{
   id: 'journey-dallas-20'; cityId: 'dallas'; name: 'SKYLINE SWITCHBACK'; chapter: 'LEGENDARY SKIES';
@@ -138,8 +136,6 @@ export const journeyDallas24: Readonly<{
   gates: readonly { x: number; z: number; altitude: number; radius: number;
     normalX: number; normalY: number; normalZ: number }[];
 }>;
-export function journeyExitCrossing(from: JourneyPoint, to: JourneyPoint, terrainHeight: number,
-  mission?: typeof journeyDallas19): boolean;
 export function journeyGatePlane(mission: Readonly<{ gates: readonly { x: number; z: number }[] }>, gateIndex: number):
   { normalX: number; normalZ: number } | null;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,

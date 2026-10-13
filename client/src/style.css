@@ -832,6 +832,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   border: 2px solid var(--ac-gold);
   box-shadow: 0 22px 54px rgb(5 24 38 / 62%), 0 0 0 1px rgb(255 226 139 / 38%), inset 0 1px rgb(255 226 139 / 34%);
 }
+.city-journey-card.is-enterable { cursor: pointer; }
 .city-journey-card.is-previous,
 .city-journey-card.is-next {
   z-index: 2;
@@ -1029,6 +1030,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   .city-time-option strong { font-size: 22px; }
   .city-time-option span { font-size: 13px; }
   .city-time-option button { min-height: 42px; padding-inline: 12px; }
+  .city-time-evening .city-time-art { background-position: center bottom; }
   .intro-brand-footer { gap: 4px; padding-right: 0; font-size: 9px; }
   .intro-brand-footer a { min-height: 36px; padding-inline: 8px; }
   .pilot-menu-header-actions { flex-wrap: wrap; justify-content: flex-end; }
@@ -1628,7 +1630,7 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .journey-hud [data-journey-hint] { color: #ffe084; font-weight: 800; }
 .journey-hud [hidden] { display: none !important; }
 .mission-objective-guidance { position: fixed; z-index: 23; inset: 0; pointer-events: none; overflow: hidden; }
-.mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow) { position: absolute; top: 0; left: 0; color: #fff4c7; border: 1px solid #ffd35b; border-radius: 9px; background: linear-gradient(145deg, rgb(6 44 88 / 95%), rgb(7 74 133 / 91%)); box-shadow: 0 0 12px rgb(255 211 91 / 56%), 0 3px 12px rgb(0 12 34 / 76%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
+.mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { position: absolute; top: 0; left: 0; color: #fff4c7; border: 1px solid #ffd35b; border-radius: 9px; background: linear-gradient(145deg, rgb(6 44 88 / 95%), rgb(7 74 133 / 91%)); box-shadow: 0 0 12px rgb(255 211 91 / 56%), 0 3px 12px rgb(0 12 34 / 76%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
 .mission-objective-guidance > [hidden] { display: none !important; }
 .mission-objective-safe-probe { position: absolute; visibility: hidden; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display: none; }
@@ -1638,6 +1640,18 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 62px); left: 50%; }
 .mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message, .touch-fire) { display: none !important; }
 .mission4-clean-hud #desktop-controls-help-items span:nth-child(4) { display: none; }
+.monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle) { display: none !important; }
+.monster-arrival-focus .sky-challenge.journey-hud { width: min(380px, 35vw); padding: 14px 17px; gap: 8px; font-size: 16px; background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
+.monster-arrival-focus .journey-hud > strong { font-size: 25px; }
+.monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-size: 23px; font-weight: 800; }
+.monster-boss-hud { position: absolute; z-index: 24; top: calc(100% + 9px); left: -3px; width: calc(100% + 4px); min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 13px; border: 1px solid rgb(100 223 255 / 22%); border-radius: 10px; background: rgb(8 39 73 / 10%); color: #ffd15b; font: 700 15px/1.1 var(--font-mono, monospace); pointer-events: none; box-shadow: none; }
+.monster-boss-hud.hidden { display: none; }
+.monster-arrival-focus .monster-boss-hud strong { font: inherit; white-space: nowrap; }
+.monster-boss-hud div { flex: 1; height: 13px; border: 1px solid rgb(227 168 41 / 40%); border-radius: 5px; overflow: hidden; background: rgb(16 41 67 / 12%); }
+.monster-boss-hud i { display: block; width: var(--monster-health, 100%); height: 100%; background: linear-gradient(90deg, rgb(247 165 34 / 75%), rgb(255 227 91 / 75%)); transition: width 170ms linear; }
+.monster-boss-hud span { color: #ffd15b; min-width: 3ch; text-align: right; }
+@media (max-width: 760px) { .monster-boss-hud { gap: 6px; padding: 5px 7px; font-size: 10px; } }
+@media (max-height: 520px) { .monster-arrival-focus .sky-challenge.journey-hud { width: min(260px, 34vw); padding: 7px 9px; gap: 3px; font-size: 11px; } .monster-arrival-focus .journey-hud > strong { font-size: 15px; } .monster-arrival-focus .journey-hud [data-journey-timer] { font-size: 14px; } }
 @media (max-width: 800px) and (orientation: landscape) {
   .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 118px); }
   .mission4-clean-hud .sky-challenge.journey-hud { width: min(220px, calc(100vw - 28px)); }
@@ -1645,7 +1659,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 @media (max-width: 600px) and (orientation: landscape) {
   .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 202px); }
 }
-@media (max-height: 520px) { .mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow) { font-size: 10px; } .mission-objective-arrow { min-width: 164px; min-height: 36px; } .mission-objective-arrow-icon { font-size: 22px; } }
+@media (max-height: 520px) { .mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { font-size: 10px; } .mission-objective-arrow { min-width: 164px; min-height: 36px; } .mission-objective-arrow-icon { font-size: 22px; } }
 .journey-hud-segments { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; padding-top: 2px; }
 .journey-hud-segments i:nth-child(n+5) { display: none; }
 .journey-rookie-rush .journey-hud-segments { grid-template-columns: repeat(10,1fr); }
@@ -4177,3 +4191,10 @@ body:has(.city-selector:not([hidden])) .tutorial-help {
 @media (max-width: 800px) and (orientation: landscape) {
   .touch-controls-active #right-flight-stack { top: max(112px, calc(var(--safe-area-top) + 106px)); }
 }
+
+/* Reuse the original navigation box; only Mission 19's placement changes. */
+.monster-boss-hud > .mission-objective-docked {
+  top: calc(100% + 7px); left: 0; width: max-content; box-sizing: border-box;
+}
+.monster-boss-hud > .mission-objective-docked[hidden] { display: none; }
+body:has(#world-map-overlay:not(.hidden)) .mission-objective-docked { display: none; }

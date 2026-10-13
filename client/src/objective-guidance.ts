@@ -7,6 +7,7 @@ export type MissionObjective = {
   radius: number;
   onscreenMarker?: boolean;
   fixedTop?: boolean;
+  dock?: HTMLElement;
 };
 
 type ConfirmedGateAttempt = { attemptId: string; gateIndex: number; status: string };
@@ -360,6 +361,9 @@ export class ObjectiveGuidance {
       this.verticalCue = 0;
       this.nextLabelAt = 0;
     }
+    const host = objective?.dock ?? this.layer;
+    if (this.arrow.parentElement !== host) host.append(this.arrow);
+    this.arrow.classList.toggle('mission-objective-docked', Boolean(objective?.dock));
     this.objective = objective;
     this.layer.classList.toggle('fixed-gate-guidance', objective?.fixedTop === true);
     if (!objective) this.hide();
@@ -371,7 +375,7 @@ export class ObjectiveGuidance {
     const target = this.objective;
     this.distanceMeters = player.distanceTo(target.position) * metersPerUnit;
     this.hintVisible = this.hint.update(target.id, this.distanceMeters, airborne, hintsEnabled, now);
-    if (target.fixedTop) {
+    if (target.fixedTop || target.dock) {
       const cue = fixedGateDirection(player, target.position, heading, target.radius,
         this.horizontalCue, this.verticalCue);
       this.horizontalCue = cue.horizontal;
@@ -385,13 +389,13 @@ export class ObjectiveGuidance {
       }
       this.marker.hidden = true;
       this.arrow.hidden = false;
-      this.arrow.style.transform = 'translateX(-50%)';
+      this.arrow.style.transform = target.dock ? '' : 'translateX(-50%)';
       this.arrowIcon.style.transform = '';
       return;
     }
     if (now >= this.nextBoundsAt) {
       this.nextBoundsAt = now + 350;
-      this.obstacles = ['#sky-challenge', '#right-flight-stack', '#touch-controls [data-touch-control="stick"]',
+      this.obstacles = ['#sky-challenge', '.monster-boss-hud:not(.hidden)', '#right-flight-stack', '#touch-controls [data-touch-control="stick"]',
         '#touch-controls [data-touch-control="throttle"]', '#touch-controls [data-touch-control="fire"]']
         .map((selector) => document.querySelector<HTMLElement>(selector))
         .filter((element): element is HTMLElement => Boolean(element && element.getClientRects().length))
@@ -426,7 +430,7 @@ export class ObjectiveGuidance {
     this.hintVisible = false;
   }
 
-  dispose(): void { this.layer.remove(); }
+  dispose(): void { this.arrow.remove(); this.layer.remove(); }
 }
 
 /** Stable aircraft-relative cues for Mission 4's fixed navigation box. */

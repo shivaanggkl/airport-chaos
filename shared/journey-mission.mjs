@@ -270,16 +270,13 @@ export const journeyDallas18 = Object.freeze({
   hunterDelayMs: 2_500,
 });
 
-// The one broad exit is fixed northwest of the downtown skyline, beyond DFW.
+// An open mapped parcel west of Downtown keeps the creature clear of buildings.
 export const journeyDallas19 = Object.freeze({
-  id: 'journey-dallas-19', cityId: 'dallas', name: 'WANTED BREAKOUT',
-  chapter: 'LEGENDARY SKIES', firstClearCredits: 2_550,
-  prepareMs: 3_000, timeLimitMs: 75_000,
-  airborneSpawn: Object.freeze({ x: -2_600, z: -3_000, altitude: 1_200, heading: 0.795, speed: 220 }),
-  hunterOffset: Object.freeze({ x: 1_200, z: 8_500 }),
-  exit: Object.freeze({ x: -24_000, z: -24_000, altitude: 1_200, radius: 330,
-    normalX: -21.4 / Math.hypot(21.4, 21), normalZ: -21 / Math.hypot(21.4, 21) }),
-  gates: Object.freeze([{ x: -24_000, z: -24_000, altitude: 1_200, radius: 330 }]),
+  id: 'journey-dallas-19', cityId: 'dallas', name: 'MONSTER ARRIVAL',
+  chapter: 'CITY DEFENDERS', firstClearCredits: 2_550,
+  prepareMs: 0, timeLimitMs: 150_000, bossHealth: 2_500,
+  monster: Object.freeze({ x: -5_500, z: -2_400, height: 960 }),
+  airborneSpawn: Object.freeze({ x: -7_500, z: -3_555, altitude: 850, heading: -2.094, speed: 110 }),
 });
 
 // Love Field to the open west side of the skyline. Each forward leg has room
@@ -337,20 +334,6 @@ export const journeyDallas24 = Object.freeze({
     { x: -9_500, z: -13_100, altitude: 620, radius: 82, normalX: -.825, normalY: .017, normalZ: -.565 },
   ]),
 });
-
-/** Swept crossing for a single exit with an explicit arrival direction. */
-export function journeyExitCrossing(from, to, terrainHeight, mission = journeyDallas19) {
-  const gate = mission.exit;
-  if (!Number.isFinite(terrainHeight)) return false;
-  const before = (from.x - gate.x) * gate.normalX + (from.z - gate.z) * gate.normalZ;
-  const after = (to.x - gate.x) * gate.normalX + (to.z - gate.z) * gate.normalZ;
-  if (!(before < 0 && after >= 0)) return false;
-  const fraction = -before / (after - before);
-  const x = from.x + (to.x - from.x) * fraction - gate.x;
-  const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
-  const z = from.z + (to.z - from.z) * fraction - gate.z;
-  return x * x + y * y + z * z <= (gate.radius * 0.92) ** 2;
-}
 
 // The plane used by authoritative gate crossings.
 export function journeyGatePlane(mission, gateIndex) {
