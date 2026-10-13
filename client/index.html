@@ -48,7 +48,8 @@
       <div class="home-hangar-stage" data-home-hangar-stage aria-label="Equipped aircraft showcase"></div>
       <div class="home-hangar-aircraft-name" data-home-aircraft-name>BLUEJAY TRAINER</div>
       <div class="home-hangar-contextual">
-        <button class="entry-button entry-button-primary home-hangar-fly" type="button" data-home-fly>FLY</button>
+        <button class="entry-button entry-button-primary home-hangar-fly" type="button" data-home-missions>MISSIONS</button>
+        <button class="entry-button entry-button-primary home-hangar-fly home-hangar-free-fly" type="button" data-home-free-fly>FREE FLY</button>
       </div>
       <div id="home-brand-signature" class="home-brand-signature"></div>
     </main>
@@ -64,12 +65,22 @@
         </div>
         <div id="city-options" class="city-journey" role="listbox" aria-label="City Journey" tabindex="0">
           <div class="city-journey-track" data-city-journey-track></div>
+          <button class="city-journey-arrow city-journey-arrow-previous" type="button" data-city-previous aria-label="Previous city">‹</button>
+          <button class="city-journey-arrow city-journey-arrow-next" type="button" data-city-next aria-label="Next city">›</button>
           <div class="city-journey-dots" data-city-journey-dots aria-label="City position"></div>
           <div class="city-journey-hint" data-city-journey-hint>SWIPE TO EXPLORE</div>
         </div>
         <div id="time-options" class="city-options" hidden></div>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
       </section>
+      <button id="city-help" class="city-help" type="button" aria-label="City Journey help">?</button>
+      <div id="city-help-dialog" class="city-help-dialog" role="dialog" aria-modal="true" aria-labelledby="city-help-title" hidden>
+        <section class="city-help-card">
+          <button type="button" data-city-help-close aria-label="Close help">×</button>
+          <h2 id="city-help-title">CITY JOURNEY</h2>
+          <p id="city-help-copy"></p>
+        </section>
+      </div>
     </main>
     <div id="game-root" hidden>
     <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">

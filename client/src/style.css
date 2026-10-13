@@ -619,6 +619,7 @@ body.launch-cinematic-active #tutorial-help {
 .home-hangar.is-backgrounded * { animation-play-state: paused !important; }
 body:has(.brand-loading:not([hidden]):not(.is-leaving)) #tutorial-help,
 body:has(.home-hangar:not([hidden])) #tutorial-help,
+body:has(.city-selector:not([hidden])) #tutorial-help,
 body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .home-hangar-stage { position: absolute; z-index: 2; inset: calc(var(--app-shell-header-total) + 4px) 3vw clamp(40px, 5dvh, 50px); min-width: 0; min-height: 0; }
 .home-hangar-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
@@ -626,6 +627,8 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .home-hangar-aircraft-name { position: absolute; z-index: 3; right: 18px; bottom: max(138px, calc(env(safe-area-inset-bottom) + 132px)); left: 18px; color: var(--ac-text-primary); text-shadow: 0 2px 8px rgb(5 24 38 / 55%); text-align: center; font: 800 13px/1 var(--font-display); letter-spacing: .11em; pointer-events: none; }
 .home-hangar-contextual { position: absolute; z-index: 4; right: max(18px, env(safe-area-inset-right)); bottom: max(50px, calc(env(safe-area-inset-bottom) + 46px)); left: max(18px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: center; gap: 10px; }
 .home-hangar-contextual .home-hangar-fly { min-width: clamp(230px, 25vw, 340px); min-height: 74px; font-size: 25px; }
+.home-hangar .home-hangar-fly.home-hangar-free-fly { color: #f6fbff; border-color: var(--ac-cyan); background: linear-gradient(180deg, #197ab6, #0a4a82 58%, #07345e); box-shadow: inset 0 2px rgb(246 251 255 / 45%), 0 8px 22px rgb(9 32 66 / 45%), 0 0 18px rgb(53 214 255 / 36%); animation: none; }
+.home-hangar .home-hangar-free-fly:hover, .home-hangar .home-hangar-free-fly:focus-visible { box-shadow: inset 0 2px rgb(246 251 255 / 55%), 0 9px 24px rgb(9 32 66 / 45%), 0 0 24px rgb(53 214 255 / 50%); }
 .home-hangar .home-hangar-fly { position: relative; overflow: hidden; color: var(--ac-bg-deep); background: radial-gradient(ellipse at 50% 100%, rgb(255 179 71 / 42%), transparent 72%), linear-gradient(180deg, var(--ac-gold-highlight), var(--ac-gold) 42%, var(--ac-amber)); border: 2px solid var(--ac-gold-highlight); border-radius: 9px; box-shadow: inset 0 2px rgb(246 251 255 / 80%), inset 0 -3px rgb(184 108 27 / 30%), 0 8px 22px rgb(9 32 66 / 45%), 0 0 20px 4px rgb(246 196 69 / 38%); text-shadow: none; animation: home-hangar-fly-invite 1.6s ease-in-out infinite; }
 @keyframes home-hangar-fly-invite {
   0%, 100% { transform: scale(1); box-shadow: inset 0 2px rgb(246 251 255 / 80%), inset 0 -3px rgb(184 108 27 / 30%), 0 8px 22px rgb(9 32 66 / 45%), 0 0 20px 4px rgb(246 196 69 / 38%); }
@@ -670,7 +673,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   isolation: isolate;
   overflow: hidden;
   color: var(--ui-text);
-  background: linear-gradient(180deg, rgb(15 39 70 / 24%), rgb(15 39 70 / 36%)), url('/media/city-journey/hangar.jpg') center / cover no-repeat, var(--ac-bg-deep);
+  background: linear-gradient(180deg, rgb(15 39 70 / 9%), rgb(15 39 70 / 15%)), url('/media/city-journey/hangar.jpg') center / cover no-repeat, var(--ac-bg-deep);
 }
 
 .city-selector[hidden] {
@@ -680,35 +683,36 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .city-context-back {
   position: absolute;
   z-index: 4;
-  top: max(12px, var(--safe-area-top));
-  left: max(18px, var(--safe-area-left));
-  min-height: 46px;
-  padding: 0 16px;
+  top: max(24px, var(--safe-area-top));
+  left: max(24px, var(--safe-area-left));
+  min-height: 64px;
+  padding: 0 24px;
   color: var(--ac-text-primary);
   border: 2px solid var(--ac-cyan);
-  border-radius: 11px;
+  border-radius: 22px;
   background: linear-gradient(165deg, var(--ac-surface-active), var(--ac-surface));
   box-shadow: inset 0 2px rgb(246 251 255 / 35%), 0 5px 14px rgb(5 24 38 / 38%), 0 0 12px rgb(53 214 255 / 30%);
-  font: 800 12px/1 var(--font-display);
+  font: 800 clamp(12px, 1.05vw, 17px)/1 var(--font-display);
   letter-spacing: .06em;
 }
+.city-context-back::before { content: '‹'; display: inline-block; margin-right: 16px; font: 500 42px/.4 var(--font-body); vertical-align: -4px; }
 .city-context-back:hover, .city-context-back:focus-visible { border-color: var(--ac-cyan-highlight); filter: brightness(1.1); }
 .city-context-back:focus-visible { outline: 3px solid var(--ac-gold-highlight); outline-offset: 2px; }
 
 .city-select-card {
   position: absolute;
   z-index: 3;
-  top: calc(var(--safe-area-top) + clamp(64px, 8dvh, 80px));
-  right: max(18px, var(--safe-area-right));
+  top: calc(var(--safe-area-top) + clamp(58px, 7dvh, 72px));
+  right: max(8px, var(--safe-area-right));
   bottom: auto;
-  left: max(18px, var(--safe-area-left));
+  left: max(8px, var(--safe-area-left));
   display: grid;
   grid-template-rows: repeat(2, auto);
-  gap: clamp(8px, 1vw, 12px);
-  width: min(var(--entry-content-width), calc(100vw - 36px));
-  max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - clamp(76px, 10dvh, 92px));
+  gap: clamp(6px, 1vw, 12px);
+  width: calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px);
+  max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 58px);
   margin-inline: auto;
-  padding: clamp(14px, 1.8vw, 22px);
+  padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -729,9 +733,9 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .game-brand-legal { width: 100%; color: var(--text-muted); text-align: center; font-size: var(--font-meta-size); font-weight: 500; }
 .game-brand-signature-start { margin: 0 auto; }
 .city-select-heading { text-align: center; text-shadow: 0 2px 14px rgb(5 24 38 / 65%); }
-.city-select-tagline { margin: 0 auto 9px; color: var(--ac-gold); text-align: center; font: 800 clamp(11px, 1.4vw, 16px)/1 var(--font-display); letter-spacing: .26em; }
-.city-select-card .entry-page-title { color: var(--ac-gold); font-size: clamp(30px, 4.2vw, 48px); }
-.city-select-card p { color: var(--ac-text-primary); font-size: clamp(15px, 1.8vw, 21px); }
+.city-select-tagline { margin: 0 auto 6px; color: var(--ac-gold); text-align: center; font: 800 clamp(11px, 1.35vw, 20px)/1 var(--font-display); letter-spacing: .24em; }
+.city-select-card .entry-page-title { color: var(--ac-gold); font-size: clamp(32px, 4.2vw, 66px); line-height: 1; letter-spacing: .1em; }
+.city-select-card p { color: var(--ac-text-primary); font-size: clamp(16px, 1.7vw, 26px); }
 .intro-brand-footer { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 4px 0 0; border-top: 0; color: var(--ui-text-muted); font: 500 11px/1.2 var(--font-body); opacity: .72; white-space: nowrap; }
 .intro-brand-footer nav { display: flex; flex-wrap: nowrap; gap: 2px; }
 .intro-brand-footer a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 6px; color: var(--ui-text-muted); text-decoration: none; border-radius: 4px; }
@@ -739,21 +743,21 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .intro-brand-footer a:focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 1px; }
 
 .city-select-card p {
-  margin: 9px 0 0;
+  margin: 5px 0 0;
   color: var(--ac-text-primary);
   text-align: center;
-  font: 500 clamp(15px, 1.8vw, 21px)/1.3 var(--font-body);
+  font: 600 clamp(16px, 1.7vw, 26px)/1.2 var(--font-body);
 }
 
 .city-journey {
-  --journey-card-width: min(720px, 63vw);
-  --journey-card-height: clamp(268px, 42dvh, 320px);
-  --journey-side-offset: min(49vw, 585px);
+  --journey-card-width: min(940px, 55vw);
+  --journey-card-height: clamp(300px, 55dvh, 470px);
+  --journey-side-offset: min(45vw, 640px);
   --journey-drag-x: 0px;
   --journey-side-drag-x: 0px;
   position: relative;
   width: 100%;
-  height: clamp(300px, 46dvh, 354px);
+  height: calc(var(--journey-card-height) + 48px);
   min-height: 0;
   overflow: hidden;
   outline: none;
@@ -762,25 +766,25 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   -webkit-user-select: none;
 }
 .city-journey:focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 3px; }
-.city-journey-track { position: absolute; inset: 0 0 34px; overflow: hidden; }
+.city-journey-track { position: absolute; inset: 0 0 40px; overflow: hidden; }
 .city-journey-card {
   position: absolute;
   z-index: 1;
   top: 50%;
   left: 50%;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(210px, .8fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(240px, .8fr);
   grid-template-rows: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px 22px;
+  gap: 12px 24px;
   width: var(--journey-card-width);
   height: var(--journey-card-height);
-  padding: 16px;
+  padding: 18px;
   overflow: hidden;
   color: var(--ui-text);
-  background: linear-gradient(145deg, rgb(22 65 110 / 98%), rgb(15 39 70 / 99%));
+  background: linear-gradient(145deg, rgb(22 65 110 / 99%), rgb(9 33 68 / 99%));
   border: 1px solid var(--ui-border);
-  border-radius: 18px;
+  border-radius: 28px;
   box-shadow: var(--ac-shadow-panel);
   opacity: 0;
   pointer-events: none;
@@ -793,20 +797,26 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   opacity: 1;
   pointer-events: auto;
   transform: translate(calc(-50% + var(--journey-drag-x)), -50%) scale(1);
-  border: 2px solid var(--ac-gold);
+  border: 3px solid var(--ac-gold);
   box-shadow: 0 22px 54px rgb(5 24 38 / 62%), 0 0 0 1px rgb(255 226 139 / 38%), inset 0 1px rgb(255 226 139 / 34%);
 }
 .city-journey-card.is-enterable { cursor: pointer; }
 .city-journey-card.is-previous,
 .city-journey-card.is-next {
   z-index: 2;
-  opacity: .7;
+  opacity: .8;
   pointer-events: auto;
-  filter: brightness(.58) saturate(.78);
+  filter: brightness(.55) saturate(.75);
   cursor: pointer;
 }
-.city-journey-card.is-previous { transform: translate(calc(-50% - var(--journey-side-offset) + var(--journey-side-drag-x)), -50%) scale(.8); }
-.city-journey-card.is-next { transform: translate(calc(-50% + var(--journey-side-offset) + var(--journey-side-drag-x)), -50%) scale(.8); }
+.city-journey-card:is(.is-previous, .is-next) .city-journey-art { position: absolute; inset: 12px; height: auto; opacity: .8; }
+.city-journey-card:is(.is-previous, .is-next) .city-journey-copy { position: absolute; z-index: 1; bottom: 12px; width: min(290px, 52%); padding: 40px 12px 12px; background: linear-gradient(transparent, rgb(5 24 49 / 94%) 46%); text-align: left; }
+.city-journey-card.is-previous .city-journey-copy { right: 9%; }
+.city-journey-card.is-next .city-journey-copy { left: 13%; }
+.city-journey-card:is(.is-previous, .is-next) .city-journey-copy h2 { font-size: clamp(23px, 2.2vw, 36px); }
+.city-journey-card:is(.is-previous, .is-next) .city-journey-status { margin-top: 4px; }
+.city-journey-card.is-previous { transform: translate(calc(-50% - var(--journey-side-offset) + var(--journey-side-drag-x)), -50%) scale(.78); }
+.city-journey-card.is-next { transform: translate(calc(-50% + var(--journey-side-offset) + var(--journey-side-drag-x)), -50%) scale(.78); }
 .city-journey-card.is-before {
   transform: translate(calc(-50% - var(--journey-side-offset) - 24vw + var(--journey-side-drag-x)), -50%) scale(.72);
   filter: brightness(.45) saturate(.65);
@@ -824,34 +834,37 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   overflow: hidden;
   grid-row: 1 / 3;
   height: 100%;
-  border: 1px solid rgb(111 230 255 / 58%);
-  border-radius: 11px;
+  border: 2px solid var(--ac-cyan);
+  border-radius: 20px;
   background-image: var(--journey-art-image);
-  background-position: center, var(--journey-art-position);
+  background-position: var(--journey-art-position, center);
   background-size: cover;
 }
-.city-journey-copy { min-width: 0; align-self: end; text-align: center; }
+.city-journey-copy { min-width: 0; align-self: center; text-align: center; }
 .city-journey-copy small {
   display: block;
   margin-bottom: 3px;
   color: var(--ac-gold);
-  font: 800 11px/1.2 var(--font-display);
+  font: 800 clamp(11px, 1.1vw, 16px)/1.2 var(--font-display);
   letter-spacing: .18em;
 }
 .city-journey-copy h2 {
   margin: 0;
-  font: 900 clamp(25px, 3.2vw, 42px)/1 var(--font-display);
+  font: 900 clamp(25px, 3.2vw, 56px)/1 var(--font-display);
   letter-spacing: .07em;
 }
+.city-journey-detail { display: block; margin-top: 13px; color: var(--ac-cyan-highlight); font: 800 clamp(12px, 1.3vw, 19px)/1.2 var(--font-display); letter-spacing: .1em; }
 .city-journey-status {
   display: block;
-  min-height: 18px;
-  margin-top: 6px;
-  color: var(--ac-cyan-highlight);
-  font: 750 12px/1.2 var(--font-display);
+  min-height: 20px;
+  margin-top: 12px;
+  color: var(--ac-text-primary);
+  font: 750 clamp(10px, .85vw, 13px)/1.2 var(--font-display);
   letter-spacing: .08em;
 }
-.city-journey-cta { justify-self: center; align-self: start; min-width: 205px; min-height: 64px; border-radius: 10px; font-size: 22px; }
+.city-journey-lock { display: block; margin-top: 12px; font-size: 30px; }
+.city-journey-lock[hidden] { display: none; }
+.city-journey-cta { justify-self: stretch; align-self: start; min-width: 0; min-height: 70px; border-radius: 14px; font-size: clamp(16px, 1.5vw, 24px); }
 .city-journey-card:not(.is-selected) .city-journey-cta { visibility: hidden; opacity: 0; pointer-events: none; }
 .city-journey-cta:disabled,
 .city-journey-cta[aria-disabled='true'] {
@@ -869,6 +882,11 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   box-shadow: none;
   transform: none;
 }
+.city-journey-arrow { position: absolute; z-index: 6; top: calc((100% - 40px) / 2); display: grid; place-items: center; width: 68px; height: 68px; padding: 0 0 6px; color: var(--ac-cyan-highlight); border: 2px solid var(--ac-cyan); border-radius: 50%; background: linear-gradient(160deg, #124c85, #092d58); box-shadow: 0 6px 18px rgb(4 25 57 / 48%); font: 400 62px/.65 var(--font-body); cursor: pointer; transform: translateY(-50%); }
+.city-journey-arrow:hover, .city-journey-arrow:focus-visible { border-color: var(--ac-cyan-highlight); filter: brightness(1.15); }
+.city-journey-arrow:disabled { opacity: .32; cursor: default; }
+.city-journey-arrow-previous { left: max(10px, var(--safe-area-left)); }
+.city-journey-arrow-next { right: max(10px, var(--safe-area-right)); }
 .city-journey-dots {
   position: absolute;
   z-index: 5;
@@ -877,16 +895,16 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   left: 0;
   display: flex;
   justify-content: center;
-  gap: 7px;
+  gap: 9px;
 }
 .city-journey-dot {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   color: rgb(185 221 245 / 56%);
   background: transparent;
   border: 0;
-  font: 700 14px/1 var(--font-display);
+  font: 700 21px/1 var(--font-display);
   cursor: pointer;
 }
 .city-journey-dot.is-selected { color: var(--ui-gold); }
@@ -903,6 +921,14 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   pointer-events: none;
 }
 .city-journey-hint.is-dismissed { opacity: 0; animation: none; }
+.city-help { position: absolute; z-index: 7; right: max(24px, var(--safe-area-right)); bottom: max(20px, var(--safe-area-bottom)); width: 68px; height: 68px; color: var(--ac-gold); border: 2px solid var(--ac-cyan); border-radius: 50%; background: linear-gradient(160deg, #124c85, #092d58); box-shadow: 0 6px 18px rgb(4 25 57 / 48%); font: 900 35px/1 var(--font-display); cursor: pointer; }
+.city-help:hover, .city-help:focus-visible { filter: brightness(1.16); }
+.city-help-dialog { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(3 19 44 / 72%); }
+.city-help-dialog[hidden] { display: none; }
+.city-help-card { position: relative; width: min(480px, 100%); padding: 28px; color: var(--ac-text-primary); border: 2px solid var(--ac-cyan); border-radius: 20px; background: linear-gradient(150deg, #16467f, #082b57); box-shadow: 0 20px 55px rgb(0 10 34 / 55%); }
+.city-help-card h2 { margin: 0 40px 16px 0; color: var(--ac-gold); font: 900 25px/1.1 var(--font-display); }
+.city-help-card p { margin: 0; font: 500 16px/1.5 var(--font-body); }
+.city-help-card button { position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; color: #fff; border: 1px solid var(--ac-cyan); border-radius: 50%; background: #123f75; font: 26px/1 var(--font-body); cursor: pointer; }
 @keyframes city-journey-hint { 0%,65% { opacity: .72; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .city-journey-card { transition: none; }
@@ -974,18 +1000,23 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .pilot-menu-header-actions { display: flex; align-items: center; gap: 8px; }
 .pilot-menu-city-status { color: var(--text-secondary); font: 500 var(--font-meta-size) var(--font-body); white-space: nowrap; }
 @media (max-width: 680px) {
-  .city-select-card { width: calc(100vw - 20px); padding: 14px; }
+  .city-select-card { width: calc(100vw - 20px); }
   .city-journey {
     --journey-card-width: 84vw;
-    --journey-card-height: clamp(355px, 50dvh, 430px);
+    --journey-card-height: min(55dvh, 470px);
     --journey-side-offset: 70vw;
-    height: clamp(390px, 55dvh, 465px);
+    height: calc(var(--journey-card-height) + 44px);
   }
   .city-journey-card { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto auto; gap: 9px; padding: 10px; border-radius: 13px; }
   .city-journey-art { grid-row: auto; }
   .city-journey-copy { align-self: center; }
   .city-journey-copy h2 { font-size: clamp(23px, 8vw, 34px); }
-  .city-journey-cta { min-width: 170px; min-height: 52px; font-size: 17px; }
+  .city-journey-detail { margin-top: 6px; }
+  .city-journey-status { margin-top: 5px; }
+  .city-journey-lock { margin-top: 4px; font-size: 20px; }
+  .city-journey-cta { min-height: 52px; font-size: 17px; }
+  .city-journey-arrow { width: 44px; height: 44px; padding-bottom: 4px; font-size: 40px; }
+  .city-help { width: 52px; height: 52px; font-size: 28px; }
   .city-journey-hint { display: none; }
   .city-options { grid-template-columns: 1fr; gap: 10px; }
   .city-options:has(.city-time-evening) { grid-template-columns: 1fr; }
@@ -1002,7 +1033,8 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 
 @media (max-width: 950px) and (orientation: landscape) and (max-height: 520px),
        (any-pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
-  .city-context-back { top: max(4px, var(--safe-area-top)); left: max(6px, var(--safe-area-left)); min-height: 40px; padding-inline: 10px; font-size: 10px; }
+  .city-context-back { top: max(4px, var(--safe-area-top)); left: max(6px, var(--safe-area-left)); min-height: 42px; padding-inline: 10px; border-radius: 13px; font-size: 10px; }
+  .city-context-back::before { margin-right: 7px; font-size: 28px; vertical-align: -2px; }
   .city-select-card {
     top: calc(var(--safe-area-top) + 46px);
     right: max(6px, var(--safe-area-right));
@@ -1010,26 +1042,32 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
     left: max(6px, var(--safe-area-left));
     width: min(var(--entry-content-width), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 12px));
     max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 50px);
-    gap: 4px;
-    padding: 3px 10px;
+    gap: 3px;
+    padding: 0;
   }
   .city-select-tagline { margin-bottom: 1px; font-size: 9px; }
   .city-select-card .entry-page-title { font-size: clamp(21px, 3vw, 27px); }
   .city-select-card p { margin-top: 1px; font-size: 12px; }
   .city-journey {
-    --journey-card-width: min(56vw, 490px);
-    --journey-card-height: clamp(160px, calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 145px), 260px);
-    --journey-side-offset: min(43vw, 390px);
-    height: calc(var(--journey-card-height) + 34px);
+    --journey-card-width: min(62vw, 590px);
+    --journey-card-height: clamp(155px, calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 205px), 260px);
+    --journey-side-offset: min(47vw, 420px);
+    height: calc(var(--journey-card-height) + 32px);
   }
   .city-journey-track { bottom: 28px; }
-  .city-journey-card { grid-template-columns: minmax(0, 1.4fr) minmax(155px, .8fr); grid-template-rows: 1fr auto; gap: 8px 12px; padding: 9px; }
+  .city-journey-card { grid-template-columns: minmax(0, 1.5fr) minmax(145px, .8fr); grid-template-rows: 1fr auto; gap: 6px 10px; padding: 8px; border-radius: 16px; }
   .city-journey-art { grid-row: 1 / 3; }
-  .city-journey-copy { align-self: end; }
-  .city-journey-copy h2 { font-size: clamp(19px, 3vw, 28px); }
-  .city-journey-cta { min-width: 145px; min-height: 46px; }
+  .city-journey-copy { align-self: center; }
+  .city-journey-copy small { font-size: 9px; }
+  .city-journey-copy h2 { font-size: clamp(19px, 3vw, 29px); }
+  .city-journey-detail { margin-top: 5px; font-size: 11px; }
+  .city-journey-status { min-height: 0; margin-top: 4px; font-size: 9px; }
+  .city-journey-lock { margin-top: 2px; font-size: 18px; }
+  .city-journey-cta { min-height: 42px; font-size: 14px; }
+  .city-journey-arrow { top: calc((100% - 28px) / 2); width: 44px; height: 44px; padding-bottom: 4px; font-size: 40px; }
   .city-journey-dots { bottom: -1px; }
   .city-journey-hint { display: none; }
+  .city-help { right: max(8px, var(--safe-area-right)); bottom: max(6px, var(--safe-area-bottom)); width: 43px; height: 43px; font-size: 24px; }
   .city-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
   .city-options:has(.city-time-evening) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .city-time-option,
