@@ -8,6 +8,7 @@ export type AppShellHeaderData = {
   pilotName: string;
   credits: number;
   skyTokens: number;
+  storeHasOffers: boolean;
   tokenStoreAvailable?: boolean;
   rewardsAvailable: boolean;
   rewardsAvailableInMs?: number;
@@ -146,6 +147,7 @@ export class AppShellHeader {
     this.tokenAdd.hidden = !data.tokenStoreAvailable;
     this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs);
     this.element.classList.toggle('is-hub', data.hubActions);
+    this.store.classList.toggle('has-offers', data.storeHasOffers);
     this.store.hidden = !data.hubActions && data.active !== 'STORE';
     this.rewards.hidden = !data.hubActions;
     this.setActive(this.store, data.active === 'STORE');

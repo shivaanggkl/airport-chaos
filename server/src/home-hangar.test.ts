@@ -86,18 +86,13 @@ test('Pilot Hub reuses the Garage renderer, selected-aircraft loader, and cached
   assert.match(bootstrap, /aircraftName: aircraftDisplayName\(garageProfile\.selectedAircraft\)/);
 });
 
-test('Pilot Hub keeps accessible legal and support footer links outside the fly flow', () => {
+test('Pilot Hub leaves space for launch cards and keeps legal links in the Pilot Menu', () => {
   const html = read('client/index.html');
   const bootstrap = read('client/src/bootstrap.ts');
-  const brand = read('client/src/brand.ts');
-  const css = read('client/src/style.css');
-  assert.match(html, /id="home-brand-signature"/);
-  assert.doesNotMatch(html, /id="start-brand-signature"/);
-  assert.equal((bootstrap.match(/mountCompactBrandFooter\(/g) ?? []).length, 1);
-  assert.match(brand, /\['Terms', legalConfig\.policyRoutes\.terms\][\s\S]*\['Privacy', legalConfig\.policyRoutes\.privacy\][\s\S]*\['Refunds', legalConfig\.policyRoutes\.refund\][\s\S]*\['Support', legalConfig\.policyRoutes\.support\]/);
-  assert.match(brand, /function legalPolicyHref\(path: string\)[\s\S]*Capacitor\.isNativePlatform\(\) \? new URL\(path, gameBrand\.gameUrl\)\.href : path/);
-  assert.match(brand, /link\.target = '_blank'; link\.rel = 'noopener noreferrer'/);
-  assert.match(css, /\.intro-brand-footer a \{[^}]*min-height: 30px[^}]*padding: 5px 6px/);
+  const menu = read('client/src/pilot-menu.ts');
+  assert.doesNotMatch(html, /id="home-brand-signature"/);
+  assert.doesNotMatch(bootstrap, /mountCompactBrandFooter/);
+  assert.match(menu, /this\.activeSection === 'LEGAL \/ SUPPORT'[\s\S]*Terms of Use[\s\S]*Privacy Policy[\s\S]*Refund Policy[\s\S]*Support/);
 });
 
 test('flight entry keeps the city visible until gameplay is ready and the launch wait is visible', () => {
@@ -252,6 +247,9 @@ test('Pilot Hub presents live Missions and Free Fly cards with integrated naviga
   assert.match(shell, /utilities\.append\(this\.store, this\.garage, this\.rewards, this\.avatar\)/);
   assert.match(shell, /this\.garage\.innerHTML = `\$\{aircraftIcon\}<span>AIRCRAFT<\/span>`/);
   assert.match(shell, /this\.rewardsIndicator\.textContent = ''/);
+  assert.match(shell, /this\.store\.classList\.toggle\('has-offers', data\.storeHasOffers\)/);
+  assert.match(css, /app-shell-store\.has-offers:not\(\.is-active\) > img[^}]*hub-store-invite/);
+  assert.match(css, /app-shell-rewards:not\(\.is-active\):has\(\[data-rewards-indicator\]:not\(\[hidden\]\)\) > img[^}]*hub-reward-invite/);
   assert.match(shell, /brand\.addEventListener\('click', handlers\.home\)/);
   assert.match(shell, /this\.garage\.addEventListener\('click', handlers\.garage\)/);
   assert.match(shell, /this\.rewards\.addEventListener\('click', handlers\.rewards\)/);

@@ -8,10 +8,10 @@ import { LAUNCH_MODE_PARAM, type LaunchMode } from './launch-mode';
 import { AppShellHeader, type AppShellActive } from './app-shell';
 import { GameStore } from './game-store';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
-import type { StoreItem, StoreCategory } from './store-catalog';
+import { storeFeatured, storeItemState, type StoreItem, type StoreCategory } from './store-catalog';
 import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
-import { loadAirportChaosLogo, mountCompactBrandFooter } from './brand';
+import { loadAirportChaosLogo } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
@@ -58,7 +58,6 @@ const citySelectionError = document.querySelector<HTMLElement>('#city-selection-
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
-mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
 const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
 let guestQaJourneyAccess = false;
@@ -416,6 +415,7 @@ function showAppHeader(active: AppShellActive): void {
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
+    storeHasOffers: storeFeatured.some(item => storeItemState(item, garageProfile) === 'LOCKED'),
     tokenStoreAvailable: hubAccount.state === 'account' && (skyTokenCommerceEnabled || stagingTokenStorePreview) && skyTokenOffers.length === Object.keys(skyTokenPacks).length,
     rewardsAvailable: homeData.rewardsAvailable,
     rewardsAvailableInMs: homeData.rewardsAvailableInMs,
