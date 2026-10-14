@@ -221,9 +221,11 @@ function profileName(value: unknown, fallback: string): string {
 
 export function normalizePilotName(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
+  if (/[\p{Cc}\p{Cf}]/u.test(value)) return undefined;
   const name = value.normalize('NFKC').trim().replace(/\s+/g, ' ');
-  if (name.length < 3 || name.length > 20) return undefined;
-  return /^[A-Za-z0-9][A-Za-z0-9 ._'-]*[A-Za-z0-9]$/.test(name) ? name : undefined;
+  const visibleLength = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(name)].length;
+  if (visibleLength < 3 || visibleLength > 20) return undefined;
+  return /^[\p{L}\p{N}][\p{L}\p{N}\p{M} _-]*[\p{L}\p{N}\p{M}]$/u.test(name) ? name : undefined;
 }
 
 function assignedPilotName(value: unknown, pilotId: string): string {

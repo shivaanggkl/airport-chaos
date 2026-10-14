@@ -449,9 +449,10 @@ test('client-shaped progress cannot set credits or paid ownership', () => {
 });
 
 test('pilot names accept only the shared 3-20 character safe format', () => {
-  assert.equal(normalizePilotName("Ace O'Brien"), "Ace O'Brien");
+  assert.equal(normalizePilotName("Ace O'Brien"), undefined);
   assert.equal(normalizePilotName('  Sky   Pilot  '), 'Sky Pilot');
   assert.equal(normalizePilotName('x'), undefined);
   assert.equal(normalizePilotName('<img src=x>'), undefined);
+  assert.equal(normalizePilotName('Sky\nPilot'), undefined);
   assert.equal(normalizePilotName('a'.repeat(21)), undefined);
 });

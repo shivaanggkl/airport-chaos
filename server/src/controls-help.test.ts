@@ -34,7 +34,7 @@ test('all text-editing keys bypass gameplay while Escape remains available to sh
 test('flight keyboard listeners share the editable-focus guard and clear held state on focus entry', () => {
   assert.ok((mainSource.match(/if \(shouldIgnoreGameplayKeyboardEvent\(event\)\) return;/g) ?? []).length >= 3);
   assert.match(mainSource, /focusin[\s\S]*isEditableControl\(event\.target\)[\s\S]*clearHeldActions\(\)/);
-  assert.match(pilotMenuSource, /nameInput\.dataset\.pilotNameEditor = ''/);
+  assert.match(pilotMenuSource, /input\.dataset\.pilotNameEditor = ''/);
 });
 
 test('desktop reference is sourced from current supported flight bindings', () => {

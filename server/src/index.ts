@@ -8,6 +8,7 @@ import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket, { WebSocketServer } from 'ws';
 import { PlayerProfileStore, normalizePilotName, type LegacyProfileImport, type ObjectiveActivity, type PlayerProfile, type ProfileProgress, type WeeklyLeaderboardCategory } from './player-profiles.js';
+import { PilotProfileSummaryStore } from './pilot-profile-summary.js';
 import { cityCapabilities, routeDefinition } from '../../shared/city-registry.mjs';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { primaryTerritoryAt, territoriesForCity, territoryContains, territoryMembershipTransition, type CityTerritory } from '../../shared/city-territories.mjs';
@@ -368,6 +369,7 @@ const localJourneyQaUnlockAll = localJourneyQaUnlockEnabled();
 const stagingJourneyQaUnlockAll = stagingJourneyQaUnlockEnabled() || localJourneyQaUnlockAll;
 const profileStore = new PlayerProfileStore(profileDatabasePath, stagingJourneyQaUnlockAll);
 const journeyStore = new JourneyAttemptStore(profileDatabasePath, stagingJourneyQaUnlockAll);
+const pilotProfileSummaryStore = new PilotProfileSummaryStore(profileDatabasePath);
 const siegeJourneyTerritory = territoriesForCity('dallas').find(territory => territory.id === journeyDallas18.territoryId)!;
 const twoFrontAlpha = territoriesForCity('dallas').find(territory => territory.id === journeyDallas21.alphaTerritoryId)!;
 const twoFrontBravo = territoriesForCity('dallas').find(territory => territory.id === journeyDallas21.bravoTerritoryId)!;
@@ -989,7 +991,7 @@ const httpServer = createServer(async (request, response) => {
         const limit = limitedBy('pilot-name', identity.pilotId, securityLimits.namePilot);
         if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
         const name = normalizePilotName(payload.pilotName);
-        if (!name) { jsonResponse(response, 400, { error: 'Pilot name must be 3–20 characters using letters, numbers, spaces, or . _ \' -.' }); return; }
+        if (!name) { jsonResponse(response, 400, { error: 'Pilot name must be 3–20 characters using letters, numbers, spaces, hyphens or underscores.' }); return; }
         const profile = profileStore.setPilotName(identity.pilotId, name);
         if (!profile) { jsonResponse(response, 400, { error: 'Pilot name could not be changed.' }); return; }
         updateConnectedPilotName(identity.pilotId, profile);
@@ -1646,7 +1648,8 @@ const httpServer = createServer(async (request, response) => {
     if (request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify({ ...reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName)),
-        legendaryPilot: journeyStore.progress(identity.pilotId, journeyDallas24.id).completed }));
+        legendaryPilot: journeyStore.progress(identity.pilotId, journeyDallas24.id).completed,
+        profileSummary: pilotProfileSummaryStore.summary(identity.pilotId) }));
       return;
     }
     if (request.method === 'POST') {
@@ -3154,6 +3157,7 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   }
   recordAnalytics(playerId, 'successful_landing', { source: airport.id, metadata: { quality } }, now);
   recordAnalytics(playerId, 'landing_scored', { source: grade.toLowerCase(), metadata: { quality } }, now);
+  pilotProfileSummaryStore.recordSmoothLanding(player.pilotId, quality, now);
   if (grade === 'PERFECT' || grade === 'LEGENDARY') recordAnalytics(playerId, 'perfect_landing_earned', { source: airport.id }, now);
   sendToPlayer(playerId, { type: 'landingScored', airportId: airport.id, quality, grade, score: quality, credits: landingCredits });
   recordAnalytics(playerId, 'credits_earned', { amount: landingCredits, source: 'landing' }, now);

@@ -11,7 +11,7 @@ import { legalPolicyHref } from './brand';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
-export type PilotMenuSection = 'PROFILE' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
+export type PilotMenuSection = 'PROFILE' | 'ACCOUNT' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
 export type PilotMenuOptions = {
   sections?: readonly PilotMenuSection[];
   title?: string;
@@ -71,9 +71,18 @@ export type PilotMenuTerritory = {
 export type PilotMenuObjective = { label: string; progress: number; target: number; reward: number; completed: boolean };
 export type PilotMenuMission = { id: string; name: string; detail: string; difficulty: string; credits: number; score: number; completions: number; cooldownUntil: number; territoryIds: readonly string[]; retired?: boolean; unavailableReason?: string; progressText?: string; progress?: number; target?: number; setWaypoint?: () => void };
 export type PilotMenuAircraftProgress = { name: string; owned: boolean; premium: boolean; price: number; neededCredits: number };
-export type PilotMenuAccountResult = { ok: boolean; message: string };
+export type PilotMenuAccountResult = { ok: boolean; message: string; pilotName?: string };
+export type PilotProfileSummary = {
+  publicPilotId: string; lifetimeCreditsEarned: number;
+  singlePlayer: { missionsCompleted: number; missionsTotal: number; chaptersCompleted: number; chaptersTotal: number;
+    citiesCompleted: number; citiesTotal: number; overallProgress: number; totalScore: number;
+    aircraftOwned: number; aircraftTotal: number };
+  latestAchievements: readonly { key: string; title: string; description: string; category: 'MISSION'; earnedAt: number }[];
+  serverWeekStartsAt: number; serverNow: number;
+};
 
 export type PilotMenuData = {
+  profileSummary?: PilotProfileSummary;
   account: {
     state: 'guest' | 'account'; email?: string; pilotName: string;
     notice?: PilotMenuAccountResult;
@@ -212,6 +221,7 @@ export class PilotMenu {
   private lastScrollInteractionAt = 0;
   private pointerActive = false;
   private profileNameEditing = false;
+  private profileFeedback?: PilotMenuAccountResult;
   private advertisingOpen = false;
   private inviteOpen = false;
   private inviteNotice = '';
@@ -252,6 +262,7 @@ export class PilotMenu {
   private switchTo(name: PilotMenuSection): void {
     if (this.activeSection === name || !this.lastData) return;
     this.profileNameEditing = false;
+    this.profileFeedback = undefined;
     this.sectionHistory.push(this.activeSection);
     this.activeSection = name;
     this.onSectionViewed?.(name);
@@ -297,6 +308,7 @@ export class PilotMenu {
     this.openState = true;
     this.activeSection = section;
     this.profileNameEditing = false;
+    this.profileFeedback = undefined;
     this.lastSnapshot = '';
     this.element.hidden = false;
     const close = this.element.querySelector<HTMLButtonElement>('.pilot-menu-header-actions button');
@@ -331,7 +343,8 @@ export class PilotMenu {
 
   private snapshot(data: PilotMenuData): string {
     switch (this.activeSection) {
-      case 'PROFILE': return JSON.stringify([this.activeSection, data.account.state, data.account.email, data.account.providers, data.account.pilotName, data.account.level, data.account.xp, data.account.credits, data.account.score, data.account.ownedAircraft, data.account.badges, data.account.notice]);
+      case 'PROFILE': return JSON.stringify([this.activeSection, data.account.state, data.account.pilotName, data.account.level, data.account.xp, data.profileSummary, data.account.notice]);
+      case 'ACCOUNT': return JSON.stringify([this.activeSection, data.account.state, data.account.email, data.account.providers, data.account.notice]);
       case 'MISSIONS': return JSON.stringify([this.activeSection, data.missions.activeId,
         data.missions.activeCity, data.missions.entries.map(({ id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds }) =>
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
@@ -474,13 +487,17 @@ export class PilotMenu {
     const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
     if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
     const title = this.element.querySelector<HTMLElement>('[data-pilot-menu-title]');
-    if (title) title.textContent = this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection === 'GARAGE' ? 'AIRCRAFTS' : this.activeSection;
+    if (title) title.textContent = this.activeSection === 'PROFILE' ? 'PILOT PROFILE'
+      : this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(this.activeSection) ? 'SETTINGS'
+        : this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection === 'GARAGE' ? 'AIRCRAFTS' : this.activeSection;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
     content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');
     const authenticationScreen = this.activeSection === 'PROFILE' && data.account.state === 'guest';
     content.classList.toggle('pilot-menu-content-authentication', authenticationScreen);
     this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-authentication', authenticationScreen);
+    this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-pilot-profile', this.options.appShell === true && this.activeSection === 'PROFILE' && !authenticationScreen);
+    this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-hub-standalone', this.options.appShell === true && this.activeSection === 'REWARDS');
     for (const button of this.navigation?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
       const sectionName = button.dataset.section;
       button.hidden = sectionName === 'TERRITORIES' && !data.territories.enabled;
@@ -555,81 +572,123 @@ export class PilotMenu {
         const back = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer }); back.classList.add('pilot-auth-back');
         profile.append(providers, divider, guest, guestNote, message, legal, back);
       } else {
-        profile.append(textElement('p', 'Your pilot identity and account.', 'pilot-profile-intro'));
-
+        profile.classList.add('pilot-profile-panel');
         const pilot = data.progression.pilotProgress;
+        const summary = data.profileSummary;
         const levelStartXp = pilotXpForLevel(pilot.level);
         const levelRange = Math.max(1, pilot.nextLevelXp - levelStartXp);
         const levelProgress = pilot.level >= 50 ? levelRange : Math.max(0, Math.min(levelRange, pilot.xp - levelStartXp));
-        const identity = document.createElement('div'); identity.className = 'pilot-profile-identity';
-        const emblem = textElement('span', '✦', 'pilot-profile-emblem'); emblem.setAttribute('aria-hidden', 'true');
-        const identityCopy = document.createElement('div'); identityCopy.className = 'pilot-profile-identity-text';
-        identityCopy.append(
-          textElement('strong', account.pilotName),
-          textElement('span', account.email ?? 'SIGNED-IN PILOT'),
-          textElement('b', `LEVEL ${pilot.level} · ${pilot.title}`),
-        );
+        const identity = document.createElement('div'); identity.className = 'pilot-profile-hero';
+        const emblem = document.createElement('span'); emblem.className = 'pilot-profile-avatar'; emblem.setAttribute('aria-hidden', 'true');
+        emblem.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="23" fill="#0876b3" stroke="#e5b94d" stroke-width="2"/><circle cx="24" cy="19" r="7" fill="#f6fafb"/><path d="M9 39c2-10 9-14 15-14s13 4 15 14" fill="#f6fafb"/><path d="M17 30l7 9 7-9" fill="#173d69"/></svg>';
+        const identityCopy = document.createElement('div'); identityCopy.className = 'pilot-profile-identity-copy';
+        identityCopy.append(textElement('strong', account.pilotName), textElement('span', summary ? `PILOT ID  ${summary.publicPilotId}` : 'LOADING PILOT ID'), textElement('b', `LEVEL ${pilot.level}`));
         const xp = document.createElement('div'); xp.className = 'pilot-profile-xp';
         const xpBar = document.createElement('progress'); xpBar.max = levelRange; xpBar.value = levelProgress; xpBar.setAttribute('aria-label', `Level ${pilot.level} progress`);
-        xp.append(xpBar, textElement('span', `${pilot.xp.toLocaleString()} XP`));
-        identity.append(emblem, identityCopy, xp);
-        if (account.legendaryPilot) profile.append(textElement('p', '✦ LEGENDARY PILOT · AIRPORT CHAOS JOURNEY · 24/24', 'pilot-profile-intro'));
-
-        const stats = document.createElement('div'); stats.className = 'pilot-profile-stats';
-        for (const [label, value] of [
-          ['CREDITS', account.credits], ['SCORE', account.score], ['AIRCRAFT', account.ownedAircraft], ['BADGES', account.badges],
-        ] as const) {
-          const stat = document.createElement('div'); stat.className = 'pilot-profile-stat';
-          stat.append(textElement('strong', value.toLocaleString()), textElement('span', label));
-          stats.append(stat);
-        }
-
-        const accountPanel = document.createElement('div'); accountPanel.className = 'pilot-profile-account';
-        accountPanel.append(textElement('h3', 'ACCOUNT'));
-        const nameRow = document.createElement('div'); nameRow.className = 'pilot-profile-account-row';
-        const nameDetails = document.createElement('div');
-        nameDetails.append(textElement('span', 'PILOT NAME', 'pilot-profile-field-label'));
+        xp.append(xpBar, textElement('span', `${pilot.xp.toLocaleString()} / ${pilot.nextLevelXp.toLocaleString()} XP`));
+        identityCopy.append(xp);
+        const edit = document.createElement('div'); edit.className = 'pilot-profile-edit';
         if (this.profileNameEditing) {
-          const nameForm = document.createElement('form'); nameForm.className = 'pilot-profile-name-form';
-          const nameInput = document.createElement('input'); nameInput.name = 'pilotName'; nameInput.value = account.pilotName; nameInput.minLength = 3; nameInput.maxLength = 20; nameInput.required = true; nameInput.dataset.pilotNameEditor = ''; nameInput.setAttribute('autocomplete', 'nickname'); nameInput.setAttribute('aria-label', 'Pilot name');
+          const form = document.createElement('form'); form.className = 'pilot-profile-name-form';
+          const input = document.createElement('input'); input.name = 'pilotName'; input.value = account.pilotName;
+          input.minLength = 3; input.maxLength = 20; input.required = true; input.dataset.pilotNameEditor = '';
+          input.setAttribute('autocomplete', 'nickname'); input.setAttribute('aria-label', 'Pilot name');
           const cancel = actionButton({ label: 'CANCEL', run: () => { this.profileNameEditing = false; this.render(data, true); } });
           const save = actionButton({ label: 'SAVE', intent: 'primary', run: () => undefined }); save.type = 'submit';
-          const formActions = document.createElement('div'); formActions.className = 'pilot-profile-name-actions'; formActions.append(cancel, save);
-          nameForm.append(nameInput, formActions);
-          nameForm.addEventListener('submit', (event) => {
+          form.append(input, cancel, save);
+          form.addEventListener('submit', event => {
             event.preventDefault();
-            if (!nameInput.reportValidity()) return;
+            if (!input.reportValidity()) return;
             void (async () => {
-              const result = await run(save, () => account.changeName(nameInput.value), 'Saving…', 'Unable to update your pilot name. Please try again.');
+              const result = await run(save, () => account.changeName(input.value), 'Saving…', 'Unable to update your pilot name.');
               if (!result?.ok) return;
+              this.profileFeedback = result;
               this.profileNameEditing = false;
-              if (this.lastData) this.render(this.lastData, true);
+              const updatedName = result.pilotName ?? input.value.trim().replace(/\s+/g, ' ');
+              account.pilotName = updatedName;
+              identityCopy.querySelector('strong')!.textContent = updatedName;
+              edit.replaceChildren(actionButton({ label: 'EDIT NAME', run: () => {
+                this.profileFeedback = undefined; this.profileNameEditing = true; this.render(this.lastData ?? data, true);
+              } }));
             })();
           });
-          nameDetails.append(nameForm);
+          edit.append(form);
         } else {
-          nameDetails.append(textElement('strong', account.pilotName));
-          nameRow.append(nameDetails, actionButton({ label: 'EDIT NAME', run: () => { this.profileNameEditing = true; this.render(data, true); } }));
+          edit.append(actionButton({ label: 'EDIT NAME', run: () => { this.profileFeedback = undefined; this.profileNameEditing = true; this.render(data, true); } }));
         }
-        if (this.profileNameEditing) nameRow.append(nameDetails);
+        const lifetime = document.createElement('div'); lifetime.className = 'pilot-profile-lifetime';
+        const creditsIcon = document.createElement('img'); creditsIcon.src = '/media/hub/credits.avif'; creditsIcon.alt = '';
+        lifetime.append(creditsIcon, textElement('strong', summary ? summary.lifetimeCreditsEarned.toLocaleString() : 'LOADING'),
+          textElement('span', 'LIFETIME CREDITS EARNED'));
+        identity.append(emblem, identityCopy, edit, lifetime);
+        const feedback = this.profileFeedback ?? account.notice;
+        message.textContent = feedback?.message ?? ''; message.hidden = !feedback; message.classList.toggle('error', feedback?.ok === false);
+        profile.append(identity, message);
 
-        const emailRow = document.createElement('div'); emailRow.className = 'pilot-profile-account-row';
-        const emailDetails = document.createElement('div');
-        emailDetails.append(textElement('span', 'SIGN-IN ACCOUNT', 'pilot-profile-field-label'), textElement('strong', account.email ?? 'ACCOUNT'));
-        emailRow.append(emailDetails);
-        const logout = actionButton({ label: 'LOG OUT', intent: 'danger', run: () => void run(logout, account.logOut) });
-        logout.classList.add('pilot-profile-logout');
-        accountPanel.append(nameRow, emailRow, message, logout);
-        profile.append(identity, stats, accountPanel);
+        const statistics = document.createElement('section'); statistics.className = 'pilot-profile-section';
+        statistics.append(textElement('h2', 'PLAYER STATISTICS'));
+        if (summary) {
+          const values = summary.singlePlayer;
+          const stats = document.createElement('div'); stats.className = 'pilot-profile-stat-grid';
+          for (const [label, value] of [
+            ['OVERALL PROGRESS', `${values.overallProgress}%`],
+            ['MISSIONS COMPLETED', `${values.missionsCompleted} / ${values.missionsTotal}`],
+            ['CHAPTERS COMPLETED', `${values.chaptersCompleted} / ${values.chaptersTotal}`],
+            ['CITIES COMPLETED', `${values.citiesCompleted} / ${values.citiesTotal}`],
+            ['TOTAL SCORE', values.totalScore.toLocaleString()],
+            ['AIRCRAFT OWNED', `${values.aircraftOwned} / ${values.aircraftTotal}`],
+          ]) {
+            const stat = document.createElement('div'); stat.className = 'pilot-profile-stat-tile';
+            stat.append(textElement('strong', value), textElement('span', label)); stats.append(stat);
+          }
+          statistics.append(stats);
+        } else statistics.append(textElement('p', 'Loading player statistics…'));
+        profile.append(statistics);
+
+        const achievements = document.createElement('section'); achievements.className = 'pilot-profile-section';
+        achievements.append(textElement('h2', 'LATEST ACHIEVEMENTS'));
+        if (summary) {
+          if (summary.latestAchievements.length === 0) achievements.append(textElement('p', 'Complete missions to unlock achievements.'));
+          else {
+            const list = document.createElement('div'); list.className = 'pilot-profile-achievements';
+            for (const item of summary.latestAchievements.slice(0, 3)) {
+              const card = document.createElement('div'); card.className = 'pilot-profile-achievement';
+              const icon = textElement('span', '✦', 'pilot-profile-achievement-icon'); icon.setAttribute('aria-hidden', 'true');
+              const copy = document.createElement('div');
+              copy.append(textElement('strong', item.title), textElement('span', item.description));
+              const date = item.earnedAt >= summary.serverWeekStartsAt && item.earnedAt <= summary.serverNow
+                ? 'THIS WEEK' : new Date(item.earnedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+              copy.append(textElement('small', `MISSION · ${date}`));
+              card.append(icon, copy); list.append(card);
+            }
+            achievements.append(list);
+          }
+        } else achievements.append(textElement('p', 'Loading achievements…'));
+        profile.append(achievements);
       }
       content.append(profile);
-      if (data.nativeWebPromotion && account.state === 'account') {
-        const web = section('PLAY ON WEB');
-        web.classList.add('pilot-menu-web-promotion');
-        web.append(textElement('p', 'Continue flying from any computer.', 'pilot-menu-muted'),
-          externalLink('fly.vadensoftware.com', 'https://fly.vadensoftware.com'));
-        content.append(web);
-      }
+    }
+
+    if (this.activeSection === 'ACCOUNT') {
+      const account = section('ACCOUNT'); account.classList.add('pilot-settings-account');
+      const state = data.account;
+      if (state.state === 'account') {
+        const methods = [state.providers.password && 'Email', state.providers.google && 'Google', state.providers.apple && 'Apple'].filter(Boolean).join(', ');
+        account.append(textElement('span', 'SIGNED-IN EMAIL', 'pilot-profile-field-label'), textElement('strong', state.email ?? 'Email unavailable'),
+          textElement('span', 'SIGN-IN METHOD', 'pilot-profile-field-label'), textElement('strong', methods || 'Unavailable'));
+        const notice = textElement('p', '', 'pilot-account-message'); notice.setAttribute('role', 'status'); notice.setAttribute('aria-live', 'polite'); notice.hidden = true;
+        const logout = actionButton({ label: 'LOG OUT', intent: 'danger', run: () => {
+          if (logout.disabled) return;
+          logout.disabled = true;
+          void state.logOut().then(result => {
+            if (result.ok) this.close();
+            else { notice.textContent = result.message; notice.hidden = false; notice.classList.add('error'); }
+          })
+            .finally(() => { if (logout.isConnected) logout.disabled = false; });
+        } });
+        account.append(notice, logout);
+      } else account.append(textElement('p', 'Sign in from the Profile icon to manage your account.'));
+      content.append(account);
     }
 
     if (this.activeSection === 'MISSIONS') {
@@ -1204,6 +1263,7 @@ export class PilotMenu {
   }
 
   private backOrClose(): void {
+    if (this.options.appShell) { this.close(); return; }
     const previous = this.sectionHistory.pop();
     if (!previous || !this.lastData) {
       this.close();

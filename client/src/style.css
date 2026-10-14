@@ -4644,3 +4644,89 @@ body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
 
 .transport-arrival-alert{position:fixed;z-index:80;left:max(6vw,env(safe-area-inset-left));bottom:max(9vh,env(safe-area-inset-bottom));max-width:min(560px,86vw);padding:18px 24px;border-left:4px solid #ff5548;background:linear-gradient(90deg,rgba(40,7,12,.9),rgba(22,12,20,.55));color:#fff;pointer-events:none;text-shadow:0 2px 4px #000;font-family:inherit}
 .transport-arrival-alert span{display:block;color:#ffada0;font-size:12px;font-weight:800;letter-spacing:2px}.transport-arrival-alert strong{display:block;font-size:clamp(24px,4vw,42px);letter-spacing:2px;margin:6px 0}.transport-arrival-alert p{margin:4px 0;font-size:clamp(12px,1.5vw,17px)}
+/* Hub Pilot Profile: one compact game panel, independent of the in-flight menu. */
+.pilot-menu-card.is-pilot-profile {
+  display: grid; grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); gap: 0;
+  width: min(1000px, calc(100% - 12px)); height: auto;
+  max-height: calc(100dvh - var(--app-shell-header-total) - 20px);
+  padding: clamp(8px, 1.2vw, 14px); overflow: hidden;
+  color: #0b2345; border: 2px solid #60deed; border-radius: 16px;
+  background: linear-gradient(150deg, #fff, #f4f7f6 68%, #e9f3f5);
+  box-shadow: 0 14px 38px rgb(3 22 51 / 26%), 0 0 13px rgb(66 220 240 / 20%);
+  backdrop-filter: none;
+}
+.pilot-menu-card.is-pilot-profile > .pilot-menu-navigation { display: none; }
+.pilot-menu-card.is-hub-standalone > .pilot-menu-navigation { display: none; }
+.pilot-menu-card.is-pilot-profile > header { position: relative; display: flex; justify-content: center; min-height: 40px; padding: 0 0 7px; border-color: #c8dfe8; }
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-kicker { display: none; }
+.pilot-menu-card.is-pilot-profile > header h1 { display: block; margin: 0; color: #bd821b; font: 900 clamp(20px, 2.7vw, 34px)/1.1 var(--font-display); text-align: center; text-shadow: 0 1px #fff7d6; }
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions { position: absolute; left: 0; top: 0; }
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button { min-height: 40px; padding: 6px 12px; color: #f5f9fb; border: 1px solid #58d6e9; background: linear-gradient(#126cba, #0d3f85); }
+.pilot-menu-card.is-pilot-profile > .pilot-menu-content { display: grid; align-content: start; gap: 7px; overflow: auto; min-height: 0; padding: 0; scrollbar-width: none; }
+.pilot-menu-card.is-pilot-profile > .pilot-menu-content::-webkit-scrollbar { display: none; }
+.pilot-menu-card.is-pilot-profile .pilot-profile-panel { display: grid; gap: 7px; width: 100%; padding: 0; color: #0b2345; border: 0; background: transparent; }
+.pilot-menu-card.is-pilot-profile .pilot-profile-panel > h2 { display: none; }
+.pilot-profile-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(145px, .42fr); align-items: center; gap: 12px; min-height: 112px; padding: 10px 14px; border: 1px solid #c9dce7; border-radius: 9px; background: rgb(255 255 255 / 75%); }
+.pilot-profile-avatar { display: block; width: clamp(54px, 7vw, 76px); aspect-ratio: 1; }
+.pilot-profile-avatar svg { width: 100%; height: 100%; }
+.pilot-profile-identity-copy { display: grid; align-content: center; min-width: 0; gap: 2px; }
+.pilot-profile-identity-copy > strong { overflow: hidden; color: #0b2345; font: 850 clamp(16px, 2.4vw, 27px)/1.05 var(--font-display); text-overflow: ellipsis; white-space: nowrap; }
+.pilot-profile-identity-copy > span { color: #7089aa; font: 700 11px/1.1 var(--font-display); letter-spacing: .04em; }
+.pilot-profile-identity-copy > b { color: #a66a12; font: 800 clamp(12px, 1.4vw, 16px)/1.1 var(--font-display); }
+.pilot-menu-card.is-pilot-profile .pilot-profile-xp { grid-template-columns: minmax(0, 1fr) auto; max-width: 370px; gap: 7px; }
+.pilot-menu-card.is-pilot-profile .pilot-profile-xp progress { height: 9px; accent-color: #f2b63c; }
+.pilot-menu-card.is-pilot-profile .pilot-profile-xp span { color: #0b2345; font-size: 11px; }
+.pilot-profile-edit { align-self: center; }
+.pilot-menu-card.is-pilot-profile .pilot-profile-edit > button,
+.pilot-menu-card.is-pilot-profile .pilot-profile-name-form button { min-height: 44px; padding: 7px 12px; color: #fff; border: 1px solid #5ce4f5; background: linear-gradient(#178dce, #0b52a0); white-space: nowrap; }
+.pilot-profile-edit .pilot-profile-name-form { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.pilot-profile-edit .pilot-profile-name-form input { width: min(160px, 100%); min-height: 44px; }
+.pilot-profile-lifetime { display: grid; justify-items: center; align-content: center; gap: 2px; height: 100%; padding-left: 12px; border-left: 1px solid #c9dce7; text-align: center; }
+.pilot-profile-lifetime img { width: 51px; height: 43px; object-fit: contain; }
+.pilot-profile-lifetime strong { color: #092661; font: 850 clamp(19px, 2.5vw, 28px)/1 var(--font-display); }
+.pilot-profile-lifetime span { color: #557398; font: 750 10px/1.1 var(--font-display); letter-spacing: .04em; }
+.pilot-profile-section { min-width: 0; padding: 7px 10px 9px; border: 1px solid #cbdfe7; border-radius: 9px; background: rgb(255 255 255 / 78%); }
+.pilot-profile-section h2 { margin: 0 0 7px; color: #0b2345; font: 850 clamp(13px, 1.65vw, 19px)/1.1 var(--font-display); letter-spacing: .03em; }
+.pilot-profile-section p { color: #47617c; }
+.pilot-profile-stat-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.pilot-profile-stat-tile { display: grid; justify-items: center; align-content: center; min-width: 0; min-height: 58px; padding: 5px 3px; border: 1px solid #c9e0eb; border-radius: 7px; background: linear-gradient(#fff, #eaf4f7); text-align: center; }
+.pilot-profile-stat-tile strong { color: #092661; font: 850 clamp(15px, 1.8vw, 22px)/1 var(--font-display); white-space: nowrap; }
+.pilot-profile-stat-tile span { margin-top: 4px; color: #52718e; font: 700 clamp(8px, .9vw, 10px)/1.05 var(--font-display); }
+.pilot-profile-achievements { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.pilot-profile-achievement { display: flex; align-items: center; min-width: 0; gap: 8px; min-height: 62px; padding: 6px 8px; border: 1px solid #e8ce85; border-radius: 7px; background: linear-gradient(#fffefa, #f9f6eb); }
+.pilot-profile-achievement-icon { color: #c99322; font-size: 25px; line-height: 1; }
+.pilot-profile-achievement > div { display: grid; min-width: 0; gap: 2px; }
+.pilot-profile-achievement strong { color: #0b2345; font: 800 12px/1.1 var(--font-display); }
+.pilot-profile-achievement span { overflow: hidden; color: #536983; font: 500 11px/1.1 var(--font-body); text-overflow: ellipsis; white-space: nowrap; }
+.pilot-profile-achievement small { color: #ba831d; font: 750 10px/1.1 var(--font-display); }
+.pilot-menu-card.is-pilot-profile .pilot-account-message { min-height: 0; margin: 0 !important; padding: 2px 4px; color: #147451 !important; }
+.pilot-menu-card.is-pilot-profile .pilot-account-message.error { color: #a62138 !important; }
+.pilot-settings-account { display: grid; gap: 8px; max-width: 520px; margin-inline: auto; }
+.pilot-settings-account > strong { color: #f2f8ff; overflow-wrap: anywhere; }
+.pilot-settings-account > button { justify-self: start; min-height: 44px; }
+@media (max-width: 950px) and (orientation: landscape), (max-height: 520px) and (orientation: landscape) {
+  .pilot-menu-card.is-pilot-profile { max-height: calc(100dvh - var(--app-shell-header-total) - 8px); padding: 6px 9px; }
+  .pilot-menu-card.is-pilot-profile > header { min-height: 37px; padding-bottom: 4px; }
+  .pilot-menu-card.is-pilot-profile > header h1 { font-size: 21px; }
+  .pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button { min-height: 36px; font-size: 11px; }
+  .pilot-menu-card.is-pilot-profile .pilot-profile-panel { gap: 4px; }
+  .pilot-profile-hero { min-height: 76px; gap: 6px; padding: 5px 8px; grid-template-columns: auto minmax(0, 1fr) auto minmax(100px, .34fr); }
+  .pilot-profile-avatar { width: 52px; }
+  .pilot-profile-identity-copy > strong { font-size: 17px; }
+  .pilot-profile-identity-copy > span { font-size: 9px; }
+  .pilot-profile-identity-copy > b { font-size: 11px; }
+  .pilot-menu-card.is-pilot-profile .pilot-profile-xp span { font-size: 9px; }
+  .pilot-profile-lifetime img { width: 38px; height: 31px; }
+  .pilot-profile-lifetime strong { font-size: 17px; }
+  .pilot-profile-lifetime span { font-size: 8px; }
+  .pilot-profile-section { padding: 4px 6px; }
+  .pilot-profile-section h2 { margin-bottom: 3px; font-size: 12px; }
+  .pilot-profile-stat-grid, .pilot-profile-achievements { gap: 4px; }
+  .pilot-profile-stat-tile { min-height: 41px; padding: 3px 2px; }
+  .pilot-profile-stat-tile strong { font-size: 14px; }
+  .pilot-profile-stat-tile span { font-size: 7px; }
+  .pilot-profile-achievement { min-height: 47px; gap: 5px; padding: 4px; }
+  .pilot-profile-achievement-icon { font-size: 18px; }
+  .pilot-profile-achievement strong { font-size: 9px; }
+  .pilot-profile-achievement span, .pilot-profile-achievement small { font-size: 8px; }
+}

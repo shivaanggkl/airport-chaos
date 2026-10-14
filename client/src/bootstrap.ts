@@ -10,7 +10,7 @@ import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
 import { storeFeatured, storeItemState, type StoreItem, type StoreCategory } from './store-catalog';
-import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
+import { PilotMenu, type PilotMenuAccountResult, type PilotMenuData, type PilotMenuSection, type PilotProfileSummary } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
 import { loadAirportChaosLogo } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
@@ -233,6 +233,7 @@ type GarageIdentity = {
 };
 type RemoteGarageProfile = GarageProfile & {
   pilotId?: string; pilotName?: string; score?: number; skyTokens?: number;
+  profileSummary?: PilotProfileSummary;
   totalDistance?: number; successfulLandings?: number;
   discoveries?: Record<string, string[]>;
   legacyImportPending?: boolean; legendaryPilot?: boolean;
@@ -473,7 +474,9 @@ let timeSelectionReturnState: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELEC
 let hubMissionPreferredCity: CityDefinition['id'] | undefined;
 let garageOpenRequest = 0;
 function applyAuthoritativeHomeProfile(profile: RemoteGarageProfile): void {
-  authoritativeHomeProfile = profile;
+  const prior = authoritativeHomeProfile;
+  authoritativeHomeProfile = { ...profile,
+    profileSummary: profile.profileSummary ?? (profile.pilotId === prior?.pilotId ? prior?.profileSummary : undefined) };
   garageProfile = normalizeGarageProfile(profile);
   garageIdentity.pilotId = profile.pilotId ?? garageIdentity.pilotId;
   garageIdentity.displayName = profile.pilotName ?? garageIdentity.displayName;
@@ -840,7 +843,7 @@ const hubPilotMenu = new PilotMenu(pilotMenuOverlay, (section) => {
   if (section === 'REWARDS') recordProductIntent('rewards_viewed');
   if (section !== 'REWARDS') rewardedAdPollGeneration += 1;
 }, {
-  sections: ['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD / CITIES', 'LEGAL / SUPPORT', 'DATA LICENSES'],
+  sections: ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'],
   title: 'PILOT MENU',
   appShell: true,
   closeLabel: () => hubPilotMenuReturnState === 'CITY_SELECTION' ? 'BACK TO CITY SELECTION' : hubPilotMenuReturnState === 'MISSION_JOURNEY' ? 'BACK TO MISSIONS' : hubPilotMenuReturnState === 'STORE' ? 'BACK TO STORE' : 'BACK TO PILOT HUB',
@@ -931,6 +934,7 @@ function hubPilotMenuData(): PilotMenuData {
   const accountResult = (path: 'logout' | 'pilot-name', payload: Record<string, string> = {}) => hubAccountRequest(path, payload);
   return {
     nativeWebPromotion: nativePurchaseProvider !== undefined,
+    profileSummary: profile?.profileSummary,
     account: {
       state: hubAccount.state,
       email: hubAccount.email,
@@ -1041,7 +1045,7 @@ function hubPilotMenuData(): PilotMenuData {
   };
 }
 
-async function hubAccountRequest(path: 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<{ ok: boolean; message: string }> {
+async function hubAccountRequest(path: 'logout' | 'pilot-name', payload: Record<string, string> = {}): Promise<PilotMenuAccountResult> {
   try {
     const response = await apiFetch(apiUrl(`/api/auth/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const result = await response.json() as { error?: string; message?: string; account?: HubAccountStatus; profile?: RemoteGarageProfile };
@@ -1063,8 +1067,8 @@ async function hubAccountRequest(path: 'logout' | 'pilot-name', payload: Record<
       rewardedAdPollGeneration += 1;
       await clearNativeProviderState();
     }
-    hubPilotMenu.refresh(hubPilotMenuData(), true);
-    return { ok: true, message: result.message ?? 'ACCOUNT UPDATED' };
+    if (path !== 'pilot-name' || !hubPilotMenu.isSectionOpen('PROFILE')) hubPilotMenu.refresh(hubPilotMenuData(), true);
+    return { ok: true, message: result.message ?? 'ACCOUNT UPDATED', pilotName: result.profile?.pilotName };
   } catch { return { ok: false, message: 'ACCOUNT SERVICE UNAVAILABLE' }; }
 }
 
@@ -1095,6 +1099,7 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
       try { await refreshSkyTokenCatalog(); } catch { garage.setTokenStoreUnavailable(); }
       showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : undefined);
       hubPilotMenu.refresh(hubPilotMenuData(), true);
+      if (hubPilotMenu.isSectionOpen('PROFILE')) await refreshHubProfileSummary();
       resumePendingHubFly();
       const storeContext = pendingStoreContext();
       if (storeContext) {
@@ -1356,9 +1361,19 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (refresh) await refreshHubPilotData();
   if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
+  if (hubSection === 'PROFILE') await refreshHubProfileSummary();
 }
 
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
+async function refreshHubProfileSummary(): Promise<void> {
+  if (hubAccount.state !== 'account') return;
+  try {
+    const response = await apiFetch(apiUrl('/api/profile'), { cache: 'no-store' });
+    if (response.ok) applyAuthoritativeHomeProfile(await response.json() as RemoteGarageProfile);
+    if (hubPilotMenu.isSectionOpen('PROFILE')) hubPilotMenu.refresh(hubPilotMenuData(), true);
+  } catch { /* Keep the last authoritative values if offline. */ }
+}
+
   const previouslySelected = garageProfile.selectedAircraft;
   const url = apiUrl('/api/profile');
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
