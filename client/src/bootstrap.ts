@@ -1137,7 +1137,10 @@ async function refreshHubPilotData(): Promise<void> {
       hubAccount = result.account;
       refreshAppHeaderIdentity();
     }
-    if (result.profile) applyAuthoritativeHomeProfile(result.profile);
+    if (result.profile) {
+      applyAuthoritativeHomeProfile(result.profile);
+      if (garage.isOpen()) garage.updateProfile(garageProfile);
+    }
     if (Number.isFinite(result.serverNow)) hubServerNow = result.serverNow!;
     try { await refreshSkyTokenCatalog(); } catch { garage.setTokenStoreUnavailable(); }
     refreshAppHeaderIdentity();
@@ -1692,8 +1695,12 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSI
     garage.open(profile);
   } catch {
     if (entryState !== 'AIRCRAFT' || request !== garageOpenRequest) return;
-    garage.open(garageProfile);
-    garage.showActionResult('PROFILE UNAVAILABLE — SHOWING CACHED AIRCRAFT');
+    if (authoritativeHomeProfile) {
+      garage.open(garageProfile);
+      garage.showActionResult('SHOWING LAST SYNCED AIRCRAFT');
+    } else {
+      garage.showProfileUnavailable();
+    }
   }
 }
 
