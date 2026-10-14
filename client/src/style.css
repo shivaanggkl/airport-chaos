@@ -4360,7 +4360,8 @@ body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utiliti
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub :is(.app-shell-action:not(.app-shell-avatar), .app-shell-wallet .flight-header-credits) {
   position: relative;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 19px 15px;
+  grid-template-rows: var(--hub-art-size) 15px;
+  align-content: center;
   align-items: center;
   justify-items: center;
   justify-self: stretch;
@@ -4391,7 +4392,7 @@ body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action:
 }
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-action:not(.app-shell-avatar) > span,
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-profile-label {
-  grid-row: 3;
+  grid-row: 2;
   align-self: center;
   color: #f8fbff;
   font: 800 clamp(9px, .85vw, 12px)/1 var(--font-display);
@@ -4416,7 +4417,7 @@ body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet 
   white-space: nowrap;
 }
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet strong {
-  grid-row: 3;
+  grid-row: 2;
   align-self: center;
   max-width: 100%;
   font-size: clamp(15px, 1.55vw, 21px);
@@ -4427,7 +4428,7 @@ body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet 
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .flight-header-credits:has(.is-long-balance) { min-width: 0; }
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-token-add {
   position: absolute;
-  top: max(5px, calc((100% - 34px - var(--hub-art-size)) / 2));
+  top: max(5px, calc((100% - 15px - var(--hub-art-size)) / 2));
   left: calc(50% + var(--hub-art-size) / 2 + 2px);
   display: grid;
   width: calc(var(--hub-art-size) * .34);
@@ -4442,7 +4443,8 @@ body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-token-a
 }
 body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 19px 15px;
+  grid-template-rows: var(--hub-art-size) 15px;
+  align-content: center;
   justify-items: center;
   justify-self: stretch;
   width: 100%;
@@ -4481,10 +4483,10 @@ body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet 
   :root { --hub-header-total: calc(78px + var(--safe-area-top)); }
   body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub { --hub-art-size: clamp(36px, 4.8vw, 45px); }
   body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub :is(.app-shell-action:not(.app-shell-avatar), .app-shell-wallet .flight-header-credits),
-  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar { grid-template-rows: minmax(0, 1fr) 16px 12px; padding: 2px 1px 3px; }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar { grid-template-rows: var(--hub-art-size) 12px; padding: 2px 1px 3px; }
   body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet strong { font-size: 15px; }
   body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .is-long-balance { font-size: 9px; }
-  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-token-add { top: max(3px, calc((100% - 28px - var(--hub-art-size)) / 2)); }
+  body:has(.home-hangar:not([hidden])) .app-shell-header.is-hub .app-shell-token-add { top: max(3px, calc((100% - 12px - var(--hub-art-size)) / 2)); }
 }
 @media (orientation: portrait) {
   :root { --hub-header-total: calc(142px + var(--safe-area-top)); }
