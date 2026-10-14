@@ -47,21 +47,3 @@ export async function mountAirportChaosLogo(container: HTMLElement, className: s
   container.replaceChildren(image);
   container.classList.add('has-brand-logo');
 }
-
-export function mountCompactBrandFooter(container: HTMLElement): void {
-  const footer = document.createElement('div');
-  footer.className = 'intro-brand-footer';
-  const identity = document.createElement('span');
-  identity.textContent = `${gameBrand.gameName} • Built by ${gameBrand.studioName}`;
-  const links = document.createElement('nav');
-  links.setAttribute('aria-label', 'Legal and support');
-  for (const [label, href] of [['Terms', legalConfig.policyRoutes.terms], ['Privacy', legalConfig.policyRoutes.privacy], ['Refund', legalConfig.policyRoutes.refund], ['Support', legalConfig.policyRoutes.support]] as const) {
-    const link = document.createElement('a');
-    link.href = legalPolicyHref(href);
-    link.textContent = label;
-    link.target = '_blank'; link.rel = 'noopener noreferrer';
-    links.append(link);
-  }
-  footer.append(identity, links);
-  container.replaceChildren(footer);
-}

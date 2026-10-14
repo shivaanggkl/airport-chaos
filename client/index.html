@@ -47,11 +47,18 @@
     <main id="home-hangar" class="home-hangar" aria-label="Airport Chaos Pilot Hub" hidden>
       <div class="home-hangar-stage" data-home-hangar-stage aria-label="Equipped aircraft showcase"></div>
       <div class="home-hangar-aircraft-name" data-home-aircraft-name>BLUEJAY TRAINER</div>
-      <div class="home-hangar-contextual">
-        <button class="entry-button entry-button-primary home-hangar-fly" type="button" data-home-missions>MISSIONS</button>
-        <button class="entry-button entry-button-primary home-hangar-fly home-hangar-free-fly" type="button" data-home-free-fly>FREE FLY</button>
+      <div class="home-hangar-contextual" aria-label="Choose how to fly">
+        <button class="home-hangar-mode home-hangar-missions" type="button" data-home-missions>
+          <img src="/media/hub/mission-medal.png" alt="" aria-hidden="true" />
+          <span class="home-hangar-mode-copy"><strong>MISSIONS</strong><span>Save cities. Complete missions.</span><small>SINGLE PLAYER</small></span>
+          <span class="home-hangar-mode-arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="home-hangar-mode home-hangar-free-fly" type="button" data-home-free-fly>
+          <img src="/media/hub/free-fly-globe.png" alt="" aria-hidden="true" />
+          <span class="home-hangar-mode-copy"><strong>FREE FLY</strong><span>Explore cities. Fly with other players.</span><small>MULTIPLAYER</small></span>
+          <span class="home-hangar-mode-arrow" aria-hidden="true">›</span>
+        </button>
       </div>
-      <div id="home-brand-signature" class="home-brand-signature"></div>
     </main>
     <main id="game-store" class="game-store" aria-label="Airport Chaos Store" hidden></main>
     <main id="mission-journey" class="mission-journey" aria-label="Dallas Mission Journey" hidden></main>
