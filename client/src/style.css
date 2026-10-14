@@ -4634,3 +4634,10 @@ body:has(.app-shell-header:not([hidden]))::before {
   inset: -12px; pointer-events: none;
 }
 body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
+
+
+/* Mission 7's post-victory crash is presentation only. Exit stays available. */
+.transport-defeat-cinematic :is(#radar-panel, #acquisition-circle, #target-feedback, .journey-hud, .monster-boss-hud, .flight-hud-center, .flight-hud-right, #flight-menu-button, #touch-controls, #radar) { visibility: hidden !important; pointer-events: none !important; }
+
+.transport-arrival-alert{position:fixed;z-index:80;left:max(6vw,env(safe-area-inset-left));bottom:max(9vh,env(safe-area-inset-bottom));max-width:min(560px,86vw);padding:18px 24px;border-left:4px solid #ff5548;background:linear-gradient(90deg,rgba(40,7,12,.9),rgba(22,12,20,.55));color:#fff;pointer-events:none;text-shadow:0 2px 4px #000;font-family:inherit}
+.transport-arrival-alert span{display:block;color:#ffada0;font-size:12px;font-weight:800;letter-spacing:2px}.transport-arrival-alert strong{display:block;font-size:clamp(24px,4vw,42px);letter-spacing:2px;margin:6px 0}.transport-arrival-alert p{margin:4px 0;font-size:clamp(12px,1.5vw,17px)}

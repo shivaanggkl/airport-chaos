@@ -1,4 +1,6 @@
+import { TransportArrivalSequence } from './transport-arrival';
 import * as THREE from 'three';
+import { TransportDefeatSequence } from './transport-defeat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { transportTuning, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
 export type { TransportStateMessage } from '../../shared/giant-incoming.mjs';
@@ -11,6 +13,22 @@ export class GiantIncomingView {
     private state?: TransportStateMessage;
     private receivedAt = 0;
     private disposed = false;
+    private defeat?: TransportDefeatSequence;
+    private arrival?: TransportArrivalSequence;
+    private arrivalResolve?:()=>void;
+    get arrivalActive():boolean{return !!this.arrival;}
+    beginArrival():Promise<void>{
+        this.levels.forEach((level,index)=>{level.visible=index===0;});
+        this.arrival=new TransportArrivalSequence(this.root,this.terrain);
+        return new Promise(resolve=>{this.arrivalResolve=resolve;});
+    }
+    private resolveDefeat!: () => void;
+    readonly defeatFinished = new Promise<void>(resolve => { this.resolveDefeat = resolve; });
+    private defeatEnded = false;
+    onCrashImpact?: () => void;
+    get defeatActive(): boolean { return !!this.defeat && !this.defeatEnded; }
+    get defeatComplete(): boolean { return this.defeatEnded; }
+    updateDefeatCamera(camera:THREE.Camera,delta:number):void { if(this.arrival)this.arrival.frame(camera,delta);else this.defeat?.frame(camera,delta); }
     private elapsed = 0;
     private final?: 'defeat' | 'timeout';
     private finalAt = 0;
@@ -39,7 +57,7 @@ export class GiantIncomingView {
     onHit?: () => void;
     onWarning?: () => void;
     private wasWarning = false;
-    constructor(private scene: THREE.Scene) {
+    constructor(private scene: THREE.Scene, private readonly terrain:(x:number,z:number)=>number = ()=>0) {
         this.root.rotation.order = 'YXZ';
         this.root.name = 'mission-07-transport';
         this.root.scale.setScalar(transportTuning.scale);
@@ -79,9 +97,17 @@ export class GiantIncomingView {
             this.emit(state.hitPosition, 8, 30, .35);
         this.onHit?.();
     } }
-    finish(kind: 'defeat' | 'timeout') { if (this.final)
-        return; this.final = kind; this.finalAt = this.elapsed; this.tracers.forEach(t => t.visible = false); this.warning.visible = false; if (kind === 'defeat')
-        this.emit(this.position, 48, 110, 1.6); }
+    finish(kind: 'defeat' | 'timeout') {
+        if (this.final || this.disposed) return;
+        this.final=kind; this.finalAt=this.elapsed;
+        this.tracers.forEach(t=>t.visible=false);this.warning.visible=false;
+        if(kind==='defeat' && this.state && this.levels.length){
+            this.levels.forEach((level,index)=>{level.visible=index===0;});
+            this.root.visible=true;
+            this.defeat=new TransportDefeatSequence(this.scene,this.root,this.state.pose.velocity,this.terrain);
+            this.defeat.onImpact=()=>this.onCrashImpact?.();
+        }else if(kind==='defeat'){this.defeatEnded=true;this.resolveDefeat();}
+    }
     private emit(p: TransportPoint, count: number, speed: number, life: number, smoke = false) { for (let i = 0; i < count; i++) {
         const n = this.cursor++ % 96;
         this.positions[n * 3] = p.x;
@@ -98,12 +124,22 @@ export class GiantIncomingView {
         if (this.disposed)
             return;
         this.elapsed += delta;
-        if (this.final && this.elapsed - this.finalAt > 2) {
+        if(this.arrival){
+            this.arrival.update(delta);this.position.copy(this.root.position);
+            for(const fan of this.fans[0]??[])fan.rotation.z+=delta*8;
+            if(this.arrival.complete){this.arrival.dispose();this.arrival=undefined;this.root.visible=false;this.arrivalResolve?.();this.arrivalResolve=undefined;}
+            return;
+        }
+        if (this.final === 'timeout' && this.elapsed - this.finalAt > 2) {
             this.dispose();
             return;
         }
+        if(this.defeat){
+            this.defeat.update(delta);this.position.copy(this.root.position);
+            if(this.defeat.complete){this.defeatEnded=true;this.resolveDefeat();this.dispose();return;}
+        }
         const s = this.state;
-        if (s && this.levels.length && !this.disposed) {
+        if (s && this.levels.length && !this.disposed && !this.defeat) {
             this.root.visible = !this.final || this.elapsed - this.finalAt < 2;
             const ahead = Math.min(.15, (performance.now() - this.receivedAt) / 1000);
             this.position.set(s.pose.x + s.pose.velocity.x * ahead, s.pose.y, s.pose.z + s.pose.velocity.z * ahead);
@@ -132,10 +168,7 @@ export class GiantIncomingView {
                 const p = socket.getWorldPosition(new THREE.Vector3());
                 this.emit(p, 1, 7, 1.2, true);
             }
-            if (this.final === 'defeat') {
-                this.root.position.y -= Math.min(55, (this.elapsed - this.finalAt) ** 2 * 20);
-                this.root.rotation.z += delta * .2;
-            }
+
         }
         for (let i = 0; i < 96; i++) {
             if (this.life[i]! <= 0)
@@ -160,5 +193,6 @@ export class GiantIncomingView {
         }
     } }); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => { t.dispose(); (t.image as ImageBitmap)?.close?.(); }); this.root.clear(); }
     dispose() { if (this.disposed)
-        return; this.disposed = true; this.scene.remove(this.root, this.warning, this.particles, ...this.tracers); this.releaseModels(); this.tracerGeometry.dispose(); this.tracerMaterial.dispose(); this.warningGeometry.dispose(); this.warningMaterial.dispose(); this.particleGeometry.dispose(); this.particleMaterial.dispose(); }
+        return; this.disposed = true; this.arrival?.dispose();this.arrival=undefined;this.arrivalResolve?.();this.arrivalResolve=undefined;
+        this.defeat?.dispose(); this.defeatEnded=true; this.resolveDefeat(); this.scene.remove(this.root, this.warning, this.particles, ...this.tracers); this.releaseModels(); this.tracerGeometry.dispose(); this.tracerMaterial.dispose(); this.warningGeometry.dispose(); this.warningMaterial.dispose(); this.particleGeometry.dispose(); this.particleMaterial.dispose(); }
 }

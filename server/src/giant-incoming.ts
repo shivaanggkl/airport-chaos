@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { transportPose, transportTuning, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
+import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
 type Building = {
@@ -11,7 +11,7 @@ type Building = {
 };
 export function loadTransportBuildings(): Building[] {
     const dir = new URL('../../client/public/data/dallas/near/', import.meta.url), result: Building[] = [];
-    const first = transportPose(0), last = transportPose(150000), reach = COMBAT_RANGE + 150, minX = first.x - reach, maxX = last.x + reach, minZ = -7000 - reach, maxZ = 3000 + reach;
+    const first = transportPose(0), last = transportPose(transportTuning.durationMs), reach = COMBAT_RANGE + transportFootprintRadius, minX = first.x - reach, maxX = last.x + reach, minZ = Math.min(first.z,last.z) - reach, maxZ = Math.max(first.z,last.z) + reach;
     for (const name of readdirSync(dir)) {
         if (!name.endsWith('.json'))
             continue;
@@ -39,17 +39,25 @@ export function loadTransportBuildings(): Building[] {
 }
 export function transportAltitude(buildings: readonly Building[], terrain: (x: number, z: number) => number): number {
     let ceiling = 0;
-    for (let ms = 0; ms <= transportTuning.durationMs; ms += 100) {
-        const p = transportPose(ms);
-        for (const b of buildings)
-            if (b.maxX >= p.x - 140 && b.minX <= p.x + 140 && b.maxZ >= p.z - 140 && b.minZ <= p.z + 140)
-                ceiling = Math.max(ceiling, b.top);
-        for (const x of [-140, 0, 140])
-            for (const z of [-140, 0, 140])
-                ceiling = Math.max(ceiling, terrain(p.x + x, p.z + z));
+    const first = transportPose(0), last = transportPose(transportTuning.durationMs);
+    const dx = last.x-first.x, dz = last.z-first.z, lengthSquared = dx*dx+dz*dz;
+    // One conservative footprint/route check per mapped building, not a full
+    // building scan for every route sample.
+    for (const building of buildings) {
+        const x=(building.minX+building.maxX)/2, z=(building.minZ+building.maxZ)/2;
+        const t=Math.max(0,Math.min(1,((x-first.x)*dx+(z-first.z)*dz)/lengthSquared));
+        const radius=Math.hypot(building.maxX-building.minX,building.maxZ-building.minZ)/2;
+        if(Math.hypot(x-first.x-t*dx,z-first.z-t*dz)<=transportFootprintRadius+radius)
+            ceiling=Math.max(ceiling,building.top);
     }
-    // Lowest exported surface sits 17.7 below the asset root at scale four.
-    return Math.max(900, ceiling + 250 + 70);
+    for(let ms=0;ms<=transportTuning.durationMs;ms+=100){
+        const p=transportPose(ms);
+        for(const x of [-transportFootprintRadius,0,transportFootprintRadius])
+            for(const z of [-transportFootprintRadius,0,transportFootprintRadius])
+                ceiling=Math.max(ceiling,terrain(p.x+x,p.z+z));
+    }
+    return Math.max(900,ceiling+250+4.41283*transportTuning.scale);
+
 }
 const collisionData = (JSON.parse(readFileSync(new URL('../../shared/giant-transport-collision.json', import.meta.url), 'utf8')) as {
     triangles: number[][]; gunTriangles: number[];
@@ -78,7 +86,7 @@ const gunSurface=collisionData.gunTriangles.map(i=>triangles[i]!.map((v,axis)=>v
 const gunBounds=gunSurface.map(t=>({min:[0,1,2].map(a=>Math.min(t[a]!,t[a+3]!,t[a+6]!)),max:[0,1,2].map(a=>Math.max(t[a]!,t[a+3]!,t[a+6]!))}));
 const gunTree=tree(gunSurface.map((_,i)=>i),gunBounds);
 function gunLocal(p:Point,pose:TransportPose):number[]{const q=local(p,pose),x=q[0]!,y=q[1]!-4.699999809265137,z=q[2]!-18.600000381469727,c=Math.cos(pose.gunYaw??0),s=Math.sin(pose.gunYaw??0),gx=c*x-s*z,gz=s*x+c*z,cp=Math.cos(pose.gunPitch??0),sp=Math.sin(pose.gunPitch??0);return[gx,cp*y-sp*gz,sp*y+cp*gz];}
-function local(p: Point, pose: TransportPose): number[] { const x = p.x - pose.x, z = p.z - pose.z, c = Math.cos(pose.yaw), s = Math.sin(pose.yaw); const lx = c * x - s * z, ly = p.y - pose.y, r = pose.roll ?? 0, cr = Math.cos(r), sr = Math.sin(r); return [(cr * lx + sr * ly) / 4, (-sr * lx + cr * ly) / 4, (s * x + c * z) / 4]; }
+function local(p: Point, pose: TransportPose): number[] { const x = p.x - pose.x, z = p.z - pose.z, c = Math.cos(pose.yaw), s = Math.sin(pose.yaw); const lx = c * x - s * z, ly = p.y - pose.y, r = pose.roll ?? 0, cr = Math.cos(r), sr = Math.sin(r); return [(cr * lx + sr * ly) / transportTuning.scale, (-sr * lx + cr * ly) / transportTuning.scale, (s * x + c * z) / transportTuning.scale]; }
 const cross = (a: number[], b: number[]) => [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!];
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
 const sub = (a: number[], b: number[]) => a.map((v, i) => v - b[i]!);
@@ -160,7 +168,7 @@ export type TransportEncounter = {
 };
 export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number): TransportEncounter { return { attemptId, playerId, startedAt, altitude, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [] }; }
 export function transportMuzzle(p: TransportPose, yaw = 0, pitch = 0): Point {
-    const distance = 2.1299991607666016 * 4, x = Math.sin(yaw) * Math.cos(pitch) * distance, y = 18.799999237060547 + Math.sin(pitch) * distance, z = 74.4000015258789 + Math.cos(yaw) * Math.cos(pitch) * distance;
+    const distance = 2.1299991607666016 * transportTuning.scale, x = Math.sin(yaw) * Math.cos(pitch) * distance, y = 4.699999809265137 * transportTuning.scale + Math.sin(pitch) * distance, z = 18.600000381469727 * transportTuning.scale + Math.cos(yaw) * Math.cos(pitch) * distance;
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll), lx = cr * x - sr * y, ly = sr * x + cr * y, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
     return { x: p.x + c * lx + s * z, y: p.y + ly, z: p.z - s * lx + c * z };
 }

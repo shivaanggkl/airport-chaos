@@ -127,7 +127,7 @@ export const journeyDallas06 = Object.freeze({
 export const journeyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT INCOMING',
   chapter: 'SKY SIEGE', timeLimitMs: transportTuning.durationMs, firstClearCredits: 850,
-  startAirportId: 'addison', gates: Object.freeze([]), bossHealth: transportTuning.health,
+  startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 export const journeyDallas08 = Object.freeze({

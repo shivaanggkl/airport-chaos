@@ -1,3 +1,4 @@
+import { transportTuning } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
 import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
 import { PLAYER_STORAGE_KEY } from './player-storage';
@@ -2119,6 +2120,9 @@ let journeyGates: JourneyGateSystem | undefined;
 let monsterView: MonsterArrivalView | undefined;
 let transportView:GiantIncomingView|undefined;
 let transportViewAttemptId="";
+let pendingTransportResultId:string|null=null;
+let transportHidPlayer=false;
+let transportPlayerWasVisible=true;
 const monsterBossHud = document.createElement('div');
 monsterBossHud.className = 'monster-boss-hud hidden';
 monsterBossHud.innerHTML = '<strong>MONSTER</strong><div><i></i></div><span>100%</span>';
@@ -2612,7 +2616,7 @@ function updateJourneyHud(): void {
   }
   if(elevatorMission){
     if(journeyHudObjective)journeyHudObjective.textContent='Destroy the transport';
-    const left=journeyAttempt.deadlineAt===null?150:Math.max(0,Math.ceil((journeyAttempt.deadlineAt-Date.now()-journeyServerTimeOffset)/1000));
+    const left=journeyAttempt.deadlineAt===null?Math.ceil(journeyDallas07.timeLimitMs/1000):Math.max(0,Math.ceil((journeyAttempt.deadlineAt-Date.now()-journeyServerTimeOffset)/1000));
     if(journeyHudProgress)journeyHudProgress.textContent=`Escapes in: ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`;
     if(journeyHudTarget)journeyHudTarget.hidden=true;if(journeyHudTimer)journeyHudTimer.hidden=true;
     const percent=Math.max(0,Math.min(100,(journeyAttempt.targetHealth??2000)/20));
@@ -2891,6 +2895,17 @@ function updateJourneyHud(): void {
 
 function showJourneyResult(attempt: JourneyAttemptState): void {
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
+  if(attempt.missionId===journeyDallas07.id && attempt.status==='COMPLETED' && transportView && !transportView.defeatComplete){
+    const view=transportView;view.finish('defeat');
+    if(pendingTransportResultId===attempt.attemptId)return;
+    pendingTransportResultId=attempt.attemptId;clearHeldActions();boostActive=false;
+    view.defeatFinished.then(()=>{
+      if(pendingTransportResultId!==attempt.attemptId)return;
+      pendingTransportResultId=null;
+      if(transportView===view && journeyAttempt?.attemptId===attempt.attemptId && journeyAttempt.status==='COMPLETED')showJourneyResult(attempt);
+    });
+    return;
+  }
   const success = attempt.status === 'COMPLETED';
   const dfwMission = attempt.missionId === journeyDallas01.id;
   const lakeMission = attempt.missionId === journeyDallas02.id;
@@ -5092,6 +5107,8 @@ const neutralAim = { x: 0, y: 0 };
 let serverAimTargetId: string | null = null;
 let serverAimReceivedAt = -Infinity;
 const lockBoresightPoint = new THREE.Vector3();
+const transportReticleOrigin = new THREE.Vector3();
+const transportReticleDirection = new THREE.Vector3();
 const lockCircleEdgePoint = new THREE.Vector3();
 const lockCameraRight = new THREE.Vector3();
 const lockProjectedCenter = new THREE.Vector3();
@@ -7726,11 +7743,20 @@ function updateLockCircle(): void {
   camera.updateMatrixWorld(true);
   // Project aircraft-relative assisted aim, not viewport centre. The server
   // owns its bounded offset; camera orbit never changes weapon authority.
-  combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(airplane.quaternion);
-  // Project at target depth so close-range parallax does not leave the
-  // displayed reticle pointing beside the rendered aircraft.
-  const depth = selectedCombatTarget?.distance ?? COMBAT_RANGE;
-  lockBoresightPoint.copy(airplane.position).addScaledVector(combatAimForward, depth);
+  const transportTarget = journeyAttempt?.missionId === journeyDallas07.id && transportView?.hasState
+    ? transportView : undefined;
+  const origin = transportTarget ? transportReticleOrigin : airplane.position;
+  if (transportTarget) {
+    // Use exactly the socket and aim rotation used by sendFireIntent.
+    getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
+    combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
+  } else combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(airplane.quaternion);
+  // The private transport has no selectedCombatTarget entry. Project its aim
+  // ray at the visible airframe's depth, not the default 4.5 km range plane.
+  const depth = transportTarget
+    ? Math.max(1, transportReticleDirection.copy(transportTarget.position).sub(origin).dot(combatAimForward))
+    : selectedCombatTarget?.distance ?? COMBAT_RANGE;
+  lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
   lockProjectedCenter.copy(lockBoresightPoint).project(camera);
   lockCameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
   lockCameraRight.addScaledVector(combatAimForward, -lockCameraRight.dot(combatAimForward));
@@ -7738,7 +7764,7 @@ function updateLockCircle(): void {
   lockCameraRight.normalize();
   lockCircleEdgePoint.copy(combatAimForward).multiplyScalar(Math.cos(LOCK_ANGLE))
     .addScaledVector(lockCameraRight, Math.sin(LOCK_ANGLE)).normalize()
-    .multiplyScalar(depth).add(airplane.position);
+    .multiplyScalar(depth).add(origin);
   lockProjectedEdge.copy(lockCircleEdgePoint).project(camera);
   const projectedCenterX = (lockProjectedCenter.x * 0.5 + 0.5) * window.innerWidth;
   const projectedCenterY = (-lockProjectedCenter.y * 0.5 + 0.5) * window.innerHeight;
@@ -7752,8 +7778,9 @@ function updateLockCircle(): void {
     0.5,
     Math.max(0.5, (Math.min(window.innerWidth, window.innerHeight) - edgeMargin * 2) * 0.5),
   );
-  const centerX = THREE.MathUtils.clamp(projectedCenterX, edgeMargin + radius, window.innerWidth - edgeMargin - radius);
-  const centerY = THREE.MathUtils.clamp(projectedCenterY, edgeMargin + radius, window.innerHeight - edgeMargin - radius);
+  // Do not slide Mission 7's circle away from the actual bullet ray near edges.
+  const centerX = transportTarget ? projectedCenterX : THREE.MathUtils.clamp(projectedCenterX, edgeMargin + radius, window.innerWidth - edgeMargin - radius);
+  const centerY = transportTarget ? projectedCenterY : THREE.MathUtils.clamp(projectedCenterY, edgeMargin + radius, window.innerHeight - edgeMargin - radius);
   const diameter = radius * 2;
   // Keep angular validation on the true projected aim. Only the presentation
   // is edge-clamped when the expanded envelope reaches a small viewport.
@@ -8851,7 +8878,7 @@ function animate(): void {
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
-  if (!crashed && runStarted && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id) &&
+  if (!crashed && runStarted && !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
     // larger than 8m, including a thrust allowance. No extra render/network ticks.
@@ -8872,12 +8899,18 @@ function animate(): void {
   updateFlashEffects(muzzleFlashes, muzzleFlashPool, delta);
   updateFlashEffects(impactFlashes, impactFlashPool, delta);
   updateDestructionEffects(delta);
-  if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
-  else updateOsmCityChunks(airplane.position);
+  const streamingPosition=(transportView?.defeatActive || transportView?.arrivalActive) ? transportView.position : airplane.position;
+  if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(streamingPosition, velocity);
+  else updateOsmCityChunks(streamingPosition);
   cityWorld.updateWorldVisuals?.(delta, airplane.position);
   journeyGates?.update(delta);
   monsterView?.update(delta);
   transportView?.update(delta,camera);
+  flightGameRoot.classList.toggle('transport-defeat-cinematic',!!(transportView?.defeatActive || transportView?.arrivalActive));
+  if(transportView?.defeatActive || transportView?.arrivalActive){
+    if(!transportHidPlayer){transportPlayerWasVisible=airplane.visible;transportHidPlayer=true;}
+    airplane.visible=false;
+  }else if(transportHidPlayer){airplane.visible=transportPlayerWasVisible;transportHidPlayer=false;}
 
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
@@ -8905,6 +8938,7 @@ function animate(): void {
   updateEventVisual();
   cinematicDirector.update(performance.now());
   updateCamera(delta);
+  transportView?.updateDefeatCamera(camera,delta);
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
   updateLockCircle();
   syncAceObjective();
@@ -9506,6 +9540,8 @@ function requestFlightExit(openFirehawkGarage = false): void {
 async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = false): Promise<void> {
   if (flightExitPending) return;
   flightExitPending = true;
+  pendingTransportResultId=null;
+  flightGameRoot.classList.remove('transport-defeat-cinematic');
   championshipLandingIntentPending = undefined;
   const completedJourneyExit = returnToJourney && journeyMode && journeyAttempt?.status === 'COMPLETED';
   closeFlightDialog();
@@ -9693,7 +9729,7 @@ function createClientShotId(): string {
 }
 
 function sendFireIntent(): boolean {
-  if (!localPlayerId || localLifeState !== 'alive' || !connectionReady()) return false;
+  if (!localPlayerId || localLifeState !== 'alive' || !connectionReady() || transportView?.defeatActive || transportView?.arrivalActive) return false;
   updateCombatTarget(0);
   getCurrentMuzzleTransform(projectileOrigin, projectileDirection);
   projectileDirection.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
@@ -9788,7 +9824,7 @@ boundSocket.addEventListener('message', (event) => {
   if(message.type==='transportState'){
     if(message.attemptId===journeyAttemptId && journeyAttempt?.missionId===journeyDallas07.id){
       transportView?.setState(message);
-      missionObjective={id:`${journeyAttemptId}:transport`,label:'TRANSPORT',dock:monsterBossHud,position:transportView?.position??new THREE.Vector3(message.pose.x,message.pose.y,message.pose.z),radius:96};
+      missionObjective={id:`${journeyAttemptId}:transport`,label:'TRANSPORT',dock:monsterBossHud,position:transportView?.position??new THREE.Vector3(message.pose.x,message.pose.y,message.pose.z),radius:24*transportTuning.scale};
     }return;
   }
   if(message.type==='transportFinal'){if(message.attemptId===journeyAttemptId)transportView?.finish(message.kind);return;}
@@ -9801,9 +9837,9 @@ boundSocket.addEventListener('message', (event) => {
     journeyAttempt = message.attempt;
     if(message.attempt.missionId===journeyDallas07.id && ['APPROACH','RACING'].includes(message.attempt.status)){
       if(!transportView || transportViewAttemptId!==message.attempt.attemptId){
-        transportView?.dispose();const view=new GiantIncomingView(scene);transportView=view;transportViewAttemptId=message.attempt.attemptId;
-        view.onHit=()=>audioManager.playHitConfirm();view.onWarning=()=>audioManager.playTone(500,.25,'triangle',.08,300,0,'weapons');
-        view.ready.then(()=>{if(transportView===view&&journeyAttempt?.attemptId===message.attempt.attemptId&&connectionReady())socket.send(JSON.stringify({type:'transportReady',attemptId:message.attempt.attemptId}));}).catch(error=>{console.error('Transport asset loading failed',error);showProgressMessage('Transport could not load. Return to Journey and retry.');});
+        transportView?.dispose();const view=new GiantIncomingView(scene,getTerrainHeight);transportView=view;transportViewAttemptId=message.attempt.attemptId;
+        view.onCrashImpact=()=>audioManager.playDestroyConfirm();view.onHit=()=>audioManager.playHitConfirm();view.onWarning=()=>audioManager.playTone(500,.25,'triangle',.08,300,0,'weapons');
+        view.ready.then(async()=>{if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;if(journeyAttempt.status==='APPROACH'){clearHeldActions();boostActive=false;audioManager.playTone(440,.5,'triangle',.08,220,0,'impacts');await view.beginArrival();}if(transportView===view&&journeyAttempt?.attemptId===message.attempt.attemptId&&journeyAttempt.status==='APPROACH'&&connectionReady())socket.send(JSON.stringify({type:'transportReady',attemptId:message.attempt.attemptId}));}).catch(error=>{console.error('Transport asset loading failed',error);showProgressMessage('Transport could not load. Return to Journey and retry.');});
       }
     }else if(transportView && message.attempt.missionId!==journeyDallas07.id){transportView.dispose();transportView=undefined;transportViewAttemptId='';}
     if(message.attempt.missionId===journeyDallas07.id && ['COMPLETED','FAILED','ABANDONED'].includes(message.attempt.status))transportView?.finish(message.attempt.status==='COMPLETED'?'defeat':'timeout');
@@ -9890,7 +9926,7 @@ boundSocket.addEventListener('message', (event) => {
     journeyGates?.setProgress(message.attempt.gateIndex, (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) &&
       (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING') && message.attempt.phase !== 'LANDING' && (message.attempt.missionId !== journeyDallas24.id || message.attempt.legendaryPhase === 'GATES'));
     missionObjective = message.attempt.missionId === journeyDallas07.id && transportView?.hasState && (message.attempt.status==='APPROACH'||message.attempt.status==='RACING')
-      ? {id:`${journeyAttemptId}:transport`,label:'TRANSPORT',dock:monsterBossHud,position:transportView.position,radius:96}
+      ? {id:`${journeyAttemptId}:transport`,label:'TRANSPORT',dock:monsterBossHud,position:transportView.position,radius:24*transportTuning.scale}
       : message.attempt.missionId === journeyDallas24.id
       ? message.attempt.legendaryPhase === 'GATES' ? confirmedGateObjective(message.attempt, journeyDallas24.gates, getTerrainHeight)
         : message.attempt.legendaryPhase === 'LANDING' ? legendaryLandingObjective(message.attempt) : null

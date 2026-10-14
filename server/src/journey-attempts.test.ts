@@ -55,7 +55,7 @@ test('Downtown Slalom requires Mission 3 and rewards ten ordered race gates once
 });
 
 test('Giant Incoming owns its deadline, damage, first-clear ledger and historical unlocks', () => {
-  assert.equal(journeyDallas07.name,'GIANT INCOMING');assert.equal(journeyDallas07.timeLimitMs,150000);assert.equal(journeyDallas07.firstClearCredits,850);assert.equal(journeyDallas07.gates.length,0);
+  assert.equal(journeyDallas07.name,'GIANT INCOMING');assert.ok(journeyDallas07.timeLimitMs>150000);assert.equal(journeyDallas07.startAirportId,'dfw');assert.equal(journeyDallas07.firstClearCredits,850);assert.equal(journeyDallas07.gates.length,0);
   const directory=mkdtempSync(join(tmpdir(),'giant-journey-')),path=join(directory,'profiles.sqlite');
   const db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0),('other',0,0)");db.close();
   try{const store=new JourneyAttemptStore(path);assert.throws(()=>store.launch('pilot','trainer',1000,journeyDallas07.id),/locked/);
@@ -63,8 +63,8 @@ test('Giant Incoming owns its deadline, damage, first-clear ledger and historica
     const a=store.launch('pilot','trainer',1000,journeyDallas07.id);store.approach('pilot',a.attemptId,1100);assert.equal(store.get('pilot',a.attemptId)?.monsterHealth,2000);
     assert.equal(store.hitTransport('pilot',a.attemptId,1200),undefined);assert.equal(store.startGiantIncoming('other',a.attemptId,1200),undefined);
     assert.equal(store.acceptGate('pilot',a.attemptId,0,1200),undefined);
-    assert.equal(store.startGiantIncoming('pilot',a.attemptId,2000)?.deadlineAt,152000);assert.equal(store.startGiantIncoming('pilot',a.attemptId,2001),undefined);
-    assert.equal(store.hitMonster('pilot',a.attemptId,2200),undefined);assert.equal(store.hitTransport('other',a.attemptId,2200),undefined);assert.equal(store.hitTransport('pilot',a.attemptId,152000),undefined);
+    assert.equal(store.startGiantIncoming('pilot',a.attemptId,2000)?.deadlineAt,2000+journeyDallas07.timeLimitMs);assert.equal(store.startGiantIncoming('pilot',a.attemptId,2001),undefined);
+    assert.equal(store.hitMonster('pilot',a.attemptId,2200),undefined);assert.equal(store.hitTransport('other',a.attemptId,2200),undefined);assert.equal(store.hitTransport('pilot',a.attemptId,2000+journeyDallas07.timeLimitMs),undefined);
     for(let i=0;i<80;i++)store.hitTransport('pilot',a.attemptId,3000+i*1000);
     const result=store.get('pilot',a.attemptId)!;assert.equal(result.status,'COMPLETED');assert.equal(result.firstClearCredits,850);assert.equal(result.finishTimeMs,80000);assert.equal(store.hitTransport('pilot',a.attemptId,90000),undefined);
     assert.equal(store.launch('pilot','trainer',100000,'journey-dallas-08').missionId,'journey-dallas-08');

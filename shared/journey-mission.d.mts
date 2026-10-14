@@ -37,7 +37,7 @@ export const journeyDallas06: Readonly<{
 }>;
 export const journeyDallas07: Readonly<{
   id: 'journey-dallas-07'; cityId: 'dallas'; name: 'GIANT INCOMING'; chapter: 'SKY SIEGE';
-  timeLimitMs: 150000; firstClearCredits: 850; startAirportId: 'addison'; bossHealth: 2000;
+  timeLimitMs: number; firstClearCredits: 850; startAirportId: 'dfw'; bossHealth: 2000;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas08: Readonly<{

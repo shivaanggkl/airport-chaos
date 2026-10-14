@@ -24,8 +24,10 @@ export const transportTuning: Readonly<{
     pitchArc: number;
 }>;
 export const transportRouteLength: number;
+export const transportFootprintRadius: number;
+export const transportCourse: Readonly<{ start: {x:number;z:number}; whiteRock: {x:number;z:number}; end: {x:number;z:number}; exitX:number }>;
 export function transportPose(elapsedMs: number, altitude?: number): TransportPose;
-export function transportSpawn(altitude?: number): {
+export function transportSpawn(groundHeight?: number): {
     position: TransportPoint;
     heading: number;
     speed: number;

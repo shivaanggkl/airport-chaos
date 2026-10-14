@@ -1,4 +1,4 @@
-import {transportPose,transportSpawn,transportTuning} from '../../shared/giant-incoming.mjs';
+import {transportPose,transportTuning} from '../../shared/giant-incoming.mjs';
 import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
@@ -6747,8 +6747,7 @@ server.on('connection', (socket, request) => {
     : journeyAttempt?.missionId === journeyDallas08.id ? journeyDallas08.startAirportId
     : journeyAttempt?.missionId === journeyDallas07.id ? journeyDallas07.startAirportId
     : undefined;
-  const airborneSpawn = (journeyAttempt?.missionId===journeyDallas07.id && journeyAttempt.status==='APPROACH' ? transportSpawn(transportFlightAltitude) : undefined)
-    ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas01, dallasTerrain.elevationAt)
+  const airborneSpawn = authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas01, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas02, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas03, dallasTerrain.elevationAt)
     ?? authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas04, dallasTerrain.elevationAt)

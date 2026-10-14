@@ -1,41 +1,35 @@
 import { aircraftFlightEnvelope } from './aircraft-flight-envelope.mjs';
 import { throttleSpeedTarget } from './flight-control-rules.mjs';
-export const transportTuning = Object.freeze({ scale: 4, health: 2000, durationMs: 150000,
-    speed: .65 * throttleSpeedTarget(.5, aircraftFlightEnvelope.trainer),
+import { cityAirports, aircraftGroundOffset } from './city-airports.mjs';
+import { cityRegistry } from './city-registry.mjs';
+import { territoriesForCity } from './city-territories.mjs';
+const territories = territoriesForCity('dallas');
+const metroplex = territories.find(t => t.id === 'dfw');
+const whiteRock = territories.find(t => t.id === 'white-rock');
+const scale = 16;
+export const transportFootprintRadius = Math.hypot(24, 22) * scale;
+const start = Object.freeze({ x: metroplex.bounds.minX, z: metroplex.center.z });
+const dx = whiteRock.center.x - start.x, dz = whiteRock.center.z - start.z;
+const norm = Math.hypot(dx, dz);
+const exitX = cityRegistry.dallas.worldOrigin.x + cityRegistry.dallas.worldSize / 2;
+const end = Object.freeze({ x: exitX + transportFootprintRadius,
+    z: start.z + (exitX + transportFootprintRadius - start.x) * dz / dx });
+export const transportCourse = Object.freeze({ start, whiteRock: whiteRock.center, end, exitX });
+export const transportRouteLength = Math.hypot(end.x - start.x, end.z - start.z);
+const speed = .9 * .65 * throttleSpeedTarget(.5, aircraftFlightEnvelope.trainer);
+// Failure is tied to the complete airframe clearing Dallas, not the former fixed timer.
+export const transportTuning = Object.freeze({ scale, health: 2000,
+    durationMs: Math.ceil(transportRouteLength / speed * 1000), speed,
     separation: 1200, warningMs: 1000, burstIntervalMs: 6000, shotSpacingMs: 250,
     shotDamage: 10, yawArc: 70 * Math.PI / 180, pitchArc: 45 * Math.PI / 180 });
-// Arc-length table is built once. An eastward crossing with two broad scenic
-// bends avoids all four Dallas airport footprints and never reverses direction.
-const samples = 4096;
-const raw = t => ({ x: -20000 + 40000 * t, z: -2000 + 5000 * Math.sin(2 * Math.PI * t) });
-const points = Array.from({ length: samples + 1 }, (_, i) => raw(i / samples));
-const lengths = [0];
-for (let i = 1; i <= samples; i++)
-    lengths.push(lengths[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z));
-const routeScale = transportTuning.speed * transportTuning.durationMs / 1000 / lengths[samples];
-export const transportRouteLength = transportTuning.speed * transportTuning.durationMs / 1000;
 export function transportPose(elapsedMs, altitude = 900) {
-    const distance = Math.max(0, Math.min(1, elapsedMs / transportTuning.durationMs)) * lengths[samples];
-    let lo = 0, hi = samples;
-    while (lo + 1 < hi) {
-        const mid = (lo + hi) >> 1;
-        if (lengths[mid] < distance)
-            lo = mid;
-        else
-            hi = mid;
-    }
-    const blend = (distance - lengths[lo]) / (lengths[hi] - lengths[lo]);
-    const t = (lo + blend) / samples;
-    const p = raw(t), dx = 40000, dz = 10000 * Math.PI * Math.cos(2 * Math.PI * t);
-    const yaw = Math.atan2(-dx, -dz), norm = Math.hypot(dx, dz);
-    const yawRate = dx * 20000 * Math.PI * Math.PI * Math.sin(2 * Math.PI * t) / (norm * norm) * transportTuning.speed / (norm * routeScale);
-    return { x: p.x * routeScale, y: altitude, z: -2000 + (p.z + 2000) * routeScale, yaw, roll: -yawRate * 3,
-        velocity: { x: dx / norm * transportTuning.speed, y: 0, z: dz / norm * transportTuning.speed } };
+    const distance = Math.max(0, Math.min(transportRouteLength, elapsedMs / 1000 * speed));
+    return { x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,
+        yaw: Math.atan2(-dx, -dz), roll: 0,
+        velocity: { x: dx / norm * speed, y: 0, z: dz / norm * speed } };
 }
-export function transportSpawn(altitude = 900) {
-    const p = transportPose(0, altitude);
-    return {
-        position: { x: p.x - p.velocity.x / transportTuning.speed * transportTuning.separation, y: p.y, z: p.z - p.velocity.z / transportTuning.speed * transportTuning.separation },
-        heading: p.yaw, speed: throttleSpeedTarget(.5, aircraftFlightEnvelope.trainer)
-    };
+export function transportSpawn(groundHeight = 0) {
+    const airport = cityAirports.dallas.find(a => a.id === 'dfw');
+    return { position: { x: airport.x, y: groundHeight + aircraftGroundOffset, z: airport.z },
+        heading: airport.heading, speed: 0 };
 }
