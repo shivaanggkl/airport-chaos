@@ -6,6 +6,7 @@ import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './a
 import { HomeHangar, type HomeHangarData } from './home-hangar';
 import { LAUNCH_MODE_PARAM, type LaunchMode } from './launch-mode';
 import { AppShellHeader, type AppShellActive } from './app-shell';
+import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
 import { storeFeatured, storeItemState, type StoreItem, type StoreCategory } from './store-catalog';
@@ -305,13 +306,20 @@ let rewardedAdPollGeneration = 0;
 let hubFlyIntent = false;
 let hubFlyMode: CityJourneyMode = 'missions';
 let hubFlyGateActive = false;
+const hubInfoDialog = new HubInfoDialog();
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
+  advertise: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openAdvertise(trigger); },
+  friends: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openFriends(trigger); },
   store: () => { hapticsManager.emit('selection'); void openGameStore(); },
   garage: () => { hapticsManager.emit('selection'); void openStartGarage(entryState === 'STORE' || (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE') ? 'STORE' : missionJourneyReturnPending ? 'MISSION_JOURNEY' : 'HANGAR'); },
   rewards: () => { hapticsManager.emit('selection'); void openHubRewards(); },
   profile: () => { hapticsManager.emit('selection'); void openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending); },
-  skyTokens: () => { hapticsManager.emit('selection'); void openSkyTokenStore(); },
+  skyTokens: trigger => {
+    hapticsManager.emit('selection');
+    if (tokenStoreAvailable()) void openSkyTokenStore();
+    else hubInfoDialog.openSkyTokens(Math.max(0, authoritativeHomeProfile?.skyTokens ?? garageProfile.skyTokens ?? 0), trigger);
+  },
 });
 const skyTokenStore = new SkyTokenStore(async packId => {
   try {
@@ -403,6 +411,10 @@ async function openSkyTokenStore(missing = 0): Promise<void> {
   skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing, !skyTokenCommerceEnabled);
   if (nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
 }
+function tokenStoreAvailable(): boolean {
+  return hubAccount.state === 'account' && (skyTokenCommerceEnabled || stagingTokenStorePreview) && skyTokenOffers.length === Object.keys(skyTokenPacks).length;
+}
+
 function showAppHeader(active: AppShellActive): void {
   if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY') {
     appHeader.hide();
@@ -412,11 +424,12 @@ function showAppHeader(active: AppShellActive): void {
   appHeader.show({
     active,
     hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU' || entryState === 'STORE' || entryState === 'AIRCRAFT',
+    advertiseVisible: entryState === 'HANGAR',
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
     storeHasOffers: storeFeatured.some(item => storeItemState(item, garageProfile) === 'LOCKED'),
-    tokenStoreAvailable: hubAccount.state === 'account' && (skyTokenCommerceEnabled || stagingTokenStorePreview) && skyTokenOffers.length === Object.keys(skyTokenPacks).length,
+    tokenStoreAvailable: tokenStoreAvailable(),
     rewardsAvailable: homeData.rewardsAvailable,
     rewardsAvailableInMs: homeData.rewardsAvailableInMs,
     avatarUrl: hubAccount.avatarUrl,

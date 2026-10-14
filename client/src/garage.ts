@@ -33,7 +33,7 @@ export class AircraftGarage {
   private readonly ambientLight = new THREE.HemisphereLight(0xffe5c2, 0x23313a, 2.35);
   private readonly keyLight = new THREE.DirectionalLight(0xffd6a0, 3.05);
   private readonly rimLight = new THREE.DirectionalLight(0x8ddfff, 1.15);
-  private readonly showcaseWarmLight = new THREE.DirectionalLight(0xffb347, 1.05);
+  private readonly showcaseWarmLight = new THREE.DirectionalLight(0xffb347, 1.25);
   private readonly showcaseShadow = new THREE.Mesh(
     new THREE.CircleGeometry(1, 48),
     new THREE.MeshBasicMaterial({ color: 0x0b2235, transparent: true, opacity: 0.48, depthWrite: false }),
@@ -52,8 +52,8 @@ export class AircraftGarage {
   private readonly showcaseCameraDistance = 18;
   private readonly showcaseCameraYaw = Math.PI / 2;
   private readonly showcaseCameraPitch = THREE.MathUtils.degToRad(4);
-  private readonly showcaseAircraftYawOffset = THREE.MathUtils.degToRad(35);
-  private readonly showcaseCameraFocus = new THREE.Vector3(0, 1.5, 0);
+  private readonly showcaseAircraftYawOffset = THREE.MathUtils.degToRad(75);
+  private readonly showcaseCameraFocus = new THREE.Vector3(0, 2.5, 0);
   // Display order is Bluejay, Mammoth, Nightowl, Firehawk: the outer pair
   // sits forward at showroom scale while the inner pair recedes to the wall.
   private readonly showroomAircraftPlacements = [
@@ -650,7 +650,7 @@ export class AircraftGarage {
       this.showcaseSet.add(mesh);
     };
 
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x5186b9, roughness: 0.27, metalness: 0.3, emissive: steel, emissiveIntensity: 0.28 });
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x4478ac, roughness: 0.3, metalness: 0.28, emissive: steel, emissiveIntensity: 0.24 });
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x356a9a, roughness: 0.47, metalness: 0.36, emissive: steel, emissiveIntensity: 0.43 });
     const ceilingMaterial = new THREE.MeshStandardMaterial({ color: steel, roughness: 0.4, metalness: 0.55, emissive: graphiteBlue, emissiveIntensity: 0.42 });
     const floor = new THREE.Mesh(new THREE.BoxGeometry(32, 0.18, 32), floorMaterial);
@@ -684,6 +684,8 @@ export class AircraftGarage {
       reflectionContext.fillStyle = floorSheen; reflectionContext.fillRect(0, 0, 512, 512);
       reflectedGlow(250, 255, 182, 'rgba(53, 214, 255, 0.42)');
       reflectedGlow(212, 258, 94, 'rgba(246, 196, 69, 0.43)');
+      reflectedGlow(78, 258, 116, 'rgba(255, 179, 71, 0.3)');
+      reflectedGlow(440, 258, 116, 'rgba(255, 179, 71, 0.3)');
       reflectedGlow(332, 120, 102, 'rgba(142, 99, 255, 0.34)');
       reflectedGlow(332, 392, 102, 'rgba(142, 99, 255, 0.34)');
       reflectedGlow(410, 255, 180, 'rgba(111, 230, 255, 0.16)');
@@ -717,53 +719,16 @@ export class AircraftGarage {
       this.showcaseSet.add(floorReflections);
     }
 
-    // The side bays retain the same walls and frames, with a painted sunset
-    // visible through their rear openings as in the approved reference.
-    const vistaCanvas = document.createElement('canvas');
-    vistaCanvas.width = vistaCanvas.height = 512;
-    const vistaContext = vistaCanvas.getContext('2d');
-    if (vistaContext) {
-      const sky = vistaContext.createLinearGradient(0, 0, 0, 512);
-      sky.addColorStop(0, '#6385CC'); sky.addColorStop(0.42, '#E999B5');
-      sky.addColorStop(0.72, '#FFD17E'); sky.addColorStop(1, '#597AA0');
-      vistaContext.fillStyle = sky; vistaContext.fillRect(0, 0, 512, 512);
-      for (const [x, y, width] of [[20, 112, 122], [278, 170, 155], [64, 220, 90]] as const) {
-        const cloud = vistaContext.createLinearGradient(x, y, x + width, y + 16);
-        cloud.addColorStop(0, 'transparent'); cloud.addColorStop(0.5, 'rgba(255, 217, 174, 0.47)'); cloud.addColorStop(1, 'transparent');
-        vistaContext.fillStyle = cloud; vistaContext.fillRect(x, y, width, 16);
-      }
-      for (const [x, y, radius] of [[90, 292, 96], [364, 310, 140]] as const) {
-        const haze = vistaContext.createRadialGradient(x, y, 0, x, y, radius);
-        haze.addColorStop(0, 'rgba(255, 221, 156, 0.56)'); haze.addColorStop(1, 'transparent');
-        vistaContext.fillStyle = haze; vistaContext.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-      }
-      vistaContext.fillStyle = '#426486';
-      vistaContext.fillRect(0, 399, 512, 113);
-      for (const [x, width, height] of [[0, 34, 49], [41, 38, 69], [82, 35, 33], [120, 26, 81], [216, 48, 89], [270, 31, 54], [307, 45, 106], [357, 37, 71], [399, 35, 92], [440, 72, 46]] as const) {
-        vistaContext.fillRect(x, 399 - height, width, height);
-      }
-      // Reunion Tower's lit sphere makes the side vista read as Dallas.
-      vistaContext.fillRect(164, 280, 13, 120);
-      vistaContext.beginPath(); vistaContext.arc(170, 268, 30, 0, Math.PI * 2); vistaContext.fill();
-      vistaContext.strokeStyle = '#FFD879'; vistaContext.lineWidth = 4;
-      vistaContext.beginPath(); vistaContext.arc(170, 268, 26, 0, Math.PI * 2); vistaContext.stroke();
-      for (let y = 326; y < 395; y += 15) {
-        vistaContext.fillStyle = 'rgba(255, 207, 128, 0.55)';
-        for (let x = 47; x < 492; x += 13) if ((x + y) % 4) vistaContext.fillRect(x, y, 2, 3);
-      }
-      vistaContext.strokeStyle = '#FFD69A'; vistaContext.lineWidth = 7; vistaContext.strokeRect(8, 8, 496, 496);
-      const vistaTexture = new THREE.CanvasTexture(vistaCanvas);
-      vistaTexture.colorSpace = THREE.SRGBColorSpace; vistaTexture.generateMipmaps = false;
-      for (const side of [-1, 1]) {
-        for (const [x, width] of [[-13.75, 3.64], [0.7, 8.4]] as const) {
-          const vista = new THREE.Mesh(
-            new THREE.PlaneGeometry(width, 5.6),
-            new THREE.MeshBasicMaterial({ map: vistaTexture, side: THREE.DoubleSide, toneMapped: false }),
-          );
-          vista.position.set(x, 3.55, side * 15.44);
-          vista.rotation.y = side === -1 ? 0 : Math.PI;
-          this.showcaseSet.add(vista);
-        }
+    // One compressed painted Dallas vista is shared by the four existing side openings.
+    const vistaTexture = new THREE.TextureLoader().load('/media/hub/dallas-sunset.avif');
+    vistaTexture.colorSpace = THREE.SRGBColorSpace;
+    const vistaMaterial = new THREE.MeshBasicMaterial({ map: vistaTexture, side: THREE.DoubleSide, toneMapped: false });
+    for (const side of [-1, 1]) {
+      for (const [x, width] of [[-13.75, 3.64], [0.7, 8.4]] as const) {
+        const vista = new THREE.Mesh(new THREE.PlaneGeometry(width, 5.6), vistaMaterial);
+        vista.position.set(x, 3.55, side * 15.44);
+        vista.rotation.y = side === -1 ? 0 : Math.PI;
+        this.showcaseSet.add(vista);
       }
     }
 
@@ -1138,7 +1103,7 @@ export class AircraftGarage {
     if (active) {
       this.ambientLight.color.setHex(0xd9edff);
       this.ambientLight.groundColor.setHex(0x1e4d7a);
-      this.ambientLight.intensity = 2.05;
+      this.ambientLight.intensity = 1.85;
       this.keyLight.color.setHex(0xfff1da);
       this.keyLight.intensity = 3.45;
       this.keyLight.position.set(5, 9, 3);

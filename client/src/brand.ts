@@ -36,8 +36,15 @@ export function loadAirportChaosLogo(): Promise<HTMLImageElement | null> {
   return logoPromise;
 }
 
-export async function mountAirportChaosLogo(container: HTMLElement, className: string): Promise<void> {
-  const source = await loadAirportChaosLogo();
+export async function mountAirportChaosLogo(container: HTMLElement, className: string, preferredUrl?: string): Promise<void> {
+  const preferred = preferredUrl ? await new Promise<HTMLImageElement | null>(resolve => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = preferredUrl;
+  }) : null;
+  const source = preferred ?? await loadAirportChaosLogo();
   if (!source || !container.isConnected) return;
   const image = document.createElement('img');
   image.src = source.src;
