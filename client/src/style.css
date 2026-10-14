@@ -1049,7 +1049,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   .city-select-card .entry-page-title { font-size: clamp(21px, 3vw, 27px); }
   .city-select-card p { margin-top: 1px; font-size: 12px; }
   .city-journey {
-    --journey-card-width: min(62vw, 590px);
+    --journey-card-width: clamp(390px, 52vw, 500px);
     --journey-card-height: clamp(155px, calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 205px), 260px);
     --journey-side-offset: min(47vw, 420px);
     height: calc(var(--journey-card-height) + 32px);
