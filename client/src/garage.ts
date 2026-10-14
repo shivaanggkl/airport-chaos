@@ -1284,9 +1284,7 @@ export class AircraftGarage {
         towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
       );
     });
-    const wideShowcase = this.showcaseHost && this.camera.aspect > 2.55;
-    const showcaseDistanceScale = this.showcaseHost ? (wideShowcase ? 0.6 : 0.88) : 1;
-    this.defaultDistance = Math.max(1, framedDistance * (this.selected === 'fighter' ? 0.9 : 1) * showcaseDistanceScale);
+    this.defaultDistance = Math.max(1, framedDistance * (!this.showcaseHost && this.selected === 'fighter' ? 0.9 : 1));
     if (this.showcaseHost) {
       // Fit the full orbit once so the Hub aircraft never changes size as it turns.
       for (const tilt of [-0.28, 0, 0.28]) {
@@ -1294,8 +1292,6 @@ export class AircraftGarage {
           this.defaultDistance = Math.max(this.defaultDistance, this.showcaseFitDistance(step * Math.PI / 36, tilt));
         }
       }
-      // Keep the fixed-orbit framing while using the extra width on landscape screens.
-      this.defaultDistance *= this.camera.aspect > 2.55 ? 0.68 : this.camera.aspect > 1.3 ? 0.8 : 0.86;
     }
     if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
     else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
