@@ -10,8 +10,10 @@ export type AppShellHeaderData = {
   credits: number;
   skyTokens: number;
   storeHasOffers: boolean;
+  storeAttention?: boolean | number;
   tokenStoreAvailable?: boolean;
   rewardsAvailable: boolean;
+  rewardsCount?: number;
   rewardsAvailableInMs?: number;
   avatarUrl?: string;
 };
@@ -45,6 +47,7 @@ export class AppShellHeader {
   readonly aircraftPreviewHost = document.createElement('div');
   private readonly garage: HTMLButtonElement;
   private readonly store: HTMLButtonElement;
+  private readonly storeIndicator: HTMLElement;
   private readonly rewards: HTMLButtonElement;
   private readonly rewardsIndicator: HTMLElement;
   private readonly avatar: HTMLButtonElement;
@@ -83,7 +86,8 @@ export class AppShellHeader {
     this.store.type = 'button';
     this.store.className = 'flight-header-control app-shell-action app-shell-store';
     this.store.setAttribute('aria-label', 'Store');
-    this.store.innerHTML = `${storeIcon}<span>STORE</span>`;
+    this.store.innerHTML = `<div class="app-shell-badge-art">${storeIcon}<i class="app-shell-notification-badge" data-store-indicator aria-hidden="true" hidden></i></div><span>STORE</span>`;
+    this.storeIndicator = this.store.querySelector('[data-store-indicator]')!;
     this.store.addEventListener('click', handlers.store);
 
     this.garage = document.createElement('button');
@@ -100,14 +104,8 @@ export class AppShellHeader {
     this.rewards.type = 'button';
     this.rewards.className = 'flight-header-control app-shell-action app-shell-rewards';
     this.rewards.setAttribute('aria-label', 'Rewards');
-    this.rewards.innerHTML = `${rewardsIcon}<span>REWARDS</span>`;
-    this.rewardsIndicator = document.createElement('i');
-    this.rewardsIndicator.dataset.rewardsIndicator = '';
-    this.rewardsIndicator.setAttribute('role', 'status');
-    this.rewardsIndicator.setAttribute('aria-label', 'Daily Reward available');
-    this.rewardsIndicator.textContent = '';
-    this.rewardsIndicator.hidden = true;
-    this.rewards.append(this.rewardsIndicator);
+    this.rewards.innerHTML = `<div class="app-shell-badge-art">${rewardsIcon}<i class="app-shell-notification-badge" data-rewards-indicator aria-hidden="true" hidden></i></div><span>REWARDS</span>`;
+    this.rewardsIndicator = this.rewards.querySelector('[data-rewards-indicator]')!;
     this.rewards.addEventListener('click', handlers.rewards);
 
     const wallet = document.createElement('span');
@@ -166,6 +164,10 @@ export class AppShellHeader {
 
     utilities.append(this.store, this.garage, this.rewards, this.avatar);
     this.element.replaceChildren(brand, this.advertise, this.friends, wallet, utilities);
+    this.element.classList.toggle('is-page-hidden', document.hidden);
+    document.addEventListener('visibilitychange', () => {
+      this.element.classList.toggle('is-page-hidden', document.hidden);
+    });
   }
 
   show(data: AppShellHeaderData): void {
@@ -173,7 +175,8 @@ export class AppShellHeader {
     this.tokenCard.disabled = false;
     this.tokenAdd.hidden = false;
     this.tokenCard.dataset.storeAvailable = String(Boolean(data.tokenStoreAvailable));
-    this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs);
+    this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs, data.rewardsCount);
+    this.setBadge(this.store, this.storeIndicator, data.storeAttention, 'Store');
     this.element.classList.toggle('is-hub', data.hubActions);
     this.store.classList.toggle('has-offers', data.storeHasOffers);
     this.store.hidden = !data.hubActions && data.active !== 'STORE';
@@ -210,19 +213,29 @@ export class AppShellHeader {
     this.avatarImage.src = avatarUrl;
   }
 
-  updateRewards(available: boolean, availableInMs?: number): void {
-    this.rewardsIndicator.hidden = !available;
+  updateRewards(available: boolean, availableInMs?: number, count?: number): void {
+    this.setBadge(this.rewards, this.rewardsIndicator, available ? count ?? 1 : false, 'Rewards');
     if (this.rewardTimer !== undefined) window.clearTimeout(this.rewardTimer);
     this.rewardTimer = undefined;
     if (!available && availableInMs && availableInMs > 0) {
       this.rewardTimer = window.setTimeout(() => {
-        this.rewardsIndicator.hidden = false;
+        this.setBadge(this.rewards, this.rewardsIndicator, count ?? 1, 'Rewards');
       }, availableInMs);
     }
   }
 
   hide(): void {
     this.element.hidden = true;
+  }
+
+  private setBadge(control: HTMLButtonElement, badge: HTMLElement, attention: boolean | number | undefined, label: 'Store' | 'Rewards'): void {
+    const visible = typeof attention === 'number' ? Number.isInteger(attention) && attention > 0 : attention === true;
+    const text = typeof attention === 'number' ? attention > 99 ? '99+' : String(attention) : label === 'Rewards' ? '1' : '!';
+    badge.hidden = !visible;
+    badge.textContent = visible ? text : '';
+    badge.classList.toggle('is-wide', text === '99+');
+    control.querySelector('.app-shell-badge-art')?.classList.toggle('has-badge', visible);
+    control.setAttribute('aria-label', visible ? `${label}, ${text === '!' ? 'attention available' : `${text} available`}` : label);
   }
 
   private setActive(control: HTMLButtonElement, active: boolean): void {
