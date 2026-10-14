@@ -424,7 +424,7 @@ function showAppHeader(active: AppShellActive): void {
   appHeader.show({
     active,
     hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU' || entryState === 'STORE' || entryState === 'AIRCRAFT',
-    advertiseVisible: entryState === 'HANGAR',
+    advertiseVisible: true,
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     skyTokens: Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
@@ -1349,12 +1349,12 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   if (garage.isOpen()) garage.close();
   homeHangar.hide();
   gameStore.hide();
-  garage.hideShowcase();
   citySelector.hidden = true;
   missionJourney.hide();
   showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (refresh) await refreshHubPilotData();
+  if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
 }
 
 const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
@@ -1509,7 +1509,8 @@ async function openGameStore(recordOpen = true): Promise<void> {
   }
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
-  homeHangar.hide(); garage.hideShowcase(); citySelector.hidden = true; missionJourney.hide();
+  homeHangar.hide(); citySelector.hidden = true; missionJourney.hide();
+  void garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
   showAppHeader('STORE');
   gameStore.setBackLabel(missionJourneyReturnPending ? 'BACK TO MISSIONS' : 'BACK TO HUB');
   if (recordOpen || !wasOpen) gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
@@ -1697,7 +1698,8 @@ function showHome(): Promise<void> {
   missionJourney.hide();
   homeHangar.show(homeHangarData());
   showAppHeader(undefined);
-  return garage.showcase(homeHangar.stage, garageProfile);
+  appHeader.aircraftPreviewHost.title = homeHangarData().aircraftName;
+  return garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
 }
 
 function closeCityHelp(restoreFocus = false): void {

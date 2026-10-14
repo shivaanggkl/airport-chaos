@@ -82,7 +82,7 @@ test('Pilot Hub reuses the Garage renderer, selected-aircraft loader, and cached
   assert.match(garage, /showcase\(host: HTMLElement, profile: GarageProfile\): Promise<void>[\s\S]*host\.prepend\(this\.renderer\.domElement\)/);
   assert.match(garage, /this\.selected = this\.profile\.selectedAircraft;[\s\S]*this\.loadPreview\(\)/);
   assert.match(garage, /attachAircraftAsset\(plane, fallback, this\.selected/);
-  assert.match(bootstrap, /return garage\.showcase\(homeHangar\.stage, garageProfile\)/);
+  assert.match(bootstrap, /return garage\.showcase\(appHeader\.aircraftPreviewHost, garageProfile\)/);
   assert.match(bootstrap, /aircraftName: aircraftDisplayName\(garageProfile\.selectedAircraft\)/);
 });
 
@@ -106,65 +106,23 @@ test('flight entry keeps the city visible until gameplay is ready and the launch
   assert.match(game, /skyTokens = profile\.skyTokens \?\? 0;/);
 });
 
-test('Pilot Hub is one connected Three.js garage with aircraft-only presentation controls', () => {
-  const html = read('client/index.html');
+test('Pilot Hub keeps the center empty and reuses one selected-aircraft header renderer', () => {
   const garage = read('client/src/garage.ts');
+  const bootstrap = read('client/src/bootstrap.ts');
   const css = read('client/src/style.css');
-  const dallasSkyline = read('client/src/dallas-skyline.ts');
-  assert.doesNotMatch(html, /home-hangar-environment|tech-garage-/);
-  assert.doesNotMatch(css, /home-hangar-environment|tech-garage-/);
-  assert.match(garage, /this\.scene\.add\(this\.ambientLight, this\.keyLight, this\.rimLight, this\.showcaseWarmLight, this\.showcaseSet, this\.aircraftPresentation\)/);
-  assert.match(garage, /this\.aircraftPresentation\.add\(this\.preview, this\.showcaseShadowOuter, this\.showcaseShadowMid, this\.showcaseShadow\)/);
-  assert.match(garage, /showcaseShadow = new THREE\.Mesh/);
-  assert.match(garage, /showcaseShadowMid = new THREE\.Mesh/);
-  assert.match(garage, /showcaseShadowOuter = new THREE\.Mesh/);
-  assert.match(garage, /new THREE\.BoxGeometry\(32, 0\.18, 32\)/);
-  assert.match(garage, /new THREE\.BoxGeometry\(0\.34, 7\.3, 32\)/);
-  assert.match(garage, /new THREE\.BoxGeometry\(32, 7\.3, 0\.34\)/);
-  assert.match(garage, /const rightWall = leftWall\.clone\(\); rightWall\.position\.z = 15\.84/);
-  assert.match(garage, /new THREE\.BoxGeometry\(32, 0\.34, 32\)/);
-  assert.match(garage, /this\.showcaseSet\.add\(floor, backWall, leftWall, rightWall, ceiling\)/);
-  assert.match(garage, /new THREE\.CylinderGeometry\(5\.15, 5\.3, 0\.12, 64\)/);
-  assert.equal((garage.match(/new THREE\.RingGeometry/g) ?? []).length, 4);
-  assert.match(garage, /const floorGuides = new THREE\.InstancedMesh\(panelGeometry, this\.garageGuideMaterial, 8\)/);
-  assert.match(garage, /const backPanelFrames = new THREE\.InstancedMesh[\s\S]*const backPanelInsets = new THREE\.InstancedMesh[\s\S]*const backPanelSeams = new THREE\.InstancedMesh/);
-  assert.match(garage, /displayCanvas\.width = 384; displayCanvas\.height = 160[\s\S]*const techDisplays = new THREE\.InstancedMesh[\s\S]*,\s*4,\s*\)/);
-  assert.match(garage, /showroomAircraftPlacements = \[[\s\S]*x: -2\.0, z: 11\.0[\s\S]*scale: 1\.18[\s\S]*x: -13\.2, z: 8\.8[\s\S]*scale: 0\.96[\s\S]*x: -13\.2, z: -8\.8[\s\S]*scale: 0\.96[\s\S]*x: -2\.0, z: -11\.0[\s\S]*scale: 1\.18/);
-  assert.match(garage, /const showroomPads = new THREE\.InstancedMesh[\s\S]*const showroomRings = new THREE\.InstancedMesh/);
-  assert.doesNotMatch(garage, /suitPositions|suitBay|suitTorso|suitHelmet|suitLimb|mannequin|armor/i);
-  assert.match(garage, /const sideFrames = new THREE\.InstancedMesh[\s\S]*,\s*8,\s*\)/);
-  assert.match(garage, /const verticalServiceLights = new THREE\.InstancedMesh[\s\S]*,\s*8,\s*\)/);
-  assert.match(garage, /const ceilingRibs = new THREE\.InstancedMesh[\s\S]*const ceilingEdges = new THREE\.InstancedMesh/);
-  assert.match(garage, /const ceilingLights = new THREE\.InstancedMesh[\s\S]*,\s*4,\s*\)/);
-  assert.equal((garage.match(/new THREE\.TorusGeometry/g) ?? []).length, 5);
-  assert.match(garage, /const ceilingRingHousing = new THREE\.Mesh[\s\S]*const ceilingRing = new THREE\.Mesh[\s\S]*const ceilingInnerRing = new THREE\.Mesh/);
-  assert.match(garage, /signCanvas\.width = 512; signCanvas\.height = 128[\s\S]*fillText\('AIRPORT CHAOS'/);
-  assert.match(garage, /showcaseCameraYaw = Math\.PI \/ 2/);
-  assert.match(garage, /showcaseCameraPitch = THREE\.MathUtils\.degToRad\(4\)/);
-  assert.match(garage, /showcaseAircraftYawOffset = THREE\.MathUtils\.degToRad\(75\)/);
-  assert.match(garage, /new THREE\.TextureLoader\(\)\.load\('\/media\/hub\/dallas-sunset\.avif'\)/);
-  assert.match(garage, /this\.targetOrbitYaw = this\.showcaseHost \? this\.showcaseCameraYaw \+ this\.showcaseAircraftYawOffset : 1\.98;[\s\S]*this\.targetOrbitPitch = -0\.01/);
-  assert.match(garage, /this\.showcaseWarmLight\.visible = active;[\s\S]*this\.ambientLight\.color\.setHex\(0xd9edff\)[\s\S]*this\.keyLight\.intensity = 3\.45[\s\S]*this\.rimLight\.color\.setHex\(0x6fe6ff\)/);
-  assert.match(garage, /this\.backgroundAircraftSet\.children\.length === 4/);
-  assert.match(garage, /const backgroundTypes = aircraftDisplayOrder\.filter\(\(type\): type is AircraftType => aircraftDefinitions\[type\] !== undefined\)/);
-  assert.match(garage, /plane\.userData\.equippedCosmetics = \{ \[`livery:\$\{type\}`\]: alternative\?\.id \?\? fallbackLiveryIds\[type\] \}/);
-  assert.match(garage, /garage-background-aircraft-\$\{type\}[\s\S]*attachAircraftAsset\([\s\S]*definition\.bodyLength \+ definition\.noseLength[\s\S]*definition\.wingSpan/);
-  assert.match(garage, /this\.setShowcaseCamera\(\);[\s\S]*return;/);
-  assert.match(garage, /this\.aircraftPresentation\.scale\.setScalar\(presentationScale\)[\s\S]*this\.preview\.rotation\.y = this\.showcaseCameraYaw - this\.orbitYaw/);
-  assert.doesNotMatch(garage, /if \(this\.showcaseHost\)[\s\S]{0,300}this\.camera\.position\.set/);
-  assert.match(css, /\.home-hangar \{[\s\S]*background: radial-gradient\([^;]*linear-gradient\([^;]*var\(--ac-bg-deep\)/);
-  assert.match(css, /\.app-shell-brand\.has-brand-logo::after \{[^}]*linear-gradient/);
-  assert.match(css, /\.app-shell-logo \{[^}]*object-fit: cover/);
-  assert.doesNotMatch(`${html}\n${garage}\n${css}`, /skydeck-|createDallasStaticBackground|dallas-static-background/);
-  assert.doesNotMatch(dallasSkyline, /createDallasStaticBackground|dallas-static-background/);
-  assert.doesNotMatch(garage, /DallasChunkStreamer|generateDallasSkyline|dallas-world|showcaseGrid|cartPlacements|mechanicalDetails/);
+  assert.doesNotMatch(garage, /this\.buildShowcaseSet\(\)/);
+  assert.equal((garage.match(/new THREE\.WebGLRenderer/g) ?? []).length, 1);
+  assert.match(bootstrap, /garage\.showcase\(appHeader\.aircraftPreviewHost, garageProfile\)/);
+  assert.match(css, /\.home-hangar-stage, \.home-hangar-aircraft-name \{ display: none/);
+  assert.match(garage, /this\.selected = this\.profile\.selectedAircraft/);
+  assert.match(garage, /reducedMotion\.matches/);
 });
 
 test('Garage equip and close return to the Hub with current authoritative profile state', () => {
   const bootstrap = read('client/src/bootstrap.ts');
   assert.match(bootstrap, /const profile = await response\.json\(\) as RemoteGarageProfile;[\s\S]*applyAuthoritativeHomeProfile\(profile\)/);
   assert.match(bootstrap, /if \(entryState === 'AIRCRAFT'\)[\s\S]*garageReturnState === 'CITY_SELECTION'[\s\S]*void showHome\(\)/);
-  assert.match(bootstrap, /function showHome[\s\S]*homeHangar\.show\(homeHangarData\(\)\);[\s\S]*garage\.showcase\(homeHangar\.stage, garageProfile\)/);
+  assert.match(bootstrap, /function showHome[\s\S]*homeHangar\.show\(homeHangarData\(\)\);[\s\S]*garage\.showcase\(appHeader\.aircraftPreviewHost, garageProfile\)/);
   assert.match(bootstrap, /authoritativeHomeProfile = profile/);
 });
 
@@ -247,7 +205,7 @@ test('Pilot Hub presents live Missions and Free Fly cards with integrated naviga
   assert.doesNotMatch(journey, /data-mission-free|mission-journey-free-dock/);
   assert.match(shell, /utilities\.append\(this\.store, this\.garage, this\.rewards, this\.avatar\)/);
   assert.match(shell, /replaceChildren\(brand, this\.advertise, this\.friends, wallet, utilities\)/);
-  assert.match(shell, /this\.garage\.innerHTML = `\$\{aircraftIcon\}<span>AIRCRAFT<\/span>`/);
+  assert.match(shell, /this\.garage\.prepend\(this\.aircraftPreviewHost\)/);
   assert.match(shell, /this\.rewardsIndicator\.textContent = ''/);
   assert.match(shell, /this\.store\.classList\.toggle\('has-offers', data\.storeHasOffers\)/);
   assert.match(css, /grid-template-columns: minmax\(0, 1\.25fr\) repeat\(8, minmax\(0, 1fr\)\)/);

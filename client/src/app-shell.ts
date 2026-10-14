@@ -29,7 +29,6 @@ export type AppShellHandlers = {
 
 const advertiseIcon = '<img src="/media/hub/advertise.avif" alt="" aria-hidden="true" />';
 const friendsIcon = '<img src="/media/hub/friends.avif" alt="" aria-hidden="true" />';
-const aircraftIcon = '<img src="/media/hub/aircraft.png" alt="" aria-hidden="true" />';
 const storeIcon = '<img src="/media/hub/store.png" alt="" aria-hidden="true" />';
 const rewardsIcon = '<img src="/media/hub/rewards.png" alt="" aria-hidden="true" />';
 const profileIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.8 19c.8-3.2 3-5 6.2-5s5.4 1.8 6.2 5"/></svg>';
@@ -43,6 +42,7 @@ export class AppShellHeader {
   private readonly tokenAdd: HTMLElement;
   private readonly advertise: HTMLButtonElement;
   private readonly friends: HTMLButtonElement;
+  readonly aircraftPreviewHost = document.createElement('div');
   private readonly garage: HTMLButtonElement;
   private readonly store: HTMLButtonElement;
   private readonly rewards: HTMLButtonElement;
@@ -90,7 +90,10 @@ export class AppShellHeader {
     this.garage.type = 'button';
     this.garage.className = 'flight-header-control app-shell-action app-shell-garage';
     this.garage.setAttribute('aria-label', 'Aircraft');
-    this.garage.innerHTML = `${aircraftIcon}<span>AIRCRAFT</span>`;
+    this.garage.innerHTML = '<span>AIRCRAFT</span>';
+    this.aircraftPreviewHost.className = 'app-shell-aircraft-preview';
+    this.aircraftPreviewHost.setAttribute('aria-hidden', 'true');
+    this.garage.prepend(this.aircraftPreviewHost);
     this.garage.addEventListener('click', handlers.garage);
 
     this.rewards = document.createElement('button');

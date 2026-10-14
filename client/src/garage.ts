@@ -85,6 +85,10 @@ export class AircraftGarage {
   private idleOrbitAnchor = 1.98;
   private idleOrbitStartedAt = performance.now();
   private windowBlurred = false;
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  private headerRotationStartedAt = performance.now();
+  private readonly headerFallback = document.createElement('img');
+  private headerFallbackPending = false;
   private userAdjustedZoom = false;
   private raf = 0;
   private loadingProfile = false;
@@ -152,7 +156,7 @@ export class AircraftGarage {
     this.showcaseShadowMid.visible = false;
     this.showcaseShadowOuter.visible = false;
     this.showcaseSet.visible = false;
-    this.buildShowcaseSet();
+    // Menus use the shared runway artwork; do not allocate the old hangar.
     this.keyLight.position.set(-7, 8, 6);
     this.rimLight.position.set(7, 3, -5);
     this.showcaseWarmLight.position.set(-4, 4, -6);
@@ -212,6 +216,12 @@ export class AircraftGarage {
       this.userAdjustedZoom = true;
       this.targetDistance = THREE.MathUtils.clamp(this.targetDistance + event.deltaY * 0.012, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     }, { passive: false });
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      cancelAnimationFrame(this.raf); this.raf = 0;
+      if (this.showcaseHost && this.headerFallback.src) { canvas.hidden = true; this.headerFallback.hidden = false; }
+    });
+    canvas.addEventListener('webglcontextrestored', () => { canvas.hidden = false; this.headerFallback.hidden = true; this.startAnimation(); });
     window.addEventListener('resize', () => this.resize());
     new ResizeObserver(() => this.resize()).observe(canvas);
     const pause = (): void => { cancelAnimationFrame(this.raf); this.raf = 0; };
@@ -281,6 +291,11 @@ export class AircraftGarage {
   }
 
   showcase(host: HTMLElement, profile: GarageProfile): Promise<void> {
+    if (this.showcaseHost === host && this.selected === profile.selectedAircraft) {
+      this.profile = this.normalizeProfile(profile);
+      this.resize(); this.startAnimation();
+      return Promise.resolve();
+    }
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.element.hidden = true;
@@ -290,11 +305,18 @@ export class AircraftGarage {
     this.selected = this.profile.selectedAircraft;
     this.previewCosmetic = undefined;
     this.setShowcaseLighting(true);
-    this.showcaseSet.visible = true;
-    this.showcaseShadow.visible = true;
-    this.showcaseShadowMid.visible = true;
-    this.showcaseShadowOuter.visible = true;
-    this.loadBackgroundAircraft();
+    this.showcaseSet.visible = false;
+    const headerIcon = host.classList.contains('app-shell-aircraft-preview');
+    this.showcaseShadow.visible = !headerIcon;
+    this.showcaseShadowMid.visible = !headerIcon;
+    this.showcaseShadowOuter.visible = !headerIcon;
+    // Only the selected foreground aircraft is needed.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.headerFallback.hidden = true;
+    this.headerFallback.className = 'app-shell-aircraft-fallback';
+    host.append(this.headerFallback);
+    this.headerRotationStartedAt = performance.now();
+    this.headerFallbackPending = true;
     const previewReady = this.loadPreview();
     this.resize();
     this.startAnimation();
@@ -305,7 +327,12 @@ export class AircraftGarage {
     if (!this.showcaseHost) return;
     cancelAnimationFrame(this.raf);
     this.raf = 0;
+    const previousHost = this.showcaseHost;
     this.showcaseHost = undefined;
+    if (previousHost.classList.contains('app-shell-aircraft-preview') && this.headerFallback.src) this.headerFallback.hidden = false;
+    else this.headerFallback.remove();
+    this.renderer.domElement.hidden = false;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.setShowcaseLighting(false);
     this.showcaseSet.visible = false;
     this.showcaseShadow.visible = false;
@@ -384,10 +411,11 @@ export class AircraftGarage {
     body.material.name = 'AC_LIVERY_BASE';
     body.rotation.x = Math.PI / 2; fallback.add(body); plane.add(fallback); this.previewContent.add(plane);
     this.framePreview(true);
+    this.headerFallbackPending = true;
     const assetReady = attachAircraftAsset(plane, fallback, this.selected, definition.bodyLength + definition.noseLength, definition.wingSpan, () => {
       // A cached GLB can resolve after the player chose another card.  Only
       // reframe if this plane is still the active preview.
-      if (this.previewContent.children.includes(plane)) this.framePreview(false);
+      if (this.previewContent.children.includes(plane)) { this.headerFallbackPending = true; this.framePreview(false); }
     });
     this.decoratePreview?.(plane, this.selected);
     this.paintPreview();
@@ -1194,10 +1222,12 @@ export class AircraftGarage {
   }
 
   private framePreview(resetView: boolean): void {
+    const headerIcon = this.showcaseHost?.classList.contains('app-shell-aircraft-preview') === true;
+    const showcaseCamera = this.showcaseHost !== undefined && !headerIcon;
     this.showcaseVisualCorners.length = 0;
     if (resetView) {
-      this.targetOrbitYaw = this.showcaseHost ? this.showcaseCameraYaw + this.showcaseAircraftYawOffset : 1.98;
-      this.targetOrbitPitch = -0.01;
+      this.targetOrbitYaw = showcaseCamera ? this.showcaseCameraYaw + this.showcaseAircraftYawOffset : 1.98;
+      this.targetOrbitPitch = headerIcon ? 0.45 : -0.01;
       this.idleOrbitAnchor = this.targetOrbitYaw;
       this.idleOrbitStartedAt = performance.now();
       this.orbitYaw = this.targetOrbitYaw;
@@ -1213,12 +1243,12 @@ export class AircraftGarage {
     this.previewContent.updateMatrixWorld(true);
     if (!this.measureVisualBounds()) return;
     this.previewBounds.getCenter(this.previewCenter);
-    if (this.showcaseHost) {
+    if (showcaseCamera) {
       this.previewContent.position.set(-this.previewCenter.x, -this.previewBounds.min.y + 0.035, -this.previewCenter.z);
     } else this.previewContent.position.copy(this.previewCenter).multiplyScalar(-1);
     this.previewContent.updateMatrixWorld(true);
     if (!this.measureVisualBounds()) return;
-    if (this.showcaseHost) this.forEachVisualCorner(corner => this.showcaseVisualCorners.push(corner.clone()));
+    if (showcaseCamera) this.forEachVisualCorner(corner => this.showcaseVisualCorners.push(corner.clone()));
     this.previewBounds.getSize(this.previewSize);
     this.showcaseSet.position.set(0, 0, 0);
     this.showcaseShadow.position.y = 0.032;
@@ -1229,8 +1259,8 @@ export class AircraftGarage {
     this.showcaseShadowOuter.scale.copy(this.showcaseShadow.scale).multiplyScalar(1.34);
     this.previewFocus.set(0, 0, 0);
 
-    const yaw = this.showcaseHost ? this.showcaseCameraYaw : this.targetOrbitYaw;
-    const pitch = this.showcaseHost ? this.showcaseCameraPitch : this.targetOrbitPitch;
+    const yaw = showcaseCamera ? this.showcaseCameraYaw : this.targetOrbitYaw;
+    const pitch = showcaseCamera ? this.showcaseCameraPitch : this.targetOrbitPitch;
     const cosPitch = Math.cos(pitch);
     this.viewDirection.set(Math.sin(yaw) * cosPitch, Math.sin(pitch), Math.cos(yaw) * cosPitch).normalize();
     this.viewRight.set(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
@@ -1249,8 +1279,8 @@ export class AircraftGarage {
         towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
       );
     });
-    this.defaultDistance = Math.max(1, framedDistance * (!this.showcaseHost && this.selected === 'fighter' ? 0.9 : 1));
-    if (this.showcaseHost) {
+    this.defaultDistance = Math.max(1, framedDistance * (!showcaseCamera && this.selected === 'fighter' ? 0.9 : 1));
+    if (showcaseCamera) {
       // Fit the full orbit once so the Hub aircraft never changes size as it turns.
       for (const tilt of [-0.28, 0, 0.28]) {
         for (let step = 0; step < 72; step += 1) {
@@ -1258,10 +1288,29 @@ export class AircraftGarage {
         }
       }
     }
+    if (headerIcon) {
+      // Fit every turn at a fixed camera angle, including gear and propeller bounds.
+      const corners: THREE.Vector3[] = [];
+      this.forEachVisualCorner(corner => corners.push(corner.clone()));
+      for (let step = 0; step < 72; step += 1) {
+        const yaw = step * Math.PI / 36, cosine = Math.cos(yaw), sine = Math.sin(yaw);
+        for (const corner of corners) {
+          this.previewCorner.set(corner.x * cosine + corner.z * sine, corner.y, corner.z * cosine - corner.x * sine);
+          const depth = this.previewCorner.dot(this.viewDirection);
+          this.defaultDistance = Math.max(this.defaultDistance,
+            depth + Math.abs(this.previewCorner.dot(this.viewRight)) / (horizontalTan * .98),
+            depth + Math.abs(this.previewCorner.dot(this.viewUp)) / (verticalTan * .98));
+        }
+      }
+      this.previewFocus.set(0, 0, 0);
+      this.targetDistance = this.defaultDistance; this.distance = this.defaultDistance;
+      this.camera.far = Math.max(140, this.defaultDistance * 6); this.camera.updateProjectionMatrix();
+      return;
+    }
     if (resetView || !this.userAdjustedZoom) this.targetDistance = this.defaultDistance;
     else this.targetDistance = THREE.MathUtils.clamp(this.targetDistance, this.defaultDistance * 0.38, this.defaultDistance * 2.5);
     if (resetView) this.distance = this.targetDistance;
-    if (this.showcaseHost) {
+    if (showcaseCamera) {
       this.distance = this.targetDistance;
       this.camera.far = 120;
       this.camera.updateProjectionMatrix();
@@ -1300,9 +1349,10 @@ export class AircraftGarage {
 
   private animate = (): void => {
     if (!this.isPreviewActive() || document.hidden || this.windowBlurred) { this.raf = 0; return; }
+    const headerIcon = this.showcaseHost?.classList.contains('app-shell-aircraft-preview') === true;
     const trialSecond = this.trialRemainingSeconds();
     if (!this.showcaseHost && trialSecond !== this.lastTrialSecond) this.renderDetails();
-    if (!this.dragging) {
+    if (!this.dragging && !headerIcon) {
       if (this.showcaseHost) this.targetOrbitYaw = this.idleOrbitAnchor + (performance.now() - this.idleOrbitStartedAt) * 0.00022;
       else this.targetOrbitYaw += 0.002;
     }
@@ -1313,14 +1363,14 @@ export class AircraftGarage {
     this.orbitYaw = THREE.MathUtils.lerp(this.orbitYaw, this.targetOrbitYaw, 0.12);
     this.orbitPitch = THREE.MathUtils.lerp(this.orbitPitch, this.targetOrbitPitch, 0.14);
     this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, 0.14);
-    if (this.showcaseHost) {
+    if (this.showcaseHost && !headerIcon) {
       const presentationScale = this.showcaseCameraDistance / Math.max(0.001, this.distance);
       this.aircraftPresentation.scale.setScalar(presentationScale);
       this.preview.rotation.y = this.showcaseCameraYaw - this.orbitYaw;
       this.preview.rotation.z = THREE.MathUtils.clamp((this.orbitPitch - this.showcaseCameraPitch) * 0.35, -0.28, 0.28);
     } else {
       this.aircraftPresentation.scale.setScalar(1);
-      this.preview.rotation.set(0, 0, 0);
+      this.preview.rotation.set(0, headerIcon && !this.reducedMotion.matches ? -(performance.now() - this.headerRotationStartedAt) * Math.PI * 2 / 10500 : 0, 0);
       const horizontal = this.distance * Math.cos(this.orbitPitch);
       this.camera.position.set(
         this.previewFocus.x + Math.sin(this.orbitYaw) * horizontal,
@@ -1330,10 +1380,14 @@ export class AircraftGarage {
       this.camera.lookAt(this.previewFocus);
     }
     this.renderer.render(this.scene, this.camera);
+    if (headerIcon && this.headerFallbackPending) {
+      this.headerFallbackPending = false;
+      this.headerFallback.src = this.renderer.domElement.toDataURL('image/png');
+    }
     this.raf = requestAnimationFrame(this.animate);
   };
 
-  private isPreviewActive(): boolean { return !this.element.hidden || this.showcaseHost !== undefined; }
+  private isPreviewActive(): boolean { return !this.element.hidden || (this.showcaseHost !== undefined && this.showcaseHost.getClientRects().length > 0); }
 
   private startAnimation(): void {
     cancelAnimationFrame(this.raf);
