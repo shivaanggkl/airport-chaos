@@ -4746,7 +4746,7 @@ body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
   width: min(1120px, 100%); height: min(700px, 94dvh); padding: 0;
   overflow: visible; border: 0; background: transparent; box-shadow: none; backdrop-filter: none;
 }
-.garage-card .garage-heading { position: relative; display: grid; place-items: center; padding: 0; border: 0; }
+.garage-card .garage-heading { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; justify-content: stretch; width: 100%; min-width: 0; padding: 0; border: 0; }
 .garage-card .garage-heading h1 { margin: 0; color: #ffd875; font-size: clamp(19px, 2.2vw, 29px); letter-spacing: .08em; text-shadow: 0 2px 4px rgb(58 38 15 / 50%); }
 .garage-card .garage-heading h1::before, .garage-card .garage-heading h1::after { content: '≡'; display: inline-block; margin: 0 11px; color: #ffd875; font-size: .8em; transform: skewX(-18deg); }
 .garage-card .garage-balance { position: absolute; z-index: 2; left: 0; top: 0; height: 100%; }
@@ -4782,9 +4782,9 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-stats b { gap: 2px; }
 .garage-card .garage-stats b i { height: 8px; border: 0; background: #d9dfe5; box-shadow: none; }
 .garage-card .garage-stats b i.active { background: linear-gradient(#ffd889, #ffb426); box-shadow: none; }
-.garage-card .garage-cosmetics { margin: 0; padding: 8px 0 0; border: 0; }
+.garage-card .garage-cosmetics { display: block; width: 100%; margin: 0; padding: 8px 0 0; border: 0; }
 .garage-card .garage-cosmetics h2 { margin: 0 0 6px; color: #0b2345; font: 800 12px/1 var(--font-display); }
-.garage-card .garage-cosmetic-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; padding: 0; }
+.garage-card .garage-cosmetic-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; overflow: visible; padding: 0; }
 .garage-card .garage-cosmetic-card { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; min-height: 85px; padding: 5px 3px; border: 1px solid #d7e0e8; border-radius: 7px; background: linear-gradient(#fff, #f5f7f8); }
 .garage-card .garage-cosmetic-card:has(.garage-cosmetic[aria-pressed=true]) { border-color: #37d4e9; }
 .garage-card .garage-cosmetic { display: grid; justify-items: center; align-content: start; gap: 3px; width: 100%; min-height: 0; padding: 0; color: #0b2345; text-align: center; border: 0; background: transparent; box-shadow: none; }
@@ -4810,8 +4810,8 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-premium [data-garage-restore], .garage-card .garage-premium [data-garage-trial] { min-height: 25px; padding: 3px 6px; color: #006f94; border-color: #8bdbe8; background: #e8f7f9; font-size: 9px; }
 .garage-card .garage-premium .garage-purchase-disclosure { color: #54657a; font-size: 8px; }
 .garage-card .garage-premium .garage-purchase-disclosure a { color: #006f94; }
-.garage-card .garage-selector-section { align-self: end; width: min(1034px, 92%); margin: 0 auto; padding: 0; border: 1px solid #dbe6eb; border-radius: 16px; background: linear-gradient(#fff, #edf2f3); box-shadow: 0 7px 16px rgb(11 35 69 / 28%); }
-.garage-card .garage-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; overflow: visible; padding: 4px; }
+.garage-card .garage-selector-section { display: block; align-self: end; width: min(1034px, 92%); margin: 0 auto; padding: 0; border: 1px solid #dbe6eb; border-radius: 16px; background: linear-gradient(#fff, #edf2f3); box-shadow: 0 7px 16px rgb(11 35 69 / 28%); }
+.garage-card .garage-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; width: 100%; overflow: visible; padding: 4px; }
 .garage-card .garage-aircraft { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; min-height: 54px; padding: 0 5px; border: 0; border-right: 1px solid #d6e0e8; border-radius: 0; background: none; box-shadow: none; }
 .garage-card .garage-aircraft:nth-child(even) { background: none; }
 .garage-card .garage-aircraft:last-child { border-right: 0; }
