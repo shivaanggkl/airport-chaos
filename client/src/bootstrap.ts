@@ -1364,7 +1364,6 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
 }
 
-const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
 async function refreshHubProfileSummary(): Promise<void> {
   if (hubAccount.state !== 'account') return;
   try {
@@ -1374,6 +1373,7 @@ async function refreshHubProfileSummary(): Promise<void> {
   } catch { /* Keep the last authoritative values if offline. */ }
 }
 
+const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   const previouslySelected = garageProfile.selectedAircraft;
   const url = apiUrl('/api/profile');
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
