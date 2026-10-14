@@ -1,0 +1,33 @@
+{
+  "lods": [
+    {
+      "lod": "near",
+      "triangles": 19508,
+      "glbBytes": 518808
+    },
+    {
+      "lod": "mid",
+      "triangles": 7790,
+      "glbBytes": 239212
+    },
+    {
+      "lod": "far",
+      "triangles": 2896,
+      "glbBytes": 117324
+    }
+  ],
+  "materials": 4,
+  "texture": {
+    "size": [
+      1024,
+      1024
+    ],
+    "file": "transport-panels.png"
+  },
+  "previewScale": 1,
+  "nominalDimensions": {
+    "span": 48,
+    "length": 44,
+    "height": 16.5
+  }
+}

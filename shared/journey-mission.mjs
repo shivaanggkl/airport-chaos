@@ -1,3 +1,4 @@
+import { transportTuning } from './giant-incoming.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 import { repairsForCity } from './city-repairs.mjs';
@@ -124,9 +125,9 @@ export const journeyDallas06 = Object.freeze({
 });
 
 export const journeyDallas07 = Object.freeze({
-  id: 'journey-dallas-07', cityId: 'dallas', name: 'SKY ELEVATOR',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 66_000, firstClearCredits: 850,
-  startAirportId: 'addison', gates: addisonClimbGates,
+  id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT INCOMING',
+  chapter: 'SKY SIEGE', timeLimitMs: transportTuning.durationMs, firstClearCredits: 850,
+  startAirportId: 'addison', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 export const journeyDallas08 = Object.freeze({

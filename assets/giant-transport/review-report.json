@@ -1,0 +1,489 @@
+{
+  "status": "PARTIAL: corrected desktop candidate delivered; owner visual acceptance and physical iPhone view pending",
+  "corrections": [
+    "Compact antialiased glazing mapped to the continuous skin, with narrow frames; no overlapping window geometry",
+    "Lower cockpit crown and smoother broad nose",
+    "Broader aft body, planar cap UVs, closed ramp seams, continuous charcoal paint boundary",
+    "Continuous roof/shoulder fairing replaces sharp wing-root flaps",
+    "Four rounded nacelles with joined exhaust lips, correctly facing cavity surfaces and recessed fans",
+    "Supported rear gun housing and retained yaw/pitch pivots",
+    "Fixed radial UV wrap seams, gun cap UVs, and tail material sampling"
+  ],
+  "dimensions": {
+    "span": 48,
+    "height": 16.620827674865723,
+    "length": 44,
+    "units": "game-world units"
+  },
+  "scale": 1,
+  "lods": [
+    {
+      "lod": "near",
+      "triangles": 19508,
+      "glbBytes": 518808
+    },
+    {
+      "lod": "mid",
+      "triangles": 7790,
+      "glbBytes": 239212
+    },
+    {
+      "lod": "far",
+      "triangles": 2896,
+      "glbBytes": 117324
+    }
+  ],
+  "materials": 4,
+  "texture": [
+    1024,
+    1024
+  ],
+  "assetDrawCalls": 14,
+  "validation": {
+    "testsPassed": 7,
+    "testsFailed": 0,
+    "clientServerBuild": "PASS",
+    "productionPreviewModule": "excluded from production JS",
+    "cleanupCycles": 3,
+    "remainingGpuGeometriesAndTextures": [
+      0,
+      0
+    ],
+    "views": "front/side/rear/top/three-quarter plus cockpit/engine/wing-root/gun; all three LODs",
+    "motion": "actual exported GLB fan/gun articulation and gradual bank/turn visual fixture; not pursuit or combat"
+  },
+  "dallas": {
+    "presets": [
+      "day",
+      "dusk",
+      "evening"
+    ],
+    "targetSeparations": [
+      95,
+      190,
+      380
+    ],
+    "centerConvention": "transformed local static mesh bounds centers",
+    "camera": "unchanged gameplay chase camera; same static QA preset/reset interval and 1280x720 viewport. Natural runtime camera drift is recorded, not claimed pixel-exact.",
+    "fixtures": {
+      "day": [
+        {
+          "scale": 1,
+          "targetCenterSeparation": 95,
+          "measuredCenterSeparation": 94.99999999999999,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.55812353624334,
+            900.5318906264514,
+            99.92233766784543
+          ],
+          "transportCenter": [
+            13.838624709680857,
+            905.5318906264514,
+            40.21106994758637
+          ],
+          "position": [
+            13.91721040741649,
+            901.6371316952728,
+            40.085117924392776
+          ],
+          "visible": true,
+          "lod": "near",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.1785434261213,
+              903.2424484244368,
+              108.52465788760209
+            ],
+            "fov": 58.17500143792151
+          }
+        },
+        {
+          "scale": 1,
+          "targetCenterSeparation": 190,
+          "measuredCenterSeparation": 190,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.57245091228835,
+            900.5504907381226,
+            99.93394254579981
+          ],
+          "transportCenter": [
+            -60.02004912249815,
+            905.5504907381226,
+            -19.612926645666462
+          ],
+          "position": [
+            -60.05646987750858,
+            901.6536271366493,
+            -19.547242887033384
+          ],
+          "visible": true,
+          "lod": "mid",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.19288757166086,
+              903.2610394873329,
+              108.5362763484999
+            ],
+            "fov": 58.14875122223329
+          }
+        },
+        {
+          "scale": 1,
+          "targetCenterSeparation": 380,
+          "measuredCenterSeparation": 380.00000000000006,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.81275235008198,
+            901.1706753170351,
+            100.12858173507888
+          ],
+          "transportCenter": [
+            -207.44894903300346,
+            906.1706753170351,
+            -139.02728312373182
+          ],
+          "position": [
+            -207.57365078256518,
+            902.2795722838524,
+            -138.84032479991907
+          ],
+          "visible": true,
+          "lod": "far",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.43325142282454,
+              903.8811905671063,
+              108.73096609131646
+            ],
+            "fov": 58.1264385388983
+          }
+        }
+      ],
+      "dusk": [
+        {
+          "scale": 1,
+          "targetCenterSeparation": 95,
+          "measuredCenterSeparation": 94.99999999999999,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.56677851477286,
+            900.5552009263686,
+            99.92934802125697
+          ],
+          "transportCenter": [
+            13.847279688210392,
+            905.5552009263686,
+            40.218080300997904
+          ],
+          "position": [
+            13.922005126521817,
+            901.6602640114529,
+            40.0953232493586
+          ],
+          "visible": true,
+          "lod": "near",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.18721564875108,
+              903.2657529536639,
+              108.53168220837782
+            ],
+            "fov": 58.18717644952628
+          }
+        },
+        {
+          "scale": 1,
+          "targetCenterSeparation": 190,
+          "measuredCenterSeparation": 190,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.70922488584081,
+            900.9079699403752,
+            100.04472663253355
+          ],
+          "transportCenter": [
+            -59.88327514894591,
+            905.9079699403752,
+            -19.50214255893242
+          ],
+          "position": [
+            -59.91922867364085,
+            902.0110885135216,
+            -19.437263863384228
+          ],
+          "visible": true,
+          "lod": "mid",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.32969868655456,
+              903.6184987063624,
+              108.64709051895103
+            ],
+            "fov": 58.15909998209733
+          }
+        },
+        {
+          "scale": 1,
+          "targetCenterSeparation": 380,
+          "measuredCenterSeparation": 380,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.82063069148468,
+            901.193070919809,
+            100.13496302849758
+          ],
+          "transportCenter": [
+            -207.4410706916006,
+            906.193070919809,
+            -139.02090183031328
+          ],
+          "position": [
+            -207.56578908064955,
+            902.3019689974939,
+            -138.83393148608823
+          ],
+          "visible": true,
+          "lod": "far",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.4411313677776,
+              903.9035853192815,
+              108.73734868357775
+            ],
+            "fov": 58.12387524605292
+          }
+        }
+      ],
+      "evening": [
+        {
+          "scale": 1,
+          "targetCenterSeparation": 95,
+          "measuredCenterSeparation": 94.99999999999999,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.71227870748147,
+            900.9316018989996,
+            100.04720016483448
+          ],
+          "transportCenter": [
+            13.992779880919187,
+            905.9316018989996,
+            40.33593244457518
+          ],
+          "position": [
+            14.068954184968383,
+            902.0367382234671,
+            40.211750398970786
+          ],
+          "visible": true,
+          "lod": "near",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.33275489346791,
+              903.642129392106,
+              108.64956598327349
+            ],
+            "fov": 58.20305211819553
+          }
+        },
+        {
+          "scale": 1,
+          "targetCenterSeparation": 190,
+          "measuredCenterSeparation": 190.00000000000003,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            86.96932019468116,
+            898.9920055809627,
+            99.44541915208984
+          ],
+          "transportCenter": [
+            -60.623179840105195,
+            903.9920055809627,
+            -20.101450039376658
+          ],
+          "position": [
+            -60.660737896392774,
+            900.0951862162756,
+            -20.03381138594588
+          ],
+          "visible": true,
+          "lod": "mid",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              97.58960292639775,
+              901.7026343709372,
+              108.04762827657567
+            ],
+            "fov": 58.12771568533143
+          }
+        },
+        {
+          "scale": 1,
+          "targetCenterSeparation": 380,
+          "measuredCenterSeparation": 380,
+          "centerConvention": "transformed local static mesh bounds centers",
+          "playerCenter": [
+            87.69590627979645,
+            900.8712453873164,
+            100.03393883739344
+          ],
+          "transportCenter": [
+            -207.56579510328893,
+            905.8712453873164,
+            -139.1219260214173
+          ],
+          "position": [
+            -207.69158679159727,
+            901.9802141853105,
+            -138.93420443981566
+          ],
+          "visible": true,
+          "lod": "far",
+          "camera": {
+            "kind": "unchanged gameplay chase camera",
+            "position": [
+              98.31637473879599,
+              903.5817770649257,
+              108.636298397133
+            ],
+            "fov": 58.108558332531715
+          }
+        }
+      ]
+    },
+    "performance": "not benchmarked separately; studio timings must not be presented as Dallas timings"
+  },
+  "studioPerformance": [
+    {
+      "revision": "before",
+      "lod": "baseline",
+      "runs": 3,
+      "medianFPS": 59.88023952095874,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.462625,
+      "p95GpuMs": 0.660999,
+      "drawCalls": 1,
+      "triangles": 2
+    },
+    {
+      "revision": "before",
+      "lod": "near",
+      "runs": 3,
+      "medianFPS": 59.880239520962,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.799999999999272,
+      "medianCpuMs": 0.2999999523162842,
+      "medianGpuMs": 0.52475,
+      "p95GpuMs": 0.802958,
+      "drawCalls": 15,
+      "triangles": 18936
+    },
+    {
+      "revision": "before",
+      "lod": "mid",
+      "runs": 3,
+      "medianFPS": 59.88023952095548,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.495583,
+      "p95GpuMs": 0.680416,
+      "drawCalls": 15,
+      "triangles": 7624
+    },
+    {
+      "revision": "before",
+      "lod": "far",
+      "runs": 3,
+      "medianFPS": 59.880239520968516,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.490541,
+      "p95GpuMs": 0.876583,
+      "drawCalls": 15,
+      "triangles": 2870
+    },
+    {
+      "revision": "corrected",
+      "lod": "baseline",
+      "runs": 3,
+      "medianFPS": 59.88023952095874,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.799999999999272,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.48225,
+      "p95GpuMs": 0.69325,
+      "drawCalls": 1,
+      "triangles": 2
+    },
+    {
+      "revision": "corrected",
+      "lod": "near",
+      "runs": 3,
+      "medianFPS": 59.880239520962,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.554875,
+      "p95GpuMs": 1.021583,
+      "drawCalls": 15,
+      "triangles": 19510
+    },
+    {
+      "revision": "corrected",
+      "lod": "mid",
+      "runs": 3,
+      "medianFPS": 59.88023952095548,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.510749,
+      "p95GpuMs": 0.751208,
+      "drawCalls": 15,
+      "triangles": 7792
+    },
+    {
+      "revision": "corrected",
+      "lod": "far",
+      "runs": 3,
+      "medianFPS": 59.880239520968516,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.496416,
+      "p95GpuMs": 0.67575,
+      "drawCalls": 15,
+      "triangles": 2898
+    }
+  ],
+  "iphone": {
+    "bundleId": "com.vadensoftware.airportchaos.m19qa",
+    "build": "19.13.13",
+    "installation": "successful signed isolated QA update",
+    "backend": "existing HTTPS development tunnel to local port 8098; reachable from Mac; no production service changes",
+    "physicalCheck": "unverified: capture reached the locked device screen, not the game; no device gameplay or performance pass claimed",
+    "productionApp": "not replaced"
+  },
+  "limitations": [
+    "Owner artistic acceptance remains pending",
+    "Reference camera parameters are unavailable; comparisons match view orientation and approximate framing",
+    "Far LOD retains deliberate contour simplification",
+    "Browser FPS is refresh capped; raw GPU/CPU timings are included",
+    "No separate Dallas performance benchmark or physical-device rendering measurement"
+  ],
+  "preservation": "No missions 7\u201312, combat-target registration, player flight/control values, rewards, progression, authentication, server rules, global lighting or camera changes. No commit/push/deployment. Unrelated working changes preserved.",
+  "previousCandidate": "recoverable prior review remains /Users/shiva/Downloads/Giant-Transport-Corrected-Review.zip"
+}

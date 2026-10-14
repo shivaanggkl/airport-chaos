@@ -365,17 +365,22 @@ export function loadMonsterDistrictBuildings(): Building[] {
       result.push({ minX, maxX, minZ, maxZ, top: building[3]! + building[0]! });
     }
   }
-  const index={cells:new Map<string,number[]>(),marks:new Uint32Array(result.length),stamp:0};
-  for(let id=0;id<result.length;id++) {
-    const b=result[id]!;
+  indexBuildingsForOcclusion(result);
+  return result;
+}
+
+/** Reuse the existing bounded cell queries for another mission-owned building set. */
+export function indexBuildingsForOcclusion(buildings:readonly Building[]):void {
+  const index={cells:new Map<string,number[]>(),marks:new Uint32Array(buildings.length),stamp:0};
+  for(let id=0;id<buildings.length;id++) {
+    const b=buildings[id]!;
     for(let x=Math.floor(b.minX/occlusionCellSize);x<=Math.floor(b.maxX/occlusionCellSize);x++)
       for(let z=Math.floor(b.minZ/occlusionCellSize);z<=Math.floor(b.maxZ/occlusionCellSize);z++) {
         const key=`${x},${z}`,cell=index.cells.get(key);
         if(cell)cell.push(id);else index.cells.set(key,[id]);
       }
   }
-  buildingIndexes.set(result,index);
-  return result;
+  buildingIndexes.set(buildings,index);
 }
 
 export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: readonly Building[]): boolean {

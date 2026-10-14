@@ -1,0 +1,47 @@
+[
+  {
+    "before": {
+      "geometries": 15,
+      "textures": 1
+    },
+    "resources": {
+      "geometries": 50,
+      "materials": 11,
+      "textures": 1
+    },
+    "after": {
+      "geometries": 0,
+      "textures": 0
+    }
+  },
+  {
+    "before": {
+      "geometries": 15,
+      "textures": 1
+    },
+    "resources": {
+      "geometries": 50,
+      "materials": 11,
+      "textures": 1
+    },
+    "after": {
+      "geometries": 0,
+      "textures": 0
+    }
+  },
+  {
+    "before": {
+      "geometries": 15,
+      "textures": 1
+    },
+    "resources": {
+      "geometries": 50,
+      "materials": 11,
+      "textures": 1
+    },
+    "after": {
+      "geometries": 0,
+      "textures": 0
+    }
+  }
+]

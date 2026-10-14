@@ -1,0 +1,527 @@
+{
+  "hardware": "Apple M1, Chrome Metal, 1280x720, same camera/light, warmed stationary studio; browser refresh capped",
+  "camera": {
+    "position": [
+      23.230484330524277,
+      6.977960927969489,
+      -39.82368742375591
+    ],
+    "fov": 35
+  },
+  "runs": [
+    {
+      "revision": "corrected",
+      "name": "baseline",
+      "run": 1,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.799999999999727,
+      "medianFPS": 59.88023952095874,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.487999,
+      "p95GpuMs": 1.42475,
+      "drawCalls": 1,
+      "triangles": 2,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "baseline",
+      "run": 2,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.799999999999272,
+      "medianFPS": 59.88023952095874,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.48225,
+      "p95GpuMs": 0.69325,
+      "drawCalls": 1,
+      "triangles": 2,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "baseline",
+      "run": 3,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.799999999999272,
+      "medianFPS": 59.880239520962,
+      "medianCpuMs": 0.10000002384185791,
+      "medianGpuMs": 0.468,
+      "p95GpuMs": 0.640999,
+      "drawCalls": 1,
+      "triangles": 2,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "near",
+      "run": 1,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.880239520962,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.549208,
+      "p95GpuMs": 0.812749,
+      "drawCalls": 15,
+      "triangles": 19510,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "near",
+      "run": 2,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.880239520962,
+      "medianCpuMs": 0.2999999523162842,
+      "medianGpuMs": 0.554875,
+      "p95GpuMs": 1.255,
+      "drawCalls": 15,
+      "triangles": 19510,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "near",
+      "run": 3,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.557666,
+      "p95GpuMs": 1.021583,
+      "drawCalls": 15,
+      "triangles": 19510,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "mid",
+      "run": 1,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.799999999999272,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.501625,
+      "p95GpuMs": 0.751208,
+      "drawCalls": 15,
+      "triangles": 7792,
+      "memory": {
+        "geometries": 29,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "mid",
+      "run": 2,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.88023952095548,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.513916,
+      "p95GpuMs": 0.827,
+      "drawCalls": 15,
+      "triangles": 7792,
+      "memory": {
+        "geometries": 29,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "mid",
+      "run": 3,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.88023952095548,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.510749,
+      "p95GpuMs": 0.67275,
+      "drawCalls": 15,
+      "triangles": 7792,
+      "memory": {
+        "geometries": 29,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "far",
+      "run": 1,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.483375,
+      "p95GpuMs": 0.827874,
+      "drawCalls": 15,
+      "triangles": 2898,
+      "memory": {
+        "geometries": 43,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "far",
+      "run": 2,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.2999999523162842,
+      "medianGpuMs": 0.505875,
+      "p95GpuMs": 0.67575,
+      "drawCalls": 15,
+      "triangles": 2898,
+      "memory": {
+        "geometries": 43,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "corrected",
+      "name": "far",
+      "run": 3,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.496416,
+      "p95GpuMs": 0.631,
+      "drawCalls": 15,
+      "triangles": 2898,
+      "memory": {
+        "geometries": 43,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "baseline",
+      "run": 1,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.799999999999727,
+      "medianFPS": 59.88023952095874,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.462583,
+      "p95GpuMs": 0.660999,
+      "drawCalls": 1,
+      "triangles": 2,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "baseline",
+      "run": 2,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.88023952095874,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.462625,
+      "p95GpuMs": 0.638291,
+      "drawCalls": 1,
+      "triangles": 2,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "baseline",
+      "run": 3,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.880239520962,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.475541,
+      "p95GpuMs": 0.895749,
+      "drawCalls": 1,
+      "triangles": 2,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "near",
+      "run": 1,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.799999999999272,
+      "medianFPS": 59.880239520962,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.52475,
+      "p95GpuMs": 0.862791,
+      "drawCalls": 15,
+      "triangles": 18936,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "near",
+      "run": 2,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.880239520962,
+      "medianCpuMs": 0.2999999523162842,
+      "medianGpuMs": 0.52775,
+      "p95GpuMs": 0.697,
+      "drawCalls": 15,
+      "triangles": 18936,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "near",
+      "run": 3,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.799999999999272,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.2999999523162842,
+      "medianGpuMs": 0.517625,
+      "p95GpuMs": 0.802958,
+      "drawCalls": 15,
+      "triangles": 18936,
+      "memory": {
+        "geometries": 15,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "mid",
+      "run": 1,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.799999999999272,
+      "medianFPS": 59.88023952095548,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.4915,
+      "p95GpuMs": 0.722,
+      "drawCalls": 15,
+      "triangles": 7624,
+      "memory": {
+        "geometries": 29,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "mid",
+      "run": 2,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.495583,
+      "p95GpuMs": 0.680416,
+      "drawCalls": 15,
+      "triangles": 7624,
+      "memory": {
+        "geometries": 29,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "mid",
+      "run": 3,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianFPS": 59.88023952095548,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.496208,
+      "p95GpuMs": 0.676999,
+      "drawCalls": 15,
+      "triangles": 7624,
+      "memory": {
+        "geometries": 29,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "far",
+      "run": 1,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.80000000000291,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.490333,
+      "p95GpuMs": 0.768875,
+      "drawCalls": 15,
+      "triangles": 2870,
+      "memory": {
+        "geometries": 43,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "far",
+      "run": 2,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.490541,
+      "p95GpuMs": 1.147333,
+      "drawCalls": 15,
+      "triangles": 2870,
+      "memory": {
+        "geometries": 43,
+        "textures": 1
+      }
+    },
+    {
+      "revision": "before",
+      "name": "far",
+      "run": 3,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianFPS": 59.880239520968516,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.493625,
+      "p95GpuMs": 0.876583,
+      "drawCalls": 15,
+      "triangles": 2870,
+      "memory": {
+        "geometries": 43,
+        "textures": 1
+      }
+    }
+  ],
+  "summary": [
+    {
+      "revision": "before",
+      "lod": "baseline",
+      "runs": 3,
+      "medianFPS": 59.88023952095874,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.462625,
+      "p95GpuMs": 0.660999,
+      "drawCalls": 1,
+      "triangles": 2
+    },
+    {
+      "revision": "before",
+      "lod": "near",
+      "runs": 3,
+      "medianFPS": 59.880239520962,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.799999999999272,
+      "medianCpuMs": 0.2999999523162842,
+      "medianGpuMs": 0.52475,
+      "p95GpuMs": 0.802958,
+      "drawCalls": 15,
+      "triangles": 18936
+    },
+    {
+      "revision": "before",
+      "lod": "mid",
+      "runs": 3,
+      "medianFPS": 59.88023952095548,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.495583,
+      "p95GpuMs": 0.680416,
+      "drawCalls": 15,
+      "triangles": 7624
+    },
+    {
+      "revision": "before",
+      "lod": "far",
+      "runs": 3,
+      "medianFPS": 59.880239520968516,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianCpuMs": 0.30000001192092896,
+      "medianGpuMs": 0.490541,
+      "p95GpuMs": 0.876583,
+      "drawCalls": 15,
+      "triangles": 2870
+    },
+    {
+      "revision": "corrected",
+      "lod": "baseline",
+      "runs": 3,
+      "medianFPS": 59.88023952095874,
+      "medianFrameMs": 16.699999999999818,
+      "p95FrameMs": 16.799999999999272,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.48225,
+      "p95GpuMs": 0.69325,
+      "drawCalls": 1,
+      "triangles": 2
+    },
+    {
+      "revision": "corrected",
+      "lod": "near",
+      "runs": 3,
+      "medianFPS": 59.880239520962,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.554875,
+      "p95GpuMs": 1.021583,
+      "drawCalls": 15,
+      "triangles": 19510
+    },
+    {
+      "revision": "corrected",
+      "lod": "mid",
+      "runs": 3,
+      "medianFPS": 59.88023952095548,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 16.700000000000728,
+      "medianCpuMs": 0.19999998807907104,
+      "medianGpuMs": 0.510749,
+      "p95GpuMs": 0.751208,
+      "drawCalls": 15,
+      "triangles": 7792
+    },
+    {
+      "revision": "corrected",
+      "lod": "far",
+      "runs": 3,
+      "medianFPS": 59.880239520968516,
+      "medianFrameMs": 16.69999999999709,
+      "p95FrameMs": 16.700000000004366,
+      "medianCpuMs": 0.20000004768371582,
+      "medianGpuMs": 0.496416,
+      "p95GpuMs": 0.67575,
+      "drawCalls": 15,
+      "triangles": 2898
+    }
+  ]
+}

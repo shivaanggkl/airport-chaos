@@ -194,6 +194,7 @@ export class JourneyAttemptStore {
       : missionId === journeyDallas04.id ? this.downtownSlalomBestTime(pilotId)
       : missionId === journeyDallas05.id ? this.needleRushBestTime(pilotId)
       : missionId === journeyDallas06.id ? this.goldenChampionshipBestTime(pilotId)
+      : missionId === journeyDallas07.id ? this.giantIncomingBestTime(pilotId)
       : missionId === journeyDallas19.id ? this.monsterArrivalBestTime(pilotId) : row.best_time_ms;
     return { completed: true, firstAttemptId: row.first_attempt_id, ...(bestTimeMs === undefined ? {} : { bestTimeMs }) };
   }
@@ -246,6 +247,13 @@ export class JourneyAttemptStore {
     return row.best ?? undefined;
   }
 
+  giantIncomingBestTime(pilotId: string): number | undefined {
+    const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best_time_ms FROM journey_attempts
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND monster_defeated_at IS NOT NULL`)
+      .get(pilotId, journeyDallas07.id) as { best_time_ms: number | null };
+    return row.best_time_ms ?? undefined;
+  }
+
   monsterArrivalBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
       WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND monster_defeated_at IS NOT NULL`)
@@ -295,8 +303,8 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas19.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(journeyDallas19.bossHealth, attemptId);
+      if (missionId === journeyDallas19.id || missionId === journeyDallas07.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
+        .run(missionId === journeyDallas07.id ? journeyDallas07.bossHealth : journeyDallas19.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }
@@ -335,11 +343,26 @@ export class JourneyAttemptStore {
     return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
 
+  /** Asset readiness is an owned lifecycle signal, never client progress. */
+  startGiantIncoming(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?, deadline_at = ?
+      WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ? AND status = 'APPROACH'`)
+      .run(now, now + journeyDallas07.timeLimitMs, pilotId, attemptId, journeyDallas07.id).changes;
+    return changed === 1 ? this.get(pilotId, attemptId) : undefined;
+  }
+  hitTransport(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    return this.hitEncounter(pilotId, attemptId, journeyDallas07, now);
+  }
+
   /** Only the server projectile simulation invokes this after a swept body hit. */
   hitMonster(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    return this.hitEncounter(pilotId, attemptId, journeyDallas19, now);
+  }
+
+  private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
-      if (current?.missionId !== journeyDallas19.id || current.status !== 'RACING' || current.monsterHealth === null || current.monsterHealth <= 0 ||
+      if (current?.missionId !== mission.id || current.status !== 'RACING' || current.monsterHealth === null || current.monsterHealth <= 0 ||
         current.startedAt === null || current.deadlineAt === null || now >= current.deadlineAt) return undefined;
       const health = Math.max(0, current.monsterHealth - 25);
       if (health > 0) {
@@ -350,16 +373,19 @@ export class JourneyAttemptStore {
       const elapsed = now - current.startedAt;
       const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
         (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
-        .run(pilotId, journeyDallas19.id, attemptId, now, elapsed).changes === 1;
-      if (!first) this.database.prepare(`UPDATE journey_completions SET clear_count = clear_count + 1,
-        best_time_ms = MIN(best_time_ms, ?) WHERE pilot_id = ? AND mission_id = ?`)
-        .run(elapsed, pilotId, journeyDallas19.id);
+        .run(pilotId, mission.id, attemptId, now, elapsed).changes === 1;
+      if (!first) {
+        if (mission.id === journeyDallas07.id) this.database.prepare(`UPDATE journey_completions SET clear_count = clear_count + 1
+          WHERE pilot_id = ? AND mission_id = ?`).run(pilotId, mission.id);
+        else this.database.prepare(`UPDATE journey_completions SET clear_count = clear_count + 1,
+          best_time_ms = MIN(best_time_ms, ?) WHERE pilot_id = ? AND mission_id = ?`).run(elapsed, pilotId, mission.id);
+      }
       let credited = 0;
       if (first) {
         const before = wallet.balances(pilotId)?.credits ?? 0;
-        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas19.firstClearCredits,
-          reason: 'MISSION_REWARD', idempotencyKey: `journey:${journeyDallas19.id}`,
-          referenceId: journeyDallas19.id, createdAt: now });
+        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: mission.firstClearCredits,
+          reason: 'MISSION_REWARD', idempotencyKey: `journey:${mission.id}`,
+          referenceId: mission.id, createdAt: now });
         if (!reward.ok) throw new Error('Journey monster reward failed');
         credited = Math.max(0, (reward.balance ?? before) - before);
       }
@@ -440,7 +466,7 @@ export class JourneyAttemptStore {
   acceptGate(pilotId: string, attemptId: string, gateIndex: number, now = Date.now(), verifiedSpeed?: number): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
-      const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas04.id ? journeyDallas04 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : current?.missionId === journeyDallas07.id ? journeyDallas07 : current?.missionId === journeyDallas10.id ? journeyDallas10 : current?.missionId === journeyDallas11.id ? journeyDallas11 : current?.missionId === journeyDallas12.id ? journeyDallas12 : current?.missionId === journeyDallas13.id ? journeyDallas13 : current?.missionId === journeyDallas16.id ? journeyDallas16 : current?.missionId === journeyDallas20.id ? journeyDallas20 : undefined;
+      const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas04.id ? journeyDallas04 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : current?.missionId === journeyDallas10.id ? journeyDallas10 : current?.missionId === journeyDallas11.id ? journeyDallas11 : current?.missionId === journeyDallas12.id ? journeyDallas12 : current?.missionId === journeyDallas13.id ? journeyDallas13 : current?.missionId === journeyDallas16.id ? journeyDallas16 : current?.missionId === journeyDallas20.id ? journeyDallas20 : undefined;
       if (!current || !mission || current.gateIndex !== gateIndex || !['APPROACH', 'RACING'].includes(current.status) ||
         current.missionId === journeyDallas02.id && current.lakeGateIndex < 0 ||
         current.missionId === journeyDallas03.id && current.ascentGateIndex < 0 ||

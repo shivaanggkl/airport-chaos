@@ -54,82 +54,34 @@ test('Downtown Slalom requires Mission 3 and rewards ten ordered race gates once
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Sky Elevator reuses the unchanged Addison climb opening and requires forward crossings', () => {
-  assert.equal(journeyDallas07.startAirportId, 'addison');
-  assert.equal(journeyDallas07.timeLimitMs, 66_000);
-  assert.equal(journeyDallas07.firstClearCredits, 850);
-  assert.deepEqual(journeyDallas07.gates, addisonClimbGates);
-  assert.deepEqual(journeyDallas07.gates.map(gate => gate.altitude), [310, 680, 1080, 1460]);
-  const airport = cityAirports.dallas.find(item => item.id === 'addison')!;
-  assert.equal(airport.x, -3700);
-  assert.equal(airport.z, -21100);
-  for (let index = 0; index < journeyDallas07.gates.length; index += 1) {
-    const gate = journeyDallas07.gates[index]!;
-    const prior = journeyDallas07.gates[Math.max(0, index - 1)]!;
-    const next = journeyDallas07.gates[Math.min(3, index + 1)]!;
-    const length = Math.hypot(next.x - prior.x, next.z - prior.z);
-    const normalX = (next.x - prior.x) / length;
-    const normalZ = (next.z - prior.z) / length;
-    const before = { x: gate.x - normalX * 80, y: gate.altitude, z: gate.z - normalZ * 80 };
-    const after = { x: gate.x + normalX * 80, y: gate.altitude, z: gate.z + normalZ * 80 };
-    assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas07), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas07), false);
-    assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, index, 0, journeyDallas07), false);
-  }
+test('Giant Incoming owns its deadline, damage, first-clear ledger and historical unlocks', () => {
+  assert.equal(journeyDallas07.name,'GIANT INCOMING');assert.equal(journeyDallas07.timeLimitMs,150000);assert.equal(journeyDallas07.firstClearCredits,850);assert.equal(journeyDallas07.gates.length,0);
+  const directory=mkdtempSync(join(tmpdir(),'giant-journey-')),path=join(directory,'profiles.sqlite');
+  const db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0),('other',0,0)");db.close();
+  try{const store=new JourneyAttemptStore(path);assert.throws(()=>store.launch('pilot','trainer',1000,journeyDallas07.id),/locked/);
+    const fixture=new DatabaseSync(path);fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('pilot',journeyDallas06.id,'prior',0,90000);fixture.close();
+    const a=store.launch('pilot','trainer',1000,journeyDallas07.id);store.approach('pilot',a.attemptId,1100);assert.equal(store.get('pilot',a.attemptId)?.monsterHealth,2000);
+    assert.equal(store.hitTransport('pilot',a.attemptId,1200),undefined);assert.equal(store.startGiantIncoming('other',a.attemptId,1200),undefined);
+    assert.equal(store.acceptGate('pilot',a.attemptId,0,1200),undefined);
+    assert.equal(store.startGiantIncoming('pilot',a.attemptId,2000)?.deadlineAt,152000);assert.equal(store.startGiantIncoming('pilot',a.attemptId,2001),undefined);
+    assert.equal(store.hitMonster('pilot',a.attemptId,2200),undefined);assert.equal(store.hitTransport('other',a.attemptId,2200),undefined);assert.equal(store.hitTransport('pilot',a.attemptId,152000),undefined);
+    for(let i=0;i<80;i++)store.hitTransport('pilot',a.attemptId,3000+i*1000);
+    const result=store.get('pilot',a.attemptId)!;assert.equal(result.status,'COMPLETED');assert.equal(result.firstClearCredits,850);assert.equal(result.finishTimeMs,80000);assert.equal(store.hitTransport('pilot',a.attemptId,90000),undefined);
+    assert.equal(store.launch('pilot','trainer',100000,'journey-dallas-08').missionId,'journey-dallas-08');
+    const replay=store.launch('pilot','trainer',110000,journeyDallas07.id);store.approach('pilot',replay.attemptId,110100);store.startGiantIncoming('pilot',replay.attemptId,111000);for(let i=0;i<80;i++)store.hitTransport('pilot',replay.attemptId,112000+i*1000);assert.equal(store.get('pilot',replay.attemptId)?.firstClearCredits,0);
+    const expired=store.launch('pilot','trainer',300000,journeyDallas07.id);store.approach('pilot',expired.attemptId,300100);store.startGiantIncoming('pilot',expired.attemptId,301000);assert.equal(store.fail('pilot',expired.attemptId,'TIME_UP',451000)?.status,'FAILED');assert.equal(store.hitTransport('pilot',expired.attemptId,451001),undefined);
+    const check=new DatabaseSync(path);assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get() as {credits:number}).credits,850);assert.equal((check.prepare("SELECT count(*) n FROM wallet_transactions WHERE reference_id='journey-dallas-07'").get() as {n:number}).n,1);check.close();
+  }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
-test('Sky Elevator unlock, deadline, retry, completion, ledger and replay are authoritative', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'airport-elevator-journey-test-'));
-  const path = join(directory, 'profiles.sqlite');
-  const setup = new DatabaseSync(path);
-  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('elevator', 0, 0), ('other', 0, 0), ('capped', 999950, 0)");
-  setup.close();
-  try {
-    const store = new JourneyAttemptStore(path);
-    assert.throws(() => store.launch('elevator', 'trainer', 1_000, journeyDallas07.id), /locked/);
-    const fixture = new DatabaseSync(path);
-    fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
-      .run('elevator', journeyDallas06.id, 'championship-clear', 500, 90_000);
-    fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)')
-      .run('capped', journeyDallas06.id, 'capped-championship-clear', 500, 90_000);
-    fixture.close();
-    const expired = store.launch('elevator', 'trainer', 1_000, journeyDallas07.id);
-    assert.equal(store.approach('elevator', expired.attemptId)?.deadlineAt, null);
-    assert.equal(store.acceptGate('other', expired.attemptId, 0, 1_500), undefined);
-    assert.equal(store.acceptGate('elevator', expired.attemptId, 1, 1_500), undefined);
-    assert.equal(store.acceptGate('elevator', expired.attemptId, 0, 2_000)?.deadlineAt, 68_000);
-    assert.equal(store.acceptGate('elevator', expired.attemptId, 1, 68_001), undefined);
-    assert.equal(store.fail('elevator', expired.attemptId, 'TIME_UP', 68_001)?.status, 'FAILED');
-    assert.equal(store.progress('elevator', journeyDallas07.id).completed, false);
-    const first = store.launch('elevator', 'trainer', 70_000, journeyDallas07.id);
-    store.approach('elevator', first.attemptId);
-    assert.equal(store.acceptGate('elevator', first.attemptId, 0, 71_000)?.gateIndex, 1);
-    assert.equal(store.acceptGate('elevator', first.attemptId, 2, 80_000), undefined);
-    assert.equal(store.acceptGate('elevator', first.attemptId, 1, 90_000)?.gateIndex, 2);
-    assert.equal(store.acceptGate('elevator', first.attemptId, 2, 110_000)?.gateIndex, 3);
-    const result = store.acceptGate('elevator', first.attemptId, 3, 130_000);
-    assert.equal(result?.status, 'COMPLETED');
-    assert.equal(result?.finishTimeMs, 59_000);
-    assert.equal(result?.firstClearCredits, 850);
-    assert.equal(store.acceptGate('elevator', first.attemptId, 3, 130_100), undefined);
-    assert.equal(store.progress('elevator', journeyDallas07.id).completed, true);
-    const replay = store.launch('elevator', 'trainer', 200_000, journeyDallas07.id);
-    store.approach('elevator', replay.attemptId);
-    for (let index = 0; index < 4; index += 1)
-      assert.equal(store.acceptGate('elevator', replay.attemptId, index, 201_000 + index * 10_000)?.gateIndex, index + 1);
-    assert.equal(store.get('elevator', replay.attemptId)?.firstClearCredits, 0);
-    const capped = store.launch('capped', 'trainer', 300_000, journeyDallas07.id);
-    store.approach('capped', capped.attemptId);
-    for (let index = 0; index < 4; index += 1)
-      assert.equal(store.acceptGate('capped', capped.attemptId, index, 301_000 + index * 10_000)?.gateIndex, index + 1);
-    assert.equal(store.get('capped', capped.attemptId)?.firstClearCredits, 50);
-    const check = new DatabaseSync(path);
-    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'elevator'").get() as { credits: number }).credits, 850);
-    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE pilot_id = 'elevator' AND reference_id = 'journey-dallas-07'").get() as { count: number }).count, 1);
-    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'capped'").get() as { credits: number }).credits, 1_000_000);
-    assert.equal((check.prepare("SELECT amount FROM wallet_transactions WHERE pilot_id = 'capped' AND reference_id = 'journey-dallas-07'").get() as { amount: number }).amount, 50);
-    check.close();
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+test('Giant Incoming preserves historical clears and wallet caps',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'giant-legacy-')),path=join(directory,'profiles.sqlite');const db=new DatabaseSync(path);
+  db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('legacy',850,0),('capped',999950,0)");db.close();
+  try{const store=new JourneyAttemptStore(path);const fixture=new DatabaseSync(path);for(const id of ['legacy','capped'])fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(id,journeyDallas06.id,'prior-six',500,90000);fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('legacy',journeyDallas07.id,'historical-elevator',500,52000);fixture.close();
+    for(const id of ['legacy','capped']){const a=store.launch(id,'trainer',1000,journeyDallas07.id);store.approach(id,a.attemptId,1100);store.startGiantIncoming(id,a.attemptId,2000);for(let i=0;i<80;i++)store.hitTransport(id,a.attemptId,3000+i*1000);assert.equal(store.get(id,a.attemptId)?.firstClearCredits,id==='legacy'?0:50);}
+    assert.equal(store.launch('legacy','trainer',100000,'journey-dallas-08').missionId,'journey-dallas-08');
+    const check=new DatabaseSync(path);const history=check.prepare("SELECT first_attempt_id,best_time_ms FROM journey_completions WHERE pilot_id='legacy' AND mission_id='journey-dallas-07'").get() as {first_attempt_id:string;best_time_ms:number};assert.equal(history.first_attempt_id,'historical-elevator');assert.equal(history.best_time_ms,52000);assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id='capped'").get() as {credits:number}).credits,1000000);check.close();
+  }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
 test('Rookie Rush crossing requires ordered forward travel through the actual opening', () => {

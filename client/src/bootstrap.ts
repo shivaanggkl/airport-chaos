@@ -6,7 +6,7 @@ import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './a
 import { HomeHangar, type HomeHangarData } from './home-hangar';
 import { AppShellHeader, type AppShellActive } from './app-shell';
 import { GameStore } from './game-store';
-import { MissionJourney } from './mission-journey';
+import { MissionJourney, missionJourneyStages } from './mission-journey';
 import type { StoreItem, StoreCategory } from './store-catalog';
 import { PilotMenu, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { BrandLoadingScreen } from './startup-loading';
@@ -44,6 +44,11 @@ const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
 const cityJourneyTrack = cityOptions.querySelector<HTMLElement>('[data-city-journey-track]')!;
 const cityJourneyDots = cityOptions.querySelector<HTMLElement>('[data-city-journey-dots]')!;
 const cityJourneyHint = cityOptions.querySelector<HTMLElement>('[data-city-journey-hint]')!;
+const cityJourneyPrevious = cityOptions.querySelector<HTMLButtonElement>('[data-city-previous]')!;
+const cityJourneyNext = cityOptions.querySelector<HTMLButtonElement>('[data-city-next]')!;
+const cityHelp = document.querySelector<HTMLButtonElement>('#city-help')!;
+const cityHelpDialog = document.querySelector<HTMLElement>('#city-help-dialog')!;
+const cityHelpCopy = document.querySelector<HTMLElement>('#city-help-copy')!;
 const timeOptions = document.querySelector<HTMLElement>('#time-options')!;
 const cityBack = document.querySelector<HTMLButtonElement>('#city-back')!;
 const citySelectTitle = document.querySelector<HTMLElement>('#city-select-title')!;
@@ -53,7 +58,7 @@ const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
 mountCompactBrandFooter(document.querySelector<HTMLElement>('#home-brand-signature')!);
-const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, openMissionFreeFlight, playJourneyMission, openMissionDetails, closeMissionDetails);
+const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
 let guestQaJourneyAccess = false;
 let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';
@@ -297,6 +302,7 @@ let hubRewardedAdNotice: string | undefined;
 let hubRewardedAdPhase: 'idle' | 'loading' | 'playing' | 'verifying' = 'idle';
 let rewardedAdPollGeneration = 0;
 let hubFlyIntent = false;
+let hubFlyMode: CityJourneyMode = 'missions';
 let hubFlyGateActive = false;
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
@@ -521,17 +527,24 @@ type CityJourneyEntry = Readonly<{
   cityId?: CityDefinition['id'];
 }>;
 const CITY_JOURNEY_SELECTION_KEY = 'airport-chaos-city-journey-selection-v1';
+const CITY_JOURNEY_MODE_KEY = 'airport-chaos-city-journey-mode-v1';
+type CityJourneyMode = 'missions' | 'free-fly';
+let cityJourneyMode: CityJourneyMode = (() => {
+  try { return sessionStorage.getItem(CITY_JOURNEY_MODE_KEY) === 'free-fly' ? 'free-fly' : 'missions'; }
+  catch { return 'missions'; }
+})();
 const cityJourneyEntries: readonly CityJourneyEntry[] = Object.freeze([
-  { id: 'milwaukee', title: 'MILWAUKEE', subtitle: 'TRAINING CITY', artImage: milwaukeeJourneyImage, artPosition: 'center 46%', cityId: 'milwaukee' },
-  { id: 'dallas', title: 'DALLAS', subtitle: 'CITY 01', artImage: '/media/city-journey/dallas.jpg', artPosition: 'center', cityId: 'dallas' },
+  ...cities.map((city, index) => ({ id: city.id, title: city.displayName.toUpperCase(), subtitle: city.id === 'milwaukee' ? 'TRAINING CITY' : `CITY ${String(index).padStart(2, '0')}`, artImage: city.id === 'milwaukee' ? milwaukeeJourneyImage : `/media/city-journey/${city.id}.jpg`, artPosition: city.id === 'milwaukee' ? 'center 46%' : 'center', cityId: city.id })),
   { id: 'california', title: 'CALIFORNIA', subtitle: 'COMING SOON', artImage: '/media/cities/california-coming-soon.svg', artPosition: 'center' },
   { id: 'new-york', title: 'NEW YORK', subtitle: 'COMING SOON', artImage: '/media/cities/new-york-coming-soon.svg', artPosition: 'center' },
 ]);
 let cityJourneyIndex = 0;
+let cityJourneyLaunching = false;
 let cityJourneyPointer: { id: number; x: number; y: number; dragging: boolean } | undefined;
 let cityJourneyClickBlockedUntil = 0;
+let cityJourneyTransitionUntil = 0;
 let cityJourneyWheelAt = Number.NEGATIVE_INFINITY;
-type CityJourneyView = { card: HTMLElement; status: HTMLElement; cta: HTMLButtonElement; dot: HTMLButtonElement };
+type CityJourneyView = { card: HTMLElement; detail: HTMLElement; status: HTMLElement; lock: HTMLElement; cta: HTMLButtonElement; dot: HTMLButtonElement };
 const cityJourneyViews: CityJourneyView[] = [];
 
 function journeyCity(entry: CityJourneyEntry): CityDefinition | undefined {
@@ -542,30 +555,38 @@ function dallasUnlocked(): boolean {
   return authoritativeHomeProfile?.tutorial?.dallasUnlocked === true;
 }
 
-function cityJourneyState(entry: CityJourneyEntry): { status: string; cta: string; city?: CityDefinition; training?: boolean; disabled?: boolean } {
+function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: string; cta: string; city?: CityDefinition; training?: boolean; disabled?: boolean } {
   const city = journeyCity(entry);
-  if (!city) {
-    const label = entry.cityId ? 'LOCKED' : 'COMING SOON';
-    return { status: '', cta: label, disabled: true };
-  }
+  if (!city) return { detail: 'COMING SOON', status: 'CITY LOCKED', cta: 'LOCKED', disabled: true };
   if (entry.id === 'milwaukee') {
     const completed = Boolean(authoritativeHomeProfile?.tutorial?.completedAt);
-    return { city, status: completed ? '✓ TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: !completed };
+    if (cityJourneyMode === 'missions') return { city, detail: 'TRAINING', status: completed ? 'TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: true };
+    if (!authoritativeHomeProfile?.tutorial?.dallasUnlocked && authoritativeHomeProfile?.tutorial?.status !== 'started') {
+      return { city, detail: 'PRACTICE FREE FLY', status: 'START TRAINING IN MISSIONS FIRST', cta: 'LOCKED', disabled: true };
+    }
+    return { city, detail: 'PRACTICE FREE FLY', status: 'TRAINING CITY', cta: 'CONTINUE' };
   }
-  if (entry.id === 'dallas' && !dallasUnlocked()) return { city, status: 'COMPLETE MILWAUKEE TRAINING FIRST', cta: 'LOCKED', disabled: true };
-  if (entry.id === 'dallas' && hubAccount.state !== 'account' && !guestQaJourneyAccess) return { city, status: '✓ UNLOCKED · SIGN IN FOR MISSIONS', cta: 'FLY NOW' };
-  return { city, status: '✓ UNLOCKED', cta: 'FLY NOW' };
+  if (cityJourneyMode === 'missions' && city.id !== 'dallas') return { detail: 'COMING SOON', status: 'MISSIONS UNAVAILABLE', cta: 'LOCKED', disabled: true };
+  const capabilities = cityCapabilities(city.id);
+  if (cityJourneyMode === 'free-fly' && !capabilities?.competitiveEnabled && !capabilities?.practiceMode) {
+    return { detail: 'COMING SOON', status: 'FREE FLY UNAVAILABLE', cta: 'LOCKED', disabled: true };
+  }
+  const unlocked = entry.id !== 'dallas' || dallasUnlocked();
+  const detail = cityJourneyMode === 'missions'
+    ? `${missionJourneyStages.filter(stage => stage.implementation === 'playable').length} MISSIONS`
+    : capabilities?.competitiveEnabled ? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY';
+  return { city, detail, status: unlocked ? 'AVAILABLE' : 'COMPLETE MILWAUKEE TRAINING FIRST', cta: unlocked ? cityJourneyMode === 'missions' ? 'VIEW MISSIONS' : 'CONTINUE' : 'LOCKED', disabled: !unlocked };
 }
 
 function preferredCityJourneyIndex(preferDallas = false): number {
   const dallasIndex = cityJourneyEntries.findIndex(entry => entry.id === 'dallas');
-  if (!dallasUnlocked()) return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
-  if (preferDallas && dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
   try {
     const stored = localStorage.getItem(CITY_JOURNEY_SELECTION_KEY);
     const storedIndex = cityJourneyEntries.findIndex(entry => entry.id === stored);
     if (storedIndex >= 0) return storedIndex;
   } catch { /* use the current authoritative city availability */ }
+  if (!dallasUnlocked()) return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
+  if (preferDallas && dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
   if (dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
   return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
 }
@@ -576,7 +597,8 @@ function dismissCityJourneyHint(): void {
 
 function activateCityJourneyCard(index: number): void {
   const state = cityJourneyState(cityJourneyEntries[index]!);
-  if (performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
+  if (cityJourneyLaunching || performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
+  cityJourneyLaunching = true;
   hapticsManager.emit('selection');
   if (state.training) void startTrainingFromHub();
   else chooseCity(state.city);
@@ -604,9 +626,15 @@ function createCityJourneyCards(): void {
     subtitle.textContent = entry.subtitle;
     const title = document.createElement('h2');
     title.textContent = entry.title;
+    const detail = document.createElement('span');
+    detail.className = 'city-journey-detail';
     const status = document.createElement('strong');
     status.className = 'city-journey-status';
-    copy.append(subtitle, title, status);
+    const lock = document.createElement('span');
+    lock.className = 'city-journey-lock';
+    lock.textContent = '🔒';
+    lock.setAttribute('aria-hidden', 'true');
+    copy.append(subtitle, title, detail, status, lock);
     card.append(art, copy);
 
     const button = document.createElement('button');
@@ -632,7 +660,7 @@ function createCityJourneyCards(): void {
     dot.setAttribute('aria-label', `Show ${entry.title}`);
     dot.addEventListener('click', () => { if (index !== cityJourneyIndex) hapticsManager.emit('selection'); setCityJourneyIndex(index); });
     cityJourneyDots.append(dot);
-    cityJourneyViews.push({ card, status, cta: button, dot });
+    cityJourneyViews.push({ card, detail, status, lock, cta: button, dot });
   });
 }
 
@@ -648,7 +676,10 @@ function renderCityJourney(): void {
     view.card.classList.toggle('is-next', offset === 1);
     view.card.classList.toggle('is-before', offset < -1);
     view.card.classList.toggle('is-after', offset > 1);
+    view.card.classList.toggle('is-locked', state.disabled === true);
+    view.detail.textContent = state.detail;
     view.status.textContent = state.status;
+    view.lock.hidden = state.disabled !== true;
     view.cta.textContent = state.cta;
     view.cta.disabled = state.disabled === true;
     view.cta.setAttribute('aria-disabled', state.disabled === true ? 'true' : 'false');
@@ -658,12 +689,15 @@ function renderCityJourney(): void {
     view.dot.setAttribute('aria-current', offset === 0 ? 'true' : 'false');
     view.dot.textContent = offset === 0 ? '●' : '○';
   });
+  cityJourneyPrevious.disabled = cityJourneyIndex === 0;
+  cityJourneyNext.disabled = cityJourneyIndex === cityJourneyEntries.length - 1;
 }
 
 function setCityJourneyIndex(index: number, remember = true): void {
   const next = Math.max(0, Math.min(cityJourneyEntries.length - 1, index));
-  if (next === cityJourneyIndex && cityJourneyTrack.childElementCount) return;
+  if ((next === cityJourneyIndex && cityJourneyTrack.childElementCount) || performance.now() < cityJourneyTransitionUntil) return;
   cityJourneyIndex = next;
+  cityJourneyTransitionUntil = performance.now() + 320;
   if (remember) try { localStorage.setItem(CITY_JOURNEY_SELECTION_KEY, cityJourneyEntries[next]!.id); } catch { /* session selection still works */ }
   dismissCityJourneyHint();
   renderCityJourney();
@@ -672,6 +706,8 @@ function setCityJourneyIndex(index: number, remember = true): void {
 function stepCityJourney(direction: -1 | 1): void {
   setCityJourneyIndex(cityJourneyIndex + direction);
 }
+cityJourneyPrevious.addEventListener('click', () => stepCityJourney(-1));
+cityJourneyNext.addEventListener('click', () => stepCityJourney(1));
 
 cityOptions.addEventListener('keydown', event => {
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
@@ -741,7 +777,8 @@ cityOptions.addEventListener('pointercancel', event => {
 });
 
 const homeHangar = new HomeHangar(homeHangarElement, {
-  fly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly(); },
+  missions: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('missions'); },
+  freeFly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('free-fly'); },
 }, homeHangarData());
 
 let hubStoredPreferences: Record<string, unknown> = {};
@@ -1226,13 +1263,19 @@ async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
 
 function hasPendingHubFly(): boolean {
   if (hubFlyIntent) return true;
-  try { return sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) === '1'; }
+  try { return ['1', 'missions', 'free-fly'].includes(sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) ?? ''); }
   catch { return false; }
 }
 
-function rememberPendingHubFly(): void {
+function pendingHubFlyMode(): CityJourneyMode {
+  try { return sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) === 'free-fly' ? 'free-fly' : hubFlyMode; }
+  catch { return hubFlyMode; }
+}
+
+function rememberPendingHubFly(mode: CityJourneyMode): void {
   hubFlyIntent = true;
-  try { sessionStorage.setItem(PENDING_FLY_STORAGE_KEY, '1'); } catch { /* in-memory intent still works */ }
+  hubFlyMode = mode;
+  try { sessionStorage.setItem(PENDING_FLY_STORAGE_KEY, mode); } catch { /* in-memory intent still works */ }
 }
 
 function clearPendingHubFly(): void {
@@ -1242,10 +1285,11 @@ function clearPendingHubFly(): void {
 
 function resumePendingHubFly(): boolean {
   if (hubAccount.state !== 'account' || !hasPendingHubFly()) return false;
+  const mode = pendingHubFlyMode();
   clearPendingHubFly();
   hubAccountNotice = undefined;
   hubPilotMenu.close(false);
-  showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+  showSelector('', { mode, preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
   return true;
 }
 
@@ -1255,22 +1299,23 @@ function continueHubAsGuest(): void {
     hubPilotMenu.close();
     return;
   }
+  const mode = pendingHubFlyMode();
   clearPendingHubFly();
   hubPilotMenu.close(false);
-  showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+  showSelector('', { mode, preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
 }
 
-async function requestHubFly(): Promise<void> {
+async function requestHubFly(mode: CityJourneyMode = cityJourneyMode): Promise<void> {
   if (hubFlyGateActive || (hasPendingHubFly() && hubPilotMenu.isOpen())) return;
   hubFlyGateActive = true;
   try {
     await refreshHubPilotData();
     if (hubAccount.state === 'account') {
       clearPendingHubFly();
-      showSelector('', { preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+      showSelector('', { mode, preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
       return;
     }
-    rememberPendingHubFly();
+    rememberPendingHubFly(mode);
     hubAccountNotice = { ok: true, message: 'CHOOSE HOW TO PLAY' };
     await openHubPilotMenu('PROFILE', false);
   } finally {
@@ -1639,7 +1684,18 @@ function showHome(): Promise<void> {
   return garage.showcase(homeHangar.stage, garageProfile);
 }
 
-function showSelector(message = '', options: { preferDallas?: boolean } = {}): void {
+function closeCityHelp(restoreFocus = false): void {
+  cityHelpDialog.hidden = true;
+  if (restoreFocus) cityHelp.focus();
+}
+
+function showSelector(message = '', options: { preferDallas?: boolean; mode?: CityJourneyMode } = {}): void {
+  if (options.mode) cityJourneyMode = options.mode;
+  if (cityJourneyMode === 'free-fly') abandonPendingJourneyLaunch();
+  try { sessionStorage.setItem(CITY_JOURNEY_MODE_KEY, cityJourneyMode); } catch { /* in-memory mode remains available */ }
+  cityJourneyLaunching = false;
+  cityJourneyTransitionUntil = 0;
+  closeCityHelp();
   if (entryState === 'HANGAR' && window.history.state?.airportChaosEntryView !== 'CITY_SELECTION') {
     window.history.pushState({ airportChaosEntryView: 'CITY_SELECTION' }, '', window.location.href);
   }
@@ -1659,8 +1715,13 @@ function showSelector(message = '', options: { preferDallas?: boolean } = {}): v
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.textContent = 'BACK TO PILOT HUB';
-  citySelectTitle.textContent = 'CITY JOURNEY';
-  citySelectDescription.textContent = dallasUnlocked() ? 'Choose your city.' : 'Start Milwaukee training to unlock Dallas.';
+  citySelectTitle.textContent = cityJourneyMode === 'missions' ? 'CITY JOURNEY' : 'FREE FLY';
+  citySelectDescription.textContent = 'Choose your city.';
+  cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : 'Free Fly cities');
+  cityHelp.setAttribute('aria-label', `${cityJourneyMode === 'missions' ? 'Missions' : 'Free Fly'} help`);
+  cityHelpCopy.textContent = cityJourneyMode === 'missions'
+    ? 'Use the arrows, swipe, or tap a nearby city. Choose Dallas to view its missions, or Milwaukee to start training. Locked cities cannot launch.'
+    : 'Use the arrows, swipe, or tap a nearby city. Choose Continue, pick a time, and fly freely. Milwaukee is a training city; Dallas supports multiplayer. Locked cities cannot launch.';
   cityJourneyHint.classList.remove('is-dismissed');
   cityJourneyIndex = preferredCityJourneyIndex(options.preferDallas === true);
   renderCityJourney();
@@ -1670,6 +1731,8 @@ function showSelector(message = '', options: { preferDallas?: boolean } = {}): v
 
 function showMissionJourney(pushHistory = true, refreshProgress = true): void {
   if (!dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
+  cityJourneyMode = 'missions';
+  try { sessionStorage.setItem(CITY_JOURNEY_MODE_KEY, cityJourneyMode); } catch { /* current mode remains available */ }
   abandonPendingJourneyLaunch();
   if (pushHistory && window.history.state?.airportChaosEntryView !== 'MISSION_JOURNEY') {
     window.history.pushState({ airportChaosEntryView: 'MISSION_JOURNEY' }, '', window.location.href);
@@ -1707,19 +1770,6 @@ function closeMissionDetails(): void {
   else missionJourney.closePanel();
 }
 
-function openMissionFreeFlight(): void {
-  if (!dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
-  abandonPendingJourneyLaunch();
-  const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
-  if (!dallas) return;
-  missionJourneyReturnPending = false;
-  missionJourney.hide();
-  entryState = 'CITY_SELECTION';
-  citySelector.hidden = false;
-  showTimeSelection(dallas, 'MISSION_JOURNEY');
-  showAppHeader(undefined);
-}
-
 registerUiBackLayer({
   id: 'mission-journey-details',
   priority: uiBackPriority.menu,
@@ -1735,6 +1785,7 @@ registerUiBackLayer({
 });
 
 function returnFromCitySelection(): void {
+  if (!cityHelpDialog.hidden) { closeCityHelp(true); return; }
   if (citySelector.dataset.view === 'time') {
     returnFromTimeSelection();
     return;
@@ -1752,12 +1803,26 @@ function returnFromCitySelection(): void {
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 }
 
+cityHelp.addEventListener('click', () => {
+  cityHelpDialog.hidden = false;
+  cityHelpDialog.querySelector<HTMLButtonElement>('[data-city-help-close]')!.focus();
+});
+cityHelpDialog.querySelector<HTMLButtonElement>('[data-city-help-close]')!.addEventListener('click', () => closeCityHelp(true));
+cityHelpDialog.addEventListener('click', event => { if (event.target === cityHelpDialog) closeCityHelp(true); });
+registerUiBackLayer({
+  id: 'city-journey-help',
+  priority: uiBackPriority.blockingModal,
+  isActive: () => !cityHelpDialog.hidden,
+  close: () => closeCityHelp(true),
+  containsTarget: target => target instanceof Node && cityHelpDialog.querySelector('.city-help-card')?.contains(target) === true,
+});
+
 registerUiBackLayer({
   id: 'city-selection',
   priority: uiBackPriority.surface,
   isActive: () => !citySelector.hidden,
   close: returnFromCitySelection,
-  containsTarget: (target) => target instanceof Node && (Boolean(citySelector.querySelector('.city-select-card')?.contains(target)) || cityBack.contains(target)),
+  containsTarget: (target) => target instanceof Node && (Boolean(citySelector.querySelector('.city-select-card')?.contains(target)) || cityBack.contains(target) || cityHelp.contains(target)),
 });
 
 async function startTrainingFromHub(): Promise<void> {
@@ -1842,6 +1907,11 @@ function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
   if (city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   recordProductIntent('city_selected', { cityId: city.id });
+  if (cityJourneyMode === 'free-fly') {
+    abandonPendingJourneyLaunch();
+    showTimeSelection(city);
+    return;
+  }
   if (city.id === 'dallas') {
     showMissionJourney();
     return;
@@ -1859,6 +1929,7 @@ function chooseCity(city: CityDefinition): void {
 }
 
 function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELECTION'): void {
+  closeCityHelp();
   timeSelectionReturnState = returnTo;
   if (window.history.state?.airportChaosEntryView !== 'TIME_SELECTION') {
     window.history.pushState({ airportChaosEntryView: 'TIME_SELECTION' }, '', window.location.href);
