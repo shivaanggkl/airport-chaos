@@ -365,8 +365,8 @@ const cityEvents = new Map<CityId, CityEvent>();
 const lastEventTypes = new Map<CityId, DynamicEventType>();
 const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url)));
 const localJourneyQaUnlockAll = localJourneyQaUnlockEnabled();
-const profileStore = new PlayerProfileStore(profileDatabasePath, localJourneyQaUnlockAll);
 const stagingJourneyQaUnlockAll = stagingJourneyQaUnlockEnabled() || localJourneyQaUnlockAll;
+const profileStore = new PlayerProfileStore(profileDatabasePath, stagingJourneyQaUnlockAll);
 const journeyStore = new JourneyAttemptStore(profileDatabasePath, stagingJourneyQaUnlockAll);
 const siegeJourneyTerritory = territoriesForCity('dallas').find(territory => territory.id === journeyDallas18.territoryId)!;
 const twoFrontAlpha = territoriesForCity('dallas').find(territory => territory.id === journeyDallas21.alphaTerritoryId)!;
@@ -1458,11 +1458,11 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname === '/api/journey/dallas' || journeyAction) {
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
-    if (!identity.session.accountId && !localJourneyQaUnlockAll) { jsonResponse(response, 403, { error: 'Sign in to play Journey missions.' }); return; }
+    if (!identity.session.accountId && !stagingJourneyQaUnlockAll) { jsonResponse(response, 403, { error: 'Sign in to play Journey missions.' }); return; }
     const journeyProfile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
     const dallasUnlocked = journeyProfile.tutorial.dallasUnlocked;
     if (requestUrl.pathname === '/api/journey/dallas' && request.method === 'GET') {
-      jsonResponse(response, 200, { missionId: journeyDallas01.id, guestQaAccess: localJourneyQaUnlockAll,
+      jsonResponse(response, 200, { missionId: journeyDallas01.id, guestQaAccess: stagingJourneyQaUnlockAll,
         eligible: dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
         ...journeyStore.progress(identity.pilotId), mission02: {
           eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
