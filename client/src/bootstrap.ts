@@ -794,6 +794,7 @@ cityOptions.addEventListener('pointercancel', event => {
 const homeHangar = new HomeHangar(homeHangarElement, {
   missions: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('missions'); },
   freeFly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('free-fly'); },
+  settings: () => { if (entryState !== 'HANGAR') return; hapticsManager.emit('selection'); void openHubPilotMenu('CONTROLS', false); },
 }, homeHangarData());
 
 let hubStoredPreferences: Record<string, unknown> = {};

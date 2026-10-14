@@ -4571,6 +4571,9 @@ body:has(.app-shell-header:not([hidden]))::before { opacity: 0; }
 .home-hangar .home-hangar-mode-copy strong { font-size: clamp(20px, 2vw, 28px); line-height: 1.05; }
 .home-hangar .home-hangar-mode-copy > span, .home-hangar .home-hangar-mode-arrow { display: none; }
 .home-hangar .home-hangar-mode-copy small { font-size: 10px; line-height: 1.1; letter-spacing: .08em; }
+.home-hangar-settings { position: absolute; z-index: 5; right: max(28px, calc(var(--safe-area-right) + 20px)); bottom: max(28px, calc(var(--safe-area-bottom) + 20px)); display: grid; place-items: center; width: 48px; height: 48px; padding: 1px; border: 0; background: none; box-shadow: none; cursor: pointer; }
+.home-hangar-settings svg { display: block; width: 46px; height: 46px; }
+.home-hangar-settings:focus-visible { outline: 2px solid #e5eaed; outline-offset: 2px; border-radius: 4px; }
 @media (orientation: portrait) {
   .home-hangar .home-hangar-contextual { top: 55%; gap: 14px; }
   .home-hangar .home-hangar-mode { height: clamp(164px, 25dvh, 230px); }
