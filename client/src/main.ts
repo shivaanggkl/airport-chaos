@@ -80,6 +80,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
+import { MissionTwoIntroPath, MISSION_TWO_INTRO_DURATION_MS, MISSION_TWO_INTRO_SWEEP_MS } from './mission-two-intro';
 import { MissionSixIntroPath, MISSION_SIX_INTRO_DURATION_MS, MISSION_SIX_INTRO_SWEEP_MS } from './mission-six-intro';
 import { isPerfectLandingGrade, regionCinematicPresentation } from '../../shared/gameplay-cinematic-rules.mjs';
 import { formatPilotAltitude, formatRelativeAltitude } from '../../shared/multiplayer-altitude.mjs';
@@ -4073,6 +4074,7 @@ const flightLaunchCurrentTarget = new THREE.Vector3();
 const flightLaunchSkipPosition = new THREE.Vector3();
 const flightLaunchSkipTarget = new THREE.Vector3();
 let missionOneIntroPath: MissionOneIntroPath | undefined;
+let missionTwoIntroPath: MissionTwoIntroPath | undefined;
 let missionSixIntroPath: MissionSixIntroPath | undefined;
 let flightLaunchSkipFov = CAMERA_CHASE_FOV;
 let flightLaunchEngineLift = 0;
@@ -4117,10 +4119,12 @@ function beginFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
   cinematicDirector.clearPresentation();
   flightLaunchState = 'active';
-  if (missionOneIntroPath || missionSixIntroPath) {
+  if (missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath) {
     flightLaunchTitle.classList.add('is-golden-gates');
     flightLaunchTitle.innerHTML = missionSixIntroPath
       ? '<strong>MISSION 06 · GOLDEN CHAMPIONSHIP</strong><span>FLY THROUGH ALL 10 GOLDEN GATES</span><small>TAP TO SKIP</small>'
+      : missionTwoIntroPath
+      ? '<strong>MISSION 02 · LAKE RACER</strong><span>10 GOLDEN GATES AHEAD</span><small>TAP TO SKIP</small>'
       : '<strong>MISSION 01 · ROOKIE RUSH</strong><span>FLY THROUGH ALL 10 GOLDEN GATES</span><small>TAP TO SKIP</small>';
     flightGameRoot.classList.add('golden-gates-intro');
   }
@@ -4141,13 +4145,15 @@ function beginFlightLaunchCinematic(): void {
   document.body.classList.add('launch-cinematic-active');
   flightLaunchTitle.classList.add('is-visible');
   setFlightLaunchChrome(0);
+  if ((missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath) && matchMedia('(prefers-reduced-motion: reduce)').matches) completeFlightLaunchCinematic();
 }
 
 function completeFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'active') return;
-  const wasGoldenGateIntro = Boolean(missionOneIntroPath || missionSixIntroPath);
+  const wasGoldenGateIntro = Boolean(missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath);
   journeyGates?.setCoursePreview(false);
   missionOneIntroPath = undefined;
+  missionTwoIntroPath = undefined;
   missionSixIntroPath = undefined;
   flightLaunchState = 'complete';
   flightLaunchEngineLift = 0;
@@ -4187,16 +4193,16 @@ function requestFlightLaunchSkip(): void {
   flightLaunchTitle.classList.remove('is-visible');
   flightGameRoot.style.setProperty('--launch-hud-fade-duration', `${FLIGHT_LAUNCH_SKIP_BLEND_MS}ms`);
   document.body.style.setProperty('--launch-hud-fade-duration', `${FLIGHT_LAUNCH_SKIP_BLEND_MS}ms`);
-  setFlightLaunchChrome(missionOneIntroPath || missionSixIntroPath ? 0 : 1);
+  setFlightLaunchChrome(missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath ? 0 : 1);
 }
 
 function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3, chaseFov: number): boolean {
   if (flightLaunchState !== 'active') return false;
   const now = performance.now();
-  const goldenGateIntroPath = missionOneIntroPath ?? missionSixIntroPath;
+  const goldenGateIntroPath = missionOneIntroPath ?? missionTwoIntroPath ?? missionSixIntroPath;
   if (goldenGateIntroPath) {
-    const sweepMs = missionSixIntroPath ? MISSION_SIX_INTRO_SWEEP_MS : MISSION_ONE_INTRO_SWEEP_MS;
-    const durationMs = missionSixIntroPath ? MISSION_SIX_INTRO_DURATION_MS : MISSION_ONE_INTRO_DURATION_MS;
+    const sweepMs = missionSixIntroPath ? MISSION_SIX_INTRO_SWEEP_MS : missionTwoIntroPath ? MISSION_TWO_INTRO_SWEEP_MS : MISSION_ONE_INTRO_SWEEP_MS;
+    const durationMs = missionSixIntroPath ? MISSION_SIX_INTRO_DURATION_MS : missionTwoIntroPath ? MISSION_TWO_INTRO_DURATION_MS : MISSION_ONE_INTRO_DURATION_MS;
     const elapsed = now - flightLaunchStartedAt;
     const skipped = flightLaunchSkipStartedAt !== undefined;
     const transition = skipped ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS : 0;
@@ -9697,7 +9703,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
 
 async function retryJourneyMission(): Promise<void> {
   if (!journeyMode || !journeyAttempt || journeyAttempt.status === 'COMPLETED') return;
-  const retryGateIntro = journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id;
+  const retryGateIntro = journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id;
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
   retryButton.disabled = true;
   try {
@@ -9772,7 +9778,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
 
 function sendLocalState(introHandshake = false): void {
   if (!localPlayerId || !connectionReady()) return;
-  if (!introHandshake && (airborneIntroAwaiting || (missionOneIntroPath || missionSixIntroPath) && flightLaunchState === 'active' || missionFiveIntro?.active)) return;
+  if (!introHandshake && (airborneIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath) && flightLaunchState === 'active' || missionFiveIntro?.active)) return;
   flushProfileRewards();
   socket.send(
     JSON.stringify({
@@ -10094,6 +10100,10 @@ boundSocket.addEventListener('message', (event) => {
         missionOneIntroPath = new MissionOneIntroPath(airplane.position, journeyDallas01.gates, getTerrainHeight);
         journeyGates?.setCoursePreview(true);
         beginFlightLaunchCinematic();
+      } else if (message.attempt.missionId === journeyDallas02.id && message.attempt.status === 'APPROACH' && message.attempt.gateIndex === 0) {
+        missionTwoIntroPath = new MissionTwoIntroPath(airplane.position, journeyDallas02.gates, getTerrainHeight);
+        journeyGates?.setCoursePreview(true);
+        beginFlightLaunchCinematic();
       } else if (message.attempt.missionId === journeyDallas05.id && message.attempt.status === 'APPROACH' && message.attempt.gateIndex === 0) {
         cancelPendingFlightLaunch();
         beginMissionFiveIntro(message.attempt.attemptId);
@@ -10197,7 +10207,7 @@ boundSocket.addEventListener('message', (event) => {
       applyServerProfile(message.profile);
     }
     if (journeyMode && message.airborneSpawn) {
-      runStarted = !airborneIntroAwaiting && !(flightLaunchState === 'active' && (missionOneIntroPath || missionSixIntroPath));
+      runStarted = !airborneIntroAwaiting && !(flightLaunchState === 'active' && (missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath));
       onGround = false;
       crashed = false;
       heading = message.airborneSpawn.heading; pitch = 0; roll = 0;
@@ -10221,7 +10231,7 @@ boundSocket.addEventListener('message', (event) => {
     flushProfileRewards();
     if (shouldBeginFlightLaunch && !message.airborneSpawn) beginFlightLaunchCinematic();
     else if (!airborneIntroAwaiting) { cancelPendingFlightLaunch(); offerDallasPracticeSuggestion(serverProfile); }
-    sendLocalState(airborneIntroAwaiting || Boolean(missionOneIntroPath || missionSixIntroPath));
+    sendLocalState(airborneIntroAwaiting || Boolean(missionOneIntroPath || missionTwoIntroPath || missionSixIntroPath));
     sendPlayerUpdate();
   } else if (!protocolReady || !profileHydrated) {
     // A profile/state message from an earlier connection generation must not
