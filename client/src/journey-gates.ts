@@ -74,7 +74,7 @@ export class JourneyGateSystem {
   }
 
   setCoursePreview(visible: boolean): void {
-    this.previewAll = visible && (this.mission.id === journeyDallas01.id || this.mission.id === journeyDallas02.id || this.mission.id === journeyDallas06.id);
+    this.previewAll = visible && (this.mission.id === journeyDallas01.id || this.mission.id === journeyDallas02.id || this.mission.id === journeyDallas03.id || this.mission.id === journeyDallas06.id);
     this.refresh();
   }
 
