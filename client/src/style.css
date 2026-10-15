@@ -4892,6 +4892,19 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   .garage-card .garage-aircraft-preview-button { min-height: 42px; }
   .garage-card .garage-aircraft-get { min-width: 36px; min-height: 26px; }
 }
+@media (max-height: 430px) and (orientation: landscape) {
+  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-rows: 36px minmax(0, 1fr) 46px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-details { padding: 5px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-status-row { min-height: 24px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-details h2 { margin-top: 2px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-details > [data-garage-pitch] { margin: 1px 0 3px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-stats { gap: 2px 6px; padding: 3px 0; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-stats div, .garage-card .garage-details.is-firehawk .garage-stats div { min-height: 13px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-cosmetics { padding-top: 3px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-cosmetics h2 { margin-bottom: 3px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-list { padding-block: 0; }
+  body:has(.app-shell-header:not([hidden])) .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
+}
 @media (orientation: portrait) and (max-width: 680px) {
   .garage-overlay { overflow-y: auto; }
   body:has(.app-shell-header:not([hidden])) .garage-card,
