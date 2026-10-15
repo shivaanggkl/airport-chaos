@@ -6680,7 +6680,7 @@ server.on('connection', (socket, request) => {
   let journeyAttempt: JourneyAttempt | undefined;
   if (requestedJourneyAttemptId) {
     const candidate = journeyStore.get(profile.pilotId, requestedJourneyAttemptId);
-    if ((!identity.session.accountId && !localJourneyQaUnlockAll) || cityId !== journeyDallas01.cityId || tutorialMode ||
+    if ((!identity.session.accountId && !stagingJourneyQaUnlockAll) || cityId !== journeyDallas01.cityId || tutorialMode ||
       !candidate || candidate.aircraftType !== activeAircraftType ||
       !profile.unlockedAircraft.includes(activeAircraftType) ||
       !stagingJourneyQaUnlockAll && (
