@@ -340,18 +340,43 @@ body.launch-cinematic-active #tutorial-help {
   0%, 100% { box-shadow: inset 0 2px rgb(244 249 252 / 31%), 0 5px 14px rgb(5 24 38 / 38%), 0 0 0 var(--app-shell-glow); }
   50% { box-shadow: inset 0 2px rgb(244 249 252 / 42%), 0 5px 14px rgb(5 24 38 / 38%), 0 0 16px 2px var(--app-shell-glow); }
 }
-.app-shell-wallet .app-shell-sky-tokens { --app-shell-glow: rgb(39 211 243 / 24%); animation: app-shell-soft-glow 6s ease-in-out infinite; }
+.app-shell-wallet .app-shell-sky-tokens { --app-shell-glow: rgb(39 211 243 / 24%); animation: app-shell-soft-glow 3s ease-in-out infinite; }
+.app-shell-header .app-shell-advertise > img { animation: app-shell-icon-float 2.3s ease-in-out infinite; }
+.app-shell-header .app-shell-friends > img { animation: app-shell-icon-rock 2.6s ease-in-out -.55s infinite; }
+.app-shell-header .app-shell-credits .app-shell-currency-icon > img { animation: app-shell-icon-rock 2.75s ease-in-out -1.1s infinite; }
+.app-shell-header .app-shell-sky-tokens .app-shell-currency-icon > img { animation: app-shell-icon-float 2.4s ease-in-out -.9s infinite; }
+.app-shell-header .app-shell-store .app-shell-badge-art:not(.has-badge) > img { animation: app-shell-icon-rock 2.5s ease-in-out -.35s infinite; }
+.app-shell-header .app-shell-rewards .app-shell-badge-art:not(.has-badge) > img { animation: app-shell-icon-float 2.2s ease-in-out -1.25s infinite; }
+@keyframes app-shell-icon-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-3px) rotate(2deg); }
+}
+@keyframes app-shell-icon-rock {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
 .app-shell-badge-art { position: relative; display: block; width: 34px; height: 34px; flex: none; }
 .app-shell-badge-art > img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.app-shell-badge-art.has-badge { animation: app-shell-badge-jump 3s ease-in-out infinite; }
-.app-shell-rewards .app-shell-badge-art.has-badge { animation-delay: -1.5s; }
-@keyframes app-shell-badge-jump {
-  0%, 70%, 82%, 90%, 100% { transform: translateY(0); }
-  76% { transform: translateY(-6px); }
-  86% { transform: translateY(-3px); }
+.app-shell-header .app-shell-badge-art.has-badge { animation: app-shell-badge-attention 1.3s ease-in-out infinite; }
+.app-shell-header .app-shell-rewards .app-shell-badge-art.has-badge { animation-duration: 2.4s; animation-delay: -1.2s; }
+.app-shell-header .app-shell-badge-art.has-badge .app-shell-notification-badge { animation: app-shell-badge-pulse 1.3s ease-in-out infinite; }
+.app-shell-header .app-shell-rewards .app-shell-badge-art.has-badge .app-shell-notification-badge { animation-duration: 2.4s; animation-delay: -1.2s; }
+@keyframes app-shell-badge-attention {
+  0%, 55%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  63% { transform: translateY(-6px) rotate(-7deg) scale(1.12); }
+  72% { transform: translateY(0) rotate(5deg) scale(1.04); }
+  81% { transform: translateY(-3px) rotate(-3deg) scale(1.09); }
+  90% { transform: translateY(0) rotate(0) scale(1); }
 }
-.app-shell-header.is-page-hidden .app-shell-badge-art { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) { .app-shell-header :is(.app-shell-sky-tokens, .app-shell-badge-art.has-badge) { animation: none; } }
+@keyframes app-shell-badge-pulse {
+  0%, 55%, 100% { transform: scale(1); }
+  63%, 81% { transform: scale(1.2); }
+  72%, 90% { transform: scale(1); }
+}
+.app-shell-header.is-page-hidden :is(.app-shell-action img, .app-shell-currency-icon img, .app-shell-badge-art, .app-shell-notification-badge, .app-shell-sky-tokens) { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell-header :is(.app-shell-action img, .app-shell-currency-icon img, .app-shell-badge-art.has-badge, .app-shell-notification-badge, .app-shell-sky-tokens) { animation: none; }
+}
 .app-shell-header .app-shell-action:not(.app-shell-avatar):is(:hover, :focus-visible) { filter: brightness(1.08); }
 .app-shell-header .app-shell-action:not(.app-shell-avatar).is-active { animation: none; filter: brightness(1.12); border-color: var(--ac-text-primary); box-shadow: 0 0 0 2px var(--action-accent), inset 0 0 0 1px rgb(246 251 255 / 48%), 0 0 18px var(--action-accent), 0 7px 18px rgb(9 32 66 / 48%); }
 .app-shell-header .app-shell-avatar.is-active { box-shadow: 0 0 0 3px var(--ac-cyan-highlight), 0 0 16px rgb(39 211 243 / 52%), 0 7px 16px rgb(5 24 38 / 42%); }
@@ -614,6 +639,7 @@ body.launch-cinematic-active #tutorial-help {
 body:has(.brand-loading:not([hidden]):not(.is-leaving)) #tutorial-help,
 body:has(.home-hangar:not([hidden])) #tutorial-help,
 body:has(.city-selector:not([hidden])) #tutorial-help,
+body:has(.mission-journey:not([hidden])) #tutorial-help,
 body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .home-hangar-stage { position: absolute; z-index: 2; inset: calc(var(--app-shell-header-total) + 4px) 3vw clamp(40px, 5dvh, 50px); min-width: 0; min-height: 0; }
 .home-hangar-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
@@ -4629,12 +4655,6 @@ body:has(.app-shell-header:not([hidden]))::before {
 }
 body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
 
-
-/* Mission 7's post-victory crash is presentation only. Exit stays available. */
-.transport-defeat-cinematic :is(#radar-panel, #acquisition-circle, #target-feedback, .journey-hud, .monster-boss-hud, .flight-hud-center, .flight-hud-right, #flight-menu-button, #touch-controls, #radar) { visibility: hidden !important; pointer-events: none !important; }
-
-.transport-arrival-alert{position:fixed;z-index:80;left:max(6vw,env(safe-area-inset-left));bottom:max(9vh,env(safe-area-inset-bottom));max-width:min(560px,86vw);padding:18px 24px;border-left:4px solid #ff5548;background:linear-gradient(90deg,rgba(40,7,12,.9),rgba(22,12,20,.55));color:#fff;pointer-events:none;text-shadow:0 2px 4px #000;font-family:inherit}
-.transport-arrival-alert span{display:block;color:#ffada0;font-size:12px;font-weight:800;letter-spacing:2px}.transport-arrival-alert strong{display:block;font-size:clamp(24px,4vw,42px);letter-spacing:2px;margin:6px 0}.transport-arrival-alert p{margin:4px 0;font-size:clamp(12px,1.5vw,17px)}
 /* Hub Pilot Profile: one game panel, independent of the in-flight menu. */
 body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-profile) {
   padding-top: calc(var(--app-shell-header-total) + 16px);
@@ -4768,6 +4788,13 @@ body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-prof
   .pilot-profile-achievement > div > span { font-size: 9px; line-height: 1.1; -webkit-line-clamp: 1; }
   .pilot-profile-achievement small { font-size: 8px; }
 }
+
+
+/* Mission 7's post-victory crash is presentation only. Exit stays available. */
+.transport-defeat-cinematic :is(#radar-panel, #acquisition-circle, #target-feedback, .journey-hud, .monster-boss-hud, .flight-hud-center, .flight-hud-right, #flight-menu-button, #touch-controls, #radar) { visibility: hidden !important; pointer-events: none !important; }
+
+.transport-arrival-alert{position:fixed;z-index:80;left:max(6vw,env(safe-area-inset-left));bottom:max(9vh,env(safe-area-inset-bottom));max-width:min(560px,86vw);padding:18px 24px;border-left:4px solid #ff5548;background:linear-gradient(90deg,rgba(40,7,12,.9),rgba(22,12,20,.55));color:#fff;pointer-events:none;text-shadow:0 2px 4px #000;font-family:inherit}
+.transport-arrival-alert span{display:block;color:#ffada0;font-size:12px;font-weight:800;letter-spacing:2px}.transport-arrival-alert strong{display:block;font-size:clamp(24px,4vw,42px);letter-spacing:2px;margin:6px 0}.transport-arrival-alert p{margin:4px 0;font-size:clamp(12px,1.5vw,17px)}
 
 /* Aircraft Hangar: keep the model on an open stage and the controls in two pearl panels. */
 body:has(.app-shell-header:not([hidden])) .garage-overlay {
@@ -4915,6 +4942,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   .garage-card .garage-selector-section { width: 100%; }
   .garage-card .garage-aircraft { flex-wrap: wrap; }
 }
+
 /* The same icon-only page back control throughout the app. Button text remains its accessible name. */
 button.context-back,
 .garage-card header button.context-back,
@@ -4958,7 +4986,6 @@ button.context-back:focus-visible,
   box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
   outline: 2px solid #ffd875; outline-offset: 2px;
 }
-
 /* Page navigation shares one viewport anchor and one touch target on every screen. */
 body {
   --page-back-top: max(12px, calc(var(--safe-area-top) + 8px));

@@ -19,30 +19,30 @@ type MissionFact = Readonly<{ icon: FactIcon; label: string }>;
 type MissionCard = Readonly<{ title: string; objective: string; facts: readonly [MissionFact, MissionFact, MissionFact]; reward: number }>;
 const seconds = (milliseconds: number): string => `${milliseconds / 1000} SEC`;
 const missionCards: readonly MissionCard[] = [
-  { title: journeyDallas01.name, objective: 'Fly through all 10 golden gates before time runs out!', facts: [{ icon: 'location', label: 'DFW AIRSPACE' }, { icon: 'gate', label: `${journeyDallas01.gates.length} GATES` }, { icon: 'timer', label: '2:30 RACE' }], reward: journeyDallas01.firstClearCredits },
-  { title: journeyDallas02.name, objective: 'Fly through all 10 golden gates before time runs out!', facts: [{ icon: 'location', label: 'WHITE ROCK LAKE' }, { icon: 'gate', label: `${journeyDallas02.gates.length} GATES` }, { icon: 'timer', label: '2:30 RACE' }], reward: journeyDallas02.firstClearCredits },
-  { title: journeyDallas03.name, objective: 'Fly through all 10 golden gates before time runs out!', facts: [{ icon: 'location', label: 'NORTH DALLAS' }, { icon: 'gate', label: `${journeyDallas03.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas03.firstClearCredits },
-  { title: journeyDallas04.name, objective: 'Fly through all 10 golden gates before time runs out!', facts: [{ icon: 'location', label: 'DOWNTOWN' }, { icon: 'gate', label: `${journeyDallas04.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas04.firstClearCredits },
-  { title: journeyDallas05.name, objective: 'Fly accurately through all 10 golden gates before time runs out!', facts: [{ icon: 'location', label: 'TRINITY RIVER' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas05.firstClearCredits },
-  { title: journeyDallas06.name, objective: 'Fly through all 10 golden gates before time runs out!', facts: [{ icon: 'location', label: 'TRINITY RIVER' }, { icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas06.firstClearCredits },
-  { title: journeyDallas07.name, objective: 'Destroy the transport before it escapes!', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: 'GIANT TRANSPORT' }, { icon: 'timer', label: `${Math.ceil(journeyDallas07.timeLimitMs / 1000)} SEC TO EXIT` }], reward: journeyDallas07.firstClearCredits },
-  { title: journeyDallas08.name, objective: 'Get behind the AI aircraft and follow it for 15 seconds!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: 'FOLLOW AI' }, { icon: 'timer', label: seconds(journeyDallas08.followMs) }], reward: journeyDallas08.firstClearCredits },
-  { title: journeyDallas09.name, objective: 'Escape the Hunter. Reach the glowing Repair Heart!', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'health', label: '60% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }], reward: journeyDallas09.firstClearCredits },
-  { title: journeyDallas10.name, objective: 'Fly through 5 zigzag gates. Keep your turns smooth and beat the clock!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 GATES' }, { icon: 'timer', label: seconds(journeyDallas10.timeLimitMs) }], reward: journeyDallas10.firstClearCredits },
-  { title: journeyDallas11.name, objective: 'Dive through 4 gates. Pull up to reach the final gate!', facts: [{ icon: 'location', label: 'HIGH-ALTITUDE START' }, { icon: 'gate', label: '5 GATES' }, { icon: 'timer', label: seconds(journeyDallas11.timeLimitMs) }], reward: journeyDallas11.firstClearCredits },
-  { title: journeyDallas12.name, objective: 'Climb through 3 gates, then dive through 3 more!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '6 GATES' }, { icon: 'timer', label: seconds(journeyDallas12.timeLimitMs) }], reward: journeyDallas12.firstClearCredits },
-  { title: journeyDallas13.name, objective: 'Fly through 5 speed gates. Accelerate and keep your momentum!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 SPEED GATES' }, { icon: 'timer', label: seconds(journeyDallas13.timeLimitMs) }], reward: journeyDallas13.firstClearCredits },
-  { title: journeyDallas14.name, objective: 'Outfly the Hunter. Stay 450 m away for 10 seconds!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: '450 M ESCAPE' }, { icon: 'timer', label: '10 SEC HOLD' }], reward: journeyDallas14.firstClearCredits },
-  { title: journeyDallas15.name, objective: 'Chase the elite Ace. Land your shots and shoot it down!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'health', label: '300 HP BOSS' }, { icon: 'target', label: 'AIR COMBAT' }], reward: journeyDallas15.firstClearCredits },
-  { title: journeyDallas16.name, objective: 'Fly through 5 escape gates while surviving two Hunters!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 GATES' }, { icon: 'target', label: '2 HUNTERS' }], reward: journeyDallas16.firstClearCredits },
-  { title: journeyDallas17.name, objective: 'Repair your aircraft, then land at DFW with 780+ points!', facts: [{ icon: 'health', label: '45% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }, { icon: 'landing', label: 'LAND 780+' }], reward: journeyDallas17.firstClearCredits },
-  { title: journeyDallas18.name, objective: 'Capture the territory. Defend it from the Hunter for 40 seconds!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'capture', label: 'CAPTURE & DEFEND' }, { icon: 'timer', label: '40 SEC HOLD' }], reward: journeyDallas18.firstClearCredits },
+  { title: journeyDallas01.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'DFW AIRSPACE' }, { icon: 'gate', label: `${journeyDallas01.gates.length} GATES` }, { icon: 'timer', label: '2:30 RACE' }], reward: journeyDallas01.firstClearCredits },
+  { title: journeyDallas02.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'WHITE ROCK LAKE' }, { icon: 'gate', label: `${journeyDallas02.gates.length} GATES` }, { icon: 'timer', label: '2:30 RACE' }], reward: journeyDallas02.firstClearCredits },
+  { title: journeyDallas03.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'NORTH DALLAS' }, { icon: 'gate', label: `${journeyDallas03.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas03.firstClearCredits },
+  { title: journeyDallas04.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'DOWNTOWN' }, { icon: 'gate', label: `${journeyDallas04.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas04.firstClearCredits },
+  { title: journeyDallas05.name, objective: 'Fly through 10 narrow gates before time runs out.', facts: [{ icon: 'location', label: 'TRINITY RIVER' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas05.firstClearCredits },
+  { title: journeyDallas06.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'TRINITY RIVER' }, { icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas06.firstClearCredits },
+  { title: journeyDallas07.name, objective: 'Shoot down the transport before it leaves Dallas.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: 'GIANT TRANSPORT' }, { icon: 'timer', label: `${Math.ceil(journeyDallas07.timeLimitMs / 1000)} SEC TO EXIT` }], reward: journeyDallas07.firstClearCredits },
+  { title: journeyDallas08.name, objective: 'Follow the plane from behind for 15 seconds.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: 'FOLLOW AI' }, { icon: 'timer', label: seconds(journeyDallas08.followMs) }], reward: journeyDallas08.firstClearCredits },
+  { title: journeyDallas09.name, objective: 'Escape the Hunter and reach the Repair Heart.', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'health', label: '60% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }], reward: journeyDallas09.firstClearCredits },
+  { title: journeyDallas10.name, objective: 'Fly through 5 zigzag gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 GATES' }, { icon: 'timer', label: seconds(journeyDallas10.timeLimitMs) }], reward: journeyDallas10.firstClearCredits },
+  { title: journeyDallas11.name, objective: 'Dive through 4 gates, then climb through the last.', facts: [{ icon: 'location', label: 'HIGH-ALTITUDE START' }, { icon: 'gate', label: '5 GATES' }, { icon: 'timer', label: seconds(journeyDallas11.timeLimitMs) }], reward: journeyDallas11.firstClearCredits },
+  { title: journeyDallas12.name, objective: 'Climb through 3 gates, then dive through 3.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '6 GATES' }, { icon: 'timer', label: seconds(journeyDallas12.timeLimitMs) }], reward: journeyDallas12.firstClearCredits },
+  { title: journeyDallas13.name, objective: 'Fly through 5 speed gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 SPEED GATES' }, { icon: 'timer', label: seconds(journeyDallas13.timeLimitMs) }], reward: journeyDallas13.firstClearCredits },
+  { title: journeyDallas14.name, objective: 'Stay at least 450 m from the Hunter for 10 seconds.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: '450 M ESCAPE' }, { icon: 'timer', label: '10 SEC HOLD' }], reward: journeyDallas14.firstClearCredits },
+  { title: journeyDallas15.name, objective: 'Shoot down the Ace.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'health', label: '300 HP BOSS' }, { icon: 'target', label: 'AIR COMBAT' }], reward: journeyDallas15.firstClearCredits },
+  { title: journeyDallas16.name, objective: 'Fly through 5 gates while escaping two Hunters.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 GATES' }, { icon: 'target', label: '2 HUNTERS' }], reward: journeyDallas16.firstClearCredits },
+  { title: journeyDallas17.name, objective: 'Repair your plane, then land at DFW with 780+ points.', facts: [{ icon: 'health', label: '45% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }, { icon: 'landing', label: 'LAND 780+' }], reward: journeyDallas17.firstClearCredits },
+  { title: journeyDallas18.name, objective: 'Capture the area, then defend it for 40 seconds.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'capture', label: 'CAPTURE & DEFEND' }, { icon: 'timer', label: '40 SEC HOLD' }], reward: journeyDallas18.firstClearCredits },
   { title: journeyDallas19.name, objective: 'Destroy the monster before time runs out.', facts: [{ icon: 'location', label: 'AIRBORNE START' }, { icon: 'timer', label: '2:30 LIMIT' }, { icon: 'target', label: '1 MONSTER' }], reward: journeyDallas19.firstClearCredits },
-  { title: journeyDallas20.name, objective: 'Fly through 6 HIGH and LOW gates before time runs out!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '6 GATES' }, { icon: 'timer', label: seconds(journeyDallas20.timeLimitMs) }], reward: journeyDallas20.firstClearCredits },
-  { title: journeyDallas21.name, objective: 'Capture two territories. Secure Bravo before the clock runs out!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'capture', label: '2 TERRITORIES' }, { icon: 'timer', label: '120 SEC TRANSFER' }], reward: journeyDallas21.firstClearCredits },
-  { title: journeyDallas22.name, objective: 'Clear 3 approach gates, then make a PERFECT landing!', facts: [{ icon: 'location', label: 'DFW APPROACH' }, { icon: 'gate', label: '3 GATES' }, { icon: 'landing', label: 'PERFECT LANDING' }], reward: journeyDallas22.firstClearCredits },
-  { title: journeyDallas23.name, objective: 'Defeat 2 Hunters. Repair your aircraft between fights!', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: '2 HUNTERS' }, { icon: 'health', label: 'REPAIR HEART' }], reward: journeyDallas23.firstClearCredits },
-  { title: journeyDallas24.name, objective: 'Clear 3 gates, defeat the Legendary Ace, and land PERFECTLY!', facts: [{ icon: 'gate', label: '3 GATES' }, { icon: 'health', label: '300 HP ACE' }, { icon: 'landing', label: 'PERFECT LANDING' }], reward: journeyDallas24.firstClearCredits },
+  { title: journeyDallas20.name, objective: 'Fly through 6 high and low gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '6 GATES' }, { icon: 'timer', label: seconds(journeyDallas20.timeLimitMs) }], reward: journeyDallas20.firstClearCredits },
+  { title: journeyDallas21.name, objective: 'Capture both areas before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'capture', label: '2 TERRITORIES' }, { icon: 'timer', label: '120 SEC TRANSFER' }], reward: journeyDallas21.firstClearCredits },
+  { title: journeyDallas22.name, objective: 'Fly through 3 gates, then make a perfect landing.', facts: [{ icon: 'location', label: 'DFW APPROACH' }, { icon: 'gate', label: '3 GATES' }, { icon: 'landing', label: 'PERFECT LANDING' }], reward: journeyDallas22.firstClearCredits },
+  { title: journeyDallas23.name, objective: 'Defeat two Hunters. Repair between fights.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: '2 HUNTERS' }, { icon: 'health', label: 'REPAIR HEART' }], reward: journeyDallas23.firstClearCredits },
+  { title: journeyDallas24.name, objective: 'Fly through 3 gates, defeat the Ace, and land perfectly.', facts: [{ icon: 'gate', label: '3 GATES' }, { icon: 'health', label: '300 HP ACE' }, { icon: 'landing', label: 'PERFECT LANDING' }], reward: journeyDallas24.firstClearCredits },
 ];
 const factIcons: Readonly<Record<FactIcon, string>> = {
   location: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
@@ -78,6 +78,8 @@ export class MissionJourney {
   private readonly chapterDots: HTMLButtonElement[] = [];
   private readonly previousChapter: HTMLButtonElement;
   private readonly nextChapter: HTMLButtonElement;
+  private chapterSwipe?: { id: number; x: number; y: number };
+  private swipeClickBlockedUntil = 0;
   private visibleChapter: ChapterNumber = 1;
   private currentMission = 0;
   private selectedStage = 1;
@@ -156,7 +158,7 @@ export class MissionJourney {
         </div>
         <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
           <div class="mission-journey-detail-copy"><strong><span data-mission-index>MISSION 01</span> · <span data-mission-title></span></strong><p data-mission-objective></p></div>
-          <span class="mission-journey-reward" data-mission-reward></span>
+          <span class="mission-journey-reward" data-mission-reward role="img"><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><strong data-mission-reward-amount></strong><small data-mission-reward-claimed hidden aria-hidden="true">✓</small></span>
           <button type="button" class="mission-journey-play" data-mission-play disabled>PLAY MISSION</button>
         </div>
       </div>
@@ -172,6 +174,27 @@ export class MissionJourney {
     this.nextChapter = element.querySelector('[data-chapter-next]')!;
     this.previousChapter.addEventListener('click', () => this.changeChapter(this.visibleChapter - 1));
     this.nextChapter.addEventListener('click', () => this.changeChapter(this.visibleChapter + 1));
+    const board = element.querySelector<HTMLElement>('.mission-journey-board')!;
+    board.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || (event.target as Element).closest('.mission-journey-chapter-arrow, .mission-journey-detail')) return;
+      this.chapterSwipe = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    });
+    board.addEventListener('pointerup', event => {
+      if (this.chapterSwipe?.id !== event.pointerId) return;
+      const { x, y } = this.chapterSwipe;
+      this.chapterSwipe = undefined;
+      const dx = event.clientX - x;
+      const dy = event.clientY - y;
+      if (Math.abs(dx) < 42 || Math.abs(dx) <= Math.abs(dy)) return;
+      this.swipeClickBlockedUntil = performance.now() + 350;
+      this.changeChapter(this.visibleChapter + (dx < 0 ? 1 : -1));
+    });
+    board.addEventListener('pointercancel', () => { this.chapterSwipe = undefined; });
+    board.addEventListener('click', event => {
+      if (performance.now() >= this.swipeClickBlockedUntil) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
     element.querySelector<HTMLButtonElement>('[data-mission-cities]')!.addEventListener('click', onCities);
     element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => { hapticsManager.emit('confirmation'); onPlayMission(); });
     const dots = element.querySelector<HTMLElement>('.mission-journey-pagination')!;
@@ -187,7 +210,7 @@ export class MissionJourney {
       button.type = 'button'; button.className = 'mission-journey-node is-locked';
       button.dataset.stage = String(stage.number);
       button.style.left = `${stage.x}%`; button.style.top = `${stage.y}%`;
-      button.innerHTML = `${stage.number % 6 === 0 ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true">✓</span><span class="mission-journey-number">${stage.number}</span><small class="mission-journey-lock" aria-hidden="true"></small>`;
+      button.innerHTML = `${stage.number % 6 === 0 ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span><small class="mission-journey-lock" aria-hidden="true"></small>`;
       button.addEventListener('click', () => this.select(stage.number, true, true));
       nodes.append(button); this.stageButtons.push(button);
     }
@@ -767,7 +790,7 @@ export class MissionJourney {
     this.panelOpen = false;
   }
 
-  hide(): void { this.element.hidden = true; }
+  hide(): void { this.chapterSwipe = undefined; this.element.hidden = true; }
   closePanel(): void { this.panelOpen = false; }
 
   private setPanelOpen(_open: boolean): void { this.panelOpen = false; }
@@ -786,8 +809,8 @@ export class MissionJourney {
     if (!stage) {
       this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = 'MISSIONS LOCKED';
       this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = '';
-      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'Complete earlier missions to unlock this chapter.';
-      this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.textContent = '';
+      this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'Complete earlier missions to unlock.';
+      this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.hidden = true;
       this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!.hidden = true;
       return;
     }
@@ -798,9 +821,12 @@ export class MissionJourney {
     const locked = !completed && !eligible && !signInRequired;
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
-    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = locked ? `Complete Mission ${stage.number - 1} to unlock this mission.` : card.objective;
+    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = locked ? `Complete Mission ${stage.number - 1} to unlock.` : card.objective;
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
-    reward.textContent = `${card.reward} CREDITS${completed ? ' · CLAIMED' : ''}`;
+    reward.hidden = false;
+    reward.setAttribute('aria-label', `${card.reward.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = card.reward.toLocaleString();
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-claimed]')!.hidden = !completed;
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
     play.disabled = locked;
     play.hidden = locked;

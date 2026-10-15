@@ -30,6 +30,7 @@ import { audioManager, type AudioLevels } from './audio-manager';
 import { hapticsManager } from './haptics-manager';
 import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
 import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { recordProductIntent } from './product-analytics';
 import { persistMobileControlPlacement, persistPitchInverted, persistTouchMode, preferredGraphicsQuality, preferredMobileControlLayout, preferredPitchInverted, preferredTouchMode, resetPreferredMobileControlLayout } from './mobile-input';
 import milwaukeeJourneyImage from './help-assets/runway.avif';
@@ -233,8 +234,8 @@ type GarageIdentity = {
   totalDistance: number; successfulLandings: number; discoveries: Record<string, string[]>;
 };
 type RemoteGarageProfile = GarageProfile & {
-  pilotId?: string; pilotName?: string; score?: number; skyTokens?: number;
   profileSummary?: PilotProfileSummary;
+  pilotId?: string; pilotName?: string; score?: number; skyTokens?: number;
   totalDistance?: number; successfulLandings?: number;
   discoveries?: Record<string, string[]>;
   legacyImportPending?: boolean; legendaryPilot?: boolean;
@@ -934,8 +935,8 @@ function hubPilotMenuData(): PilotMenuData {
   const referral = profile?.referral;
   const accountResult = (path: 'logout' | 'pilot-name', payload: Record<string, string> = {}) => hubAccountRequest(path, payload);
   return {
-    nativeWebPromotion: nativePurchaseProvider !== undefined,
     profileSummary: profile?.profileSummary,
+    nativeWebPromotion: nativePurchaseProvider !== undefined,
     account: {
       state: hubAccount.state,
       email: hubAccount.email,
@@ -1099,8 +1100,8 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
       hubAccount = result.account; setPendingReferralCode(); applyAuthoritativeHomeProfile(result.profile);
       try { await refreshSkyTokenCatalog(); } catch { garage.setTokenStoreUnavailable(); }
       showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : undefined);
-      hubPilotMenu.refresh(hubPilotMenuData(), true);
       if (hubPilotMenu.isSectionOpen('PROFILE')) await refreshHubProfileSummary();
+      hubPilotMenu.refresh(hubPilotMenuData(), true);
       resumePendingHubFly();
       const storeContext = pendingStoreContext();
       if (storeContext) {
@@ -1364,8 +1365,8 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (refresh) await refreshHubPilotData();
-  if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
+  if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
 }
 
 async function refreshHubProfileSummary(): Promise<void> {
@@ -2222,6 +2223,9 @@ async function start(): Promise<void> {
   } else if (storeContext && authResult === 'failed') clearPendingStoreContext();
   startupLoading.update(1);
   await startupLoading.finish();
+  if (Capacitor.getPlatform() === 'ios' && entryState !== 'FLIGHT' && entryState !== 'TUTORIAL') {
+    void audioManager.unlock();
+  }
   const tokenCheckout = url.searchParams.get('token_checkout');
   if (tokenCheckout === 'success' || tokenCheckout === 'cancel') {
     const sessionId = url.searchParams.get('session_id') ?? '';
