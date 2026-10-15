@@ -4835,16 +4835,19 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   box-shadow: 0 6px 18px rgb(11 35 69 / 24%), inset 0 1px #fff;
   scrollbar-width: thin;
 }
-.garage-card .garage-status-row { display: flex; align-items: center; gap: 8px; min-height: 27px; }
-.garage-card .garage-status-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.garage-card .garage-status-row { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 27px; }
+.garage-card .garage-status-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; }
 .garage-card .garage-statuses { min-height: 0; }
 .garage-card .garage-status { min-height: 23px; padding: 4px 9px; }
 .garage-card .garage-status-current { color: #09864a; font: 800 11px/1 var(--font-display); }
 .garage-card .garage-status-current { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 9px 2px 2px; color: #075b37; border-color: #57c795; background: linear-gradient(110deg, #41d78c, #a5ebbd); box-shadow: inset 0 1px rgb(255 255 255 / 65%); }
 .garage-card .garage-current-check { display: inline-grid; flex: none; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; background: linear-gradient(#12bb68, #06894a); box-shadow: inset 0 1px rgb(255 255 255 / 35%); font: 900 13px/1 var(--font-display); }
 .garage-card .garage-status-syncing { color: #0d5b79; border-color: #8bdbe8; background: #e7f6f9; }
-.garage-card [data-garage-price] { color: #95600b; font: 800 11px/1 var(--font-display); white-space: nowrap; }
+.garage-card [data-garage-price] { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: #865907; font: 800 clamp(9px, .9vw, 11px)/1 var(--font-display); white-space: nowrap; }
+.garage-card [data-garage-price]:empty { display: none; }
+.garage-card [data-garage-price] img { flex: none; width: clamp(16px, 1.6vw, 22px); height: clamp(16px, 1.6vw, 22px); object-fit: contain; }
 .garage-card .garage-status-actions > button { min-height: 28px; padding: 4px 12px; color: #fff; border: 1px solid #3cceed; border-radius: 7px; background: linear-gradient(#22bfe8, #0073b4); font: 800 11px/1 var(--font-display); }
+.garage-card .garage-status-actions > [data-garage-cosmetic-get] { min-width: 54px; color: #573905; border-color: #ffd06d; background: linear-gradient(#ffe692, #ffb733); }
 .garage-card .garage-details h2 { margin: 5px 0 0; color: #0b2345; font-size: clamp(16px, 1.55vw, 22px); line-height: 1.1; }
 .garage-card .garage-details > [data-garage-pitch] { margin: 4px 0 8px; color: #dba73e; font: 700 12px/1.1 var(--font-body); }
 .garage-card .garage-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 12px; margin: 0; padding: 8px 0; border-top: 1px solid #dce6e9; border-bottom: 1px solid #dce6e9; }
@@ -4858,12 +4861,12 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-cosmetic-list.is-many { grid-template-columns: repeat(var(--garage-cosmetic-count), minmax(0, 1fr)); width: 100%; }
 .garage-card .garage-cosmetic-card { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; min-height: 85px; padding: 5px 3px; border: 1px solid #d7e0e8; border-radius: 7px; background: linear-gradient(#fff, #f5f7f8); }
 .garage-card .garage-cosmetic-card:has(.garage-cosmetic[aria-pressed=true]) { border-color: #008eaa; box-shadow: inset 0 0 0 1px #008eaa, 0 0 0 1px rgb(0 117 150 / 25%); }
-.garage-card .garage-cosmetic { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: start; gap: 3px; width: 100%; min-height: 0; padding: 0; color: #0b2345; text-align: center; border: 0; background: transparent; box-shadow: none; }
+.garage-card .garage-cosmetic { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); justify-items: center; gap: 3px; width: 100%; min-height: 0; padding: 0; color: #0b2345; text-align: center; border: 0; background: transparent; box-shadow: none; }
 .garage-card .garage-cosmetic-card:nth-child(even) .garage-cosmetic { background: transparent; }
 .garage-card .garage-cosmetic[aria-pressed=true] { outline: 0; color: #0b2345; background: transparent; box-shadow: none; }
 .garage-card button.garage-cosmetic:is(:hover, :active) { transform: none; background: transparent; box-shadow: none; }
 .garage-card .garage-cosmetic strong { max-width: 100%; font-size: 9px; line-height: 1.1; }
-.garage-card .garage-cosmetic-swatches { grid-column: 1; justify-content: center; margin-top: 3px; }
+.garage-card .garage-cosmetic-swatches { grid-column: 1; align-self: center; justify-content: center; margin-top: 3px; }
 .garage-card .garage-cosmetic-swatches i { width: clamp(20px, 2vw, 26px); height: clamp(20px, 2vw, 26px); }
 .garage-card .garage-cosmetic-price { margin-top: auto; text-align: center; font-size: 9px; }
 .garage-card .garage-cosmetic-price { color: #865907; }
