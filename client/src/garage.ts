@@ -9,6 +9,7 @@ import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
+import { createLockIcon } from './lock-icon';
 import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 
 export type GarageProfile = {
@@ -567,7 +568,6 @@ export class AircraftGarage {
     tester.hidden = !canRedeem || !this.testerOpen;
     for (const [type, card] of this.cards) {
       const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
-      const typeUsable = this.profile.unlockedAircraft.includes(type);
       const firstAppearancePrice = Math.min(...cosmeticCatalog.filter(item => item.aircraftRestriction === type && item.unlockType === 'credits')
         .map(item => cosmeticUnlockPrice(item, false)));
       const access = data.access === 'premium' ? firehawkProduct.displayPrice
@@ -575,8 +575,7 @@ export class AircraftGarage {
       const name = document.createElement('strong'); name.textContent = data.callsign;
       const previewButton = card.querySelector<HTMLButtonElement>('.garage-aircraft-preview-button')!;
       const state = document.createElement('small'); state.textContent = access;
-      const lock = document.createElement('span'); lock.className = 'garage-aircraft-lock'; lock.setAttribute('aria-hidden', 'true');
-      previewButton.replaceChildren(...(profileReady && !typeUsable ? [lock] : []), name, ...(profileReady && !typeOwned ? [state] : []));
+      previewButton.replaceChildren(name, ...(profileReady && !typeOwned ? [state] : []));
       const get = card.querySelector<HTMLButtonElement>('.garage-aircraft-get')!;
       get.hidden = !profileReady || typeOwned;
       get.textContent = data.access === 'credits' ? 'CHOOSE' : 'GET';
@@ -592,8 +591,8 @@ export class AircraftGarage {
 
   private paintPreview(): void {
     const equipped = { ...this.profile.cosmetics?.equipped };
-    const item = cosmeticCatalog.find(entry => entry.id === this.previewCosmetic);
-    if (item?.aircraftRestriction === this.selected) equipped[`livery:${this.selected}`] = item.id;
+    const item = this.selectedAppearance();
+    if (item) equipped[`livery:${this.selected}`] = item.id;
     for (const plane of this.previewContent.children) applyAircraftCosmetics(plane, this.selected, equipped);
   }
 
@@ -603,7 +602,7 @@ export class AircraftGarage {
     return appearances.find(item => item.id === this.previewCosmetic)
       ?? appearances.find(item => item.id === equippedId)
       ?? appearances.find(item => this.profile.cosmetics?.ownedIds.includes(item.id))
-      ?? (!this.isPermanentlyOwned(this.selected) ? appearances[0] : undefined);
+      ?? appearances[0];
   }
 
   private beginCosmeticAction(id: string, currency?: 'CREDITS' | 'SKY_TOKENS'): void {
@@ -656,10 +655,7 @@ export class AircraftGarage {
       card.append(button);
       if (locked) {
         const lock = document.createElement('span'); lock.className = 'garage-cosmetic-lock';
-        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        icon.classList.add('garage-cosmetic-lock-icon'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('aria-hidden', 'true');
-        icon.innerHTML = '<path d="M6.5 10V7.5a5.5 5.5 0 0 1 11 0V10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><rect x="4" y="10" width="16" height="12" rx="3" fill="#f2b943" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="16" r="1.6" fill="#fff7df"/>';
-        lock.append(icon, document.createTextNode('LOCKED'));
+        lock.append(createLockIcon(), document.createTextNode('LOCKED'));
         card.append(lock);
       }
       list.append(card);

@@ -6,6 +6,7 @@ import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './a
 import { HomeHangar, type HomeHangarData } from './home-hangar';
 import { LAUNCH_MODE_PARAM, type LaunchMode } from './launch-mode';
 import { AppShellHeader, type AppShellActive } from './app-shell';
+import { createLockIcon } from './lock-icon';
 import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
@@ -652,7 +653,7 @@ function createCityJourneyCards(): void {
     status.className = 'city-journey-status';
     const lock = document.createElement('span');
     lock.className = 'city-journey-lock';
-    lock.textContent = '🔒';
+    lock.append(createLockIcon());
     lock.setAttribute('aria-hidden', 'true');
     copy.append(subtitle, title, detail, status, lock);
     card.append(art, copy);
