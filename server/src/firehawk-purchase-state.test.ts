@@ -14,7 +14,7 @@ test('Firehawk uses the live premium purchase UI in every ownership and store st
   const stalePurchaseCopy = new RegExp(['purchase', 'coming', 'soon'].join('\\s+'), 'i');
 
   assert.doesNotMatch(garage, stalePurchaseCopy);
-  assert.match(garage, /definition\.access === 'premium' \? 'UNLOCK FIREHAWK'/);
+  assert.match(garage, /premium\.hidden = !profileReady \|\| this\.selected !== 'fighter' \|\| owned/);
   assert.match(garage, /`\$\{firehawkProduct\.displayPrice\} — PERMANENT UNLOCK`/);
   assert.match(garage, /this\.nativeStorePrice \? `UNLOCK FOREVER — \$\{this\.nativeStorePrice\}` : 'STORE UNAVAILABLE'/);
   assert.match(garage, /buy\.hidden = owned/);
@@ -22,7 +22,7 @@ test('Firehawk uses the live premium purchase UI in every ownership and store st
   assert.match(garage, /START FREE TRIAL/);
   assert.match(garage, /'Trial: ready on next flight'/);
   assert.match(garage, /'Trial: already used'/);
-  assert.match(garage, /this\.selected === this\.profile\.selectedAircraft \? 'EQUIPPED' : owned \? 'EQUIP'/);
+  assert.match(garage, /this\.profile\.aircraftEntitlements\?\.includes\(firehawkProduct\.entitlement\) === true/);
   assert.equal(firehawkProduct.displayPrice, '$24.00');
   assert.equal(firehawkProduct.amountCents, 2_400);
   assert.equal(firehawkProduct.entitlement, 'REDSPEAR_FIGHTER_PREMIUM');
