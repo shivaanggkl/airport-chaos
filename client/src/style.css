@@ -4931,6 +4931,10 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   body:has(.app-shell-header:not([hidden])) .garage-card .garage-list { padding-block: 0; }
   body:has(.app-shell-header:not([hidden])) .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
 }
+@media (max-width: 900px) and (orientation: landscape) {
+  .garage-card .garage-details { grid-row: 2; margin-top: 0; }
+  .garage-card .garage-selector-section { grid-column: 1 / -1; }
+}
 @media (orientation: portrait) and (max-width: 680px) {
   .garage-overlay { overflow-y: auto; }
   body:has(.app-shell-header:not([hidden])) .garage-card,
