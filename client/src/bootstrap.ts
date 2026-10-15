@@ -421,14 +421,14 @@ function tokenStoreAvailable(): boolean {
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY') {
+  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE') {
     appHeader.hide();
     return;
   }
   const homeData = homeHangarData();
   appHeader.show({
     active,
-    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU' || entryState === 'STORE' || entryState === 'AIRCRAFT',
+    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU' || entryState === 'AIRCRAFT',
     advertiseVisible: true,
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
@@ -1491,14 +1491,6 @@ const gameStore = new GameStore(gameStoreElement, {
 });
 
 function closeGameStore(): void {
-  if (missionJourneyReturnPending) {
-    const storeView = window.history.state?.airportChaosStoreView;
-    gameStore.close();
-    if (storeView === 'DETAIL') window.history.go(-2);
-    else if (storeView === 'STORE') window.history.back();
-    else showMissionJourney(false);
-    return;
-  }
   if (window.history.state?.airportChaosStoreView) window.history.replaceState(null, '', window.location.href);
   gameStore.close(); void showHome();
 }
@@ -1515,9 +1507,8 @@ async function openGameStore(recordOpen = true): Promise<void> {
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
   homeHangar.hide(); citySelector.hidden = true; missionJourney.hide();
-  void garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
   showAppHeader('STORE');
-  gameStore.setBackLabel(missionJourneyReturnPending ? 'BACK TO MISSIONS' : 'BACK TO HUB');
+  gameStore.setBackLabel('BACK TO HUB');
   gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
   try {
     const [catalog, profile] = await Promise.all([
@@ -1559,7 +1550,7 @@ window.addEventListener('popstate', () => {
     missionJourney.closePanel();
     return;
   }
-  if (missionJourneyReturnPending && window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') {
+  if (entryState !== 'STORE' && missionJourneyReturnPending && window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') {
     showMissionJourney(false);
     return;
   }
@@ -1577,7 +1568,7 @@ window.addEventListener('popstate', () => {
     else void openGameStore(false);
   } else if (entryState === 'STORE') {
     if (window.history.state?.airportChaosStoreView === 'STORE') gameStore.dismissDetailFromHistory();
-    else if (!window.history.state?.airportChaosStoreView) { gameStore.close(); if (missionJourneyReturnPending) showMissionJourney(false); else void showHome(); }
+    else if (!window.history.state?.airportChaosStoreView) { gameStore.close(); void showHome(); }
   }
 });
 

@@ -1,8 +1,10 @@
+import './context-page-shell.css';
 import './game-store.css';
 import type { GarageProfile } from './garage';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
+import { HorizontalRail } from './horizontal-rail';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { ownsStoreAircraft, storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, type StoreCategory, type StoreItem } from './store-catalog';
 
@@ -50,6 +52,8 @@ export class GameStore {
   private readonly detail: HTMLElement;
   private readonly notice: HTMLElement;
   private readonly content: HTMLElement;
+  private readonly productRail: HorizontalRail;
+  private readonly categoryRail: HorizontalRail;
   private profile?: GarageProfile;
   private catalog?: Map<string, PublicStoreCatalogItem>;
   private profilePending = false;
@@ -61,7 +65,7 @@ export class GameStore {
   private selectedId?: string;
 
   constructor(private readonly element: HTMLElement, private readonly handlers: StoreHandlers) {
-    element.innerHTML = `<div class="store-frame"><header class="store-heading"><button class="context-back page-back store-back" type="button" data-store-back>BACK TO HUB</button><h1>STORE</h1></header><nav class="store-tabs" aria-label="Store categories"></nav><div class="store-content"><div class="store-grid" aria-live="polite"></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
+    element.innerHTML = `<div class="store-frame"><header class="store-heading"><button class="context-back page-back store-back" type="button" data-store-back>BACK TO HUB</button><h1 class="context-winged-title">STORE</h1></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
     this.tabs = element.querySelector('.store-tabs')!;
     this.grid = element.querySelector('.store-grid')!;
     this.detail = element.querySelector('.store-detail')!;
@@ -75,6 +79,22 @@ export class GameStore {
       tab.append(icon, document.createTextNode(category));
       tab.addEventListener('click', () => this.setCategory(category)); this.tabs.append(tab);
     }
+    const categoryRoot = element.querySelector<HTMLElement>('.store-category-rail')!;
+    this.categoryRail = new HorizontalRail(categoryRoot, this.tabs, {
+      itemSelector: '.store-tab',
+      onResize: () => {
+        const selected = this.tabs.querySelector<HTMLElement>('.store-tab.is-active');
+        if (selected) this.categoryRail.reveal(selected);
+      },
+    });
+    this.productRail = new HorizontalRail(element.querySelector<HTMLElement>('.store-rail')!, this.grid, {
+      itemSelector: '.store-item-card',
+      previous: element.querySelector<HTMLButtonElement>('.store-rail-prev')!,
+      next: element.querySelector<HTMLButtonElement>('.store-rail-next')!,
+      progress: element.querySelector<HTMLElement>('.store-rail-progress')!,
+      thumb: element.querySelector<HTMLElement>('.store-rail-thumb')!,
+      draggable: true, wheel: true, keyboard: true,
+    });
     registerUiBackLayer({ id: 'game-store-detail', priority: uiBackPriority.modal,
       isActive: () => this.isOpen() && !!this.selectedId, close: () => this.select(undefined) });
     registerUiBackLayer({ id: 'game-store', priority: uiBackPriority.surface,
@@ -123,8 +143,9 @@ export class GameStore {
     this.category = category; this.selectedId = undefined;
     recordProductIntent('store_category_viewed', { category: category.toLowerCase() });
     this.render();
-    this.grid.scrollLeft = 0;
-    this.tabs.querySelector<HTMLElement>(`[data-category="${category}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    this.productRail.reset();
+    const selected = this.tabs.querySelector<HTMLElement>(`[data-category="${category}"]`);
+    if (selected) this.categoryRail.reveal(selected);
   }
   select(id?: string): void {
     if (id === this.selectedId) return;
@@ -175,6 +196,8 @@ export class GameStore {
       }
     }
     this.renderDetail();
+    this.productRail.refresh();
+    this.categoryRail.refresh();
   }
 
   private price(item: StoreItem, currency: Currency): number | undefined {
