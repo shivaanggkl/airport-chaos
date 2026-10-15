@@ -627,9 +627,9 @@ export class AircraftGarage {
     const equippedId = this.profile.cosmetics?.equipped?.[`livery:${this.selected}`];
     const selectedItem = this.selectedAppearance();
     for (const item of appearances) {
-      const slot = `livery:${this.selected}`;
-      const equipped = this.profile.cosmetics?.equipped?.[slot] === item.id;
       const selected = selectedItem?.id === item.id;
+      const locked = profileReady && !owned.has(item.id);
+      const lockDescription = locked ? (item.unlockType === 'included' ? ', locked until Firehawk is unlocked' : ', locked') : '';
       if (selected && !this.viewedCosmetics.has(item.id)) {
         this.viewedCosmetics.add(item.id);
         recordProductIntent('cosmetic_viewed', { cosmeticId: item.id, aircraftType: this.selected });
@@ -642,13 +642,17 @@ export class AircraftGarage {
       const swatch = document.createElement('i'); swatch.style.backgroundColor = `#${bodyColor.toString(16).padStart(6, '0')}`; swatches.append(swatch);
       button.append(name, swatches);
       button.setAttribute('aria-pressed', String(selected));
+      button.setAttribute('aria-label', `Preview ${item.displayName} appearance${lockDescription}`);
       button.onclick = () => {
         if (this.previewCosmetic !== item.id) recordProductIntent('cosmetic_previewed', { cosmeticId: item.id, aircraftType: this.selected });
         this.previewCosmetic = item.id; this.paintPreview(); this.renderDetails();
       };
       card.append(button);
-      if (profileReady && !equipped && !owned.has(item.id) && item.unlockType === 'included') {
-        const included = document.createElement('small'); included.className = 'garage-cosmetic-price'; included.textContent = 'WITH FIREHAWK'; card.append(included);
+      if (locked) {
+        const lock = document.createElement('span'); lock.className = 'garage-cosmetic-lock';
+        const icon = document.createElement('span'); icon.className = 'garage-cosmetic-lock-icon'; icon.setAttribute('aria-hidden', 'true');
+        lock.append(icon, document.createTextNode('LOCKED'));
+        card.append(lock);
       }
       list.append(card);
     }
