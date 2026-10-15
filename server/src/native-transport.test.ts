@@ -151,7 +151,7 @@ test('staging Token preview cannot start a native purchase', () => {
   assert.match(bootstrap, /skyTokenStore\.open\([^;]+, !skyTokenCommerceEnabled\)/);
   assert.match(garage, /tokenBuy\.disabled = [^;]+this\.tokenCommercePreview/);
   assert.match(garage, /buy\.disabled = [^;]+this\.tokenCommercePreview/);
-  assert.match(garage, /tokens\.disabled = [^;]+this\.tokenCommercePreview/);
+  assert.match(garage, /tokenBuy\.disabled = [^;]+this\.tokenCommercePreview/);
   assert.match(store, /button\.disabled = previewOnly/);
   assert.match(store, /if \(previewOnly \|\| this\.busy\) return/);
   const nativeLogin = bootstrap.slice(bootstrap.indexOf("apiUrl('/api/auth/native/complete')"), bootstrap.indexOf('const returnUrl = new URL(window.location.href)'));
@@ -203,7 +203,8 @@ test('gameplay bootstrap is not blocked by the initial realtime ticket request',
   const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(main, /new WebSocket\(await realtimeSocketUrl\(\)\)/);
   assert.match(main, /let socket!: WebSocket/);
-  assert.match(main, /setConnectionWarning\(true\);\s*void replaceRealtimeSocket\('Initial connection'\)/);
+  assert.match(main, /const initialAccountStatus = refreshAccountStatus\(\)/);
+  assert.match(main, /setConnectionWarning\(true\);\s*void initialAccountStatus\.finally\(\(\) => replaceRealtimeSocket\('Initial connection'\)\)/);
   assert.match(bootstrap, /enterCity\(city, preset\)\.catch/);
   assert.match(bootstrap, /showSelector\('Unable to load this city\.'\)/);
 });

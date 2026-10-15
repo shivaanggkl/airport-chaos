@@ -5079,3 +5079,22 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form button { grid-row: 3; }
   html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form button:last-child { grid-column: 3; }
 }
+
+/* Journey notices follow the card as its height changes. */
+.mission-status-layer.journey-status-layer {
+  top: max(92px, calc(var(--safe-area-top) + 78px));
+  width: min(340px, calc(100vw - 28px));
+  z-index: 22;
+}
+.journey-status-layer .sky-challenge.journey-hud {
+  position: static;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.mission4-clean-hud .journey-status-layer { width: min(220px, calc(100vw - 28px)); }
+:is(.giant-incoming-focus, .monster-arrival-focus) .journey-status-layer { width: min(380px, 35vw); }
+@media (max-height: 520px) {
+  .mission-status-layer.journey-status-layer { top: max(70px, calc(var(--safe-area-top) + 56px)); width: min(260px, 42vw); }
+  :is(.giant-incoming-focus, .monster-arrival-focus) .journey-status-layer { width: min(260px, 34vw); }
+}

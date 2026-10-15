@@ -1199,7 +1199,12 @@ document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListe
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
-if (journeyMode) skyChallengeElement.innerHTML = '<strong data-journey-heading>ROOKIE RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
+if (journeyMode) {
+  skyChallengeElement.innerHTML = '<strong data-journey-heading>ROOKIE RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
+  const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
+  missionStatusLayer.classList.add('journey-status-layer');
+  missionStatusLayer.prepend(skyChallengeElement);
+}
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
@@ -9383,7 +9388,7 @@ if (oauthResult.has('auth')) {
   cleanUrl.searchParams.delete('auth'); cleanUrl.searchParams.delete('provider'); cleanUrl.searchParams.delete('linked');
   window.history.replaceState(null, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
 }
-void refreshAccountStatus();
+const initialAccountStatus = refreshAccountStatus();
 try {
   const accountNotice = sessionStorage.getItem('airport-chaos-account-notice');
   if (accountNotice) { sessionStorage.removeItem('airport-chaos-account-notice'); window.setTimeout(() => showProgressMessage(accountNotice), 400); }
@@ -9861,6 +9866,7 @@ const welcomeTimeout = window.setTimeout(() => {
   protocolReady = false;
   profileHydrated = false;
   setConnectionWarning(true);
+  closeRealtimeSocket('Realtime handshake timed out');
   void replaceRealtimeSocket('Realtime handshake timed out');
 }, REALTIME_WELCOME_TIMEOUT_MS);
 
@@ -10718,7 +10724,7 @@ boundSocket.addEventListener('error', () => {
 });
 }
 setConnectionWarning(true);
-void replaceRealtimeSocket('Initial connection');
+void initialAccountStatus.finally(() => replaceRealtimeSocket('Initial connection'));
 
 // Same 10Hz transform stream, but not tied to requestAnimationFrame: Safari
 // can suspend rendering when Chrome is foreground. Timer throttling still
