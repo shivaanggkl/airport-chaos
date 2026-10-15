@@ -14,9 +14,9 @@
 .store-eyebrow, .store-heading .store-eyebrow { color: var(--ac-text-secondary); font: 800 11px/1.2 var(--font-display); letter-spacing: .16em; }
 .store-heading h1 { margin: 3px 0 0; color: var(--ac-text-primary); font: 900 clamp(27px,3.7vw,48px)/.98 var(--font-display); letter-spacing: .11em; text-shadow: 0 6px 18px rgb(5 24 38 / 42%); }
 .store-heading p { margin: 8px 0 0; color: var(--ac-text-secondary); font-size: 13px; }
-.store-back, .store-tab, .store-detail-actions button, .store-empty button, .store-detail-close { color: var(--ac-text-primary); background: var(--ac-surface); border: 1px solid rgb(39 211 243 / 32%); border-radius: 8px; font: 800 12px/1.15 var(--font-display); letter-spacing: .04em; cursor: pointer; }
-.store-back { position: absolute; right: 0; bottom: 0; min-height: 42px; padding: 8px 14px; white-space: nowrap; }
-.store-back:hover, .store-tab:hover, .store-detail-actions button:hover:not(:disabled), .store-empty button:hover { border-color: var(--ac-cyan); background: var(--ac-surface-active); }
+.store-tab, .store-detail-actions button, .store-empty button, .store-detail-close { color: var(--ac-text-primary); background: var(--ac-surface); border: 1px solid rgb(39 211 243 / 32%); border-radius: 8px; font: 800 12px/1.15 var(--font-display); letter-spacing: .04em; cursor: pointer; }
+.store-back { position: absolute; right: 0; top: 50%; margin-top: -27px; }
+.store-tab:hover, .store-detail-actions button:hover:not(:disabled), .store-empty button:hover { border-color: var(--ac-cyan); background: var(--ac-surface-active); }
 .store-detail-actions .store-primary:hover:not(:disabled) { color: var(--ac-bg-deep); background: var(--ac-gold-highlight); border-color: var(--ac-gold-highlight); }
 .game-store button:focus-visible { outline: 2px solid var(--ac-cyan-highlight); outline-offset: 2px; }
 .store-tabs { display: flex; gap: 8px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; padding: 2px 1px 7px; scrollbar-width: thin; }
@@ -76,12 +76,10 @@
 @media (max-width: 680px) {
   .game-store { padding: 8px max(8px,var(--safe-area-right)) max(8px,var(--safe-area-bottom)) max(8px,var(--safe-area-left)); }
   .store-frame { gap: 7px; }
-  .store-heading { min-height: 48px; align-items: center; }
+  .store-heading { min-height: 54px; align-items: center; }
   .store-heading > div { margin-right: auto; text-align: left; }
-  .store-back { top: 50%; bottom: auto; transform: translateY(-50%); }
   .store-heading h1 { font-size: 24px; }
   .store-heading p, .store-heading .store-eyebrow { display: none; }
-  .store-back { min-height: 38px; padding: 7px 10px; font-size: 10px; }
   .store-tabs { gap: 5px; padding-bottom: 4px; }
   .store-tab { flex: 0 0 auto; min-width: auto; min-height: 40px; padding: 7px 11px; font-size: 11px; }
   .store-grid, .store-content.has-detail .store-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 9px; }
@@ -102,10 +100,9 @@
 @media (orientation: landscape) and (max-height: 520px) {
   .game-store { padding-block: 5px max(5px,var(--safe-area-bottom)); }
   .store-frame { gap: 5px; }
-  .store-heading { min-height: 30px; }
+  .store-heading { min-height: 54px; }
   .store-heading h1 { font-size: 20px; }
   .store-heading p, .store-heading .store-eyebrow { display: none; }
-  .store-back { min-height: 32px; }
   .store-tabs { padding-bottom: 2px; }
   .store-tab { min-height: 35px; }
   .store-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }

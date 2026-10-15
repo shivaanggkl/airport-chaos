@@ -4850,21 +4850,46 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   .garage-card .garage-selector-section { width: 100%; }
   .garage-card .garage-aircraft { flex-wrap: wrap; }
 }
-/* One back control for Aircraft, City Journey, Mission Journey, and Choose Time. */
-button.context-back, .garage-card header button.context-back {
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  width: max-content; max-width: 100%; min-height: 44px; padding: 0 12px;
-  appearance: none; color: #fff; border: 1px solid rgb(124 209 253 / 65%); border-radius: 17px;
-  background: linear-gradient(#4271b4, #253f77); box-shadow: 0 2px 7px rgb(7 30 66 / 40%);
-  font: 700 11px/1 var(--font-display); letter-spacing: .04em; white-space: nowrap; cursor: pointer;
+/* The same icon-only page back control throughout the app. Button text remains its accessible name. */
+button.context-back,
+.garage-card header button.context-back,
+.pilot-menu-card button.context-back,
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button.context-back,
+.store-heading button.context-back,
+.world-map-card button.context-back,
+.tutorial-card button.context-back {
+  display: inline-flex; flex: 0 0 54px; align-items: center; justify-content: center;
+  box-sizing: border-box; width: 54px; min-width: 54px; max-width: 54px;
+  height: 54px; min-height: 54px; max-height: 54px; padding: 0;
+  appearance: none; color: #fff; border: 2px solid #37d8ee; border-radius: 14px;
+  background: linear-gradient(145deg, #245b98, #062d62);
+  box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
+  font-size: 0; line-height: 0; letter-spacing: 0; text-shadow: none; white-space: nowrap; cursor: pointer;
 }
-button.context-back::before { content: '‹'; font: 700 20px/1 var(--font-body); }
-button.context-back:hover:not(:disabled), .garage-card button.context-back:hover:not(:disabled) {
-  filter: brightness(1.08); transform: none; box-shadow: 0 2px 7px rgb(7 30 66 / 40%);
+button.context-back::before,
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button.context-back::before {
+  content: ''; display: block; flex: none; width: 12px; height: 12px; margin: 0;
+  border: solid currentColor; border-width: 0 0 4px 4px; border-radius: 1px;
+  transform: translateX(3px) rotate(45deg);
 }
-button.context-back:active:not(:disabled), .garage-card button.context-back:active:not(:disabled) {
-  filter: brightness(.94); transform: none;
+.pilot-menu-card.is-pilot-profile > header:has(button.context-back) { min-height: 54px; padding-bottom: 0; }
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button.context-back::after { content: none; }
+button.context-back:hover:not(:disabled),
+.garage-card button.context-back:hover:not(:disabled),
+.pilot-menu-card button.context-back:hover:not(:disabled),
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button.context-back:hover:not(:disabled),
+.store-heading button.context-back:hover:not(:disabled) {
+  filter: brightness(1.08); transform: none;
+  box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
 }
-button.context-back:focus-visible, .mission-journey button.context-back:focus-visible {
+button.context-back:active:not(:disabled),
+.garage-card button.context-back:active:not(:disabled),
+.pilot-menu-card button.context-back:active:not(:disabled) { filter: brightness(.94); transform: none; }
+button.context-back:focus-visible,
+.mission-journey button.context-back:focus-visible,
+.pilot-menu-card button.context-back:focus-visible { outline: 2px solid #ffd875; outline-offset: 2px; }
+.pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button.context-back:focus-visible {
+  background: linear-gradient(145deg, #245b98, #062d62);
+  box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
   outline: 2px solid #ffd875; outline-offset: 2px;
 }

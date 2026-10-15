@@ -86,7 +86,7 @@ class FlightTutorial {
     this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-modal', 'true');
     this.root.setAttribute('aria-labelledby', 'tutorial-title');
-    this.root.innerHTML = '<section class="tutorial-card"><header><span>AIRPORT CHAOS</span><span>PILOT GUIDE</span><button type="button" data-home>ALL TOPICS</button><button type="button" data-skip>SKIP</button></header><div class="tutorial-content"></div><footer><button type="button" data-back>BACK</button><div class="tutorial-dots"></div><button type="button" data-next>NEXT</button></footer></section>';
+    this.root.innerHTML = '<section class="tutorial-card"><header><span>AIRPORT CHAOS</span><span>PILOT GUIDE</span><button type="button" data-home>ALL TOPICS</button><button type="button" data-skip>SKIP</button></header><div class="tutorial-content"></div><footer><button type="button" class="context-back" data-back>BACK</button><div class="tutorial-dots"></div><button type="button" data-next>NEXT</button></footer></section>';
     document.body.append(this.root);
     void mountAirportChaosLogo(this.root.querySelector<HTMLElement>('.tutorial-card header > span')!, 'brand-logo-help');
     document.querySelector<HTMLButtonElement>('#tutorial-help')!.onclick = () => this.helpAction ? this.helpAction() : this.open();

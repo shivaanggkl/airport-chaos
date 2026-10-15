@@ -436,6 +436,7 @@ export class PilotMenu {
     void mountAirportChaosLogo(brand, 'brand-logo-menu');
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const close = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
+    close.classList.add('context-back');
     const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions';
     if (this.options.showContextStatus !== false) actions.append(cityStatus);
     actions.append(close);
@@ -569,7 +570,7 @@ export class PilotMenu {
           document.createTextNode('By continuing, you agree to our '), externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
           document.createTextNode(' and acknowledge our '), externalLink('Privacy Policy', legalPolicyHref(legalConfig.policyRoutes.privacy)), document.createTextNode('.'),
         );
-        const back = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer }); back.classList.add('pilot-auth-back');
+        const back = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer }); back.classList.add('context-back', 'pilot-auth-back');
         profile.append(providers, divider, guest, guestNote, message, legal, back);
       } else {
         profile.classList.add('pilot-profile-panel');

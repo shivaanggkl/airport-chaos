@@ -52,7 +52,7 @@ export class GameStore {
   private selectedId?: string;
 
   constructor(private readonly element: HTMLElement, private readonly handlers: StoreHandlers) {
-    element.innerHTML = `<div class="store-frame"><div class="store-heading"><div><span class="store-eyebrow">PILOT COMMAND / COLLECTIONS</span><h1>STORE</h1><p>Find your next aircraft or finish. Unlock it here, equip it in Aircrafts.</p></div><button class="store-back" type="button" data-store-back>BACK TO HUB</button></div><nav class="store-tabs" aria-label="Store categories"></nav><div class="store-content"><div class="store-grid" aria-live="polite"></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
+    element.innerHTML = `<div class="store-frame"><div class="store-heading"><div><span class="store-eyebrow">PILOT COMMAND / COLLECTIONS</span><h1>STORE</h1><p>Find your next aircraft or finish. Unlock it here, equip it in Aircrafts.</p></div><button class="context-back store-back" type="button" data-store-back>BACK TO HUB</button></div><nav class="store-tabs" aria-label="Store categories"></nav><div class="store-content"><div class="store-grid" aria-live="polite"></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
     this.tabs = element.querySelector('.store-tabs')!;
     this.grid = element.querySelector('.store-grid')!;
     this.detail = element.querySelector('.store-detail')!;
