@@ -4773,6 +4773,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   scrollbar-width: thin;
 }
 .garage-card .garage-status-row { display: flex; align-items: center; gap: 8px; min-height: 27px; }
+.garage-card .garage-status-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .garage-card .garage-statuses { min-height: 0; }
 .garage-card .garage-status { min-height: 23px; padding: 4px 9px; }
 .garage-card .garage-status-current { color: #09864a; font: 800 11px/1 var(--font-display); }
@@ -4780,7 +4781,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-current-check { display: inline-grid; flex: none; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; background: linear-gradient(#12bb68, #06894a); box-shadow: inset 0 1px rgb(255 255 255 / 35%); font: 900 13px/1 var(--font-display); }
 .garage-card .garage-status-syncing { color: #0d5b79; border-color: #8bdbe8; background: #e7f6f9; }
 .garage-card [data-garage-price] { color: #95600b; font: 800 11px/1 var(--font-display); white-space: nowrap; }
-.garage-card .garage-status-row [data-garage-equip] { min-height: 28px; margin-left: auto; padding: 4px 18px; color: #fff; border: 1px solid #3cceed; border-radius: 7px; background: linear-gradient(#22bfe8, #0073b4); font: 800 11px/1 var(--font-display); }
+.garage-card .garage-status-actions > button { min-height: 28px; padding: 4px 12px; color: #fff; border: 1px solid #3cceed; border-radius: 7px; background: linear-gradient(#22bfe8, #0073b4); font: 800 11px/1 var(--font-display); }
 .garage-card .garage-details h2 { margin: 5px 0 0; color: #0b2345; font-size: clamp(16px, 1.55vw, 22px); line-height: 1.1; }
 .garage-card .garage-details > [data-garage-pitch] { margin: 4px 0 8px; color: #dba73e; font: 700 12px/1.1 var(--font-body); }
 .garage-card .garage-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 12px; margin: 0; padding: 8px 0; border-top: 1px solid #dce6e9; border-bottom: 1px solid #dce6e9; }
