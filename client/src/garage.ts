@@ -372,7 +372,13 @@ export class AircraftGarage {
     this.raf = 0;
     const previousHost = this.showcaseHost;
     this.showcaseHost = undefined;
-    if (previousHost.classList.contains('app-shell-aircraft-preview') && this.headerFallback.src) this.headerFallback.hidden = false;
+    const headerIcon = previousHost.classList.contains('app-shell-aircraft-preview');
+    if (headerIcon && !this.renderer.domElement.hidden) {
+      // Capture at the current canvas size before moving it into the Hangar.
+      this.renderer.render(this.scene, this.camera);
+      this.headerFallback.src = this.renderer.domElement.toDataURL('image/png');
+    }
+    if (headerIcon && this.headerFallback.src) this.headerFallback.hidden = false;
     else this.headerFallback.remove();
     this.renderer.domElement.hidden = false;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
