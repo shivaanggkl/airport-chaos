@@ -4893,3 +4893,12 @@ button.context-back:focus-visible,
   box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
   outline: 2px solid #ffd875; outline-offset: 2px;
 }
+
+.pilot-menu-card.is-authentication .pilot-auth-card button.pilot-auth-back.context-back {
+  position: fixed; z-index: 33; top: max(12px, var(--safe-area-top));
+  left: max(12px, calc(var(--safe-area-left) + 8px), calc(50vw - 560px));
+  margin: 0; justify-self: auto;
+}
+body:has(.app-shell-header:not([hidden])) .pilot-menu-card.is-authentication .pilot-auth-card button.pilot-auth-back.context-back {
+  top: calc(var(--app-shell-header-total) - 4px);
+}
