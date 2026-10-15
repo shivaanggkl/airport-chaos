@@ -4494,6 +4494,15 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-advertise > img { width: calc(var(--hub-art-size) * 1.08); height: var(--hub-art-size); }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-friends > img { width: calc(var(--hub-art-size) * 1.1); }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shell-action:not(.app-shell-avatar), .app-shell-sky-tokens):is(:hover, :focus-visible) { background: rgb(120 212 255 / 10%); }
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-action.is-active {
+  background: linear-gradient(180deg, rgb(51 179 231 / 30%), rgb(12 100 165 / 42%));
+  box-shadow: inset 0 0 0 2px #76edff, inset 0 -5px #ffd366, 0 0 18px rgb(43 216 255 / 42%);
+  filter: none;
+}
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-action.is-active > span:last-child {
+  color: #fff2bd;
+  text-shadow: 0 1px 5px rgb(3 23 52 / 80%);
+}
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .flight-header-credits:focus-visible { outline: 2px solid #67e9ff; outline-offset: -2px; }
 .hub-info-status { user-select: text; -webkit-user-select: text; }
 
