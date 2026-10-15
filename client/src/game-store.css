@@ -21,7 +21,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-category-rail.has-more-right::after { opacity: 1; }
 .store-tabs {
   position: relative; display: flex; min-width: 0; gap: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
-  padding: 4px; border: 2px solid #cdd9e2; border-radius: 16px;
+  padding: 4px; border: 2px solid var(--menu-card-accent); border-radius: 16px;
   background: linear-gradient(#fff, #edf3f6); box-shadow: 0 4px 10px rgb(10 38 75 / 25%);
   scrollbar-width: none;
 }
@@ -80,8 +80,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-item-card {
   display: flex; flex-direction: column; height: 100%; padding: 4px;
 }
-.store-item-card.is-premium { --game-card-accent: #ffd66a; }
-.store-item-card.is-selected { border-color: #00bdda; box-shadow: 0 0 0 2px #00bdda, 0 5px 14px rgb(10 38 75 / 25%); }
+.store-item-card.is-selected { border-color: var(--menu-card-accent); box-shadow: 0 0 0 2px #d49a22, 0 5px 14px rgb(10 38 75 / 25%); }
 .store-art {
   position: relative; display: grid; flex: 0 0 clamp(80px, 38%, 210px); place-items: center; min-width: 0; min-height: 0;
   overflow: hidden; isolation: isolate; border: 1px solid #b4c5d5; border-radius: 10px;

@@ -269,7 +269,7 @@ body.launch-cinematic-active #tutorial-help {
   padding: var(--safe-area-top) max(18px, var(--safe-area-right)) 0 max(18px, var(--safe-area-left));
   color: var(--ac-text-primary);
   background: radial-gradient(ellipse at 50% -35%, rgb(53 214 255 / 24%), transparent 58%), linear-gradient(180deg, #1E4D7A 0%, var(--ac-surface) 52%, var(--ac-bg-deep) 100%);
-  border-bottom: 2px solid rgb(111 230 255 / 80%);
+  border-bottom: 2px solid #ffd66a;
   box-shadow: 0 8px 24px rgb(9 32 66 / 48%), inset 0 1px rgb(246 251 255 / 44%), 0 1px 12px rgb(53 214 255 / 25%);
   font: 600 11px var(--font-display);
   text-shadow: 0 1px 2px rgb(5 24 38 / 55%);
@@ -282,7 +282,7 @@ body.launch-cinematic-active #tutorial-help {
   bottom: -1px;
   left: max(24px, var(--safe-area-left));
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(39 211 243 / 42%) 25%, rgb(139 234 255 / 26%) 75%, transparent);
+  background: linear-gradient(90deg, transparent, rgb(255 214 106 / 42%) 25%, rgb(255 214 106 / 26%) 75%, transparent);
   pointer-events: none;
 }
 .app-shell-header[hidden] { display: none; }
@@ -4242,7 +4242,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-docked { display: n
 .home-hangar-mode-copy > span { font: 500 clamp(12px, 1.2vw, 22px)/1.2 var(--font-body); white-space: nowrap; }
 .home-hangar-mode-copy small { color: var(--mode-accent); font: 900 clamp(11px, 1.25vw, 24px)/1 var(--font-display); letter-spacing: .16em; white-space: nowrap; }
 .home-hangar-mode-arrow { align-self: center; color: var(--mode-accent); font: 800 clamp(38px, 4vw, 75px)/.65 var(--font-body); text-shadow: 0 2px 6px rgb(0 10 34 / 55%); }
-body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub { grid-template-columns: minmax(135px, 1fr) auto minmax(330px, 1fr); gap: clamp(8px, 1.5vw, 25px); height: var(--hub-header-total); padding: var(--safe-area-top) max(18px, var(--safe-area-right)) 0 max(18px, var(--safe-area-left)); background: linear-gradient(180deg, #071d43 0%, #092a5b 75%, #062550 100%); border-bottom: 3px solid #36e4ff; backdrop-filter: none; }
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub { grid-template-columns: minmax(135px, 1fr) auto minmax(330px, 1fr); gap: clamp(8px, 1.5vw, 25px); height: var(--hub-header-total); padding: var(--safe-area-top) max(18px, var(--safe-area-right)) 0 max(18px, var(--safe-area-left)); background: linear-gradient(180deg, #071d43 0%, #092a5b 75%, #062550 100%); border-bottom: 3px solid #ffd66a; backdrop-filter: none; }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-brand,
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-brand.has-brand-logo { width: clamp(122px, 12vw, 220px); height: calc(var(--hub-header-total) - var(--safe-area-top) - 6px); min-height: 0; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-logo { object-fit: contain; border-radius: 0; }
@@ -4340,7 +4340,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub {
   height: var(--hub-header-total);
   padding: var(--safe-area-top) max(8px, var(--safe-area-right)) 0 max(8px, var(--safe-area-left));
   background: linear-gradient(180deg, rgb(5 17 43 / 52%), rgb(5 20 47 / 64%));
-  border-bottom: 2px solid #55e8ff;
+  border-bottom: 2px solid #ffd66a;
   -webkit-backdrop-filter: blur(7px);
   backdrop-filter: blur(7px);
 }
@@ -4547,6 +4547,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wa
   --menu-background: #305389 url('/media/menu/airport-runway.jpg') center center / cover no-repeat;
   --menu-card-surface: linear-gradient(145deg, #ffffff 0%, #F4F7F6 55%, #e9eeed 100%);
   --menu-card-ink: #0B2345;
+  --menu-card-accent: #ffd66a;
 }
 :is(.home-hangar, .city-selector, .mission-journey) { background: var(--menu-background); }
 body:has(#game-root[hidden]),
@@ -4563,7 +4564,7 @@ body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pil
 .game-card-frame {
   min-width: 0;
   overflow: hidden;
-  border: 2px solid var(--game-card-accent, var(--mode-accent, #49eaff));
+  border: 2px solid var(--menu-card-accent);
   border-radius: 8px;
   background: var(--menu-card-surface);
   color: var(--menu-card-ink);
