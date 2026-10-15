@@ -232,7 +232,10 @@ export class GameStore {
         const tokenPrice = this.price(item, 'SKY_TOKENS');
         if (creditPrice) price.append(this.priceLine(creditPrice, 'CREDITS'));
         else if (tokenPrice) price.append(this.priceLine(tokenPrice, 'SKY_TOKENS'));
-        else price.textContent = item.included ? 'INCLUDED WITH FIREHAWK' : 'FREE';
+        else {
+          price.textContent = item.included ? 'INCLUDED WITH FIREHAWK' : 'FREE';
+          if (item.included) price.classList.add('store-card-included');
+        }
       }
     }
     const view = this.button('VIEW', () => this.select(item.id), item.kind === 'aircraft' && item.aircraftType === 'fighter' ? 'store-view store-view-premium' : 'store-view');

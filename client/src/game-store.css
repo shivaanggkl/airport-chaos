@@ -45,7 +45,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-content.has-detail { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 12px; }
 .store-rail {
   position: relative; display: grid; grid-template-rows: minmax(0, 1fr) 8px; gap: 7px;
-  width: 100%; height: clamp(220px, 44dvh, 285px); max-height: 100%; min-width: 0; min-height: 0; align-self: start;
+  container: store-rail / inline-size; width: 100%; height: clamp(220px, 44dvh, 285px); max-height: 100%; min-width: 0; min-height: 0; align-self: start;
 }
 .store-rail::before, .store-rail::after {
   position: absolute; z-index: 1; top: 0; bottom: 15px; width: clamp(22px, 4vw, 44px);
@@ -78,7 +78,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-rail.has-overflow .store-rail-progress { opacity: 1; }
 .store-rail-thumb { position: absolute; top: 1px; bottom: 1px; border-radius: 99px; background: linear-gradient(90deg, #47e7f5, #00a8d9); box-shadow: 0 0 4px rgb(61 228 250 / 65%); }
 .store-item-card {
-  display: flex; flex-direction: column; height: 100%; padding: 7px;
+  display: flex; flex-direction: column; height: 100%; padding: 4px;
 }
 .store-item-card.is-premium { --game-card-accent: #ffd66a; }
 .store-item-card.is-selected { border-color: #00bdda; box-shadow: 0 0 0 2px #00bdda, 0 5px 14px rgb(10 38 75 / 25%); }
@@ -100,13 +100,14 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
   background: #fff; color: #087638; font: 900 11px/1 var(--font-display);
 }
 .store-status-badge::before { display: grid; width: 19px; height: 19px; place-items: center; border-radius: 50%; background: #10ae57; color: white; content: '✓'; }
-.store-card-copy { display: grid; gap: 2px; min-width: 0; padding: 8px 7px 7px; }
+.store-card-copy { display: grid; gap: 0; min-width: 0; padding: 3px 4px 2px; }
 .store-card-copy small { overflow: hidden; color: #687589; font: 800 clamp(10px, 1vw, 13px)/1.15 var(--font-display); text-overflow: ellipsis; white-space: nowrap; }
 .store-card-copy strong { overflow: hidden; color: #0b2345; font: 900 clamp(19px, 2vw, 27px)/1.08 var(--font-display); text-overflow: ellipsis; white-space: nowrap; }
-.store-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; margin-top: auto; padding: 7px 3px 0; border-top: 1px solid #d4dfe5; }
+.store-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; margin-top: auto; padding: 0 3px; border-top: 1px solid #d4dfe5; }
 .store-card-price { display: flex; min-width: 0; align-items: center; color: #a86b0a; font: 900 clamp(17px, 1.7vw, 23px)/1 var(--font-display); white-space: nowrap; }
+.store-card-included { font-size: clamp(10px, 1vw, 12px); line-height: 1.15; white-space: normal; }
 .store-currency-amount { display: inline-flex; min-width: 0; align-items: center; gap: 4px; white-space: nowrap; }
-.store-currency-amount img { width: clamp(20px, 2.1vw, 29px); height: clamp(20px, 2.1vw, 29px); object-fit: contain; }
+.store-currency-amount img { flex-shrink: 0; width: clamp(20px, 2.1vw, 29px); height: clamp(20px, 2.1vw, 29px); object-fit: contain; }
 .store-currency-amount strong { color: #a86b0a; font: 900 clamp(15px, 1.55vw, 21px)/1 var(--font-display); }
 .store-currency-amount small { color: #53657c; font: 800 clamp(9px, .85vw, 12px)/1 var(--font-display); }
 .store-view, .store-detail-actions button, .store-empty button, .store-detail-close {
@@ -114,7 +115,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
   background: linear-gradient(#90f5ff, #00bfe5 45%, #00a5d8); color: #062b54;
   font: 900 16px/1 var(--font-display); cursor: pointer;
 }
-.store-view { flex: 0 0 clamp(94px, 10vw, 135px); }
+.store-view { flex: 0 0 clamp(84px, 10vw, 135px); }
 .store-view-premium, .store-detail-actions .store-primary { border-color: #d69a21; background: linear-gradient(#fff0a6, #f8c746 45%, #e8a927); }
 .store-view:hover, .store-detail-actions button:hover:not(:disabled), .store-empty button:hover { filter: brightness(1.05); }
 .store-view:active, .store-detail-actions button:active:not(:disabled) { filter: brightness(.94); }
@@ -150,11 +151,9 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-skeleton { border: 1px solid #cbdce5; border-radius: 15px; background: linear-gradient(110deg, #e8f0f4, #fff, #e8f0f4); }
 .store-loading-status { position: absolute; margin: 10px; color: #0b2345; font: 800 12px/1.2 var(--font-display); letter-spacing: .09em; }
 @media (max-width: 1090px) {
-  .store-grid > * { flex-basis: calc((100% - 20px) / 2.1); }
   .store-content.has-detail { grid-template-columns: minmax(0, 1fr) minmax(270px, 34%); }
 }
 @media (max-width: 900px) {
-  .store-grid > * { flex-basis: calc((100% - 10px) / 1.13); }
   .store-content.has-detail { display: grid; grid-template-columns: minmax(0, 1fr); }
   .store-detail {
     position: fixed; z-index: 8; top: max(8px, var(--safe-area-top));
@@ -163,15 +162,23 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
     max-height: none; align-self: auto;
   }
 }
+@media (max-width: 1000px) {
+  .store-card-footer { gap: 4px; }
+  .store-view { flex-basis: 68px; font-size: 14px; }
+}
+@container store-rail (max-width: 749px) {
+  .store-grid > * { flex-basis: calc((100% - 10px) / 2.1); }
+}
+@container store-rail (max-width: 510px) {
+  .store-grid > * { flex-basis: calc((100% - 10px) / 1.13); }
+}
 @media (orientation: landscape) and (max-height: 520px) {
   .game-store { padding-top: max(5px, var(--safe-area-top)); padding-bottom: max(7px, var(--safe-area-bottom)); }
   .store-heading { min-height: 48px; }
   .store-heading h1 { font-size: 27px; }
   .store-tabs { padding: 2px; }
   .store-tab { min-height: 44px; }
-  .store-item-card { padding: 6px; }
-  .store-card-footer { padding-top: 4px; }
-  .store-card-copy { padding-block: 5px; }
+  .store-rail { height: calc(clamp(164px, 29dvh, 230px) + 15px); }
   .store-card-copy strong { font-size: 19px; }
   .store-detail .store-art { height: clamp(90px, 24dvh, 130px); min-height: 0; aspect-ratio: auto; margin-bottom: 7px; }
 }
