@@ -626,15 +626,11 @@ export class AircraftGarage {
         if (currency) this.onPurchaseCosmetic?.(item.id, currency);
         else this.onEquipCosmetic?.(item.id);
       };
-      if (equipped) {
-        const current = document.createElement('span'); current.className = 'garage-cosmetic-current';
-        const check = document.createElement('span'); check.className = 'garage-current-check'; check.setAttribute('aria-hidden', 'true'); check.textContent = '✓';
-        current.append(check, document.createTextNode('CURRENT')); card.append(current);
-      } else if (owned.has(item.id) || item.unlockType === 'included' && ownsAircraft) {
+      if (!equipped && (owned.has(item.id) || item.unlockType === 'included' && ownsAircraft)) {
         const use = document.createElement('button'); use.type = 'button'; use.className = 'garage-cosmetic-action'; use.textContent = 'USE';
         use.disabled = this.loadingProfile || this.actionPending || !ownsAircraft;
         use.onclick = () => beginAction(); card.append(use);
-      } else if (item.unlockType === 'credits') {
+      } else if (!equipped && item.unlockType === 'credits') {
         const price = document.createElement('small'); price.className = 'garage-cosmetic-price'; price.textContent = `${item.creditPrice.toLocaleString()} CREDITS`; card.append(price);
         const get = document.createElement('button'); get.type = 'button'; get.className = 'garage-cosmetic-action garage-cosmetic-get'; get.textContent = 'GET';
         const missingTokens = Math.max(0, item.skyTokenPrice - (this.profile.skyTokens ?? 0));
@@ -652,7 +648,7 @@ export class AircraftGarage {
           tokens.onclick = () => { if (missingTokens) this.onGetTokens?.(missingTokens); else beginAction('SKY_TOKENS'); };
           card.append(tokens);
         }
-      } else {
+      } else if (!equipped) {
         const included = document.createElement('small'); included.className = 'garage-cosmetic-price'; included.textContent = 'WITH FIREHAWK'; card.append(included);
       }
       list.append(card);
