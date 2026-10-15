@@ -4902,7 +4902,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-aircraft-get[hidden] { display: none; }
 .garage-card button:focus-visible { outline: 2px solid #00b9dc; outline-offset: 2px; }
 @media (max-height: 520px) and (orientation: landscape) {
-  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); grid-template-rows: 44px minmax(0, 1fr) 52px; gap: 4px 8px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); grid-template-rows: 44px minmax(0, 1fr) 46px; gap: 4px 8px; }
   .garage-card .garage-heading h1 { font-size: 20px; }
   .garage-card .garage-details { margin-top: -8px; padding: 7px; border-radius: 12px; }
   .garage-card .garage-details h2 { font-size: 15px; }
@@ -4918,7 +4918,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   .garage-card .garage-details.is-firehawk.is-unavailable .garage-actions { grid-column: 2; grid-row: 5; align-self: end; }
   .garage-card .garage-details.is-firehawk.is-unavailable .garage-premium .garage-trial-row { flex-direction: column; align-items: stretch; gap: 2px; }
   .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
-  .garage-card .garage-list { padding-block: 3px; }
+  .garage-card .garage-list { padding-block: 0; }
   .garage-card .garage-aircraft-get { min-width: 36px; min-height: 26px; }
 }
 @media (max-height: 430px) and (orientation: landscape) {
@@ -4934,7 +4934,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   body:has(.app-shell-header:not([hidden])) .garage-card .garage-list { padding-block: 0; }
   body:has(.app-shell-header:not([hidden])) .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
 }
-@media (max-width: 900px) and (orientation: landscape) {
+@media (max-width: 800px) and (orientation: landscape) {
   .garage-card .garage-details { grid-row: 2; margin-top: 0; }
   .garage-card .garage-selector-section { grid-column: 1 / -1; }
 }
