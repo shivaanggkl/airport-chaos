@@ -45,7 +45,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-content.has-detail { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 12px; }
 .store-rail {
   position: relative; display: grid; grid-template-rows: minmax(0, 1fr) 8px; gap: 7px;
-  container: store-rail / inline-size; width: 100%; height: clamp(220px, 44dvh, 285px); max-height: 100%; min-width: 0; min-height: 0; align-self: start;
+  container: store-rail / inline-size; width: 100%; height: 100%; min-width: 0; min-height: 0;
 }
 .store-rail::before, .store-rail::after {
   position: absolute; z-index: 1; top: 0; bottom: 15px; width: clamp(22px, 4vw, 44px);
@@ -83,7 +83,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-item-card.is-premium { --game-card-accent: #ffd66a; }
 .store-item-card.is-selected { border-color: #00bdda; box-shadow: 0 0 0 2px #00bdda, 0 5px 14px rgb(10 38 75 / 25%); }
 .store-art {
-  position: relative; display: grid; flex: 1 1 auto; place-items: center; min-width: 0; min-height: 0;
+  position: relative; display: grid; flex: 0 0 clamp(80px, 38%, 210px); place-items: center; min-width: 0; min-height: 0;
   overflow: hidden; isolation: isolate; border: 1px solid #b4c5d5; border-radius: 10px;
   background: linear-gradient(rgb(13 54 99 / 12%), rgb(13 54 99 / 12%)), url('/media/menu/airport-runway.jpg') center / cover no-repeat, #b1c8dd;
 }
@@ -178,7 +178,6 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
   .store-heading h1 { font-size: 27px; }
   .store-tabs { padding: 2px; }
   .store-tab { min-height: 44px; }
-  .store-rail { height: calc(clamp(164px, 29dvh, 230px) + 15px); }
   .store-card-copy strong { font-size: 19px; }
   .store-detail .store-art { height: clamp(90px, 24dvh, 130px); min-height: 0; aspect-ratio: auto; margin-bottom: 7px; }
 }
