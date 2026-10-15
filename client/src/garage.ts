@@ -1221,9 +1221,9 @@ export class AircraftGarage {
       }
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       if (!materials.some(material => material.visible && material.opacity > 0)) return;
-      if (!this.showcaseHost && this.selected === 'trainer') {
-        // Bluejay's mesh boxes include empty corners around its swept wings.
-        // Frame the real vertices in the Hangar so it fills the stage accurately.
+      if (!this.showcaseHost) {
+        // Mesh boxes include empty corners around aircraft parts. Frame the
+        // visible vertices in the Hangar so each aircraft fills the stage.
         const positions = object.geometry.getAttribute('position');
         if (!positions) return;
         for (let index = 0; index < positions.count; index += 1)
@@ -1328,8 +1328,8 @@ export class AircraftGarage {
     const horizontalTan = verticalTan * this.camera.aspect;
     // Mesh bounds include depth that is not all silhouette at once; 90% of
     // the mathematical frame leaves roughly 10–15% visible-model breathing room.
-    const exactBluejayFrame = !this.showcaseHost && this.selected === 'trainer';
-    const usableFrame = exactBluejayFrame ? 1 : 0.94;
+    const exactHangarFrame = !this.showcaseHost;
+    const usableFrame = exactHangarFrame ? 1 : 0.94;
     let framedDistance = 0;
     this.forEachVisualCorner(corner => {
       const towardCamera = corner.dot(this.viewDirection);
@@ -1339,8 +1339,8 @@ export class AircraftGarage {
         towardCamera + Math.abs(corner.dot(this.viewUp)) / Math.max(0.001, verticalTan * usableFrame),
       );
     });
-    const hangarScale = exactBluejayFrame ? 0.97 :
-      !showcaseCamera && this.selected === 'fighter' ? 0.9 : 1;
+    const hangarScale = exactHangarFrame && this.selected === 'trainer' ? 0.97 :
+      exactHangarFrame && this.selected === 'fighter' ? 0.9 : 1;
     this.defaultDistance = Math.max(1, framedDistance * hangarScale);
     if (showcaseCamera) {
       // Fit the full orbit once so the Hub aircraft never changes size as it turns.
@@ -1381,7 +1381,7 @@ export class AircraftGarage {
     }
 
     let focusRight = 0, focusUp = 0;
-    for (let pass = 0; pass < (exactBluejayFrame ? 4 : 1); pass += 1) {
+    for (let pass = 0; pass < (exactHangarFrame ? 4 : 1); pass += 1) {
       let minProjectedX = Infinity, maxProjectedX = -Infinity, minProjectedY = Infinity, maxProjectedY = -Infinity;
       this.forEachVisualCorner(corner => {
         const depth = Math.max(0.001, this.defaultDistance - corner.dot(this.viewDirection));
@@ -1390,7 +1390,7 @@ export class AircraftGarage {
         minProjectedX = Math.min(minProjectedX, projectedX); maxProjectedX = Math.max(maxProjectedX, projectedX);
         minProjectedY = Math.min(minProjectedY, projectedY); maxProjectedY = Math.max(maxProjectedY, projectedY);
       });
-      const correction = exactBluejayFrame ? 0.25 : 0.5;
+      const correction = exactHangarFrame ? 0.25 : 0.5;
       focusRight += (minProjectedX + maxProjectedX) * correction * this.defaultDistance * horizontalTan;
       focusUp += (minProjectedY + maxProjectedY) * correction * this.defaultDistance * verticalTan;
     }
