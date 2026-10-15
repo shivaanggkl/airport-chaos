@@ -3,7 +3,8 @@ import type { GarageProfile } from './garage';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
-import { ownsStoreAircraft, storeAircraft, storeFeatured, storeItemById, storeItemPrice, storeItemState, storePaints, type StoreCategory, type StoreItem } from './store-catalog';
+import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
+import { ownsStoreAircraft, storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, type StoreCategory, type StoreItem } from './store-catalog';
 
 type Currency = 'CREDITS' | 'SKY_TOKENS';
 type ActionResult = { ok: boolean; message: string };
@@ -21,7 +22,13 @@ const categories: readonly StoreCategory[] = ['FEATURED', 'AIRCRAFT', 'PAINTS', 
 const categoryIcons: Record<StoreCategory, string> = { FEATURED: '★', AIRCRAFT: '✈', PAINTS: '◈', EFFECTS: '✦', CITIES: '⌖' };
 
 function color(value: number): string { return `#${value.toString(16).padStart(6, '0')}`; }
+function isOwned(item: StoreItem, profile: GarageProfile | undefined): boolean {
+  if (!profile) return false;
+  return ['OWNED', 'EQUIPPED', 'INCLUDED', 'FREE'].includes(storeItemState(item, profile));
+}
 function stateLabel(item: StoreItem, state: ReturnType<typeof storeItemState>): string {
+  if (['OWNED', 'EQUIPPED', 'INCLUDED', 'FREE'].includes(state)) return 'OWNED';
+  if (state === 'LOCKED') return 'AVAILABLE TO UNLOCK';
   return state === 'REQUIRES AIRCRAFT' ? `REQUIRES ${storeAircraft.find(aircraft => aircraft.aircraftType === item.aircraftType)?.name ?? 'AIRCRAFT'}` : state;
 }
 function artwork(item: StoreItem): HTMLElement {
@@ -44,6 +51,8 @@ export class GameStore {
   private readonly notice: HTMLElement;
   private readonly content: HTMLElement;
   private profile?: GarageProfile;
+  private catalog?: Map<string, PublicStoreCatalogItem>;
+  private profilePending = false;
   private authenticated = false;
   private loading = false;
   private error = '';
@@ -52,7 +61,7 @@ export class GameStore {
   private selectedId?: string;
 
   constructor(private readonly element: HTMLElement, private readonly handlers: StoreHandlers) {
-    element.innerHTML = `<div class="store-frame"><div class="store-heading"><div><span class="store-eyebrow">PILOT COMMAND / COLLECTIONS</span><h1>STORE</h1><p>Find your next aircraft or finish. Unlock it here, equip it in Aircrafts.</p></div><button class="context-back page-back store-back" type="button" data-store-back>BACK TO HUB</button></div><nav class="store-tabs" aria-label="Store categories"></nav><div class="store-content"><div class="store-grid" aria-live="polite"></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
+    element.innerHTML = `<div class="store-frame"><header class="store-heading"><button class="context-back page-back store-back" type="button" data-store-back>BACK TO HUB</button><h1>STORE</h1></header><nav class="store-tabs" aria-label="Store categories"></nav><div class="store-content"><div class="store-grid" aria-live="polite"></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
     this.tabs = element.querySelector('.store-tabs')!;
     this.grid = element.querySelector('.store-grid')!;
     this.detail = element.querySelector('.store-detail')!;
@@ -61,7 +70,9 @@ export class GameStore {
     element.querySelector('[data-store-back]')!.addEventListener('click', () => handlers.close());
     for (const category of categories) {
       const tab = document.createElement('button'); tab.type = 'button'; tab.className = 'store-tab';
-      tab.dataset.category = category; tab.textContent = `${categoryIcons[category]}  ${category}`;
+      tab.dataset.category = category;
+      const icon = document.createElement('span'); icon.className = 'store-tab-icon'; icon.textContent = categoryIcons[category]; icon.setAttribute('aria-hidden', 'true');
+      tab.append(icon, document.createTextNode(category));
       tab.addEventListener('click', () => this.setCategory(category)); this.tabs.append(tab);
     }
     registerUiBackLayer({ id: 'game-store-detail', priority: uiBackPriority.modal,
@@ -79,14 +90,26 @@ export class GameStore {
     this.render();
   }
   open(profile: GarageProfile | undefined, authenticated: boolean, loading = false): void {
-    this.profile = profile; this.authenticated = authenticated; this.loading = loading; this.error = '';
+    const wasClosed = this.element.hidden;
+    this.profile = profile; this.authenticated = authenticated; this.profilePending = loading;
+    this.catalog = undefined; this.loading = true; this.error = '';
     this.element.hidden = false; this.render();
-    recordProductIntent('store_opened');
+    if (wasClosed) recordProductIntent('store_opened');
   }
-  close(): void { this.element.hidden = true; this.selectedId = undefined; }
+  close(): void { this.element.hidden = true; this.selectedId = undefined; this.category = 'FEATURED'; }
   hide(): void { this.element.hidden = true; }
   update(profile: GarageProfile | undefined, authenticated: boolean): void {
-    this.profile = profile; this.authenticated = authenticated; this.loading = false; this.error = ''; this.render();
+    this.profile = profile; this.authenticated = authenticated; this.profilePending = false;
+    this.loading = !this.catalog; this.error = ''; this.render();
+  }
+  setCatalog(items: PublicStoreCatalogItem[]): void {
+    const valid = items.filter(item => {
+      const known = storeItemById(item.id);
+      return known?.kind === item.kind;
+    });
+    if (!valid.length) throw new Error('Catalog unavailable');
+    this.catalog = new Map(valid.map(item => [item.id, item]));
+    this.loading = this.profilePending; this.error = ''; this.render();
   }
   fail(message: string): void { this.loading = false; this.error = message; this.render(); }
   setNotice(message: string): void {
@@ -122,55 +145,91 @@ export class GameStore {
     for (const tab of this.tabs.querySelectorAll<HTMLButtonElement>('button')) {
       const active = tab.dataset.category === this.category;
       tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-selected', String(active));
+      tab.setAttribute('aria-pressed', String(active));
     }
     this.grid.replaceChildren();
     if (this.loading) {
-      for (let index = 0; index < 4; index += 1) { const skeleton = document.createElement('div'); skeleton.className = 'store-skeleton'; this.grid.append(skeleton); }
+      this.grid.setAttribute('aria-busy', 'true');
+      const status = document.createElement('p'); status.className = 'store-loading-status'; status.textContent = 'LOADING STORE…';
+      this.grid.append(status);
+      for (let index = 0; index < 3; index += 1) { const skeleton = document.createElement('div'); skeleton.className = 'store-skeleton'; skeleton.setAttribute('aria-hidden', 'true'); this.grid.append(skeleton); }
     } else if (this.error) {
+      this.grid.removeAttribute('aria-busy');
       const retry = document.createElement('div'); retry.className = 'store-empty store-empty-error';
       retry.innerHTML = '<span>CONNECTION INTERRUPTED</span><h2>Unable to load the Store</h2><p>Check your connection and try again.</p>';
       const button = document.createElement('button'); button.type = 'button'; button.textContent = 'TRY AGAIN'; button.addEventListener('click', this.handlers.retry); retry.append(button); this.grid.append(retry);
     } else if (this.category === 'EFFECTS' || this.category === 'CITIES') {
+      this.grid.removeAttribute('aria-busy');
       const empty = document.createElement('div'); empty.className = `store-empty store-empty-${this.category.toLowerCase()}`;
-      empty.innerHTML = `<span>${this.category === 'EFFECTS' ? 'AIRCRAFT VISUALS' : 'WORLD EXPANSION'}</span><h2>${this.category} · COMING SOON</h2><p>${this.category === 'EFFECTS' ? 'New ways to personalize your aircraft are being prepared.' : 'More destinations are on the horizon.'}</p>`;
+      empty.innerHTML = '<h2>NO ITEMS AVAILABLE YET</h2>';
       this.grid.append(empty);
     } else {
-      const items = this.category === 'FEATURED' ? storeFeatured : this.category === 'AIRCRAFT' ? storeAircraft : storePaints;
-      for (const item of items) this.grid.append(this.card(item));
+      this.grid.removeAttribute('aria-busy');
+      const items = (this.category === 'FEATURED' ? storeFeatured : this.category === 'AIRCRAFT' ? storeAircraft : storePaints)
+        .filter(item => this.catalog?.has(item.id));
+      if (items.length) for (const item of items) this.grid.append(this.card(item));
+      else {
+        const empty = document.createElement('div'); empty.className = 'store-empty';
+        empty.innerHTML = '<h2>NO ITEMS AVAILABLE YET</h2>'; this.grid.append(empty);
+      }
     }
     this.renderDetail();
   }
 
+  private price(item: StoreItem, currency: Currency): number | undefined {
+    const offer = this.catalog?.get(item.id);
+    if (!offer) return undefined;
+    const firstAppearance = item.kind === 'paint' && !(this.profile && ownsStoreAircraft(this.profile, item.aircraftType));
+    const amount = currency === 'CREDITS'
+      ? (firstAppearance ? offer.firstCredits : offer.credits)
+      : (firstAppearance ? offer.firstTokens : offer.tokens);
+    return typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0 ? amount : undefined;
+  }
+
   private card(item: StoreItem): HTMLElement {
-    const card = document.createElement('button'); card.type = 'button'; card.className = 'store-item-card';
+    const card = document.createElement('article'); card.className = 'store-item-card';
     card.classList.toggle('is-selected', this.selectedId === item.id);
-    card.setAttribute('aria-label', `View ${item.name} details`);
-    card.append(artwork(item));
+    const art = artwork(item);
+    if (isOwned(item, this.profile)) art.append(this.statusBadge('OWNED'));
+    card.append(art);
     const copy = document.createElement('div'); copy.className = 'store-card-copy';
     const subtitle = document.createElement('small'); subtitle.textContent = item.subtitle;
     const name = document.createElement('strong'); name.textContent = item.name;
-    const state = document.createElement('span'); state.className = 'store-state';
-    state.textContent = this.profile ? stateLabel(item, storeItemState(item, this.profile)) : item.kind === 'aircraft' && item.aircraftType === 'trainer' ? 'FREE' : 'DISCOVER';
-    if (['OWNED', 'EQUIPPED', 'INCLUDED'].includes(state.textContent ?? '')) state.dataset.tone = 'success';
-    copy.append(subtitle, name, state);
+    copy.append(subtitle, name);
     const price = document.createElement('div'); price.className = 'store-card-price';
-    const creditPrice = storeItemPrice(item, this.profile, 'CREDITS');
-    const tokenPrice = storeItemPrice(item, this.profile, 'SKY_TOKENS');
-    if (creditPrice) price.append(this.priceLine('🪙', creditPrice, 'CREDITS'));
-    if (creditPrice && tokenPrice) { const or = document.createElement('span'); or.textContent = 'OR'; price.append(or); }
-    if (tokenPrice) price.append(this.priceLine('💎', tokenPrice, 'SKY TOKENS'));
-    if (!creditPrice && !tokenPrice) price.textContent = item.included ? 'INCLUDED WITH FIREHAWK'
-      : item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet')
-        ? this.profile && ownsStoreAircraft(this.profile, item.aircraftType) ? '' : 'CHOOSE AN APPEARANCE'
-        : item.kind === 'aircraft' && item.aircraftType === 'fighter' ? '' : 'FREE';
-    card.append(copy, price);
-    card.addEventListener('click', () => this.select(item.id));
+    if (!isOwned(item, this.profile)) {
+      if (item.kind === 'aircraft' && item.aircraftType === 'fighter') price.textContent = this.catalog?.get(item.id)?.usdDisplayPrice ?? 'PRICE UNAVAILABLE';
+      else if (item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet')) {
+        const starting = this.catalog?.get(item.id)?.fromCredits;
+        if (starting !== undefined) price.append(this.priceLine(starting, 'CREDITS', true));
+      } else {
+        const creditPrice = this.price(item, 'CREDITS');
+        const tokenPrice = this.price(item, 'SKY_TOKENS');
+        if (creditPrice) price.append(this.priceLine(creditPrice, 'CREDITS'));
+        else if (tokenPrice) price.append(this.priceLine(tokenPrice, 'SKY_TOKENS'));
+        else price.textContent = item.included ? 'INCLUDED WITH FIREHAWK' : 'FREE';
+      }
+    }
+    const view = this.button('VIEW', () => this.select(item.id), item.kind === 'aircraft' && item.aircraftType === 'fighter' ? 'store-view store-view-premium' : 'store-view');
+    view.setAttribute('aria-label', `View ${item.name} details, ${isOwned(item, this.profile) ? 'owned' : price.textContent?.trim() || 'price in details'}`);
+    const footer = document.createElement('div'); footer.className = 'store-card-footer'; footer.append(price, view);
+    card.append(copy, footer);
     return card;
   }
 
-  private priceLine(icon: string, amount: number, currency: string): HTMLElement {
-    const line = document.createElement('span'); line.textContent = `${icon} ${amount.toLocaleString()} ${currency}`; return line;
+  private statusBadge(label: string): HTMLElement {
+    const badge = document.createElement('span'); badge.className = 'store-status-badge'; badge.textContent = label; return badge;
+  }
+
+  private priceLine(amount: number, currency: Currency, from = false): HTMLElement {
+    const line = document.createElement('span'); line.className = 'store-currency-amount';
+    if (from) { const prefix = document.createElement('small'); prefix.textContent = 'FROM '; line.append(prefix); }
+    const icon = document.createElement('img');
+    icon.src = currency === 'CREDITS' ? '/media/hub/credits.avif' : '/media/hub/sky-tokens.avif';
+    icon.alt = ''; icon.loading = 'lazy';
+    const value = document.createElement('strong'); value.textContent = amount.toLocaleString();
+    const unit = document.createElement('small'); unit.textContent = currency === 'CREDITS' ? ' CREDITS' : ' SKY TOKENS';
+    line.append(icon, value, unit); return line;
   }
 
   private renderDetail(): void {
@@ -184,8 +243,8 @@ export class GameStore {
     const eyebrow = document.createElement('small'); eyebrow.className = 'store-eyebrow'; eyebrow.textContent = item.subtitle;
     const title = document.createElement('h2'); title.textContent = item.name;
     const state = document.createElement('p'); state.className = 'store-detail-state';
-    state.textContent = this.profile ? stateLabel(item, storeItemState(item, this.profile)) : item.aircraftType === 'trainer' && item.kind === 'aircraft' ? 'FREE' : 'SIGN IN TO SEE OWNERSHIP';
-    if (['OWNED', 'EQUIPPED', 'INCLUDED'].includes(state.textContent ?? '')) state.dataset.tone = 'success';
+    state.textContent = this.profile ? stateLabel(item, storeItemState(item, this.profile)) : 'SIGN IN TO SEE OWNERSHIP';
+    if (state.textContent === 'OWNED') state.dataset.tone = 'success';
     this.detail.append(eyebrow, title, state);
     const actions = document.createElement('div'); actions.className = 'store-detail-actions';
     this.detail.append(actions);
@@ -197,14 +256,22 @@ export class GameStore {
       actions.append(this.button(this.profile && storeItemState(item, this.profile) !== 'LOCKED' ? 'VIEW IN AIRCRAFTS' : 'CHOOSE AN APPEARANCE', () => this.handlers.viewGarage(item)));
       return;
     }
-    const creditPrice = storeItemPrice(item, this.profile, 'CREDITS');
-    const tokenPrice = storeItemPrice(item, this.profile, 'SKY_TOKENS');
+    const creditPrice = this.price(item, 'CREDITS');
+    const tokenPrice = this.price(item, 'SKY_TOKENS');
+    if (item.kind === 'aircraft' && item.aircraftType === 'fighter' && !isOwned(item, this.profile)) {
+      const displayPrice = this.catalog?.get(item.id)?.usdDisplayPrice;
+      const price = document.createElement('p'); price.className = 'store-detail-price'; price.textContent = displayPrice ?? 'PRICE UNAVAILABLE';
+      const purchaseView = this.button('VIEW PURCHASE OPTIONS', () => this.handlers.viewGarage(item));
+      purchaseView.disabled = !displayPrice;
+      actions.append(price, purchaseView);
+    }
     if (!this.profile) {
-      if (creditPrice) actions.append(this.button(`UNLOCK · 🪙 ${creditPrice.toLocaleString()} CREDITS`, this.handlers.login));
+      if (creditPrice) actions.append(this.purchaseButton(creditPrice, 'CREDITS', this.handlers.login));
       if (creditPrice && tokenPrice) { const or = document.createElement('span'); or.className = 'store-purchase-or'; or.textContent = 'OR'; actions.append(or); }
-      if (tokenPrice) actions.append(this.button(`UNLOCK · 💎 ${tokenPrice.toLocaleString()} SKY TOKENS`, this.handlers.login));
+      if (tokenPrice) actions.append(this.purchaseButton(tokenPrice, 'SKY_TOKENS', this.handlers.login));
       if (item.kind === 'aircraft' && item.aircraftType === 'fighter') actions.append(this.button('START 5-MINUTE TRIAL', this.handlers.login, 'store-secondary store-trial'));
-      actions.append(viewGarage); return;
+      if (item.aircraftType !== 'fighter' || item.kind !== 'aircraft') actions.append(viewGarage);
+      return;
     }
     const itemState = storeItemState(item, this.profile);
     if (itemState === 'REQUIRES AIRCRAFT') {
@@ -222,14 +289,13 @@ export class GameStore {
         actions.append(this.button('START 5-MINUTE TRIAL', () => void this.performTrial(), 'store-secondary store-trial'));
       }
     }
-    actions.append(viewGarage);
+    if (item.aircraftType !== 'fighter' || item.kind !== 'aircraft' || isOwned(item, this.profile)) actions.append(viewGarage);
   }
 
   private purchaseOption(actions: HTMLElement, item: StoreItem, currency: Currency, price: number): void {
     const balance = currency === 'CREDITS' ? this.profile!.credits : this.profile!.skyTokens ?? 0;
     const missing = Math.max(0, price - balance);
-    const label = `${currency === 'CREDITS' ? '🪙' : '💎'} ${price.toLocaleString()} ${currency === 'CREDITS' ? 'CREDITS' : 'SKY TOKENS'}`;
-    const button = this.button(`UNLOCK · ${label}`, () => void this.performUnlock(item, currency));
+    const button = this.purchaseButton(price, currency, () => void this.performUnlock(item, currency));
     button.disabled = this.busy || (this.authenticated && !!missing && currency === 'CREDITS');
     actions.append(button);
     if (missing && this.authenticated) {
@@ -240,6 +306,13 @@ export class GameStore {
     }
   }
 
+  private purchaseButton(price: number, currency: Currency, action: () => void): HTMLButtonElement {
+    const button = this.button('', action);
+    button.append(document.createTextNode('UNLOCK · '), this.priceLine(price, currency));
+    button.setAttribute('aria-label', `Unlock for ${price.toLocaleString()} ${currency === 'CREDITS' ? 'Credits' : 'Sky Tokens'}`);
+    return button;
+  }
+
   private button(label: string, action: () => void, className = 'store-primary'): HTMLButtonElement {
     const button = document.createElement('button'); button.type = 'button'; button.className = className; button.textContent = label;
     button.addEventListener('click', action); return button;
@@ -248,7 +321,7 @@ export class GameStore {
   private async performUnlock(item: StoreItem, currency: Currency): Promise<void> {
     if (this.busy) return;
     if (!this.authenticated) { this.handlers.login(); return; }
-    const price = storeItemPrice(item, this.profile, currency);
+    const price = this.price(item, currency);
     if (!price) return;
     const missing = Math.max(0, price - (currency === 'CREDITS' ? this.profile?.credits ?? 0 : this.profile?.skyTokens ?? 0));
     if (missing) { if (currency === 'SKY_TOKENS') this.handlers.getTokens(missing); return; }

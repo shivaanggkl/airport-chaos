@@ -1,7 +1,6 @@
 import { aircraftDefinitions, type AircraftType } from './aircraft';
-import { aircraftCreditPrice, aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
-import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
-import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
+import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
+import { cosmeticCatalog, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
 import type { GarageProfile } from './garage';
 
 export type StoreCategory = 'FEATURED' | 'AIRCRAFT' | 'PAINTS' | 'EFFECTS' | 'CITIES';
@@ -11,8 +10,6 @@ export type StoreItem = {
   aircraftType: AircraftType;
   name: string;
   subtitle: string;
-  creditPrice?: number;
-  tokenPrice?: number;
   colors: readonly number[];
   included?: boolean;
 };
@@ -30,8 +27,6 @@ export const storeAircraft = aircraftDisplayOrder.map((type): StoreItem => {
   return {
     id: aircraftType, kind: 'aircraft', aircraftType,
     name: definition.callsign, subtitle: definition.name,
-    creditPrice: aircraftType === 'cargo' || aircraftType === 'privateJet' ? undefined : aircraftCreditPrice(aircraftType),
-    tokenPrice: aircraftType === 'cargo' || aircraftType === 'privateJet' ? undefined : aircraftSkyTokenPrice(aircraftType),
     colors: [definition.bodyColor, definition.accentColor, definition.livery.accentColor],
   };
 });
@@ -42,14 +37,12 @@ export const storePaints = paintOrder.map((id): StoreItem => {
   return {
     id, kind: 'paint', aircraftType, name: paint.displayName,
     subtitle: `${aircraftDefinitions[aircraftType].callsign} PAINT`,
-    creditPrice: paint.unlockType === 'credits' ? paint.creditPrice : undefined,
-    tokenPrice: paint.unlockType === 'credits' ? paint.skyTokenPrice : undefined,
     colors: [paint.visualConfig.base, paint.visualConfig.primary, paint.visualConfig.accent],
     included: paint.unlockType === 'included',
   };
 });
 
-const featuredIds = ['fighter', 'privateJet', 'cargo', 'mammoth-arctic-rescue', 'nightowl-royal-violet'];
+const featuredIds = ['fighter', 'privateJet', 'cargo'];
 export const storeFeatured = featuredIds.map(id => [...storeAircraft, ...storePaints].find(item => item.id === id)!);
 export const storeItems = [...storeAircraft, ...storePaints];
 
@@ -57,13 +50,6 @@ export function ownsStoreAircraft(profile: GarageProfile, type: AircraftType): b
   return type === 'fighter'
     ? profile.aircraftEntitlements?.includes(firehawkProduct.entitlement) === true
     : type === 'trainer' || profile.unlockedAircraft.includes(type);
-}
-
-export function storeItemPrice(item: StoreItem, profile: GarageProfile | undefined, currency: 'CREDITS' | 'SKY_TOKENS'): number | undefined {
-  if (item.kind !== 'paint') return currency === 'CREDITS' ? item.creditPrice : item.tokenPrice;
-  const cosmetic = cosmeticCatalog.find(entry => entry.id === item.id);
-  if (!cosmetic || cosmetic.unlockType !== 'credits') return undefined;
-  return cosmeticUnlockPrice(cosmetic, profile ? ownsStoreAircraft(profile, item.aircraftType) : false, currency);
 }
 
 export function storeItemState(item: StoreItem, profile: GarageProfile): 'FREE' | 'OWNED' | 'EQUIPPED' | 'INCLUDED' | 'LOCKED' | 'REQUIRES AIRCRAFT' {

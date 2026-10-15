@@ -9,6 +9,7 @@ import { AppShellHeader, type AppShellActive } from './app-shell';
 import { createLockIcon } from './lock-icon';
 import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
+import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
 import { storeFeatured, storeItemState, type StoreItem, type StoreCategory } from './store-catalog';
 import { PilotMenu, type PilotMenuAccountResult, type PilotMenuData, type PilotMenuSection, type PilotProfileSummary } from './pilot-menu';
@@ -1506,7 +1507,6 @@ async function openGameStore(recordOpen = true): Promise<void> {
   if (entryState === 'FLIGHT' || entryState === 'TUTORIAL') return;
   if (recordOpen && entryState === 'STORE' && gameStore.isOpen()) return;
   const fromState = entryState;
-  const wasOpen = gameStore.isOpen();
   entryState = 'STORE';
   if (recordOpen && fromState !== 'STORE') {
     if (window.history.state?.airportChaosStoreView || (missionJourneyReturnPending && fromState !== 'MISSION_JOURNEY' && window.history.state?.airportChaosEntryView)) window.history.replaceState({ airportChaosStoreView: 'STORE' }, '', window.location.href);
@@ -1518,13 +1518,22 @@ async function openGameStore(recordOpen = true): Promise<void> {
   void garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
   showAppHeader('STORE');
   gameStore.setBackLabel(missionJourneyReturnPending ? 'BACK TO MISSIONS' : 'BACK TO HUB');
-  if (recordOpen || !wasOpen) gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
+  gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
   try {
-    if (hubAccount.state === 'account') {
-      const profile = await loadGarageProfile();
-      if (entryState === 'STORE') gameStore.update(profile, true);
-    } else gameStore.update(undefined, false);
-  } catch { if (entryState === 'STORE') gameStore.fail('PROFILE UNAVAILABLE'); }
+    const [catalog, profile] = await Promise.all([
+      apiFetch(apiUrl('/api/store/catalog')).then(async response => {
+        if (!response.ok) throw new Error('Catalog unavailable');
+        const body = await response.json() as { items?: PublicStoreCatalogItem[] };
+        if (!Array.isArray(body.items)) throw new Error('Invalid catalog');
+        return body.items;
+      }),
+      hubAccount.state === 'account' ? loadGarageProfile() : Promise.resolve(undefined),
+    ]);
+    if (entryState === 'STORE') {
+      gameStore.setCatalog(catalog);
+      gameStore.update(profile, hubAccount.state === 'account');
+    }
+  } catch { if (entryState === 'STORE') gameStore.fail('STORE UNAVAILABLE'); }
 }
 
 async function openStoreItemInGarage(item: StoreItem): Promise<void> {

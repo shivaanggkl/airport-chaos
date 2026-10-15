@@ -15,6 +15,7 @@ import { primaryTerritoryAt, territoriesForCity, territoryContains, territoryMem
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
+import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterBodyContact, monsterImpact, stepMonsterEncounter, monsterProjectileHits, recordMonsterFiringPosition, segmentBlockedByBuildings, type MonsterEncounter } from './monster-arrival.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
@@ -1225,6 +1226,11 @@ const httpServer = createServer(async (request, response) => {
       console.warn('[stripe] webhook rejected', error instanceof Error ? error.message : 'invalid');
       response.writeHead(400, { 'Content-Type': 'application/json' }); response.end('{"error":"Invalid webhook"}');
     }
+    return;
+  }
+  if (requestUrl.pathname === '/api/store/catalog') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    jsonResponse(response, 200, { items: publicStoreCatalog() });
     return;
   }
   if (requestUrl.pathname === '/api/sky-tokens/catalog') {
