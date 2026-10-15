@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-export const MISSION_ONE_INTRO_SWEEP_MS = 5_500;
-export const MISSION_ONE_INTRO_DURATION_MS = 6_500;
+export const MISSION_ONE_INTRO_SWEEP_MS = 10_000;
+export const MISSION_ONE_INTRO_DURATION_MS = 11_000;
 
 type GatePosition = Readonly<{ x: number; z: number; altitude: number }>;
 
