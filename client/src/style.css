@@ -4633,7 +4633,7 @@ body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
 .transport-arrival-alert span{display:block;color:#ffada0;font-size:12px;font-weight:800;letter-spacing:2px}.transport-arrival-alert strong{display:block;font-size:clamp(24px,4vw,42px);letter-spacing:2px;margin:6px 0}.transport-arrival-alert p{margin:4px 0;font-size:clamp(12px,1.5vw,17px)}
 /* Hub Pilot Profile: one compact game panel, independent of the in-flight menu. */
 .pilot-menu-card.is-pilot-profile {
-  display: grid; grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); gap: 0;
+  display: grid; grid-template: "header" auto "content" minmax(0, 1fr) / minmax(0, 1fr); gap: 0;
   width: min(1000px, calc(100% - 12px)); height: auto;
   max-height: calc(100dvh - var(--app-shell-header-total) - 20px);
   padding: clamp(8px, 1.2vw, 14px); overflow: hidden;
