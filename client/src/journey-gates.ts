@@ -24,6 +24,7 @@ export class JourneyGateSystem {
   private readonly gates: THREE.Group[] = [];
   private current = 0;
   private active = true;
+  private previewAll = false;
   private phase = 0;
   private flashIndex = -1;
   private flashTime = 0;
@@ -71,6 +72,11 @@ export class JourneyGateSystem {
     this.refresh();
   }
 
+  setCoursePreview(visible: boolean): void {
+    this.previewAll = visible && this.mission.id === journeyDallas01.id;
+    this.refresh();
+  }
+
   target(): { x: number; y: number; z: number; index: number } | undefined {
     const gate = this.mission.gates[this.current];
     return this.active && gate ? { x: gate.x, y: this.heightAt(gate.x, gate.z) + gate.altitude, z: gate.z, index: this.current } : undefined;
@@ -103,15 +109,15 @@ export class JourneyGateSystem {
 
   private refresh(): void {
     this.gates.forEach((group, index) => {
-      group.visible = (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
+      group.visible = this.previewAll || (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
         (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
       if (goldenRace(this.mission.id)) {
         const active = index === this.current;
         const slalom = this.mission.id === journeyDallas04.id;
-        (group.children[0] as THREE.Mesh).material = active ? slalom ? slalomGold : rookieGold : rookiePreview;
-        (group.children[1] as THREE.Mesh).material = active ? slalom ? slalomInner : rookieInner : rookiePreview;
-        (group.children[2] as THREE.Mesh).material = active ? slalom ? slalomAccent : rookieAmber : rookiePreview;
+        (group.children[0] as THREE.Mesh).material = active || this.previewAll ? slalom ? slalomGold : rookieGold : rookiePreview;
+        (group.children[1] as THREE.Mesh).material = active || this.previewAll ? slalom ? slalomInner : rookieInner : rookiePreview;
+        (group.children[2] as THREE.Mesh).material = active || this.previewAll ? slalom ? slalomAccent : rookieAmber : rookiePreview;
         (group.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity = active ? slalom ? .08 : .16 : .07;
         group.scale.setScalar(this.mission.gates[index]!.radius);
         return;

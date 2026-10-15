@@ -234,6 +234,11 @@ body.launch-cinematic-active #tutorial-help {
   transition: opacity 220ms ease, transform 300ms ease;
 }
 .flight-launch-title.is-visible { transform: translate(-50%, 0); opacity: 1; }
+.flight-launch-title.is-mission-one { display: grid; gap: 5px; max-width: calc(100vw - 32px); text-align: center; letter-spacing: .08em; }
+.flight-launch-title.is-mission-one strong { color: #ffe49a; font-size: clamp(15px, 2vw, 24px); }
+.flight-launch-title.is-mission-one span { font-size: clamp(11px, 1.4vw, 17px); }
+.flight-launch-title.is-mission-one small { color: #d6e8f3; font-size: 10px; letter-spacing: .14em; }
+#game-root.mission-one-intro::after { position: fixed; z-index: 23; inset: 0; background: #07172f; opacity: var(--mission-one-wipe-opacity, 0); pointer-events: none; content: ''; }
 
 @media (max-height: 520px) and (orientation: landscape) {
   .flight-launch-title { top: max(5vh, calc(env(safe-area-inset-top) + 8px)); padding: 5px 11px; font-size: 13px; }
