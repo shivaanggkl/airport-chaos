@@ -1350,7 +1350,7 @@ export class AircraftGarage {
     // Mesh bounds include depth that is not all silhouette at once; 90% of
     // the mathematical frame leaves roughly 10–15% visible-model breathing room.
     const exactHangarFrame = !this.showcaseHost;
-    const usableFrame = exactHangarFrame ? 1 : 0.94;
+    const usableFrame = exactHangarFrame ? THREE.MathUtils.clamp(this.previewWidth / 560, 0.9, 1) : 0.94;
     let framedDistance = 0;
     this.forEachVisualCorner(corner => {
       const towardCamera = corner.dot(this.viewDirection);
