@@ -650,7 +650,9 @@ export class AircraftGarage {
       card.append(button);
       if (locked) {
         const lock = document.createElement('span'); lock.className = 'garage-cosmetic-lock';
-        const icon = document.createElement('span'); icon.className = 'garage-cosmetic-lock-icon'; icon.setAttribute('aria-hidden', 'true');
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.classList.add('garage-cosmetic-lock-icon'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<path d="M6.5 10V7.5a5.5 5.5 0 0 1 11 0V10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><rect x="4" y="10" width="16" height="12" rx="3" fill="#f2b943" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="16" r="1.6" fill="#fff7df"/>';
         lock.append(icon, document.createTextNode('LOCKED'));
         card.append(lock);
       }
