@@ -317,7 +317,7 @@ export class JourneyAttemptStore {
     return current?.status === 'APPROACH' ? current : undefined;
   }
 
-  /** Start an airborne Golden Gates race on the first accepted control update. */
+  /** Start a Golden Gates race after the first accepted takeoff update. */
   startRookieRush(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
     const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas04.id ? journeyDallas04 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : undefined;

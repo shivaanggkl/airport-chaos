@@ -582,7 +582,7 @@ test('historical four-gate Mission 5 clears retain progress and Credits without 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Golden Championship has ten forward-only gates and a safe airborne start', () => {
+test('Golden Championship has ten forward-only gates and a safe course entry', () => {
   assert.equal(journeyDallas06.name, 'GOLDEN CHAMPIONSHIP');
   assert.equal(journeyDallas06.gates.length, 10);
   assert.equal(journeyDallas06.timeLimitMs, 160_000);
