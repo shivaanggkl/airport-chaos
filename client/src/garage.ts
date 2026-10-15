@@ -107,10 +107,6 @@ export class AircraftGarage {
   private readonly viewUp = new THREE.Vector3();
   private readonly previewCorner = new THREE.Vector3();
   private readonly showcaseVisualCorners: THREE.Vector3[] = [];
-  private readonly hangarVisualCorners: THREE.Vector3[] = [];
-  private readonly hangarTargetFocus = new THREE.Vector3();
-  private lastHangarFramingYaw = NaN;
-  private lastHangarFramingPitch = NaN;
   private previewWidth = 0;
   private previewHeight = 0;
   private lastTrialSecond = -1;
@@ -1283,8 +1279,6 @@ export class AircraftGarage {
     const headerIcon = this.showcaseHost?.classList.contains('app-shell-aircraft-preview') === true;
     const showcaseCamera = this.showcaseHost !== undefined && !headerIcon;
     this.showcaseVisualCorners.length = 0;
-    this.hangarVisualCorners.length = 0;
-    this.lastHangarFramingYaw = NaN;
     if (resetView) {
       this.targetOrbitYaw = showcaseCamera ? this.showcaseCameraYaw + this.showcaseAircraftYawOffset : 1.98;
       this.targetOrbitPitch = headerIcon ? 0.45 : -0.01;
@@ -1309,7 +1303,6 @@ export class AircraftGarage {
     this.previewContent.updateMatrixWorld(true);
     if (!this.measureVisualBounds()) return;
     if (showcaseCamera) this.forEachVisualCorner(corner => this.showcaseVisualCorners.push(corner.clone()));
-    else if (!this.showcaseHost) this.forEachVisualCorner(corner => this.hangarVisualCorners.push(corner.clone()));
     this.previewBounds.getSize(this.previewSize);
     this.showcaseSet.position.set(0, 0, 0);
     this.showcaseShadow.position.y = 0.032;
@@ -1392,62 +1385,8 @@ export class AircraftGarage {
     // Center the visible silhouette, including long noses and tails.
     this.previewFocus.copy(this.viewRight).multiplyScalar((minProjectedX + maxProjectedX) * 0.5 * this.defaultDistance * horizontalTan)
       .addScaledVector(this.viewUp, (minProjectedY + maxProjectedY) * 0.5 * this.defaultDistance * verticalTan);
-    this.hangarTargetFocus.copy(this.previewFocus);
     this.camera.far = Math.max(140, this.defaultDistance * 6);
     this.camera.updateProjectionMatrix();
-  }
-
-  private updateHangarFraming(): void {
-    if (this.hangarVisualCorners.length === 0 ||
-        (Math.abs(this.orbitYaw - this.lastHangarFramingYaw) < 0.01 &&
-         Math.abs(this.orbitPitch - this.lastHangarFramingPitch) < 0.01)) return;
-    this.lastHangarFramingYaw = this.orbitYaw;
-    this.lastHangarFramingPitch = this.orbitPitch;
-    const cosPitch = Math.cos(this.orbitPitch);
-    this.viewDirection.set(Math.sin(this.orbitYaw) * cosPitch, Math.sin(this.orbitPitch), Math.cos(this.orbitYaw) * cosPitch);
-    this.viewRight.set(Math.cos(this.orbitYaw), 0, -Math.sin(this.orbitYaw));
-    this.viewUp.crossVectors(this.viewDirection, this.viewRight);
-    const verticalTan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) * 0.5);
-    const horizontalTan = verticalTan * this.camera.aspect;
-    let framedDistance = 0, nearestCorner = 0;
-    for (const corner of this.hangarVisualCorners) {
-      const towardCamera = corner.dot(this.viewDirection);
-      nearestCorner = Math.max(nearestCorner, towardCamera);
-      framedDistance = Math.max(framedDistance,
-        towardCamera + Math.abs(corner.dot(this.viewRight)) / (horizontalTan * 0.94),
-        towardCamera + Math.abs(corner.dot(this.viewUp)) / (verticalTan * 0.94));
-    }
-    const scale = this.selected === 'trainer' ? 0.66 : this.selected === 'fighter' ? 0.9 : 1;
-    let nextDefaultDistance = Math.max(1, framedDistance * scale, nearestCorner + 0.5);
-    // Keep the enlarged model inside the stage at every orbit angle. The
-    // initial fit alone is insufficient once its long wings turn toward us.
-    for (let pass = 0; pass < 4; pass += 1) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const corner of this.hangarVisualCorners) {
-        const depth = Math.max(0.001, nextDefaultDistance - corner.dot(this.viewDirection));
-        const x = corner.dot(this.viewRight) / (depth * horizontalTan);
-        const y = corner.dot(this.viewUp) / (depth * verticalTan);
-        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-      }
-      const focusX = (minX + maxX) * 0.5 * nextDefaultDistance * horizontalTan;
-      const focusY = (minY + maxY) * 0.5 * nextDefaultDistance * verticalTan;
-      let extentX = 0, extentY = 0;
-      for (const corner of this.hangarVisualCorners) {
-        const depth = Math.max(0.001, nextDefaultDistance - corner.dot(this.viewDirection));
-        extentX = Math.max(extentX, Math.abs(corner.dot(this.viewRight) - focusX) / (depth * horizontalTan));
-        extentY = Math.max(extentY, Math.abs(corner.dot(this.viewUp) - focusY) / (depth * verticalTan));
-      }
-      this.hangarTargetFocus.copy(this.viewRight).multiplyScalar(focusX).addScaledVector(this.viewUp, focusY);
-      const correction = Math.max(extentX / 0.88, extentY / 0.84);
-      if (correction <= 1) break;
-      nextDefaultDistance *= correction;
-    }
-    if (Math.abs(nextDefaultDistance - this.defaultDistance) > 0.001) {
-      const zoom = this.targetDistance / this.defaultDistance;
-      this.defaultDistance = nextDefaultDistance;
-      this.targetDistance = nextDefaultDistance * zoom;
-    }
   }
 
   private resize(): void {
@@ -1476,10 +1415,6 @@ export class AircraftGarage {
     }
     this.orbitYaw = THREE.MathUtils.lerp(this.orbitYaw, this.targetOrbitYaw, 0.12);
     this.orbitPitch = THREE.MathUtils.lerp(this.orbitPitch, this.targetOrbitPitch, 0.14);
-    if (!this.showcaseHost) {
-      this.updateHangarFraming();
-      this.previewFocus.lerp(this.hangarTargetFocus, 0.18);
-    }
     this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, 0.14);
     if (this.showcaseHost && !headerIcon) {
       const presentationScale = this.showcaseCameraDistance / Math.max(0.001, this.distance);
