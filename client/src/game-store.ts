@@ -123,6 +123,7 @@ export class GameStore {
     this.category = category; this.selectedId = undefined;
     recordProductIntent('store_category_viewed', { category: category.toLowerCase() });
     this.render();
+    this.grid.scrollLeft = 0;
     this.tabs.querySelector<HTMLElement>(`[data-category="${category}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
   select(id?: string): void {
