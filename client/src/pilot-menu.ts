@@ -159,6 +159,33 @@ function textElement<K extends keyof HTMLElementTagNameMap>(tag: K, text: string
   return element;
 }
 
+type ProfileArt = 'progress' | 'missions' | 'chapters' | 'cities' | 'score' | 'aircraft' | 'combat' | 'landing';
+
+function profileArt(kind: ProfileArt): HTMLSpanElement {
+  const art = document.createElement('span');
+  art.className = 'pilot-profile-art';
+  art.setAttribute('aria-hidden', 'true');
+  const image = kind === 'missions' || kind === 'chapters' ? '/media/hub/mission-medal.png'
+    : kind === 'aircraft' || kind === 'landing' ? '/media/hub/aircraft.png' : undefined;
+  if (image) {
+    const img = document.createElement('img'); img.src = image; img.alt = ''; art.append(img);
+    return art;
+  }
+  const shapes: Record<Exclude<ProfileArt, 'missions' | 'chapters' | 'aircraft' | 'landing'>, string> = {
+    progress: '<path d="M8 38h8V25H8zm12 0h8V17h-8zm12 0h8V9h-8z" fill="#39bf5e" stroke="#16894a" stroke-width="2"/><path d="M7 42h35" stroke="#196f87" stroke-width="2"/>',
+    cities: '<path d="M5 40V22h8v18m3 0V12h11v28m3 0V19h12v21" fill="#299bd3" stroke="#0d4b80" stroke-width="2"/><path d="M8 27h3m-3 5h3m11-14h3m-3 6h3m-3 6h3m12-5h3m-3 6h3" stroke="#f8d369" stroke-width="2"/><path d="M3 41h42" stroke="#a66e18" stroke-width="2"/>',
+    score: '<circle cx="24" cy="24" r="17" fill="#f6e7c3" stroke="#b86c18" stroke-width="3"/><circle cx="24" cy="24" r="10" fill="#fff8e6" stroke="#e49426" stroke-width="2"/><circle cx="24" cy="24" r="4" fill="#e65d28"/><path d="M24 2v11m0 22v11M2 24h11m22 0h11" stroke="#bf541a" stroke-width="3"/>',
+    combat: '<path d="M8 7l8 6 19 21-5 5L11 17z" fill="#c8d9ed" stroke="#526f9a" stroke-width="2"/><path d="M40 7l-8 6-19 21 5 5 19-22z" fill="#dbe8f5" stroke="#526f9a" stroke-width="2"/><path d="M8 38l6-6m20 0 6 6" stroke="#b98027" stroke-width="4" stroke-linecap="round"/>',
+  };
+  art.innerHTML = `<svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">${shapes[kind as keyof typeof shapes]}</svg>`;
+  return art;
+}
+
+function achievementArt(key: string): HTMLSpanElement {
+  return profileArt(key === 'first_combat' ? 'combat' : key === 'smooth_landing' ? 'landing'
+    : key.startsWith('city:') ? 'cities' : 'missions');
+}
+
 function section(title: string): HTMLElement {
   const sectionElement = document.createElement('section');
   sectionElement.className = 'pilot-menu-section';
@@ -222,6 +249,7 @@ export class PilotMenu {
   private pointerActive = false;
   private profileNameEditing = false;
   private profileFeedback?: PilotMenuAccountResult;
+  private profileStatsTab: 'single' | 'multiplayer' = 'single';
   private advertisingOpen = false;
   private inviteOpen = false;
   private inviteNotice = '';
@@ -263,6 +291,7 @@ export class PilotMenu {
     if (this.activeSection === name || !this.lastData) return;
     this.profileNameEditing = false;
     this.profileFeedback = undefined;
+    if (name === 'PROFILE') this.profileStatsTab = 'single';
     this.sectionHistory.push(this.activeSection);
     this.activeSection = name;
     this.onSectionViewed?.(name);
@@ -309,6 +338,7 @@ export class PilotMenu {
     this.activeSection = section;
     this.profileNameEditing = false;
     this.profileFeedback = undefined;
+    if (section === 'PROFILE') this.profileStatsTab = 'single';
     this.lastSnapshot = '';
     this.element.hidden = false;
     const close = this.element.querySelector<HTMLButtonElement>('.pilot-menu-header-actions button');
@@ -581,7 +611,18 @@ export class PilotMenu {
         const levelProgress = pilot.level >= 50 ? levelRange : Math.max(0, Math.min(levelRange, pilot.xp - levelStartXp));
         const identity = document.createElement('div'); identity.className = 'pilot-profile-hero';
         const emblem = document.createElement('span'); emblem.className = 'pilot-profile-avatar'; emblem.setAttribute('aria-hidden', 'true');
-        emblem.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="23" fill="#0876b3" stroke="#e5b94d" stroke-width="2"/><circle cx="24" cy="19" r="7" fill="#f6fafb"/><path d="M9 39c2-10 9-14 15-14s13 4 15 14" fill="#f6fafb"/><path d="M17 30l7 9 7-9" fill="#173d69"/></svg>';
+        emblem.innerHTML = `<svg viewBox="0 0 100 100" focusable="false" aria-hidden="true">
+          <defs><radialGradient id="pilotPortraitBlue"><stop stop-color="#22a6dc"/><stop offset="1" stop-color="#075597"/></radialGradient>
+          <linearGradient id="pilotPortraitGold" x2="0" y2="1"><stop stop-color="#fff6b7"/><stop offset=".45" stop-color="#e4b744"/><stop offset="1" stop-color="#986118"/></linearGradient></defs>
+          <circle cx="50" cy="50" r="48" fill="url(#pilotPortraitGold)"/><circle cx="50" cy="50" r="43" fill="url(#pilotPortraitBlue)" stroke="#f6e7a9" stroke-width="1"/>
+          <path d="M18 86c4-19 17-28 32-28s28 9 32 28" fill="#123866" stroke="#051e43" stroke-width="2"/>
+          <path d="M34 62l16 28 16-28-8-5H42z" fill="#f8fbff"/><path d="M46 68h8l-2 8 4 13H44l4-13z" fill="#0b4782"/>
+          <path d="M41 58h18v9l-9 8-9-8z" fill="#f2d5b9"/><ellipse cx="50" cy="47" rx="14" ry="17" fill="#f7e3c8"/>
+          <path d="M33 41c1-13 8-21 17-21s16 8 17 21" fill="#113963"/><path d="M30 42h40v7c-12 6-28 6-40 0z" fill="#102b54" stroke="#061d3e" stroke-width="1.5"/>
+          <path d="M36 34h28l-3 6H39z" fill="#1f5082"/><path d="M43 36l7 3 7-3-7 8z" fill="url(#pilotPortraitGold)"/>
+          <path d="M23 82l13-19 9 24M77 82L64 63l-9 24" fill="#0a284d" stroke="#4778a2" stroke-width="1"/>
+          <circle cx="50" cy="50" r="47" fill="none" stroke="#fff7cd" stroke-width="2"/>
+        </svg>`;
         const identityCopy = document.createElement('div'); identityCopy.className = 'pilot-profile-identity-copy';
         identityCopy.append(textElement('strong', account.pilotName), textElement('span', summary ? `PILOT ID  ${summary.publicPilotId}` : 'LOADING PILOT ID'), textElement('b', `LEVEL ${pilot.level}`));
         const xp = document.createElement('div'); xp.className = 'pilot-profile-xp';
@@ -627,23 +668,46 @@ export class PilotMenu {
         profile.append(identity, message);
 
         const statistics = document.createElement('section'); statistics.className = 'pilot-profile-section';
-        statistics.append(textElement('h2', 'PLAYER STATISTICS'));
-        if (summary) {
+        const statisticsHeading = document.createElement('div'); statisticsHeading.className = 'pilot-profile-section-heading';
+        const tabs = document.createElement('div'); tabs.className = 'pilot-profile-tabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Player statistics');
+        for (const [tab, label] of [['single', 'SINGLE PLAYER'], ['multiplayer', 'MULTIPLAYER']] as const) {
+          const button = textElement('button', label, 'pilot-profile-mode'); button.type = 'button';
+          button.id = `pilot-profile-${tab}-tab`; button.dataset.profileTab = tab;
+          button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(this.profileStatsTab === tab));
+          button.setAttribute('aria-controls', 'pilot-profile-stat-content');
+          button.addEventListener('click', () => {
+            if (this.profileStatsTab === tab) return;
+            this.profileStatsTab = tab;
+            this.render(this.lastData ?? data, true);
+            this.content?.querySelector<HTMLButtonElement>(`[data-profile-tab="${tab}"]`)?.focus({ preventScroll: true });
+          });
+          tabs.append(button);
+        }
+        statisticsHeading.append(textElement('h2', 'PLAYER STATISTICS'), tabs);
+        statistics.append(statisticsHeading);
+        const statsContent = document.createElement('div'); statsContent.id = 'pilot-profile-stat-content';
+        statsContent.setAttribute('role', 'tabpanel'); statsContent.setAttribute('aria-labelledby', `pilot-profile-${this.profileStatsTab}-tab`);
+        if (this.profileStatsTab === 'multiplayer') {
+          statsContent.append(textElement('p', 'Multiplayer battles are not available yet.', 'pilot-profile-multiplayer-empty'));
+        } else if (summary) {
           const values = summary.singlePlayer;
           const stats = document.createElement('div'); stats.className = 'pilot-profile-stat-grid';
-          for (const [label, value] of [
-            ['OVERALL PROGRESS', `${values.overallProgress}%`],
-            ['MISSIONS COMPLETED', `${values.missionsCompleted} / ${values.missionsTotal}`],
-            ['CHAPTERS COMPLETED', `${values.chaptersCompleted} / ${values.chaptersTotal}`],
-            ['CITIES COMPLETED', `${values.citiesCompleted} / ${values.citiesTotal}`],
-            ['TOTAL SCORE', values.totalScore.toLocaleString()],
-            ['AIRCRAFT OWNED', `${values.aircraftOwned} / ${values.aircraftTotal}`],
-          ]) {
+          for (const [kind, label, value] of [
+            ['progress', 'OVERALL PROGRESS', `${values.overallProgress}%`],
+            ['missions', 'MISSIONS COMPLETED', `${values.missionsCompleted} / ${values.missionsTotal}`],
+            ['chapters', 'CHAPTERS COMPLETED', `${values.chaptersCompleted} / ${values.chaptersTotal}`],
+            ['cities', 'CITIES COMPLETED', `${values.citiesCompleted} / ${values.citiesTotal}`],
+            ['score', 'TOTAL SCORE', values.totalScore.toLocaleString()],
+            ['aircraft', 'AIRCRAFT OWNED', `${values.aircraftOwned} / ${values.aircraftTotal}`],
+          ] as const) {
             const stat = document.createElement('div'); stat.className = 'pilot-profile-stat-tile';
-            stat.append(textElement('strong', value), textElement('span', label)); stats.append(stat);
+            const copy = document.createElement('div'); copy.className = 'pilot-profile-stat-copy';
+            copy.append(textElement('strong', value), textElement('span', label));
+            stat.append(profileArt(kind), copy); stats.append(stat);
           }
-          statistics.append(stats);
-        } else statistics.append(textElement('p', 'Loading player statistics…'));
+          statsContent.append(stats);
+        } else statsContent.append(textElement('p', 'Loading player statistics…'));
+        statistics.append(statsContent);
         profile.append(statistics);
 
         const achievements = document.createElement('section'); achievements.className = 'pilot-profile-section';
@@ -654,7 +718,7 @@ export class PilotMenu {
             const list = document.createElement('div'); list.className = 'pilot-profile-achievements';
             for (const item of summary.latestAchievements.slice(0, 3)) {
               const card = document.createElement('div'); card.className = 'pilot-profile-achievement';
-              const icon = textElement('span', '✦', 'pilot-profile-achievement-icon'); icon.setAttribute('aria-hidden', 'true');
+              const icon = achievementArt(item.key); icon.classList.add('pilot-profile-achievement-icon');
               const copy = document.createElement('div');
               copy.append(textElement('strong', item.title), textElement('span', item.description));
               const date = item.earnedAt >= summary.serverWeekStartsAt && item.earnedAt <= summary.serverNow
