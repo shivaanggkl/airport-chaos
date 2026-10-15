@@ -10,7 +10,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
   position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: min(1120px, 100%); height: 100%; min-width: 0; min-height: 0; margin: 0 auto;
 }
-.store-heading { display: flex; align-items: center; justify-content: center; min-height: clamp(58px, 9dvh, 76px); margin: 0 0 6px; }
+.store-heading { display: flex; align-items: center; justify-content: center; min-height: clamp(78px, 12dvh, 90px); margin: 0 0 6px; }
 .game-store button:focus-visible { outline: 3px solid #006c9a; outline-offset: 2px; }
 .store-category-rail { position: relative; min-width: 0; }
 .store-category-rail::after {
@@ -28,7 +28,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-tabs::-webkit-scrollbar, .store-grid::-webkit-scrollbar { display: none; }
 .store-tab {
   display: inline-flex; flex: 1 0 155px; align-items: center; justify-content: center; gap: 10px;
-  min-width: 155px; min-height: 44px; padding: 8px 14px; border: 2px solid transparent; border-radius: 12px;
+  min-width: 155px; min-height: 52px; padding: 8px 14px; border: 2px solid transparent; border-radius: 12px;
   background: transparent; color: #0b2345; font: 900 clamp(13px, 1.35vw, 18px)/1 var(--font-display);
   white-space: nowrap; cursor: pointer;
 }
@@ -41,11 +41,11 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-tab:hover:not(.is-active) { background: #e7f7fa; }
 .store-tab:active { filter: brightness(.96); }
 .store-tab-icon { color: #0c3972; font-size: 1.15em; line-height: 1; }
-.store-content { display: grid; min-width: 0; min-height: 0; margin-top: 8px; }
+.store-content { display: grid; min-width: 0; min-height: 0; margin-top: clamp(12px, 3.7dvh, 22px); }
 .store-content.has-detail { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 12px; }
 .store-rail {
   position: relative; display: grid; grid-template-rows: minmax(0, 1fr) 8px; gap: 7px;
-  width: 100%; height: 100%; max-height: 440px; min-width: 0; min-height: 0; align-self: center;
+  width: 100%; height: clamp(220px, 44dvh, 285px); max-height: 100%; min-width: 0; min-height: 0; align-self: start;
 }
 .store-rail::before, .store-rail::after {
   position: absolute; z-index: 1; top: 0; bottom: 15px; width: clamp(22px, 4vw, 44px);
@@ -60,7 +60,8 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 }
 .store-rail.is-dragging .store-grid { scroll-snap-type: none; cursor: grabbing; }
 .store-grid:not(:has(.store-empty, .store-skeleton)) { cursor: grab; }
-.store-grid > * { flex: 0 0 calc((100% - 20px) / 2.1); min-width: 0; scroll-snap-align: start; }
+.store-grid > * { flex: 0 0 calc((100% - 20px) / 3); min-width: 0; scroll-snap-align: start; }
+.store-content.has-detail .store-grid > * { flex-basis: calc((100% - 10px) / 1.13); }
 .store-rail-arrow {
   position: absolute; z-index: 2; top: calc((100% - 15px) / 2); display: grid; place-items: center;
   width: 44px; height: 44px; padding: 0; border: 2px solid #39d8ed; border-radius: 50%;
@@ -77,11 +78,9 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-rail.has-overflow .store-rail-progress { opacity: 1; }
 .store-rail-thumb { position: absolute; top: 1px; bottom: 1px; border-radius: 99px; background: linear-gradient(90deg, #47e7f5, #00a8d9); box-shadow: 0 0 4px rgb(61 228 250 / 65%); }
 .store-item-card {
-  display: flex; flex-direction: column; min-width: 0; height: 100%; padding: 9px;
-  border: 1px solid #d3dce4; border-radius: 15px;
-  background: linear-gradient(145deg, #fff, #f5f8f9 70%, #eaf0f2);
-  color: #0b2345; box-shadow: 0 5px 14px rgb(10 38 75 / 25%);
+  display: flex; flex-direction: column; height: 100%; padding: 7px;
 }
+.store-item-card.is-premium { --game-card-accent: #ffd66a; }
 .store-item-card.is-selected { border-color: #00bdda; box-shadow: 0 0 0 2px #00bdda, 0 5px 14px rgb(10 38 75 / 25%); }
 .store-art {
   position: relative; display: grid; flex: 1 1 auto; place-items: center; min-width: 0; min-height: 0;
@@ -151,6 +150,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 .store-skeleton { border: 1px solid #cbdce5; border-radius: 15px; background: linear-gradient(110deg, #e8f0f4, #fff, #e8f0f4); }
 .store-loading-status { position: absolute; margin: 10px; color: #0b2345; font: 800 12px/1.2 var(--font-display); letter-spacing: .09em; }
 @media (max-width: 1090px) {
+  .store-grid > * { flex-basis: calc((100% - 20px) / 2.1); }
   .store-content.has-detail { grid-template-columns: minmax(0, 1fr) minmax(270px, 34%); }
 }
 @media (max-width: 900px) {

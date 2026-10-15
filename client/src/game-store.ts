@@ -211,7 +211,8 @@ export class GameStore {
   }
 
   private card(item: StoreItem): HTMLElement {
-    const card = document.createElement('article'); card.className = 'store-item-card';
+    const card = document.createElement('article'); card.className = 'game-card-frame store-item-card';
+    card.classList.toggle('is-premium', item.kind === 'aircraft' && item.aircraftType === 'fighter');
     card.classList.toggle('is-selected', this.selectedId === item.id);
     const art = artwork(item);
     if (isOwned(item, this.profile)) art.append(this.statusBadge('OWNED'));
