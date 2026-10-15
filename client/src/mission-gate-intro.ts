@@ -18,7 +18,7 @@ export class MissionGateIntro {
   private shownGate = -1;
 
   constructor(root: HTMLElement, gates: readonly Gate[], spawn: Readonly<{ x: number; z: number; altitude: number }>, heightAt: (x: number, z: number) => number,
-    private readonly onGate: (index: number | null) => void) {
+    private readonly onGate: (index: number | null) => void, title = 'NEEDLE RUSH') {
     this.durationMs = gates.length * SHOT_MS + HANDOFF_MS;
     this.positions = gates.map((gate, index) => {
       const previous = gates[index - 1] ?? spawn;
@@ -33,13 +33,13 @@ export class MissionGateIntro {
     this.targets = gates.map(gate => new THREE.Vector3(gate.x, heightAt(gate.x, gate.z) + gate.altitude, gate.z));
     this.element = document.createElement('aside');
     this.element.className = 'mission-gate-intro';
-    this.element.setAttribute('aria-label', 'Needle Rush gate preview');
-    const title = document.createElement('strong');
-    title.textContent = 'NEEDLE RUSH';
+    this.element.setAttribute('aria-label', `${title} gate preview`);
+    const heading = document.createElement('strong');
+    heading.textContent = title;
     this.progressElement = document.createElement('span');
     const skip = document.createElement('small');
     skip.textContent = 'TAP TO FLY';
-    this.element.append(title, this.progressElement, skip);
+    this.element.append(heading, this.progressElement, skip);
     root.append(this.element);
     root.classList.add('mission-gate-intro-active');
     this.showGate(0);

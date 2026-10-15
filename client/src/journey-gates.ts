@@ -116,7 +116,7 @@ export class JourneyGateSystem {
 
   private refresh(): void {
     this.gates.forEach((group, index) => {
-      group.visible = this.previewAll || this.previewIndex !== null && this.mission.id === journeyDallas05.id || (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
+      group.visible = this.previewAll || this.previewIndex !== null && (this.mission.id === journeyDallas04.id || this.mission.id === journeyDallas05.id) || (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
         (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
       if (goldenRace(this.mission.id)) {
