@@ -138,7 +138,7 @@ export class MissionJourney {
     element.setAttribute('aria-label', 'Dallas Mission Journey');
     element.innerHTML = `
       <div class="mission-journey-topbar">
-        <button type="button" class="mission-journey-back" data-mission-cities><span aria-hidden="true">‹</span> BACK TO CITIES</button>
+        <button type="button" class="context-back mission-journey-back" data-mission-cities>BACK TO CITIES</button>
         <div class="mission-journey-heading"><h1>MISSION JOURNEY</h1><p>DALLAS • 24 MISSIONS</p></div>
       </div>
       <div class="mission-journey-board" aria-label="Dallas chapter missions">

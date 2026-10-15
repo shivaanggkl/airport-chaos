@@ -679,19 +679,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   z-index: 4;
   top: max(24px, var(--safe-area-top));
   left: max(24px, var(--safe-area-left));
-  min-height: 64px;
-  padding: 0 24px;
-  color: var(--ac-text-primary);
-  border: 2px solid var(--ac-cyan);
-  border-radius: 22px;
-  background: linear-gradient(165deg, var(--ac-surface-active), var(--ac-surface));
-  box-shadow: inset 0 2px rgb(246 251 255 / 35%), 0 5px 14px rgb(5 24 38 / 38%), 0 0 12px rgb(53 214 255 / 30%);
-  font: 800 clamp(12px, 1.05vw, 17px)/1 var(--font-display);
-  letter-spacing: .06em;
 }
-.city-context-back::before { content: '‹'; display: inline-block; margin-right: 16px; font: 500 42px/.4 var(--font-body); vertical-align: -4px; }
-.city-context-back:hover, .city-context-back:focus-visible { border-color: var(--ac-cyan-highlight); filter: brightness(1.1); }
-.city-context-back:focus-visible { outline: 3px solid var(--ac-gold-highlight); outline-offset: 2px; }
 
 .city-select-card {
   position: absolute;
@@ -1027,8 +1015,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 
 @media (max-width: 950px) and (orientation: landscape) and (max-height: 520px),
        (any-pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
-  .city-context-back { top: max(4px, var(--safe-area-top)); left: max(6px, var(--safe-area-left)); min-height: 42px; padding-inline: 10px; border-radius: 13px; font-size: 10px; }
-  .city-context-back::before { margin-right: 7px; font-size: 28px; vertical-align: -2px; }
+  .city-context-back { top: max(4px, var(--safe-area-top)); left: max(6px, var(--safe-area-left)); }
   .city-select-card {
     top: calc(var(--safe-area-top) + 46px);
     right: max(6px, var(--safe-area-right));
@@ -4737,12 +4724,12 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay {
   padding: calc(var(--app-shell-header-total) + 8px) max(12px, var(--safe-area-right)) max(10px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
 }
 body:has(.app-shell-header:not([hidden])) .garage-card {
-  display: grid; grid-template-rows: 42px minmax(0, 1fr) 66px; gap: 10px;
+  display: grid; grid-template-rows: 44px minmax(0, 1fr) 66px; gap: 10px;
   width: min(1220px, 100%); height: 100%; min-height: 0; max-height: 100%; padding: 0;
   overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none;
 }
 body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
-  display: grid; grid-template-rows: 42px minmax(0, 1fr) 66px; gap: 10px;
+  display: grid; grid-template-rows: 44px minmax(0, 1fr) 66px; gap: 10px;
   width: min(1120px, 100%); height: min(700px, 94dvh); padding: 0;
   overflow: visible; border: 0; background: transparent; box-shadow: none; backdrop-filter: none;
 }
@@ -4755,10 +4742,7 @@ body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
 .garage-card .garage-heading h1::after { transform: scaleX(-1); }
 .garage-card .garage-balance { position: absolute; z-index: 2; left: 0; top: 0; height: 100%; }
 body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
-  display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px;
-  color: #fff; border: 1px solid rgb(124 209 253 / 65%); border-radius: 17px;
-  background: linear-gradient(#4271b4, #253f77); box-shadow: 0 2px 7px rgb(7 30 66 / 40%);
-  font: 700 11px/1 var(--font-display); letter-spacing: .04em;
+  display: inline-flex;
 }
 .garage-card .garage-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(310px, 1fr); gap: clamp(12px, 2vw, 28px); min-height: 0; margin: 0; }
 .garage-card .garage-preview { min-height: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
@@ -4836,9 +4820,8 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-aircraft-get[hidden] { display: none; }
 .garage-card button:focus-visible { outline: 2px solid #00b9dc; outline-offset: 2px; }
 @media (max-height: 520px) and (orientation: landscape) {
-  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-rows: 32px minmax(0, 1fr) 56px; gap: 4px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-rows: 44px minmax(0, 1fr) 56px; gap: 4px; }
   .garage-card .garage-heading h1 { font-size: 20px; }
-  body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] { min-height: 30px; padding: 0 8px; font-size: 9px; }
   .garage-card .garage-layout { grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); gap: 8px; }
   .garage-card .garage-details { margin-top: -8px; max-height: calc(100% + 8px); padding: 7px; border-radius: 12px; }
   .garage-card .garage-details h2 { font-size: 15px; }
@@ -4866,4 +4849,22 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   .garage-card .garage-details { max-height: none; overflow: visible; }
   .garage-card .garage-selector-section { width: 100%; }
   .garage-card .garage-aircraft { flex-wrap: wrap; }
+}
+/* One back control for Aircraft, City Journey, Mission Journey, and Choose Time. */
+button.context-back, .garage-card header button.context-back {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: max-content; max-width: 100%; min-height: 44px; padding: 0 12px;
+  appearance: none; color: #fff; border: 1px solid rgb(124 209 253 / 65%); border-radius: 17px;
+  background: linear-gradient(#4271b4, #253f77); box-shadow: 0 2px 7px rgb(7 30 66 / 40%);
+  font: 700 11px/1 var(--font-display); letter-spacing: .04em; white-space: nowrap; cursor: pointer;
+}
+button.context-back::before { content: '‹'; font: 700 20px/1 var(--font-body); }
+button.context-back:hover:not(:disabled), .garage-card button.context-back:hover:not(:disabled) {
+  filter: brightness(1.08); transform: none; box-shadow: 0 2px 7px rgb(7 30 66 / 40%);
+}
+button.context-back:active:not(:disabled), .garage-card button.context-back:active:not(:disabled) {
+  filter: brightness(.94); transform: none;
+}
+button.context-back:focus-visible, .mission-journey button.context-back:focus-visible {
+  outline: 2px solid #ffd875; outline-offset: 2px;
 }
