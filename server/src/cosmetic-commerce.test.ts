@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice } from '../../shared/cosmetics.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { PlayerWallet } from './player-wallet.js';
 
@@ -17,26 +17,33 @@ function fixture() {
   return { store, database, wallet, path, cleanup: () => { database.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
-test('all six existing paid paints unlock for either full currency price exactly once', () => {
+test('all six first appearances include their aircraft at the bundle price exactly once', () => {
   const { store, database, wallet, cleanup } = fixture();
   try {
+    const expectedFirstCredits: Record<string, number> = {
+      'mammoth-sand': 13_500, 'mammoth-arctic-rescue': 16_000, 'mammoth-desert-sand': 14_500,
+      'nightowl-forest': 32_000, 'nightowl-midnight-executive': 33_500, 'nightowl-royal-violet': 35_000,
+    };
     for (const item of cosmeticCatalog.filter(paint => paint.unlockType === 'credits')) {
       for (const currency of ['CREDITS', 'SKY_TOKENS'] as const) {
         const pilotId = `${item.id}-${currency}`;
         store.getOrCreate(pilotId, 'Paint Pilot');
         store.awardServerReward(pilotId, 100_000);
-        assert.equal(store.purchaseAircraft(pilotId, item.aircraftRestriction).ok, true);
-        if (currency === 'SKY_TOKENS') assert.equal(wallet.credit({ pilotId, currency, amount: item.skyTokenPrice,
+        assert.equal(store.purchaseAircraft(pilotId, item.aircraftRestriction).ok, false);
+        assert.equal(store.purchaseAircraftWithSkyTokens(pilotId, item.aircraftRestriction).ok, false);
+        const price = cosmeticUnlockPrice(item, false, currency);
+        if (currency === 'CREDITS') assert.equal(price, expectedFirstCredits[item.id]);
+        if (currency === 'SKY_TOKENS') assert.equal(wallet.credit({ pilotId, currency, amount: price,
           reason: 'ADMIN_ADJUSTMENT' }).ok, true);
         const before = store.walletBalances(pilotId)!;
         assert.equal(store.equipCosmetic(pilotId, item.id).ok, false);
         const first = store.purchaseCosmetic(pilotId, item.id, currency);
         assert.equal(first.ok, true); assert.equal(first.purchased, true);
+        assert.equal(first.profile?.unlockedAircraft.includes(item.aircraftRestriction as 'cargo' | 'privateJet'), true);
         assert.equal(first.profile?.cosmetics.ownedIds.includes(item.id), true);
-        assert.equal(first.profile?.cosmetics.equipped[`livery:${item.aircraftRestriction}`], undefined);
+        assert.equal(first.profile?.cosmetics.equipped[`livery:${item.aircraftRestriction}`], item.id);
         assert.equal(store.purchaseCosmetic(pilotId, item.id, currency).purchased, false);
         assert.equal(store.equipCosmetic(pilotId, item.id).ok, true);
-        const price = currency === 'CREDITS' ? item.creditPrice : item.skyTokenPrice;
         assert.equal(store.walletBalances(pilotId)![currency === 'CREDITS' ? 'credits' : 'skyTokens'],
           before[currency === 'CREDITS' ? 'credits' : 'skyTokens'] - price);
         const ledger = database.prepare(`SELECT currency,direction,amount,reason,reference_id,context_json
@@ -46,8 +53,29 @@ test('all six existing paid paints unlock for either full currency price exactly
         assert.equal(ledger.length, 1);
         assert.deepEqual([ledger[0]!.currency, ledger[0]!.direction, ledger[0]!.amount, ledger[0]!.reason],
           [currency, 'DEBIT', price, currency === 'CREDITS' ? 'COSMETIC_PURCHASE' : 'SKY_TOKEN_SPEND']);
-        assert.deepEqual(JSON.parse(ledger[0]!.context_json), { cosmeticId: item.id, aircraft: item.aircraftRestriction });
+        assert.deepEqual(JSON.parse(ledger[0]!.context_json), { cosmeticId: item.id, aircraft: item.aircraftRestriction, aircraftIncluded: true });
       }
+    }
+  } finally { cleanup(); }
+});
+
+test('after the first appearance, additional paints cost only their appearance price', () => {
+  const { store, database, cleanup } = fixture();
+  try {
+    for (const [pilotId, firstId, secondId, expectedPrice] of [
+      ['mammoth-pilot', 'mammoth-arctic-rescue', 'mammoth-sand', 1_500],
+      ['nightowl-pilot', 'nightowl-royal-violet', 'nightowl-midnight-executive', 3_500],
+    ] as const) {
+      store.getOrCreate(pilotId, 'Paint Pilot');
+      store.awardServerReward(pilotId, 100_000);
+      assert.equal(store.purchaseCosmetic(pilotId, firstId).ok, true);
+      const before = store.walletBalances(pilotId)!.credits;
+      assert.equal(store.purchaseCosmetic(pilotId, secondId).ok, true);
+      assert.equal(store.walletBalances(pilotId)!.credits, before - expectedPrice);
+      const row = database.prepare('SELECT amount,context_json FROM wallet_transactions WHERE pilot_id=? AND reference_id=?')
+        .get(pilotId, `cosmetic:${secondId}`) as { amount: number; context_json: string };
+      assert.equal(row.amount, expectedPrice);
+      assert.equal(JSON.parse(row.context_json).aircraftIncluded, false);
     }
   } finally { cleanup(); }
 });
@@ -59,7 +87,6 @@ test('invalid, unaffordable, and rolled-back paint purchases never grant ownersh
     store.getOrCreate(pilotId, 'Paint Pilot');
     assert.equal(store.purchaseCosmetic(pilotId, 'mammoth-sand', 'SKY_TOKENS').ok, false);
     store.awardServerReward(pilotId, 100_000);
-    assert.equal(store.purchaseAircraft(pilotId, 'cargo').ok, true);
     assert.equal(store.purchaseCosmetic(pilotId, 'mammoth-sand', 'FORGED').ok, false);
     const creditsBefore = store.walletBalances(pilotId)!.credits;
     assert.equal(store.purchaseCosmetic(pilotId, 'mammoth-sand', 'SKY_TOKENS').ok, false);
@@ -71,8 +98,9 @@ test('invalid, unaffordable, and rolled-back paint purchases never grant ownersh
     assert.equal(store.getOrCreate(pilotId, 'Paint Pilot').cosmetics.ownedIds.includes('mammoth-sand'), false);
     assert.equal((database.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE reference_id='cosmetic:mammoth-sand'").get() as { n: number }).n, 0);
     database.exec('DROP TRIGGER reject_paint');
-    assert.equal(wallet.credit({ pilotId, currency: 'SKY_TOKENS', amount: 100, reason: 'ADMIN_ADJUSTMENT' }).ok, true);
+    assert.equal(wallet.credit({ pilotId, currency: 'SKY_TOKENS', amount: 600, reason: 'ADMIN_ADJUSTMENT' }).ok, true);
     assert.equal(store.purchaseCosmetic(pilotId, 'mammoth-sand', 'SKY_TOKENS').ok, true);
+    assert.equal(store.getOrCreate(pilotId, 'Paint Pilot').unlockedAircraft.includes('cargo'), true);
   } finally { cleanup(); }
 });
 
@@ -82,12 +110,11 @@ test('independent account sessions cannot pay twice for the same paint', () => {
     const pilotId = 'two-sessions';
     store.getOrCreate(pilotId, 'Paint Pilot');
     store.awardServerReward(pilotId, 100_000);
-    store.purchaseAircraft(pilotId, 'cargo');
     const other = new PlayerProfileStore(path);
     const before = store.walletBalances(pilotId)!.credits;
     assert.equal(store.purchaseCosmetic(pilotId, 'mammoth-sand').purchased, true);
     assert.equal(other.purchaseCosmetic(pilotId, 'mammoth-sand').purchased, false);
-    assert.equal(store.walletBalances(pilotId)!.credits, before - 1_500);
+    assert.equal(store.walletBalances(pilotId)!.credits, before - 13_500);
     assert.equal((database.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE pilot_id=? AND idempotency_key='cosmetic:mammoth-sand'").get(pilotId) as { n: number }).n, 1);
   } finally { cleanup(); }
 });
@@ -98,13 +125,17 @@ test('legacy base paints migrate once for existing accounts while new accounts s
     store.getOrCreate('old-pilot', 'Old Pilot');
     database.prepare("DELETE FROM pilot_cosmetics WHERE pilot_id='old-pilot' AND cosmetic_id IN ('mammoth-sand','nightowl-forest')").run();
     database.prepare("DELETE FROM profile_store_metadata WHERE key='priced_legacy_paints_v1'").run();
+    database.prepare("DELETE FROM profile_store_metadata WHERE key='appearance_aircraft_ownership_v1'").run();
     const migrated = new PlayerProfileStore(path);
     const old = migrated.getOrCreate('old-pilot', 'Old Pilot');
     assert.equal(old.cosmetics.ownedIds.includes('mammoth-sand'), true);
     assert.equal(old.cosmetics.ownedIds.includes('nightowl-forest'), true);
+    assert.equal(old.unlockedAircraft.includes('cargo'), true);
+    assert.equal(old.unlockedAircraft.includes('privateJet'), true);
     const fresh = migrated.getOrCreate('new-pilot', 'New Pilot');
     assert.equal(fresh.cosmetics.ownedIds.includes('mammoth-sand'), false);
     assert.equal(fresh.cosmetics.ownedIds.includes('nightowl-forest'), false);
+    assert.equal(fresh.unlockedAircraft.includes('cargo'), false);
     new PlayerProfileStore(path);
     assert.equal((database.prepare("SELECT COUNT(*) AS n FROM pilot_cosmetics WHERE pilot_id='old-pilot' AND cosmetic_id IN ('mammoth-sand','nightowl-forest')").get() as { n: number }).n, 2);
   } finally { cleanup(); }

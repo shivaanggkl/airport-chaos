@@ -3,7 +3,7 @@ import type { GarageProfile } from './garage';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
-import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, type StoreCategory, type StoreItem } from './store-catalog';
+import { ownsStoreAircraft, storeAircraft, storeFeatured, storeItemById, storeItemPrice, storeItemState, storePaints, type StoreCategory, type StoreItem } from './store-catalog';
 
 type Currency = 'CREDITS' | 'SKY_TOKENS';
 type ActionResult = { ok: boolean; message: string };
@@ -155,10 +155,15 @@ export class GameStore {
     if (['OWNED', 'EQUIPPED', 'INCLUDED'].includes(state.textContent ?? '')) state.dataset.tone = 'success';
     copy.append(subtitle, name, state);
     const price = document.createElement('div'); price.className = 'store-card-price';
-    if (item.creditPrice) price.append(this.priceLine('🪙', item.creditPrice, 'CREDITS'));
-    if (item.creditPrice && item.tokenPrice) { const or = document.createElement('span'); or.textContent = 'OR'; price.append(or); }
-    if (item.tokenPrice) price.append(this.priceLine('💎', item.tokenPrice, 'SKY TOKENS'));
-    if (!item.creditPrice && !item.tokenPrice) price.textContent = item.included ? 'INCLUDED WITH FIREHAWK' : 'FREE';
+    const creditPrice = storeItemPrice(item, this.profile, 'CREDITS');
+    const tokenPrice = storeItemPrice(item, this.profile, 'SKY_TOKENS');
+    if (creditPrice) price.append(this.priceLine('🪙', creditPrice, 'CREDITS'));
+    if (creditPrice && tokenPrice) { const or = document.createElement('span'); or.textContent = 'OR'; price.append(or); }
+    if (tokenPrice) price.append(this.priceLine('💎', tokenPrice, 'SKY TOKENS'));
+    if (!creditPrice && !tokenPrice) price.textContent = item.included ? 'INCLUDED WITH FIREHAWK'
+      : item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet')
+        ? this.profile && ownsStoreAircraft(this.profile, item.aircraftType) ? '' : 'CHOOSE AN APPEARANCE'
+        : item.kind === 'aircraft' && item.aircraftType === 'fighter' ? '' : 'FREE';
     card.append(copy, price);
     card.addEventListener('click', () => this.select(item.id));
     return card;
@@ -188,10 +193,16 @@ export class GameStore {
     const message = document.createElement('p'); message.className = 'store-detail-message'; message.setAttribute('role', 'status');
     message.textContent = this.notice.textContent ?? '';
     this.detail.append(message);
+    if (item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet')) {
+      actions.append(this.button(this.profile && storeItemState(item, this.profile) !== 'LOCKED' ? 'VIEW IN AIRCRAFTS' : 'CHOOSE AN APPEARANCE', () => this.handlers.viewGarage(item)));
+      return;
+    }
+    const creditPrice = storeItemPrice(item, this.profile, 'CREDITS');
+    const tokenPrice = storeItemPrice(item, this.profile, 'SKY_TOKENS');
     if (!this.profile) {
-      if (item.creditPrice) actions.append(this.button(`UNLOCK · 🪙 ${item.creditPrice.toLocaleString()} CREDITS`, this.handlers.login));
-      if (item.creditPrice && item.tokenPrice) { const or = document.createElement('span'); or.className = 'store-purchase-or'; or.textContent = 'OR'; actions.append(or); }
-      if (item.tokenPrice) actions.append(this.button(`UNLOCK · 💎 ${item.tokenPrice.toLocaleString()} SKY TOKENS`, this.handlers.login));
+      if (creditPrice) actions.append(this.button(`UNLOCK · 🪙 ${creditPrice.toLocaleString()} CREDITS`, this.handlers.login));
+      if (creditPrice && tokenPrice) { const or = document.createElement('span'); or.className = 'store-purchase-or'; or.textContent = 'OR'; actions.append(or); }
+      if (tokenPrice) actions.append(this.button(`UNLOCK · 💎 ${tokenPrice.toLocaleString()} SKY TOKENS`, this.handlers.login));
       if (item.kind === 'aircraft' && item.aircraftType === 'fighter') actions.append(this.button('START 5-MINUTE TRIAL', this.handlers.login, 'store-secondary store-trial'));
       actions.append(viewGarage); return;
     }
@@ -204,9 +215,9 @@ export class GameStore {
       return;
     }
     if (itemState === 'LOCKED') {
-      if (item.creditPrice) this.purchaseOption(actions, item, 'CREDITS', item.creditPrice);
-      if (item.creditPrice && item.tokenPrice) { const or = document.createElement('span'); or.className = 'store-purchase-or'; or.textContent = 'OR'; actions.append(or); }
-      if (item.tokenPrice) this.purchaseOption(actions, item, 'SKY_TOKENS', item.tokenPrice);
+      if (creditPrice) this.purchaseOption(actions, item, 'CREDITS', creditPrice);
+      if (creditPrice && tokenPrice) { const or = document.createElement('span'); or.className = 'store-purchase-or'; or.textContent = 'OR'; actions.append(or); }
+      if (tokenPrice) this.purchaseOption(actions, item, 'SKY_TOKENS', tokenPrice);
       if (item.aircraftType === 'fighter' && item.kind === 'aircraft' && this.profile.fighterTrial?.status === 'available') {
         actions.append(this.button('START 5-MINUTE TRIAL', () => void this.performTrial(), 'store-secondary store-trial'));
       }
@@ -237,7 +248,7 @@ export class GameStore {
   private async performUnlock(item: StoreItem, currency: Currency): Promise<void> {
     if (this.busy) return;
     if (!this.authenticated) { this.handlers.login(); return; }
-    const price = currency === 'CREDITS' ? item.creditPrice : item.tokenPrice;
+    const price = storeItemPrice(item, this.profile, currency);
     if (!price) return;
     const missing = Math.max(0, price - (currency === 'CREDITS' ? this.profile?.credits ?? 0 : this.profile?.skyTokens ?? 0));
     if (missing) { if (currency === 'SKY_TOKENS') this.handlers.getTokens(missing); return; }

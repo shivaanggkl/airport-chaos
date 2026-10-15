@@ -10,7 +10,7 @@ import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.m
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits, dailyRewardForDay } from '../../shared/daily-rewards.mjs';
-import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
 import { tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
@@ -605,6 +605,24 @@ export class PlayerProfileStore {
       grant.run('nightowl-forest', now);
       this.setMetadata('priced_legacy_paints_v1', 'complete');
     });
+    if (this.metadata('appearance_aircraft_ownership_v1') !== 'complete') this.wallet.transaction(() => {
+      const profiles = this.database.prepare('SELECT pilot_id,owned_aircraft,aircraft_entitlements FROM player_profiles').all() as
+        Array<Pick<ProfileRow, 'pilot_id' | 'owned_aircraft' | 'aircraft_entitlements'>>;
+      const ownedPaints = this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?');
+      const grantPaint = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
+      const updateAircraft = this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?');
+      for (const profile of profiles) {
+        const owned = parseOwnedAircraft(profile.owned_aircraft, parseEntitlements(profile.aircraft_entitlements));
+        const paints = new Set((ownedPaints.all(profile.pilot_id) as Array<{ cosmetic_id: string }>).map(row => row.cosmetic_id));
+        for (const [type, basePaint] of [['cargo', 'mammoth-sand'], ['privateJet', 'nightowl-forest']] as const) {
+          const hasPaint = cosmeticCatalog.some(item => item.aircraftRestriction === type && paints.has(item.id));
+          if (hasPaint && !owned.includes(type)) owned.push(type);
+          else if (owned.includes(type) && !hasPaint) grantPaint.run(profile.pilot_id, basePaint, Date.now());
+        }
+        updateAircraft.run(JSON.stringify(aircraftOrder.filter(type => type !== 'fighter' && owned.includes(type))), profile.pilot_id);
+      }
+      this.setMetadata('appearance_aircraft_ownership_v1', 'complete');
+    });
     for (const legacyRow of this.database.prepare('SELECT * FROM player_profiles WHERE economy_version < ?').all(ECONOMY_VERSION) as ProfileRow[]) {
       const storedEconomyVersion = boundedInteger(legacyRow.economy_version, 1_000);
       const entitlements = new Set(parseEntitlements(legacyRow.aircraft_entitlements));
@@ -853,7 +871,7 @@ export class PlayerProfileStore {
       const currentItem = cosmeticCatalog.find(item => item.id === current);
       const aircraftAvailable = type === 'trainer' || ownedAircraft.includes(type);
       if (aircraftAvailable && currentItem?.aircraftRestriction === type && ownedIds.has(currentItem.id)) continue;
-      const fallback = fallbackLiveryIds[type];
+      const fallback = fallbackLiveryIds[type] ?? cosmeticCatalog.find(item => item.aircraftRestriction === type && ownedIds.has(item.id))?.id;
       if (aircraftAvailable && fallback && ownedIds.has(fallback)) equip.run(pilotId, slot, fallback);
       else remove.run(pilotId, slot);
     }
@@ -1016,6 +1034,7 @@ export class PlayerProfileStore {
 
   purchaseAircraftWithSkyTokens(pilotId: string, requestedAircraft: unknown): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     if (typeof requestedAircraft !== 'string') return { ok: false, reason: 'UNKNOWN AIRCRAFT' };
+    if (requestedAircraft === 'cargo' || requestedAircraft === 'privateJet') return { ok: false, reason: 'CHOOSE AN APPEARANCE TO UNLOCK THIS AIRCRAFT' };
     const price = aircraftSkyTokenPrice(requestedAircraft);
     if (!price) return { ok: false, reason: 'NOT AVAILABLE FOR SKY TOKENS' };
     return this.wallet.transaction((wallet) => {
@@ -1055,7 +1074,9 @@ export class PlayerProfileStore {
       const row = this.getRow(pilotId); const item = cosmeticCatalog.find(entry => entry.id === cosmeticId);
       if (!row || !item) return { ok: false, reason: 'COSMETIC UNAVAILABLE' };
       if (currency !== 'CREDITS' && currency !== 'SKY_TOKENS') return { ok: false, reason: 'CURRENCY UNAVAILABLE' };
-      if (item.aircraftRestriction !== 'trainer' && !parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements)).includes(item.aircraftRestriction as AircraftType)) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
+      const ownedAircraft = parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements));
+      const ownsAircraft = ownedAircraft.includes(item.aircraftRestriction as AircraftType);
+      if (item.aircraftRestriction === 'fighter' && !ownsAircraft) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
       if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, purchased: false, profile: this.toProfile(row) };
       if (item.unlockType !== 'credits' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
       if (currency === 'SKY_TOKENS' && (!item.skyTokenPrice || item.unlockType !== 'credits')) return { ok: false, reason: 'COSMETIC NOT AVAILABLE FOR SKY TOKENS' };
@@ -1064,15 +1085,23 @@ export class PlayerProfileStore {
           const deficit = (this.database.prepare('SELECT sky_token_deficit FROM player_profiles WHERE pilot_id=?').get(pilotId) as { sky_token_deficit: number }).sky_token_deficit;
           if (deficit > 0) return { ok: false, reason: 'REFUNDED SKY TOKENS MUST BE REPLACED FIRST' };
         }
-        const price = currency === 'CREDITS' ? item.creditPrice : item.skyTokenPrice;
+        const price = cosmeticUnlockPrice(item, ownsAircraft, currency);
         const debit = wallet.debit({
           pilotId, currency, amount: price, reason: currency === 'CREDITS' ? 'COSMETIC_PURCHASE' : 'SKY_TOKEN_SPEND',
           idempotencyKey: `cosmetic:${cosmeticId}`, referenceId: `cosmetic:${cosmeticId}`,
-          context: { cosmeticId, aircraft: item.aircraftRestriction }, createdAt: now,
+          context: { cosmeticId, aircraft: item.aircraftRestriction, aircraftIncluded: !ownsAircraft }, createdAt: now,
         });
         if (!debit.ok || !debit.applied) return { ok: false, reason: `NEED ${Math.max(0, price - (currency === 'CREDITS' ? row.credits : row.sky_tokens)).toLocaleString()} MORE ${currency === 'CREDITS' ? 'CREDITS' : 'SKY TOKENS'}` };
       }
       this.database.prepare('INSERT INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
+      if (!ownsAircraft && (item.aircraftRestriction === 'cargo' || item.aircraftRestriction === 'privateJet')) {
+        ownedAircraft.push(item.aircraftRestriction as AircraftType);
+        this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?')
+          .run(JSON.stringify(aircraftOrder.filter(type => type !== 'fighter' && ownedAircraft.includes(type))), pilotId);
+        this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
+          ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`)
+          .run(pilotId, `livery:${item.aircraftRestriction}`, cosmeticId);
+      }
       return { ok: true, purchased: true, profile: this.toProfile(this.getRow(pilotId)!) };
     });
   }
@@ -1369,6 +1398,7 @@ export class PlayerProfileStore {
 
   purchaseAircraft(pilotId: string, requestedAircraft: unknown): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     if (typeof requestedAircraft !== 'string' || !aircraftTypes.has(requestedAircraft as AircraftType)) return { ok: false, reason: 'UNKNOWN AIRCRAFT' };
+    if (requestedAircraft === 'cargo' || requestedAircraft === 'privateJet') return { ok: false, reason: 'CHOOSE AN APPEARANCE TO UNLOCK THIS AIRCRAFT' };
     const aircraft = requestedAircraft as AircraftType;
     const price = aircraftCreditPrice(aircraft);
     if (price === undefined) return { ok: false, reason: aircraft === 'fighter' ? 'PREMIUM AIRCRAFT — NOT AVAILABLE FOR CREDITS' : 'NOT AVAILABLE FOR CREDITS' };

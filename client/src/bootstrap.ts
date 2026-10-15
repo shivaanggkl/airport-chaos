@@ -14,6 +14,7 @@ import { PilotMenu, type PilotMenuAccountResult, type PilotMenuData, type PilotM
 import { BrandLoadingScreen } from './startup-loading';
 import { loadAirportChaosLogo } from './brand';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
 import { PLAYER_STORAGE_KEY } from './player-storage';
@@ -1604,6 +1605,9 @@ function clearPendingStoreContext(): void { try { sessionStorage.removeItem(PEND
 
 async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKENS'): Promise<{ ok: boolean; message: string }> {
   if (hubAccount.state !== 'account') return { ok: false, message: 'SIGN IN TO UNLOCK' };
+  if (item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet'))
+    return { ok: false, message: 'CHOOSE AN APPEARANCE TO UNLOCK THIS AIRCRAFT' };
+  const firstAppearance = item.kind === 'paint' && !garageProfile.unlockedAircraft.includes(item.aircraftType);
   const payload = item.kind === 'paint'
     ? { purchaseCosmetic: item.id, cosmeticCurrency: currency }
     : currency === 'CREDITS' ? { purchaseAircraft: item.aircraftType } : { purchaseAircraftWithSkyTokens: item.aircraftType };
@@ -1616,7 +1620,7 @@ async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKEN
     gameStore.update(garageProfile, true);
     audioManager.playPurchaseSuccess();
     hapticsManager.emit('rewardSuccess', `store:${item.id}`);
-    return { ok: true, message: `${item.name} UNLOCKED · OPEN AIRCRAFTS TO EQUIP` };
+    return { ok: true, message: firstAppearance ? `${item.name} AND AIRCRAFT UNLOCKED` : `${item.name} UNLOCKED · OPEN AIRCRAFTS TO EQUIP` };
   } catch { return { ok: false, message: 'SERVER UNAVAILABLE — NO CURRENCY SPENT' }; }
 }
 
@@ -1632,13 +1636,14 @@ async function startStoreFirehawkTrial(): Promise<{ ok: boolean; message: string
 
 async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string, currency: 'CREDITS' | 'SKY_TOKENS' = 'CREDITS'): Promise<void> {
   try {
+    const firstAppearance = action === 'purchaseCosmetic' && !garageProfile.unlockedAircraft.includes(cosmeticCatalog.find(item => item.id === id)?.aircraftRestriction as AircraftType);
     const url = apiUrl('/api/profile');
     url.searchParams.set('pilotId', garageIdentity.pilotId);
     const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [action]: id, ...(action === 'purchaseCosmetic' ? { cosmeticCurrency: currency } : {}) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
     applyAuthoritativeHomeProfile(result as RemoteGarageProfile); garage.updateProfile(garageProfile);
-    garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'COSMETIC OWNED — SELECT TO EQUIP');
+    garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : firstAppearance ? 'AIRCRAFT AND APPEARANCE UNLOCKED' : 'COSMETIC OWNED — SELECT TO EQUIP');
     if (action === 'purchaseCosmetic') { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `cosmetic:${id}`); }
     else hapticsManager.emit('confirmation');
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }

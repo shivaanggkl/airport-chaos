@@ -1,3 +1,6 @@
+import { aircraftCreditPrice } from './aircraft-economy.mjs';
+import { aircraftSkyTokenPrice } from './sky-token-economy.mjs';
+
 export const cosmeticCatalog = [
   ['bluejay-classic', 'livery', 'LEGACY WHITE', 'trainer', 'free', 0, 0, { base: 0xf4f7fb, primary: 0x3d7be0, accent: 0x7fd8f6 }],
   ['bluejay-skybolt', 'livery', 'SKYWAVE BLUE', 'trainer', 'free', 0, 0, { base: 0x5aa9f4, primary: 0x77d8f2, accent: 0xc8d2dc }],
@@ -21,3 +24,14 @@ export const fallbackLiveryIds = Object.freeze({
   fighter: 'firehawk-inferno',
 });
 export const includedCosmeticIds = Object.freeze({ fighter: 'firehawk-inferno' });
+
+export function cosmeticUnlockPrice(item, ownsAircraft, currency = 'CREDITS') {
+  const appearancePrice = currency === 'SKY_TOKENS' ? item.skyTokenPrice : item.creditPrice;
+  if (item.unlockType !== 'credits') return appearancePrice;
+  if (ownsAircraft || (item.aircraftRestriction !== 'cargo' && item.aircraftRestriction !== 'privateJet')) return appearancePrice;
+  const aircraftPrice = currency === 'SKY_TOKENS'
+    ? aircraftSkyTokenPrice(item.aircraftRestriction)
+    : aircraftCreditPrice(item.aircraftRestriction);
+  if (!Number.isSafeInteger(aircraftPrice)) throw new Error('Aircraft price unavailable');
+  return appearancePrice + aircraftPrice;
+}

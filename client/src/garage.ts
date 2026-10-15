@@ -9,7 +9,7 @@ import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
-import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
 
 export type GarageProfile = {
   credits: number;
@@ -173,8 +173,7 @@ export class AircraftGarage {
         if (this.actionPending || this.loadingProfile) return;
         if (this.selected !== type) previewButton.click();
         if (type === 'fighter') this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')?.click();
-        else if (this.profile.credits < aircraftDefinitions[type].creditsRequired && this.tokenCommerceEnabled) this.element.querySelector<HTMLButtonElement>('[data-garage-token-buy]')?.click();
-        else this.element.querySelector<HTMLButtonElement>('[data-garage-equip]')?.click();
+        else this.element.querySelector<HTMLButtonElement>('.garage-cosmetic-list .garage-cosmetic')?.focus();
       });
       card.append(previewButton, getButton);
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
@@ -500,7 +499,7 @@ export class AircraftGarage {
       } else chip.textContent = label;
       return chip;
     }));
-    this.element.querySelector<HTMLElement>('[data-garage-price]')!.textContent = !profileReady || owned ? '' : definition.access === 'premium' ? firehawkProduct.displayPrice : `${price!.toLocaleString()} CREDITS`;
+    this.element.querySelector<HTMLElement>('[data-garage-price]')!.textContent = !profileReady || owned ? '' : definition.access === 'premium' ? firehawkProduct.displayPrice : 'CHOOSE APPEARANCE';
     this.element.querySelector('[data-garage-details]')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('.garage-card')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('[data-garage-name]')!.textContent = aircraftDisplayName(this.selected);
@@ -521,12 +520,12 @@ export class AircraftGarage {
     this.element.querySelector<HTMLElement>('[data-garage-details]')!.classList.toggle('is-unavailable', !owned);
     const tokenPrice = aircraftSkyTokenPrice(this.selected);
     const tokenChoice = this.element.querySelector<HTMLElement>('[data-garage-token-choice]')!;
-    tokenChoice.hidden = !profileReady || !(this.tokenCommerceEnabled || this.tokenCommercePreview) || owned || definition.access !== 'credits';
+    tokenChoice.hidden = !profileReady || !(this.tokenCommerceEnabled || this.tokenCommercePreview) || owned || this.selected !== 'fighter';
     const tokenBuy = this.element.querySelector<HTMLButtonElement>('[data-garage-token-buy]')!;
     const tokenMissing = Math.max(0, (tokenPrice ?? 0) - (this.profile.skyTokens ?? 0));
     tokenBuy.textContent = tokenMissing ? `GET SKY TOKENS · ${tokenPrice?.toLocaleString()} TO UNLOCK` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`;
     tokenBuy.disabled = this.loadingProfile || this.actionPending || this.tokenCommercePreview;
-    this.element.querySelector<HTMLElement>('[data-garage-action-note]')!.textContent = profileReady && insufficient ? `Need ${(price! - this.profile.credits).toLocaleString()} more Credits` : '';
+    this.element.querySelector<HTMLElement>('[data-garage-action-note]')!.textContent = '';
     this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
     const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
@@ -560,8 +559,10 @@ export class AircraftGarage {
     for (const [type, card] of this.cards) {
       const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
       const typeUsable = this.profile.unlockedAircraft.includes(type);
+      const firstAppearancePrice = Math.min(...cosmeticCatalog.filter(item => item.aircraftRestriction === type && item.unlockType === 'credits')
+        .map(item => cosmeticUnlockPrice(item, false)));
       const access = data.access === 'premium' ? firehawkProduct.displayPrice
-        : `${data.creditsRequired.toLocaleString()} ${identityText('credits')}`;
+        : data.access === 'free' ? 'FREE' : `FROM ${firstAppearancePrice.toLocaleString()} ${identityText('credits')}`;
       const name = document.createElement('strong'); name.textContent = data.callsign;
       const previewButton = card.querySelector<HTMLButtonElement>('.garage-aircraft-preview-button')!;
       const state = document.createElement('small'); state.textContent = access;
@@ -569,7 +570,8 @@ export class AircraftGarage {
       previewButton.replaceChildren(...(profileReady && !typeUsable ? [lock] : []), name, ...(profileReady && !typeOwned ? [state] : []));
       const get = card.querySelector<HTMLButtonElement>('.garage-aircraft-get')!;
       get.hidden = !profileReady || typeOwned;
-      get.disabled = this.loadingProfile || this.actionPending || (data.access === 'premium' && (!this.tokenCommerceReady || this.tokenCommercePreview || (!this.tokenCommerceEnabled && this.nativeStore && !this.nativeStorePrice))) || (data.access === 'credits' && this.profile.credits < data.creditsRequired && !this.tokenCommerceEnabled);
+      get.textContent = data.access === 'credits' ? 'CHOOSE' : 'GET';
+      get.disabled = this.loadingProfile || this.actionPending || (data.access === 'premium' && (!this.tokenCommerceReady || this.tokenCommercePreview || (!this.tokenCommerceEnabled && this.nativeStore && !this.nativeStorePrice)));
       card.classList.toggle('selected', type === this.selected);
       previewButton.setAttribute('aria-label', `Preview ${aircraftDisplayName(type)}${typeOwned ? '' : `, ${access}`}`);
       previewButton.setAttribute('aria-pressed', String(type === this.selected));
@@ -641,20 +643,22 @@ export class AircraftGarage {
       card.append(button);
       if (!profileReady) { list.append(card); continue; }
       if (!equipped && !owned.has(item.id) && item.unlockType === 'credits') {
-        const price = document.createElement('small'); price.className = 'garage-cosmetic-price'; price.textContent = `${item.creditPrice.toLocaleString()} CREDITS`; card.append(price);
+        const creditPrice = cosmeticUnlockPrice(item, ownsAircraft);
+        const tokenPrice = cosmeticUnlockPrice(item, ownsAircraft, 'SKY_TOKENS');
+        const price = document.createElement('small'); price.className = 'garage-cosmetic-price'; price.textContent = `${creditPrice.toLocaleString()} CREDITS`; card.append(price);
         const get = document.createElement('button'); get.type = 'button'; get.className = 'garage-cosmetic-action garage-cosmetic-get'; get.textContent = 'GET';
-        const missingTokens = Math.max(0, item.skyTokenPrice - (this.profile.skyTokens ?? 0));
+        const missingTokens = Math.max(0, tokenPrice - (this.profile.skyTokens ?? 0));
         const canUseTokens = !this.tokenCommercePreview && (missingTokens === 0 || this.tokenCommerceEnabled);
-        get.disabled = this.loadingProfile || this.actionPending || !ownsAircraft || (this.profile.credits < item.creditPrice && !canUseTokens);
+        get.disabled = this.loadingProfile || this.actionPending || (this.profile.credits < creditPrice && !canUseTokens);
         get.onclick = () => {
-          if (this.profile.credits >= item.creditPrice) this.beginCosmeticAction(item.id, 'CREDITS');
+          if (this.profile.credits >= creditPrice) this.beginCosmeticAction(item.id, 'CREDITS');
           else if (missingTokens) this.onGetTokens?.(missingTokens);
           else this.beginCosmeticAction(item.id, 'SKY_TOKENS');
         };
         card.append(get);
         if (canUseTokens) {
-          const tokens = document.createElement('button'); tokens.type = 'button'; tokens.className = 'garage-cosmetic-token-action'; tokens.textContent = `${item.skyTokenPrice} SKY TOKENS`;
-          tokens.disabled = this.loadingProfile || this.actionPending || !ownsAircraft;
+          const tokens = document.createElement('button'); tokens.type = 'button'; tokens.className = 'garage-cosmetic-token-action'; tokens.textContent = `${tokenPrice} SKY TOKENS`;
+          tokens.disabled = this.loadingProfile || this.actionPending;
           tokens.onclick = () => { if (missingTokens) this.onGetTokens?.(missingTokens); else this.beginCosmeticAction(item.id, 'SKY_TOKENS'); };
           card.append(tokens);
         }

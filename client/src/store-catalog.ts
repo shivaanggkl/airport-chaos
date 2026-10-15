@@ -1,7 +1,7 @@
 import { aircraftDefinitions, type AircraftType } from './aircraft';
 import { aircraftCreditPrice, aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
-import { cosmeticCatalog, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
 import type { GarageProfile } from './garage';
 
 export type StoreCategory = 'FEATURED' | 'AIRCRAFT' | 'PAINTS' | 'EFFECTS' | 'CITIES';
@@ -30,7 +30,8 @@ export const storeAircraft = aircraftDisplayOrder.map((type): StoreItem => {
   return {
     id: aircraftType, kind: 'aircraft', aircraftType,
     name: definition.callsign, subtitle: definition.name,
-    creditPrice: aircraftCreditPrice(aircraftType), tokenPrice: aircraftSkyTokenPrice(aircraftType),
+    creditPrice: aircraftType === 'cargo' || aircraftType === 'privateJet' ? undefined : aircraftCreditPrice(aircraftType),
+    tokenPrice: aircraftType === 'cargo' || aircraftType === 'privateJet' ? undefined : aircraftSkyTokenPrice(aircraftType),
     colors: [definition.bodyColor, definition.accentColor, definition.livery.accentColor],
   };
 });
@@ -58,6 +59,13 @@ export function ownsStoreAircraft(profile: GarageProfile, type: AircraftType): b
     : type === 'trainer' || profile.unlockedAircraft.includes(type);
 }
 
+export function storeItemPrice(item: StoreItem, profile: GarageProfile | undefined, currency: 'CREDITS' | 'SKY_TOKENS'): number | undefined {
+  if (item.kind !== 'paint') return currency === 'CREDITS' ? item.creditPrice : item.tokenPrice;
+  const cosmetic = cosmeticCatalog.find(entry => entry.id === item.id);
+  if (!cosmetic || cosmetic.unlockType !== 'credits') return undefined;
+  return cosmeticUnlockPrice(cosmetic, profile ? ownsStoreAircraft(profile, item.aircraftType) : false, currency);
+}
+
 export function storeItemState(item: StoreItem, profile: GarageProfile): 'FREE' | 'OWNED' | 'EQUIPPED' | 'INCLUDED' | 'LOCKED' | 'REQUIRES AIRCRAFT' {
   if (item.kind === 'aircraft') {
     if (item.aircraftType === 'trainer') return profile.selectedAircraft === 'trainer' ? 'EQUIPPED' : 'FREE';
@@ -65,7 +73,7 @@ export function storeItemState(item: StoreItem, profile: GarageProfile): 'FREE' 
     return profile.selectedAircraft === item.aircraftType ? 'EQUIPPED' : 'OWNED';
   }
   if (item.included) return ownsStoreAircraft(profile, item.aircraftType) ? 'INCLUDED' : 'REQUIRES AIRCRAFT';
-  if (!ownsStoreAircraft(profile, item.aircraftType)) return 'REQUIRES AIRCRAFT';
+  if (item.aircraftType === 'fighter' && !ownsStoreAircraft(profile, item.aircraftType)) return 'REQUIRES AIRCRAFT';
   const owned = item.aircraftType === 'trainer' && defaultCosmeticIds.includes(item.id)
     || profile.cosmetics?.ownedIds.includes(item.id) === true;
   if (!owned) return 'LOCKED';

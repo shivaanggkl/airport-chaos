@@ -94,20 +94,21 @@ test('wallet mutations are integer-safe, non-negative, auditable, and idempotent
   }
 });
 
-test('aircraft grant and Credit debit commit together or roll back together', () => {
+test('first appearance, aircraft grant, and Credit debit roll back together', () => {
   const temporary = temporaryDatabase('airport-chaos-wallet-atomic-');
   try {
     const profiles = new PlayerProfileStore(temporary.path);
     profiles.getOrCreate('atomic-pilot', 'Atomic Pilot');
-    profiles.awardServerReward('atomic-pilot', 12_000, undefined, 'ADMIN_ADJUSTMENT');
+    profiles.awardServerReward('atomic-pilot', 13_500, undefined, 'ADMIN_ADJUSTMENT');
     const database = new DatabaseSync(temporary.path);
     database.exec(`CREATE TRIGGER reject_aircraft_grant BEFORE UPDATE OF owned_aircraft ON player_profiles
       BEGIN SELECT RAISE(ABORT, 'simulated grant failure'); END`);
-    assert.throws(() => profiles.purchaseAircraft('atomic-pilot', 'cargo'), /simulated grant failure/);
+    assert.throws(() => profiles.purchaseCosmetic('atomic-pilot', 'mammoth-sand'), /simulated grant failure/);
     const after = profiles.getOrCreate('atomic-pilot', 'Atomic Pilot');
-    assert.equal(after.credits, 12_000);
+    assert.equal(after.credits, 13_500);
     assert.equal(after.unlockedAircraft.includes('cargo'), false);
-    assert.equal((database.prepare("SELECT COUNT(*) AS total FROM wallet_transactions WHERE pilot_id=? AND reason='AIRCRAFT_PURCHASE'").get('atomic-pilot') as { total: number }).total, 0);
+    assert.equal(after.cosmetics.ownedIds.includes('mammoth-sand'), false);
+    assert.equal((database.prepare("SELECT COUNT(*) AS total FROM wallet_transactions WHERE pilot_id=? AND reason='COSMETIC_PURCHASE'").get('atomic-pilot') as { total: number }).total, 0);
     database.close();
   } finally {
     rmSync(temporary.directory, { recursive: true, force: true });
@@ -120,16 +121,16 @@ test('independent purchase requests cannot overspend the same Credit balance', a
     const first = new PlayerProfileStore(temporary.path);
     const second = new PlayerProfileStore(temporary.path);
     first.getOrCreate('spend-pilot', 'Spend Pilot');
-    first.awardServerReward('spend-pilot', 30_000, undefined, 'ADMIN_ADJUSTMENT');
+    first.awardServerReward('spend-pilot', 33_000, undefined, 'ADMIN_ADJUSTMENT');
     const [cargo, privateJet] = await Promise.all([
-      new Promise<ReturnType<PlayerProfileStore['purchaseAircraft']>>((resolve) => setImmediate(() => resolve(first.purchaseAircraft('spend-pilot', 'cargo')))),
-      new Promise<ReturnType<PlayerProfileStore['purchaseAircraft']>>((resolve) => setImmediate(() => resolve(second.purchaseAircraft('spend-pilot', 'privateJet')))),
+      new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(first.purchaseCosmetic('spend-pilot', 'mammoth-sand')))),
+      new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(second.purchaseCosmetic('spend-pilot', 'nightowl-forest')))),
     ]);
     assert.equal(Number(cargo.ok) + Number(privateJet.ok), 1);
     const final = first.getOrCreate('spend-pilot', 'Spend Pilot');
     assert.ok(final.credits >= 0);
     const database = new DatabaseSync(temporary.path);
-    assert.equal((database.prepare("SELECT COUNT(*) AS total FROM wallet_transactions WHERE pilot_id=? AND reason='AIRCRAFT_PURCHASE'").get('spend-pilot') as { total: number }).total, 1);
+    assert.equal((database.prepare("SELECT COUNT(*) AS total FROM wallet_transactions WHERE pilot_id=? AND reason='COSMETIC_PURCHASE'").get('spend-pilot') as { total: number }).total, 1);
     database.close();
   } finally {
     rmSync(temporary.directory, { recursive: true, force: true });

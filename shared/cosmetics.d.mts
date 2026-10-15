@@ -4,3 +4,4 @@ export declare const cosmeticCatalog:CosmeticDefinition[];
 export declare const defaultCosmeticIds:string[];
 export declare const fallbackLiveryIds:Readonly<{trainer:string;cargo:undefined;privateJet:undefined;fighter:string}>;
 export declare const includedCosmeticIds:Readonly<{fighter:string}>;
+export declare function cosmeticUnlockPrice(item:CosmeticDefinition,ownsAircraft:boolean,currency?:'CREDITS'|'SKY_TOKENS'):number;

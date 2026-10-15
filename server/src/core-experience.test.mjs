@@ -48,7 +48,6 @@ test('equipped paint survives aircraft changes, a city arrival, and a reopened p
   const {PlayerProfileStore}=await import('./player-profiles.js');
   const path=join(mkdtempSync(join(tmpdir(),'airport-paint-')),'profiles.sqlite');
   const db=new PlayerProfileStore(path);db.getOrCreate('paint-pilot','Pilot');db.awardServerReward('paint-pilot',50000);
-  assert.equal(db.purchaseAircraft('paint-pilot','cargo').ok,true);
   assert.equal(db.purchaseCosmetic('paint-pilot','mammoth-arctic-rescue').ok,true);
   assert.equal(db.equipCosmetic('paint-pilot','mammoth-arctic-rescue').ok,true);
   assert.equal(db.equipAircraft('paint-pilot','cargo')?.selectedAircraft,'cargo');
