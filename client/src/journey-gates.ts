@@ -28,6 +28,7 @@ export class JourneyGateSystem {
   private phase = 0;
   private flashIndex = -1;
   private flashTime = 0;
+  private previewIndex: number | null = null;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
     private readonly mission: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
@@ -77,6 +78,12 @@ export class JourneyGateSystem {
     this.refresh();
   }
 
+  setPreview(index: number | null): void {
+    if (this.previewIndex === index) return;
+    this.previewIndex = index;
+    this.refresh();
+  }
+
   target(): { x: number; y: number; z: number; index: number } | undefined {
     const gate = this.mission.gates[this.current];
     return this.active && gate ? { x: gate.x, y: this.heightAt(gate.x, gate.z) + gate.altitude, z: gate.z, index: this.current } : undefined;
@@ -85,7 +92,7 @@ export class JourneyGateSystem {
   update(delta: number): void {
     if (!this.active && this.flashTime <= 0) return;
     this.phase += delta;
-    const current = this.gates[this.current];
+    const current = this.gates[this.previewIndex ?? this.current];
     if (this.active && current && goldenRace(this.mission.id)) {
       if (this.mission.id !== journeyDallas04.id)
         (current.children[4] as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>).material.opacity =
@@ -109,11 +116,11 @@ export class JourneyGateSystem {
 
   private refresh(): void {
     this.gates.forEach((group, index) => {
-      group.visible = this.previewAll || (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
+      group.visible = this.previewAll || this.previewIndex !== null && this.mission.id === journeyDallas05.id || (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
         (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
       if (goldenRace(this.mission.id)) {
-        const active = index === this.current;
+        const active = index === (this.previewIndex ?? this.current);
         const slalom = this.mission.id === journeyDallas04.id;
         (group.children[0] as THREE.Mesh).material = active || this.previewAll ? slalom ? slalomGold : rookieGold : rookiePreview;
         (group.children[1] as THREE.Mesh).material = active || this.previewAll ? slalom ? slalomInner : rookieInner : rookiePreview;
