@@ -486,11 +486,12 @@ export class AircraftGarage {
     const owned = this.isPermanentlyOwned(this.selected);
     const price = definition.access === 'credits' ? definition.creditsRequired : undefined;
     const equipped = this.selected === this.profile.selectedAircraft;
+    const appearanceEquipped = !this.previewCosmetic || this.profile.cosmetics?.equipped?.[`livery:${this.selected}`] === this.previewCosmetic;
     const statusRoot = this.element.querySelector<HTMLElement>('[data-garage-status]')!;
     const statuses: Array<{ label: string; kind: string }> = [];
     if (this.loadingProfile) statuses.push({ label: 'SYNCING PROFILE…', kind: 'syncing' });
     else if (this.profileUnavailable) statuses.push({ label: 'PROFILE UNAVAILABLE', kind: 'syncing' });
-    else if (equipped) statuses.push({ label: 'CURRENT', kind: 'current' });
+    else if (equipped && appearanceEquipped) statuses.push({ label: 'CURRENT', kind: 'current' });
     statusRoot.replaceChildren(...statuses.map(({ label, kind }) => {
       const chip = document.createElement('span'); chip.className = `garage-status garage-status-${kind}`;
       if (kind === 'current') {
@@ -635,7 +636,7 @@ export class AircraftGarage {
       button.setAttribute('aria-pressed', String(selected));
       button.onclick = () => {
         if (this.previewCosmetic !== item.id) recordProductIntent('cosmetic_previewed', { cosmeticId: item.id, aircraftType: this.selected });
-        this.previewCosmetic = item.id; this.paintPreview(); this.renderCosmetics();
+        this.previewCosmetic = item.id; this.paintPreview(); this.renderDetails();
       };
       card.append(button);
       if (!profileReady) { list.append(card); continue; }
