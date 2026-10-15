@@ -4706,10 +4706,12 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ga
   content: ''; position: absolute; z-index: -1; inset: -12px;
   background: var(--menu-background); filter: blur(7px); pointer-events: none;
 }
-body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay) {
+body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay),
+body:has(#game-root:not([hidden])) .garage-overlay {
   background: #305389; isolation: isolate;
 }
-body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay)::before {
+body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay)::before,
+body:has(#game-root:not([hidden])) .garage-overlay::before {
   content: ''; position: absolute; z-index: -1; inset: -12px;
   background: var(--menu-background); filter: blur(7px); pointer-events: none;
 }

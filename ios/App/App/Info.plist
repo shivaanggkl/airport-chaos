@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Airport Chaos</string>
+        <string>$(AIRPORT_CHAOS_DISPLAY_NAME)</string>
 	<key>AirportChaosBackendHost</key>
 	<string>$(AIRPORT_CHAOS_BACKEND_HOST)</string>
 	<key>CFBundleExecutable</key>
