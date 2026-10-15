@@ -3,15 +3,14 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 type EscapeEvent = { code: string; key: string; repeat: boolean; preventDefault: () => void; stopImmediatePropagation: () => void };
-type BackLayer = { id: string; priority: number; isActive: () => boolean; close: () => void; containsTarget?: (target: EventTarget | null) => boolean };
+type BackLayer = { id: string; priority: number; isActive: () => boolean; close: () => void };
 const navigation = await import(new URL('../../client/src/ui-back-navigation.ts', import.meta.url).href) as {
   closeTopUiLayer: () => boolean;
-  handleUiClickAway: (event: { target: EventTarget | null; cancelable: boolean; preventDefault: () => void; stopImmediatePropagation: () => void }) => boolean;
   handleUiEscape: (event: EscapeEvent) => boolean;
   registerUiBackLayer: (layer: BackLayer) => () => void;
   uiBackPriority: { surface: number; menu: number; modal: number };
 };
-const { closeTopUiLayer, handleUiClickAway, handleUiEscape, registerUiBackLayer, uiBackPriority } = navigation;
+const { closeTopUiLayer, handleUiEscape, registerUiBackLayer, uiBackPriority } = navigation;
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
@@ -52,29 +51,6 @@ test('Escape ignores key repeat and consumes one layer per fresh keydown', () =>
   } finally { unregister(); }
 });
 
-test('click-away closes and consumes only an outside pointer', () => {
-  const inside = new EventTarget();
-  const outside = new EventTarget();
-  let active = true;
-  let prevented = 0;
-  let stopped = 0;
-  const unregister = registerUiBackLayer({
-    id: 'test-click-away', priority: uiBackPriority.menu, isActive: () => active,
-    containsTarget: (target) => target === inside,
-    close: () => { active = false; },
-  });
-  const event = (target: EventTarget) => ({ target, cancelable: true,
-    preventDefault: () => { prevented += 1; }, stopImmediatePropagation: () => { stopped += 1; } });
-  try {
-    assert.equal(handleUiClickAway(event(inside)), false);
-    assert.equal(active, true);
-    assert.equal(handleUiClickAway(event(outside)), true);
-    assert.equal(active, false);
-    assert.equal(prevented, 1);
-    assert.equal(stopped, 1);
-  } finally { unregister(); }
-});
-
 test('screens register with the shared back stack and old Escape close branches are removed', () => {
   const entry = read('client/src/entry.ts');
   const main = read('client/src/main.ts');
@@ -98,15 +74,12 @@ test('screens register with the shared back stack and old Escape close branches 
   assert.match(bootstrap, /function returnFromTimeSelection\(\): void \{[\s\S]*window\.history\.back\(\)/);
 });
 
-test('canonical closable panels expose their real content boundary to shared click-away', () => {
+test('empty-space taps do not dismiss screens or dialogs', () => {
+  const backNavigation = read('client/src/ui-back-navigation.ts');
   const bootstrap = read('client/src/bootstrap.ts');
-  const main = read('client/src/main.ts');
-  for (const id of ['city-selection']) {
-    assert.match(bootstrap, new RegExp(`id: '${id}'[\\s\\S]*?containsTarget:`));
-  }
-  for (const id of ['flight-recap', 'practice-city-suggestion', 'training-intro', 'contextual-hint', 'mission-reminder']) {
-    assert.match(main, new RegExp(`id: '${id}'[\\s\\S]*?containsTarget:`));
-  }
-  const dialog = read('client/src/flight-dialog.ts');
-  assert.match(dialog, /id: 'flight-decision'[\s\S]*?containsTarget:/);
+  assert.doesNotMatch(backNavigation, /handleUiClickAway|addEventListener\('pointerdown'/);
+  assert.doesNotMatch(bootstrap, /event\.target === (garageOverlay|pilotMenuOverlay|cityHelpDialog)/);
+  assert.doesNotMatch(bootstrap, /event\.target\.matches\('\.game-store/);
+  assert.doesNotMatch(read('client/src/sky-token-store.ts'), /event\.target === this\.overlay/);
+  assert.doesNotMatch(read('client/src/hub-info-dialog.ts'), /event\.target === this\.dialog/);
 });

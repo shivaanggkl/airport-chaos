@@ -1488,23 +1488,6 @@ const gameStore = new GameStore(gameStoreElement, {
   retry: () => { void openGameStore(false); },
 });
 
-garageOverlay.addEventListener('click', event => {
-  if (event.target === garageOverlay && entryState === 'AIRCRAFT') {
-    if (garageReturnState === 'MISSION_JOURNEY' || garageReturnState === 'STORE') garage.close();
-    else void showHome();
-  }
-});
-pilotMenuOverlay.addEventListener('click', event => {
-  if (event.target === pilotMenuOverlay && entryState === 'PILOT_MENU') {
-    if (hubPilotMenuReturnState === 'MISSION_JOURNEY' || hubPilotMenuReturnState === 'STORE') hubPilotMenu.close();
-    else void showHome();
-  }
-});
-gameStoreElement.addEventListener('click', event => {
-  if (entryState !== 'STORE' || !(event.target instanceof Element)) return;
-  if (event.target.matches('.game-store, .store-frame, .store-content, .store-grid')) closeGameStore();
-});
-
 function closeGameStore(): void {
   if (missionJourneyReturnPending) {
     const storeView = window.history.state?.airportChaosStoreView;
@@ -1855,13 +1838,11 @@ cityHelp.addEventListener('click', () => {
   cityHelpDialog.querySelector<HTMLButtonElement>('[data-city-help-close]')!.focus();
 });
 cityHelpDialog.querySelector<HTMLButtonElement>('[data-city-help-close]')!.addEventListener('click', () => closeCityHelp(true));
-cityHelpDialog.addEventListener('click', event => { if (event.target === cityHelpDialog) closeCityHelp(true); });
 registerUiBackLayer({
   id: 'city-journey-help',
   priority: uiBackPriority.blockingModal,
   isActive: () => !cityHelpDialog.hidden,
   close: () => closeCityHelp(true),
-  containsTarget: target => target instanceof Node && cityHelpDialog.querySelector('.city-help-card')?.contains(target) === true,
 });
 
 registerUiBackLayer({
@@ -1869,7 +1850,6 @@ registerUiBackLayer({
   priority: uiBackPriority.surface,
   isActive: () => !citySelector.hidden,
   close: returnFromCitySelection,
-  containsTarget: (target) => target instanceof Node && (Boolean(citySelector.querySelector('.city-select-card')?.contains(target)) || cityBack.contains(target) || cityHelp.contains(target)),
 });
 
 async function startTrainingFromHub(): Promise<void> {

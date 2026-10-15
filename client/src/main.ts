@@ -1226,7 +1226,6 @@ registerUiBackLayer({
   priority: uiBackPriority.blockingModal + 30,
   isActive: () => !journeyResultElement.classList.contains('hidden'),
   close: () => { void exitFlightToHub(false, true); },
-  containsTarget: (target) => target instanceof Node && journeyResultElement.contains(target),
 });
 const dynamicEventElement = document.querySelector<HTMLElement>('#dynamic-event')!;
 const dynamicEventNameElement = document.querySelector<HTMLElement>('#dynamic-event-name')!;
@@ -5496,21 +5495,18 @@ registerUiBackLayer({
   priority: uiBackPriority.modal,
   isActive: () => !flightRecapElement.hidden,
   close: () => { flightRecapElement.hidden = true; },
-  containsTarget: (target) => target instanceof Node && flightRecapElement.contains(target),
 });
 registerUiBackLayer({
   id: 'practice-city-suggestion',
   priority: uiBackPriority.modal + 10,
   isActive: () => !dallasPracticeSuggestionElement.hidden,
   close: dismissDallasPracticeSuggestion,
-  containsTarget: (target) => target instanceof Node && dallasPracticeSuggestionElement.contains(target),
 });
 registerUiBackLayer({
   id: 'training-intro',
   priority: uiBackPriority.modal + 20,
   isActive: () => !tutorialIntroPanel.hidden,
   close: () => {void endTrainingAndNavigate('hub');},
-  containsTarget: (target) => target instanceof Node && Boolean(tutorialIntroPanel.firstElementChild?.contains(target)),
 });
 registerUiBackLayer({
   id: 'training-session',
@@ -5536,7 +5532,6 @@ registerUiBackLayer({
   priority: uiBackPriority.transient,
   isActive: () => !contextualHintElement.classList.contains('hidden'),
   close: () => contextualHints.dismiss(),
-  containsTarget: (target) => target instanceof Node && contextualHintElement.contains(target),
 });
 const tutorialRing = new THREE.Mesh(new THREE.TorusGeometry(120, 8, 6, 48), new THREE.MeshBasicMaterial({color:0x5ffff0, toneMapped:false}));
 tutorialRing.visible = false; scene.add(tutorialRing);
@@ -6475,7 +6470,6 @@ registerUiBackLayer({
   priority: uiBackPriority.transient,
   isActive: () => !missionReminderElement.hidden,
   close: () => hideMissionReminder(),
-  containsTarget: (target) => target instanceof Node && missionReminderElement.contains(target),
 });
 
 window.addEventListener('keydown', (event) => {

@@ -51,10 +51,8 @@ export class HubInfoDialog {
       id: 'hub-info-dialog', priority: uiBackPriority.modal,
       isActive: () => this.dialog.open,
       close: () => this.close(),
-      containsTarget: target => target instanceof Node && this.dialog.contains(target),
     });
     this.dialog.addEventListener('cancel', event => { event.preventDefault(); this.close(); });
-    this.dialog.addEventListener('click', event => { if (event.target === this.dialog) this.close(); });
   }
 
   openAdvertise(trigger: HTMLElement): void {

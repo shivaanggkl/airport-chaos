@@ -51,5 +51,4 @@ export function showFlightDialog(title: string, body: string, actions: readonly 
 registerUiBackLayer({
   id: 'flight-decision', priority: uiBackPriority.blockingModal + 20,
   isActive: flightDialogOpen, close: closeFlightDialog,
-  containsTarget: (target) => target instanceof Node && card.contains(target),
 });

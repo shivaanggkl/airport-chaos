@@ -114,7 +114,6 @@ export class WorldMap {
       priority: uiBackPriority.surface,
       isActive: () => this.isOpen(),
       close: () => this.setOpen(false),
-      containsTarget: (target) => target instanceof Node && this.card.contains(target),
     });
     this.context = canvas.getContext('2d')!;
     this.card = element.querySelector<HTMLElement>('.world-map-card')!;

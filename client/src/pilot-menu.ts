@@ -268,11 +268,6 @@ export class PilotMenu {
       priority: uiBackPriority.menu,
       isActive: () => this.isOpen(),
       close: () => this.backOrClose(),
-      containsTarget: (target) => target instanceof Node && (
-        Boolean(this.element.querySelector('.pilot-menu-card')?.contains(target)) ||
-        Boolean(this.element.querySelector('.page-back')?.contains(target)) ||
-        (this.options.appShell === true && Boolean(document.querySelector('.app-shell-header:not([hidden])')?.contains(target)))
-      ),
     });
   }
 

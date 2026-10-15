@@ -47,7 +47,6 @@ export class SkyTokenStore {
     }
     panel.append(header, balanceLine, this.recommendation, this.list, this.message, disclosure, legal);
     this.overlay.append(panel); document.body.append(this.overlay);
-    this.overlay.addEventListener('click', event => { if (event.target === this.overlay) this.close(); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !this.overlay.hidden) this.close(); });
   }
 
