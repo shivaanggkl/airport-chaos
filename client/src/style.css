@@ -4748,7 +4748,11 @@ body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
 }
 .garage-card .garage-heading { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; justify-content: stretch; width: 100%; min-width: 0; padding: 0; border: 0; }
 .garage-card .garage-heading h1 { margin: 0; color: #ffd875; font-size: clamp(19px, 2.2vw, 29px); letter-spacing: .08em; text-shadow: 0 2px 4px rgb(58 38 15 / 50%); }
-.garage-card .garage-heading h1::before, .garage-card .garage-heading h1::after { content: '≡'; display: inline-block; margin: 0 11px; color: #ffd875; font-size: .8em; transform: skewX(-18deg); }
+.garage-card .garage-heading h1::before, .garage-card .garage-heading h1::after {
+  content: ''; display: inline-block; width: 38px; height: 19px; margin: 0 11px; vertical-align: -2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 19'%3E%3Cpath fill='%23ffd875' d='M0 1h42l-4 4H6zM8 7h30l-4 4H14zM16 13h18l-4 4H22z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.garage-card .garage-heading h1::after { transform: scaleX(-1); }
 .garage-card .garage-balance { position: absolute; z-index: 2; left: 0; top: 0; height: 100%; }
 body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px;
@@ -4833,7 +4837,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card button:focus-visible { outline: 2px solid #00b9dc; outline-offset: 2px; }
 @media (max-height: 520px) and (orientation: landscape) {
   body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-rows: 32px minmax(0, 1fr) 56px; gap: 4px; }
-  .garage-card .garage-heading h1 { font-size: 18px; }
+  .garage-card .garage-heading h1 { font-size: 20px; }
   body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] { min-height: 30px; padding: 0 8px; font-size: 9px; }
   .garage-card .garage-layout { grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); gap: 8px; }
   .garage-card .garage-details { margin-top: -8px; max-height: calc(100% + 8px); padding: 7px; border-radius: 12px; }
