@@ -340,7 +340,7 @@ export function monsterBodyContact(encounter: MonsterEncounter, groundY: number,
   const x=(c*(point.x-encounter.x)-s*(point.z-encounter.z))/h,y=(point.y-groundY)/h,
     z=(s*(point.x-encounter.x)+c*(point.z-encounter.z))/h;
   return monsterGeometry.spheres.some(v=>{
-    if (v.part.includes('Arm') || v.part.includes('Hand')) return false;
+    if (/arm|hand/i.test(v.part)) return false;
     const p=monsterAimPoint(encounter,{x,y,z},v.part,true);
     return ((p.x-v.x)/(v.radii.x+radius/h))**2+((p.y-v.y)/(v.radii.y+radius/h))**2+((p.z-v.z)/(v.radii.z+radius/h))**2<=1;
   });
