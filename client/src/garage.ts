@@ -486,9 +486,14 @@ export class AircraftGarage {
     const statuses: Array<{ label: string; kind: string }> = [];
     if (this.loadingProfile) statuses.push({ label: 'SYNCING PROFILE…', kind: 'syncing' });
     else if (this.profileUnavailable) statuses.push({ label: 'PROFILE UNAVAILABLE', kind: 'syncing' });
-    else if (equipped) statuses.push({ label: '✓ CURRENT', kind: 'current' });
+    else if (equipped) statuses.push({ label: 'CURRENT', kind: 'current' });
     statusRoot.replaceChildren(...statuses.map(({ label, kind }) => {
-      const chip = document.createElement('span'); chip.className = `garage-status garage-status-${kind}`; chip.textContent = label; return chip;
+      const chip = document.createElement('span'); chip.className = `garage-status garage-status-${kind}`;
+      if (kind === 'current') {
+        const check = document.createElement('span'); check.className = 'garage-current-check'; check.setAttribute('aria-hidden', 'true'); check.textContent = '✓';
+        chip.append(check, document.createTextNode(label));
+      } else chip.textContent = label;
+      return chip;
     }));
     this.element.querySelector<HTMLElement>('[data-garage-price]')!.textContent = !profileReady || owned ? '' : definition.access === 'premium' ? firehawkProduct.displayPrice : `${price!.toLocaleString()} CREDITS`;
     this.element.querySelector('[data-garage-details]')!.classList.toggle('is-firehawk', this.selected === 'fighter');
@@ -582,10 +587,15 @@ export class AircraftGarage {
     const heading = document.createElement('h2'); heading.textContent = 'APPEARANCE';
     const list = document.createElement('div'); list.className = 'garage-cosmetic-list';
     root.append(heading, list);
+    const appearances = cosmeticCatalog.filter(entry => entry.aircraftRestriction === this.selected);
+    if (appearances.length > 3) {
+      list.classList.add('is-many');
+      list.style.setProperty('--garage-cosmetic-count', String(appearances.length));
+    }
     const owned = new Set(this.profile.cosmetics?.ownedIds ?? []);
     const ownsAircraft = this.isPermanentlyOwned(this.selected);
     const profileReady = !this.loadingProfile && !this.profileUnavailable;
-    for (const item of cosmeticCatalog.filter(entry => entry.aircraftRestriction === this.selected)) {
+    for (const item of appearances) {
       const slot = `livery:${this.selected}`;
       const equipped = this.profile.cosmetics?.equipped?.[slot] === item.id;
       const selected = this.previewCosmetic ? this.previewCosmetic === item.id : equipped;
@@ -617,7 +627,9 @@ export class AircraftGarage {
         else this.onEquipCosmetic?.(item.id);
       };
       if (equipped) {
-        const current = document.createElement('span'); current.className = 'garage-cosmetic-current'; current.textContent = '✓ CURRENT'; card.append(current);
+        const current = document.createElement('span'); current.className = 'garage-cosmetic-current';
+        const check = document.createElement('span'); check.className = 'garage-current-check'; check.setAttribute('aria-hidden', 'true'); check.textContent = '✓';
+        current.append(check, document.createTextNode('CURRENT')); card.append(current);
       } else if (owned.has(item.id) || item.unlockType === 'included' && ownsAircraft) {
         const use = document.createElement('button'); use.type = 'button'; use.className = 'garage-cosmetic-action'; use.textContent = 'USE';
         use.disabled = this.loadingProfile || this.actionPending || !ownsAircraft;
