@@ -4741,6 +4741,7 @@ body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
 }
 .garage-card .garage-heading h1::after { transform: scaleX(-1); }
 .garage-card .garage-balance { position: absolute; z-index: 2; left: 0; top: 0; height: 100%; }
+body:has(.app-shell-header:not([hidden])) .garage-card .garage-balance { top: 12px; }
 body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   display: inline-flex;
 }
