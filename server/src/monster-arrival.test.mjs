@@ -9,7 +9,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { journeyDallas18, journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { JourneyAttemptStore } from './journey-attempts.js';
-import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterImpact, sweptMonsterHit, segmentBlockedByBuildings, turnMonster, monsterAttackEligible, monsterShotSolution, stepMonsterEncounter, recordMonsterFiringPosition, monsterProjectileHits, monsterMouth, monsterSpheres, monsterAttackRange, monsterMotionClear, monsterJumpClear, monsterRoamRoute } from './monster-arrival.js';
+import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterImpact, sweptMonsterHit, segmentBlockedByBuildings, turnMonster, monsterAttackEligible, monsterShotSolution, stepMonsterEncounter, recordMonsterFiringPosition, monsterProjectileHits, monsterMouth, monsterSpheres, monsterAttackRange, monsterMotionClear, monsterJumpClear, monsterRoamRoute, monsterHandPositions, monsterHandContact } from './monster-arrival.js';
 import { setMappedMonsterDamage } from '../../client/src/osm-city.ts';
 import { addOsmCityData, disposeOsmGroups } from '../../client/src/osm-city.ts';
 import { MonsterArrivalView } from '../../client/src/monster-arrival.ts';
@@ -345,6 +345,84 @@ test('authoritative muzzle agrees with the exported mouth and limited head aim',
   const expected=monsterMouth(e,135);
   assert.ok(actual.distanceTo(new THREE.Vector3(expected.x,expected.y,expected.z))<2,`exported muzzle ${actual.toArray()} vs ${JSON.stringify(expected)}`);
   model.dispose();
+});
+
+test('Mission 19 layers flexible body and arm motion over its authored fight clips', async () => {
+  const model = new MonsterArrivalModel(monsterSource);
+  await model.ready;
+  model.update(0, 0, 0);
+  const spine = model.root.getObjectByName('Spine');
+  const forearm = model.root.getObjectByName('LeftForearm');
+  const hand = model.root.getObjectByName('LeftHand');
+  const tail = model.root.getObjectByName('TailTip');
+  const idle = new Map([spine, forearm, hand, tail].map(bone => [bone.name, bone.quaternion.clone()]));
+  model.setMotion(14, 0, .12, .2, .1, .1);
+  for (let frame = 0; frame < 30; frame++) model.update(1 / 60, 0, 0);
+  assert.ok(spine.quaternion.angleTo(idle.get('Spine')) > .02, 'the torso carries the walk');
+  assert.ok(tail.quaternion.angleTo(idle.get('TailTip')) > .02, 'the tail follows movement');
+  model.windup();
+  for (let frame = 0; frame < 60; frame++) model.update(1 / 60, 0, 0);
+  assert.ok(forearm.quaternion.angleTo(idle.get('LeftForearm')) > .08, 'the forearm bends into the attack');
+  model.release();
+  for (let frame = 0; frame < 10; frame++) model.update(1 / 60, 0, 0);
+  assert.ok(hand.quaternion.angleTo(idle.get('LeftHand')) > .02, 'the hand follows the throw');
+  model.root.traverse(bone => assert.ok(bone.quaternion.toArray().every(Number.isFinite)));
+  model.dispose();
+});
+
+test('nearby aircraft trigger a bounded hand swipe with swept contact and cooldown', () => {
+  const e=createMonsterEncounter('swipe','pilot',0);e.yaw=0;
+  const hand=monsterHandPositions(e,135,1000).left;
+  const target={x:hand.x+80,y:hand.y+30,z:hand.z-80};
+  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],1000);
+  assert.equal(e.handSwipe?.side,'left');
+  const active=e.handSwipe;
+  assert.ok(active && Math.hypot(active.target.x-target.x,active.target.y-target.y,active.target.z-target.z)<120);
+  const before=monsterHandPositions(e,135,1000).left;
+  const peak=monsterHandPositions(e,135,1245).left;
+  assert.ok(peak.x>before.x+20 || peak.z<before.z-20,'hand reaches toward aircraft');
+  assert.equal(monsterHandContact(before,peak,target,{x:0,y:0,z:0},3,.245),true);
+  assert.equal(monsterHandContact(before,peak,{...target,x:target.x+500},{x:0,y:0,z:0},3,.245),false);
+  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],1750);
+  assert.equal(e.handSwipe,null);
+  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],1800);
+  assert.equal(e.handSwipe,null,'swipe cannot restart inside cooldown');
+});
+
+test('rendered swiping hand reaches the same impact point as server contact', async () => {
+  const e=createMonsterEncounter('swipe','pilot',0);e.yaw=0;
+  const hand=monsterHandPositions(e,135,1000).left;
+  stepMonsterEncounter(e,{x:hand.x+80,y:hand.y+30,z:hand.z-80},{x:0,y:0,z:0},()=>135,[],1000);
+  const model=new MonsterArrivalModel(monsterSource);await model.ready;
+  model.root.position.set(e.x,135,e.z);model.root.rotation.y=e.yaw;
+  model.setHandSwipe({side:'left',target:e.handSwipe.target,progress:.35});
+  model.update(0,0,0);model.root.updateMatrixWorld(true);
+  const actual=new THREE.Vector3();model.root.getObjectByName('LeftHand').getWorldPosition(actual);
+  const expected=monsterHandPositions(e,135,1245).left;
+  assert.ok(actual.distanceTo(new THREE.Vector3(expected.x,expected.y,expected.z))<80,
+    `animated hand ${actual.toArray()} vs server ${JSON.stringify(expected)}`);
+  model.dispose();
+});
+
+test('new fireballs leave the animated mouth before catching up to server positions', async () => {
+  const scene = new THREE.Scene();
+  const view = new MonsterArrivalView(scene, 135, 135, undefined, monsterSource);
+  await view.ready;
+  const state = { type: 'monsterState', attemptId: 'throw', x: journeyDallas19.monster.x,
+    y: 135, z: journeyDallas19.monster.z, yaw: 0, phase: 'windup', hitSequence: 0,
+    shots: [], serverNow: 1000 };
+  view.setState(state);
+  view.update(0);
+  const shot = { id: 1, x: state.x + 100, y: 900, z: state.z, dx: 1, dy: 0, dz: 0, speed: 0, bornAt: 1000 };
+  view.setState({ ...state, phase: 'walk', shots: [shot], serverNow: 1050 });
+  view.update(0);
+  const fireball = scene.getObjectByName('monster-flaming-fireball');
+  const mouth = new THREE.Vector3();
+  scene.getObjectByName('Mouth').getWorldPosition(mouth);
+  assert.ok(fireball.position.distanceTo(mouth) < .01, 'the release begins at the moving mouth');
+  view.update(.05);
+  assert.ok(fireball.position.distanceTo(new THREE.Vector3(shot.x, shot.y, shot.z)) < mouth.distanceTo(new THREE.Vector3(shot.x, shot.y, shot.z)));
+  view.dispose();
 });
 
 

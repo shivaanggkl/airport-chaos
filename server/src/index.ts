@@ -17,7 +17,8 @@ import { advanceMission, initializeMissionAttempt, type MissionSignal } from './
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
-import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterBodyContact, monsterImpact, stepMonsterEncounter, monsterProjectileHits, recordMonsterFiringPosition, segmentBlockedByBuildings, type MonsterEncounter } from './monster-arrival.js';
+import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterBodyContact, monsterHandContact, monsterHandPositions, monsterImpact, stepMonsterEncounter, monsterProjectileHits, recordMonsterFiringPosition, segmentBlockedByBuildings, type MonsterEncounter } from './monster-arrival.js';
+import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
@@ -4927,6 +4928,8 @@ function updateMonsterEncounters(now: number): void {
     if (!pilot || attempt?.missionId !== journeyDallas19.id || attempt.status !== 'RACING' ||
       attempt.deadlineAt === null || now >= attempt.deadlineAt) continue;
     const delta = Math.max(0, Math.min(0.1, (now - encounter.lastTickAt) / 1000));
+    const beforeHands = encounter.handSwipe && monsterHandPositions(encounter,
+      dallasTerrain.elevationAt(encounter.x, encounter.z), encounter.lastTickAt);
     stepMonsterEncounter(encounter, pilot.position, pilot.velocity,
       (x,z) => dallasTerrain.elevationAt(x,z), monsterDistrictBuildings, now);
     const groundY = dallasTerrain.elevationAt(encounter.x, encounter.z);
@@ -4946,10 +4949,15 @@ function updateMonsterEncounters(now: number): void {
         damageMonsterPilot(encounter, pilot, monsterAttack.damage, now);
       }
     }
+    const swipe = encounter.handSwipe;
+    const afterHands = swipe && monsterHandPositions(encounter, groundY, now);
+    const handHit = swipe && afterHands && monsterHandContact(
+      beforeHands?.[swipe.side] ?? afterHands[swipe.side], afterHands[swipe.side], pilot.position,
+      pilot.velocity, aircraftHitRadii[pilot.aircraftType], delta);
     if (now - encounter.contactAt >= 1_000 && pilot.lifeState === 'alive' &&
-      monsterBodyContact(encounter, groundY, pilot.position, aircraftHitRadii[pilot.aircraftType])) {
+      (handHit || monsterBodyContact(encounter, groundY, pilot.position, aircraftHitRadii[pilot.aircraftType]))) {
       encounter.contactAt = now;
-      damageMonsterPilot(encounter, pilot, 25, now);
+      damageMonsterPilot(encounter, pilot, monsterHandSwipe.damage, now);
     }
     if (now - encounter.lastBroadcastAt >= 100 && pilot.lifeState === 'alive') {
       encounter.lastBroadcastAt = now;
@@ -4959,6 +4967,7 @@ function updateMonsterEncounters(now: number): void {
         phase: encounter.windupUntil ? 'windup' : 'walk', hitSequence: encounter.hitSequence,
         velocity: encounter.velocity, yawVelocity: encounter.yawVelocity, gaitPhase: encounter.gaitPhase,
         aimYaw: encounter.aimYaw, aimPitch: encounter.aimPitch, attackKind: encounter.attackKind,
+        handSwipe: encounter.handSwipe,
         hitPosition: encounter.hitPosition,
         shots: encounter.shots.map(shot => ({ id: shot.id, x: shot.position.x, y: shot.position.y, z: shot.position.z,
           dx: shot.direction.x, dy: shot.direction.y, dz: shot.direction.z, speed: shot.speed, bornAt: shot.bornAt })),

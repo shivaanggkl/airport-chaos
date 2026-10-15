@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
 import { monsterJumpMotion, monsterJumpLift } from '../../shared/monster-motion.mjs';
+import { monsterHandSwipe, monsterHandSwipeWeight } from '../../shared/monster-hand-swipe.mjs';
 import { COMBAT_RANGE } from '../../shared/protocol.mjs';
 
 export type Point3 = { x: number; y: number; z: number };
@@ -18,6 +19,8 @@ export type MonsterEncounter = {
   lastPlayerHitAt: number; sustainedSince: number; sustainedPosition?: Point3;
   hitPosition?: Point3;
   contactAt: number; shots: MonsterShot[]; lastTickAt: number; lastBroadcastAt: number;
+  handSwipe: { side: 'left' | 'right'; target: Point3; startedAt: number } | null;
+  nextHandSwipeAt: number;
 };
 
 export const monsterAttack = Object.freeze({ damage: 25, radius: 22, intervalMs: 8_000, windupMs: 1_500,
@@ -48,6 +51,7 @@ export function createMonsterEncounter(attemptId: string, playerId: string, star
     yawVelocity: 0, aimYaw: 0, aimPitch: 0, gaitPhase: 0, velocity: {x:0,y:0,z:0}, moveSpeed: 0,
     attackKind: 'single', pendingFan: [], lastPlayerHitAt: 0, sustainedSince: 0,
     hitSequence: 0, contactAt: 0, shots: [], lastTickAt: startedAt, lastBroadcastAt: 0,
+    handSwipe: null, nextHandSwipeAt: startedAt + 1_000,
   };
 }
 
@@ -57,6 +61,38 @@ export function distanceToSegmentSquared(point: Point3, a: Point3, b: Point3): n
   const t = length > 0 ? Math.max(0, Math.min(1,
     ((point.x - a.x) * vx + (point.y - a.y) * vy + (point.z - a.z) * vz) / length)) : 0;
   return (a.x + t * vx - point.x) ** 2 + (a.y + t * vy - point.y) ** 2 + (a.z + t * vz - point.z) ** 2;
+}
+
+function handAnchor(encounter: MonsterEncounter, groundY: number, side: 'left' | 'right', local: Point3): Point3 {
+  const sign = side === 'left' ? 1 : -1;
+  const h = journeyDallas19.monster.height, c = Math.cos(encounter.yaw), s = Math.sin(encounter.yaw);
+  return { x: encounter.x + h * (c * local.x * sign + s * local.z),
+    y: groundY + encounter.jumpHeight + h * local.y,
+    z: encounter.z + h * (-s * local.x * sign + c * local.z) };
+}
+
+export function monsterHandPositions(encounter: MonsterEncounter, groundY: number, now: number): { left: Point3; right: Point3 } {
+  const left = handAnchor(encounter, groundY, 'left', monsterHandSwipe.rest);
+  const right = handAnchor(encounter, groundY, 'right', monsterHandSwipe.rest);
+  const swipe = encounter.handSwipe;
+  if (swipe) {
+    const hand = swipe.side === 'left' ? left : right;
+    const weight = monsterHandSwipeWeight((now - swipe.startedAt) / monsterHandSwipe.durationMs);
+    hand.x += (swipe.target.x - hand.x) * weight;
+    hand.y += (swipe.target.y - hand.y) * weight;
+    hand.z += (swipe.target.z - hand.z) * weight;
+  }
+  return { left, right };
+}
+
+export function monsterHandContact(before: Point3, after: Point3, pilot: Point3,
+  pilotVelocity: Point3, pilotRadius: number, delta: number): boolean {
+  const relativeStart = { x: before.x - pilot.x + pilotVelocity.x * delta,
+    y: before.y - pilot.y + pilotVelocity.y * delta,
+    z: before.z - pilot.z + pilotVelocity.z * delta };
+  const relativeEnd = { x: after.x - pilot.x, y: after.y - pilot.y, z: after.z - pilot.z };
+  return distanceToSegmentSquared({ x: 0, y: 0, z: 0 }, relativeStart, relativeEnd) <=
+    (monsterHandSwipe.hitRadius + pilotRadius) ** 2;
 }
 
 /** Fitted repaired-mesh volumes, uniformly scaled with the configured creature dimensions. */
@@ -143,6 +179,29 @@ export function monsterShotSolution(encounter: MonsterEncounter, groundY: number
 export function stepMonsterEncounter(encounter: MonsterEncounter, target: Point3, velocity: Point3,
   groundAt: (x:number,z:number)=>number, buildings: readonly Building[], now: number): void {
   const delta=Math.max(0,Math.min(.1,(now-encounter.lastTickAt)/1000));encounter.lastTickAt=now;
+  if (encounter.handSwipe && now - encounter.handSwipe.startedAt >= monsterHandSwipe.durationMs)
+    encounter.handSwipe = null;
+  if (!encounter.handSwipe && now >= encounter.nextHandSwipeAt && encounter.jumpProgress === null &&
+    !encounter.windupUntil && !encounter.pendingFan.length) {
+    const groundY = groundAt(encounter.x, encounter.z);
+    const hands = monsterHandPositions(encounter, groundY, now);
+    const leftDistance = Math.hypot(target.x - hands.left.x, target.y - hands.left.y, target.z - hands.left.z);
+    const rightDistance = Math.hypot(target.x - hands.right.x, target.y - hands.right.y, target.z - hands.right.z);
+    const side = leftDistance < rightDistance ? 'left' : 'right';
+    if (Math.min(leftDistance, rightDistance) <= monsterHandSwipe.activationRadius &&
+      !segmentBlockedByBuildings(side === 'left' ? hands.left : hands.right, target, buildings)) {
+      const shoulder = handAnchor(encounter, groundY, side, monsterHandSwipe.armOrigin);
+      const reach = journeyDallas19.monster.height * monsterHandSwipe.maxReachRatio;
+      const distance = Math.hypot(target.x - shoulder.x, target.y - shoulder.y, target.z - shoulder.z);
+      const scale = Math.min(1, reach / Math.max(distance, .001));
+      encounter.handSwipe = { side, target: {
+        x: shoulder.x + (target.x - shoulder.x) * scale,
+        y: shoulder.y + (target.y - shoulder.y) * scale,
+        z: shoulder.z + (target.z - shoulder.z) * scale,
+      }, startedAt: now };
+      encounter.nextHandSwipeAt = now + monsterHandSwipe.durationMs + monsterHandSwipe.cooldownMs;
+    }
+  }
   const before={x:encounter.x,z:encounter.z};
   const targetYaw=Math.atan2(encounter.x-target.x,encounter.z-target.z);
   const candidates=nearbyMotionBuildings(encounter,buildings);
@@ -175,7 +234,7 @@ export function stepMonsterEncounter(encounter: MonsterEncounter, target: Point3
   encounter.aimYaw+=Math.max(-Math.PI/4*delta,Math.min(Math.PI/4*delta,aim-encounter.aimYaw));
   const alignment=Math.max(0,Math.cos(wrap(Math.atan2(encounter.x-steering.x,encounter.z-steering.z)-encounter.yaw)));
   const dx=-Math.sin(encounter.yaw),dz=-Math.cos(encounter.yaw);
-  const paused=preparingAttack||encounter.windupUntil||encounter.pendingFan.length;
+  const paused=preparingAttack||encounter.windupUntil||encounter.pendingFan.length||encounter.handSwipe;
   if(encounter.jumpProgress===null && !paused && alignment>.995 && now>=encounter.nextJumpAt){
     encounter.nextJumpAt=now+1_000; // Bounded terrain checks, never per render tick.
     const end={x:encounter.x+dx*monsterAttack.jumpDistance,y:0,z:encounter.z+dz*monsterAttack.jumpDistance};
@@ -218,7 +277,7 @@ export function stepMonsterEncounter(encounter: MonsterEncounter, target: Point3
     encounter.sustainedPosition=undefined;encounter.sustainedSince=0;
   }
   const eligible=encounter.jumpProgress===null && line && monsterAttackEligible(encounter,target,groundY);
-  if (!encounter.windupUntil && readyToAttack && now>=encounter.nextAttackAt && eligible && encounter.shots.length<monsterAttack.maxLive && !encounter.pendingFan.length) {
+  if (!encounter.handSwipe && !encounter.windupUntil && readyToAttack && now>=encounter.nextAttackAt && eligible && encounter.shots.length<monsterAttack.maxLive && !encounter.pendingFan.length) {
     encounter.attackKind=encounter.sustainedSince && now-encounter.sustainedSince>=monsterAttack.sustainedMs ? 'fan':'single';
     encounter.windupUntil=now+monsterAttack.windupMs;
   }
@@ -281,6 +340,7 @@ export function monsterBodyContact(encounter: MonsterEncounter, groundY: number,
   const x=(c*(point.x-encounter.x)-s*(point.z-encounter.z))/h,y=(point.y-groundY)/h,
     z=(s*(point.x-encounter.x)+c*(point.z-encounter.z))/h;
   return monsterGeometry.spheres.some(v=>{
+    if (v.part.includes('Arm') || v.part.includes('Hand')) return false;
     const p=monsterAimPoint(encounter,{x,y,z},v.part,true);
     return ((p.x-v.x)/(v.radii.x+radius/h))**2+((p.y-v.y)/(v.radii.y+radius/h))**2+((p.z-v.z)/(v.radii.z+radius/h))**2<=1;
   });

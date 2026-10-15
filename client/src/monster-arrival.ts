@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
+import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { setDowntownMonsterDamage } from './dallas-skyline';
 import { monsterDamageSites } from './osm-city';
 import { MonsterArrivalModel } from './monster-arrival-model';
@@ -10,6 +11,7 @@ export type MonsterStateMessage = {
   phase: 'walk' | 'windup'; hitSequence: number; jumpProgress?: number | null;
   velocity?: {x:number;y:number;z:number}; yawVelocity?: number; gaitPhase?: number;
   aimYaw?: number; aimPitch?: number; attackKind?: 'single' | 'fan';
+  handSwipe?: { side: 'left' | 'right'; target: {x:number;y:number;z:number}; startedAt: number } | null;
   hitPosition?: { x: number; y: number; z: number };
   shots: { id: number; x: number; y: number; z: number; dx?:number; dy?:number; dz?:number; speed?:number; bornAt?:number }[];
   serverNow: number;
@@ -80,7 +82,7 @@ class MonsterParticles {
 }
 
 type Fireball = { group:THREE.Group; material:THREE.ShaderMaterial; target:THREE.Vector3;
-  direction:THREE.Vector3; id:number|null; smokeTime:number; speed:number };
+  direction:THREE.Vector3; id:number|null; smokeTime:number; speed:number; spawnPending:boolean };
 function createFireball(): Fireball {
   const material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
     uniforms:{time:{value:0},nearFade:{value:1}},
@@ -97,7 +99,7 @@ function createFireball(): Fireball {
   const group=new THREE.Group();group.name='monster-flaming-fireball';group.visible=false;
   const core=new THREE.Mesh(coreGeometry,coreMaterial);core.name='monster-fireball-damaging-core';core.scale.setScalar(22);
   const flame=new THREE.Mesh(flameGeometry,material);flame.name='monster-fireball-flame-trail';
-  group.add(core,flame);return {group,material,target:new THREE.Vector3(),direction:new THREE.Vector3(),id:null,smokeTime:0,speed:0};
+  group.add(core,flame);return {group,material,target:new THREE.Vector3(),direction:new THREE.Vector3(),id:null,smokeTime:0,speed:0,spawnPending:false};
 }
 
 export class MonsterArrivalView {
@@ -113,6 +115,7 @@ export class MonsterArrivalView {
   private readonly camera?: THREE.Camera;
   private state:MonsterStateMessage|null=null;
   private elapsed=0;
+  private swipeAgeMs=0;
   private lastHitSequence=0;
   private hitPulse=0;
   private ending:'defeat'|'timeout'|null=null;
@@ -143,6 +146,7 @@ export class MonsterArrivalView {
   setState(state:MonsterStateMessage):void {
     if(this.ending)return;
     const oldPhase=this.state?.phase;this.state=state;this.target.set(state.x,state.y,state.z);
+    this.swipeAgeMs=state.handSwipe ? state.serverNow-state.handSwipe.startedAt : 0;
     this.creature.setJumpProgress(state.jumpProgress??null);
     this.creature.setMotion(state.velocity?.x??0,state.velocity?.z??0,state.yawVelocity??0,
       state.gaitPhase??0,state.aimYaw??0,state.aimPitch??0);
@@ -156,7 +160,7 @@ export class MonsterArrivalView {
       if(visual.id===null)continue;
       if(!state.shots.some(shot=>shot.id===visual.id)) {
         this.particles.emit(visual.group.position.x,visual.group.position.y,visual.group.position.z,false,8,16);
-        visual.id=null;visual.group.visible=false;
+        visual.id=null;visual.group.visible=false;visual.spawnPending=false;
       }
     }
     for(const shot of state.shots.slice(0,4)) {
@@ -164,6 +168,7 @@ export class MonsterArrivalView {
       if(!visual) {
         visual=this.pool.find(p=>p.id===null);if(!visual)continue;
         visual.id=shot.id;visual.group.visible=true;visual.group.position.set(shot.x,shot.y,shot.z);
+        visual.spawnPending=true;
         this.onProjectile?.();this.creature.release();released=true;
       }
       visual.target.set(shot.x,shot.y,shot.z);
@@ -179,7 +184,7 @@ export class MonsterArrivalView {
       this.endingDrop={from:this.creature.root.position.y,ground:this.creature.groundAt?.(this.creature.root.position.x,this.creature.root.position.z)??this.target.y};
     }
     this.creature.finish(kind);
-    for(const visual of this.pool){visual.id=null;visual.group.visible=false;}
+    for(const visual of this.pool){visual.id=null;visual.group.visible=false;visual.spawnPending=false;}
     if(kind==='timeout'){this.timeoutShot=this.pool[0];this.timeoutShot!.group.visible=true;}
   }
   update(delta:number):void {
@@ -196,10 +201,16 @@ export class MonsterArrivalView {
       if(t===1)this.endingDrop=undefined;
     }
     this.hitPulse=Math.max(0,this.hitPulse-delta);
+    if(this.state?.handSwipe && !this.ending) {
+      this.swipeAgeMs += delta*1000;
+      c.setHandSwipe({side:this.state.handSwipe.side,target:this.state.handSwipe.target,
+        progress:this.swipeAgeMs/monsterHandSwipe.durationMs});
+    } else c.setHandSwipe(null);
     c.update(delta,this.camera?this.camera.position.distanceTo(c.root.position):0,this.hitPulse);
     const windup=this.state?.phase==='windup'&&!this.ending;
     this.mouthFire.visible=Boolean(windup||this.ending==='timeout');
-    if(c.mouthPosition(this.mouthWorld))this.mouthFire.position.copy(this.mouthWorld);
+    const mouthAvailable=c.mouthPosition(this.mouthWorld);
+    if(mouthAvailable)this.mouthFire.position.copy(this.mouthWorld);
     this.mouthFire.scale.setScalar((this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
     if(this.ending) {
       this.endingElapsed+=delta;
@@ -222,6 +233,10 @@ export class MonsterArrivalView {
     }
     for(const visual of this.pool) {
       if(!visual.group.visible)continue;
+      if(visual.spawnPending){
+        if(mouthAvailable)visual.group.position.copy(this.mouthWorld);
+        visual.spawnPending=false;
+      }
       if(visual.id!==null) {
         visual.target.addScaledVector(visual.direction,visual.speed*delta);
         visual.group.position.addScaledVector(visual.direction,visual.speed*delta);

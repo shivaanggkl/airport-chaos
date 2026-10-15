@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterJumpMotion } from '../../shared/monster-motion.mjs';
+import { monsterHandSwipeWeight } from '../../shared/monster-hand-swipe.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -11,6 +12,10 @@ type FootRig = { hip: THREE.Object3D; knee: THREE.Object3D; ankle: THREE.Object3
 
 type ClipName = 'Idle' | 'Walk' | 'Turn' | 'AttackWindup' | 'AttackRelease'
   | 'Recovery' | 'Hit' | 'Defeat' | 'TimeoutAttack';
+type SecondaryBone = { bone: THREE.Object3D; animationRotation: THREE.Quaternion };
+const secondaryBoneNames = ['Spine', 'Chest', 'LeftUpperArm', 'LeftForearm', 'LeftHand',
+  'RightUpperArm', 'RightForearm', 'RightHand', 'Jaw', 'TailBase', 'TailMid', 'TailTip'] as const;
+const secondaryMotionScale = 2;
 
 const modelUrl = '/assets/models/monsters/monster-arrival.glb';
 const loader = new GLTFLoader();
@@ -62,6 +67,17 @@ export class MonsterArrivalModel {
   private feetApplied = false;
   private jumpArmsApplied = false;
   private readonly jumpArms: {bone:THREE.Object3D;rotation:THREE.Quaternion;flex:number}[] = [];
+  private readonly secondaryBones = new Map<string, SecondaryBone>();
+  private handSwipe: {side: 'left' | 'right'; target: THREE.Vector3; progress: number} | null = null;
+  private secondaryPoseApplied = false;
+  private secondaryTime = 0;
+  private locomotionBlend = 0;
+  private attackBlend = 0;
+  private releaseTime = Infinity;
+  private readonly poseRotation = new THREE.Quaternion();
+  private readonly localX = new THREE.Vector3(1, 0, 0);
+  private readonly localY = new THREE.Vector3(0, 1, 0);
+  private readonly localZ = new THREE.Vector3(0, 0, 1);
   private readonly scratch = Array.from({ length: 10 }, () => new THREE.Vector3());
   private readonly rotations = Array.from({ length: 5 }, () => new THREE.Quaternion());
   private readonly up = new THREE.Vector3(0,1,0);
@@ -88,7 +104,12 @@ export class MonsterArrivalModel {
       this.head = instance.getObjectByName('Head');
       this.neck = instance.getObjectByName('Neck');
       this.mouth = instance.getObjectByName('Mouth');
-      for(const side of ['Left','Right'])for(const [part,flex] of [['UpperArm',-.18],['Forearm',.3]] as const){
+      for (const name of secondaryBoneNames) {
+        const bone = instance.getObjectByName(name);
+        if (!bone) throw new Error(`Mission 19 creature is missing ${name}`);
+        this.secondaryBones.set(name, { bone, animationRotation: new THREE.Quaternion() });
+      }
+      for(const side of ['Left','Right'])for(const [part,flex] of [['UpperArm',-.36],['Forearm',.6]] as const){
         const bone=instance.getObjectByName(side+part);
         if(bone)this.jumpArms.push({bone,rotation:bone.quaternion.clone(),flex});
       }
@@ -160,6 +181,7 @@ export class MonsterArrivalModel {
   windup(): void {
     if (this.ending) return;
     this.windupActive = true;
+    this.releaseTime = Infinity;
     this.transient = undefined;
     this.play('AttackWindup');
   }
@@ -167,6 +189,7 @@ export class MonsterArrivalModel {
   release(): void {
     if (this.ending) return;
     this.windupActive = false;
+    this.releaseTime = 0;
     this.transient = 'AttackRelease';
     this.play('AttackRelease');
   }
@@ -230,6 +253,44 @@ export class MonsterArrivalModel {
     if (!this.ending && !this.windupActive && !this.transient) this.play(moving?'Walk':Math.abs(yawRate)>.015?'Turn':'Idle');
   }
 
+  setHandSwipe(swipe: {side: 'left' | 'right'; target: {x:number;y:number;z:number}; progress: number} | null): void {
+    if (!swipe) { this.handSwipe = null; return; }
+    if (!this.handSwipe) this.handSwipe = {side: swipe.side, target: new THREE.Vector3(), progress: 0};
+    this.handSwipe.side = swipe.side;
+    this.handSwipe.target.set(swipe.target.x, swipe.target.y, swipe.target.z);
+    this.handSwipe.progress = swipe.progress;
+  }
+
+  private poseHandSwipe(): void {
+    const swipe = this.handSwipe;
+    if (!swipe || swipe.progress >= 1) return;
+    const weight = monsterHandSwipeWeight(swipe.progress);
+    if (weight <= 0) return;
+    const side = swipe.side === 'left' ? 'Left' : 'Right';
+    const upper = this.secondaryBones.get(`${side}UpperArm`)!.bone;
+    const forearm = this.secondaryBones.get(`${side}Forearm`)!.bone;
+    const hand = this.secondaryBones.get(`${side}Hand`)!.bone;
+    this.root.updateMatrixWorld(true);
+    const [shoulder, elbow, palm, target, axis, pole, desiredElbow, from, to] = this.scratch;
+    upper.getWorldPosition(shoulder!);forearm.getWorldPosition(elbow!);hand.getWorldPosition(palm!);
+    const upperLength = shoulder!.distanceTo(elbow!), lowerLength = elbow!.distanceTo(palm!);
+    target!.copy(palm!).lerp(swipe.target, weight);
+    axis!.subVectors(target!, shoulder!);
+    const distance = THREE.MathUtils.clamp(axis!.length(), Math.abs(upperLength-lowerLength)+.01,
+      upperLength+lowerLength-.01);
+    axis!.normalize();
+    const a = (upperLength**2-lowerLength**2+distance**2)/(2*distance);
+    pole!.set(swipe.side === 'left' ? 1 : -1, .2, -.2)
+      .applyQuaternion(this.root.quaternion).addScaledVector(axis!, -pole!.dot(axis!)).normalize();
+    desiredElbow!.copy(shoulder!).addScaledVector(axis!, a)
+      .addScaledVector(pole!, Math.sqrt(Math.max(0, upperLength**2-a*a)));
+    from!.subVectors(elbow!,shoulder!);to!.subVectors(desiredElbow!,shoulder!);
+    this.rotateBone(upper,from!,to!);
+    forearm.getWorldPosition(elbow!);hand.getWorldPosition(palm!);
+    from!.subVectors(palm!,elbow!);to!.subVectors(target!,elbow!);
+    this.rotateBone(forearm,from!,to!);
+  }
+
   private rotateBone(bone: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3): void {
     const [world,change,parent]=this.rotations;
     bone.getWorldQuaternion(world!);
@@ -237,6 +298,41 @@ export class MonsterArrivalModel {
     bone.parent!.getWorldQuaternion(parent!).invert();
     bone.quaternion.copy(parent!).multiply(change!).multiply(world!);
     bone.updateWorldMatrix(false,true);
+  }
+
+  private poseBone(name: string, x = 0, y = 0, z = 0): void {
+    const joint = this.secondaryBones.get(name)!;
+    joint.animationRotation.copy(joint.bone.quaternion);
+    if (x) joint.bone.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localX, x * secondaryMotionScale));
+    if (y) joint.bone.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localY, y * secondaryMotionScale));
+    if (z) joint.bone.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localZ, z * secondaryMotionScale));
+  }
+
+  private poseUpperBody(hitPulse: number): void {
+    const stride = Math.sin(this.phase * Math.PI * 2) * this.locomotionBlend;
+    const breath = Math.sin(this.secondaryTime * 1.8);
+    const turn = THREE.MathUtils.clamp(this.yawRate / (Math.PI / 12), -1, 1);
+    const recoil = this.releaseTime < .5 ? Math.sin(Math.PI * this.releaseTime / .5) * Math.exp(-this.releaseTime * 3) : 0;
+    const hit = Math.min(1, hitPulse / .28);
+    this.poseBone('Spine', -.04 * this.locomotionBlend + .025 * breath - .07 * this.attackBlend + .08 * recoil - .07 * hit,
+      0, .055 * turn + .025 * stride);
+    this.poseBone('Chest', .025 * breath - .1 * this.attackBlend + .13 * recoil - .08 * hit,
+      0, .06 * turn - .04 * stride);
+    const armSwing = stride * .2;
+    const armLift = .03 * breath - .24 * this.attackBlend + .28 * recoil + .08 * hit;
+    const forearmBend = .025 * breath + .28 * this.attackBlend - .18 * recoil;
+    const handFlex = .05 * breath + .1 * this.attackBlend + .08 * recoil;
+    this.poseBone('LeftUpperArm', armSwing + armLift, .04 * this.attackBlend);
+    this.poseBone('RightUpperArm', -armSwing + armLift, -.04 * this.attackBlend);
+    this.poseBone('LeftForearm', forearmBend - .06 * armSwing);
+    this.poseBone('RightForearm', forearmBend + .06 * armSwing);
+    this.poseBone('LeftHand', 0, 0, handFlex);
+    this.poseBone('RightHand', 0, 0, -handFlex);
+    this.poseBone('Jaw', .025 * breath + .16 * this.attackBlend + .2 * recoil);
+    this.poseBone('TailBase', 0, -.09 * turn + .035 * stride);
+    this.poseBone('TailMid', 0, -.08 * turn + .05 * Math.sin(this.secondaryTime * 1.3));
+    this.poseBone('TailTip', 0, .08 * Math.sin(this.secondaryTime * 1.5 - .8));
+    this.secondaryPoseApplied = true;
   }
 
   private plantFeet(): void {
@@ -269,7 +365,7 @@ export class MonsterArrivalModel {
       if (swing) {
         const t=phase/.45,eased=t*t*(3-2*t);
         target!.lerpVectors(foot.swingStart,foot.swingEnd,eased);
-        target!.y+=Math.sin(Math.PI*t)*h*.045;
+        target!.y+=Math.sin(Math.PI*t)*h*.09;
       }
       // The initial pose may arrive before the first state or on sloped terrain.
       if (this.phaseRate===0 && !this.windupActive && !this.transient) { foot.anchor.copy(nominal!);target!.copy(nominal!); }
@@ -278,7 +374,7 @@ export class MonsterArrivalModel {
         // Anticipation and landing use the existing terrain-backed foot IK.
         target!.copy(foot.rest);this.root.localToWorld(target!);
         const air=(this.jumpProgress-monsterJumpMotion.anticipationEnd)/(monsterJumpMotion.landingStart-monsterJumpMotion.anticipationEnd);
-        if(air>0 && air<1)target!.y+=Math.sin(Math.PI*air)*h*.075;
+        if(air>0 && air<1)target!.y+=Math.sin(Math.PI*air)*h*.15;
         else target!.y=ground+monsterGeometry.footHeight*h;
         foot.anchor.copy(target!);foot.swinging=false;
       }
@@ -321,10 +417,17 @@ export class MonsterArrivalModel {
     this.feetApplied = false;
     if(this.jumpArmsApplied)for(const arm of this.jumpArms)arm.bone.quaternion.copy(arm.rotation);
     this.jumpArmsApplied=false;
+    if (this.secondaryPoseApplied) for (const joint of this.secondaryBones.values()) joint.bone.quaternion.copy(joint.animationRotation);
+    this.secondaryPoseApplied = false;
     const walk = this.actions.get('Walk');
     if (walk) walk.setEffectiveTimeScale(this.jumpProgress===null?this.phaseRate*walk.getClip().duration:0);
     this.mixer?.update(delta);
     if(this.jumpProgress===null)this.phase+=delta*this.phaseRate;
+    this.secondaryTime += delta;
+    this.releaseTime += delta;
+    this.locomotionBlend = THREE.MathUtils.damp(this.locomotionBlend, this.walking && this.jumpProgress === null ? 1 : 0, 5, delta);
+    this.attackBlend = THREE.MathUtils.damp(this.attackBlend, this.windupActive ? 1 : 0, 6, delta);
+    if (!this.ending) this.poseUpperBody(hitPulse);
     if(this.jumpProgress!==null && !this.ending){
       const tuck=Math.sin(Math.PI*this.jumpProgress);
       this.scratch[0]!.set(Math.cos(this.root.rotation.y),0,-Math.sin(this.root.rotation.y));
@@ -337,6 +440,7 @@ export class MonsterArrivalModel {
       }
       this.jumpArmsApplied=true;
     }
+    if (!this.ending) this.poseHandSwipe();
     if (!this.ending && this.head) {
       const [world,aim,parent]=this.rotations;
       this.root.updateMatrixWorld(true);
