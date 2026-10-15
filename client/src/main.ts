@@ -1208,11 +1208,15 @@ document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListe
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
+const missionOneGateCue = document.createElement('div');
+missionOneGateCue.className = 'mission-one-gate-cue';
+missionOneGateCue.hidden = true;
 if (journeyMode) {
   skyChallengeElement.innerHTML = '<strong data-journey-heading>ROOKIE RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
   const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
   missionStatusLayer.classList.add('journey-status-layer');
   missionStatusLayer.prepend(skyChallengeElement);
+  skyChallengeElement.after(missionOneGateCue);
 }
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
@@ -9748,6 +9752,7 @@ async function retryJourneyMission(): Promise<void> {
     journeyGates?.setProgress(0, journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas10.id || journeyAttempt.missionId === journeyDallas11.id || journeyAttempt.missionId === journeyDallas12.id || journeyAttempt.missionId === journeyDallas13.id || journeyAttempt.missionId === journeyDallas16.id || journeyAttempt.missionId === journeyDallas20.id || journeyAttempt.missionId === journeyDallas22.id || journeyAttempt.missionId === journeyDallas24.id);
     missionObjective = null;
     missionObjectiveGuidance?.setObjective(null);
+    missionOneGateCue.hidden = true;
     journeyGateClearedUntil = 0;
     slalomTurnSide = null;
     elevatorDepartureTurnSide = null;
@@ -9912,6 +9917,7 @@ boundSocket.addEventListener('message', (event) => {
     journeyGates?.setProgress(0, false);
     missionObjective = null;
     missionObjectiveGuidance?.setObjective(null);
+    missionOneGateCue.hidden = true;
     showProgressMessage(message.reason);
     return;
   }
@@ -10095,6 +10101,9 @@ boundSocket.addEventListener('message', (event) => {
                     return heart ? { id: `${message.attempt.attemptId}:${journeyDallas09.heartId}`,
                       label: 'REPAIR HEART', position: heart.position, radius: 64 } : null;
                   })() : null;
+    if (message.attempt.missionId === journeyDallas01.id && missionObjective)
+      missionObjective = { ...missionObjective, dock: missionOneGateCue };
+    missionOneGateCue.hidden = message.attempt.missionId !== journeyDallas01.id || !missionObjective;
     missionObjectiveGuidance?.setObjective(missionObjective);
     if (message.attempt.missionId === journeyDallas18.id) syncSiegeObjective();
     if (message.attempt.missionId === journeyDallas21.id) syncTwoFrontsObjective();

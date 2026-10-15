@@ -1675,7 +1675,7 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .sky-challenge.hidden {
   display: none;
 }
-.sky-challenge.journey-hud { top: max(92px, calc(env(safe-area-inset-top) + 78px)); bottom: auto; z-index: 22; display: grid; gap: 4px; width: min(340px, calc(100vw - 28px)); padding: 10px 12px; border: 1px solid rgb(111 230 255 / 80%); border-left: 3px solid #f6c445; border-radius: 12px; background: linear-gradient(145deg, rgb(15 39 70 / 90%), rgb(30 77 122 / 82%)); box-shadow: 0 8px 22px rgb(19 52 91 / 30%), inset 0 1px rgb(246 251 255 / 26%); font-size: 11px; }
+.sky-challenge.journey-hud { top: max(92px, calc(env(safe-area-inset-top) + 78px)); bottom: auto; z-index: 22; display: grid; gap: 4px; width: min(340px, calc(100vw - 28px)); padding: 10px 12px; border: 1px solid rgb(111 230 255 / 60%); border-left: 3px solid #f6c445; border-radius: 12px; background: linear-gradient(145deg, rgb(15 39 70 / 36%), rgb(30 77 122 / 24%)); box-shadow: 0 3px 10px rgb(19 52 91 / 18%); text-shadow: 0 1px 3px rgb(0 12 28 / 90%); font-size: 11px; }
 .sky-challenge.journey-hud.hidden { display: none; }
 .journey-hud strong { color: #f6c445; font: 900 13px/1.15 var(--font-display); }
 .journey-hud span { color: #f6fbff; }
@@ -1691,6 +1691,9 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-marker { padding: 5px 8px; }
 .mission-objective-arrow { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 174px; min-height: 42px; padding: 5px 9px; }
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
+.mission-one-gate-cue { justify-self: start; max-width: 100%; pointer-events: none; }
+.mission-one-gate-cue[hidden] { display: none; }
+.mission-one-gate-cue > .mission-objective-docked { position: static; display: flex; align-items: center; gap: 7px; max-width: 100%; min-height: 36px; padding: 5px 9px; border: 1px solid rgb(255 211 91 / 65%); border-radius: 9px; color: #fff4c7; background: rgb(6 44 88 / 28%); box-shadow: 0 2px 8px rgb(0 12 34 / 18%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
 .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 62px); left: 50%; }
 .mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message, .touch-fire) { display: none !important; }
 .mission4-clean-hud #desktop-controls-help-items span:nth-child(4) { display: none; }
@@ -2989,7 +2992,8 @@ body:has(#garage-overlay:not([hidden])) #mission-reminder { display: none; }
 .touch-controls{position:fixed;z-index:20;inset:0;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
 .touch-controls button,.touch-stick,.touch-throttle-lever{pointer-events:auto;touch-action:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 [data-touch-control]{position:absolute;left:var(--touch-left);top:var(--touch-top);transform:translate(-50%,-50%) scale(var(--touch-scale,1));transform-origin:center}
-.touch-stick{width:116px;height:116px;border:0;background:transparent;filter:drop-shadow(0 4px 10px rgb(3 17 28 / 48%)) drop-shadow(0 0 9px rgb(57 169 249 / 14%))}
+.touch-stick{width:116px;height:116px;border:0;background:transparent;opacity:.55;filter:drop-shadow(0 4px 10px rgb(3 17 28 / 48%)) drop-shadow(0 0 9px rgb(57 169 249 / 14%));transition:opacity 150ms ease}
+.touch-stick.is-active{opacity:.82}
 .touch-stick-frame{position:absolute;z-index:0;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .touch-stick-frame-outer{fill:url(#touch-stick-surface);stroke:rgb(173 237 255 / 72%);stroke-width:1.5;vector-effect:non-scaling-stroke}
 .touch-stick-frame-inner{fill:url(#touch-stick-inset);stroke:rgb(57 169 249 / 28%);stroke-width:1;vector-effect:non-scaling-stroke}
@@ -3122,7 +3126,7 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
   .unified-flight-hud .flight-hud-motion .flight-hud-icon { width: 14px; height: 14px; }
 }
 @media(orientation:portrait) and (max-width:900px){.touch-controls-enabled .portrait-guidance{display:grid}.touch-controls-enabled #touch-controls{display:none}}
-@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-stick,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:var(--text-secondary)}
 .tutorial-flight-active #contextual-hint,.tutorial-flight-active #dynamic-event-panel,.tutorial-flight-active #mission-panel{display:none!important}
 #real-players, #city-territories {
