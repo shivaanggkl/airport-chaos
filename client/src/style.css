@@ -4798,6 +4798,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-cosmetic { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: start; gap: 3px; width: 100%; min-height: 0; padding: 0; color: #0b2345; text-align: center; border: 0; background: transparent; box-shadow: none; }
 .garage-card .garage-cosmetic-card:nth-child(even) .garage-cosmetic { background: transparent; }
 .garage-card .garage-cosmetic[aria-pressed=true] { outline: 0; color: #0b2345; background: transparent; box-shadow: none; }
+.garage-card button.garage-cosmetic:is(:hover, :active) { transform: none; background: transparent; box-shadow: none; }
 .garage-card .garage-cosmetic strong { max-width: 100%; font-size: 9px; line-height: 1.1; }
 .garage-card .garage-cosmetic-swatches { grid-column: 1; justify-content: center; margin-top: 3px; }
 .garage-card .garage-cosmetic-swatches i { width: 18px; height: 18px; }
