@@ -239,6 +239,7 @@ function territoryDot(name: string, color: string): HTMLElement {
 export class PilotMenu {
   private openState = false;
   private content: HTMLDivElement | undefined;
+  private backButton: HTMLButtonElement | undefined;
   private readonly sections: readonly PilotMenuSection[];
   private activeSection: PilotMenuSection = 'MISSIONS';
   private readonly sectionHistory: PilotMenuSection[] = [];
@@ -269,6 +270,7 @@ export class PilotMenu {
       close: () => this.backOrClose(),
       containsTarget: (target) => target instanceof Node && (
         Boolean(this.element.querySelector('.pilot-menu-card')?.contains(target)) ||
+        Boolean(this.element.querySelector('.page-back')?.contains(target)) ||
         (this.options.appShell === true && Boolean(document.querySelector('.app-shell-header:not([hidden])')?.contains(target)))
       ),
     });
@@ -341,8 +343,7 @@ export class PilotMenu {
     if (section === 'PROFILE') this.profileStatsTab = 'single';
     this.lastSnapshot = '';
     this.element.hidden = false;
-    const close = this.element.querySelector<HTMLButtonElement>('.pilot-menu-header-actions button');
-    if (close) close.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
+    if (this.backButton) this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
     this.render(data);
   }
 
@@ -467,9 +468,11 @@ export class PilotMenu {
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const close = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
     close.classList.add('context-back');
+    this.backButton = close;
+    if (this.options.appShell) close.classList.add('page-back');
     const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions';
     if (this.options.showContextStatus !== false) actions.append(cityStatus);
-    actions.append(close);
+    if (!this.options.appShell) actions.append(close);
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -503,6 +506,7 @@ export class PilotMenu {
     }
     card.append(header, navigation, content);
     this.element.replaceChildren(card);
+    if (this.options.appShell) this.element.append(close);
     this.content = content;
     this.navigation = navigation;
     return content;
@@ -600,8 +604,7 @@ export class PilotMenu {
           document.createTextNode('By continuing, you agree to our '), externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
           document.createTextNode(' and acknowledge our '), externalLink('Privacy Policy', legalPolicyHref(legalConfig.policyRoutes.privacy)), document.createTextNode('.'),
         );
-        const back = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer }); back.classList.add('context-back', 'pilot-auth-back');
-        profile.append(providers, divider, guest, guestNote, message, legal, back);
+        profile.append(providers, divider, guest, guestNote, message, legal);
       } else {
         profile.classList.add('pilot-profile-panel');
         const pilot = data.progression.pilotProgress;

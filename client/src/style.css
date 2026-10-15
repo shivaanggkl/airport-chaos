@@ -4285,6 +4285,10 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
 
 /* The live hangar continues under the glass; the header uses nine equal-height sections. */
 :root { --hub-header-total: calc(104px + var(--safe-area-top)); }
+/* Every hub screen starts below the visible header, including phone landscape. */
+body:has(.app-shell-header.is-hub:not([hidden])) {
+  --app-shell-header-total: var(--hub-header-total);
+}
 body:has(.home-hangar:not([hidden])) .home-hangar-stage { inset: 0; }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub {
   --hub-art-size: clamp(43px, 4.7vw, 61px);
@@ -4942,11 +4946,15 @@ button.context-back:focus-visible,
   outline: 2px solid #ffd875; outline-offset: 2px;
 }
 
-.pilot-menu-card.is-authentication .pilot-auth-card button.pilot-auth-back.context-back {
-  position: fixed; z-index: 33; top: max(12px, var(--safe-area-top));
-  left: max(12px, calc(var(--safe-area-left) + 8px), calc(50vw - 560px));
-  margin: 0; justify-self: auto;
+/* Page navigation shares one viewport anchor and one touch target on every screen. */
+body {
+  --page-back-top: max(12px, calc(var(--safe-area-top) + 8px));
+  --page-back-left: max(12px, var(--safe-area-left), calc((100vw - 1120px) / 2));
 }
-body:has(.app-shell-header:not([hidden])) .pilot-menu-card.is-authentication .pilot-auth-card button.pilot-auth-back.context-back {
-  top: calc(var(--app-shell-header-total) + 8px);
+body:has(.app-shell-header:not([hidden])) {
+  --page-back-top: calc(var(--app-shell-header-total) + 8px);
+}
+button.context-back.page-back {
+  position: fixed; z-index: 4; top: var(--page-back-top); right: auto; bottom: auto; left: var(--page-back-left);
+  margin: 0; transform: none;
 }
