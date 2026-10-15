@@ -632,10 +632,11 @@ export class PilotMenu {
           const form = document.createElement('form'); form.className = 'pilot-profile-name-form';
           const input = document.createElement('input'); input.name = 'pilotName'; input.value = account.pilotName;
           input.minLength = 3; input.maxLength = 20; input.required = true; input.dataset.pilotNameEditor = '';
-          input.setAttribute('autocomplete', 'nickname'); input.setAttribute('aria-label', 'Pilot name');
+          input.id = 'pilot-profile-name-input'; input.setAttribute('autocomplete', 'nickname');
+          const label = textElement('label', 'PILOT NAME', 'pilot-profile-name-label'); label.htmlFor = input.id;
           const cancel = actionButton({ label: 'CANCEL', run: () => { this.profileNameEditing = false; this.render(data, true); } });
           const save = actionButton({ label: 'SAVE', intent: 'primary', run: () => undefined }); save.type = 'submit';
-          form.append(input, cancel, save);
+          form.append(label, input, cancel, save);
           form.addEventListener('submit', event => {
             event.preventDefault();
             if (!input.reportValidity()) return;

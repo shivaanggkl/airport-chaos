@@ -1119,7 +1119,7 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] { 
 body:has(.garage-overlay.return-to-store:not([hidden])) .garage-balance [data-garage-close] { display: inline-flex; }
 .pilot-menu-overlay { position: fixed; z-index: 32; inset: 0; display: grid; place-items: center; padding: 18px; overflow: hidden; background: transparent; color: var(--ui-text); }
 .pilot-menu-overlay[hidden] { display: none; }
-.native-shell.editable-keyboard-open .pilot-menu-overlay {
+html.editable-keyboard-open .pilot-menu-overlay {
   top: var(--editable-viewport-top);
   right: auto;
   bottom: auto;
@@ -4702,7 +4702,8 @@ body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-prof
 .pilot-menu-card.is-pilot-profile .pilot-profile-edit > button,
 .pilot-menu-card.is-pilot-profile .pilot-profile-name-form button { min-height: 44px; padding: 7px 14px; color: #fff; border: 2px solid #7ceaf7; border-radius: 7px; background: linear-gradient(#24a1d7, #0861ac); box-shadow: inset 0 1px 0 #a8edff, 0 3px 6px rgb(6 74 144 / 25%); white-space: nowrap; }
 .pilot-profile-edit .pilot-profile-name-form { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
-.pilot-profile-edit .pilot-profile-name-form input { width: min(160px, 100%); min-height: 44px; }
+.pilot-profile-name-label { display: none; }
+.pilot-menu-card.is-pilot-profile .pilot-profile-name-form input { width: min(160px, 100%); min-height: 44px; color: #0b2345; caret-color: #087eab; border: 2px solid #48b8d0; background: #fff; box-shadow: inset 0 1px 3px rgb(11 35 69 / 10%); }
 .pilot-profile-lifetime { display: grid; justify-items: center; align-content: center; gap: 2px; height: 100%; padding-left: 14px; border-left: 1px solid #c9dce7; text-align: center; }
 .pilot-profile-lifetime img { width: 76px; height: 66px; object-fit: contain; filter: drop-shadow(0 2px 2px rgb(110 67 8 / 22%)); }
 .pilot-profile-lifetime strong { color: #092661; font: 900 clamp(22px, 2.6vw, 30px)/1 var(--font-display); }
@@ -5008,4 +5009,35 @@ body:has(.app-shell-header:not([hidden])) {
 button.context-back.page-back {
   position: fixed; z-index: 4; top: var(--page-back-top); right: auto; bottom: auto; left: var(--page-back-left);
   margin: 0; transform: none;
+}
+
+/* Keep the name editor in the visible viewport while a touch keyboard is open. */
+html.editable-keyboard-open body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.pilot-profile-name-form),
+html.editable-keyboard-open .pilot-menu-overlay:has(.pilot-profile-name-form) {
+  align-items: start; justify-items: center; padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  overflow-y: auto;
+}
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile:has(.pilot-profile-name-form) {
+  display: block; width: min(700px, 100%); height: auto; max-height: 100%; padding: 8px;
+  overflow-y: auto;
+}
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile:has(.pilot-profile-name-form) > header { display: none; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile:has(.pilot-profile-name-form) > .pilot-menu-content { display: block; overflow: visible; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-panel { display: block; height: auto; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-panel > .pilot-profile-section { display: none; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-hero { display: block; margin: 0; padding: 8px; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-hero > :not(.pilot-profile-edit) { display: none; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-edit { width: 100%; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; width: 100%;
+}
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-label {
+  display: block; grid-column: 1 / -1; color: #0b3d6b; font: 900 12px/1 var(--font-display); letter-spacing: .08em;
+}
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form input { width: 100%; min-width: 0; }
+html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form button { min-height: 44px; padding: 6px 12px; }
+@media (max-width: 560px) {
+  html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form input { grid-column: 1 / -1; }
+  html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form button { grid-row: 3; }
+  html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-name-form button:last-child { grid-column: 3; }
 }
