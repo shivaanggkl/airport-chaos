@@ -5074,13 +5074,14 @@ button.context-back.page-back {
 /* Keep the name editor in the visible viewport while a touch keyboard is open. */
 html.editable-keyboard-open body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.pilot-profile-name-form),
 html.editable-keyboard-open .pilot-menu-overlay:has(.pilot-profile-name-form) {
-  align-items: start; justify-items: center; padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  align-items: end; justify-items: center; padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
   overflow-y: auto;
 }
 html.editable-keyboard-open .pilot-menu-card.is-pilot-profile:has(.pilot-profile-name-form) {
-  display: block; width: min(700px, 100%); height: auto; max-height: 100%; padding: 8px;
+  display: block; width: min(700px, 100%); height: auto; min-height: 0; max-height: 100%; padding: 8px;
   overflow-y: auto; transform: none;
 }
+html.editable-keyboard-open body:has(.pilot-profile-name-form) button.context-back.page-back { visibility: hidden; }
 html.editable-keyboard-open .pilot-menu-card.is-pilot-profile:has(.pilot-profile-name-form) > header { display: none; }
 html.editable-keyboard-open .pilot-menu-card.is-pilot-profile:has(.pilot-profile-name-form) > .pilot-menu-content { display: block; overflow: visible; }
 html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-panel { display: block; height: auto; }
