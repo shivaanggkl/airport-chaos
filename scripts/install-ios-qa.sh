@@ -4,8 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-if [[ "$(git branch --show-current)" != qa ]]; then
-  echo 'Install QA only from the qa branch checkout.' >&2
+if [[ "$(git branch --show-current)" != staging ]]; then
+  echo 'Install the iPhone QA app only from the staging branch checkout.' >&2
   exit 1
 fi
 
