@@ -8,6 +8,7 @@ export type MissionObjective = {
   onscreenMarker?: boolean;
   fixedTop?: boolean;
   dock?: HTMLElement;
+  hideCueWhenVisible?: boolean;
 };
 
 type ConfirmedGateAttempt = { attemptId: string; gateIndex: number; status: string };
@@ -388,7 +389,14 @@ export class ObjectiveGuidance {
         this.arrowText.textContent = label;
       }
       this.marker.hidden = true;
+      // A visible gate already supplies the direction cue. Keep the docked
+      // arrow for turns and gates outside the camera view.
       this.arrow.hidden = false;
+      if (target.hideCueWhenVisible) {
+        this.projected.copy(target.position).project(camera);
+        this.arrow.hidden = this.projected.z >= -1 && this.projected.z <= 1 &&
+          Math.abs(this.projected.x) < .8 && Math.abs(this.projected.y) < .8;
+      }
       this.arrow.style.transform = target.dock ? '' : 'translateX(-50%)';
       this.arrowIcon.style.transform = '';
       return;

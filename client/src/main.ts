@@ -2535,6 +2535,7 @@ function updateJourneyHud(): void {
   skyChallengeElement.classList.add('journey-hud');
   skyChallengeElement.classList.toggle('hidden', journeyAttempt?.status === 'COMPLETED' || journeyAttempt?.status === 'FAILED' || journeyAttempt?.status === 'ABANDONED');
   const dfwMission = journeyAttempt?.missionId === journeyDallas01.id;
+  skyChallengeElement.classList.toggle('journey-mission-one', dfwMission);
   const lakeMission = journeyAttempt?.missionId === journeyDallas02.id;
   if (!dfwMission && !lakeMission && journeyAttempt?.missionId !== journeyDallas03.id && journeyAttempt?.missionId !== journeyDallas04.id) skyChallengeElement.classList.remove('journey-timer-urgent');
   const ascentMission = journeyAttempt?.missionId === journeyDallas03.id;
@@ -2562,7 +2563,7 @@ function updateJourneyHud(): void {
   skyChallengeElement.classList.toggle('journey-championship', pendulumMission || switchbackMission);
   skyChallengeElement.classList.toggle('journey-rookie-rush', dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission);
   skyChallengeElement.classList.toggle('journey-slalom', slalomMission || gravityMission || redlineMission);
-  for (const item of [journeyHudTarget, journeyHudTimer]) if (item) item.hidden = !dfwMission && !lakeMission && !ascentMission && !downtownMission && !precisionMission && !championshipMission && !elevatorMission && !formationMission && !recoveryMission && !slalomMission && !gravityMission && !pendulumMission && !redlineMission && !escapeMission && !aceMission && !crossfireMission && !criticalMission && !siegeMission && !breakoutMission && !switchbackMission && !twoFrontsMission && !perfectMission && !doubleMission && !legendaryMission || downtownMission && item === journeyHudTarget;
+  for (const item of [journeyHudTarget, journeyHudTimer]) if (item) item.hidden = !dfwMission && !lakeMission && !ascentMission && !downtownMission && !precisionMission && !championshipMission && !elevatorMission && !formationMission && !recoveryMission && !slalomMission && !gravityMission && !pendulumMission && !redlineMission && !escapeMission && !aceMission && !crossfireMission && !criticalMission && !siegeMission && !breakoutMission && !switchbackMission && !twoFrontsMission && !perfectMission && !doubleMission && !legendaryMission || (downtownMission || dfwMission) && item === journeyHudTarget;
   if (journeyHudHint) journeyHudHint.hidden = !dfwMission && !lakeMission && !ascentMission && !downtownMission && !precisionMission;
   if (!journeyAttempt) {
     if (journeyHudHeading) journeyHudHeading.textContent = 'MISSION · CONNECTING';
@@ -2902,13 +2903,16 @@ function updateJourneyHud(): void {
       : gateAbove ? `CLIMB TO GOLDEN GATE ${gateIndex + 1}` : 'FLY THROUGH ALL GOLDEN GATES';
     if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
     if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
-    if (journeyHudTimer) journeyHudTimer.textContent = `TIME LEFT: ${Math.floor((timeLeft ?? mission.timeLimitMs / 1000) / 60).toString().padStart(2, '0')}:${String((timeLeft ?? mission.timeLimitMs / 1000) % 60).padStart(2, '0')}`;
+    if (journeyHudTimer) journeyHudTimer.textContent = `${dfwMission ? '' : 'TIME LEFT: '}${Math.floor((timeLeft ?? mission.timeLimitMs / 1000) / 60).toString().padStart(2, '0')}:${String((timeLeft ?? mission.timeLimitMs / 1000) % 60).padStart(2, '0')}`;
     skyChallengeElement.classList.toggle('journey-timer-urgent', timeLeft !== null && timeLeft <= 10);
     if (journeyHudHint) {
       journeyHudHint.hidden = !contextualHints.isEnabled() || !missionObjectiveGuidance?.hintVisible;
       journeyHudHint.textContent = journeyHudHint.hidden ? '' : `FOLLOW THE GOLD ARROW TO FIND GATE ${gateIndex + 1}`;
     }
-    journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
+    journeyHudSegments.forEach((segment, index) => {
+      segment.classList.toggle('is-cleared', index < gateIndex);
+      segment.classList.toggle('is-current', dfwMission && index === gateIndex);
+    });
     return;
   }
   if (journeyHudObjective) journeyHudObjective.textContent = racing ? 'PASS THROUGH THE NEXT GLOWING GATE' : 'TAKE OFF AND REACH GATE 1';
@@ -10101,7 +10105,7 @@ boundSocket.addEventListener('message', (event) => {
                       label: 'REPAIR HEART', position: heart.position, radius: 64 } : null;
                   })() : null;
     if (message.attempt.missionId === journeyDallas01.id && missionObjective)
-      missionObjective = { ...missionObjective, dock: missionOneGateCue };
+      missionObjective = { ...missionObjective, dock: missionOneGateCue, hideCueWhenVisible: true };
     missionOneGateCue.hidden = message.attempt.missionId !== journeyDallas01.id || !missionObjective;
     missionObjectiveGuidance?.setObjective(missionObjective);
     if (message.attempt.missionId === journeyDallas18.id) syncSiegeObjective();
