@@ -48,7 +48,7 @@ import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit-receipts.mjs';
 import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
-import { COORDINATED_BANK_CAP, desktopTurnIntent, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { airborneLiftFactor, COORDINATED_BANK_CAP, desktopTurnIntent, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
@@ -8523,11 +8523,7 @@ function updateFlight(delta: number): void {
     0.18,
     1,
   );
-  const liftFactor = THREE.MathUtils.clamp(
-    0.74 + angleOfAttack * 1.75,
-    0.34,
-    1.28,
-  ) * Math.min(1.28, (forwardSpeed / currentAircraft.takeoffSpeed) ** 2) * stallFactor * currentAircraft.lift * (1 + throttle * currentAircraft.climbLiftBoost * 0.08);
+  const liftFactor = airborneLiftFactor(forwardSpeed, angleOfAttack, throttle, stallFactor, currentAircraft);
   const boostThrust = boostActive
     ? currentAircraft.acceleration * ((currentAircraft.boostThrust ?? 1.35) - 1)
     : 0;

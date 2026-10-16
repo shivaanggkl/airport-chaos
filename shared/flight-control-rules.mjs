@@ -79,3 +79,10 @@ export function throttleTargetDeceleration(airspeed,throttle,envelope){
   const excess=Math.max(0,airspeed-throttleSpeedTarget(throttle,envelope));
   return excess*throttleDecelerationResponse(throttle,envelope);
 }
+
+export function airborneLiftFactor(forwardSpeed,angleOfAttack,throttle,stallFactor,envelope){
+  // A neutral stick is an untrimmed glide. The pilot must hold a little pitch
+  // to maintain altitude, while airspeed and angle of attack still govern lift.
+  const liftCoefficient=clamp(.64/envelope.lift+angleOfAttack*1.75,.34,1.28);
+  return liftCoefficient*Math.min(1.28,(forwardSpeed/envelope.takeoffSpeed)**2)*stallFactor*envelope.lift*(1+throttle*envelope.climbLiftBoost*.08);
+}
