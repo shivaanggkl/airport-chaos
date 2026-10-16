@@ -422,7 +422,8 @@ function tokenStoreAvailable(): boolean {
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE' || entryState === 'AIRCRAFT') {
+  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE' || entryState === 'AIRCRAFT' ||
+    (entryState === 'PILOT_MENU' && (active === 'PROFILE' || hubPilotMenu.isSectionOpen('PROFILE')))) {
     appHeader.hide();
     return;
   }

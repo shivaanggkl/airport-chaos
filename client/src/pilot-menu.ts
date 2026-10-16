@@ -549,6 +549,7 @@ export class PilotMenu {
     const card = this.element.querySelector<HTMLElement>('.pilot-menu-card');
     const hubRewards = this.options.appShell === true && this.activeSection === 'REWARDS';
     this.element.classList.toggle('is-rewards-overlay', hubRewards);
+    this.element.classList.toggle('is-hub-profile', this.options.appShell === true && this.activeSection === 'PROFILE');
     card?.classList.toggle('is-hub-rewards', hubRewards);
     if (card) {
       if (hubRewards) {

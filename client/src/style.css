@@ -4665,11 +4665,13 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ga
   background: var(--menu-background); filter: blur(7px); pointer-events: none;
 }
 body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay),
+.pilot-menu-overlay.is-hub-profile,
 body:has(#game-root:not([hidden])) .garage-overlay,
 .garage-overlay.hub-aircraft {
   background: #305389; isolation: isolate;
 }
 body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay)::before,
+.pilot-menu-overlay.is-hub-profile::before,
 body:has(#game-root:not([hidden])) .garage-overlay::before,
 .garage-overlay.hub-aircraft::before {
   content: ''; position: absolute; z-index: -1; inset: -12px;
@@ -4683,16 +4685,17 @@ body:has(.app-shell-header:not([hidden]))::before {
 body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
 
 /* Hub Pilot Profile: one game panel, independent of the in-flight menu. */
-body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-profile) {
-  padding-top: calc(var(--app-shell-header-total) + 16px);
-  padding-bottom: max(12px, var(--safe-area-bottom));
+.pilot-menu-overlay.is-hub-profile {
+  --profile-available-height: calc(100dvh - max(12px, var(--safe-area-top)) - max(12px, var(--safe-area-bottom)) - 16px);
+  padding: max(12px, var(--safe-area-top)) max(12px, var(--safe-area-right)) max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
 }
+.pilot-menu-overlay.is-hub-profile .pilot-menu-card.is-authentication { max-height: var(--profile-available-height); }
 .pilot-menu-card.is-pilot-profile {
   display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "header" "content"; gap: 0;
   width: min(910px, calc(100% - 16px));
-  height: min(470px, calc(100dvh - var(--app-shell-header-total) - 16px - max(12px, var(--safe-area-bottom))));
-  max-height: calc(100dvh - var(--app-shell-header-total) - 16px - max(12px, var(--safe-area-bottom)));
+  height: min(520px, var(--profile-available-height));
+  max-height: var(--profile-available-height);
   padding: clamp(8px, 1.1vw, 12px); overflow: hidden;
   color: #0b2345; border: 3px solid #70e9f5; border-radius: 15px;
   background: linear-gradient(135deg, #fff 5%, #f4fafb 55%, #e5f5f9);
@@ -4766,7 +4769,7 @@ body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-prof
 .pilot-settings-account > strong { color: #f2f8ff; overflow-wrap: anywhere; }
 .pilot-settings-account > button { justify-self: start; min-height: 44px; }
 @media (max-width: 950px) and (orientation: landscape), (max-height: 520px) and (orientation: landscape) {
-  .pilot-menu-card.is-pilot-profile { height: calc(100dvh - var(--app-shell-header-total) - 16px - max(12px, var(--safe-area-bottom))); max-height: calc(100dvh - var(--app-shell-header-total) - 16px - max(12px, var(--safe-area-bottom))); padding: 6px 8px; }
+  .pilot-menu-card.is-pilot-profile { height: var(--profile-available-height); max-height: var(--profile-available-height); padding: 6px 8px; }
   .pilot-menu-card.is-pilot-profile > header { min-height: 44px; padding-bottom: 4px; }
   .pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button { min-height: 44px; font-size: 10px; }
   .pilot-menu-card.is-pilot-profile > header h1 { font-size: 22px; }
@@ -4812,8 +4815,7 @@ body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-prof
   .pilot-profile-section-heading { flex-wrap: wrap; gap: 4px 12px; }
 }
 @media (max-width: 900px) and (max-height: 430px) and (orientation: landscape) {
-  body:has(.app-shell-header:not([hidden])) .pilot-menu-overlay:has(.is-pilot-profile) { padding-top: calc(var(--app-shell-header-total) + 8px); padding-bottom: max(8px, var(--safe-area-bottom)); }
-  .pilot-menu-card.is-pilot-profile { height: calc(100dvh - var(--app-shell-header-total) - 8px - max(8px, var(--safe-area-bottom))); max-height: calc(100dvh - var(--app-shell-header-total) - 8px - max(8px, var(--safe-area-bottom))); padding: 4px 8px; }
+  .pilot-menu-card.is-pilot-profile { height: var(--profile-available-height); max-height: var(--profile-available-height); padding: 4px 8px; }
   .pilot-profile-avatar { width: 70px; }
   .pilot-profile-lifetime img { width: 50px; height: 34px; }
   .pilot-profile-lifetime strong { font-size: 20px; }
