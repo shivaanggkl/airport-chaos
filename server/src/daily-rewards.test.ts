@@ -107,9 +107,10 @@ test('Hub exposes the compact Rewards flow while active-flight navigation does n
   const shell = readFileSync(new URL('../../client/src/app-shell.ts', import.meta.url), 'utf8');
   const menu = readFileSync(new URL('../../client/src/pilot-menu.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(html, /data-home-rewards/);
-  assert.match(shell, /app-shell-rewards[\s\S]*dataset\.rewardsIndicator = ''/);
-  assert.match(bootstrap, /sections: \['PROFILE', 'REWARDS'/);
+  assert.match(shell, /app-shell-rewards[\s\S]*data-rewards-indicator/);
+  assert.match(bootstrap, /openHubPilotMenu\('REWARDS', true, true\)/);
   assert.match(bootstrap, /method: 'POST'[\s\S]*body: '\{\}'/);
   assert.match(menu, /pilot-rewards-grid[\s\S]*CLAIM[\s\S]*CREDITS/);
+  assert.match(menu, /is-rewards-overlay/);
   assert.match(menu, /options\.sections \?\? \['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP'\]/);
 });

@@ -8,8 +8,8 @@ export const MISSION_ONE_INTRO_DURATION_MS = MISSION_ONE_INTRO_SWEEP_MS + 1_000;
 
 type GatePosition = Readonly<{ x: number; z: number; altitude: number }>;
 
-/** Camera-only preview from the runway through the real Mission 1 course. The aircraft never moves. */
-export class MissionOneIntroPath {
+/** Camera-only preview from the runway through the supplied course. The aircraft never moves. */
+export class RunwayGateIntroPath {
   private readonly curve: THREE.CatmullRomCurve3;
   private readonly point = new THREE.Vector3();
   private readonly tangent = new THREE.Vector3();
@@ -52,3 +52,5 @@ export class MissionOneIntroPath {
     return THREE.MathUtils.lerp(chaseFov, 63, departure);
   }
 }
+
+export { RunwayGateIntroPath as MissionOneIntroPath };

@@ -4,13 +4,14 @@ import * as THREE from 'three';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { aircraftDefinitions, aircraftDisplayName, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
-import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { firehawkProduct, aircraftCreditPrice, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
 import { createLockIcon } from './lock-icon';
-import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
+import { confirmCatalogPurchase } from './purchase-confirmation';
 
 export type GarageProfile = {
   credits: number;
@@ -124,7 +125,6 @@ export class AircraftGarage {
     private readonly onEquip: (type: AircraftType) => void,
     private readonly decoratePreview?: (plane: THREE.Group, type: AircraftType) => void,
     private readonly onClose?: () => void,
-    private readonly onPurchase?: (type: AircraftType) => void,
     private readonly onRedeemTesterCode?: (code: string) => void,
     private readonly onStartFighterTrial?: () => void,
     private readonly onPremiumPurchase?: () => void,
@@ -141,7 +141,8 @@ export class AircraftGarage {
       isActive: () => this.isOpen(),
       close: () => this.close(),
     });
-    element.innerHTML = `<section class="garage-card app-shell-panel"><header class="garage-heading"><div class="garage-balance"><button type="button" class="context-back page-back" data-garage-close>BACK TO PILOT HUB</button></div><h1>AIRCRAFT HANGAR</h1></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG TO ROTATE • PINCH TO ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-status-row"><span data-garage-price></span><div class="garage-status-actions"><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><button type="button" data-garage-cosmetic-get hidden>GET</button><button type="button" data-garage-equip hidden>USE APPEARANCE</button></div></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><section class="garage-cosmetics" data-garage-cosmetics></section><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK FOREVER — ${firehawkProduct.displayPrice}</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-label="Choose aircraft"><div class="garage-list"></div></section></section>`;
+    element.innerHTML = `<section class="garage-card app-shell-panel"><header class="garage-heading"><div class="garage-balance"><button type="button" class="context-back page-back" data-garage-close>BACK TO PILOT HUB</button></div><h1>AIRCRAFT HANGAR</h1></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG TO ROTATE • PINCH TO ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-status-row"><span data-garage-price></span><div class="garage-status-actions"><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><button type="button" data-garage-cosmetic-get hidden>GET</button><button type="button" data-garage-equip hidden>USE APPEARANCE</button></div></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><section class="garage-cosmetics" data-garage-cosmetics></section><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK — 2,400 SKY TOKENS</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-label="Choose aircraft"><div class="garage-list"></div></section></section>`;
+    element.querySelector('[data-garage-premium]')!.after(element.querySelector('[data-garage-token-choice]')!);
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
     this.garagePreviewHost = canvas.parentElement!;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -170,8 +171,8 @@ export class AircraftGarage {
       getButton.addEventListener('click', () => {
         if (this.actionPending || this.loadingProfile) return;
         if (this.selected !== type) previewButton.click();
-        if (type === 'fighter') this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')?.click();
-        else this.element.querySelector<HTMLButtonElement>('.garage-cosmetic-list .garage-cosmetic')?.focus();
+        if (type === 'fighter') this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')?.focus();
+        else this.element.querySelector<HTMLButtonElement>('[data-garage-cosmetic-get]')?.focus();
       });
       card.append(previewButton, getButton);
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
@@ -185,9 +186,6 @@ export class AircraftGarage {
         if (this.selected !== this.profile.selectedAircraft) this.pendingAircraftAfterCosmetic = { aircraft: this.selected, cosmeticId: appearance.id };
         this.beginCosmeticAction(appearance.id);
       } else if (this.profile.unlockedAircraft.includes(this.selected)) this.onEquip(this.selected);
-      else if (aircraftDefinitions[this.selected].access === 'credits') {
-        this.actionPending = true; this.actionMessage = 'PURCHASE PENDING…'; this.renderDetails(); this.onPurchase?.(this.selected);
-      }
     });
     const tester = element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const testerInput = tester.querySelector<HTMLInputElement>('input')!;
@@ -200,9 +198,7 @@ export class AircraftGarage {
     });
     element.querySelector('[data-garage-trial]')!.addEventListener('click', () => { if (!this.actionPending) { this.actionPending = true; this.actionMessage = 'STARTING TEST FLIGHT…'; this.renderDetails(); this.onStartFighterTrial?.(); } });
     element.querySelector('[data-garage-premium-buy]')!.addEventListener('click', () => {
-      if (this.actionPending || this.tokenCommercePreview) return;
-      if (this.tokenCommerceEnabled) { this.requestTokenUnlock(); return; }
-      this.actionPending = true; this.actionMessage = 'OPENING SECURE CHECKOUT…'; this.renderDetails(); this.onPremiumPurchase?.();
+      this.requestTokenUnlock();
     });
     element.querySelector('[data-garage-restore]')!.addEventListener('click', () => {
       if (this.nativeStore) { this.onRestorePurchase?.(); return; }
@@ -448,12 +444,17 @@ export class AircraftGarage {
 
   private requestTokenUnlock(): void {
     if (this.actionPending || !this.tokenCommerceEnabled || this.tokenCommercePreview) return;
+    if (this.selected !== 'fighter') return;
     const price = aircraftSkyTokenPrice(this.selected);
     if (!price) return;
     const missing = Math.max(0, price - (this.profile.skyTokens ?? 0));
     if (missing) { this.onGetTokens?.(missing); return; }
-    this.actionPending = true; this.actionMessage = 'UNLOCKING AIRCRAFT…'; this.renderDetails();
-    this.onTokenPurchase?.(this.selected);
+    const aircraft = this.selected;
+    confirmCatalogPurchase('FIREHAWK + INFERNO', 'SKY_TOKENS', price, this.profile.skyTokens ?? 0, () => {
+      if (this.actionPending || this.isPermanentlyOwned(aircraft)) return;
+      this.actionPending = true; this.actionMessage = 'UNLOCKING AIRCRAFT…'; this.renderDetails();
+      this.onTokenPurchase?.(aircraft);
+    });
   }
 
   private premiumPrice(): string { return this.nativeStore ? this.nativeStorePrice ?? 'STORE PRICE' : firehawkProduct.displayPrice; }
@@ -513,7 +514,7 @@ export class AircraftGarage {
       return chip;
     }));
     const price = this.element.querySelector<HTMLElement>('[data-garage-price]')!;
-    price.textContent = profileReady && !owned && definition.access === 'premium' ? firehawkProduct.displayPrice : '';
+    price.textContent = '';
     price.removeAttribute('aria-label');
     this.element.querySelector('[data-garage-details]')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('.garage-card')!.classList.toggle('is-firehawk', this.selected === 'fighter');
@@ -529,7 +530,7 @@ export class AircraftGarage {
     this.element.querySelector<HTMLElement>('[data-garage-details]')!.classList.toggle('is-unavailable', !owned);
     const tokenPrice = aircraftSkyTokenPrice(this.selected);
     const tokenChoice = this.element.querySelector<HTMLElement>('[data-garage-token-choice]')!;
-    tokenChoice.hidden = !profileReady || !(this.tokenCommerceEnabled || this.tokenCommercePreview) || owned || this.selected !== 'fighter';
+    tokenChoice.hidden = true;
     const tokenBuy = this.element.querySelector<HTMLButtonElement>('[data-garage-token-buy]')!;
     const tokenMissing = Math.max(0, (tokenPrice ?? 0) - (this.profile.skyTokens ?? 0));
     tokenBuy.textContent = tokenMissing ? `GET SKY TOKENS · ${tokenPrice?.toLocaleString()} TO UNLOCK` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`;
@@ -541,16 +542,13 @@ export class AircraftGarage {
     const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
     premium.hidden = !profileReady || this.selected !== 'fighter' || owned;
     const buy = this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')!;
-    buy.textContent = !this.tokenCommerceReady ? this.tokenStoreUnavailable ? 'STORE UNAVAILABLE' : 'CHECKING STORE…' : this.tokenCommerceEnabled || this.tokenCommercePreview
-      ? tokenMissing ? `GET SKY TOKENS · NEED ${tokenMissing.toLocaleString()} MORE` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`
-      : this.nativeStore
-        ? this.nativeStorePrice ? `UNLOCK FOREVER — ${this.nativeStorePrice}` : 'STORE UNAVAILABLE'
-        : `${firehawkProduct.displayPrice} — PERMANENT UNLOCK`;
-    buy.disabled = !this.tokenCommerceReady || this.loadingProfile || this.actionPending || this.tokenCommercePreview || (!this.tokenCommerceEnabled && this.nativeStore && !this.nativeStorePrice);
+    buy.textContent = !this.tokenCommerceEnabled ? 'SKY TOKEN UNLOCK UNAVAILABLE'
+      : tokenMissing ? `GET SKY TOKENS · NEED ${tokenMissing.toLocaleString()} MORE` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`;
+    buy.disabled = !this.tokenCommerceEnabled || this.loadingProfile || this.actionPending;
     buy.hidden = owned;
     const restore = this.element.querySelector<HTMLButtonElement>('[data-garage-restore]')!;
     restore.textContent = this.nativeStore ? 'RESTORE PURCHASES' : 'RESTORE PURCHASE';
-    this.element.querySelector<HTMLElement>('.garage-purchase-disclosure')!.hidden = this.nativeStore || this.tokenCommerceEnabled || this.tokenCommercePreview;
+    this.element.querySelector<HTMLElement>('.garage-purchase-disclosure')!.hidden = true;
     const trialState = this.profile.fighterTrial?.status ?? 'available';
     const remaining = this.trialRemainingSeconds();
     const trialSummary = this.element.querySelector<HTMLElement>('[data-garage-trial-summary]')!;
@@ -568,18 +566,22 @@ export class AircraftGarage {
     tester.hidden = !canRedeem || !this.testerOpen;
     for (const [type, card] of this.cards) {
       const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
-      const firstAppearancePrice = Math.min(...cosmeticCatalog.filter(item => item.aircraftRestriction === type && item.unlockType === 'credits')
-        .map(item => cosmeticUnlockPrice(item, false)));
-      const access = data.access === 'premium' ? firehawkProduct.displayPrice
-        : data.access === 'free' ? 'FREE' : `FROM ${firstAppearancePrice.toLocaleString()} ${identityText('credits')}`;
+      const access = data.access === 'premium' ? `${aircraftSkyTokenPrice(type)?.toLocaleString()} SKY TOKENS`
+        : data.access === 'free' ? 'FREE' : `FROM ${aircraftCreditPrice(type)?.toLocaleString()} ${identityText('credits')}`;
       const name = document.createElement('strong'); name.textContent = data.callsign;
       const previewButton = card.querySelector<HTMLButtonElement>('.garage-aircraft-preview-button')!;
-      const state = document.createElement('small'); state.textContent = access;
+      const state = document.createElement('small');
+      if (data.access !== 'free') {
+        const icon = document.createElement('img');
+        icon.src = data.access === 'premium' ? '/media/hub/sky-tokens.avif' : '/media/hub/credits.avif';
+        icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
+        state.append(icon, document.createTextNode(`${data.access === 'credits' ? 'FROM ' : ''}${(data.access === 'premium' ? aircraftSkyTokenPrice(type) : aircraftCreditPrice(type))!.toLocaleString()}`));
+      }
       previewButton.replaceChildren(name, ...(profileReady && !typeOwned ? [state] : []));
       const get = card.querySelector<HTMLButtonElement>('.garage-aircraft-get')!;
       get.hidden = !profileReady || typeOwned;
-      get.textContent = data.access === 'credits' ? 'CHOOSE' : 'GET';
-      get.disabled = this.loadingProfile || this.actionPending || (data.access === 'premium' && (!this.tokenCommerceReady || this.tokenCommercePreview || (!this.tokenCommerceEnabled && this.nativeStore && !this.nativeStorePrice)));
+      get.textContent = 'GET';
+      get.disabled = this.loadingProfile || this.actionPending || (data.access === 'premium' && !this.tokenCommerceEnabled);
       card.classList.toggle('selected', type === this.selected);
       previewButton.setAttribute('aria-label', `Preview ${aircraftDisplayName(type)}${typeOwned ? '' : `, ${access}`}`);
       previewButton.setAttribute('aria-pressed', String(type === this.selected));
@@ -591,9 +593,13 @@ export class AircraftGarage {
 
   private paintPreview(): void {
     const equipped = { ...this.profile.cosmetics?.equipped };
-    const item = this.selectedAppearance();
+    const item = this.previewAppearance();
     if (item) equipped[`livery:${this.selected}`] = item.id;
     for (const plane of this.previewContent.children) applyAircraftCosmetics(plane, this.selected, equipped);
+  }
+
+  private previewAppearance() {
+    return this.selectedAppearance() ?? cosmeticCatalog.find(item => item.aircraftRestriction === this.selected);
   }
 
   private selectedAppearance() {
@@ -601,12 +607,28 @@ export class AircraftGarage {
     const equippedId = this.profile.cosmetics?.equipped?.[`livery:${this.selected}`];
     return appearances.find(item => item.id === this.previewCosmetic)
       ?? appearances.find(item => item.id === equippedId)
-      ?? appearances.find(item => this.profile.cosmetics?.ownedIds.includes(item.id))
-      ?? appearances[0];
+      ?? appearances.find(item => this.profile.cosmetics?.ownedIds.includes(item.id));
   }
 
   private beginCosmeticAction(id: string, currency?: 'CREDITS' | 'SKY_TOKENS'): void {
     if (this.actionPending) return;
+    if (currency) {
+      const item = cosmeticCatalog.find(entry => entry.id === id);
+      const price = item && cosmeticUnlockPrice(item, currency);
+      const balance = currency === 'CREDITS' ? this.profile.credits : this.profile.skyTokens ?? 0;
+      if (!item || price === undefined) return;
+      if (balance < price) { if (currency === 'SKY_TOKENS' && this.tokenCommerceEnabled) this.onGetTokens?.(price - balance); return; }
+      const name = item.aircraftRestriction === 'trainer' ? item.displayName
+        : item.aircraftRestriction === 'fighter' ? 'FIREHAWK + INFERNO'
+          : `${aircraftDefinitions[item.aircraftRestriction as AircraftType].callsign} + ${item.displayName}`;
+      confirmCatalogPurchase(name, currency, price, balance, () => this.submitCosmeticAction(id, currency));
+      return;
+    }
+    this.submitCosmeticAction(id);
+  }
+
+  private submitCosmeticAction(id: string, currency?: 'CREDITS' | 'SKY_TOKENS'): void {
+    if (this.actionPending || (currency && this.profile.cosmetics?.ownedIds.includes(id) && this.isPermanentlyOwned(this.selected))) return;
     if (currency) recordProductIntent('cosmetic_unlock_started', { cosmeticId: id, aircraftType: this.selected, currency: currency === 'CREDITS' ? 'credits' : 'sky_tokens' });
     this.actionPending = true; this.actionMessage = 'WAITING FOR SERVER…'; this.renderDetails();
     window.clearTimeout(this.pendingTimer);
@@ -630,10 +652,11 @@ export class AircraftGarage {
     const ownsAircraft = this.isPermanentlyOwned(this.selected);
     const profileReady = !this.loadingProfile && !this.profileUnavailable;
     const equippedId = this.profile.cosmetics?.equipped?.[`livery:${this.selected}`];
-    const selectedItem = this.selectedAppearance();
+    const selectedItem = this.previewAppearance();
+    const previewItem = selectedItem;
     for (const item of appearances) {
-      const selected = selectedItem?.id === item.id;
-      const locked = profileReady && !owned.has(item.id);
+      const selected = previewItem?.id === item.id;
+      const locked = profileReady && (!ownsAircraft || !owned.has(item.id));
       const lockDescription = locked ? (item.unlockType === 'included' ? ', locked until Firehawk is unlocked' : ', locked') : '';
       if (selected && !this.viewedCosmetics.has(item.id)) {
         this.viewedCosmetics.add(item.id);
@@ -661,41 +684,42 @@ export class AircraftGarage {
       list.append(card);
     }
     const get = this.element.querySelector<HTMLButtonElement>('[data-garage-cosmetic-get]')!;
-    const lockedAppearance = profileReady && selectedItem?.unlockType === 'credits' && !owned.has(selectedItem.id) ? selectedItem : undefined;
-    get.hidden = !lockedAppearance;
-    if (lockedAppearance) {
-      const creditPrice = cosmeticUnlockPrice(lockedAppearance, ownsAircraft);
-      const tokenPrice = cosmeticUnlockPrice(lockedAppearance, ownsAircraft, 'SKY_TOKENS');
-      const missingTokens = Math.max(0, tokenPrice - (this.profile.skyTokens ?? 0));
-      const canUseTokens = !this.tokenCommercePreview && (missingTokens === 0 || this.tokenCommerceEnabled);
+    const lockedAppearance = profileReady && selectedItem && (!ownsAircraft || !owned.has(selectedItem.id)) ? selectedItem : undefined;
+    const creditPrice = lockedAppearance ? cosmeticUnlockPrice(lockedAppearance) : undefined;
+    const tokenPrice = lockedAppearance ? cosmeticUnlockPrice(lockedAppearance, 'SKY_TOKENS') : undefined;
+    get.hidden = creditPrice === undefined || !lockedAppearance;
+    if (creditPrice !== undefined || tokenPrice !== undefined) {
+      const missingTokens = Math.max(0, (tokenPrice ?? 0) - (this.profile.skyTokens ?? 0));
       const price = this.element.querySelector<HTMLElement>('[data-garage-price]')!;
-      const icon = document.createElement('img'); icon.src = '/media/hub/credits.avif'; icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
-      const amount = document.createElement('strong'); amount.textContent = creditPrice.toLocaleString();
-      const currency = document.createElement('small'); currency.textContent = 'CREDITS';
-      price.replaceChildren(icon, amount, currency);
-      price.setAttribute('aria-label', `${creditPrice.toLocaleString()} Credits`);
-      get.setAttribute('aria-label', `Get ${lockedAppearance.displayName} for ${creditPrice.toLocaleString()} Credits`);
-      get.disabled = this.actionPending || (this.profile.credits < creditPrice && !canUseTokens);
-      get.onclick = () => {
-        if (this.profile.credits >= creditPrice) this.beginCosmeticAction(lockedAppearance.id, 'CREDITS');
-        else if (missingTokens) this.onGetTokens?.(missingTokens);
-        else this.beginCosmeticAction(lockedAppearance.id, 'SKY_TOKENS');
-      };
-      if (canUseTokens) {
+      if (creditPrice !== undefined) {
+        const icon = document.createElement('img'); icon.src = '/media/hub/credits.avif'; icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
+        const amount = document.createElement('strong'); amount.textContent = creditPrice.toLocaleString();
+        const unit = document.createElement('small'); unit.textContent = 'CREDITS';
+        price.replaceChildren(icon, amount, unit);
+        price.setAttribute('aria-label', `${creditPrice.toLocaleString()} Credits`);
+        get.textContent = this.selected === 'trainer' ? 'UNLOCK PAINT' : `UNLOCK ${aircraftDefinitions[this.selected].callsign} + ${lockedAppearance!.displayName}`;
+        get.setAttribute('aria-label', `${get.textContent}, ${creditPrice.toLocaleString()} Credits`);
+        get.disabled = this.actionPending || this.profile.credits < creditPrice;
+        get.onclick = () => this.beginCosmeticAction(lockedAppearance!.id, 'CREDITS');
+      } else {
+        price.textContent = `${tokenPrice?.toLocaleString()} SKY TOKENS`;
+      }
+      if (tokenPrice !== undefined && this.tokenCommerceEnabled && this.selected !== 'fighter') {
         const tokenChoice = this.element.querySelector<HTMLElement>('[data-garage-token-choice]')!;
         const tokenBuy = this.element.querySelector<HTMLButtonElement>('[data-garage-token-buy]')!;
         tokenChoice.hidden = false;
+        (tokenChoice.firstElementChild as HTMLElement).hidden = creditPrice === undefined;
         tokenBuy.textContent = `${tokenPrice.toLocaleString()} SKY TOKENS`;
-        tokenBuy.disabled = this.actionPending;
-        tokenBuy.onclick = () => { if (missingTokens) this.onGetTokens?.(missingTokens); else this.beginCosmeticAction(lockedAppearance.id, 'SKY_TOKENS'); };
+        tokenBuy.disabled = this.actionPending || this.tokenCommercePreview;
+        tokenBuy.onclick = () => { if (missingTokens) this.onGetTokens?.(missingTokens); else this.beginCosmeticAction(lockedAppearance!.id, 'SKY_TOKENS'); };
       }
     }
     const aircraftUse = this.element.querySelector<HTMLButtonElement>('[data-garage-equip]')!;
-    aircraftUse.hidden = !profileReady || !ownsAircraft || !selectedItem || !owned.has(selectedItem.id)
-      || !!lockedAppearance || (this.selected === this.profile.selectedAircraft && selectedItem.id === equippedId);
+    aircraftUse.hidden = !profileReady || !ownsAircraft || (!!selectedItem && !owned.has(selectedItem.id))
+      || (this.selected === this.profile.selectedAircraft && (!selectedItem || selectedItem.id === equippedId));
     aircraftUse.disabled = this.actionPending;
-    aircraftUse.textContent = 'USE APPEARANCE';
-    aircraftUse.setAttribute('aria-label', selectedItem ? `Use ${selectedItem.displayName} appearance` : 'Use appearance');
+    aircraftUse.textContent = selectedItem && owned.has(selectedItem.id) ? 'USE APPEARANCE' : 'USE AIRCRAFT';
+    aircraftUse.setAttribute('aria-label', selectedItem ? `Use ${selectedItem.displayName} appearance` : 'Use aircraft');
   }
 
   private isPermanentlyOwned(type: AircraftType): boolean {
@@ -732,7 +756,6 @@ export class AircraftGarage {
       : unlockedAircraft.includes(type);
     const ownedIds = new Set((profile.cosmetics?.ownedIds ?? []).filter(id => cosmeticCatalog.some(item => item.id === id)));
     for (const id of defaultCosmeticIds) ownedIds.add(id);
-    if (permanentlyOwned('fighter')) ownedIds.add(includedCosmeticIds.fighter); else ownedIds.delete(includedCosmeticIds.fighter);
     const equipped: Record<string, string> = {};
     for (const type of aircraftDisplayOrder) {
       const slot = `livery:${type}`;

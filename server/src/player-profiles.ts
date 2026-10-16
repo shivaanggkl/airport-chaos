@@ -10,7 +10,7 @@ import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.m
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits, dailyRewardForDay } from '../../shared/daily-rewards.mjs';
-import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds, includedCosmeticIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
 import { tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
@@ -595,33 +595,22 @@ export class PlayerProfileStore {
     if (!tokenPurchaseColumns.some(column => column.name === 'payment_intent_id'))
       this.database.exec('ALTER TABLE sky_token_purchases ADD COLUMN payment_intent_id TEXT');
     this.database.exec('CREATE INDEX IF NOT EXISTS sky_token_purchases_payment_intent ON sky_token_purchases(payment_intent_id)');
-    // The legacy base paints were free for every existing pilot. Grant those
-    // records once before new accounts start under the priced catalog.
-    if (this.metadata('priced_legacy_paints_v1') !== 'complete') this.wallet.transaction(() => {
-      const grant = this.database.prepare(`INSERT OR IGNORE INTO pilot_cosmetics (pilot_id, cosmetic_id, acquired_at)
-        SELECT pilot_id, ?, ? FROM player_profiles`);
-      const now = Date.now();
-      grant.run('mammoth-sand', now);
-      grant.run('nightowl-forest', now);
-      this.setMetadata('priced_legacy_paints_v1', 'complete');
-    });
-    if (this.metadata('appearance_aircraft_ownership_v1') !== 'complete') this.wallet.transaction(() => {
+    // Existing aircraft owners keep a usable appearance without a new charge.
+    // Historical paint ownership alone does not grant a previously unowned aircraft.
+    if (this.metadata('aircraft_appearance_bundle_v1') !== 'complete') this.wallet.transaction(() => {
       const profiles = this.database.prepare('SELECT pilot_id,owned_aircraft,aircraft_entitlements FROM player_profiles').all() as
         Array<Pick<ProfileRow, 'pilot_id' | 'owned_aircraft' | 'aircraft_entitlements'>>;
       const ownedPaints = this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?');
       const grantPaint = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
-      const updateAircraft = this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?');
       for (const profile of profiles) {
         const owned = parseOwnedAircraft(profile.owned_aircraft, parseEntitlements(profile.aircraft_entitlements));
         const paints = new Set((ownedPaints.all(profile.pilot_id) as Array<{ cosmetic_id: string }>).map(row => row.cosmetic_id));
-        for (const [type, basePaint] of [['cargo', 'mammoth-sand'], ['privateJet', 'nightowl-forest']] as const) {
-          const hasPaint = cosmeticCatalog.some(item => item.aircraftRestriction === type && paints.has(item.id));
-          if (hasPaint && !owned.includes(type)) owned.push(type);
-          else if (owned.includes(type) && !hasPaint) grantPaint.run(profile.pilot_id, basePaint, Date.now());
+        for (const [type, firstPaint] of [['cargo', 'mammoth-sand'], ['privateJet', 'nightowl-forest'], ['fighter', 'firehawk-inferno']] as const) {
+          if (owned.includes(type) && !cosmeticCatalog.some(item => item.aircraftRestriction === type && paints.has(item.id)))
+            grantPaint.run(profile.pilot_id, firstPaint, Date.now());
         }
-        updateAircraft.run(JSON.stringify(aircraftOrder.filter(type => type !== 'fighter' && owned.includes(type))), profile.pilot_id);
       }
-      this.setMetadata('appearance_aircraft_ownership_v1', 'complete');
+      this.setMetadata('aircraft_appearance_bundle_v1', 'complete');
     });
     for (const legacyRow of this.database.prepare('SELECT * FROM player_profiles WHERE economy_version < ?').all(ECONOMY_VERSION) as ProfileRow[]) {
       const storedEconomyVersion = boundedInteger(legacyRow.economy_version, 1_000);
@@ -638,6 +627,21 @@ export class PlayerProfileStore {
         if (difference < 0) wallet.debit({ pilotId: legacyRow.pilot_id, currency: 'CREDITS', amount: -difference, reason: 'MIGRATION', referenceId: `economy-v${storedEconomyVersion}` });
       });
     }
+    // These appearances were automatically included before fixed pricing.
+    // Preserve that entitlement for profiles that already existed, once only.
+    if (this.metadata('priced_existing_paints_v1') !== 'complete') this.wallet.transaction(() => {
+      const now = Date.now();
+      const grant = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
+      const profiles = this.database.prepare('SELECT pilot_id,aircraft_entitlements FROM player_profiles').all() as
+        Array<Pick<ProfileRow, 'pilot_id' | 'aircraft_entitlements'>>;
+      for (const profile of profiles) {
+        grant.run(profile.pilot_id, 'bluejay-classic', now);
+        grant.run(profile.pilot_id, 'bluejay-aurora', now);
+        if (parseEntitlements(profile.aircraft_entitlements).includes(aircraftEntitlement('fighter')!))
+          grant.run(profile.pilot_id, 'firehawk-inferno', now);
+      }
+      this.setMetadata('priced_existing_paints_v1', 'complete');
+    });
     // A single durable revision covers every existing credit award and spend
     // path without trusting any client-supplied reward amount.
     this.database.exec(`CREATE TRIGGER IF NOT EXISTS player_profiles_credit_revision
@@ -853,8 +857,6 @@ export class PlayerProfileStore {
     const insertOwned = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)');
     const now = Date.now();
     for (const id of defaultCosmeticIds) insertOwned.run(pilotId, id, now);
-    if (ownedAircraft.includes('fighter')) insertOwned.run(pilotId, includedCosmeticIds.fighter, now);
-    else this.database.prepare('DELETE FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').run(pilotId, includedCosmeticIds.fighter);
 
     const activeIds = new Set(cosmeticCatalog.map(item => item.id));
     const ownedIds = new Set((this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(pilotId) as Array<{ cosmetic_id: string }>)
@@ -1034,7 +1036,7 @@ export class PlayerProfileStore {
 
   purchaseAircraftWithSkyTokens(pilotId: string, requestedAircraft: unknown): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     if (typeof requestedAircraft !== 'string') return { ok: false, reason: 'UNKNOWN AIRCRAFT' };
-    if (requestedAircraft === 'cargo' || requestedAircraft === 'privateJet') return { ok: false, reason: 'CHOOSE AN APPEARANCE TO UNLOCK THIS AIRCRAFT' };
+    if (requestedAircraft === 'cargo' || requestedAircraft === 'privateJet') return { ok: false, reason: 'CHOOSE AN APPEARANCE FIRST' };
     const price = aircraftSkyTokenPrice(requestedAircraft);
     if (!price) return { ok: false, reason: 'NOT AVAILABLE FOR SKY TOKENS' };
     return this.wallet.transaction((wallet) => {
@@ -1042,18 +1044,22 @@ export class PlayerProfileStore {
       if (!row) return { ok: false, reason: 'PROFILE NOT FOUND' };
       const entitlements = parseEntitlements(row.aircraft_entitlements);
       const owned = parseOwnedAircraft(row.owned_aircraft, entitlements);
-      if (owned.includes(requestedAircraft as AircraftType)) return { ok: true, profile: this.toProfile(row) };
+      if (owned.includes(requestedAircraft as AircraftType)) return { ok: false, reason: 'AIRCRAFT ALREADY OWNED', profile: this.toProfile(row) };
       const deficit = (this.database.prepare('SELECT sky_token_deficit FROM player_profiles WHERE pilot_id=?').get(pilotId) as { sky_token_deficit: number }).sky_token_deficit;
       if (deficit > 0) return { ok: false, reason: 'REFUNDED SKY TOKENS MUST BE REPLACED FIRST', profile: this.toProfile(row) };
-      const debit = wallet.debit({ pilotId, currency: 'SKY_TOKENS', amount: price, reason: 'SKY_TOKEN_SPEND',
+      const debit = wallet.debit({ pilotId, currency: 'SKY_TOKENS', amount: price, reason: 'SKY_TOKEN_SPEND', idempotencyKey: `aircraft:${requestedAircraft}`,
         referenceId: `aircraft:${requestedAircraft}`, context: { aircraft: requestedAircraft } });
-      if (!debit.ok || !debit.applied) return { ok: false, reason: `NEED ${Math.max(0, price - row.sky_tokens).toLocaleString()} MORE SKY TOKENS`, profile: this.toProfile(row) };
+      if (!debit.ok || !debit.applied || debit.duplicate) return { ok: false, reason: 'AIRCRAFT PURCHASE NOT APPLIED', profile: this.toProfile(row) };
       if (requestedAircraft === 'fighter') {
         const entitlement = aircraftEntitlement('fighter')!;
         this.database.prepare('INSERT OR IGNORE INTO aircraft_entitlement_sources(pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)')
           .run(pilotId, entitlement, 'sky_tokens', Date.now());
         this.database.prepare('UPDATE player_profiles SET aircraft_entitlements=? WHERE pilot_id=?')
           .run(JSON.stringify([...new Set([...entitlements, entitlement])]), pilotId);
+        this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, 'firehawk-inferno', Date.now());
+        this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
+          ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`)
+          .run(pilotId, 'livery:fighter', 'firehawk-inferno');
       } else {
         owned.push(requestedAircraft as AircraftType);
         this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?')
@@ -1076,32 +1082,41 @@ export class PlayerProfileStore {
       if (currency !== 'CREDITS' && currency !== 'SKY_TOKENS') return { ok: false, reason: 'CURRENCY UNAVAILABLE' };
       const ownedAircraft = parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements));
       const ownsAircraft = ownedAircraft.includes(item.aircraftRestriction as AircraftType);
-      if (item.aircraftRestriction === 'fighter' && !ownsAircraft) return { ok: false, reason: 'OWN AIRCRAFT FIRST' };
-      if (this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId)) return { ok: true, purchased: false, profile: this.toProfile(row) };
-      if (item.unlockType !== 'credits' && item.unlockType !== 'free') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
-      if (currency === 'SKY_TOKENS' && (!item.skyTokenPrice || item.unlockType !== 'credits')) return { ok: false, reason: 'COSMETIC NOT AVAILABLE FOR SKY TOKENS' };
-      if (item.unlockType === 'credits') {
+      const ownsPaint = !!this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId);
+      if (ownsPaint && ownsAircraft) return { ok: false, reason: 'ALREADY OWNED', profile: this.toProfile(row) };
+      if (item.unlockType !== 'credits' && item.unlockType !== 'tokens') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
+      if (!ownsAircraft && item.aircraftRestriction === 'trainer') return { ok: false, reason: 'OWN AIRCRAFT FIRST', profile: this.toProfile(row) };
+      const price = cosmeticUnlockPrice(item, currency);
+      if (price === undefined) return { ok: false, reason: 'CURRENCY NOT SUPPORTED FOR PAINT', profile: this.toProfile(row) };
+      {
         if (currency === 'SKY_TOKENS') {
           const deficit = (this.database.prepare('SELECT sky_token_deficit FROM player_profiles WHERE pilot_id=?').get(pilotId) as { sky_token_deficit: number }).sky_token_deficit;
           if (deficit > 0) return { ok: false, reason: 'REFUNDED SKY TOKENS MUST BE REPLACED FIRST' };
         }
-        const price = cosmeticUnlockPrice(item, ownsAircraft, currency);
         const debit = wallet.debit({
           pilotId, currency, amount: price, reason: currency === 'CREDITS' ? 'COSMETIC_PURCHASE' : 'SKY_TOKEN_SPEND',
           idempotencyKey: `cosmetic:${cosmeticId}`, referenceId: `cosmetic:${cosmeticId}`,
-          context: { cosmeticId, aircraft: item.aircraftRestriction, aircraftIncluded: !ownsAircraft }, createdAt: now,
+          context: { cosmeticId, aircraft: item.aircraftRestriction }, createdAt: now,
         });
-        if (!debit.ok || !debit.applied) return { ok: false, reason: `NEED ${Math.max(0, price - (currency === 'CREDITS' ? row.credits : row.sky_tokens)).toLocaleString()} MORE ${currency === 'CREDITS' ? 'CREDITS' : 'SKY TOKENS'}` };
+        if (!debit.ok || !debit.applied || debit.duplicate) return { ok: false, reason: debit.code === 'INSUFFICIENT_FUNDS' ? `NEED ${Math.max(0, price - (currency === 'CREDITS' ? row.credits : row.sky_tokens)).toLocaleString()} MORE ${currency === 'CREDITS' ? 'CREDITS' : 'SKY TOKENS'}` : 'PAINT PURCHASE NOT APPLIED' };
       }
-      this.database.prepare('INSERT INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
-      if (!ownsAircraft && (item.aircraftRestriction === 'cargo' || item.aircraftRestriction === 'privateJet')) {
-        ownedAircraft.push(item.aircraftRestriction as AircraftType);
-        this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?')
-          .run(JSON.stringify(aircraftOrder.filter(type => type !== 'fighter' && ownedAircraft.includes(type))), pilotId);
-        this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
-          ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`)
-          .run(pilotId, `livery:${item.aircraftRestriction}`, cosmeticId);
+      if (!ownsAircraft) {
+        if (item.aircraftRestriction === 'fighter') {
+          const entitlement = aircraftEntitlement('fighter')!;
+          this.database.prepare('INSERT OR IGNORE INTO aircraft_entitlement_sources(pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)')
+            .run(pilotId, entitlement, 'sky_tokens', now);
+          this.database.prepare('UPDATE player_profiles SET aircraft_entitlements=? WHERE pilot_id=?')
+            .run(JSON.stringify([...new Set([...parseEntitlements(row.aircraft_entitlements), entitlement])]), pilotId);
+        } else {
+          ownedAircraft.push(item.aircraftRestriction as AircraftType);
+          this.database.prepare('UPDATE player_profiles SET owned_aircraft=? WHERE pilot_id=?')
+            .run(JSON.stringify(aircraftOrder.filter(type => ownedAircraft.includes(type))), pilotId);
+        }
       }
+      this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, cosmeticId, now);
+      this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
+        ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`)
+        .run(pilotId, `livery:${item.aircraftRestriction}`, cosmeticId);
       return { ok: true, purchased: true, profile: this.toProfile(this.getRow(pilotId)!) };
     });
   }
@@ -1398,8 +1413,8 @@ export class PlayerProfileStore {
 
   purchaseAircraft(pilotId: string, requestedAircraft: unknown): { ok: boolean; reason?: string; profile?: PlayerProfile } {
     if (typeof requestedAircraft !== 'string' || !aircraftTypes.has(requestedAircraft as AircraftType)) return { ok: false, reason: 'UNKNOWN AIRCRAFT' };
-    if (requestedAircraft === 'cargo' || requestedAircraft === 'privateJet') return { ok: false, reason: 'CHOOSE AN APPEARANCE TO UNLOCK THIS AIRCRAFT' };
     const aircraft = requestedAircraft as AircraftType;
+    if (aircraft === 'cargo' || aircraft === 'privateJet') return { ok: false, reason: 'CHOOSE AN APPEARANCE FIRST' };
     const price = aircraftCreditPrice(aircraft);
     if (price === undefined) return { ok: false, reason: aircraft === 'fighter' ? 'PREMIUM AIRCRAFT — NOT AVAILABLE FOR CREDITS' : 'NOT AVAILABLE FOR CREDITS' };
     return this.wallet.transaction((wallet) => {
@@ -1407,12 +1422,12 @@ export class PlayerProfileStore {
       if (!row) return { ok: false, reason: 'PROFILE NOT FOUND' };
       const entitlements = parseEntitlements(row.aircraft_entitlements);
       const owned = parseOwnedAircraft(row.owned_aircraft, entitlements);
-      if (owned.includes(aircraft)) return { ok: true, profile: this.toProfile(row) };
+      if (owned.includes(aircraft)) return { ok: false, reason: 'AIRCRAFT ALREADY OWNED', profile: this.toProfile(row) };
       const debit = wallet.debit({
-        pilotId, currency: 'CREDITS', amount: price, reason: 'AIRCRAFT_PURCHASE',
+        pilotId, currency: 'CREDITS', amount: price, reason: 'AIRCRAFT_PURCHASE', idempotencyKey: `aircraft:${aircraft}`,
         referenceId: `aircraft:${aircraft}`, context: { aircraft },
       });
-      if (!debit.ok) return { ok: false, reason: `NEED ${Math.max(0, price - row.credits).toLocaleString()} MORE CREDITS`, profile: this.toProfile(row) };
+      if (!debit.ok || !debit.applied || debit.duplicate) return { ok: false, reason: debit.code === 'INSUFFICIENT_FUNDS' ? `NEED ${Math.max(0, price - row.credits).toLocaleString()} MORE CREDITS` : 'AIRCRAFT PURCHASE NOT APPLIED', profile: this.toProfile(row) };
       owned.push(aircraft);
       const granted = this.database.prepare('UPDATE player_profiles SET owned_aircraft = ? WHERE pilot_id = ?')
         .run(JSON.stringify(aircraftOrder.filter((type) => owned.includes(type))), pilotId);
@@ -1424,18 +1439,26 @@ export class PlayerProfileStore {
   grantAircraftEntitlements(pilotId: string, requestedAircraft: readonly AircraftType[], source = 'legacy'): PlayerProfile | undefined {
     const row = this.getRow(pilotId);
     if (!row) return undefined;
-    const entitlements = new Set(parseEntitlements(row.aircraft_entitlements));
-    for (const aircraft of requestedAircraft) {
-      const entitlement = aircraftEntitlement(aircraft);
-      if (entitlement) {
-        entitlements.add(entitlement);
-        this.database.prepare(`INSERT OR IGNORE INTO aircraft_entitlement_sources (pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)`)
-          .run(pilotId, entitlement, source.slice(0, 80), Date.now());
+    return this.wallet.transaction(() => {
+      const entitlements = new Set(parseEntitlements(row.aircraft_entitlements));
+      for (const aircraft of requestedAircraft) {
+        const entitlement = aircraftEntitlement(aircraft);
+        if (entitlement) {
+          entitlements.add(entitlement);
+          this.database.prepare(`INSERT OR IGNORE INTO aircraft_entitlement_sources (pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)`)
+            .run(pilotId, entitlement, source.slice(0, 80), Date.now());
+          if (aircraft === 'fighter') {
+            this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics VALUES(?,?,?)').run(pilotId, 'firehawk-inferno', Date.now());
+            this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
+              ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`)
+              .run(pilotId, 'livery:fighter', 'firehawk-inferno');
+          }
+        }
       }
-    }
-    this.database.prepare('UPDATE player_profiles SET aircraft_entitlements = ? WHERE pilot_id = ?')
-      .run(JSON.stringify([...entitlements]), pilotId);
-    return this.toProfile(this.getRow(pilotId)!);
+      this.database.prepare('UPDATE player_profiles SET aircraft_entitlements = ? WHERE pilot_id = ?')
+        .run(JSON.stringify([...entitlements]), pilotId);
+      return this.toProfile(this.getRow(pilotId)!);
+    });
   }
 
   revokeAircraftEntitlementSource(pilotId: string, aircraft: AircraftType, source: string): PlayerProfile | undefined {

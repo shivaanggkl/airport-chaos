@@ -8,7 +8,7 @@ export type MissionObjective = {
   onscreenMarker?: boolean;
   fixedTop?: boolean;
   dock?: HTMLElement;
-  hideCueWhenVisible?: boolean;
+  bottomCue?: boolean;
 };
 
 type ConfirmedGateAttempt = { attemptId: string; gateIndex: number; status: string };
@@ -26,6 +26,7 @@ export function confirmedGateObjective(attempt: ConfirmedGateAttempt, gates: rea
     label: `GATE ${attempt.gateIndex + 1}`,
     position: new THREE.Vector3(gate.x, heightAt(gate.x, gate.z) + gate.altitude, gate.z),
     radius: gate.radius,
+    bottomCue: true,
   };
 }
 
@@ -103,7 +104,7 @@ type ScreenRect = { left: number; top: number; right: number; bottom: number };
 type SafeInsets = { left: number; right: number; top: number; bottom: number };
 export type ObjectivePlacement = { kind: 'marker' | 'arrow'; x: number; y: number; angle: number };
 
-const ARROW_HALF_WIDTH = 99;
+const ARROW_HALF_WIDTH = 112;
 const ARROW_HALF_HEIGHT = 23;
 const MARKER_HALF_WIDTH = 70;
 const MARKER_HALF_HEIGHT = 15;
@@ -120,13 +121,41 @@ export function projectMissionObjective(
   width: number, height: number, obstacles: readonly ScreenRect[] = [],
   safe: SafeInsets = { left: 0, right: 0, top: 0, bottom: 0 },
   projected = new THREE.Vector3(), local = new THREE.Vector3(),
+  bottomCue = false,
 ): ObjectivePlacement {
   local.copy(target).applyMatrix4(camera.matrixWorldInverse);
   const front = local.z < -camera.near;
+  const arrowHalfWidth = height < 520 ? 94 : ARROW_HALF_WIDTH;
+  if (bottomCue) {
+    const x = Math.max(safe.left + arrowHalfWidth + 12,
+      Math.min(width - safe.right - arrowHalfWidth - 12, width * .5));
+    const y = Math.max(safe.top + ARROW_HALF_HEIGHT + 12,
+      Math.min(height * .88, height - safe.bottom - ARROW_HALF_HEIGHT - 18));
+    if (front) {
+      projected.copy(target).project(camera);
+      const gateX = (projected.x + 1) * width * .5;
+      const gateY = (1 - projected.y) * height * .5;
+      const gateDepth = projected.z;
+      const top = projected.set(target.x, target.y + radius, target.z).project(camera);
+      const markerY = (1 - top.y) * height * .5 - 18;
+      if (Number.isFinite(gateX) && Number.isFinite(markerY) && gateDepth >= -1 && gateDepth <= 1 &&
+        gateX >= safe.left + MARKER_HALF_WIDTH + 8 && gateX <= width - safe.right - MARKER_HALF_WIDTH - 8 &&
+        gateY >= safe.top && gateY <= height - safe.bottom &&
+        markerY >= safe.top + MARKER_HALF_HEIGHT + 8 &&
+        markerY <= height - safe.bottom - MARKER_HALF_HEIGHT - 8 &&
+        !obstacles.some((rect) => overlaps(gateX, markerY, MARKER_HALF_WIDTH, MARKER_HALF_HEIGHT, rect))) {
+        return { kind: 'marker', x: gateX, y: markerY, angle: 0 };
+      }
+      return { kind: 'arrow', x, y, angle: Math.atan2(gateY - y, gateX - x) };
+    }
+    const dx = local.x;
+    const dy = -local.y + Math.max(1, local.z) * .4;
+    return { kind: 'arrow', x, y, angle: Math.atan2(dy, dx || .0001) };
+  }
   const safeTop = Math.min(height * .5 - 30, Math.max(height < 520 ? 124 : 112, height * .19, safe.top + 105));
   const safeBottom = Math.max(height * .5 + 30, Math.min(height - (height < 520 ? 75 : 68), height - safe.bottom - 55));
-  const left = ARROW_HALF_WIDTH + Math.max(15, safe.left + 12);
-  const right = width - ARROW_HALF_WIDTH - Math.max(15, safe.right + 12);
+  const left = arrowHalfWidth + Math.max(15, safe.left + 12);
+  const right = width - arrowHalfWidth - Math.max(15, safe.right + 12);
   if (front) {
     projected.copy(target).project(camera);
     const centerX = projected.x;
@@ -137,6 +166,7 @@ export function projectMissionObjective(
     const y = (1 - top.y) * height * .5 - 18;
     if (Number.isFinite(x) && Number.isFinite(y) && depth >= -1 && depth <= 1 &&
       x >= safe.left + MARKER_HALF_WIDTH + 8 && x <= width - safe.right - MARKER_HALF_WIDTH - 8 &&
+      (x + MARKER_HALF_WIDTH < width * .35 || x - MARKER_HALF_WIDTH > width * .65) &&
       y >= safeTop && y <= safeBottom &&
       !obstacles.some((rect) => overlaps(x, y, MARKER_HALF_WIDTH, MARKER_HALF_HEIGHT, rect))) {
       return { kind: 'marker', x, y, angle: 0 };
@@ -158,31 +188,41 @@ export function projectMissionObjective(
   );
   const desiredX = width * .5 + ux * travel;
   const desiredY = height * .5 + uy * travel;
-  let bestX = desiredX;
-  let bestY = desiredY;
+  let bestX = left;
+  let bestY = Math.max(safeTop, Math.min(safeBottom, desiredY));
   let bestScore = Infinity;
-  // Search the same perimeter for a free label position, avoiding the mission
-  // box, radar and player-placed touch controls without moving their layout.
-  for (let step = 0; step <= 20; step++) {
-    for (const sign of step === 0 ? [1] : [-1, 1]) {
-      const offset = sign * step * 18;
-      const vertical = Math.abs(ux) >= Math.abs(uy);
-      const x = vertical ? (ux >= 0 ? right : left) : Math.max(left, Math.min(right, desiredX + offset));
-      const y = vertical ? Math.max(safeTop, Math.min(safeBottom, desiredY + offset)) : (uy >= 0 ? safeBottom : safeTop);
-      if (obstacles.some((rect) => overlaps(x, y, ARROW_HALF_WIDTH, ARROW_HALF_HEIGHT, rect))) continue;
-      const score = Math.hypot(x - desiredX, y - desiredY);
-      if (score < bestScore) { bestScore = score; bestX = x; bestY = y; }
+  // Keep the entire label outside the central flight path, including when the
+  // gate itself is visible there. Search both side lanes for a free position.
+  const sideLeft = Math.max(left, Math.min(right, width * .35 - arrowHalfWidth - 8));
+  const sideRight = Math.min(right, Math.max(left, width * .65 + arrowHalfWidth + 8));
+  for (const x of [sideLeft, sideRight]) {
+    for (let y = safeTop; y <= safeBottom; y += 18) {
+      const candidateY = Math.min(y, safeBottom);
+      if (obstacles.some((rect) => overlaps(x, candidateY, arrowHalfWidth, ARROW_HALF_HEIGHT, rect))) continue;
+      const score = Math.hypot(x - desiredX, candidateY - desiredY);
+      if (score < bestScore) { bestScore = score; bestX = x; bestY = candidateY; }
     }
-    if (bestScore < Infinity) break;
   }
   if (bestScore === Infinity) {
-    for (const [x, y] of [[width * .5, safeTop], [width * .5, safeBottom], [left, height * .5], [right, height * .5]]) {
-      if (obstacles.some((rect) => overlaps(x, y, ARROW_HALF_WIDTH, ARROW_HALF_HEIGHT, rect))) continue;
-      const score = Math.hypot(x - desiredX, y - desiredY);
-      if (score < bestScore) { bestScore = score; bestX = x; bestY = y; }
+    // On a crowded small screen, choose the least obstructed side slot.
+    // The flight path remains clear even when the HUD occupies both sides.
+    for (const x of [sideLeft, sideRight]) {
+      for (let y = safeTop; y <= safeBottom; y += 18) {
+        let covered = 0;
+        for (const rect of obstacles) {
+          const overlapWidth = Math.max(0, Math.min(x + arrowHalfWidth, rect.right + 7) - Math.max(x - arrowHalfWidth, rect.left - 7));
+          const overlapHeight = Math.max(0, Math.min(y + ARROW_HALF_HEIGHT, rect.bottom + 7) - Math.max(y - ARROW_HALF_HEIGHT, rect.top - 7));
+          covered += overlapWidth * overlapHeight;
+        }
+        const score = covered + Math.hypot(x - desiredX, y - desiredY) * .01;
+        if (score < bestScore) { bestScore = score; bestX = x; bestY = y; }
+      }
     }
   }
-  return { kind: 'arrow', x: bestX, y: bestY, angle: Math.atan2(uy, ux) };
+  const angle = front
+    ? Math.atan2((1 - projected.y) * height * .5 - bestY, (projected.x + 1) * width * .5 - bestX)
+    : Math.atan2(uy, ux);
+  return { kind: 'arrow', x: bestX, y: bestY, angle };
 }
 
 export function formatObjectiveDistance(meters: number): string {
@@ -366,7 +406,6 @@ export class ObjectiveGuidance {
     if (this.arrow.parentElement !== host) host.append(this.arrow);
     this.arrow.classList.toggle('mission-objective-docked', Boolean(objective?.dock));
     this.objective = objective;
-    this.layer.classList.toggle('fixed-gate-guidance', objective?.fixedTop === true);
     if (!objective) this.hide();
   }
 
@@ -376,34 +415,9 @@ export class ObjectiveGuidance {
     const target = this.objective;
     this.distanceMeters = player.distanceTo(target.position) * metersPerUnit;
     this.hintVisible = this.hint.update(target.id, this.distanceMeters, airborne, hintsEnabled, now);
-    if (target.fixedTop || target.dock) {
-      const cue = fixedGateDirection(player, target.position, heading, target.radius,
-        this.horizontalCue, this.verticalCue);
-      this.horizontalCue = cue.horizontal;
-      this.verticalCue = cue.vertical;
-      this.arrowIcon.textContent = cue.arrow;
-      const label = `${target.label} · ${formatObjectiveDistance(this.distanceMeters)}`;
-      if (label !== this.lastLabel && now >= this.nextLabelAt) {
-        this.lastLabel = label;
-        this.nextLabelAt = now + 150;
-        this.arrowText.textContent = label;
-      }
-      this.marker.hidden = true;
-      // A visible gate already supplies the direction cue. Keep the docked
-      // arrow for turns and gates outside the camera view.
-      this.arrow.hidden = false;
-      if (target.hideCueWhenVisible) {
-        this.projected.copy(target.position).project(camera);
-        this.arrow.hidden = this.projected.z >= -1 && this.projected.z <= 1 &&
-          Math.abs(this.projected.x) < .8 && Math.abs(this.projected.y) < .8;
-      }
-      this.arrow.style.transform = target.dock ? '' : 'translateX(-50%)';
-      this.arrowIcon.style.transform = '';
-      return;
-    }
-    if (now >= this.nextBoundsAt) {
+    if (!target.dock && now >= this.nextBoundsAt) {
       this.nextBoundsAt = now + 350;
-      this.obstacles = ['#sky-challenge', '.monster-boss-hud:not(.hidden)', '#right-flight-stack', '#touch-controls [data-touch-control="stick"]',
+      this.obstacles = ['#mission-status-layer', '.monster-boss-hud:not(.hidden)', '#right-flight-stack', '#touch-controls [data-touch-control="stick"]',
         '#touch-controls [data-touch-control="throttle"]', '#touch-controls [data-touch-control="fire"]']
         .map((selector) => document.querySelector<HTMLElement>(selector))
         .filter((element): element is HTMLElement => Boolean(element && element.getClientRects().length))
@@ -416,8 +430,36 @@ export class ObjectiveGuidance {
         };
       }
     }
+    if (target.fixedTop || target.dock) {
+      const cue = fixedGateDirection(player, target.position, heading, target.radius,
+        this.horizontalCue, this.verticalCue);
+      this.horizontalCue = cue.horizontal;
+      this.verticalCue = cue.vertical;
+      this.arrowIcon.textContent = cue.arrow;
+      const label = `${target.label} · ${formatObjectiveDistance(this.distanceMeters)}`;
+      if (label !== this.lastLabel && now >= this.nextLabelAt) {
+        this.lastLabel = label;
+        this.nextLabelAt = now + 150;
+        this.marker.textContent = label;
+        this.arrowText.textContent = label;
+      }
+      if (target.dock) {
+        this.marker.hidden = true;
+        this.arrow.hidden = false;
+        this.arrow.style.transform = '';
+      } else {
+        const placement = projectMissionObjective(camera, target.position, target.radius,
+          innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local, target.bottomCue);
+        this.marker.hidden = placement.kind !== 'marker';
+        this.arrow.hidden = placement.kind !== 'arrow';
+        const visible = placement.kind === 'marker' ? this.marker : this.arrow;
+        visible.style.transform = `translate(-50%, -50%) translate(${placement.x.toFixed(1)}px, ${placement.y.toFixed(1)}px)`;
+      }
+      this.arrowIcon.style.transform = '';
+      return;
+    }
     const placement = projectMissionObjective(camera, target.position, target.radius,
-      innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local);
+      innerWidth, innerHeight, this.obstacles, this.safeInsets, this.projected, this.local, target.bottomCue);
     const label = `${target.label} · ${formatObjectiveDistance(this.distanceMeters)}`;
     if (label !== this.lastLabel && now >= this.nextLabelAt) {
       this.lastLabel = label;

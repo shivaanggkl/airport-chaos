@@ -1,21 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
-import { firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { cosmeticCatalog, cosmeticUnlockPrice } from '../../shared/cosmetics.mjs';
 
-test('Store display prices follow the shared purchase catalog', () => {
+test('Store and Hangar use fixed authoritative aircraft and paint prices', () => {
   const offers = new Map(publicStoreCatalog().map(item => [item.id, item]));
-  assert.equal(offers.get('fighter').usdDisplayPrice, firehawkProduct.displayPrice);
-  assert.equal(offers.get('cargo').fromCredits, 13_500);
-  assert.equal(offers.get('privateJet').fromCredits, 32_000);
-  for (const cosmetic of cosmeticCatalog) {
-    const offer = offers.get(cosmetic.id);
+  assert.deepEqual([offers.get('trainer').free, offers.get('trainer').credits], [true, undefined]);
+  assert.deepEqual([offers.get('cargo').credits, offers.get('cargo').tokens], [13_000, 600]);
+  assert.deepEqual([offers.get('privateJet').credits, offers.get('privateJet').tokens], [31_000, 1_300]);
+  assert.deepEqual([offers.get('fighter').credits, offers.get('fighter').tokens], [undefined, 2_400]);
+  for (const item of cosmeticCatalog) {
+    const offer = offers.get(item.id);
     assert.ok(offer);
-    if (cosmetic.unlockType !== 'credits') continue;
-    assert.equal(offer.credits, cosmeticUnlockPrice(cosmetic, true));
-    assert.equal(offer.firstCredits, cosmeticUnlockPrice(cosmetic, false));
-    assert.equal(offer.tokens, cosmeticUnlockPrice(cosmetic, true, 'SKY_TOKENS'));
-    assert.equal(offer.firstTokens, cosmeticUnlockPrice(cosmetic, false, 'SKY_TOKENS'));
+    assert.equal(offer.credits, cosmeticUnlockPrice(item));
+    assert.equal(offer.tokens, cosmeticUnlockPrice(item, 'SKY_TOKENS'));
+    assert.equal(offer.firstCredits, undefined);
+    assert.equal(offer.firstTokens, undefined);
   }
+  const store = readFileSync(new URL('../../client/src/game-store.ts', import.meta.url), 'utf8');
+  const garage = readFileSync(new URL('../../client/src/garage.ts', import.meta.url), 'utf8');
+  assert.match(store, /offer\.credits/);
+  assert.match(store, /offer\.tokens/);
+  assert.match(garage, /cosmeticUnlockPrice\(lockedAppearance/);
+  assert.match(garage, /aircraftCreditPrice\(type\)/);
 });

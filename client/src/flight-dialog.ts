@@ -46,6 +46,7 @@ export function showFlightDialog(title: string, body: string, actions: readonly 
     actionsElement.append(button);
   }
   overlay.hidden = false;
+  actionsElement.querySelector('button')?.focus();
 }
 
 registerUiBackLayer({

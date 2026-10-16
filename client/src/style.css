@@ -213,16 +213,6 @@ body.launch-cinematic-active #tutorial-help {
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
 }
 #game-root.launch-cinematic-active > canvas { opacity: 1; transition: opacity 180ms ease-out; }
-#game-root.mission-gate-intro-active > :not(canvas):not(.mission-gate-intro) { visibility: hidden; pointer-events: none; }
-.mission-gate-intro {
-  position: absolute; z-index: 30; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: space-between; padding: max(18px, var(--safe-area-top)) 20px max(16px, var(--safe-area-bottom));
-  color: #fff3c1; text-align: center; pointer-events: auto;
-  background: linear-gradient(180deg, rgba(7, 18, 38, .52), transparent 25%, transparent 75%, rgba(7, 18, 38, .6));
-}
-.mission-gate-intro strong { font: 900 clamp(22px, 4.5vw, 38px)/1 var(--font-display); letter-spacing: .14em; text-shadow: 0 2px 10px #071226; }
-.mission-gate-intro span { margin-top: auto; font: 900 clamp(17px, 3.5vw, 26px)/1 var(--font-display); letter-spacing: .12em; text-shadow: 0 2px 8px #071226; }
-.mission-gate-intro small { margin-top: 7px; font: 800 12px/1 var(--font-display); letter-spacing: .14em; }
 .flight-launch-title {
   position: fixed;
   z-index: 24;
@@ -248,8 +238,8 @@ body.launch-cinematic-active #tutorial-help {
 .flight-launch-title.is-golden-gates strong { color: #ffe49a; font-size: clamp(15px, 2vw, 24px); }
 .flight-launch-title.is-golden-gates span { font-size: clamp(11px, 1.4vw, 17px); }
 .flight-launch-title.is-golden-gates small { color: #d6e8f3; font-size: 10px; letter-spacing: .14em; }
-.flight-launch-title.is-mission-one { white-space: normal; }
-.flight-launch-title.is-mission-one span { color: #ffe49a; font-size: clamp(17px, 2.3vw, 26px); line-height: 1.15; }
+.flight-launch-title.is-runway-gates { white-space: normal; }
+.flight-launch-title.is-runway-gates span { color: #ffe49a; font-size: clamp(17px, 2.3vw, 26px); line-height: 1.15; }
 .mission-intro-skip {
   position: fixed;
   z-index: 25;
@@ -454,26 +444,6 @@ body.launch-cinematic-active #tutorial-help {
 .flight-header-sky-tokens strong { color: var(--ac-text-primary); }
 .app-shell-token-add { display: inline-grid; width: 38px; height: 38px; margin-left: auto; padding: 0; place-items: center; color: var(--ac-bg-deep); background: linear-gradient(180deg, var(--ac-gold-highlight), var(--ac-gold)); border: 2px solid #fff0ab; border-radius: 50%; box-shadow: inset 0 2px rgb(244 249 252 / 52%), 0 3px 7px rgb(5 24 38 / 42%); font: 900 27px/1 var(--font-display); }
 .app-shell-token-add[hidden] { display: none; }
-.sky-token-overlay { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); background: rgb(15 39 70 / 84%); }
-.sky-token-overlay[hidden] { display: none; }
-.sky-token-panel { width: min(520px, 100%); max-height: 100%; overflow: auto; padding: clamp(14px, 3vw, 24px); color: var(--ac-text-primary); background: radial-gradient(ellipse at 50% 0, rgb(53 214 255 / 24%), transparent 60%), linear-gradient(160deg, var(--ac-surface-active), var(--ac-surface) 65%); border: 1px solid rgb(111 230 255 / 52%); border-radius: 14px; box-shadow: var(--ac-shadow-panel), inset 0 1px rgb(246 251 255 / 30%), 0 0 18px rgb(53 214 255 / 16%); }
-.sky-token-panel header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.sky-token-panel h2 { margin: 0; color: var(--ui-gold); font: 800 22px/1.1 var(--font-display); }
-.sky-token-close { min-height: 36px; color: var(--ui-text); background: transparent; border: 1px solid rgb(105 211 255 / 45%); border-radius: 6px; cursor: pointer; }
-.sky-token-panel > p { margin: 10px 0; }
-.sky-token-recommendation { color: var(--ui-gold); font-size: 13px; }
-.sky-token-recommendation:empty { display: none; }
-.sky-token-pack-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.sky-token-pack { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 54px; padding: 9px 11px; color: var(--ui-text); background: linear-gradient(155deg, var(--ac-surface-active), var(--ac-surface)); border: 1px solid rgb(111 230 255 / 45%); border-radius: 8px; box-shadow: inset 0 1px rgb(246 251 255 / 20%), var(--ac-shadow-small); cursor: pointer; }
-.sky-token-pack:hover, .sky-token-pack:focus-visible { border-color: var(--ui-gold); }
-.sky-token-pack strong { font-size: 13px; text-align: left; }
-.sky-token-pack span { color: var(--ui-gold); white-space: nowrap; }
-.sky-token-pack:disabled { opacity: .6; cursor: wait; }
-.sky-token-message { min-height: 18px; color: var(--ui-gold); font-size: 13px; }
-.sky-token-disclosure, .sky-token-legal { color: var(--text-secondary); font-size: 11px; }
-.sky-token-legal { display: flex; gap: 16px; }
-.sky-token-legal a { color: inherit; }
-@media (max-width: 470px) { .sky-token-pack-list { grid-template-columns: 1fr; } }
 .flight-header-avatar { position: relative; width: var(--flight-header-control-height); min-width: var(--flight-header-control-height); height: var(--flight-header-control-height); min-height: var(--flight-header-control-height); padding: 0; overflow: hidden; border-radius: 50%; border-color: rgb(39 211 243 / 54%); box-shadow: 0 0 0 1px rgb(139 234 255 / 22%), inset 0 1px rgb(139 234 255 / 12%); }
 .flight-header-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .flight-header-avatar .avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--ac-cyan-highlight); background: radial-gradient(circle at 50% 35%, var(--ac-surface-active), var(--ac-bg-deep)); }
@@ -685,6 +655,7 @@ body:has(.home-hangar:not([hidden])) #tutorial-help,
 body:has(.city-selector:not([hidden])) #tutorial-help,
 body:has(.mission-journey:not([hidden])) #tutorial-help,
 body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
+#city-help, #tutorial-help { display: none; }
 .home-hangar-stage { position: absolute; z-index: 2; inset: calc(var(--app-shell-header-total) + 4px) 3vw clamp(40px, 5dvh, 50px); min-width: 0; min-height: 0; }
 .home-hangar-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .home-hangar-stage canvas:active { cursor: grabbing; }
@@ -1196,6 +1167,7 @@ body:has(.app-shell-header:not([hidden])) .garage-card {
 .flight-decision-card { width: min(460px, 100%); max-height: 92dvh; overflow: auto; padding: clamp(18px, 3vw, 28px); color: #eaf8ff; background: rgb(16 37 54 / 96%); border: 1px solid #486274; border-radius: 16px; box-shadow: 0 18px 54px rgb(0 0 0 / 38%), inset 0 0 0 1px rgb(56 215 244 / 12%); text-align: center; }
 .flight-decision-card h2 { margin: 0 0 12px; font-size: clamp(21px, 3vw, 28px); color: #eaf8ff; }
 .flight-decision-card p { margin: 0 0 20px; font-size: clamp(15px, 2vw, 17px); line-height: 1.45; }
+.flight-decision-card p { white-space: pre-line; }
 .flight-decision-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .flight-decision-actions .entry-button { min-height: 44px; min-width: 132px; }
 .pilot-menu-web-promotion { opacity: .85; }
@@ -1684,23 +1656,18 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .journey-hud [data-journey-hint] { color: #ffe084; font-weight: 800; }
 .journey-hud [hidden] { display: none !important; }
 .mission-objective-guidance { position: fixed; z-index: 23; inset: 0; pointer-events: none; overflow: hidden; }
-.mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { position: absolute; top: 0; left: 0; color: #fff4c7; border: 1px solid #ffd35b; border-radius: 9px; background: linear-gradient(145deg, rgb(6 44 88 / 95%), rgb(7 74 133 / 91%)); box-shadow: 0 0 12px rgb(255 211 91 / 56%), 0 3px 12px rgb(0 12 34 / 76%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
+.mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { position: absolute; top: 0; left: 0; color: #fff4c7; border: 1px solid rgb(255 211 91 / 72%); border-radius: 9px; background: linear-gradient(145deg, rgb(6 44 88 / 20%), rgb(7 74 133 / 14%)); box-shadow: 0 2px 8px rgb(0 12 34 / 18%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
 .mission-objective-guidance > [hidden] { display: none !important; }
 .mission-objective-safe-probe { position: absolute; visibility: hidden; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display: none; }
 .mission-objective-marker { padding: 5px 8px; }
 .mission-objective-arrow { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 174px; min-height: 42px; padding: 5px 9px; }
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
-.mission-one-gate-cue { justify-self: start; max-width: 100%; pointer-events: none; }
-.mission-one-gate-cue[hidden] { display: none; }
-.mission-one-gate-cue > .mission-objective-docked { position: static; display: flex; align-items: center; gap: 7px; max-width: 100%; min-height: 36px; padding: 5px 9px; border: 1px solid rgb(255 211 91 / 65%); border-radius: 9px; color: #fff4c7; background: rgb(6 44 88 / 28%); box-shadow: 0 2px 8px rgb(0 12 34 / 18%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
-.mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 62px); left: 50%; }
 .mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message, .touch-fire) { display: none !important; }
 .mission4-clean-hud #desktop-controls-help-items span:nth-child(4) { display: none; }
 .monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle) { display: none !important; }
-.monster-arrival-focus .sky-challenge.journey-hud { width: min(380px, 35vw); padding: 14px 17px; gap: 8px; font-size: 16px; background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
-.monster-arrival-focus .journey-hud > strong { font-size: 25px; }
-.monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-size: 23px; font-weight: 800; }
+.monster-arrival-focus .sky-challenge.journey-hud { background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
+.monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-weight: 800; }
 .monster-boss-hud { position: absolute; z-index: 24; top: calc(100% + 9px); left: -3px; width: calc(100% + 4px); min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 13px; border: 1px solid rgb(100 223 255 / 22%); border-radius: 10px; background: rgb(8 39 73 / 10%); color: #ffd15b; font: 700 15px/1.1 var(--font-mono, monospace); pointer-events: none; box-shadow: none; }
 .monster-boss-hud.hidden { display: none; }
 .monster-arrival-focus .monster-boss-hud strong { font: inherit; white-space: nowrap; }
@@ -1708,14 +1675,6 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .monster-boss-hud i { display: block; width: var(--monster-health, 100%); height: 100%; background: linear-gradient(90deg, rgb(247 165 34 / 75%), rgb(255 227 91 / 75%)); transition: width 170ms linear; }
 .monster-boss-hud span { color: #ffd15b; min-width: 3ch; text-align: right; }
 @media (max-width: 760px) { .monster-boss-hud { gap: 6px; padding: 5px 7px; font-size: 10px; } }
-@media (max-height: 520px) { .monster-arrival-focus .sky-challenge.journey-hud { width: min(260px, 34vw); padding: 7px 9px; gap: 3px; font-size: 11px; } .monster-arrival-focus .journey-hud > strong { font-size: 15px; } .monster-arrival-focus .journey-hud [data-journey-timer] { font-size: 14px; } }
-@media (max-width: 800px) and (orientation: landscape) {
-  .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 118px); }
-  .mission4-clean-hud .sky-challenge.journey-hud { width: min(220px, calc(100vw - 28px)); }
-}
-@media (max-width: 600px) and (orientation: landscape) {
-  .mission-objective-guidance.fixed-gate-guidance .mission-objective-arrow { top: calc(var(--safe-area-top) + 202px); }
-}
 @media (max-height: 520px) { .mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { font-size: 10px; } .mission-objective-arrow { min-width: 164px; min-height: 36px; } .mission-objective-arrow-icon { font-size: 22px; } }
 .journey-hud-segments { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; padding-top: 2px; }
 .journey-hud-segments i:nth-child(n+5) { display: none; }
@@ -4334,8 +4293,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
 /* Mission 7 reuses the compact boss layout without hiding its aiming reticle. */
 .giant-incoming-focus :is(#real-players,#city-territories,#territory-capture,#territory-defense-alert){display:none!important;}
 
-.giant-incoming-focus .sky-challenge.journey-hud { width: min(380px, 35vw); padding: 14px 17px; gap: 8px; font-size: 16px; background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
-@media(max-height:520px){.giant-incoming-focus .sky-challenge.journey-hud{width:min(260px,34vw);padding:7px 9px;gap:3px;font-size:11px;}.giant-incoming-focus .journey-hud>strong{font-size:15px;}}
+.giant-incoming-focus .sky-challenge.journey-hud { background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 
 .hub-info-dialog { position: fixed; z-index: 1500; inset: 0; width: min(500px, calc(100% - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: auto; color: #f7fbff; background: transparent; border: 0; }
 .hub-info-dialog::backdrop { background: rgb(1 10 28 / 78%); }
@@ -4707,11 +4665,13 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ga
   background: var(--menu-background); filter: blur(7px); pointer-events: none;
 }
 body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay),
-body:has(#game-root:not([hidden])) .garage-overlay {
+body:has(#game-root:not([hidden])) .garage-overlay,
+.garage-overlay.hub-aircraft {
   background: #305389; isolation: isolate;
 }
 body:has(.app-shell-header:not([hidden])) :is(.game-store, .garage-overlay, .pilot-menu-overlay, .sky-token-overlay)::before,
-body:has(#game-root:not([hidden])) .garage-overlay::before {
+body:has(#game-root:not([hidden])) .garage-overlay::before,
+.garage-overlay.hub-aircraft::before {
   content: ''; position: absolute; z-index: -1; inset: -12px;
   background: var(--menu-background); filter: blur(7px); pointer-events: none;
 }
@@ -4879,12 +4839,17 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay {
   grid-template-rows: minmax(0, 1fr); align-items: stretch;
   padding: calc(var(--app-shell-header-total) + 8px) max(12px, var(--safe-area-right)) max(10px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
 }
-body:has(.app-shell-header:not([hidden])) .garage-card {
+.garage-overlay.hub-aircraft {
+  grid-template-rows: minmax(0, 1fr); align-items: stretch;
+  padding: max(8px, var(--safe-area-top)) max(12px, var(--safe-area-right)) max(10px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
+}
+body:has(.app-shell-header:not([hidden])) .garage-card,
+.garage-overlay.hub-aircraft .garage-card {
   display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(310px, 1fr); grid-template-rows: 44px minmax(0, 1fr) 54px; gap: 10px clamp(12px, 2vw, 28px);
   width: min(1220px, 100%); height: 100%; min-height: 0; max-height: 100%; padding: 0;
   overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none;
 }
-body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
+body:not(:has(.app-shell-header:not([hidden]))) .garage-overlay:not(.hub-aircraft) .garage-card {
   display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(310px, 1fr); grid-template-rows: 44px minmax(0, 1fr) 54px; gap: 10px clamp(12px, 2vw, 28px);
   width: min(1120px, 100%); height: min(700px, 94dvh); padding: 0;
   overflow: visible; border: 0; background: transparent; box-shadow: none; backdrop-filter: none;
@@ -4897,8 +4862,10 @@ body:not(:has(.app-shell-header:not([hidden]))) .garage-card {
 }
 .garage-card .garage-heading h1::after { transform: scaleX(-1); }
 .garage-card .garage-balance { position: absolute; z-index: 2; left: 0; top: 0; height: 100%; }
-body:has(.app-shell-header:not([hidden])) .garage-card .garage-balance { top: 0; height: auto; align-items: flex-start; }
-body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
+body:has(.app-shell-header:not([hidden])) .garage-card .garage-balance,
+.garage-overlay.hub-aircraft .garage-card .garage-balance { top: 0; height: auto; align-items: flex-start; }
+body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close],
+.garage-overlay.hub-aircraft .garage-balance [data-garage-close] {
   display: inline-flex;
 }
 .garage-card .garage-layout { display: contents; }
@@ -4913,8 +4880,12 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   box-shadow: 0 6px 18px rgb(11 35 69 / 24%), inset 0 1px #fff;
   scrollbar-width: thin;
 }
-.garage-card .garage-status-row { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: clamp(32px, 3vw, 40px); }
-.garage-card .garage-status-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; }
+.garage-card .garage-status-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 8px; min-width: 0; min-height: clamp(32px, 3vw, 40px); }
+.garage-card .garage-status-row:not(:has([data-garage-price]:not(:empty), .garage-statuses:not(:empty), .garage-status-actions > button:not([hidden]))) { display: none; }
+.garage-card .garage-status-row:has([data-garage-cosmetic-get]:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+.garage-card .garage-status-actions { display: flex; align-items: center; justify-self: end; gap: 6px; min-width: 0; max-width: 100%; }
+.garage-card .garage-status-row:has([data-garage-cosmetic-get]:not([hidden])) .garage-status-actions { justify-self: stretch; }
+.garage-card .garage-status-row:has([data-garage-cosmetic-get]:not([hidden])) .garage-status-actions > button { width: 100%; white-space: normal; }
 .garage-card .garage-statuses { min-height: 0; }
 .garage-card .garage-status { min-height: clamp(30px, 2.8vw, 38px); padding: 4px 10px; }
 .garage-card .garage-status-current { color: #09864a; font: 800 11px/1 var(--font-display); }
@@ -4935,24 +4906,24 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-stats b { gap: 2px; }
 .garage-card .garage-stats b i { height: 8px; border: 0; background: #d9dfe5; box-shadow: none; }
 .garage-card .garage-stats b i.active { background: linear-gradient(#ffd889, #ffb426); box-shadow: none; }
-.garage-card .garage-cosmetics { display: block; width: 100%; margin: 0; padding: 8px 0 0; border: 0; }
+.garage-card .garage-cosmetics { display: flex; flex: 1 1 auto; flex-direction: column; align-items: stretch; gap: 0; width: 100%; min-height: 0; margin: 0; padding: 8px 0 0; border: 0; }
 .garage-card .garage-cosmetics h2 { margin: 0 0 6px; color: #0b2345; font: 800 12px/1 var(--font-display); }
-.garage-card .garage-cosmetic-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: min(276px, 100%); overflow: visible; padding: 0; }
-.garage-card .garage-cosmetic-list.is-many { grid-template-columns: repeat(var(--garage-cosmetic-count), minmax(0, 1fr)); width: 100%; }
+.garage-card .garage-cosmetic-list { display: grid; flex: 1 1 auto; grid-template-columns: repeat(auto-fit, minmax(min(90px, 100%), 1fr)); grid-auto-rows: minmax(85px, 1fr); gap: 6px; width: 100%; min-height: 85px; overflow: visible; padding: 0; }
+.garage-card .garage-cosmetic-list:has(> .garage-cosmetic-card:only-child) { grid-template-columns: minmax(0, 1fr); }
 .garage-card .garage-cosmetic-card { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; min-height: 85px; padding: 5px 3px; border: 1px solid #d7e0e8; border-radius: 7px; background: linear-gradient(#fff, #f5f7f8); }
 .garage-card .garage-cosmetic-card:has(.garage-cosmetic[aria-pressed=true]) { border-color: #008eaa; box-shadow: inset 0 0 0 1px #008eaa, 0 0 0 1px rgb(0 117 150 / 25%); }
 .garage-card .garage-cosmetic { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); justify-items: center; gap: 3px; width: 100%; min-height: 0; padding: 0; color: #0b2345; text-align: center; border: 0; background: transparent; box-shadow: none; }
 .garage-card .garage-cosmetic-card:nth-child(even) .garage-cosmetic { background: transparent; }
 .garage-card .garage-cosmetic[aria-pressed=true] { outline: 0; color: #0b2345; background: transparent; box-shadow: none; }
 .garage-card button.garage-cosmetic:is(:hover, :active) { transform: none; background: transparent; box-shadow: none; }
-.garage-card .garage-cosmetic strong { max-width: 100%; font-size: 9px; line-height: 1.1; }
+.garage-card .garage-cosmetic strong { max-width: 100%; font-size: clamp(9px, 1.05vw, 13px); line-height: 1.1; }
 .garage-card .garage-cosmetic-swatches { grid-column: 1; align-self: center; justify-content: center; margin-top: 3px; }
-.garage-card .garage-cosmetic-swatches i { width: clamp(26px, min(4vw, 8dvh), 38px); height: clamp(26px, min(4vw, 8dvh), 38px); }
+.garage-card .garage-cosmetic-swatches i { width: clamp(34px, min(8vw, 16dvh), 96px); height: clamp(34px, min(8vw, 16dvh), 96px); }
 .garage-card .garage-cosmetic-lock { --lock-icon-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 20px; padding: 0 4px; color: #86570b; border: 1px solid #e8c46e; border-radius: 5px; background: linear-gradient(#fff7dd, #ffe8a8); box-shadow: inset 0 1px #fff; font: 800 clamp(9px, .95vw, 11px)/1 var(--font-display); white-space: nowrap; }
 .garage-card .garage-cosmetic-action { min-width: 65px; min-height: 24px; margin-top: auto; padding: 2px 7px; color: #fff; border: 0; border-radius: 5px; background: linear-gradient(#20d2e7, #00a2cc); font: 800 9px/1 var(--font-display); }
 .garage-card .garage-cosmetic-get { color: #573905; background: linear-gradient(#ffe692, #ffb733); }
 .garage-card .garage-cosmetic-token-action { padding: 0; min-height: 14px; color: #006f94; border: 0; background: none; font: 700 8px/1 var(--font-display); }
-.garage-card .garage-actions { margin: 0; padding-top: 3px; }
+.garage-card .garage-actions { flex: 0 0 auto; margin: 0; padding-top: 3px; }
 .garage-card .garage-action-note, .garage-card .garage-details [data-garage-message] { color: #805312; }
 .garage-card .garage-action-note:empty { display: none; }
 .garage-card .garage-token-choice { display: flex; align-items: center; justify-content: flex-end; margin: 2px 0; font-size: 9px; }
@@ -4974,12 +4945,14 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 .garage-card .garage-aircraft.selected::after { content: ''; position: absolute; right: 12%; bottom: 1px; left: 12%; height: 4px; border-radius: 3px; background: #00bad6; box-shadow: 0 0 0 1px #007b9b, 0 1px 5px rgb(0 130 169 / 40%); }
 .garage-card .garage-aircraft-preview-button { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px 5px; flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 1px 3px; border: 0; background: none; cursor: pointer; }
 .garage-card .garage-aircraft-preview-button strong { color: #0b2345; font: 800 clamp(10px, 1.15vw, 15px)/1 var(--font-display); letter-spacing: .03em; }
-.garage-card .garage-aircraft-preview-button small { flex-basis: 100%; color: #7788a5; font: 700 9px/1 var(--font-display); text-align: center; }
+.garage-card .garage-aircraft-preview-button small { display: flex; flex-basis: 100%; align-items: center; justify-content: center; gap: 3px; min-width: 0; color: #7788a5; font: 700 9px/1 var(--font-display); text-align: center; white-space: nowrap; }
+.garage-card .garage-aircraft-preview-button small img { width: 14px; height: 14px; object-fit: contain; }
 .garage-card .garage-aircraft-get { flex: 0 0 auto; min-width: 43px; min-height: 28px; padding: 2px 6px; color: #654008; border: 1px solid #ffd06d; border-radius: 7px; background: linear-gradient(#ffe69b, #ffb638); font: 800 10px/1 var(--font-display); cursor: pointer; }
 .garage-card .garage-aircraft-get[hidden] { display: none; }
 .garage-card button:focus-visible { outline: 2px solid #00b9dc; outline-offset: 2px; }
 @media (max-height: 520px) and (orientation: landscape) {
-  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); grid-template-rows: 44px minmax(0, 1fr) 46px; gap: 4px 8px; }
+  body:has(.app-shell-header:not([hidden])) .garage-card,
+  .garage-overlay.hub-aircraft .garage-card { grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr); grid-template-rows: 44px minmax(0, 1fr) 46px; gap: 4px 8px; }
   .garage-card .garage-heading h1 { font-size: 20px; }
   .garage-card .garage-details { margin-top: -8px; padding: 7px; border-radius: 12px; }
   .garage-card .garage-details > h2 { font-size: 16px; }
@@ -4988,31 +4961,27 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
   .garage-card .garage-stats div, .garage-card .garage-details.is-firehawk .garage-stats div { grid-template-columns: minmax(52px, .9fr) minmax(0, 1fr); font-size: 8px; }
   .garage-card .garage-cosmetics { padding-top: 5px; }
   .garage-card .garage-cosmetic-card { min-height: 66px; padding: 2px; }
-  .garage-card .garage-cosmetic strong { font-size: 8px; }
+  .garage-card .garage-cosmetic strong { font-size: 9px; }
   .garage-card .garage-cosmetic-lock { height: 18px; font-size: 9px; }
   .garage-card .garage-cosmetic-lock { --lock-icon-size: 14px; }
-  .garage-card .garage-cosmetic-swatches i { width: clamp(24px, 3vw, 28px); height: clamp(24px, 3vw, 28px); }
-  .garage-card .garage-details.is-firehawk.is-unavailable { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; align-content: start; }
-  .garage-card .garage-details.is-firehawk.is-unavailable > :is(.garage-status-row, h2, [data-garage-pitch], .garage-stats) { grid-column: 1 / -1; }
-  .garage-card .garage-details.is-firehawk.is-unavailable .garage-cosmetics { grid-column: 1; grid-row: 5; }
-  .garage-card .garage-details.is-firehawk.is-unavailable .garage-actions { grid-column: 2; grid-row: 5; align-self: end; }
+  .garage-card .garage-cosmetic-swatches i { width: clamp(38px, 8dvh, 50px); height: clamp(38px, 8dvh, 50px); }
   .garage-card .garage-details.is-firehawk.is-unavailable .garage-premium .garage-trial-row { flex-direction: column; align-items: stretch; gap: 2px; }
   .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
   .garage-card .garage-list { padding-block: 0; }
   .garage-card .garage-aircraft-get { min-width: 36px; min-height: 26px; }
 }
 @media (max-height: 430px) and (orientation: landscape) {
-  body:has(.app-shell-header:not([hidden])) .garage-card { grid-template-rows: 36px minmax(0, 1fr) 46px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-details { padding: 5px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-status-row { min-height: 24px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-details h2 { margin-top: 2px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-details > [data-garage-pitch] { margin: 1px 0 3px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-stats { gap: 2px 6px; padding: 3px 0; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-stats div, .garage-card .garage-details.is-firehawk .garage-stats div { min-height: 13px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-cosmetics { padding-top: 3px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-cosmetics h2 { margin-bottom: 3px; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-list { padding-block: 0; }
-  body:has(.app-shell-header:not([hidden])) .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card { grid-template-rows: 36px minmax(0, 1fr) 46px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-details { padding: 5px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-status-row { min-height: 24px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-details h2 { margin-top: 2px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-details > [data-garage-pitch] { margin: 1px 0 3px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-stats { gap: 2px 6px; padding: 3px 0; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-stats div, .garage-card .garage-details.is-firehawk .garage-stats div { min-height: 13px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-cosmetics { padding-top: 3px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-cosmetics h2 { margin-bottom: 3px; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-list { padding-block: 0; }
+  :is(body:has(.app-shell-header:not([hidden])), .garage-overlay.hub-aircraft) .garage-card .garage-aircraft, .garage-card .garage-aircraft-preview-button { min-height: 44px; }
 }
 @media (max-width: 800px) and (orientation: landscape) {
   .garage-card .garage-details { grid-row: 2; margin-top: 0; }
@@ -5020,11 +4989,15 @@ body:has(.app-shell-header:not([hidden])) .garage-balance [data-garage-close] {
 }
 @media (orientation: portrait) and (max-width: 680px) {
   .garage-overlay { overflow-y: auto; }
+  .garage-overlay.hub-aircraft .garage-heading h1 { font-size: clamp(15px, 4vw, 19px); }
+  .garage-overlay.hub-aircraft .garage-heading h1::before,
+  .garage-overlay.hub-aircraft .garage-heading h1::after { width: 20px; margin-inline: 4px; }
   body:has(.app-shell-header:not([hidden])) .garage-card,
   body:not(:has(.app-shell-header:not([hidden]))) .garage-card { display: flex; flex-direction: column; height: auto; max-height: none; }
   .garage-card .garage-layout { display: flex; flex-direction: column; }
   .garage-card .garage-preview { flex: 0 0 28dvh; }
   .garage-card .garage-details { max-height: none; overflow: visible; }
+  .garage-card .garage-cosmetics, .garage-card .garage-cosmetic-list { flex: 0 0 auto; }
   .garage-card .garage-selector-section { width: 100%; }
   .garage-card .garage-aircraft { flex-wrap: wrap; }
 }
@@ -5127,12 +5100,6 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-}
-.mission4-clean-hud .journey-status-layer { width: min(220px, calc(100vw - 28px)); }
-:is(.giant-incoming-focus, .monster-arrival-focus) .journey-status-layer { width: min(380px, 35vw); }
-@media (max-height: 520px) {
-  .mission-status-layer.journey-status-layer { top: max(70px, calc(var(--safe-area-top) + 56px)); width: min(260px, 42vw); }
-  :is(.giant-incoming-focus, .monster-arrival-focus) .journey-status-layer { width: min(260px, 34vw); }
 }
 
 /* In-flight instruments: keep the world open while matching the gold/cyan cockpit artwork. */
@@ -5273,18 +5240,25 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .flight-game-hud #flight-map-button span { display: none; }
 
 #game-root .mission-status-layer { top: max(84px, calc(var(--safe-area-top) + 74px)); left: max(12px, var(--safe-area-left)); width: min(340px, 35vw); }
-#game-root:not(:is(.giant-incoming-focus, .monster-arrival-focus)) .mission-status-layer.journey-status-layer {
+#game-root .mission-status-layer.journey-status-layer {
   top: max(84px, calc(var(--safe-area-top) + 74px));
-  width: min(clamp(215px, 28vw, 300px), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 24px));
+  width: min(clamp(210px, 28vw, 260px), calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 24px));
 }
-#game-root:not(:is(.giant-incoming-focus, .monster-arrival-focus)) .journey-status-layer .sky-challenge.journey-hud:not(.journey-mission-one) {
-  gap: 3px;
-  padding: 8px 10px;
+@media (max-height: 520px) {
+  #game-root .mission-status-layer.journey-status-layer { top: max(70px, calc(var(--safe-area-top) + 56px)); }
+}
+#game-root .journey-status-layer .sky-challenge.journey-hud {
+  min-height: clamp(104px, 24dvh, 124px);
+  gap: 2px 6px;
+  padding: 7px 9px;
+  font: 800 clamp(9px, min(1vw, 2.6dvh), 11px)/1.15 var(--font-display);
+  align-content: start;
 }
 #game-root .journey-status-layer .sky-challenge.journey-hud > :is(strong, span) {
   min-width: 0;
   overflow-wrap: break-word;
 }
+#game-root .journey-status-layer .sky-challenge.journey-hud > strong { font-size: clamp(11px, 1.1vw, 13px); }
 #game-root .active-mission-overlay {
   position: relative;
   gap: 5px;
@@ -5304,11 +5278,6 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .active-mission-overlay #active-mission-bar::-webkit-progress-value { background: linear-gradient(#ffe590, #f0b938); }
 
 /* Mission 1 keeps the objective, gate count, timer, and ten gates in one compact card. */
-#game-root .mission-status-layer.journey-status-layer:has(.journey-mission-one) {
-  top: max(66px, calc(var(--safe-area-top) + 60px));
-  left: max(35px, calc(var(--safe-area-left) - 16px));
-  width: min(244px, 32vw);
-}
 #game-root .sky-challenge.journey-hud.journey-mission-one {
   position: relative;
   top: auto;
@@ -5316,29 +5285,25 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   bottom: auto;
   left: auto;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 7px;
-  padding: 8px 10px 10px 14px;
+  gap: 2px 6px;
+  padding: 7px 9px;
   border: 1px solid rgb(155 215 246 / 70%);
   border-left: 4px solid #f2c656;
   border-radius: 10px;
   background: rgb(9 26 48 / 82%);
   box-shadow: 0 3px 9px rgb(4 25 48 / 24%);
-  font: 800 clamp(9px, 1vw, 11px)/1.15 var(--font-display);
   letter-spacing: .03em;
 }
 #game-root .sky-challenge.journey-mission-one::before { display: none; }
 #game-root .journey-mission-one [data-journey-heading],
 #game-root .journey-mission-one [data-journey-objective],
 #game-root .journey-mission-one .journey-hud-segments { grid-column: 1 / -1; }
-#game-root .journey-mission-one [data-journey-heading] { font-size: clamp(12px, 1.35vw, 15px); }
 #game-root .journey-mission-one [data-journey-progress] { color: #ffdb73; }
 #game-root .journey-mission-one [data-journey-timer] { justify-self: end; color: #fff; font-weight: 900; }
 #game-root .journey-mission-one [data-journey-timer]::before { margin-right: 5px; color: #fff; content: '◷'; font-size: 1.25em; }
 #game-root .journey-mission-one .journey-hud-segments { gap: 3px; padding-top: 2px; }
 #game-root .journey-mission-one .journey-hud-segments i { height: 6px; border-color: rgb(215 238 249 / 72%); background: rgb(217 236 246 / 27%); }
 #game-root .journey-mission-one .journey-hud-segments i.is-current { border-color: #ffe18a; background: linear-gradient(#ffe494, #e9b849); box-shadow: 0 0 7px rgb(255 216 90 / 65%); }
-#game-root .mission-one-gate-cue > .mission-objective-docked[hidden],
-#game-root .mission-one-gate-cue:has(> .mission-objective-docked[hidden]) { display: none; }
 
 #game-root { --gameplay-radar-right: max(25px, var(--safe-area-right)); --gameplay-radar-size: clamp(108px, 12vw, 154px); }
 #game-root #right-flight-stack { top: calc(var(--safe-area-top) + 22px); right: var(--gameplay-radar-right); width: var(--gameplay-radar-size); max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 30px); }
@@ -5391,24 +5356,215 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   #game-root .flight-game-hud .flight-hud-motion > .flight-hud-altitude { padding-left: 6px; }
   #game-root .flight-game-hud .flight-hud-art { width: 30px; height: 30px; }
   #game-root .flight-game-hud strong { font-size: 14px; }
-  #game-root .mission-status-layer,
-  #game-root .mission-status-layer.journey-status-layer { width: min(270px, 37vw); }
+  #game-root .mission-status-layer:not(.journey-status-layer) { width: min(270px, 37vw); }
   .touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { top: calc(73.5% + 22px); }
 }
 @media (max-width: 600px) and (orientation: landscape) {
   #game-root .flight-game-hud { grid-template: "menu utilities" auto "stats stats" auto / 1fr 1fr; row-gap: 4px; }
   #game-root .flight-game-hud .flight-hud-center { justify-self: center; }
-  #game-root .mission-status-layer,
-  #game-root .mission-status-layer.journey-status-layer { top: calc(var(--safe-area-top) + 95px); width: min(250px, 45vw); }
-  #game-root .mission-status-layer.journey-status-layer:has(.journey-mission-one) {
-    top: calc(var(--safe-area-top) + 105px);
-    left: max(10px, var(--safe-area-left));
-    width: min(220px, 42vw);
-  }
+  #game-root .mission-status-layer:not(.journey-status-layer) { top: calc(var(--safe-area-top) + 95px); width: min(250px, 45vw); }
+  #game-root .mission-status-layer.journey-status-layer { top: calc(var(--safe-area-top) + 95px); }
   .touch-controls-active #game-root [data-touch-control="stick"].uses-default-placement { top: calc(var(--touch-top) + 75px); }
   .touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { top: calc(73.5% + 55px); }
 }
 @media (prefers-reduced-motion: reduce) {
   #game-root .touch-fire,
   #game-root .touch-stick { animation: none; transition: none; }
+}
+
+/* Hub Rewards uses the existing Pilot Menu dialog over the live Hub. */
+.pilot-menu-overlay.is-rewards-overlay {
+  z-index: 59;
+  top: 0;
+  padding: 8px max(12px, var(--safe-area-right)) max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
+  background: rgb(5 15 40 / 65%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.pilot-menu-overlay.is-rewards-overlay::before { display: none; }
+.pilot-menu-card.is-hub-rewards {
+  position: relative;
+  display: grid;
+  grid-template: "header" auto "content" minmax(0, 1fr) / minmax(0, 1fr);
+  gap: 0;
+  width: min(960px, 100%);
+  height: auto;
+  max-height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transform: translateY(-16px);
+}
+.pilot-menu-card.is-hub-rewards > header {
+  grid-area: header;
+  justify-content: center;
+  min-height: 62px;
+  padding: 0 56px 8px;
+  border: 0;
+}
+.pilot-menu-card.is-hub-rewards > header .pilot-menu-kicker,
+.pilot-menu-card.is-hub-rewards > header .pilot-menu-header-actions { display: none; }
+.pilot-menu-card.is-hub-rewards > header h1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(9px, 2vw, 19px);
+  margin: 0;
+  color: #ffd257;
+  font: 900 clamp(28px, 4vw, 50px)/1 var(--font-display);
+  text-align: center;
+  -webkit-text-stroke: .5px #9a5d0a;
+  text-shadow: 0 2px #915014, 0 3px 5px rgb(40 22 16 / 48%);
+}
+.pilot-menu-card.is-hub-rewards > header h1::before,
+.pilot-menu-card.is-hub-rewards > header h1::after {
+  content: '';
+  width: clamp(28px, 4vw, 48px);
+  height: clamp(19px, 2.6vw, 30px);
+  background: linear-gradient(#fff09a, #f9be31 40%, #ae6510);
+  clip-path: polygon(0 0, 100% 13%, 86% 37%, 13% 37%, 22% 58%, 76% 58%, 64% 82%, 37% 82%, 45% 100%, 0 100%);
+  filter: drop-shadow(0 2px 2px #744006);
+}
+.pilot-menu-card.is-hub-rewards > header h1::after { transform: scaleX(-1); }
+.pilot-menu-card.is-hub-rewards > .pilot-menu-content {
+  grid-area: content;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 3px 3px;
+  overflow: auto;
+  scrollbar-gutter: auto;
+}
+.pilot-menu-card.is-hub-rewards .pilot-rewards-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.3fr) minmax(240px, 1fr);
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+}
+.pilot-menu-card.is-hub-rewards .pilot-rewards-layout > .pilot-rewards { grid-row: 1; }
+.pilot-menu-card.is-hub-rewards .pilot-menu-section:is(.pilot-rewards, .pilot-invite) {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  color: #092756;
+  border: 2px solid var(--menu-card-accent);
+  border-radius: 19px;
+  background: var(--menu-card-surface);
+  box-shadow: inset 0 1px #fff, 0 5px 14px rgb(11 35 69 / 28%);
+}
+.pilot-menu-card.is-hub-rewards .pilot-rewards { display: flex; flex-direction: column; }
+.pilot-menu-card.is-hub-rewards .pilot-rewards > h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  color: #071e4d;
+  font: 900 clamp(21px, 2.6vw, 32px)/1 var(--font-display);
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.pilot-rewards-heading-art { width: clamp(40px, 5vw, 64px); height: clamp(40px, 5vw, 64px); object-fit: contain; }
+.pilot-menu-card.is-hub-rewards .pilot-rewards-friendly {
+  margin: -7px 0 8px clamp(49px, 5.6vw, 72px);
+  color: #466388;
+  font: 700 clamp(10px, 1.2vw, 14px)/1.25 var(--font-body);
+}
+.pilot-menu-card.is-hub-rewards .pilot-rewards-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 8px;
+  overflow-x: auto;
+}
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile {
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  min-height: 123px;
+  padding: 5px 2px;
+  border: 1px solid #acd7e8;
+  border-radius: 10px;
+  background: linear-gradient(#fff, #eaf7ff);
+  box-shadow: inset 0 1px 0 #fff, 0 2px 5px rgb(27 76 113 / 20%);
+}
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-claimed { opacity: 1; border-color: #5cb88b; background: linear-gradient(#f4fff9, #bce9d1); }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-today { border: 2px solid #c88b14; background: linear-gradient(#fffbe6, #ffc94b); box-shadow: inset 0 1px #fff, 0 2px 8px rgb(184 118 17 / 48%); }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-upcoming { border-color: #687c92; background: linear-gradient(#42546b, #25364d); box-shadow: inset 0 1px rgb(255 255 255 / 12%), 0 2px 5px rgb(22 40 67 / 25%); }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile > span,
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile > small { padding: 2px 3px; color: #173c74; border-radius: 4px; font: 800 clamp(8px, .85vw, 11px)/1.1 var(--font-display); letter-spacing: 0; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile > strong { color: #071e4d; font: 900 clamp(15px, 1.6vw, 21px)/1 var(--font-display); }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-claimed > small { color: #075a36; background: #a5dfc1; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-today > small { color: #704000; background: #ffe79b; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-upcoming > :is(span, strong) { color: #dce5ef; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-upcoming > small { color: #f2f5f8; background: #5c6f84; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-tile.is-upcoming > img { filter: grayscale(1); opacity: .4; }
+.pilot-reward-tile-art { width: min(44px, 80%); height: 44px; object-fit: contain; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-claim {
+  display: grid;
+  grid-template-columns: minmax(95px, .85fr) minmax(0, 1.25fr);
+  align-items: center;
+  justify-items: stretch;
+  gap: 8px;
+  min-height: 116px;
+  padding: 5px 10px;
+  color: #092756;
+  border: 1px solid #b0d6e8;
+  border-radius: 13px;
+  background: linear-gradient(125deg, #fff, #eef9ff 70%, #dbeffa);
+  text-align: left;
+}
+.pilot-reward-claim-art { width: 100%; max-height: 110px; object-fit: contain; }
+.pilot-reward-claim-details { display: grid; gap: 2px; min-width: 0; }
+.pilot-reward-claim-details > span { color: #132e64; font: 900 clamp(11px, 1.15vw, 14px)/1 var(--font-display); }
+.pilot-reward-claim-details > strong { display: flex; align-items: center; gap: 2px; color: #a86508; font: 900 clamp(22px, 2.8vw, 36px)/1 var(--font-display); white-space: nowrap; }
+.pilot-reward-inline-credit { width: 1.25em; height: 1.25em; object-fit: contain; vertical-align: middle; }
+.pilot-menu-card.is-hub-rewards .pilot-reward-claim button {
+  width: 100%;
+  min-width: 0;
+  min-height: 47px;
+  margin-top: 3px;
+  color: #3c2200;
+  border: 2px solid #b77b0d;
+  border-radius: 13px;
+  background: linear-gradient(#fff5aa, #ffc529 58%, #e7a01a);
+  box-shadow: inset 0 1px #fffde3, 0 2px 5px rgb(101 59 9 / 28%);
+  font: 900 clamp(12px, 1.65vw, 20px)/1 var(--font-display);
+  white-space: nowrap;
+}
+.pilot-menu-card.is-hub-rewards .pilot-reward-status { min-height: 0; margin: 0; color: #58708c !important; font: 700 10px/1.2 var(--font-body); }
+.pilot-menu-card.is-hub-rewards .pilot-invite { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
+.pilot-invite-art { width: min(132px, 72%); height: 92px; object-fit: contain; }
+.pilot-menu-card.is-hub-rewards .pilot-invite > h2 { margin: 0; color: #071e4d; font: 900 clamp(20px, 2.3vw, 29px)/1 var(--font-display); letter-spacing: -.02em; white-space: nowrap; }
+.pilot-menu-card.is-hub-rewards .pilot-invite-values { display: grid; justify-items: center; gap: 2px; width: 100%; color: #092756; font: 900 clamp(11px, 1.3vw, 16px)/1.15 var(--font-display); }
+.pilot-menu-card.is-hub-rewards .pilot-invite-values > span { display: flex; align-items: center; justify-content: center; gap: 2px; white-space: nowrap; }
+.pilot-menu-card.is-hub-rewards .pilot-invite-values .pilot-reward-inline-credit { width: 23px; height: 23px; }
+.pilot-menu-card.is-hub-rewards .pilot-invite-values strong { color: #b57b12; font-size: 1.55em; text-shadow: 0 1px #fff1aa; }
+.pilot-menu-card.is-hub-rewards .pilot-invite > p { margin: auto 0 0 !important; padding-top: 8px; color: #466388; border-top: 1px solid #b8d6e9; font: 700 clamp(10px, 1.1vw, 13px)/1.2 var(--font-body); }
+.pilot-menu-card.is-hub-rewards .pilot-invite > button { width: 100%; min-height: 47px; margin-top: 2px; color: #fff; border: 2px solid #09a9c8; border-radius: 13px; background: linear-gradient(#52f6ff, #06bce8 57%, #0086cb); box-shadow: inset 0 1px #edffff, 0 2px 5px rgb(3 57 118 / 32%); font: 900 clamp(14px, 1.7vw, 21px)/1 var(--font-display); }
+.pilot-menu-card.is-hub-rewards .pilot-invite-panel { width: 100%; text-align: left; }
+.pilot-menu-card.is-hub-rewards .pilot-invite-panel input { color: #092756; background: #fff; }
+.pilot-menu-card.is-hub-rewards .pilot-watch-earn { grid-column: 1 / -1; grid-row: 2; background: linear-gradient(#fff, #eaf7ff); color: #092756; }
+.pilot-menu-card.is-hub-rewards .pilot-watch-earn :is(h2, p, strong) { color: #092756; }
+@media (max-height: 560px) and (min-width: 761px) {
+  .pilot-menu-card.is-hub-rewards .pilot-reward-tile { min-height: 104px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim { min-height: 96px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-art { max-height: 90px; }
+}
+@media (max-width: 760px) {
+  .pilot-menu-card.is-hub-rewards { transform: none; }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-layout { grid-template-columns: minmax(0, 1fr); }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-grid { grid-template-columns: repeat(7, minmax(76px, 1fr)); flex: none; }
+  .pilot-menu-card.is-hub-rewards .pilot-invite { grid-column: 1; grid-row: 2; min-height: 240px; }
+  .pilot-menu-card.is-hub-rewards .pilot-watch-earn { grid-row: 3; }
+}
+@media (max-width: 420px) {
+  .pilot-menu-card.is-hub-rewards > header { min-height: 52px; padding-inline: 48px; }
+  .pilot-menu-card.is-hub-rewards > header h1 { font-size: 28px; }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-friendly { margin: 0 0 8px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim { grid-template-columns: 90px minmax(0, 1fr); }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-details > strong { font-size: 20px; }
 }

@@ -9,14 +9,15 @@ import { PlayerProfileStore } from './player-profiles.js';
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const store = () => new PlayerProfileStore(join(mkdtempSync(join(tmpdir(), 'airport-firehawk-state-')), 'profiles.sqlite'));
 
-test('Firehawk uses the live premium purchase UI in every ownership and store state', () => {
+test('Firehawk uses the token-only purchase UI while legacy entitlements remain recognizable', () => {
   const garage = read('client/src/garage.ts');
   const stalePurchaseCopy = new RegExp(['purchase', 'coming', 'soon'].join('\\s+'), 'i');
 
   assert.doesNotMatch(garage, stalePurchaseCopy);
   assert.match(garage, /premium\.hidden = !profileReady \|\| this\.selected !== 'fighter' \|\| owned/);
-  assert.match(garage, /`\$\{firehawkProduct\.displayPrice\} — PERMANENT UNLOCK`/);
-  assert.match(garage, /this\.nativeStorePrice \? `UNLOCK FOREVER — \$\{this\.nativeStorePrice\}` : 'STORE UNAVAILABLE'/);
+  assert.match(garage, /aircraftSkyTokenPrice\(this\.selected\)/);
+  assert.match(garage, /SKY TOKEN UNLOCK UNAVAILABLE/);
+  assert.doesNotMatch(garage, /firehawkProduct\.displayPrice\} — PERMANENT UNLOCK/);
   assert.match(garage, /buy\.hidden = owned/);
   assert.match(garage, /restore\.textContent = this\.nativeStore \? 'RESTORE PURCHASES' : 'RESTORE PURCHASE'/);
   assert.match(garage, /START FREE TRIAL/);

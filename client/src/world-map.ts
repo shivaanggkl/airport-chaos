@@ -677,10 +677,6 @@ export class WorldMap {
       this.context.beginPath();
       this.context.arc(point.x, point.y, 6, 0, Math.PI * 2);
       this.context.stroke();
-      this.context.fillStyle = '#d3e2e7';
-      this.context.font = '700 10px ui-monospace, monospace';
-      this.context.textAlign = 'center';
-      this.context.fillText('?', point.x, point.y + 3.5);
       return;
     }
     this.context.save();

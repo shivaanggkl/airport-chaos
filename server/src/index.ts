@@ -1121,7 +1121,7 @@ const httpServer = createServer(async (request, response) => {
     if (!provider || !action || (platform === 'ios' ? provider !== 'apple' : platform === 'android' ? provider !== 'google' : true)) {
       jsonResponse(response, 403, { error: 'Native store is unavailable.' }); return;
     }
-    if (action === 'purchase' && skyTokenCommerceAvailable(request)) { jsonResponse(response, 409, { error: 'Unlock Firehawk with Sky Tokens in the Garage.' }); return; }
+    if (action === 'purchase') { jsonResponse(response, 409, { error: 'Unlock Firehawk with Sky Tokens in the Garage.' }); return; }
     if ((provider === 'apple' && !nativePurchaseVerifier.appleEnabled) || (provider === 'google' && !nativePurchaseVerifier.googleEnabled)) {
       jsonResponse(response, 503, { error: 'Store verification is not configured yet.' }); return;
     }
@@ -1129,11 +1129,8 @@ const httpServer = createServer(async (request, response) => {
     const ipLimit = limitedBy('native-purchase-ip', identity.clientIp, securityLimits.nativePurchaseIp);
     if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
     const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
-    if (action === 'purchase' && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) { jsonResponse(response, 409, { error: 'Firehawk already owned.' }); return; }
     const context = nativePurchaseLedger.createContext({ accountId: identity.session.accountId, pilotId: identity.pilotId }, provider, action);
     if (!context) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
-    if (action === 'purchase') analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request),
-      aircraftType: 'fighter', ...analyticsHost(request.headers.host) }, 'firehawk_purchase_started', { source: provider });
     jsonResponse(response, 200, context);
     return;
   }
@@ -1281,26 +1278,7 @@ const httpServer = createServer(async (request, response) => {
     if (!sameOriginJsonRequest(request, configuredWebOrigin)) { jsonResponse(response, 403, { error: 'Request could not be verified.' }); return; }
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
-    const pilotLimit = limitedBy('checkout-pilot', identity.pilotId, securityLimits.checkoutPilot);
-    const ipLimit = limitedBy('checkout-ip', identity.clientIp, securityLimits.checkoutIp);
-    if (pilotLimit.limited || ipLimit.limited) { rateLimited(response, Math.max(pilotLimit.retryAfterMs, ipLimit.retryAfterMs)); return; }
-    const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
-    if (!identity.session.accountId) { jsonResponse(response, 403, { error: 'Sign in to purchase Firehawk.' }); return; }
-    if (skyTokenPayments.enabled && !nativeAuthPlatform(request)) { jsonResponse(response, 409, { error: 'Unlock Firehawk with Sky Tokens in the Garage.' }); return; }
-    if (profile.unlockedAircraft.includes('fighter') && profile.aircraftEntitlements.includes(firehawkProduct.entitlement)) {
-      response.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Firehawk already owned"}'); return;
-    }
-    try {
-      const checkout = await firehawkPayments.createCheckout(identity.pilotId, identity.session.accountId, checkoutOrigin(request));
-      const host = analyticsHost(request.headers.host);
-      analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...host, aircraftType: 'fighter' }, 'fighter_checkout_created', { source: 'stripe', metadata: { stripeMode: firehawkPayments.mode } });
-      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(checkout));
-    } catch (error) {
-      console.warn('[stripe] checkout unavailable', error instanceof Error ? error.message : 'unknown');
-      analyticsStore.recordEvent({ pilotId: identity.pilotId, platform: analyticsPlatform(request), ...analyticsHost(request.headers.host), aircraftType: 'fighter' }, 'firehawk_purchase_failed', { source: 'stripe_checkout' });
-      response.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end('{"error":"Checkout is not available yet"}');
-    }
-    return;
+    jsonResponse(response, 409, { error: 'Unlock Firehawk with Sky Tokens in the Store.' }); return;
   }
   if (requestUrl.pathname === '/api/firehawk/purchase-status') {
     if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
@@ -1697,7 +1675,7 @@ const httpServer = createServer(async (request, response) => {
           if (limit.limited) { rateLimited(response, limit.retryAfterMs); return; }
         }
         const currency = purchasing ? payload.cosmeticCurrency ?? 'CREDITS' : undefined;
-        if (currency === 'SKY_TOKENS' && !identity.session.accountId) error = 'SIGN IN TO SPEND SKY TOKENS';
+        if (currency === 'SKY_TOKENS' && (!identity.session.accountId || !skyTokenCommerceAvailable(request))) error = 'SKY TOKEN UNLOCKS UNAVAILABLE';
         else {
           const result: { ok: boolean; purchased?: boolean; reason?: string; profile?: PlayerProfile } = purchasing
             ? profileStore.purchaseCosmetic(identity.pilotId, payload.purchaseCosmetic as string, currency)
@@ -7151,7 +7129,7 @@ server.on('connection', (socket, request) => {
         const claimed = profileStore.claimFirehawkPromotion(player.pilotId, mission.id, Date.now());
         if (!claimed) return;
         firehawkPromotionShownConnections.add(playerId);
-        sendToPlayer(playerId, { type: 'firehawkPromotionOffer', missionId: mission.id, trialEligible: claimed.trialEligible, displayPrice: firehawkProduct.displayPrice });
+        sendToPlayer(playerId, { type: 'firehawkPromotionOffer', missionId: mission.id, trialEligible: claimed.trialEligible, displayPrice: '2,400 Sky Tokens' });
         return;
       }
 
@@ -7312,7 +7290,7 @@ server.on('connection', (socket, request) => {
         );
         if (!networkDecision.allowed) {
           const reason = networkDecision.reason === 'used'
-            ? `FREE TEST FLIGHT ALREADY USED ON THIS NETWORK\nTry again later or unlock Firehawk for ${firehawkProduct.displayPrice}.`
+            ? 'FREE TEST FLIGHT ALREADY USED ON THIS NETWORK\nTry again later or unlock Firehawk for 2,400 Sky Tokens.'
             : 'FREE TEST FLIGHT TEMPORARILY UNAVAILABLE';
           sendToPlayer(playerId, { type: 'fighterTrialResult', ok: false, reason });
           return;
@@ -7365,8 +7343,8 @@ server.on('connection', (socket, request) => {
           sendToPlayer(playerId, { type: 'cosmeticResult', action: 'purchase', cosmeticId: message.cosmeticId, ok: false, reason: rateLimitMessage });
           return;
         }
-        const result: { ok: boolean; purchased?: boolean; reason?: string; profile?: PlayerProfile } = message.currency === 'SKY_TOKENS' && !player.accountId
-          ? { ok: false, reason: 'SIGN IN TO SPEND SKY TOKENS' }
+        const result: { ok: boolean; purchased?: boolean; reason?: string; profile?: PlayerProfile } = message.currency === 'SKY_TOKENS' && (!player.accountId || !skyTokenCommerceAvailable(request))
+          ? { ok: false, reason: 'SKY TOKEN UNLOCKS UNAVAILABLE' }
           : profileStore.purchaseCosmetic(player.pilotId, message.cosmeticId, message.currency ?? 'CREDITS');
         if (result.profile) { player.profile = result.profile; sendProfile(playerId, result.profile); }
         if (result.purchased) recordAnalytics(playerId, 'cosmetic_unlocked', { source: message.cosmeticId,

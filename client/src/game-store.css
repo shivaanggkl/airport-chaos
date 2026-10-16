@@ -87,10 +87,7 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
   background: linear-gradient(rgb(13 54 99 / 12%), rgb(13 54 99 / 12%)), url('/media/menu/airport-runway.jpg') center / cover no-repeat, #b1c8dd;
 }
 .store-art::before { position: absolute; top: 58%; left: 50%; width: 82%; height: 55%; transform: translate(-50%, -15%); border: 2px solid rgb(255 255 255 / 64%); border-radius: 50%; content: ''; }
-.store-art-runway { display: none; }
-.store-art svg { position: relative; z-index: 1; width: min(95%, 320px); height: 95%; max-height: 145px; transform: rotate(-15deg) scale(.9); filter: drop-shadow(0 9px 5px rgb(5 24 38 / 35%)); }
-.store-art-fighter svg { transform: rotate(-16deg) scale(.85); }
-.store-art-cargo svg { transform: rotate(-13deg) scale(.98); }
+.store-art > img { position: relative; z-index: 1; width: 92%; height: 92%; object-fit: contain; filter: drop-shadow(0 9px 5px rgb(5 24 38 / 35%)); }
 .store-art-swatches { position: absolute; z-index: 2; right: 7px; bottom: 7px; display: flex; gap: 4px; padding: 4px 5px; border-radius: 99px; background: rgb(255 255 255 / 85%); }
 .store-art-swatches i { width: 13px; height: 13px; border: 1px solid #8b9dae; border-radius: 50%; }
 .store-status-badge {

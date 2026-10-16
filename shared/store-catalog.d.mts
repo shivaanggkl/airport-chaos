@@ -4,11 +4,7 @@ export type PublicStoreCatalogItem = {
   free?: boolean;
   included?: boolean;
   credits?: number;
-  firstCredits?: number;
   tokens?: number;
-  firstTokens?: number;
-  fromCredits?: number;
-  usdDisplayPrice?: string;
 };
 
 export function publicStoreCatalog(): PublicStoreCatalogItem[];

@@ -36,7 +36,7 @@ export const storePaints = paintOrder.map((id): StoreItem => {
   const aircraftType = paint.aircraftRestriction as AircraftType;
   return {
     id, kind: 'paint', aircraftType, name: paint.displayName,
-    subtitle: `${aircraftDefinitions[aircraftType].callsign} PAINT`,
+    subtitle: aircraftType === 'trainer' ? 'BLUEJAY PAINT' : `${aircraftDefinitions[aircraftType].callsign} + APPEARANCE`,
     colors: [paint.visualConfig.base, paint.visualConfig.primary, paint.visualConfig.accent],
     included: paint.unlockType === 'included',
   };
@@ -59,9 +59,9 @@ export function storeItemState(item: StoreItem, profile: GarageProfile): 'FREE' 
     return profile.selectedAircraft === item.aircraftType ? 'EQUIPPED' : 'OWNED';
   }
   if (item.included) return ownsStoreAircraft(profile, item.aircraftType) ? 'INCLUDED' : 'REQUIRES AIRCRAFT';
-  if (item.aircraftType === 'fighter' && !ownsStoreAircraft(profile, item.aircraftType)) return 'REQUIRES AIRCRAFT';
   const owned = item.aircraftType === 'trainer' && defaultCosmeticIds.includes(item.id)
     || profile.cosmetics?.ownedIds.includes(item.id) === true;
+  if (!ownsStoreAircraft(profile, item.aircraftType)) return 'LOCKED';
   if (!owned) return 'LOCKED';
   return profile.cosmetics?.equipped[`livery:${item.aircraftType}`] === item.id ? 'EQUIPPED' : 'OWNED';
 }

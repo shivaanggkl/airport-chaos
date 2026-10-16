@@ -1,0 +1,106 @@
+.sky-token-overlay {
+  --page-back-top: max(12px, calc(var(--safe-area-top) + 8px));
+  --page-back-left: max(12px, var(--safe-area-left), calc((100vw - 1120px) / 2));
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: max(10px, var(--safe-area-top)) max(12px, var(--safe-area-right))
+    max(10px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
+}
+.sky-token-overlay[hidden] { display: none; }
+.sky-token-panel {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.7dvh, 14px);
+  width: min(1050px, calc(100% - 44px));
+  height: min(540px, calc(100% - 20px));
+  min-width: 0;
+  min-height: 0;
+  color: var(--menu-card-ink);
+}
+.sky-token-heading { display: flex; flex: none; justify-content: center; align-items: center; min-height: clamp(54px, 10dvh, 68px); }
+.sky-token-heading .context-winged-title { font-size: clamp(26px, 3.4vw, 43px); text-align: center; }
+.sky-token-balance {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2vw, 26px);
+  width: min(414px, max(300px, 32.3vw), 100%);
+  min-height: clamp(62px, 14dvh, 96px);
+  margin: 0 auto;
+  padding: 8px 16px;
+}
+.sky-token-balance img { width: clamp(45px, 7vw, 72px); height: clamp(45px, 7vw, 72px); object-fit: contain; }
+.sky-token-balance-copy { display: grid; gap: 4px; min-width: 0; padding-left: clamp(14px, 2vw, 24px); border-left: 1px solid #c7d5df; font-family: var(--font-display); }
+.sky-token-balance-copy > span { color: #5c6b88; font-size: clamp(10px, 1.1vw, 14px); font-weight: 800; }
+.sky-token-balance-copy > div { color: #0b2345; font-size: clamp(18px, 2vw, 28px); font-weight: 900; white-space: nowrap; }
+.sky-token-recommendation { margin: 0; color: #ffe18a; font: 800 12px/1.25 var(--font-display); text-align: center; text-shadow: 0 1px 3px #12345c; }
+.sky-token-recommendation:empty, .sky-token-message:empty { display: none; }
+.sky-token-rail { display: grid; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) 8px; gap: 10px; min-width: 0; min-height: 0; }
+.sky-token-pack-list {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.sky-token-pack-list::-webkit-scrollbar { display: none; }
+.sky-token-rail.is-dragging .sky-token-pack-list { scroll-snap-type: none; cursor: grabbing; }
+.sky-token-panel .sky-token-pack {
+  display: grid;
+  flex: 0 0 calc((100% - 36px) / 4);
+  grid-template-rows: minmax(0, 1fr) auto 1px auto auto;
+  justify-items: center;
+  gap: clamp(4px, 1dvh, 8px);
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(8px, 1vw, 14px);
+  scroll-snap-align: start;
+}
+.sky-token-pack img { align-self: center; width: clamp(48px, 7vw, 90px); height: min(100%, 90px); object-fit: contain; }
+.sky-token-pack strong { color: #0b2345; font: 900 clamp(15px, 1.45vw, 20px)/1.1 var(--font-display); text-align: center; white-space: nowrap; }
+.sky-token-pack hr { width: 100%; height: 1px; margin: 0; border: 0; background: #cfdae4; }
+.sky-token-price { color: #98600d; font: 900 clamp(19px, 2vw, 27px)/1 var(--font-display); }
+.sky-token-panel .sky-token-buy { width: 100%; min-width: 0; min-height: 44px; padding: 5px; }
+.sky-token-panel .sky-token-buy:disabled { opacity: 1; filter: saturate(.9); cursor: not-allowed; }
+.sky-token-panel :is(.sky-token-buy, .sky-token-pack-list, .sky-token-close):focus-visible { outline: 3px solid #00bfe5; outline-offset: 2px; }
+.sky-token-progress { position: relative; overflow: hidden; border-radius: 99px; background: rgb(9 37 78 / 55%); }
+.sky-token-progress[aria-hidden='true'] { visibility: hidden; }
+.sky-token-progress-thumb { position: absolute; top: 1px; bottom: 1px; border-radius: 99px; background: linear-gradient(90deg, #47e7f5, #00a8d9); }
+.sky-token-message { margin: 0; color: #fff2a8; font: 800 12px/1.2 var(--font-display); text-align: center; text-shadow: 0 1px 3px #12345c; }
+.sky-token-footer { flex: none; padding: 10px 16px; text-align: center; }
+.sky-token-disclosure { margin: 0; color: #0b2345; font: 600 clamp(11px, 1.1vw, 14px)/1.25 var(--font-display); }
+@media (max-width: 760px) {
+  .sky-token-panel .sky-token-pack { flex-basis: calc((100% - 12px) / 2.2); }
+}
+@media (max-width: 540px) {
+  .sky-token-panel .sky-token-pack { flex-basis: calc((100% - 12px) / 1.15); }
+}
+@media (orientation: landscape) and (min-width: 761px) and (max-height: 520px) {
+  .sky-token-panel { gap: 6px; }
+  .sky-token-heading { min-height: 44px; }
+  .sky-token-heading .context-winged-title { font-size: clamp(24px, 3vw, 30px); }
+  .sky-token-balance { min-height: 78px; margin-top: 7px; margin-bottom: 10px; padding-block: 4px; }
+  .sky-token-balance img { width: 45px; height: 45px; }
+  .sky-token-pack-list { gap: 10px; }
+  .sky-token-panel .sky-token-pack { flex-basis: calc((100% - 30px) / 4); gap: 3px; padding: 7px; }
+  .sky-token-pack img { width: 80px; height: min(100%, 80px); }
+  .sky-token-rail { grid-template-rows: minmax(0, 1fr) 6px; gap: 5px; }
+  .sky-token-footer { padding: 10px; }
+}
+@media (max-height: 340px) {
+  .sky-token-overlay { place-items: start center; }
+  .sky-token-panel { height: auto; min-height: 340px; }
+  .sky-token-rail { min-height: 175px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-token-panel button { transition: none; }
+}

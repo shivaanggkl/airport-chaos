@@ -9,7 +9,7 @@ import { AppShellHeader, type AppShellActive } from './app-shell';
 import { createLockIcon } from './lock-icon';
 import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
-import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
+import { publicStoreCatalog, type PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { MissionJourney, missionJourneyStages } from './mission-journey';
 import { storeFeatured, storeItemState, type StoreItem, type StoreCategory } from './store-catalog';
 import { PilotMenu, type PilotMenuAccountResult, type PilotMenuData, type PilotMenuSection, type PilotProfileSummary } from './pilot-menu';
@@ -375,6 +375,7 @@ async function refreshSkyTokenCatalog(): Promise<void> {
   skyTokenCatalogPilotId = (!skyTokenCommerceEnabled && !stagingTokenStorePreview) || completeCatalog ? garageIdentity.pilotId : undefined;
   if (skyTokenCommerceEnabled && !completeCatalog) garage.setTokenStoreUnavailable();
   else garage.setTokenCommerce(skyTokenCommerceEnabled, stagingTokenStorePreview && !skyTokenCommerceEnabled && completeCatalog);
+  gameStore.setTokenSpendingAvailable(skyTokenCommerceEnabled);
   showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : entryState === 'STORE' ? 'STORE' : undefined);
   if (skyTokenCommerceEnabled && nativePurchaseProvider && nativeSkyTokenRecoveryPilotId !== garageIdentity.pilotId) {
     nativeSkyTokenRecoveryPilotId = garageIdentity.pilotId;
@@ -421,14 +422,14 @@ function tokenStoreAvailable(): boolean {
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE') {
+  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE' || entryState === 'AIRCRAFT') {
     appHeader.hide();
     return;
   }
   const homeData = homeHangarData();
   appHeader.show({
     active,
-    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU' || entryState === 'AIRCRAFT',
+    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU',
     advertiseVisible: true,
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
@@ -1257,7 +1258,7 @@ async function openHubRewards(): Promise<void> {
     return;
   }
   recordProductIntent('rewards_viewed');
-  await openHubPilotMenu('REWARDS', true, !missionJourneyReturnPending);
+  await openHubPilotMenu('REWARDS', true, true);
   if (hubRewardedAdStatus?.supported) recordProductIntent('rewarded_ad_offer_viewed');
 }
 
@@ -1360,12 +1361,14 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   entryState = 'PILOT_MENU';
   syncHubMenuPreferences();
   if (garage.isOpen()) garage.close();
-  homeHangar.hide();
+  if (hubSection === 'REWARDS') homeHangar.show(homeHangarData());
+  else homeHangar.hide();
   gameStore.hide();
   citySelector.hidden = true;
   missionJourney.hide();
-  showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
+  if (hubSection !== 'REWARDS') showAppHeader(hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
+  if (hubSection === 'REWARDS') appHeader.hide();
   if (refresh) await refreshHubPilotData();
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
   if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
@@ -1392,6 +1395,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* server profile remains authoritative */ }
   if (garage.isOpen()) garage.open(garageProfile);
 }, undefined, () => {
+  garageOverlay.classList.remove('hub-aircraft');
   if (entryState === 'AIRCRAFT') {
     if (garageReturnState === 'CITY_SELECTION') showSelector();
     else if (garageReturnState === 'MISSION_JOURNEY') {
@@ -1405,17 +1409,6 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     else void showHome();
   }
   garageOpenRequest += 1;
-}, async (aircraftType) => {
-  try {
-    const url = apiUrl('/api/profile');
-    url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
-    const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ purchaseAircraft: aircraftType }) });
-    const result = await response.json() as GarageProfile & { error?: string };
-    if (!response.ok) { garage.showActionResult(result.error ?? 'PURCHASE FAILED'); return; }
-    garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity();
-    audioManager.playPurchaseSuccess();
-    hapticsManager.emit('rewardSuccess', `aircraft:${aircraftType}`);
-  } catch { garage.showActionResult('SERVER UNAVAILABLE — PURCHASE NOT CHANGED'); }
 }, async (code) => {
   try {
     const url = apiUrl('/api/profile');
@@ -1466,6 +1459,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
 }, (id, currency) => { void changeGarageCosmetic('purchaseCosmetic', id, currency); }, id => { void changeGarageCosmetic('equipCosmetic', id); }, async type => {
   try {
+    if (!await pricingBackendReady()) return;
     const response = await apiFetch(apiUrl('/api/profile'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ purchaseAircraftWithSkyTokens: type }) });
     const result = await response.json() as RemoteGarageProfile & { error?: string };
@@ -1490,6 +1484,26 @@ const gameStore = new GameStore(gameStoreElement, {
   retry: () => { void openGameStore(false); },
 });
 
+async function matchingPricingCatalog(): Promise<PublicStoreCatalogItem[]> {
+  const response = await apiFetch(apiUrl('/api/store/catalog'), { cache: 'no-store' });
+  if (!response.ok) throw new Error('Catalog unavailable');
+  const body = await response.json() as { items?: PublicStoreCatalogItem[] };
+  if (!Array.isArray(body.items)) throw new Error('Invalid catalog');
+  const expected = publicStoreCatalog();
+  const actual = new Map(body.items.map(item => [item.id, item]));
+  if (actual.size !== expected.length || expected.some(item => {
+    const serverItem = actual.get(item.id);
+    return !serverItem || serverItem.kind !== item.kind || serverItem.credits !== item.credits || serverItem.tokens !== item.tokens
+      || Boolean(serverItem.free) !== Boolean(item.free) || Boolean(serverItem.included) !== Boolean(item.included);
+  })) throw new Error('QA BACKEND UPDATE REQUIRED');
+  return body.items;
+}
+
+async function pricingBackendReady(): Promise<boolean> {
+  try { await matchingPricingCatalog(); return true; }
+  catch { garage.showActionResult('QA BACKEND UPDATE REQUIRED — NO PURCHASE MADE'); return false; }
+}
+
 function closeGameStore(): void {
   if (window.history.state?.airportChaosStoreView) window.history.replaceState(null, '', window.location.href);
   gameStore.close(); void showHome();
@@ -1510,21 +1524,25 @@ async function openGameStore(recordOpen = true): Promise<void> {
   showAppHeader('STORE');
   gameStore.setBackLabel('BACK TO HUB');
   gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
+  gameStore.setTokenSpendingAvailable(skyTokenCommerceEnabled);
   try {
     const [catalog, profile] = await Promise.all([
-      apiFetch(apiUrl('/api/store/catalog')).then(async response => {
-        if (!response.ok) throw new Error('Catalog unavailable');
-        const body = await response.json() as { items?: PublicStoreCatalogItem[] };
-        if (!Array.isArray(body.items)) throw new Error('Invalid catalog');
-        return body.items;
-      }),
+      matchingPricingCatalog(),
       hubAccount.state === 'account' ? loadGarageProfile() : Promise.resolve(undefined),
     ]);
     if (entryState === 'STORE') {
       gameStore.setCatalog(catalog);
+      gameStore.setPurchaseAvailable(true);
       gameStore.update(profile, hubAccount.state === 'account');
     }
-  } catch { if (entryState === 'STORE') gameStore.fail('STORE UNAVAILABLE'); }
+  } catch (error) {
+    if (entryState !== 'STORE') return;
+    if (error instanceof Error && error.message === 'QA BACKEND UPDATE REQUIRED') {
+      gameStore.setCatalog(publicStoreCatalog());
+      gameStore.setPurchaseAvailable(false);
+      gameStore.update(garageProfile, hubAccount.state === 'account');
+    } else gameStore.fail(error instanceof Error ? error.message : 'STORE UNAVAILABLE');
+  }
 }
 
 async function openStoreItemInGarage(item: StoreItem): Promise<void> {
@@ -1591,8 +1609,9 @@ function clearPendingStoreContext(): void { try { sessionStorage.removeItem(PEND
 async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKENS'): Promise<{ ok: boolean; message: string }> {
   if (hubAccount.state !== 'account') return { ok: false, message: 'SIGN IN TO UNLOCK' };
   if (item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet'))
-    return { ok: false, message: 'CHOOSE AN APPEARANCE TO UNLOCK THIS AIRCRAFT' };
-  const firstAppearance = item.kind === 'paint' && !garageProfile.unlockedAircraft.includes(item.aircraftType);
+    return { ok: false, message: 'CHOOSE AN APPEARANCE FIRST' };
+  try { await matchingPricingCatalog(); }
+  catch { return { ok: false, message: 'QA BACKEND UPDATE REQUIRED — NO PURCHASE MADE' }; }
   const payload = item.kind === 'paint'
     ? { purchaseCosmetic: item.id, cosmeticCurrency: currency }
     : currency === 'CREDITS' ? { purchaseAircraft: item.aircraftType } : { purchaseAircraftWithSkyTokens: item.aircraftType };
@@ -1605,7 +1624,10 @@ async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKEN
     gameStore.update(garageProfile, true);
     audioManager.playPurchaseSuccess();
     hapticsManager.emit('rewardSuccess', `store:${item.id}`);
-    return { ok: true, message: firstAppearance ? `${item.name} AND AIRCRAFT UNLOCKED` : `${item.name} UNLOCKED · OPEN AIRCRAFTS TO EQUIP` };
+    const unlockedName = item.aircraftType === 'fighter' ? 'FIREHAWK + INFERNO'
+      : item.kind === 'paint' && item.aircraftType !== 'trainer'
+        ? `${aircraftDefinitions[item.aircraftType].callsign} + ${item.name}` : item.name;
+    return { ok: true, message: `${unlockedName} UNLOCKED` };
   } catch { return { ok: false, message: 'SERVER UNAVAILABLE — NO CURRENCY SPENT' }; }
 }
 
@@ -1621,14 +1643,14 @@ async function startStoreFirehawkTrial(): Promise<{ ok: boolean; message: string
 
 async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string, currency: 'CREDITS' | 'SKY_TOKENS' = 'CREDITS'): Promise<void> {
   try {
-    const firstAppearance = action === 'purchaseCosmetic' && !garageProfile.unlockedAircraft.includes(cosmeticCatalog.find(item => item.id === id)?.aircraftRestriction as AircraftType);
+    if (action === 'purchaseCosmetic' && !await pricingBackendReady()) return;
     const url = apiUrl('/api/profile');
     url.searchParams.set('pilotId', garageIdentity.pilotId);
     const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [action]: id, ...(action === 'purchaseCosmetic' ? { cosmeticCurrency: currency } : {}) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? 'COSMETIC UPDATE FAILED');
     applyAuthoritativeHomeProfile(result as RemoteGarageProfile); garage.updateProfile(garageProfile);
-    garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : firstAppearance ? 'AIRCRAFT AND APPEARANCE UNLOCKED' : 'COSMETIC OWNED — SELECT TO EQUIP');
+    garage.showActionResult(action === 'equipCosmetic' ? 'COSMETIC EQUIPPED' : 'PAINT UNLOCKED AND EQUIPPED');
     if (action === 'purchaseCosmetic') { audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `cosmetic:${id}`); }
     else hapticsManager.emit('confirmation');
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message : 'SERVER UNAVAILABLE'); }
@@ -1638,6 +1660,7 @@ void verifyCheckoutReturn({ pilotId: garageIdentity.pilotId, pilotName: garageId
   if (result.state === 'none') return;
   entryState = 'AIRCRAFT';
   garageReturnState = 'HANGAR';
+  garageOverlay.classList.add('hub-aircraft');
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   homeHangar.hide();
   garage.hideShowcase();
@@ -1669,6 +1692,7 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSI
   recordProductIntent('aircraft_viewed', { aircraftType: garageProfile.selectedAircraft });
   entryState = 'AIRCRAFT';
   garageReturnState = returnState;
+  garageOverlay.classList.add('hub-aircraft');
   garageOverlay.classList.toggle('return-to-store', returnState === 'STORE');
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   homeHangar.hide();

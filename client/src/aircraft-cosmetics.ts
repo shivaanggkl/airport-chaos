@@ -13,6 +13,7 @@ const paintFinish = Object.freeze({
 const unpaintedAppearance = {
   cargo: { base: 0x8d9da9, primary: 0xd2dce3, accent: 0x526b7d },
   privateJet: { base: 0xb7c6d1, primary: 0xe0e8ed, accent: 0x60798b },
+  fighter: { base: 0x4a5158, primary: 0xc7ccd2, accent: 0x5b7fa3 },
 } as const;
 
 // Retain the selection on the root so asynchronously loaded GLBs use the same
@@ -21,7 +22,7 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
   root.userData.equippedCosmetics = { ...equipped };
   const definition = aircraftDefinitions[type];
   const item = cosmeticCatalog.find(entry => entry.id === equipped[`livery:${type}`] && entry.aircraftRestriction === type);
-  const base = type === 'cargo' || type === 'privateJet' ? unpaintedAppearance[type] : definition.livery;
+  const base = type === 'trainer' ? definition.livery : unpaintedAppearance[type];
   const palette = {
     AC_LIVERY_BASE: item?.visualConfig.base ?? ('base' in base ? base.base : base.baseColor),
     AC_LIVERY_PRIMARY: item?.visualConfig.primary ?? ('primary' in base ? base.primary : base.primaryColor),

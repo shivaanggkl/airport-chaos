@@ -94,18 +94,18 @@ test('wallet mutations are integer-safe, non-negative, auditable, and idempotent
   }
 });
 
-test('first appearance, aircraft grant, and Credit debit roll back together', () => {
+test('aircraft grant and Credit debit roll back together', () => {
   const temporary = temporaryDatabase('airport-chaos-wallet-atomic-');
   try {
     const profiles = new PlayerProfileStore(temporary.path);
     profiles.getOrCreate('atomic-pilot', 'Atomic Pilot');
-    profiles.awardServerReward('atomic-pilot', 13_500, undefined, 'ADMIN_ADJUSTMENT');
+    profiles.awardServerReward('atomic-pilot', 13_000, undefined, 'ADMIN_ADJUSTMENT');
     const database = new DatabaseSync(temporary.path);
     database.exec(`CREATE TRIGGER reject_aircraft_grant BEFORE UPDATE OF owned_aircraft ON player_profiles
       BEGIN SELECT RAISE(ABORT, 'simulated grant failure'); END`);
     assert.throws(() => profiles.purchaseCosmetic('atomic-pilot', 'mammoth-sand'), /simulated grant failure/);
     const after = profiles.getOrCreate('atomic-pilot', 'Atomic Pilot');
-    assert.equal(after.credits, 13_500);
+    assert.equal(after.credits, 13_000);
     assert.equal(after.unlockedAircraft.includes('cargo'), false);
     assert.equal(after.cosmetics.ownedIds.includes('mammoth-sand'), false);
     assert.equal((database.prepare("SELECT COUNT(*) AS total FROM wallet_transactions WHERE pilot_id=? AND reason='COSMETIC_PURCHASE'").get('atomic-pilot') as { total: number }).total, 0);

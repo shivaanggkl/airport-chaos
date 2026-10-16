@@ -45,7 +45,7 @@ test('verified Token packs are durable, once-only wallet grants with a purchase 
 test('approved packs and aircraft Token prices keep the exact 100-Token base unit', () => {
   assert.deepEqual(Object.values(skyTokenPacks).map(pack => [pack.tokens, pack.usdCents]),
     [[100, 100], [500, 500], [1200, 1200], [2400, 2400]]);
-  assert.deepEqual(aircraftSkyTokenPrices, { cargo: 500, privateJet: 1200, fighter: 2400 });
+  assert.deepEqual(aircraftSkyTokenPrices, { cargo: 600, privateJet: 1300, fighter: 2400 });
 });
 
 test('the server resolves all four approved Stripe Price IDs separately for test and live', () => {
@@ -185,7 +185,7 @@ test('the existing webhook verifies its signature and rejects the wrong Stripe e
   }
 });
 
-test('verified packs fund three aircraft with their first appearances at bundle prices', () => {
+test('verified packs fund fixed aircraft plus appearance combinations', () => {
   const { store, db, cleanup } = fixture();
   try {
     assert.equal(store.recordVerifiedSkyTokenPurchase({ pilotId: 'other-pilot', accountId: 'account-two', provider: 'stripe',
@@ -204,7 +204,7 @@ test('verified packs fund three aircraft with their first appearances at bundle 
   } finally { cleanup(); }
 });
 
-test('first Token appearance unlock spends atomically once and grants canonical aircraft ownership', () => {
+test('Token combination purchase spends once and preserves Firehawk entitlement', () => {
   const { store, db, cleanup } = fixture();
   try {
     stripePurchase(store, 'cs_purchase_2400_first', 'SKY_TOKENS_2400');
@@ -230,7 +230,7 @@ test('verified refunds never make a wallet negative and later purchases settle d
     store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS');
     const refund = store.refundVerifiedSkyTokenPurchase('stripe', 'cs_refund_1200', 1200);
     assert.equal(refund.applied, true); assert.equal(refund.profile?.skyTokens, 0);
-    assert.match(store.purchaseCosmetic('token-pilot', 'mammoth-sand', 'SKY_TOKENS').reason ?? '', /REFUNDED SKY TOKENS/);
+    assert.match(store.purchaseCosmetic('token-pilot', 'bluejay-classic', 'SKY_TOKENS').reason ?? '', /REFUNDED SKY TOKENS/);
     assert.equal(store.refundVerifiedSkyTokenPurchase('stripe', 'cs_refund_1200', 1200).applied, false);
     assert.equal(stripePurchase(store, 'cs_refund_1200', 'SKY_TOKENS_1200').applied, false);
     assert.equal((db.prepare("SELECT sky_token_deficit AS n FROM player_profiles WHERE pilot_id='token-pilot'").get() as { n: number }).n, 1200);
@@ -254,7 +254,7 @@ test('a one-cent Stripe partial refund reverses one Token once', () => {
   } finally { cleanup(); }
 });
 
-test('a zero-Credit pilot can unlock Mammoth with Legacy Gold for 600 Tokens', () => {
+test('a zero-Credit pilot buys Mammoth plus Legacy Gold once for 600 Tokens', () => {
   const { store, cleanup } = fixture();
   try {
     const beforeCredits = store.walletBalances('token-pilot')?.credits;
@@ -323,6 +323,7 @@ test('independent profile-store instances cannot spend the same Tokens twice', (
     stripePurchase(store, 'cs_cross_instance_100', 'SKY_TOKENS_100');
     const other = new PlayerProfileStore(path);
     assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').ok, true);
+    assert.equal(other.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').ok, false);
     assert.equal(other.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').profile?.skyTokens, 0);
     assert.equal(other.purchaseCosmetic('token-pilot', 'mammoth-sand', 'SKY_TOKENS').ok, false);
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE reason='SKY_TOKEN_SPEND'").get() as { n: number }).n, 1);

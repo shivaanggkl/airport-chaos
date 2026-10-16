@@ -195,6 +195,15 @@ function section(title: string): HTMLElement {
   return sectionElement;
 }
 
+function rewardImage(src: string, className: string): HTMLImageElement {
+  const image = document.createElement('img');
+  image.src = src;
+  image.alt = '';
+  image.className = className;
+  image.setAttribute('aria-hidden', 'true');
+  return image;
+}
+
 function actionButton(action: PilotMenuAction): HTMLButtonElement {
   const button = textElement('button', action.label) as HTMLButtonElement;
   button.type = 'button';
@@ -256,6 +265,8 @@ export class PilotMenu {
   private inviteOpen = false;
   private inviteNotice = '';
   private rewardsTimer?: number;
+  private rewardsReturnFocus?: HTMLElement;
+  private rewardsBackground: HTMLElement[] = [];
   private territoryLegendOpen = this.readLegendPreference();
 
   constructor(
@@ -269,6 +280,16 @@ export class PilotMenu {
       priority: uiBackPriority.menu,
       isActive: () => this.isOpen(),
       close: () => this.backOrClose(),
+    });
+    this.element.addEventListener('keydown', (event) => {
+      if (!this.openState || this.activeSection !== 'REWARDS' || !this.options.appShell || event.key !== 'Tab') return;
+      const controls = [...this.element.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]')]
+        .filter(control => control.getClientRects().length > 0);
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     });
   }
 
@@ -331,6 +352,8 @@ export class PilotMenu {
   open(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'): void {
     if (!this.openState) {
       this.sectionHistory.length = 0;
+      this.rewardsReturnFocus = this.options.appShell && section === 'REWARDS' && document.activeElement instanceof HTMLElement
+        ? document.activeElement : undefined;
     }
     this.openState = true;
     this.activeSection = section;
@@ -341,6 +364,11 @@ export class PilotMenu {
     this.element.hidden = false;
     if (this.backButton) this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
     this.render(data);
+    if (this.options.appShell && section === 'REWARDS') {
+      this.rewardsBackground = [...document.querySelectorAll<HTMLElement>('.app-shell-header, .home-hangar')];
+      this.rewardsBackground.forEach(element => { element.inert = true; });
+      this.backButton?.focus({ preventScroll: true });
+    }
   }
 
   focusMission(missionId?: string): void {
@@ -425,8 +453,7 @@ export class PilotMenu {
     const missionBar = this.content?.querySelector<HTMLProgressElement>('.pilot-progress-mission-bar');
     if (missionBar && active?.progress !== undefined) missionBar.value = Math.max(0, Math.min(missionBar.max, active.progress));
     for (const [index, plane] of data.progression.aircraft.entries()) {
-      set(`aircraft-${index}`, plane.owned ? '✓ OWNED' : plane.premium ? 'PREMIUM' : plane.neededCredits
-        ? `${plane.neededCredits.toLocaleString()} Credits needed` : `${plane.price.toLocaleString()} Credits to unlock`);
+      set(`aircraft-${index}`, plane.owned ? '✓ OWNED' : plane.premium ? '2,400 Sky Tokens' : `From ${plane.price.toLocaleString()} Credits with appearance`);
     }
   }
 
@@ -519,6 +546,26 @@ export class PilotMenu {
     this.lastData = data;
     this.lastSnapshot = this.snapshot(data);
     const content = this.ensureContent();
+    const card = this.element.querySelector<HTMLElement>('.pilot-menu-card');
+    const hubRewards = this.options.appShell === true && this.activeSection === 'REWARDS';
+    this.element.classList.toggle('is-rewards-overlay', hubRewards);
+    card?.classList.toggle('is-hub-rewards', hubRewards);
+    if (card) {
+      if (hubRewards) {
+        card.setAttribute('role', 'dialog');
+        card.setAttribute('aria-modal', 'true');
+        card.setAttribute('aria-label', 'Rewards');
+      } else {
+        card.removeAttribute('role');
+        card.removeAttribute('aria-modal');
+        card.removeAttribute('aria-label');
+      }
+    }
+    if (this.backButton && this.options.appShell) {
+      this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
+      this.backButton.setAttribute('aria-label', this.backButton.textContent);
+      if (this.backButton.parentElement !== this.element) this.element.append(this.backButton);
+    }
     const exit = this.navigation?.querySelector<HTMLButtonElement>('[data-flight-exit]');
     if (exit) exit.textContent = data.exitFlightLabel ?? 'EXIT TO HUB';
     const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
@@ -534,7 +581,7 @@ export class PilotMenu {
     content.classList.toggle('pilot-menu-content-authentication', authenticationScreen);
     this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-authentication', authenticationScreen);
     this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-pilot-profile', this.options.appShell === true && this.activeSection === 'PROFILE' && !authenticationScreen);
-    this.element.querySelector('.pilot-menu-card')?.classList.toggle('is-hub-standalone', this.options.appShell === true && this.activeSection === 'REWARDS');
+    card?.classList.toggle('is-hub-standalone', hubRewards);
     for (const button of this.navigation?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
       const sectionName = button.dataset.section;
       button.hidden = sectionName === 'TERRITORIES' && !data.territories.enabled;
@@ -906,10 +953,8 @@ export class PilotMenu {
     if (this.activeSection === 'REWARDS' && data.rewards) {
       const rewards = section('DAILY REWARDS');
       rewards.classList.add('pilot-rewards');
-      rewards.append(
-        textElement('p', 'Come back regularly and collect Credits.', 'pilot-menu-muted'),
-        textElement('p', 'Miss a day? Your reward progress waits for you.', 'pilot-rewards-friendly'),
-      );
+      rewards.querySelector('h2')?.prepend(rewardImage('/media/hub/rewards.png', 'pilot-rewards-heading-art'));
+      rewards.append(textElement('p', 'Come back every 20 hours. Your progress never resets.', 'pilot-rewards-friendly'));
       const state = data.rewards.state;
       const remaining = Math.max(0, state.nextEligibleAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
       const available = state.claimable || remaining === 0;
@@ -918,22 +963,33 @@ export class PilotMenu {
         const day = index + 1;
         const tile = document.createElement('div'); tile.className = 'pilot-reward-tile';
         const claimed = state.claimedDays.includes(day);
+        const ready = day === state.nextDay && available;
+        const waiting = day === state.nextDay && !available;
         tile.classList.toggle('is-claimed', claimed);
-        tile.classList.toggle('is-available', day === state.nextDay && available);
+        tile.classList.toggle('is-available', ready);
+        tile.classList.toggle('is-today', ready);
+        tile.classList.toggle('is-upcoming', !claimed && !ready);
         tile.classList.toggle('is-day-seven', day === 7);
         tile.append(
           textElement('span', `DAY ${day}`),
+          rewardImage(day === 7 ? '/media/hub/rewards.png' : '/media/hub/credits.avif', 'pilot-reward-tile-art'),
           textElement('strong', amount.toLocaleString()),
-          textElement('small', claimed ? '✓ CLAIMED' : day === state.nextDay && available ? 'AVAILABLE' : 'CREDITS'),
+          textElement('small', claimed ? '✓ CLAIMED' : ready ? 'READY' : waiting ? 'WAITING' : 'LOCKED'),
         );
+        tile.setAttribute('aria-label', `Day ${day}, ${amount.toLocaleString()} Credits, ${claimed ? 'claimed' : ready ? 'ready to claim' : waiting ? 'waiting for the next claim time' : 'locked'}`);
         grid.append(tile);
       });
       rewards.append(grid);
       const claimArea = document.createElement('div'); claimArea.className = 'pilot-reward-claim';
-      claimArea.append(
-        textElement('span', available ? "TODAY'S REWARD" : 'NEXT REWARD'),
-        textElement('strong', `🪙 ${state.nextAmount.toLocaleString()} CREDITS`),
+      claimArea.append(rewardImage('/media/hub/rewards.png', 'pilot-reward-claim-art'));
+      const claimDetails = document.createElement('div'); claimDetails.className = 'pilot-reward-claim-details';
+      const claimAmount = textElement('strong', `${state.nextAmount.toLocaleString()} CREDITS`);
+      claimAmount.prepend(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'));
+      claimDetails.append(
+        textElement('span', `DAY ${state.nextDay} REWARD`),
+        claimAmount,
       );
+      claimArea.append(claimDetails);
       const minutes = Math.max(0, Math.ceil(remaining / 60_000));
       const status = textElement('p', data.rewards.notice ?? (available ? '' : `Next reward in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
       const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, intent: 'primary', disabled: !available || !data.rewards.authenticated, run: () => undefined });
@@ -952,7 +1008,7 @@ export class PilotMenu {
           claim.textContent = label;
         });
       });
-      claimArea.append(claim, status);
+      claimDetails.append(claim, status);
       rewards.append(claimArea);
       const rewardsLayout = document.createElement('div');
       rewardsLayout.className = 'pilot-rewards-layout';
@@ -969,9 +1025,10 @@ export class PilotMenu {
         const capped = availableCount <= 0 && watchRemaining > 0;
         const pending = watchData.phase === 'verifying' || state.activeAttempt?.status === 'PENDING_VERIFICATION';
         watch.append(
-          textElement('strong', `🪙 ${state.rewardCredits.toLocaleString()} CREDITS`, 'pilot-watch-value'),
+          textElement('strong', `${state.rewardCredits.toLocaleString()} CREDITS`, 'pilot-watch-value'),
           textElement('p', 'Watch a short sponsored video and earn bonus Credits.', 'pilot-menu-muted'),
         );
+        watch.querySelector('.pilot-watch-value')?.prepend(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'));
         const availability = capped
           ? 'ALL VIDEO REWARDS CLAIMED'
           : `${availableCount} ${availableCount === 1 ? 'reward' : 'rewards'} available`;
@@ -998,14 +1055,18 @@ export class PilotMenu {
       if (inviteData) {
         const invite = section('INVITE PILOTS');
         invite.classList.add('pilot-invite');
-        invite.append(textElement('p', 'Invite a friend to fly Airport Chaos.', 'pilot-menu-muted'));
+        invite.querySelector('h2')?.before(rewardImage('/media/hub/friends.avif', 'pilot-invite-art'));
         const values = document.createElement('div'); values.className = 'pilot-invite-values';
-        values.append(
-          textElement('span', inviteData.inviterRewardsRemaining > 0 ? 'YOU GET 750 CREDITS' : 'YOUR REWARD LIMIT IS REACHED'),
-          textElement('span', 'YOUR FRIEND GETS 500 CREDITS'),
-        );
-        invite.append(values, textElement('p', 'Rewards unlock after your friend creates a new account and flies for 60 seconds.', 'pilot-menu-muted'));
-        const openInvite = actionButton({ label: this.inviteOpen ? 'HIDE INVITE' : 'INVITE FRIENDS', run: () => {
+        if (inviteData.inviterRewardsRemaining > 0) {
+          const inviterValue = textElement('span', 'YOU GET ');
+          inviterValue.append(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'), textElement('strong', '750'), document.createTextNode(' CREDITS'));
+          values.append(inviterValue);
+        } else values.append(textElement('span', 'YOUR REWARD LIMIT IS REACHED'));
+        const friendValue = textElement('span', 'FRIEND GETS ');
+        friendValue.append(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'), textElement('strong', '500'), document.createTextNode(' CREDITS'));
+        values.append(friendValue);
+        invite.append(values, textElement('p', 'After they create an account and fly for 60 seconds.', 'pilot-menu-muted'));
+        const openInvite = actionButton({ label: this.inviteOpen ? 'HIDE INVITE' : 'INVITE FRIEND', run: () => {
           this.inviteOpen = !this.inviteOpen;
           if (this.inviteOpen) recordProductIntent('referral_screen_viewed');
           this.inviteNotice = '';
@@ -1142,7 +1203,7 @@ export class PilotMenu {
     const aircraftList = document.createElement('div'); aircraftList.className = 'pilot-progress-aircraft-list';
     for (const [index, plane] of data.progression.aircraft.entries()) {
       const row = document.createElement('div');
-      const state = textElement('span', plane.owned ? '✓ OWNED' : plane.premium ? 'PREMIUM' : plane.neededCredits ? `${plane.neededCredits.toLocaleString()} Credits needed` : `${plane.price.toLocaleString()} Credits to unlock`);
+      const state = textElement('span', plane.owned ? '✓ OWNED' : plane.premium ? '2,400 Sky Tokens' : `From ${plane.price.toLocaleString()} Credits with appearance`);
       state.dataset.progressSlot = `aircraft-${index}`;
       row.append(textElement('span', plane.name), state);
       if (plane.owned) row.classList.add('owned');
@@ -1330,7 +1391,11 @@ export class PilotMenu {
     this.pointerActive = false;
     this.element.hidden = true;
     this.sectionHistory.length = 0;
+    this.rewardsBackground.forEach(element => { element.inert = false; });
+    this.rewardsBackground = [];
     if (notify) this.options.onClose?.();
+    if (notify && this.rewardsReturnFocus?.isConnected) this.rewardsReturnFocus.focus({ preventScroll: true });
+    this.rewardsReturnFocus = undefined;
   }
 
   private backOrClose(): void {
