@@ -5147,7 +5147,6 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   flex-wrap: nowrap;
   gap: clamp(7px, 1.15vw, 17px);
   width: max-content;
-  transform: translateX(-4px);
 }
 #game-root .flight-game-hud .flight-hud-utilities { grid-area: utilities; }
 #game-root .flight-game-hud .flight-hud-panel {
@@ -5172,7 +5171,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .flight-game-hud .flight-hud-stat,
 #game-root .flight-game-hud .flight-header-credit-copy,
 #game-root .flight-game-hud .flight-hud-stat-copy { flex-direction: row; align-items: center; gap: 4px; }
-#game-root .flight-game-hud .flight-hud-stat-copy { flex-direction: row-reverse; }
+#game-root .flight-game-hud .flight-hud-stat-copy { flex: 0 0 auto; white-space: nowrap; }
 #game-root .flight-game-hud small { display: none; }
 #game-root .flight-game-hud strong,
 #game-root .flight-game-hud i { color: #fff; font: 800 clamp(16px, 1.7vw, 23px)/1 var(--font-display); text-shadow: 0 2px 3px #071527; }
@@ -5187,6 +5186,12 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .flight-game-hud .flight-hud-health.critical .flight-hud-value b { color: #ff8797; }
 #game-root .flight-game-hud .flight-hud-art { flex: 0 0 auto; width: clamp(32px, 3.5vw, 48px); height: clamp(32px, 3.5vw, 48px); object-fit: contain; }
 #game-root .flight-game-hud .flight-hud-plane-art { width: clamp(36px, 3.9vw, 54px); }
+#game-root .flight-game-hud .flight-hud-value { align-items: baseline; white-space: nowrap; }
+#game-root .flight-game-hud .flight-hud-climb-art { width: clamp(40px, 4.3vw, 58px); height: clamp(36px, 3.8vw, 50px); overflow: visible; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 45%)); }
+#game-root .flight-game-hud .flight-hud-climb-art .climb-trail { fill: none; stroke: #5aeaff; stroke-width: 3; stroke-linecap: round; }
+#game-root .flight-game-hud .flight-hud-climb-art .climb-plane { fill: #e8f7ff; stroke: #216da6; stroke-width: 1.3; }
+#game-root .flight-game-hud .flight-hud-climb-art .climb-wing-light { fill: #409ef1; }
+#game-root .flight-game-hud .flight-hud-climb-art .climb-cockpit { fill: #ffd15a; }
 #game-root .flight-game-hud .flight-hud-speed .flight-hud-icon {
   width: clamp(32px, 3.5vw, 48px);
   height: clamp(32px, 3.5vw, 48px);
@@ -5198,7 +5203,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   stroke: #ffdc73;
   filter: drop-shadow(0 2px 3px rgb(0 0 0 / 50%));
 }
-#game-root .flight-game-hud .flight-hud-speed { position: relative; padding-right: clamp(14px, 2.7vw, 28px); }
+#game-root .flight-game-hud .flight-hud-speed { position: relative; gap: clamp(14px, 1.7vw, 21px); }
 #game-root .flight-game-hud .flight-hud-speed::before,
 #game-root .flight-game-hud .flight-hud-speed::after {
   position: absolute;
@@ -5210,7 +5215,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   content: '';
 }
 #game-root .flight-game-hud .flight-hud-speed::before { left: -11px; }
-#game-root .flight-game-hud .flight-hud-speed::after { left: 36px; transform: scaleX(-1); }
+#game-root .flight-game-hud .flight-hud-speed::after { left: clamp(30px, 3.5vw, 46px); transform: scaleX(-1); }
 #game-root .flight-game-hud #flight-menu-button {
   width: clamp(44px, 5vw, 60px);
   height: clamp(44px, 5vw, 60px);
@@ -5226,8 +5231,8 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .flight-game-hud :is(#flight-garage-button, #flight-account-button) { display: none; }
 #game-root .flight-game-hud #flight-map-button {
   position: fixed;
-  top: calc(var(--safe-area-top) + 8px);
-  right: max(6px, calc(var(--safe-area-right) - 45px));
+  top: calc(var(--safe-area-top) + 22px);
+  right: max(20px, calc(var(--safe-area-right) - 25px));
   z-index: 2;
   width: 44px;
   height: 44px;
@@ -5289,24 +5294,14 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   gap: 4px 7px;
   padding: 8px 10px 10px 14px;
   border: 1px solid rgb(155 215 246 / 70%);
-  border-left: 0;
-  border-radius: 8px 12px 12px 8px;
-  background: linear-gradient(110deg, rgb(10 39 73 / 79%), rgb(19 67 105 / 70%));
-  box-shadow: inset 0 1px rgb(255 255 255 / 23%), 0 3px 9px rgb(4 25 48 / 24%);
+  border-left: 4px solid #f2c656;
+  border-radius: 10px;
+  background: rgb(9 26 48 / 82%);
+  box-shadow: 0 3px 9px rgb(4 25 48 / 24%);
   font: 800 clamp(9px, 1vw, 11px)/1.15 var(--font-display);
   letter-spacing: .03em;
 }
-#game-root .sky-challenge.journey-mission-one::before {
-  position: absolute;
-  top: 5px;
-  bottom: 5px;
-  left: 0;
-  width: 6px;
-  background: linear-gradient(#ffeb95, #dfa82e);
-  box-shadow: 0 0 7px rgb(255 210 95 / 55%);
-  transform: skewX(-11deg);
-  content: '';
-}
+#game-root .sky-challenge.journey-mission-one::before { display: none; }
 #game-root .journey-mission-one [data-journey-heading],
 #game-root .journey-mission-one [data-journey-objective],
 #game-root .journey-mission-one .journey-hud-segments { grid-column: 1 / -1; }
@@ -5320,7 +5315,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .mission-one-gate-cue > .mission-objective-docked[hidden],
 #game-root .mission-one-gate-cue:has(> .mission-objective-docked[hidden]) { display: none; }
 
-#game-root #right-flight-stack { top: calc(var(--safe-area-top) + 9px); right: max(10px, calc(var(--safe-area-right) - 40px)); width: clamp(108px, 12vw, 154px); max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 18px); }
+#game-root #right-flight-stack { top: calc(var(--safe-area-top) + 22px); right: max(25px, calc(var(--safe-area-right) - 20px)); width: clamp(108px, 12vw, 154px); max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 30px); }
 #game-root #radar-panel,
 .touch-controls-active #game-root #radar-panel {
   width: 100%;
