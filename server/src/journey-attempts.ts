@@ -17,6 +17,7 @@ export type JourneyAttempt = {
   goldenChampionshipGateIndex: number;
   prepareUntil: number | null;
   deadlineAt: number | null; lastGateAt: number | null; finishedAt: number | null;
+  pausedAt: number | null;
   finishTimeMs: number | null; firstClearCredits: number; failureReason: string | null;
   holdMs: number; holdUpdatedAt: number | null;
   captureMs: number;
@@ -38,6 +39,7 @@ type AttemptRow = {
   status: JourneyAttemptStatus; gate_index: number; created_at: number; started_at: number | null;
   prepare_until: number | null;
   deadline_at: number | null; last_gate_at: number | null; finished_at: number | null;
+  paused_at: number | null;
   finish_time_ms: number | null; first_clear_credits: number; failure_reason: string | null;
   hold_ms: number; hold_updated_at: number | null;
   capture_ms: number;
@@ -68,11 +70,12 @@ function attempt(row: AttemptRow): JourneyAttempt {
       : row.status === 'APPROACH' ? 'APPROACH_GATES' : row.status } : {}),
     ...(row.mission_id === journeyDallas17.id ? { phase: row.status === 'READY' || row.status === 'APPROACH' ? 'REPAIR'
       : row.status === 'RACING' ? 'LANDING' : row.status } : {}),
-    ...(row.mission_id === journeyDallas22.id ? { phase: row.status === 'READY' || row.status === 'APPROACH' && row.prepare_until !== null && Date.now() < row.prepare_until ? 'PREPARING'
+    ...(row.mission_id === journeyDallas22.id ? { phase: row.status === 'READY' || row.status === 'APPROACH' && row.prepare_until !== null && (row.paused_at ?? Date.now()) < row.prepare_until ? 'PREPARING'
       : row.status === 'APPROACH' ? 'APPROACH_GATES' : row.status === 'RACING' && row.championship_gate_index === 3 ? 'LANDING'
       : row.status === 'RACING' ? 'APPROACH_GATES' : row.status } : {}),
     createdAt: row.created_at, startedAt: row.started_at, prepareUntil: row.prepare_until,
     deadlineAt: row.deadline_at, lastGateAt: row.last_gate_at, finishedAt: row.finished_at,
+    pausedAt: row.paused_at,
     finishTimeMs: row.finish_time_ms, firstClearCredits: row.first_clear_credits,
     failureReason: row.failure_reason,
     holdMs: row.hold_ms, holdUpdatedAt: row.hold_updated_at,
@@ -166,6 +169,7 @@ export class JourneyAttemptStore {
     if (!columns.some(column => column.name === 'repair_collected_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN repair_collected_at INTEGER');
     if (!columns.some(column => column.name === 'landing_score')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN landing_score INTEGER');
     if (!columns.some(column => column.name === 'capture_ms')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN capture_ms INTEGER NOT NULL DEFAULT 0');
+    if (!columns.some(column => column.name === 'paused_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN paused_at INTEGER');
     if (!columns.some(column => column.name === 'approach_cycle')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN approach_cycle INTEGER NOT NULL DEFAULT 0');
     if (!columns.some(column => column.name === 'double_phase')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN double_phase TEXT');
     if (!columns.some(column => column.name === 'legendary_phase')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN legendary_phase TEXT');
@@ -183,6 +187,29 @@ export class JourneyAttemptStore {
     const row = this.database.prepare('SELECT * FROM journey_attempts WHERE pilot_id = ? AND attempt_id = ?')
       .get(pilotId, attemptId) as AttemptRow | undefined;
     return row ? attempt(row) : undefined;
+  }
+
+  pause(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    this.database.prepare(`UPDATE journey_attempts SET paused_at = ?
+      WHERE pilot_id = ? AND attempt_id = ? AND status IN ('READY','APPROACH','RACING') AND paused_at IS NULL`)
+      .run(now, pilotId, attemptId);
+    return this.get(pilotId, attemptId);
+  }
+
+  resume(pilotId: string, attemptId: string, now = Date.now()): { attempt: JourneyAttempt; pausedMs: number } | undefined {
+    const current = this.get(pilotId, attemptId);
+    if (!current || current.pausedAt === null || !['READY', 'APPROACH', 'RACING'].includes(current.status)) return undefined;
+    const pausedMs = Math.max(0, now - current.pausedAt);
+    this.database.prepare(`UPDATE journey_attempts SET paused_at = NULL,
+      created_at = created_at + ?, started_at = started_at + ?, deadline_at = deadline_at + ?,
+      prepare_until = prepare_until + ?, last_gate_at = last_gate_at + ?,
+      hold_updated_at = hold_updated_at + ?, repair_collected_at = repair_collected_at + ?,
+      monster_defeated_at = monster_defeated_at + ?
+      WHERE pilot_id = ? AND attempt_id = ? AND paused_at = ?`)
+      .run(pausedMs, pausedMs, pausedMs, pausedMs, pausedMs, pausedMs, pausedMs, pausedMs,
+        pilotId, attemptId, current.pausedAt);
+    const attempt = this.get(pilotId, attemptId);
+    return attempt ? { attempt, pausedMs } : undefined;
   }
 
   progress(pilotId: string, missionId: string = journeyDallas01.id): { completed: boolean; firstAttemptId?: string; bestTimeMs?: number } {

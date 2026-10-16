@@ -10,6 +10,32 @@ import { cityAirports } from '../../shared/city-airports.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 
+test('pausing a mission preserves its gate and remaining time until resume', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-journey-pause-test-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    const launched = store.launch('pilot', 'trainer', 1_000);
+    store.approach('pilot', launched.attemptId, 1_100);
+    const racing = store.startRookieRush('pilot', launched.attemptId, 2_000)!;
+    const paused = store.pause('pilot', launched.attemptId, 12_000)!;
+    assert.equal(paused.pausedAt, 12_000);
+    assert.equal(paused.deadlineAt, racing.deadlineAt);
+    assert.equal(store.pause('pilot', launched.attemptId, 20_000)?.pausedAt, 12_000);
+    assert.equal(store.resume('other-pilot', launched.attemptId, 42_000), undefined);
+    const resumed = store.resume('pilot', launched.attemptId, 42_000)!;
+    assert.equal(resumed.pausedMs, 30_000);
+    assert.equal(resumed.attempt.pausedAt, null);
+    assert.equal(resumed.attempt.status, 'RACING');
+    assert.equal(resumed.attempt.gateIndex, 0);
+    assert.equal(resumed.attempt.deadlineAt, racing.deadlineAt! + 30_000);
+    assert.equal(store.resume('pilot', launched.attemptId, 42_001), undefined);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('Downtown Slalom requires Mission 3 and rewards ten ordered race gates once', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-slalom-journey-test-'));
   const path = join(directory, 'profiles.sqlite');

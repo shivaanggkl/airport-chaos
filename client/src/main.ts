@@ -133,6 +133,7 @@ type JourneyAttemptState = {
   doublePhase?: 'TAKEOFF' | 'FIRST_FIGHT' | 'REPAIR' | 'FINAL_FIGHT' | null;
   heartPosition?: { x: number; y: number; z: number } | null;
   status: 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
+  pausedAt?: number | null;
   phase?: 'PREPARING' | 'APPROACH_GATES' | 'REPAIR' | 'RACING' | 'LANDING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
   landingGrade?: 'ROUGH' | 'SAFE' | 'SMOOTH' | 'PERFECT' | 'LEGENDARY' | null;
   landingScore?: number | null; repairCollectedAt?: number | null; approachCycle?: number;
@@ -167,14 +168,20 @@ flightLaunchTitle.className = 'flight-launch-title';
 flightLaunchTitle.setAttribute('aria-hidden', 'true');
 flightLaunchTitle.textContent = activeCity.displayName.toUpperCase();
 flightGameRoot.append(flightLaunchTitle);
-const missionOneIntroSkip = document.createElement('button');
-missionOneIntroSkip.type = 'button';
-missionOneIntroSkip.className = 'mission-one-intro-skip';
-missionOneIntroSkip.textContent = 'SKIP INTRO';
-missionOneIntroSkip.setAttribute('aria-label', 'Skip Mission 1 intro');
-missionOneIntroSkip.hidden = true;
-missionOneIntroSkip.addEventListener('click', requestFlightLaunchSkip);
-flightGameRoot.append(missionOneIntroSkip);
+const missionIntroSkip = document.createElement('button');
+missionIntroSkip.type = 'button';
+missionIntroSkip.className = 'mission-intro-skip';
+missionIntroSkip.textContent = 'SKIP INTRO';
+missionIntroSkip.setAttribute('aria-label', 'Skip intro');
+missionIntroSkip.hidden = true;
+missionIntroSkip.addEventListener('click', () => {
+  if (transportView?.arrivalActive) {
+    transportView.skipArrival();
+    completeFlightLaunchCinematic();
+  }
+  else requestFlightLaunchSkip();
+});
+flightGameRoot.append(missionIntroSkip);
 let flightLaunchState: FlightLaunchState = trainingRequested ? 'disabled' : 'pending';
 let flightLaunchStartedAt = 0;
 let flightLaunchSkipStartedAt: number | undefined;
@@ -1266,6 +1273,10 @@ const citySelectorElement = document.querySelector<HTMLElement>('#city-selector'
 const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
+const journeyPauseButtonElement = document.querySelector<HTMLButtonElement>('#journey-pause-button')!;
+const journeyPauseOverlayElement = document.querySelector<HTMLElement>('#journey-pause-overlay')!;
+const journeyResumeButtonElement = document.querySelector<HTMLButtonElement>('#journey-resume-button')!;
+journeyPauseButtonElement.hidden = true;
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
 const flightAccountButtonElement = document.querySelector<HTMLButtonElement>('#flight-account-button')!;
@@ -3896,6 +3907,8 @@ window.addEventListener('orientationchange', syncDesktopControlsHelp);
 desktopControlsHelpToggleElement.addEventListener('click', toggleDesktopControlsHelp);
 renderDesktopControlsHelp();
 let runStarted = false;
+let journeyPaused = false;
+let journeyPauseSupported = false;
 type GuidedTutorialStep=(typeof tutorialSteps)[number]|'freePractice';
 let guidedTutorialActive=false;
 let guidedTutorialStep:GuidedTutorialStep='throttle';
@@ -4171,7 +4184,8 @@ function beginFlightLaunchCinematic(): void {
   document.body.classList.remove('launch-cinematic-pending');
   document.body.classList.add('launch-cinematic-active');
   flightLaunchTitle.classList.add('is-visible');
-  missionOneIntroSkip.hidden = !missionOneIntroPath;
+  missionIntroSkip.hidden = !missionOneIntroPath;
+  if (missionOneIntroPath) missionIntroSkip.setAttribute('aria-label', 'Skip Mission 1 intro');
   setFlightLaunchChrome(0);
   if ((missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionSixIntroPath) && matchMedia('(prefers-reduced-motion: reduce)').matches) completeFlightLaunchCinematic();
 }
@@ -4192,7 +4206,7 @@ function completeFlightLaunchCinematic(): void {
   cameraOrbitRecenterAt = null;
   cameraRelativeOffsetInitialized = false;
   flightLaunchTitle.classList.remove('is-visible');
-  missionOneIntroSkip.hidden = true;
+  missionIntroSkip.hidden = true;
   flightGameRoot.classList.remove('golden-gates-intro');
   flightGameRoot.style.removeProperty('--golden-gates-wipe-opacity');
   flightGameRoot.classList.remove('launch-cinematic-pending', 'launch-cinematic-active', 'launch-cinematic-handoff');
@@ -4221,7 +4235,7 @@ function requestFlightLaunchSkip(): void {
   flightLaunchSkipTarget.copy(flightLaunchCurrentTarget);
   flightLaunchSkipFov = camera.fov;
   flightLaunchTitle.classList.remove('is-visible');
-  missionOneIntroSkip.hidden = true;
+  missionIntroSkip.hidden = true;
   flightGameRoot.style.setProperty('--launch-hud-fade-duration', `${FLIGHT_LAUNCH_SKIP_BLEND_MS}ms`);
   document.body.style.setProperty('--launch-hud-fade-duration', `${FLIGHT_LAUNCH_SKIP_BLEND_MS}ms`);
   setFlightLaunchChrome(missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionSixIntroPath ? 0 : 1);
@@ -4249,16 +4263,18 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     } else if (skipped) {
       camera.position.copy(flightLaunchSkipPosition);
       flightLaunchCurrentTarget.copy(flightLaunchSkipTarget);
+    } else if (missionOneIntroPath) {
+      missionOneIntroPath.sample(elapsed, camera.position, flightLaunchCurrentTarget, chasePosition, chaseTarget);
     } else {
-      goldenGateIntroPath.sample(elapsed, camera.position, flightLaunchCurrentTarget);
+      (missionTwoIntroPath ?? missionThreeIntroPath ?? missionSixIntroPath)?.sample(elapsed, camera.position, flightLaunchCurrentTarget);
     }
     camera.lookAt(flightLaunchCurrentTarget);
-    const fov = cutToChase ? chaseFov : 63;
+    const fov = cutToChase ? chaseFov : missionOneIntroPath ? missionOneIntroPath.fov(elapsed, chaseFov) : 63;
     if (Math.abs(camera.fov - fov) >= .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
     setFlightLaunchChrome(cutToChase ? 1 : 0);
     if (cutToChase) {
       flightLaunchTitle.classList.remove('is-visible');
-      missionOneIntroSkip.hidden = true;
+      missionIntroSkip.hidden = true;
     }
     if (skipped ? transition >= 1 : elapsed >= durationMs) completeFlightLaunchCinematic();
     return true;
@@ -4449,6 +4465,8 @@ type ServerMessage =
       spawnPosition: { x: number; y: number; z: number };
       spawnAirportId?: string;
       airborneSpawn?: { position: NetworkVector; heading: number; speed: number };
+      resumeFlight?: { position: NetworkVector; rotation: NetworkVector; velocity: NetworkVector; onGround: boolean };
+      journeyPauseSupported?: boolean;
       health: number;
       maxHealth: number;
       tutorialMode: boolean;
@@ -4464,6 +4482,7 @@ type ServerMessage =
       repairCooldowns?: Array<{ id: string; remainingMs: number }>;
       profile: NetworkProfile;
     }
+  | { type: 'journeyPauseState'; attemptId: string; paused: boolean }
   | { type: 'protocolMismatch'; expectedProtocolVersion: number }
   | { type: 'equipRejected'; reason: string; equipRequestId: number }
   | { type: 'aircraftPurchaseResult'; purchaseRequestId: number; aircraftType?: unknown; ok: boolean; reason?: string }
@@ -6790,7 +6809,8 @@ window.addEventListener('pagehide', resetCameraPointers);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) return;
   resetCameraPointers();
-  cinematicDirector.clearPresentation();
+  if (!journeyMode || !journeyAttempt || !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status))
+    cinematicDirector.clearPresentation();
 });
 renderer.domElement.addEventListener('dragstart', (event) => event.preventDefault());
 renderer.domElement.addEventListener('wheel', (event) => {
@@ -6805,24 +6825,15 @@ renderer.domElement.addEventListener('wheel', (event) => {
   const zoomFactor = Math.exp(event.deltaY * 0.0012);
   applyCameraZoom(zoomFactor);
 }, { passive: false });
-// Tail starts at the muzzle/projectile position; no half-streak behind the gun.
-const projectileGeometry = new THREE.BoxGeometry(0.3, 0.3, 9).translate(0, 0, -4.5);
-const projectileGlowGeometry = new THREE.BoxGeometry(0.78, 0.78, 11.5).translate(0, 0, -5.75);
-const projectileMaterial = new THREE.MeshBasicMaterial({
-  color: 0xfff5be,
-  transparent: true,
-  opacity: 1,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-  toneMapped: false,
-});
-const projectileGlowMaterial = new THREE.MeshBasicMaterial({
-  color: 0xff8c38,
-  transparent: true,
-  opacity: 0.25,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-  toneMapped: false,
+// A short, opaque pellet starts at the muzzle without the light streak of a tracer.
+const projectileGeometry = new THREE.SphereGeometry(0.85, 8, 6).scale(1, 1, 2.4).translate(0, 0, -2);
+const projectileMaterial = new THREE.MeshStandardMaterial({
+  color: 0xcac1af,
+  roughness: 0.88,
+  metalness: 0,
+  flatShading: true,
+  emissive: 0x302a22,
+  emissiveIntensity: 0.2,
 });
 // Mission 19 presentation only; pooled tracers restore their normal styling on reuse.
 const monsterTracerCoreMaterial = new THREE.MeshBasicMaterial({
@@ -6849,9 +6860,8 @@ function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
   const glow = mesh.children[0] as THREE.Mesh;
   const core = mesh.children[1] as THREE.Mesh;
   mesh.userData.monsterTracer = monsterShot;
-  glow.geometry = monsterShot ? monsterTracerGlowGeometry : projectileGlowGeometry;
+  glow.visible = monsterShot;
   core.geometry = monsterShot ? monsterTracerCoreGeometry : projectileGeometry;
-  glow.material = monsterShot ? monsterTracerGlowMaterial : projectileGlowMaterial;
   core.material = monsterShot ? monsterTracerCoreMaterial : projectileMaterial;
   glow.scale.set(monsterShot ? 6 : 1, monsterShot ? 6 : 1, monsterShot ? 3 : 1);
   core.scale.copy(glow.scale);
@@ -7040,7 +7050,8 @@ if (visualQaMode && cityWorld.visualQaPresets) {
 
 function createProjectileVisual(): ClientProjectile {
   const mesh = new THREE.Group();
-  const glow = new THREE.Mesh(projectileGlowGeometry, projectileGlowMaterial);
+  const glow = new THREE.Mesh(monsterTracerGlowGeometry, monsterTracerGlowMaterial);
+  glow.visible = false;
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
   glow.renderOrder = 2;
   core.renderOrder = 3;
@@ -7153,7 +7164,6 @@ function getCurrentMuzzleTransform(origin: THREE.Vector3, direction: THREE.Vecto
 function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, clientShotId: string, targetId?: string): void {
   projectileOrigin.copy(origin);
   projectileDirection.copy(direction);
-  spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.11, 0.45);
   cameraShakeTime = Math.max(cameraShakeTime, 0.08);
   // A LOCKED trigger is rendered only after the server confirms its exact
   // assisted hit. Keeping it out of the ballistic prediction map guarantees
@@ -7182,11 +7192,9 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
 
 function createAssistedShotMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  const glow = new THREE.Mesh(projectileGlowGeometry, projectileGlowMaterial);
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-  glow.renderOrder = 2;
   core.renderOrder = 3;
-  mesh.add(glow, core);
+  mesh.add(core);
   return mesh;
 }
 
@@ -8988,6 +8996,7 @@ function animate(): void {
   if (stabilityQaMode) stabilityQaFrames += 1;
   const realDelta = clock.getDelta();
   const delta = Math.min(realDelta, 0.05);
+  if (journeyPaused) return;
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
@@ -9020,7 +9029,7 @@ function animate(): void {
   monsterView?.update(delta);
   transportView?.update(delta,camera);
   flightGameRoot.classList.toggle('transport-defeat-cinematic',!!(transportView?.defeatActive || transportView?.arrivalActive));
-  if(transportView?.defeatActive || transportView?.arrivalActive){
+  if(transportView?.defeatActive || transportView?.arrivalActive && !transportView.arrivalShowsPlayer){
     if(!transportHidPlayer){transportPlayerWasVisible=airplane.visible;transportHidPlayer=true;}
     airplane.visible=false;
   }else if(transportHidPlayer){airplane.visible=transportPlayerWasVisible;transportHidPlayer=false;}
@@ -9052,7 +9061,7 @@ function animate(): void {
   cinematicDirector.update(performance.now());
   updateCamera(delta);
   if (missionGateIntro?.active && !missionGateIntro.apply(camera, chaseCameraPosition, chaseLookTarget, camera.fov)) finishMissionGateIntro();
-  transportView?.updateDefeatCamera(camera,delta);
+  transportView?.updateDefeatCamera(camera,delta,airplane,chaseCameraPosition,chaseLookTarget);
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
   updateLockCircle();
   syncAceObjective();
@@ -9421,6 +9430,38 @@ function connectionReady(): boolean {
   return protocolReady && !protocolBlocked && socket?.readyState === WebSocket.OPEN;
 }
 
+function setJourneyPaused(paused: boolean): void {
+  if (!journeyMode) return;
+  journeyPaused = paused;
+  journeyPauseOverlayElement.hidden = !paused;
+  journeyPauseButtonElement.hidden = paused || !journeyPauseSupported || !journeyAttempt ||
+    !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status);
+  journeyResumeButtonElement.disabled = paused && !connectionReady();
+  if (paused) {
+    clearHeldActions();
+    mobileInput.reset();
+    boostActive = false;
+  }
+}
+
+function pauseJourney(): void {
+  if (!journeyMode || !journeyPauseSupported || journeyPaused || flightExitPending || !journeyAttempt ||
+    !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) return;
+  if (connectionReady()) socket.send(JSON.stringify({ type: 'journeyPause', attemptId: journeyAttemptId }));
+  setJourneyPaused(true);
+}
+
+journeyPauseButtonElement.addEventListener('click', pauseJourney);
+window.addEventListener('blur', pauseJourney);
+journeyResumeButtonElement.addEventListener('click', () => {
+  if (!journeyPaused || !connectionReady()) return;
+  journeyResumeButtonElement.disabled = true;
+  socket.send(JSON.stringify({ type: 'journeyResume', attemptId: journeyAttemptId }));
+  window.setTimeout(() => {
+    if (journeyPaused && connectionReady()) journeyResumeButtonElement.disabled = false;
+  }, 5_000);
+});
+
 function reconnectRealtimeSession(): void {
   protocolReady = false;
   protocolBlocked = false;
@@ -9732,6 +9773,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   missionObjectiveGuidance?.dispose();
   monsterView?.dispose(); monsterView = undefined;
   transportView?.dispose();transportView=undefined;transportViewAttemptId='';
+  missionIntroSkip.hidden = true;
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -9764,6 +9806,7 @@ async function retryJourneyMission(): Promise<void> {
     redlineSpeedReady = false;
     monsterView?.dispose(); monsterView = undefined;
   transportView?.dispose();transportView=undefined;transportViewAttemptId='';
+    missionIntroSkip.hidden = true;
     monsterBossHud.classList.add('hidden');
     journeyAttempt = null;
     applyMissionFocus(null);
@@ -9812,7 +9855,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
 });
 
 function sendLocalState(introHandshake = false): void {
-  if (!localPlayerId || !connectionReady()) return;
+  if (journeyPaused || !localPlayerId || !connectionReady()) return;
   if (!introHandshake && (airborneIntroAwaiting || runwayJourneyIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionSixIntroPath) && flightLaunchState === 'active' || missionGateIntro?.active)) return;
   flushProfileRewards();
   socket.send(
@@ -9962,14 +10005,30 @@ boundSocket.addEventListener('message', (event) => {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
+    setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null);
     if(message.attempt.missionId===journeyDallas07.id && ['APPROACH','RACING'].includes(message.attempt.status)){
       if(!transportView || transportViewAttemptId!==message.attempt.attemptId){
+        missionIntroSkip.hidden=true;
         transportView?.dispose();const view=new GiantIncomingView(scene,getTerrainHeight);transportView=view;transportViewAttemptId=message.attempt.attemptId;
         view.onCrashImpact=()=>audioManager.playDestroyConfirm();view.onHit=()=>audioManager.playHitConfirm();view.onWarning=()=>audioManager.playTone(500,.25,'triangle',.08,300,0,'weapons');
-        view.ready.then(async()=>{if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;if(journeyAttempt.status==='APPROACH'){clearHeldActions();boostActive=false;audioManager.playTone(440,.5,'triangle',.08,220,0,'impacts');await view.beginArrival();}if(transportView===view&&journeyAttempt?.attemptId===message.attempt.attemptId&&journeyAttempt.status==='APPROACH'&&connectionReady())socket.send(JSON.stringify({type:'transportReady',attemptId:message.attempt.attemptId}));}).catch(error=>{console.error('Transport asset loading failed',error);showProgressMessage('Transport could not load. Return to Journey and retry.');});
+        view.ready.then(async()=>{
+          if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;
+          if(journeyAttempt.status==='APPROACH'){
+            clearHeldActions();boostActive=false;audioManager.playTone(440,.5,'triangle',.08,220,0,'impacts');
+            const arrival=view.beginArrival();
+            missionIntroSkip.setAttribute('aria-label', 'Skip Mission 7 intro');
+            missionIntroSkip.hidden=false;
+            await arrival;
+            if(transportView===view)missionIntroSkip.hidden=true;
+          }
+          if(transportView===view&&journeyAttempt?.attemptId===message.attempt.attemptId&&journeyAttempt.status==='APPROACH'&&connectionReady())socket.send(JSON.stringify({type:'transportReady',attemptId:message.attempt.attemptId}));
+        }).catch(error=>{console.error('Transport asset loading failed',error);showProgressMessage('Transport could not load. Return to Journey and retry.');});
       }
-    }else if(transportView && message.attempt.missionId!==journeyDallas07.id){transportView.dispose();transportView=undefined;transportViewAttemptId='';}
-    if(message.attempt.missionId===journeyDallas07.id && ['COMPLETED','FAILED','ABANDONED'].includes(message.attempt.status))transportView?.finish(message.attempt.status==='COMPLETED'?'defeat':'timeout');
+    }else if(transportView && message.attempt.missionId!==journeyDallas07.id){transportView.dispose();transportView=undefined;transportViewAttemptId='';missionIntroSkip.hidden=true;}
+    if(message.attempt.missionId===journeyDallas07.id && ['COMPLETED','FAILED','ABANDONED'].includes(message.attempt.status)){
+      missionIntroSkip.hidden=true;
+      transportView?.finish(message.attempt.status==='COMPLETED'?'defeat':'timeout');
+    }
 
     if (message.attempt.missionId === journeyDallas19.id &&
       (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING')) {
@@ -10181,6 +10240,10 @@ boundSocket.addEventListener('message', (event) => {
     }
     return;
   }
+  if (message.type === 'journeyPauseState') {
+    if (journeyMode && message.attemptId === journeyAttemptId) setJourneyPaused(message.paused);
+    return;
+  }
   if (message.type === 'welcome') {
     if (message.protocolVersion !== PROTOCOL_VERSION) {
       blockProtocolConnection('Version mismatch — reload page and restart server');
@@ -10190,7 +10253,9 @@ boundSocket.addEventListener('message', (event) => {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');
       return;
     }
-    const shouldBeginFlightLaunch = !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode;
+    journeyPauseSupported = message.journeyPauseSupported === true;
+    if (!journeyPauseSupported) setJourneyPaused(false);
+    const shouldBeginFlightLaunch = !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode && !message.resumeFlight;
     airborneIntroAwaiting = shouldBeginFlightLaunch && journeyMode && Boolean(message.airborneSpawn);
     runwayJourneyIntroAwaiting = shouldBeginFlightLaunch && journeyMode && !message.airborneSpawn;
     flightLaunchWelcomeHandled = true;
@@ -10268,6 +10333,24 @@ boundSocket.addEventListener('message', (event) => {
       mobileInput.setThrottleState(throttle);
       setFlightState('FLYING');
       updateCamera(1);
+    }
+    if (journeyMode && message.resumeFlight) {
+      const flight = message.resumeFlight;
+      runStarted = true;
+      crashed = false;
+      onGround = flight.onGround;
+      airplane.position.set(flight.position.x, flight.position.y, flight.position.z);
+      airplane.rotation.set(flight.rotation.x, flight.rotation.y, flight.rotation.z, 'YXZ');
+      heading = flight.rotation.y;
+      pitch = flight.rotation.x;
+      roll = flight.rotation.z;
+      velocity.set(flight.velocity.x, flight.velocity.y, flight.velocity.z);
+      currentSpeed = Math.hypot(flight.velocity.x, flight.velocity.z);
+      verticalSpeed = flight.velocity.y;
+      boostActive = false;
+      setFlightState(onGround ? 'TAXI' : 'FLYING');
+      updateCamera(1);
+      setJourneyPaused(true);
     }
     if(message.tutorialMode&&cityRules.tutorialEnabled){cancelPendingFlightLaunch();applyServerSelectedAircraft(message.activeAircraftType,false,false);setGuidedTutorial(true);}
     applySocialState(message.social);
@@ -10728,6 +10811,8 @@ boundSocket.addEventListener('close', (event) => {
   cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
   pendingEquip = undefined;
+  if (journeyPauseSupported && journeyMode && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status))
+    setJourneyPaused(true);
   if (protocolBlocked) return;
   protocolReady = false;
   profileHydrated = false;
@@ -10782,7 +10867,14 @@ void monitorConnectivity((connected) => {
     return false;
   }
 }).then((stop) => { stopConnectivityMonitor = stop; });
-window.addEventListener('pagehide', () => {
+window.addEventListener('pagehide', (event) => {
+  pauseJourney();
+  if (event.persisted) {
+    realtimePaused = true;
+    clearReconnectTimer();
+    closeRealtimeSocket('Page cached');
+    return;
+  }
   realtimeStopped = true;
   clearReconnectTimer();
   stopConnectivityMonitor();
@@ -10790,9 +10882,15 @@ window.addEventListener('pagehide', () => {
   window.clearInterval(accountStatusTimer);
   closeRealtimeSocket('Page hidden');
 });
+window.addEventListener('pageshow', (event) => {
+  if (!event.persisted) return;
+  realtimePaused = false;
+  if (networkOnline) refreshSessionAndReconnect();
+});
 document.addEventListener('visibilitychange', () => {
   realtimePaused = document.hidden;
   if (document.hidden) {
+    pauseJourney();
     clearReconnectTimer();
     closeRealtimeSocket('Backgrounded');
     return;

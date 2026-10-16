@@ -102,6 +102,7 @@
     <nav id="unified-flight-hud" class="unified-flight-hud flight-game-hud" aria-label="Flight status and navigation">
       <div class="flight-hud-left">
         <button id="flight-menu-button" type="button" aria-label="Open pilot menu">☰</button>
+        <button id="journey-pause-button" type="button" aria-label="Pause mission" hidden>Ⅱ</button>
       </div>
       <div class="flight-hud-center" aria-label="Flight status">
         <div class="flight-hud-panel flight-hud-rewards">
@@ -114,12 +115,12 @@
           </div>
         </div>
         <div class="flight-hud-panel flight-hud-vitals">
-          <span class="flight-hud-stat flight-hud-health" aria-label="Aircraft health"><small>HEALTH</small><span class="flight-hud-value"><b aria-hidden="true">♥</b><strong id="health">100</strong></span></span>
+          <span class="flight-hud-stat flight-hud-health" aria-label="Aircraft health"><small>HEALTH</small><span class="flight-hud-value"><img class="flight-hud-art flight-hud-gauge-art flight-hud-health-art" src="/media/hud/health.png" alt="" /><strong id="health">100</strong></span></span>
           <span id="heat-row" class="flight-hud-stat flight-hud-danger" data-level="0" title="Wanted level"><small>HEAT</small><span class="flight-hud-value"><b>⚠</b><strong id="heat-level">0</strong></span></span>
         </div>
         <div class="flight-hud-panel flight-hud-motion">
-          <span class="flight-hud-stat flight-hud-speed"><svg class="flight-hud-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 18a11 11 0 0 1 22 0M16 18l7-8M12 23h8"/></svg><span class="flight-hud-stat-copy"><small>SPEED</small><span class="flight-hud-value"><strong id="speed">0</strong><i>MPH</i></span></span></span>
-          <span class="flight-hud-stat flight-hud-altitude"><svg class="flight-hud-art flight-hud-climb-art" viewBox="0 0 64 56" aria-hidden="true"><path class="climb-trail" d="M4 48c9-1 15-4 21-10M8 54c10-2 17-5 23-11M3 41l11-2"/><g transform="translate(5 -2) rotate(39 35 29)"><path class="climb-plane" d="M35 3c3 0 4 3 4 7v15l16 10v6l-16-5v9l6 5v3l-10-3-10 3v-3l6-5v-9l-16 5v-6l16-10V10c0-4 1-7 4-7Z"/><path class="climb-wing-light" d="m15 35 16-10v7l-16 9Zm40 0L39 25v7l16 9Z"/><path class="climb-cockpit" d="M35 8c-2 3-3 7-3 11h6c0-4-1-8-3-11Z"/></g></svg><span class="flight-hud-stat-copy"><small>ALT</small><span class="flight-hud-value"><strong id="altitude">0</strong><i>FT</i></span></span></span>
+          <span class="flight-hud-stat flight-hud-speed"><img class="flight-hud-art flight-hud-gauge-art" src="/media/hud/speed.png" alt="" /><span class="flight-hud-stat-copy"><small>SPEED</small><span class="flight-hud-value"><strong id="speed">0</strong><i>MPH</i></span></span></span>
+          <span class="flight-hud-stat flight-hud-altitude"><img class="flight-hud-art flight-hud-gauge-art" src="/media/hud/altitude.png" alt="" /><span class="flight-hud-stat-copy"><small>ALT</small><span class="flight-hud-value"><strong id="altitude">0</strong><i>FT</i></span></span></span>
         </div>
       </div>
       <div class="flight-hud-utilities">
@@ -133,6 +134,13 @@
         </button>
       </div>
     </nav>
+    <div id="journey-pause-overlay" class="journey-pause-overlay" role="dialog" aria-modal="true" aria-labelledby="journey-pause-title" hidden>
+      <div class="journey-pause-card">
+        <h2 id="journey-pause-title">MISSION PAUSED</h2>
+        <p>Your aircraft is waiting where you left it.</p>
+        <button id="journey-resume-button" type="button">RESUME</button>
+      </div>
+    </div>
     <aside id="practice-mode-label" class="practice-mode-label" hidden>MILWAUKEE — PRACTICE MODE <small>NO REWARDS</small></aside>
     <aside id="dallas-practice-suggestion" class="dallas-practice-suggestion" hidden aria-live="polite">
       <span>New to Airport Chaos? Try Milwaukee Practice Mode to learn flying and combat.</span>

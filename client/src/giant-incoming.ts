@@ -17,6 +17,8 @@ export class GiantIncomingView {
     private arrival?: TransportArrivalSequence;
     private arrivalResolve?:()=>void;
     get arrivalActive():boolean{return !!this.arrival;}
+    get arrivalShowsPlayer():boolean{return this.arrival?.showsPlayer??false;}
+    skipArrival():void{this.arrival?.skip();}
     beginArrival():Promise<void>{
         this.levels.forEach((level,index)=>{level.visible=index===0;});
         this.arrival=new TransportArrivalSequence(this.root,this.terrain);
@@ -28,7 +30,11 @@ export class GiantIncomingView {
     onCrashImpact?: () => void;
     get defeatActive(): boolean { return !!this.defeat && !this.defeatEnded; }
     get defeatComplete(): boolean { return this.defeatEnded; }
-    updateDefeatCamera(camera:THREE.Camera,delta:number):void { if(this.arrival)this.arrival.frame(camera,delta);else this.defeat?.frame(camera,delta); }
+    updateDefeatCamera(camera:THREE.Camera,delta:number,player:THREE.Object3D,
+        chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
+        if(this.arrival)this.arrival.frame(camera,delta,player,chasePosition,chaseTarget);
+        else this.defeat?.frame(camera,delta);
+    }
     private elapsed = 0;
     private final?: 'defeat' | 'timeout';
     private finalAt = 0;
