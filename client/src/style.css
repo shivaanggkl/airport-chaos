@@ -1704,6 +1704,32 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-result-actions button { min-height: 46px; border: 2px solid #f6c445; border-radius: 10px; color: #103966; background: linear-gradient(#fff2aa,#ffc94f); font: 900 14px var(--font-display); }
 .journey-result-actions [data-journey-exit] { color: #f6fbff; border-color: #35d6ff; background: linear-gradient(#1e4d7a,#163458); }
 .journey-result-actions button[hidden] { display: none; }
+.mission-one-clear { position: fixed; z-index: 58; inset: 0; pointer-events: none; text-align: center; background: linear-gradient(rgb(5 29 55 / 9%), transparent 45%); }
+.mission-one-clear.hidden { display: none; }
+.mission-one-clear-content { position: absolute; top: max(5vh, calc(env(safe-area-inset-top) + 8px)); left: 50%; width: min(92vw, 540px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.mission-one-clear-icon { display: grid; place-items: center; width: clamp(58px, 12vh, 78px); aspect-ratio: 1; border: 4px solid #ffe794; border-radius: 50%; background: radial-gradient(circle at 35% 22%, #93601f, #3e270f 68%); box-shadow: 0 0 0 3px #8f5c14, inset 0 0 0 3px #c58c26, 0 3px 16px #ffce61, 0 0 32px rgb(255 207 90 / 65%); animation: mission-one-clear-pop 480ms cubic-bezier(.16,1.35,.45,1) both; }
+.mission-one-clear-icon span { width: 25%; height: 43%; border-right: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-bottom: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-radius: 2px; transform: translateY(-10%) rotate(45deg); filter: drop-shadow(0 2px 1px #5c390c); }
+.mission-one-clear-content > strong { margin-top: clamp(9px, 2vh, 15px); color: #ffd84f; font: 900 clamp(24px, 4.6vw, 42px)/1.05 var(--font-display); letter-spacing: .055em; white-space: nowrap; text-shadow: 0 2px 1px #8c510f, 0 4px 5px #1c2e3a, 0 0 19px rgb(255 205 77 / 60%); animation: mission-one-clear-rise 550ms 140ms both; }
+.mission-one-clear-name { margin-top: 4px; color: white; font: 900 clamp(17px, 3vw, 27px)/1.1 var(--font-display); letter-spacing: .08em; text-shadow: 0 2px 5px #14344b, 0 0 12px rgb(255 255 255 / 70%); animation: mission-one-clear-rise 550ms 260ms both; }
+.mission-one-clear-sparkles { position: absolute; inset: -6px 4% 0; height: clamp(160px, 34vh, 230px); }
+.mission-one-clear-sparkles i { position: absolute; left: var(--x); top: var(--y); width: var(--size, 5px); aspect-ratio: 1; border-radius: 50%; background: var(--color, #ffe388); box-shadow: 0 0 9px 3px var(--color, #ffe388); animation: mission-one-sparkle 1.35s var(--delay, 0s) ease-in-out infinite alternate; }
+.mission-one-clear-sparkles i:nth-child(1) { --x: 20%; --y: 30%; --delay: -.2s; }
+.mission-one-clear-sparkles i:nth-child(2) { --x: 28%; --y: 15%; --size: 3px; --delay: -.7s; }
+.mission-one-clear-sparkles i:nth-child(3) { --x: 36%; --y: 3%; --color: #7cf7ff; --delay: -.4s; }
+.mission-one-clear-sparkles i:nth-child(4) { --x: 64%; --y: 4%; --delay: -.9s; }
+.mission-one-clear-sparkles i:nth-child(5) { --x: 75%; --y: 18%; --size: 3px; --delay: -.5s; }
+.mission-one-clear-sparkles i:nth-child(6) { --x: 83%; --y: 35%; --color: #7cf7ff; --delay: -.1s; }
+.mission-one-clear-sparkles i:nth-child(7) { --x: 14%; --y: 58%; --size: 3px; --delay: -.8s; }
+.mission-one-clear-sparkles i:nth-child(8) { --x: 88%; --y: 57%; --size: 3px; --delay: -.3s; }
+.mission-one-clear-sparkles i:nth-child(9) { --x: 23%; --y: 83%; --delay: -1s; }
+.mission-one-clear-sparkles i:nth-child(10) { --x: 76%; --y: 83%; --color: #7cf7ff; --delay: -.6s; }
+.mission-one-clear-sparkles i:nth-child(11) { --x: 43%; --y: 73%; --size: 3px; --delay: -.2s; }
+.mission-one-clear-sparkles i:nth-child(12) { --x: 58%; --y: 72%; --size: 3px; --delay: -.9s; }
+#game-root.mission-one-clear-active > :not(canvas):not(.mission-one-clear) { opacity: 0 !important; pointer-events: none !important; }
+@keyframes mission-one-clear-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes mission-one-clear-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mission-one-sparkle { from { opacity: .15; transform: scale(.5); } to { opacity: 1; transform: scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .mission-one-clear * { animation: none !important; } }
 @media (max-height: 520px) { .sky-challenge.journey-hud { top: max(70px,calc(env(safe-area-inset-top) + 56px)); left: max(8px,env(safe-area-inset-left)); width: min(260px,42vw); padding: 6px 8px; font-size: 9px; } .journey-hud strong { font-size: 10px; } .journey-result-card { padding: 12px 18px; } }
 @media (prefers-reduced-motion: reduce) { .journey-result *, .journey-hud *, .mission-objective-guidance * { animation: none !important; transition: none !important; } }
 

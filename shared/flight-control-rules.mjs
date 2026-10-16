@@ -80,9 +80,33 @@ export function throttleTargetDeceleration(airspeed,throttle,envelope){
   return excess*throttleDecelerationResponse(throttle,envelope);
 }
 
+export function airborneAirbrakeDeceleration(forwardSpeed,strength,envelope){
+  // The throttle brake sheds travel speed; falling vertically is not forward
+  // travel and must remain subject to gravity after a stall.
+  const speed=Math.max(0,forwardSpeed);
+  const baseDrag=envelope.drag*(speed/envelope.maxSpeed)**2;
+  return Math.max(baseDrag*(envelope.airbrakeDrag??2),speed*envelope.inertia*.85)*Math.max(0,strength)/envelope.inertia;
+}
+
+export function airbornePitchTarget(pitchControl,forwardSpeed,throttle,envelope){
+  const command=clamp(pitchControl,-1,1);
+  const commandedPitch=command>=0
+    ? envelope.maxClimbPitch*command
+    : (envelope.maxDivePitch??envelope.maxClimbPitch)*command;
+  // Power-off flight settles into a shallow glide. As forward airflow falls
+  // below stall speed the nose drops further instead of falling wings-level.
+  const powerOff=1-clamp(throttle/.2,0,1);
+  const stall=clamp((envelope.stallSpeed-Math.max(0,forwardSpeed))/(envelope.stallSpeed*.52),0,1);
+  return clamp(commandedPitch-.1*powerOff-.2*stall,-.35,envelope.maxClimbPitch);
+}
+
 export function airborneLiftFactor(forwardSpeed,angleOfAttack,throttle,stallFactor,envelope){
   // A neutral stick is an untrimmed glide. The pilot must hold a little pitch
   // to maintain altitude, while airspeed and angle of attack still govern lift.
   const liftCoefficient=clamp(.64/envelope.lift+angleOfAttack*1.75,.34,1.28);
-  return liftCoefficient*Math.min(1.28,(forwardSpeed/envelope.takeoffSpeed)**2)*stallFactor*envelope.lift*(1+throttle*envelope.climbLiftBoost*.08);
+  // At idle, bleed the remaining lift so high airspeed cannot hold the plane
+  // nearly level after the engine has been brought down to idle.
+  // The normal slow/powered range (20% and above) keeps its existing lift.
+  const idleLiftScale=.35+.65*clamp(throttle/.2,0,1);
+  return liftCoefficient*Math.min(1.28,(forwardSpeed/envelope.takeoffSpeed)**2)*stallFactor*envelope.lift*(1+throttle*envelope.climbLiftBoost*.08)*idleLiftScale;
 }

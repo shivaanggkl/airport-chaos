@@ -15,4 +15,6 @@ export function stepMobileBank(currentBank:number,turnInput:number,delta:number,
 export function throttleSpeedTarget(throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number;maxSpeed:number}):number;
 export function throttleDecelerationResponse(throttle:number,envelope:{airbrakeResponse?:number;inertia:number}):number;
 export function throttleTargetDeceleration(airspeed:number,throttle:number,envelope:{stallSpeed:number;safeLandingSpeed:number;maxSpeed:number;airbrakeResponse?:number;inertia:number}):number;
+export function airborneAirbrakeDeceleration(forwardSpeed:number,strength:number,envelope:{drag:number;maxSpeed:number;airbrakeDrag?:number;inertia:number}):number;
+export function airbornePitchTarget(pitchControl:number,forwardSpeed:number,throttle:number,envelope:{maxClimbPitch:number;maxDivePitch?:number;stallSpeed:number}):number;
 export function airborneLiftFactor(forwardSpeed:number,angleOfAttack:number,throttle:number,stallFactor:number,envelope:{lift:number;takeoffSpeed:number;climbLiftBoost:number}):number;
