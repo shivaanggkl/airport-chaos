@@ -578,6 +578,8 @@ Do not:
 
 unless explicitly authorized.
 
+Use `qa` as the single integration branch for completed work. Parallel tasks may use temporary worktrees, but reconcile their finished changes into `qa` and preserve any unfinished changes before removing obsolete feature branches. Build and install the iPhone QA app from `qa` before moving that branch into `staging`. Do not move QA changes to staging until the user approves that promotion.
+
 ---
 
 # Definition of done
