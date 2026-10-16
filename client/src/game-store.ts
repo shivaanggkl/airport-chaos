@@ -1,4 +1,4 @@
-import './context-page-shell.css';
+import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import './game-store.css';
 import type { GarageProfile } from './garage';
 import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
@@ -72,13 +72,16 @@ export class GameStore {
   private selectedId?: string;
 
   constructor(private readonly element: HTMLElement, private readonly handlers: StoreHandlers) {
-    element.innerHTML = `<div class="store-frame"><header class="store-heading"><button class="context-back page-back store-back" type="button" data-store-back>BACK TO HUB</button><h1 class="context-winged-title">STORE</h1></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
+    element.innerHTML = `<div class="store-frame"><header class="store-heading context-page-heading"></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div><aside class="store-detail" aria-label="Store item details" hidden></aside></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
     this.tabs = element.querySelector('.store-tabs')!;
     this.grid = element.querySelector('.store-grid')!;
     this.detail = element.querySelector('.store-detail')!;
     this.notice = element.querySelector('.store-notice')!;
     this.content = element.querySelector('.store-content')!;
-    element.querySelector('[data-store-back]')!.addEventListener('click', () => handlers.close());
+    const storeBack = createContextBackButton('BACK TO HUB', () => handlers.close());
+    storeBack.classList.add('store-back');
+    storeBack.dataset.storeBack = '';
+    element.querySelector('.store-heading')!.append(storeBack, createContextPageTitle('STORE'));
     for (const category of categories) {
       const tab = document.createElement('button'); tab.type = 'button'; tab.className = 'store-tab';
       tab.dataset.category = category;
@@ -246,7 +249,7 @@ export class GameStore {
         }
       }
     }
-    const view = this.button('VIEW', () => this.select(item.id), item.kind === 'aircraft' && item.aircraftType === 'fighter' ? 'store-view store-view-premium' : 'store-view');
+    const view = this.button('VIEW', () => this.select(item.id), item.kind === 'aircraft' && item.aircraftType === 'fighter' ? 'context-action context-action--gold store-view' : 'context-action store-view');
     view.setAttribute('aria-label', `View ${item.name} details, ${isOwned(item, this.profile) ? 'owned' : price.textContent?.trim() || 'price in details'}`);
     const footer = document.createElement('div'); footer.className = 'store-card-footer'; footer.append(price, view);
     card.append(copy, footer);

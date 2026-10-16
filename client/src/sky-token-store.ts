@@ -1,4 +1,4 @@
-import './context-page-shell.css';
+import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import './game-store.css';
 import './sky-token-store.css';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
@@ -36,10 +36,9 @@ export class SkyTokenStore {
     this.overlay.className = 'sky-token-overlay context-fullscreen-page'; this.overlay.hidden = true;
     const panel = document.createElement('section'); panel.className = 'sky-token-panel';
     panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-label', 'Get Sky Tokens');
-    const heading = document.createElement('h2'); heading.className = 'context-winged-title'; heading.textContent = 'GET SKY TOKENS';
-    const close = document.createElement('button'); close.type = 'button'; close.className = 'context-back page-back sky-token-close'; close.textContent = 'BACK';
-    close.addEventListener('click', () => this.close());
-    const header = document.createElement('header'); header.className = 'sky-token-heading'; header.append(close, heading);
+    const heading = createContextPageTitle('GET SKY TOKENS', 2);
+    const close = createContextBackButton('BACK', () => this.close()); close.classList.add('sky-token-close');
+    const header = document.createElement('header'); header.className = 'sky-token-heading context-page-heading'; header.append(close, heading);
     const balanceLine = document.createElement('div'); balanceLine.className = 'game-card-frame sky-token-balance';
     const balanceIcon = document.createElement('img'); balanceIcon.src = '/media/hub/sky-tokens.avif'; balanceIcon.alt = ''; balanceIcon.setAttribute('aria-hidden', 'true');
     const balanceCopy = document.createElement('div'); balanceCopy.className = 'sky-token-balance-copy';
@@ -82,7 +81,7 @@ export class SkyTokenStore {
       const quantity = document.createElement('strong'); quantity.textContent = `${offer.tokens.toLocaleString()} SKY TOKENS`;
       const divider = document.createElement('hr');
       const price = document.createElement('span'); price.className = 'sky-token-price'; price.textContent = offer.price;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'store-view store-view-premium sky-token-buy';
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'context-action context-action--gold store-view sky-token-buy';
       button.textContent = 'BUY'; button.setAttribute('aria-label', `Buy ${offer.tokens.toLocaleString()} Sky Tokens for ${offer.price}`);
       button.disabled = previewOnly;
       card.append(icon, quantity, divider, price, button);

@@ -4,6 +4,7 @@ import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
 import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
+import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
 import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
@@ -483,19 +484,21 @@ export class PilotMenu {
     const header = document.createElement('header');
     const heading = document.createElement('div');
     const kicker = textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker');
-    const title = textElement('h1', 'What do you want to do?');
+    const title = this.options.appShell ? createContextPageTitle('What do you want to do?') : textElement('h1', 'What do you want to do?');
     title.dataset.pilotMenuTitle = '';
     const brand = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
     heading.append(brand, kicker, title);
     void mountAirportChaosLogo(brand, 'brand-logo-menu');
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
-    const close = actionButton({ label: typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME', run: closeTopUiLayer });
-    close.classList.add('context-back');
+    const closeLabel = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
+    const close = this.options.appShell ? createContextBackButton(closeLabel, closeTopUiLayer) : actionButton({ label: closeLabel, run: closeTopUiLayer });
+    if (!this.options.appShell) close.classList.add('context-back');
     this.backButton = close;
     if (this.options.appShell) close.classList.add('page-back');
     const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions';
     if (this.options.showContextStatus !== false) actions.append(cityStatus);
     if (!this.options.appShell) actions.append(close);
+    if (this.options.appShell) header.classList.add('context-page-heading');
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -662,7 +665,7 @@ export class PilotMenu {
         const levelStartXp = pilotXpForLevel(pilot.level);
         const levelRange = Math.max(1, pilot.nextLevelXp - levelStartXp);
         const levelProgress = pilot.level >= 50 ? levelRange : Math.max(0, Math.min(levelRange, pilot.xp - levelStartXp));
-        const identity = document.createElement('div'); identity.className = 'pilot-profile-hero';
+        const identity = document.createElement('div'); identity.className = 'game-card-frame pilot-profile-hero';
         const emblem = document.createElement('span'); emblem.className = 'pilot-profile-avatar'; emblem.setAttribute('aria-hidden', 'true');
         emblem.innerHTML = `<svg viewBox="0 0 100 100" focusable="false" aria-hidden="true">
           <defs><radialGradient id="pilotPortraitBlue"><stop stop-color="#22a6dc"/><stop offset="1" stop-color="#075597"/></radialGradient>
@@ -690,7 +693,9 @@ export class PilotMenu {
           input.id = 'pilot-profile-name-input'; input.setAttribute('autocomplete', 'nickname');
           const label = textElement('label', 'PILOT NAME', 'pilot-profile-name-label'); label.htmlFor = input.id;
           const cancel = actionButton({ label: 'CANCEL', run: () => { this.profileNameEditing = false; this.render(data, true); } });
-          const save = actionButton({ label: 'SAVE', intent: 'primary', run: () => undefined }); save.type = 'submit';
+          const save = actionButton({ label: 'SAVE', run: () => undefined }); save.type = 'submit';
+          cancel.classList.add('context-action', 'context-action--blue');
+          save.classList.add('context-action', 'context-action--blue');
           form.append(label, input, cancel, save);
           form.addEventListener('submit', event => {
             event.preventDefault();
@@ -703,14 +708,18 @@ export class PilotMenu {
               const updatedName = result.pilotName ?? input.value.trim().replace(/\s+/g, ' ');
               account.pilotName = updatedName;
               identityCopy.querySelector('strong')!.textContent = updatedName;
-              edit.replaceChildren(actionButton({ label: 'EDIT NAME', run: () => {
+              const editName = actionButton({ label: 'EDIT NAME', run: () => {
                 this.profileFeedback = undefined; this.profileNameEditing = true; this.render(this.lastData ?? data, true);
-              } }));
+              } });
+              editName.classList.add('context-action', 'context-action--blue');
+              edit.replaceChildren(editName);
             })();
           });
           edit.append(form);
         } else {
-          edit.append(actionButton({ label: 'EDIT NAME', run: () => { this.profileFeedback = undefined; this.profileNameEditing = true; this.render(data, true); } }));
+          const editName = actionButton({ label: 'EDIT NAME', run: () => { this.profileFeedback = undefined; this.profileNameEditing = true; this.render(data, true); } });
+          editName.classList.add('context-action', 'context-action--blue');
+          edit.append(editName);
         }
         const lifetime = document.createElement('div'); lifetime.className = 'pilot-profile-lifetime';
         const creditsIcon = document.createElement('img'); creditsIcon.src = '/media/hub/credits.avif'; creditsIcon.alt = '';
@@ -953,7 +962,7 @@ export class PilotMenu {
 
     if (this.activeSection === 'REWARDS' && data.rewards) {
       const rewards = section('DAILY REWARDS');
-      rewards.classList.add('pilot-rewards');
+      rewards.classList.add('pilot-rewards', 'game-card-frame');
       rewards.querySelector('h2')?.prepend(rewardImage('/media/hub/rewards.png', 'pilot-rewards-heading-art'));
       rewards.append(textElement('p', 'Come back every 20 hours. Your progress never resets.', 'pilot-rewards-friendly'));
       const state = data.rewards.state;
@@ -993,7 +1002,8 @@ export class PilotMenu {
       claimArea.append(claimDetails);
       const minutes = Math.max(0, Math.ceil(remaining / 60_000));
       const status = textElement('p', data.rewards.notice ?? (available ? '' : `Next reward in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
-      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, intent: 'primary', disabled: !available || !data.rewards.authenticated, run: () => undefined });
+      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, disabled: !available || !data.rewards.authenticated, run: () => undefined });
+      claim.classList.add('context-action', 'context-action--gold');
       claim.addEventListener('click', () => {
         if (claim.disabled) return;
         recordProductIntent('daily_reward_claim_clicked');
@@ -1055,7 +1065,7 @@ export class PilotMenu {
       const inviteData = data.rewards.invite;
       if (inviteData) {
         const invite = section('INVITE PILOTS');
-        invite.classList.add('pilot-invite');
+        invite.classList.add('pilot-invite', 'game-card-frame');
         invite.querySelector('h2')?.before(rewardImage('/media/hub/friends.avif', 'pilot-invite-art'));
         const values = document.createElement('div'); values.className = 'pilot-invite-values';
         if (inviteData.inviterRewardsRemaining > 0) {
@@ -1073,6 +1083,7 @@ export class PilotMenu {
           this.inviteNotice = '';
           if (this.lastData) this.render(this.lastData);
         } });
+        openInvite.classList.add('context-action');
         openInvite.setAttribute('aria-expanded', String(this.inviteOpen));
         invite.append(openInvite);
         if (this.inviteOpen) {
@@ -1092,7 +1103,7 @@ export class PilotMenu {
           link.addEventListener('focus', () => link.select());
           const actions = document.createElement('div'); actions.className = 'pilot-invite-actions';
           const notice = textElement('p', this.inviteNotice, 'pilot-invite-notice');
-          const share = actionButton({ label: 'SHARE INVITE', intent: 'primary', run: () => {
+          const share = actionButton({ label: 'SHARE INVITE', run: () => {
             share.disabled = true;
             recordProductIntent('referral_share_started');
             void inviteData.share().then(result => { this.inviteNotice = result.message; notice.textContent = result.message; })
@@ -1106,6 +1117,8 @@ export class PilotMenu {
               .catch(() => { this.inviteNotice = 'Unable to copy link. Please try again.'; notice.textContent = this.inviteNotice; })
               .finally(() => { copy.disabled = false; });
           } });
+          share.classList.add('context-action');
+          copy.classList.add('context-action');
           actions.append(share, copy);
           panel.append(link, actions, notice);
           invite.append(panel);
