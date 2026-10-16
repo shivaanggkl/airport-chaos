@@ -206,6 +206,7 @@ const adDebugMode = import.meta.env.DEV && new URLSearchParams(window.location.s
 const PLANE_GROUND_Y = aircraftGroundOffset;
 const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
+const METERS_PER_SECOND_TO_MPH = METERS_PER_SECOND_TO_KNOTS * 1.150779448;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
 let worldTimeOfDay: CityTimeOfDay = resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
@@ -1265,8 +1266,6 @@ const citySelectorElement = document.querySelector<HTMLElement>('#city-selector'
 const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
-const flightExitButtonElement = document.querySelector<HTMLButtonElement>('#flight-exit-button')!;
-if (journeyMode) document.querySelector<HTMLElement>('#flight-exit-label')!.textContent = 'EXIT TO JOURNEY';
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
 const flightAccountButtonElement = document.querySelector<HTMLButtonElement>('#flight-account-button')!;
@@ -1653,8 +1652,8 @@ function setFlightState(state: FlightState): void {
 }
 
 function updateFlightHud(): void {
-  const speedKnots = Math.round(currentSpeed * METERS_PER_SECOND_TO_KNOTS).toLocaleString();
-  speedElement.textContent = speedKnots;
+  const speedMph = Math.round(currentSpeed * METERS_PER_SECOND_TO_MPH).toLocaleString();
+  speedElement.textContent = speedMph;
   const altitudeFeet = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toLocaleString();
   altitudeElement.textContent = altitudeFeet;
   // Guidance must remain visible when the pilot is misaligned and assist is
@@ -6435,6 +6434,7 @@ function pilotMenuData(): PilotMenuData {
     preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.supportsTouchControls(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));renderPilotMenu();},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
     restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     exitFlight: requestFlightExit,
+    exitFlightLabel: journeyMode ? 'EXIT TO JOURNEY' : 'EXIT TO HUB',
     cityGuide: openCityGuide,
     audio: { muted: audioManager.isMuted(), toggle: toggleAudio, levels: audioManager.getLevels(), setLevel: setAudioLevel },
     haptics: { available: hapticsManager.isAvailable(), enabled: hapticsManager.isEnabled(), toggle: () => {
@@ -6484,7 +6484,6 @@ function togglePilotMenu(): void {
 }
 
 flightMenuButtonElement.addEventListener('click', togglePilotMenu);
-flightExitButtonElement.addEventListener('click', () => requestFlightExit());
 flightAccountButtonElement.addEventListener('click', () => openPilotMenu('PROFILE'));
 activeMissionOverlayElement.tabIndex = 0;
 activeMissionOverlayElement.setAttribute('role', 'button');

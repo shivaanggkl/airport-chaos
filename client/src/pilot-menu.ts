@@ -145,6 +145,7 @@ export type PilotMenuData = {
   flightPitch: { inverted: boolean; touch: boolean; setInverted: (inverted: boolean) => void };
   restart: () => void;
   exitFlight?: () => void;
+  exitFlightLabel?: string;
   cityGuide?: () => void;
   nativeWebPromotion?: boolean;
   audio: { muted: boolean; toggle: () => void; levels: { master: number; music: number; engine: number; combat: number; ui: number }; setLevel: (category: 'master' | 'music' | 'engine' | 'combat' | 'ui', value: number) => void };
@@ -498,6 +499,10 @@ export class PilotMenu {
       const restart = actionButton({ label: 'RESTART / RESPAWN', run: () => this.lastData?.restart(), intent: 'danger' });
       restart.classList.add('pilot-menu-navigation-action');
       navigation.append(restart);
+      const exit = actionButton({ label: 'EXIT TO HUB', run: () => this.lastData?.exitFlight?.(), intent: 'danger' });
+      exit.classList.add('pilot-menu-navigation-action');
+      exit.dataset.flightExit = '';
+      navigation.prepend(exit);
     }
     card.append(header, navigation, content);
     this.element.replaceChildren(card);
@@ -514,6 +519,8 @@ export class PilotMenu {
     this.lastData = data;
     this.lastSnapshot = this.snapshot(data);
     const content = this.ensureContent();
+    const exit = this.navigation?.querySelector<HTMLButtonElement>('[data-flight-exit]');
+    if (exit) exit.textContent = data.exitFlightLabel ?? 'EXIT TO HUB';
     const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
     if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
     const title = this.element.querySelector<HTMLElement>('[data-pilot-menu-title]');

@@ -99,15 +99,14 @@
       </div>
     </main>
     <div id="game-root" hidden>
-    <nav id="unified-flight-hud" class="unified-flight-hud" aria-label="Flight status and navigation">
+    <nav id="unified-flight-hud" class="unified-flight-hud flight-game-hud" aria-label="Flight status and navigation">
       <div class="flight-hud-left">
         <button id="flight-menu-button" type="button" aria-label="Open pilot menu">☰</button>
-        <button id="flight-exit-button" class="flight-exit-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 11 10-8 10 8h-2v10h-6v-7h-4v7H4V11H2Z"/></svg><span id="flight-exit-label">EXIT TO HUB</span></button>
       </div>
       <div class="flight-hud-center" aria-label="Flight status">
         <div class="flight-hud-panel flight-hud-rewards">
           <div class="flight-hud-reward-anchor">
-            <svg class="flight-hud-icon flight-hud-coin-icon" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v5c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 10v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5M4 15v4c0 1.7 3.6 3 8 3s8-1.3 8-3v-4"/></svg>
+            <img class="flight-hud-art flight-hud-coin-art" src="/media/hub/credits.avif" alt="" />
             <span id="hud-credits" class="flight-hud-stat flight-hud-credits flight-header-credits">
               <span class="flight-header-credit-copy"><small>CREDITS</small><strong id="credits">0</strong></span>
             </span>
@@ -115,12 +114,12 @@
           </div>
         </div>
         <div class="flight-hud-panel flight-hud-vitals">
-          <span class="flight-hud-stat flight-hud-health" aria-label="Aircraft health"><small>HEALTH</small><span class="flight-hud-value"><b>♥</b><strong id="health">100</strong></span></span>
+          <span class="flight-hud-stat flight-hud-health" aria-label="Aircraft health"><small>HEALTH</small><span class="flight-hud-value"><b aria-hidden="true">♥</b><strong id="health">100</strong></span></span>
           <span id="heat-row" class="flight-hud-stat flight-hud-danger" data-level="0" title="Wanted level"><small>HEAT</small><span class="flight-hud-value"><b>⚠</b><strong id="heat-level">0</strong></span></span>
         </div>
         <div class="flight-hud-panel flight-hud-motion">
-          <span class="flight-hud-stat"><svg class="flight-hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17a9 9 0 1 1 16 0M12 13l4-5M10 17h4"/></svg><span class="flight-hud-stat-copy"><small>SPEED</small><strong id="speed">0</strong></span></span>
-          <span class="flight-hud-stat"><svg class="flight-hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m2 20 7-12 4 7 3-5 6 10H2Zm7-12 2 3"/></svg><span class="flight-hud-stat-copy"><small>ALT</small><span class="flight-hud-value"><strong id="altitude">0</strong><i>FT</i></span></span></span>
+          <span class="flight-hud-stat flight-hud-speed"><svg class="flight-hud-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 18a11 11 0 0 1 22 0M16 18l7-8M12 23h8"/></svg><span class="flight-hud-stat-copy"><small>SPEED</small><span class="flight-hud-value"><strong id="speed">0</strong><i>MPH</i></span></span></span>
+          <span class="flight-hud-stat flight-hud-altitude"><img class="flight-hud-art flight-hud-plane-art" src="/media/hub/aircraft.png" alt="" /><span class="flight-hud-stat-copy"><small>ALT</small><span class="flight-hud-value"><strong id="altitude">0</strong><i>FT</i></span></span></span>
         </div>
       </div>
       <div class="flight-hud-utilities">
@@ -288,7 +287,7 @@
           <i class="touch-throttle-handle"></i>
         </div>
       </div>
-      <button class="touch-fire" type="button" data-touch-control="fire" data-hold="fire">FIRE</button>
+      <button class="touch-fire" type="button" data-touch-control="fire" data-hold="fire"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="11"/><path d="M24 4v13m0 14v13M4 24h13m14 0h13"/></svg><span>FIRE</span></button>
     </section>
     <div class="portrait-guidance" aria-hidden="true">ROTATE DEVICE FOR FLIGHT</div>
     </div>

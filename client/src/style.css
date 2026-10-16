@@ -5134,3 +5134,169 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   .mission-status-layer.journey-status-layer { top: max(70px, calc(var(--safe-area-top) + 56px)); width: min(260px, 42vw); }
   :is(.giant-incoming-focus, .monster-arrival-focus) .journey-status-layer { width: min(260px, 34vw); }
 }
+
+/* In-flight instruments: keep the world open while matching the gold/cyan cockpit artwork. */
+#game-root .flight-game-hud {
+  grid-template: "menu stats utilities" auto / minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: 0;
+  padding: calc(var(--safe-area-top) + 8px) max(12px, var(--safe-area-right)) 0 max(12px, var(--safe-area-left));
+}
+#game-root .flight-game-hud .flight-hud-left { grid-area: menu; }
+#game-root .flight-game-hud .flight-hud-center {
+  grid-area: stats;
+  flex-wrap: nowrap;
+  gap: clamp(5px, .9vw, 15px);
+  width: max-content;
+}
+#game-root .flight-game-hud .flight-hud-utilities { grid-area: utilities; }
+#game-root .flight-game-hud .flight-hud-panel {
+  flex-direction: row;
+  height: auto;
+  min-height: 0;
+  gap: clamp(6px, .8vw, 13px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+#game-root .flight-game-hud .flight-hud-panel::before { display: none; }
+#game-root .flight-game-hud .flight-hud-panel + .flight-hud-panel {
+  padding-left: clamp(7px, 1vw, 18px);
+  border-left: 2px solid rgb(255 213 104 / 80%);
+}
+#game-root .flight-game-hud .flight-hud-panel > :not(:first-child) { padding-left: 0; border-left: 0; }
+#game-root .flight-game-hud .flight-hud-stat,
+#game-root .flight-game-hud .flight-header-credit-copy,
+#game-root .flight-game-hud .flight-hud-stat-copy { flex-direction: row; align-items: center; gap: 4px; }
+#game-root .flight-game-hud .flight-hud-stat-copy { flex-direction: row-reverse; }
+#game-root .flight-game-hud small { display: none; }
+#game-root .flight-game-hud strong,
+#game-root .flight-game-hud i { color: #fff; font: 800 clamp(16px, 1.7vw, 23px)/1 var(--font-display); text-shadow: 0 2px 3px #071527; }
+#game-root .flight-game-hud i { font-size: .7em; }
+#game-root .flight-game-hud .flight-hud-credits strong { color: #fff; }
+#game-root .flight-game-hud .flight-hud-health .flight-hud-value b {
+  color: #f52248;
+  font: 900 clamp(32px, 3.5vw, 50px)/.8 Georgia, serif;
+  text-shadow: 0 2px #8a0820, 0 0 8px rgb(255 246 246 / 65%);
+}
+#game-root .flight-game-hud .flight-hud-health.critical .flight-hud-value b { color: #ff8797; }
+#game-root .flight-game-hud .flight-hud-art { flex: 0 0 auto; width: clamp(32px, 3.5vw, 48px); height: clamp(32px, 3.5vw, 48px); object-fit: contain; }
+#game-root .flight-game-hud .flight-hud-plane-art { width: clamp(36px, 3.9vw, 54px); }
+#game-root .flight-game-hud .flight-hud-speed .flight-hud-icon {
+  width: clamp(32px, 3.5vw, 48px);
+  height: clamp(32px, 3.5vw, 48px);
+  padding: 3px;
+  border: 2px solid #f9c84e;
+  border-radius: 50%;
+  color: #fff;
+  background: radial-gradient(circle at 35% 28%, #398ce7, #0b345e 70%);
+  stroke: #ffdc73;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 50%));
+}
+#game-root .flight-game-hud #flight-menu-button {
+  width: clamp(44px, 5vw, 60px);
+  height: clamp(44px, 5vw, 60px);
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid #dfbb67;
+  border-radius: 50%;
+  color: #fff;
+  background: radial-gradient(circle at 35% 25%, rgb(41 82 111 / 90%), rgb(7 24 42 / 95%) 74%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 45%), 0 3px 0 #c79837, 0 5px 12px rgb(0 0 0 / 45%);
+  font-size: clamp(23px, 2.4vw, 30px);
+}
+#game-root .flight-game-hud :is(#flight-garage-button, #flight-account-button) { display: none; }
+#game-root .flight-game-hud #flight-map-button {
+  position: fixed;
+  top: calc(var(--safe-area-top) + 8px);
+  right: max(8px, var(--safe-area-right));
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #e5cd74;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 25%, #244b78, #071b38 78%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
+}
+#game-root .flight-game-hud #flight-map-button svg { width: 100%; height: 100%; }
+#game-root .flight-game-hud #flight-map-button span { display: none; }
+
+#game-root .mission-status-layer { top: max(84px, calc(var(--safe-area-top) + 74px)); left: max(12px, var(--safe-area-left)); width: min(340px, 35vw); }
+#game-root .mission-status-layer.journey-status-layer { top: max(84px, calc(var(--safe-area-top) + 74px)); width: min(340px, 35vw); }
+#game-root .active-mission-overlay {
+  position: relative;
+  gap: 5px;
+  padding: 10px 14px 11px 20px;
+  border: 1px solid rgb(168 221 255 / 75%);
+  border-radius: 8px 12px 13px 8px;
+  background: linear-gradient(110deg, rgb(6 29 56 / 79%), rgb(24 73 110 / 60%));
+  box-shadow: inset 0 1px rgb(255 255 255 / 28%), 0 4px 12px rgb(3 19 38 / 28%);
+  font: 700 clamp(10px, 1.1vw, 14px)/1.2 var(--font-display);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+#game-root .active-mission-overlay::before { content: ''; position: absolute; top: 9px; bottom: 9px; left: 0; width: 5px; border-radius: 0 3px 3px 0; background: #ffd56b; box-shadow: 0 0 7px rgb(255 213 107 / 56%); }
+#game-root .active-mission-overlay strong { color: #ffdd75; font-size: clamp(13px, 1.4vw, 18px); }
+#game-root .active-mission-overlay #active-mission-bar { width: 100%; height: 9px; margin-top: 3px; background: repeating-linear-gradient(90deg, rgb(52 113 145 / 35%) 0 8%, transparent 8% 10%); }
+#game-root .active-mission-overlay #active-mission-bar::-webkit-progress-bar { background: repeating-linear-gradient(90deg, rgb(52 113 145 / 35%) 0 8%, transparent 8% 10%); }
+#game-root .active-mission-overlay #active-mission-bar::-webkit-progress-value { background: linear-gradient(#ffe590, #f0b938); }
+
+#game-root #right-flight-stack { top: calc(var(--safe-area-top) + 9px); right: max(17px, var(--safe-area-right)); width: clamp(108px, 12vw, 154px); max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 18px); }
+#game-root #radar-panel,
+.touch-controls-active #game-root #radar-panel {
+  width: 100%;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid rgb(244 211 109 / 82%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(3 27 56 / 48%), rgb(4 30 59 / 67%));
+  box-shadow: inset 0 0 17px rgb(88 201 241 / 25%), 0 0 8px rgb(6 34 68 / 28%);
+}
+#game-root #radar-panel .radar-title,
+#game-root #radar-panel .radar-legend { display: none; }
+#game-root #radar,
+.touch-controls-active #game-root #radar { width: 100%; height: auto; aspect-ratio: 1; border: 0; background: transparent; }
+
+#game-root .touch-stick,
+#game-root .touch-fire { width: clamp(104px, 13.3vw, 170px); height: clamp(104px, 13.3vw, 170px) !important; }
+#game-root .touch-stick { opacity: .8; filter: drop-shadow(0 3px 8px rgb(0 0 0 / 42%)); }
+#game-root .touch-stick-frame-outer { stroke: rgb(188 234 255 / 95%); stroke-width: 2.5; }
+#game-root .touch-stick-marker { width: 11px; height: 11px; border-color: #70f4ff; border-width: 2px; }
+#game-root .touch-stick i { width: 38%; height: 38%; border: 2px solid #56e9ff; background: radial-gradient(circle at 35% 25%, #d7f8ff, #219ced 42%, #05355c 85%); box-shadow: inset 0 0 13px #1b87d4, 0 2px 12px rgb(0 0 0 / 60%), 0 0 10px #3edbff; }
+#game-root .touch-throttle-lever { width: clamp(70px, 7vw, 92px); height: clamp(145px, 31dvh, 198px); }
+#game-root .touch-throttle-track { border: 0; background: transparent; box-shadow: none; }
+#game-root .touch-throttle-track::after { left: 17px; width: 13px; background: linear-gradient(#ffd46f 0 20%, #4df6ff 20% 80%, #596e7f 80%); box-shadow: 0 0 6px rgb(71 223 244 / 58%); }
+#game-root .touch-throttle-track > span { left: 37px; right: 0; font-size: clamp(9px, 1vw, 13px); }
+#game-root .touch-throttle-handle { left: 17px; width: 38px; height: 16px; border-color: #fff0c4; background: linear-gradient(#fff5b5, #af752c); box-shadow: 0 0 9px rgb(255 192 75 / 60%); }
+#game-root .touch-boost-ready { top: -27px; left: 35px; padding: 3px 10px; border: 1px solid #e7bf63; border-radius: 999px; background: rgb(12 35 61 / 78%); }
+#game-root .touch-fire { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 2px solid #efaa4a !important; color: #fff !important; background: radial-gradient(circle, rgb(115 5 10 / 91%), rgb(177 15 17 / 88%) 60%, rgb(45 13 27 / 80%)) !important; box-shadow: inset 0 0 0 9px rgb(255 110 45 / 22%), 0 0 0 5px rgb(255 191 88 / 20%), 0 0 18px rgb(255 75 37 / 42%); font: 900 clamp(18px, 2.1vw, 29px)/1 var(--font-display) !important; }
+#game-root .touch-fire svg { width: 32%; height: 32%; fill: none; stroke: #fff5df; stroke-width: 3; }
+#game-root .touch-fire.is-active { background: radial-gradient(circle, #f54020, #a80012 70%) !important; }
+.touch-controls-active #game-root [data-touch-control="throttle"].uses-default-placement { left: calc(100% - clamp(150px, 22vw, 280px)); top: 38%; }
+.touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { left: calc(100% - clamp(95px, 15vw, 190px)); top: 76%; }
+.touch-controls-active #game-root #right-hud-stack { display: none; }
+
+@media (max-width: 800px) and (orientation: landscape) {
+  #game-root .flight-game-hud { grid-template: "menu stats utilities" auto / minmax(0, 1fr) auto minmax(0, 1fr); min-height: 0; }
+  #game-root .flight-game-hud .flight-hud-center { gap: 4px; }
+  #game-root .flight-game-hud .flight-hud-panel + .flight-hud-panel { padding-left: 6px; }
+  #game-root .flight-game-hud .flight-hud-art,
+  #game-root .flight-game-hud .flight-hud-speed .flight-hud-icon { width: 30px; height: 30px; }
+  #game-root .flight-game-hud strong { font-size: 14px; }
+  #game-root .mission-status-layer,
+  #game-root .mission-status-layer.journey-status-layer { width: min(270px, 37vw); }
+}
+@media (max-width: 600px) and (orientation: landscape) {
+  #game-root .flight-game-hud { grid-template: "menu utilities" auto "stats stats" auto / 1fr 1fr; row-gap: 4px; }
+  #game-root .flight-game-hud .flight-hud-center { justify-self: center; }
+  #game-root .mission-status-layer,
+  #game-root .mission-status-layer.journey-status-layer { top: calc(var(--safe-area-top) + 95px); width: min(250px, 45vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #game-root .touch-fire,
+  #game-root .touch-stick { animation: none; transition: none; }
+}

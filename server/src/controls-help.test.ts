@@ -74,7 +74,7 @@ test('flight screen uses one ordered HUD and no legacy utility panels', () => {
   for (const id of ['credits', 'speed', 'altitude', 'health', 'heat-level']) {
     assert.equal(html.match(new RegExp(`id="${id}"`, 'g'))?.length, 1);
   }
-  const orderedIds = ['flight-menu-button', 'flight-exit-button', 'credits', 'health', 'heat-level', 'speed', 'altitude', 'flight-map-button', 'flight-garage-button', 'flight-account-button'];
+  const orderedIds = ['flight-menu-button', 'credits', 'health', 'heat-level', 'speed', 'altitude', 'flight-map-button', 'flight-garage-button', 'flight-account-button'];
   assert.deepEqual([...orderedIds].sort((left, right) => html.indexOf(`id="${left}"`) - html.indexOf(`id="${right}"`)), orderedIds);
   assert.match(html, /class="flight-hud-panel flight-hud-rewards"[\s\S]*id="credits"/);
   assert.doesNotMatch(html, /id="score"/);
@@ -85,7 +85,9 @@ test('flight screen uses one ordered HUD and no legacy utility panels', () => {
   assert.match(styleSource, /\.unified-flight-hud \.flight-hud-utilities\s*\{[^}]*gap: 8px;[^}]*padding: 0;[^}]*background: transparent;[^}]*border: 0;/);
   assert.doesNotMatch(html, /id="flight-(?:world|settings)-button"|id="flight-condition-status"/);
   assert.doesNotMatch(html, /id="mission-progress"|class="flight-hud-stat flight-hud-mission"/);
-  assert.match(mainSource, /flightExitButtonElement\.addEventListener\('click', \(\) => requestFlightExit\(\)\)/);
+  assert.doesNotMatch(html, /id="flight-exit-button"/);
+  assert.match(pilotMenuSource, /data\.exitFlightLabel[\s\S]*data-flight-exit|data-flight-exit[\s\S]*data\.exitFlightLabel/);
+  assert.match(mainSource, /exitFlight: requestFlightExit/);
   assert.match(mainSource, /flightAccountButtonElement\.addEventListener\('click', \(\) => openPilotMenu\('PROFILE'\)\)/);
   assert.match(mainSource, /showFlightDialog\('Exit flight\?'[\s\S]*'Return to the Pilot Hub\?'[\s\S]*label: 'EXIT TO HUB'/);
   assert.doesNotMatch(html, /id="mobile-(?:score|speed|altitude|mission)"/);
