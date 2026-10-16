@@ -19,7 +19,7 @@
   min-height: 0;
   color: var(--menu-card-ink);
 }
-.sky-token-heading { --context-title-size: clamp(26px, 3.4vw, 43px); flex: none; min-height: clamp(54px, 10dvh, 68px); }
+.sky-token-heading { flex: none; min-height: clamp(54px, 10dvh, 68px); }
 .sky-token-balance {
   display: flex;
   flex: none;
@@ -85,7 +85,7 @@
 }
 @media (orientation: landscape) and (min-width: 761px) and (max-height: 520px) {
   .sky-token-panel { gap: 6px; }
-  .sky-token-heading { --context-title-size: clamp(24px, 3vw, 30px); min-height: 44px; }
+  .sky-token-heading { min-height: 44px; }
   .sky-token-balance { min-height: 78px; margin-top: 7px; margin-bottom: 10px; padding-block: 4px; }
   .sky-token-balance img { width: 45px; height: 45px; }
   .sky-token-pack-list { gap: 10px; }

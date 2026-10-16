@@ -171,7 +171,6 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
 @media (orientation: landscape) and (max-height: 520px) {
   .game-store { padding-top: max(5px, var(--safe-area-top)); padding-bottom: max(7px, var(--safe-area-bottom)); }
   .store-heading { min-height: 48px; }
-  .store-heading h1 { font-size: 27px; }
   .store-tabs { padding: 2px; }
   .store-tab { min-height: 44px; }
   .store-card-copy strong { font-size: 19px; }

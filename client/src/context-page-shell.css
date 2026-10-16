@@ -33,21 +33,21 @@
   gap: clamp(7px, 1vw, 14px);
   margin: 0;
   max-width: 100%;
-  color: var(--context-title-color, #ffd05a);
-  font: 900 var(--context-title-size, clamp(22px, 3.2vw, 42px))/1 var(--font-display);
+  color: #ffd05a;
+  font: 900 clamp(22px, min(3.2vw, 7dvh), 42px)/1 var(--font-display);
   letter-spacing: .055em;
   text-align: center;
   white-space: nowrap;
-  -webkit-text-stroke: var(--context-title-stroke, 0 transparent);
-  text-shadow: var(--context-title-shadow, 0 2px #875a10, 0 4px 7px rgb(6 31 65 / 55%));
+  -webkit-text-stroke: .5px #9a5d0a;
+  text-shadow: 0 2px #875a10, 0 4px 7px rgb(6 31 65 / 55%);
 }
 
 .context-winged-title::before,
 .context-winged-title::after {
   display: block;
-  flex: 0 0 var(--context-wing-width, clamp(24px, 4vw, 52px));
-  width: var(--context-wing-width, clamp(24px, 4vw, 52px));
-  height: var(--context-wing-height, clamp(16px, 2.2vw, 27px));
+  flex: 0 0 clamp(24px, 4vw, 52px);
+  width: clamp(24px, 4vw, 52px);
+  height: clamp(16px, 2.2vw, 27px);
   background: linear-gradient(#fff0aa 0 10%, #e7a821 11% 35%, #8b5b11 39% 45%, #f8c646 48% 69%, #8b5b11 72% 78%, #e7a821 81%);
   clip-path: polygon(0 0, 100% 0, 76% 100%, 35% 100%);
   filter: drop-shadow(0 2px 2px rgb(6 31 65 / 45%));
