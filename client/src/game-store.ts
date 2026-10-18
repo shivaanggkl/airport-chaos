@@ -245,8 +245,8 @@ export class GameStore {
     const cost = document.createElement('div'); cost.className = 'store-card-price';
     cost.append(this.priceLine(price, currency));
     const balance = currency === 'CREDITS' ? this.profile?.credits ?? 0 : this.profile?.skyTokens ?? 0;
-    const missing = this.authenticated && this.profile ? Math.max(0, price - balance) : 0;
-    const tokenUnavailable = currency === 'SKY_TOKENS' && !this.tokenSpendingAvailable;
+    const missing = this.profile ? Math.max(0, price - balance) : 0;
+    const tokenUnavailable = currency === 'SKY_TOKENS' && this.authenticated && !this.tokenSpendingAvailable;
     if (this.purchaseAvailable && (missing || tokenUnavailable)) {
       const hint = document.createElement('small'); hint.className = 'store-card-shortage';
       hint.textContent = tokenUnavailable ? 'UNAVAILABLE' : `NEED ${missing.toLocaleString()} MORE`;
@@ -289,7 +289,7 @@ export class GameStore {
 
   private async performUnlock(item: StoreItem, currency: Currency): Promise<void> {
     if (this.busy || !this.purchaseAvailable) return;
-    if (!this.authenticated) { this.handlers.login(); return; }
+    if (currency === 'SKY_TOKENS' && !this.authenticated) { this.handlers.login(); return; }
     const price = this.price(item, currency);
     if (!price) return;
     const missing = Math.max(0, price - (currency === 'CREDITS' ? this.profile?.credits ?? 0 : this.profile?.skyTokens ?? 0));

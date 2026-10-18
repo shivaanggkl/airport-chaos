@@ -30,6 +30,7 @@ import { DiscoverySystem } from './discoveries';
 import { ContextualHintSystem, contextualHintDefinitions, type ContextualHintId } from './contextual-hints';
 import { GameplayFeedbackSystem } from './gameplay-feedback';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
+import { HubInfoDialog } from './hub-info-dialog';
 import { productAnalyticsSessionId } from './product-analytics';
 import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
@@ -3815,6 +3816,7 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
   try { socket.send(JSON.stringify({ type: 'startFighterTrial' })); }
   catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
 }, async () => {
+  if (clientAccount.state !== 'account') { promptGameplayPurchaseSignIn(); return; }
   if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_purchase_clicked' }));
   if (nativePurchaseProvider) {
     try {
@@ -3833,6 +3835,7 @@ const aircraftGarage = new AircraftGarage(garageOverlayElement, (nextType) => {
 }, () => {
   if (connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'fighter_modal_viewed' }));
 }, async (code) => {
+  if (clientAccount.state !== 'account') { promptGameplayPurchaseSignIn(); return; }
   try {
     if (nativePurchaseProvider) {
       const result = await restoreNativeFirehawk();
@@ -3852,6 +3855,7 @@ if (nativePurchaseProvider) {
   void loadNativeFirehawkOffer().then(offer => aircraftGarage.setNativeStorePrice(offer?.localizedPrice)).catch(() => undefined);
 }
 function sendCosmeticAction(type: 'purchaseCosmetic' | 'equipCosmetic', cosmeticId: string, currency: 'CREDITS' | 'SKY_TOKENS' = 'CREDITS'): void {
+  if (type === 'purchaseCosmetic' && currency === 'SKY_TOKENS' && clientAccount.state !== 'account') { promptGameplayPurchaseSignIn(); return; }
   if (!connectionReady() || !profileHydrated) { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); return; }
   try { socket.send(JSON.stringify({ type, cosmeticId, ...(type === 'purchaseCosmetic' ? { currency } : {}) })); } catch { aircraftGarage.showActionResult('SERVER UNAVAILABLE — COSMETIC NOT CHANGED'); }
 }
@@ -4671,6 +4675,12 @@ function isNetworkProfile(value: unknown): value is NetworkProfile {
 let serverProfile: NetworkProfile = createSafeNetworkProfile();
 type ClientAccountState = { state: 'guest' | 'account'; email?: string; avatarUrl?: string; providers?: { password: boolean; google: boolean; apple: boolean } };
 let clientAccount: ClientAccountState = { state: 'guest', providers: { password: false, google: false, apple: false } };
+const accountInfoDialog = new HubInfoDialog();
+
+function promptGameplayPurchaseSignIn(): void {
+  const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+  accountInfoDialog.openPurchaseSignIn(trigger, () => { aircraftGarage.close(); openPilotMenu('PROFILE'); });
+}
 
 function updateAuthHudControl(): void {
   const authenticated = clientAccount.state === 'account';
@@ -4752,11 +4762,13 @@ async function providerAccountRequest(provider: 'google' | 'apple', action: 'log
   if (clientAccount.state === 'account') {
     return { ok: false, message: "You're already signed in. Log out first to use another account." };
   }
+  const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+  if (!await accountInfoDialog.confirmExistingAccount(trigger)) return { ok: true, message: 'SIGN-IN CANCELLED' };
   try {
     if (nativeAuthPlatform) {
       if (!availableNativeProviders.includes(provider)) return { ok: false, message: 'THIS PROVIDER IS NOT AVAILABLE ON THIS DEVICE' };
       const startResponse = await apiFetch(apiUrl('/api/auth/native/start'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, guestSwitchConfirmed: true }),
       });
       const challenge = await startResponse.json() as Partial<NativeAuthChallenge> & { error?: string };
       if (!startResponse.ok || challenge.provider !== provider || challenge.platform !== nativeAuthPlatform ||
@@ -4792,7 +4804,7 @@ async function providerAccountRequest(provider: 'google' | 'apple', action: 'log
     returnUrl.searchParams.delete('auth'); returnUrl.searchParams.delete('provider'); returnUrl.searchParams.delete('linked');
     const response = await apiFetch(apiUrl('/api/auth/oauth/start'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, action, returnTo: returnUrl.toString() }),
+      body: JSON.stringify({ provider, action, guestSwitchConfirmed: true, returnTo: returnUrl.toString() }),
     });
     const result = await response.json() as { authorizationUrl?: string; error?: string };
     if (!response.ok || !result.authorizationUrl) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };

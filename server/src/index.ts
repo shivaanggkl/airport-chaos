@@ -879,6 +879,7 @@ const httpServer = createServer(async (request, response) => {
           jsonResponse(response, 400, { error: 'Invalid provider request.' }); return;
         }
         if (action === 'link') { jsonResponse(response, 409, { error: 'ACCOUNT_LINKING_DISABLED' }); return; }
+        if (!identity.session.accountId && payload.guestSwitchConfirmed !== true) { jsonResponse(response, 409, { error: 'Confirm that signing in may make guest progress inaccessible on this device.' }); return; }
         const ipLimit = limitedBy('native-auth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
         const pilotLimit = limitedBy('native-auth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
         if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
@@ -944,6 +945,7 @@ const httpServer = createServer(async (request, response) => {
         const returnTo = allowedOAuthReturn(payload.returnTo, String(request.headers.origin ?? ''), configuredWebOrigin);
         if (!provider || !action || !returnTo) { jsonResponse(response, 400, { error: 'Invalid provider request.' }); return; }
         if (action === 'link') { jsonResponse(response, 409, { error: 'ACCOUNT_LINKING_DISABLED' }); return; }
+        if (!identity.session.accountId && payload.guestSwitchConfirmed !== true) { jsonResponse(response, 409, { error: 'Confirm that signing in may make guest progress inaccessible on this device.' }); return; }
         const ipLimit = limitedBy('oauth-start-ip', identity.clientIp, securityLimits.oauthStartIp);
         const pilotLimit = limitedBy('oauth-start-pilot', identity.pilotId, securityLimits.oauthStartPilot);
         if (ipLimit.limited || pilotLimit.limited) { rateLimited(response, Math.max(ipLimit.retryAfterMs, pilotLimit.retryAfterMs)); return; }
@@ -961,6 +963,7 @@ const httpServer = createServer(async (request, response) => {
         return;
       }
       if (requestUrl.pathname === '/api/auth/login') {
+        if (!identity.session.accountId && payload.guestSwitchConfirmed !== true) { jsonResponse(response, 409, { error: 'Confirm that signing in may make guest progress inaccessible on this device.' }); return; }
         const emailKey = authLimiterIdentity(payload.email);
         const ipLimit = limitedBy('login-ip', identity.clientIp, securityLimits.loginIp);
         const emailLimit = limitedBy('login-email', emailKey, securityLimits.loginEmail);
@@ -980,6 +983,7 @@ const httpServer = createServer(async (request, response) => {
         return;
       }
       if (requestUrl.pathname === '/api/auth/logout') {
+        if (!identity.session.accountId) { jsonResponse(response, 409, { error: 'Guest progress remains on this device. Sign in to protect it.' }); return; }
         const result = pilotSessions.signOut(identity.session);
         if (!result.identity || !result.cookie || !result.expiresAt) { jsonResponse(response, 400, { error: 'Unable to log out.' }); return; }
         // A post-account guest is deliberately fresh.  Seal legacy import so

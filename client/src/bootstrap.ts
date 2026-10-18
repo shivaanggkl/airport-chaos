@@ -322,6 +322,7 @@ const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-s
   profile: () => { hapticsManager.emit('selection'); void openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending); },
   skyTokens: trigger => {
     hapticsManager.emit('selection');
+    if (hubAccount.state !== 'account') { promptPurchaseSignIn(trigger); return; }
     if (tokenStoreAvailable()) void openSkyTokenStore();
     else hubInfoDialog.openSkyTokens(Math.max(0, authoritativeHomeProfile?.skyTokens ?? garageProfile.skyTokens ?? 0), trigger);
   },
@@ -404,6 +405,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function openSkyTokenStore(missing = 0): Promise<void> {
+  if (hubAccount.state !== 'account') { promptPurchaseSignIn(); return; }
   if ((!skyTokenCommerceEnabled && !stagingTokenStorePreview) || hubAccount.state !== 'account') {
     if (entryState === 'STORE') gameStore.setNotice('SKY TOKEN PURCHASES ARE NOT AVAILABLE HERE YET');
     return;
@@ -1083,18 +1085,15 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
   if (hubAccount.state === 'account') {
     return { ok: false, message: "You're already signed in. Log out first to use another account." };
   }
+  const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+  if (!await hubInfoDialog.confirmExistingAccount(trigger)) return { ok: true, message: 'SIGN-IN CANCELLED' };
   try {
     if (nativeAuthPlatform) {
-      const start = await apiFetch(apiUrl('/api/auth/native/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, referralCode: pendingReferralCode() }) });
+      const start = await apiFetch(apiUrl('/api/auth/native/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, guestSwitchConfirmed: true, referralCode: pendingReferralCode() }) });
       const challenge = await start.json() as Partial<NativeAuthChallenge> & { error?: string };
       if (!start.ok || challenge.provider !== provider || challenge.platform !== nativeAuthPlatform || !challenge.state || !challenge.nonce) return { ok: false, message: challenge.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
       const credential = await acquireNativeCredential(challenge as NativeAuthChallenge);
       if (credential.cancelled) {
-        if (hasPendingHubFly()) {
-          clearPendingHubFly();
-          hubPilotMenu.close(false);
-          void showHome();
-        }
         return { ok: true, message: 'SIGN-IN CANCELLED' };
       }
       const body = JSON.stringify({ provider, state: challenge.state, idToken: credential.idToken, ...(credential.displayName ? { displayName: credential.displayName } : {}) });
@@ -1117,7 +1116,7 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
       return { ok: true, message: result.message ?? 'ACCOUNT LOADED' };
     }
     const returnUrl = new URL(window.location.href);
-    const response = await apiFetch(apiUrl('/api/auth/oauth/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, returnTo: returnUrl.toString(), referralCode: pendingReferralCode() }) });
+    const response = await apiFetch(apiUrl('/api/auth/oauth/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, guestSwitchConfirmed: true, returnTo: returnUrl.toString(), referralCode: pendingReferralCode() }) });
     const result = await response.json() as { authorizationUrl?: string; error?: string };
     if (!response.ok || !result.authorizationUrl) return { ok: false, message: result.error ?? 'PROVIDER SIGN-IN UNAVAILABLE' };
     window.location.assign(result.authorizationUrl);
@@ -1328,12 +1327,14 @@ function continueHubAsGuest(): void {
   hubAccountNotice = undefined;
   if (!hasPendingHubFly()) {
     hubPilotMenu.close();
+    hubInfoDialog.openGuestProgress(document.body, () => { void openHubPilotMenu('PROFILE'); });
     return;
   }
   const mode = pendingHubFlyMode();
   clearPendingHubFly();
   hubPilotMenu.close(false);
   showSelector('', { mode, preferDallas: authoritativeHomeProfile?.tutorial?.status === 'completed' });
+  hubInfoDialog.openGuestProgress(document.body, () => { void openHubPilotMenu('PROFILE'); });
 }
 
 async function requestHubFly(mode: CityJourneyMode = cityJourneyMode): Promise<void> {
@@ -1431,6 +1432,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     garageProfile = normalizeGarageProfile(result); garage.updateProfile(garageProfile); refreshAppHeaderIdentity(); garage.showActionResult('TEST FLIGHT READY — ENTER A CITY TO BEGIN');
   } catch { garage.showActionResult('SERVER UNAVAILABLE — TEST FLIGHT NOT STARTED'); }
 }, async () => {
+  if (hubAccount.state !== 'account') { promptPurchaseSignIn(); return; }
   recordProductIntent('firehawk_purchase_clicked');
   if (nativePurchaseProvider) {
     try {
@@ -1447,6 +1449,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
   void beginFirehawkCheckout({ pilotId: garageIdentity.pilotId, pilotName: garageIdentity.displayName })
     .catch((error: unknown) => garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'CHECKOUT UNAVAILABLE'));
 }, () => recordGarageBusinessEvent('fighter_modal_viewed'), async (code) => {
+  if (hubAccount.state !== 'account') { promptPurchaseSignIn(); return; }
   try {
     if (nativePurchaseProvider) {
       const result = await restoreNativeFirehawk();
@@ -1460,6 +1463,7 @@ const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
     garage.showActionResult(`FIREHAWK RESTORED · NEW RECOVERY CODE: ${result.recoveryCode ?? 'CONTACT SUPPORT'}`);
   } catch (error) { garage.showActionResult(error instanceof Error ? error.message.toUpperCase() : 'PURCHASE RESTORE FAILED'); }
 }, (id, currency) => { void changeGarageCosmetic('purchaseCosmetic', id, currency); }, id => { void changeGarageCosmetic('equipCosmetic', id); }, async type => {
+  if (hubAccount.state !== 'account') { promptPurchaseSignIn(); return; }
   try {
     if (!await pricingBackendReady()) return;
     const response = await apiFetch(apiUrl('/api/profile'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1525,12 +1529,12 @@ async function openGameStore(recordOpen = true): Promise<void> {
   homeHangar.hide(); citySelector.hidden = true; missionJourney.hide();
   showAppHeader('STORE');
   gameStore.setBackLabel('BACK TO HUB');
-  gameStore.open(hubAccount.state === 'account' ? authoritativeHomeProfile ? garageProfile : undefined : undefined, hubAccount.state === 'account', hubAccount.state === 'account');
+  gameStore.open(authoritativeHomeProfile ? garageProfile : undefined, hubAccount.state === 'account', true);
   gameStore.setTokenSpendingAvailable(skyTokenCommerceEnabled);
   try {
     const [catalog, profile] = await Promise.all([
       matchingPricingCatalog(),
-      hubAccount.state === 'account' ? loadGarageProfile() : Promise.resolve(undefined),
+      loadGarageProfile(),
     ]);
     if (entryState === 'STORE') {
       gameStore.setCatalog(catalog);
@@ -1592,8 +1596,14 @@ window.addEventListener('popstate', () => {
 });
 
 function requestStoreLogin(): void {
-  try { sessionStorage.setItem(PENDING_STORE_STORAGE_KEY, JSON.stringify(gameStore.getContext())); } catch { /* Native sign-in still returns within this page. */ }
-  void openHubPilotMenu('PROFILE');
+  promptPurchaseSignIn(undefined, () => {
+    try { sessionStorage.setItem(PENDING_STORE_STORAGE_KEY, JSON.stringify(gameStore.getContext())); } catch { /* Native sign-in still returns within this page. */ }
+    void openHubPilotMenu('PROFILE');
+  });
+}
+
+function promptPurchaseSignIn(trigger?: HTMLElement, signIn: () => void = () => { void openHubPilotMenu('PROFILE'); }): void {
+  hubInfoDialog.openPurchaseSignIn(trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : document.body), signIn);
 }
 
 function pendingStoreContext(): { category: StoreCategory; itemId?: string } | undefined {
@@ -1608,7 +1618,7 @@ function pendingStoreContext(): { category: StoreCategory; itemId?: string } | u
 function clearPendingStoreContext(): void { try { sessionStorage.removeItem(PENDING_STORE_STORAGE_KEY); } catch { /* Optional. */ } }
 
 async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKENS'): Promise<{ ok: boolean; message: string }> {
-  if (hubAccount.state !== 'account') return { ok: false, message: 'SIGN IN TO UNLOCK' };
+  if (currency === 'SKY_TOKENS' && hubAccount.state !== 'account') return { ok: false, message: 'SIGN IN TO UNLOCK WITH SKY TOKENS' };
   if (item.kind === 'aircraft' && (item.aircraftType === 'cargo' || item.aircraftType === 'privateJet'))
     return { ok: false, message: 'CHOOSE AN APPEARANCE FIRST' };
   try { await matchingPricingCatalog(); }
@@ -1622,7 +1632,7 @@ async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKEN
     if (!response.ok) return { ok: false, message: result.error ?? 'UNLOCK FAILED' };
     applyAuthoritativeHomeProfile(result);
     garage.updateProfile(garageProfile);
-    gameStore.update(garageProfile, true);
+    gameStore.update(garageProfile, hubAccount.state === 'account');
     audioManager.playPurchaseSuccess();
     hapticsManager.emit('rewardSuccess', `store:${item.id}`);
     const unlockedName = item.aircraftType === 'fighter' ? 'FIREHAWK + INFERNO'
@@ -1643,6 +1653,7 @@ async function startStoreFirehawkTrial(): Promise<{ ok: boolean; message: string
 }
 
 async function changeGarageCosmetic(action: 'purchaseCosmetic' | 'equipCosmetic', id: string, currency: 'CREDITS' | 'SKY_TOKENS' = 'CREDITS'): Promise<void> {
+  if (action === 'purchaseCosmetic' && currency === 'SKY_TOKENS' && hubAccount.state !== 'account') { promptPurchaseSignIn(); return; }
   try {
     if (action === 'purchaseCosmetic' && !await pricingBackendReady()) return;
     const url = apiUrl('/api/profile');

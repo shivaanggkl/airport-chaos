@@ -709,7 +709,7 @@ export class PilotMenu {
         profile.append(
           textElement('span', 'AIRPORT CHAOS', 'pilot-auth-brand'),
           textElement('h2', 'CHOOSE HOW TO PLAY'),
-          textElement('p', 'Sign in to save your progress on every device', 'pilot-auth-subtitle'),
+          textElement('p', 'Sign in to protect your progress across devices', 'pilot-auth-subtitle'),
         );
         const providers = document.createElement('div'); providers.className = 'pilot-account-providers';
         for (const provider of account.availableProviders) {
@@ -723,7 +723,7 @@ export class PilotMenu {
         const divider = document.createElement('div'); divider.className = 'pilot-auth-divider'; divider.append(document.createElement('span'), textElement('b', 'OR'), document.createElement('span'));
         const guest = actionButton({ label: 'PLAY AS GUEST', run: account.continueAsGuest });
         guest.classList.add('pilot-auth-guest');
-        const guestNote = textElement('p', 'Guest progress stays on this device', 'pilot-auth-guest-note');
+        const guestNote = textElement('p', 'Playing as Guest — progress is saved on this device. Sign in to protect it.', 'pilot-auth-guest-note');
         const legal = document.createElement('p'); legal.className = 'pilot-auth-legal';
         legal.append(
           document.createTextNode('By continuing, you agree to our '), externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
@@ -888,9 +888,9 @@ export class PilotMenu {
             .finally(() => { if (logout.isConnected) logout.disabled = false; });
         } });
         account.append(notice, logout);
-      } else account.append(textElement('p', 'You are playing as a guest. Sign in to save progress across devices.'));
+      } else account.append(textElement('p', 'Playing as Guest — progress is saved on this device. Sign in to protect it.'));
       if (this.options.appShell) {
-        const profileAction = actionButton({ label: state.state === 'account' ? 'OPEN PILOT PROFILE' : 'SIGN IN / OPEN PROFILE', run: () => this.switchTo('PROFILE') });
+        const profileAction = actionButton({ label: state.state === 'account' ? 'OPEN PILOT PROFILE' : 'PROTECT PROGRESS', run: () => this.switchTo('PROFILE') });
         profileAction.classList.add('context-action'); account.append(profileAction);
       }
       content.append(account);

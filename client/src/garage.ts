@@ -561,7 +561,7 @@ export class AircraftGarage {
     const buy = this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')!;
     buy.textContent = !this.tokenCommerceEnabled ? 'SKY TOKEN UNLOCK UNAVAILABLE'
       : tokenMissing ? `GET SKY TOKENS · NEED ${tokenMissing.toLocaleString()} MORE` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`;
-    buy.disabled = !this.tokenCommerceEnabled || this.loadingProfile || this.actionPending;
+    buy.disabled = !this.tokenCommerceEnabled || this.tokenCommercePreview || this.loadingProfile || this.actionPending;
     buy.hidden = owned;
     const restore = this.element.querySelector<HTMLButtonElement>('[data-garage-restore]')!;
     restore.textContent = this.nativeStore ? 'RESTORE PURCHASES' : 'RESTORE PURCHASE';

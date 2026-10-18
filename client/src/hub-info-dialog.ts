@@ -10,9 +10,11 @@ export class HubInfoDialog {
   private readonly contact = document.createElement('a');
   private readonly copy = document.createElement('button');
   private readonly actionClose = document.createElement('button');
+  private readonly primary = document.createElement('button');
   private readonly status = document.createElement('p');
   private readonly closeButton = document.createElement('button');
   private returnFocus?: HTMLElement;
+  private pendingConfirmation?: (confirmed: boolean) => void;
 
   constructor() {
     this.dialog.className = 'hub-info-dialog';
@@ -39,9 +41,11 @@ export class HubInfoDialog {
     this.actionClose.className = 'hub-info-action-close';
     this.actionClose.textContent = 'CLOSE';
     this.actionClose.addEventListener('click', () => this.close());
+    this.primary.type = 'button';
+    this.primary.hidden = true;
     const actions = document.createElement('div');
     actions.className = 'hub-info-actions';
-    actions.append(this.contact, this.copy, this.actionClose);
+    actions.append(this.contact, this.copy, this.primary, this.actionClose);
     this.status.className = 'hub-info-status';
     this.status.setAttribute('role', 'status');
     panel.append(header, this.lead, this.description, this.balance, actions, this.status);
@@ -56,6 +60,7 @@ export class HubInfoDialog {
   }
 
   openAdvertise(trigger: HTMLElement): void {
+    this.primary.hidden = true;
     this.heading.textContent = 'ADVERTISE IN AIRPORT CHAOS';
     this.lead.textContent = 'Put your brand in our skies.';
     this.description.textContent = 'Reach players through in-game city banners. Contact us to discuss available placements.';
@@ -67,6 +72,7 @@ export class HubInfoDialog {
   }
 
   openSkyTokens(balance: number, trigger: HTMLElement): void {
+    this.primary.hidden = true;
     this.heading.textContent = 'Sky Tokens';
     this.lead.textContent = '';
     this.description.textContent = 'Sky Token purchases are coming soon.';
@@ -79,6 +85,7 @@ export class HubInfoDialog {
   }
 
   openFriends(trigger: HTMLElement): void {
+    this.primary.hidden = true;
     this.heading.textContent = 'Friends — Coming soon';
     this.lead.textContent = '';
     this.description.textContent = 'Add friends and fly together in Free Fly.';
@@ -89,9 +96,50 @@ export class HubInfoDialog {
     this.open(trigger);
   }
 
+  openGuestProgress(trigger: HTMLElement, protect: () => void): void {
+    this.heading.textContent = 'PLAYING AS GUEST';
+    this.lead.textContent = '';
+    this.description.textContent = 'Playing as Guest — progress is saved on this device. Sign in to protect it.';
+    this.showAction(trigger, 'PROTECT PROGRESS', protect);
+  }
+
+  openPurchaseSignIn(trigger: HTMLElement, signIn: () => void): void {
+    this.heading.textContent = 'PROTECT YOUR PURCHASE';
+    this.lead.textContent = '';
+    this.description.textContent = 'Sign in to protect your purchase and continue.';
+    this.showAction(trigger, 'SIGN IN', signIn);
+  }
+
+  confirmExistingAccount(trigger: HTMLElement): Promise<boolean> {
+    this.heading.textContent = 'CHECK YOUR PROGRESS';
+    this.lead.textContent = '';
+    this.description.textContent = 'If this is an existing account, its saved profile will load. Your guest progress will not merge and may become inaccessible on this device. Your guest profile will not be deleted.';
+    this.showAction(trigger, 'CONTINUE', () => undefined);
+    this.primary.onclick = () => {
+      this.pendingConfirmation?.(true);
+      this.pendingConfirmation = undefined;
+      this.close();
+    };
+    return new Promise(resolve => { this.pendingConfirmation = resolve; });
+  }
+
+  private showAction(trigger: HTMLElement, label: string, action: () => void): void {
+    this.balance.hidden = true;
+    this.contact.hidden = true;
+    this.copy.hidden = true;
+    this.status.textContent = '';
+    this.primary.textContent = label;
+    this.primary.hidden = false;
+    this.primary.onclick = () => { this.close(); action(); };
+    this.open(trigger);
+    this.primary.focus();
+  }
+
   close(): void {
     if (!this.dialog.open) return;
     this.dialog.close();
+    this.pendingConfirmation?.(false);
+    this.pendingConfirmation = undefined;
     this.returnFocus?.focus();
     this.returnFocus = undefined;
   }
