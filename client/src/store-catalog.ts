@@ -46,6 +46,15 @@ const featuredIds = ['fighter', 'privateJet', 'cargo'];
 export const storeFeatured = featuredIds.map(id => [...storeAircraft, ...storePaints].find(item => item.id === id)!);
 export const storeItems = [...storeAircraft, ...storePaints];
 
+// These aircraft are sold with a livery. The server unlocks the aircraft when
+// the matching cosmetic is purchased; the Store card shows that exact offer.
+export function storePurchaseTarget(item: StoreItem): StoreItem {
+  if (item.kind !== 'aircraft') return item;
+  const includedPaintId = item.aircraftType === 'cargo' ? 'mammoth-sand'
+    : item.aircraftType === 'privateJet' ? 'nightowl-forest' : undefined;
+  return includedPaintId ? storePaints.find(paint => paint.id === includedPaintId)! : item;
+}
+
 export function ownsStoreAircraft(profile: GarageProfile, type: AircraftType): boolean {
   return type === 'fighter'
     ? profile.aircraftEntitlements?.includes(firehawkProduct.entitlement) === true

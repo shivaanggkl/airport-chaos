@@ -1,11 +1,11 @@
 import { applyAircraftCosmetics } from './aircraft-cosmetics';
-import { aircraftRoles, identityText } from './visual-language';
+import { aircraftRoles } from './visual-language';
 import * as THREE from 'three';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import { aircraftDefinitions, aircraftDisplayName, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
-import { firehawkProduct, aircraftCreditPrice, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
+import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { recordProductIntent } from './product-analytics';
@@ -142,7 +142,23 @@ export class AircraftGarage {
       isActive: () => this.isOpen(),
       close: () => this.close(),
     });
-    element.innerHTML = `<section class="garage-card app-shell-panel"><header class="garage-heading context-page-heading"><div class="garage-balance"></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG TO ROTATE • PINCH TO ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-status-row"><span data-garage-price></span><div class="garage-status-actions"><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><button type="button" data-garage-cosmetic-get hidden>GET</button><button type="button" data-garage-equip hidden>USE APPEARANCE</button></div></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><section class="garage-cosmetics" data-garage-cosmetics></section><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button><button type="button" data-garage-trial>START FREE TRIAL</button><button type="button" data-garage-premium-buy>UNLOCK — 2,400 SKY TOKENS</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-label="Choose aircraft"><div class="garage-list"></div></section></section>`;
+    element.innerHTML = `<section class="garage-card app-shell-panel"><header class="garage-heading context-page-heading"><div class="garage-balance"></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG TO ROTATE • PINCH TO ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-status-row"><span data-garage-price></span><div class="garage-status-actions"><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><button type="button" data-garage-cosmetic-get hidden>GET</button><button type="button" data-garage-equip hidden>USE APPEARANCE</button><button type="button" data-garage-trial hidden>START FREE TRIAL</button></div></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><section class="garage-cosmetics" data-garage-cosmetics></section><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button><button type="button" data-garage-premium-buy>UNLOCK — 2,400 SKY TOKENS</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-label="Choose aircraft"><div class="garage-list"></div></section></section>`;
+    const statusRow = element.querySelector<HTMLElement>('.garage-status-row')!;
+    const walletRow = document.createElement('div'); walletRow.className = 'garage-wallet-row';
+    const walletLabel = document.createElement('span'); walletLabel.textContent = 'YOUR BALANCE';
+    const walletAmount = (currency: 'credits' | 'sky-tokens') => {
+      const amount = document.createElement('span'); amount.className = 'garage-currency-amount';
+      const icon = document.createElement('img'); icon.src = `/media/hub/${currency}.avif`; icon.alt = '';
+      const value = document.createElement('strong'); value.dataset.garageBalance = currency;
+      amount.append(icon, value); return amount;
+    };
+    walletRow.append(walletLabel, walletAmount('credits'), walletAmount('sky-tokens'));
+    const priceRow = document.createElement('div'); priceRow.className = 'garage-price-row'; priceRow.hidden = true;
+    const priceLabel = document.createElement('span'); priceLabel.textContent = 'UNLOCK PRICE';
+    priceRow.append(priceLabel, element.querySelector<HTMLElement>('[data-garage-price]')!);
+    const summary = document.createElement('div'); summary.className = 'garage-summary';
+    statusRow.before(summary);
+    summary.append(walletRow, priceRow, statusRow);
     element.querySelector('[data-garage-premium]')!.after(element.querySelector('[data-garage-token-choice]')!);
     const canvas = element.querySelector<HTMLCanvasElement>('canvas')!;
     this.garagePreviewHost = canvas.parentElement!;
@@ -168,14 +184,7 @@ export class AircraftGarage {
       const card = document.createElement('div'); card.className = 'garage-aircraft';
       const previewButton = document.createElement('button'); previewButton.type = 'button'; previewButton.className = 'garage-aircraft-preview-button';
       previewButton.addEventListener('click', () => { if (this.selected !== type) { hapticsManager.emit('selection'); recordProductIntent('aircraft_selected', { aircraftType: type }); recordProductIntent('aircraft_viewed', { aircraftType: type }); } this.selected = type; this.previewCosmetic = undefined; this.testerOpen = false; this.actionMessage = ''; this.renderDetails(); this.loadPreview(); if (type === 'fighter' && !this.profile.unlockedAircraft.includes('fighter')) this.onFighterModalViewed?.(); });
-      const getButton = document.createElement('button'); getButton.type = 'button'; getButton.className = 'garage-aircraft-get'; getButton.textContent = 'GET';
-      getButton.addEventListener('click', () => {
-        if (this.actionPending || this.loadingProfile) return;
-        if (this.selected !== type) previewButton.click();
-        if (type === 'fighter') this.element.querySelector<HTMLButtonElement>('[data-garage-premium-buy]')?.focus();
-        else this.element.querySelector<HTMLButtonElement>('[data-garage-cosmetic-get]')?.focus();
-      });
-      card.append(previewButton, getButton);
+      card.append(previewButton);
       this.cards.set(type, card); element.querySelector('.garage-list')!.append(card);
     }
     const garageBack = createContextBackButton('BACK TO PILOT HUB', closeTopUiLayer);
@@ -520,6 +529,10 @@ export class AircraftGarage {
     const price = this.element.querySelector<HTMLElement>('[data-garage-price]')!;
     price.textContent = '';
     price.removeAttribute('aria-label');
+    this.element.querySelector<HTMLElement>('.garage-price-row')!.hidden = true;
+    this.element.querySelector<HTMLElement>('.garage-wallet-row')!.hidden = !profileReady;
+    this.element.querySelector<HTMLElement>('[data-garage-balance="credits"]')!.textContent = this.profile.credits.toLocaleString();
+    this.element.querySelector<HTMLElement>('[data-garage-balance="sky-tokens"]')!.textContent = (this.profile.skyTokens ?? 0).toLocaleString();
     this.element.querySelector('[data-garage-details]')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('.garage-card')!.classList.toggle('is-firehawk', this.selected === 'fighter');
     this.element.querySelector('[data-garage-name]')!.textContent = aircraftDisplayName(this.selected);
@@ -564,32 +577,18 @@ export class AircraftGarage {
         : trialState === 'active'
           ? `Trial: ${String(Math.floor(Math.max(0, remaining) / 60)).padStart(2, '0')}:${String(Math.max(0, remaining) % 60).padStart(2, '0')} remaining`
           : 'Trial: already used';
-    this.element.querySelector<HTMLElement>('[data-garage-trial]')!.hidden = !profileReady || owned || this.profile.fighterTrial?.status !== 'available';
+    this.element.querySelector<HTMLElement>('[data-garage-trial]')!.hidden = !profileReady || owned || this.selected !== 'fighter' || this.profile.fighterTrial?.status !== 'available';
     const canRedeem = profileReady && this.selected === 'fighter' && !owned && this.profile.testerCodeEnabled === true;
     this.element.querySelector<HTMLElement>('[data-garage-redeem-open]')!.hidden = !canRedeem || this.testerOpen;
     tester.hidden = !canRedeem || !this.testerOpen;
     for (const [type, card] of this.cards) {
-      const data = aircraftDefinitions[type]; const typeOwned = this.isPermanentlyOwned(type);
-      const access = data.access === 'premium' ? `${aircraftSkyTokenPrice(type)?.toLocaleString()} SKY TOKENS`
-        : data.access === 'free' ? 'FREE' : `FROM ${aircraftCreditPrice(type)?.toLocaleString()} ${identityText('credits')}`;
+      const data = aircraftDefinitions[type];
       const name = document.createElement('strong'); name.textContent = data.callsign;
       const previewButton = card.querySelector<HTMLButtonElement>('.garage-aircraft-preview-button')!;
-      const state = document.createElement('small');
-      if (data.access !== 'free') {
-        const icon = document.createElement('img');
-        icon.src = data.access === 'premium' ? '/media/hub/sky-tokens.avif' : '/media/hub/credits.avif';
-        icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
-        state.append(icon, document.createTextNode(`${data.access === 'credits' ? 'FROM ' : ''}${(data.access === 'premium' ? aircraftSkyTokenPrice(type) : aircraftCreditPrice(type))!.toLocaleString()}`));
-      }
-      previewButton.replaceChildren(name, ...(profileReady && !typeOwned ? [state] : []));
-      const get = card.querySelector<HTMLButtonElement>('.garage-aircraft-get')!;
-      get.hidden = !profileReady || typeOwned;
-      get.textContent = 'GET';
-      get.disabled = this.loadingProfile || this.actionPending || (data.access === 'premium' && !this.tokenCommerceEnabled);
+      previewButton.replaceChildren(name);
       card.classList.toggle('selected', type === this.selected);
-      previewButton.setAttribute('aria-label', `Preview ${aircraftDisplayName(type)}${typeOwned ? '' : `, ${access}`}`);
+      previewButton.setAttribute('aria-label', `Preview ${aircraftDisplayName(type)}`);
       previewButton.setAttribute('aria-pressed', String(type === this.selected));
-      get.setAttribute('aria-label', `Get ${aircraftDisplayName(type)}, ${access}`);
     }
     this.lastTrialSecond = this.trialRemainingSeconds();
     this.renderCosmetics();
@@ -695,18 +694,26 @@ export class AircraftGarage {
     if (creditPrice !== undefined || tokenPrice !== undefined) {
       const missingTokens = Math.max(0, (tokenPrice ?? 0) - (this.profile.skyTokens ?? 0));
       const price = this.element.querySelector<HTMLElement>('[data-garage-price]')!;
+      const currencyAmount = (currency: 'credits' | 'sky-tokens', amount: number) => {
+        const group = document.createElement('span'); group.className = 'garage-currency-amount'; group.dataset.currency = currency;
+        const icon = document.createElement('img'); icon.src = `/media/hub/${currency}.avif`; icon.alt = '';
+        const value = document.createElement('strong'); value.textContent = amount.toLocaleString();
+        group.append(icon, value); return group;
+      };
+      const amounts: HTMLElement[] = [];
+      if (creditPrice !== undefined) amounts.push(currencyAmount('credits', creditPrice));
+      if (creditPrice !== undefined && tokenPrice !== undefined) {
+        const or = document.createElement('span'); or.className = 'garage-price-or'; or.textContent = 'OR'; amounts.push(or);
+      }
+      if (tokenPrice !== undefined) amounts.push(currencyAmount('sky-tokens', tokenPrice));
+      price.replaceChildren(...amounts);
+      price.setAttribute('aria-label', [creditPrice === undefined ? '' : `${creditPrice.toLocaleString()} Credits`, tokenPrice === undefined ? '' : `${tokenPrice.toLocaleString()} Sky Tokens`].filter(Boolean).join(' or '));
+      this.element.querySelector<HTMLElement>('.garage-price-row')!.hidden = false;
       if (creditPrice !== undefined) {
-        const icon = document.createElement('img'); icon.src = '/media/hub/credits.avif'; icon.alt = ''; icon.setAttribute('aria-hidden', 'true');
-        const amount = document.createElement('strong'); amount.textContent = creditPrice.toLocaleString();
-        const unit = document.createElement('small'); unit.textContent = 'CREDITS';
-        price.replaceChildren(icon, amount, unit);
-        price.setAttribute('aria-label', `${creditPrice.toLocaleString()} Credits`);
         get.textContent = this.selected === 'trainer' ? 'UNLOCK PAINT' : `UNLOCK ${aircraftDefinitions[this.selected].callsign} + ${lockedAppearance!.displayName}`;
         get.setAttribute('aria-label', `${get.textContent}, ${creditPrice.toLocaleString()} Credits`);
         get.disabled = this.actionPending || this.profile.credits < creditPrice;
         get.onclick = () => this.beginCosmeticAction(lockedAppearance!.id, 'CREDITS');
-      } else {
-        price.textContent = `${tokenPrice?.toLocaleString()} SKY TOKENS`;
       }
       if (tokenPrice !== undefined && this.tokenCommerceEnabled && this.selected !== 'fighter') {
         const tokenChoice = this.element.querySelector<HTMLElement>('[data-garage-token-choice]')!;
@@ -1410,7 +1417,8 @@ export class AircraftGarage {
       );
     });
     const hangarScale = exactHangarFrame && this.selected === 'trainer' ? 0.97 :
-      exactHangarFrame && this.selected === 'fighter' ? 0.9 : 1;
+      exactHangarFrame && this.selected === 'fighter' ? 0.9 :
+        exactHangarFrame && this.selected === 'privateJet' ? 1.1 : 1;
     this.defaultDistance = Math.max(1, framedDistance * hangarScale);
     if (showcaseCamera) {
       // Fit the full orbit once so the Hub aircraft never changes size as it turns.

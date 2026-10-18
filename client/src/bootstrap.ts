@@ -423,7 +423,8 @@ function tokenStoreAvailable(): boolean {
 
 function showAppHeader(active: AppShellActive): void {
   if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE' || entryState === 'AIRCRAFT' ||
-    (entryState === 'PILOT_MENU' && (active === 'PROFILE' || hubPilotMenu.isSectionOpen('PROFILE')))) {
+    (entryState === 'PILOT_MENU' && (active === 'PROFILE' || hubPilotMenu.isSectionOpen('PROFILE') ||
+      (['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'] as const).some(section => hubPilotMenu.isSectionOpen(section))))) {
     appHeader.hide();
     return;
   }
@@ -1025,7 +1026,7 @@ function hubPilotMenuData(): PilotMenuData {
       touchMode: hubTouchMode, touchLayout: matchMedia('(pointer: coarse)').matches || innerWidth <= 900,
       setTouchMode: (mode) => { hubTouchMode = persistTouchMode(mode); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); },
       graphicsQuality: hubGraphicsQuality,
-      setGraphicsQuality: (quality) => { hubGraphicsQuality = quality; try { localStorage.setItem('airport-chaos-graphics-quality-v1', quality); } catch { /* optional */ } notifySharedMenuPreferences(); },
+      setGraphicsQuality: (quality) => { hubGraphicsQuality = quality; try { localStorage.setItem('airport-chaos-graphics-quality-v1', quality); } catch { /* optional */ } notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); },
       mobileLayout: hubMobileLayout,
       setMobileControl: (control, placement) => { hubMobileLayout = persistMobileControlPlacement(control, hubMobileLayout, placement); notifySharedMenuPreferences(); },
       resetMobileLayout: () => { hubMobileLayout = resetPreferredMobileControlLayout(); notifySharedMenuPreferences(); return hubMobileLayout; },
@@ -1367,9 +1368,9 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   gameStore.hide();
   citySelector.hidden = true;
   missionJourney.hide();
-  if (hubSection !== 'REWARDS') showAppHeader(hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   if (hubSection === 'REWARDS') appHeader.hide();
+  else showAppHeader(hubSection === 'PROFILE' ? 'PROFILE' : undefined);
   if (refresh) await refreshHubPilotData();
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
   if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
@@ -1585,9 +1586,8 @@ window.addEventListener('popstate', () => {
   if (entryState === 'AIRCRAFT' && garageReturnState === 'STORE') {
     if (garage.isOpen()) garage.close();
     else void openGameStore(false);
-  } else if (entryState === 'STORE') {
-    if (window.history.state?.airportChaosStoreView === 'STORE') gameStore.dismissDetailFromHistory();
-    else if (!window.history.state?.airportChaosStoreView) { gameStore.close(); void showHome(); }
+  } else if (entryState === 'STORE' && !window.history.state?.airportChaosStoreView) {
+    gameStore.close(); void showHome();
   }
 });
 

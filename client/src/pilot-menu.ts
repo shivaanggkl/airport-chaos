@@ -215,6 +215,20 @@ function actionButton(action: PilotMenuAction): HTMLButtonElement {
   return button;
 }
 
+function settingsChoice(label: string, current: string, choices: readonly { label: string; value: string }[], change: (value: string) => void): HTMLElement {
+  const group = document.createElement('div'); group.className = 'pilot-settings-choice';
+  group.append(textElement('h3', label));
+  const options = document.createElement('div'); options.className = 'pilot-settings-choice-options';
+  options.setAttribute('role', 'group'); options.setAttribute('aria-label', label);
+  for (const choice of choices) {
+    const button = actionButton({ label: choice.label, run: () => change(choice.value) });
+    button.setAttribute('aria-pressed', String(current === choice.value));
+    options.append(button);
+  }
+  group.append(options);
+  return group;
+}
+
 function providerIcon(provider: 'google' | 'apple'): SVGSVGElement {
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.classList.add('pilot-provider-icon');
@@ -268,6 +282,8 @@ export class PilotMenu {
   private rewardsTimer?: number;
   private rewardsReturnFocus?: HTMLElement;
   private rewardsBackground: HTMLElement[] = [];
+  private selectedMobileControl: MobileControlId = 'stick';
+  private settingsMoreOpen = false;
   private territoryLegendOpen = this.readLegendPreference();
 
   constructor(
@@ -346,6 +362,53 @@ export class PilotMenu {
     return card;
   }
 
+  private mobileControlEditor(data: PilotMenuData, control: MobileControlId): HTMLFieldSetElement {
+    const labels: Record<MobileControlId, string> = { stick: 'DIRECTION STICK', throttle: 'THROTTLE LEVER', fire: 'FIRE' };
+    const editor = document.createElement('fieldset'); editor.className = 'pilot-mobile-control-editor';
+    const legend = document.createElement('legend'); legend.textContent = labels[control]; editor.append(legend);
+    for (const [property, label] of [['x', 'Horizontal'], ['y', 'Vertical'], ['scale', 'Size']] as const) {
+      const { min, max, step } = mobileControlPlacementLimits[control][property];
+      const row = document.createElement('label');
+      const value = textElement('output', property === 'scale' ? `${Math.round(data.preferences.mobileLayout[control][property] * 100)}%` : `${Math.round(data.preferences.mobileLayout[control][property])}%`);
+      const slider = document.createElement('input'); slider.type = 'range';
+      slider.min = String(min); slider.max = String(max); slider.step = String(step);
+      slider.value = String(data.preferences.mobileLayout[control][property]);
+      slider.setAttribute('aria-label', `${labels[control]} ${label.toLowerCase()}`);
+      slider.addEventListener('input', () => {
+        const next = Number(slider.value);
+        value.textContent = property === 'scale' ? `${Math.round(next * 100)}%` : `${Math.round(next)}%`;
+        data.preferences.mobileLayout[control][property] = next;
+        data.preferences.setMobileControl(control, { [property]: next });
+      });
+      slider.addEventListener('change', () => hapticsManager.emit('selection'));
+      row.append(textElement('span', label), slider, value); editor.append(row);
+    }
+    return editor;
+  }
+
+  private legalSupportSections(): HTMLElement[] {
+    const legal = section('LEGAL / SUPPORT');
+    const links = document.createElement('div'); links.className = 'pilot-menu-license-links';
+    links.append(
+      externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
+      externalLink('Privacy Policy', legalPolicyHref(legalConfig.policyRoutes.privacy)),
+      externalLink('Refund Policy', legalPolicyHref(legalConfig.policyRoutes.refund)),
+      externalLink('Support', legalPolicyHref(legalConfig.policyRoutes.support)),
+    );
+    legal.append(textElement('p', 'Policies and help for Airport Chaos.', 'pilot-menu-muted'), links);
+    const advertising = section('BUSINESS CONTACT');
+    const sponsorInfo = document.createElement('div'); sponsorInfo.className = 'pilot-menu-sponsor-info';
+    sponsorInfo.append(textElement('p', 'Interested in advertising in Airport Chaos?'),
+      textElement('p', `Sponsor: ${sponsorLocations}`), textElement('p', companyContact.companyName));
+    const sponsorLinks = document.createElement('div'); sponsorLinks.innerHTML = contactLinks(); sponsorInfo.append(sponsorLinks);
+    sponsorInfo.hidden = !this.advertisingOpen;
+    advertising.append(actionButton({ label: 'Advertise in Airport Chaos', run: () => {
+      this.advertisingOpen = !this.advertisingOpen;
+      sponsorInfo.hidden = !this.advertisingOpen;
+    } }), sponsorInfo);
+    return [legal, advertising];
+  }
+
   isOpen(): boolean { return this.openState; }
   isSectionOpen(section: PilotMenuSection): boolean { return this.openState && this.activeSection === section; }
   isActivelyScrolling(now = performance.now()): boolean { return now - this.lastScrollInteractionAt < 260; }
@@ -365,6 +428,7 @@ export class PilotMenu {
     this.element.hidden = false;
     if (this.backButton) this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
     this.render(data);
+    if (this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(section)) this.backButton?.focus({ preventScroll: true });
     if (this.options.appShell && section === 'REWARDS') {
       this.rewardsBackground = [...document.querySelectorAll<HTMLElement>('.app-shell-header, .home-hangar')];
       this.rewardsBackground.forEach(element => { element.inert = true; });
@@ -420,8 +484,8 @@ export class PilotMenu {
         data.missions.entries.map(({ id, completions }) => [id, completions]),
         data.territories.entries.map(({ id, ownedByYou }) => [id, ownedByYou]), data.leaderboards]);
       case 'GARAGE': return JSON.stringify([this.activeSection, data.garage.available, data.garage.reason]);
-      case 'CONTROLS': return JSON.stringify([this.activeSection, data.flightPitch.inverted, data.flightPitch.touch, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout]);
-      case 'AUDIO': return JSON.stringify([this.activeSection, data.audio.muted, data.audio.levels]);
+      case 'CONTROLS': return JSON.stringify([this.activeSection, data.flightPitch.inverted, data.flightPitch.touch, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout, data.navigation.enabled, data.preferences.graphicsQuality]);
+      case 'AUDIO': return JSON.stringify([this.activeSection, data.audio.muted, data.audio.levels, data.haptics.available, data.haptics.enabled]);
       case 'HELP': return JSON.stringify([this.activeSection, data.hints.enabled]);
       case 'WORLD / CITIES': return JSON.stringify([this.activeSection, data.city.name, data.intercity.routes]);
       case 'LEGAL / SUPPORT': return this.activeSection;
@@ -519,9 +583,11 @@ export class PilotMenu {
     window.addEventListener('pointercancel', releasePointer, { passive: true });
     const navigation = document.createElement('nav');
     navigation.className = 'pilot-menu-navigation';
-    navigation.setAttribute('aria-label', 'Pilot Menu sections');
+    navigation.setAttribute('aria-label', this.options.appShell ? 'Settings sections' : 'Pilot Menu sections');
+    if (this.options.appShell) navigation.classList.add('store-tabs', 'pilot-settings-tabs');
     for (const name of this.sections) {
       const button = actionButton({ label: name === 'GARAGE' ? 'AIRCRAFTS' : name, run: () => this.switchTo(name) });
+      if (this.options.appShell) button.classList.add('store-tab');
       button.dataset.section = name;
       navigation.append(button);
     }
@@ -551,9 +617,13 @@ export class PilotMenu {
     const content = this.ensureContent();
     const card = this.element.querySelector<HTMLElement>('.pilot-menu-card');
     const hubRewards = this.options.appShell === true && this.activeSection === 'REWARDS';
+    const hubSettings = this.options.appShell === true && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(this.activeSection);
     this.element.classList.toggle('is-rewards-overlay', hubRewards);
     this.element.classList.toggle('is-hub-profile', this.options.appShell === true && this.activeSection === 'PROFILE');
+    this.element.classList.toggle('is-hub-settings', hubSettings);
     card?.classList.toggle('is-hub-rewards', hubRewards);
+    card?.classList.toggle('is-settings', hubSettings);
+    card?.classList.toggle('is-settings-help', hubSettings && this.activeSection === 'HELP');
     if (card) {
       if (hubRewards) {
         card.setAttribute('role', 'dialog');
@@ -590,6 +660,8 @@ export class PilotMenu {
       const sectionName = button.dataset.section;
       button.hidden = sectionName === 'TERRITORIES' && !data.territories.enabled;
       button.classList.toggle('active', button.dataset.section === this.activeSection);
+      button.classList.toggle('is-active', button.dataset.section === this.activeSection);
+      if (this.options.appShell) button.setAttribute('aria-pressed', String(button.dataset.section === this.activeSection));
       button.setAttribute('aria-current', button.dataset.section === this.activeSection ? 'page' : 'false');
     }
 
@@ -802,7 +874,8 @@ export class PilotMenu {
       const state = data.account;
       if (state.state === 'account') {
         const methods = [state.providers.password && 'Email', state.providers.google && 'Google', state.providers.apple && 'Apple'].filter(Boolean).join(', ');
-        account.append(textElement('span', 'SIGNED-IN EMAIL', 'pilot-profile-field-label'), textElement('strong', state.email ?? 'Email unavailable'),
+        account.append(textElement('span', 'SIGNED IN', 'pilot-settings-account-status'),
+          textElement('span', 'SIGNED-IN EMAIL', 'pilot-profile-field-label'), textElement('strong', state.email ?? 'Email unavailable'),
           textElement('span', 'SIGN-IN METHOD', 'pilot-profile-field-label'), textElement('strong', methods || 'Unavailable'));
         const notice = textElement('p', '', 'pilot-account-message'); notice.setAttribute('role', 'status'); notice.setAttribute('aria-live', 'polite'); notice.hidden = true;
         const logout = actionButton({ label: 'LOG OUT', intent: 'danger', run: () => {
@@ -815,7 +888,11 @@ export class PilotMenu {
             .finally(() => { if (logout.isConnected) logout.disabled = false; });
         } });
         account.append(notice, logout);
-      } else account.append(textElement('p', 'Sign in from the Profile icon to manage your account.'));
+      } else account.append(textElement('p', 'You are playing as a guest. Sign in to save progress across devices.'));
+      if (this.options.appShell) {
+        const profileAction = actionButton({ label: state.state === 'account' ? 'OPEN PILOT PROFILE' : 'SIGN IN / OPEN PROFILE', run: () => this.switchTo('PROFILE') });
+        profileAction.classList.add('context-action'); account.append(profileAction);
+      }
       content.append(account);
     }
 
@@ -1239,7 +1316,99 @@ export class PilotMenu {
     if(data.intercity.routes.length){const routes=section('INTERCITY FLIGHTS');routes.append(textElement('p','Land and stop at the departure airport, then begin a city-to-city flight.','pilot-menu-muted'));for(const route of data.intercity.routes)routes.append(this.createCard({name:`FLY TO ${route.destination.toUpperCase()}`,detail:route.distanceLabel,meta:`Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,actions:[{label:'START ROUTE',run:route.start,disabled:!route.available,title:route.reason}]}));content.append(routes);}
     }
 
-    if (this.activeSection === 'CONTROLS') {
+    if (this.activeSection === 'CONTROLS' && this.options.appShell) {
+      const settings = document.createElement('div'); settings.className = 'pilot-settings-controls';
+      const columns = document.createElement('div'); columns.className = 'pilot-settings-columns';
+      const flight = section('FLIGHT CONTROLS'); flight.classList.add('pilot-settings-flight');
+      flight.append(
+        settingsChoice('FLIGHT PITCH', data.flightPitch.inverted ? 'inverted' : 'normal', [
+          { label: 'NORMAL', value: 'normal' }, { label: 'INVERTED', value: 'inverted' },
+        ], value => { data.flightPitch.setInverted(value === 'inverted'); hapticsManager.emit('selection'); }),
+        textElement('p', data.flightPitch.touch
+          ? 'Normal: stick up climbs. Inverted: stick down climbs.'
+          : 'Normal: Up climbs. Inverted: Down climbs.', 'pilot-menu-muted'),
+        settingsChoice('TOUCH CONTROLS', data.preferences.touchMode, [
+          { label: 'AUTO', value: 'auto' }, { label: 'MANUAL', value: 'on' },
+        ], value => { data.preferences.setTouchMode(value as 'auto' | 'on'); hapticsManager.emit('selection'); }),
+        textElement('p', data.preferences.touchMode === 'off'
+          ? 'Touch controls are off. Choose Auto or Manual to turn them on.'
+          : data.preferences.touchMode === 'auto' ? 'Auto uses the best layout for the current device.'
+            : 'Manual keeps touch controls visible with your saved positions.', 'pilot-menu-muted'),
+      );
+      const position = section('CONTROL POSITION'); position.classList.add('pilot-settings-position');
+      const select = document.createElement('select'); select.setAttribute('aria-label', 'Control to position');
+      for (const [value, label] of [['stick', 'DIRECTION STICK'], ['throttle', 'THROTTLE LEVER'], ['fire', 'FIRE']] as const) {
+        const option = document.createElement('option'); option.value = value; option.textContent = label;
+        select.append(option);
+      }
+      select.value = this.selectedMobileControl;
+      const editorHost = document.createElement('div'); editorHost.className = 'pilot-settings-position-editor';
+      const renderEditor = () => editorHost.replaceChildren(this.mobileControlEditor(data, this.selectedMobileControl));
+      select.addEventListener('change', () => { this.selectedMobileControl = select.value as MobileControlId; renderEditor(); hapticsManager.emit('selection'); });
+      renderEditor();
+      const reset = actionButton({ label: 'RESET POSITION', run: () => {
+        data.preferences.mobileLayout = data.preferences.resetMobileLayout();
+        renderEditor(); hapticsManager.emit('selection');
+      } });
+      reset.classList.add('context-action');
+      position.append(select, editorHost, reset);
+      columns.append(flight, position);
+      const note = textElement('p', 'Changes apply immediately.', 'pilot-settings-note');
+      const other = document.createElement('div'); other.className = 'pilot-settings-more-content';
+      const touchOptions = section('TOUCH CONTROLS');
+      touchOptions.append(actionButton({ label: data.preferences.touchMode === 'off' ? 'TOUCH CONTROLS OFF' : 'TURN TOUCH CONTROLS OFF', run: () => {
+        data.preferences.setTouchMode(data.preferences.touchMode === 'off' ? 'auto' : 'off');
+        hapticsManager.emit('selection');
+      } }));
+      if (data.preferences.touchLayout) touchOptions.append(textElement('p',
+        'The left stick controls turning and altitude. The right throttle lever holds power; drag into its Boost Zone to use Boost.', 'pilot-menu-muted'));
+      else {
+        touchOptions.append(textElement('p', 'Keyboard and mouse reference for desktop flight.', 'pilot-menu-muted'));
+        for (const group of controlGroups) {
+          const reference = document.createElement('div'); reference.className = 'pilot-menu-control-group';
+          reference.append(textElement('h3', group.label));
+          for (const row of group.rows) reference.append(textElement('div', `${row.keyLabel ?? controlKeyLabel(row.actions)}   ${row.label}`, 'pilot-menu-controls'));
+          other.append(reference);
+        }
+        const camera = document.createElement('div'); camera.className = 'pilot-menu-control-group'; camera.append(textElement('h3', 'CAMERA & GAME'));
+        camera.append(
+          textElement('div', `${cameraControlLabels.look}   Camera Look`, 'pilot-menu-controls'),
+          textElement('div', `${cameraControlLabels.zoom}   Camera Zoom`, 'pilot-menu-controls'),
+          textElement('div', `${menuKeyLabel('map')}   Map`, 'pilot-menu-controls'),
+          textElement('div', `${menuKeyLabel('menu')}   Menu`, 'pilot-menu-controls'),
+          textElement('div', `${menuKeyLabel('restart')}   Restart / Respawn`, 'pilot-menu-controls'),
+          textElement('div', 'H   Show / Hide Controls Help', 'pilot-menu-controls'),
+        );
+        other.append(camera);
+      }
+      other.prepend(touchOptions);
+      const nav = section('NAVIGATION');
+      nav.append(actionButton({ label: data.navigation.enabled ? 'Nav Markers On' : 'Nav Markers Off', run: () => {
+        data.navigation.toggle(); hapticsManager.emit('selection');
+      } }));
+      const graphics = section('GRAPHICS');
+      const quality = document.createElement('select'); quality.setAttribute('aria-label', 'Graphics quality');
+      for (const value of ['auto', 'high', 'balanced', 'low'] as const) {
+        const option = document.createElement('option'); option.value = value; option.textContent = value.toUpperCase(); quality.append(option);
+      }
+      quality.value = data.preferences.graphicsQuality;
+      quality.addEventListener('change', () => { data.preferences.setGraphicsQuality(quality.value as 'auto' | 'high' | 'balanced' | 'low'); hapticsManager.emit('selection'); });
+      graphics.append(quality, textElement('small', 'Graphics changes apply next time the city loads.', 'pilot-menu-muted'));
+      other.append(nav, graphics);
+      const footer = document.createElement('div'); footer.className = 'pilot-settings-footer';
+      const moreButton = actionButton({ label: this.settingsMoreOpen ? 'BACK TO FLIGHT CONTROLS' : 'MORE CONTROL OPTIONS', run: () => {
+        this.settingsMoreOpen = !this.settingsMoreOpen;
+        this.render(data, true);
+        this.content?.querySelector<HTMLButtonElement>('.pilot-settings-more-toggle')?.focus({ preventScroll: true });
+      } });
+      moreButton.classList.add('pilot-settings-more-toggle');
+      moreButton.setAttribute('aria-pressed', String(this.settingsMoreOpen));
+      settings.classList.toggle('is-more', this.settingsMoreOpen);
+      footer.append(note, moreButton);
+      settings.append(this.settingsMoreOpen ? other : columns, footer); content.append(settings);
+    }
+
+    if (this.activeSection === 'CONTROLS' && !this.options.appShell) {
     const controls = section('CONTROLS');
     const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>{change(select.value);hapticsManager.emit('selection');});row.append(select);return row;};
     controls.append(
@@ -1254,18 +1423,8 @@ export class PilotMenu {
         touchDescription,
         selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),
       );
-      const labels:Record<MobileControlId,string>={stick:'DIRECTION STICK',throttle:'THROTTLE LEVER',fire:'FIRE'};
       for(const control of ['stick','throttle','fire'] as const){
-        const editor=document.createElement('fieldset');editor.className='pilot-mobile-control-editor';const legend=document.createElement('legend');legend.textContent=labels[control];editor.append(legend);
-        for(const [property,label] of [['x','Horizontal'],['y','Vertical'],['scale','Size']] as const){
-          const {min,max,step}=mobileControlPlacementLimits[control][property];
-          const row=document.createElement('label');const value=textElement('output',property==='scale'?`${Math.round(data.preferences.mobileLayout[control][property]*100)}%`:`${Math.round(data.preferences.mobileLayout[control][property])}%`);
-          const slider=document.createElement('input');slider.type='range';slider.min=String(min);slider.max=String(max);slider.step=String(step);slider.value=String(data.preferences.mobileLayout[control][property]);
-          slider.addEventListener('input',()=>{const next=Number(slider.value);value.textContent=property==='scale'?`${Math.round(next*100)}%`:`${Math.round(next)}%`;data.preferences.setMobileControl(control,{[property]:next});});
-          slider.addEventListener('change', () => hapticsManager.emit('selection'));
-          row.append(textElement('span',label),slider,value);editor.append(row);
-        }
-        controls.append(editor);
+        controls.append(this.mobileControlEditor(data,control));
       }
       controls.append(actionButton({label:'RESET MOBILE CONTROLS',run:()=>{data.preferences.mobileLayout=data.preferences.resetMobileLayout();hapticsManager.emit('selection');this.render(data,true);}}));
     }else{
@@ -1295,8 +1454,21 @@ export class PilotMenu {
 
     if (this.activeSection === 'AUDIO') {
     const audio = section('Audio');
-    audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: () => { data.audio.toggle(); hapticsManager.emit('selection'); } }));
-    audio.append(actionButton({ label: data.haptics.available ? `HAPTICS: ${data.haptics.enabled ? 'ON' : 'OFF'}` : 'HAPTICS: UNAVAILABLE ON WEB', run: data.haptics.toggle, disabled: !data.haptics.available }));
+    if (this.options.appShell) {
+      audio.classList.add('pilot-settings-audio');
+      const switches = document.createElement('div'); switches.className = 'pilot-settings-switches';
+      switches.append(settingsChoice('SOUND', data.audio.muted ? 'off' : 'on', [
+        { label: 'ON', value: 'on' }, { label: 'OFF', value: 'off' },
+      ], value => { if ((value === 'off') !== data.audio.muted) { data.audio.toggle(); hapticsManager.emit('selection'); } }));
+      if (data.haptics.available) switches.append(settingsChoice('HAPTICS', data.haptics.enabled ? 'on' : 'off', [
+        { label: 'ON', value: 'on' }, { label: 'OFF', value: 'off' },
+      ], value => { if ((value === 'on') !== data.haptics.enabled) data.haptics.toggle(); }));
+      else switches.append(textElement('p', 'Haptics are unavailable on this platform.', 'pilot-menu-muted'));
+      audio.append(switches);
+    } else {
+      audio.append(actionButton({ label: data.audio.muted ? 'Sound Off · Turn On' : 'Sound On · Turn Off', run: () => { data.audio.toggle(); hapticsManager.emit('selection'); } }));
+      audio.append(actionButton({ label: data.haptics.available ? `HAPTICS: ${data.haptics.enabled ? 'ON' : 'OFF'}` : 'HAPTICS: UNAVAILABLE ON WEB', run: data.haptics.toggle, disabled: !data.haptics.available }));
+    }
     for (const category of ['master', 'music', 'engine', 'combat', 'ui'] as const) {
       const row = document.createElement('label');
       row.className = 'pilot-menu-audio-row';
@@ -1319,10 +1491,12 @@ export class PilotMenu {
     }
 
     if (this.activeSection === 'HELP') {
-      const help = section('HELP');
+      const help = section(this.options.appShell ? 'FLIGHT GUIDE' : 'HELP');
       help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
       help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
-      help.append(actionButton({ label: 'OPEN CONTROLS', run: () => this.switchTo('CONTROLS') }));
+      const controlGuide = actionButton({ label: this.options.appShell ? 'OPEN CONTROL GUIDE' : 'OPEN CONTROLS', run: () => this.switchTo('CONTROLS') });
+      if (this.options.appShell) controlGuide.classList.add('context-action');
+      help.append(controlGuide);
       if(data.guide.enabled){
         help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
         help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
@@ -1330,11 +1504,13 @@ export class PilotMenu {
       if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
       else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       const hints = section('HINTS');
-      hints.append(
-        textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'),
-        actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: () => { data.hints.toggle(); hapticsManager.emit('selection'); } }),
-      );
-      content.append(help,hints);
+      hints.append(textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'));
+      if (this.options.appShell) hints.append(settingsChoice('GAMEPLAY HINTS', data.hints.enabled ? 'on' : 'off', [
+        { label: 'ON', value: 'on' }, { label: 'OFF', value: 'off' },
+      ], value => { if ((value === 'on') !== data.hints.enabled) { data.hints.toggle(); hapticsManager.emit('selection'); } }));
+      else hints.append(actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: () => { data.hints.toggle(); hapticsManager.emit('selection'); } }));
+      content.append(help, hints);
+      if (this.options.appShell) content.append(...this.legalSupportSections());
     }
 
     if (this.activeSection === 'WORLD / CITIES') {
@@ -1356,26 +1532,7 @@ export class PilotMenu {
     }
 
     if (this.activeSection === 'LEGAL / SUPPORT') {
-      const legal = section('LEGAL / SUPPORT');
-      const links = document.createElement('div'); links.className = 'pilot-menu-license-links';
-      links.append(
-        externalLink('Terms of Use', legalPolicyHref(legalConfig.policyRoutes.terms)),
-        externalLink('Privacy Policy', legalPolicyHref(legalConfig.policyRoutes.privacy)),
-        externalLink('Refund Policy', legalPolicyHref(legalConfig.policyRoutes.refund)),
-        externalLink('Support', legalPolicyHref(legalConfig.policyRoutes.support)),
-      );
-      legal.append(textElement('p', 'Policies and help for Airport Chaos.', 'pilot-menu-muted'), links);
-      const advertising = section('BUSINESS CONTACT');
-      const sponsorInfo = document.createElement('div'); sponsorInfo.className = 'pilot-menu-sponsor-info';
-      sponsorInfo.append(textElement('p', 'Interested in advertising in Airport Chaos?'),
-        textElement('p', `Sponsor: ${sponsorLocations}`), textElement('p', companyContact.companyName));
-      const sponsorLinks = document.createElement('div'); sponsorLinks.innerHTML = contactLinks(); sponsorInfo.append(sponsorLinks);
-      sponsorInfo.hidden = !this.advertisingOpen;
-      advertising.append(actionButton({ label: 'Advertise in Airport Chaos', run: () => {
-        this.advertisingOpen = !this.advertisingOpen;
-        sponsorInfo.hidden = !this.advertisingOpen;
-      } }), sponsorInfo);
-      content.append(legal,advertising);
+      content.append(...this.legalSupportSections());
     }
 
     if (this.activeSection === 'DATA LICENSES') {
