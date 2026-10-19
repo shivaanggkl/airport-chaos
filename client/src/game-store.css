@@ -16,6 +16,9 @@ body:has(.game-store:not([hidden])) #tutorial-help { display: none; }
   min-height: max(clamp(78px, 12dvh, 90px), calc(var(--page-back-top) + 54px + 4px - var(--store-top-padding)));
   margin: 0 0 6px;
 }
+body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
+  min-height: max(0px, calc(var(--hub-header-total) + 8px - var(--store-top-padding)));
+}
 .game-store button:focus-visible { outline: 3px solid #006c9a; outline-offset: 2px; }
 .store-category-rail { position: relative; width: min(816px, 100%); min-width: 0; margin-inline: auto; }
 .store-category-rail::after {
