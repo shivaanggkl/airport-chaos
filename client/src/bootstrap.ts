@@ -431,8 +431,8 @@ function tokenStoreAvailable(): boolean {
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if ((entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() && (active === 'PROFILE' || hubPilotMenu.isSectionOpen('PROFILE') ||
-      (['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'] as const).some(section => hubPilotMenu.isSectionOpen(section))))) {
+  if (entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() &&
+      (['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'] as const).some(section => hubPilotMenu.isSectionOpen(section))) {
     appHeader.hide();
     return;
   }
@@ -445,6 +445,7 @@ function showAppHeader(active: AppShellActive): void {
     : entryState === 'MISSION_JOURNEY' ? 'MISSION JOURNEY'
     : entryState === 'STORE' ? 'STORE'
     : entryState === 'AIRCRAFT' ? 'AIRCRAFT HANGAR'
+    : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('PROFILE') ? 'PILOT PROFILE'
     : undefined;
   const homeData = homeHangarData();
   appHeader.show({

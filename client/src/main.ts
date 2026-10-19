@@ -38,7 +38,7 @@ import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tuto
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
-import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, FIRE_INTERVAL_MS, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
 import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
@@ -6865,8 +6865,6 @@ const projectileMaterial = new THREE.MeshStandardMaterial({
   emissive: 0x302a22,
   emissiveIntensity: 0.2,
 });
-// Two visible pellets share one authoritative shot and damage event.
-const twinBulletOffset = 1.3;
 // Mission 19 presentation only; pooled tracers restore their normal styling on reuse.
 const monsterTracerCoreMaterial = new THREE.MeshBasicMaterial({
   color: 0xfff2a6, transparent: true, opacity: 1, blending: THREE.AdditiveBlending,
@@ -6891,17 +6889,12 @@ function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
   const monsterShot = local && journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.status === 'RACING';
   const glow = mesh.children[0] as THREE.Mesh;
   const core = mesh.children[1] as THREE.Mesh;
-  const secondCore = mesh.children[2] as THREE.Mesh;
   mesh.userData.monsterTracer = monsterShot;
   glow.visible = monsterShot;
-  secondCore.visible = !monsterShot;
-  core.position.x = monsterShot ? 0 : -twinBulletOffset;
-  secondCore.position.x = twinBulletOffset;
   core.geometry = monsterShot ? monsterTracerCoreGeometry : projectileGeometry;
   core.material = monsterShot ? monsterTracerCoreMaterial : projectileMaterial;
   glow.scale.set(monsterShot ? 6 : 1, monsterShot ? 6 : 1, monsterShot ? 3 : 1);
   core.scale.copy(glow.scale);
-  secondCore.scale.set(1, 1, 1);
   updateMonsterTracerSize(mesh);
 }
 const projectileForward = new THREE.Vector3(0, 0, -1);
@@ -7090,11 +7083,9 @@ function createProjectileVisual(): ClientProjectile {
   const glow = new THREE.Mesh(monsterTracerGlowGeometry, monsterTracerGlowMaterial);
   glow.visible = false;
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-  const secondCore = new THREE.Mesh(projectileGeometry, projectileMaterial);
   glow.renderOrder = 2;
   core.renderOrder = 3;
-  secondCore.renderOrder = 3;
-  mesh.add(glow, core, secondCore);
+  mesh.add(glow, core);
   return {
     mesh,
     direction: new THREE.Vector3(),
@@ -7239,12 +7230,9 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
 
 function createAssistedShotMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  for (const side of [-1, 1]) {
-    const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-    core.position.x = side * twinBulletOffset;
-    core.renderOrder = 3;
-    mesh.add(core);
-  }
+  const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
+  core.renderOrder = 3;
+  mesh.add(core);
   return mesh;
 }
 
@@ -7948,21 +7936,17 @@ function updateLockCircle(): void {
   // Projection must use this frame's chase/orbit transform, not the matrix
   // cached by the previous renderer.render call.
   camera.updateMatrixWorld(true);
-  // Project aircraft-relative assisted aim, not viewport centre. The server
-  // owns its bounded offset; camera orbit never changes weapon authority.
+  // Project the same muzzle origin and rotation used by sendFireIntent.
+  // Camera orbit never changes weapon authority.
   const transportTarget = journeyAttempt?.missionId === journeyDallas07.id && transportView?.hasState
     ? transportView : undefined;
-  const origin = transportTarget ? transportReticleOrigin : airplane.position;
-  if (transportTarget) {
-    // Use exactly the socket and aim rotation used by sendFireIntent.
-    getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
-    combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
-  } else combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(airplane.quaternion);
-  // The private transport has no selectedCombatTarget entry. Project its aim
-  // ray at the visible airframe's depth, not the default 4.5 km range plane.
-  const depth = transportTarget
-    ? Math.max(1, transportReticleDirection.copy(transportTarget.position).sub(origin).dot(combatAimForward))
-    : selectedCombatTarget?.distance ?? COMBAT_RANGE;
+  getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
+  const origin = transportReticleOrigin;
+  combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
+  const targetPosition = transportTarget?.position ?? selectedCombatTarget?.remote.plane.position;
+  const depth = targetPosition
+    ? Math.max(1, transportReticleDirection.copy(targetPosition).sub(origin).dot(combatAimForward))
+    : COMBAT_RANGE;
   lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
   lockProjectedCenter.copy(lockBoresightPoint).project(camera);
   lockCameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
@@ -7985,12 +7969,10 @@ function updateLockCircle(): void {
     0.5,
     Math.max(0.5, (Math.min(window.innerWidth, window.innerHeight) - edgeMargin * 2) * 0.5),
   );
-  // Do not slide Mission 7's circle away from the actual bullet ray near edges.
-  const centerX = transportTarget ? projectedCenterX : THREE.MathUtils.clamp(projectedCenterX, edgeMargin + radius, window.innerWidth - edgeMargin - radius);
-  const centerY = transportTarget ? projectedCenterY : THREE.MathUtils.clamp(projectedCenterY, edgeMargin + radius, window.innerHeight - edgeMargin - radius);
+  // Keep the ring centered on the true ray, including at viewport edges.
+  const centerX = projectedCenterX;
+  const centerY = projectedCenterY;
   const diameter = radius * 2;
-  // Keep angular validation on the true projected aim. Only the presentation
-  // is edge-clamped when the expanded envelope reaches a small viewport.
   lockCircleCenterX = projectedCenterX;
   lockCircleCenterY = projectedCenterY;
   lockCircleRadius = derivedRadius;
@@ -9056,7 +9038,7 @@ function fireWeaponOnce(): boolean {
   }
   // Never consume the local cadence for an intent that was not emitted. This
   // prevents a transient lifecycle/socket gate from looking like a stuck gun.
-  fireCooldown = 0.25;
+  fireCooldown = FIRE_INTERVAL_MS / 1_000;
   return true;
 }
 

@@ -39,7 +39,7 @@ import { dallasDisplayNames as place } from '../../shared/dallas-display-names.m
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, FIRE_INTERVAL_MS, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -349,7 +349,7 @@ const aircraftCollisionRadius = 2.5;
 const respawnClearance = 24;
 // Straight, unlocked rounds remain fast enough to be readable at flight speed.
 const projectileDamage = 25;
-const fireCooldownMs = 250;
+const fireCooldownMs = FIRE_INTERVAL_MS;
 const spawnProtectionMs = 3000;
 const maxProjectiles = 256;
 const projectileStateBroadcastMs = 50;

@@ -5,6 +5,7 @@ export const PROTOCOL_VERSION = 27;
 // validation, unlocked projectile travel, and Hunter firing eligibility.
 export const COMBAT_RANGE = 4500;
 export const BASE_PROJECTILE_SPEED = 520;
+export const FIRE_INTERVAL_MS = 150;
 // Muzzle speed is relative to the firing aircraft, not a fixed world speed
 // that a boosted aircraft can overtake. Keep the validated aim unchanged.
 export function ballisticShotSpeed(velocity, direction) {

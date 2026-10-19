@@ -4782,6 +4782,17 @@ body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
   box-shadow: inset 0 0 0 2px #d7fbff, 0 13px 38px rgb(3 22 51 / 30%), 0 0 18px rgb(60 222 246 / 54%);
   backdrop-filter: none; transform: translateY(calc(var(--profile-title-height) / 2));
 }
+html:not(.editable-keyboard-open) body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-hub-profile {
+  --profile-available-height: calc(100dvh - var(--hub-header-total) - max(12px, var(--safe-area-bottom)) - 20px);
+  padding-top: calc(var(--hub-header-total) + 12px);
+}
+html:not(.editable-keyboard-open) body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-card.is-pilot-profile {
+  height: min(460px, var(--profile-available-height));
+  max-height: var(--profile-available-height);
+  transform: none;
+}
+body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-hub-profile > button.context-back.page-back,
+body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-card.is-pilot-profile > header { display: none; }
 .pilot-menu-card.is-pilot-profile > .pilot-menu-navigation { display: none; }
 .pilot-menu-card.is-hub-standalone > .pilot-menu-navigation { display: none; }
 .pilot-menu-card.is-pilot-profile > header { position: absolute; top: calc(-1 * var(--profile-title-height) - 18px); right: 0; left: 0; justify-content: center; min-height: var(--profile-title-height); padding: 0; border: 0; }
