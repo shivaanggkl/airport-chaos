@@ -112,14 +112,14 @@ export type PilotMenuData = {
       weeklyEvent?:{weeklyEventId:string;title:string;description:string;progress:number;target:number;completed:boolean;rewarded:boolean;weekEnd:number} };
   };
   rewards?: {
-    authenticated: boolean;
+    canClaim: boolean;
     notice?: string;
     state: { schedule: readonly number[]; nextDay: number; nextAmount: number; claimable: boolean; claimedDays: readonly number[]; claimCount: number; lastClaimedAt?: number; nextEligibleAt: number; serverNow: number };
     claim: () => Promise<PilotMenuAccountResult>;
     watchAndEarn?: {
       notice?: string;
       phase: 'idle' | 'loading' | 'playing' | 'verifying';
-      state: { rewardCredits: number; maxRewards: number; remaining: number; windowEndsAt?: number; serverNow: number; activeAttempt?: { attemptId: string; status: string; expiresAt: number } };
+      state: { supported: boolean; rewardCredits: number; rewardCreditsByStep: readonly number[]; maxRewards: number; remaining: number; windowStartedAt?: number; windowEndsAt?: number; serverNow: number; activeAttempt?: { attemptId: string; status: string; expiresAt: number } };
       watch: () => Promise<void>;
     };
     invite?: {
@@ -470,7 +470,7 @@ export class PilotMenu {
           [id, name, detail, difficulty, credits, score, completions, cooldownUntil, territoryIds]),
         data.territories.entries.map(({ id, controller, contested, progress }) => [id, controller, contested, progress]),
         data.missions.entries.some((entry) => entry.cooldownUntil > Date.now()) ? Math.floor(Date.now() / 60_000) : 0]);
-      case 'REWARDS': return JSON.stringify([this.activeSection, data.rewards?.authenticated, data.rewards?.state, data.rewards?.watchAndEarn,
+      case 'REWARDS': return JSON.stringify([this.activeSection, data.rewards?.canClaim, data.rewards?.state, data.rewards?.watchAndEarn,
         data.rewards?.invite && { ...data.rewards.invite, share: undefined, copy: undefined }, Math.floor(Date.now() / 60_000)]);
       case 'MAP': return this.activeSection;
       case 'PLAYERS': return JSON.stringify([this.activeSection, data.players.entries.map(({ name, aircraft, distance, lifecycle, score, altitudeMeters, kills, isLocal, isBot, ownedTerritories, mostWanted, king }) =>
@@ -1038,48 +1038,26 @@ export class PilotMenu {
     }
 
     if (this.activeSection === 'REWARDS' && data.rewards) {
-      const rewards = section('DAILY REWARDS');
+      const rewards = section('HOURLY REWARD');
       rewards.classList.add('pilot-rewards', 'game-card-frame');
       rewards.querySelector('h2')?.prepend(rewardImage('/media/hub/rewards.png', 'pilot-rewards-heading-art'));
-      rewards.append(textElement('p', 'Come back every 20 hours. Your progress never resets.', 'pilot-rewards-friendly'));
+      rewards.append(textElement('p', 'Claim 25 free Credits each hour. The one-hour timer starts when you claim.', 'pilot-rewards-friendly'));
       const state = data.rewards.state;
       const remaining = Math.max(0, state.nextEligibleAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
       const available = state.claimable || remaining === 0;
-      const grid = document.createElement('div'); grid.className = 'pilot-rewards-grid';
-      state.schedule.forEach((amount, index) => {
-        const day = index + 1;
-        const tile = document.createElement('div'); tile.className = 'pilot-reward-tile';
-        const claimed = state.claimedDays.includes(day);
-        const ready = day === state.nextDay && available;
-        const waiting = day === state.nextDay && !available;
-        tile.classList.toggle('is-claimed', claimed);
-        tile.classList.toggle('is-available', ready);
-        tile.classList.toggle('is-today', ready);
-        tile.classList.toggle('is-upcoming', !claimed && !ready);
-        tile.classList.toggle('is-day-seven', day === 7);
-        tile.append(
-          textElement('span', `DAY ${day}`),
-          rewardImage(day === 7 ? '/media/hub/rewards.png' : '/media/hub/credits.avif', 'pilot-reward-tile-art'),
-          textElement('strong', amount.toLocaleString()),
-          textElement('small', claimed ? '✓ CLAIMED' : ready ? 'READY' : waiting ? 'WAITING' : 'LOCKED'),
-        );
-        tile.setAttribute('aria-label', `Day ${day}, ${amount.toLocaleString()} Credits, ${claimed ? 'claimed' : ready ? 'ready to claim' : waiting ? 'waiting for the next claim time' : 'locked'}`);
-        grid.append(tile);
-      });
-      rewards.append(grid);
       const claimArea = document.createElement('div'); claimArea.className = 'pilot-reward-claim';
       claimArea.append(rewardImage('/media/hub/rewards.png', 'pilot-reward-claim-art'));
       const claimDetails = document.createElement('div'); claimDetails.className = 'pilot-reward-claim-details';
       const claimAmount = textElement('strong', `${state.nextAmount.toLocaleString()} CREDITS`);
       claimAmount.prepend(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'));
       claimDetails.append(
-        textElement('span', `DAY ${state.nextDay} REWARD`),
+        textElement('span', 'FREE HOURLY CLAIM'),
         claimAmount,
       );
       claimArea.append(claimDetails);
       const minutes = Math.max(0, Math.ceil(remaining / 60_000));
-      const status = textElement('p', data.rewards.notice ?? (available ? '' : `Next reward in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
-      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, disabled: !available || !data.rewards.authenticated, run: () => undefined });
+      const status = textElement('p', data.rewards.notice ?? (available ? 'Ready to claim' : `Next free claim in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
+      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, disabled: !available || !data.rewards.canClaim, run: () => undefined });
       claim.classList.add('context-action', 'context-action--gold');
       claim.addEventListener('click', () => {
         if (claim.disabled) return;
@@ -1109,25 +1087,36 @@ export class PilotMenu {
         const state = watchData.state;
         watchRemaining = state.windowEndsAt === undefined ? Number.POSITIVE_INFINITY
           : Math.max(0, state.windowEndsAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
-        const availableCount = state.remaining <= 0 && watchRemaining === 0 ? state.maxRewards : state.remaining;
-        const capped = availableCount <= 0 && watchRemaining > 0;
+        const hasCycle = state.windowStartedAt !== undefined && watchRemaining > 0;
+        const completed = hasCycle ? state.maxRewards - state.remaining : 0;
+        const capped = hasCycle && state.remaining <= 0;
         const pending = watchData.phase === 'verifying' || state.activeAttempt?.status === 'PENDING_VERIFICATION';
         watch.append(
-          textElement('strong', `${state.rewardCredits.toLocaleString()} CREDITS`, 'pilot-watch-value'),
-          textElement('p', 'Watch a short sponsored video and earn bonus Credits.', 'pilot-menu-muted'),
+          textElement('p', 'Optional videos unlock after your free claim. Watch each ad to earn its listed Credits. Free claim + all four ads: 400 Credits.', 'pilot-menu-muted'),
         );
-        watch.querySelector('.pilot-watch-value')?.prepend(rewardImage('/media/hub/credits.avif', 'pilot-reward-inline-credit'));
-        const availability = capped
-          ? 'ALL VIDEO REWARDS CLAIMED'
-          : `${availableCount} ${availableCount === 1 ? 'reward' : 'rewards'} available`;
+        const steps = document.createElement('div');
+        steps.className = 'pilot-ad-steps';
+        state.rewardCreditsByStep.forEach((amount, index) => {
+          const step = document.createElement('div');
+          step.className = 'pilot-ad-step';
+          step.classList.toggle('is-complete', index < completed);
+          step.classList.toggle('is-next', hasCycle && index === completed);
+          step.append(
+            textElement('span', `AD ${index + 1}`),
+            textElement('strong', `+${amount} CREDITS`),
+            textElement('small', index < completed ? 'CLAIMED' : hasCycle && index === completed ? 'NEXT' : 'LOCKED'),
+          );
+          steps.append(step);
+        });
+        watch.append(steps);
+        const availability = !state.supported ? 'Rewarded videos are unavailable right now.'
+          : !hasCycle ? 'Claim your free hourly reward to unlock the four ads.'
+            : capped ? 'ALL FOUR VIDEO REWARDS CLAIMED' : `Ad ${completed + 1} of ${state.maxRewards} is ready`;
         watch.append(textElement('p', availability, 'pilot-watch-availability'));
-        if (capped) {
-          const minutesUntilReset = Math.max(0, Math.ceil(watchRemaining / 60_000));
-          watch.append(textElement('p', `More rewards available in ${Math.floor(minutesUntilReset / 60)}h ${minutesUntilReset % 60}m`, 'pilot-watch-status'));
-        } else {
+        if (state.supported && hasCycle && !capped) {
           const buttonLabel = watchData.phase === 'loading' ? 'FINDING VIDEO…'
             : pending ? 'VERIFYING REWARD…'
-              : watchData.phase === 'playing' ? 'VIDEO PLAYING…' : 'WATCH VIDEO';
+              : watchData.phase === 'playing' ? 'VIDEO PLAYING…' : `WATCH VIDEO · +${state.rewardCredits} CREDITS`;
           const watchButton = actionButton({
             label: buttonLabel,
             intent: 'primary',

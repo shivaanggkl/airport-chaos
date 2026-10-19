@@ -25,6 +25,25 @@
   min-width: 0;
 }
 
+/* The Hub navigation and standalone page titles occupy one shared top band. */
+.menu-page-heading {
+  position: fixed;
+  z-index: 2;
+  inset: 0 0 auto;
+  height: var(--menu-page-header-height, calc(104px + var(--safe-area-top, 0px)));
+  pointer-events: none;
+}
+
+.menu-page-heading > :not(.context-winged-title) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .context-winged-title,
 .context-page-heading .context-winged-title {
   display: inline-flex;

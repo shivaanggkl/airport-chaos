@@ -8,7 +8,8 @@ const missionJourney = readFileSync(new URL('../../client/src/mission-journey.ts
 const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 
 test('City Journey uses live cards and the existing city registry', () => {
-  assert.match(html, /id="city-selector"[\s\S]*data-city-journey-track[\s\S]*data-city-previous[\s\S]*data-city-next[\s\S]*data-city-journey-dots/);
+  assert.match(html, /id="city-selector"[\s\S]*data-city-journey-track[\s\S]*data-city-previous[\s\S]*data-city-next/);
+  assert.doesNotMatch(html, /data-city-journey-dots/);
   assert.match(html, /id="city-help"[\s\S]*id="city-help-dialog"/);
   assert.match(css, /\.city-selector\s*\{[^}]*hangar\.jpg/);
   assert.match(bootstrap, /\.\.\.cities\.map\(\(city, index\) =>/);

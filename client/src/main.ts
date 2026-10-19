@@ -22,7 +22,7 @@ import { updateOsmCityChunks } from './osm-city';
 import { SkyChallengeSystem } from './sky-challenges';
 import { JourneyGateSystem } from './journey-gates';
 import { ObjectiveGuidance, confirmedGateObjective, formatObjectiveDistance, climbGateInstruction, climbDepartureTurnSide, precisionGateBearing, slalomGateGuidance, gravityDropGuidance, pendulumGateGuidance, switchbackGateGuidance, redlineGateGuidance, type MissionObjective, type PrecisionTurnSide } from './objective-guidance';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
 import type { FormationStatus } from '../../shared/journey-formation.mjs';
 import { missionFocusForAttempt, type MissionFocusConfig } from '../../shared/mission-focus.mjs';
 import { StuntComboSystem, stuntGuide, type LandingQuality, type StuntFrame } from './stunt-combo';
@@ -1220,10 +1220,16 @@ const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-mis
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
 if (journeyMode) {
-  skyChallengeElement.innerHTML = '<strong data-journey-heading>ROOKIE RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
+  skyChallengeElement.innerHTML = '<strong data-journey-heading>ROOKIE RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div><button class="journey-hud-toggle" type="button" aria-label="Collapse mission box" aria-expanded="true"></button>';
   const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
   missionStatusLayer.classList.add('journey-status-layer');
   missionStatusLayer.prepend(skyChallengeElement);
+  const toggle = skyChallengeElement.querySelector<HTMLButtonElement>('.journey-hud-toggle')!;
+  toggle.addEventListener('click', () => {
+    const collapsed = skyChallengeElement.classList.toggle('is-collapsed');
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', collapsed ? 'Expand mission box' : 'Collapse mission box');
+  });
 }
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
@@ -1280,7 +1286,9 @@ const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
 const journeyPauseButtonElement = document.querySelector<HTMLButtonElement>('#journey-pause-button')!;
 const journeyPauseOverlayElement = document.querySelector<HTMLElement>('#journey-pause-overlay')!;
+const journeyPauseCountdownElement = document.querySelector<HTMLElement>('#journey-pause-countdown')!;
 const journeyResumeButtonElement = document.querySelector<HTMLButtonElement>('#journey-resume-button')!;
+const journeyRestartButtonElement = document.querySelector<HTMLButtonElement>('#journey-restart-button')!;
 journeyPauseButtonElement.hidden = true;
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
@@ -3004,7 +3012,8 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : recoveryMission ? 'REPAIR HEART COLLECTED · AIRCRAFT RECOVERED'
       : formationMission ? '15 SECONDS FOLLOWED'
       : `${dfwMission ? '10/10 GOLDEN' : pendulumMission ? 'SKY ADVENTURES · 6/6' : redlineMission ? '5/5 SPEED' : gravityMission || slalomMission ? '5/5' : '4/4'} GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
-    : elevatorMission && attempt.failureReason==='TIME_UP' ? 'Transport escaped'
+    : attempt.failureReason === 'PAUSE_EXPIRED' ? 'PAUSE LIMIT REACHED · RETURN WITHIN 2 MINUTES'
+      : elevatorMission && attempt.failureReason==='TIME_UP' ? 'Transport escaped'
       : elevatorMission && (attempt.failureReason==='CRASHED'||attempt.failureReason==='MONSTER_KILLED') ? 'Aircraft destroyed'
       : attempt.failureReason === 'LANDING_TOO_ROUGH' ? 'SMOOTH LANDING REQUIRED'
       : attempt.failureReason === 'WRONG_AIRPORT' ? 'LAND AT DFW TO WIN'
@@ -4500,7 +4509,7 @@ type ServerMessage =
       repairCooldowns?: Array<{ id: string; remainingMs: number }>;
       profile: NetworkProfile;
     }
-  | { type: 'journeyPauseState'; attemptId: string; paused: boolean }
+  | { type: 'journeyPauseState'; attemptId: string; paused: boolean; pausedAt?: number; serverNow?: number }
   | { type: 'protocolMismatch'; expectedProtocolVersion: number }
   | { type: 'equipRejected'; reason: string; equipRequestId: number }
   | { type: 'aircraftPurchaseResult'; purchaseRequestId: number; aircraftType?: unknown; ok: boolean; reason?: string }
@@ -4762,8 +4771,6 @@ async function providerAccountRequest(provider: 'google' | 'apple', action: 'log
   if (clientAccount.state === 'account') {
     return { ok: false, message: "You're already signed in. Log out first to use another account." };
   }
-  const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
-  if (!await accountInfoDialog.confirmExistingAccount(trigger)) return { ok: true, message: 'SIGN-IN CANCELLED' };
   try {
     if (nativeAuthPlatform) {
       if (!availableNativeProviders.includes(provider)) return { ok: false, message: 'THIS PROVIDER IS NOT AVAILABLE ON THIS DEVICE' };
@@ -4876,6 +4883,7 @@ type RemotePlayer = {
 type ClientProjectile = {
   mesh: THREE.Group;
   direction: THREE.Vector3;
+  bank: number;
   authoritativePosition: THREE.Vector3;
   predictedTargetId?: string;
   predictedOrigin: THREE.Vector3;
@@ -4898,6 +4906,7 @@ type AssistedShotVisual = {
   targetPosition: THREE.Vector3;
   targetId: string;
   ownerId: string;
+  bank: number;
   elapsed: number;
   duration: number;
   confirmedDamage?: number;
@@ -6856,6 +6865,8 @@ const projectileMaterial = new THREE.MeshStandardMaterial({
   emissive: 0x302a22,
   emissiveIntensity: 0.2,
 });
+// Two visible pellets share one authoritative shot and damage event.
+const twinBulletOffset = 1.3;
 // Mission 19 presentation only; pooled tracers restore their normal styling on reuse.
 const monsterTracerCoreMaterial = new THREE.MeshBasicMaterial({
   color: 0xfff2a6, transparent: true, opacity: 1, blending: THREE.AdditiveBlending,
@@ -6880,12 +6891,17 @@ function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
   const monsterShot = local && journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.status === 'RACING';
   const glow = mesh.children[0] as THREE.Mesh;
   const core = mesh.children[1] as THREE.Mesh;
+  const secondCore = mesh.children[2] as THREE.Mesh;
   mesh.userData.monsterTracer = monsterShot;
   glow.visible = monsterShot;
+  secondCore.visible = !monsterShot;
+  core.position.x = monsterShot ? 0 : -twinBulletOffset;
+  secondCore.position.x = twinBulletOffset;
   core.geometry = monsterShot ? monsterTracerCoreGeometry : projectileGeometry;
   core.material = monsterShot ? monsterTracerCoreMaterial : projectileMaterial;
   glow.scale.set(monsterShot ? 6 : 1, monsterShot ? 6 : 1, monsterShot ? 3 : 1);
   core.scale.copy(glow.scale);
+  secondCore.scale.set(1, 1, 1);
   updateMonsterTracerSize(mesh);
 }
 const projectileForward = new THREE.Vector3(0, 0, -1);
@@ -7074,12 +7090,15 @@ function createProjectileVisual(): ClientProjectile {
   const glow = new THREE.Mesh(monsterTracerGlowGeometry, monsterTracerGlowMaterial);
   glow.visible = false;
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
+  const secondCore = new THREE.Mesh(projectileGeometry, projectileMaterial);
   glow.renderOrder = 2;
   core.renderOrder = 3;
-  mesh.add(glow, core);
+  secondCore.renderOrder = 3;
+  mesh.add(glow, core, secondCore);
   return {
     mesh,
     direction: new THREE.Vector3(),
+    bank: 0,
     authoritativePosition: new THREE.Vector3(),
     predictedOrigin: new THREE.Vector3(),
     predictedTargetPosition: new THREE.Vector3(),
@@ -7198,6 +7217,7 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
     predicted.direction.subVectors(predicted.predictedTargetPosition, projectileOrigin).normalize();
   } else predicted.direction.copy(projectileDirection);
   predicted.speed = ballisticShotSpeed(velocity, predicted.direction);
+  predicted.bank = airplane.rotation.z;
   predicted.predictedTargetId = target?.visible ? targetId : undefined;
   predicted.local = true;
   styleMissionProjectile(predicted.mesh, true);
@@ -7205,6 +7225,7 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.pendingAge = 0;
   predicted.mesh.position.copy(projectileOrigin);
   predicted.mesh.quaternion.setFromUnitVectors(projectileForward, predicted.direction);
+  predicted.mesh.rotateZ(predicted.bank);
   predicted.mesh.visible = true;
   scene.add(predicted.mesh);
   if (predictedProjectiles.size >= 8) {
@@ -7218,9 +7239,12 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
 
 function createAssistedShotMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-  core.renderOrder = 3;
-  mesh.add(core);
+  for (const side of [-1, 1]) {
+    const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
+    core.position.x = side * twinBulletOffset;
+    core.renderOrder = 3;
+    mesh.add(core);
+  }
   return mesh;
 }
 
@@ -7250,6 +7274,8 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     ? predictedProjectiles.get(message.clientShotId) : undefined;
   if (predictedProjectile && message.clientShotId) predictedProjectiles.delete(message.clientShotId);
   const mesh = predictedProjectile?.mesh ?? assistedShotPool.pop() ?? createAssistedShotMesh();
+  const bank = predictedProjectile?.bank ?? (message.ownerId === localPlayerId
+    ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0);
   const origin = new THREE.Vector3(message.origin.x, message.origin.y, message.origin.z);
   // The confirmed shot follows one line from the fired muzzle to the server's
   // hit point. Reproject the predicted pellet onto that line at its traveled
@@ -7274,6 +7300,7 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     : 0;
   mesh.position.copy(origin).lerp(targetPosition, progress);
   mesh.quaternion.setFromUnitVectors(projectileForward, assistedShotDirection);
+  mesh.rotateZ(bank);
   mesh.scale.set(1, 1, Math.min(1, mesh.position.distanceTo(targetPosition) / 11.5));
   mesh.visible = true;
   scene.add(mesh);
@@ -7286,6 +7313,7 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     targetPosition,
     targetId: message.targetId,
     ownerId: message.ownerId,
+    bank,
     elapsed: progress * duration,
     duration,
   });
@@ -7322,6 +7350,8 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   if (message.clientShotId) predictedProjectiles.delete(message.clientShotId);
   const projectile = predicted ?? projectilePool.pop() ?? createProjectileVisual();
   projectile.direction.set(message.direction.x, message.direction.y, message.direction.z).normalize();
+  if (!predicted) projectile.bank = message.ownerId === localPlayerId
+    ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0;
   projectile.speed = message.speed;
   projectile.local = message.ownerId === localPlayerId;
   styleMissionProjectile(projectile.mesh, projectile.local);
@@ -7345,6 +7375,7 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
     }
   }
   projectile.mesh.quaternion.setFromUnitVectors(projectileForward, projectile.direction);
+  projectile.mesh.rotateZ(projectile.bank);
   if (projectile.local) showAimQaRay(projectile.mesh.position, projectile.direction);
   projectile.mesh.visible = true;
   scene.add(projectile.mesh);
@@ -7395,6 +7426,7 @@ function updateProjectiles(delta: number): void {
     }
     projectile.mesh.position.lerp(projectile.authoritativePosition, positionBlend);
     projectile.mesh.quaternion.setFromUnitVectors(projectileForward, projectile.direction);
+    projectile.mesh.rotateZ(projectile.bank);
     updateMonsterTracerSize(projectile.mesh);
   }
   for (const [clientShotId, projectile] of predictedProjectiles) {
@@ -7422,6 +7454,7 @@ function updateProjectiles(delta: number): void {
     assistedShotDirection.subVectors(shot.targetPosition, shot.origin).normalize();
     shot.mesh.position.copy(assistedShotPoint);
     shot.mesh.quaternion.setFromUnitVectors(projectileForward, assistedShotDirection);
+    shot.mesh.rotateZ(shot.bank);
     shot.mesh.scale.z = Math.min(1, assistedShotPoint.distanceTo(shot.targetPosition) / 11.5);
     if (progress < 1) continue;
     if (shot.confirmedDamage !== undefined) {
@@ -9479,17 +9512,43 @@ function connectionReady(): boolean {
   return protocolReady && !protocolBlocked && socket?.readyState === WebSocket.OPEN;
 }
 
-function setJourneyPaused(paused: boolean): void {
+let journeyPauseDeadlineAt: number | null = null;
+let journeyPauseCountdownInterval: number | undefined;
+let journeyResumePending = false;
+
+function updateJourneyPauseCountdown(): void {
+  if (!journeyPaused || journeyPauseDeadlineAt === null) return;
+  const seconds = Math.max(0, Math.ceil((journeyPauseDeadlineAt - Date.now()) / 1_000));
+  journeyPauseCountdownElement.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  journeyResumeButtonElement.disabled = seconds === 0 || !connectionReady() || journeyResumePending;
+}
+
+function pauseDeadlineFromServer(pausedAt?: number | null, serverNow?: number): number | undefined {
+  return pausedAt != null && Number.isFinite(pausedAt) && serverNow != null && Number.isFinite(serverNow)
+    ? Date.now() + Math.max(0, pausedAt + journeyPauseLimitMs - serverNow) : undefined;
+}
+
+function setJourneyPaused(paused: boolean, deadlineAt?: number): void {
   if (!journeyMode) return;
   journeyPaused = paused;
   journeyPauseOverlayElement.hidden = !paused;
   journeyPauseButtonElement.hidden = paused || !journeyPauseSupported || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status);
-  journeyResumeButtonElement.disabled = paused && !connectionReady();
   if (paused) {
+    journeyPauseDeadlineAt = Math.min(journeyPauseDeadlineAt ?? Infinity, deadlineAt ?? Date.now() + journeyPauseLimitMs);
+    if (journeyPauseCountdownInterval === undefined)
+      journeyPauseCountdownInterval = window.setInterval(updateJourneyPauseCountdown, 1_000);
+    updateJourneyPauseCountdown();
     clearHeldActions();
     mobileInput.reset();
     boostActive = false;
+  } else {
+    if (journeyPauseCountdownInterval !== undefined) window.clearInterval(journeyPauseCountdownInterval);
+    journeyPauseCountdownInterval = undefined;
+    journeyPauseDeadlineAt = null;
+    journeyResumePending = false;
+    journeyPauseCountdownElement.textContent = '02:00';
+    journeyResumeButtonElement.disabled = false;
   }
 }
 
@@ -9502,12 +9561,20 @@ function pauseJourney(): void {
 
 journeyPauseButtonElement.addEventListener('click', pauseJourney);
 window.addEventListener('blur', pauseJourney);
+window.addEventListener('focus', updateJourneyPauseCountdown);
+document.addEventListener('visibilitychange', updateJourneyPauseCountdown);
+journeyRestartButtonElement.addEventListener('click', () => {
+  if (journeyPaused) void retryJourneyMission();
+});
 journeyResumeButtonElement.addEventListener('click', () => {
-  if (!journeyPaused || !connectionReady()) return;
-  journeyResumeButtonElement.disabled = true;
+  if (!journeyPaused || !connectionReady() || journeyResumePending ||
+    journeyPauseDeadlineAt === null || Date.now() >= journeyPauseDeadlineAt) return;
+  journeyResumePending = true;
+  updateJourneyPauseCountdown();
   socket.send(JSON.stringify({ type: 'journeyResume', attemptId: journeyAttemptId }));
   window.setTimeout(() => {
-    if (journeyPaused && connectionReady()) journeyResumeButtonElement.disabled = false;
+    journeyResumePending = false;
+    updateJourneyPauseCountdown();
   }, 5_000);
 });
 
@@ -9830,7 +9897,9 @@ async function retryJourneyMission(): Promise<void> {
   if (!journeyMode || !journeyAttempt || journeyAttempt.status === 'COMPLETED') return;
   const retryGateIntro = journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id;
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
+  if (retryButton.disabled) return;
   retryButton.disabled = true;
+  journeyRestartButtonElement.disabled = true;
   try {
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === journeyDallas24.id ? 'mission-24' : journeyAttempt.missionId === journeyDallas23.id ? 'mission-23' : journeyAttempt.missionId === journeyDallas22.id ? 'mission-22' : journeyAttempt.missionId === journeyDallas21.id ? 'mission-21' : journeyAttempt.missionId === journeyDallas20.id ? 'mission-20' : journeyAttempt.missionId === journeyDallas19.id ? 'mission-19' : journeyAttempt.missionId === journeyDallas16.id ? 'mission-16' : journeyAttempt.missionId === journeyDallas15.id ? 'mission-15' : journeyAttempt.missionId === journeyDallas14.id ? 'mission-14' : journeyAttempt.missionId === journeyDallas13.id ? 'mission-13' : journeyAttempt.missionId === journeyDallas12.id ? 'mission-12' : journeyAttempt.missionId === journeyDallas11.id ? 'mission-11' : journeyAttempt.missionId === journeyDallas10.id ? 'mission-10' : journeyAttempt.missionId === journeyDallas09.id ? 'mission-09' : journeyAttempt.missionId === journeyDallas08.id ? 'mission-08' : journeyAttempt.missionId === journeyDallas07.id ? 'mission-07' : journeyAttempt.missionId === journeyDallas06.id ? 'mission-06' : journeyAttempt.missionId === journeyDallas05.id ? 'mission-05' : journeyAttempt.missionId === journeyDallas04.id ? 'mission-04' : journeyAttempt.missionId === journeyDallas03.id ? 'mission-03' : journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -9874,6 +9943,7 @@ async function retryJourneyMission(): Promise<void> {
     showProgressMessage('MISSION RETRY UNAVAILABLE · CHECK CONNECTION');
   } finally {
     retryButton.disabled = false;
+    journeyRestartButtonElement.disabled = false;
   }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
@@ -10052,7 +10122,8 @@ boundSocket.addEventListener('message', (event) => {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
-    setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null);
+    setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null,
+      pauseDeadlineFromServer(message.attempt.pausedAt, message.serverNow));
     if(message.attempt.missionId===journeyDallas07.id && ['APPROACH','RACING'].includes(message.attempt.status)){
       if(!transportView || transportViewAttemptId!==message.attempt.attemptId){
         missionIntroSkip.hidden=true;
@@ -10278,6 +10349,7 @@ boundSocket.addEventListener('message', (event) => {
     if (message.attempt.missionId === journeyDallas18.id || message.attempt.missionId === journeyDallas21.id) refreshTerritoryBorders();
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
       missionObjectiveGuidance?.hide();
+      if (message.attempt.failureReason === 'PAUSE_EXPIRED' || message.attempt.failureReason === 'INTERRUPTED') cancelPendingFlightLaunch();
       if (message.attempt.missionId === journeyDallas19.id && message.attempt.status === 'FAILED' &&
         message.attempt.failureReason === 'TIME_UP' && monsterView) {
         const failedAttempt = message.attempt;
@@ -10294,7 +10366,8 @@ boundSocket.addEventListener('message', (event) => {
     return;
   }
   if (message.type === 'journeyPauseState') {
-    if (journeyMode && message.attemptId === journeyAttemptId) setJourneyPaused(message.paused);
+    if (journeyMode && message.attemptId === journeyAttemptId)
+      setJourneyPaused(message.paused, pauseDeadlineFromServer(message.pausedAt, message.serverNow));
     return;
   }
   if (message.type === 'welcome') {

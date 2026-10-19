@@ -15,7 +15,7 @@ test('pilot curve, cap, and titles follow the approved progression', () => {
 });
 
 test('daily cycle and weekly placement rewards are bounded', () => {
-  assert.equal(dailyRewardCredits.reduce((sum, value) => sum + value, 0), 4_000);
+  assert.equal(dailyRewardCredits.reduce((sum, value) => sum + value, 0), 175);
   assert.equal(utcDayDistance('2026-09-16', '2026-09-17'), 1);
   assert.deepEqual(weeklyRewardForRank(1), { maxRank: 1, credits: 1000, badge: 'WEEKLY ACE' });
   assert.equal(weeklyRewardForRank(11), undefined);

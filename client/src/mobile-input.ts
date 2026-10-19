@@ -154,6 +154,7 @@ export class MobileInputControls {
   private boostReadyPulseTimer: number | undefined;
   private aimPointer: number | undefined;
   private aimStart = { x: 0, y: 0 };
+  private placementFrame = 0;
 
   constructor(
     private root: HTMLElement,
@@ -185,6 +186,12 @@ export class MobileInputControls {
       this.reset();
       this.refresh();
     });
+    for (const selector of ['#flight-notifications', '#contextual-hint']) {
+      const obstacle = document.querySelector<HTMLElement>(selector);
+      if (!obstacle) continue;
+      new ResizeObserver(() => this.scheduleNoticeClearance()).observe(obstacle);
+      new MutationObserver(() => this.scheduleNoticeClearance()).observe(obstacle, { attributes: true, attributeFilter: ['class', 'hidden'] });
+    }
     this.applyLayout();
     this.refresh();
   }
@@ -315,6 +322,7 @@ export class MobileInputControls {
     document.documentElement.classList.toggle('touch-controls-active', enabled && landscape);
     this.aimTarget.classList.toggle('touch-aim-enabled', enabled && landscape);
     if (this.root.hidden) this.reset();
+    this.scheduleNoticeClearance();
   }
 
   private persistLayout() {
@@ -331,6 +339,46 @@ export class MobileInputControls {
       element?.style.setProperty('--touch-left', style.left);
       element?.style.setProperty('--touch-top', style.top);
       element?.style.setProperty('--touch-scale', style.scale);
+    }
+    this.scheduleNoticeClearance();
+  }
+
+  private scheduleNoticeClearance() {
+    if (this.placementFrame) return;
+    this.placementFrame = requestAnimationFrame(() => {
+      this.placementFrame = 0;
+      this.clearNoticesFromStick();
+    });
+  }
+
+  private clearNoticesFromStick() {
+    const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
+    if (!stick) return;
+    const notices = ['#flight-notifications', '#contextual-hint']
+      .map((selector) => document.querySelector<HTMLElement>(selector))
+      .filter((element): element is HTMLElement => element !== null);
+    for (const notice of notices) {
+      notice.style.removeProperty('--touch-notice-x');
+      notice.style.removeProperty('--touch-notice-y');
+    }
+    if (this.root.hidden) return;
+    const control = stick.getBoundingClientRect();
+    const bounds = this.root.getBoundingClientRect();
+    const gap = 12;
+    for (const notice of notices) {
+      const rect = notice.getBoundingClientRect();
+      if (!rect.width || !rect.height || rect.right + gap <= control.left || rect.left >= control.right + gap ||
+        rect.bottom + gap <= control.top || rect.top >= control.bottom + gap) continue;
+      const right = control.right + gap - rect.left;
+      const left = control.left - gap - rect.right;
+      if (rect.right + right <= bounds.right - gap) notice.style.setProperty('--touch-notice-x', `${Math.ceil(right)}px`);
+      else if (rect.left + left >= bounds.left + gap) notice.style.setProperty('--touch-notice-x', `${Math.floor(left)}px`);
+      else {
+        const above = control.top - gap - rect.bottom;
+        const below = control.bottom + gap - rect.top;
+        if (rect.bottom + below <= bounds.bottom - gap) notice.style.setProperty('--touch-notice-y', `${Math.ceil(below)}px`);
+        else if (rect.top + above >= bounds.top + gap) notice.style.setProperty('--touch-notice-y', `${Math.floor(above)}px`);
+      }
     }
   }
 

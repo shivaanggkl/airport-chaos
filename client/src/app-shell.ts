@@ -5,6 +5,7 @@ export type AppShellActive = 'STORE' | 'GARAGE' | 'REWARDS' | 'PROFILE' | 'SETTI
 export type AppShellHeaderData = {
   active: AppShellActive;
   hubActions: boolean;
+  pageTitle?: string;
   advertiseVisible: boolean;
   pilotName: string;
   credits: number;
@@ -20,6 +21,7 @@ export type AppShellHeaderData = {
 
 export type AppShellHandlers = {
   home: () => void;
+  back: () => void;
   advertise: (trigger: HTMLButtonElement) => void;
   friends: (trigger: HTMLButtonElement) => void;
   garage: () => void;
@@ -38,6 +40,10 @@ const creditIcon = '<img src="/media/hub/credits.avif" alt="" aria-hidden="true"
 const tokenIcon = '<img src="/media/hub/sky-tokens.avif" alt="" aria-hidden="true" />';
 
 export class AppShellHeader {
+  private readonly brand: HTMLButtonElement;
+  private readonly pageBack: HTMLButtonElement;
+  private readonly pageTitle: HTMLElement;
+  private readonly utilities: HTMLElement;
   private readonly credits: HTMLElement;
   private readonly skyTokens: HTMLElement;
   private readonly tokenCard: HTMLButtonElement;
@@ -57,12 +63,21 @@ export class AppShellHeader {
 
   constructor(private readonly element: HTMLElement, handlers: AppShellHandlers) {
     const brand = document.createElement('button');
+    this.brand = brand;
     brand.type = 'button';
     brand.className = 'app-shell-brand';
     brand.setAttribute('aria-label', 'Airport Chaos Pilot Hub');
     brand.addEventListener('click', handlers.home);
     brand.textContent = 'AIRPORT CHAOS';
     void mountAirportChaosLogo(brand, 'app-shell-logo', '/brand/airport-chaos-logo-transparent.avif');
+
+    this.pageBack = document.createElement('button');
+    this.pageBack.type = 'button';
+    this.pageBack.className = 'app-shell-page-back';
+    this.pageBack.setAttribute('aria-label', 'Back');
+    this.pageBack.addEventListener('click', handlers.back);
+    this.pageTitle = document.createElement('h1');
+    this.pageTitle.className = 'context-winged-title app-shell-page-title';
 
     this.advertise = document.createElement('button');
     this.advertise.type = 'button';
@@ -79,6 +94,7 @@ export class AppShellHeader {
     this.friends.addEventListener('click', () => handlers.friends(this.friends));
 
     const utilities = document.createElement('nav');
+    this.utilities = utilities;
     utilities.className = 'app-shell-utilities';
     utilities.setAttribute('aria-label', 'Pilot utilities');
 
@@ -163,7 +179,7 @@ export class AppShellHeader {
     this.avatar.append(this.avatarImage, this.avatarFallback, profileLabel);
 
     utilities.append(this.store, this.garage, this.rewards, this.avatar);
-    this.element.replaceChildren(brand, this.advertise, this.friends, wallet, utilities);
+    this.element.replaceChildren(brand, this.pageBack, this.pageTitle, this.advertise, this.friends, utilities, wallet);
     this.element.classList.toggle('is-page-hidden', document.hidden);
     document.addEventListener('visibilitychange', () => {
       this.element.classList.toggle('is-page-hidden', document.hidden);
@@ -177,11 +193,18 @@ export class AppShellHeader {
     this.tokenCard.dataset.storeAvailable = String(Boolean(data.tokenStoreAvailable));
     this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs, data.rewardsCount);
     this.setBadge(this.store, this.storeIndicator, data.storeAttention, 'Store');
-    this.element.classList.toggle('is-hub', data.hubActions);
+    const isPage = Boolean(data.pageTitle);
+    this.element.classList.toggle('is-hub', data.hubActions || isPage);
+    this.element.classList.toggle('is-page', isPage);
+    this.brand.hidden = isPage;
+    this.pageBack.hidden = !isPage;
+    this.pageTitle.hidden = !isPage;
+    this.pageTitle.textContent = data.pageTitle ?? '';
+    this.utilities.hidden = isPage;
     this.store.classList.toggle('has-offers', data.storeHasOffers);
     this.store.hidden = !data.hubActions && data.active !== 'STORE';
-    this.advertise.hidden = !data.advertiseVisible;
-    this.friends.hidden = !data.advertiseVisible;
+    this.advertise.hidden = isPage || !data.advertiseVisible;
+    this.friends.hidden = isPage || !data.advertiseVisible;
     this.rewards.hidden = !data.hubActions;
     this.setActive(this.store, data.active === 'STORE');
     this.setActive(this.garage, data.active === 'GARAGE');
@@ -227,6 +250,8 @@ export class AppShellHeader {
   hide(): void {
     this.element.hidden = true;
   }
+
+  focusBack(): void { this.pageBack.focus(); }
 
   private setBadge(control: HTMLButtonElement, badge: HTMLElement, attention: boolean | number | undefined, label: 'Store' | 'Rewards'): void {
     const visible = typeof attention === 'number' ? Number.isInteger(attention) && attention > 0 : attention === true;

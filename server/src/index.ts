@@ -58,7 +58,6 @@ import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/cha
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
 import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
-import { REWARDED_AD_CREDITS } from '../../shared/rewarded-ads.mjs';
 import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from './rewarded-ads.js';
 import { ReferralFlightTracker } from './referral-flight.js';
 
@@ -762,7 +761,7 @@ const httpServer = createServer(async (request, response) => {
         const context: AnalyticsContext = { pilotId: granted.pilotId, platform: granted.platform, ...analyticsHost(request.headers.host) };
         analyticsStore.recordEvent(context, 'rewarded_ad_verified', { source: 'admob' });
         analyticsStore.recordEvent(context, 'rewarded_ad_reward_granted', {
-          amount: REWARDED_AD_CREDITS, source: 'admob', metadata: { provider: 'ADMOB' },
+          amount: granted.rewardCredits, source: 'admob', metadata: { provider: 'ADMOB' },
         });
       }
       if (!granted.ok) console.warn('[rewarded-ad] verified callback rejected', granted.code ?? 'unknown');
@@ -1342,7 +1341,7 @@ const httpServer = createServer(async (request, response) => {
     analyticsStore.recordEvent(context, intent.event, intent.cosmeticId || intent.itemId ? { source: intent.itemId ?? intent.cosmeticId,
       metadata: { ...(intent.currency ? { currency: intent.currency } : {}), ...(intent.itemType ? { itemType: intent.itemType } : {}), ...(intent.category ? { category: intent.category } : {}) } }
       : intent.category ? { metadata: { category: intent.category } } : {});
-    if (intent.event === 'rewards_viewed' && session.accountId) {
+    if (intent.event === 'rewards_viewed') {
       const dailyReward = profileStore.dailyRewardState(session.pilotId);
       if (dailyReward?.claimable) analyticsStore.recordEvent(context, 'daily_reward_available',
         { source: String(dailyReward.lastClaimedAt ?? 0), metadata: { day: dailyReward.nextDay } });
@@ -1352,7 +1351,7 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname === '/api/daily-reward') {
     if (request.method !== 'GET' && request.method !== 'POST') { response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return; }
     const session = pilotSessions.resolveSession(request.headers.cookie);
-    if (!session?.accountId) { jsonResponse(response, 401, { error: 'Sign in to claim Daily Rewards.' }); return; }
+    if (!session) { jsonResponse(response, 401, { error: 'Play as Guest or sign in to claim rewards.' }); return; }
     profileStore.getOrCreate(session.pilotId, 'Pilot');
     if (request.method === 'GET') {
       const dailyReward = profileStore.dailyRewardState(session.pilotId);
@@ -1385,7 +1384,7 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname.startsWith('/api/rewarded-ads/')) {
     const session = pilotSessions.resolveSession(request.headers.cookie);
     const platform = nativeAuthPlatform(request);
-    if (!session?.accountId || !platform) { jsonResponse(response, 401, { error: 'Rewarded videos require a signed-in mobile account.' }); return; }
+    if (!session || !platform) { jsonResponse(response, 401, { error: 'Rewarded videos require a mobile player session.' }); return; }
     profileStore.getOrCreate(session.pilotId, 'Pilot');
     const clientIp = trustedClientIp(request);
     const statusRequest = request.method === 'GET';
@@ -1418,7 +1417,8 @@ const httpServer = createServer(async (request, response) => {
       const created = rewardedAdStore.createAttempt(session.pilotId, platform);
       if (!created.ok) {
         if (created.code === 'LIMIT_REACHED') analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, 'rewarded_ad_limit_reached', { source: platform });
-        const message = created.code === 'LIMIT_REACHED' ? 'All video rewards are claimed for this reward window.'
+        const message = created.code === 'CLAIM_REQUIRED' ? 'Claim your free hourly reward to unlock videos.'
+          : created.code === 'LIMIT_REACHED' ? 'All video rewards are claimed for this reward window.'
           : created.code === 'ACTIVE_ATTEMPT' ? 'Another rewarded video is already active.'
             : 'Rewarded videos are unavailable.';
         jsonResponse(response, created.code === 'UNSUPPORTED' ? 404 : 409, { error: message, rewardedAds: created.status }); return;
@@ -1441,7 +1441,7 @@ const httpServer = createServer(async (request, response) => {
         : event === 'qualified' ? 'rewarded_ad_pending'
           : event === 'closed' ? 'rewarded_ad_dismissed' : 'rewarded_ad_failed';
       analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, eventName, {
-        amount: REWARDED_AD_CREDITS, source: platform, metadata: { provider: 'ADMOB', remaining: status.remaining },
+        amount: status.rewardCredits, source: platform, metadata: { provider: 'ADMOB', remaining: status.remaining },
       });
       jsonResponse(response, 200, { rewardedAds: status }); return;
     }
@@ -2378,7 +2378,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     targetEngaged: target?.bot?.journeyAttemptId === attempt.attemptId && target.bot.journeyProvoked === true,
     crossfireHuntersAlive: attempt.missionId === journeyDallas16.id
       ? [attempt.targetId, attempt.secondaryTargetId].filter(id => id && players.get(id)?.lifeState === 'alive').length : undefined,
-  }, serverNow: attempt.pausedAt ?? Date.now() });
+  }, serverNow: Date.now() });
   if(attempt.missionId===journeyDallas07.id && (attempt.status==='APPROACH'||attempt.status==='RACING')){
     const e=transportEncounters.get(attempt.attemptId),now=attempt.pausedAt ?? Date.now();
     sendToPlayer(playerId,{type:'transportState',attemptId:attempt.attemptId,pose:transportPose(attempt.startedAt===null?0:now-attempt.startedAt,transportFlightAltitude),gunYaw:e?.gunYaw??0,gunPitch:e?.gunPitch??0,warningUntil:e?.warningUntil??0,hitSequence:e?.hitSequence??0,hitPosition:e?.hitPosition,health:attempt.monsterHealth??2000,shots:e?.shots??[],serverNow:now});
@@ -6459,6 +6459,7 @@ setInterval(() => {
 }, 1_000);
 setInterval(() => updateTerritories(Date.now()), territoryTickMs);
 setInterval(() => tickMissions(Date.now()), 1_000);
+setInterval(() => expirePausedJourneys(Date.now()), 1_000);
 setInterval(() => {
   const now = Date.now();
   for (const [playerId, attemptId] of playerJourneyAttempts) {
@@ -6599,7 +6600,7 @@ function pausePlayerJourney(playerId: string, now = Date.now()): boolean {
   pausedJourneyPlayers.set(playerId, { attemptId, accountId: player.accountId, sessionTokenHash: player.sessionTokenHash });
   pausedJourneyAttempts.add(attemptId);
   speedGateTracker.clear(playerId);
-  sendToPlayer(playerId, { type: 'journeyPauseState', attemptId, paused: true });
+  sendToPlayer(playerId, { type: 'journeyPauseState', attemptId, paused: true, pausedAt: attempt.pausedAt, serverNow: Date.now() });
   return true;
 }
 
@@ -6653,6 +6654,7 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
 }
 
 function resumePlayerJourney(playerId: string, now = Date.now()): boolean {
+  expirePausedJourneys(now);
   const paused = pausedJourneyPlayers.get(playerId);
   const player = players.get(playerId);
   if (!paused || !player) return false;
@@ -6664,6 +6666,24 @@ function resumePlayerJourney(playerId: string, now = Date.now()): boolean {
   sendJourneyState(playerId, resumed.attempt);
   sendToPlayer(playerId, { type: 'journeyPauseState', attemptId: paused.attemptId, paused: false });
   return true;
+}
+
+function expirePausedJourneys(now = Date.now()): void {
+  for (const attempt of journeyStore.expirePaused(now)) {
+    const paused = [...pausedJourneyPlayers].find(([, state]) => state.attemptId === attempt.attemptId);
+    if (!paused) continue; // Persisted attempt from a prior server process.
+    const [playerId] = paused;
+    pausedJourneyPlayers.delete(playerId);
+    pausedJourneyAttempts.delete(attempt.attemptId);
+    sendJourneyState(playerId, attempt);
+    removeJourneyHunter(attempt);
+    for (const [socket, connectedId] of playerSockets) {
+      if (connectedId !== playerId) continue;
+      playerSockets.delete(socket);
+      socket.close(4001, 'Mission pause expired');
+    }
+    cleanupHumanPlayer(playerId);
+  }
 }
 
 function cleanupHumanPlayer(playerId: string, socket?: WebSocket): void {
@@ -6781,6 +6801,7 @@ server.on('connection', (socket, request) => {
   if (connectionKind === 'NEW' && !profile.legacyImportPending) connectionKind = 'RECONNECT';
   const activeAircraftType: AircraftType = tutorialMode ? 'trainer' : profile.selectedAircraft;
   const requestedJourneyAttemptId = new URL(request.url ?? '/', 'http://localhost').searchParams.get('journeyAttempt');
+  if (requestedJourneyAttemptId) expirePausedJourneys(Date.now());
   let journeyAttempt: JourneyAttempt | undefined;
   let restoringPausedJourney = false;
   if (requestedJourneyAttemptId) {
@@ -6843,11 +6864,10 @@ server.on('connection', (socket, request) => {
       (paused.accountId && paused.accountId === identity.session.accountId ||
         paused.sessionTokenHash === identity.session.tokenHash) &&
       players.get(id)?.pilotId === profile.pilotId)?.[0];
-    if (candidate.pausedAt !== null && !pausedPlayerId) {
-      sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission pause could not be restored. Return to Journey and retry.' });
-      socket.close(4003, 'Journey pause unavailable');
-      return;
-    }
+    // A server restart loses the in-memory aircraft pose. Fail honestly through
+    // the normal result dialog rather than leave a paused attempt inaccessible.
+    const unrestorable = candidate.pausedAt !== null && !pausedPlayerId
+      ? journeyStore.fail(profile.pilotId, requestedJourneyAttemptId, 'INTERRUPTED') : undefined;
     if (pausedPlayerId) {
       for (const [otherSocket, otherId] of playerSockets) if (otherId === pausedPlayerId) {
         removeHumanConnection(otherSocket);
@@ -6856,11 +6876,11 @@ server.on('connection', (socket, request) => {
       playerId = pausedPlayerId;
       restoringPausedJourney = true;
     }
-    journeyAttempt = restoringPausedJourney ? candidate : candidate.status === 'READY'
+    journeyAttempt = unrestorable ?? (restoringPausedJourney ? candidate : candidate.status === 'READY'
       ? journeyStore.approach(profile.pilotId, requestedJourneyAttemptId)
       : candidate.status === 'APPROACH' || candidate.status === 'RACING'
         ? journeyStore.fail(profile.pilotId, requestedJourneyAttemptId, 'INTERRUPTED')
-        : candidate;
+        : candidate);
     if (!journeyAttempt) { socket.close(4003, 'Journey attempt unavailable'); return; }
   }
   const spawnSlot = restoringPausedJourney ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);

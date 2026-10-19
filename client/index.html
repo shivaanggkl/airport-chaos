@@ -50,14 +50,14 @@
       <div class="home-hangar-stage" data-home-hangar-stage aria-label="Equipped aircraft showcase"></div>
       <div class="home-hangar-aircraft-name" data-home-aircraft-name>BLUEJAY TRAINER</div>
       <div class="home-hangar-contextual" aria-label="Choose how to fly">
-        <button class="game-card-frame home-hangar-mode home-hangar-missions" type="button" data-home-missions>
-          <img src="/media/hub/mission-medal.png" alt="" aria-hidden="true" />
-          <span class="home-hangar-mode-copy"><strong>MISSIONS</strong><span>Save cities. Complete missions.</span><small>SINGLE PLAYER</small></span>
+        <button class="game-card-frame menu-selection-card home-hangar-mode home-hangar-missions" type="button" data-home-missions>
+          <img class="menu-selection-card-art" src="/media/hub/mission-medal.png" alt="" aria-hidden="true" />
+          <span class="menu-selection-card-copy home-hangar-mode-copy"><strong>MISSIONS</strong><span>Save cities. Complete missions.</span><small>SINGLE PLAYER</small></span>
           <span class="home-hangar-mode-arrow" aria-hidden="true">›</span>
         </button>
-        <button class="game-card-frame home-hangar-mode home-hangar-free-fly" type="button" data-home-free-fly>
-          <img src="/media/hub/free-fly-globe.png" alt="" aria-hidden="true" />
-          <span class="home-hangar-mode-copy"><strong>FREE FLY</strong><span>Explore cities. Fly with other players.</span><small>MULTIPLAYER</small></span>
+        <button class="game-card-frame menu-selection-card home-hangar-mode home-hangar-free-fly" type="button" data-home-free-fly>
+          <img class="menu-selection-card-art" src="/media/hub/free-fly-globe.png" alt="" aria-hidden="true" />
+          <span class="menu-selection-card-copy home-hangar-mode-copy"><strong>FREE FLY</strong><span>Explore cities. Fly with other players.</span><small>MULTIPLAYER</small></span>
           <span class="home-hangar-mode-arrow" aria-hidden="true">›</span>
         </button>
       </div>
@@ -74,17 +74,15 @@
     <main id="city-selector" class="city-selector" hidden>
       <button id="city-back" class="context-back page-back city-context-back" type="button">BACK TO PILOT HUB</button>
       <section class="entry-content-panel app-shell-panel city-select-card">
-        <div class="city-select-heading">
+        <div class="city-select-heading context-page-heading menu-page-heading">
           <div class="city-select-tagline">FLY • FIGHT • EXPLORE</div>
-          <h1 class="entry-page-title" id="city-select-title">CITY JOURNEY</h1>
+          <h1 class="context-winged-title" id="city-select-title">CITY JOURNEY</h1>
           <p id="city-select-description">Choose your city.</p>
         </div>
         <div id="city-options" class="city-journey" role="listbox" aria-label="City Journey" tabindex="0">
           <div class="city-journey-track" data-city-journey-track></div>
           <button class="city-journey-arrow city-journey-arrow-previous" type="button" data-city-previous aria-label="Previous city">‹</button>
           <button class="city-journey-arrow city-journey-arrow-next" type="button" data-city-next aria-label="Next city">›</button>
-          <div class="city-journey-dots" data-city-journey-dots aria-label="City position"></div>
-          <div class="city-journey-hint" data-city-journey-hint>SWIPE TO EXPLORE</div>
         </div>
         <div id="time-options" class="city-options" hidden></div>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
@@ -137,8 +135,12 @@
     <div id="journey-pause-overlay" class="journey-pause-overlay" role="dialog" aria-modal="true" aria-labelledby="journey-pause-title" hidden>
       <div class="journey-pause-card">
         <h2 id="journey-pause-title">MISSION PAUSED</h2>
-        <p>Your aircraft is waiting where you left it.</p>
-        <button id="journey-resume-button" type="button">RESUME</button>
+        <p>Your aircraft is waiting where you left it for up to 2 minutes. Return before then or the mission will fail.</p>
+        <p class="journey-pause-timer">TIME REMAINING <strong id="journey-pause-countdown" role="timer">02:00</strong></p>
+        <div class="journey-pause-actions">
+          <button id="journey-resume-button" type="button">RESUME</button>
+          <button id="journey-restart-button" type="button">RESTART MISSION</button>
+        </div>
       </div>
     </div>
     <aside id="practice-mode-label" class="practice-mode-label" hidden>MILWAUKEE — PRACTICE MODE <small>NO REWARDS</small></aside>

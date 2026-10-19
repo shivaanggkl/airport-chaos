@@ -11,7 +11,7 @@ function databasePath(): string {
   return join(mkdtempSync(join(tmpdir(), 'airport-daily-reward-')), 'profiles.sqlite');
 }
 
-test('new account starts on immediately available Day 1 and follows the exact seven-claim schedule', () => {
+test('free reward starts available and grants 25 Credits each hour', () => {
   const path = databasePath();
   const profiles = new PlayerProfileStore(path);
   const start = Date.UTC(2026, 0, 1);
@@ -58,7 +58,7 @@ test('claims are shared across sessions and serialized so the same reward pays o
   const first = firstSession.claimDailyReward('daily-shared', now)!;
   const second = secondSession.claimDailyReward('daily-shared', now)!;
   assert.equal(Number(first.claimed) + Number(second.claimed), 1);
-  assert.equal(secondSession.getOrCreate('daily-shared', 'Shared Pilot').credits, 250);
+  assert.equal(secondSession.getOrCreate('daily-shared', 'Shared Pilot').credits, 25);
   assert.equal(secondSession.dailyRewardState('daily-shared', now)?.nextDay, 2);
 
   const raw = new DatabaseSync(path);
@@ -92,7 +92,7 @@ test('legacy daily progress migrates forward without resetting the next reward',
   raw.close();
   const migrated = profiles.dailyRewardState('daily-legacy', Date.UTC(2026, 0, 1))!;
   assert.equal(migrated.nextDay, 4);
-  assert.equal(migrated.nextAmount, 500);
+  assert.equal(migrated.nextAmount, 25);
   assert.equal(migrated.claimable, true);
 });
 
@@ -110,7 +110,7 @@ test('Hub exposes the compact Rewards flow while active-flight navigation does n
   assert.match(shell, /app-shell-rewards[\s\S]*data-rewards-indicator/);
   assert.match(bootstrap, /openHubPilotMenu\('REWARDS', true, true\)/);
   assert.match(bootstrap, /method: 'POST'[\s\S]*body: '\{\}'/);
-  assert.match(menu, /pilot-rewards-grid[\s\S]*CLAIM[\s\S]*CREDITS/);
+  assert.match(menu, /HOURLY REWARD[\s\S]*CLAIM[\s\S]*CREDITS/);
   assert.match(menu, /is-rewards-overlay/);
   assert.match(menu, /options\.sections \?\? \['PROFILE', 'MISSIONS', 'MAP', 'PLAYERS', 'TERRITORIES', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP'\]/);
 });

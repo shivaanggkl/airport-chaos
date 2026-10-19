@@ -1,6 +1,8 @@
 import { transportTuning } from './giant-incoming.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
+
+export const journeyPauseLimitMs = 120_000;
 import { repairsForCity } from './city-repairs.mjs';
 
 export const journeyDallas01 = Object.freeze({

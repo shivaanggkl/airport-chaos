@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
 import { addisonClimbGates } from '../../shared/city-challenges.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { JourneyAttemptStore } from './journey-attempts.js';
+import { JourneyAttemptStore, JOURNEY_PAUSE_LIMIT_MS } from './journey-attempts.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 
 test('pausing a mission preserves its gate and remaining time until resume', () => {
@@ -33,6 +33,37 @@ test('pausing a mission preserves its gate and remaining time until resume', () 
     assert.equal(resumed.attempt.gateIndex, 0);
     assert.equal(resumed.attempt.deadlineAt, racing.deadlineAt! + 30_000);
     assert.equal(store.resume('pilot', launched.attemptId, 42_001), undefined);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a paused mission fails after two minutes, including after a server restart', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-journey-pause-expiry-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    const launched = store.launch('pilot', 'trainer', 1_000);
+    store.approach('pilot', launched.attemptId, 1_100);
+    const racing = store.startRookieRush('pilot', launched.attemptId, 2_000)!;
+    store.pause('pilot', launched.attemptId, 12_000);
+    const reopened = new JourneyAttemptStore(path);
+    assert.deepEqual(reopened.expirePaused(12_000 + JOURNEY_PAUSE_LIMIT_MS - 1), []);
+    const expired = reopened.expirePaused(12_000 + JOURNEY_PAUSE_LIMIT_MS);
+    assert.equal(expired.length, 1);
+    assert.equal(expired[0].status, 'FAILED');
+    assert.equal(expired[0].failureReason, 'PAUSE_EXPIRED');
+    assert.equal(expired[0].pausedAt, null);
+    assert.equal(expired[0].deadlineAt, racing.deadlineAt);
+    assert.deepEqual(reopened.expirePaused(12_000 + JOURNEY_PAUSE_LIMIT_MS + 1), []);
+    assert.equal(reopened.resume('pilot', launched.attemptId, 12_000 + JOURNEY_PAUSE_LIMIT_MS + 1), undefined);
+    assert.equal(reopened.progress('pilot').completed, false);
+
+    const second = reopened.launch('pilot', 'trainer', 200_000);
+    reopened.pause('pilot', second.attemptId, 201_000);
+    assert.equal(reopened.resume('pilot', second.attemptId, 201_000 + JOURNEY_PAUSE_LIMIT_MS), undefined);
+    assert.equal(reopened.get('pilot', second.attemptId)?.failureReason, 'PAUSE_EXPIRED');
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

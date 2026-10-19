@@ -1,4 +1,5 @@
 export type JourneyPoint = Readonly<{ x: number; y: number; z: number }>;
+export const journeyPauseLimitMs: 120000;
 export const journeyDallas01: Readonly<{
   id: 'journey-dallas-01'; cityId: 'dallas'; name: 'ROOKIE RUSH'; chapter: 'GOLDEN GATES';
   timeLimitMs: 150000; firstClearCredits: 250;
