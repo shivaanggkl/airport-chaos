@@ -4,11 +4,40 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas20, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
 import { addisonClimbGates } from '../../shared/city-challenges.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { JourneyAttemptStore, JOURNEY_PAUSE_LIMIT_MS } from './journey-attempts.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
+
+test('timed gate missions start at GO, keep that deadline at gate one, and reject late gates', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-journey-go-timer-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path, true);
+    for (const mission of [journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas20]) {
+      const attempt = store.launch('pilot', 'trainer', 1_000, mission.id);
+      store.approach('pilot', attempt.attemptId, 1_000);
+      assert.equal(store.get('pilot', attempt.attemptId)?.deadlineAt, null);
+      const started = store.startTimedGateClock('pilot', attempt.attemptId, 4_000);
+      assert.equal(started?.status, 'APPROACH');
+      assert.equal(started?.startedAt, 4_000);
+      assert.equal(started?.deadlineAt, 4_000 + mission.timeLimitMs);
+      assert.equal(store.startTimedGateClock('pilot', attempt.attemptId, 4_001), undefined);
+      const firstGate = store.acceptGate('pilot', attempt.attemptId, 0, 5_000);
+      assert.equal(firstGate?.deadlineAt, started?.deadlineAt);
+      assert.equal(firstGate?.startedAt, 4_000);
+
+      const late = store.launch('pilot', 'trainer', 10_000, mission.id);
+      store.approach('pilot', late.attemptId, 10_000);
+      store.startTimedGateClock('pilot', late.attemptId, 13_000);
+      assert.equal(store.acceptGate('pilot', late.attemptId, 0, 13_000 + mission.timeLimitMs), undefined);
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
 
 test('pausing a mission preserves its gate and remaining time until resume', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-journey-pause-test-'));

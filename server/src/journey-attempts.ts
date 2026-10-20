@@ -359,7 +359,7 @@ export class JourneyAttemptStore {
     return current?.status === 'APPROACH' ? current : undefined;
   }
 
-  /** Start a Golden Gates race after the first accepted takeoff update. */
+  /** Start a Golden Gates race when the launch countdown reaches GO. */
   startRookieRush(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
     const mission = current?.missionId === journeyDallas01.id ? journeyDallas01 : current?.missionId === journeyDallas02.id ? journeyDallas02 : current?.missionId === journeyDallas03.id ? journeyDallas03 : current?.missionId === journeyDallas04.id ? journeyDallas04 : current?.missionId === journeyDallas05.id ? journeyDallas05 : current?.missionId === journeyDallas06.id ? journeyDallas06 : undefined;
@@ -371,6 +371,21 @@ export class JourneyAttemptStore {
       AND (mission_id != ? OR golden_championship_gate_index = 0)`)
       .run(now, now + mission.timeLimitMs, pilotId, attemptId, mission.id, journeyDallas02.id, journeyDallas03.id, journeyDallas04.id, journeyDallas05.id, journeyDallas06.id).changes;
     return changed ? this.get(pilotId, attemptId) : undefined;
+  }
+
+  /** Start a timed gate mission at GO, before the pilot reaches its first gate. */
+  startTimedGateClock(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    const current = this.get(pilotId, attemptId);
+    const mission = current?.missionId === journeyDallas10.id ? journeyDallas10
+      : current?.missionId === journeyDallas11.id ? journeyDallas11
+      : current?.missionId === journeyDallas12.id ? journeyDallas12
+      : current?.missionId === journeyDallas13.id ? journeyDallas13
+      : current?.missionId === journeyDallas20.id ? journeyDallas20 : undefined;
+    if (!mission) return undefined;
+    const changed = this.database.prepare(`UPDATE journey_attempts SET started_at = ?, deadline_at = ?
+      WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ? AND status = 'APPROACH' AND started_at IS NULL`)
+      .run(now, now + mission.timeLimitMs, pilotId, attemptId, mission.id).changes;
+    return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
 
   /** The encounter starts only after the pilot is connected and flight is active. */
@@ -517,7 +532,8 @@ export class JourneyAttemptStore {
         current.missionId === journeyDallas04.id && current.slalomGateIndex < 0 ||
         current.missionId === journeyDallas05.id && current.needleGateIndex < 0 ||
         current.missionId === journeyDallas06.id && current.goldenChampionshipGateIndex < 0) return undefined;
-      if ((current.missionId === journeyDallas01.id || current.missionId === journeyDallas02.id || current.missionId === journeyDallas03.id || current.missionId === journeyDallas04.id || current.missionId === journeyDallas05.id || current.missionId === journeyDallas06.id) && (!current.startedAt || !current.deadlineAt || now >= current.deadlineAt)) return undefined;
+      if (current.deadlineAt !== null && now >= current.deadlineAt) return undefined;
+      if ((current.missionId === journeyDallas01.id || current.missionId === journeyDallas02.id || current.missionId === journeyDallas03.id || current.missionId === journeyDallas04.id || current.missionId === journeyDallas05.id || current.missionId === journeyDallas06.id) && (!current.startedAt || !current.deadlineAt)) return undefined;
       if (current.missionId === journeyDallas11.id && (current.prepareUntil === null || now < current.prepareUntil)) return undefined;
       if (gateIndex === 0 && current.status !== (current.missionId === journeyDallas01.id || current.missionId === journeyDallas02.id || current.missionId === journeyDallas03.id || current.missionId === journeyDallas04.id || current.missionId === journeyDallas05.id || current.missionId === journeyDallas06.id ? 'RACING' : 'APPROACH')) return undefined;
       if (gateIndex > 0 && (current.status !== 'RACING' || !current.startedAt || current.missionId !== journeyDallas16.id && (!current.deadlineAt ||

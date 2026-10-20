@@ -178,7 +178,7 @@ export class AppShellHeader {
     profileLabel.textContent = 'PROFILE';
     this.avatar.append(this.avatarImage, this.avatarFallback, profileLabel);
 
-    utilities.append(this.garage, this.rewards, this.store);
+    utilities.append(this.garage, this.store, this.rewards);
     this.element.replaceChildren(brand, this.avatar, this.pageBack, this.pageTitle, this.advertise, this.friends, utilities, wallet);
     this.element.classList.toggle('is-page-hidden', document.hidden);
     document.addEventListener('visibilitychange', () => {
