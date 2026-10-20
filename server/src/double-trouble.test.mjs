@@ -87,7 +87,7 @@ test('Mission 23 failed and abandoned attempts cannot progress; Focus Mode isola
 
 test('Mission 23 hit, repair, and kill credit hooks use existing authoritative server paths', () => {
   const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.match(source, /victim\.health = Math\.max\(0, victim\.health - projectileDamage\)/);
+  assert.match(source, /victim\.health -= damageDealt/);
   assert.match(source, /victim\.bot\.journeyDoubleOrdinal === 1[\s\S]*?active\.doublePhase !== 'FIRST_FIGHT'/);
   assert.match(source, /journeyStore\.defeatDoubleFirst[\s\S]*?journeyStore\.defeatDoubleSecond/);
   assert.match(source, /active\.secondaryTargetId === victimId && active\.doublePhase === 'FINAL_FIGHT'\) sendJourneyState/);

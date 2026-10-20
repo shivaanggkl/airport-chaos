@@ -38,7 +38,7 @@ import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tuto
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
-import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, FIRE_INTERVAL_MS, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
 import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
@@ -1220,7 +1220,7 @@ const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-mis
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
 if (journeyMode) {
-  skyChallengeElement.innerHTML = '<strong data-journey-heading>ROOKIE RUSH</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div><button class="journey-hud-toggle" type="button" aria-label="Collapse mission box" aria-expanded="true"></button>';
+  skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div><button class="journey-hud-toggle" type="button" aria-label="Hide mission details" aria-expanded="true"><span>HIDE MISSION</span></button>';
   const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
   missionStatusLayer.classList.add('journey-status-layer');
   missionStatusLayer.prepend(skyChallengeElement);
@@ -1228,7 +1228,8 @@ if (journeyMode) {
   toggle.addEventListener('click', () => {
     const collapsed = skyChallengeElement.classList.toggle('is-collapsed');
     toggle.setAttribute('aria-expanded', String(!collapsed));
-    toggle.setAttribute('aria-label', collapsed ? 'Expand mission box' : 'Collapse mission box');
+    toggle.setAttribute('aria-label', collapsed ? 'Show mission details' : 'Hide mission details');
+    toggle.querySelector('span')!.textContent = collapsed ? 'SHOW MISSION' : 'HIDE MISSION';
   });
 }
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
@@ -2597,8 +2598,8 @@ function updateJourneyHud(): void {
     if (journeyHudEnemy) journeyHudEnemy.hidden = true;
     return;
   }
-  if (journeyHudHeading) journeyHudHeading.textContent = legendaryMission ? 'MISSION 24 · LEGENDARY CHAMPIONSHIP' : doubleMission ? 'MISSION 23 · DOUBLE TROUBLE' : perfectMission ? 'MISSION 22 · PERFECT APPROACH' : twoFrontsMission ? 'MISSION 21 · TWO FRONTS' : switchbackMission ? 'MISSION 20 · SKYLINE SWITCHBACK' : breakoutMission ? 'MONSTER ARRIVAL' : siegeMission ? 'MISSION 18 · SKY SIEGE' : criticalMission ? 'MISSION 17 · CRITICAL APPROACH' : crossfireMission ? 'MISSION 16 · CROSSFIRE ESCAPE' : aceMission ? 'MISSION 15 · ACE INTERCEPT' : escapeMission ? 'MISSION 14 · ESCAPE VECTOR' : redlineMission ? 'MISSION 13 · REDLINE RUSH' : pendulumMission ? 'MISSION 12 · SKY PENDULUM' : gravityMission ? 'MISSION 11 · GRAVITY DROP' : slalomMission ? 'MISSION 10 · SKYLINE SLALOM' : recoveryMission ? 'MISSION 09 · ONE HEART LEFT' : formationMission ? 'MISSION 08 · STAY ON HIS SIX' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'MISSION 06 · GOLDEN CHAMPIONSHIP' : precisionMission ? 'MISSION 05 · NEEDLE RUSH' : downtownMission ? 'MISSION 04 · DOWNTOWN SLALOM' : lakeMission ? 'MISSION 02 · LAKE RACER'
-    : ascentMission ? 'MISSION 03 · GOLDEN ASCENT' : 'ROOKIE RUSH';
+  const missionNumber = /^journey-dallas-(\d+)$/.exec(journeyAttempt.missionId)?.[1];
+  if (journeyHudHeading) journeyHudHeading.textContent = missionNumber ? `M${Number(missionNumber)}` : 'MISSION';
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
   if (segments) segments.hidden = elevatorMission || formationMission || recoveryMission || escapeMission || aceMission || criticalMission || siegeMission || breakoutMission || twoFrontsMission || doubleMission || legendaryMission;
   if (journeyHudEnemy) journeyHudEnemy.hidden = !formationMission && !recoveryMission && !escapeMission && !aceMission && !siegeMission && !twoFrontsMission && !(doubleMission && journeyAttempt.doublePhase !== 'REPAIR') && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
@@ -9038,7 +9039,7 @@ function fireWeaponOnce(): boolean {
   }
   // Never consume the local cadence for an intent that was not emitted. This
   // prevents a transient lifecycle/socket gate from looking like a stuck gun.
-  fireCooldown = FIRE_INTERVAL_MS / 1_000;
+  fireCooldown = fireIntervalMs(aircraftType) / 1_000;
   return true;
 }
 

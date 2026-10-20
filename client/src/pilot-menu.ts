@@ -298,16 +298,6 @@ export class PilotMenu {
       isActive: () => this.isOpen(),
       close: () => this.backOrClose(),
     });
-    this.element.addEventListener('keydown', (event) => {
-      if (!this.openState || this.activeSection !== 'REWARDS' || !this.options.appShell || event.key !== 'Tab') return;
-      const controls = [...this.element.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]')]
-        .filter(control => control.getClientRects().length > 0);
-      if (!controls.length) return;
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    });
   }
 
   private static instanceCount = 0;
@@ -430,9 +420,8 @@ export class PilotMenu {
     this.render(data);
     if (this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(section)) this.backButton?.focus({ preventScroll: true });
     if (this.options.appShell && section === 'REWARDS') {
-      this.rewardsBackground = [...document.querySelectorAll<HTMLElement>('.app-shell-header, .home-hangar')];
+      this.rewardsBackground = [...document.querySelectorAll<HTMLElement>('.home-hangar')];
       this.rewardsBackground.forEach(element => { element.inert = true; });
-      this.backButton?.focus({ preventScroll: true });
     }
   }
 
@@ -624,17 +613,6 @@ export class PilotMenu {
     card?.classList.toggle('is-hub-rewards', hubRewards);
     card?.classList.toggle('is-settings', hubSettings);
     card?.classList.toggle('is-settings-help', hubSettings && this.activeSection === 'HELP');
-    if (card) {
-      if (hubRewards) {
-        card.setAttribute('role', 'dialog');
-        card.setAttribute('aria-modal', 'true');
-        card.setAttribute('aria-label', 'Rewards');
-      } else {
-        card.removeAttribute('role');
-        card.removeAttribute('aria-modal');
-        card.removeAttribute('aria-label');
-      }
-    }
     if (this.backButton && this.options.appShell) {
       this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
       this.backButton.setAttribute('aria-label', this.backButton.textContent);
@@ -1041,7 +1019,7 @@ export class PilotMenu {
       const rewards = section('HOURLY REWARD');
       rewards.classList.add('pilot-rewards', 'game-card-frame');
       rewards.querySelector('h2')?.prepend(rewardImage('/media/hub/rewards.png', 'pilot-rewards-heading-art'));
-      rewards.append(textElement('p', 'Claim 25 free Credits each hour. The one-hour timer starts when you claim.', 'pilot-rewards-friendly'));
+      rewards.append(textElement('p', 'Claim 25 free Credits every hour.', 'pilot-rewards-friendly'));
       const state = data.rewards.state;
       const remaining = Math.max(0, state.nextEligibleAt - state.serverNow - Math.max(0, Date.now() - state.serverNow));
       const available = state.claimable || remaining === 0;
@@ -1056,8 +1034,8 @@ export class PilotMenu {
       );
       claimArea.append(claimDetails);
       const minutes = Math.max(0, Math.ceil(remaining / 60_000));
-      const status = textElement('p', data.rewards.notice ?? (available ? 'Ready to claim' : `Next free claim in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
-      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()} CREDITS`, disabled: !available || !data.rewards.canClaim, run: () => undefined });
+      const status = textElement('p', data.rewards.notice ?? (available ? 'READY NOW' : `Next free claim in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
+      const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()}`, disabled: !available || !data.rewards.canClaim, run: () => undefined });
       claim.classList.add('context-action', 'context-action--gold');
       claim.addEventListener('click', () => {
         if (claim.disabled) return;
@@ -1074,7 +1052,8 @@ export class PilotMenu {
           claim.textContent = label;
         });
       });
-      claimDetails.append(claim, status);
+      claimDetails.append(status);
+      claimArea.append(claim);
       rewards.append(claimArea);
       const rewardsLayout = document.createElement('div');
       rewardsLayout.className = 'pilot-rewards-layout';
@@ -1091,9 +1070,8 @@ export class PilotMenu {
         const completed = hasCycle ? state.maxRewards - state.remaining : 0;
         const capped = hasCycle && state.remaining <= 0;
         const pending = watchData.phase === 'verifying' || state.activeAttempt?.status === 'PENDING_VERIFICATION';
-        watch.append(
-          textElement('p', 'Optional videos unlock after your free claim. Watch each ad to earn its listed Credits. Free claim + all four ads: 400 Credits.', 'pilot-menu-muted'),
-        );
+        const adTotal = state.rewardCreditsByStep.reduce((total, amount) => total + amount, 0);
+        watch.append(textElement('p', `Complete each video in order. All four ads: ${adTotal.toLocaleString()} Credits.`, 'pilot-menu-muted'));
         const steps = document.createElement('div');
         steps.className = 'pilot-ad-steps';
         state.rewardCreditsByStep.forEach((amount, index) => {
@@ -1101,32 +1079,29 @@ export class PilotMenu {
           step.className = 'pilot-ad-step';
           step.classList.toggle('is-complete', index < completed);
           step.classList.toggle('is-next', hasCycle && index === completed);
-          step.append(
-            textElement('span', `AD ${index + 1}`),
-            textElement('strong', `+${amount} CREDITS`),
-            textElement('small', index < completed ? 'CLAIMED' : hasCycle && index === completed ? 'NEXT' : 'LOCKED'),
-          );
+          const ready = state.supported && hasCycle && !capped && index === completed;
+          const buttonLabel = index < completed ? 'CLAIMED'
+            : !ready ? '🔒 LOCKED'
+              : watchData.phase === 'loading' ? 'LOADING…'
+                : pending ? 'VERIFYING…'
+                  : watchData.phase === 'playing' ? 'PLAYING…' : 'WATCH';
+          const watchButton = actionButton({
+            label: buttonLabel,
+            disabled: !ready || watchData.phase !== 'idle' || Boolean(state.activeAttempt),
+            run: () => { void watchData.watch(); },
+          });
+          watchButton.setAttribute('aria-label', ready ? `Watch ad ${index + 1} for ${amount} Credits` : `Ad ${index + 1} ${buttonLabel}`);
+          step.append(textElement('span', `AD ${index + 1}`), rewardImage('/media/hub/credits.avif', 'pilot-ad-step-art'), textElement('strong', `${amount} CREDITS`), watchButton);
           steps.append(step);
         });
         watch.append(steps);
         const availability = !state.supported ? 'Rewarded videos are unavailable right now.'
           : !hasCycle ? 'Claim your free hourly reward to unlock the four ads.'
             : capped ? 'ALL FOUR VIDEO REWARDS CLAIMED' : `Ad ${completed + 1} of ${state.maxRewards} is ready`;
-        watch.append(textElement('p', availability, 'pilot-watch-availability'));
-        if (state.supported && hasCycle && !capped) {
-          const buttonLabel = watchData.phase === 'loading' ? 'FINDING VIDEO…'
-            : pending ? 'VERIFYING REWARD…'
-              : watchData.phase === 'playing' ? 'VIDEO PLAYING…' : `WATCH VIDEO · +${state.rewardCredits} CREDITS`;
-          const watchButton = actionButton({
-            label: buttonLabel,
-            intent: 'primary',
-            disabled: watchData.phase !== 'idle' || Boolean(state.activeAttempt),
-            run: () => { void watchData.watch(); },
-          });
-          watch.append(watchButton);
-        }
+        if (!hasCycle || !state.supported || capped) watch.append(textElement('p', availability, 'pilot-watch-availability'));
+        watch.append(textElement('p', `Free claim + all four ads: ${(data.rewards.state.nextAmount + adTotal).toLocaleString()} Credits.`, 'pilot-watch-total'));
         if (watchData.notice) watch.append(textElement('p', watchData.notice, 'pilot-watch-status'));
-        rewardsLayout.append(watch);
+        rewards.append(watch);
       }
       const inviteData = data.rewards.invite;
       if (inviteData) {

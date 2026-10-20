@@ -142,7 +142,7 @@ export class MissionJourney {
     element.innerHTML = `
       <div class="mission-journey-topbar">
         <button type="button" class="context-back page-back mission-journey-back" data-mission-cities>BACK TO CITIES</button>
-        <div class="mission-journey-heading context-page-heading menu-page-heading"><h1 class="context-winged-title">MISSION JOURNEY</h1><p>DALLAS • 24 MISSIONS</p></div>
+        <div class="mission-journey-heading context-page-heading menu-page-heading"><h1 class="context-winged-title">CHOOSE MISSION</h1><p>DALLAS • 24 MISSIONS</p></div>
       </div>
       <div class="mission-journey-board" aria-label="Dallas chapter missions">
         <div class="mission-journey-board-heading">

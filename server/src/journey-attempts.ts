@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { landingGradeForScore, type LandingGrade } from '../../shared/landing-scoring.mjs';
 import { isPerfectLandingGrade } from '../../shared/gameplay-cinematic-rules.mjs';
 import { PlayerWallet } from './player-wallet.js';
@@ -391,21 +392,23 @@ export class JourneyAttemptStore {
       .run(now, now + journeyDallas07.timeLimitMs, pilotId, attemptId, journeyDallas07.id).changes;
     return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
-  hitTransport(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    return this.hitEncounter(pilotId, attemptId, journeyDallas07, now);
+  hitTransport(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
+    return this.hitEncounter(pilotId, attemptId, journeyDallas07, now, damage);
   }
 
   /** Only the server projectile simulation invokes this after a swept body hit. */
-  hitMonster(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    return this.hitEncounter(pilotId, attemptId, journeyDallas19, now);
+  hitMonster(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
+    return this.hitEncounter(pilotId, attemptId, journeyDallas19, now, damage);
   }
 
-  private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number): JourneyAttempt | undefined {
+  private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number, damage?: number): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
       if (current?.missionId !== mission.id || current.status !== 'RACING' || current.monsterHealth === null || current.monsterHealth <= 0 ||
         current.startedAt === null || current.deadlineAt === null || now >= current.deadlineAt) return undefined;
-      const health = Math.max(0, current.monsterHealth - 25);
+      const hitDamage = damage ?? projectileDamageForAircraft(current.aircraftType);
+      if (!Number.isInteger(hitDamage) || hitDamage <= 0) return undefined;
+      const health = Math.max(0, current.monsterHealth - hitDamage);
       if (health > 0) {
         this.database.prepare(`UPDATE journey_attempts SET monster_health = ? WHERE pilot_id = ? AND attempt_id = ?
           AND status = 'RACING' AND monster_health = ?`).run(health, pilotId, attemptId, current.monsterHealth);

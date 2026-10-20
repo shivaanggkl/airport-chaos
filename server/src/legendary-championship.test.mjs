@@ -129,7 +129,7 @@ test('Failed or replaced attempts cannot advance; source uses trusted hit and to
     assert.equal(store.abandon('pilot',next.attemptId)?.status,'ABANDONED');
     assert.equal(store.acceptLegendaryGate('pilot',next.attemptId,0,4000),undefined);
     const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-    assert.match(source,/victim\.health = Math\.max\(0, victim\.health - projectileDamage\)/);
+    assert.match(source,/victim\.health -= damageDealt/);
     assert.match(source,/journeyStore\.defeatLegendaryAce/);
     assert.match(source,/now - motion\.movedAt > 8_000\) failPlayerJourney\(playerId, 'ACE_INTERRUPTED'/);
     assert.match(source,/journeyStore\.recordLegendaryLanding/);

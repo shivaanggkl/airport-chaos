@@ -178,8 +178,8 @@ export class AppShellHeader {
     profileLabel.textContent = 'PROFILE';
     this.avatar.append(this.avatarImage, this.avatarFallback, profileLabel);
 
-    utilities.append(this.store, this.garage, this.rewards, this.avatar);
-    this.element.replaceChildren(brand, this.pageBack, this.pageTitle, this.advertise, this.friends, utilities, wallet);
+    utilities.append(this.garage, this.rewards, this.store);
+    this.element.replaceChildren(brand, this.avatar, this.pageBack, this.pageTitle, this.advertise, this.friends, utilities, wallet);
     this.element.classList.toggle('is-page-hidden', document.hidden);
     document.addEventListener('visibilitychange', () => {
       this.element.classList.toggle('is-page-hidden', document.hidden);
@@ -200,6 +200,7 @@ export class AppShellHeader {
     this.pageBack.hidden = !isPage;
     this.pageTitle.hidden = !isPage;
     this.pageTitle.textContent = data.pageTitle ?? '';
+    this.avatar.hidden = isPage;
     this.utilities.hidden = isPage;
     this.store.classList.toggle('has-offers', data.storeHasOffers);
     this.store.hidden = !data.hubActions && data.active !== 'STORE';

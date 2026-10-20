@@ -35,7 +35,8 @@ test('Free Fly advertises only supported city features and keeps time selection'
   assert.match(bootstrap, /tutorial\?\.status !== 'started'[\s\S]*START TRAINING IN MISSIONS FIRST/);
   assert.match(bootstrap, /for \(const preset of city\.timePresets\)/);
   assert.match(bootstrap, /void enterCity\(city, preset\)/);
-  assert.match(bootstrap, /cityJourneyMode === 'missions' \? 'CITY JOURNEY' : 'FREE FLY'/);
+  assert.match(bootstrap, /citySelectTitle\.textContent = 'CHOOSE CITY'/);
+  assert.match(bootstrap, /!citySelector\.hidden && citySelector\.dataset\.view === 'time' \? 'CHOOSE TIME'[\s\S]*entryState === 'MISSION_JOURNEY' \? 'CHOOSE MISSION'/);
   assert.match(bootstrap, /cityHelpCopy\.textContent = cityJourneyMode === 'missions'/);
 });
 

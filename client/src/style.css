@@ -1631,8 +1631,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-marker { padding: 5px 8px; }
 .mission-objective-arrow { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 174px; min-height: 42px; padding: 5px 9px; }
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
-.mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message, .touch-fire) { display: none !important; }
-.mission4-clean-hud #desktop-controls-help-items span:nth-child(4) { display: none; }
+.mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message) { display: none !important; }
 .monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle) { display: none !important; }
 .monster-arrival-focus .sky-challenge.journey-hud { background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 .monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-weight: 800; }
@@ -4343,8 +4342,9 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-br
   padding: 3px 10px;
   border-right: 1px solid rgb(190 229 247 / 28%);
 }
-body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-advertise { grid-column: 2; grid-row: 1; }
-body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-friends { grid-column: 3; grid-row: 1; }
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar { grid-column: 2; grid-row: 1; }
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-advertise { grid-column: 3; grid-row: 1; }
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-friends { grid-column: 4; grid-row: 1; }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wallet {
   grid-column: 8 / span 2;
   grid-row: 1;
@@ -4357,10 +4357,10 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wa
   gap: 0;
 }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-utilities {
-  grid-column: 4 / span 4;
+  grid-column: 5 / span 3;
   grid-row: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   justify-self: stretch;
   width: 100%;
   height: 100%;
@@ -4372,13 +4372,12 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
     z-index: 1;
   }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-utilities {
-    grid-column: 4 / span 4;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-column: 5 / span 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-garage { grid-column: 1; grid-row: 1; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-rewards { grid-column: 2; grid-row: 1; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-store { grid-column: 3; grid-row: 1; }
-  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar { grid-column: 4; grid-row: 1; }
 }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shell-action:not(.app-shell-avatar), .app-shell-wallet .flight-header-credits) {
   position: relative;
@@ -4477,7 +4476,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-to
   line-height: 1;
   pointer-events: none;
 }
-body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar {
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar {
   display: grid;
   grid-template-rows: var(--hub-art-size) 15px;
   align-content: center;
@@ -4493,6 +4492,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
   overflow: visible;
   background: transparent;
   border: 0;
+  border-right: 1px solid rgb(190 229 247 / 28%);
   border-radius: 0;
   box-shadow: none;
 }
@@ -4508,7 +4508,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-av
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar .avatar-fallback svg { width: 30px; height: 30px; }
 .app-shell-profile-label { display: none; }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-profile-label { display: block; }
-body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar::after { display: none; }
+body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar::after { display: none; }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-advertise > img { width: calc(var(--hub-art-size) * 1.08); height: var(--hub-art-size); }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-friends > img { width: calc(var(--hub-art-size) * 1.1); }
 body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shell-action:not(.app-shell-avatar), .app-shell-sky-tokens):is(:hover, :focus-visible) { background: rgb(120 212 255 / 10%); }
@@ -4528,7 +4528,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wa
   :root { --hub-header-total: calc(78px + var(--safe-area-top)); }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub { --hub-art-size: clamp(36px, 4.8vw, 45px); }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shell-action:not(.app-shell-avatar), .app-shell-wallet .flight-header-credits),
-  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-utilities .app-shell-avatar { grid-template-rows: var(--hub-art-size) 12px; padding: 2px 1px 3px; }
+  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar { grid-template-rows: var(--hub-art-size) 12px; padding: 2px 1px 3px; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wallet strong { font-size: 15px; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wallet .is-long-balance { font-size: 9px; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-token-add { top: max(3px, calc((100% - 12px - var(--hub-art-size)) / 2)); }
@@ -4537,8 +4537,9 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wa
   :root { --hub-header-total: calc(142px + var(--safe-area-top)); }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub { --hub-art-size: 34px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-brand { grid-column: 1; grid-row: 1; }
-  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-advertise { grid-column: 2; grid-row: 1; }
-  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-friends { grid-column: 3; grid-row: 1; }
+  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-avatar { grid-column: 2; grid-row: 1; }
+  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-advertise { grid-column: 3; grid-row: 1; }
+  body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-friends { grid-column: 4; grid-row: 1; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wallet { grid-column: 1 / span 2; grid-row: 2; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-utilities { grid-column: 1 / -1; grid-row: 3; }
   body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-token-add { top: 1px; }
@@ -5373,36 +5374,48 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   overflow-wrap: break-word;
 }
 #game-root .journey-status-layer .sky-challenge.journey-hud > strong { font-size: clamp(11px, 1.1vw, 13px); }
-#game-root .journey-status-layer .sky-challenge.journey-hud:not(.is-collapsed) > [data-journey-heading] { padding-left: 32px; }
+#game-root .journey-status-layer .sky-challenge.journey-hud:not(.is-collapsed) > [data-journey-heading] {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding-right: 120px;
+}
 #game-root .journey-hud-toggle {
   position: absolute;
-  top: 1px;
-  left: 1px;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  padding: 0;
+  z-index: 1;
+  top: 4px;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 112px;
+  height: 44px;
+  padding: 0 9px;
   pointer-events: auto;
-  border: 0;
+  border: 1px solid #f2c656;
   border-radius: 8px;
   color: #ffdc78;
-  background: transparent;
+  background: rgb(9 26 48 / 92%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 16%), 0 2px 5px rgb(0 0 0 / 24%);
+  font: 900 10px/1 var(--font-display);
+  white-space: nowrap;
   cursor: pointer;
 }
 #game-root .journey-hud-toggle::before {
   content: '';
-  width: 10px;
-  height: 10px;
+  order: 1;
+  width: 7px;
+  height: 7px;
   border-top: 2px solid currentColor;
   border-left: 2px solid currentColor;
   transform: translateY(3px) rotate(45deg);
 }
-#game-root .journey-hud-toggle:hover { background: rgb(255 220 120 / 12%); }
+#game-root .journey-hud-toggle:hover { background: rgb(33 65 94 / 95%); }
 #game-root .journey-hud-toggle:focus-visible { outline: 3px solid #6beeff; outline-offset: 2px; }
 #game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed {
-  width: 44px;
-  max-width: 44px;
+  width: 136px;
+  max-width: 136px;
   height: 44px;
   min-height: 44px;
   padding: 0;
@@ -5413,8 +5426,9 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed > :not(.journey-hud-toggle) { display: none !important; }
 #game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed .journey-hud-toggle {
   top: 0;
+  right: auto;
   left: 0;
-  width: 44px;
+  width: 136px;
   height: 44px;
   border: 1px solid #f2c656;
   border-radius: 9px;
@@ -5541,40 +5555,28 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   #game-root .touch-stick { animation: none; transition: none; }
 }
 
-/* Hub Rewards uses the existing Pilot Menu dialog over the live Hub. */
-.pilot-menu-overlay.is-rewards-overlay {
+/* Rewards shares the page header and keeps both earning paths in one card. */
+body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards-overlay {
   z-index: 59;
-  top: 0;
-  padding: 8px max(12px, var(--safe-area-right)) max(12px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
-  background: rgb(5 15 40 / 65%);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  padding: calc(var(--hub-header-total) + 20px) max(14px, var(--safe-area-right), 3.7vw) max(31px, var(--safe-area-bottom)) max(14px, var(--safe-area-left), 3.7vw);
 }
-.pilot-menu-overlay.is-rewards-overlay::before { display: none; }
+.pilot-menu-overlay.is-rewards-overlay > button.context-back.page-back { display: none; }
 .pilot-menu-card.is-hub-rewards {
   position: relative;
   display: grid;
-  grid-template: "header" auto "content" minmax(0, 1fr) / minmax(0, 1fr);
+  grid-template: "content" minmax(0, 1fr) / minmax(0, 1fr);
   gap: 0;
-  width: min(960px, 100%);
-  height: auto;
+  width: min(1188px, 100%);
+  height: 100%;
   max-height: 100%;
   padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
-  transform: translateY(-16px);
+  transform: none;
 }
-.pilot-menu-card.is-hub-rewards > header {
-  grid-area: header;
-  justify-content: center;
-  min-height: 62px;
-  padding: 0 56px 8px;
-  border: 0;
-}
-.pilot-menu-card.is-hub-rewards > header .pilot-menu-kicker,
-.pilot-menu-card.is-hub-rewards > header .pilot-menu-header-actions { display: none; }
+.pilot-menu-card.is-hub-rewards > header { display: none; }
 .pilot-menu-card.is-hub-rewards > .pilot-menu-content {
   grid-area: content;
   min-width: 0;
@@ -5585,16 +5587,17 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 .pilot-menu-card.is-hub-rewards .pilot-rewards-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2.3fr) minmax(240px, 1fr);
+  grid-template-columns: minmax(0, 2.35fr) minmax(280px, 1fr);
   align-items: stretch;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
+  min-height: 100%;
 }
-.pilot-menu-card.is-hub-rewards .pilot-rewards-layout:not(:has(.pilot-invite)) { grid-template-columns: minmax(0, 1fr); }
+.pilot-menu-card.is-hub-rewards .pilot-rewards-layout:not(:has(.pilot-invite)) { grid-template-columns: minmax(0, 1fr); min-height: 0; }
 .pilot-menu-card.is-hub-rewards .pilot-rewards-layout > .pilot-rewards { grid-row: 1; }
 .pilot-menu-card.is-hub-rewards .pilot-menu-section:is(.pilot-rewards, .pilot-invite) {
   margin: 0;
-  padding: 10px;
+  padding: clamp(12px, 1.3vw, 17px);
   border-radius: 19px;
 }
 .pilot-menu-card.is-hub-rewards .pilot-rewards { display: flex; flex-direction: column; }
@@ -5610,7 +5613,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 .pilot-rewards-heading-art { width: clamp(40px, 5vw, 64px); height: clamp(40px, 5vw, 64px); object-fit: contain; }
 .pilot-menu-card.is-hub-rewards .pilot-rewards-friendly {
-  margin: -7px 0 8px clamp(49px, 5.6vw, 72px);
+  margin: -5px 0 12px clamp(49px, 5.6vw, 72px);
   color: #466388;
   font: 700 clamp(10px, 1.2vw, 14px)/1.25 var(--font-body);
 }
@@ -5648,20 +5651,20 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 .pilot-reward-tile-art { width: min(44px, 80%); height: 44px; object-fit: contain; }
 .pilot-menu-card.is-hub-rewards .pilot-reward-claim {
   display: grid;
-  grid-template-columns: minmax(95px, .85fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(90px, .85fr) minmax(0, 1.2fr) minmax(130px, .9fr);
   align-items: center;
   justify-items: stretch;
   gap: 8px;
-  min-height: 116px;
-  padding: 5px 10px;
+  min-height: 136px;
+  padding: 7px 12px;
   color: #092756;
   border: 1px solid #b0d6e8;
   border-radius: 13px;
   background: linear-gradient(125deg, #fff, #eef9ff 70%, #dbeffa);
   text-align: left;
 }
-.pilot-reward-claim-art { width: 100%; max-height: 110px; object-fit: contain; }
-.pilot-reward-claim-details { display: grid; gap: 2px; min-width: 0; }
+.pilot-reward-claim-art { width: 100%; max-height: 116px; object-fit: contain; }
+.pilot-reward-claim-details { display: grid; justify-items: center; gap: 5px; min-width: 0; text-align: center; }
 .pilot-reward-claim-details > span { color: #132e64; font: 900 clamp(11px, 1.15vw, 14px)/1 var(--font-display); }
 .pilot-reward-claim-details > strong { display: flex; align-items: center; gap: 2px; color: #a86508; font: 900 clamp(22px, 2.8vw, 36px)/1 var(--font-display); white-space: nowrap; }
 .pilot-reward-inline-credit { width: 1.25em; height: 1.25em; object-fit: contain; vertical-align: middle; }
@@ -5669,15 +5672,15 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   --context-action-radius: 13px;
   --context-action-size: clamp(12px, 1.65vw, 20px);
   width: 100%;
-  min-height: 47px;
-  margin-top: 3px;
+  min-height: 62px;
+  margin: 0;
   white-space: nowrap;
 }
-.pilot-menu-card.is-hub-rewards .pilot-reward-status { min-height: 0; margin: 0; color: #58708c !important; font: 700 10px/1.2 var(--font-body); }
+.pilot-menu-card.is-hub-rewards .pilot-reward-status { min-height: 0; margin: 0; color: #58708c !important; font: 800 clamp(11px, 1.1vw, 15px)/1.2 var(--font-body); }
 .pilot-menu-card.is-hub-rewards .pilot-invite { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
-.pilot-invite-art { width: min(132px, 72%); height: 92px; object-fit: contain; }
+.pilot-invite-art { width: min(210px, 80%); height: clamp(112px, 12vw, 154px); margin: 16px 0 13px; object-fit: contain; }
 .pilot-menu-card.is-hub-rewards .pilot-invite > h2 { margin: 0; color: #071e4d; font: 900 clamp(20px, 2.3vw, 29px)/1 var(--font-display); letter-spacing: -.02em; white-space: nowrap; }
-.pilot-menu-card.is-hub-rewards .pilot-invite-values { display: grid; justify-items: center; gap: 2px; width: 100%; color: #092756; font: 900 clamp(11px, 1.3vw, 16px)/1.15 var(--font-display); }
+.pilot-menu-card.is-hub-rewards .pilot-invite-values { display: grid; justify-items: center; gap: 9px; width: 100%; margin-top: 10px; color: #092756; font: 900 clamp(11px, 1.3vw, 16px)/1.15 var(--font-display); }
 .pilot-menu-card.is-hub-rewards .pilot-invite-values > span { display: flex; align-items: center; justify-content: center; gap: 2px; white-space: nowrap; }
 .pilot-menu-card.is-hub-rewards .pilot-invite-values .pilot-reward-inline-credit { width: 23px; height: 23px; }
 .pilot-menu-card.is-hub-rewards .pilot-invite-values strong { color: #b57b12; font-size: 1.55em; text-shadow: 0 1px #fff1aa; }
@@ -5685,26 +5688,77 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 .pilot-menu-card.is-hub-rewards .pilot-invite > button { --context-action-radius: 13px; --context-action-size: clamp(14px, 1.7vw, 21px); width: 100%; min-height: 47px; margin-top: 2px; }
 .pilot-menu-card.is-hub-rewards .pilot-invite-panel { width: 100%; text-align: left; }
 .pilot-menu-card.is-hub-rewards .pilot-invite-panel input { color: #092756; background: #fff; }
-.pilot-menu-card.is-hub-rewards .pilot-watch-earn { grid-column: 1 / -1; grid-row: 2; background: linear-gradient(#fff, #eaf7ff); color: #092756; }
-.pilot-menu-card.is-hub-rewards .pilot-watch-earn :is(h2, p, strong) { color: #092756; }
-.pilot-menu-card.is-hub-rewards .pilot-watch-earn { grid-template-columns: minmax(0, 1fr) auto; }
-.pilot-menu-card.is-hub-rewards .pilot-watch-earn > button { grid-column: 2; grid-row: auto; }
-@media (max-height: 560px) and (min-width: 761px) {
-  .pilot-menu-card.is-hub-rewards .pilot-reward-tile { min-height: 104px; }
-  .pilot-menu-card.is-hub-rewards .pilot-reward-claim { min-height: 96px; }
-  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-art { max-height: 90px; }
+.pilot-menu-card.is-hub-rewards .pilot-watch-earn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 12px 2px 0;
+  color: #092756;
+  border: 0;
+  border-top: 1px solid #b8d6e9;
+  border-radius: 0;
+  background: transparent;
+}
+.pilot-menu-card.is-hub-rewards .pilot-watch-earn :is(h2, p) { color: #092756; }
+.pilot-menu-card.is-hub-rewards .pilot-watch-earn > h2 { margin: 0; font: 900 clamp(20px, 2.1vw, 27px)/1 var(--font-display); }
+.pilot-menu-card.is-hub-rewards .pilot-watch-earn > .pilot-menu-muted { color: #4a6486; font: 700 clamp(11px, 1.2vw, 16px)/1.2 var(--font-body); }
+.pilot-menu-card.is-hub-rewards .pilot-ad-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(9px, 1.25vw, 17px); margin-top: 6px; }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step { position: relative; align-content: center; justify-items: center; gap: 5px; min-height: 182px; padding: 8px 6px; border-radius: 11px; background: linear-gradient(#fff, #e4f3fc); }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step.is-next { border-color: #e5ad41; background: linear-gradient(#fffefa, #fff7e8); }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step:not(:last-child)::after { position: absolute; top: 50%; right: -8px; color: #49658b; font: 900 32px/1 var(--font-body); content: '›'; transform: translate(50%, -50%); }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step > span { color: #0b2857; font: 900 clamp(13px, 1.45vw, 19px)/1 var(--font-display); }
+.pilot-ad-step-art { width: min(76px, 70%); height: clamp(45px, 5.4vw, 70px); object-fit: contain; }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step > strong { color: #9c630b; font: 900 clamp(11px, 1.25vw, 16px)/1 var(--font-display); }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step > button { width: 100%; min-height: 42px; padding: 5px 2px; color: #fff; border: 1px solid #8aa2b9; border-radius: 8px; background: linear-gradient(#91a6bf, #526985); font: 900 clamp(11px, 1.25vw, 16px)/1 var(--font-display); white-space: nowrap; }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step.is-next > button:not(:disabled) { color: #2f210a; border-color: #d89a21; background: linear-gradient(#ffe48b, #ffb528); box-shadow: 0 2px 5px rgb(122 83 24 / 30%); }
+.pilot-menu-card.is-hub-rewards .pilot-ad-step > button:disabled { opacity: 1; cursor: default; }
+.pilot-menu-card.is-hub-rewards .pilot-watch-total { align-self: center; color: #2b4872 !important; font: 800 clamp(11px, 1.25vw, 16px)/1.2 var(--font-body); }
+.pilot-menu-card.is-hub-rewards .pilot-watch-availability { align-self: center; color: #58708c !important; font: 700 11px/1.2 var(--font-body) !important; }
+@media (max-height: 650px) and (min-width: 761px) {
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-heading-art { width: 45px; height: 45px; }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-friendly { margin: -2px 0 7px 54px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim { min-height: 100px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-art { max-height: 86px; }
+  .pilot-menu-card.is-hub-rewards .pilot-watch-earn { margin-top: 8px; padding-top: 8px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-step { min-height: 136px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-step-art { height: 44px; }
+  .pilot-menu-card.is-hub-rewards .pilot-invite-art { height: 90px; margin: 0; }
+}
+@media (max-height: 500px) and (min-width: 761px) and (orientation: landscape) {
+  body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards-overlay {
+    padding-top: calc(var(--hub-header-total) + 8px);
+    padding-bottom: max(8px, var(--safe-area-bottom));
+  }
+  .pilot-menu-card.is-hub-rewards .pilot-menu-section:is(.pilot-rewards, .pilot-invite) { padding: 5px 10px; }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards > h2 { font-size: clamp(19px, 2.2vw, 25px); }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-heading-art { width: 30px; height: 30px; }
+  .pilot-menu-card.is-hub-rewards .pilot-rewards-friendly { margin: -2px 0 3px 39px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim { grid-template-columns: minmax(70px, .65fr) minmax(0, 1.35fr) minmax(110px, .85fr); min-height: 72px; padding: 4px 8px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-art { max-height: 58px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-details { gap: 2px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim-details > strong { font-size: 25px; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim button { min-width: 0; min-height: 38px; }
+  .pilot-menu-card.is-hub-rewards .pilot-watch-earn { gap: 3px; margin-top: 3px; padding-top: 3px; }
+  .pilot-menu-card.is-hub-rewards .pilot-watch-earn > h2 { font-size: 20px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-steps { gap: 8px; margin-top: 2px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-step { gap: 2px; min-height: 104px; padding: 4px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-step-art { height: 30px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-step:not(:last-child)::after { right: -5px; font-size: 20px; }
+  .pilot-menu-card.is-hub-rewards .pilot-ad-step > button { min-height: 32px; }
+  .pilot-menu-card.is-hub-rewards .pilot-invite-art { height: 72px; }
+  .pilot-menu-card.is-hub-rewards .pilot-invite-values { gap: 4px; margin-top: 4px; }
+  .pilot-menu-card.is-hub-rewards .pilot-invite > button { min-height: 38px; }
 }
 @media (max-width: 760px) {
-  .pilot-menu-card.is-hub-rewards { transform: none; }
   .pilot-menu-card.is-hub-rewards .pilot-rewards-layout { grid-template-columns: minmax(0, 1fr); }
-  .pilot-menu-card.is-hub-rewards .pilot-rewards-grid { grid-template-columns: repeat(7, minmax(76px, 1fr)); flex: none; }
   .pilot-menu-card.is-hub-rewards .pilot-invite { grid-column: 1; grid-row: 2; min-height: 240px; }
-  .pilot-menu-card.is-hub-rewards .pilot-watch-earn { grid-row: 3; grid-template-columns: minmax(0, 1fr); }
-  .pilot-menu-card.is-hub-rewards .pilot-watch-earn > button { grid-column: 1; }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim { grid-template-columns: minmax(70px, .8fr) minmax(0, 1.2fr); }
+  .pilot-menu-card.is-hub-rewards .pilot-reward-claim > button { grid-column: 1 / -1; min-height: 46px; }
 }
-@media (max-width: 600px) { .pilot-ad-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .pilot-menu-card.is-hub-rewards .pilot-ad-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pilot-menu-card.is-hub-rewards .pilot-ad-step:nth-child(2)::after { display: none; } }
 @media (max-width: 420px) {
-  .pilot-menu-card.is-hub-rewards > header { min-height: 52px; padding-inline: 48px; }
   .pilot-menu-card.is-hub-rewards .pilot-rewards-friendly { margin: 0 0 8px; }
   .pilot-menu-card.is-hub-rewards .pilot-reward-claim { grid-template-columns: 90px minmax(0, 1fr); }
   .pilot-menu-card.is-hub-rewards .pilot-reward-claim-details > strong { font-size: 20px; }

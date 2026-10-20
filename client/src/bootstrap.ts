@@ -441,10 +441,12 @@ function showAppHeader(active: AppShellActive): void {
     return;
   }
   const pageTitle = skyTokenStore.isOpen() ? 'GET SKY TOKENS'
-    : entryState === 'CITY_SELECTION' ? citySelector.dataset.view === 'time' ? 'CHOOSE TIME' : cityJourneyMode === 'missions' ? 'CITY JOURNEY' : 'FREE FLY'
-    : entryState === 'MISSION_JOURNEY' ? 'MISSION JOURNEY'
+    : !citySelector.hidden && citySelector.dataset.view === 'time' ? 'CHOOSE TIME'
+    : entryState === 'CITY_SELECTION' ? 'CHOOSE CITY'
+    : entryState === 'MISSION_JOURNEY' ? 'CHOOSE MISSION'
     : entryState === 'STORE' ? 'STORE'
     : entryState === 'AIRCRAFT' ? 'AIRCRAFT HANGAR'
+    : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('REWARDS') ? 'REWARDS'
     : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('PROFILE') ? 'PILOT PROFILE'
     : undefined;
   const homeData = homeHangarData();
@@ -1366,8 +1368,8 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   citySelector.hidden = true;
   missionJourney.hide();
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
-  if (hubSection === 'REWARDS') appHeader.hide();
-  else showAppHeader(hubSection === 'PROFILE' ? 'PROFILE' : undefined);
+  showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
+  if (hubSection === 'REWARDS') appHeader.focusBack();
   if (refresh) await refreshHubPilotData();
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
   if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
@@ -1777,7 +1779,7 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.textContent = 'BACK TO PILOT HUB';
-  citySelectTitle.textContent = cityJourneyMode === 'missions' ? 'CITY JOURNEY' : 'FREE FLY';
+  citySelectTitle.textContent = 'CHOOSE CITY';
   showAppHeader(undefined);
   citySelectDescription.textContent = 'Choose your city.';
   cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : 'Free Fly cities');

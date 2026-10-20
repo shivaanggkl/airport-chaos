@@ -141,6 +141,28 @@ test('Giant Incoming preserves historical clears and wallet caps',()=>{
   }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
+test('Giant Incoming applies the damage captured when each shot was fired', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'giant-shot-damage-'));
+  const path = join(directory, 'profiles.sqlite');
+  const db = new DatabaseSync(path);
+  db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");
+  db.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    const setup = new DatabaseSync(path);
+    setup.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)')
+      .run('pilot', journeyDallas06.id, 'prior-six', 500, 90000);
+    setup.close();
+    const launched = store.launch('pilot', 'fighter', 1_000, journeyDallas07.id);
+    store.approach('pilot', launched.attemptId, 1_100);
+    store.startGiantIncoming('pilot', launched.attemptId, 2_000);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_000, 25)?.monsterHealth, 1_975);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_200)?.monsterHealth, 1_935);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_400, -1), undefined);
+    assert.equal(store.get('pilot', launched.attemptId)?.monsterHealth, 1_935);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('Rookie Rush crossing requires ordered forward travel through the actual opening', () => {
   const gate = journeyDallas01.gates[0]!;
   const before = { x: gate.x - 100, y: gate.altitude, z: gate.z };

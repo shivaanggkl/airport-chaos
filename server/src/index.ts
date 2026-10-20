@@ -39,7 +39,7 @@ import { dallasDisplayNames as place } from '../../shared/dallas-display-names.m
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, FIRE_INTERVAL_MS, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -200,6 +200,7 @@ type ProjectileState = {
   projectileId: string;
   ownerId: string;
   cityId: CityId;
+  damage: number;
   position: Vector3;
   direction: Vector3;
   traveled: number;
@@ -348,8 +349,6 @@ const combatTransformFreshMs = 1_500;
 const aircraftCollisionRadius = 2.5;
 const respawnClearance = 24;
 // Straight, unlocked rounds remain fast enough to be readable at flight speed.
-const projectileDamage = 25;
-const fireCooldownMs = FIRE_INTERVAL_MS;
 const spawnProtectionMs = 3000;
 const maxProjectiles = 256;
 const projectileStateBroadcastMs = 50;
@@ -4445,7 +4444,7 @@ function canFire(player: PlayerState, now: number): boolean {
 
 function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
   if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
-  if (now - player.lastFireAt < fireCooldownMs) return 'cooldown';
+  if (now - player.lastFireAt < fireIntervalMs(player.aircraftType)) return 'cooldown';
   return undefined;
 }
 
@@ -4513,6 +4512,7 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
     projectileId: randomUUID(),
     ownerId: playerId,
     cityId: player.cityId,
+    damage: projectileDamageForAircraft(player.aircraftType),
     position: muzzle.position,
     direction,
     traveled: 0,
@@ -4565,7 +4565,7 @@ function broadcastProjectileStates(now: number): void {
   }
 }
 
-function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, shotDistance = 0): boolean {
+function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, damage: number, shotDistance = 0): boolean {
   const victim = players.get(victimId);
   const owner = players.get(ownerId);
   if (
@@ -4620,7 +4620,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if(victim.trainingOwnerId&&ownerId===victim.trainingOwnerId&&profileStore.nextPendingTutorialStep(owner.pilotId)!=='fire')return false;
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
-  victim.health = Math.max(0, victim.health - projectileDamage);
+  const damageDealt = Math.min(victim.health, damage);
+  victim.health -= damageDealt;
   if (victim.health > 0 && !owner.isBot) provokeJourneyHunter(ownerId, owner, victimId, now);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
@@ -4628,7 +4629,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   airportRepairStays.delete(victimId);
   const damageMessage = {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health,
-    maxHealth: victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType), damage: projectileDamage,
+    maxHealth: victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType), damage: damageDealt,
   };
   if (victim.trainingOwnerId) sendToPlayer(victim.trainingOwnerId, damageMessage);
   else broadcastToCity(cityId, damageMessage);
@@ -4845,13 +4846,13 @@ function createAssistedShot(
   // A server-valid lock is an assisted hit.  Damage can only fail here if a
   // concurrent lifecycle transition made the target invalid after validation;
   // do not turn that already-emitted assisted shot into a second ballistic one.
-  if (!applyCombatHit(playerId, targetId, player.cityId, now, Math.hypot(local.x, local.y, local.z))) {
+  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z))) {
     logLockShotReject(playerId, player, targetId, fireTransform, 'damage_state_changed', now);
   }
   return true;
 }
 
-function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number): boolean {
+function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number): boolean {
   const event = cityEvents.get(cityId);
   if (!event || event.lifecycle !== 'active' || (event.type !== 'aceIntercept' && event.type !== 'vipEscort') || !event.bossHealth || event.bossHealth <= 0) return false;
   // This is a server-only event target: it never enters player lock or collision paths.
@@ -4859,15 +4860,16 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   if (distanceToSegmentSquared(bossPosition, start.x, start.y, start.z, end) > 14 * 14) return false;
   const owner = players.get(ownerId);
   if (!owner || owner.tutorialMode || owner.cityId !== cityId || owner.lifeState !== 'alive') return false;
+  const damageDealt = Math.min(event.bossHealth, damage);
   if (event.type === 'vipEscort') {
-    event.bossHealth = Math.max(0, event.bossHealth - projectileDamage);
+    event.bossHealth -= damageDealt;
     if (event.bossHealth > 0) broadcastEvent(event);
     else setEventTerminal(event, 'failed', now);
     return true;
   }
   event.participants.add(ownerId);
-  event.damageContribution.set(ownerId, (event.damageContribution.get(ownerId) ?? 0) + projectileDamage);
-  event.bossHealth = Math.max(0, event.bossHealth - projectileDamage);
+  event.damageContribution.set(ownerId, (event.damageContribution.get(ownerId) ?? 0) + damageDealt);
+  event.bossHealth -= damageDealt;
   if (event.bossHealth > 0) { broadcastEvent(event); return true; }
   const template = eventTemplateFor(event);
   const totalDamage = Math.max(1, [...event.damageContribution.values()].reduce((sum, value) => sum + value, 0));
@@ -4881,7 +4883,7 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   return true;
 }
 
-function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number): boolean {
+function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number): boolean {
   const owner = players.get(ownerId);
   const attemptId = playerJourneyAttempts.get(ownerId);
   if (!owner || owner.isBot || owner.cityId !== 'dallas' || cityId !== 'dallas' || !attemptId) return false;
@@ -4893,7 +4895,7 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   const groundY = dallasTerrain.elevationAt(encounter.x, encounter.z);
   const impact = monsterImpact(encounter, groundY, start, end);
   if (!impact || segmentBlockedByBuildings(start, impact, monsterDistrictBuildings)) return false;
-  const hit = journeyStore.hitMonster(owner.pilotId, attemptId, now);
+  const hit = journeyStore.hitMonster(owner.pilotId, attemptId, now, damage);
   if (!hit) return false;
   encounter.hitSequence++;
   recordMonsterFiringPosition(encounter, owner.position, now);
@@ -4975,7 +4977,7 @@ function updateMonsterEncounters(now: number): void {
   }
 }
 
-function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number): boolean {
+function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number): boolean {
     const owner = players.get(ownerId), id = playerJourneyAttempts.get(ownerId), e = id ? transportEncounters.get(id) : undefined;
     if (!owner || owner.isBot || owner.cityId !== 'dallas' || !e || e.playerId !== ownerId)
         return false;
@@ -4985,7 +4987,7 @@ function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: n
     const hit = transportImpact(start, end, {...transportPose(now - delta * 1000 - e.startedAt, e.altitude),gunYaw:e.gunYaw,gunPitch:e.gunPitch}, {...transportPose(now - e.startedAt, e.altitude),gunYaw:e.gunYaw,gunPitch:e.gunPitch});
     if (!hit || segmentBlockedByBuildings(start, hit, transportBuildings) || hit.y <= dallasTerrain.elevationAt(hit.x, hit.z))
         return false;
-    const result = journeyStore.hitTransport(owner.pilotId, e.attemptId, now);
+    const result = journeyStore.hitTransport(owner.pilotId, e.attemptId, now, damage);
     if (!result)
         return false;
     e.hitSequence++;
@@ -5076,11 +5078,11 @@ function updateProjectiles(deltaSeconds: number): void {
     }
 
     if(missionAttemptId && journeyStore.get(owner.pilotId,missionAttemptId)?.missionId===journeyDallas07.id){
-      if(applyTransportHit(projectile.ownerId,{x:previousX,y:previousY,z:previousZ},projectile.position,now,deltaSeconds)||projectile.traveled>=COMBAT_RANGE||segmentBlockedByBuildings({x:previousX,y:previousY,z:previousZ},projectile.position,transportBuildings)||projectile.position.y<=dallasTerrain.elevationAt(projectile.position.x,projectile.position.z))removeProjectile(projectile.projectileId);
+      if(applyTransportHit(projectile.ownerId,{x:previousX,y:previousY,z:previousZ},projectile.position,now,deltaSeconds,projectile.damage)||projectile.traveled>=COMBAT_RANGE||segmentBlockedByBuildings({x:previousX,y:previousY,z:previousZ},projectile.position,transportBuildings)||projectile.position.y<=dallasTerrain.elevationAt(projectile.position.x,projectile.position.z))removeProjectile(projectile.projectileId);
       continue;
     }
-    if (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now) ||
-      applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now)) {
+    if (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage) ||
+      applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage)) {
       removeProjectile(projectile.projectileId);
       continue;
     }
@@ -5107,7 +5109,7 @@ function updateProjectiles(deltaSeconds: number): void {
 
     if (hitPlayerId) {
       removeProjectile(projectile.projectileId);
-      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.traveled);
+      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.damage, projectile.traveled);
       continue;
     }
 
@@ -5369,7 +5371,7 @@ function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.no
     pilotId: targetId, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId: owner.cityId, position: { x: targetX, y: targetY, z: targetZ },
     rotation: { x: 0, y: owner.rotation.y + Math.PI, z: 0 }, aircraftType: 'trainer',
-    displayName: 'TRAINING TARGET', score: 0, health: projectileDamage, lifeState: 'alive', hasRespawnTransform: true,
+    displayName: 'TRAINING TARGET', score: 0, health: projectileDamageForAircraft('trainer'), lifeState: 'alive', hasRespawnTransform: true,
     lastFireAt: 0, spawnProtectedUntil: 0, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
     lastStateAt: now, lastAcceptedPosition: { x: targetX, y: targetY, z: targetZ }, lastAcceptedTransformAt: now,
     chaosQaEnabled: false, tutorialMode: true, trainingOwnerId: ownerId, territoryIds: new Set(),

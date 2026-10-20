@@ -195,6 +195,17 @@ test('server-owned hits require a live owned attempt and grant a first-clear rew
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('Monster Arrival uses damage captured on each projectile', () => {
+  const { directory, store } = fixture();
+  try {
+    const launched = store.launch('pilot', 'fighter', 1_000, journeyDallas19.id);
+    store.approach('pilot', launched.attemptId, 1_100);
+    store.startMonsterArrival('pilot', launched.attemptId, 1_200);
+    assert.equal(store.hitMonster('pilot', launched.attemptId, 1_500, 25)?.monsterHealth, 2_475);
+    assert.equal(store.hitMonster('pilot', launched.attemptId, 1_750)?.monsterHealth, 2_435);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('deadline is exclusive and historical Wanted Breakout clear preserves eligibility', () => {
   const { directory, path, store } = fixture();
   try {
