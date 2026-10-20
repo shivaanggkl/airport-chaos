@@ -6087,7 +6087,9 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
+  scrollbar-width: none;
 }
+.city-options:has(.city-time-evening)::-webkit-scrollbar { display: none; }
 .city-options .city-time-option { scroll-snap-align: center; }
 .city-options .city-time-option .city-option-copy { grid-template-rows: auto auto; }
 .city-time-option .city-option-copy strong { font-size: clamp(18px, 2vw, 25px); line-height: 1; }

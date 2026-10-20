@@ -39,10 +39,10 @@ test('focused Mission 4 race never assigns a territory defender', () => {
   assert.doesNotMatch(server, /assignedFocusedDefender/);
 });
 
-test('bot interaction exclusion is reciprocal and leaves humans and other pilots unchanged', () => {
+test('focused-bot exclusion is reciprocal; Journey pilot isolation is applied separately', () => {
   assert.equal(excludesFocusedBotInteraction(false, true, true, false), true); // bot shot into focused pilot
   assert.equal(excludesFocusedBotInteraction(true, false, false, true), true); // focused pilot shot into hidden bot
-  assert.equal(excludesFocusedBotInteraction(true, false, false, false), false); // human opponent stays interactive
+  assert.equal(excludesFocusedBotInteraction(true, false, false, false), false); // human pair is handled by Journey isolation
   assert.equal(excludesFocusedBotInteraction(false, true, false, false), false); // bot vs ordinary pilot
   assert.equal(excludesFocusedBotInteraction(false, false, false, true), false); // ordinary pilot vs bot
   assert.equal(excludesFocusedBotInteraction(true, false, false, true, true), false); // assigned Hunter is targetable
