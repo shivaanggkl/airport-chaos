@@ -27,7 +27,7 @@ import { loadNativeFirehawkOffer, loadNativeSkyTokenOffers, nativePurchaseProvid
 import { missionsForCity } from '../../shared/city-missions.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { acquireNativeCredential, availableNativeProviders, clearNativeProviderState, nativeAuthPlatform, type NativeAuthChallenge } from './native-auth';
-import { registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
+import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { audioManager, type AudioLevels } from './audio-manager';
 import { hapticsManager } from './haptics-manager';
 import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
@@ -48,8 +48,6 @@ const missionJourneyElement = document.querySelector<HTMLElement>('#mission-jour
 const citySelector = document.querySelector<HTMLElement>('#city-selector')!;
 const cityOptions = document.querySelector<HTMLElement>('#city-options')!;
 const cityJourneyTrack = cityOptions.querySelector<HTMLElement>('[data-city-journey-track]')!;
-const cityJourneyDots = cityOptions.querySelector<HTMLElement>('[data-city-journey-dots]')!;
-const cityJourneyHint = cityOptions.querySelector<HTMLElement>('[data-city-journey-hint]')!;
 const cityJourneyPrevious = cityOptions.querySelector<HTMLButtonElement>('[data-city-previous]')!;
 const cityJourneyNext = cityOptions.querySelector<HTMLButtonElement>('[data-city-next]')!;
 const cityHelp = document.querySelector<HTMLButtonElement>('#city-help')!;
@@ -63,6 +61,63 @@ const citySelectionError = document.querySelector<HTMLElement>('#city-selection-
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
+const menuHeader = document.querySelector<HTMLElement>('#app-shell-header')!;
+let menuEntrancesEnabled = false;
+let menuEntranceCleanup: number | undefined;
+let menuEntranceRoot: HTMLElement | undefined;
+let menuEntranceItems: HTMLElement[] = [];
+
+function menuContentFor(root: HTMLElement): HTMLElement[] {
+  const selectors = root === homeHangarElement ? ['.home-hangar-missions', '.home-hangar-free-fly', '.home-hangar-settings']
+    : root === citySelector ? [citySelector.dataset.view === 'time' ? '.city-options' : '.city-journey', '.city-help']
+    : root === missionJourneyElement ? ['.mission-journey-board', '.mission-journey-pagination']
+    : root === gameStoreElement ? ['.store-category-rail', '.store-content', '.store-notice']
+    : root === garageOverlay ? ['.garage-card']
+    : root === pilotMenuOverlay ? ['.pilot-menu-card']
+    : root.classList.contains('sky-token-overlay') ? ['.sky-token-panel'] : [];
+  return selectors.flatMap(selector => {
+    const item = root.querySelector<HTMLElement>(selector);
+    return item && !item.hidden ? [item] : [];
+  });
+}
+
+function clearMenuEntrance(): void {
+  if (menuEntranceCleanup !== undefined) window.clearTimeout(menuEntranceCleanup);
+  menuEntranceCleanup = undefined;
+  menuHeader.classList.remove('menu-entrance-ready', 'menu-entrance');
+  for (const item of menuEntranceItems) {
+    item.classList.remove('menu-entrance-ready', 'menu-entrance');
+    item.style.removeProperty('--menu-entrance-delay');
+  }
+  menuEntranceItems = [];
+  menuEntranceRoot = undefined;
+}
+
+function prepareMenuEntrance(root: HTMLElement): void {
+  clearMenuEntrance();
+  menuEntranceRoot = root;
+  if (!menuHeader.hidden) menuHeader.classList.add('menu-entrance-ready');
+  menuEntranceItems = menuContentFor(root);
+  menuEntranceItems.forEach((item, index) => {
+    item.style.setProperty('--menu-entrance-delay', `${130 + index * 90}ms`);
+    item.classList.add('menu-entrance-ready');
+  });
+}
+
+function playMenuEntrance(root: HTMLElement): void {
+  if (!menuEntrancesEnabled) return;
+  prepareMenuEntrance(root);
+  // Force the prepared state before starting a repeat visit to the same page.
+  void root.offsetWidth;
+  revealMenuEntrance();
+}
+
+function revealMenuEntrance(): void {
+  if (!menuEntranceRoot) return;
+  menuHeader.classList.replace('menu-entrance-ready', 'menu-entrance');
+  for (const item of menuEntranceItems) item.classList.replace('menu-entrance-ready', 'menu-entrance');
+  menuEntranceCleanup = window.setTimeout(clearMenuEntrance, 1_200);
+}
 const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
 let guestQaJourneyAccess = false;
@@ -288,7 +343,7 @@ let garageProfile: GarageProfile = { credits: garageIdentity.credits, skyTokens:
 let skyTokenCommerceEnabled = false;
 let skyTokenOffers: SkyTokenOffer[] = [];
 const stagingTokenStorePreview = nativePurchaseProvider === 'apple' && apiOrigin === 'https://airport-chaos-staging.onrender.com' && import.meta.env.VITE_STAGING_TOKEN_STORE_PREVIEW === 'true';
-let skyTokenCatalogPilotId: string | undefined;
+let skyTokenCatalogKey: string | undefined;
 let nativeSkyTokenRecoveryPilotId: string | undefined;
 let nativeSkyTokenPurchasePending = false;
 let nativeSkyTokenRecoveryInFlight = false;
@@ -299,7 +354,7 @@ let hubRewardNotice: string | undefined;
 let hubServerNow = Date.now();
 type RewardedAdAttemptStatus = 'CREATED' | 'AD_STARTED' | 'PENDING_VERIFICATION' | 'REWARDED' | 'CLOSED_WITHOUT_REWARD' | 'FAILED' | 'EXPIRED';
 type RewardedAdStatus = {
-  supported: boolean; provider?: 'ADMOB'; platform?: 'ios' | 'android'; rewardCredits: number; maxRewards: number; remaining: number;
+  supported: boolean; provider?: 'ADMOB'; platform?: 'ios' | 'android'; rewardCredits: number; rewardCreditsByStep: readonly number[]; maxRewards: number; remaining: number;
   windowStartedAt?: number; windowEndsAt?: number;
   activeAttempt?: { attemptId: string; status: RewardedAdAttemptStatus; expiresAt: number };
   serverNow: number;
@@ -314,20 +369,24 @@ let hubFlyGateActive = false;
 const hubInfoDialog = new HubInfoDialog();
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
+  back: () => { hapticsManager.emit('selection'); closeTopUiLayer(); },
   advertise: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openAdvertise(trigger); },
   friends: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openFriends(trigger); },
   store: () => { hapticsManager.emit('selection'); void openGameStore(); },
   garage: () => { hapticsManager.emit('selection'); void openStartGarage(entryState === 'STORE' || (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE') ? 'STORE' : missionJourneyReturnPending ? 'MISSION_JOURNEY' : 'HANGAR'); },
   rewards: () => { hapticsManager.emit('selection'); void openHubRewards(); },
   profile: () => { hapticsManager.emit('selection'); void openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending); },
-  skyTokens: trigger => {
+  skyTokens: () => {
     hapticsManager.emit('selection');
-    if (hubAccount.state !== 'account') { promptPurchaseSignIn(trigger); return; }
-    if (tokenStoreAvailable()) void openSkyTokenStore();
-    else hubInfoDialog.openSkyTokens(Math.max(0, authoritativeHomeProfile?.skyTokens ?? garageProfile.skyTokens ?? 0), trigger);
+    void openSkyTokenStore();
   },
 });
 const skyTokenStore = new SkyTokenStore(async packId => {
+  if (hubAccount.state !== 'account') {
+    skyTokenStore.setMessage('');
+    promptPurchaseSignIn(undefined, () => { skyTokenStore.close(); void openHubPilotMenu('PROFILE'); });
+    return;
+  }
   try {
     if (nativePurchaseProvider) {
       const result = await purchaseNativeSkyTokenPack(packId);
@@ -353,27 +412,27 @@ const skyTokenStore = new SkyTokenStore(async packId => {
     }
     window.location.assign(checkout.href);
   } catch (error) { skyTokenStore.setMessage(error instanceof Error ? error.message : 'Unable to start purchase. Please try again.'); }
-});
+}, () => showAppHeader(entryState === 'AIRCRAFT' ? 'GARAGE' : entryState === 'STORE' ? 'STORE' : undefined));
 
 async function refreshSkyTokenCatalog(): Promise<void> {
-  if (hubAccount.state !== 'account') {
-    skyTokenCommerceEnabled = false; skyTokenOffers = []; skyTokenCatalogPilotId = undefined;
-    garage.setTokenCommerce(false); return;
-  }
-  if (skyTokenCatalogPilotId === garageIdentity.pilotId) return;
+  const catalogKey = `${garageIdentity.pilotId}:${hubAccount.state}`;
+  if (skyTokenCatalogKey === catalogKey) return;
   const response = await apiFetch(apiUrl('/api/sky-tokens/catalog'), { cache: 'no-store' });
   if (!response.ok) throw new Error('Store configuration unavailable');
   const result = await response.json() as { enabled?: boolean; packs?: Array<{ id: string; tokens: number; usdCents: number }> };
-  skyTokenCommerceEnabled = result.enabled === true;
-  const nativeOffers = skyTokenCommerceEnabled && nativePurchaseProvider ? await loadNativeSkyTokenOffers() : {};
-  skyTokenOffers = skyTokenCommerceEnabled || stagingTokenStorePreview ? (result.packs ?? []).flatMap(pack => {
+  skyTokenCommerceEnabled = hubAccount.state === 'account' && result.enabled === true;
+  const guest = hubAccount.state !== 'account';
+  const useNativePrices = Boolean(nativePurchaseProvider && (skyTokenCommerceEnabled || (guest && !stagingTokenStorePreview)));
+  const nativeOffers = useNativePrices ? await loadNativeSkyTokenOffers() : {};
+  const showOffers = guest || skyTokenCommerceEnabled || stagingTokenStorePreview;
+  skyTokenOffers = showOffers ? (result.packs ?? []).flatMap(pack => {
     const id = pack.id as SkyTokenPackId;
     if (!Object.hasOwn(skyTokenPacks, id) || pack.tokens !== skyTokenPacks[id].tokens || pack.usdCents !== skyTokenPacks[id].usdCents) return [];
-    const price = nativePurchaseProvider && skyTokenCommerceEnabled ? nativeOffers[id]?.localizedPrice : `$${(pack.usdCents / 100).toFixed(2)}`;
+    const price = useNativePrices ? nativeOffers[id]?.localizedPrice : `$${(pack.usdCents / 100).toFixed(2)}`;
     return price ? [{ id, tokens: pack.tokens, price }] : [];
   }) : [];
   const completeCatalog = skyTokenOffers.length === Object.keys(skyTokenPacks).length;
-  skyTokenCatalogPilotId = (!skyTokenCommerceEnabled && !stagingTokenStorePreview) || completeCatalog ? garageIdentity.pilotId : undefined;
+  skyTokenCatalogKey = !showOffers || completeCatalog ? catalogKey : undefined;
   if (skyTokenCommerceEnabled && !completeCatalog) garage.setTokenStoreUnavailable();
   else garage.setTokenCommerce(skyTokenCommerceEnabled, stagingTokenStorePreview && !skyTokenCommerceEnabled && completeCatalog);
   gameStore.setTokenSpendingAvailable(skyTokenCommerceEnabled);
@@ -405,8 +464,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function openSkyTokenStore(missing = 0): Promise<void> {
-  if (hubAccount.state !== 'account') { promptPurchaseSignIn(); return; }
-  if ((!skyTokenCommerceEnabled && !stagingTokenStorePreview) || hubAccount.state !== 'account') {
+  if (skyTokenOffers.length !== Object.keys(skyTokenPacks).length) {
+    try { await refreshSkyTokenCatalog(); } catch { /* Surface the existing store-unavailable message below. */ }
+  }
+  if (hubAccount.state === 'account' && !skyTokenCommerceEnabled && !stagingTokenStorePreview) {
     if (entryState === 'STORE') gameStore.setNotice('SKY TOKEN PURCHASES ARE NOT AVAILABLE HERE YET');
     return;
   }
@@ -416,24 +477,42 @@ async function openSkyTokenStore(missing = 0): Promise<void> {
     return;
   }
   recordProductIntent('sky_token_store_viewed');
-  skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing, !skyTokenCommerceEnabled);
+  skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing, hubAccount.state === 'account' && !skyTokenCommerceEnabled);
+  showAppHeader(undefined);
+  const tokenPage = document.querySelector<HTMLElement>('.sky-token-overlay');
+  if (tokenPage) playMenuEntrance(tokenPage);
+  appHeader.focusBack();
   if (nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
 }
 function tokenStoreAvailable(): boolean {
-  return hubAccount.state === 'account' && (skyTokenCommerceEnabled || stagingTokenStorePreview) && skyTokenOffers.length === Object.keys(skyTokenPacks).length;
+  return skyTokenOffers.length === Object.keys(skyTokenPacks).length &&
+    (hubAccount.state !== 'account' || skyTokenCommerceEnabled || stagingTokenStorePreview);
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if (entryState === 'CITY_SELECTION' || entryState === 'MISSION_JOURNEY' || entryState === 'STORE' || entryState === 'AIRCRAFT' ||
-    (entryState === 'PILOT_MENU' && (active === 'PROFILE' || hubPilotMenu.isSectionOpen('PROFILE') ||
-      (['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'] as const).some(section => hubPilotMenu.isSectionOpen(section))))) {
+  if (entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() &&
+      (['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'] as const).some(section => hubPilotMenu.isSectionOpen(section))) {
     appHeader.hide();
     return;
   }
+  if (entryState === 'STARTUP' || entryState === 'TUTORIAL' || entryState === 'FLIGHT') {
+    appHeader.hide();
+    return;
+  }
+  const pageTitle = skyTokenStore.isOpen() ? 'GET SKY TOKENS'
+    : !citySelector.hidden && citySelector.dataset.view === 'time' ? 'CHOOSE TIME'
+    : entryState === 'CITY_SELECTION' ? 'CHOOSE CITY'
+    : entryState === 'MISSION_JOURNEY' ? 'CHOOSE MISSION'
+    : entryState === 'STORE' ? 'STORE'
+    : entryState === 'AIRCRAFT' ? 'AIRCRAFT HANGAR'
+    : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('REWARDS') ? 'REWARDS'
+    : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('PROFILE') ? 'PILOT PROFILE'
+    : undefined;
   const homeData = homeHangarData();
   appHeader.show({
     active,
-    hubActions: entryState === 'HANGAR' || entryState === 'PILOT_MENU',
+    hubActions: !pageTitle && (entryState === 'HANGAR' || entryState === 'PILOT_MENU'),
+    pageTitle,
     advertiseVisible: true,
     pilotName: authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
@@ -539,8 +618,8 @@ function homeHangarData(): HomeHangarData {
     pilotName: profile?.pilotName ?? garageIdentity.displayName,
     credits: garageProfile.credits,
     aircraftName: aircraftDisplayName(garageProfile.selectedAircraft),
-    rewardsAvailable: hubAccount.state === 'account' && Boolean(reward && (reward.claimable || rewardsAvailableInMs === 0)),
-    rewardsAvailableInMs: hubAccount.state === 'account' && reward && !reward.claimable ? rewardsAvailableInMs : undefined,
+    rewardsAvailable: Boolean(reward && (reward.claimable || rewardsAvailableInMs === 0)),
+    rewardsAvailableInMs: reward && !reward.claimable ? rewardsAvailableInMs : undefined,
   };
 }
 
@@ -571,7 +650,7 @@ let cityJourneyPointer: { id: number; x: number; y: number; dragging: boolean } 
 let cityJourneyClickBlockedUntil = 0;
 let cityJourneyTransitionUntil = 0;
 let cityJourneyWheelAt = Number.NEGATIVE_INFINITY;
-type CityJourneyView = { card: HTMLElement; detail: HTMLElement; status: HTMLElement; lock: HTMLElement; cta: HTMLButtonElement; dot: HTMLButtonElement };
+type CityJourneyView = { card: HTMLElement; detail: HTMLElement; status: HTMLElement; lock: HTMLElement; cta: HTMLButtonElement };
 const cityJourneyViews: CityJourneyView[] = [];
 
 function journeyCity(entry: CityJourneyEntry): CityDefinition | undefined {
@@ -618,10 +697,6 @@ function preferredCityJourneyIndex(preferDallas = false): number {
   return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
 }
 
-function dismissCityJourneyHint(): void {
-  cityJourneyHint.classList.add('is-dismissed');
-}
-
 function activateCityJourneyCard(index: number): void {
   const state = cityJourneyState(cityJourneyEntries[index]!);
   if (cityJourneyLaunching || performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
@@ -634,21 +709,20 @@ function activateCityJourneyCard(index: number): void {
 function createCityJourneyCards(): void {
   if (cityJourneyViews.length) return;
   cityJourneyTrack.replaceChildren();
-  cityJourneyDots.replaceChildren();
   cityJourneyEntries.forEach((entry, index) => {
     const card = document.createElement('article');
-    card.className = 'city-journey-card';
+    card.className = 'menu-selection-card city-journey-card';
     card.classList.add(`city-journey-${entry.id}`);
     card.dataset.cityJourneyId = entry.id;
     card.setAttribute('role', 'option');
 
     const art = document.createElement('div');
-    art.className = 'city-journey-art';
+    art.className = 'menu-selection-card-art city-journey-art';
     art.setAttribute('aria-hidden', 'true');
     card.style.setProperty('--journey-art-image', `url("${entry.artImage}")`);
     card.style.setProperty('--journey-art-position', entry.artPosition);
     const copy = document.createElement('div');
-    copy.className = 'city-journey-copy';
+    copy.className = 'menu-selection-card-copy city-journey-copy';
     const subtitle = document.createElement('small');
     subtitle.textContent = entry.subtitle;
     const title = document.createElement('h2');
@@ -671,7 +745,7 @@ function createCityJourneyCards(): void {
       event.stopPropagation();
       activateCityJourneyCard(index);
     });
-    card.append(button);
+    copy.append(button);
 
     card.addEventListener('click', () => {
       if (index === cityJourneyIndex) { activateCityJourneyCard(index); return; }
@@ -681,13 +755,7 @@ function createCityJourneyCards(): void {
     });
     cityJourneyTrack.append(card);
 
-    const dot = document.createElement('button');
-    dot.type = 'button';
-    dot.className = 'city-journey-dot';
-    dot.setAttribute('aria-label', `Show ${entry.title}`);
-    dot.addEventListener('click', () => { if (index !== cityJourneyIndex) hapticsManager.emit('selection'); setCityJourneyIndex(index); });
-    cityJourneyDots.append(dot);
-    cityJourneyViews.push({ card, detail, status, lock, cta: button, dot });
+    cityJourneyViews.push({ card, detail, status, lock, cta: button });
   });
 }
 
@@ -712,9 +780,6 @@ function renderCityJourney(): void {
     view.cta.setAttribute('aria-disabled', state.disabled === true ? 'true' : 'false');
     view.cta.tabIndex = offset === 0 ? 0 : -1;
     view.card.classList.toggle('is-enterable', offset === 0 && !state.disabled && Boolean(state.city));
-    view.dot.classList.toggle('is-selected', offset === 0);
-    view.dot.setAttribute('aria-current', offset === 0 ? 'true' : 'false');
-    view.dot.textContent = offset === 0 ? '●' : '○';
   });
   cityJourneyPrevious.disabled = cityJourneyIndex === 0;
   cityJourneyNext.disabled = cityJourneyIndex === cityJourneyEntries.length - 1;
@@ -726,7 +791,6 @@ function setCityJourneyIndex(index: number, remember = true): void {
   cityJourneyIndex = next;
   cityJourneyTransitionUntil = performance.now() + 320;
   if (remember) try { localStorage.setItem(CITY_JOURNEY_SELECTION_KEY, cityJourneyEntries[next]!.id); } catch { /* session selection still works */ }
-  dismissCityJourneyHint();
   renderCityJourney();
 }
 
@@ -983,13 +1047,13 @@ function hubPilotMenuData(): PilotMenuData {
       })),
     },
     rewards: {
-      authenticated: hubAccount.state === 'account',
+      canClaim: Boolean(profile),
       notice: hubRewardNotice,
       state: profile?.dailyReward
         ? { ...profile.dailyReward, serverNow: hubServerNow }
         : { schedule: [], nextDay: 1, nextAmount: 0, claimable: false, claimedDays: [], claimCount: 0, nextEligibleAt: Number.MAX_SAFE_INTEGER, serverNow: hubServerNow },
       claim: claimDailyReward,
-      watchAndEarn: hubRewardedAdStatus?.supported && rewardedAdProvider ? {
+      watchAndEarn: hubRewardedAdStatus && rewardedAdProvider ? {
         state: hubRewardedAdStatus,
         phase: hubRewardedAdPhase,
         notice: hubRewardedAdNotice,
@@ -1065,7 +1129,7 @@ async function hubAccountRequest(path: 'logout' | 'pilot-name', payload: Record<
     }
     if (result.profile) applyAuthoritativeHomeProfile(result.profile);
     if (path === 'logout') {
-      skyTokenCatalogPilotId = undefined; nativeSkyTokenRecoveryPilotId = undefined; nativeSkyTokenPurchasePending = false;
+      skyTokenCatalogKey = undefined; nativeSkyTokenRecoveryPilotId = undefined; nativeSkyTokenPurchasePending = false;
       skyTokenCommerceEnabled = false; skyTokenOffers = [];
       garage.setTokenCommerce(false); skyTokenStore.close();
       clearPendingHubFly();
@@ -1085,8 +1149,6 @@ async function hubProviderAccountRequest(provider: 'google' | 'apple', action: '
   if (hubAccount.state === 'account') {
     return { ok: false, message: "You're already signed in. Log out first to use another account." };
   }
-  const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
-  if (!await hubInfoDialog.confirmExistingAccount(trigger)) return { ok: true, message: 'SIGN-IN CANCELLED' };
   try {
     if (nativeAuthPlatform) {
       const start = await apiFetch(apiUrl('/api/auth/native/start'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, action, guestSwitchConfirmed: true, referralCode: pendingReferralCode() }) });
@@ -1157,14 +1219,14 @@ async function refreshHubPilotData(): Promise<void> {
 }
 
 async function refreshRewardedAdStatus(): Promise<void> {
-  if (hubAccount.state !== 'account' || !rewardedAdProvider) {
+  if (!rewardedAdProvider) {
     hubRewardedAdStatus = undefined;
     return;
   }
   try {
     const response = await apiFetch(apiUrl('/api/rewarded-ads/status'), { cache: 'no-store' });
     const result = await response.json() as { rewardedAds?: RewardedAdStatus };
-    hubRewardedAdStatus = response.ok && result.rewardedAds?.supported ? result.rewardedAds : undefined;
+    hubRewardedAdStatus = response.ok ? result.rewardedAds : undefined;
   } catch { hubRewardedAdStatus = undefined; }
 }
 
@@ -1176,7 +1238,7 @@ async function recordRewardedAdEvent(attemptId: string, event: 'started' | 'qual
   if (result.rewardedAds) hubRewardedAdStatus = result.rewardedAds;
 }
 
-async function waitForRewardedAdVerification(attemptId: string): Promise<void> {
+async function waitForRewardedAdVerification(attemptId: string, expectedCredits: number): Promise<void> {
   const generation = ++rewardedAdPollGeneration;
   for (let check = 0; check < 15; check += 1) {
     if (generation !== rewardedAdPollGeneration || !hubPilotMenu.isSectionOpen('REWARDS')) return;
@@ -1184,13 +1246,13 @@ async function waitForRewardedAdVerification(attemptId: string): Promise<void> {
     const url = apiUrl('/api/rewarded-ads/attempt-status'); url.searchParams.set('attemptId', attemptId);
     try {
       const response = await apiFetch(url, { cache: 'no-store' });
-      const result = await response.json() as { attemptStatus?: RewardedAdAttemptStatus; status?: RewardedAdStatus; profile?: RemoteGarageProfile };
+      const result = await response.json() as { attemptStatus?: RewardedAdAttemptStatus; rewardCredits?: number; status?: RewardedAdStatus; profile?: RemoteGarageProfile };
       if (!response.ok || !result.attemptStatus || !result.status) continue;
       hubRewardedAdStatus = result.status;
       if (result.attemptStatus === 'REWARDED') {
         if (result.profile) applyAuthoritativeHomeProfile(result.profile);
         hubRewardedAdPhase = 'idle';
-        hubRewardedAdNotice = `+${result.status.rewardCredits.toLocaleString()} CREDITS`;
+        hubRewardedAdNotice = `+${(result.rewardCredits ?? expectedCredits).toLocaleString()} CREDITS`;
         audioManager.playReward();
         hapticsManager.emit('rewardSuccess', `ad:${attemptId}`);
         homeHangar.update(homeHangarData());
@@ -1213,7 +1275,7 @@ async function waitForRewardedAdVerification(attemptId: string): Promise<void> {
 }
 
 async function watchRewardedAd(): Promise<void> {
-  if (!rewardedAdProvider || hubAccount.state !== 'account' || hubRewardedAdPhase !== 'idle') return;
+  if (!rewardedAdProvider || hubRewardedAdPhase !== 'idle') return;
   let attempt: RewardedAdAttempt | undefined;
   hubRewardedAdPhase = 'loading'; hubRewardedAdNotice = undefined;
   hubPilotMenu.refresh(hubPilotMenuData(), true);
@@ -1235,7 +1297,7 @@ async function watchRewardedAd(): Promise<void> {
       await recordRewardedAdEvent(attempt.attemptId, 'qualified');
       hubRewardedAdPhase = 'verifying'; hubRewardedAdNotice = "We're verifying your reward.";
       hubPilotMenu.refresh(hubPilotMenuData(), true);
-      await waitForRewardedAdVerification(attempt.attemptId);
+      await waitForRewardedAdVerification(attempt.attemptId, attempt.rewardCredits);
       return;
     }
     await recordRewardedAdEvent(attempt.attemptId, shown.state === 'closed' ? 'closed' : 'failed');
@@ -1253,18 +1315,12 @@ async function watchRewardedAd(): Promise<void> {
 }
 
 async function openHubRewards(): Promise<void> {
-  if (hubAccount.state !== 'account') {
-    hubAccountNotice = { ok: true, message: 'SIGN IN TO CLAIM DAILY REWARDS' };
-    await openHubPilotMenu('PROFILE', true, !missionJourneyReturnPending);
-    return;
-  }
   recordProductIntent('rewards_viewed');
   await openHubPilotMenu('REWARDS', true, true);
   if (hubRewardedAdStatus?.supported) recordProductIntent('rewarded_ad_offer_viewed');
 }
 
 async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
-  if (hubAccount.state !== 'account') return { ok: false, message: 'Sign in to claim Daily Rewards.' };
   try {
     const response = await apiFetch(apiUrl('/api/daily-reward'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -1281,6 +1337,7 @@ async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
     }
     if (!result.profile || !Number.isFinite(result.credits)) return { ok: false, message: 'Unable to claim reward. Please try again.' };
     applyAuthoritativeHomeProfile(result.profile);
+    await refreshRewardedAdStatus();
     hubRewardNotice = `+${result.credits!.toLocaleString()} CREDITS`;
     hapticsManager.emit('rewardSuccess', `daily:${result.profile.dailyReward?.lastClaimedAt ?? result.serverNow ?? hubServerNow}`);
     homeHangar.update(homeHangarData());
@@ -1370,8 +1427,9 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   citySelector.hidden = true;
   missionJourney.hide();
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
-  if (hubSection === 'REWARDS') appHeader.hide();
-  else showAppHeader(hubSection === 'PROFILE' ? 'PROFILE' : undefined);
+  showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
+  playMenuEntrance(pilotMenuOverlay);
+  if (hubSection === 'REWARDS') appHeader.focusBack();
   if (refresh) await refreshHubPilotData();
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
   if (entryState === 'PILOT_MENU') await garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
@@ -1531,6 +1589,7 @@ async function openGameStore(recordOpen = true): Promise<void> {
   gameStore.setBackLabel('BACK TO HUB');
   gameStore.open(authoritativeHomeProfile ? garageProfile : undefined, hubAccount.state === 'account', true);
   gameStore.setTokenSpendingAvailable(skyTokenCommerceEnabled);
+  playMenuEntrance(gameStoreElement);
   try {
     const [catalog, profile] = await Promise.all([
       matchingPricingCatalog(),
@@ -1715,6 +1774,7 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSI
   showAppHeader('GARAGE');
   const request = ++garageOpenRequest;
   garage.open(garageProfile, true);
+  playMenuEntrance(garageOverlay);
   try {
     const profile = await loadGarageProfile();
     if (entryState !== 'AIRCRAFT' || request !== garageOpenRequest) return;
@@ -1747,6 +1807,7 @@ function showHome(): Promise<void> {
   missionJourney.hide();
   homeHangar.show(homeHangarData());
   showAppHeader(undefined);
+  playMenuEntrance(homeHangarElement);
   appHeader.aircraftPreviewHost.title = homeHangarData().aircraftName;
   return garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
 }
@@ -1778,22 +1839,22 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   citySelector.dataset.view = 'cities';
   garage.close();
   citySelector.hidden = false;
-  showAppHeader(undefined);
   cityOptions.hidden = false;
   timeOptions.hidden = true;
   cityBack.textContent = 'BACK TO PILOT HUB';
-  citySelectTitle.textContent = cityJourneyMode === 'missions' ? 'CITY JOURNEY' : 'FREE FLY';
+  citySelectTitle.textContent = 'CHOOSE CITY';
+  showAppHeader(undefined);
   citySelectDescription.textContent = 'Choose your city.';
   cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : 'Free Fly cities');
   cityHelp.setAttribute('aria-label', `${cityJourneyMode === 'missions' ? 'Missions' : 'Free Fly'} help`);
   cityHelpCopy.textContent = cityJourneyMode === 'missions'
     ? 'Use the arrows, swipe, or tap a nearby city. Choose Dallas to view its missions, or Milwaukee to start training. Locked cities cannot launch.'
     : 'Use the arrows, swipe, or tap a nearby city. Choose Continue, pick a time, and fly freely. Milwaukee is a training city; Dallas supports multiplayer. Locked cities cannot launch.';
-  cityJourneyHint.classList.remove('is-dismissed');
   cityJourneyIndex = preferredCityJourneyIndex(options.preferDallas === true);
   renderCityJourney();
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
+  playMenuEntrance(citySelector);
 }
 
 function showMissionJourney(pushHistory = true, refreshProgress = true): void {
@@ -1817,6 +1878,7 @@ function showMissionJourney(pushHistory = true, refreshProgress = true): void {
   missionJourney.show(window.history.state?.missionDetailsOpen === true);
   if (refreshProgress) void refreshJourneyProgress();
   showAppHeader(undefined);
+  playMenuEntrance(missionJourneyElement);
 }
 
 function leaveMissionJourney(): void {
@@ -2005,21 +2067,22 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
   timeOptions.hidden = false;
   cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSION JOURNEY' : 'BACK TO CITIES';
   citySelectTitle.textContent = 'CHOOSE TIME';
+  showAppHeader(undefined);
   citySelectDescription.textContent = `${city.displayName} · Choose a time to fly.`;
   let preferred = 'dusk';
   try { preferred = localStorage.getItem(`airport-chaos-time-${city.id}`) ?? 'dusk'; } catch { /* default dusk */ }
   preferred = resolveCityTimePreset(city, preferred);
   for (const preset of city.timePresets) {
     const option = document.createElement('article');
-    option.className = 'city-option city-time-option';
+    option.className = 'menu-selection-card city-option city-time-option';
     option.classList.add(`city-${city.id}`);
     option.classList.add(`city-time-${preset}`);
     if (preset === preferred) option.classList.add('is-preferred');
     const art = document.createElement('div');
-    art.className = 'city-time-art';
+    art.className = 'menu-selection-card-art city-time-art';
     art.setAttribute('aria-hidden', 'true');
     const copy = document.createElement('div');
-    copy.className = 'city-option-copy';
+    copy.className = 'menu-selection-card-copy city-option-copy';
     const label = document.createElement('strong');
     label.textContent = preset.toUpperCase();
     const description = document.createElement('span');
@@ -2036,10 +2099,11 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
         showSelector('Unable to load this city.');
       });
     });
-    copy.append(label, description);
-    option.append(art, copy, button);
+    copy.append(label, description, button);
+    option.append(art, copy);
     timeOptions.append(option);
   }
+  playMenuEntrance(citySelector);
 }
 function returnFromTimeSelection(): void {
   if (window.history.state?.airportChaosEntryView === 'TIME_SELECTION') window.history.back();
@@ -2238,8 +2302,18 @@ async function start(): Promise<void> {
     gameStore.restoreContext(storeContext.category, storeContext.itemId);
     await openGameStore();
   } else if (storeContext && authResult === 'failed') clearPendingStoreContext();
+  const startupMenuRoot = skyTokenStore.isOpen() ? document.querySelector<HTMLElement>('.sky-token-overlay')
+    : entryState === 'PILOT_MENU' ? pilotMenuOverlay
+    : entryState === 'AIRCRAFT' ? garageOverlay
+    : entryState === 'STORE' ? gameStoreElement
+    : entryState === 'CITY_SELECTION' ? citySelector
+    : entryState === 'MISSION_JOURNEY' ? missionJourneyElement
+    : entryState === 'HANGAR' && homeHangar.isVisible() ? homeHangarElement : null;
+  if (startupMenuRoot) prepareMenuEntrance(startupMenuRoot);
   startupLoading.update(1);
   await startupLoading.finish();
+  menuEntrancesEnabled = true;
+  revealMenuEntrance();
   if (Capacitor.getPlatform() === 'ios' && entryState !== 'FLIGHT' && entryState !== 'TUTORIAL') {
     void audioManager.unlock();
   }

@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { landingGradeForScore, type LandingGrade } from '../../shared/landing-scoring.mjs';
 import { isPerfectLandingGrade } from '../../shared/gameplay-cinematic-rules.mjs';
 import { PlayerWallet } from './player-wallet.js';
 
 export type JourneyAttemptStatus = 'READY' | 'APPROACH' | 'RACING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
+export const JOURNEY_PAUSE_LIMIT_MS = journeyPauseLimitMs;
 export type JourneyAttempt = {
   attemptId: string; pilotId: string; missionId: string; cityId: string; aircraftType: string;
   targetId: string | null; secondaryTargetId: string | null;
@@ -170,6 +172,7 @@ export class JourneyAttemptStore {
     if (!columns.some(column => column.name === 'landing_score')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN landing_score INTEGER');
     if (!columns.some(column => column.name === 'capture_ms')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN capture_ms INTEGER NOT NULL DEFAULT 0');
     if (!columns.some(column => column.name === 'paused_at')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN paused_at INTEGER');
+    this.database.exec("CREATE INDEX IF NOT EXISTS journey_paused_attempts ON journey_attempts(paused_at) WHERE paused_at IS NOT NULL AND status IN ('READY','APPROACH','RACING')");
     if (!columns.some(column => column.name === 'approach_cycle')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN approach_cycle INTEGER NOT NULL DEFAULT 0');
     if (!columns.some(column => column.name === 'double_phase')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN double_phase TEXT');
     if (!columns.some(column => column.name === 'legendary_phase')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN legendary_phase TEXT');
@@ -196,10 +199,22 @@ export class JourneyAttemptStore {
     return this.get(pilotId, attemptId);
   }
 
+  expirePaused(now = Date.now()): JourneyAttempt[] {
+    const rows = this.database.prepare(`UPDATE journey_attempts
+      SET status = 'FAILED', failure_reason = 'PAUSE_EXPIRED', finished_at = ?, paused_at = NULL
+      WHERE paused_at IS NOT NULL AND paused_at <= ? AND status IN ('READY','APPROACH','RACING')
+      RETURNING *`).all(now, now - JOURNEY_PAUSE_LIMIT_MS) as AttemptRow[];
+    return rows.map(attempt);
+  }
+
   resume(pilotId: string, attemptId: string, now = Date.now()): { attempt: JourneyAttempt; pausedMs: number } | undefined {
     const current = this.get(pilotId, attemptId);
     if (!current || current.pausedAt === null || !['READY', 'APPROACH', 'RACING'].includes(current.status)) return undefined;
     const pausedMs = Math.max(0, now - current.pausedAt);
+    if (pausedMs >= JOURNEY_PAUSE_LIMIT_MS) {
+      this.fail(pilotId, attemptId, 'PAUSE_EXPIRED', now);
+      return undefined;
+    }
     this.database.prepare(`UPDATE journey_attempts SET paused_at = NULL,
       created_at = created_at + ?, started_at = started_at + ?, deadline_at = deadline_at + ?,
       prepare_until = prepare_until + ?, last_gate_at = last_gate_at + ?,
@@ -377,21 +392,23 @@ export class JourneyAttemptStore {
       .run(now, now + journeyDallas07.timeLimitMs, pilotId, attemptId, journeyDallas07.id).changes;
     return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
-  hitTransport(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    return this.hitEncounter(pilotId, attemptId, journeyDallas07, now);
+  hitTransport(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
+    return this.hitEncounter(pilotId, attemptId, journeyDallas07, now, damage);
   }
 
   /** Only the server projectile simulation invokes this after a swept body hit. */
-  hitMonster(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    return this.hitEncounter(pilotId, attemptId, journeyDallas19, now);
+  hitMonster(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
+    return this.hitEncounter(pilotId, attemptId, journeyDallas19, now, damage);
   }
 
-  private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number): JourneyAttempt | undefined {
+  private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number, damage?: number): JourneyAttempt | undefined {
     return this.wallet.transaction(wallet => {
       const current = this.get(pilotId, attemptId);
       if (current?.missionId !== mission.id || current.status !== 'RACING' || current.monsterHealth === null || current.monsterHealth <= 0 ||
         current.startedAt === null || current.deadlineAt === null || now >= current.deadlineAt) return undefined;
-      const health = Math.max(0, current.monsterHealth - 25);
+      const hitDamage = damage ?? projectileDamageForAircraft(current.aircraftType);
+      if (!Number.isInteger(hitDamage) || hitDamage <= 0) return undefined;
+      const health = Math.max(0, current.monsterHealth - hitDamage);
       if (health > 0) {
         this.database.prepare(`UPDATE journey_attempts SET monster_health = ? WHERE pilot_id = ? AND attempt_id = ?
           AND status = 'RACING' AND monster_health = ?`).run(health, pilotId, attemptId, current.monsterHealth);
@@ -1031,15 +1048,15 @@ export class JourneyAttemptStore {
     });
   }
 
-  fail(pilotId: string, attemptId: string, reason: 'TIME_UP' | 'CRASHED' | 'MONSTER_KILLED' | 'INTERRUPTED' | 'INVALID' | 'PURSUIT_INTERRUPTED' | 'ACE_INTERRUPTED' | 'CROSSFIRE_INTERRUPTED' | 'DEFENSE_INTERRUPTED' | 'DOUBLE_INTERRUPTED', now = Date.now()): JourneyAttempt | undefined {
-    this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', failure_reason = ?, finished_at = ?
+  fail(pilotId: string, attemptId: string, reason: 'TIME_UP' | 'CRASHED' | 'MONSTER_KILLED' | 'INTERRUPTED' | 'INVALID' | 'PURSUIT_INTERRUPTED' | 'ACE_INTERRUPTED' | 'CROSSFIRE_INTERRUPTED' | 'DEFENSE_INTERRUPTED' | 'DOUBLE_INTERRUPTED' | 'PAUSE_EXPIRED', now = Date.now()): JourneyAttempt | undefined {
+    this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', failure_reason = ?, finished_at = ?, paused_at = NULL
       WHERE pilot_id = ? AND attempt_id = ? AND status IN ('READY','APPROACH','RACING')`)
       .run(reason, now, pilotId, attemptId);
     return this.get(pilotId, attemptId);
   }
 
   abandon(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    this.database.prepare(`UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'ABANDONED', finished_at = ?
+    this.database.prepare(`UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'ABANDONED', finished_at = ?, paused_at = NULL
       WHERE pilot_id = ? AND attempt_id = ? AND status IN ('READY','APPROACH','RACING')`)
       .run(now, pilotId, attemptId);
     return this.get(pilotId, attemptId);

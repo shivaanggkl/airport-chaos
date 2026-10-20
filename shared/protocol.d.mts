@@ -1,6 +1,11 @@
 export const PROTOCOL_VERSION: number;
 export const COMBAT_RANGE: number;
 export const BASE_PROJECTILE_SPEED: number;
+import type { StableAircraftType } from './aircraft-economy.mjs';
+export const FIRE_RATE_PER_SECOND: Readonly<Record<StableAircraftType, number>>;
+export function fireIntervalMs(aircraftType: StableAircraftType): number;
+export const PROJECTILE_DAMAGE_BY_AIRCRAFT: Readonly<Record<StableAircraftType, number>>;
+export function projectileDamageForAircraft(aircraftType: string): number;
 export function ballisticShotSpeed(velocity: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number }): number;
 export const LOCK_ANGLE: number;
 export const AIM_ENVELOPE: number;

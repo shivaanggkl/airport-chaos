@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
 import { addisonClimbGates } from '../../shared/city-challenges.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { JourneyAttemptStore } from './journey-attempts.js';
+import { JourneyAttemptStore, JOURNEY_PAUSE_LIMIT_MS } from './journey-attempts.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 
 test('pausing a mission preserves its gate and remaining time until resume', () => {
@@ -33,6 +33,37 @@ test('pausing a mission preserves its gate and remaining time until resume', () 
     assert.equal(resumed.attempt.gateIndex, 0);
     assert.equal(resumed.attempt.deadlineAt, racing.deadlineAt! + 30_000);
     assert.equal(store.resume('pilot', launched.attemptId, 42_001), undefined);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a paused mission fails after two minutes, including after a server restart', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-journey-pause-expiry-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    const launched = store.launch('pilot', 'trainer', 1_000);
+    store.approach('pilot', launched.attemptId, 1_100);
+    const racing = store.startRookieRush('pilot', launched.attemptId, 2_000)!;
+    store.pause('pilot', launched.attemptId, 12_000);
+    const reopened = new JourneyAttemptStore(path);
+    assert.deepEqual(reopened.expirePaused(12_000 + JOURNEY_PAUSE_LIMIT_MS - 1), []);
+    const expired = reopened.expirePaused(12_000 + JOURNEY_PAUSE_LIMIT_MS);
+    assert.equal(expired.length, 1);
+    assert.equal(expired[0].status, 'FAILED');
+    assert.equal(expired[0].failureReason, 'PAUSE_EXPIRED');
+    assert.equal(expired[0].pausedAt, null);
+    assert.equal(expired[0].deadlineAt, racing.deadlineAt);
+    assert.deepEqual(reopened.expirePaused(12_000 + JOURNEY_PAUSE_LIMIT_MS + 1), []);
+    assert.equal(reopened.resume('pilot', launched.attemptId, 12_000 + JOURNEY_PAUSE_LIMIT_MS + 1), undefined);
+    assert.equal(reopened.progress('pilot').completed, false);
+
+    const second = reopened.launch('pilot', 'trainer', 200_000);
+    reopened.pause('pilot', second.attemptId, 201_000);
+    assert.equal(reopened.resume('pilot', second.attemptId, 201_000 + JOURNEY_PAUSE_LIMIT_MS), undefined);
+    assert.equal(reopened.get('pilot', second.attemptId)?.failureReason, 'PAUSE_EXPIRED');
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -108,6 +139,28 @@ test('Giant Incoming preserves historical clears and wallet caps',()=>{
     assert.equal(store.launch('legacy','trainer',100000,'journey-dallas-08').missionId,'journey-dallas-08');
     const check=new DatabaseSync(path);const history=check.prepare("SELECT first_attempt_id,best_time_ms FROM journey_completions WHERE pilot_id='legacy' AND mission_id='journey-dallas-07'").get() as {first_attempt_id:string;best_time_ms:number};assert.equal(history.first_attempt_id,'historical-elevator');assert.equal(history.best_time_ms,52000);assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id='capped'").get() as {credits:number}).credits,1000000);check.close();
   }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('Giant Incoming applies the damage captured when each shot was fired', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'giant-shot-damage-'));
+  const path = join(directory, 'profiles.sqlite');
+  const db = new DatabaseSync(path);
+  db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");
+  db.close();
+  try {
+    const store = new JourneyAttemptStore(path);
+    const setup = new DatabaseSync(path);
+    setup.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)')
+      .run('pilot', journeyDallas06.id, 'prior-six', 500, 90000);
+    setup.close();
+    const launched = store.launch('pilot', 'fighter', 1_000, journeyDallas07.id);
+    store.approach('pilot', launched.attemptId, 1_100);
+    store.startGiantIncoming('pilot', launched.attemptId, 2_000);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_000, 25)?.monsterHealth, 1_975);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_200)?.monsterHealth, 1_935);
+    assert.equal(store.hitTransport('pilot', launched.attemptId, 3_400, -1), undefined);
+    assert.equal(store.get('pilot', launched.attemptId)?.monsterHealth, 1_935);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('Rookie Rush crossing requires ordered forward travel through the actual opening', () => {

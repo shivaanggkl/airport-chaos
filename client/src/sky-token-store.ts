@@ -32,7 +32,7 @@ export class SkyTokenStore {
   private busy = false;
   private previewOnly = false;
 
-  constructor(private readonly buy: (packId: SkyTokenPackId) => Promise<void>) {
+  constructor(private readonly buy: (packId: SkyTokenPackId) => Promise<void>, private readonly onClose?: () => void) {
     this.overlay.className = 'sky-token-overlay context-fullscreen-page'; this.overlay.hidden = true;
     const panel = document.createElement('section'); panel.className = 'sky-token-panel';
     panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-label', 'Get Sky Tokens');
@@ -104,7 +104,9 @@ export class SkyTokenStore {
   setMessage(message: string): void { this.message.textContent = message; }
   close(): void {
     if (this.busy) return;
+    if (this.overlay.hidden) return;
     this.overlay.hidden = true;
+    this.onClose?.();
     if (this.previousFocus?.isConnected) this.previousFocus.focus();
     this.previousFocus = null;
   }

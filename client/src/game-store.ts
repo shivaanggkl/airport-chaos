@@ -59,6 +59,7 @@ export class GameStore {
   private loading = false;
   private error = '';
   private busy = false;
+  private noticeTimer?: number;
   private tokenSpendingAvailable = false;
   private purchaseAvailable = true;
   private category: StoreCategory = 'FEATURED';
@@ -111,7 +112,7 @@ export class GameStore {
   open(profile: GarageProfile | undefined, authenticated: boolean, loading = false): void {
     const wasClosed = this.element.hidden;
     this.profile = profile; this.authenticated = authenticated; this.profilePending = loading;
-    this.catalog = undefined; this.loading = true; this.error = ''; this.purchaseAvailable = true; this.notice.textContent = '';
+    this.catalog = undefined; this.loading = true; this.error = ''; this.purchaseAvailable = true; this.setNotice('');
     this.element.hidden = false; this.render();
     if (wasClosed) recordProductIntent('store_opened');
   }
@@ -132,7 +133,10 @@ export class GameStore {
   }
   fail(message: string): void { this.loading = false; this.error = message; this.render(); }
   setNotice(message: string): void {
+    if (this.noticeTimer !== undefined) window.clearTimeout(this.noticeTimer);
+    this.noticeTimer = undefined;
     this.notice.textContent = message;
+    this.notice.classList.remove('is-temporary');
   }
   setCategory(category: StoreCategory): void {
     if (category === this.category) return;
@@ -202,15 +206,26 @@ export class GameStore {
     const purchaseItem = storePurchaseTarget(item);
     const state = this.profile ? storeItemState(item, this.profile) : undefined;
     const art = artwork(item, purchaseItem.id);
+    const subtitle = document.createElement('small'); subtitle.className = 'store-art-subtitle'; subtitle.textContent = item.subtitle;
+    art.append(subtitle);
     if (owned) art.append(this.statusBadge('OWNED'));
     card.append(art);
     const copy = document.createElement('div'); copy.className = 'store-card-copy';
-    const subtitle = document.createElement('small'); subtitle.textContent = item.subtitle;
-    const name = document.createElement('strong'); name.textContent = item.name;
-    copy.append(subtitle, name);
-    if (purchaseItem !== item) {
-      const included = document.createElement('span'); included.className = 'store-card-includes';
-      included.textContent = `INCLUDES ${purchaseItem.name}`; copy.append(included);
+    const aircraft = storeAircraft.find(candidate => candidate.aircraftType === item.aircraftType);
+    const aircraftDetail = document.createElement('div'); aircraftDetail.className = 'store-card-detail';
+    const aircraftLabel = document.createElement('span'); aircraftLabel.textContent = 'AIRCRAFT:';
+    const name = document.createElement('strong'); name.textContent = item.kind === 'aircraft' ? item.name : aircraft?.name ?? item.name;
+    aircraftDetail.append(aircraftLabel, name); copy.append(aircraftDetail);
+    const appearance = item.kind === 'paint' ? item
+      : item.aircraftType === 'fighter' ? storePaints.find(paint => paint.id === 'firehawk-inferno')
+        : purchaseItem !== item ? purchaseItem : undefined;
+    if (appearance) {
+      const included = document.createElement('div'); included.className = 'store-card-detail store-card-detail--appearance';
+      const appearanceName = appearance.name.startsWith(`${aircraft?.name} `)
+        ? appearance.name.slice((aircraft?.name.length ?? 0) + 1) : appearance.name;
+      const appearanceLabel = document.createElement('span'); appearanceLabel.textContent = 'APPEARANCE:';
+      const appearanceValue = document.createElement('strong'); appearanceValue.textContent = appearanceName;
+      included.append(appearanceLabel, appearanceValue); copy.append(included);
     }
     const footer = document.createElement('div'); footer.className = 'store-card-footer';
     if (state === 'REQUIRES AIRCRAFT' || (item.included && !this.profile)) {
@@ -232,7 +247,7 @@ export class GameStore {
         unavailable.textContent = 'UNAVAILABLE'; footer.append(unavailable);
       }
       if (item.kind === 'aircraft' && item.aircraftType === 'fighter' && (!this.profile || this.profile.fighterTrial?.status === 'available')) {
-        const trial = this.button('TRY 5 MINUTES', () => void this.performTrial(), 'context-action context-action--gold store-card-action');
+        const trial = this.button('TRY 5 MINUTES', () => void this.performTrial(), 'context-action store-card-action store-card-trial');
         trial.disabled = this.busy; footer.append(trial);
       }
     }
@@ -243,21 +258,22 @@ export class GameStore {
   private cardPurchaseRow(item: StoreItem, purchaseItem: StoreItem, currency: Currency, price: number): HTMLElement {
     const row = document.createElement('div'); row.className = 'store-card-purchase';
     const cost = document.createElement('div'); cost.className = 'store-card-price';
-    cost.append(this.priceLine(price, currency));
     const balance = currency === 'CREDITS' ? this.profile?.credits ?? 0 : this.profile?.skyTokens ?? 0;
     const missing = this.profile ? Math.max(0, price - balance) : 0;
     const tokenUnavailable = currency === 'SKY_TOKENS' && this.authenticated && !this.tokenSpendingAvailable;
-    if (this.purchaseAvailable && (missing || tokenUnavailable)) {
+    if (this.purchaseAvailable && missing && !tokenUnavailable) {
       const hint = document.createElement('small'); hint.className = 'store-card-shortage';
-      hint.textContent = tokenUnavailable ? 'UNAVAILABLE' : `NEED ${missing.toLocaleString()} MORE`;
+      hint.textContent = `NEED ${missing.toLocaleString()} MORE`;
       cost.append(hint);
     }
     const getTokens = !!missing && currency === 'SKY_TOKENS' && !tokenUnavailable;
     const buy = this.button(getTokens ? 'GET TOKENS' : 'BUY',
       () => void this.performUnlock(purchaseItem, currency), 'context-action context-action--gold store-buy');
+    buy.classList.toggle('is-unavailable', tokenUnavailable);
+    buy.replaceChildren(this.priceLine(price, currency));
     buy.setAttribute('aria-label', getTokens ? `Get Sky Tokens to buy ${item.name}`
       : `Buy ${item.name}${purchaseItem !== item ? ` with ${purchaseItem.name}` : ''} for ${price.toLocaleString()} ${currency === 'CREDITS' ? 'Credits' : 'Sky Tokens'}`);
-    buy.disabled = !this.purchaseAvailable || this.busy || tokenUnavailable || (currency === 'CREDITS' && !!missing);
+    buy.disabled = !this.purchaseAvailable || this.busy || (currency === 'CREDITS' && !!missing);
     row.append(cost, buy); return row;
   }
 
@@ -278,8 +294,7 @@ export class GameStore {
     icon.src = currency === 'CREDITS' ? '/media/hub/credits.avif' : '/media/hub/sky-tokens.avif';
     icon.alt = ''; icon.loading = 'lazy';
     const value = document.createElement('strong'); value.textContent = amount.toLocaleString();
-    const unit = document.createElement('small'); unit.textContent = currency === 'CREDITS' ? ' CREDITS' : ' SKY TOKENS';
-    line.append(icon, value, unit); return line;
+    line.append(icon, value); return line;
   }
 
   private button(label: string, action: () => void, className = 'context-action context-action--gold'): HTMLButtonElement {
@@ -290,6 +305,14 @@ export class GameStore {
   private async performUnlock(item: StoreItem, currency: Currency): Promise<void> {
     if (this.busy || !this.purchaseAvailable) return;
     if (currency === 'SKY_TOKENS' && !this.authenticated) { this.handlers.login(); return; }
+    if (currency === 'SKY_TOKENS' && !this.tokenSpendingAvailable) {
+      this.setNotice('SKY TOKEN PURCHASES ARE UNAVAILABLE HERE');
+      this.notice.classList.add('is-temporary');
+      this.noticeTimer = window.setTimeout(() => {
+        this.notice.textContent = ''; this.notice.classList.remove('is-temporary'); this.noticeTimer = undefined;
+      }, 3500);
+      return;
+    }
     const price = this.price(item, currency);
     if (!price) return;
     const missing = Math.max(0, price - (currency === 'CREDITS' ? this.profile?.credits ?? 0 : this.profile?.skyTokens ?? 0));

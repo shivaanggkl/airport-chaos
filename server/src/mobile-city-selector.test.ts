@@ -8,7 +8,8 @@ const missionJourney = readFileSync(new URL('../../client/src/mission-journey.ts
 const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 
 test('City Journey uses live cards and the existing city registry', () => {
-  assert.match(html, /id="city-selector"[\s\S]*data-city-journey-track[\s\S]*data-city-previous[\s\S]*data-city-next[\s\S]*data-city-journey-dots/);
+  assert.match(html, /id="city-selector"[\s\S]*data-city-journey-track[\s\S]*data-city-previous[\s\S]*data-city-next/);
+  assert.doesNotMatch(html, /data-city-journey-dots/);
   assert.match(html, /id="city-help"[\s\S]*id="city-help-dialog"/);
   assert.match(css, /\.city-selector\s*\{[^}]*hangar\.jpg/);
   assert.match(bootstrap, /\.\.\.cities\.map\(\(city, index\) =>/);
@@ -34,7 +35,8 @@ test('Free Fly advertises only supported city features and keeps time selection'
   assert.match(bootstrap, /tutorial\?\.status !== 'started'[\s\S]*START TRAINING IN MISSIONS FIRST/);
   assert.match(bootstrap, /for \(const preset of city\.timePresets\)/);
   assert.match(bootstrap, /void enterCity\(city, preset\)/);
-  assert.match(bootstrap, /cityJourneyMode === 'missions' \? 'CITY JOURNEY' : 'FREE FLY'/);
+  assert.match(bootstrap, /citySelectTitle\.textContent = 'CHOOSE CITY'/);
+  assert.match(bootstrap, /!citySelector\.hidden && citySelector\.dataset\.view === 'time' \? 'CHOOSE TIME'[\s\S]*entryState === 'MISSION_JOURNEY' \? 'CHOOSE MISSION'/);
   assert.match(bootstrap, /cityHelpCopy\.textContent = cityJourneyMode === 'missions'/);
 });
 

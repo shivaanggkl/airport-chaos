@@ -4,9 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import {
   REWARDED_AD_ATTEMPT_LIFETIME_MS,
-  REWARDED_AD_CREDITS,
   REWARDED_AD_MAX_REWARDS,
   REWARDED_AD_WINDOW_MS,
+  rewardedAdCredits,
   type RewardedAdAttemptStatus,
 } from '../../shared/rewarded-ads.mjs';
 import { PlayerWallet } from './player-wallet.js';
@@ -29,6 +29,7 @@ export type RewardedAdStatus = Readonly<{
   provider?: 'ADMOB';
   platform?: RewardedAdPlatform;
   rewardCredits: number;
+  rewardCreditsByStep: readonly number[];
   maxRewards: number;
   remaining: number;
   windowStartedAt?: number;
@@ -65,6 +66,7 @@ type AttemptRow = {
   status: RewardedAdAttemptStatus;
   created_at: number;
   expires_at: number;
+  window_started_at?: number;
   provider_transaction_id?: string;
   wallet_transaction_id?: string;
 };
@@ -165,7 +167,7 @@ export class RewardedAdStore {
     return this.wallet.transaction(() => this.statusWithinTransaction(pilotId, platform, now));
   }
 
-  createAttempt(pilotId: string, platform: RewardedAdPlatform, now = Date.now()): { ok: true; attempt: RewardedAdAttempt; status: RewardedAdStatus } | { ok: false; code: 'UNSUPPORTED' | 'LIMIT_REACHED' | 'ACTIVE_ATTEMPT'; status: RewardedAdStatus } {
+  createAttempt(pilotId: string, platform: RewardedAdPlatform, now = Date.now()): { ok: true; attempt: RewardedAdAttempt; status: RewardedAdStatus } | { ok: false; code: 'UNSUPPORTED' | 'CLAIM_REQUIRED' | 'LIMIT_REACHED' | 'ACTIVE_ATTEMPT'; status: RewardedAdStatus } {
     const platformConfig = this.platformConfiguration(platform);
     if (!platformConfig?.enabled || !platformConfig.adUnitId || !this.profileExists(pilotId)) {
       return { ok: false, code: 'UNSUPPORTED', status: this.unsupported(platform, now) };
@@ -173,6 +175,7 @@ export class RewardedAdStore {
     const adUnitId = platformConfig.adUnitId;
     return this.wallet.transaction(() => {
       const current = this.statusWithinTransaction(pilotId, platform, now);
+      if (current.windowStartedAt === undefined) return { ok: false as const, code: 'CLAIM_REQUIRED' as const, status: current };
       if (current.remaining <= 0) return { ok: false as const, code: 'LIMIT_REACHED' as const, status: current };
       if (current.activeAttempt) return { ok: false as const, code: 'ACTIVE_ATTEMPT' as const, status: current };
       const attemptId = randomUUID();
@@ -185,7 +188,7 @@ export class RewardedAdStore {
       const status = this.statusWithinTransaction(pilotId, platform, now);
       return {
         ok: true as const,
-        attempt: { attemptId, provider: 'ADMOB' as const, platform, adUnitId, customData: attemptId, expiresAt, rewardCredits: REWARDED_AD_CREDITS },
+        attempt: { attemptId, provider: 'ADMOB' as const, platform, adUnitId, customData: attemptId, expiresAt, rewardCredits: current.rewardCredits },
         status,
       };
     });
@@ -207,18 +210,21 @@ export class RewardedAdStore {
     });
   }
 
-  attemptStatus(pilotId: string, attemptId: string, now = Date.now()): { attemptStatus: RewardedAdAttemptStatus; status: RewardedAdStatus } | undefined {
+  attemptStatus(pilotId: string, attemptId: string, now = Date.now()): { attemptStatus: RewardedAdAttemptStatus; rewardCredits?: number; status: RewardedAdStatus } | undefined {
     if (!referencePattern.test(attemptId)) return undefined;
     return this.wallet.transaction(() => {
       const attempt = this.attempt(attemptId);
       if (!attempt || attempt.pilot_id !== pilotId) return undefined;
       this.expireAttempts(pilotId, now);
       const current = this.attempt(attemptId)!;
-      return { attemptStatus: current.status, status: this.statusWithinTransaction(pilotId, current.platform, now) };
+      const reward = current.wallet_transaction_id
+        ? this.database.prepare('SELECT amount FROM wallet_transactions WHERE transaction_id=?').get(current.wallet_transaction_id) as { amount: number } | undefined
+        : undefined;
+      return { attemptStatus: current.status, rewardCredits: reward?.amount, status: this.statusWithinTransaction(pilotId, current.platform, now) };
     });
   }
 
-  grantVerifiedReward(reward: VerifiedAdMobReward, now = Date.now()): { ok: boolean; duplicate: boolean; rewarded: boolean; pilotId?: string; attemptId?: string; platform?: RewardedAdPlatform; code?: string } {
+  grantVerifiedReward(reward: VerifiedAdMobReward, now = Date.now()): { ok: boolean; duplicate: boolean; rewarded: boolean; pilotId?: string; attemptId?: string; platform?: RewardedAdPlatform; rewardCredits?: number; code?: string } {
     const timestamp = normalizeProviderTimestamp(reward.timestamp);
     if (!referencePattern.test(reward.customData) || !referencePattern.test(reward.transactionId) || !Number.isSafeInteger(timestamp)) {
       return { ok: false, duplicate: false, rewarded: false, code: 'INVALID_CALLBACK' };
@@ -246,14 +252,20 @@ export class RewardedAdStore {
         return { ok: false, duplicate: false, rewarded: false, pilotId: attempt.pilot_id, attemptId: attempt.attempt_id, code: 'ATTEMPT_NOT_ELIGIBLE' };
       }
 
-      const window = this.windowState(attempt.pilot_id, now);
-      if (window.count >= REWARDED_AD_MAX_REWARDS) {
+      const cycleStartedAt = attempt.window_started_at;
+      const validCycle = cycleStartedAt !== undefined && Number.isSafeInteger(cycleStartedAt) &&
+        attempt.created_at >= cycleStartedAt && attempt.created_at < cycleStartedAt + REWARDED_AD_WINDOW_MS &&
+        Boolean(this.database.prepare('SELECT 1 FROM pilot_daily_reward_claims WHERE pilot_id=? AND claimed_at=?').get(attempt.pilot_id, cycleStartedAt));
+      if (!validCycle) return { ok: false, duplicate: false, rewarded: false, pilotId: attempt.pilot_id, attemptId: attempt.attempt_id, code: 'CLAIM_REQUIRED' };
+      const completed = this.completedCount(attempt.pilot_id, cycleStartedAt);
+      if (completed >= REWARDED_AD_MAX_REWARDS) {
         return { ok: false, duplicate: false, rewarded: false, pilotId: attempt.pilot_id, attemptId: attempt.attempt_id, code: 'LIMIT_REACHED' };
       }
+      const credits = rewardedAdCredits[completed]!;
       const walletResult = wallet.credit({
         pilotId: attempt.pilot_id,
         currency: 'CREDITS',
-        amount: REWARDED_AD_CREDITS,
+        amount: credits,
         reason: 'REWARDED_AD',
         idempotencyKey: `rewarded-ad:${reward.transactionId}`,
         referenceId: attempt.attempt_id,
@@ -262,15 +274,11 @@ export class RewardedAdStore {
       });
       if (!walletResult.ok || !walletResult.applied || !walletResult.transactionId) throw new Error('Rewarded ad wallet grant failed');
 
-      const windowStartedAt = window.startedAt ?? now;
       this.database.prepare(`INSERT INTO rewarded_ad_provider_transactions(provider,transaction_id,attempt_id,received_at)
         VALUES('ADMOB',?,?,?)`).run(reward.transactionId, attempt.attempt_id, now);
       this.database.prepare(`UPDATE rewarded_ad_attempts SET status='REWARDED',provider_transaction_id=?,wallet_transaction_id=?,verified_at=?,updated_at=?
         WHERE attempt_id=? AND status IN (${activeAttemptStatuses})`).run(reward.transactionId, walletResult.transactionId, now, now, attempt.attempt_id);
-      this.database.prepare(`INSERT INTO rewarded_ad_windows(pilot_id,window_started_at,successful_count,updated_at) VALUES(?,?,1,?)
-        ON CONFLICT(pilot_id) DO UPDATE SET window_started_at=excluded.window_started_at,successful_count=?,updated_at=excluded.updated_at`)
-        .run(attempt.pilot_id, windowStartedAt, now, window.count + 1);
-      return { ok: true, duplicate: false, rewarded: true, pilotId: attempt.pilot_id, attemptId: attempt.attempt_id, platform: attempt.platform };
+      return { ok: true, duplicate: false, rewarded: true, pilotId: attempt.pilot_id, attemptId: attempt.attempt_id, platform: attempt.platform, rewardCredits: credits };
     });
   }
 
@@ -288,7 +296,7 @@ export class RewardedAdStore {
   }
 
   private unsupported(platform: RewardedAdPlatform, now: number): RewardedAdStatus {
-    return { supported: false, platform, rewardCredits: REWARDED_AD_CREDITS, maxRewards: REWARDED_AD_MAX_REWARDS, remaining: 0, serverNow: now };
+    return { supported: false, platform, rewardCredits: rewardedAdCredits[0]!, rewardCreditsByStep: rewardedAdCredits, maxRewards: REWARDED_AD_MAX_REWARDS, remaining: 0, serverNow: now };
   }
 
   private profileExists(pilotId: string): boolean {
@@ -304,14 +312,17 @@ export class RewardedAdStore {
       WHERE pilot_id=? AND status IN (${activeAttemptStatuses}) AND expires_at<=?`).run(now, pilotId, now);
   }
 
+  private completedCount(pilotId: string, cycleStartedAt: number): number {
+    const row = this.database.prepare("SELECT COUNT(*) AS count FROM rewarded_ad_attempts WHERE pilot_id=? AND window_started_at=? AND status='REWARDED'")
+      .get(pilotId, cycleStartedAt) as { count: number };
+    return row.count;
+  }
+
   private windowState(pilotId: string, now: number): { startedAt?: number; count: number } {
-    this.database.prepare('INSERT OR IGNORE INTO rewarded_ad_windows(pilot_id,window_started_at,successful_count,updated_at) VALUES(?,NULL,0,?)').run(pilotId, now);
-    let row = this.database.prepare('SELECT window_started_at,successful_count FROM rewarded_ad_windows WHERE pilot_id=?').get(pilotId) as { window_started_at?: number; successful_count: number };
-    if (Number.isSafeInteger(row.window_started_at) && now >= row.window_started_at! + REWARDED_AD_WINDOW_MS) {
-      this.database.prepare('UPDATE rewarded_ad_windows SET window_started_at=NULL,successful_count=0,updated_at=? WHERE pilot_id=?').run(now, pilotId);
-      row = { successful_count: 0 };
-    }
-    return { startedAt: Number.isSafeInteger(row.window_started_at) ? row.window_started_at : undefined, count: Math.max(0, Math.min(REWARDED_AD_MAX_REWARDS, row.successful_count)) };
+    const row = this.database.prepare('SELECT last_claimed_at FROM pilot_daily_rewards WHERE pilot_id=?').get(pilotId) as { last_claimed_at?: number } | undefined;
+    const startedAt = row?.last_claimed_at;
+    if (!Number.isSafeInteger(startedAt) || now < startedAt! || now >= startedAt! + REWARDED_AD_WINDOW_MS) return { count: 0 };
+    return { startedAt, count: this.completedCount(pilotId, startedAt!) };
   }
 
   private statusWithinTransaction(pilotId: string, platform: RewardedAdPlatform, now: number): RewardedAdStatus {
@@ -323,9 +334,10 @@ export class RewardedAdStore {
       supported: true,
       provider: 'ADMOB',
       platform,
-      rewardCredits: REWARDED_AD_CREDITS,
+      rewardCredits: rewardedAdCredits[window.count] ?? 0,
+      rewardCreditsByStep: rewardedAdCredits,
       maxRewards: REWARDED_AD_MAX_REWARDS,
-      remaining: REWARDED_AD_MAX_REWARDS - window.count,
+      remaining: window.startedAt === undefined ? 0 : Math.max(0, REWARDED_AD_MAX_REWARDS - window.count),
       windowStartedAt: window.startedAt,
       windowEndsAt: window.startedAt === undefined ? undefined : window.startedAt + REWARDED_AD_WINDOW_MS,
       activeAttempt: active ? { attemptId: active.attempt_id, status: active.status, expiresAt: active.expires_at } : undefined,

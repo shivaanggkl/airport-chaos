@@ -5,6 +5,24 @@ export const PROTOCOL_VERSION = 27;
 // validation, unlocked projectile travel, and Hunter firing eligibility.
 export const COMBAT_RANGE = 4500;
 export const BASE_PROJECTILE_SPEED = 520;
+export const FIRE_RATE_PER_SECOND = Object.freeze({
+  trainer: 3.0,
+  cargo: 4.2,
+  privateJet: 4.8,
+  fighter: 6.6,
+});
+export function fireIntervalMs(aircraftType) {
+  return 1_000 / (FIRE_RATE_PER_SECOND[aircraftType] ?? FIRE_RATE_PER_SECOND.trainer);
+}
+export const PROJECTILE_DAMAGE_BY_AIRCRAFT = Object.freeze({
+  trainer: 25,
+  cargo: 30,
+  privateJet: 35,
+  fighter: 40,
+});
+export function projectileDamageForAircraft(aircraftType) {
+  return PROJECTILE_DAMAGE_BY_AIRCRAFT[aircraftType] ?? PROJECTILE_DAMAGE_BY_AIRCRAFT.trainer;
+}
 // Muzzle speed is relative to the firing aircraft, not a fixed world speed
 // that a boosted aircraft can overtake. Keep the validated aim unchanged.
 export function ballisticShotSpeed(velocity, direction) {

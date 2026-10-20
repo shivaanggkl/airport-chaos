@@ -14,7 +14,6 @@ export class HubInfoDialog {
   private readonly status = document.createElement('p');
   private readonly closeButton = document.createElement('button');
   private returnFocus?: HTMLElement;
-  private pendingConfirmation?: (confirmed: boolean) => void;
 
   constructor() {
     this.dialog.className = 'hub-info-dialog';
@@ -110,19 +109,6 @@ export class HubInfoDialog {
     this.showAction(trigger, 'SIGN IN', signIn);
   }
 
-  confirmExistingAccount(trigger: HTMLElement): Promise<boolean> {
-    this.heading.textContent = 'CHECK YOUR PROGRESS';
-    this.lead.textContent = '';
-    this.description.textContent = 'If this is an existing account, its saved profile will load. Your guest progress will not merge and may become inaccessible on this device. Your guest profile will not be deleted.';
-    this.showAction(trigger, 'CONTINUE', () => undefined);
-    this.primary.onclick = () => {
-      this.pendingConfirmation?.(true);
-      this.pendingConfirmation = undefined;
-      this.close();
-    };
-    return new Promise(resolve => { this.pendingConfirmation = resolve; });
-  }
-
   private showAction(trigger: HTMLElement, label: string, action: () => void): void {
     this.balance.hidden = true;
     this.contact.hidden = true;
@@ -138,8 +124,6 @@ export class HubInfoDialog {
   close(): void {
     if (!this.dialog.open) return;
     this.dialog.close();
-    this.pendingConfirmation?.(false);
-    this.pendingConfirmation = undefined;
     this.returnFocus?.focus();
     this.returnFocus = undefined;
   }

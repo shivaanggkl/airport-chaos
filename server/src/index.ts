@@ -39,7 +39,7 @@ import { dallasDisplayNames as place } from '../../shared/dallas-display-names.m
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -58,7 +58,6 @@ import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/cha
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
 import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
-import { REWARDED_AD_CREDITS } from '../../shared/rewarded-ads.mjs';
 import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from './rewarded-ads.js';
 import { ReferralFlightTracker } from './referral-flight.js';
 
@@ -201,6 +200,7 @@ type ProjectileState = {
   projectileId: string;
   ownerId: string;
   cityId: CityId;
+  damage: number;
   position: Vector3;
   direction: Vector3;
   traveled: number;
@@ -349,8 +349,6 @@ const combatTransformFreshMs = 1_500;
 const aircraftCollisionRadius = 2.5;
 const respawnClearance = 24;
 // Straight, unlocked rounds remain fast enough to be readable at flight speed.
-const projectileDamage = 25;
-const fireCooldownMs = 250;
 const spawnProtectionMs = 3000;
 const maxProjectiles = 256;
 const projectileStateBroadcastMs = 50;
@@ -762,7 +760,7 @@ const httpServer = createServer(async (request, response) => {
         const context: AnalyticsContext = { pilotId: granted.pilotId, platform: granted.platform, ...analyticsHost(request.headers.host) };
         analyticsStore.recordEvent(context, 'rewarded_ad_verified', { source: 'admob' });
         analyticsStore.recordEvent(context, 'rewarded_ad_reward_granted', {
-          amount: REWARDED_AD_CREDITS, source: 'admob', metadata: { provider: 'ADMOB' },
+          amount: granted.rewardCredits, source: 'admob', metadata: { provider: 'ADMOB' },
         });
       }
       if (!granted.ok) console.warn('[rewarded-ad] verified callback rejected', granted.code ?? 'unknown');
@@ -1342,7 +1340,7 @@ const httpServer = createServer(async (request, response) => {
     analyticsStore.recordEvent(context, intent.event, intent.cosmeticId || intent.itemId ? { source: intent.itemId ?? intent.cosmeticId,
       metadata: { ...(intent.currency ? { currency: intent.currency } : {}), ...(intent.itemType ? { itemType: intent.itemType } : {}), ...(intent.category ? { category: intent.category } : {}) } }
       : intent.category ? { metadata: { category: intent.category } } : {});
-    if (intent.event === 'rewards_viewed' && session.accountId) {
+    if (intent.event === 'rewards_viewed') {
       const dailyReward = profileStore.dailyRewardState(session.pilotId);
       if (dailyReward?.claimable) analyticsStore.recordEvent(context, 'daily_reward_available',
         { source: String(dailyReward.lastClaimedAt ?? 0), metadata: { day: dailyReward.nextDay } });
@@ -1352,7 +1350,7 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname === '/api/daily-reward') {
     if (request.method !== 'GET' && request.method !== 'POST') { response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return; }
     const session = pilotSessions.resolveSession(request.headers.cookie);
-    if (!session?.accountId) { jsonResponse(response, 401, { error: 'Sign in to claim Daily Rewards.' }); return; }
+    if (!session) { jsonResponse(response, 401, { error: 'Play as Guest or sign in to claim rewards.' }); return; }
     profileStore.getOrCreate(session.pilotId, 'Pilot');
     if (request.method === 'GET') {
       const dailyReward = profileStore.dailyRewardState(session.pilotId);
@@ -1385,7 +1383,7 @@ const httpServer = createServer(async (request, response) => {
   if (requestUrl.pathname.startsWith('/api/rewarded-ads/')) {
     const session = pilotSessions.resolveSession(request.headers.cookie);
     const platform = nativeAuthPlatform(request);
-    if (!session?.accountId || !platform) { jsonResponse(response, 401, { error: 'Rewarded videos require a signed-in mobile account.' }); return; }
+    if (!session || !platform) { jsonResponse(response, 401, { error: 'Rewarded videos require a mobile player session.' }); return; }
     profileStore.getOrCreate(session.pilotId, 'Pilot');
     const clientIp = trustedClientIp(request);
     const statusRequest = request.method === 'GET';
@@ -1418,7 +1416,8 @@ const httpServer = createServer(async (request, response) => {
       const created = rewardedAdStore.createAttempt(session.pilotId, platform);
       if (!created.ok) {
         if (created.code === 'LIMIT_REACHED') analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, 'rewarded_ad_limit_reached', { source: platform });
-        const message = created.code === 'LIMIT_REACHED' ? 'All video rewards are claimed for this reward window.'
+        const message = created.code === 'CLAIM_REQUIRED' ? 'Claim your free hourly reward to unlock videos.'
+          : created.code === 'LIMIT_REACHED' ? 'All video rewards are claimed for this reward window.'
           : created.code === 'ACTIVE_ATTEMPT' ? 'Another rewarded video is already active.'
             : 'Rewarded videos are unavailable.';
         jsonResponse(response, created.code === 'UNSUPPORTED' ? 404 : 409, { error: message, rewardedAds: created.status }); return;
@@ -1441,7 +1440,7 @@ const httpServer = createServer(async (request, response) => {
         : event === 'qualified' ? 'rewarded_ad_pending'
           : event === 'closed' ? 'rewarded_ad_dismissed' : 'rewarded_ad_failed';
       analyticsStore.recordEvent({ pilotId: session.pilotId, ...analyticsHost(request.headers.host) }, eventName, {
-        amount: REWARDED_AD_CREDITS, source: platform, metadata: { provider: 'ADMOB', remaining: status.remaining },
+        amount: status.rewardCredits, source: platform, metadata: { provider: 'ADMOB', remaining: status.remaining },
       });
       jsonResponse(response, 200, { rewardedAds: status }); return;
     }
@@ -2378,7 +2377,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     targetEngaged: target?.bot?.journeyAttemptId === attempt.attemptId && target.bot.journeyProvoked === true,
     crossfireHuntersAlive: attempt.missionId === journeyDallas16.id
       ? [attempt.targetId, attempt.secondaryTargetId].filter(id => id && players.get(id)?.lifeState === 'alive').length : undefined,
-  }, serverNow: attempt.pausedAt ?? Date.now() });
+  }, serverNow: Date.now() });
   if(attempt.missionId===journeyDallas07.id && (attempt.status==='APPROACH'||attempt.status==='RACING')){
     const e=transportEncounters.get(attempt.attemptId),now=attempt.pausedAt ?? Date.now();
     sendToPlayer(playerId,{type:'transportState',attemptId:attempt.attemptId,pose:transportPose(attempt.startedAt===null?0:now-attempt.startedAt,transportFlightAltitude),gunYaw:e?.gunYaw??0,gunPitch:e?.gunPitch??0,warningUntil:e?.warningUntil??0,hitSequence:e?.hitSequence??0,hitPosition:e?.hitPosition,health:attempt.monsterHealth??2000,shots:e?.shots??[],serverNow:now});
@@ -4445,7 +4444,7 @@ function canFire(player: PlayerState, now: number): boolean {
 
 function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
   if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
-  if (now - player.lastFireAt < fireCooldownMs) return 'cooldown';
+  if (now - player.lastFireAt < fireIntervalMs(player.aircraftType)) return 'cooldown';
   return undefined;
 }
 
@@ -4513,6 +4512,7 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
     projectileId: randomUUID(),
     ownerId: playerId,
     cityId: player.cityId,
+    damage: projectileDamageForAircraft(player.aircraftType),
     position: muzzle.position,
     direction,
     traveled: 0,
@@ -4565,7 +4565,7 @@ function broadcastProjectileStates(now: number): void {
   }
 }
 
-function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, shotDistance = 0): boolean {
+function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, damage: number, shotDistance = 0): boolean {
   const victim = players.get(victimId);
   const owner = players.get(ownerId);
   if (
@@ -4620,7 +4620,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if(victim.trainingOwnerId&&ownerId===victim.trainingOwnerId&&profileStore.nextPendingTutorialStep(owner.pilotId)!=='fire')return false;
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
-  victim.health = Math.max(0, victim.health - projectileDamage);
+  const damageDealt = Math.min(victim.health, damage);
+  victim.health -= damageDealt;
   if (victim.health > 0 && !owner.isBot) provokeJourneyHunter(ownerId, owner, victimId, now);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
@@ -4628,7 +4629,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   airportRepairStays.delete(victimId);
   const damageMessage = {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health,
-    maxHealth: victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType), damage: projectileDamage,
+    maxHealth: victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType), damage: damageDealt,
   };
   if (victim.trainingOwnerId) sendToPlayer(victim.trainingOwnerId, damageMessage);
   else broadcastToCity(cityId, damageMessage);
@@ -4845,13 +4846,13 @@ function createAssistedShot(
   // A server-valid lock is an assisted hit.  Damage can only fail here if a
   // concurrent lifecycle transition made the target invalid after validation;
   // do not turn that already-emitted assisted shot into a second ballistic one.
-  if (!applyCombatHit(playerId, targetId, player.cityId, now, Math.hypot(local.x, local.y, local.z))) {
+  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z))) {
     logLockShotReject(playerId, player, targetId, fireTransform, 'damage_state_changed', now);
   }
   return true;
 }
 
-function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number): boolean {
+function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number): boolean {
   const event = cityEvents.get(cityId);
   if (!event || event.lifecycle !== 'active' || (event.type !== 'aceIntercept' && event.type !== 'vipEscort') || !event.bossHealth || event.bossHealth <= 0) return false;
   // This is a server-only event target: it never enters player lock or collision paths.
@@ -4859,15 +4860,16 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   if (distanceToSegmentSquared(bossPosition, start.x, start.y, start.z, end) > 14 * 14) return false;
   const owner = players.get(ownerId);
   if (!owner || owner.tutorialMode || owner.cityId !== cityId || owner.lifeState !== 'alive') return false;
+  const damageDealt = Math.min(event.bossHealth, damage);
   if (event.type === 'vipEscort') {
-    event.bossHealth = Math.max(0, event.bossHealth - projectileDamage);
+    event.bossHealth -= damageDealt;
     if (event.bossHealth > 0) broadcastEvent(event);
     else setEventTerminal(event, 'failed', now);
     return true;
   }
   event.participants.add(ownerId);
-  event.damageContribution.set(ownerId, (event.damageContribution.get(ownerId) ?? 0) + projectileDamage);
-  event.bossHealth = Math.max(0, event.bossHealth - projectileDamage);
+  event.damageContribution.set(ownerId, (event.damageContribution.get(ownerId) ?? 0) + damageDealt);
+  event.bossHealth -= damageDealt;
   if (event.bossHealth > 0) { broadcastEvent(event); return true; }
   const template = eventTemplateFor(event);
   const totalDamage = Math.max(1, [...event.damageContribution.values()].reduce((sum, value) => sum + value, 0));
@@ -4881,7 +4883,7 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   return true;
 }
 
-function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number): boolean {
+function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number): boolean {
   const owner = players.get(ownerId);
   const attemptId = playerJourneyAttempts.get(ownerId);
   if (!owner || owner.isBot || owner.cityId !== 'dallas' || cityId !== 'dallas' || !attemptId) return false;
@@ -4893,7 +4895,7 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   const groundY = dallasTerrain.elevationAt(encounter.x, encounter.z);
   const impact = monsterImpact(encounter, groundY, start, end);
   if (!impact || segmentBlockedByBuildings(start, impact, monsterDistrictBuildings)) return false;
-  const hit = journeyStore.hitMonster(owner.pilotId, attemptId, now);
+  const hit = journeyStore.hitMonster(owner.pilotId, attemptId, now, damage);
   if (!hit) return false;
   encounter.hitSequence++;
   recordMonsterFiringPosition(encounter, owner.position, now);
@@ -4975,7 +4977,7 @@ function updateMonsterEncounters(now: number): void {
   }
 }
 
-function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number): boolean {
+function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number): boolean {
     const owner = players.get(ownerId), id = playerJourneyAttempts.get(ownerId), e = id ? transportEncounters.get(id) : undefined;
     if (!owner || owner.isBot || owner.cityId !== 'dallas' || !e || e.playerId !== ownerId)
         return false;
@@ -4985,7 +4987,7 @@ function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: n
     const hit = transportImpact(start, end, {...transportPose(now - delta * 1000 - e.startedAt, e.altitude),gunYaw:e.gunYaw,gunPitch:e.gunPitch}, {...transportPose(now - e.startedAt, e.altitude),gunYaw:e.gunYaw,gunPitch:e.gunPitch});
     if (!hit || segmentBlockedByBuildings(start, hit, transportBuildings) || hit.y <= dallasTerrain.elevationAt(hit.x, hit.z))
         return false;
-    const result = journeyStore.hitTransport(owner.pilotId, e.attemptId, now);
+    const result = journeyStore.hitTransport(owner.pilotId, e.attemptId, now, damage);
     if (!result)
         return false;
     e.hitSequence++;
@@ -5076,11 +5078,11 @@ function updateProjectiles(deltaSeconds: number): void {
     }
 
     if(missionAttemptId && journeyStore.get(owner.pilotId,missionAttemptId)?.missionId===journeyDallas07.id){
-      if(applyTransportHit(projectile.ownerId,{x:previousX,y:previousY,z:previousZ},projectile.position,now,deltaSeconds)||projectile.traveled>=COMBAT_RANGE||segmentBlockedByBuildings({x:previousX,y:previousY,z:previousZ},projectile.position,transportBuildings)||projectile.position.y<=dallasTerrain.elevationAt(projectile.position.x,projectile.position.z))removeProjectile(projectile.projectileId);
+      if(applyTransportHit(projectile.ownerId,{x:previousX,y:previousY,z:previousZ},projectile.position,now,deltaSeconds,projectile.damage)||projectile.traveled>=COMBAT_RANGE||segmentBlockedByBuildings({x:previousX,y:previousY,z:previousZ},projectile.position,transportBuildings)||projectile.position.y<=dallasTerrain.elevationAt(projectile.position.x,projectile.position.z))removeProjectile(projectile.projectileId);
       continue;
     }
-    if (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now) ||
-      applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now)) {
+    if (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage) ||
+      applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage)) {
       removeProjectile(projectile.projectileId);
       continue;
     }
@@ -5107,7 +5109,7 @@ function updateProjectiles(deltaSeconds: number): void {
 
     if (hitPlayerId) {
       removeProjectile(projectile.projectileId);
-      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.traveled);
+      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.damage, projectile.traveled);
       continue;
     }
 
@@ -5369,7 +5371,7 @@ function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.no
     pilotId: targetId, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId: owner.cityId, position: { x: targetX, y: targetY, z: targetZ },
     rotation: { x: 0, y: owner.rotation.y + Math.PI, z: 0 }, aircraftType: 'trainer',
-    displayName: 'TRAINING TARGET', score: 0, health: projectileDamage, lifeState: 'alive', hasRespawnTransform: true,
+    displayName: 'TRAINING TARGET', score: 0, health: projectileDamageForAircraft('trainer'), lifeState: 'alive', hasRespawnTransform: true,
     lastFireAt: 0, spawnProtectedUntil: 0, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
     lastStateAt: now, lastAcceptedPosition: { x: targetX, y: targetY, z: targetZ }, lastAcceptedTransformAt: now,
     chaosQaEnabled: false, tutorialMode: true, trainingOwnerId: ownerId, territoryIds: new Set(),
@@ -6459,6 +6461,7 @@ setInterval(() => {
 }, 1_000);
 setInterval(() => updateTerritories(Date.now()), territoryTickMs);
 setInterval(() => tickMissions(Date.now()), 1_000);
+setInterval(() => expirePausedJourneys(Date.now()), 1_000);
 setInterval(() => {
   const now = Date.now();
   for (const [playerId, attemptId] of playerJourneyAttempts) {
@@ -6599,7 +6602,7 @@ function pausePlayerJourney(playerId: string, now = Date.now()): boolean {
   pausedJourneyPlayers.set(playerId, { attemptId, accountId: player.accountId, sessionTokenHash: player.sessionTokenHash });
   pausedJourneyAttempts.add(attemptId);
   speedGateTracker.clear(playerId);
-  sendToPlayer(playerId, { type: 'journeyPauseState', attemptId, paused: true });
+  sendToPlayer(playerId, { type: 'journeyPauseState', attemptId, paused: true, pausedAt: attempt.pausedAt, serverNow: Date.now() });
   return true;
 }
 
@@ -6653,6 +6656,7 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
 }
 
 function resumePlayerJourney(playerId: string, now = Date.now()): boolean {
+  expirePausedJourneys(now);
   const paused = pausedJourneyPlayers.get(playerId);
   const player = players.get(playerId);
   if (!paused || !player) return false;
@@ -6664,6 +6668,24 @@ function resumePlayerJourney(playerId: string, now = Date.now()): boolean {
   sendJourneyState(playerId, resumed.attempt);
   sendToPlayer(playerId, { type: 'journeyPauseState', attemptId: paused.attemptId, paused: false });
   return true;
+}
+
+function expirePausedJourneys(now = Date.now()): void {
+  for (const attempt of journeyStore.expirePaused(now)) {
+    const paused = [...pausedJourneyPlayers].find(([, state]) => state.attemptId === attempt.attemptId);
+    if (!paused) continue; // Persisted attempt from a prior server process.
+    const [playerId] = paused;
+    pausedJourneyPlayers.delete(playerId);
+    pausedJourneyAttempts.delete(attempt.attemptId);
+    sendJourneyState(playerId, attempt);
+    removeJourneyHunter(attempt);
+    for (const [socket, connectedId] of playerSockets) {
+      if (connectedId !== playerId) continue;
+      playerSockets.delete(socket);
+      socket.close(4001, 'Mission pause expired');
+    }
+    cleanupHumanPlayer(playerId);
+  }
 }
 
 function cleanupHumanPlayer(playerId: string, socket?: WebSocket): void {
@@ -6781,6 +6803,7 @@ server.on('connection', (socket, request) => {
   if (connectionKind === 'NEW' && !profile.legacyImportPending) connectionKind = 'RECONNECT';
   const activeAircraftType: AircraftType = tutorialMode ? 'trainer' : profile.selectedAircraft;
   const requestedJourneyAttemptId = new URL(request.url ?? '/', 'http://localhost').searchParams.get('journeyAttempt');
+  if (requestedJourneyAttemptId) expirePausedJourneys(Date.now());
   let journeyAttempt: JourneyAttempt | undefined;
   let restoringPausedJourney = false;
   if (requestedJourneyAttemptId) {
@@ -6843,11 +6866,10 @@ server.on('connection', (socket, request) => {
       (paused.accountId && paused.accountId === identity.session.accountId ||
         paused.sessionTokenHash === identity.session.tokenHash) &&
       players.get(id)?.pilotId === profile.pilotId)?.[0];
-    if (candidate.pausedAt !== null && !pausedPlayerId) {
-      sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Mission pause could not be restored. Return to Journey and retry.' });
-      socket.close(4003, 'Journey pause unavailable');
-      return;
-    }
+    // A server restart loses the in-memory aircraft pose. Fail honestly through
+    // the normal result dialog rather than leave a paused attempt inaccessible.
+    const unrestorable = candidate.pausedAt !== null && !pausedPlayerId
+      ? journeyStore.fail(profile.pilotId, requestedJourneyAttemptId, 'INTERRUPTED') : undefined;
     if (pausedPlayerId) {
       for (const [otherSocket, otherId] of playerSockets) if (otherId === pausedPlayerId) {
         removeHumanConnection(otherSocket);
@@ -6856,11 +6878,11 @@ server.on('connection', (socket, request) => {
       playerId = pausedPlayerId;
       restoringPausedJourney = true;
     }
-    journeyAttempt = restoringPausedJourney ? candidate : candidate.status === 'READY'
+    journeyAttempt = unrestorable ?? (restoringPausedJourney ? candidate : candidate.status === 'READY'
       ? journeyStore.approach(profile.pilotId, requestedJourneyAttemptId)
       : candidate.status === 'APPROACH' || candidate.status === 'RACING'
         ? journeyStore.fail(profile.pilotId, requestedJourneyAttemptId, 'INTERRUPTED')
-        : candidate;
+        : candidate);
     if (!journeyAttempt) { socket.close(4003, 'Journey attempt unavailable'); return; }
   }
   const spawnSlot = restoringPausedJourney ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { REWARDED_AD_CREDITS, REWARDED_AD_MAX_REWARDS, REWARDED_AD_WINDOW_MS } from '../../shared/rewarded-ads.mjs';
+import { REWARDED_AD_MAX_REWARDS, REWARDED_AD_WINDOW_MS, rewardedAdCredits } from '../../shared/rewarded-ads.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdConfiguration, type VerifiedAdMobReward } from './rewarded-ads.js';
 
@@ -30,10 +30,15 @@ function verified(attemptId: string, transactionId: string, timestamp: number): 
   return { adUnit: adUnitId, customData: attemptId, rewardAmount: '1', rewardItem: 'reward', timestamp, transactionId };
 }
 
-test('verified rewards grant exactly 250 Credits, enforce one active attempt, and replay idempotently', () => {
+test('free claim unlocks ads; verified first ad grants 50 Credits once', () => {
   const fixture = databaseFixture('airport-chaos-rewarded-ad-');
   try {
     const now = Date.UTC(2026, 0, 1);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', now).remaining, 0);
+    assert.deepEqual(fixture.store.createAttempt('rewarded-pilot', 'android', now), {
+      ok: false, code: 'CLAIM_REQUIRED', status: fixture.store.status('rewarded-pilot', 'android', now),
+    });
+    assert.equal(fixture.profiles.claimDailyReward('rewarded-pilot', now)?.credits, 25);
     assert.equal(fixture.store.status('rewarded-pilot', 'android', now).remaining, REWARDED_AD_MAX_REWARDS);
     const created = fixture.store.createAttempt('rewarded-pilot', 'android', now);
     assert.equal(created.ok, true);
@@ -43,50 +48,61 @@ test('verified rewards grant exactly 250 Credits, enforce one active attempt, an
 
     const granted = fixture.store.grantVerifiedReward(verified(created.attempt.attemptId, 'provider-transaction-1', now + 1), now + 1);
     assert.deepEqual({ ok: granted.ok, duplicate: granted.duplicate, rewarded: granted.rewarded }, { ok: true, duplicate: false, rewarded: true });
-    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, REWARDED_AD_CREDITS);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', now + 1).remaining, 2);
+    assert.equal(granted.rewardCredits, 50);
+    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 75);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', now + 1).remaining, 3);
+    assert.equal(secondDevice.status('rewarded-pilot', 'android', now + 1).remaining, 3);
+    assert.equal(fixture.store.attemptStatus('rewarded-pilot', created.attempt.attemptId, now + 1)?.rewardCredits, 50);
 
     const replay = secondDevice.grantVerifiedReward(verified(created.attempt.attemptId, 'provider-transaction-1', now + 1), now + 2);
     assert.deepEqual({ ok: replay.ok, duplicate: replay.duplicate, rewarded: replay.rewarded }, { ok: true, duplicate: true, rewarded: true });
-    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, REWARDED_AD_CREDITS);
+    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 75);
 
     const database = new DatabaseSync(fixture.path);
     const ledger = database.prepare("SELECT currency,direction,amount,reason,reference_id FROM wallet_transactions WHERE pilot_id=? AND reason='REWARDED_AD'")
       .all('rewarded-pilot').map(row => ({ ...row }));
-    assert.deepEqual(ledger, [{ currency: 'CREDITS', direction: 'CREDIT', amount: 250, reason: 'REWARDED_AD', reference_id: created.attempt.attemptId }]);
+    assert.deepEqual(ledger, [{ currency: 'CREDITS', direction: 'CREDIT', amount: 50, reason: 'REWARDED_AD', reference_id: created.attempt.attemptId }]);
     database.close();
   } finally { rmSync(fixture.directory, { recursive: true, force: true }); }
 });
 
-test('only successful verified rewards consume the global three-per-24-hour allowance', () => {
+test('four optional ads pay 50, 75, 100, 150 Credits per hourly chain', () => {
   const fixture = databaseFixture('airport-chaos-rewarded-window-');
   try {
     const start = Date.UTC(2026, 1, 1);
+    fixture.profiles.claimDailyReward('rewarded-pilot', start);
     const earlyClose = fixture.store.createAttempt('rewarded-pilot', 'android', start);
     assert.equal(earlyClose.ok, true);
     if (!earlyClose.ok) return;
     fixture.store.recordClientEvent('rewarded-pilot', earlyClose.attempt.attemptId, 'closed', start + 1);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + 1).remaining, 3);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + 1).remaining, 4);
 
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       const now = start + 10 + index * 10;
       const created = fixture.store.createAttempt('rewarded-pilot', 'android', now);
       assert.equal(created.ok, true);
       if (!created.ok) return;
-      assert.equal(fixture.store.grantVerifiedReward(verified(created.attempt.attemptId, `provider-window-${index}`, now + 1), now + 1).rewarded, true);
+      assert.equal(created.attempt.rewardCredits, rewardedAdCredits[index]);
+      const granted = fixture.store.grantVerifiedReward(verified(created.attempt.attemptId, `provider-window-${index}`, now + 1), now + 1);
+      assert.equal(granted.rewarded, true);
+      assert.equal(granted.rewardCredits, rewardedAdCredits[index]);
     }
     assert.equal(fixture.store.status('rewarded-pilot', 'android', start + 100).remaining, 0);
     assert.equal(fixture.store.createAttempt('rewarded-pilot', 'android', start + 100).ok, false);
-    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 750);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + 11 + REWARDED_AD_WINDOW_MS).remaining, 3);
+    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 400);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + REWARDED_AD_WINDOW_MS).remaining, 0);
+    fixture.profiles.claimDailyReward('rewarded-pilot', start + REWARDED_AD_WINDOW_MS);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + REWARDED_AD_WINDOW_MS).remaining, 4);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', start + REWARDED_AD_WINDOW_MS).rewardCredits, 50);
   } finally { rmSync(fixture.directory, { recursive: true, force: true }); }
 });
 
-test('invalid, expired, mismatched, and cross-account reward events grant zero Credits', () => {
+test('invalid, expired, mismatched, and cross-account reward events grant no ad Credits', () => {
   const fixture = databaseFixture('airport-chaos-rewarded-reject-');
   try {
     fixture.profiles.getOrCreate('other-pilot', 'Other Pilot');
     const now = Date.UTC(2026, 2, 1);
+    fixture.profiles.claimDailyReward('rewarded-pilot', now);
     const created = fixture.store.createAttempt('rewarded-pilot', 'android', now);
     assert.equal(created.ok, true);
     if (!created.ok) return;
@@ -94,8 +110,8 @@ test('invalid, expired, mismatched, and cross-account reward events grant zero C
     assert.equal(fixture.store.recordClientEvent('other-pilot', created.attempt.attemptId, 'qualified', now), undefined);
     assert.equal(fixture.store.grantVerifiedReward({ ...verified(created.attempt.attemptId, 'wrong-unit', now + 1), adUnit: 'unexpected' }, now + 1).rewarded, false);
     assert.equal(fixture.store.grantVerifiedReward(verified(created.attempt.attemptId, 'expired-event', created.attempt.expiresAt + 1), created.attempt.expiresAt + 1).rewarded, false);
-    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 0);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', created.attempt.expiresAt + 1).remaining, 3);
+    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 25);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', created.attempt.expiresAt + 1).remaining, 4);
   } finally { rmSync(fixture.directory, { recursive: true, force: true }); }
 });
 
@@ -103,16 +119,17 @@ test('wallet, ledger, attempt, and allowance roll back together when reward comp
   const fixture = databaseFixture('airport-chaos-rewarded-rollback-');
   try {
     const now = Date.UTC(2026, 3, 1);
+    fixture.profiles.claimDailyReward('rewarded-pilot', now);
     const created = fixture.store.createAttempt('rewarded-pilot', 'android', now);
     assert.equal(created.ok, true);
     if (!created.ok) return;
     const database = new DatabaseSync(fixture.path);
     database.exec("CREATE TRIGGER reject_reward_completion BEFORE UPDATE OF status ON rewarded_ad_attempts WHEN NEW.status='REWARDED' BEGIN SELECT RAISE(ABORT, 'forced reward failure'); END;");
     assert.throws(() => fixture.store.grantVerifiedReward(verified(created.attempt.attemptId, 'rollback-event', now + 1), now + 1), /forced reward failure/);
-    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 0);
+    assert.equal(fixture.profiles.getOrCreate('rewarded-pilot', 'Rewarded Pilot').credits, 25);
     assert.equal((database.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reason='REWARDED_AD'").get() as { count: number }).count, 0);
     assert.equal((database.prepare('SELECT COUNT(*) AS count FROM rewarded_ad_provider_transactions').get() as { count: number }).count, 0);
-    assert.equal(fixture.store.status('rewarded-pilot', 'android', now + 2).remaining, 3);
+    assert.equal(fixture.store.status('rewarded-pilot', 'android', now + 2).remaining, 4);
     database.close();
   } finally { rmSync(fixture.directory, { recursive: true, force: true }); }
 });
@@ -138,7 +155,7 @@ test('shared client hides unsupported web ads and native callbacks cannot mutate
   const ios = readFileSync(new URL('../../native-auth/ios/Sources/NativeAuthPlugin/NativeRewardedAdPlugin.swift', import.meta.url), 'utf8');
   const android = readFileSync(new URL('../../native-auth/android/src/main/java/com/vadensoftware/airportchaos/nativeauth/NativeRewardedAdPlugin.java', import.meta.url), 'utf8');
   assert.match(provider, /Capacitor\.isNativePlatform\(\)/);
-  assert.match(bootstrap, /hubRewardedAdStatus\?\.supported && rewardedAdProvider/);
+  assert.match(bootstrap, /hubRewardedAdStatus && rewardedAdProvider/);
   assert.match(bootstrap, /VERIFYING|verifying/);
   assert.match(menu, /WATCH & EARN[\s\S]*WATCH VIDEO/);
   assert.doesNotMatch(`${ios}\n${android}`, /credits|wallet|REWARDED_AD/i);

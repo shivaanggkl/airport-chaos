@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { journeyDallas14, journeyDallas15 } from '../../shared/journey-mission.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
+import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { aceDamageAuthorized } from './journey-ace.js';
 import { JourneyAttemptStore } from './journey-attempts.js';
 
@@ -66,11 +67,10 @@ test('boss damage requires the assigned active flight and cannot be forged by an
   assert.equal(missionFocusForAttempt({ missionId: journeyDallas15.id, status: 'RACING' })?.showAmbientAIAircraft, false);
 });
 
-test('Ace uses normal 25-damage projectiles and suppresses ordinary kill Credits', () => {
+test('Ace uses the shooter aircraft damage and suppresses ordinary kill Credits', () => {
   const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.match(source, /const projectileDamage = 25;/);
-  assert.equal(journeyDallas15.bossHealth / 25, 12);
-  assert.match(source, /victim\.health = Math\.max\(0, victim\.health - projectileDamage\)/);
+  assert.equal(journeyDallas15.bossHealth / projectileDamageForAircraft('trainer'), 12);
+  assert.match(source, /victim\.health -= damageDealt/);
   assert.match(source, /victim\.bot\?\.journeyAce[\s\S]*?aceDamageAuthorized/);
   assert.match(source, /linkedAttempt\.missionId === journeyDallas15\.id[\s\S]*?journeyStore\.completeHunter/);
   assert.match(source, /const killReward = campaignTargetDefeat \? \{ \.\.\.baseKillReward, credits: 0 \}/);

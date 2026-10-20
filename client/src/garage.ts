@@ -13,6 +13,7 @@ import { hapticsManager } from './haptics-manager';
 import { createLockIcon } from './lock-icon';
 import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
 import { confirmCatalogPurchase } from './purchase-confirmation';
+import { showFlightDialog } from './flight-dialog';
 
 export type GarageProfile = {
   credits: number;
@@ -630,6 +631,31 @@ export class AircraftGarage {
     this.submitCosmeticAction(id);
   }
 
+  private chooseCosmeticPayment(id: string, name: string, creditPrice: number, tokenPrice: number): void {
+    const credits = this.profile.credits;
+    const tokens = this.profile.skyTokens ?? 0;
+    const canSpendTokens = this.tokenCommerceEnabled && !this.tokenCommercePreview;
+    const creditSummary = credits >= creditPrice
+      ? `${creditPrice.toLocaleString()} Credits · ${(credits - creditPrice).toLocaleString()} left`
+      : `${creditPrice.toLocaleString()} Credits · ${(creditPrice - credits).toLocaleString()} more needed`;
+    const tokenSummary = canSpendTokens
+      ? tokens >= tokenPrice ? `${tokenPrice.toLocaleString()} Sky Tokens · ${(tokens - tokenPrice).toLocaleString()} left`
+        : `${tokenPrice.toLocaleString()} Sky Tokens · ${(tokenPrice - tokens).toLocaleString()} more needed`
+      : `${tokenPrice.toLocaleString()} Sky Tokens · currently unavailable`;
+    showFlightDialog('CHOOSE PAYMENT', `${name}\n${creditSummary}\n${tokenSummary}`, [
+      { label: 'CANCEL', secondary: true, run: () => undefined },
+      { label: credits < creditPrice ? `NEED ${(creditPrice - credits).toLocaleString()} CREDITS` : `UNLOCK · ${creditPrice.toLocaleString()} CREDITS`,
+        run: () => { if (credits >= creditPrice) this.submitCosmeticAction(id, 'CREDITS'); else this.showActionResult('NOT ENOUGH CREDITS'); } },
+      { label: !canSpendTokens ? 'SKY TOKENS UNAVAILABLE'
+        : tokens < tokenPrice ? `GET SKY TOKENS · NEED ${(tokenPrice - tokens).toLocaleString()}` : `UNLOCK · ${tokenPrice.toLocaleString()} SKY TOKENS`,
+        run: () => {
+          if (!canSpendTokens) { this.showActionResult('SKY TOKEN UNLOCKS ARE UNAVAILABLE'); return; }
+          if (tokens < tokenPrice) this.onGetTokens?.(tokenPrice - tokens);
+          else this.submitCosmeticAction(id, 'SKY_TOKENS');
+        } },
+    ]);
+  }
+
   private submitCosmeticAction(id: string, currency?: 'CREDITS' | 'SKY_TOKENS'): void {
     if (this.actionPending || (currency && this.profile.cosmetics?.ownedIds.includes(id) && this.isPermanentlyOwned(this.selected))) return;
     if (currency) recordProductIntent('cosmetic_unlock_started', { cosmeticId: id, aircraftType: this.selected, currency: currency === 'CREDITS' ? 'credits' : 'sky_tokens' });
@@ -692,7 +718,6 @@ export class AircraftGarage {
     const tokenPrice = lockedAppearance ? cosmeticUnlockPrice(lockedAppearance, 'SKY_TOKENS') : undefined;
     get.hidden = creditPrice === undefined || !lockedAppearance;
     if (creditPrice !== undefined || tokenPrice !== undefined) {
-      const missingTokens = Math.max(0, (tokenPrice ?? 0) - (this.profile.skyTokens ?? 0));
       const price = this.element.querySelector<HTMLElement>('[data-garage-price]')!;
       const currencyAmount = (currency: 'credits' | 'sky-tokens', amount: number) => {
         const group = document.createElement('span'); group.className = 'garage-currency-amount'; group.dataset.currency = currency;
@@ -711,18 +736,14 @@ export class AircraftGarage {
       this.element.querySelector<HTMLElement>('.garage-price-row')!.hidden = false;
       if (creditPrice !== undefined) {
         get.textContent = this.selected === 'trainer' ? 'UNLOCK PAINT' : `UNLOCK ${aircraftDefinitions[this.selected].callsign} + ${lockedAppearance!.displayName}`;
-        get.setAttribute('aria-label', `${get.textContent}, ${creditPrice.toLocaleString()} Credits`);
-        get.disabled = this.actionPending || this.profile.credits < creditPrice;
-        get.onclick = () => this.beginCosmeticAction(lockedAppearance!.id, 'CREDITS');
-      }
-      if (tokenPrice !== undefined && this.tokenCommerceEnabled && this.selected !== 'fighter') {
-        const tokenChoice = this.element.querySelector<HTMLElement>('[data-garage-token-choice]')!;
-        const tokenBuy = this.element.querySelector<HTMLButtonElement>('[data-garage-token-buy]')!;
-        tokenChoice.hidden = false;
-        (tokenChoice.firstElementChild as HTMLElement).hidden = creditPrice === undefined;
-        tokenBuy.textContent = `${tokenPrice.toLocaleString()} SKY TOKENS`;
-        tokenBuy.disabled = this.actionPending || this.tokenCommercePreview;
-        tokenBuy.onclick = () => { if (missingTokens) this.onGetTokens?.(missingTokens); else this.beginCosmeticAction(lockedAppearance!.id, 'SKY_TOKENS'); };
+        get.setAttribute('aria-label', tokenPrice === undefined ? `${get.textContent}, ${creditPrice.toLocaleString()} Credits` : `Choose payment to ${get.textContent.toLowerCase()}`);
+        get.disabled = this.actionPending || (this.profile.credits < creditPrice && (!this.tokenCommerceEnabled || this.tokenCommercePreview || tokenPrice === undefined));
+        get.onclick = () => {
+          const name = this.selected === 'trainer' ? lockedAppearance!.displayName
+            : `${aircraftDefinitions[this.selected].callsign} + ${lockedAppearance!.displayName}`;
+          if (tokenPrice !== undefined && this.selected !== 'fighter') this.chooseCosmeticPayment(lockedAppearance!.id, name, creditPrice, tokenPrice);
+          else this.beginCosmeticAction(lockedAppearance!.id, 'CREDITS');
+        };
       }
     }
     const aircraftUse = this.element.querySelector<HTMLButtonElement>('[data-garage-equip]')!;
