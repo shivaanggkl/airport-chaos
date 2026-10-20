@@ -209,6 +209,9 @@ let cinematicDirector: CinematicDirector;
 let missionOneClearStartedAt: number | null = null;
 let missionOneClearAttemptId: string | null = null;
 const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionOneClearStartedAt !== null || flightDialogOpen();
+const journeyPreflightActive = (): boolean => journeyMode &&
+  (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
+    missionStartCountdownPending || missionStartCountdownStartedAt !== null);
 flightGameRoot.classList.toggle('launch-cinematic-pending', flightLaunchState === 'pending');
 document.body.classList.toggle('launch-cinematic-pending', flightLaunchState === 'pending');
 document.body.classList.toggle('practice-mode', cityRules.practiceMode);
@@ -3691,6 +3694,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
 
 function endRun(message: EndReason, title: string = message): void {
   if (crashed) return;
+  if (journeyPreflightActive()) return;
   cinematicDirector.clearPresentation();
   if (journeyMode && connectionReady()) socket.send(JSON.stringify({ type: 'journeyCrash' }));
   if (message === 'CRASHED' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'crash' }));
@@ -4287,9 +4291,7 @@ function beginFlightLaunchCinematic(): void {
   if ((missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath) && matchMedia('(prefers-reduced-motion: reduce)').matches) completeFlightLaunchCinematic();
 }
 
-function completeFlightLaunchCinematic(): void {
-  if (flightLaunchState !== 'active') return;
-  const wasGoldenGateIntro = Boolean(missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath);
+function clearFlightLaunchPresentation(): void {
   journeyGates?.setCoursePreview(false);
   missionOneIntroPath = undefined;
   missionTwoIntroPath = undefined;
@@ -4297,10 +4299,8 @@ function completeFlightLaunchCinematic(): void {
   missionFourIntroPath = undefined;
   missionFiveIntroPath = undefined;
   missionSixIntroPath = undefined;
-  flightLaunchState = 'complete';
   flightLaunchEngineLift = 0;
   resetFlightLaunchInput();
-  runStarted = !missionStartCountdownPending;
   cameraOrbitBlend = 0;
   cameraOrbitRecenterAt = null;
   cameraRelativeOffsetInitialized = false;
@@ -4314,9 +4314,25 @@ function completeFlightLaunchCinematic(): void {
   document.body.style.removeProperty('--launch-hud-opacity');
   document.body.style.removeProperty('--launch-hud-fade-duration');
   document.body.classList.remove('launch-cinematic-pending', 'launch-cinematic-active');
+}
+
+function completeFlightLaunchCinematic(): void {
+  if (flightLaunchState !== 'active') return;
+  const wasGoldenGateIntro = Boolean(missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath);
+  flightLaunchState = 'complete';
+  clearFlightLaunchPresentation();
+  runStarted = !missionStartCountdownPending;
   if (missionStartCountdownPending) beginMissionStartCountdown();
   if (wasGoldenGateIntro) sendLocalState();
   offerDallasPracticeSuggestion(serverProfile);
+}
+
+function abortFlightLaunchCinematic(): void {
+  if (flightLaunchState === 'pending') { cancelPendingFlightLaunch(); return; }
+  if (flightLaunchState !== 'active') return;
+  flightLaunchState = 'disabled';
+  clearFlightLaunchPresentation();
+  runStarted = false;
 }
 
 function cancelPendingFlightLaunch(): void {
@@ -7627,6 +7643,7 @@ function updateLeaderboard(players: LeaderboardPlayer[]): void {
   cityHumanRoster.clear();
   for (const player of players) {
     if (player.cityId !== cityId || player.entityType !== 'player' || player.isBot !== false) continue;
+    if (journeyMode && player.playerId !== localPlayerId) continue;
     cityHumanRoster.set(player.playerId, player);
     if ([player.position?.x, player.position?.z].every(Number.isFinite)) {
       const track = humanRadarTracks.get(player.playerId);
@@ -7647,7 +7664,7 @@ function updateLeaderboard(players: LeaderboardPlayer[]): void {
     if (!remote.isBot && !cityHumanRoster.has(remote.playerId)) removeRemotePlayer(remote.playerId);
   }
 
-  const isFirstPlace = players[0]?.playerId === localPlayerId;
+  const isFirstPlace = !journeyMode && players[0]?.playerId === localPlayerId;
   if (isFirstPlace && !wasFirstPlace) {
     leaderMessageElement.classList.remove('hidden');
     window.clearTimeout(leaderMessageTimer);
@@ -7659,6 +7676,10 @@ function updateLeaderboard(players: LeaderboardPlayer[]): void {
 
 function updateRemotePlayer(player: NetworkPlayer): void {
   if (player.playerId === localPlayerId) return;
+  if (journeyMode && player.isBot !== true) {
+    removeRemotePlayer(player.playerId);
+    return;
+  }
   if (player.cityId !== cityId || ![player.position.x, player.position.y, player.position.z, player.rotation.x, player.rotation.y, player.rotation.z].every(Number.isFinite)) {
     removeRemotePlayer(player.playerId);
     return;
@@ -9137,7 +9158,8 @@ function animate(): void {
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
-  if (!crashed && runStarted && !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id) &&
+  if (!crashed && runStarted && !journeyPreflightActive() &&
+    !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
     // larger than 8m, including a thrust allowance. No extra render/network ticks.
@@ -10423,8 +10445,8 @@ boundSocket.addEventListener('message', (event) => {
     if (message.attempt.missionId === journeyDallas18.id || message.attempt.missionId === journeyDallas21.id) refreshTerritoryBorders();
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
       cancelMissionStartCountdown();
+      abortFlightLaunchCinematic();
       missionObjectiveGuidance?.hide();
-      if (message.attempt.failureReason === 'PAUSE_EXPIRED' || message.attempt.failureReason === 'INTERRUPTED') cancelPendingFlightLaunch();
       if (message.attempt.missionId === journeyDallas19.id && message.attempt.status === 'FAILED' &&
         message.attempt.failureReason === 'TIME_UP' && monsterView) {
         const failedAttempt = message.attempt;

@@ -37,3 +37,20 @@ test('normal launch is client-presentational, aircraft-sized, input-gated, and e
   assert.match(css, /launch-cinematic-active/);
   assert.match(css, /--launch-hud-opacity/);
 });
+
+test('mission preview and countdown cannot simulate flight or report a preflight crash', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  assert.match(main, /const journeyPreflightActive = \(\): boolean => journeyMode &&[\s\S]*missionStartCountdownStartedAt !== null/);
+  assert.match(main, /function endRun\([\s\S]*?if \(journeyPreflightActive\(\)\) return/);
+  assert.match(main, /if \(!crashed && runStarted && !journeyPreflightActive\(\)/);
+  assert.match(server, /if \(message\.type === 'journeyCrash'\) \{[\s\S]*?if \(player\.hasRespawnTransform\) failPlayerJourney\(playerId, 'CRASHED'\)/);
+});
+
+test('a terminal result stops an active intro before it can hand off to flight', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const transport = readFileSync(new URL('../../client/src/giant-incoming.ts', import.meta.url), 'utf8');
+  assert.match(main, /function abortFlightLaunchCinematic\(\)[\s\S]*?flightLaunchState = 'disabled';[\s\S]*?clearFlightLaunchPresentation\(\)/);
+  assert.match(main, /if \(message\.attempt\.status === 'COMPLETED' \|\| message\.attempt\.status === 'FAILED' \|\| message\.attempt\.status === 'ABANDONED'\) \{\s*cancelMissionStartCountdown\(\);\s*abortFlightLaunchCinematic\(\)/);
+  assert.match(transport, /finish\(kind: 'defeat' \| 'timeout'\)[\s\S]*?this\.arrival\?\.dispose\(\);this\.arrival=undefined;this\.arrivalResolve\?\.\(\)/);
+});

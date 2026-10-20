@@ -106,6 +106,7 @@ export class GiantIncomingView {
     finish(kind: 'defeat' | 'timeout') {
         if (this.final || this.disposed) return;
         this.final=kind; this.finalAt=this.elapsed;
+        this.arrival?.dispose();this.arrival=undefined;this.arrivalResolve?.();this.arrivalResolve=undefined;
         this.tracers.forEach(t=>t.visible=false);this.warning.visible=false;
         if(kind==='defeat' && this.state && this.levels.length){
             this.levels.forEach((level,index)=>{level.visible=index===0;});

@@ -22,6 +22,7 @@ import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
+import { journeyInteractionExcluded } from './journey-isolation.js';
 import { boundJourneyHunterPoint, insideJourneyHunterArena, journeyHunterSteeringTarget, keepJourneyHunterInside } from './journey-hunter-airspace.js';
 import { aceDamageAuthorized } from './journey-ace.js';
 import { CrossfireFireCoordinator } from './journey-crossfire.js';
@@ -402,6 +403,8 @@ function allowedFocusedBot(botId: string, pilotId: string): boolean {
   return assignedFocusedHunter(botId, pilotId);
 }
 function focusedBotInteractionExcluded(firstId: string, first: PlayerState, secondId: string, second: PlayerState): boolean {
+  if (journeyInteractionExcluded(firstId, first, playerJourneyAttempts.get(firstId),
+    secondId, second, playerJourneyAttempts.get(secondId))) return true;
   if (monsterFocusedPlayers.has(firstId) || monsterFocusedPlayers.has(secondId)) return true;
   // The assigned formation leader is a visible flight objective, never a combatant.
   if (first.bot?.journeyLeader || second.bot?.journeyLeader) return true;
@@ -7502,7 +7505,11 @@ server.on('connection', (socket, request) => {
         if(a?.missionId===journeyDallas07.id && a.status==='APPROACH' && message.attemptId===id)transportReady.add(id!);
         return;
       }
-      if (message.type === 'journeyCrash') { failPlayerJourney(playerId, 'CRASHED'); return; }
+      if (message.type === 'journeyCrash') {
+        // The intro and start countdown have not produced a gameplay transform yet.
+        if (player.hasRespawnTransform) failPlayerJourney(playerId, 'CRASHED');
+        return;
+      }
 
       if (message.type === 'chaosQa') {
         runChaosQaCommand(player, message.action, message.qaEvent);
