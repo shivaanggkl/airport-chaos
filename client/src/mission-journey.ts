@@ -1,19 +1,10 @@
 import './mission-journey.css';
 import './context-page-shell.css';
 import { hapticsManager } from './haptics-manager';
+import { chapterNames, missionJourneyStages, missionJourneyStatuses } from './mission-journey-model';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
-
-type ChapterNumber = 1 | 2 | 3 | 4;
-type StageImplementation = 'playable' | 'planned';
-
-export type MissionJourneyStage = Readonly<{
-  id: string;
-  number: number;
-  chapter: ChapterNumber;
-  implementation: StageImplementation;
-  x: number;
-  y: number;
-}>;
+export { missionJourneyStages } from './mission-journey-model';
+export type { MissionJourneyStage } from './mission-journey-model';
 
 type FactIcon = 'location' | 'gate' | 'timer' | 'target' | 'health' | 'capture' | 'landing';
 type MissionFact = Readonly<{ icon: FactIcon; label: string }>;
@@ -54,34 +45,10 @@ const factIcons: Readonly<Record<FactIcon, string>> = {
   capture: '<path d="M5 22V3m0 1c5-3 9 3 15 0v11c-6 3-10-3-15 0"/>',
   landing: '<path d="M2 19h20M5 15l7 3 7-3M12 3v13m-3-3 3 3 3-3"/>',
 };
-const chapterRoute: readonly (readonly [number, number])[] = [[8, 72], [25, 62], [42, 52], [59, 42], [76, 32], [92, 22]];
-const stagePositions: readonly (readonly [number, number])[] = Array.from({ length: 24 }, (_, index) => chapterRoute[index % 6]!);
-const chapterNames = ['GOLDEN GATES', 'SKY SIEGE', 'HUNTER BATTLES', 'CITY DEFENDERS'] as const;
-
-export const missionJourneyStages: readonly MissionJourneyStage[] = stagePositions.map(([x, y], index) => ({
-  id: index < 24 ? `journey-dallas-${String(index + 1).padStart(2, '0')}` : `dallas-mission-${String(index + 1).padStart(2, '0')}`,
-  number: index + 1,
-  chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
-  implementation: index < 24 ? 'playable' : 'planned',
-  x,
-  y,
-}));
-
 export class MissionJourney {
   private readonly detail: HTMLElement;
   private readonly stageButtons: HTMLButtonElement[] = [];
-  private readonly routeGradient: SVGStopElement;
-  private readonly routeGradientEdge: SVGStopElement;
-  private readonly chapterNumber: HTMLElement;
-  private readonly chapterName: HTMLElement;
-  private readonly chapterRange: HTMLElement;
-  private readonly chapterCount: HTMLElement;
-  private readonly chapterDots: HTMLButtonElement[] = [];
-  private readonly previousChapter: HTMLButtonElement;
-  private readonly nextChapter: HTMLButtonElement;
-  private chapterSwipe?: { id: number; x: number; y: number };
-  private swipeClickBlockedUntil = 0;
-  private visibleChapter: ChapterNumber = 1;
+  private readonly routeSegments: SVGPathElement[] = [];
   private currentMission = 0;
   private selectedStage = 1;
   private userSelectedStage = false;
@@ -136,74 +103,53 @@ export class MissionJourney {
   private stageTwentyFourCompleted = false;
   private stageTwentyFourEligible = false;
 
-  constructor(private readonly element: HTMLElement, onCities: () => void, onPlayMission: () => void, private readonly onPanelOpen: () => void, _onPanelClose: () => void) {
+  constructor(private readonly element: HTMLElement, onPlayMission: () => void, private readonly onPanelOpen: () => void, _onPanelClose: () => void) {
     element.classList.add('mission-journey');
     element.setAttribute('aria-label', 'Dallas Mission Journey');
     element.innerHTML = `
-      <div class="mission-journey-topbar">
-        <button type="button" class="context-back page-back mission-journey-back" data-mission-cities>BACK TO CITIES</button>
-        <div class="mission-journey-heading context-page-heading menu-page-heading"><h1 class="context-winged-title">CHOOSE MISSION</h1><p>DALLAS • 24 MISSIONS</p></div>
+      <div class="mission-journey-map" aria-label="Dallas missions, four chapters">
+        <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="mission-journey-chapters" aria-hidden="true"></div>
+        <div class="mission-journey-nodes" aria-label="Choose a mission"></div>
       </div>
-      <div class="mission-journey-board" aria-label="Dallas chapter missions">
-        <div class="mission-journey-board-heading">
-          <button type="button" class="mission-journey-chapter-arrow" data-chapter-previous aria-label="Previous chapter">‹</button>
-          <div class="mission-journey-chapter-heading"><span data-chapter-number>CHAPTER 1</span><strong data-chapter-name>GOLDEN GATES</strong><span data-chapter-range>MISSIONS 1–6</span><small data-chapter-count>0 / 6 COMPLETE</small></div>
-          <button type="button" class="mission-journey-chapter-arrow" data-chapter-next aria-label="Next chapter">›</button>
-        </div>
-        <div class="mission-journey-route-area">
-          <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <defs><linearGradient id="mission-journey-route-color" x1="0" y1="0" x2="1" y2="0" objectBoundingBox="true"><stop data-route-stop-a offset="0%" stop-color="#6ae9ff"/><stop data-route-stop-b offset="0%" stop-color="#7289a7"/></linearGradient><marker id="mission-journey-route-arrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0 0 L5 2.5 L0 5Z" fill="#a7bfdb"/></marker></defs>
-            <polyline points="8,72 25,62 42,52 59,42 76,32 92,22 97,19" fill="none" stroke="url(#mission-journey-route-color)" stroke-width="2" vector-effect="non-scaling-stroke" marker-end="url(#mission-journey-route-arrow)"/>
-          </svg>
-          <div class="mission-journey-nodes" aria-label="Chapter missions"></div>
-        </div>
-        <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
-          <div class="mission-journey-detail-copy"><strong><span data-mission-index>MISSION 01</span> · <span data-mission-title></span></strong><p data-mission-objective></p></div>
-          <span class="mission-journey-reward" data-mission-reward role="img"><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><strong data-mission-reward-amount></strong><small data-mission-reward-claimed hidden aria-hidden="true">✓</small></span>
-          <button type="button" class="mission-journey-play" data-mission-play disabled>PLAY MISSION</button>
-        </div>
-      </div>
-      <div class="mission-journey-pagination" aria-label="Chapters"></div>`;
+      <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
+        <img class="mission-journey-detail-image" src="/media/city-journey/mission-dallas-journey.avif" alt="Dallas mission artwork">
+        <div class="mission-journey-detail-copy"><strong><span data-mission-index>MISSION 01</span> · <span data-mission-title></span></strong><p data-mission-objective></p></div>
+        <span class="mission-journey-reward" data-mission-reward role="img"><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><strong data-mission-reward-amount></strong><small data-mission-reward-claimed hidden aria-hidden="true">✓</small></span>
+        <button type="button" class="mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
+      </div>`;
     this.detail = element.querySelector('.mission-journey-detail')!;
-    this.chapterNumber = element.querySelector('[data-chapter-number]')!;
-    this.chapterName = element.querySelector('[data-chapter-name]')!;
-    this.chapterRange = element.querySelector('[data-chapter-range]')!;
-    this.chapterCount = element.querySelector('[data-chapter-count]')!;
-    this.routeGradient = element.querySelector('[data-route-stop-a]')!;
-    this.routeGradientEdge = element.querySelector('[data-route-stop-b]')!;
-    this.previousChapter = element.querySelector('[data-chapter-previous]')!;
-    this.nextChapter = element.querySelector('[data-chapter-next]')!;
-    this.previousChapter.addEventListener('click', () => this.changeChapter(this.visibleChapter - 1));
-    this.nextChapter.addEventListener('click', () => this.changeChapter(this.visibleChapter + 1));
-    const board = element.querySelector<HTMLElement>('.mission-journey-board')!;
-    board.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || (event.target as Element).closest('.mission-journey-chapter-arrow, .mission-journey-detail')) return;
-      this.chapterSwipe = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => {
+      if (this.stageButtons[this.selectedStage - 1]?.disabled) return;
+      hapticsManager.emit('confirmation'); onPlayMission();
     });
-    board.addEventListener('pointerup', event => {
-      if (this.chapterSwipe?.id !== event.pointerId) return;
-      const { x, y } = this.chapterSwipe;
-      this.chapterSwipe = undefined;
-      const dx = event.clientX - x;
-      const dy = event.clientY - y;
-      if (Math.abs(dx) < 42 || Math.abs(dx) <= Math.abs(dy)) return;
-      this.swipeClickBlockedUntil = performance.now() + 350;
-      this.changeChapter(this.visibleChapter + (dx < 0 ? 1 : -1));
-    });
-    board.addEventListener('pointercancel', () => { this.chapterSwipe = undefined; });
-    board.addEventListener('click', event => {
-      if (performance.now() >= this.swipeClickBlockedUntil) return;
-      event.preventDefault();
-      event.stopPropagation();
-    }, true);
-    element.querySelector<HTMLButtonElement>('[data-mission-cities]')!.addEventListener('click', onCities);
-    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => { hapticsManager.emit('confirmation'); onPlayMission(); });
-    const dots = element.querySelector<HTMLElement>('.mission-journey-pagination')!;
+    const chapters = element.querySelector<HTMLElement>('.mission-journey-chapters')!;
     for (let chapter = 1; chapter <= 4; chapter++) {
-      const dot = document.createElement('button');
-      dot.type = 'button'; dot.setAttribute('aria-label', `Chapter ${chapter}`);
-      dot.addEventListener('click', () => this.changeChapter(chapter));
-      dots.append(dot); this.chapterDots.push(dot);
+      const heading = document.createElement('div');
+      heading.className = 'mission-journey-chapter-heading';
+      heading.dataset.chapter = String(chapter);
+      heading.innerHTML = `<strong>CHAPTER ${chapter}</strong><span>${chapterNames[chapter - 1]}</span>`;
+      chapters.append(heading);
+    }
+    const routes = element.querySelector<SVGSVGElement>('.mission-journey-route')!;
+    // The row turn follows the outer edge so it never crosses mission nodes.
+    const rowTurn = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    rowTurn.setAttribute('d', 'M 94 35 C 102 35 102 47 102 60 L 102 90 Q 102 98 94 98 L 12 98 Q 1 98 7 84');
+    rowTurn.classList.add('mission-journey-segment', 'is-transition');
+    rowTurn.dataset.from = '12';
+    routes.append(rowTurn); this.routeSegments.push(rowTurn);
+    for (let number = 1; number < missionJourneyStages.length; number++) {
+      if (number === 12) continue;
+      const from = missionJourneyStages[number - 1]!;
+      const to = missionJourneyStages[number]!;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2 - (number % 6 === 0 ? 3 : 1.5);
+      path.setAttribute('d', `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`);
+      path.classList.add('mission-journey-segment');
+      path.dataset.from = String(number);
+      if (number % 6 === 0) path.classList.add('is-transition');
+      routes.append(path); this.routeSegments.push(path);
     }
     const nodes = element.querySelector<HTMLElement>('.mission-journey-nodes')!;
     for (const stage of missionJourneyStages) {
@@ -213,6 +159,7 @@ export class MissionJourney {
       button.style.left = `${stage.x}%`; button.style.top = `${stage.y}%`;
       button.innerHTML = `${stage.number % 6 === 0 ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span><small class="mission-journey-lock" aria-hidden="true"></small>`;
       button.addEventListener('click', () => this.select(stage.number, true, true));
+      button.addEventListener('keydown', event => this.handleNodeKeydown(event, stage.number));
       nodes.append(button); this.stageButtons.push(button);
     }
     this.select(1, false);
@@ -424,54 +371,41 @@ export class MissionJourney {
 
   private renderProgress(): void {
     const completed = this.completedStages();
-    const eligibleIndex = completed.findIndex((done, index) => !done && this.isStageEligible(index + 1));
-    this.currentMission = eligibleIndex >= 0 ? eligibleIndex + 1 : this.signInRequired && !completed[0] ? 1 : 0;
+    const { currentMission, statuses } = missionJourneyStatuses(completed, completed.map((_, index) => this.isStageEligible(index + 1)), this.signInRequired);
+    this.currentMission = currentMission;
     if (!this.userSelectedStage) this.selectedStage = this.currentMission || (completed.every(Boolean) ? 24 : 1);
+    else if (statuses[this.selectedStage - 1] === 'locked') {
+      this.userSelectedStage = false;
+      this.selectedStage = this.currentMission || 1;
+    }
     this.stageButtons.forEach((button, index) => {
-      const number = index + 1, done = completed[index] === true;
-      const locked = !done && !this.isStageEligible(number) && !(number === 1 && this.signInRequired);
-      button.classList.toggle('is-locked', locked);
-      button.classList.toggle('is-completed', done);
-      button.classList.toggle('is-current', number === this.currentMission);
+      const number = index + 1, status = statuses[index]!;
+      button.classList.toggle('is-locked', status === 'locked');
+      button.classList.toggle('is-completed', status === 'completed');
+      button.classList.toggle('is-current', status === 'current');
       button.classList.toggle('is-selected', number === this.selectedStage);
-      button.disabled = locked;
-      button.hidden = missionJourneyStages[index]!.chapter !== this.visibleChapter;
+      button.disabled = status === 'locked';
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
-      button.setAttribute('aria-label', `Mission ${number}, ${done ? 'completed, select to replay' : number === this.currentMission ? 'current mission' : locked ? 'locked' : 'available'}`);
+      button.setAttribute('aria-label', `Mission ${number}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : status}`);
     });
-    this.renderChapter(completed);
+    for (const segment of this.routeSegments) {
+      const from = Number(segment.dataset.from);
+      segment.classList.toggle('is-lit', completed[from - 1] === true && (completed[from] === true || this.currentMission === from + 1));
+    }
     this.renderDetails();
   }
 
-  private renderChapter(completed = this.completedStages()): void {
-    const chapter = this.visibleChapter;
-    this.chapterNumber.textContent = `CHAPTER ${chapter}`;
-    this.chapterName.textContent = chapterNames[chapter - 1];
-    this.chapterRange.textContent = `MISSIONS ${(chapter - 1) * 6 + 1}–${chapter * 6}`;
-    this.chapterCount.textContent = `${completed.slice((chapter - 1) * 6, chapter * 6).filter(Boolean).length} / 6 COMPLETE`;
-    this.previousChapter.disabled = chapter === 1;
-    this.nextChapter.disabled = chapter === 4;
-    this.chapterDots.forEach((dot, index) => {
-      dot.classList.toggle('is-active', index + 1 === chapter);
-      dot.setAttribute('aria-current', index + 1 === chapter ? 'step' : 'false');
-    });
-    const first = (chapter - 1) * 6;
-    const lastLit = completed.slice(first, first + 6).findIndex((done, index) => !done && first + index + 1 === this.currentMission);
-    const litPosition = lastLit >= 0 ? lastLit : completed.slice(first, first + 6).filter(Boolean).length - 1;
-    const percent = litPosition < 0 ? 0 : [8, 25, 42, 59, 76, 92][litPosition]!;
-    this.routeGradient.setAttribute('offset', `${percent}%`);
-    this.routeGradientEdge.setAttribute('offset', `${percent}%`);
-  }
-
-  private changeChapter(value: number): void {
-    if (value < 1 || value > 4 || value === this.visibleChapter) return;
-    this.visibleChapter = value as ChapterNumber;
-    const first = (value - 1) * 6 + 1;
-    const selectable = missionJourneyStages.slice(first - 1, first + 5).find(stage => !this.stageButtons[stage.number - 1]!.disabled);
-    this.selectedStage = selectable?.number ?? 0;
-    this.userSelectedStage = true;
-    this.renderProgress();
-    hapticsManager.emit('selection');
+  private handleNodeKeydown(event: KeyboardEvent, number: number): void {
+    const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+    if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? this.stageButtons.find(button => !button.disabled)
+      : event.key === 'End' ? [...this.stageButtons].reverse().find(button => !button.disabled)
+        : direction > 0 ? this.stageButtons.slice(number).find(button => !button.disabled)
+          : this.stageButtons.slice(0, number - 1).reverse().find(button => !button.disabled);
+    if (!next) return;
+    next.focus();
+    this.select(Number(next.dataset.stage), true, true);
   }
 
   celebrateStageOne(): void {
@@ -786,12 +720,10 @@ export class MissionJourney {
     this.element.hidden = false;
     this.userSelectedStage = false;
     this.renderProgress();
-    this.visibleChapter = missionJourneyStages[this.selectedStage - 1]!.chapter;
-    this.renderProgress();
     this.panelOpen = false;
   }
 
-  hide(): void { this.chapterSwipe = undefined; this.element.hidden = true; }
+  hide(): void { this.element.hidden = true; }
   closePanel(): void { this.panelOpen = false; }
 
   private setPanelOpen(_open: boolean): void { this.panelOpen = false; }
@@ -800,7 +732,6 @@ export class MissionJourney {
     const stage = missionJourneyStages[number - 1];
     if (!stage || userSelected && this.stageButtons[number - 1]?.disabled) return;
     if (userSelected) { this.userSelectedStage = true; hapticsManager.emit('selection'); }
-    this.visibleChapter = stage.chapter;
     this.selectedStage = number;
     this.renderProgress();
   }
@@ -823,6 +754,7 @@ export class MissionJourney {
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
     this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = locked ? `Complete Mission ${stage.number - 1} to unlock.` : card.objective;
+    this.detail.querySelector<HTMLImageElement>('.mission-journey-detail-image')!.alt = `Dallas Mission ${stage.number} artwork`;
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;
     reward.setAttribute('aria-label', `${card.reward.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
@@ -831,7 +763,7 @@ export class MissionJourney {
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
     play.disabled = locked;
     play.hidden = locked;
-    play.textContent = completed ? 'REPLAY MISSION' : signInRequired ? 'SIGN IN TO PLAY' : 'PLAY MISSION';
+    play.textContent = completed ? 'REPLAY MISSION ▶' : signInRequired ? 'SIGN IN TO PLAY ▶' : 'PLAY MISSION ▶';
     this.detail.classList.toggle('is-locked', locked);
   }
 }

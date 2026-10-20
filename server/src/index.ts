@@ -254,6 +254,7 @@ const transportBuildings = loadTransportBuildings();
 const transportFlightAltitude = transportAltitude(transportBuildings,dallasTerrain.elevationAt);
 const transportEncounters = new Map<string,TransportEncounter>();
 const transportReady = new Set<string>();
+const journeyCountdownComplete = new Set<string>();
 const activeChallenges = new Map<string, ActiveChallenge>();
 const flightRecordCandidates = new Map<string, { topSpeed: number; highestAltitude: number; distance: number }>();
 type PvpChallenge = { id: string; mode: 'dogfight' | 'airportSprint'; challengerId: string; opponentId: string; cityId: CityId; destinationAirportId?: string; status: 'pending' | 'countdown' | 'active'; expiresAt: number; startsAt?: number };
@@ -2333,6 +2334,8 @@ function sendToPlayer(playerId: string, message: object): void {
   }
 }
 function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
+  if (attempt.status === 'COMPLETED' || attempt.status === 'FAILED' || attempt.status === 'ABANDONED')
+    journeyCountdownComplete.delete(attempt.attemptId);
   if(attempt.missionId===journeyDallas07.id && attempt.status==='RACING' && attempt.startedAt!==null){
     const e=transportEncounters.get(attempt.attemptId)??createTransportEncounter(attempt.attemptId,playerId,attempt.startedAt,transportFlightAltitude);
     e.playerId=playerId;transportEncounters.set(attempt.attemptId,e);
@@ -2363,7 +2366,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     ...attempt, aiIsolated: missionFocusedPlayers.has(playerId),
     chapterOneComplete: attempt.missionId === journeyDallas06.id && attempt.status === 'COMPLETED'
       && journeyStore.chapterOneComplete(attempt.pilotId),
-    bestTimeMs: attempt.status === 'COMPLETED' ? attempt.missionId === journeyDallas01.id
+    bestTimeMs: (attempt.status === 'COMPLETED' || attempt.status === 'FAILED') ? attempt.missionId === journeyDallas01.id
       ? journeyStore.rookieRushBestTime(attempt.pilotId) : attempt.missionId === journeyDallas02.id
       ? journeyStore.lakeRacerBestTime(attempt.pilotId) : attempt.missionId === journeyDallas03.id
       ? journeyStore.goldenAscentBestTime(attempt.pilotId) : attempt.missionId === journeyDallas04.id
@@ -6472,17 +6475,18 @@ setInterval(() => {
     const player = players.get(playerId);
     if (!player) continue;
     const attempt = journeyStore.get(player.pilotId, attemptId);
-    if(attempt?.missionId===journeyDallas07.id && attempt.status==='APPROACH' && transportReady.has(attemptId) &&
+    if(attempt?.missionId===journeyDallas07.id && attempt.status==='APPROACH' && transportReady.has(attemptId) && journeyCountdownComplete.has(attemptId) &&
       player.lifeState==='alive' && player.hasRespawnTransform && hasOpenPlayerSocket(playerId)){
       const started=journeyStore.startGiantIncoming(player.pilotId,attemptId,now);if(started)sendJourneyState(playerId,started);
     }
-    if (attempt?.missionId === journeyDallas19.id && attempt.status === 'APPROACH' &&
+    if (attempt?.missionId === journeyDallas19.id && attempt.status === 'APPROACH' && journeyCountdownComplete.has(attemptId) &&
         player.lifeState === 'alive' && player.hasRespawnTransform && hasOpenPlayerSocket(playerId)) {
       const started = journeyStore.startMonsterArrival(player.pilotId, attemptId, now);
       if (started) sendJourneyState(playerId, started);
     }
     const current = journeyStore.get(player.pilotId, attemptId);
-    if (current?.status === 'RACING' && current.deadlineAt && now >= current.deadlineAt) failPlayerJourney(playerId, 'TIME_UP', now);
+    if ((current?.status === 'APPROACH' || current?.status === 'RACING') && current.deadlineAt && now >= current.deadlineAt)
+      failPlayerJourney(playerId, 'TIME_UP', now);
   }
 }, 250);
 setInterval(() => expirePvpChallenges(Date.now()), 1_000);
@@ -7505,6 +7509,20 @@ server.on('connection', (socket, request) => {
         if(a?.missionId===journeyDallas07.id && a.status==='APPROACH' && message.attemptId===id)transportReady.add(id!);
         return;
       }
+      if (message.type === 'journeyCountdownComplete') {
+        const id = playerJourneyAttempts.get(playerId);
+        const attempt = id ? journeyStore.get(player.pilotId, id) : undefined;
+        if (message.attemptId === id && (attempt?.status === 'APPROACH' || attempt?.status === 'RACING') && !pausedJourneyAttempts.has(id!)) {
+          journeyCountdownComplete.add(id!);
+          if (attempt.status === 'APPROACH') {
+            const now = Date.now();
+            const started = journeyStore.startRookieRush(player.pilotId, id!, now)
+              ?? journeyStore.startTimedGateClock(player.pilotId, id!, now);
+            if (started) sendJourneyState(playerId, started);
+          }
+        }
+        return;
+      }
       if (message.type === 'journeyCrash') {
         // The intro and start countdown have not produced a gameplay transform yet.
         if (player.hasRespawnTransform) failPlayerJourney(playerId, 'CRASHED');
@@ -7681,12 +7699,6 @@ server.on('connection', (socket, request) => {
       else if (player.position.y >= flight.baselineY + 8) flight.airborne = true;
       const journeyAttemptId = playerJourneyAttempts.get(playerId);
       const currentJourney = journeyAttemptId ? journeyStore.get(player.pilotId, journeyAttemptId) : undefined;
-      if ((currentJourney?.missionId === journeyDallas01.id || currentJourney?.missionId === journeyDallas02.id || currentJourney?.missionId === journeyDallas03.id || currentJourney?.missionId === journeyDallas04.id || currentJourney?.missionId === journeyDallas05.id || currentJourney?.missionId === journeyDallas06.id) && currentJourney.status === 'APPROACH' &&
-        !firstValidTransform && flight?.airborne &&
-        (player.lifeState === 'alive' || player.lifeState === 'respawning')) {
-        const started = journeyStore.startRookieRush(player.pilotId, journeyAttemptId!, stateNow);
-        if (started) sendJourneyState(playerId, started);
-      }
       const speedGateMeasured = currentJourney?.missionId === journeyDallas13.id && !firstValidTransform
         ? speedGateTracker.record(playerId, journeyAttemptId!, player.position, stateNow) : null;
       if (journeyAttemptId && wasAirborne) {
@@ -7733,7 +7745,7 @@ server.on('connection', (socket, request) => {
           message.position.z <= journeyDallas22.approachRestartZ) {
           const reset = journeyStore.resetPerfectApproach(player.pilotId, journeyAttemptId, active.approachCycle, null, stateNow);
           if (reset) sendJourneyState(playerId, reset);
-        } else if (active && (active.missionId === journeyDallas01.id || active.missionId === journeyDallas02.id || active.missionId === journeyDallas03.id || active.missionId === journeyDallas04.id || active.missionId === journeyDallas05.id || active.missionId === journeyDallas06.id || active.missionId === journeyDallas10.id || active.missionId === journeyDallas11.id || active.missionId === journeyDallas12.id || active.missionId === journeyDallas13.id || active.missionId === journeyDallas16.id || active.missionId === journeyDallas20.id || active.missionId === journeyDallas22.id || active.missionId === journeyDallas24.id && active.legendaryPhase === 'GATES') &&
+        } else if (active && journeyCountdownComplete.has(journeyAttemptId) && (active.missionId === journeyDallas01.id || active.missionId === journeyDallas02.id || active.missionId === journeyDallas03.id || active.missionId === journeyDallas04.id || active.missionId === journeyDallas05.id || active.missionId === journeyDallas06.id || active.missionId === journeyDallas10.id || active.missionId === journeyDallas11.id || active.missionId === journeyDallas12.id || active.missionId === journeyDallas13.id || active.missionId === journeyDallas16.id || active.missionId === journeyDallas20.id || active.missionId === journeyDallas22.id || active.missionId === journeyDallas24.id && active.legendaryPhase === 'GATES') &&
           (active.status === 'APPROACH' || active.status === 'RACING')) {
           if (active.missionId === journeyDallas16.id && !crossfireEncounterValid(active, playerId)) {
             failPlayerJourney(playerId, 'CROSSFIRE_INTERRUPTED', stateNow);

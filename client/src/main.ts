@@ -140,7 +140,7 @@ type JourneyAttemptState = {
   phase?: 'PREPARING' | 'APPROACH_GATES' | 'REPAIR' | 'RACING' | 'LANDING' | 'COMPLETED' | 'FAILED' | 'ABANDONED';
   landingGrade?: 'ROUGH' | 'SAFE' | 'SMOOTH' | 'PERFECT' | 'LEGENDARY' | null;
   landingScore?: number | null; repairCollectedAt?: number | null; approachCycle?: number;
-  gateIndex: number; deadlineAt: number | null; prepareUntil?: number | null; finishTimeMs: number | null;
+  gateIndex: number; deadlineAt: number | null; prepareUntil?: number | null; startedAt: number | null; finishedAt: number | null; finishTimeMs: number | null;
   bestTimeMs?: number; chapterOneComplete?: boolean;
   holdMs: number; captureMs: number;
   followStatus?: FormationStatus;
@@ -1249,6 +1249,14 @@ if (journeyMode) {
   });
 }
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
+const journeyMissionDefinitions = [
+  journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
+  journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
+  journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
+  journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24,
+] as const;
+const journeyMissionHeadings = journeyMissionDefinitions.map((mission, index) =>
+  `M${index + 1}: ${mission.name.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`);
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
 const journeyHudTarget = skyChallengeElement.querySelector<HTMLElement>('[data-journey-target]');
@@ -1270,7 +1278,8 @@ let elevatorDepartureTurnSide: PrecisionTurnSide = null;
 let elevatorDepartureAttemptId: string | null = null;
 const journeyResultElement = document.createElement('div');
 journeyResultElement.className = 'journey-result hidden';
-journeyResultElement.innerHTML = '<div class="journey-result-card"><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
+journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
+const journeyResultCard = journeyResultElement.querySelector<HTMLElement>('.journey-result-card')!;
 flightGameRoot.append(journeyResultElement);
 const missionOneClearElement = document.createElement('div');
 missionOneClearElement.className = 'mission-one-clear hidden';
@@ -2616,7 +2625,8 @@ function updateJourneyHud(): void {
     return;
   }
   const missionNumber = /^journey-dallas-(\d+)$/.exec(journeyAttempt.missionId)?.[1];
-  if (journeyHudHeading) journeyHudHeading.textContent = missionNumber ? `M${Number(missionNumber)}` : 'MISSION';
+  if (journeyHudHeading) journeyHudHeading.textContent = missionNumber
+    ? journeyMissionHeadings[Number(missionNumber) - 1] ?? 'MISSION' : 'MISSION';
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
   if (segments) segments.hidden = elevatorMission || formationMission || recoveryMission || escapeMission || aceMission || criticalMission || siegeMission || breakoutMission || twoFrontsMission || doubleMission || legendaryMission;
   if (journeyHudEnemy) journeyHudEnemy.hidden = !formationMission && !recoveryMission && !escapeMission && !aceMission && !siegeMission && !twoFrontsMission && !(doubleMission && journeyAttempt.doublePhase !== 'REPAIR') && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
@@ -2813,7 +2823,7 @@ function updateJourneyHud(): void {
   }
   const gateIndex = journeyAttempt?.gateIndex ?? 0;
   const racing = journeyAttempt?.status === 'RACING';
-  const timeLeft = racing && journeyAttempt?.deadlineAt
+  const timeLeft = journeyAttempt?.deadlineAt
     ? Math.max(0, Math.ceil((journeyAttempt.deadlineAt - Date.now() - journeyServerTimeOffset) / 1000)) : null;
   const target = journeyGates?.target();
   const distance = target ? Math.round(Math.hypot(airplane.position.x - target.x, airplane.position.y - target.y, airplane.position.z - target.z)) : 0;
@@ -2914,7 +2924,7 @@ function updateJourneyHud(): void {
     if (journeyHudObjective) journeyHudObjective.textContent = instruction;
     if (journeyHudProgress) journeyHudProgress.textContent = `GATES: ${gateIndex}/5`;
     if (journeyHudTarget) journeyHudTarget.textContent = `NEXT: GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
-    if (journeyHudTimer) journeyHudTimer.textContent = preparing ? `PREPARING: ${countdown}… · TIMER: NOT STARTED`
+    if (journeyHudTimer) journeyHudTimer.textContent = preparing ? `PREPARING: ${countdown}…${timeLeft === null ? ' · TIMER: NOT STARTED' : ` · TIME LEFT: ${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`}`
       : timeLeft === null ? 'TIMER: NOT STARTED'
         : `TIME LEFT: ${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`;
     journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
@@ -2962,6 +2972,21 @@ function updateJourneyHud(): void {
   journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
 }
 
+function formatJourneyResultTime(milliseconds: number, tenths = false): string {
+  const seconds = Math.max(0, milliseconds) / 1_000;
+  return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}${tenths ? `.${Math.floor(seconds % 1 * 10)}` : ''}`;
+}
+
+function journeyResultMetric(label: string, value: string): HTMLElement {
+  const metric = document.createElement('div');
+  const caption = document.createElement('span');
+  const amount = document.createElement('strong');
+  caption.textContent = label;
+  amount.textContent = value;
+  metric.append(caption, amount);
+  return metric;
+}
+
 function showJourneyResult(attempt: JourneyAttemptState): void {
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
   if(attempt.missionId===journeyDallas07.id && attempt.status==='COMPLETED' && transportView && !transportView.defeatComplete){
@@ -3006,12 +3031,16 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   crashOverlay.classList.add('hidden');
   flightRecapElement.hidden = true;
   journeyResultElement.classList.remove('hidden');
+  journeyResultElement.classList.add('is-terminal');
   journeyResultElement.classList.toggle('is-success', success);
+  journeyResultElement.classList.toggle('is-failure', !success);
+  journeyResultCard.classList.add('game-card-frame');
+  journeyResultElement.querySelector<HTMLElement>('.journey-result-status-mark')!.textContent = success ? '✓' : '';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = dfwMission ? 'MISSION 01 · GOLDEN GATES' : lakeMission ? 'MISSION 02 · GOLDEN GATES' : ascentMission ? 'MISSION 03 · GOLDEN GATES' : downtownMission ? 'MISSION 04 · GOLDEN GATES' : precisionMission ? 'MISSION 05 · GOLDEN GATES' : legendaryMission ? 'MISSION 24 · CHAPTER 4 FINALE' : doubleMission ? 'MISSION 23 · CHAPTER 4' : perfectMission ? 'MISSION 22 · CHAPTER 4' : twoFrontsMission ? 'MISSION 21 · CHAPTER 4' : switchbackMission ? 'MISSION 20 · CHAPTER 4' : breakoutMission ? (success ? 'CITY DEFENDERS' : '') : siegeMission ? 'MISSION 18 · CHAPTER 3 FINALE' : criticalMission ? 'MISSION 17 · CHAPTER 3' : crossfireMission ? 'MISSION 16 · CHAPTER 3' : aceMission ? 'MISSION 15 · CHAPTER 3' : escapeMission ? 'MISSION 14 · CHAPTER 3' : redlineMission ? 'MISSION 13 · CHAPTER 3' : pendulumMission ? 'MISSION 12 · CHAPTER 2 FINALE' : gravityMission ? 'MISSION 11 · CHAPTER 2' : slalomMission ? 'MISSION 10 · CHAPTER 2' : recoveryMission ? 'MISSION 09 · CHAPTER 2' : formationMission ? 'MISSION 08 · CHAPTER 2' : elevatorMission ? 'MISSION 07 · CHAPTER 2' : championshipMission ? 'MISSION 06 · CHAPTER 1 FINALE' : 'ROOKIE LEAGUE';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? (success ? 'MONSTER ARRIVAL' : '') : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'ACE INTERCEPT' : escapeMission ? 'ESCAPE VECTOR' : redlineMission ? 'REDLINE RUSH' : pendulumMission ? 'SKY PENDULUM' : gravityMission ? 'GRAVITY DROP' : slalomMission ? 'SKYLINE SLALOM' : recoveryMission ? 'ONE HEART LEFT' : formationMission ? 'STAY ON HIS SIX' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success
-    ? legendaryMission ? 'LEGENDARY CHAMPION!' : legendaryMission || doubleMission || perfectMission || twoFrontsMission || switchbackMission || breakoutMission ? 'MISSION COMPLETE!' : siegeMission ? 'CHAPTER 3 COMPLETE!' : pendulumMission ? 'CHAPTER 2 COMPLETE!' : championshipMission && attempt.chapterOneComplete ? 'CHAPTER 1 COMPLETE!' : criticalMission || crossfireMission || aceMission || escapeMission || redlineMission || gravityMission || slalomMission || attempt.firstClearCredits > 0 ? 'MISSION COMPLETE!' : 'MISSION COMPLETED'
-    : 'MISSION FAILED';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = success
+    ? journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION'
+    : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? '' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'ACE INTERCEPT' : escapeMission ? 'ESCAPE VECTOR' : redlineMission ? 'REDLINE RUSH' : pendulumMission ? 'SKY PENDULUM' : gravityMission ? 'GRAVITY DROP' : slalomMission ? 'SKYLINE SLALOM' : recoveryMission ? 'ONE HEART LEFT' : formationMission ? 'STAY ON HIS SIX' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? 'MISSION PASSED' : 'MISSION FAILED';
   const finishSeconds = Math.max(0, (attempt.finishTimeMs ?? 0) / 1000);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
     ? (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) ? `10/10 GOLDEN GATES CLEARED · TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)} · BEST: ${Math.floor((attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0) / 60_000)}:${String(Math.floor(((attempt.bestTimeMs ?? attempt.finishTimeMs ?? 0) / 1_000) % 60)).padStart(2, '0')}`
@@ -3042,12 +3071,31 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : attempt.failureReason === 'DEFENSE_INTERRUPTED' ? 'DEFENSE INTERRUPTED'
       : attempt.failureReason === 'TIME_UP' ? breakoutMission ? 'The monster destroyed Downtown' : twoFrontsMission ? 'TIME EXPIRED' : "TIME'S UP" : attempt.failureReason === 'MONSTER_KILLED' ? 'Your aircraft was destroyed' : attempt.failureReason === 'CRASHED' ? breakoutMission ? 'Your aircraft crashed' : recoveryMission || escapeMission || aceMission || breakoutMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
       : 'FLIGHT INTERRUPTED';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-reward]')!.textContent = success
-    ? legendaryMission ? `+${attempt.firstClearCredits} CREDITS${attempt.firstClearCredits === 0 ? ' · WALLET CAP OR REPLAY' : ' · FIRST CLEAR'} · LEGENDARY PILOT`
-      : attempt.firstClearCredits > 0 ? doubleMission || perfectMission || twoFrontsMission || switchbackMission || breakoutMission || siegeMission || crossfireMission || aceMission || escapeMission || redlineMission || pendulumMission || gravityMission || slalomMission || recoveryMission || formationMission || elevatorMission || championshipMission ? `+${attempt.firstClearCredits} CREDITS · FIRST COMPLETION ONLY`
-      : `+${attempt.firstClearCredits} CREDITS · STAGE ${precisionMission ? '6' : downtownMission ? '5' : ascentMission ? '4' : lakeMission ? '3' : '2'} PREVIEW READY` : 'NO ADDITIONAL JOURNEY CREDITS'
-    : breakoutMission || elevatorMission ? 'Credits lost: 0' : 'NO CREDITS LOST';
-  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? legendaryMission ? 'CONTINUE TO JOURNEY' : 'CONTINUE' : breakoutMission ? 'TRY AGAIN' : 'RETRY MISSION';
+  const resultDetail = journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!;
+  const failureReasonLabel = resultDetail.textContent?.trim() || 'FLIGHT INTERRUPTED';
+  const resultMission = journeyMissionDefinitions.find(mission => mission.id === attempt.missionId);
+  const gateCount = resultMission && 'gates' in resultMission ? resultMission.gates.length : 0;
+  resultDetail.classList.toggle('has-metrics', gateCount > 0);
+  resultDetail.hidden = !success && gateCount === 0;
+  if (gateCount > 0) {
+    const elapsedMs = attempt.finishTimeMs ?? (attempt.startedAt !== null && attempt.finishedAt !== null
+      ? Math.max(0, attempt.finishedAt - attempt.startedAt) : null);
+    const thirdMetric = attempt.bestTimeMs !== undefined
+      ? journeyResultMetric('BEST', formatJourneyResultTime(attempt.bestTimeMs))
+      : success && attempt.landingScore !== null && attempt.landingScore !== undefined
+        ? journeyResultMetric('SCORE', `${attempt.landingScore}/1000`)
+        : journeyResultMetric(success ? 'STATUS' : 'BEST', success ? 'CLEARED' : '—');
+    resultDetail.replaceChildren(
+      journeyResultMetric('GATES', `${attempt.gateIndex} / ${gateCount}`),
+      journeyResultMetric('TIME', elapsedMs === null ? '—' : formatJourneyResultTime(elapsedMs, true)),
+      thirdMetric,
+    );
+  }
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-reward-copy]')!.textContent = success
+    ? attempt.firstClearCredits > 0 ? `+${attempt.firstClearCredits.toLocaleString()} CREDITS` : 'NO ADDITIONAL CREDITS'
+    : attempt.failureReason === 'CRASHED' ? 'AIRCRAFT CRASHED' : failureReasonLabel;
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-loss-copy]')!.hidden = success;
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
   if (success) { if (!dfwMission || missionOneClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
 }
@@ -4250,6 +4298,8 @@ function updateMissionStartCountdown(): void {
   missionStartCountdownElement.setAttribute('aria-label', 'Go');
   missionStartCountdownElement.classList.add('is-go');
   runStarted = true;
+  if (journeyAttempt && connectionReady())
+    socket.send(JSON.stringify({ type: 'journeyCountdownComplete', attemptId: journeyAttempt.attemptId }));
   sendLocalState();
   missionStartCountdownGoTimeout = window.setTimeout(() => {
     missionStartCountdownElement.hidden = true;

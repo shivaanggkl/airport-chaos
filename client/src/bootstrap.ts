@@ -70,7 +70,7 @@ let menuEntranceItems: HTMLElement[] = [];
 function menuContentFor(root: HTMLElement): HTMLElement[] {
   const selectors = root === homeHangarElement ? ['.home-hangar-missions', '.home-hangar-free-fly', '.home-hangar-settings']
     : root === citySelector ? [citySelector.dataset.view === 'time' ? '.city-options' : '.city-journey', '.city-help']
-    : root === missionJourneyElement ? ['.mission-journey-board', '.mission-journey-pagination']
+    : root === missionJourneyElement ? ['.mission-journey-map', '.mission-journey-detail']
     : root === gameStoreElement ? ['.store-category-rail', '.store-content', '.store-notice']
     : root === garageOverlay ? ['.garage-card']
     : root === pilotMenuOverlay ? ['.pilot-menu-card']
@@ -118,7 +118,7 @@ function revealMenuEntrance(): void {
   for (const item of menuEntranceItems) item.classList.replace('menu-entrance-ready', 'menu-entrance');
   menuEntranceCleanup = window.setTimeout(clearMenuEntrance, 1_200);
 }
-const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, playJourneyMission, openMissionDetails, closeMissionDetails);
+const missionJourney = new MissionJourney(missionJourneyElement, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
 let guestQaJourneyAccess = false;
 let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';

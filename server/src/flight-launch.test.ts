@@ -54,3 +54,16 @@ test('a terminal result stops an active intro before it can hand off to flight',
   assert.match(main, /if \(message\.attempt\.status === 'COMPLETED' \|\| message\.attempt\.status === 'FAILED' \|\| message\.attempt\.status === 'ABANDONED'\) \{\s*cancelMissionStartCountdown\(\);\s*abortFlightLaunchCinematic\(\)/);
   assert.match(transport, /finish\(kind: 'defeat' \| 'timeout'\)[\s\S]*?this\.arrival\?\.dispose\(\);this\.arrival=undefined;this\.arrivalResolve\?\.\(\)/);
 });
+
+test('Journey timers wait for GO after the mission start countdown', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const countdown = main.slice(main.indexOf('function updateMissionStartCountdown()'), main.indexOf('function beginFlightLaunchCinematic()'));
+  assert.match(countdown, /if \(remaining > 0\) \{[\s\S]*?return;[\s\S]*?missionStartCountdownStartedAt = null/);
+  assert.match(countdown, /runStarted = true;[\s\S]*?type: 'journeyCountdownComplete', attemptId: journeyAttempt\.attemptId[\s\S]*?sendLocalState\(\)/);
+  assert.match(server, /message\.type === 'journeyCountdownComplete'[\s\S]*?message\.attemptId === id && \(attempt\?\.status === 'APPROACH' \|\| attempt\?\.status === 'RACING'\)[\s\S]*?journeyCountdownComplete\.add\(id!\)/);
+  assert.match(server, /journeyDallas07\.id && attempt\.status==='APPROACH' && transportReady\.has\(attemptId\) && journeyCountdownComplete\.has\(attemptId\)/);
+  assert.match(server, /journeyDallas19\.id && attempt\.status === 'APPROACH' && journeyCountdownComplete\.has\(attemptId\)/);
+  assert.match(server, /journeyCountdownComplete\.add\(id!\);[\s\S]*?startRookieRush\(player\.pilotId, id!, now\)[\s\S]*?startTimedGateClock\(player\.pilotId, id!, now\)/);
+  assert.match(server, /active && journeyCountdownComplete\.has\(journeyAttemptId\) && \(active\.missionId === journeyDallas01\.id/);
+});
