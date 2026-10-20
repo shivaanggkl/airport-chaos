@@ -166,6 +166,20 @@ const unrelatedFocusedBot = (id: string) => focusedBotsAreSafe() &&
 let journeyServerTimeOffset = 0;
 type FlightLaunchState = 'disabled' | 'pending' | 'active' | 'complete';
 const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
+const missionStartCountdownElement = document.createElement('div');
+missionStartCountdownElement.className = 'mission-start-countdown';
+missionStartCountdownElement.setAttribute('role', 'status');
+missionStartCountdownElement.setAttribute('aria-live', 'assertive');
+missionStartCountdownElement.hidden = true;
+missionStartCountdownElement.innerHTML = '<span>3</span>';
+flightGameRoot.append(missionStartCountdownElement);
+const missionStartCountdownNumber = missionStartCountdownElement.querySelector('span')!;
+const MISSION_START_COUNTDOWN_MS = 3_000;
+let missionStartCountdownPending = false;
+let missionStartCountdownStartedAt: number | null = null;
+let missionStartCountdownLastSecond = 0;
+let missionStartCountdownGoTimeout: number | undefined;
+let missionStartCountdownWaitingForTransport = false;
 const flightLaunchTitle = document.createElement('div');
 flightLaunchTitle.className = 'flight-launch-title';
 flightLaunchTitle.setAttribute('aria-hidden', 'true');
@@ -194,7 +208,7 @@ let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
 let missionOneClearStartedAt: number | null = null;
 let missionOneClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionOneClearStartedAt !== null || flightDialogOpen();
+const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionOneClearStartedAt !== null || flightDialogOpen();
 flightGameRoot.classList.toggle('launch-cinematic-pending', flightLaunchState === 'pending');
 document.body.classList.toggle('launch-cinematic-pending', flightLaunchState === 'pending');
 document.body.classList.toggle('practice-mode', cityRules.practiceMode);
@@ -1220,7 +1234,7 @@ const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-mis
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
 if (journeyMode) {
-  skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div><button class="journey-hud-toggle" type="button" aria-label="Hide mission details" aria-expanded="true"><span>HIDE MISSION</span></button>';
+  skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div><button class="journey-hud-toggle" type="button" aria-label="Hide mission details" aria-expanded="true"></button>';
   const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
   missionStatusLayer.classList.add('journey-status-layer');
   missionStatusLayer.prepend(skyChallengeElement);
@@ -1229,7 +1243,6 @@ if (journeyMode) {
     const collapsed = skyChallengeElement.classList.toggle('is-collapsed');
     toggle.setAttribute('aria-expanded', String(!collapsed));
     toggle.setAttribute('aria-label', collapsed ? 'Show mission details' : 'Hide mission details');
-    toggle.querySelector('span')!.textContent = collapsed ? 'SHOW MISSION' : 'HIDE MISSION';
   });
 }
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
@@ -1260,7 +1273,8 @@ const missionOneClearElement = document.createElement('div');
 missionOneClearElement.className = 'mission-one-clear hidden';
 missionOneClearElement.setAttribute('role', 'status');
 missionOneClearElement.setAttribute('aria-label', 'Mission cleared: Rookie Rush');
-missionOneClearElement.innerHTML = '<div class="mission-one-clear-content"><div class="mission-one-clear-sparkles" aria-hidden="true">' + '<i></i>'.repeat(12) + '</div><div class="mission-one-clear-icon" aria-hidden="true"><span></span></div><strong>MISSION CLEARED</strong><span class="mission-one-clear-name">ROOKIE RUSH</span></div>';
+const missionOneFireworkSparks = Array.from({ length: 12 }, (_, index) => `<i style="--angle:${index * 30}deg"></i>`).join('');
+missionOneClearElement.innerHTML = '<div class="mission-one-clear-content"><div class="mission-one-clear-fireworks" aria-hidden="true">' + `<div class="mission-one-clear-firework">${missionOneFireworkSparks}</div>`.repeat(3) + '</div><div class="mission-one-clear-stars" aria-hidden="true">' + '<i></i>'.repeat(10) + '</div><div class="mission-one-clear-sparkles" aria-hidden="true">' + '<i></i>'.repeat(12) + '</div><div class="mission-one-clear-icon" aria-hidden="true"><span></span></div><strong>MISSION CLEARED</strong><span class="mission-one-clear-name">ROOKIE RUSH</span></div>';
 flightGameRoot.append(missionOneClearElement);
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.addEventListener('click', () => {
   if (journeyAttempt?.status === 'COMPLETED') void exitFlightToHub(false, true);
@@ -3056,6 +3070,7 @@ function beginMissionOneClear(attempt: JourneyAttemptState): void {
   cameraRelativeOffsetInitialized = false;
   cinematicDirector.clearPresentation();
   journeyResultElement.classList.add('hidden');
+  missionOneClearElement.classList.remove('is-exiting');
   missionOneClearElement.classList.remove('hidden');
   flightGameRoot.classList.add('mission-one-clear-active');
   audioManager.playReward();
@@ -3067,10 +3082,12 @@ function updateMissionOneClear(delta: number): void {
   if (elapsed >= MISSION_ONE_CLEAR_DURATION_MS) {
     missionOneClearStartedAt = null;
     missionOneClearElement.classList.add('hidden');
+    missionOneClearElement.classList.remove('is-exiting');
     flightGameRoot.classList.remove('mission-one-clear-active');
     if (journeyAttempt?.attemptId === missionOneClearAttemptId && journeyAttempt.status === 'COMPLETED') showJourneyResult(journeyAttempt);
     return;
   }
+  missionOneClearElement.classList.toggle('is-exiting', elapsed >= MISSION_ONE_CLEAR_DURATION_MS - 400);
   airplane.position.addScaledVector(missionOneClearDirection, 48 * delta);
   airplane.position.y = Math.max(airplane.position.y, getTerrainHeight(airplane.position.x, airplane.position.z) + 35);
   airplane.quaternion.slerp(missionOneClearLevel, Math.min(1, delta * 1.5));
@@ -4185,6 +4202,58 @@ function resetFlightLaunchInput(): void {
   boostVisualStrength = 0;
 }
 
+function cancelMissionStartCountdown(): void {
+  missionStartCountdownPending = false;
+  missionStartCountdownStartedAt = null;
+  missionStartCountdownWaitingForTransport = false;
+  if (missionStartCountdownGoTimeout !== undefined) window.clearTimeout(missionStartCountdownGoTimeout);
+  missionStartCountdownGoTimeout = undefined;
+  missionStartCountdownElement.hidden = true;
+  missionStartCountdownElement.classList.remove('is-go');
+}
+
+function beginMissionStartCountdown(): void {
+  if (!missionStartCountdownPending || !journeyAttempt ||
+    !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status) || journeyPaused ||
+    missionStartCountdownWaitingForTransport || !connectionReady() ||
+    (flightLaunchState !== 'complete' && flightLaunchState !== 'disabled')) return;
+  missionStartCountdownPending = false;
+  missionStartCountdownStartedAt = performance.now();
+  missionStartCountdownLastSecond = 3;
+  runStarted = false;
+  resetFlightLaunchInput();
+  if (missionStartCountdownGoTimeout !== undefined) window.clearTimeout(missionStartCountdownGoTimeout);
+  missionStartCountdownGoTimeout = undefined;
+  missionStartCountdownElement.classList.remove('is-go');
+  missionStartCountdownNumber.textContent = '3';
+  missionStartCountdownElement.setAttribute('aria-label', 'Mission starts in 3');
+  missionStartCountdownElement.hidden = false;
+}
+
+function updateMissionStartCountdown(): void {
+  if (missionStartCountdownStartedAt === null || journeyPaused) return;
+  const remaining = Math.max(0, Math.ceil((MISSION_START_COUNTDOWN_MS - (performance.now() - missionStartCountdownStartedAt)) / 1_000));
+  if (remaining > 0) {
+    if (remaining !== missionStartCountdownLastSecond) {
+      missionStartCountdownLastSecond = remaining;
+      missionStartCountdownNumber.textContent = String(remaining);
+      missionStartCountdownElement.setAttribute('aria-label', `Mission starts in ${remaining}`);
+    }
+    return;
+  }
+  missionStartCountdownStartedAt = null;
+  missionStartCountdownNumber.textContent = 'GO!';
+  missionStartCountdownElement.setAttribute('aria-label', 'Go');
+  missionStartCountdownElement.classList.add('is-go');
+  runStarted = true;
+  sendLocalState();
+  missionStartCountdownGoTimeout = window.setTimeout(() => {
+    missionStartCountdownElement.hidden = true;
+    missionStartCountdownElement.classList.remove('is-go');
+    missionStartCountdownGoTimeout = undefined;
+  }, 500);
+}
+
 function beginFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
   cinematicDirector.clearPresentation();
@@ -4231,7 +4300,7 @@ function completeFlightLaunchCinematic(): void {
   flightLaunchState = 'complete';
   flightLaunchEngineLift = 0;
   resetFlightLaunchInput();
-  runStarted = true;
+  runStarted = !missionStartCountdownPending;
   cameraOrbitBlend = 0;
   cameraOrbitRecenterAt = null;
   cameraRelativeOffsetInitialized = false;
@@ -4245,6 +4314,7 @@ function completeFlightLaunchCinematic(): void {
   document.body.style.removeProperty('--launch-hud-opacity');
   document.body.style.removeProperty('--launch-hud-fade-duration');
   document.body.classList.remove('launch-cinematic-pending', 'launch-cinematic-active');
+  if (missionStartCountdownPending) beginMissionStartCountdown();
   if (wasGoldenGateIntro) sendLocalState();
   offerDallasPracticeSuggestion(serverProfile);
 }
@@ -9062,6 +9132,7 @@ function animate(): void {
   const realDelta = clock.getDelta();
   const delta = Math.min(realDelta, 0.05);
   if (journeyPaused) return;
+  updateMissionStartCountdown();
   updateMissionOneClear(delta);
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   // Mission 19's airborne aircraft becomes controllable with the server clock.
@@ -9513,11 +9584,13 @@ function pauseDeadlineFromServer(pausedAt?: number | null, serverNow?: number): 
 
 function setJourneyPaused(paused: boolean, deadlineAt?: number): void {
   if (!journeyMode) return;
+  const wasPaused = journeyPaused;
   journeyPaused = paused;
   journeyPauseOverlayElement.hidden = !paused;
   journeyPauseButtonElement.hidden = paused || !journeyPauseSupported || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status);
   if (paused) {
+    if (missionStartCountdownStartedAt !== null) missionStartCountdownElement.hidden = true;
     journeyPauseDeadlineAt = Math.min(journeyPauseDeadlineAt ?? Infinity, deadlineAt ?? Date.now() + journeyPauseLimitMs);
     if (journeyPauseCountdownInterval === undefined)
       journeyPauseCountdownInterval = window.setInterval(updateJourneyPauseCountdown, 1_000);
@@ -9532,6 +9605,17 @@ function setJourneyPaused(paused: boolean, deadlineAt?: number): void {
     journeyResumePending = false;
     journeyPauseCountdownElement.textContent = '02:00';
     journeyResumeButtonElement.disabled = false;
+    if (wasPaused && missionStartCountdownStartedAt !== null) {
+      missionStartCountdownStartedAt = performance.now();
+      missionStartCountdownLastSecond = 3;
+      missionStartCountdownNumber.textContent = '3';
+      missionStartCountdownElement.setAttribute('aria-label', 'Mission starts in 3');
+      missionStartCountdownElement.hidden = false;
+    } else if (wasPaused && missionStartCountdownPending &&
+      (flightLaunchState === 'complete' || flightLaunchState === 'disabled') &&
+      !airborneIntroAwaiting && !runwayJourneyIntroAwaiting && !missionStartCountdownWaitingForTransport) {
+      beginMissionStartCountdown();
+    }
   }
 }
 
@@ -9911,6 +9995,8 @@ async function retryJourneyMission(): Promise<void> {
     journeyAttempt = null;
     applyMissionFocus(null);
     journeyResultElement.classList.add('hidden');
+    cancelMissionStartCountdown();
+    missionStartCountdownPending = true;
     if (retryGateIntro) {
       flightLaunchWelcomeHandled = false;
       flightLaunchState = 'pending';
@@ -9919,7 +10005,7 @@ async function retryJourneyMission(): Promise<void> {
       document.body.classList.add('launch-cinematic-pending');
     }
     restartGame(false);
-    if (retryGateIntro) runStarted = false;
+    runStarted = false;
     await replaceRealtimeSocket('Journey retry');
     updateJourneyHud();
   } catch {
@@ -9957,6 +10043,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
 
 function sendLocalState(introHandshake = false): void {
   if (journeyPaused || !localPlayerId || !connectionReady()) return;
+  if (missionStartCountdownPending || missionStartCountdownStartedAt !== null) return;
   if (!introHandshake && (airborneIntroAwaiting || runwayJourneyIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath) && flightLaunchState === 'active')) return;
   flushProfileRewards();
   socket.send(
@@ -10111,6 +10198,7 @@ boundSocket.addEventListener('message', (event) => {
       if(!transportView || transportViewAttemptId!==message.attempt.attemptId){
         missionIntroSkip.hidden=true;
         transportView?.dispose();const view=new GiantIncomingView(scene,getTerrainHeight);transportView=view;transportViewAttemptId=message.attempt.attemptId;
+        missionStartCountdownWaitingForTransport = missionStartCountdownPending && message.attempt.status === 'APPROACH';
         view.onCrashImpact=()=>audioManager.playDestroyConfirm();view.onHit=()=>audioManager.playHitConfirm();view.onWarning=()=>audioManager.playTone(500,.25,'triangle',.08,300,0,'weapons');
         view.ready.then(async()=>{
           if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;
@@ -10122,6 +10210,7 @@ boundSocket.addEventListener('message', (event) => {
             await arrival;
             if(transportView===view)missionIntroSkip.hidden=true;
           }
+          if(transportView===view){missionStartCountdownWaitingForTransport=false;beginMissionStartCountdown();}
           if(transportView===view&&journeyAttempt?.attemptId===message.attempt.attemptId&&journeyAttempt.status==='APPROACH'&&connectionReady())socket.send(JSON.stringify({type:'transportReady',attemptId:message.attempt.attemptId}));
         }).catch(error=>{console.error('Transport asset loading failed',error);showProgressMessage('Transport could not load. Return to Journey and retry.');});
       }
@@ -10325,12 +10414,15 @@ boundSocket.addEventListener('message', (event) => {
         beginFlightLaunchCinematic();
       } else {
         cancelPendingFlightLaunch();
-        runStarted = true;
+        runStarted = !missionStartCountdownPending;
         sendLocalState();
       }
     }
+    if (missionStartCountdownPending && (flightLaunchState === 'complete' || flightLaunchState === 'disabled') &&
+      !airborneIntroAwaiting && !runwayJourneyIntroAwaiting && !missionStartCountdownWaitingForTransport) beginMissionStartCountdown();
     if (message.attempt.missionId === journeyDallas18.id || message.attempt.missionId === journeyDallas21.id) refreshTerritoryBorders();
     if (message.attempt.status === 'COMPLETED' || message.attempt.status === 'FAILED' || message.attempt.status === 'ABANDONED') {
+      cancelMissionStartCountdown();
       missionObjectiveGuidance?.hide();
       if (message.attempt.failureReason === 'PAUSE_EXPIRED' || message.attempt.failureReason === 'INTERRUPTED') cancelPendingFlightLaunch();
       if (message.attempt.missionId === journeyDallas19.id && message.attempt.status === 'FAILED' &&
@@ -10365,6 +10457,8 @@ boundSocket.addEventListener('message', (event) => {
     journeyPauseSupported = message.journeyPauseSupported === true;
     if (!journeyPauseSupported) setJourneyPaused(false);
     const shouldBeginFlightLaunch = !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode && !message.resumeFlight;
+    if (message.resumeFlight) cancelMissionStartCountdown();
+    else if (shouldBeginFlightLaunch && journeyMode) missionStartCountdownPending = true;
     airborneIntroAwaiting = shouldBeginFlightLaunch && journeyMode && Boolean(message.airborneSpawn);
     runwayJourneyIntroAwaiting = shouldBeginFlightLaunch && journeyMode && !message.airborneSpawn;
     flightLaunchWelcomeHandled = true;
@@ -10430,7 +10524,7 @@ boundSocket.addEventListener('message', (event) => {
       applyServerProfile(message.profile);
     }
     if (journeyMode && message.airborneSpawn) {
-      runStarted = !airborneIntroAwaiting && !(flightLaunchState === 'active' && (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath));
+      runStarted = !missionStartCountdownPending && !airborneIntroAwaiting && !(flightLaunchState === 'active' && (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath));
       onGround = false;
       crashed = false;
       heading = message.airborneSpawn.heading; pitch = 0; roll = 0;
@@ -10914,6 +11008,12 @@ boundSocket.addEventListener('close', (event) => {
   }
   window.clearTimeout(welcomeTimeout);
   if (boundSocket !== socket) return;
+  if (missionStartCountdownPending || missionStartCountdownStartedAt !== null) {
+    if (flightLaunchState === 'pending' || flightLaunchState === 'active') flightLaunchWelcomeHandled = false;
+    cancelMissionStartCountdown();
+    missionStartCountdownPending = true;
+    runStarted = false;
+  }
   if (missionFocus) {
     missionObjective = null;
     missionObjectiveGuidance?.hide();

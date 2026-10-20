@@ -240,6 +240,26 @@ body.launch-cinematic-active #tutorial-help {
 .flight-launch-title.is-golden-gates small { color: #d6e8f3; font-size: 10px; letter-spacing: .14em; }
 .flight-launch-title.is-runway-gates { white-space: normal; }
 .flight-launch-title.is-runway-gates span { color: #ffe49a; font-size: clamp(17px, 2.3vw, 26px); line-height: 1.15; }
+.mission-start-countdown {
+  position: fixed;
+  z-index: 55;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(circle, rgb(5 21 44 / 24%), transparent 44%);
+}
+.mission-start-countdown[hidden] { display: none; }
+.mission-start-countdown span {
+  color: #ffe17a;
+  font: 900 clamp(72px, 18vmin, 144px)/1 var(--font-display);
+  text-shadow: 0 3px 0 #9d6114, 0 7px 18px rgb(0 18 42 / 75%), 0 0 28px rgb(255 217 100 / 75%);
+  animation: mission-start-countdown-pulse 1s ease-out infinite;
+}
+.mission-start-countdown.is-go span { color: #fff5ba; animation: mission-start-countdown-go 500ms ease-out both; }
+@keyframes mission-start-countdown-pulse { from { opacity: 0; transform: scale(.65); } 25%, 75% { opacity: 1; } to { opacity: .8; transform: scale(1.08); } }
+@keyframes mission-start-countdown-go { from { opacity: 0; transform: scale(.8); } 30% { opacity: 1; } to { opacity: 0; transform: scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .mission-start-countdown span { animation: none !important; } }
 .mission-intro-skip {
   position: fixed;
   z-index: 25;
@@ -1673,11 +1693,31 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-result-actions button[hidden] { display: none; }
 .mission-one-clear { position: fixed; z-index: 58; inset: 0; pointer-events: none; text-align: center; background: linear-gradient(rgb(5 29 55 / 9%), transparent 45%); }
 .mission-one-clear.hidden { display: none; }
+.mission-one-clear.is-exiting { animation: mission-one-clear-out 400ms ease-in both; }
 .mission-one-clear-content { position: absolute; top: max(5vh, calc(env(safe-area-inset-top) + 8px)); left: 50%; width: min(92vw, 540px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
-.mission-one-clear-icon { display: grid; place-items: center; width: clamp(58px, 12vh, 78px); aspect-ratio: 1; border: 4px solid #ffe794; border-radius: 50%; background: radial-gradient(circle at 35% 22%, #93601f, #3e270f 68%); box-shadow: 0 0 0 3px #8f5c14, inset 0 0 0 3px #c58c26, 0 3px 16px #ffce61, 0 0 32px rgb(255 207 90 / 65%); animation: mission-one-clear-pop 480ms cubic-bezier(.16,1.35,.45,1) both; }
+.mission-one-clear-icon { position: relative; z-index: 1; display: grid; place-items: center; width: clamp(58px, 12vh, 78px); aspect-ratio: 1; border: 4px solid #ffe794; border-radius: 50%; background: radial-gradient(circle at 35% 22%, #93601f, #3e270f 68%); box-shadow: 0 0 0 3px #8f5c14, inset 0 0 0 3px #c58c26, 0 3px 16px #ffce61, 0 0 32px rgb(255 207 90 / 65%); animation: mission-one-clear-pop 480ms cubic-bezier(.16,1.35,.45,1) both; }
 .mission-one-clear-icon span { width: 25%; height: 43%; border-right: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-bottom: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-radius: 2px; transform: translateY(-10%) rotate(45deg); filter: drop-shadow(0 2px 1px #5c390c); }
-.mission-one-clear-content > strong { margin-top: clamp(9px, 2vh, 15px); color: #ffd84f; font: 900 clamp(24px, 4.6vw, 42px)/1.05 var(--font-display); letter-spacing: .055em; white-space: nowrap; text-shadow: 0 2px 1px #8c510f, 0 4px 5px #1c2e3a, 0 0 19px rgb(255 205 77 / 60%); animation: mission-one-clear-rise 550ms 140ms both; }
-.mission-one-clear-name { margin-top: 4px; color: white; font: 900 clamp(17px, 3vw, 27px)/1.1 var(--font-display); letter-spacing: .08em; text-shadow: 0 2px 5px #14344b, 0 0 12px rgb(255 255 255 / 70%); animation: mission-one-clear-rise 550ms 260ms both; }
+.mission-one-clear-content > strong { position: relative; z-index: 1; margin-top: clamp(9px, 2vh, 15px); color: #ffd84f; font: 900 clamp(24px, 4.6vw, 42px)/1.05 var(--font-display); letter-spacing: .055em; white-space: nowrap; text-shadow: 0 2px 1px #8c510f, 0 4px 5px #1c2e3a, 0 0 19px rgb(255 205 77 / 60%); animation: mission-one-clear-rise 550ms 140ms both; }
+.mission-one-clear-name { position: relative; z-index: 1; margin-top: 4px; color: white; font: 900 clamp(17px, 3vw, 27px)/1.1 var(--font-display); letter-spacing: .08em; text-shadow: 0 2px 5px #14344b, 0 0 12px rgb(255 255 255 / 70%); animation: mission-one-clear-rise 550ms 260ms both; }
+.mission-one-clear-fireworks { position: absolute; inset: 0; pointer-events: none; }
+.mission-one-clear-firework { position: absolute; top: 44px; left: 16%; width: 1px; height: 1px; }
+.mission-one-clear-firework:nth-child(2) { top: 62px; left: 84%; }
+.mission-one-clear-firework:nth-child(3) { top: 6px; left: 65%; }
+.mission-one-clear-firework i { position: absolute; top: 0; left: 0; width: 3px; height: 10px; border-radius: 4px; background: #ffe68b; box-shadow: 0 0 8px 2px #ffcd4f; opacity: 0; animation: mission-one-firework 1.65s ease-out infinite; }
+.mission-one-clear-firework:nth-child(2) i { background: #8df4ff; box-shadow: 0 0 8px 2px #45d8ff; animation-delay: .42s; }
+.mission-one-clear-firework:nth-child(3) i { animation-delay: .92s; }
+.mission-one-clear-stars { position: absolute; inset: 0 4%; height: clamp(160px, 34vh, 230px); pointer-events: none; }
+.mission-one-clear-stars i { position: absolute; top: var(--y); left: var(--x); width: 10px; aspect-ratio: 1; background: var(--color, #ffe17a); clip-path: polygon(50% 0, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0 50%, 39% 37%); filter: drop-shadow(0 0 4px currentColor); animation: mission-one-star 1.8s var(--delay, 0s) ease-out infinite; }
+.mission-one-clear-stars i:nth-child(1) { --x: 9%; --y: 15%; --delay: -.8s; }
+.mission-one-clear-stars i:nth-child(2) { --x: 20%; --y: 56%; --delay: -.2s; --color: #93f5ff; }
+.mission-one-clear-stars i:nth-child(3) { --x: 32%; --y: 78%; --delay: -.9s; }
+.mission-one-clear-stars i:nth-child(4) { --x: 42%; --y: 8%; --delay: -.4s; --color: #93f5ff; }
+.mission-one-clear-stars i:nth-child(5) { --x: 53%; --y: 67%; --delay: -1.3s; }
+.mission-one-clear-stars i:nth-child(6) { --x: 66%; --y: 13%; --delay: -.6s; }
+.mission-one-clear-stars i:nth-child(7) { --x: 75%; --y: 75%; --delay: -1s; --color: #93f5ff; }
+.mission-one-clear-stars i:nth-child(8) { --x: 90%; --y: 23%; --delay: -.3s; }
+.mission-one-clear-stars i:nth-child(9) { --x: 12%; --y: 81%; --delay: -1.5s; }
+.mission-one-clear-stars i:nth-child(10) { --x: 85%; --y: 51%; --delay: -1.1s; --color: #93f5ff; }
 .mission-one-clear-sparkles { position: absolute; inset: -6px 4% 0; height: clamp(160px, 34vh, 230px); }
 .mission-one-clear-sparkles i { position: absolute; left: var(--x); top: var(--y); width: var(--size, 5px); aspect-ratio: 1; border-radius: 50%; background: var(--color, #ffe388); box-shadow: 0 0 9px 3px var(--color, #ffe388); animation: mission-one-sparkle 1.35s var(--delay, 0s) ease-in-out infinite alternate; }
 .mission-one-clear-sparkles i:nth-child(1) { --x: 20%; --y: 30%; --delay: -.2s; }
@@ -1695,8 +1735,11 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 #game-root.mission-one-clear-active > :not(canvas):not(.mission-one-clear) { opacity: 0 !important; pointer-events: none !important; }
 @keyframes mission-one-clear-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
 @keyframes mission-one-clear-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mission-one-clear-out { to { opacity: 0; } }
+@keyframes mission-one-firework { 0%, 12% { opacity: 0; transform: rotate(var(--angle)) translateY(0) scale(.3); } 20% { opacity: 1; } 52% { opacity: 1; transform: rotate(var(--angle)) translateY(-43px) scale(1); } 85%, 100% { opacity: 0; transform: rotate(var(--angle)) translateY(-70px) scale(.15); } }
+@keyframes mission-one-star { 0%, 100% { opacity: 0; transform: translateY(12px) scale(.3) rotate(-25deg); } 35% { opacity: 1; transform: translateY(-8px) scale(1.2) rotate(15deg); } 75% { opacity: .5; transform: translateY(-25px) scale(.7) rotate(35deg); } }
 @keyframes mission-one-sparkle { from { opacity: .15; transform: scale(.5); } to { opacity: 1; transform: scale(1.2); } }
-@media (prefers-reduced-motion: reduce) { .mission-one-clear * { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .mission-one-clear * { animation: none !important; } .mission-one-clear.is-exiting { animation: none !important; } }
 @media (max-height: 520px) { .sky-challenge.journey-hud { top: max(70px,calc(env(safe-area-inset-top) + 56px)); left: max(8px,env(safe-area-inset-left)); width: min(260px,42vw); padding: 6px 8px; font-size: 9px; } .journey-hud strong { font-size: 10px; } .journey-result-card { padding: 12px 18px; } }
 @media (prefers-reduced-motion: reduce) { .journey-result *, .journey-hud *, .mission-objective-guidance * { animation: none !important; transition: none !important; } }
 
@@ -5377,8 +5420,8 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .journey-status-layer .sky-challenge.journey-hud:not(.is-collapsed) > [data-journey-heading] {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding-right: 120px;
+  min-height: 30px;
+  padding-right: 34px;
 }
 #game-root .journey-hud-toggle {
   position: absolute;
@@ -5388,23 +5431,19 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-width: 112px;
-  height: 44px;
-  padding: 0 9px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   pointer-events: auto;
   border: 1px solid #f2c656;
   border-radius: 8px;
   color: #ffdc78;
   background: rgb(9 26 48 / 92%);
   box-shadow: inset 0 1px rgb(255 255 255 / 16%), 0 2px 5px rgb(0 0 0 / 24%);
-  font: 900 10px/1 var(--font-display);
-  white-space: nowrap;
   cursor: pointer;
 }
 #game-root .journey-hud-toggle::before {
   content: '';
-  order: 1;
   width: 7px;
   height: 7px;
   border-top: 2px solid currentColor;
@@ -5414,10 +5453,10 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .journey-hud-toggle:hover { background: rgb(33 65 94 / 95%); }
 #game-root .journey-hud-toggle:focus-visible { outline: 3px solid #6beeff; outline-offset: 2px; }
 #game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed {
-  width: 136px;
-  max-width: 136px;
-  height: 44px;
-  min-height: 44px;
+  width: 34px;
+  max-width: 34px;
+  height: 34px;
+  min-height: 34px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -5428,8 +5467,8 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   top: 0;
   right: auto;
   left: 0;
-  width: 136px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border: 1px solid #f2c656;
   border-radius: 9px;
   background: rgb(9 26 48 / 88%);
@@ -6080,4 +6119,30 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   :root { --menu-selection-width: min(380px, calc(100vw - 40px)); --menu-selection-height: clamp(178px, 27.5dvh, 250px); --menu-selection-center-y: max(55dvh, calc(var(--menu-page-header-height) + var(--menu-selection-height) / 2 + 8px)); }
   .home-hangar .home-hangar-contextual { top: var(--menu-selection-center-y); grid-template-columns: var(--menu-selection-width); width: var(--menu-selection-width); gap: 14px; }
   .city-options:has(.city-time-evening) { grid-template-columns: var(--menu-selection-width); gap: clamp(8px, 1.4vw, 18px); }
+}
+
+/* Every menu page enters with the shared header and its content from offscreen. */
+@media (prefers-reduced-motion: no-preference) {
+  .app-shell-header.menu-entrance-ready {
+    opacity: 0;
+    transform: translateY(calc(-100% - 8px));
+  }
+  .menu-entrance-ready:not(.app-shell-header) {
+    opacity: 0;
+    transform: translateY(100dvh);
+  }
+  .app-shell-header.menu-entrance {
+    animation: hub-header-entrance 620ms cubic-bezier(.18, .82, .24, 1) both;
+  }
+  .menu-entrance:not(.app-shell-header) {
+    animation: hub-bottom-entrance 760ms cubic-bezier(.18, .82, .24, 1) var(--menu-entrance-delay, 130ms) both;
+  }
+}
+@keyframes hub-header-entrance {
+  from { opacity: 0; transform: translateY(calc(-100% - 8px)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes hub-bottom-entrance {
+  from { opacity: 0; transform: translateY(100dvh); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -61,6 +61,63 @@ const citySelectionError = document.querySelector<HTMLElement>('#city-selection-
 const garageOverlay = document.querySelector<HTMLElement>('#garage-overlay')!;
 const pilotMenuOverlay = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const startupLoading = new BrandLoadingScreen(brandLoadingElement);
+const menuHeader = document.querySelector<HTMLElement>('#app-shell-header')!;
+let menuEntrancesEnabled = false;
+let menuEntranceCleanup: number | undefined;
+let menuEntranceRoot: HTMLElement | undefined;
+let menuEntranceItems: HTMLElement[] = [];
+
+function menuContentFor(root: HTMLElement): HTMLElement[] {
+  const selectors = root === homeHangarElement ? ['.home-hangar-missions', '.home-hangar-free-fly', '.home-hangar-settings']
+    : root === citySelector ? [citySelector.dataset.view === 'time' ? '.city-options' : '.city-journey', '.city-help']
+    : root === missionJourneyElement ? ['.mission-journey-board', '.mission-journey-pagination']
+    : root === gameStoreElement ? ['.store-category-rail', '.store-content', '.store-notice']
+    : root === garageOverlay ? ['.garage-card']
+    : root === pilotMenuOverlay ? ['.pilot-menu-card']
+    : root.classList.contains('sky-token-overlay') ? ['.sky-token-panel'] : [];
+  return selectors.flatMap(selector => {
+    const item = root.querySelector<HTMLElement>(selector);
+    return item && !item.hidden ? [item] : [];
+  });
+}
+
+function clearMenuEntrance(): void {
+  if (menuEntranceCleanup !== undefined) window.clearTimeout(menuEntranceCleanup);
+  menuEntranceCleanup = undefined;
+  menuHeader.classList.remove('menu-entrance-ready', 'menu-entrance');
+  for (const item of menuEntranceItems) {
+    item.classList.remove('menu-entrance-ready', 'menu-entrance');
+    item.style.removeProperty('--menu-entrance-delay');
+  }
+  menuEntranceItems = [];
+  menuEntranceRoot = undefined;
+}
+
+function prepareMenuEntrance(root: HTMLElement): void {
+  clearMenuEntrance();
+  menuEntranceRoot = root;
+  if (!menuHeader.hidden) menuHeader.classList.add('menu-entrance-ready');
+  menuEntranceItems = menuContentFor(root);
+  menuEntranceItems.forEach((item, index) => {
+    item.style.setProperty('--menu-entrance-delay', `${130 + index * 90}ms`);
+    item.classList.add('menu-entrance-ready');
+  });
+}
+
+function playMenuEntrance(root: HTMLElement): void {
+  if (!menuEntrancesEnabled) return;
+  prepareMenuEntrance(root);
+  // Force the prepared state before starting a repeat visit to the same page.
+  void root.offsetWidth;
+  revealMenuEntrance();
+}
+
+function revealMenuEntrance(): void {
+  if (!menuEntranceRoot) return;
+  menuHeader.classList.replace('menu-entrance-ready', 'menu-entrance');
+  for (const item of menuEntranceItems) item.classList.replace('menu-entrance-ready', 'menu-entrance');
+  menuEntranceCleanup = window.setTimeout(clearMenuEntrance, 1_200);
+}
 const missionJourney = new MissionJourney(missionJourneyElement, leaveMissionJourney, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
 let guestQaJourneyAccess = false;
@@ -422,6 +479,8 @@ async function openSkyTokenStore(missing = 0): Promise<void> {
   recordProductIntent('sky_token_store_viewed');
   skyTokenStore.open(garageProfile.skyTokens ?? 0, skyTokenOffers, missing, hubAccount.state === 'account' && !skyTokenCommerceEnabled);
   showAppHeader(undefined);
+  const tokenPage = document.querySelector<HTMLElement>('.sky-token-overlay');
+  if (tokenPage) playMenuEntrance(tokenPage);
   appHeader.focusBack();
   if (nativeSkyTokenPurchasePending) void recoverPendingNativeSkyTokens();
 }
@@ -1369,6 +1428,7 @@ async function openHubPilotMenu(section: PilotMenuSection, refresh = true, retur
   missionJourney.hide();
   hubPilotMenu.open(hubPilotMenuData(), hubSection);
   showAppHeader(hubSection === 'REWARDS' ? 'REWARDS' : hubSection === 'PROFILE' ? 'PROFILE' : undefined);
+  playMenuEntrance(pilotMenuOverlay);
   if (hubSection === 'REWARDS') appHeader.focusBack();
   if (refresh) await refreshHubPilotData();
   if (hubSection === 'PROFILE') await refreshHubProfileSummary();
@@ -1529,6 +1589,7 @@ async function openGameStore(recordOpen = true): Promise<void> {
   gameStore.setBackLabel('BACK TO HUB');
   gameStore.open(authoritativeHomeProfile ? garageProfile : undefined, hubAccount.state === 'account', true);
   gameStore.setTokenSpendingAvailable(skyTokenCommerceEnabled);
+  playMenuEntrance(gameStoreElement);
   try {
     const [catalog, profile] = await Promise.all([
       matchingPricingCatalog(),
@@ -1713,6 +1774,7 @@ async function openStartGarage(returnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSI
   showAppHeader('GARAGE');
   const request = ++garageOpenRequest;
   garage.open(garageProfile, true);
+  playMenuEntrance(garageOverlay);
   try {
     const profile = await loadGarageProfile();
     if (entryState !== 'AIRCRAFT' || request !== garageOpenRequest) return;
@@ -1745,6 +1807,7 @@ function showHome(): Promise<void> {
   missionJourney.hide();
   homeHangar.show(homeHangarData());
   showAppHeader(undefined);
+  playMenuEntrance(homeHangarElement);
   appHeader.aircraftPreviewHost.title = homeHangarData().aircraftName;
   return garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
 }
@@ -1791,6 +1854,7 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   renderCityJourney();
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
+  playMenuEntrance(citySelector);
 }
 
 function showMissionJourney(pushHistory = true, refreshProgress = true): void {
@@ -1814,6 +1878,7 @@ function showMissionJourney(pushHistory = true, refreshProgress = true): void {
   missionJourney.show(window.history.state?.missionDetailsOpen === true);
   if (refreshProgress) void refreshJourneyProgress();
   showAppHeader(undefined);
+  playMenuEntrance(missionJourneyElement);
 }
 
 function leaveMissionJourney(): void {
@@ -2038,6 +2103,7 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     option.append(art, copy);
     timeOptions.append(option);
   }
+  playMenuEntrance(citySelector);
 }
 function returnFromTimeSelection(): void {
   if (window.history.state?.airportChaosEntryView === 'TIME_SELECTION') window.history.back();
@@ -2236,8 +2302,18 @@ async function start(): Promise<void> {
     gameStore.restoreContext(storeContext.category, storeContext.itemId);
     await openGameStore();
   } else if (storeContext && authResult === 'failed') clearPendingStoreContext();
+  const startupMenuRoot = skyTokenStore.isOpen() ? document.querySelector<HTMLElement>('.sky-token-overlay')
+    : entryState === 'PILOT_MENU' ? pilotMenuOverlay
+    : entryState === 'AIRCRAFT' ? garageOverlay
+    : entryState === 'STORE' ? gameStoreElement
+    : entryState === 'CITY_SELECTION' ? citySelector
+    : entryState === 'MISSION_JOURNEY' ? missionJourneyElement
+    : entryState === 'HANGAR' && homeHangar.isVisible() ? homeHangarElement : null;
+  if (startupMenuRoot) prepareMenuEntrance(startupMenuRoot);
   startupLoading.update(1);
   await startupLoading.finish();
+  menuEntrancesEnabled = true;
+  revealMenuEntrance();
   if (Capacitor.getPlatform() === 'ios' && entryState !== 'FLIGHT' && entryState !== 'TUTORIAL') {
     void audioManager.unlock();
   }
