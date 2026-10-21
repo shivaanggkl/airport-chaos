@@ -18,7 +18,9 @@
 #game-root.training-screenplay-active .training-screenplay header small,
 #game-root.training-screenplay-active .training-screenplay-progress{display:none}
 #game-root.training-screenplay-active .training-screenplay h2{padding-right:52px}
-#game-root.training-screenplay-active .training-screenplay-skip{top:max(10px,calc(var(--safe-area-top) + 6px));right:auto;left:max(16px,var(--safe-area-left));min-width:112px;padding:6px 8px;font-size:11px;z-index:83}
+#game-root.training-screenplay-active .training-screenplay-skip{top:max(10px,calc(var(--safe-area-top) + 6px));right:auto;left:max(16px,var(--safe-area-left));z-index:83;min-width:112px;min-height:54px;padding:8px 14px;border:2px solid var(--ui-navigation-button-border);border-radius:14px;background:var(--ui-back-button-fill);box-shadow:inset 0 1px rgb(255 255 255 / 32%),0 2px 8px rgb(5 32 68 / 45%);font:800 13px/1 var(--font-display)}
+#game-root.training-screenplay-active .training-screenplay-skip:hover:not(:disabled){filter:brightness(1.08);box-shadow:inset 0 1px rgb(255 255 255 / 32%),0 2px 8px rgb(5 32 68 / 45%)}
+#game-root.training-screenplay-active .training-screenplay-skip:focus-visible{outline:2px solid #ffd875;outline-offset:2px}
 body:has(#world-map-overlay:not(.hidden)) #game-root.training-screenplay-active .training-screenplay-skip{display:none!important}
 #game-root #training-pause-overlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);background:rgb(5 18 34 / 70%);pointer-events:auto;touch-action:manipulation}
 #training-pause-overlay[hidden]{display:none!important}

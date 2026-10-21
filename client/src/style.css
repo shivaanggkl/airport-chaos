@@ -180,6 +180,21 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
   overflow: hidden;
 }
 
+#game-root.training-start-pending { background: #1b407c url('/media/menu/airport-runway.jpg') center / cover no-repeat; }
+#game-root.training-start-pending > * { visibility: hidden; }
+#game-root.training-start-pending::after {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #f6fbff;
+  background: rgb(8 25 53 / 60%);
+  font: 800 clamp(14px, 2vw, 22px)/1.2 var(--font-display);
+  letter-spacing: .1em;
+  text-align: center;
+  content: 'PREPARING TRAINING...';
+}
+
 /* Flight chrome is never editable. Keep Profile/Login outside this selector
    so form fields and ordinary menu accessibility retain native behavior. */
 #game-root > :not(#pilot-menu-overlay),

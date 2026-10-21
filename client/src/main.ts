@@ -169,6 +169,7 @@ const unrelatedFocusedBot = (id: string) => focusedBotsAreSafe() &&
 let journeyServerTimeOffset = 0;
 type FlightLaunchState = 'disabled' | 'pending' | 'active' | 'complete';
 const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
+flightGameRoot.classList.toggle('training-start-pending', trainingRequested);
 flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' && !trainingRequested);
 const journeyCombatMissionIds = new Set<string>([journeyDallas07.id, journeyDallas15.id, journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
 flightGameRoot.classList.toggle('noncombat-journey', journeyMode);
@@ -5880,6 +5881,7 @@ const trainingSlides=new TrainingSlides({
     trainingSlidesOpen=true;screenplayFlightPaused=true;screenplayFinished=false;
     screenplayDallasUnlockAt=undefined;
     mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
+    flightGameRoot.classList.remove('training-start-pending');
   },
   onClose:()=>{
     clearTrainingPause();
@@ -6233,7 +6235,10 @@ function setGuidedTutorial(active:boolean,resumeSlideIndex?:number):void{
     void postTrainingSlides('start').then(started=>{
       if(!guidedTutorialActive||!tutorialIntroPending)return;
       if(started)trainingSlides.open();
-      else showProgressMessage('SERVER REQUIRED TO START TRAINING');
+      else {
+        flightGameRoot.classList.remove('training-start-pending');
+        showProgressMessage('SERVER REQUIRED TO START TRAINING');
+      }
     });
   }
 }
@@ -10933,7 +10938,10 @@ boundSocket.addEventListener('message', (event) => {
       setFlightState('FLYING');
       updateCamera(1);
     }
-    if(!message.tutorialMode&&trainingSlidesOpen)trainingSlides.close();
+    if(!message.tutorialMode){
+      flightGameRoot.classList.remove('training-start-pending');
+      if(trainingSlidesOpen)trainingSlides.close();
+    }
     if(message.tutorialMode&&cityRules.tutorialEnabled){
       const resumedTraining=Boolean(message.resumeFlight&&message.trainingPausedAt!==undefined);
       if(!resumedTraining||!trainingSlidesOpen||previousPlayerId!==message.playerId){
