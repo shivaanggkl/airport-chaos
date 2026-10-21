@@ -47,7 +47,6 @@ export class TrainingSlides {
   private readonly timeProgress: HTMLElement;
   private readonly timeFill: HTMLElement;
   private readonly status: HTMLElement;
-  private readonly retry: HTMLButtonElement;
   private index = 0;
   private completionTimer: number | undefined;
   private active = false;
@@ -66,7 +65,7 @@ export class TrainingSlides {
     this.root.hidden = true;
     this.root.setAttribute('role', 'status');
     this.root.setAttribute('aria-live', 'polite');
-    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2 data-scene-title></h2><p data-scene-detail></p><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div><button type="button" data-scene-retry hidden>RETRY CONNECTION</button>';
+    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2 data-scene-title></h2><p data-scene-detail></p><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
     this.title = this.root.querySelector('[data-scene-title]')!;
     this.detail = this.root.querySelector('[data-scene-detail]')!;
     this.count = this.root.querySelector('[data-scene-count]')!;
@@ -74,9 +73,6 @@ export class TrainingSlides {
     this.timeProgress = this.root.querySelector('[data-scene-time]')!;
     this.timeFill = this.root.querySelector('[data-scene-time-fill]')!;
     this.status = this.root.querySelector('[data-scene-status]')!;
-    this.retry = this.root.querySelector('[data-scene-retry]')!;
-    this.retry.textContent = 'RETRY SAVING';
-    this.retry.addEventListener('click', () => { void this.advance(); });
     this.hand.className = 'training-screenplay-hand';
     this.hand.setAttribute('aria-hidden', 'true');
     this.hand.innerHTML = '<span>👆</span><span>👆</span>';
@@ -99,6 +95,11 @@ export class TrainingSlides {
   }
 
   isOpen(): boolean { return this.active; }
+  retryPendingSave(): void {
+    if (!this.active || !this.completing || this.saving || this.suspended || this.saveRetries === 0) return;
+    window.clearTimeout(this.completionTimer);
+    void this.advance();
+  }
   currentIndex(): number { return this.index; }
   currentStep(): TutorialLessonStep | undefined { return this.active ? trainingSlideIds[this.index] : undefined; }
   isPlayerTurn(step: TutorialLessonStep): boolean { return this.active && !this.suspended && this.ready && !this.saving && this.currentStep() === step; }
@@ -227,7 +228,6 @@ export class TrainingSlides {
     this.count.textContent = String(this.index + 1) + ' / ' + String(trainingSlideIds.length);
     this.status.textContent = '';
     this.status.classList.remove('is-complete');
-    this.retry.hidden = true;
     this.progress.replaceChildren(...trainingSlideIds.map((_, index) => {
       const dot = document.createElement('i');
       dot.classList.toggle('is-seen', index <= this.index);
@@ -269,7 +269,6 @@ export class TrainingSlides {
     this.hand.hidden = true;
     this.status.textContent = 'SAVING TRAINING PROGRESS…';
     this.status.classList.remove('is-complete');
-    this.retry.hidden = true;
     try {
       const success = this.index === trainingSlideIds.length - 1
         ? await this.options.onComplete()
@@ -289,11 +288,10 @@ export class TrainingSlides {
     if (!this.active) return;
     this.saving = false;
     if (this.suspended) return; // Resume retries the completed lesson after the app returns.
-    if (this.saveRetries++ === 0) {
-      this.completionTimer = window.setTimeout(() => { void this.advance(); }, 1_000);
+    if (this.saveRetries++ < 2) {
+      this.completionTimer = window.setTimeout(() => { void this.advance(); }, this.saveRetries * 1_000);
       return;
     }
-    this.status.textContent = 'PROGRESS NOT SAVED. TAP RETRY.';
-    this.retry.hidden = false;
+    this.status.textContent = 'UNABLE TO SAVE PROGRESS. REOPEN TRAINING.';
   }
 }

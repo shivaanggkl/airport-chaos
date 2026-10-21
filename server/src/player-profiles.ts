@@ -737,6 +737,9 @@ export class PlayerProfileStore {
 
   advanceTrainingSlide(pilotId:string,slideIndex:number,slideId:string,now=Date.now()):boolean{
     if(!Number.isInteger(slideIndex)||slideIndex<0||slideIndex>=trainingSlideIds.length-1||trainingSlideIds[slideIndex]!==slideId)return false;
+    // Older fresh starts could leave a paused first lesson without its slide row.
+    // Starting that row here lets the player's completed first action save normally.
+    if(slideIndex===0&&this.trainingSlideIndex(pilotId)===undefined)this.startTrainingSlides(pilotId,now);
     const result=this.database.prepare(`UPDATE pilot_training_slides SET slide_index=slide_index+1,updated_at=?
       WHERE pilot_id=? AND slide_index=? AND EXISTS (
         SELECT 1 FROM pilot_tutorial_state WHERE pilot_id=? AND status='started'

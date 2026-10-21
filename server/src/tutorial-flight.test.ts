@@ -326,6 +326,8 @@ test('ordered gameplay slides unlock Dallas without granting rewards', () => {
   assert.equal(store.advanceTrainingSlide(pilot.pilotId,1,trainingSlideIds[1]!,startedAt),true,'a flight crash preserves guide progress');
   store.resetTutorialRun(pilot.pilotId);
   assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+trainingSlideIds.length),undefined);
+  assert.equal(store.advanceTrainingSlide(pilot.pilotId,0,trainingSlideIds[0]!,startedAt),true,'a stranded first lesson can save after fresh progress reset');
+  assert.equal(store.trainingSlideIndex(pilot.pilotId),1);
 });
 
 test('Dallas missions stay locked for unfinished Milwaukee training, including older profiles', () => {
@@ -461,7 +463,7 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
-  assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)profileStore\.resetTutorialRun/);
+  assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)\{[\s\S]*?cleanupHumanPlayer\(id\);[\s\S]*?profileStore\.resetTutorialRun/);
   assert.match(main, /TRAINING COMPLETE[\s\S]*CONTINUE TO DALLAS[\s\S]*PRACTICE IN MILWAUKEE/);
   assert.match(main, /trainingSlides\.open\(\)/);
   assert.match(main, /data-guided-skip>SKIP TRAINING<[\s\S]*data-guided-exit>EXIT TRAINING</);

@@ -1785,7 +1785,15 @@ const httpServer = createServer(async (request, response) => {
             // Keep the old socket isolated until navigation disconnects it.
             for(const [peer,peerId] of playerSockets)if(peerId===id)peer.close(1000,'Training ended');
           }
-          if(tutorialState.status==='started'&&tutorialState.freshRun===true)profileStore.resetTutorialRun(identity.pilotId);
+          if(tutorialState.status==='started'&&tutorialState.freshRun===true){
+            // Discard the old flight before clearing its slides, including a socket
+            // still closing as the pilot returns to the hub.
+            for(const [id] of sessions){
+              for(const [peer,peerId] of playerSockets)if(peerId===id){playerSockets.delete(peer);peer.close(1000,'Training restarted');}
+              cleanupHumanPlayer(id);
+            }
+            profileStore.resetTutorialRun(identity.pilotId);
+          }
           profile=profileStore.setTutorialState(identity.pilotId,tutorialState.status);
           if(profile)analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},tutorialState.status==='started'?'tutorial_started':tutorialState.status==='completed'?'tutorial_completed':'tutorial_skipped',{metadata:{tutorialVersion:'tutorial_v1'}});
         }else error='Invalid tutorial state';
@@ -6885,6 +6893,8 @@ server.on('connection', (socket, request) => {
       players.get(id)?.pilotId === profile.pilotId && players.get(id)?.cityId === cityId &&
       paused.sessionTokenHash === identity.session.tokenHash)?.[0];
     if (pausedPlayerId) {
+      // Recover sessions stranded by an earlier fresh start that cleared the slide row.
+      if(profileStore.trainingSlideIndex(profile.pilotId)===undefined)profileStore.startTrainingSlides(profile.pilotId);
       playerId = pausedPlayerId;
       restoringPausedTraining = true;
       const restored = players.get(playerId)!;

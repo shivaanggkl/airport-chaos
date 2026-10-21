@@ -5919,6 +5919,7 @@ const trainingSlides=new TrainingSlides({
     tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-dallas]')!.focus();
   },
 });
+window.addEventListener('online',()=>trainingSlides.retryPendingSave());
 function updateTrainingScreenplay(delta:number):void{
   if(trainingPaused)return;
   const step=trainingSlides.currentStep();
@@ -10960,6 +10961,7 @@ boundSocket.addEventListener('message', (event) => {
         updateTrainingPause();
       }
     }
+    if(trainingSlidesOpen&&!trainingPaused)trainingSlides.retryPendingSave();
     if ((journeyMode||message.tutorialMode) && message.resumeFlight) {
       const flight = message.resumeFlight;
       runStarted = true;
