@@ -52,7 +52,7 @@ export const cities: readonly CityDefinition[] = [
     displayName: 'Milwaukee',
     status: 'available',
     spawn: { airportId: 'central' },
-    spawnBrandPlacement: { forwardDistance: 650, clearanceAgl: 50, width: 400, height: 136, campaignId: 'airport-chaos' },
+    spawnBrandPlacement: { forwardDistance: 2000, clearanceAgl: 50, width: 300, height: 102, campaignId: 'airport-chaos' },
     bounds: { minX: -6000, maxX: 6000, minZ: -6000, maxZ: 6000 },
     timePresets: ['day'],
     loadWorld: () => import('./world'),

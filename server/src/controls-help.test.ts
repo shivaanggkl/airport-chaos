@@ -88,7 +88,7 @@ test('flight screen uses one ordered HUD and no legacy utility panels', () => {
   assert.doesNotMatch(html, /id="flight-exit-button"/);
   assert.match(pilotMenuSource, /data\.exitFlightLabel[\s\S]*data-flight-exit|data-flight-exit[\s\S]*data\.exitFlightLabel/);
   assert.match(mainSource, /exitFlight: requestFlightExit/);
-  assert.match(mainSource, /flightAccountButtonElement\.addEventListener\('click', \(\) => openPilotMenu\('PROFILE'\)\)/);
+  assert.match(mainSource, /flightAccountButtonElement\.hidden = Boolean\(flightMenuMode\)/);
   assert.match(mainSource, /showFlightDialog\('Exit flight\?'[\s\S]*'Return to the Pilot Hub\?'[\s\S]*label: 'EXIT TO HUB'/);
   assert.doesNotMatch(html, /id="mobile-(?:score|speed|altitude|mission)"/);
   assert.doesNotMatch(html, /id="(?:flight-status|progression-readout|aircraft-select|hud)"/);

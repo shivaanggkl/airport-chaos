@@ -16,7 +16,7 @@ import { missionForCity, missionsForCity, type CityMission } from '../../shared/
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
-import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyGateCrossing, crossesJourneyGateWrongWay, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterBodyContact, monsterHandContact, monsterHandPositions, monsterImpact, stepMonsterEncounter, monsterProjectileHits, recordMonsterFiringPosition, segmentBlockedByBuildings, type MonsterEncounter } from './monster-arrival.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
@@ -380,6 +380,7 @@ const pausedJourneyPlayers = new Map<string, { attemptId: string; accountId?: st
 const pausedJourneyAttempts = new Set<string>();
 const speedGateTracker = new SpeedGateTracker();
 const speedGateWarningAt = new Map<string, number>();
+const wrongWayGateWarningAt = new Map<string, { attemptId: string; gateIndex: number; at: number }>();
 // Populated only from authenticated Journey attempts, never client intent.
 const missionFocusedPlayers = new Set<string>();
 const monsterFocusedPlayers = new Set<string>();
@@ -1612,6 +1613,7 @@ const httpServer = createServer(async (request, response) => {
         }
         speedGateTracker.clear(playerId);
         speedGateWarningAt.delete(playerId);
+        wrongWayGateWarningAt.delete(playerId);
         playerJourneyRunwayPrep.delete(playerId);
         playerJourneyLoveTakeoff.delete(playerId);
         playerJourneyAddisonTakeoff.delete(playerId);
@@ -1636,6 +1638,7 @@ const httpServer = createServer(async (request, response) => {
         }
         speedGateTracker.clear(playerId);
         speedGateWarningAt.delete(playerId);
+        wrongWayGateWarningAt.delete(playerId);
         playerJourneyRunwayPrep.delete(playerId);
         playerJourneyLoveTakeoff.delete(playerId);
         playerJourneyAddisonTakeoff.delete(playerId);
@@ -1648,8 +1651,11 @@ const httpServer = createServer(async (request, response) => {
     const identity = authenticatedIdentity(request, response);
     if (!identity) return;
     if (request.method === 'GET') {
+      const profile = reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName));
+      const hasActiveFlight = [...players.values()].some(player => !player.isBot && player.pilotId === identity.pilotId);
+      const currentProfile = hasActiveFlight ? profile : profileStore.consumeExpiredFighterTrial(identity.pilotId) ?? profile;
       response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      response.end(JSON.stringify({ ...reconcilePaidFirehawk(profileStore.getOrCreate(identity.pilotId, identity.pilotName)),
+      response.end(JSON.stringify({ ...currentProfile,
         legendaryPilot: journeyStore.progress(identity.pilotId, journeyDallas24.id).completed,
         profileSummary: pilotProfileSummaryStore.summary(identity.pilotId) }));
       return;
@@ -1733,6 +1739,37 @@ const httpServer = createServer(async (request, response) => {
           const host = analyticsHost(request.headers.host);
           analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'aircraft_unlocked', { source: 'tester_code' });
         }
+      } else if(payload?.tutorialSlides&&typeof payload.tutorialSlides==='object'){
+        const slideRequest=payload.tutorialSlides as {action?:unknown;slideIndex?:unknown;slideId?:unknown};
+        const action=slideRequest.action;
+        if(action==='start'){
+          profileStore.getOrCreate(identity.pilotId,identity.pilotName);
+          if(profileStore.startTrainingSlides(identity.pilotId))profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
+          else error='Start Milwaukee training before opening the guide.';
+        }else if(action==='advance'){
+          if(typeof slideRequest.slideIndex==='number'&&typeof slideRequest.slideId==='string'&&
+            profileStore.advanceTrainingSlide(identity.pilotId,slideRequest.slideIndex,slideRequest.slideId)){
+            profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
+            for(const [id,player] of players){
+              if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
+              if(slideRequest.slideIndex===1)sendTutorialScreenplayCruise(id,player);
+              if(slideRequest.slideIndex===7)createTrainingTarget(id,player);
+              if(slideRequest.slideIndex===10)sendTutorialLandingApproach(id,player,true);
+            }
+          }else error='Follow the training screenplay in order.';
+        }else if(action==='complete'){
+          profile=profileStore.completeTrainingSlides(identity.pilotId);
+          if(!profile)error='Reach the final training slide first.';
+          else{
+            for(const [id,player] of players){
+              if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
+              removeTrainingTarget(id);removePlayerProjectiles(id);
+            }
+            analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},'tutorial_completed',{source:'training_screenplay',metadata:{tutorialVersion:'tutorial_v1'}});
+          }
+        }else error='Invalid training slide action';
+      } else if(payload?.tutorialFilm){
+        error='Update the QA app to use the Milwaukee training slides.';
       } else if(payload?.tutorialState&&typeof payload.tutorialState==='object'){
         const tutorialState=payload.tutorialState as {version?:unknown;status?:unknown;freshRun?:unknown};
         if(tutorialState.version==='tutorial_v1'&&(tutorialState.status==='started'||tutorialState.status==='completed'||tutorialState.status==='skipped')){
@@ -2726,6 +2763,7 @@ function failPlayerJourney(playerId: string, reason: 'TIME_UP' | 'CRASHED' | 'MO
     sendToPlayer(playerId, { type: 'monsterFinal', attemptId: failed.attemptId, kind: 'timeout', at: now });
   speedGateTracker.clear(playerId);
   speedGateWarningAt.delete(playerId);
+  wrongWayGateWarningAt.delete(playerId);
   playerJourneyRunwayPrep.delete(playerId);
   playerJourneyLoveTakeoff.delete(playerId);
   playerJourneyAddisonTakeoff.delete(playerId);
@@ -2736,8 +2774,21 @@ const serverVerifiedTutorialSteps=new Set<TutorialLessonStep>(['takeoff','approa
 function sendTutorialStepResult(playerId:string,result:{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>},step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>):void{
   sendToPlayer(playerId,{type:'tutorialStepResult',ok:result.ok,step,status,nextStep:result.nextStep,steps:result.steps,reason:result.reason});
 }
-function sendTutorialLandingApproach(playerId:string,player:PlayerState):void{
-  if(!player.tutorialMode||player.cityId!=='milwaukee'||profileStore.nextPendingTutorialStep(player.pilotId)!=='landing')return;
+function sendTutorialScreenplayCruise(playerId:string,player:PlayerState):void{
+  if(!player.tutorialMode||player.cityId!=='milwaukee')return;
+  const airport=cityAirports.milwaukee[0];
+  const heading=airport.heading;
+  const speed=55;
+  const position={x:airport.x,y:2_500,z:airport.z};
+  const now=Date.now();
+  player.position={...position};player.lastAcceptedPosition={...position};player.lastAcceptedTransformAt=now;
+  player.rotation={x:0,y:heading,z:0};
+  player.velocity={x:-Math.sin(heading)*speed,y:0,z:-Math.cos(heading)*speed};
+  player.hasRespawnTransform=false;player.lifeState='alive';player.lastStateAt=now;
+  sendToPlayer(playerId,{type:'tutorialScreenplayCruise',position,heading,speed});
+}
+function sendTutorialLandingApproach(playerId:string,player:PlayerState,screenplay=false):void{
+  if(!player.tutorialMode||player.cityId!=='milwaukee'||(!screenplay&&profileStore.nextPendingTutorialStep(player.pilotId)!=='landing'))return;
   const approach=tutorialLandingApproach(cityAirports.milwaukee[0],aircraftFlightEnvelope.trainer.safeLandingSpeed);
   const now=Date.now();
   removeTrainingTarget(playerId);removePlayerProjectiles(playerId);
@@ -6726,6 +6777,7 @@ function cleanupHumanPlayer(playerId: string, socket?: WebSocket): void {
   playerJourneyAttempts.delete(playerId);
   speedGateTracker.clear(playerId);
   speedGateWarningAt.delete(playerId);
+  wrongWayGateWarningAt.delete(playerId);
   missionFocusedPlayers.delete(playerId);
   monsterFocusedPlayers.delete(playerId);
   missionFocusHunterTargets.delete(playerId);
@@ -6779,8 +6831,9 @@ server.on('connection', (socket, request) => {
     return;
   }
   const entryProfile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
-  if ((cityId === 'dallas' && !entryProfile.tutorial.dallasUnlocked) ||
-      (cityId === 'milwaukee' && !entryProfile.tutorial.dallasUnlocked && entryProfile.tutorial.status !== 'started')) {
+  const connectionParams = new URL(request.url ?? '/', 'http://localhost').searchParams;
+  const requestedJourneyAttemptId = connectionParams.get('journeyAttempt');
+  if (requestedJourneyAttemptId && cityId === 'dallas' && !entryProfile.tutorial.dallasUnlocked) {
     sendSocketMessage(socket, { type: 'journeyUnavailable', reason: 'Complete Milwaukee training to unlock Dallas.' });
     socket.close(4003, 'Training required');
     return;
@@ -6800,7 +6853,7 @@ server.on('connection', (socket, request) => {
   const activatedTrialOnConnect = profile.fighterTrial.status === 'pending';
   if (activatedTrialOnConnect) profile = profileStore.activateFighterTrial(identity.pilotId)!;
   profile = profileStore.objectivesForCity(identity.pilotId, cityId)!;
-  const tutorialMode = Boolean(cityCapabilities(cityId)?.tutorialEnabled && profile.tutorial.status === 'started');
+  const tutorialMode = Boolean(connectionParams.get('launchMode') !== 'free-fly' && cityCapabilities(cityId)?.tutorialEnabled && profile.tutorial.status === 'started');
   const intercityArrival=tutorialMode ? {completed:false,credits:0} : profileStore.completeIntercityArrival(identity.pilotId,cityId);
   if(intercityArrival.completed&&intercityArrival.profile)profile=intercityArrival.profile;
   const priorWeeklyRewardId = profile.weeklyReward?.weekId;
@@ -6809,7 +6862,6 @@ server.on('connection', (socket, request) => {
   if (weeklyReward) profile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
   if (connectionKind === 'NEW' && !profile.legacyImportPending) connectionKind = 'RECONNECT';
   const activeAircraftType: AircraftType = tutorialMode ? 'trainer' : profile.selectedAircraft;
-  const requestedJourneyAttemptId = new URL(request.url ?? '/', 'http://localhost').searchParams.get('journeyAttempt');
   if (requestedJourneyAttemptId) expirePausedJourneys(Date.now());
   let journeyAttempt: JourneyAttempt | undefined;
   let restoringPausedJourney = false;
@@ -6928,8 +6980,9 @@ server.on('connection', (socket, request) => {
     entityType: 'player',
     isBot: false,
     cityId,
-    position: airborneSpawn?.position ?? spawnPosition,
-    rotation: { x: 0, y: airborneSpawn?.heading ?? 0, z: 0 },
+    position: initialAcceptedPosition,
+    rotation: { x: 0, y: airborneSpawn?.heading ?? (cityId === 'dallas'
+      ? cityAirports[cityId].find(airport => airport.id === spawnAirportId)?.heading ?? 0 : 0), z: 0 },
     aircraftType: activeAircraftType,
     displayName: profile.pilotName,
     score: 0,
@@ -7202,7 +7255,7 @@ server.on('connection', (socket, request) => {
 
       if(message.type==='tutorialRunReset'&&(message.tutorialResetReason==='crash'||message.tutorialResetReason==='replay')){
         if(!player.tutorialMode||player.cityId!=='milwaukee')return;
-        removeTrainingTarget(playerId);removePlayerProjectiles(playerId);profileStore.resetTutorialRun(player.pilotId);
+        removeTrainingTarget(playerId);removePlayerProjectiles(playerId);profileStore.resetTutorialRun(player.pilotId,message.tutorialResetReason==='crash');
         const profile=profileStore.setTutorialState(player.pilotId,'started',Date.now());if(!profile)return;
         resetHumanToSafeRunway(playerId,player,profile,Date.now(),true,'trainer');
         sendToPlayer(playerId,{type:'tutorialRunReset',reason:message.tutorialResetReason,steps:profileStore.tutorialStepStates(player.pilotId),nextStep:tutorialSteps[0]});
@@ -7757,6 +7810,16 @@ server.on('connection', (socket, request) => {
             dallasTerrain.elevationAt(gate.x, gate.z), mission) : false;
           if (crossing === 'TOO_HIGH') {
             sendToPlayer(playerId, { type: 'journeyGateTooHigh', gateIndex: active.gateIndex });
+          } else if (crossing === false && gate &&
+            (active.missionId === journeyDallas01.id || active.missionId === journeyDallas02.id || active.missionId === journeyDallas03.id ||
+              active.missionId === journeyDallas04.id || active.missionId === journeyDallas05.id || active.missionId === journeyDallas06.id) &&
+            crossesJourneyGateWrongWay(previousAcceptedPosition, message.position, active.gateIndex,
+              dallasTerrain.elevationAt(gate.x, gate.z), mission)) {
+            const warned = wrongWayGateWarningAt.get(playerId);
+            if (!warned || warned.attemptId !== journeyAttemptId || warned.gateIndex !== active.gateIndex || stateNow - warned.at >= 2_500) {
+              wrongWayGateWarningAt.set(playerId, { attemptId: journeyAttemptId, gateIndex: active.gateIndex, at: stateNow });
+              sendToPlayer(playerId, { type: 'journeyGateWrongWay', attemptId: journeyAttemptId, gateIndex: active.gateIndex });
+            }
           } else if (crossing === 'VALID') {
             const verifiedSpeed = active.missionId === journeyDallas13.id ? speedGateMeasured : undefined;
             const requiredSpeed = active.missionId === journeyDallas13.id ? journeyDallas13.speedThresholds[active.aircraftType as keyof typeof journeyDallas13.speedThresholds] : undefined;
@@ -7780,7 +7843,10 @@ server.on('connection', (socket, request) => {
                 }
                 if (advanced.missionId === journeyDallas24.id && advanced.legendaryPhase === 'ACE')
                   ensureJourneyLegendary(playerId, player, advanced, stateNow);
-                if (advanced.status === 'COMPLETED') sendProfile(playerId, profileStore.getOrCreate(player.pilotId, player.displayName), undefined, undefined, mission.name);
+                if (advanced.status === 'COMPLETED') {
+                  wrongWayGateWarningAt.delete(playerId);
+                  sendProfile(playerId, profileStore.getOrCreate(player.pilotId, player.displayName), undefined, undefined, mission.name);
+                }
               }
             }
           }

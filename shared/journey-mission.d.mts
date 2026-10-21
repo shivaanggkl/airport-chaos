@@ -142,3 +142,5 @@ export function journeyGatePlane(mission: Readonly<{ gates: readonly { x: number
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
   mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
+export function crossesJourneyGateWrongWay(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
+  mission?: Parameters<typeof journeyGateCrossing>[4]): boolean;

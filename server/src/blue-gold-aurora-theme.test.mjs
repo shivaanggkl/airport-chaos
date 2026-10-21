@@ -54,7 +54,7 @@ test('major desktop and shared mobile surfaces use dark blue translucent glass',
   // The octagon uses a translucent SVG face instead of a solid button fill.
   assert.match(css, /\.touch-stick\{[^}]+background:transparent/);
   assert.match(css, /\.touch-stick-frame-outer\{[^}]*fill:url\(#touch-stick-surface\)/);
-  assert.match(css, /#real-players\.expanded, #city-territories\.expanded\s*\{[^}]+rgb\(24 52 74 \/ 58%\)/s);
+  assert.match(css, /\.gameplay-info-card\.is-multiplayer\s*\{[^}]+background:\s*rgb\(9 26 48 \/ 88%\)/s);
 });
 
 test('screen overlays preserve vivid game surfaces and a clean City Journey background', () => {

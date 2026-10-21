@@ -14,6 +14,7 @@ import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiver
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
 import { tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { trainingSlideIds } from '../../shared/training-slides.mjs';
 import { PlayerWallet, type WalletBalances, type WalletTransactionReason } from './player-wallet.js';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
@@ -525,6 +526,12 @@ export class PlayerProfileStore {
         pilot_id TEXT PRIMARY KEY, version TEXT NOT NULL, status TEXT NOT NULL,
         updated_at INTEGER NOT NULL, completed_at INTEGER, required INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS pilot_training_film (
+        pilot_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS pilot_training_slides (
+        pilot_id TEXT PRIMARY KEY, slide_index INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS pilot_tutorial_steps (
         pilot_id TEXT NOT NULL, step TEXT NOT NULL, status TEXT NOT NULL, updated_at INTEGER NOT NULL,
         PRIMARY KEY (pilot_id, step)
@@ -704,6 +711,40 @@ export class PlayerProfileStore {
     return this.tutorialStepsResolved(pilotId) && this.tutorialStepStates(pilotId).landing==='completed' && (this.trainingEvidence(pilotId)&8)!==0;
   }
 
+  startTrainingSlides(pilotId:string,now=Date.now()):boolean{
+    const state=this.database.prepare('SELECT status FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {status:string}|undefined;
+    if(state?.status!=='started')return false;
+    this.database.prepare('INSERT INTO pilot_training_slides(pilot_id,slide_index,updated_at) VALUES (?,0,?) ON CONFLICT(pilot_id) DO UPDATE SET slide_index=0,updated_at=excluded.updated_at').run(pilotId,now);
+    return true;
+  }
+
+  advanceTrainingSlide(pilotId:string,slideIndex:number,slideId:string,now=Date.now()):boolean{
+    if(!Number.isInteger(slideIndex)||slideIndex<0||slideIndex>=trainingSlideIds.length-1||trainingSlideIds[slideIndex]!==slideId)return false;
+    const result=this.database.prepare(`UPDATE pilot_training_slides SET slide_index=slide_index+1,updated_at=?
+      WHERE pilot_id=? AND slide_index=? AND EXISTS (
+        SELECT 1 FROM pilot_tutorial_state WHERE pilot_id=? AND status='started'
+      )`).run(now,pilotId,slideIndex,pilotId);
+    if(result.changes>0)return true;
+    const saved=this.database.prepare(`SELECT t.slide_index,s.status FROM pilot_training_slides t
+      JOIN pilot_tutorial_state s ON s.pilot_id=t.pilot_id WHERE t.pilot_id=?`).get(pilotId) as {slide_index:number;status:string}|undefined;
+    return saved?.status==='started'&&saved.slide_index>slideIndex;
+  }
+
+  completeTrainingSlides(pilotId:string,now=Date.now()):PlayerProfile|undefined{
+    const lastIndex=trainingSlideIds.length-1;
+    const result=this.database.prepare(`UPDATE pilot_tutorial_state
+      SET status='completed',updated_at=?,completed_at=COALESCE(completed_at,?)
+      WHERE pilot_id=? AND status='started' AND EXISTS (
+        SELECT 1 FROM pilot_training_slides WHERE pilot_id=? AND slide_index=?
+      )`).run(now,now,pilotId,pilotId,lastIndex);
+    if(result.changes===0){
+      const state=this.database.prepare(`SELECT s.status,t.slide_index FROM pilot_tutorial_state s
+        JOIN pilot_training_slides t ON t.pilot_id=s.pilot_id WHERE s.pilot_id=?`).get(pilotId) as {status:string;slide_index:number}|undefined;
+      if(state?.status!=='completed'||state.slide_index!==trainingSlideIds.length)return undefined;
+    }else this.database.prepare('UPDATE pilot_training_slides SET slide_index=?,updated_at=? WHERE pilot_id=?').run(trainingSlideIds.length,now,pilotId);
+    return this.toProfile(this.getRow(pilotId)!);
+  }
+
   recordTutorialStepStatus(pilotId:string,step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>,now=Date.now(),enforceOrder=true):{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>}{
     const states=this.tutorialStepStates(pilotId);
     if(!tutorialSteps.includes(step)||(status!=='completed'&&status!=='skipped'))return{ok:false,changed:false,reason:'INVALID TUTORIAL STEP',nextStep:this.nextPendingTutorialStep(pilotId),steps:states};
@@ -716,9 +757,9 @@ export class PlayerProfileStore {
     return{ok:true,changed:true,nextStep:tutorialSteps.find(candidate=>updated[candidate]==='pending'),steps:updated};
   }
 
-  resetTutorialRun(pilotId:string):void{
+  resetTutorialRun(pilotId:string,preserveSlides=false):void{
     this.database.exec('BEGIN IMMEDIATE');
-    try{this.database.prepare('DELETE FROM pilot_tutorial_steps WHERE pilot_id=?').run(pilotId);this.database.prepare('UPDATE pilot_tutorial_state SET evidence=0 WHERE pilot_id=?').run(pilotId);this.database.exec('COMMIT');}
+    try{this.database.prepare('DELETE FROM pilot_tutorial_steps WHERE pilot_id=?').run(pilotId);this.database.prepare('DELETE FROM pilot_training_film WHERE pilot_id=?').run(pilotId);if(!preserveSlides)this.database.prepare('DELETE FROM pilot_training_slides WHERE pilot_id=?').run(pilotId);this.database.prepare('UPDATE pilot_tutorial_state SET evidence=0 WHERE pilot_id=?').run(pilotId);this.database.exec('COMMIT');}
     catch(error){this.database.exec('ROLLBACK');throw error;}
   }
 

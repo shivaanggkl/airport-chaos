@@ -1,6 +1,7 @@
 import './mission-journey.css';
 import './context-page-shell.css';
 import { hapticsManager } from './haptics-manager';
+import { createLockIcon } from './lock-icon';
 import { chapterNames, missionJourneyStages, missionJourneyStatuses } from './mission-journey-model';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 export { missionJourneyStages } from './mission-journey-model';
@@ -49,6 +50,11 @@ export class MissionJourney {
   private readonly detail: HTMLElement;
   private readonly stageButtons: HTMLButtonElement[] = [];
   private readonly routeSegments: SVGPathElement[] = [];
+  private progressMarker: HTMLElement | null = null;
+  private progressSegment: SVGPathElement | null = null;
+  private progressAnimationFrame = 0;
+  private unlockTimer = 0;
+  private progressingFrom: number | null = null;
   private currentMission = 0;
   private selectedStage = 1;
   private userSelectedStage = false;
@@ -56,6 +62,7 @@ export class MissionJourney {
   private stageOneCompleted = false;
   private stageOneEligible = false;
   private signInRequired = false;
+  private cityLocked = false;
   private stageTwoCompleted = false;
   private stageTwoEligible = false;
   private stageThreeCompleted = false;
@@ -120,6 +127,7 @@ export class MissionJourney {
       </div>`;
     this.detail = element.querySelector('.mission-journey-detail')!;
     element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => {
+      if (this.progressingFrom !== null) return;
       if (this.stageButtons[this.selectedStage - 1]?.disabled) return;
       hapticsManager.emit('confirmation'); onPlayMission();
     });
@@ -157,7 +165,12 @@ export class MissionJourney {
       button.type = 'button'; button.className = 'mission-journey-node is-locked';
       button.dataset.stage = String(stage.number);
       button.style.left = `${stage.x}%`; button.style.top = `${stage.y}%`;
-      button.innerHTML = `${stage.number % 6 === 0 ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span><small class="mission-journey-lock" aria-hidden="true"></small>`;
+      button.innerHTML = `${stage.number % 6 === 0 ? '<em class="mission-journey-crown" aria-hidden="true"><svg viewBox="0 0 40 30"><path d="M3 8 11 16 20 3 29 16 37 8 34 25 6 25Z" fill="currentColor"/><path d="M7 28h26" fill="none" stroke="currentColor" stroke-width="3"/></svg></em>' : ''}<span class="mission-journey-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4.5 12 5 5 10-10" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="mission-journey-number">${stage.number}</span>`;
+      const lock = document.createElement('span');
+      lock.className = 'mission-journey-lock';
+      lock.setAttribute('aria-hidden', 'true');
+      lock.append(createLockIcon());
+      button.append(lock);
       button.addEventListener('click', () => this.select(stage.number, true, true));
       button.addEventListener('keydown', event => this.handleNodeKeydown(event, stage.number));
       nodes.append(button); this.stageButtons.push(button);
@@ -172,6 +185,11 @@ export class MissionJourney {
 
   setSignInRequired(required: boolean): void {
     this.signInRequired = required;
+    this.renderProgress();
+  }
+
+  setCityLocked(locked: boolean): void {
+    this.cityLocked = locked;
     this.renderProgress();
   }
 
@@ -370,27 +388,29 @@ export class MissionJourney {
   }
 
   private renderProgress(): void {
-    const completed = this.completedStages();
-    const { currentMission, statuses } = missionJourneyStatuses(completed, completed.map((_, index) => this.isStageEligible(index + 1)), this.signInRequired);
+    const completed = this.cityLocked ? missionJourneyStages.map(() => false) : this.completedStages();
+    const { currentMission, statuses } = missionJourneyStatuses(completed, completed.map((_, index) => !this.cityLocked && this.isStageEligible(index + 1)), !this.cityLocked && this.signInRequired);
     this.currentMission = currentMission;
-    if (!this.userSelectedStage) this.selectedStage = this.currentMission || (completed.every(Boolean) ? 24 : 1);
+    if (this.progressingFrom !== null) this.selectedStage = this.progressingFrom;
+    else if (!this.userSelectedStage) this.selectedStage = this.currentMission || (completed.every(Boolean) ? 24 : 1);
     else if (statuses[this.selectedStage - 1] === 'locked') {
       this.userSelectedStage = false;
       this.selectedStage = this.currentMission || 1;
     }
     this.stageButtons.forEach((button, index) => {
-      const number = index + 1, status = statuses[index]!;
+      const number = index + 1;
+      const status = this.progressingFrom === number - 1 ? 'locked' : statuses[index]!;
       button.classList.toggle('is-locked', status === 'locked');
       button.classList.toggle('is-completed', status === 'completed');
       button.classList.toggle('is-current', status === 'current');
       button.classList.toggle('is-selected', number === this.selectedStage);
-      button.disabled = status === 'locked';
+      button.disabled = this.cityLocked || status === 'locked';
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
       button.setAttribute('aria-label', `Mission ${number}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : status}`);
     });
     for (const segment of this.routeSegments) {
       const from = Number(segment.dataset.from);
-      segment.classList.toggle('is-lit', completed[from - 1] === true && (completed[from] === true || this.currentMission === from + 1));
+      segment.classList.toggle('is-lit', from !== this.progressingFrom && completed[from - 1] === true && (completed[from] === true || this.currentMission === from + 1));
     }
     this.renderDetails();
   }
@@ -408,329 +428,100 @@ export class MissionJourney {
     this.select(Number(next.dataset.stage), true, true);
   }
 
-  celebrateStageOne(): void {
-    this.select(1, false);
-    this.setPanelOpen(false);
-    this.stageButtons[0]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[0]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(2);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
+  celebrateCompletion(number: number): void {
+    if (!this.isOpen || !this.completedStages()[number - 1]) return;
+    this.cancelProgressAnimation();
+    const next = number + 1;
+    if (this.currentMission !== next || !this.stageButtons[next - 1] || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.userSelectedStage = false;
+      this.select(this.currentMission || number);
+      return;
+    }
+
+    const segment = this.routeSegments.find(path => Number(path.dataset.from) === number);
+    if (!segment) { this.select(next); return; }
+    const map = this.element.querySelector<HTMLElement>('.mission-journey-map')!;
+    const marker = document.createElement('span');
+    marker.className = 'mission-journey-progress-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    map.append(marker);
+    this.progressMarker = marker;
+    this.progressingFrom = number;
+    this.userSelectedStage = false;
+    this.element.classList.add('is-advancing');
+    this.stageButtons[number - 1]?.classList.add('is-newly-completed');
+    this.renderProgress();
+
+    const length = segment.getTotalLength();
+    this.progressSegment = segment;
+    segment.classList.add('is-advancing');
+    segment.style.strokeDasharray = String(length);
+    segment.style.strokeDashoffset = String(length);
+    const duration = number === 12 ? 1_900 : 1_250;
+    let startedAt: number | null = null;
+    const animate = (now: number): void => {
+      if (this.progressingFrom !== number || !this.isOpen) return;
+      startedAt ??= now;
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = progress * progress * (3 - 2 * progress);
+      const point = segment.getPointAtLength(length * eased);
+      marker.style.left = `${point.x}%`;
+      marker.style.top = `${point.y}%`;
+      segment.style.strokeDashoffset = String(length * (1 - eased));
+      if (progress < 1) {
+        this.progressAnimationFrame = window.requestAnimationFrame(animate);
+        return;
+      }
+      this.progressAnimationFrame = 0;
+      const unlocked = this.stageButtons[next - 1]!;
+      marker.remove();
+      this.progressMarker = null;
+      unlocked.classList.add('is-unlocking');
+      this.unlockTimer = window.setTimeout(() => {
+        this.unlockTimer = 0;
+        this.cancelProgressAnimation();
+        this.userSelectedStage = false;
+        this.select(next);
+        unlocked.classList.add('is-newly-unlocked');
+        window.setTimeout(() => unlocked.classList.remove('is-newly-unlocked'), 850);
+      }, 360);
+    };
+    this.progressAnimationFrame = window.requestAnimationFrame(animate);
   }
 
-  advanceToStageTwo(): void { this.select(2); }
-
-  celebrateStageTwo(): void {
-    this.select(2, false);
-    this.setPanelOpen(false);
-    this.stageButtons[1]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-two');
-    window.setTimeout(() => {
-      this.stageButtons[1]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-two');
-      if (this.isOpen) this.select(3);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageThree(): void { this.select(3); }
-
-  celebrateStageThree(): void {
-    this.select(3, false);
-    this.setPanelOpen(false);
-    this.stageButtons[2]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-three');
-    window.setTimeout(() => {
-      this.stageButtons[2]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-three');
-      if (this.isOpen) this.select(4);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageFour(): void { this.select(4); }
-
-  celebrateStageFour(): void {
-    this.select(4, false);
-    this.setPanelOpen(false);
-    this.stageButtons[3]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-four');
-    window.setTimeout(() => {
-      this.stageButtons[3]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-four');
-      if (this.isOpen) this.select(5);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageFive(): void { this.select(5); }
-
-  celebrateStageFive(): void {
-    this.select(5, false);
-    this.setPanelOpen(false);
-    this.stageButtons[4]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-five');
-    window.setTimeout(() => {
-      this.stageButtons[4]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-five');
-      if (this.isOpen) this.select(6);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageSix(): void { this.select(6); }
-
-  celebrateStageSix(): void {
-    this.select(6, false);
-    this.setPanelOpen(false);
-    this.stageButtons[5]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-six');
-    window.setTimeout(() => {
-      this.stageButtons[5]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-six');
-      if (this.isOpen) this.select(7);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageSeven(): void { this.select(7); }
-
-  celebrateStageSeven(): void {
-    this.select(7, false);
-    this.setPanelOpen(false);
-    this.stageButtons[6]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-seven');
-    window.setTimeout(() => {
-      this.stageButtons[6]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-seven');
-      if (this.isOpen) this.select(8);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageEight(): void { this.select(8); }
-
-  celebrateStageEight(): void {
-    this.select(8, false);
-    this.setPanelOpen(false);
-    this.stageButtons[7]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-eight');
-    window.setTimeout(() => {
-      this.stageButtons[7]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-eight');
-      if (this.isOpen) this.select(9);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageNine(): void { this.select(9); }
-
-  celebrateStageNine(): void {
-    this.select(9, false);
-    this.setPanelOpen(false);
-    this.stageButtons[8]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-nine');
-    window.setTimeout(() => {
-      this.stageButtons[8]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-nine');
-      if (this.isOpen) this.select(10);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageTen(): void { this.select(10); }
-
-  celebrateStageTen(): void {
-    this.select(10, false);
-    this.setPanelOpen(false);
-    this.stageButtons[9]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-ten');
-    window.setTimeout(() => {
-      this.stageButtons[9]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-ten');
-      if (this.isOpen) this.select(11);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageEleven(): void { this.select(11); }
-
-  celebrateStageEleven(): void {
-    this.select(11, false);
-    this.setPanelOpen(false);
-    this.stageButtons[10]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-eleven');
-    window.setTimeout(() => {
-      this.stageButtons[10]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-eleven');
-      if (this.isOpen) this.select(12);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageTwelve(): void { this.select(12); }
-
-  celebrateStageTwelve(): void {
-    this.select(12, false);
-    this.setPanelOpen(false);
-    this.stageButtons[11]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-twelve');
-    window.setTimeout(() => {
-      this.stageButtons[11]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-twelve');
-      if (this.isOpen) this.select(13);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageThirteen(): void { this.select(13); }
-
-  celebrateStageThirteen(): void {
-    this.select(13, false);
-    this.setPanelOpen(false);
-    this.stageButtons[12]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-thirteen');
-    window.setTimeout(() => {
-      this.stageButtons[12]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-thirteen');
-      if (this.isOpen) this.select(14);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageFourteen(): void { this.select(14); }
-
-  celebrateStageFourteen(): void {
-    this.select(14, false);
-    this.setPanelOpen(false);
-    this.stageButtons[13]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-fourteen');
-    window.setTimeout(() => {
-      this.stageButtons[13]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-fourteen');
-      if (this.isOpen) this.select(15);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageFifteen(): void { this.select(15); }
-
-  celebrateStageFifteen(): void {
-    this.select(15, false);
-    this.setPanelOpen(false);
-    this.stageButtons[14]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing-fifteen');
-    window.setTimeout(() => {
-      this.stageButtons[14]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing-fifteen');
-      if (this.isOpen) this.select(16);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageSixteen(): void { this.select(16); }
-  celebrateStageSixteen(): void {
-    this.select(16, false); this.setPanelOpen(false);
-    this.stageButtons[15]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[15]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(17);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-  advanceToStageSeventeen(): void { this.select(17); }
-  celebrateStageSeventeen(): void {
-    this.select(17, false); this.setPanelOpen(false);
-    this.stageButtons[16]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[16]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(18);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-  advanceToStageEighteen(): void { this.select(18); }
-  celebrateStageEighteen(): void {
-    this.select(18, false); this.setPanelOpen(false);
-    this.stageButtons[17]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[17]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(19);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-  advanceToStageNineteen(): void { this.select(19); }
-  advanceToStageTwenty(): void { this.select(20); }
-  celebrateStageNineteen(): void {
-    this.select(19, false); this.setPanelOpen(false);
-    this.stageButtons[18]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[18]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(20);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageTwentyOne(): void { this.select(21); }
-  celebrateStageTwenty(): void {
-    this.select(20, false); this.setPanelOpen(false);
-    this.stageButtons[19]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[19]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(21);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageTwentyTwo(): void { this.select(22); }
-  celebrateStageTwentyOne(): void {
-    this.select(21, false); this.setPanelOpen(false);
-    this.stageButtons[20]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[20]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(22);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageTwentyThree(): void { this.select(23); }
-  celebrateStageTwentyTwo(): void {
-    this.select(22, false); this.setPanelOpen(false);
-    this.stageButtons[21]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[21]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(23);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  advanceToStageTwentyFour(): void { this.select(24); }
-  celebrateStageTwentyThree(): void {
-    this.select(23, false); this.setPanelOpen(false);
-    this.stageButtons[22]?.classList.add('is-newly-completed');
-    this.element.classList.add('is-progressing');
-    window.setTimeout(() => {
-      this.stageButtons[22]?.classList.remove('is-newly-completed');
-      this.element.classList.remove('is-progressing');
-      if (this.isOpen) this.select(24);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1_100);
-  }
-
-  celebrateStageTwentyFour(): void {
-    this.select(24, false); this.setPanelOpen(false);
-    this.stageButtons[23]?.classList.add('is-newly-completed');
-    window.setTimeout(() => this.stageButtons[23]?.classList.remove('is-newly-completed'), 1_100);
+  private cancelProgressAnimation(): void {
+    if (this.progressAnimationFrame) window.cancelAnimationFrame(this.progressAnimationFrame);
+    this.progressAnimationFrame = 0;
+    if (this.unlockTimer) window.clearTimeout(this.unlockTimer);
+    this.unlockTimer = 0;
+    if (this.progressingFrom !== null) this.stageButtons[this.progressingFrom - 1]?.classList.remove('is-newly-completed');
+    if (this.progressingFrom !== null) this.stageButtons[this.progressingFrom]?.classList.remove('is-unlocking');
+    this.progressingFrom = null;
+    this.progressMarker?.remove();
+    this.progressMarker = null;
+    this.progressSegment?.classList.remove('is-advancing');
+    this.progressSegment?.style.removeProperty('stroke-dasharray');
+    this.progressSegment?.style.removeProperty('stroke-dashoffset');
+    this.progressSegment = null;
+    this.element.classList.remove('is-advancing');
   }
 
   show(_panelOpen = false): void {
+    this.cancelProgressAnimation();
     this.element.hidden = false;
     this.userSelectedStage = false;
     this.renderProgress();
     this.panelOpen = false;
   }
 
-  hide(): void { this.element.hidden = true; }
+  hide(): void { this.cancelProgressAnimation(); this.element.hidden = true; }
   closePanel(): void { this.panelOpen = false; }
 
   private setPanelOpen(_open: boolean): void { this.panelOpen = false; }
 
   private select(number: number, _animate = true, userSelected = false): void {
     const stage = missionJourneyStages[number - 1];
-    if (!stage || userSelected && this.stageButtons[number - 1]?.disabled) return;
+    if (!stage || userSelected && this.stageButtons[number - 1]?.disabled || userSelected && this.progressingFrom !== null) return;
     if (userSelected) { this.userSelectedStage = true; hapticsManager.emit('selection'); }
     this.selectedStage = number;
     this.renderProgress();
@@ -747,13 +538,13 @@ export class MissionJourney {
       return;
     }
     const card = missionCards[stage.number - 1]!;
-    const completed = this.completedStages()[stage.number - 1] === true;
+    const completed = !this.cityLocked && this.completedStages()[stage.number - 1] === true;
     const eligible = this.isStageEligible(stage.number);
     const signInRequired = this.signInRequired && stage.number === 1 && !completed;
-    const locked = !completed && !eligible && !signInRequired;
+    const locked = this.cityLocked || (!completed && !eligible && !signInRequired);
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
-    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = locked ? `Complete Mission ${stage.number - 1} to unlock.` : card.objective;
+    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = this.cityLocked ? 'Complete Milwaukee training to unlock Dallas missions.' : locked ? `Complete Mission ${stage.number - 1} to unlock.` : card.objective;
     this.detail.querySelector<HTMLImageElement>('.mission-journey-detail-image')!.alt = `Dallas Mission ${stage.number} artwork`;
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;

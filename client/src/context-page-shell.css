@@ -89,10 +89,10 @@
 }
 
 .context-action--gold {
-  --context-action-border: #d69a21;
-  --context-action-background: linear-gradient(#fff0a6, #f8c746 45%, #e8a927);
-  --context-action-shadow: inset 0 1px #fffde3, 0 2px 5px rgb(101 59 9 / 28%);
-  --context-action-color: #3c2200;
+  --context-action-border: var(--menu-gold-border);
+  --context-action-background: var(--menu-gold-fill);
+  --context-action-shadow: var(--menu-gold-shadow);
+  --context-action-color: var(--menu-gold-ink);
 }
 
 .context-action--blue {

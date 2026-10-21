@@ -3,7 +3,7 @@ import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-eco
 import { cosmeticCatalog, defaultCosmeticIds } from '../../shared/cosmetics.mjs';
 import type { GarageProfile } from './garage';
 
-export type StoreCategory = 'FEATURED' | 'AIRCRAFT' | 'PAINTS' | 'EFFECTS' | 'CITIES';
+export type StoreCategory = 'FEATURED' | 'AIRCRAFT' | 'EFFECTS' | 'CITIES';
 export type StoreItem = {
   id: string;
   kind: 'aircraft' | 'paint';

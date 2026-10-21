@@ -20,6 +20,7 @@ import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
 import { PLAYER_STORAGE_KEY } from './player-storage';
+import { setFlightLaunchAircraft } from './flight-launch-aircraft';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { apiFetch, apiOrigin, apiUrl } from './transport';
@@ -210,6 +211,7 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
 }
 
 async function playJourneyMission(): Promise<void> {
+  if (!dallasUnlocked()) return;
   cityJourneyMode = 'missions';
   if (hubAccount.state !== 'account' && !guestQaJourneyAccess) {
     hubAccountNotice = { ok: true, message: 'SIGN IN TO PLAY MISSIONS' };
@@ -650,6 +652,8 @@ let cityJourneyPointer: { id: number; x: number; y: number; dragging: boolean } 
 let cityJourneyClickBlockedUntil = 0;
 let cityJourneyTransitionUntil = 0;
 let cityJourneyWheelAt = Number.NEGATIVE_INFINITY;
+let pendingDallasUnlock = false;
+let dallasUnlockAnimating = false;
 type CityJourneyView = { card: HTMLElement; detail: HTMLElement; status: HTMLElement; lock: HTMLElement; cta: HTMLButtonElement };
 const cityJourneyViews: CityJourneyView[] = [];
 
@@ -661,15 +665,12 @@ function dallasUnlocked(): boolean {
   return authoritativeHomeProfile?.tutorial?.dallasUnlocked === true;
 }
 
-function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: string; cta: string; city?: CityDefinition; training?: boolean; disabled?: boolean } {
+function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: string; cta: string; city?: CityDefinition; training?: boolean; locked?: boolean; disabled?: boolean } {
   const city = journeyCity(entry);
   if (!city) return { detail: 'COMING SOON', status: 'CITY LOCKED', cta: 'LOCKED', disabled: true };
   if (entry.id === 'milwaukee') {
     const completed = Boolean(authoritativeHomeProfile?.tutorial?.completedAt);
     if (cityJourneyMode === 'missions') return { city, detail: 'TRAINING', status: completed ? 'TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: true };
-    if (!authoritativeHomeProfile?.tutorial?.dallasUnlocked && authoritativeHomeProfile?.tutorial?.status !== 'started') {
-      return { city, detail: 'PRACTICE FREE FLY', status: 'START TRAINING IN MISSIONS FIRST', cta: 'LOCKED', disabled: true };
-    }
     return { city, detail: 'PRACTICE FREE FLY', status: 'TRAINING CITY', cta: 'CONTINUE' };
   }
   if (cityJourneyMode === 'missions' && city.id !== 'dallas') return { detail: 'COMING SOON', status: 'MISSIONS UNAVAILABLE', cta: 'LOCKED', disabled: true };
@@ -677,11 +678,11 @@ function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: st
   if (cityJourneyMode === 'free-fly' && !capabilities?.competitiveEnabled && !capabilities?.practiceMode) {
     return { detail: 'COMING SOON', status: 'FREE FLY UNAVAILABLE', cta: 'LOCKED', disabled: true };
   }
-  const unlocked = entry.id !== 'dallas' || dallasUnlocked();
+  const unlocked = cityJourneyMode === 'free-fly' || entry.id !== 'dallas' || dallasUnlocked();
   const detail = cityJourneyMode === 'missions'
     ? `${missionJourneyStages.filter(stage => stage.implementation === 'playable').length} MISSIONS`
     : capabilities?.competitiveEnabled ? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY';
-  return { city, detail, status: unlocked ? 'AVAILABLE' : 'COMPLETE MILWAUKEE TRAINING FIRST', cta: unlocked ? cityJourneyMode === 'missions' ? 'VIEW MISSIONS' : 'CONTINUE' : 'LOCKED', disabled: !unlocked };
+  return { city, detail, status: unlocked ? 'AVAILABLE' : 'COMPLETE MILWAUKEE TRAINING FIRST', cta: unlocked ? cityJourneyMode === 'missions' ? 'VIEW MISSIONS' : 'CONTINUE' : 'LOCKED', locked: !unlocked, disabled: !unlocked && cityJourneyMode !== 'missions' };
 }
 
 function preferredCityJourneyIndex(preferDallas = false): number {
@@ -691,7 +692,7 @@ function preferredCityJourneyIndex(preferDallas = false): number {
     const storedIndex = cityJourneyEntries.findIndex(entry => entry.id === stored);
     if (storedIndex >= 0) return storedIndex;
   } catch { /* use the current authoritative city availability */ }
-  if (!dallasUnlocked()) return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
+  if (cityJourneyMode === 'missions' && !dallasUnlocked()) return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
   if (preferDallas && dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
   if (dallasIndex >= 0 && journeyCity(cityJourneyEntries[dallasIndex]!)) return dallasIndex;
   return Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'));
@@ -699,7 +700,7 @@ function preferredCityJourneyIndex(preferDallas = false): number {
 
 function activateCityJourneyCard(index: number): void {
   const state = cityJourneyState(cityJourneyEntries[index]!);
-  if (cityJourneyLaunching || performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
+  if (cityJourneyLaunching || pendingDallasUnlock && cityJourneyMode === 'missions' || performance.now() < cityJourneyClickBlockedUntil || index !== cityJourneyIndex || state.disabled || !state.city) return;
   cityJourneyLaunching = true;
   hapticsManager.emit('selection');
   if (state.training) void startTrainingFromHub();
@@ -761,9 +762,11 @@ function createCityJourneyCards(): void {
 
 function renderCityJourney(): void {
   createCityJourneyCards();
+  cityOptions.classList.toggle('is-unlock-pending', pendingDallasUnlock && cityJourneyMode === 'missions');
   cityJourneyViews.forEach((view, index) => {
     const offset = index - cityJourneyIndex;
     const state = cityJourneyState(cityJourneyEntries[index]!);
+    const unlocking = pendingDallasUnlock && cityJourneyMode === 'missions' && cityJourneyEntries[index]!.id === 'dallas';
     view.card.setAttribute('aria-selected', offset === 0 ? 'true' : 'false');
     view.card.setAttribute('aria-hidden', Math.abs(offset) > 1 ? 'true' : 'false');
     view.card.classList.toggle('is-selected', offset === 0);
@@ -771,18 +774,18 @@ function renderCityJourney(): void {
     view.card.classList.toggle('is-next', offset === 1);
     view.card.classList.toggle('is-before', offset < -1);
     view.card.classList.toggle('is-after', offset > 1);
-    view.card.classList.toggle('is-locked', state.disabled === true);
+    view.card.classList.toggle('is-locked', unlocking || state.locked === true || state.disabled === true);
     view.detail.textContent = state.detail;
-    view.status.textContent = state.status;
-    view.lock.hidden = state.disabled !== true;
-    view.cta.textContent = state.cta;
-    view.cta.disabled = state.disabled === true;
-    view.cta.setAttribute('aria-disabled', state.disabled === true ? 'true' : 'false');
+    view.status.textContent = unlocking ? 'TRAINING COMPLETE' : state.status;
+    view.lock.hidden = !unlocking && state.locked !== true && state.disabled !== true;
+    view.cta.textContent = unlocking ? 'UNLOCKING…' : state.cta;
+    view.cta.disabled = unlocking || state.disabled === true;
+    view.cta.setAttribute('aria-disabled', unlocking || state.disabled === true ? 'true' : 'false');
     view.cta.tabIndex = offset === 0 ? 0 : -1;
-    view.card.classList.toggle('is-enterable', offset === 0 && !state.disabled && Boolean(state.city));
+    view.card.classList.toggle('is-enterable', offset === 0 && !unlocking && !state.disabled && Boolean(state.city));
   });
-  cityJourneyPrevious.disabled = cityJourneyIndex === 0;
-  cityJourneyNext.disabled = cityJourneyIndex === cityJourneyEntries.length - 1;
+  cityJourneyPrevious.disabled = pendingDallasUnlock && cityJourneyMode === 'missions' || cityJourneyIndex === 0;
+  cityJourneyNext.disabled = pendingDallasUnlock && cityJourneyMode === 'missions' || cityJourneyIndex === cityJourneyEntries.length - 1;
 }
 
 function setCityJourneyIndex(index: number, remember = true): void {
@@ -794,7 +797,48 @@ function setCityJourneyIndex(index: number, remember = true): void {
   renderCityJourney();
 }
 
+function celebrateDallasUnlock(): void {
+  if (!pendingDallasUnlock || dallasUnlockAnimating || cityJourneyMode !== 'missions' || citySelector.hidden) return;
+  const dallasIndex = cityJourneyEntries.findIndex(entry => entry.id === 'dallas');
+  const milwaukeeIndex = cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee');
+  if (dallasIndex < 0 || milwaukeeIndex < 0) return;
+  const cancel = () => {
+    dallasUnlockAnimating = false;
+    cityOptions.classList.remove('is-unlock-traveling');
+    cityJourneyViews[milwaukeeIndex]?.card.classList.remove('is-unlock-source');
+    cityJourneyViews[dallasIndex]?.card.classList.remove('is-unlocking');
+  };
+  const finish = () => {
+    if (citySelector.hidden) { cancel(); return; }
+    pendingDallasUnlock = false;
+    cancel();
+    const dallas = cityJourneyViews[dallasIndex]?.card;
+    renderCityJourney();
+    dallas?.classList.add('is-just-unlocked');
+    window.setTimeout(() => dallas?.classList.remove('is-just-unlocked'), 1200);
+    hapticsManager.emit('rewardSuccess', `dallas-unlock:${authoritativeHomeProfile?.tutorial?.completedAt}`);
+  };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    setCityJourneyIndex(dallasIndex);
+    finish();
+    return;
+  }
+  dallasUnlockAnimating = true;
+  cityJourneyViews[milwaukeeIndex]?.card.classList.add('is-unlock-source');
+  window.setTimeout(() => {
+    if (citySelector.hidden) { cancel(); return; }
+    cityOptions.classList.add('is-unlock-traveling');
+    setCityJourneyIndex(dallasIndex);
+    window.setTimeout(() => {
+      if (citySelector.hidden) { cancel(); return; }
+      cityJourneyViews[dallasIndex]?.card.classList.add('is-unlocking');
+      window.setTimeout(finish, 650);
+    }, 1050);
+  }, 500);
+}
+
 function stepCityJourney(direction: -1 | 1): void {
+  if (pendingDallasUnlock && cityJourneyMode === 'missions') return;
   setCityJourneyIndex(cityJourneyIndex + direction);
 }
 cityJourneyPrevious.addEventListener('click', () => stepCityJourney(-1));
@@ -1238,7 +1282,7 @@ async function recordRewardedAdEvent(attemptId: string, event: 'started' | 'qual
   if (result.rewardedAds) hubRewardedAdStatus = result.rewardedAds;
 }
 
-async function waitForRewardedAdVerification(attemptId: string, expectedCredits: number): Promise<void> {
+async function waitForRewardedAdVerification(attemptId: string, expectedCredits: number, source: DOMRect): Promise<void> {
   const generation = ++rewardedAdPollGeneration;
   for (let check = 0; check < 15; check += 1) {
     if (generation !== rewardedAdPollGeneration || !hubPilotMenu.isSectionOpen('REWARDS')) return;
@@ -1250,7 +1294,10 @@ async function waitForRewardedAdVerification(attemptId: string, expectedCredits:
       if (!response.ok || !result.attemptStatus || !result.status) continue;
       hubRewardedAdStatus = result.status;
       if (result.attemptStatus === 'REWARDED') {
+        const previousCredits = garageProfile.credits;
         if (result.profile) applyAuthoritativeHomeProfile(result.profile);
+        if (result.profile && result.rewardCredits && result.profile.credits - previousCredits === result.rewardCredits)
+          appHeader.animateCreditsEarned(source, previousCredits, result.profile.credits);
         hubRewardedAdPhase = 'idle';
         hubRewardedAdNotice = `+${(result.rewardCredits ?? expectedCredits).toLocaleString()} CREDITS`;
         audioManager.playReward();
@@ -1274,7 +1321,7 @@ async function waitForRewardedAdVerification(attemptId: string, expectedCredits:
   }
 }
 
-async function watchRewardedAd(): Promise<void> {
+async function watchRewardedAd(source: DOMRect): Promise<void> {
   if (!rewardedAdProvider || hubRewardedAdPhase !== 'idle') return;
   let attempt: RewardedAdAttempt | undefined;
   hubRewardedAdPhase = 'loading'; hubRewardedAdNotice = undefined;
@@ -1297,7 +1344,7 @@ async function watchRewardedAd(): Promise<void> {
       await recordRewardedAdEvent(attempt.attemptId, 'qualified');
       hubRewardedAdPhase = 'verifying'; hubRewardedAdNotice = "We're verifying your reward.";
       hubPilotMenu.refresh(hubPilotMenuData(), true);
-      await waitForRewardedAdVerification(attempt.attemptId, attempt.rewardCredits);
+      await waitForRewardedAdVerification(attempt.attemptId, attempt.rewardCredits, source);
       return;
     }
     await recordRewardedAdEvent(attempt.attemptId, shown.state === 'closed' ? 'closed' : 'failed');
@@ -1320,7 +1367,7 @@ async function openHubRewards(): Promise<void> {
   if (hubRewardedAdStatus?.supported) recordProductIntent('rewarded_ad_offer_viewed');
 }
 
-async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
+async function claimDailyReward(source: DOMRect): Promise<{ ok: boolean; message: string }> {
   try {
     const response = await apiFetch(apiUrl('/api/daily-reward'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -1336,7 +1383,10 @@ async function claimDailyReward(): Promise<{ ok: boolean; message: string }> {
       return { ok: false, message: hubRewardNotice };
     }
     if (!result.profile || !Number.isFinite(result.credits)) return { ok: false, message: 'Unable to claim reward. Please try again.' };
+    const previousCredits = garageProfile.credits;
     applyAuthoritativeHomeProfile(result.profile);
+    if (result.credits && result.profile.credits - previousCredits === result.credits)
+      appHeader.animateCreditsEarned(source, previousCredits, result.profile.credits);
     await refreshRewardedAdStatus();
     hubRewardNotice = `+${result.credits!.toLocaleString()} CREDITS`;
     hapticsManager.emit('rewardSuccess', `daily:${result.profile.dailyReward?.lastClaimedAt ?? result.serverNow ?? hubServerNow}`);
@@ -1544,6 +1594,7 @@ const gameStore = new GameStore(gameStoreElement, {
   trial: startStoreFirehawkTrial,
   getTokens: missing => { recordProductIntent('store_get_tokens_opened'); void openSkyTokenStore(missing); },
   viewGarage: item => { recordProductIntent('store_view_in_garage', { itemId: item.id, itemType: item.kind }); void openStoreItemInGarage(item); },
+  equip: equipStoreItem,
   login: () => { requestStoreLogin(); },
   retry: () => { void openGameStore(false); },
 });
@@ -1669,8 +1720,9 @@ function pendingStoreContext(): { category: StoreCategory; itemId?: string } | u
   try {
     const raw = sessionStorage.getItem(PENDING_STORE_STORAGE_KEY);
     if (!raw) return;
-    const parsed = JSON.parse(raw) as { category?: StoreCategory; itemId?: string };
-    if (parsed.category && ['FEATURED', 'AIRCRAFT', 'PAINTS', 'EFFECTS', 'CITIES'].includes(parsed.category)) return { category: parsed.category, itemId: parsed.itemId };
+    const parsed = JSON.parse(raw) as { category?: StoreCategory | 'PAINTS'; itemId?: string };
+    const category = parsed.category === 'PAINTS' ? 'AIRCRAFT' : parsed.category;
+    if (category && ['FEATURED', 'AIRCRAFT', 'EFFECTS', 'CITIES'].includes(category)) return { category, itemId: parsed.itemId };
   } catch { /* Optional return context. */ }
 }
 
@@ -1699,6 +1751,33 @@ async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKEN
         ? `${aircraftDefinitions[item.aircraftType].callsign} + ${item.name}` : item.name;
     return { ok: true, message: `${unlockedName} UNLOCKED` };
   } catch { return { ok: false, message: 'SERVER UNAVAILABLE — NO CURRENCY SPENT' }; }
+}
+
+async function equipStoreItem(item: StoreItem): Promise<{ ok: boolean; message: string }> {
+  const update = async (payload: Record<string, string>): Promise<RemoteGarageProfile> => {
+    const url = apiUrl('/api/profile');
+    url.searchParams.set('pilotId', garageIdentity.pilotId);
+    url.searchParams.set('pilotName', garageIdentity.displayName);
+    const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const profile = await response.json() as RemoteGarageProfile & { error?: string };
+    if (!response.ok) throw new Error(profile.error ?? 'AIRCRAFT CHANGE UNAVAILABLE');
+    applyAuthoritativeHomeProfile(profile);
+    return profile;
+  };
+  try {
+    if (item.kind === 'paint' && garageProfile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] !== item.id)
+      await update({ equipCosmetic: item.id });
+    if (garageProfile.selectedAircraft !== item.aircraftType)
+      await update({ equipAircraft: item.aircraftType });
+    garage.updateProfile(garageProfile);
+    gameStore.update(garageProfile, hubAccount.state === 'account');
+    hapticsManager.emit('confirmation');
+    recordProductIntent('aircraft_selected', { aircraftType: item.aircraftType });
+    return { ok: true, message: `${aircraftDisplayName(item.aircraftType)} EQUIPPED` };
+  } catch (error) {
+    gameStore.update(garageProfile, hubAccount.state === 'account');
+    return { ok: false, message: error instanceof Error ? error.message.toUpperCase() : 'AIRCRAFT CHANGE UNAVAILABLE' };
+  }
 }
 
 async function startStoreFirehawkTrial(): Promise<{ ok: boolean; message: string }> {
@@ -1848,17 +1927,19 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : 'Free Fly cities');
   cityHelp.setAttribute('aria-label', `${cityJourneyMode === 'missions' ? 'Missions' : 'Free Fly'} help`);
   cityHelpCopy.textContent = cityJourneyMode === 'missions'
-    ? 'Use the arrows, swipe, or tap a nearby city. Choose Dallas to view its missions, or Milwaukee to start training. Locked cities cannot launch.'
+    ? 'Use the arrows, swipe, or tap a nearby city. View Dallas’s journey at any time. Complete Milwaukee training to unlock its missions.'
     : 'Use the arrows, swipe, or tap a nearby city. Choose Continue, pick a time, and fly freely. Milwaukee is a training city; Dallas supports multiplayer. Locked cities cannot launch.';
-  cityJourneyIndex = preferredCityJourneyIndex(options.preferDallas === true);
+  cityJourneyIndex = pendingDallasUnlock && cityJourneyMode === 'missions'
+    ? Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'))
+    : preferredCityJourneyIndex(options.preferDallas === true);
   renderCityJourney();
   citySelectionError.textContent = message;
   citySelectionError.hidden = !message;
   playMenuEntrance(citySelector);
+  if (menuEntrancesEnabled) celebrateDallasUnlock();
 }
 
 function showMissionJourney(pushHistory = true, refreshProgress = true): void {
-  if (!dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   cityJourneyMode = 'missions';
   try { sessionStorage.setItem(CITY_JOURNEY_MODE_KEY, cityJourneyMode); } catch { /* current mode remains available */ }
   abandonPendingJourneyLaunch();
@@ -1874,6 +1955,7 @@ function showMissionJourney(pushHistory = true, refreshProgress = true): void {
   homeHangar.hide();
   garage.hideShowcase();
   citySelector.hidden = true;
+  missionJourney.setCityLocked(!dallasUnlocked());
   missionJourney.setSignInRequired(hubAccount.state !== 'account' && !guestQaJourneyAccess);
   missionJourney.show(window.history.state?.missionDetailsOpen === true);
   if (refreshProgress) void refreshJourneyProgress();
@@ -1987,7 +2069,12 @@ async function startTrainingFromHub(): Promise<void> {
 async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false): Promise<void> {
   if (city.status !== 'available' || !city.loadWorld) return;
   const timePreset = resolveCityTimePreset(city, requestedTimePreset);
-  if (city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
+  if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
+  setFlightLaunchAircraft(authoritativeHomeProfile ? {
+    pilotId: garageIdentity.pilotId,
+    type: garageProfile.selectedAircraft,
+    equippedCosmetics: { ...garageProfile.cosmetics?.equipped },
+  } : null);
   missionJourneyReturnPending = false;
   missionJourney.hide();
   appHeader.hide();
@@ -2032,7 +2119,6 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
 
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
-  if (city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   recordProductIntent('city_selected', { cityId: city.id });
   if (cityJourneyMode === 'free-fly') {
     abandonPendingJourneyLaunch();
@@ -2081,6 +2167,10 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     const art = document.createElement('div');
     art.className = 'menu-selection-card-art city-time-art';
     art.setAttribute('aria-hidden', 'true');
+    if (city.id === 'milwaukee') {
+      art.style.backgroundImage = `url("${milwaukeeJourneyImage}")`;
+      art.style.backgroundPosition = 'center 46%';
+    }
     const copy = document.createElement('div');
     copy.className = 'menu-selection-card-copy city-option-copy';
     const label = document.createElement('strong');
@@ -2091,7 +2181,7 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     button.type = 'button';
     button.className = 'entry-button entry-button-primary';
     button.textContent = 'Play';
-    button.addEventListener('click', () => {
+    option.addEventListener('click', () => {
       hapticsManager.emit('selection');
       try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
       void enterCity(city, preset).catch((error: unknown) => {
@@ -2159,14 +2249,19 @@ async function start(): Promise<void> {
     }
   }
   const directCityEntry = url.searchParams.get('entry') === 'city';
+  const dallasUnlockReceipt = Number(url.searchParams.get('dallasUnlock'));
+  pendingDallasUnlock = dallasUnlockReceipt > 0 && authoritativeHomeProfile?.tutorial?.dallasUnlocked === true &&
+    authoritativeHomeProfile.tutorial.completedAt === dallasUnlockReceipt;
+  if (pendingDallasUnlock) cityJourneyMode = 'missions';
   const directJourneyEntry = url.searchParams.get('entry') === 'journey';
   const journeyReceipt = url.searchParams.get('journeyReceipt');
-  if (authResult || directCityEntry || directJourneyEntry) {
+  if (authResult || directCityEntry || directJourneyEntry || url.searchParams.has('dallasUnlock')) {
     url.searchParams.delete('auth');
     url.searchParams.delete('provider');
     url.searchParams.delete('linked');
     url.searchParams.delete('entry');
     url.searchParams.delete('journeyReceipt');
+    url.searchParams.delete('dallasUnlock');
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }
   let directJourneyAvailable = hubAccount.state === 'account';
@@ -2190,108 +2285,18 @@ async function start(): Promise<void> {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();
-    if (journeyReceipt && progress?.mission24?.completed && progress.mission24.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwentyFour();
-    } else if (journeyReceipt && progress?.mission23?.completed && progress.mission23.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwentyThree();
-    } else if (journeyReceipt && progress?.mission22?.completed && progress.mission22.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwentyTwo();
-    } else if (journeyReceipt && progress?.mission21?.completed && progress.mission21.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwentyOne();
-    } else if (journeyReceipt && progress?.mission20?.completed && progress.mission20.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwenty();
-    } else if (journeyReceipt && progress?.mission19?.completed && progress.mission19.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageNineteen();
-    } else if (journeyReceipt && progress?.mission18?.completed && progress.mission18.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageEighteen();
-    } else if (journeyReceipt && progress?.mission17?.completed && progress.mission17.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageSeventeen();
-    } else if (journeyReceipt && progress?.mission16?.completed && progress.mission16.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageSixteen();
-    } else if (journeyReceipt && progress?.mission15?.completed && progress.mission15.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageFifteen();
-    } else if (journeyReceipt && progress?.mission14?.completed && progress.mission14.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageFourteen();
-    } else if (journeyReceipt && progress?.mission13?.completed && progress.mission13.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageThirteen();
-    } else if (journeyReceipt && progress?.mission12?.completed && progress.mission12.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwelve();
-    } else if (journeyReceipt && progress?.mission11?.completed && progress.mission11.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageEleven();
-    } else if (journeyReceipt && progress?.mission10?.completed && progress.mission10.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTen();
-    } else if (journeyReceipt && progress?.mission09?.completed && progress.mission09.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageNine();
-    } else if (journeyReceipt && progress?.mission08?.completed && progress.mission08.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageEight();
-    } else if (journeyReceipt && progress?.mission07?.completed && progress.mission07.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageSeven();
-    } else if (journeyReceipt && progress?.mission06?.completed && progress.mission06.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageSix();
-    } else if (journeyReceipt && progress?.mission05?.completed && progress.mission05.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageFive();
-    } else if (journeyReceipt && progress?.mission04?.completed && progress.mission04.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageFour();
-    } else if (journeyReceipt && progress?.mission03?.completed && progress.mission03.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageThree();
-    } else if (journeyReceipt && progress?.mission02?.completed && progress.mission02.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageTwo();
-    } else if (journeyReceipt && progress?.completed && progress.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageOne();
-    } else if (journeyReceipt && progress?.mission16?.completed && progress.mission16.firstAttemptId === journeyReceipt) {
-      missionJourney.celebrateStageSixteen();
-    } else if (journeyReceipt && progress?.mission24?.completed) {
-      missionJourney.celebrateStageTwentyFour();
-    } else if (journeyReceipt && progress?.mission23?.completed) {
-      missionJourney.advanceToStageTwentyFour();
-    } else if (journeyReceipt && progress?.mission22?.completed) {
-      missionJourney.advanceToStageTwentyThree();
-    } else if (journeyReceipt && progress?.mission21?.completed) {
-      missionJourney.advanceToStageTwentyTwo();
-    } else if (journeyReceipt && progress?.mission20?.completed) {
-      missionJourney.advanceToStageTwentyOne();
-    } else if (journeyReceipt && progress?.mission19?.completed) {
-      missionJourney.advanceToStageTwenty();
-    } else if (journeyReceipt && progress?.mission18?.completed) {
-      missionJourney.advanceToStageNineteen();
-    } else if (journeyReceipt && progress?.mission17?.completed) {
-      missionJourney.advanceToStageEighteen();
-    } else if (journeyReceipt && progress?.mission16?.completed) {
-      missionJourney.advanceToStageSeventeen();
-    } else if (journeyReceipt && progress?.mission15?.completed) {
-      missionJourney.advanceToStageSixteen();
-    } else if (journeyReceipt && progress?.mission14?.completed) {
-      missionJourney.advanceToStageFifteen();
-    } else if (journeyReceipt && progress?.mission13?.completed) {
-      missionJourney.advanceToStageFourteen();
-    } else if (journeyReceipt && progress?.mission12?.completed) {
-      missionJourney.advanceToStageThirteen();
-    } else if (journeyReceipt && progress?.mission11?.completed) {
-      missionJourney.advanceToStageTwelve();
-    } else if (journeyReceipt && progress?.mission10?.completed) {
-      missionJourney.advanceToStageEleven();
-    } else if (journeyReceipt && progress?.mission09?.completed) {
-      missionJourney.advanceToStageTen();
-    } else if (journeyReceipt && progress?.mission08?.completed) {
-      missionJourney.advanceToStageNine();
-    } else if (journeyReceipt && progress?.mission07?.completed) {
-      missionJourney.advanceToStageEight();
-    } else if (journeyReceipt && progress?.mission06?.completed) {
-      missionJourney.advanceToStageSeven();
-    } else if (journeyReceipt && progress?.mission05?.completed) {
-      missionJourney.advanceToStageSix();
-    } else if (journeyReceipt && progress?.mission04?.completed) {
-      missionJourney.advanceToStageFive();
-    } else if (journeyReceipt && progress?.mission03?.completed) {
-      missionJourney.advanceToStageFour();
-    } else if (journeyReceipt && progress?.mission02?.completed) {
-      missionJourney.advanceToStageThree();
-    } else if (journeyReceipt && progress?.completed) {
-      missionJourney.advanceToStageTwo();
+    if (journeyReceipt && progress) {
+      const missions = [progress, ...Array.from({ length: missionJourneyStages.length - 1 }, (_, index) => {
+        const mission = progress[`mission${String(index + 2).padStart(2, '0')}` as keyof typeof progress];
+        return mission && typeof mission === 'object' ? mission : undefined;
+      })];
+      const completedIndex = missions.findIndex(mission => mission?.completed && mission.firstAttemptId === journeyReceipt);
+      if (completedIndex >= 0) missionJourney.celebrateCompletion(completedIndex + 1);
     }
   } else if (directCityEntry) {
     await showHome();
-    await requestHubFly();
+    if (pendingDallasUnlock) showSelector('', { mode: 'missions' });
+    else await requestHubFly();
   } else {
     await showHome();
     if (inviteLanding && hubAccount.state === 'guest') await openHubPilotMenu('PROFILE', false);
@@ -2314,6 +2319,7 @@ async function start(): Promise<void> {
   await startupLoading.finish();
   menuEntrancesEnabled = true;
   revealMenuEntrance();
+  if (entryState === 'CITY_SELECTION') celebrateDallasUnlock();
   if (Capacitor.getPlatform() === 'ios' && entryState !== 'FLIGHT' && entryState !== 'TUTORIAL') {
     void audioManager.unlock();
   }

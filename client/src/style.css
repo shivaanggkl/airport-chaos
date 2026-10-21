@@ -44,6 +44,12 @@
   --ui-shadow: 0 7px 22px rgb(7 24 36 / 28%);
   --ui-gradient-primary: linear-gradient(90deg, #f9b00a, #ffd05a);
   --ui-gradient-selected: linear-gradient(110deg, rgb(23 117 223 / 36%), rgb(57 169 249 / 28%));
+  --ui-back-button-fill: linear-gradient(145deg, #245b98, #062d62);
+  --ui-navigation-button-border: #dfbb67;
+  --menu-gold-border: #d69a21;
+  --menu-gold-fill: linear-gradient(#fff0a6, #f8c746 45%, #e8a927);
+  --menu-gold-shadow: inset 0 1px #fffde3, 0 2px 5px rgb(101 59 9 / 28%);
+  --menu-gold-ink: #3c2200;
   --font-display: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --text-primary: #f4f8ff;
@@ -451,6 +457,9 @@ body.launch-cinematic-active #tutorial-help {
 .app-shell-wallet .app-shell-sky-tokens::after { content: ''; position: absolute; top: 22%; left: -6px; width: 1px; height: 56%; background: rgb(139 234 255 / 14%); pointer-events: none; }
 .app-shell-currency-icon { display: grid; width: 46px; height: 46px; flex: 0 0 46px; place-items: center; }
 .app-shell-currency-icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.app-shell-credit-flight { position: fixed; z-index: 250; top: 0; left: 0; width: 30px; height: 30px; object-fit: contain; pointer-events: none; will-change: transform, opacity; filter: drop-shadow(0 0 7px rgb(255 205 72 / 80%)); }
+.app-shell-currency-icon.is-credit-landing { animation: app-shell-credit-landing 430ms ease-out both; }
+@keyframes app-shell-credit-landing { 0%, 100% { transform: scale(1); filter: none; } 48% { transform: scale(1.3); filter: drop-shadow(0 0 12px #ffd871); } }
 .app-shell-action:not(.app-shell-avatar) > img { display: block; width: 34px; height: 34px; object-fit: contain; }
 .app-shell-currency-icon svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 2px 3px rgb(5 24 38 / 40%)); }
 .app-shell-wallet .flight-header-credit-copy { display: flex; flex-direction: column-reverse; align-items: flex-start; justify-content: center; gap: 3px; }
@@ -645,8 +654,8 @@ body.launch-cinematic-active #tutorial-help {
 }
 
 .entry-button { min-height: var(--entry-control-height); padding: 10px 18px; border-radius: var(--entry-control-radius); box-shadow: var(--ui-shadow); font: 600 var(--font-control-size)/1.15 var(--font-display); letter-spacing: .04em; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
-.entry-button-primary { color: var(--ui-ocean-ink); background: var(--ui-gradient-primary); border: 1px solid rgb(249 176 10 / 54%); border-radius: 4px; text-shadow: 0 1px 1px rgb(255 255 255 / 28%); }
-.entry-button-primary:hover:not(:disabled),.entry-button-primary:focus-visible { border-color: var(--ui-gold-light); box-shadow: 0 8px 24px rgb(249 176 10 / 30%); transform: translateY(-1px); }
+.entry-button-primary { color: var(--menu-gold-ink); background: var(--menu-gold-fill); border: 2px solid var(--menu-gold-border); border-radius: 4px; box-shadow: var(--menu-gold-shadow); font-weight: 900; text-shadow: none; }
+.entry-button-primary:hover:not(:disabled),.entry-button-primary:focus-visible { border-color: var(--menu-gold-border); box-shadow: var(--menu-gold-shadow); filter: brightness(1.05); transform: translateY(-1px); }
 .entry-button-primary:active:not(:disabled) { transform: translateY(1px); filter: brightness(.94); }
 .entry-button-secondary { color: var(--ui-text); background: var(--ui-glass-main); border: 1px solid var(--ui-border-strong); }
 .entry-button-secondary:hover:not(:disabled),.entry-button-secondary:focus-visible { border-color: var(--ui-cyan); background: var(--ui-glass-royal); transform: translateY(-1px); }
@@ -909,7 +918,8 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .ui-lock-icon { display: inline-block; flex: none; width: var(--lock-icon-size, 1em); height: var(--lock-icon-size, 1em); vertical-align: middle; }
 .city-journey-lock { display: block; margin-top: 12px; font-size: 30px; }
 .city-journey-lock[hidden] { display: none; }
-.city-journey-cta { justify-self: stretch; align-self: start; min-width: 0; min-height: 70px; border-radius: 14px; font-size: clamp(16px, 1.5vw, 24px); }
+.city-journey-cta { justify-self: stretch; align-self: start; min-width: 0; min-height: 70px; border: 2px solid var(--menu-gold-border); border-radius: 14px; color: var(--menu-gold-ink); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow); font-size: clamp(16px, 1.5vw, 24px); text-shadow: none; }
+.city-journey-cta:hover:not(:disabled), .city-journey-cta:focus-visible:not(:disabled) { border-color: var(--menu-gold-border); box-shadow: var(--menu-gold-shadow); filter: brightness(1.05); }
 .city-journey-card:not(.is-selected) .city-journey-cta { visibility: hidden; opacity: 0; pointer-events: none; }
 .city-journey-cta:disabled,
 .city-journey-cta[aria-disabled='true'] {
@@ -921,14 +931,27 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   cursor: default;
   filter: saturate(.45);
 }
+.city-journey-card.is-locked .city-journey-cta:not(:disabled) {
+  color: #f4f7f9;
+  background: linear-gradient(#81909c, #5d6d79);
+  border-color: #9eacb7;
+  box-shadow: none;
+  text-shadow: none;
+  cursor: pointer;
+}
+.city-journey-card.is-locked .city-journey-cta:not(:disabled):is(:hover, :focus-visible) {
+  border-color: #9eacb7;
+  box-shadow: none;
+  filter: brightness(1.08);
+}
 .city-journey-cta:disabled:hover,
 .city-journey-cta[aria-disabled='true']:hover {
   border-color: rgb(139 167 184 / 24%);
   box-shadow: none;
   transform: none;
 }
-.city-journey-arrow { position: absolute; z-index: 6; top: 50%; display: grid; place-items: center; width: 68px; height: 68px; padding: 0 0 6px; color: var(--ac-cyan-highlight); border: 2px solid var(--ac-cyan); border-radius: 50%; background: linear-gradient(160deg, #124c85, #092d58); box-shadow: 0 6px 18px rgb(4 25 57 / 48%); font: 400 62px/.65 var(--font-body); cursor: pointer; transform: translateY(-50%); }
-.city-journey-arrow:hover, .city-journey-arrow:focus-visible { border-color: var(--ac-cyan-highlight); filter: brightness(1.15); }
+.city-journey-arrow { position: absolute; z-index: 6; top: 50%; display: grid; place-items: center; width: 68px; height: 68px; padding: 0 0 6px; color: #fff; border: 2px solid var(--ui-navigation-button-border); border-radius: 50%; background: var(--ui-back-button-fill); box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%); font: 400 62px/.65 var(--font-body); cursor: pointer; transform: translateY(-50%); }
+.city-journey-arrow:hover, .city-journey-arrow:focus-visible { filter: brightness(1.08); }
 .city-journey-arrow:disabled { opacity: .32; cursor: default; }
 .city-journey-arrow-previous { left: max(10px, var(--safe-area-left)); }
 .city-journey-arrow-next { right: max(10px, var(--safe-area-right)); }
@@ -995,6 +1018,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
   border: 2px solid var(--ac-cyan);
   border-radius: 15px;
   box-shadow: var(--ac-shadow-panel), inset 0 1px rgb(111 230 255 / 34%);
+  cursor: pointer;
 }
 .city-time-option:hover,
 .city-time-option:focus-within { border-color: var(--ac-cyan-highlight); box-shadow: var(--ac-shadow-panel), 0 0 19px rgb(53 214 255 / 24%); }
@@ -1005,7 +1029,8 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .city-time-option .city-option-copy { text-align: center; }
 .city-time-option strong { color: var(--ac-text-primary); font-size: clamp(25px, 2.6vw, 32px); }
 .city-time-option span { margin-top: 2px; color: var(--ac-text-secondary); }
-.city-time-option button { justify-self: center; width: min(68%, 266px); min-height: 55px; border-radius: 10px; color: var(--ac-bg-deep); font-size: clamp(15px, 1.6vw, 20px); font-weight: 800; }
+.city-time-option button { justify-self: center; width: min(68%, 266px); min-height: 55px; border: 2px solid var(--menu-gold-border); border-radius: 10px; color: var(--menu-gold-ink); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow); font-size: clamp(15px, 1.6vw, 20px); font-weight: 900; text-shadow: none; }
+.city-time-option button:hover:not(:disabled), .city-time-option button:focus-visible:not(:disabled) { border-color: var(--menu-gold-border); box-shadow: var(--menu-gold-shadow); filter: brightness(1.05); }
 .pilot-menu-header-actions { display: flex; align-items: center; gap: 8px; }
 .pilot-menu-city-status { color: var(--text-secondary); font: 500 var(--font-meta-size) var(--font-body); white-space: nowrap; }
 @media (max-width: 680px) {
@@ -1109,6 +1134,24 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 
 .garage-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: transparent; color: var(--ui-text); }
 .garage-overlay[hidden] { display: none; }
+.garage-equipped-page { display: none; }
+.garage-overlay.is-equipped-page { flex-direction: column; gap: 12px; }
+.garage-overlay.is-equipped-page .garage-card { display: none; }
+.garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: auto minmax(0, 1fr); gap: 12px; width: min(950px, 100%); max-height: 100%; }
+.garage-equipped-page .garage-equipped-heading { min-height: 58px; justify-content: center; }
+.garage-equipped-page .store-detail-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) auto; width: 100%; height: min(500px, calc(100dvh - 110px - var(--safe-area-top) - var(--safe-area-bottom))); }
+.garage-equipped-page .store-detail-preview { grid-column: 1; grid-row: 1; border-right: 1px solid #d7e0e5; }
+.garage-equipped-page .store-detail-preview canvas { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.garage-equipped-page .store-detail-preview canvas:active { cursor: grabbing; }
+.garage-equipped-page .store-detail-specs { grid-column: 2; grid-row: 1; min-height: 0; }
+.garage-equipped-page .store-detail-stats { grid-template-columns: 1fr; gap: 8px; }
+.garage-equipped-page .garage-equipped-footer { grid-column: 1 / -1; grid-row: 2; padding: 10px clamp(12px, 2vw, 22px); border-top: 1px solid #d7e0e5; background: #fff; }
+.garage-equipped-page .garage-equipped-note { margin: 0; color: #52647a; font: 700 clamp(12px, 1.3vw, 15px)/1.35 var(--font-display); }
+.garage-equipped-page .garage-equipped-status { margin: 4px 0 0; color: #0b6181; font: 700 12px/1.3 var(--font-display); }
+.garage-equipped-page .garage-equipped-status:empty { display: none; }
+body:has(.app-shell-header.is-page:not([hidden])) .garage-equipped-page .garage-equipped-heading { display: none; }
+body:has(.app-shell-header.is-page:not([hidden])) .garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: minmax(0, 1fr); }
+body:has(.app-shell-header.is-page:not([hidden])) .garage-equipped-page .store-detail-panel { height: min(500px, calc(100dvh - var(--hub-header-total) - 30px - var(--safe-area-bottom))); }
 body:has(.app-shell-header:not([hidden])) :is(.garage-overlay, .pilot-menu-overlay) {
   padding-top: calc(var(--app-shell-header-total) + 16px);
   background: radial-gradient(ellipse at 50% 20%, rgb(53 214 255 / 18%), transparent 53%), radial-gradient(ellipse at 95% 90%, rgb(142 99 255 / 15%), transparent 50%), linear-gradient(165deg, var(--ac-surface), var(--ac-bg-deep));
@@ -1635,7 +1678,7 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .sky-challenge.hidden {
   display: none;
 }
-.sky-challenge.journey-hud { top: max(92px, calc(env(safe-area-inset-top) + 78px)); bottom: auto; z-index: 22; display: grid; gap: 4px; width: min(340px, calc(100vw - 28px)); padding: 10px 12px; border: 1px solid rgb(111 230 255 / 60%); border-left: 3px solid #f6c445; border-radius: 12px; background: linear-gradient(145deg, rgb(15 39 70 / 36%), rgb(30 77 122 / 24%)); box-shadow: 0 3px 10px rgb(19 52 91 / 18%); text-shadow: 0 1px 3px rgb(0 12 28 / 90%); font-size: 11px; }
+.sky-challenge.journey-hud { top: max(92px, calc(env(safe-area-inset-top) + 78px)); bottom: auto; z-index: 22; display: grid; gap: 4px; width: min(340px, calc(100vw - 28px)); padding: 10px 12px; border: 1px solid rgb(111 230 255 / 60%); border-left: 3px solid #f6c445; border-radius: 12px; background: var(--gameplay-info-card-fill); box-shadow: 0 3px 10px rgb(19 52 91 / 18%); text-shadow: 0 1px 3px rgb(0 12 28 / 90%); font-size: 11px; }
 .sky-challenge.journey-hud.hidden { display: none; }
 .journey-hud strong { color: #f6c445; font: 900 13px/1.15 var(--font-display); }
 .journey-hud span { color: #f6fbff; }
@@ -1653,7 +1696,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
 .mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message) { display: none !important; }
 .monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle) { display: none !important; }
-.monster-arrival-focus .sky-challenge.journey-hud { background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
+.monster-arrival-focus .sky-challenge.journey-hud { background: var(--gameplay-info-card-fill); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 .monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-weight: 800; }
 .monster-boss-hud { position: absolute; z-index: 24; top: calc(100% + 9px); left: -3px; width: calc(100% + 4px); min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 13px; border: 1px solid rgb(100 223 255 / 22%); border-radius: 10px; background: rgb(8 39 73 / 10%); color: #ffd15b; font: 700 15px/1.1 var(--font-mono, monospace); pointer-events: none; box-shadow: none; }
 .monster-boss-hud.hidden { display: none; }
@@ -1735,55 +1778,71 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
   .journey-result.is-failure .journey-result-status-mark { font-size: 0; }
   .journey-result.is-failure .journey-result-actions button { min-height: 45px; font-size: 14px; }
 }
-.mission-one-clear { position: fixed; z-index: 58; inset: 0; pointer-events: none; text-align: center; background: linear-gradient(rgb(5 29 55 / 9%), transparent 45%); }
-.mission-one-clear.hidden { display: none; }
-.mission-one-clear.is-exiting { animation: mission-one-clear-out 400ms ease-in both; }
-.mission-one-clear-content { position: absolute; top: max(5vh, calc(env(safe-area-inset-top) + 8px)); left: 50%; width: min(92vw, 540px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
-.mission-one-clear-icon { position: relative; z-index: 1; display: grid; place-items: center; width: clamp(58px, 12vh, 78px); aspect-ratio: 1; border: 4px solid #ffe794; border-radius: 50%; background: radial-gradient(circle at 35% 22%, #93601f, #3e270f 68%); box-shadow: 0 0 0 3px #8f5c14, inset 0 0 0 3px #c58c26, 0 3px 16px #ffce61, 0 0 32px rgb(255 207 90 / 65%); animation: mission-one-clear-pop 480ms cubic-bezier(.16,1.35,.45,1) both; }
-.mission-one-clear-icon span { width: 25%; height: 43%; border-right: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-bottom: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-radius: 2px; transform: translateY(-10%) rotate(45deg); filter: drop-shadow(0 2px 1px #5c390c); }
-.mission-one-clear-content > strong { position: relative; z-index: 1; margin-top: clamp(9px, 2vh, 15px); color: #ffd84f; font: 900 clamp(24px, 4.6vw, 42px)/1.05 var(--font-display); letter-spacing: .055em; white-space: nowrap; text-shadow: 0 2px 1px #8c510f, 0 4px 5px #1c2e3a, 0 0 19px rgb(255 205 77 / 60%); animation: mission-one-clear-rise 550ms 140ms both; }
-.mission-one-clear-name { position: relative; z-index: 1; margin-top: 4px; color: white; font: 900 clamp(17px, 3vw, 27px)/1.1 var(--font-display); letter-spacing: .08em; text-shadow: 0 2px 5px #14344b, 0 0 12px rgb(255 255 255 / 70%); animation: mission-one-clear-rise 550ms 260ms both; }
-.mission-one-clear-fireworks { position: absolute; inset: 0; pointer-events: none; }
-.mission-one-clear-firework { position: absolute; top: 44px; left: 16%; width: 1px; height: 1px; }
-.mission-one-clear-firework:nth-child(2) { top: 62px; left: 84%; }
-.mission-one-clear-firework:nth-child(3) { top: 6px; left: 65%; }
-.mission-one-clear-firework i { position: absolute; top: 0; left: 0; width: 3px; height: 10px; border-radius: 4px; background: #ffe68b; box-shadow: 0 0 8px 2px #ffcd4f; opacity: 0; animation: mission-one-firework 1.65s ease-out infinite; }
-.mission-one-clear-firework:nth-child(2) i { background: #8df4ff; box-shadow: 0 0 8px 2px #45d8ff; animation-delay: .42s; }
-.mission-one-clear-firework:nth-child(3) i { animation-delay: .92s; }
-.mission-one-clear-stars { position: absolute; inset: 0 4%; height: clamp(160px, 34vh, 230px); pointer-events: none; }
-.mission-one-clear-stars i { position: absolute; top: var(--y); left: var(--x); width: 10px; aspect-ratio: 1; background: var(--color, #ffe17a); clip-path: polygon(50% 0, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0 50%, 39% 37%); filter: drop-shadow(0 0 4px currentColor); animation: mission-one-star 1.8s var(--delay, 0s) ease-out infinite; }
-.mission-one-clear-stars i:nth-child(1) { --x: 9%; --y: 15%; --delay: -.8s; }
-.mission-one-clear-stars i:nth-child(2) { --x: 20%; --y: 56%; --delay: -.2s; --color: #93f5ff; }
-.mission-one-clear-stars i:nth-child(3) { --x: 32%; --y: 78%; --delay: -.9s; }
-.mission-one-clear-stars i:nth-child(4) { --x: 42%; --y: 8%; --delay: -.4s; --color: #93f5ff; }
-.mission-one-clear-stars i:nth-child(5) { --x: 53%; --y: 67%; --delay: -1.3s; }
-.mission-one-clear-stars i:nth-child(6) { --x: 66%; --y: 13%; --delay: -.6s; }
-.mission-one-clear-stars i:nth-child(7) { --x: 75%; --y: 75%; --delay: -1s; --color: #93f5ff; }
-.mission-one-clear-stars i:nth-child(8) { --x: 90%; --y: 23%; --delay: -.3s; }
-.mission-one-clear-stars i:nth-child(9) { --x: 12%; --y: 81%; --delay: -1.5s; }
-.mission-one-clear-stars i:nth-child(10) { --x: 85%; --y: 51%; --delay: -1.1s; --color: #93f5ff; }
-.mission-one-clear-sparkles { position: absolute; inset: -6px 4% 0; height: clamp(160px, 34vh, 230px); }
-.mission-one-clear-sparkles i { position: absolute; left: var(--x); top: var(--y); width: var(--size, 5px); aspect-ratio: 1; border-radius: 50%; background: var(--color, #ffe388); box-shadow: 0 0 9px 3px var(--color, #ffe388); animation: mission-one-sparkle 1.35s var(--delay, 0s) ease-in-out infinite alternate; }
-.mission-one-clear-sparkles i:nth-child(1) { --x: 20%; --y: 30%; --delay: -.2s; }
-.mission-one-clear-sparkles i:nth-child(2) { --x: 28%; --y: 15%; --size: 3px; --delay: -.7s; }
-.mission-one-clear-sparkles i:nth-child(3) { --x: 36%; --y: 3%; --color: #7cf7ff; --delay: -.4s; }
-.mission-one-clear-sparkles i:nth-child(4) { --x: 64%; --y: 4%; --delay: -.9s; }
-.mission-one-clear-sparkles i:nth-child(5) { --x: 75%; --y: 18%; --size: 3px; --delay: -.5s; }
-.mission-one-clear-sparkles i:nth-child(6) { --x: 83%; --y: 35%; --color: #7cf7ff; --delay: -.1s; }
-.mission-one-clear-sparkles i:nth-child(7) { --x: 14%; --y: 58%; --size: 3px; --delay: -.8s; }
-.mission-one-clear-sparkles i:nth-child(8) { --x: 88%; --y: 57%; --size: 3px; --delay: -.3s; }
-.mission-one-clear-sparkles i:nth-child(9) { --x: 23%; --y: 83%; --delay: -1s; }
-.mission-one-clear-sparkles i:nth-child(10) { --x: 76%; --y: 83%; --color: #7cf7ff; --delay: -.6s; }
-.mission-one-clear-sparkles i:nth-child(11) { --x: 43%; --y: 73%; --size: 3px; --delay: -.2s; }
-.mission-one-clear-sparkles i:nth-child(12) { --x: 58%; --y: 72%; --size: 3px; --delay: -.9s; }
-#game-root.mission-one-clear-active > :not(canvas):not(.mission-one-clear) { opacity: 0 !important; pointer-events: none !important; }
-@keyframes mission-one-clear-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
-@keyframes mission-one-clear-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes mission-one-clear-out { to { opacity: 0; } }
-@keyframes mission-one-firework { 0%, 12% { opacity: 0; transform: rotate(var(--angle)) translateY(0) scale(.3); } 20% { opacity: 1; } 52% { opacity: 1; transform: rotate(var(--angle)) translateY(-43px) scale(1); } 85%, 100% { opacity: 0; transform: rotate(var(--angle)) translateY(-70px) scale(.15); } }
-@keyframes mission-one-star { 0%, 100% { opacity: 0; transform: translateY(12px) scale(.3) rotate(-25deg); } 35% { opacity: 1; transform: translateY(-8px) scale(1.2) rotate(15deg); } 75% { opacity: .5; transform: translateY(-25px) scale(.7) rotate(35deg); } }
-@keyframes mission-one-sparkle { from { opacity: .15; transform: scale(.5); } to { opacity: 1; transform: scale(1.2); } }
-@media (prefers-reduced-motion: reduce) { .mission-one-clear * { animation: none !important; } .mission-one-clear.is-exiting { animation: none !important; } }
+@media (max-height: 520px) and (orientation: landscape) {
+  .journey-result.is-terminal .journey-result-card.game-card-frame { width: min(470px, 100%); padding-bottom: 8px; }
+  .journey-result.is-terminal .journey-result-status-banner { height: 56px; margin-bottom: 5px; }
+  .journey-result.is-terminal .journey-result-status-mark { width: 46px; height: 46px; font-size: 35px; }
+  .journey-result.is-terminal .journey-result-card h2 { font-size: 24px; }
+  .journey-result.is-terminal .journey-result-card > strong { margin-bottom: 5px; font-size: 14px; }
+  .journey-result.is-terminal .journey-result-card [data-journey-result-detail].has-metrics { gap: 5px; margin-bottom: 6px; }
+  .journey-result.is-terminal .has-metrics > div { min-height: 44px; }
+  .journey-result.is-terminal .has-metrics span { font-size: 10px; }
+  .journey-result.is-terminal .has-metrics strong { font-size: 19px; }
+  .journey-result.is-terminal .journey-result-card [data-journey-result-reward] { min-height: 44px; margin-bottom: 5px; font-size: 16px; }
+  .journey-result.is-terminal .journey-result-card [data-journey-result-reward] img { width: 32px; height: 32px; margin-right: 8px; }
+  .journey-result.is-terminal .journey-result-actions [data-journey-primary],
+  .journey-result.is-failure .journey-result-actions button { min-height: 44px; font-size: 15px; }
+  .journey-result.is-failure .journey-result-status-mark { font-size: 0; }
+}
+.mission-clear { position: fixed; z-index: 58; inset: 0; pointer-events: none; text-align: center; background: linear-gradient(rgb(5 29 55 / 9%), transparent 45%); }
+.mission-clear.hidden { display: none; }
+.mission-clear.is-exiting { animation: mission-clear-out 400ms ease-in both; }
+.mission-clear-content { position: absolute; top: max(5vh, calc(env(safe-area-inset-top) + 8px)); left: 50%; width: min(92vw, 540px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.mission-clear-icon { position: relative; z-index: 1; display: grid; place-items: center; width: clamp(58px, 12vh, 78px); aspect-ratio: 1; border: 4px solid #ffe794; border-radius: 50%; background: radial-gradient(circle at 35% 22%, #93601f, #3e270f 68%); box-shadow: 0 0 0 3px #8f5c14, inset 0 0 0 3px #c58c26, 0 3px 16px #ffce61, 0 0 32px rgb(255 207 90 / 65%); animation: mission-clear-pop 480ms cubic-bezier(.16,1.35,.45,1) both; }
+.mission-clear-icon span { width: 25%; height: 43%; border-right: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-bottom: clamp(5px, 1.2vh, 9px) solid #ffdc58; border-radius: 2px; transform: translateY(-10%) rotate(45deg); filter: drop-shadow(0 2px 1px #5c390c); }
+.mission-clear-content > strong { position: relative; z-index: 1; margin-top: clamp(9px, 2vh, 15px); color: #ffd84f; font: 900 clamp(24px, 4.6vw, 42px)/1.05 var(--font-display); letter-spacing: .055em; white-space: nowrap; text-shadow: 0 2px 1px #8c510f, 0 4px 5px #1c2e3a, 0 0 19px rgb(255 205 77 / 60%); animation: mission-clear-rise 550ms 140ms both; }
+.mission-clear-name { position: relative; z-index: 1; margin-top: 4px; color: white; font: 900 clamp(17px, 3vw, 27px)/1.1 var(--font-display); letter-spacing: .08em; text-shadow: 0 2px 5px #14344b, 0 0 12px rgb(255 255 255 / 70%); animation: mission-clear-rise 550ms 260ms both; }
+.mission-clear-fireworks { position: absolute; inset: 0; pointer-events: none; }
+.mission-clear-firework { position: absolute; top: 44px; left: 16%; width: 1px; height: 1px; }
+.mission-clear-firework:nth-child(2) { top: 62px; left: 84%; }
+.mission-clear-firework:nth-child(3) { top: 6px; left: 65%; }
+.mission-clear-firework i { position: absolute; top: 0; left: 0; width: 3px; height: 10px; border-radius: 4px; background: #ffe68b; box-shadow: 0 0 8px 2px #ffcd4f; opacity: 0; animation: mission-clear-firework 1.65s ease-out infinite; }
+.mission-clear-firework:nth-child(2) i { background: #8df4ff; box-shadow: 0 0 8px 2px #45d8ff; animation-delay: .42s; }
+.mission-clear-firework:nth-child(3) i { animation-delay: .92s; }
+.mission-clear-stars { position: absolute; inset: 0 4%; height: clamp(160px, 34vh, 230px); pointer-events: none; }
+.mission-clear-stars i { position: absolute; top: var(--y); left: var(--x); width: 10px; aspect-ratio: 1; background: var(--color, #ffe17a); clip-path: polygon(50% 0, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0 50%, 39% 37%); filter: drop-shadow(0 0 4px currentColor); animation: mission-clear-star 1.8s var(--delay, 0s) ease-out infinite; }
+.mission-clear-stars i:nth-child(1) { --x: 9%; --y: 15%; --delay: -.8s; }
+.mission-clear-stars i:nth-child(2) { --x: 20%; --y: 56%; --delay: -.2s; --color: #93f5ff; }
+.mission-clear-stars i:nth-child(3) { --x: 32%; --y: 78%; --delay: -.9s; }
+.mission-clear-stars i:nth-child(4) { --x: 42%; --y: 8%; --delay: -.4s; --color: #93f5ff; }
+.mission-clear-stars i:nth-child(5) { --x: 53%; --y: 67%; --delay: -1.3s; }
+.mission-clear-stars i:nth-child(6) { --x: 66%; --y: 13%; --delay: -.6s; }
+.mission-clear-stars i:nth-child(7) { --x: 75%; --y: 75%; --delay: -1s; --color: #93f5ff; }
+.mission-clear-stars i:nth-child(8) { --x: 90%; --y: 23%; --delay: -.3s; }
+.mission-clear-stars i:nth-child(9) { --x: 12%; --y: 81%; --delay: -1.5s; }
+.mission-clear-stars i:nth-child(10) { --x: 85%; --y: 51%; --delay: -1.1s; --color: #93f5ff; }
+.mission-clear-sparkles { position: absolute; inset: -6px 4% 0; height: clamp(160px, 34vh, 230px); }
+.mission-clear-sparkles i { position: absolute; left: var(--x); top: var(--y); width: var(--size, 5px); aspect-ratio: 1; border-radius: 50%; background: var(--color, #ffe388); box-shadow: 0 0 9px 3px var(--color, #ffe388); animation: mission-clear-sparkle 1.35s var(--delay, 0s) ease-in-out infinite alternate; }
+.mission-clear-sparkles i:nth-child(1) { --x: 20%; --y: 30%; --delay: -.2s; }
+.mission-clear-sparkles i:nth-child(2) { --x: 28%; --y: 15%; --size: 3px; --delay: -.7s; }
+.mission-clear-sparkles i:nth-child(3) { --x: 36%; --y: 3%; --color: #7cf7ff; --delay: -.4s; }
+.mission-clear-sparkles i:nth-child(4) { --x: 64%; --y: 4%; --delay: -.9s; }
+.mission-clear-sparkles i:nth-child(5) { --x: 75%; --y: 18%; --size: 3px; --delay: -.5s; }
+.mission-clear-sparkles i:nth-child(6) { --x: 83%; --y: 35%; --color: #7cf7ff; --delay: -.1s; }
+.mission-clear-sparkles i:nth-child(7) { --x: 14%; --y: 58%; --size: 3px; --delay: -.8s; }
+.mission-clear-sparkles i:nth-child(8) { --x: 88%; --y: 57%; --size: 3px; --delay: -.3s; }
+.mission-clear-sparkles i:nth-child(9) { --x: 23%; --y: 83%; --delay: -1s; }
+.mission-clear-sparkles i:nth-child(10) { --x: 76%; --y: 83%; --color: #7cf7ff; --delay: -.6s; }
+.mission-clear-sparkles i:nth-child(11) { --x: 43%; --y: 73%; --size: 3px; --delay: -.2s; }
+.mission-clear-sparkles i:nth-child(12) { --x: 58%; --y: 72%; --size: 3px; --delay: -.9s; }
+#game-root.mission-clear-active > :not(canvas):not(.mission-clear) { opacity: 0 !important; pointer-events: none !important; }
+@keyframes mission-clear-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes mission-clear-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mission-clear-out { to { opacity: 0; } }
+@keyframes mission-clear-firework { 0%, 12% { opacity: 0; transform: rotate(var(--angle)) translateY(0) scale(.3); } 20% { opacity: 1; } 52% { opacity: 1; transform: rotate(var(--angle)) translateY(-43px) scale(1); } 85%, 100% { opacity: 0; transform: rotate(var(--angle)) translateY(-70px) scale(.15); } }
+@keyframes mission-clear-star { 0%, 100% { opacity: 0; transform: translateY(12px) scale(.3) rotate(-25deg); } 35% { opacity: 1; transform: translateY(-8px) scale(1.2) rotate(15deg); } 75% { opacity: .5; transform: translateY(-25px) scale(.7) rotate(35deg); } }
+@keyframes mission-clear-sparkle { from { opacity: .15; transform: scale(.5); } to { opacity: 1; transform: scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .mission-clear * { animation: none !important; } .mission-clear.is-exiting { animation: none !important; } }
 @media (max-height: 520px) { .sky-challenge.journey-hud { top: max(70px,calc(env(safe-area-inset-top) + 56px)); left: max(8px,env(safe-area-inset-left)); width: min(260px,42vw); padding: 6px 8px; font-size: 9px; } .journey-hud strong { font-size: 10px; } .journey-result-card { padding: 12px 18px; } }
 @media (prefers-reduced-motion: reduce) { .journey-result *, .journey-hud *, .mission-objective-guidance * { animation: none !important; transition: none !important; } }
 
@@ -3017,15 +3076,11 @@ body:has(#garage-overlay:not([hidden])) #mission-reminder { display: none; }
 }
 
 #right-flight-stack { position: fixed; z-index: 4; top: max(72px, calc(env(safe-area-inset-top) + 68px)); right: max(14px, env(safe-area-inset-right)); display: grid; justify-items: stretch; gap: 5px; width: 164px; max-height: calc(100dvh - 86px); pointer-events: none; }
-#right-hud-stack { position: static; display: grid; justify-items: stretch; gap: 4px; width: 100%; min-height: 0; pointer-events: none; }
 @media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
   html:not(.native-shell) #right-flight-stack { width: 188px; gap: 7px; }
-  html:not(.native-shell) #right-hud-stack { gap: 6px; }
   html:not(.native-shell) #radar-panel { padding: 8px; }
   html:not(.native-shell) .radar-title { margin-bottom: 6px; font-size: 13px; }
   html:not(.native-shell) .radar-legend { font-size: 12px; }
-  html:not(.native-shell) .flight-panel-summary { min-height: 29px; padding: 4px 8px; font-size: 13px; }
-  html:not(.native-shell) :is(#real-players, #city-territories).expanded { padding: 8px 10px 10px; }
 }
 
 .touch-controls{position:fixed;z-index:20;inset:0;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -3118,10 +3173,6 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
 .touch-controls-active #radar-panel .radar-title{margin-bottom:3px;font-size:10px}
 .touch-controls-active #radar-panel .radar-title span,.touch-controls-active #radar-panel .radar-legend{display:none}
 .touch-controls-active #radar{width:78px;height:78px;background:rgb(2 12 22 / 34%)}
-.touch-controls-active #right-hud-stack{justify-items:end}
-.touch-controls-active :is(#real-players,#city-territories):not(.expanded){width:88px}
-.touch-controls-active :is(#real-players,#city-territories).expanded{width:124px;padding:4px 6px 6px}
-.touch-controls-active #human-player-rows,.touch-controls-active #city-territory-rows{max-height:60px}
 body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(max-width:1100px){.desktop-controls-help-items{gap:3px 8px}.desktop-controls-help-items span:not(:last-child)::after{margin-left:8px}.practice-mode-label{bottom:max(60px,calc(env(safe-area-inset-bottom) + 52px))}}
 @media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:4px;width:100%;padding:calc(var(--safe-area-top) + 6px) max(7px,var(--safe-area-right)) 0 max(7px,var(--safe-area-left))}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud button{min-width:44px;min-height:44px;padding:3px 5px;font-size:10px}.mission-reminder{top:max(48px,calc(env(safe-area-inset-top) + 42px));max-width:calc(100vw - 160px);padding:5px 6px 5px 8px}.mission-reminder span{font-size:11px}.mission-reminder button{min-height:27px;padding:3px 5px;font-size:10px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
@@ -3168,69 +3219,6 @@ body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(prefers-reduced-motion:reduce){.gameplay-feedback,.touch-controls button,.touch-stick,.touch-throttle-lever *,.desktop-controls-help,.reward-feedback,.combat-threat-warning{animation:none!important;transition:none!important}}
 .tutorial-welcome{display:grid;gap:14px;text-align:center;place-items:center;padding:24px 8px}.tutorial-welcome p{max-width:520px;font-size:17px;line-height:1.45}.tutorial-welcome small{color:var(--text-secondary)}
 .tutorial-flight-active #contextual-hint,.tutorial-flight-active #dynamic-event-panel,.tutorial-flight-active #mission-panel{display:none!important}
-#real-players, #city-territories {
-  width: 100%;
-  max-width: 100%;
-  padding: 0;
-  color: var(--ui-text);
-  font-size: var(--font-meta-size);
-  font-variant-numeric: tabular-nums;
-  pointer-events: auto;
-}
-#real-players.expanded, #city-territories.expanded {
-  width: 100%;
-  padding: 7px 9px 9px;
-  box-sizing: border-box;
-  border: 1px solid var(--ui-border);
-  border-radius: 5px;
-  background: rgb(24 52 74 / 58%);
-  backdrop-filter: blur(2px);
-}
-.flight-panel-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 25px;
-  padding: 3px 7px;
-  border: 1px solid var(--ui-border);
-  border-radius: 4px;
-  color: var(--ui-text);
-  background: rgb(24 52 74 / 58%);
-  font: 600 12px var(--font-display);
-  letter-spacing: .04em;
-  cursor: pointer;
-}
-.expanded > .flight-panel-summary { width: 100%; border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 0; background: transparent; }
-.flight-panel-summary i { color: var(--ui-gold); font-style: normal; }
-#city-territory-rows { max-height: min(200px, 28dvh); overflow-y: auto; overscroll-behavior: contain; }
-#city-territory-rows[hidden], .city-territory-row[hidden] { display: none; }
-.city-territory-empty{display:block;padding:7px 0;color:var(--ui-text-muted);font:600 11px/1.3 var(--font-body);letter-spacing:.03em}
-.city-territory-empty[hidden]{display:none}
-.city-territory-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) minmax(34px, auto); align-items: center; gap: 5px; min-height: 23px; font: 500 var(--font-meta-size)/var(--line-height-meta) var(--font-body); }
-.city-territory-row > span, .city-territory-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.city-territory-row > strong { max-width: 76px; color: var(--text-secondary); text-align: right; font-size: 12px; }
-.city-territory-row.you > strong { color: #82e9ff; }
-.city-territory-row.contested > strong { color: #ffca62; font-weight: 900; }
-.city-territory-row.neutral > strong { color: #bdc9cc; font-weight: 600; }
-#human-player-rows { max-height: max(40px, calc(50dvh - 130px)); overflow-y: auto; overscroll-behavior: contain; }
-.human-player-columns { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 8px; padding-top: 4px; color: var(--text-secondary); font: 600 10px var(--font-display); letter-spacing: .03em; }
-.human-player-columns span:nth-child(n+2) { text-align: right; }
-.human-player-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 2px 8px; align-items: center; min-height: 36px; padding: 2px 0; transition: opacity 160ms ease; }
-.human-player-row[hidden], #human-player-rows[hidden] { display: none; }
-.human-player-identity { display: flex; min-width: 0; align-items: center; gap: 5px; color: var(--identity-player, #ff6262); }
-.human-player-identity > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.human-player-row.you .human-player-identity { color: var(--ui-text); }
-.human-player-ownership { display: inline-flex; flex: none; align-items: center; gap: 3px; }
-.human-player-ownership[hidden], .human-player-ownership i[hidden] { display: none; }
-.human-player-ownership i { display: inline-block; width: 8px; height: 8px; border: 1px solid #07151e; border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 255 255 / 30%); }
-.human-player-row > span:last-child { color: var(--ui-text-muted); text-align: right; }
-.human-player-status { grid-column: 1 / -1; color: var(--text-secondary) !important; font: 500 12px var(--font-body); text-align: left !important; }
-.human-player-row.destroyed { opacity: .5; }
-#human-player-rows small { display: block; color: var(--text-secondary); font: 500 12px var(--font-body); }
-#human-player-rows small:empty { display: none; }
-@media (max-width: 1000px) { #human-player-rows { max-height: max(32px, calc(50dvh - 140px)); } }
-
 .leaderboard-entry {
   display: flex;
   justify-content: space-between;
@@ -3604,18 +3592,8 @@ body[data-tutorial-control="players"] #real-players,body[data-tutorial-control="
   body[data-tutorial-control="radar"] .guided-tutorial-panel{top:max(195px,calc(var(--safe-area-top) + 185px));max-height:calc(100dvh - max(195px,calc(var(--safe-area-top) + 185px)) - var(--safe-area-bottom) - 8px)}
 }
 .tutorial-control-instruction{padding:9px 10px;border-left:2px solid var(--ui-cyan);border-radius:4px;background:rgb(56 215 244 / 9%);color:var(--ui-text);font:750 14px/1.3 var(--font-body)}
-.training-orientation{display:flex;gap:10px;justify-content:center;margin:12px 0}
-.training-orientation[hidden],.guided-tutorial-panel [hidden]{display:none!important}
-.training-orientation button{flex:1;color:var(--ui-text);background:var(--ui-glass-main);border-color:var(--ui-border-strong)}
-.training-orientation button[aria-pressed=true]{border-color:var(--ui-gold);box-shadow:inset 0 0 0 1px var(--ui-gold)}
-.training-orientation small{display:block;font:500 12px/1.3 var(--font-body);margin-top:5px}
-.training-stick-demo{display:block;margin:0 auto 7px;width:40px;height:40px;border:1px solid var(--ui-cyan);border-radius:12px;background:var(--ui-bg-soft)}
-.training-stick-demo b{display:grid;place-items:center;margin:10px;width:20px;height:20px;border-radius:50%;color:var(--ui-bg);background:var(--ui-cyan);animation:training-stick-up 1.4s ease-in-out infinite}
-.training-stick-demo.inverted b{animation-name:training-stick-down}
+.guided-tutorial-panel [hidden]{display:none!important}
 body[data-tutorial-control="cameraLook"] #game-root,body[data-tutorial-control="cameraZoom"] #game-root{outline:2px solid var(--ui-cyan);outline-offset:-5px}
-@keyframes training-stick-up{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
-@keyframes training-stick-down{0%,100%{transform:translateY(0)}50%{transform:translateY(9px)}}
-@media(prefers-reduced-motion:reduce){.training-stick-demo b{animation:none!important}}
 .tutorial-power{display:grid;gap:3px;margin:0 0 6px}.tutorial-power[hidden]{display:none}.tutorial-power>span{display:flex;justify-content:space-between;color:var(--ui-text-muted);font:800 10px var(--font-display)}.tutorial-power>i{position:relative;height:6px;overflow:visible;border-radius:4px;background:rgb(120 147 164 / 22%)}.tutorial-power>i::after{content:'';position:absolute;top:-2px;bottom:-2px;left:var(--tutorial-power-target,73%);width:2px;background:var(--ui-gold);box-shadow:0 0 5px rgb(216 175 82 / 70%)}.tutorial-power>i>b{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--ui-cyan),var(--ui-gold));transition:width 80ms linear}
 .guided-tutorial-actions,.tutorial-completion-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:9px;flex-wrap:wrap}
 .guided-tutorial-actions[hidden]{display:none}
@@ -3625,10 +3603,8 @@ body[data-tutorial-control="cameraLook"] #game-root,body[data-tutorial-control="
 .guided-tutorial-panel.is-complete [data-tutorial-explanation]{color:var(--ui-text);font:800 16px/1.3 var(--font-display)}
 .tutorial-completion-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 .tutorial-completion-actions button:first-child{grid-column:1/-1}
-.training-intro .training-orientation button{color:var(--ui-text);background:var(--ui-bg-soft);border-color:var(--ui-border-strong)}
-.training-intro .training-orientation button[aria-pressed=true]{border-color:var(--ui-gold)}
 .tutorial-flight-active #desktop-controls-help{bottom:60px}
-@media(max-height:450px){.guided-tutorial-panel{top:max(52px,calc(var(--safe-area-top) + 48px));width:210px;padding:7px}.guided-tutorial-panel>[data-tutorial-title]{margin:6px 0 3px;font-size:13px}.guided-tutorial-panel [data-tutorial-explanation],.tutorial-control-instruction{font-size:11px}.training-intro>div{max-height:calc(100dvh - 20px);overflow:auto}.training-orientation{margin:7px 0}.training-stick-demo{width:30px;height:30px;margin-bottom:3px}.training-stick-demo b{margin:5px}.training-intro>div>p{font-size:12px;margin:6px 0}}
+@media(max-height:450px){.guided-tutorial-panel{top:max(52px,calc(var(--safe-area-top) + 48px));width:210px;padding:7px}.guided-tutorial-panel>[data-tutorial-title]{margin:6px 0 3px;font-size:13px}.guided-tutorial-panel [data-tutorial-explanation],.tutorial-control-instruction{font-size:11px}.training-intro>div{max-height:calc(100dvh - 20px);overflow:auto}.training-intro>div>p{font-size:12px;margin:6px 0}}
 .guided-tutorial-panel.is-verified{border-color:rgb(216 175 82 / 82%);box-shadow:0 0 24px rgb(216 175 82 / 20%)}.guided-tutorial-panel.is-verified .tutorial-control-instruction{border-color:var(--ui-gold);color:var(--ui-gold);font-weight:900}
 .guided-tutorial-panel.has-input-feedback .tutorial-control-instruction{border-color:var(--ui-gold);color:var(--ui-gold);background:rgb(216 175 82 / 9%)}
 .tutorial-flight-active #dynamic-event, .tutorial-flight-active .contextual-hint, .tutorial-flight-active .active-mission-overlay {display:none!important}
@@ -3636,7 +3612,7 @@ body[data-tutorial-control="cameraLook"] #game-root,body[data-tutorial-control="
 .training-mode-label[hidden]{display:none}
 .training-intro{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:calc(var(--safe-area-top) + 16px) calc(var(--safe-area-right) + 16px) calc(var(--safe-area-bottom) + 16px) calc(var(--safe-area-left) + 16px);background:rgb(4 15 25 / 58%);backdrop-filter:blur(5px)}
 .training-intro[hidden]{display:none}.training-intro>div{width:min(470px,100%);max-height:100%;box-sizing:border-box;padding:24px;overflow:auto;border:1px solid var(--ui-border-strong);border-radius:10px;text-align:center;color:var(--ui-text);background:var(--ui-bg-strong);box-shadow:var(--ui-shadow)}
-.training-intro h1{margin:0;color:var(--ui-gold);font:900 clamp(22px,4vw,34px)/1.15 var(--font-display);letter-spacing:.05em}.training-intro p{margin:14px 0 18px;font:500 16px/1.45 var(--font-body)}.training-dialog-actions{display:flex;flex-direction:column;align-items:center;gap:5px}.training-intro button{min-height:44px;padding:10px 22px;color:var(--ui-ocean-ink);background:var(--ui-gradient-primary);border:1px solid rgb(249 176 10 / 70%);border-radius:5px;font:800 15px var(--font-display);cursor:pointer}.training-intro [data-training-start]{width:min(280px,100%)}.training-intro [data-training-skip]{color:var(--ui-text);background:transparent;border-color:transparent;font-size:13px}
+.training-intro h1{margin:0;color:var(--ui-gold);font:900 clamp(22px,4vw,34px)/1.15 var(--font-display);letter-spacing:.05em}.training-intro p{margin:14px 0 18px;font:500 16px/1.45 var(--font-body)}.training-dialog-actions{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:7px}.training-intro button{min-height:44px;padding:10px 22px;color:var(--ui-ocean-ink);background:var(--ui-gradient-primary);border:1px solid rgb(249 176 10 / 70%);border-radius:5px;font:800 15px var(--font-display);cursor:pointer}.training-intro [data-training-start],.training-intro [data-training-slides]{min-width:min(200px,100%)}.training-intro [data-training-skip]{flex-basis:100%;color:var(--ui-text);background:transparent;border-color:transparent;font-size:13px}
 body[data-tutorial-control="joystick"] [data-touch-control="stick"],body[data-tutorial-control="takeoff"] [data-touch-control="stick"],body[data-tutorial-control="turnLeft"] [data-touch-control="stick"],body[data-tutorial-control="turnRight"] [data-touch-control="stick"],body[data-tutorial-control="climb"] [data-touch-control="stick"],body[data-tutorial-control="descend"] [data-touch-control="stick"],body[data-tutorial-control="landing"] [data-touch-control="stick"],body[data-tutorial-control="throttle"] [data-touch-control="throttle"],body[data-tutorial-control="landing"] [data-touch-control="throttle"],body[data-tutorial-control="fire"] [data-touch-control="fire"]{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:4px solid #ffd447;outline-offset:6px;box-shadow:0 0 0 5px rgb(255 196 32 / 20%),0 0 30px 9px rgb(255 196 32 / 46%);animation:tutorial-control-pulse 1.05s ease-in-out infinite}
 body[data-tutorial-control="throttle"] [data-touch-control="throttle"] .touch-throttle-track,body[data-tutorial-control="landing"] [data-touch-control="throttle"] .touch-throttle-track{border-color:#ffe078;background:repeating-linear-gradient(to bottom,rgb(255 199 40 / 11%) 0,rgb(255 199 40 / 11%) calc(20% - 1px),rgb(255 224 120 / 35%) calc(20% - 1px),rgb(255 224 120 / 35%) 20%),rgb(90 65 12 / 26%);box-shadow:inset 0 0 24px rgb(255 201 44 / 24%)}
 body[data-tutorial-control="targetLock"] #acquisition-circle{z-index:22;outline:2px solid var(--ui-gold);outline-offset:6px;animation:tutorial-control-pulse 1.1s ease-in-out infinite}
@@ -4373,7 +4349,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
 /* Mission 7 reuses the compact boss layout without hiding its aiming reticle. */
 .giant-incoming-focus :is(#real-players,#city-territories,#territory-capture,#territory-defense-alert){display:none!important;}
 
-.giant-incoming-focus .sky-challenge.journey-hud { background: rgb(8 39 73 / 10%); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
+.giant-incoming-focus .sky-challenge.journey-hud { background: var(--gameplay-info-card-fill); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 
 .hub-info-dialog { position: fixed; z-index: 1500; inset: 0; width: min(500px, calc(100% - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: auto; color: #f7fbff; background: transparent; border: 0; }
 .hub-info-dialog::backdrop { background: rgb(1 10 28 / 78%); }
@@ -4396,7 +4372,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
   .home-hangar-mode:is(:hover, :focus-visible, :active) { transform: none; }
 }
 
-/* The live hangar continues under the glass; the header uses nine equal-height sections. */
+/* The hub header uses nine equal-height sections. */
 :root { --menu-page-header-height: calc(104px + var(--safe-area-top)); --hub-header-total: var(--menu-page-header-height); }
 /* Every hub screen starts below the visible header, including phone landscape. */
 body:has(.app-shell-header.is-hub:not([hidden])) {
@@ -4645,7 +4621,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-wa
   width: clamp(48px, 5.7vw, 72px);
   height: clamp(48px, 5.7vw, 72px);
   padding: 0;
-  border: 2px solid #38dafa;
+  border: 2px solid var(--ui-navigation-button-border);
   border-radius: 17px;
   background: linear-gradient(155deg, #126fae, #072e6a);
   box-shadow: 0 3px 11px rgb(0 14 45 / 45%), inset 0 1px #b3efff;
@@ -5209,8 +5185,8 @@ button.context-back,
   display: inline-flex; flex: 0 0 54px; align-items: center; justify-content: center;
   box-sizing: border-box; width: 54px; min-width: 54px; max-width: 54px;
   height: 54px; min-height: 54px; max-height: 54px; padding: 0;
-  appearance: none; color: #fff; border: 2px solid #37d8ee; border-radius: 14px;
-  background: linear-gradient(145deg, #245b98, #062d62);
+  appearance: none; color: #fff; border: 2px solid var(--ui-navigation-button-border); border-radius: 14px;
+  background: var(--ui-back-button-fill);
   box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
   font-size: 0; line-height: 0; letter-spacing: 0; text-shadow: none; white-space: nowrap; cursor: pointer;
 }
@@ -5237,7 +5213,7 @@ button.context-back:focus-visible,
 .mission-journey button.context-back:focus-visible,
 .pilot-menu-card button.context-back:focus-visible { outline: 2px solid #ffd875; outline-offset: 2px; }
 .pilot-menu-card.is-pilot-profile > header .pilot-menu-header-actions button.context-back:focus-visible {
-  background: linear-gradient(145deg, #245b98, #062d62);
+  background: var(--ui-back-button-fill);
   box-shadow: inset 0 1px rgb(255 255 255 / 32%), 0 2px 8px rgb(5 32 68 / 45%);
   outline: 2px solid #ffd875; outline-offset: 2px;
 }
@@ -5357,10 +5333,10 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   height: clamp(44px, 5vw, 60px);
   min-height: 44px;
   padding: 0;
-  border: 1px solid #dfbb67;
+  border: 1px solid var(--ui-navigation-button-border);
   border-radius: 50%;
   color: #fff;
-  background: radial-gradient(circle at 35% 25%, rgb(41 82 111 / 90%), rgb(7 24 42 / 95%) 74%);
+  background: var(--ui-back-button-fill);
   box-shadow: inset 0 1px rgb(255 255 255 / 45%), 0 3px 0 #c79837, 0 5px 12px rgb(0 0 0 / 45%);
   font-size: clamp(23px, 2.4vw, 30px);
 }
@@ -5372,46 +5348,15 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   min-width: 44px;
   min-height: 44px;
   padding: 0;
-  border: 1px solid #dfbb67;
+  border: 1px solid var(--ui-navigation-button-border);
   border-radius: 50%;
   color: #fff;
-  background: rgb(7 24 42 / 90%);
+  background: var(--ui-back-button-fill);
   box-shadow: 0 2px 7px rgb(0 0 0 / 40%);
   font: 900 20px/1 var(--font-display);
 }
-#game-root .flight-game-hud #journey-pause-button[hidden],
-#journey-pause-overlay[hidden] { display: none; }
-#game-root .flight-game-hud #journey-pause-button:focus-visible,
-#journey-resume-button:focus-visible,
-#journey-restart-button:focus-visible { outline: 3px solid #6beeff; outline-offset: 3px; }
-.journey-pause-overlay {
-  position: fixed;
-  z-index: 90;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: calc(var(--safe-area-top) + 12px) calc(var(--safe-area-right) + 12px)
-    calc(var(--safe-area-bottom) + 12px) calc(var(--safe-area-left) + 12px);
-  background: rgb(3 15 31 / 62%);
-}
-.journey-pause-card {
-  width: min(360px, 100%);
-  padding: clamp(18px, 4dvh, 28px);
-  border: 2px solid #f4cf73;
-  border-radius: 16px;
-  color: #fff;
-  background: #102e54;
-  box-shadow: 0 12px 28px rgb(0 0 0 / 38%);
-  text-align: center;
-}
-.journey-pause-card h2 { margin: 0 0 8px; color: #ffdb73; font: 900 clamp(20px, 3vw, 28px)/1.1 var(--font-display); }
-.journey-pause-card p { margin: 0 0 18px; font: 700 clamp(12px, 1.5vw, 15px)/1.35 var(--font-display); }
-.journey-pause-card .journey-pause-timer { margin-bottom: 16px; color: #ffdb73; font-size: clamp(13px, 1.6vw, 16px); }
-.journey-pause-timer strong { display: inline-block; margin-left: 8px; font-size: 1.35em; font-variant-numeric: tabular-nums; }
-.journey-pause-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-#journey-resume-button { min-width: 130px; min-height: 44px; border: 1px solid #6beeff; border-radius: 10px; color: #07223e; background: linear-gradient(#8af9ff, #14bfdc); font: 900 16px/1 var(--font-display); cursor: pointer; }
-#journey-restart-button { min-width: 130px; min-height: 44px; border: 1px solid #f4cf73; border-radius: 10px; color: #102e54; background: linear-gradient(#ffe899, #e9ad34); font: 900 14px/1 var(--font-display); cursor: pointer; }
-:is(#journey-resume-button, #journey-restart-button):disabled { opacity: .6; cursor: wait; }
+#game-root .flight-game-hud #journey-pause-button[hidden] { display: none; }
+#game-root .flight-game-hud #journey-pause-button:focus-visible { outline: 3px solid #6beeff; outline-offset: 3px; }
 #game-root .flight-game-hud :is(#flight-garage-button, #flight-account-button) { display: none; }
 #game-root .flight-game-hud #flight-map-button {
   position: fixed;
@@ -5435,7 +5380,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   height: 32px;
   border: 1px solid #e5cd74;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 25%, #244b78, #071b38 78%);
+  background: var(--ui-back-button-fill);
   box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
   content: '';
 }
@@ -5483,7 +5428,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   border: 1px solid #f2c656;
   border-radius: 8px;
   color: #ffdc78;
-  background: rgb(9 26 48 / 92%);
+  background: var(--ui-back-button-fill);
   box-shadow: inset 0 1px rgb(255 255 255 / 16%), 0 2px 5px rgb(0 0 0 / 24%);
   cursor: pointer;
 }
@@ -5495,7 +5440,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   border-left: 2px solid currentColor;
   transform: translateY(3px) rotate(45deg);
 }
-#game-root .journey-hud-toggle:hover { background: rgb(33 65 94 / 95%); }
+#game-root .journey-hud-toggle:hover { filter: brightness(1.08); }
 #game-root .journey-hud-toggle:focus-visible { outline: 3px solid #6beeff; outline-offset: 2px; }
 #game-root .journey-status-layer .sky-challenge.journey-hud.is-collapsed {
   width: 34px;
@@ -5551,7 +5496,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   border: 1px solid rgb(155 215 246 / 70%);
   border-left: 4px solid #f2c656;
   border-radius: 10px;
-  background: rgb(9 26 48 / 82%);
+  background: var(--gameplay-info-card-fill);
   box-shadow: 0 3px 9px rgb(4 25 48 / 24%);
   letter-spacing: .03em;
 }
@@ -5564,9 +5509,9 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 #game-root .journey-mission-one [data-journey-timer]::before { margin-right: 5px; color: #fff; content: '◷'; font-size: 1.25em; }
 #game-root .journey-mission-one .journey-hud-segments { gap: 3px; padding-top: 2px; }
 #game-root .journey-mission-one .journey-hud-segments i { height: 6px; border-color: rgb(215 238 249 / 72%); background: rgb(217 236 246 / 27%); }
-#game-root .journey-mission-one .journey-hud-segments i.is-current { border-color: #ffe18a; background: linear-gradient(#ffe494, #e9b849); box-shadow: 0 0 7px rgb(255 216 90 / 65%); }
+#game-root .journey-mission-one .journey-hud-segments i.is-cleared { border-color: #ffe18a; background: linear-gradient(#ffe494, #e9b849); box-shadow: 0 0 7px rgb(255 216 90 / 65%); }
 
-#game-root { --gameplay-radar-right: max(25px, var(--safe-area-right)); --gameplay-radar-size: clamp(108px, 12vw, 154px); }
+#game-root { --gameplay-radar-right: max(25px, var(--safe-area-right)); --gameplay-radar-size: clamp(108px, 12vw, 154px); --gameplay-info-card-fill: rgb(9 26 48 / 82%); }
 #game-root #right-flight-stack { top: calc(var(--safe-area-top) + 22px); right: var(--gameplay-radar-right); width: var(--gameplay-radar-size); max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 30px); }
 #game-root #radar-panel,
 .touch-controls-active #game-root #radar-panel {
@@ -5609,7 +5554,6 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   top: clamp(calc(var(--safe-area-top) + 110px), 44dvh, calc(100dvh - var(--safe-area-bottom) - 105px));
 }
 .touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { left: calc(100% - clamp(54px, 8vw, 95px)); top: 73.5%; }
-.touch-controls-active #game-root #right-hud-stack { display: none; }
 
 @media (max-width: 800px) and (orientation: landscape) {
   #game-root .flight-game-hud { grid-template: "menu stats utilities" auto / minmax(0, 1fr) auto minmax(0, 1fr); min-height: 0; }
@@ -5629,11 +5573,19 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   .touch-controls-active #game-root [data-touch-control="stick"].uses-default-placement { top: calc(var(--touch-top) + 75px); }
   .touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { top: calc(73.5% + 55px); }
 }
-/* Reserve a stable control lane below the Journey card. Transient notices move
+/* Keep the stick below the Journey and training cards. Transient notices move
    around the stick, but never change its position during a mission. */
-.touch-controls-active #game-root:has(.journey-status-layer) [data-touch-control="stick"] {
-  top: max(var(--touch-top), 65dvh, calc(max(70px, calc(var(--safe-area-top) + 56px)) + 124px + clamp(55px, 7vw, 87.5px) + 12px));
+.touch-controls-active #game-root:has(.journey-status-layer) [data-touch-control="stick"].uses-default-placement {
+  top: max(var(--touch-top), 73.5dvh, calc(max(70px, calc(var(--safe-area-top) + 56px)) + 124px + clamp(55px, 7vw, 87.5px) + 12px));
 }
+.touch-controls-active #game-root:has(.gameplay-info-card.is-tutorial) [data-touch-control="stick"] {
+  top: max(var(--touch-top), 73.5dvh, calc(max(70px, calc(var(--safe-area-top) + 56px)) + 180px + clamp(55px, 7vw, 87.5px) + 12px));
+}
+.touch-controls-active #game-root:has(.gameplay-info-card.is-multiplayer.has-tutorial) [data-touch-control="stick"] {
+  top: max(var(--touch-top), 73.5dvh, calc(max(70px, calc(var(--safe-area-top) + 56px)) + 144px + clamp(55px, 7vw, 87.5px) + 12px));
+}
+.touch-controls-active #game-root.multiplayer-flight [data-touch-control="stick"] { top: max(73.5dvh, var(--touch-top)); }
+.touch-controls-active #game-root.multiplayer-flight [data-touch-control="fire"] { top: clamp(68dvh, var(--touch-top), 73.5dvh); }
 @media (prefers-reduced-motion: reduce) {
   #game-root .touch-fire,
   #game-root .touch-stick { animation: none; transition: none; }
@@ -5872,7 +5824,7 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 .pilot-menu-card.is-settings > header .pilot-menu-kicker,
 .pilot-menu-card.is-settings > header .pilot-menu-header-actions { display: none; }
 .pilot-menu-card.is-settings > .pilot-settings-tabs {
-  grid-area: navigation; display: flex; flex-direction: row; gap: 0; width: 100%; min-height: 0;
+  grid-area: navigation; display: flex; flex-direction: row; gap: 0; width: 88%; min-height: 0; margin-inline: auto;
   padding: 4px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
 .pilot-menu-card.is-settings > .pilot-settings-tabs::-webkit-scrollbar { display: none; }
@@ -5886,13 +5838,13 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   margin-right: 10px; color: #113875; font-size: .8em; content: '✦';
 }
 .pilot-menu-card.is-settings > .pilot-settings-tabs .store-tab.is-active {
-  color: #07345b; border-color: #00cbe9;
-  background: linear-gradient(#e9fdff, #a7f0f6); box-shadow: inset 0 1px #fff, 0 0 0 2px rgb(0 198 225 / 15%);
+  color: var(--menu-gold-ink); border-color: var(--menu-gold-border);
+  background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow);
 }
 .pilot-menu-card.is-settings > .pilot-settings-tabs .store-tab:hover:not(.is-active) { background: #e7f7fa; }
 .pilot-menu-card.is-settings > .pilot-menu-content {
-  grid-area: content; min-width: 0; min-height: 0; max-height: clamp(380px, 64dvh, 560px);
-  margin: clamp(10px, 2.7dvh, 18px) 8px 0;
+  grid-area: content; width: 88%; min-width: 0; min-height: 0; max-height: min(56dvh, 450px);
+  margin: clamp(10px, 2.7dvh, 18px) auto 0;
   padding: clamp(8px, 1.2vw, 15px); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
   touch-action: pan-x; color: #0b2345; border: 3px solid var(--menu-card-accent); border-radius: 17px;
   background: linear-gradient(135deg, #fff 5%, #f4fafb 55%, #e5f5f9);
@@ -5921,15 +5873,15 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 }
 .pilot-menu-card.is-settings .pilot-settings-choice-options button + button { border-left: 1px solid #b7d4e0; }
 .pilot-menu-card.is-settings .pilot-settings-choice-options button[aria-pressed='true'] {
-  color: #07345b; background: linear-gradient(#8af4ff, #15cfed); box-shadow: inset 0 1px #fff, 0 2px 5px rgb(3 57 118 / 20%);
+  color: var(--menu-gold-ink); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow);
 }
 .pilot-menu-card.is-settings .pilot-settings-choice-options button:hover:not(:disabled) { filter: brightness(1.04); }
 .pilot-menu-card.is-settings .pilot-settings-flight > p { margin: -15px 0 22px; font-size: clamp(11px, 1.15vw, 14px); }
 .pilot-settings-position { position: relative; }
 .pilot-menu-card.is-settings .pilot-settings-position > select {
-  position: absolute; top: 4px; right: clamp(10px, 2vw, 28px); width: min(170px, 36%); min-height: 32px;
+  position: absolute; top: 4px; right: clamp(10px, 2vw, 28px); width: min(115px, 30%); min-height: 32px;
   padding: 4px 6px; color: #0b2345; border: 1px solid #a9d1e0; border-radius: 7px; background: #f7fbfd;
-  font: 800 11px/1 var(--font-display);
+  font: 800 10px/1 var(--font-display);
 }
 .pilot-menu-card.is-settings .pilot-settings-position .pilot-mobile-control-editor {
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 10px 0 5px; padding: 0; border: 0;
@@ -5974,17 +5926,29 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 .pilot-menu-card.is-settings .pilot-settings-audio > .pilot-menu-audio-row:nth-of-type(5) { grid-column: 3; grid-row: 3; }
 .pilot-menu-card.is-settings.is-settings-help > .pilot-menu-content { display: flex; gap: 12px; }
 .pilot-menu-card.is-settings.is-settings-help > .pilot-menu-content > .pilot-menu-section { flex: 0 0 min(280px, 85%); align-self: start; }
-.pilot-menu-card.is-settings .pilot-settings-account { max-width: 640px; margin: 0 auto; }
+.pilot-menu-card.is-settings > .pilot-menu-content:has(.pilot-settings-account) { overflow-y: auto; touch-action: pan-y; }
+.pilot-menu-card.is-settings .pilot-settings-account {
+  grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; gap: 4px 10px;
+  width: min(100%, 520px); max-width: none; min-height: 100%; margin: 0 auto;
+}
+.pilot-menu-card.is-settings .pilot-settings-account > :not(button) { grid-column: 1 / -1; }
+.pilot-menu-card.is-settings .pilot-settings-account > h2 { margin-bottom: 4px; }
 .pilot-menu-card.is-settings .pilot-settings-account > strong { color: #0b2345; }
 .pilot-settings-account-status { color: #087638; font: 900 14px/1.2 var(--font-display); }
-.pilot-menu-card.is-settings .pilot-settings-account > button { justify-self: start; }
+.pilot-menu-card.is-settings .pilot-settings-account > button { justify-self: stretch; width: 100%; }
+.pilot-menu-card.is-settings .pilot-settings-account > button:only-of-type { grid-column: 1 / -1; }
 @media (max-width: 760px) {
-  .pilot-menu-card.is-settings > .pilot-menu-content { max-height: none; }
+  .pilot-menu-card.is-settings > .pilot-settings-tabs .store-tab { flex: 1 1 0; min-width: 0; padding-inline: 4px; }
   .pilot-menu-card.is-settings .pilot-settings-columns { display: flex; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; scroll-snap-type: x mandatory; scrollbar-width: thin; }
   .pilot-menu-card.is-settings .pilot-settings-columns > .pilot-menu-section { flex: 0 0 100%; scroll-snap-align: start; }
   .pilot-menu-card.is-settings .pilot-settings-position { border-left: 0; }
   .pilot-menu-card.is-settings .pilot-settings-position > select { position: static; display: block; width: min(100%, 220px); margin-bottom: 5px; }
   .pilot-menu-card.is-settings .pilot-settings-audio { min-width: 780px; }
+}
+@media (orientation: landscape) and (max-height: 620px) {
+  .pilot-menu-card.is-settings .pilot-settings-choice { margin: 6px 0 12px; }
+  .pilot-menu-card.is-settings .pilot-settings-flight > p { margin: -8px 0 10px; }
+  .pilot-menu-card.is-settings .pilot-settings-position .pilot-mobile-control-editor label { min-height: 40px; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .pilot-menu-overlay.is-hub-settings { --settings-top-padding: max(5px, var(--safe-area-top)); padding-bottom: max(7px, var(--safe-area-bottom)); }
@@ -5992,12 +5956,159 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   .pilot-menu-card.is-settings > .pilot-settings-tabs { padding: 2px; }
   .pilot-menu-card.is-settings > .pilot-settings-tabs .store-tab { min-height: 44px; }
   .pilot-menu-card.is-settings > .pilot-menu-content { margin-top: 8px; }
+  .pilot-menu-card.is-settings .pilot-settings-controls { grid-template-rows: minmax(0, 1fr) 36px; }
+  .pilot-menu-card.is-settings .pilot-settings-footer,
+  .pilot-menu-card.is-settings .pilot-settings-more-toggle { min-height: 36px; }
   .pilot-menu-card.is-settings .pilot-menu-section h2 { margin-bottom: 6px; font-size: clamp(18px, 2vw, 23px); }
-  .pilot-menu-card.is-settings .pilot-settings-columns > .pilot-menu-section { padding-top: 4px; padding-bottom: 2px; }
-  .pilot-settings-choice { margin: 3px 0 8px; }
-  .pilot-settings-choice h3 { margin-bottom: 4px; }
-  .pilot-menu-card.is-settings .pilot-settings-flight > p { margin: -3px 0 5px; }
-  .pilot-menu-card.is-settings .pilot-settings-position .pilot-mobile-control-editor { margin: 4px 0 2px; gap: 0; }
+  .pilot-menu-card.is-settings .pilot-settings-columns > .pilot-menu-section { padding-top: 2px; padding-bottom: 0; }
+  .pilot-menu-card.is-settings .pilot-settings-choice { margin: 2px 0 5px; }
+  .pilot-menu-card.is-settings .pilot-settings-choice h3 { margin-bottom: 2px; }
+  .pilot-menu-card.is-settings .pilot-settings-flight > p { display: none; }
+  .pilot-menu-card.is-settings .pilot-settings-position > h2 { font-size: 18px; }
+  .pilot-menu-card.is-settings .pilot-settings-position > select { width: min(130px, 34%); }
+  .pilot-menu-card.is-settings .pilot-settings-position .pilot-mobile-control-editor { margin: 0; gap: 0; }
+  .pilot-menu-card.is-settings .pilot-settings-position .pilot-mobile-control-editor label { min-height: 30px; }
+  .pilot-menu-card.is-settings .pilot-settings-position .pilot-mobile-control-editor input { height: 30px; }
+  .pilot-menu-card.is-settings .pilot-settings-position > button { min-height: 36px; margin: 0 auto; padding: 4px 10px; }
+}
+
+/* The flight menu shares the redesigned Settings controls without changing the Hub Settings page. */
+.pilot-menu-overlay.is-flight-menu-overlay {
+  z-index: 92;
+  padding: max(8px, var(--safe-area-top)) max(12px, var(--safe-area-right))
+    max(8px, var(--safe-area-bottom)) max(12px, var(--safe-area-left));
+  background: rgb(4 20 39 / 55%);
+  backdrop-filter: blur(7px);
+}
+.pilot-menu-card.is-flight-menu {
+  grid-template: 'header' auto 'navigation' auto 'content' minmax(0, 1fr) / minmax(0, 1fr);
+  width: min(1050px, 100%);
+  height: min(460px, calc(100dvh - max(16px, var(--safe-area-top)) - max(16px, var(--safe-area-bottom))));
+  max-height: 100%;
+  gap: 8px;
+}
+.pilot-menu-overlay.is-flight-menu-overlay:has(.pilot-flight-live-warning) .pilot-menu-card.is-flight-menu { width: min(840px, 100%); height: min(500px, calc(100dvh - max(16px, var(--safe-area-top)) - max(16px, var(--safe-area-bottom)))); }
+.pilot-menu-card.is-flight-menu > header { min-height: 64px; margin: 0; }
+.pilot-menu-card.is-flight-menu > header .context-winged-title { font-size: clamp(22px, 3.2vw, 40px); }
+.pilot-menu-overlay.is-flight-menu-overlay > button.context-back.page-back {
+  position: absolute; top: max(8px, calc((100% - min(460px, 100%)) / 2 + 6px));
+  left: max(var(--safe-area-left), calc((100% - min(1050px, 100%)) / 2));
+  z-index: 2;
+}
+.pilot-menu-overlay.is-flight-menu-overlay:has(.pilot-flight-live-warning) > button.context-back.page-back {
+  top: max(8px, calc((100% - min(500px, 100%)) / 2 + 6px));
+  left: max(var(--safe-area-left), calc((100% - min(840px, 100%)) / 2));
+}
+.pilot-menu-card.is-flight-menu > .pilot-settings-tabs {
+  flex-direction: row; width: 88%; min-height: 54px; padding: 3px;
+  overflow: hidden; border: 2px solid var(--menu-card-accent); border-radius: 18px;
+  background: linear-gradient(#fff, #edf7fb); box-shadow: 0 5px 14px rgb(5 25 54 / 28%);
+}
+.pilot-menu-card.is-flight-menu > .pilot-settings-tabs .store-tab {
+  flex: 1 1 0; min-width: 0; min-height: 44px; padding: 5px 4px;
+  font-size: clamp(12px, 1.5vw, 18px);
+}
+.pilot-menu-card.is-flight-menu > .pilot-settings-tabs .store-tab.is-active {
+  color: var(--menu-gold-ink); border-color: var(--menu-gold-border);
+  background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow);
+}
+.pilot-menu-card.is-flight-menu > .pilot-settings-tabs .store-tab::before { display: none; }
+.pilot-menu-card.is-flight-menu > .pilot-settings-tabs .store-tab:not(:first-child)::after { content: '✦'; position: absolute; left: -5px; color: #10315c; font-size: 10px; }
+.pilot-menu-card.is-flight-menu .pilot-settings-choice-options button[aria-pressed='true'] {
+  color: var(--menu-gold-ink); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow);
+}
+.pilot-menu-card.is-flight-menu > .pilot-menu-content {
+  display: flex; flex-direction: column; gap: 8px; width: 88%; min-height: 0; max-height: min(54dvh, 295px);
+  margin: 0 auto; padding: clamp(10px, 1.5vw, 20px); overflow: hidden; touch-action: auto;
+}
+.pilot-menu-overlay.is-flight-menu-overlay:has(.pilot-flight-live-warning) .pilot-menu-card.is-flight-menu > :is(.pilot-settings-tabs, .pilot-menu-content) { width: 88%; }
+.pilot-menu-overlay.is-flight-menu-overlay:has(.pilot-flight-live-warning) .pilot-menu-card.is-flight-menu > .pilot-menu-content { max-height: min(58dvh, 315px); }
+.pilot-flight-mission-layout { flex: 1 1 auto; width: 100%; min-height: 0; }
+.pilot-flight-mission-details { display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; padding-top: 8px; }
+.pilot-flight-mission-details h2 { margin: 0 0 10px; color: #0b2345; font: 900 clamp(20px, 2.8vw, 34px)/1.1 var(--font-display); }
+.pilot-flight-mission-objective { margin: 0 0 18px !important; color: #0b2345 !important; font: 900 clamp(13px, 1.8vw, 22px)/1.15 var(--font-display) !important; }
+.pilot-flight-mission-progress { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; color: #0b2345; font: 900 clamp(13px, 1.7vw, 20px)/1.1 var(--font-display); }
+.pilot-flight-time { flex: none; font-size: .85em; }
+.pilot-flight-pause-limit { margin: 10px 0 0 !important; color: #8b5e08 !important; font: 900 clamp(11px, 1.25vw, 15px)/1.15 var(--font-display) !important; }
+.pilot-flight-pause-limit span { font-variant-numeric: tabular-nums; }
+.pilot-flight-gate-segments { display: flex; gap: 4px; width: 100%; }
+.pilot-flight-gate-segments i { flex: 1 1 0; height: clamp(10px, 1.5dvh, 16px); border: 2px solid #72869a; border-radius: 20px; background: linear-gradient(#edf4f9, #bbccdc); box-shadow: inset 0 1px #fff; }
+.pilot-flight-gate-segments i.is-cleared { border-color: #f2bd3d; background: linear-gradient(#75edff, #04bde7); box-shadow: 0 0 7px rgb(13 209 236 / 50%); }
+.pilot-flight-actions { display: flex; flex-direction: column; justify-content: center; gap: 8px; min-width: 0; }
+.pilot-menu-card.is-flight-menu .pilot-flight-actions button { min-height: 48px; padding: 7px 10px; color: #082a54; border: 2px solid #08c4df; border-radius: 11px; background: linear-gradient(#fff, #e8f4fa); box-shadow: 0 2px 5px rgb(7 35 71 / 22%); font: 900 clamp(12px, 1.65vw, 20px)/1 var(--font-display); }
+.pilot-menu-card.is-flight-menu .pilot-flight-actions button.pilot-menu-primary { color: var(--menu-gold-ink); border-color: var(--menu-gold-border); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow); }
+.pilot-menu-card.is-flight-menu .pilot-flight-actions button.pilot-menu-danger { color: #c5262d; border-color: #e03843; background: linear-gradient(#fff, #f4f6f8); }
+.pilot-flight-exit-note { color: #63758b; font: 700 clamp(10px, 1.1vw, 13px)/1.2 var(--font-body); text-align: center; }
+.pilot-flight-live-warning { flex: none; margin: 0 !important; padding: 7px 10px; color: #0b2345 !important; border: 1px solid #f1d681; border-radius: 10px; background: #fff0b9; font: 900 clamp(11px, 1.35vw, 16px)/1.15 var(--font-display) !important; text-align: center; }
+.pilot-menu-card.is-flight-menu .pilot-settings-controls { flex: 1 1 auto; min-height: 0; }
+.pilot-menu-card.is-flight-menu .pilot-settings-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+.pilot-menu-card.is-flight-menu .pilot-settings-columns > .pilot-menu-section { min-width: 0; padding: 4px 12px; border: 0; }
+.pilot-menu-card.is-flight-menu .pilot-settings-position { border-left: 1px solid #bfd3df; }
+.pilot-menu-card.is-flight-menu .pilot-settings-flight > p { display: none; }
+.pilot-menu-card.is-flight-menu .pilot-settings-choice { margin: 6px 0 12px; }
+.pilot-menu-card.is-flight-menu .pilot-settings-position > select { display: none; }
+.pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor { margin: 4px 0; }
+.pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor label { min-height: 36px; }
+.pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor input { height: 36px; }
+.pilot-menu-card.is-flight-menu .pilot-settings-position > button { margin: 2px auto 0; }
+.pilot-menu-card.is-flight-menu > .pilot-menu-content > .pilot-flight-actions { flex: none; flex-direction: row; align-items: center; margin-top: auto; padding-top: 8px; border-top: 1px solid #bfd3df; }
+.pilot-menu-card.is-flight-menu > .pilot-menu-content > .pilot-flight-actions button { flex: 1 1 0; min-height: 42px; }
+.pilot-menu-card.is-flight-menu > .pilot-menu-content > .pilot-flight-actions .pilot-flight-exit-note { display: none; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio { flex: 0 1 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto repeat(3, 40px); min-width: 0; min-height: 0; height: auto; column-gap: 14px; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > h2 { grid-column: 1 / -1; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-settings-switches { grid-column: 1 !important; grid-row: 2 / 5 !important; display: grid; grid-template-columns: 1fr; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row { min-width: 0; grid-template-columns: 60px minmax(0, 1fr) 34px; gap: 5px; font-size: 12px; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row:nth-of-type(1) { grid-column: 2 !important; grid-row: 2 !important; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row:nth-of-type(2) { grid-column: 2 !important; grid-row: 3 !important; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row:nth-of-type(3) { grid-column: 2 !important; grid-row: 4 !important; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row:nth-of-type(4) { grid-column: 3 !important; grid-row: 2 !important; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row:nth-of-type(5) { grid-column: 3 !important; grid-row: 3 !important; }
+.pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row input { min-height: 32px; }
+.pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) auto; }
+.pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-flight-live-warning { grid-column: 1 / -1; }
+.pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-menu-section { min-width: 0; padding: 4px 10px; border: 0; }
+.pilot-menu-card.is-flight-menu.is-flight-help .pilot-menu-controls { color: #0b2345; }
+.pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-flight-actions { grid-column: 1 / -1; }
+@media (orientation: landscape) and (max-height: 620px) {
+  .pilot-menu-card.is-flight-menu > .pilot-menu-content { padding: 10px 12px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-choice { margin: 4px 0 8px; }
+  .pilot-menu-card.is-flight-menu .pilot-flight-actions button { min-height: 44px; }
+}
+@media (orientation: landscape) and (max-height: 450px) {
+  .pilot-menu-card.is-flight-menu, .pilot-menu-overlay.is-flight-menu-overlay:has(.pilot-flight-live-warning) .pilot-menu-card.is-flight-menu { gap: 4px; }
+  .pilot-menu-card.is-flight-menu > header { min-height: 48px; }
+  .pilot-menu-card.is-flight-menu > .pilot-settings-tabs { min-height: 44px; }
+  .pilot-menu-card.is-flight-menu > .pilot-menu-content { padding: 7px 10px; }
+  .pilot-menu-overlay.is-flight-menu-overlay:not(:has(.pilot-flight-live-warning)) .pilot-menu-card.is-flight-menu > .pilot-settings-tabs { margin-top: 12px; padding: 1px; }
+  .pilot-menu-overlay.is-flight-menu-overlay:not(:has(.pilot-flight-live-warning)) .pilot-menu-card.is-flight-menu > .pilot-menu-content { max-height: 56dvh; margin-top: 5px; }
+  .pilot-menu-card.is-flight-menu .pilot-menu-section h2 { margin-bottom: 4px; font-size: 17px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-choice { margin: 3px 0 5px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-choice-options button { min-height: 36px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor { margin: 0; gap: 0; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor label { min-height: 28px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor input { height: 28px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position > button { min-height: 32px; padding: 3px 10px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-audio { grid-template-rows: auto repeat(3, 34px); }
+  .pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row input { min-height: 30px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-audio .pilot-settings-choice { margin: 0 0 4px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-audio .pilot-settings-choice-options button { min-height: 32px; }
+  .pilot-menu-card.is-flight-menu .pilot-flight-actions button { min-height: 38px; }
+  .pilot-flight-mission-objective { margin-bottom: 8px !important; }
+  .pilot-flight-mission-progress { margin-bottom: 7px; }
+}
+@media (orientation: landscape) and (max-height: 400px) and (max-width: 720px) {
+  .pilot-menu-card.is-flight-menu > header { min-height: 42px; }
+  .pilot-menu-card.is-flight-menu > header .context-winged-title { font-size: 22px; }
+  .pilot-menu-overlay.is-flight-menu-overlay > button.context-back.page-back { width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; max-height: 44px; }
+  .pilot-menu-card.is-flight-menu > .pilot-settings-tabs { min-height: 42px; padding: 2px; }
+  .pilot-menu-card.is-flight-menu > .pilot-settings-tabs .store-tab { min-height: 34px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-choice-options button { min-height: 32px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-choice h3 { margin-bottom: 2px; font-size: 13px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-choice { margin: 1px 0 3px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor label { min-height: 25px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position .pilot-mobile-control-editor input { height: 25px; }
+  .pilot-menu-card.is-flight-menu .pilot-settings-position > button { min-height: 28px; margin: -2px auto 0; }
+  .pilot-menu-card.is-flight-menu .pilot-flight-actions button { min-height: 36px; }
 }
 
 /* The Hub, city carousel, and time picker use the same selection tile. */
@@ -6109,6 +6220,35 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   background: rgb(255 255 255 / 85%);
   font-size: 17px;
 }
+.city-journey.is-unlock-pending .city-journey-card { pointer-events: none; }
+.city-journey.is-unlock-traveling .city-journey-card { transition-duration: 1050ms; }
+.city-journey-card.is-unlock-source { animation: city-unlock-source 500ms ease-out both; }
+.city-journey-card.is-unlocking .city-journey-lock { animation: city-unlock-lock 650ms ease-in forwards; }
+.city-journey-card.is-unlocking .city-journey-lock svg path {
+  transform-box: view-box;
+  transform-origin: 73% 43%;
+  animation: city-unlock-shackle 650ms ease-out forwards;
+}
+.city-journey-card.is-just-unlocked { animation: city-unlock-card 1200ms ease-out; }
+@keyframes city-unlock-source {
+  50% { box-shadow: 0 0 0 5px rgb(255 221 113 / 75%), 0 0 38px rgb(255 203 72 / 85%); }
+}
+@keyframes city-unlock-shackle {
+  45%, 100% { transform: rotate(-35deg) translateY(-1px); }
+}
+@keyframes city-unlock-lock {
+  0%, 45% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+@keyframes city-unlock-card {
+  0% { box-shadow: 0 0 0 6px rgb(255 223 112 / 95%), 0 0 38px rgb(255 198 53 / 90%); }
+  100% { box-shadow: inset 0 1px #fff, 0 5px 14px rgb(11 35 69 / 28%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-journey-card:is(.is-unlock-source, .is-unlocking, .is-just-unlocked),
+  .city-journey-card.is-unlocking .city-journey-lock,
+  .city-journey-card.is-unlocking .city-journey-lock svg path { animation: none; }
+}
 .city-journey-cta,
 .city-options .city-time-option button {
   grid-column: 2;
@@ -6142,15 +6282,36 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 .city-time-option .city-option-copy button { grid-row: 1 / 3; }
 .city-options .city-time-option:hover,
 .city-options .city-time-option:focus-within { border-color: var(--menu-card-accent); box-shadow: inset 0 1px #fff, 0 7px 18px rgb(11 35 69 / 32%); }
+.city-options:has(.city-time-option:only-child) {
+  position: fixed;
+  top: calc(var(--menu-selection-center-y) - var(--menu-selection-height) / 2);
+  left: 0;
+  width: 100%;
+  grid-template-columns: var(--menu-selection-width);
+  justify-content: center;
+}
 @media (orientation: landscape) {
   .city-journey {
+    --menu-selection-width: min(420px, calc((100vw - 120px) * .42));
+    --menu-selection-height: clamp(220px, 48dvh, 280px);
+    --menu-selection-center-y: max(53dvh, calc(var(--menu-page-header-height) + var(--menu-selection-height) / 2 + 8px));
+    --journey-side-offset: min(40vw, 486px);
     position: fixed;
     top: calc(var(--menu-selection-center-y) - var(--menu-selection-height) / 2);
     right: 0;
     left: 0;
   }
   .city-journey-track { top: 0; bottom: auto; height: var(--menu-selection-height); }
-  .city-journey-arrow { top: calc(var(--menu-selection-height) / 2); }
+  .city-journey-copy { grid-template-columns: minmax(0, 1fr) minmax(118px, 43%); }
+  .city-journey-copy small { font-size: 11px; }
+  .city-journey-copy h2,
+  .city-journey-card:is(.is-previous, .is-next) .city-journey-copy h2 { font-size: clamp(20px, 2.2vw, 28px); }
+  .city-journey-detail { font-size: 12px; }
+  .city-journey-status,
+  .city-journey-card:is(.is-previous, .is-next) .city-journey-status { font-size: 10px; }
+  .city-journey-cta,
+  .city-options .city-time-option button { min-height: 54px; font-size: clamp(12px, 1.65vw, 20px); }
+  .city-journey-arrow { top: calc(var(--menu-selection-height) / 2); width: 54px; height: 54px; padding-bottom: 6px; font-size: 48px; }
   .city-options:has(.city-time-evening) {
     position: fixed;
     top: calc(var(--menu-selection-center-y) - var(--menu-selection-height) / 2);
@@ -6193,3 +6354,160 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   from { opacity: 0; transform: translateY(100dvh); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* The mission and multiplayer views share the upper-left flight card. */
+#game-root .gameplay-info-card.is-multiplayer {
+  display: block !important;
+  height: clamp(104px, 24dvh, 124px);
+  max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 78px);
+  padding: 6px 8px;
+  overflow: hidden;
+  border: 1px solid rgb(111 230 255 / 80%);
+  border-left: 4px solid #f2c656;
+  border-radius: 10px;
+  color: #f6fbff;
+  background: var(--gameplay-info-card-fill);
+  box-shadow: 0 3px 9px rgb(4 25 48 / 32%), 0 0 8px rgb(53 214 255 / 20%);
+}
+#game-root .gameplay-info-card.is-multiplayer.is-collapsed { height: 34px; padding: 0; overflow: visible; }
+#game-root .gameplay-info-card.is-multiplayer .gameplay-info-multiplayer {
+  display: grid;
+  grid-template-rows: 34px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+#game-root .gameplay-info-card.is-multiplayer > :not(.gameplay-info-multiplayer):not(.journey-hud-toggle):not(.guided-tutorial-panel) { display: none !important; }
+#game-root .gameplay-info-multiplayer[hidden],
+#game-root .gameplay-info-list[hidden],
+#game-root .gameplay-info-list > [hidden] { display: none !important; }
+#game-root .gameplay-info-tabs { display: flex; gap: 5px; min-width: 0; padding-right: 34px; }
+#game-root .gameplay-info-tabs button {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 34px;
+  pointer-events: auto;
+  padding: 3px 11px;
+  border: 1px solid rgb(130 181 207 / 55%);
+  border-radius: 6px 6px 0 0;
+  color: #bed3e5;
+  background: rgb(10 32 56 / 80%);
+  font: 800 clamp(9px, .95vw, 11px)/1 var(--font-display);
+  white-space: nowrap;
+  cursor: pointer;
+}
+#game-root .gameplay-info-tabs button[aria-selected="true"] {
+  border-color: #46dfff;
+  color: #ffdf75;
+  background: linear-gradient(#123c67, #092846);
+  box-shadow: inset 0 0 0 1px rgb(51 213 255 / 30%), 0 0 7px rgb(53 214 255 / 34%);
+}
+#game-root .gameplay-info-tabs button:focus-visible,
+#game-root .gameplay-info-list:focus-visible { outline: 2px solid #6beeff; outline-offset: -2px; }
+#game-root .gameplay-info-tabs span { color: #ffdf75; }
+#game-root .gameplay-info-card.is-multiplayer .journey-hud-toggle { top: 6px; width: 32px; height: 32px; }
+#game-root .gameplay-info-list {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(73 194 230 / 65%) transparent;
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+}
+#game-root .gameplay-info-empty { display: block; padding: 9px 4px; color: #c2d4df; font: 700 10px/1.2 var(--font-display); }
+#game-root .human-player-row,
+#game-root .city-territory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 1px 3px;
+  border-bottom: 1px solid rgb(130 181 207 / 16%);
+  color: #e9f5ff;
+  font: 800 10px/1 var(--font-display);
+}
+#game-root .human-player-row.you { border: 1px solid #d7aa3e; border-radius: 5px; color: #ffdf75; background: rgb(158 112 22 / 14%); }
+#game-root .human-player-identity { display: flex; min-width: 0; align-items: center; gap: 4px; }
+#game-root .human-player-identity > span:not(.human-player-aircraft) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#game-root .human-player-state-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #21d95b; box-shadow: 0 0 5px currentColor; }
+#game-root .human-player-row[data-status="onGround"] .human-player-state-dot { background: #ffd65b; }
+#game-root .human-player-row[data-status="destroyed"] .human-player-state-dot { background: #ff3954; }
+#game-root .human-player-row[data-status="respawning"] .human-player-state-dot { background: #9baabc; }
+#game-root .human-player-row[data-status="spawnSafe"] .human-player-state-dot { background: #43e2ff; }
+#game-root .human-player-aircraft { flex: none; color: #8cdbff; font-size: 19px; line-height: 1; }
+#game-root .human-player-status { flex: none; color: #9dc8d8; font: 700 8px/1 var(--font-display); }
+#game-root .human-player-altitude { flex: none; color: #c8e7f7; font: 700 8px/1 var(--font-display); white-space: nowrap; }
+#game-root .human-player-row > strong { color: #fff; font-size: 11px; white-space: nowrap; }
+#game-root .human-player-row.you > strong { color: #ffdf75; }
+#game-root .city-territory-row { grid-template-columns: 9px minmax(0, 1fr) minmax(0, auto); }
+#game-root .city-territory-row > span,
+#game-root .city-territory-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#game-root .city-territory-row > strong { max-width: 115px; color: #c9e5f5; font-size: 9px; text-align: right; }
+#game-root .city-territory-row.you > strong { color: #82e9ff; }
+#game-root .city-territory-row.contested > strong { color: #ffca62; }
+#game-root .city-territory-row.neutral > strong { color: #bdc9cc; }
+#game-root .gameplay-info-card.is-tutorial {
+  display: grid !important;
+  height: auto;
+  min-height: clamp(104px, 24dvh, 124px);
+  padding: 0;
+  overflow: visible;
+}
+#game-root .gameplay-info-card.is-tutorial:has(> .guided-tutorial-panel[hidden]) { display: none !important; }
+#game-root .gameplay-info-card .guided-tutorial-panel {
+  position: static;
+  z-index: auto;
+  pointer-events: auto;
+  width: 100%;
+  max-height: none;
+  height: 100%;
+  padding: 6px 9px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+#game-root .gameplay-info-card.is-tutorial .guided-tutorial-panel {
+  height: auto;
+  overflow: visible;
+}
+#game-root .gameplay-info-card .guided-tutorial-panel.is-complete { left: auto; transform: none; width: 100%; }
+#game-root .gameplay-info-card .guided-tutorial-panel header small,
+#game-root .gameplay-info-card .guided-tutorial-panel [data-tutorial-progress] { font-size: 9px; }
+#game-root .gameplay-info-card .guided-tutorial-panel > [data-tutorial-title] { margin: 4px 0 3px; font-size: 15px; }
+#game-root .gameplay-info-card .guided-tutorial-panel [data-tutorial-explanation] { margin: 0 0 4px; font-size: 11px; line-height: 1.2; }
+#game-root .gameplay-info-card .tutorial-control-instruction { padding: 4px 6px; font-size: 11px; line-height: 1.2; }
+#game-root .gameplay-info-card .guided-tutorial-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 5px; }
+#game-root .gameplay-info-card .guided-tutorial-actions button { min-width: 0; min-height: 44px; padding: 3px 4px; font-size: 9px; }
+#game-root .gameplay-info-card.is-multiplayer.has-tutorial { height: 144px; }
+#game-root .gameplay-info-card.is-multiplayer.has-tutorial .gameplay-info-multiplayer { height: 72px; grid-template-rows: 32px minmax(0, 1fr); }
+#game-root .gameplay-info-card.is-multiplayer.has-tutorial .guided-tutorial-panel { height: 60px; padding: 3px 0 0; border-top: 1px solid rgb(111 230 255 / 35%); }
+#game-root .gameplay-info-card.is-multiplayer.has-tutorial .guided-tutorial-panel > :not([data-tutorial-title]):not([data-tutorial-navigation-next]) { display: none !important; }
+#game-root .gameplay-info-card.is-multiplayer.has-tutorial .guided-tutorial-panel > [data-tutorial-title] { margin: 0 0 2px; font-size: 11px; }
+#game-root .gameplay-info-card.is-multiplayer.has-tutorial .tutorial-navigation-next { min-height: 44px; margin: 0; padding: 3px; font-size: 10px; }
+#game-root.noncombat-journey :is(#acquisition-circle, #flight-reference, #target-feedback, [data-touch-control="fire"], [data-desktop-control="fire"]) { display: none !important; }
+
+@media (orientation: landscape) {
+  body.tutorial-flight-active:not([data-tutorial-control="radar"]) .guided-tutorial-panel {
+    top: calc(var(--safe-area-top) + clamp(44px, 5vw, 60px) + 16px);
+    max-height: calc(100dvh - var(--safe-area-top) - clamp(44px, 5vw, 60px) - 24px - var(--safe-area-bottom));
+  }
+}
+
+/* The equipped aircraft page uses the same detail panel as Store. */
+.garage-overlay.is-equipped-page,
+body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page,
+.garage-overlay.hub-aircraft.is-equipped-page {
+  display: flex; align-items: center; justify-content: center;
+}
+.garage-overlay.is-equipped-page .garage-card,
+body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .garage-card,
+.garage-overlay.hub-aircraft.is-equipped-page .garage-card { display: none; }
+.garage-overlay.is-equipped-page .garage-equipped-page { display: grid; }

@@ -1,5 +1,5 @@
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
-import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
+import { aircraftFlightEnvelope, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftEconomy } from '../../shared/aircraft-economy.mjs';
 import { aircraftVisualConfig } from '../../shared/aircraft-visual-rules.mjs';
 
@@ -28,6 +28,9 @@ export const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
   fighter: { ...aircraftFlightEnvelope.fighter, name: 'REDSPEAR FIGHTER', callsign: 'FIREHAWK', access: aircraftEconomy.fighter.access, creditsRequired: aircraftEconomy.fighter.credits, idleThrottle: 0.01, throttleResponse: 0.88, throttleDecay: 0.16, lift: 1.4, pitchInputRise: 10, pitchInputRelease: 3.2, pitchReturnRate: 1.6, climbLiftBoost: 1.08, rollInputRelease: 7.2, rollLevelRate: 1.38, stability: 0.22, cameraDamping: 5.8, cameraFrameScale: 0.91, cameraHeight: 3.5, bodyColor: 0xd73a46, accentColor: 0x4a5158, bodyLength: 6, bodyRadius: 0.58, noseLength: 2.5, wingSpan: 6.8, wingDepth: 2.2, tailSpan: 2.8, enginePods: 1, livery: { id: 'firehawk-inferno', name: 'FIREHAWK INFERNO', baseColor: 0xd73a46, primaryColor: 0x4a5158, accentColor: 0xd4af37 } },
 };
 
+const fastestAircraftSpeed = Math.max(...Object.values(aircraftDefinitions).map(({ maxSpeed }) => maxSpeed));
+const strongestAircraftAcceleration = Math.max(...Object.values(aircraftDefinitions).map(({ acceleration, inertia }) => acceleration / inertia));
+
 export function aircraftDisplayName(type: AircraftType): string {
   return `${aircraftDefinitions[type].name} "${aircraftDefinitions[type].callsign}"`;
 }
@@ -49,13 +52,22 @@ export const aircraftPitch = (definition: AircraftDefinition): string => {
   return 'Beginner-friendly takeoffs, recovery, and landings.';
 };
 
+export function aircraftSpeedCapsMph(definition: AircraftDefinition): { normal: number; boost: number } {
+  const normal = definition.maxSpeed * MPH_PER_METER_PER_SECOND;
+  return {
+    normal: Math.round(normal),
+    boost: Math.round(normal * (definition.boostMaxSpeed ?? 1.15)),
+  };
+}
+
 export function garageStats(definition: AircraftDefinition): ReadonlyArray<{ label: string; value: number }> {
-  return [
-    { label: 'Speed', value: definition.maxSpeed / aircraftFlightEnvelope.fighter.maxSpeed },
-    { label: 'Acceleration', value: definition.acceleration / aircraftFlightEnvelope.fighter.acceleration },
+  const speedRating = Math.max(1, Math.floor(definition.maxSpeed / fastestAircraftSpeed * 5));
+  const otherStats = [
+    { label: 'Acceleration', value: (definition.acceleration / definition.inertia) / strongestAircraftAcceleration },
     { label: 'Handling', value: (definition.rollRate + definition.yawRate) / 4.6 },
     { label: 'Climb', value: definition.lift * definition.maxClimbPitch / 0.42 },
     { label: 'Stability', value: definition.stability / 0.68 },
     { label: 'Landing', value: (definition.landingTilt + definition.safeDescentRate / 10) / 1.47 },
   ].map(({ label, value }) => ({ label, value: Math.round(Math.max(0.1, Math.min(1, value)) * 5) }));
+  return [{ label: 'Speed', value: speedRating }, ...otherStats];
 }

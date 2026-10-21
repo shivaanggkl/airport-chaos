@@ -1,0 +1,36 @@
+#game-root.training-screenplay-active .mission-status-layer{z-index:81}
+#game-root.training-screenplay-active #touch-controls{pointer-events:none}
+#game-root.training-screenplay-active .touch-stick i{transition:translate 900ms ease}
+#game-root .gameplay-info-card.is-tutorial:has(> .training-screenplay:not([hidden])){display:grid!important}
+#game-root.training-screenplay-active .gameplay-info-card>.guided-tutorial-panel:not(.training-screenplay){display:none!important}
+.training-screenplay{display:flex;flex-direction:column;gap:7px;width:min(340px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 20px));padding:12px;background:rgb(9 28 43 / 88%);border-color:var(--ui-gold);pointer-events:none}
+.training-screenplay[hidden],.training-screenplay-hand[hidden]{display:none}
+.training-screenplay header{gap:5px}
+.training-screenplay header small{font-size:10px}
+.training-screenplay [data-scene-count]{color:var(--ui-gold);font:900 11px var(--font-display);white-space:nowrap}
+.training-screenplay h2{margin:0;color:var(--ui-gold);font:900 18px/1.1 var(--font-display);letter-spacing:.05em}
+.training-screenplay p{margin:0;color:var(--ui-text);font:600 13px/1.35 var(--font-body)}
+.training-screenplay [data-scene-status]:empty{display:none}
+.training-screenplay [data-scene-retry]{min-height:38px;border:1px solid var(--ui-gold);border-radius:6px;background:var(--ui-gradient-primary);color:var(--ui-ocean-ink);font:900 12px var(--font-display);pointer-events:auto}
+.training-screenplay [data-scene-retry][hidden]{display:none}
+.training-screenplay-progress{display:flex;gap:4px;height:5px}
+.training-screenplay-progress i{flex:1;border-radius:5px;background:rgb(169 198 218 / 32%)}
+.training-screenplay-progress i.is-seen{background:var(--ui-gold)}
+.training-screenplay-progress i.is-current{animation:training-scene-progress 10s linear both}
+@keyframes training-scene-progress{from{opacity:.28}to{opacity:1}}
+.training-screenplay-hand{position:fixed;z-index:140;font-size:50px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 3px #071a2e) drop-shadow(0 0 10px #ffdc65);transform:translate(-15%,-20%);animation:training-hand-tap 10s ease-in-out both}
+.training-screenplay-hand[data-motion="up"]{animation-name:training-hand-up}
+.training-screenplay-hand[data-motion="down"]{animation-name:training-hand-down}
+.training-screenplay-hand[data-motion="left"]{animation-name:training-hand-left}
+.training-screenplay-hand[data-motion="right"]{animation-name:training-hand-right}
+.training-screenplay-hand[data-motion="pinch"]{animation-name:training-hand-pinch}
+.training-screenplay-hand[data-motion="hold"]{animation-name:training-hand-hold}
+@keyframes training-hand-up{0%,8%,100%{transform:translate(-15%,24px) scale(1)}22%,78%{transform:translate(-15%,-30px) scale(.94)}}
+@keyframes training-hand-down{0%,8%,100%{transform:translate(-15%,-30px) scale(1)}22%,78%{transform:translate(-15%,24px) scale(.94)}}
+@keyframes training-hand-left{0%,8%,100%{transform:translate(18px,-20%) scale(1)}22%,78%{transform:translate(-46px,-20%) scale(.94)}}
+@keyframes training-hand-right{0%,8%,100%{transform:translate(-48px,-20%) scale(1)}22%,78%{transform:translate(18px,-20%) scale(.94)}}
+@keyframes training-hand-pinch{0%,100%{transform:translate(-15%,-20%) scale(.8)}22%,78%{transform:translate(-15%,-20%) scale(1.3)}}
+@keyframes training-hand-hold{0%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(-15%,-20%) scale(.92)}}
+@keyframes training-hand-tap{0%,100%{transform:translate(-15%,-20%) scale(1)}16%,35%{transform:translate(-15%,-20%) scale(.78)}}
+body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="stick"] [data-touch-control="stick"],body[data-training-slide-control="fire"] [data-touch-control="fire"],body[data-training-slide-control="aim"] #acquisition-circle{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px}
+@media(max-width:950px) and (orientation:landscape){.training-screenplay{width:min(260px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));gap:5px;padding:8px}.training-screenplay h2{font-size:16px}.training-screenplay p{font-size:11px}.training-screenplay-hand{font-size:40px}}

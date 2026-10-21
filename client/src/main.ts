@@ -2,6 +2,7 @@ import { transportTuning } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
 import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
 import { PLAYER_STORAGE_KEY } from './player-storage';
+import { flightLaunchAircraft } from './flight-launch-aircraft';
 import * as THREE from 'three';
 import { actionKeyLabel, cameraControlLabels, keyboardActionBindings, menuBindings, type FlightAction } from './flight-input';
 import { isEditableControl, shouldIgnoreGameplayKeyboardEvent, shouldToggleDesktopControlsHelp } from './controls-help';
@@ -36,6 +37,8 @@ import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition } fro
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tutorialLockPreviewInstruction,tutorialDetectedInstruction,tutorialLandingCoachStage,tutorialLandingCoachInstruction,tutorialTakeoffRecoveryInstruction,tutorialTurnProgress,type TutorialBindings,type TutorialLandingCoachStage,type TutorialLessonStep,type TutorialStepStatus}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
+import { GameplayInfoCard } from './gameplay-info-card';
+import { TrainingSlides } from './training-slides';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
@@ -47,7 +50,7 @@ import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
 import { remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit-receipts.mjs';
-import { KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
+import { KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
 import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, desktopTurnIntent, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { lockedShotProgress } from './locked-shot-visual.js';
@@ -166,6 +169,9 @@ const unrelatedFocusedBot = (id: string) => focusedBotsAreSafe() &&
 let journeyServerTimeOffset = 0;
 type FlightLaunchState = 'disabled' | 'pending' | 'active' | 'complete';
 const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
+flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' && !trainingRequested);
+const journeyCombatMissionIds = new Set<string>([journeyDallas07.id, journeyDallas15.id, journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
+flightGameRoot.classList.toggle('noncombat-journey', journeyMode);
 const missionStartCountdownElement = document.createElement('div');
 missionStartCountdownElement.className = 'mission-start-countdown';
 missionStartCountdownElement.setAttribute('role', 'status');
@@ -206,9 +212,9 @@ let flightLaunchWelcomeHandled = false;
 let airborneIntroAwaiting = false;
 let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
-let missionOneClearStartedAt: number | null = null;
-let missionOneClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionOneClearStartedAt !== null || flightDialogOpen();
+let missionClearStartedAt: number | null = null;
+let missionClearAttemptId: string | null = null;
+const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
   (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
     missionStartCountdownPending || missionStartCountdownStartedAt !== null);
@@ -233,7 +239,7 @@ const adDebugMode = import.meta.env.DEV && new URLSearchParams(window.location.s
 const PLANE_GROUND_Y = aircraftGroundOffset;
 const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
-const METERS_PER_SECOND_TO_MPH = METERS_PER_SECOND_TO_KNOTS * 1.150779448;
+const METERS_PER_SECOND_TO_MPH = MPH_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
 let worldTimeOfDay: CityTimeOfDay = resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
@@ -1124,9 +1130,13 @@ function disposeAirplaneMaterials(plane: THREE.Group): void {
   for (const material of materials) material.dispose();
 }
 
-let aircraftType: AircraftType = flightTestMode ? persistedPlayer.selectedAircraft : 'trainer';
+const launchAircraft = launchMode === 'free-fly' && !trainingRequested ? flightLaunchAircraft(persistedPlayer.pilotId) : null;
+let waitingForAuthoritativeAircraft = launchMode === 'free-fly' && !trainingRequested && !flightTestMode && !launchAircraft;
+let aircraftType: AircraftType = flightTestMode ? persistedPlayer.selectedAircraft : launchAircraft?.type ?? 'trainer';
 let currentAircraft = aircraftDefinitions[aircraftType];
 let airplane = createAirplane(aircraftType);
+if (launchAircraft) applyEquippedLivery(airplane, aircraftType, launchAircraft.equippedCosmetics);
+if (waitingForAuthoritativeAircraft) airplane.visible = false;
 airplane.position.set(centralAirport.x, groundPlaneY(centralAirport.x, centralAirport.z + centralAirport.spawnOffset), centralAirport.z + centralAirport.spawnOffset);
 scene.add(airplane);
 const spawnPosition = airplane.position.clone();
@@ -1236,18 +1246,17 @@ document.querySelector<HTMLButtonElement>('[data-crash-restart]')!.addEventListe
 const nearMissMessageElement = document.querySelector<HTMLDivElement>('#near-miss-message')!;
 const checkpointMessageElement = document.querySelector<HTMLDivElement>('#checkpoint-message')!;
 const skyChallengeElement = document.querySelector<HTMLDivElement>('#sky-challenge')!;
+const multiplayerInfoElement = document.createElement('div');
+multiplayerInfoElement.className = 'sky-challenge hidden';
+const gameplayInfoElement = journeyMode ? skyChallengeElement : multiplayerInfoElement;
 if (journeyMode) {
-  skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div><button class="journey-hud-toggle" type="button" aria-label="Hide mission details" aria-expanded="true"></button>';
-  const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
-  missionStatusLayer.classList.add('journey-status-layer');
-  missionStatusLayer.prepend(skyChallengeElement);
-  const toggle = skyChallengeElement.querySelector<HTMLButtonElement>('.journey-hud-toggle')!;
-  toggle.addEventListener('click', () => {
-    const collapsed = skyChallengeElement.classList.toggle('is-collapsed');
-    toggle.setAttribute('aria-expanded', String(!collapsed));
-    toggle.setAttribute('aria-label', collapsed ? 'Show mission details' : 'Hide mission details');
-  });
+  skyChallengeElement.innerHTML = '<strong data-journey-heading>MISSION</strong><span data-journey-objective></span><span data-journey-progress></span><span data-journey-target hidden></span><span data-journey-timer hidden></span><span data-journey-hint hidden></span><div class="journey-hud-segments"><i></i><i></i><i></i><i></i></div><div class="journey-hud-enemy" hidden><i></i></div>';
 }
+const missionStatusLayer = document.querySelector<HTMLDivElement>('#mission-status-layer')!;
+missionStatusLayer.classList.toggle('journey-status-layer', journeyMode || trainingRequested || launchMode === 'free-fly' && !trainingRequested);
+missionStatusLayer.prepend(gameplayInfoElement);
+const gameplayInfoCard = new GameplayInfoCard(gameplayInfoElement);
+gameplayInfoCard.setMode(journeyMode ? 'mission' : launchMode === 'free-fly' && !trainingRequested ? 'multiplayer' : 'none');
 const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-journey-heading]');
 const journeyMissionDefinitions = [
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
@@ -1272,6 +1281,8 @@ const journeyHudEnemy = skyChallengeElement.querySelector<HTMLElement>('.journey
 const missionObjectiveGuidance = journeyMode ? new ObjectiveGuidance(flightGameRoot) : undefined;
 let missionObjective: MissionObjective | null = null;
 let journeyGateClearedUntil = 0;
+let wrongWayGateIndex = -1;
+let wrongWayGateUntil = 0;
 let switchbackAltitudeCue: 'CLIMB' | 'DESCEND' | 'ALIGNED' = 'ALIGNED';
 let slalomTurnSide: PrecisionTurnSide = null;
 let elevatorDepartureTurnSide: PrecisionTurnSide = null;
@@ -1281,13 +1292,13 @@ journeyResultElement.className = 'journey-result hidden';
 journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
 const journeyResultCard = journeyResultElement.querySelector<HTMLElement>('.journey-result-card')!;
 flightGameRoot.append(journeyResultElement);
-const missionOneClearElement = document.createElement('div');
-missionOneClearElement.className = 'mission-one-clear hidden';
-missionOneClearElement.setAttribute('role', 'status');
-missionOneClearElement.setAttribute('aria-label', 'Mission cleared: Rookie Rush');
-const missionOneFireworkSparks = Array.from({ length: 12 }, (_, index) => `<i style="--angle:${index * 30}deg"></i>`).join('');
-missionOneClearElement.innerHTML = '<div class="mission-one-clear-content"><div class="mission-one-clear-fireworks" aria-hidden="true">' + `<div class="mission-one-clear-firework">${missionOneFireworkSparks}</div>`.repeat(3) + '</div><div class="mission-one-clear-stars" aria-hidden="true">' + '<i></i>'.repeat(10) + '</div><div class="mission-one-clear-sparkles" aria-hidden="true">' + '<i></i>'.repeat(12) + '</div><div class="mission-one-clear-icon" aria-hidden="true"><span></span></div><strong>MISSION CLEARED</strong><span class="mission-one-clear-name">ROOKIE RUSH</span></div>';
-flightGameRoot.append(missionOneClearElement);
+const missionClearElement = document.createElement('div');
+missionClearElement.className = 'mission-clear hidden';
+missionClearElement.setAttribute('role', 'status');
+missionClearElement.setAttribute('aria-label', 'Mission cleared');
+const missionFireworkSparks = Array.from({ length: 12 }, (_, index) => `<i style="--angle:${index * 30}deg"></i>`).join('');
+missionClearElement.innerHTML = '<div class="mission-clear-content"><div class="mission-clear-fireworks" aria-hidden="true">' + `<div class="mission-clear-firework">${missionFireworkSparks}</div>`.repeat(3) + '</div><div class="mission-clear-stars" aria-hidden="true">' + '<i></i>'.repeat(10) + '</div><div class="mission-clear-sparkles" aria-hidden="true">' + '<i></i>'.repeat(12) + '</div><div class="mission-clear-icon" aria-hidden="true"><span></span></div><strong>MISSION CLEARED</strong><span class="mission-clear-name">ROOKIE RUSH</span></div>';
+flightGameRoot.append(missionClearElement);
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.addEventListener('click', () => {
   if (journeyAttempt?.status === 'COMPLETED') void exitFlightToHub(false, true);
   else void retryJourneyMission();
@@ -1312,10 +1323,6 @@ const garageOverlayElement = document.querySelector<HTMLElement>('#garage-overla
 const pilotMenuOverlayElement = document.querySelector<HTMLElement>('#pilot-menu-overlay')!;
 const flightMenuButtonElement = document.querySelector<HTMLButtonElement>('#flight-menu-button')!;
 const journeyPauseButtonElement = document.querySelector<HTMLButtonElement>('#journey-pause-button')!;
-const journeyPauseOverlayElement = document.querySelector<HTMLElement>('#journey-pause-overlay')!;
-const journeyPauseCountdownElement = document.querySelector<HTMLElement>('#journey-pause-countdown')!;
-const journeyResumeButtonElement = document.querySelector<HTMLButtonElement>('#journey-resume-button')!;
-const journeyRestartButtonElement = document.querySelector<HTMLButtonElement>('#journey-restart-button')!;
 journeyPauseButtonElement.hidden = true;
 const flightGarageButtonElement = document.querySelector<HTMLButtonElement>('#flight-garage-button')!;
 const flightMapButtonElement = document.querySelector<HTMLButtonElement>('#flight-map-button')!;
@@ -1433,6 +1440,7 @@ const seenCreditRewardIds = new Set<string>();
 let combatMessageTimer: number | undefined;
 let healthFlashTimer: number | undefined;
 let hitMarkerTimer: number | undefined;
+let firedSinceWelcome = false;
 let damageFlashTimer: number | undefined;
 
 type AudioCategory = 'engine' | 'combat' | 'impacts' | 'ui';
@@ -2554,6 +2562,7 @@ function cityTerritoryEntries(): CityTerritoryEntry[] {
       name: definition.displayName, color: definition.fixedColor,
       controllerId: state?.controllerId, controllerName: state?.controllerName,
       contested: state?.contested ?? false,
+      captureProgress: state?.captureProgress ?? 0,
     };
   });
 }
@@ -2949,8 +2958,10 @@ function updateJourneyHud(): void {
     const gateCount = mission.gates.length;
     const distanceMeters = target ? distance * WORLD_METERS_PER_UNIT : 0;
     const cleared = gateIndex > 0 && performance.now() < journeyGateClearedUntil;
+    const wrongWay = gateIndex === wrongWayGateIndex && performance.now() < wrongWayGateUntil;
     const gateAbove = ascentMission && target && target.y - airplane.position.y > mission.gates[gateIndex].radius * .65;
-    if (journeyHudObjective) journeyHudObjective.textContent = cleared ? `GOLDEN GATE ${gateIndex} CLEARED!`
+    if (journeyHudObjective) journeyHudObjective.textContent = wrongWay ? 'WRONG WAY — ENTER FROM OTHER SIDE'
+      : cleared ? `GOLDEN GATE ${gateIndex} CLEARED!`
       : gateAbove ? `CLIMB TO GOLDEN GATE ${gateIndex + 1}` : 'FLY THROUGH ALL GOLDEN GATES';
     if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
     if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
@@ -2960,10 +2971,7 @@ function updateJourneyHud(): void {
       journeyHudHint.hidden = !contextualHints.isEnabled() || !missionObjectiveGuidance?.hintVisible;
       journeyHudHint.textContent = journeyHudHint.hidden ? '' : `FOLLOW THE GOLD ARROW TO FIND GATE ${gateIndex + 1}`;
     }
-    journeyHudSegments.forEach((segment, index) => {
-      segment.classList.toggle('is-cleared', index < gateIndex);
-      segment.classList.toggle('is-current', dfwMission && index === gateIndex);
-    });
+    journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
     return;
   }
   if (journeyHudObjective) journeyHudObjective.textContent = racing ? 'PASS THROUGH THE NEXT GLOWING GATE' : 'TAKE OFF AND REACH GATE 1';
@@ -3097,51 +3105,71 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.querySelector<HTMLElement>('[data-journey-loss-copy]')!.hidden = success;
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
-  if (success) { if (!dfwMission || missionOneClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
+  if (success) { if (missionClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
 }
 
-const missionOneClearDirection = new THREE.Vector3();
-const missionOneClearLevel = new THREE.Quaternion();
-const MISSION_ONE_CLEAR_DURATION_MS = 4_200;
-function beginMissionOneClear(attempt: JourneyAttemptState): void {
-  if (missionOneClearAttemptId === attempt.attemptId) return;
-  missionOneClearAttemptId = attempt.attemptId;
-  missionOneClearStartedAt = performance.now();
-  missionOneClearDirection.set(0, 0, -1).applyQuaternion(airplane.quaternion);
-  missionOneClearDirection.y = 0;
-  missionOneClearDirection.normalize();
-  missionOneClearLevel.setFromAxisAngle(cameraWorldUp, Math.atan2(-missionOneClearDirection.x, -missionOneClearDirection.z));
+const missionClearDirection = new THREE.Vector3();
+const missionClearLevel = new THREE.Quaternion();
+const missionClearVelocity = new THREE.Vector3();
+const missionClearCruiseVelocity = new THREE.Vector3();
+const missionClearMissionIds = new Set<string>([journeyDallas01.id, journeyDallas02.id, journeyDallas03.id,
+  journeyDallas04.id, journeyDallas05.id, journeyDallas06.id]);
+const MISSION_CLEAR_DURATION_MS = 4_200;
+const MISSION_CLEAR_REVEAL_MS = 700;
+function beginMissionClear(attempt: JourneyAttemptState): void {
+  if (missionClearAttemptId === attempt.attemptId) return;
+  missionClearAttemptId = attempt.attemptId;
+  missionClearStartedAt = performance.now();
+  missionClearDirection.set(0, 0, -1).applyQuaternion(airplane.quaternion);
+  missionClearDirection.y = 0;
+  if (missionClearDirection.lengthSq() < 0.0001) missionClearDirection.set(velocity.x, 0, velocity.z);
+  if (missionClearDirection.lengthSq() < 0.0001) missionClearDirection.set(0, 0, -1);
+  missionClearDirection.normalize();
+  missionClearLevel.setFromAxisAngle(cameraWorldUp, Math.atan2(-missionClearDirection.x, -missionClearDirection.z));
+  missionClearVelocity.copy(velocity);
+  if (missionClearVelocity.lengthSq() < 1) missionClearVelocity.copy(missionClearDirection).multiplyScalar(Math.max(80, currentSpeed));
+  missionClearCruiseVelocity.copy(missionClearDirection).multiplyScalar(
+    THREE.MathUtils.clamp(Math.hypot(missionClearVelocity.x, missionClearVelocity.z) * 0.45, 90, 220));
+  missionClearCruiseVelocity.y = 5;
   clearHeldActions();
   mobileInput.reset();
   boostActive = false;
   runStarted = false;
   resetCameraPointers();
-  cameraOrbitBlend = 0;
-  cameraOrbitRecenterAt = null;
-  cameraRelativeOffsetInitialized = false;
+  cameraOrbitRecenterAt = performance.now() + 400;
   cinematicDirector.clearPresentation();
   journeyResultElement.classList.add('hidden');
-  missionOneClearElement.classList.remove('is-exiting');
-  missionOneClearElement.classList.remove('hidden');
-  flightGameRoot.classList.add('mission-one-clear-active');
-  audioManager.playReward();
+  const missionName = journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION';
+  missionClearElement.setAttribute('aria-label', `Mission cleared: ${missionName}`);
+  missionClearElement.querySelector<HTMLElement>('.mission-clear-name')!.textContent = missionName;
+  missionClearElement.classList.remove('is-exiting');
+  missionClearElement.classList.add('hidden');
+  flightGameRoot.classList.add('mission-clear-active');
 }
 
-function updateMissionOneClear(delta: number): void {
-  if (missionOneClearStartedAt === null) return;
-  const elapsed = performance.now() - missionOneClearStartedAt;
-  if (elapsed >= MISSION_ONE_CLEAR_DURATION_MS) {
-    missionOneClearStartedAt = null;
-    missionOneClearElement.classList.add('hidden');
-    missionOneClearElement.classList.remove('is-exiting');
-    flightGameRoot.classList.remove('mission-one-clear-active');
-    if (journeyAttempt?.attemptId === missionOneClearAttemptId && journeyAttempt.status === 'COMPLETED') showJourneyResult(journeyAttempt);
+function updateMissionClear(delta: number): void {
+  if (missionClearStartedAt === null) return;
+  const elapsed = performance.now() - missionClearStartedAt;
+  if (elapsed >= MISSION_CLEAR_DURATION_MS) {
+    missionClearStartedAt = null;
+    missionClearElement.classList.add('hidden');
+    missionClearElement.classList.remove('is-exiting');
+    flightGameRoot.classList.remove('mission-clear-active');
+    if (journeyAttempt?.attemptId === missionClearAttemptId && journeyAttempt.status === 'COMPLETED') showJourneyResult(journeyAttempt);
     return;
   }
-  missionOneClearElement.classList.toggle('is-exiting', elapsed >= MISSION_ONE_CLEAR_DURATION_MS - 400);
-  airplane.position.addScaledVector(missionOneClearDirection, 48 * delta);
+  if (elapsed >= MISSION_CLEAR_REVEAL_MS && missionClearElement.classList.contains('hidden')) {
+    missionClearElement.classList.remove('hidden');
+    audioManager.playReward();
+  }
+  missionClearElement.classList.toggle('is-exiting', elapsed >= MISSION_CLEAR_DURATION_MS - 400);
+  missionClearVelocity.lerp(missionClearCruiseVelocity, 1 - Math.exp(-delta * 0.7));
+  airplane.position.addScaledVector(missionClearVelocity, delta);
   airplane.position.y = Math.max(airplane.position.y, getTerrainHeight(airplane.position.x, airplane.position.z) + 35);
-  airplane.quaternion.slerp(missionOneClearLevel, Math.min(1, delta * 1.5));
+  airplane.quaternion.slerp(missionClearLevel, 1 - Math.exp(-delta * 0.7));
+  velocity.copy(missionClearVelocity);
+  currentSpeed = Math.hypot(velocity.x, velocity.z);
+  verticalSpeed = velocity.y;
 }
 
 function eventObjectiveForLocal(event: NetworkCityEvent): NetworkVector | undefined {
@@ -3579,6 +3607,7 @@ function showCombatMessage(message: string, hitConfirmed = false): void {
 }
 
 function showHitMarker(): void {
+  if (!firedSinceWelcome) return;
   hitMarkerElement.classList.remove('visible');
   void hitMarkerElement.offsetWidth;
   hitMarkerElement.classList.add('visible');
@@ -3968,6 +3997,7 @@ flightGarageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
 const heldKeyboardCodes = new Set<string>();
+let trainingSlidesOpen=false;
 function clearHeldActions(): void {
   heldActions.clear();
   heldKeyboardCodes.clear();
@@ -3978,14 +4008,14 @@ document.addEventListener('focusin', (event) => {
 let touchInputReported=false;
 const reportTouchInput=()=>{if(!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}};
 const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
-  if (launchCinematicBlocksInput()) {
+  if (launchCinematicBlocksInput() || trainingSlidesOpen) {
     if (!active) heldActions.delete(action);
     return;
   }
   if(active)reportTouchInput();
   if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action==='fire')fireWeaponOnce();}
   else heldActions.delete(action);
-},(value)=>{if(launchCinematicBlocksInput())return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);});
+},(value)=>{if(launchCinematicBlocksInput()||trainingSlidesOpen)return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);});
 window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
   const latest=loadPlayerProgress();
   persistedPlayer.muted=audioManager.isMuted();
@@ -4039,8 +4069,6 @@ let guidedTutorialSteps=Object.fromEntries(tutorialSteps.map(step=>[step,'pendin
 type TutorialNavigationCoach='radar'|'map'|'players'|'territories';
 let tutorialNavigationCoach:TutorialNavigationCoach|undefined;
 let tutorialNavigationCoachSeen=false;
-let tutorialPlayersExpandedBefore:boolean|undefined;
-let tutorialTerritoriesExpandedBefore:boolean|undefined;
 let guidedTutorialTargetAirport:AirportDefinition|undefined;
 let tutorialIntroPending=false;
 let tutorialIntroShown=false;
@@ -4144,6 +4172,7 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => {
   if (shouldIgnoreGameplayKeyboardEvent(event)) return;
+  if (trainingSlidesOpen) { heldKeyboardCodes.delete(event.code); return; }
   if (launchCinematicBlocksInput()) {
     heldKeyboardCodes.delete(event.code);
     return;
@@ -4663,6 +4692,7 @@ type ServerMessage =
   | { type: 'monsterFinal'; attemptId: string; kind: 'defeat' | 'timeout'; at: number }
   | { type: 'journeyGateTooHigh'; gateIndex: number }
   | { type: 'journeyGateTooSlow'; attemptId: string; gateIndex: number }
+  | { type: 'journeyGateWrongWay'; attemptId: string; gateIndex: number }
   | { type: 'journeyUnavailable'; reason: string }
   | { type: 'firehawkPromotionReady'; missionId: string }
   | { type: 'firehawkPromotionOffer'; missionId: string; trialEligible: boolean; displayPrice: string }
@@ -4672,6 +4702,7 @@ type ServerMessage =
   | { type: 'tutorialSignal'; signal: 'airborne' | 'targetInRange' | 'targetLocked' | 'targetHit' | 'completed' }
   | { type:'tutorialStepResult';ok:boolean;step:TutorialLessonStep;status:Exclude<TutorialStepStatus,'pending'>;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>;reason?:string }
   | { type:'tutorialRunReset';reason:'crash'|'replay';nextStep:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus> }
+  | { type:'tutorialScreenplayCruise';position:{x:number;y:number;z:number};heading:number;speed:number }
   | { type:'tutorialLandingApproach';airportId:string;position:{x:number;y:number;z:number};heading:number;speed:number }
   | { type: 'tutorialTarget'; targetId: string }
   | { type: 'pilotLevelUp'; level: number; title?: string }
@@ -5582,9 +5613,22 @@ function updateWorldMap(direction: THREE.Vector3): void {
   });
 }
 
+const flightMenuMode = journeyMode ? 'single' : trainingRequested ? 'training' : 'multiplayer';
+const defaultFlightMenuSection: PilotMenuSection = flightMenuMode === 'single' ? 'MISSION' : 'CONTROLS';
 const pilotMenu = new PilotMenu(pilotMenuOverlayElement, (section) => {
   if (section === 'PROGRESS' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'daily_flight_plan_viewed' }));
-});
+}, flightMenuMode ? {
+  flightMode: flightMenuMode,
+  sections: flightMenuMode === 'single' ? ['MISSION', 'CONTROLS', 'AUDIO', 'HELP'] : ['CONTROLS', 'AUDIO', 'HELP'],
+  closeLabel: 'Back to flight',
+  showFlightActions: false,
+  showContextStatus: false,
+  beforeClose: () => {
+    if (flightMenuMode !== 'single' || !journeyPaused) return true;
+    resumeJourney();
+    return false;
+  },
+} : {});
 
 function showFlightDialog(title: string, body: string, actions: readonly FlightDialogAction[], onDismiss?: () => void): void {
   clearHeldActions();
@@ -5705,7 +5749,7 @@ tutorialPanel.innerHTML = `
     <button type="button" data-training-replay>Replay Training</button>
     <button type="button" data-training-practice>Free Practice</button>
   </div>`;
-document.body.append(tutorialPanel);
+gameplayInfoCard.attachTutorial(tutorialPanel);
 const tutorialActions=tutorialPanel.querySelector<HTMLElement>('.guided-tutorial-actions')!;
 const tutorialCompletionActions=tutorialPanel.querySelector<HTMLElement>('[data-tutorial-completion-actions]')!;
 const tutorialMapCoach=document.createElement('aside');
@@ -5727,18 +5771,12 @@ function syncTutorialNavigationMap():void{
   mapTerritoryPanel?.toggleAttribute('hidden',!cityRules.territoriesEnabled&&!visible);
   if(mapTerritoryList)mapTerritoryList.dataset.empty=visible&&!cityRules.territoriesEnabled?'Territories are available in Dallas.':'';
   const panelStage=tutorialNavigationCoach==='players'||tutorialNavigationCoach==='territories';
-  if(panelStage){
-    if(tutorialPlayersExpandedBefore===undefined)tutorialPlayersExpandedBefore=playersPanel.isExpanded();
-    if(tutorialTerritoriesExpandedBefore===undefined)tutorialTerritoriesExpandedBefore=cityTerritoriesPanel.isExpanded();
-    playersPanel.setExpanded(tutorialNavigationCoach==='players');
-    cityTerritoriesPanel.setExpanded(tutorialNavigationCoach==='territories');
-  }else if(tutorialPlayersExpandedBefore!==undefined){
-    playersPanel.setExpanded(tutorialPlayersExpandedBefore);
-    cityTerritoriesPanel.setExpanded(tutorialTerritoriesExpandedBefore??false);
-    tutorialPlayersExpandedBefore=undefined;tutorialTerritoriesExpandedBefore=undefined;
-  }
+  const showInfoCard=panelStage||guidedTutorialActive||journeyMode||launchMode==='free-fly'&&!trainingRequested;
+  missionStatusLayer.classList.toggle('journey-status-layer',showInfoCard);
+  gameplayInfoElement.classList.toggle('has-tutorial', guidedTutorialActive);
+  gameplayInfoCard.setMode(panelStage?'multiplayer':guidedTutorialActive?'tutorial':journeyMode?'mission':showInfoCard?'multiplayer':'none');
+  if(tutorialNavigationCoach==='players'||tutorialNavigationCoach==='territories')gameplayInfoCard.setTab(tutorialNavigationCoach);
   cityTerritoriesPanel.setEmptyMessage(guidedTutorialActive&&!cityRules.territoriesEnabled?'AVAILABLE IN DALLAS':'');
-  document.querySelector<HTMLElement>('#city-territories')!.hidden=!cityRules.territoriesEnabled&&!guidedTutorialActive;
 }
 function setTutorialNavigationCoach(stage:TutorialNavigationCoach):void{
   tutorialNavigationCoach=stage;syncTutorialNavigationMap();renderTutorialPanel();
@@ -5765,30 +5803,127 @@ document.body.append(tutorialDimmer);
 const tutorialIntroPanel=document.createElement('section');
 tutorialIntroPanel.className='training-intro';tutorialIntroPanel.hidden=true;
 tutorialIntroPanel.setAttribute('role','dialog');tutorialIntroPanel.setAttribute('aria-labelledby','training-intro-title');
-tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">WELCOME TO FLIGHT TRAINING</h1><p>Learn to fly in a few minutes.</p><div class="training-orientation" data-training-orientation role="group" aria-label="Flight pitch direction"><button type="button" data-pitch-normal aria-pressed="true"><i class="training-stick-demo"><b>↑</b></i>NORMAL<small data-pitch-normal-copy></small></button><button type="button" data-pitch-inverted aria-pressed="false"><i class="training-stick-demo inverted"><b>↓</b></i>INVERTED<small data-pitch-inverted-copy></small></button></div><div class="training-dialog-actions"><button type="button" data-training-start>START TRAINING</button><button type="button" data-training-skip>Skip</button></div></div>';
+tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">TRAINING COMPLETE</h1><p>You have learned the flight controls. Dallas is now available.</p><div class="training-dialog-actions"><button type="button" data-training-dallas>CONTINUE TO DALLAS</button><button type="button" data-training-practice-now>PRACTICE IN MILWAUKEE</button></div></div>';
 document.body.append(tutorialIntroPanel);
 const trainingModeLabel=document.createElement('div');
 trainingModeLabel.className='training-mode-label';trainingModeLabel.hidden=true;
 trainingModeLabel.innerHTML='<strong>TRAINING MODE · NO REWARDS</strong><div><button type="button" data-training-real>PLAY FOR REAL</button><button type="button" data-training-restart>RESTART TRAINING</button><button type="button" data-training-leave>EXIT</button></div>';
 document.body.append(trainingModeLabel);
-function setTrainingOrientation(inverted: boolean): void {
-  mobileInput.setPitchInverted(inverted);
-  tutorialIntroPanel.querySelector('[data-pitch-normal]')!.setAttribute('aria-pressed', String(!inverted));
-  tutorialIntroPanel.querySelector('[data-pitch-inverted]')!.setAttribute('aria-pressed', String(inverted));
-  const touch=tutorialInputMode()==='touch';
-  tutorialIntroPanel.querySelector<HTMLElement>('[data-pitch-normal-copy]')!.textContent=touch
-    ? 'Joystick UP = + ALT (climb) · DOWN = − ALT (descend)'
-    : `${tutorialBindings.pitchUp} = + ALT (climb) · ${tutorialBindings.pitchDown} = − ALT (descend)`;
-  tutorialIntroPanel.querySelector<HTMLElement>('[data-pitch-inverted-copy]')!.textContent=touch
-    ? 'Joystick DOWN = + ALT (climb) · UP = − ALT (descend)'
-    : `${tutorialBindings.pitchDown} = + ALT (climb) · ${tutorialBindings.pitchUp} = − ALT (descend)`;
-}
-tutorialIntroPanel.querySelector('[data-pitch-normal]')!.addEventListener('click', () => setTrainingOrientation(false));
-tutorialIntroPanel.querySelector('[data-pitch-inverted]')!.addEventListener('click', () => setTrainingOrientation(true));
 tutorialActions.querySelector('[data-guided-skip]')!.addEventListener('click', () => {void endTrainingAndNavigate('city');});
 tutorialActions.querySelector('[data-guided-exit]')!.addEventListener('click', () => {void endTrainingAndNavigate('hub');});
-tutorialIntroPanel.querySelector('[data-training-start]')!.addEventListener('click',()=>{clearHeldActions();mobileInput.reset();tutorialIntroPending=false;tutorialIntroPanel.hidden=true;tutorialPanel.hidden=false;tutorialDimmer.hidden=false;resetTutorialLessonMetrics();renderTutorialPanel();tutorialPanel.querySelector<HTMLElement>('[data-tutorial-title]')!.focus();});
-tutorialIntroPanel.querySelector('[data-training-skip]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
+async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,slideId?:string):Promise<boolean>{
+  const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
+  try{
+    const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialSlides:{action,slideIndex,slideId}})});
+    return response.ok;
+  }catch{return false;}
+}
+let screenplayControlReleaseTimer:number|undefined;
+let screenplayPauseTimer:number|undefined;
+let screenplayStabilizeTimer:number|undefined;
+let screenplayCueActive=false;
+let screenplayLandingCue=false;
+let screenplayFinished=false;
+let screenplayFlightPaused=false;
+function screenplayLevelPitch():number{
+  if(onGround)return 0;
+  const height=altitudeAboveTerrain();
+  if(verticalSpeed< -4&&height<260)return -.45;
+  return height<100?-.35:height<180?-.2:height>300?.04:-.06;
+}
+const trainingSlides=new TrainingSlides({
+  host:gameplayInfoElement,
+  gameRoot:flightGameRoot,
+  onOpen:()=>{
+    trainingSlidesOpen=true;screenplayCueActive=false;screenplayLandingCue=false;screenplayFlightPaused=true;screenplayFinished=false;
+    screenplayDallasUnlockAt=undefined;
+    mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
+    screenplayStabilizeTimer=window.setInterval(()=>{
+      if(!screenplayCueActive&&!screenplayLandingCue&&!onGround)
+        mobileInput.setDemoSteering(0,screenplayLevelPitch());
+    },150);
+  },
+  onClose:()=>{
+    trainingSlidesOpen=false;screenplayCueActive=false;screenplayLandingCue=false;screenplayFlightPaused=false;
+    window.clearTimeout(screenplayPauseTimer);window.clearInterval(screenplayStabilizeTimer);
+    mobileInput.setDemoActive(false);clearHeldActions();mobileInput.reset();tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
+  },
+  onStage:(step)=>{
+    window.clearTimeout(screenplayControlReleaseTimer);
+    window.clearTimeout(screenplayPauseTimer);
+    clearHeldActions();
+    screenplayCueActive=['takeoff','turnLeft','turnRight','climb','descend'].includes(step);
+    screenplayLandingCue=step==='landing';
+    screenplayFlightPaused=['cameraLook','cameraZoom','approach','targetLock','fire'].includes(step);
+    if(!screenplayFlightPaused&&!onGround){
+      velocity.set(-Math.sin(heading)*55,0,-Math.cos(heading)*55);
+      currentSpeed=55;verticalSpeed=0;
+    }
+    if(step==='throttle'){runStarted=true;mobileInput.setThrottleState(.85);}
+    if(step==='takeoff')mobileInput.setDemoSteering(0,-.7);
+    if(step==='turnLeft'||step==='turnRight'){
+      mobileInput.setThrottleState(step==='turnLeft'?.25:.35);
+      mobileInput.setDemoSteering(step==='turnLeft'?-.16:.16,screenplayLevelPitch());
+    }
+    if(step==='climb')mobileInput.setDemoSteering(0,-.2);
+    if(step==='descend')mobileInput.setDemoSteering(0,.25);
+    if(['takeoff','climb','turnLeft','turnRight','descend'].includes(step))
+      screenplayControlReleaseTimer=window.setTimeout(()=>{
+        screenplayCueActive=false;
+        mobileInput.setDemoSteering(0,screenplayLevelPitch());
+      },step==='takeoff'?2_600:step==='descend'?650:1_200);
+    if(step==='cameraLook'){cameraOrbitBlend=1;cameraOrbitYaw=.4;cameraOrbitPitch=.18;cameraOrbitRecenterAt=performance.now()+5_000;}
+    if(step==='cameraZoom')applyCameraZoom(.8);
+    if(step==='approach')setActivityWaypoint(centralAirport.x,centralAirport.z,centralAirport.name);
+    if(step==='fire'){heldActions.add('fire');screenplayControlReleaseTimer=window.setTimeout(()=>heldActions.delete('fire'),1_000);}
+    if(step==='landing')mobileInput.setThrottleState(.08);
+    else if(!['throttle','takeoff','turnLeft','turnRight','climb','descend'].includes(step))mobileInput.setDemoSteering(0,screenplayLevelPitch());
+    if(!screenplayFlightPaused)screenplayPauseTimer=window.setTimeout(()=>{
+      screenplayFlightPaused=true;
+      screenplayCueActive=false;
+      clearHeldActions();
+      mobileInput.setDemoSteering(0,0);
+    },step==='throttle'?7_000:step==='takeoff'?4_000:step==='landing'?3_500:2_500);
+  },
+  onStageEnd:(step)=>{
+    window.clearTimeout(screenplayControlReleaseTimer);
+    window.clearTimeout(screenplayPauseTimer);
+    clearHeldActions();
+    screenplayCueActive=false;screenplayFlightPaused=true;
+    if(step==='landing')mobileInput.clearDemoSteering();
+    else mobileInput.setDemoSteering(0,screenplayLevelPitch());
+    if(step==='cameraLook')cameraOrbitRecenterAt=performance.now();
+    if(step==='cameraZoom')applyCameraZoom(1.25);
+  },
+  onAdvance:(index,step)=>postTrainingSlides('advance',index,step),
+  onComplete:async()=>{
+    const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
+    try{
+      const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialSlides:{action:'complete'}})});
+      if(!response.ok)return false;
+      const profile=await response.json() as {tutorial?:{completedAt?:number;dallasUnlocked?:boolean}};
+      if(!serverProfile.tutorial.completedAt&&profile.tutorial?.dallasUnlocked&&typeof profile.tutorial.completedAt==='number')
+        screenplayDallasUnlockAt=profile.tutorial.completedAt;
+      return true;
+    }catch{return false;}
+  },
+  onFinished:()=>{
+    screenplayFinished=true;
+    tutorialIntroPending=true;
+    tutorialIntroPanel.hidden=false;
+    tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-dallas]')!.focus();
+  },
+});
+let screenplayDallasUnlockAt:number|undefined;
+tutorialIntroPanel.querySelector('[data-training-dallas]')!.addEventListener('click',()=>{
+  const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
+  url.searchParams.set('entry','city');
+  if(screenplayDallasUnlockAt!==undefined)url.searchParams.set('dallasUnlock',String(screenplayDallasUnlockAt));
+  window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+});
+tutorialIntroPanel.querySelector('[data-training-practice-now]')!.addEventListener('click',()=>{
+  screenplayFinished=false;tutorialIntroPending=false;tutorialIntroPanel.hidden=true;enterFreePractice();
+});
 tutorialCompletionActions.querySelector('[data-training-play]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
 tutorialCompletionActions.querySelector('[data-training-replay]')!.addEventListener('click',restartGuidedTutorial);
 tutorialCompletionActions.querySelector('[data-training-practice]')!.addEventListener('click',enterFreePractice);
@@ -5806,6 +5941,12 @@ registerUiBackLayer({
   priority: uiBackPriority.modal + 10,
   isActive: () => !dallasPracticeSuggestionElement.hidden,
   close: dismissDallasPracticeSuggestion,
+});
+registerUiBackLayer({
+  id: 'training-slides',
+  priority: uiBackPriority.modal + 30,
+  isActive: () => trainingSlides.isOpen(),
+  close: () => { trainingSlides.close(); void endTrainingAndNavigate('hub'); },
 });
 registerUiBackLayer({
   id: 'training-intro',
@@ -5996,6 +6137,7 @@ function setGuidedTutorial(active:boolean):void{
   window.clearTimeout(tutorialAdvanceTimer);window.clearTimeout(tutorialLockPreviewTimer);tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
   const resumeNavigationMap=tutorialNavigationCoach==='map'&&worldMap.isOpen();
   guidedTutorialActive=active;guidedTutorialTargetAirport=undefined;tutorialCompletionPending=false;
+  flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' && !trainingRequested && !active);
   tutorialLandingIntentPending=undefined;
   tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;
   if(guidedTutorialSteps.cameraZoom!=='completed')tutorialNavigationCoachSeen=false;
@@ -6005,10 +6147,7 @@ function setGuidedTutorial(active:boolean):void{
   resetTutorialLessonMetrics();
   tutorialIntroPending=active&&!tutorialIntroShown&&guidedTutorialStep!=='landing';
   if(tutorialIntroPending)tutorialIntroShown=true;
-  tutorialIntroPanel.hidden=!tutorialIntroPending;
-  tutorialIntroPanel.querySelector<HTMLElement>('[data-training-orientation]')!.hidden=false;
-  if(tutorialIntroPending)tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-start]')!.focus();
-  setTrainingOrientation(mobileInput.getPitchInverted());
+  tutorialIntroPanel.hidden=true;
   tutorialPanel.hidden=!active||tutorialIntroPending;
   tutorialCompletionActions.hidden=true;
   tutorialDimmer.hidden=!active||tutorialIntroPending;
@@ -6023,6 +6162,14 @@ function setGuidedTutorial(active:boolean):void{
   }
   if(active&&guidedTutorialStep==='freePractice'){enterFreePractice();return;}
   renderTutorialPanel();
+  if(tutorialIntroPending){
+    mobileInput.setPitchInverted(false);
+    void postTrainingSlides('start').then(started=>{
+      if(!guidedTutorialActive||!tutorialIntroPending)return;
+      if(started)trainingSlides.open();
+      else showProgressMessage('SERVER REQUIRED TO START TRAINING');
+    });
+  }
 }
 function resetTutorialLessonMetrics():void{
   tutorialTurnLast=heading;tutorialMovementAmount=0;
@@ -6032,18 +6179,28 @@ function resetTutorialLessonMetrics():void{
   window.clearTimeout(tutorialLockPreviewTimer);tutorialLockPreview=guidedTutorialStep==='targetLock';
   if(tutorialLockPreview)tutorialLockPreviewTimer=window.setTimeout(()=>{tutorialLockPreview=false;renderTutorialPanel();},1600);
 }
-async function endTrainingAndNavigate(destination:'city'|'hub'):Promise<void>{
-  if(!guidedTutorialActive||tutorialExitPending)return;
+async function endTrainingAndNavigate(destination:'city'|'hub',completion:'flight'|'slides'='flight'):Promise<boolean>{
+  if(!guidedTutorialActive||tutorialExitPending)return false;
   tutorialExitPending=true;
   clearHeldActions();
-  const status=guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
+  const status=completion==='slides'||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
   const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
-  try{const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialState:{version:TUTORIAL_VERSION,status}})});if(!response.ok)throw new Error('Training session did not close');}catch{tutorialExitPending=false;showProgressMessage('SERVER REQUIRED TO EXIT TRAINING');return;}
+  let firstDallasUnlockAt: number | undefined;
+  try{
+    const body=completion==='slides'?{tutorialSlides:{action:'complete'}}:{tutorialState:{version:TUTORIAL_VERSION,status}};
+    const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!response.ok)throw new Error('Training session did not close');
+    const profile=await response.json() as {tutorial?:{completedAt?:number;dallasUnlocked?:boolean}};
+    const completedAt=profile.tutorial?.completedAt;
+    if(status==='completed'&&!serverProfile.tutorial.completedAt&&profile.tutorial?.dallasUnlocked===true&&typeof completedAt==='number'&&Number.isFinite(completedAt))firstDallasUnlockAt=completedAt;
+  }catch{tutorialExitPending=false;if(completion!=='slides')showProgressMessage('SERVER REQUIRED TO EXIT TRAINING');return false;}
   window.clearTimeout(tutorialAdvanceTimer);window.clearTimeout(tutorialLockPreviewTimer);tutorialPanel.hidden=true;tutorialIntroPanel.hidden=true;tutorialDimmer.hidden=true;trainingModeLabel.hidden=true;document.body.dataset.tutorialControl='';
-  if(connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:status}));
+  if(completion==='flight'&&connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:status}));
   const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
+  if(firstDallasUnlockAt!==undefined)url.searchParams.set('dallasUnlock',String(firstDallasUnlockAt));
   if(destination==='city')url.searchParams.set('entry','city');else url.searchParams.delete('entry');
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+  return true;
 }
 function enterFreePractice():void{
   window.clearTimeout(tutorialLockPreviewTimer);
@@ -6081,8 +6238,24 @@ function transitionToNextPendingTutorialStep():void{
   if(next==='freePractice'){showTutorialCompletion();return;}
   renderTutorialPanel();
 }
+function applyTutorialScreenplayCruise(message:Extract<ServerMessage,{type:'tutorialScreenplayCruise'}>):void{
+  if(!trainingSlidesOpen||![message.position.x,message.position.y,message.position.z,message.heading,message.speed].every(Number.isFinite))return;
+  cinematicDirector.resetFlight();clearHeldActions();mobileInput.clearDemoSteering();
+  heading=message.heading;pitch=0;roll=0;pitchControlStrength=0;yawControlStrength=0;smoothedTouchSteering={x:0,y:0};
+  airplane.position.set(message.position.x,message.position.y,message.position.z);
+  airplane.rotation.set(0,heading,0,'YXZ');
+  forward.set(0,0,-1).applyQuaternion(airplane.quaternion).normalize();
+  currentSpeed=message.speed;verticalSpeed=0;velocity.copy(forward).multiplyScalar(currentSpeed);
+  throttle=.35;mobileInput.setThrottleState(throttle);
+  boostActive=false;boostVisualStrength=0;speedBrakeStrength=0;landingAssistActive=false;
+  onGround=false;takeoffRollMeters=0;landedFeedbackTime=0;crashed=false;runStarted=true;localLifeState='alive';
+  crashOverlay.classList.add('hidden');flightRecapElement.hidden=true;setFlightState('FLYING');
+  if(cityWorld.updateWorldStreaming)cityWorld.updateWorldStreaming(airplane.position,velocity);
+  else updateOsmCityChunks(airplane.position);
+  updateFlightHud();updateCamera(1);sendLocalState();
+}
 function applyTutorialLandingApproach(message:Extract<ServerMessage,{type:'tutorialLandingApproach'}>):void{
-  if(!guidedTutorialActive||message.airportId!==centralAirport.id||nextPendingTutorialLesson()!=='landing'||
+  if(!guidedTutorialActive||message.airportId!==centralAirport.id||(!trainingSlidesOpen&&nextPendingTutorialLesson()!=='landing')||
     ![message.position.x,message.position.y,message.position.z,message.heading,message.speed].every(Number.isFinite))return;
   cinematicDirector.resetFlight();clearHeldActions();mobileInput.reset();
   tutorialLandingIntentPending=undefined;
@@ -6152,8 +6325,9 @@ function updateGuidedTutorial():void{
     const altitude=altitudeAboveTerrain();
     if(altitude>=tutorialAltitudeOrigin+25&&verticalSpeed>0)advanceGuidedTutorial('climbComplete');
   }else if(guidedTutorialStep==='descend'&&!onGround){
-    const altitude=altitudeAboveTerrain();
-    if(tutorialAltitudeOrigin-altitude>=20&&altitude>8&&verticalSpeed<0)advanceGuidedTutorial('descentComplete');
+    // The lesson teaches the down-pitch control. Waiting for a 20 m altitude
+    // loss makes the step lag behind the joystick while climb momentum fades.
+    if(pitchControlStrength<=-.35&&altitudeAboveTerrain()>8)advanceGuidedTutorial('descentComplete');
   }else if((guidedTutorialStep==='approach'||guidedTutorialStep==='targetLock'||guidedTutorialStep==='fire')&&!onGround&&connectionReady()&&
     (!tutorialTargetId||!remotePlayers.has(tutorialTargetId))&&(!tutorialTargetRequested||performance.now()-tutorialTargetRequestedAt>=1_500)){
     tutorialTargetRequested=true;tutorialTargetRequestedAt=performance.now();socket.send(JSON.stringify({type:'tutorialTargetRequest'}));
@@ -6524,7 +6698,28 @@ function pilotMenuData(): PilotMenuData {
     completed: item.completed,
   }));
 
+  const flightMissionDefinition = journeyAttempt ? journeyMissionDefinitions.find(mission => mission.id === journeyAttempt?.missionId) : undefined;
+  const flightMissionNumber = journeyAttempt ? journeyMissionDefinitions.findIndex(mission => mission.id === journeyAttempt?.missionId) + 1 : 0;
+  const flightGateCount = flightMissionDefinition && 'gates' in flightMissionDefinition ? flightMissionDefinition.gates.length : 0;
   return {
+    flightMission: journeyMode && journeyAttempt ? {
+      name: journeyMissionHeadings[flightMissionNumber - 1] ?? 'MISSION',
+      objective: journeyHudObjective?.textContent ?? '',
+      progress: flightGateCount ? `GATE ${journeyAttempt.gateIndex} / ${flightGateCount}` : journeyHudProgress?.textContent ?? '',
+      time: journeyHudTimer?.textContent ?? '',
+      gatesCleared: journeyAttempt.gateIndex,
+      gateCount: flightGateCount,
+      pauseRemaining: journeyPaused && journeyPauseDeadlineAt !== null
+        ? formatJourneyPauseRemaining(journeyPauseDeadlineAt) : undefined,
+    } : undefined,
+    resumeFlight: () => pilotMenu.close(),
+    restartFlight: () => {
+      if (!journeyMode || !journeyAttempt) return;
+      showFlightDialog('Restart mission?', 'Progress from this attempt will be lost.', [
+        { label: 'STAY', secondary: true, run: () => undefined },
+        { label: 'RESTART MISSION', run: () => { pilotMenu.close(false); void retryJourneyMission(); } },
+      ]);
+    },
     nativeWebPromotion: nativePurchaseProvider !== undefined,
     account: {
       state: clientAccount.state, email: clientAccount.email, pilotName: serverProfile.pilotName,
@@ -6643,7 +6838,7 @@ function pilotMenuData(): PilotMenuData {
   };
 }
 
-function renderPilotMenu(force = false, section: PilotMenuSection = 'MISSIONS'): void {
+function renderPilotMenu(force = false, section: PilotMenuSection = flightMenuMode ? defaultFlightMenuSection : 'MISSIONS'): void {
   const data = pilotMenuData();
   if (pilotMenu.isOpen()) pilotMenu.refresh(data, force);
   else if (force) pilotMenu.open(data, section);
@@ -6658,14 +6853,25 @@ function refreshPilotMenu(): void {
   renderPilotMenu();
 }
 
-function openPilotMenu(section: PilotMenuSection = 'MISSIONS'): void {
-  if (aircraftGarage.isOpen()) return;
+function openPilotMenu(section: PilotMenuSection = flightMenuMode ? defaultFlightMenuSection : 'MISSIONS'): void {
+  if (aircraftGarage.isOpen() || flightExitPending) return;
+  if (flightMenuMode && !['MISSION', 'CONTROLS', 'AUDIO', 'HELP'].includes(section)) section = defaultFlightMenuSection;
+  if (flightMenuMode !== 'single' && section === 'MISSION') section = defaultFlightMenuSection;
   if (worldMap.isOpen()) worldMap.setOpen(false);
   clearHeldActions();
+  mobileInput.reset();
+  resetCameraPointers();
+  boostActive = false;
+  if (flightMenuMode === 'single' && !journeyAttempt) { showProgressMessage('CONNECTING TO MISSION'); return; }
+  if (flightMenuMode === 'single' && journeyAttempt && ['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) {
+    if (!journeyPauseSupported || !connectionReady()) { showProgressMessage('MISSION PAUSE UNAVAILABLE'); return; }
+    pauseJourney();
+  }
   renderPilotMenu(true, section);
 }
 
 function openActiveMissionFromHud(): void {
+  if (flightMenuMode) { openPilotMenu(); return; }
   const missionId = profileActiveMissionAttempt(serverProfile)?.missionId;
   openPilotMenu('MISSIONS');
   pilotMenu.focusMission(missionId);
@@ -6680,7 +6886,8 @@ function togglePilotMenu(): void {
 }
 
 flightMenuButtonElement.addEventListener('click', togglePilotMenu);
-flightAccountButtonElement.addEventListener('click', () => openPilotMenu('PROFILE'));
+flightAccountButtonElement.hidden = Boolean(flightMenuMode);
+flightAccountButtonElement.addEventListener('click', () => { if (!flightMenuMode) openPilotMenu('PROFILE'); });
 activeMissionOverlayElement.tabIndex = 0;
 activeMissionOverlayElement.setAttribute('role', 'button');
 activeMissionOverlayElement.setAttribute('aria-label', 'Open active mission in Pilot Menu');
@@ -7109,9 +7316,8 @@ function localFireBlockReason(): FireBlockedReason | undefined {
 }
 let wasFirstPlace = false;
 let leaderMessageTimer: number | undefined;
-const playersPanel = new PlayersPanel(document.querySelector<HTMLElement>('#real-players')!);
-const cityTerritoriesPanel = new CityTerritoriesPanel(document.querySelector<HTMLElement>('#city-territories')!);
-document.querySelector<HTMLElement>('#city-territories')!.hidden = !cityRules.territoriesEnabled;
+const playersPanel = new PlayersPanel(gameplayInfoCard.playersRoot, count => gameplayInfoCard.setCount('players', count));
+const cityTerritoriesPanel = new CityTerritoriesPanel(gameplayInfoCard.territoriesRoot, count => gameplayInfoCard.setCount('territories', count));
 cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
 const leaderMessageElement = document.querySelector<HTMLDivElement>('#leader-message')!;
 const cityHumanRoster = new Map<string, LeaderboardPlayer>();
@@ -9204,11 +9410,11 @@ function animate(): void {
   const delta = Math.min(realDelta, 0.05);
   if (journeyPaused) return;
   updateMissionStartCountdown();
-  updateMissionOneClear(delta);
+  updateMissionClear(delta);
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
-  if (!crashed && runStarted && !journeyPreflightActive() &&
+  if (!crashed && runStarted && !screenplayFlightPaused && !journeyPreflightActive() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -9528,6 +9734,7 @@ async function realtimeSocketUrl(): Promise<URL> {
   url.searchParams.set('protocol', String(PROTOCOL_VERSION));
   url.searchParams.set('analyticsSession', productAnalyticsSessionId());
   if (journeyMode) url.searchParams.set('journeyAttempt', journeyAttemptId);
+  if (launchMode === 'free-fly' && !trainingRequested) url.searchParams.set(LAUNCH_MODE_PARAM, 'free-fly');
   if (chaosQaMode) url.searchParams.set('chaosqa', '1');
   return url;
 }
@@ -9641,12 +9848,20 @@ function connectionReady(): boolean {
 let journeyPauseDeadlineAt: number | null = null;
 let journeyPauseCountdownInterval: number | undefined;
 let journeyResumePending = false;
+let journeyPauseRequestPendingUntil = 0;
+
+function formatJourneyPauseRemaining(deadlineAt: number): string {
+  const seconds = Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1_000));
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
 function updateJourneyPauseCountdown(): void {
   if (!journeyPaused || journeyPauseDeadlineAt === null) return;
-  const seconds = Math.max(0, Math.ceil((journeyPauseDeadlineAt - Date.now()) / 1_000));
-  journeyPauseCountdownElement.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
-  journeyResumeButtonElement.disabled = seconds === 0 || !connectionReady() || journeyResumePending;
+  const remaining = formatJourneyPauseRemaining(journeyPauseDeadlineAt);
+  const countdown = pilotMenuOverlayElement.querySelector<HTMLElement>('[data-journey-pause-countdown]');
+  if (countdown) countdown.textContent = remaining;
+  const resume = pilotMenuOverlayElement.querySelector<HTMLButtonElement>('[data-journey-resume]');
+  if (resume) resume.disabled = remaining === '00:00' || !connectionReady() || journeyResumePending;
 }
 
 function pauseDeadlineFromServer(pausedAt?: number | null, serverNow?: number): number | undefined {
@@ -9654,11 +9869,12 @@ function pauseDeadlineFromServer(pausedAt?: number | null, serverNow?: number): 
     ? Date.now() + Math.max(0, pausedAt + journeyPauseLimitMs - serverNow) : undefined;
 }
 
-function setJourneyPaused(paused: boolean, deadlineAt?: number): void {
+function setJourneyPaused(paused: boolean, deadlineAt?: number, resumeConfirmed = false): void {
   if (!journeyMode) return;
+  if (!paused && journeyPaused && !resumeConfirmed && Date.now() < journeyPauseRequestPendingUntil) return;
+  if (paused) journeyPauseRequestPendingUntil = 0;
   const wasPaused = journeyPaused;
   journeyPaused = paused;
-  journeyPauseOverlayElement.hidden = !paused;
   journeyPauseButtonElement.hidden = paused || !journeyPauseSupported || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status);
   if (paused) {
@@ -9670,13 +9886,14 @@ function setJourneyPaused(paused: boolean, deadlineAt?: number): void {
     clearHeldActions();
     mobileInput.reset();
     boostActive = false;
+    if (!document.hidden && journeyAttempt && !pilotMenu.isOpen()) renderPilotMenu(true, 'MISSION');
+    updateJourneyPauseCountdown();
   } else {
+    if (wasPaused && flightMenuMode === 'single' && pilotMenu.isOpen()) pilotMenu.close(false);
     if (journeyPauseCountdownInterval !== undefined) window.clearInterval(journeyPauseCountdownInterval);
     journeyPauseCountdownInterval = undefined;
     journeyPauseDeadlineAt = null;
     journeyResumePending = false;
-    journeyPauseCountdownElement.textContent = '02:00';
-    journeyResumeButtonElement.disabled = false;
     if (wasPaused && missionStartCountdownStartedAt !== null) {
       missionStartCountdownStartedAt = performance.now();
       missionStartCountdownLastSecond = 3;
@@ -9692,20 +9909,25 @@ function setJourneyPaused(paused: boolean, deadlineAt?: number): void {
 }
 
 function pauseJourney(): void {
-  if (!journeyMode || !journeyPauseSupported || journeyPaused || flightExitPending || !journeyAttempt ||
+  if (!journeyMode || !journeyPauseSupported || !connectionReady() || journeyPaused || flightExitPending || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status)) return;
-  if (connectionReady()) socket.send(JSON.stringify({ type: 'journeyPause', attemptId: journeyAttemptId }));
+  journeyPauseRequestPendingUntil = Date.now() + 2_000;
+  sendLocalState();
+  socket.send(JSON.stringify({ type: 'journeyPause', attemptId: journeyAttemptId }));
   setJourneyPaused(true);
 }
 
-journeyPauseButtonElement.addEventListener('click', pauseJourney);
+journeyPauseButtonElement.addEventListener('click', () => openPilotMenu('MISSION'));
 window.addEventListener('blur', pauseJourney);
-window.addEventListener('focus', updateJourneyPauseCountdown);
-document.addEventListener('visibilitychange', updateJourneyPauseCountdown);
-journeyRestartButtonElement.addEventListener('click', () => {
-  if (journeyPaused) void retryJourneyMission();
+window.addEventListener('focus', () => {
+  if (journeyPaused && journeyAttempt && !pilotMenu.isOpen()) renderPilotMenu(true, 'MISSION');
+  updateJourneyPauseCountdown();
 });
-journeyResumeButtonElement.addEventListener('click', () => {
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && journeyPaused && journeyAttempt && !pilotMenu.isOpen()) renderPilotMenu(true, 'MISSION');
+  updateJourneyPauseCountdown();
+});
+function resumeJourney(): void {
   if (!journeyPaused || !connectionReady() || journeyResumePending ||
     journeyPauseDeadlineAt === null || Date.now() >= journeyPauseDeadlineAt) return;
   journeyResumePending = true;
@@ -9715,7 +9937,7 @@ journeyResumeButtonElement.addEventListener('click', () => {
     journeyResumePending = false;
     updateJourneyPauseCountdown();
   }, 5_000);
-});
+}
 
 function reconnectRealtimeSession(): void {
   protocolReady = false;
@@ -9726,7 +9948,9 @@ function reconnectRealtimeSession(): void {
   clearCombatThreats();
   cityHumanRoster.clear();
   humanRadarTracks.clear();
+  gameplayInfoCard.reset();
   playersPanel.update([], null);
+  cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);
   reconnectAttempt = 0;
   void replaceRealtimeSocket('Session changed');
@@ -9899,6 +10123,10 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   for (const id of discoveredLocationsByCity[cityId] ?? []) discoveredLocationIds.add(id);
   discoverySystem?.hydrate(discoveredLocationIds);
   if (!flightTestMode && !preserveActiveAircraft && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft, true, !serverReset);
+  if (waitingForAuthoritativeAircraft) {
+    airplane.visible = true;
+    waitingForAuthoritativeAircraft = false;
+  }
   updatePendingAircraftEquip();
   if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
     credits: profile.credits,
@@ -9992,7 +10220,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   boostActive = false;
   activeContract = null;
   cinematicDirector.dispose();
-  if (pilotMenu.isOpen()) pilotMenu.close();
+  if (pilotMenu.isOpen()) pilotMenu.close(false);
   realtimeStopped = true;
   clearReconnectTimer();
   if (socket && socket.readyState !== WebSocket.CLOSED) {
@@ -10038,7 +10266,6 @@ async function retryJourneyMission(): Promise<void> {
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
   if (retryButton.disabled) return;
   retryButton.disabled = true;
-  journeyRestartButtonElement.disabled = true;
   try {
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${journeyAttempt.missionId === journeyDallas24.id ? 'mission-24' : journeyAttempt.missionId === journeyDallas23.id ? 'mission-23' : journeyAttempt.missionId === journeyDallas22.id ? 'mission-22' : journeyAttempt.missionId === journeyDallas21.id ? 'mission-21' : journeyAttempt.missionId === journeyDallas20.id ? 'mission-20' : journeyAttempt.missionId === journeyDallas19.id ? 'mission-19' : journeyAttempt.missionId === journeyDallas16.id ? 'mission-16' : journeyAttempt.missionId === journeyDallas15.id ? 'mission-15' : journeyAttempt.missionId === journeyDallas14.id ? 'mission-14' : journeyAttempt.missionId === journeyDallas13.id ? 'mission-13' : journeyAttempt.missionId === journeyDallas12.id ? 'mission-12' : journeyAttempt.missionId === journeyDallas11.id ? 'mission-11' : journeyAttempt.missionId === journeyDallas10.id ? 'mission-10' : journeyAttempt.missionId === journeyDallas09.id ? 'mission-09' : journeyAttempt.missionId === journeyDallas08.id ? 'mission-08' : journeyAttempt.missionId === journeyDallas07.id ? 'mission-07' : journeyAttempt.missionId === journeyDallas06.id ? 'mission-06' : journeyAttempt.missionId === journeyDallas05.id ? 'mission-05' : journeyAttempt.missionId === journeyDallas04.id ? 'mission-04' : journeyAttempt.missionId === journeyDallas03.id ? 'mission-03' : journeyAttempt.missionId === 'journey-dallas-02' ? 'mission-02' : 'mission-01'}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
@@ -10084,7 +10311,6 @@ async function retryJourneyMission(): Promise<void> {
     showProgressMessage('MISSION RETRY UNAVAILABLE · CHECK CONNECTION');
   } finally {
     retryButton.disabled = false;
-    journeyRestartButtonElement.disabled = false;
   }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
@@ -10177,6 +10403,7 @@ function sendFireIntent(): boolean {
   } catch {
     return false;
   }
+  firedSinceWelcome = true;
   spawnMuzzleFeedback(projectileOrigin, projectileDirection, clientShotId, targetId);
   playFireSound();
   return true;
@@ -10234,6 +10461,14 @@ boundSocket.addEventListener('message', (event) => {
     updateJourneyHud();
     return;
   }
+  if (message.type === 'journeyGateWrongWay') {
+    if (!journeyAttempt || message.attemptId !== journeyAttempt.attemptId || message.gateIndex !== journeyAttempt.gateIndex) return;
+    wrongWayGateIndex = message.gateIndex;
+    wrongWayGateUntil = performance.now() + 3_200;
+    showProgressMessage(`GATE ${message.gateIndex + 1}: FLY THROUGH FROM THE OTHER SIDE`);
+    updateJourneyHud();
+    return;
+  }
   if (message.type === 'monsterState') {
     if (journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.attemptId === message.attemptId) {
       monsterView?.setState(message);
@@ -10264,6 +10499,7 @@ boundSocket.addEventListener('message', (event) => {
     const previousTargetId = journeyAttempt?.targetId;
     const previousHealth = journeyAttempt?.targetHealth;
     journeyAttempt = message.attempt;
+    flightGameRoot.classList.toggle('noncombat-journey', !journeyCombatMissionIds.has(message.attempt.missionId));
     setJourneyPaused(['READY', 'APPROACH', 'RACING'].includes(message.attempt.status) && message.attempt.pausedAt != null,
       pauseDeadlineFromServer(message.attempt.pausedAt, message.serverNow));
     if(message.attempt.missionId===journeyDallas07.id && ['APPROACH','RACING'].includes(message.attempt.status)){
@@ -10443,7 +10679,10 @@ boundSocket.addEventListener('message', (event) => {
       message.attempt.gateIndex > previousGate && message.attempt.gateIndex < (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas20.id ? 6 : message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id ? 5 : 4)) journeyGateClearedUntil = performance.now() + 1_400;
     if ((message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id) && previousAttempt?.attemptId === message.attempt.attemptId && message.attempt.gateIndex > previousGate) playCheckpointSound();
     if (previousAttempt?.attemptId !== message.attempt.attemptId || message.attempt.gateIndex !== previousGate) slalomTurnSide = null;
-    if (message.attempt.gateIndex !== previousGate) { switchbackAltitudeCue = 'ALIGNED'; redlineTooSlowUntil = 0; redlineSpeedReady = false; }
+    if (previousAttempt?.attemptId !== message.attempt.attemptId || message.attempt.gateIndex !== previousGate) {
+      wrongWayGateUntil = 0;
+      switchbackAltitudeCue = 'ALIGNED'; redlineTooSlowUntil = 0; redlineSpeedReady = false;
+    }
     if (message.attempt.missionId === journeyDallas16.id && previousAttempt?.attemptId === message.attempt.attemptId && message.attempt.gateIndex > previousGate) {
       if (message.attempt.gateIndex === 1) { crossfireWarning = 'HUNTER INCOMING — KEEP MOVING!'; crossfireWarningUntil = performance.now() + 2_400; }
       if (message.attempt.gateIndex === 3) { crossfireWarning = 'TWO HUNTERS — STAY ALERT!'; crossfireWarningUntil = performance.now() + 2_400; }
@@ -10504,17 +10743,17 @@ boundSocket.addEventListener('message', (event) => {
           if (journeyAttempt?.attemptId === failedAttempt.attemptId && journeyAttempt.status === 'FAILED')
             showJourneyResult(failedAttempt);
         }, 2_100);
-      } else if (message.attempt.missionId === journeyDallas01.id && message.attempt.status === 'COMPLETED' &&
+      } else if (missionClearMissionIds.has(message.attempt.missionId) && message.attempt.status === 'COMPLETED' &&
         previousAttempt?.attemptId === message.attempt.attemptId &&
         (previousAttempt.status === 'APPROACH' || previousAttempt.status === 'RACING')) {
-        beginMissionOneClear(message.attempt);
-      } else if (missionOneClearAttemptId !== message.attempt.attemptId) showJourneyResult(message.attempt);
+        beginMissionClear(message.attempt);
+      } else if (missionClearAttemptId !== message.attempt.attemptId) showJourneyResult(message.attempt);
     }
     return;
   }
   if (message.type === 'journeyPauseState') {
     if (journeyMode && message.attemptId === journeyAttemptId)
-      setJourneyPaused(message.paused, pauseDeadlineFromServer(message.pausedAt, message.serverNow));
+      setJourneyPaused(message.paused, pauseDeadlineFromServer(message.pausedAt, message.serverNow), !message.paused);
     return;
   }
   if (message.type === 'welcome') {
@@ -10542,6 +10781,10 @@ boundSocket.addEventListener('message', (event) => {
     pendingEquip = undefined;
     selectionRevision = message.selectionRevision;
     localPlayerId = message.playerId;
+    gameplayInfoCard.reset();
+    firedSinceWelcome = false;
+    window.clearTimeout(hitMarkerTimer);
+    hitMarkerElement.classList.remove('visible');
     for (const id of repairHeartSprites.keys()) setHeartCooldown(id, 0);
     for (const cooldown of message.repairCooldowns ?? []) setHeartCooldown(cooldown.id, cooldown.remainingMs);
     fireCooldown = 0;
@@ -10650,13 +10893,15 @@ boundSocket.addEventListener('message', (event) => {
     }
   } else if(message.type==='tutorialStepResult'){
     if(guidedTutorialActive)applyTutorialStepResult(message);
+  } else if(message.type==='tutorialScreenplayCruise'){
+    applyTutorialScreenplayCruise(message);
   } else if(message.type==='tutorialLandingApproach'){
     applyTutorialLandingApproach(message);
   } else if(message.type==='tutorialRunReset'){
     tutorialRunResetPending=false;window.clearTimeout(tutorialCrashResetTimer);applyTutorialStepStates(message.steps);
     tutorialNavigationCoach=undefined;tutorialNavigationCoachSeen=false;syncTutorialNavigationMap();
-    guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=false;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
-    tutorialIntroPanel.hidden=true;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
+    guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
+    tutorialIntroPanel.hidden=!screenplayFinished;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
     gameplayFeedback.push({type:'mission',primaryText:'TRAINING RESTARTED',secondaryText:'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
   } else if(message.type==='tutorialTarget'){
     tutorialTargetId=message.targetId;tutorialTargetRequested=true;
@@ -11094,6 +11339,7 @@ boundSocket.addEventListener('close', (event) => {
   cityHumanRoster.clear();
   applyMissionFocus(null);
   humanRadarTracks.clear();
+  gameplayInfoCard.reset();
   playersPanel.update([], null);
   cityTerritoriesPanel.update(cityTerritoryEntries(), null, false);
   for (const playerId of [...remotePlayers.keys()]) removeRemotePlayer(playerId);

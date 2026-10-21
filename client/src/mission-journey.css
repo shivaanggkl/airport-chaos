@@ -8,6 +8,9 @@
 .mission-journey-segment { fill: none; stroke: #abb5c4; stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px #092045); }
 .mission-journey-segment.is-lit { stroke: #34d9f9; filter: drop-shadow(0 0 5px #23cfff); }
 .mission-journey-segment.is-transition { stroke-width: 2; stroke-dasharray: 2 6; }
+.mission-journey-segment.is-advancing { stroke: #ffdc70; filter: drop-shadow(0 0 6px #ffca51); }
+.mission-journey-progress-marker { position: absolute; z-index: 4; width: clamp(16px, 2.5vw, 27px); aspect-ratio: 1; border: 2px solid #fff5bf; border-radius: 50%; background: radial-gradient(circle at 35% 28%, #fff, #ffe071 38%, #f4a71a 72%); box-shadow: 0 0 0 4px #ffd86666, 0 0 20px 7px #ffcf54; transform: translate(-50%, -50%); pointer-events: none; }
+.mission-journey.is-advancing .mission-journey-nodes, .mission-journey.is-advancing .mission-journey-play { pointer-events: none; }
 .mission-journey-chapters { pointer-events: none; }
 .mission-journey-chapter-heading { position: absolute; z-index: 1; display: grid; place-items: center; width: clamp(108px, 14vw, 180px); min-height: clamp(28px, 5dvh, 50px); border: 2px solid #54d9ff; border-radius: 14px; background: linear-gradient(#0d60af, #063c91 55%, #0d65c0); box-shadow: inset 0 1px #c4f3ff, 0 0 13px #29c9ff; color: #fff; text-align: center; text-shadow: 0 2px 3px #06245d; }
 .mission-journey-chapter-heading[data-chapter='1'] { top: 3%; left: 25%; transform: translateX(-50%); }
@@ -25,11 +28,17 @@
 .mission-journey-node.is-current { border-color: #ffeaa2; background: radial-gradient(circle at 35% 20%, #fff4bd, #ffc44b 55%, #a3570b); box-shadow: inset 0 2px #fff9df, 0 0 14px #ffcb57; }
 .mission-journey-node.is-current::after { position: absolute; top: calc(100% + 3px); left: 50%; padding: 3px 6px; border-radius: 5px; background: #ffd663; color: #102a51; content: 'CURRENT'; font: 900 clamp(7px, .83vw, 11px)/1 var(--font-display); text-shadow: none; white-space: nowrap; transform: translateX(-50%); }
 .mission-journey-node.is-current::before { position: absolute; inset: -6px; border: 2px solid #ffd164; border-radius: 50%; content: ''; box-shadow: 0 0 9px #ffcf53; animation: mission-current-breathe 2.8s ease-in-out infinite; }
+.mission-journey-node.is-newly-completed { animation: mission-completed-flash 650ms ease-in-out 2; }
+.mission-journey-node.is-newly-unlocked { animation: mission-unlocked-flash 850ms ease-out; }
 @keyframes mission-current-breathe { 50% { transform: scale(1.06); opacity: .7; } }
+@keyframes mission-completed-flash { 50% { filter: brightness(1.65) drop-shadow(0 0 12px #77ffc2); } }
+@keyframes mission-unlocked-flash { 35% { filter: brightness(1.7) drop-shadow(0 0 18px #ffe36d); } }
 .mission-journey-node.is-locked { border-color: #a5abb8; color: #d4d6da; background: radial-gradient(circle at 35% 20%, #646b78, #272f43 68%, #161e30); box-shadow: inset 0 2px #aeb5bd, 0 2px 4px #071630; cursor: not-allowed; }
 .mission-journey-node.is-locked .mission-journey-number { transform: translateY(-13%); }
-.mission-journey-lock { position: absolute; bottom: 10%; width: clamp(6px, .9vw, 11px); height: clamp(5px, .75vw, 9px); border: 1px solid #d8dce1; border-radius: 2px; background: #d8dce1; box-shadow: 0 1px 2px #111a26; }
-.mission-journey-lock::before { position: absolute; left: 18%; bottom: 75%; width: 46%; height: 75%; border: 1.5px solid #d8dce1; border-bottom: 0; border-radius: 5px 5px 0 0; content: ''; }
+.mission-journey-node.is-unlocking { box-shadow: inset 0 2px #fff5c5, 0 0 20px 5px #ffdb70; }
+.mission-journey-node.is-unlocking .ui-lock-icon path { transform-origin: 15% 90%; animation: mission-shackle-open 360ms ease-out forwards; }
+@keyframes mission-shackle-open { to { transform: translate(-2px, -2px) rotate(-25deg); } }
+.mission-journey-lock { --lock-icon-size: clamp(10px, 1.3vw, 17px); position: absolute; bottom: 5%; display: grid; place-items: center; padding: 1px; border-radius: 3px; color: #48596c; background: rgb(255 255 255 / 88%); box-shadow: 0 1px 2px #111a26; }
 .mission-journey-node:not(.is-locked) .mission-journey-lock { display: none; }
 .mission-journey-crown { position: absolute; bottom: calc(100% + 3px); width: clamp(17px, 2.2vw, 29px); height: clamp(14px, 1.8vw, 23px); color: #ffdb80; }
 .mission-journey-crown svg { display: block; width: 100%; height: 100%; }
@@ -43,14 +52,14 @@
 .mission-journey-reward img { display: block; width: clamp(18px, 2.4vw, 29px); height: clamp(18px, 2.4vw, 29px); object-fit: contain; }
 .mission-journey-reward strong { font: 900 clamp(11px, 1.45vw, 18px)/1 var(--font-display); }
 .mission-journey-reward small { color: #087a9d; font: 900 13px/1 var(--font-display); }
-.mission-journey-play { min-width: clamp(112px, 14vw, 178px); min-height: clamp(44px, 9dvh, 58px); padding: 0 9px; border: 2px solid #fff3ab; border-radius: 13px; color: #3a2604; background: linear-gradient(#ffef9e, #ffd459 52%, #f6ae29); box-shadow: inset 0 2px #fff8d2, 0 3px 7px #71420e66; font: 900 clamp(10px, 1.35vw, 17px)/1 var(--font-display); white-space: nowrap; }
+.mission-journey-play { min-width: clamp(112px, 14vw, 178px); min-height: clamp(44px, 9dvh, 58px); padding: 0 9px; border: 2px solid var(--menu-gold-border); border-radius: 13px; color: var(--menu-gold-ink); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow); font: 900 clamp(10px, 1.35vw, 17px)/1 var(--font-display); white-space: nowrap; }
 .mission-journey-play:disabled { cursor: not-allowed; filter: grayscale(1); }
 @media (max-height: 480px) and (orientation: landscape) {
   .mission-journey-map { top: calc(var(--hub-header-total, 78px) + 2px); bottom: calc(max(5px, var(--safe-area-bottom)) + 69px); }
   .mission-journey-chapter-heading { border-radius: 8px; }
   .mission-journey-node { font-size: clamp(10px, 1.65vw, 15px); }
   .mission-journey-node.is-locked .mission-journey-number { transform: translateY(-19%); }
-  .mission-journey-lock { bottom: 5%; width: 6px; height: 5px; }
+  .mission-journey-lock { --lock-icon-size: clamp(9px, 1.1vw, 13px); }
   .mission-journey-node.is-current::after { top: calc(100% + 2px); padding: 2px 4px; }
   .mission-journey-detail { min-height: 55px; padding: 3px 5px; border-radius: 11px; }
   .mission-journey-detail-image { height: 49px; }

@@ -22,7 +22,9 @@ test('Firehawk uses the token-only purchase UI while legacy entitlements remain 
   assert.match(garage, /restore\.textContent = this\.nativeStore \? 'RESTORE PURCHASES' : 'RESTORE PURCHASE'/);
   assert.match(garage, /START FREE TRIAL/);
   assert.match(garage, /'Trial: ready on next flight'/);
-  assert.match(garage, /'Trial: already used'/);
+  assert.match(garage, /'Trial ended'/);
+  assert.match(garage, /'Free trial used'/);
+  assert.match(garage, /owned && equipped && appearanceEquipped/);
   assert.match(garage, /this\.profile\.aircraftEntitlements\?\.includes\(firehawkProduct\.entitlement\) === true/);
   assert.equal(firehawkProduct.displayPrice, '$24.00');
   assert.equal(firehawkProduct.amountCents, 2_400);

@@ -14,6 +14,7 @@ import { createLockIcon } from './lock-icon';
 import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
 import { confirmCatalogPurchase } from './purchase-confirmation';
 import { showFlightDialog } from './flight-dialog';
+import { createAircraftDetailPanel, renderAircraftDetailPanel } from './aircraft-detail-panel';
 
 export type GarageProfile = {
   credits: number;
@@ -67,6 +68,9 @@ export class AircraftGarage {
     { x: -2.0, z: -11.0, yaw: Math.PI, scale: 1.18 },
   ] as const;
   private readonly garagePreviewHost: HTMLElement;
+  private readonly equippedPanel: HTMLElement;
+  private equippedPreviewType?: AircraftType;
+  private equippedPreviewPaint?: string;
   private showcaseHost: HTMLElement | undefined;
   private backgroundAircraftHero?: AircraftType;
   private backgroundAircraftGeneration = 0;
@@ -144,6 +148,25 @@ export class AircraftGarage {
       close: () => this.close(),
     });
     element.innerHTML = `<section class="garage-card app-shell-panel"><header class="garage-heading context-page-heading"><div class="garage-balance"></div></header><div class="garage-layout"><div class="garage-preview"><canvas></canvas><div class="garage-preview-hint">DRAG TO ROTATE • PINCH TO ZOOM</div></div><div class="garage-details" data-garage-details><div class="garage-status-row"><span data-garage-price></span><div class="garage-status-actions"><div class="garage-statuses" data-garage-status aria-label="Aircraft status"></div><button type="button" data-garage-cosmetic-get hidden>GET</button><button type="button" data-garage-equip hidden>USE APPEARANCE</button><button type="button" data-garage-trial hidden>START FREE TRIAL</button></div></div><h2 data-garage-name></h2><p data-garage-pitch></p><div data-garage-stats class="garage-stats"></div><section class="garage-cosmetics" data-garage-cosmetics></section><div class="garage-actions"><div class="garage-premium" data-garage-premium hidden><div class="garage-trial-row"><p class="garage-trial-summary" data-garage-trial-summary>Trial: 5 minutes</p><button type="button" data-garage-restore>RESTORE PURCHASE</button><button type="button" data-garage-premium-buy>UNLOCK — 2,400 SKY TOKENS</button><p class="garage-purchase-disclosure">Sold by ${legalConfig.legalEntityName} · By purchasing, you agree to <a href="${legalConfig.policyRoutes.terms}" target="_blank" rel="noopener noreferrer">Terms</a> · <a href="${legalConfig.policyRoutes.refund}" target="_blank" rel="noopener noreferrer">Refund Policy</a> · <a href="${legalConfig.policyRoutes.privacy}" target="_blank" rel="noopener noreferrer">Privacy Notice</a></p></div><div class="garage-token-choice" data-garage-token-choice hidden><span>OR</span><button type="button" data-garage-token-buy></button></div><p class="garage-action-note" data-garage-action-note></p><button type="button" data-garage-redeem-open hidden>Redeem Access Code</button><div class="garage-tester" data-garage-tester hidden><input type="password" autocomplete="off" maxlength="96" placeholder="Access Code" aria-label="Access Code"><button type="button">Redeem</button></div><small data-garage-message></small></div></div></div><section class="garage-selector-section" aria-label="Choose aircraft"><div class="garage-list"></div></section></section>`;
+    const equippedPage = document.createElement('div');
+    equippedPage.className = 'garage-equipped-page';
+    const equippedHeader = document.createElement('header');
+    equippedHeader.className = 'context-page-heading garage-equipped-heading';
+    const equippedBack = createContextBackButton('BACK', closeTopUiLayer);
+    equippedBack.classList.add('garage-equipped-back');
+    equippedHeader.append(equippedBack, createContextPageTitle('AIRCRAFT HANGAR'));
+    this.equippedPanel = createAircraftDetailPanel();
+    const note = document.createElement('p');
+    note.className = 'garage-equipped-note';
+    note.textContent = 'To change aircraft, choose an owned aircraft in the Store and tap EQUIP AIRCRAFT.';
+    const status = document.createElement('p');
+    status.className = 'garage-equipped-status'; status.setAttribute('role', 'status');
+    const footer = document.createElement('footer');
+    footer.className = 'garage-equipped-footer';
+    footer.append(note, status);
+    this.equippedPanel.append(footer);
+    equippedPage.append(equippedHeader, this.equippedPanel);
+    element.append(equippedPage);
     const statusRow = element.querySelector<HTMLElement>('.garage-status-row')!;
     const walletRow = document.createElement('div'); walletRow.className = 'garage-wallet-row';
     const walletLabel = document.createElement('span'); walletLabel.textContent = 'YOUR BALANCE';
@@ -290,7 +313,6 @@ export class AircraftGarage {
     // one preview loop so a late profile response cannot create competing
     // render callbacks or make the first open appear unreliable.
     this.hideShowcase();
-    this.garagePreviewHost.prepend(this.renderer.domElement);
     this.profile = this.normalizeProfile(profile);
     this.loadingProfile = loadingProfile;
     this.profileUnavailable = false;
@@ -301,19 +323,18 @@ export class AircraftGarage {
     this.selected = this.profile.selectedAircraft;
     this.previewCosmetic = undefined;
     this.viewedCosmetics.clear();
-    this.element.querySelector<HTMLButtonElement>('[data-garage-close]')!.textContent = document.querySelector('.app-shell-header:not([hidden])')
-      ? this.element.classList.contains('return-to-store') ? 'BACK TO STORE' : 'BACK TO PILOT HUB'
-      : 'BACK TO FLIGHT';
+    this.element.querySelector<HTMLButtonElement>('.garage-equipped-back')!.setAttribute('aria-label', this.element.classList.contains('return-to-store') ? 'Back to Store' : 'Back');
     this.element.hidden = false;
-    this.resize();
-    this.renderDetails();
-    this.loadPreview();
-    this.startAnimation();
+    this.element.classList.add('is-equipped-page');
+    this.equippedPreviewType = undefined;
+    this.renderEquippedPage();
   }
   close(): void {
     if (this.element.hidden) return;
     this.pendingAircraftAfterCosmetic = undefined;
     this.element.hidden = true;
+    this.element.classList.remove('is-equipped-page');
+    this.garagePreviewHost.prepend(this.renderer.domElement);
     this.activePointers.clear();
     this.dragging = false;
     this.pinchDistance = 0;
@@ -324,6 +345,7 @@ export class AircraftGarage {
   isOpen(): boolean { return !this.element.hidden; }
 
   focusAircraft(type: AircraftType): void {
+    if (this.element.classList.contains('is-equipped-page')) return;
     if (!this.isOpen() || !this.cards.has(type)) return;
     this.pendingAircraftAfterCosmetic = undefined;
     this.selected = type;
@@ -336,6 +358,7 @@ export class AircraftGarage {
   }
 
   focusCosmetic(id: string): void {
+    if (this.element.classList.contains('is-equipped-page')) return;
     const item = cosmeticCatalog.find(entry => entry.id === id);
     if (!item || !this.isOpen()) return;
     this.focusAircraft(item.aircraftRestriction as AircraftType);
@@ -406,6 +429,10 @@ export class AircraftGarage {
 
   updateProfile(profile: GarageProfile): void {
     this.profile = this.normalizeProfile(profile);
+    if (this.element.classList.contains('is-equipped-page')) {
+      this.renderEquippedPage();
+      return;
+    }
     this.paintPreview();
     this.loadingProfile = false;
     this.profileUnavailable = false;
@@ -422,6 +449,10 @@ export class AircraftGarage {
   }
 
   showProfileUnavailable(): void {
+    if (this.element.classList.contains('is-equipped-page')) {
+      this.showActionResult('PROFILE UNAVAILABLE — TRY AGAIN LATER');
+      return;
+    }
     this.loadingProfile = false;
     this.profileUnavailable = true;
     this.actionMessage = 'REOPEN AIRCRAFTS TO RETRY';
@@ -429,6 +460,10 @@ export class AircraftGarage {
   }
 
   showActionResult(message: string): void {
+    if (this.element.classList.contains('is-equipped-page')) {
+      this.element.querySelector<HTMLElement>('.garage-equipped-status')!.textContent = message;
+      return;
+    }
     this.pendingAircraftAfterCosmetic = undefined;
     window.clearTimeout(this.pendingTimer);
     this.actionPending = false;
@@ -454,6 +489,23 @@ export class AircraftGarage {
     this.tokenCommerceReady = false;
     this.tokenStoreUnavailable = true;
     if (this.isOpen()) this.renderDetails();
+  }
+
+  private renderEquippedPage(): void {
+    const type = this.profile.selectedAircraft;
+    this.selected = type;
+    renderAircraftDetailPanel(this.equippedPanel, type);
+    const preview = this.equippedPanel.querySelector<HTMLElement>('.store-detail-preview')!;
+    const equippedPaint = this.profile.cosmetics?.equipped?.[`livery:${type}`];
+    preview.prepend(this.renderer.domElement);
+    this.resize();
+    if (this.equippedPreviewType !== type || this.equippedPreviewPaint !== equippedPaint) {
+      this.equippedPreviewType = type;
+      this.equippedPreviewPaint = equippedPaint;
+      this.previewCosmetic = undefined;
+      void this.loadPreview();
+    }
+    this.startAnimation();
   }
 
   private requestTokenUnlock(): void {
@@ -518,7 +570,7 @@ export class AircraftGarage {
     const statuses: Array<{ label: string; kind: string }> = [];
     if (this.loadingProfile) statuses.push({ label: 'SYNCING PROFILE…', kind: 'syncing' });
     else if (this.profileUnavailable) statuses.push({ label: 'PROFILE UNAVAILABLE', kind: 'syncing' });
-    else if (equipped && appearanceEquipped) statuses.push({ label: 'CURRENT', kind: 'current' });
+    else if (owned && equipped && appearanceEquipped) statuses.push({ label: 'CURRENT', kind: 'current' });
     statusRoot.replaceChildren(...statuses.map(({ label, kind }) => {
       const chip = document.createElement('span'); chip.className = `garage-status garage-status-${kind}`;
       if (kind === 'current') {
@@ -575,9 +627,9 @@ export class AircraftGarage {
       ? 'Trial: 5 minutes'
       : trialState === 'pending'
         ? 'Trial: ready on next flight'
-        : trialState === 'active'
+        : trialState === 'active' && remaining > 0
           ? `Trial: ${String(Math.floor(Math.max(0, remaining) / 60)).padStart(2, '0')}:${String(Math.max(0, remaining) % 60).padStart(2, '0')} remaining`
-          : 'Trial: already used';
+          : trialState === 'active' ? 'Trial ended' : 'Free trial used';
     this.element.querySelector<HTMLElement>('[data-garage-trial]')!.hidden = !profileReady || owned || this.selected !== 'fighter' || this.profile.fighterTrial?.status !== 'available';
     const canRedeem = profileReady && this.selected === 'fighter' && !owned && this.profile.testerCodeEnabled === true;
     this.element.querySelector<HTMLElement>('[data-garage-redeem-open]')!.hidden = !canRedeem || this.testerOpen;
