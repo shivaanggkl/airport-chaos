@@ -261,9 +261,11 @@ test('landing coach names the active desktop bindings and mobile pitch direction
 test('final lesson sends landing intent from valid LANDED transition and clears earlier tutorial receipt',()=>{
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-  assert.match(main,/setFlightState\('LANDED'\);\s*if\(guidedTutorialActive&&guidedTutorialStep==='landing'\)\{\s*tutorialLandingIntentPending=/);
-  assert.match(main,/if\(landingQuality&&\!\(guidedTutorialActive&&guidedTutorialStep==='landing'\)\)sendLandingIntent/);
+  assert.match(main,/setFlightState\('LANDED'\);\s*if\(guidedTutorialActive&&\(trainingSlides\.currentStep\(\)==='landing'\|\|guidedTutorialStep==='landing'\)\)\{\s*sendLocalState\(\);\s*tutorialLandingIntentPending=/);
+  assert.match(main,/sendLocalState\(\);\s*tutorialLandingIntentPending=\{airport:landingAirport,quality:landingQuality,attempts:0,lastSentAt:0\};\s*if\(sendLandingIntent/);
+  assert.match(main,/if\(landingQuality&&\!\(guidedTutorialActive&&\(trainingSlides\.currentStep\(\)==='landing'\|\|guidedTutorialStep==='landing'\)\)\)sendLandingIntent/);
   assert.match(main,/pending\.attempts<4&&now-pending\.lastSentAt>=150&&sendLandingIntent/);
+  assert.match(main,/if\(pending&&guidedTutorialActive&&\(trainingSlides\.currentStep\(\)==='landing'\|\|guidedTutorialStep==='landing'\)/);
   assert.match(main,/if\(step==='landing'\)\{tutorialLandingIntentPending=undefined;transitionToNextPendingTutorialStep\(\);return true;\}/);
   assert.match(server,/landingReceipts\.delete\(`\$\{playerId\}:\$\{approach\.airportId\}`\)/);
   assert.match(server,/if \(!flight\?\.airborne \|\| telemetry\.speed[\s\S]*landingReceipts\.set\(receiptKey, now\)/);
@@ -509,8 +511,10 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(main, /message\.type==='tutorialLandingApproach'/);
   assert.match(main, /message\.type==='tutorialStepResult'/);
   assert.match(main, /tutorialRunReset[\s\S]*TRAINING RESTARTED/);
+  assert.match(main, /message\.reason==='crash'&&message\.trainingSlideIndex!==undefined\)trainingSlides\.retryStage\(message\.trainingSlideIndex\)/);
   assert.match(main, /guidedTrainingCrash[\s\S]*requestTutorialRunReset\('crash'\)/);
   assert.match(server, /resetTutorialRun\(player\.pilotId,message\.tutorialResetReason==='crash'\)[\s\S]*resetHumanToSafeRunway\(playerId,player,profile,Date\.now\(\),true,'trainer'\)/);
+  assert.match(server, /if\(slide==='landing'\)sendTutorialLandingApproach\(playerId,player,true\)/);
   assert.doesNotMatch(readFileSync(new URL('../../client/index.html', import.meta.url),'utf8'),/tutorial-crash-actions|RETRY TUTORIAL|CONTINUE FREE PRACTICE/);
   assert.match(main, /if\(!response\.ok\)throw new Error\('Training session did not close'\)/);
   assert.match(css, /\.training-mode-label/);

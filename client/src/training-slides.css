@@ -10,6 +10,7 @@
 #game-root.training-screenplay-active #right-flight-stack{top:max(72px,calc(var(--safe-area-top) + 62px))}
 #game-root.training-screenplay-active #flight-hud > :not(#flight-reference):not(#acquisition-circle):not(#target-feedback){display:none!important}
 #game-root.training-screenplay-active #mission-status-layer{top:max(10px,calc(var(--safe-area-top) + 6px));left:50%;width:min(480px,calc(100vw - 340px));transform:translateX(-50%)}
+body[data-training-slide-control="fire"] #game-root.training-screenplay-active #mission-status-layer{top:max(94px,calc(var(--safe-area-top) + 88px));left:max(16px,var(--safe-area-left));width:min(300px,calc(48vw - var(--safe-area-left) - 16px));transform:none}
 #game-root.training-screenplay-active #mission-status-layer > :not(.gameplay-info-card),
 #game-root.training-screenplay-active .gameplay-info-card.is-tutorial > :not(.training-screenplay){display:none!important}
 #game-root.training-screenplay-active .gameplay-info-card.is-tutorial{min-height:0;height:auto;max-height:none;padding:0;border:1px solid rgb(168 221 255 / 75%);border-left:4px solid var(--ui-gold);border-radius:10px;background:var(--gameplay-info-card-fill)}
@@ -75,5 +76,5 @@ body:has(#game-root.training-screenplay-active) #tutorial-help{display:none!impo
 @keyframes training-pinch-right{0%,100%{transform:translate(12px,-8px)}25%,70%{transform:translate(-8px,3px)}}
 @keyframes training-hand-hold{0%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(-15%,-20%) scale(.92)}}
 @keyframes training-hand-tap{0%,100%{transform:translate(-15%,-20%) scale(1)}16%,35%{transform:translate(-15%,-20%) scale(.78)}}
-body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="stick"] [data-touch-control="stick"],body[data-training-slide-control="fire"] [data-touch-control="fire"],body[data-training-slide-control="aim"] #acquisition-circle{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px}
+body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="stick"] [data-touch-control="stick"],body[data-training-slide-control="landing"] [data-touch-control="throttle"],body[data-training-slide-control="landing"] [data-touch-control="stick"],body[data-training-slide-control="fire"] [data-touch-control="fire"],body[data-training-slide-control="aim"] #acquisition-circle{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px}
 @media(max-width:950px) and (orientation:landscape){.training-screenplay{width:min(260px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));gap:5px;padding:8px}.training-screenplay h2{font-size:16px}.training-screenplay p{font-size:13px}.training-screenplay-hand{font-size:40px}}

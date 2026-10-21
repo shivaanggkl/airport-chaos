@@ -7324,7 +7324,16 @@ server.on('connection', (socket, request) => {
         removeTrainingTarget(playerId);removePlayerProjectiles(playerId);profileStore.resetTutorialRun(player.pilotId,message.tutorialResetReason==='crash');
         const profile=profileStore.setTutorialState(player.pilotId,'started',Date.now());if(!profile)return;
         resetHumanToSafeRunway(playerId,player,profile,Date.now(),true,'trainer');
-        sendToPlayer(playerId,{type:'tutorialRunReset',reason:message.tutorialResetReason,steps:profileStore.tutorialStepStates(player.pilotId),nextStep:tutorialSteps[0]});
+        const trainingSlideIndex=message.tutorialResetReason==='crash'?profileStore.trainingSlideIndex(player.pilotId):undefined;
+        sendToPlayer(playerId,{type:'tutorialRunReset',reason:message.tutorialResetReason,steps:profileStore.tutorialStepStates(player.pilotId),nextStep:tutorialSteps[0],trainingSlideIndex});
+        if(trainingSlideIndex!==undefined){
+          const slide=trainingSlideIds[trainingSlideIndex];
+          if(slide==='landing')sendTutorialLandingApproach(playerId,player,true);
+          else if(trainingSlideIndex>trainingSlideIds.indexOf('takeoff')){
+            sendTutorialScreenplayCruise(playerId,player);
+            if(slide==='fire')createTrainingTarget(playerId,player,Date.now());
+          }
+        }
         return;
       }
 

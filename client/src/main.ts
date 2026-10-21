@@ -3765,7 +3765,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   if (landingQuality) {
     showFlightRecap('GREAT FLIGHT');
   }
-  if(landingQuality&&!(guidedTutorialActive&&guidedTutorialStep==='landing'))sendLandingIntent(airport,landingQuality);
+  if(landingQuality&&!(guidedTutorialActive&&(trainingSlides.currentStep()==='landing'||guidedTutorialStep==='landing')))sendLandingIntent(airport,landingQuality);
   if (landingQuality) stuntCombo?.notifyLanding(landingQuality);
   contextualHints.trigger('garage');
 }
@@ -4707,7 +4707,7 @@ type ServerMessage =
   | { type: 'takeoffConfirmed'; airportId?: string; confirmedAt: number }
   | { type: 'tutorialSignal'; signal: 'airborne' | 'targetInRange' | 'targetLocked' | 'targetHit' | 'completed' }
   | { type:'tutorialStepResult';ok:boolean;step:TutorialLessonStep;status:Exclude<TutorialStepStatus,'pending'>;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>;reason?:string }
-  | { type:'tutorialRunReset';reason:'crash'|'replay';nextStep:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus> }
+  | { type:'tutorialRunReset';reason:'crash'|'replay';nextStep:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>;trainingSlideIndex?:number }
   | { type:'tutorialScreenplayCruise';position:{x:number;y:number;z:number};heading:number;speed:number }
   | { type:'tutorialLandingApproach';airportId:string;position:{x:number;y:number;z:number};heading:number;speed:number }
   | { type: 'tutorialTarget'; targetId: string }
@@ -9152,7 +9152,8 @@ function updateFlight(delta: number): void {
     takeoffRollMeters = 0;
     landedFeedbackTime = 1.5;
     setFlightState('LANDED');
-    if(guidedTutorialActive&&guidedTutorialStep==='landing'){
+    if(guidedTutorialActive&&(trainingSlides.currentStep()==='landing'||guidedTutorialStep==='landing')){
+      sendLocalState();
       tutorialLandingIntentPending={airport:landingAirport,quality:landingQuality,attempts:0,lastSentAt:0};
       if(sendLandingIntent(landingAirport,landingQuality)){
         tutorialLandingIntentPending.attempts=1;tutorialLandingIntentPending.lastSentAt=performance.now();
@@ -10429,7 +10430,7 @@ function sendLocalState(introHandshake = false): void {
   );
   const pending=tutorialLandingIntentPending;
   const now=performance.now();
-  if(pending&&guidedTutorialActive&&guidedTutorialStep==='landing'&&onGround&&!crashed&&
+  if(pending&&guidedTutorialActive&&(trainingSlides.currentStep()==='landing'||guidedTutorialStep==='landing')&&onGround&&!crashed&&
     pending.attempts<4&&now-pending.lastSentAt>=150&&sendLandingIntent(pending.airport,pending.quality)){
     pending.attempts+=1;pending.lastSentAt=now;
   }
@@ -11007,12 +11008,15 @@ boundSocket.addEventListener('message', (event) => {
     tutorialNavigationCoach=undefined;tutorialNavigationCoachSeen=false;syncTutorialNavigationMap();
     guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
     tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
-    if(trainingSlidesOpen)void postTrainingSlides('start').then(started=>{
-      if(!trainingSlidesOpen)return;
-      if(started)trainingSlides.restart();
-      else showProgressMessage('SERVER REQUIRED TO RESTART TRAINING');
-    });
-    gameplayFeedback.push({type:'mission',primaryText:'TRAINING RESTARTED',secondaryText:'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
+    if(trainingSlidesOpen){
+      if(message.reason==='crash'&&message.trainingSlideIndex!==undefined)trainingSlides.retryStage(message.trainingSlideIndex);
+      else void postTrainingSlides('start').then(started=>{
+        if(!trainingSlidesOpen)return;
+        if(started)trainingSlides.restart();
+        else showProgressMessage('SERVER REQUIRED TO RESTART TRAINING');
+      });
+    }
+    gameplayFeedback.push({type:'mission',primaryText:message.reason==='crash'?'TRY AGAIN':'TRAINING RESTARTED',secondaryText:message.reason==='crash'?'Continue this lesson.':'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
   } else if(message.type==='tutorialTarget'){
     tutorialTargetId=message.targetId;tutorialTargetRequested=true;
   } else if(message.type==='tutorialSignal'){

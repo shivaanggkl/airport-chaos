@@ -27,7 +27,7 @@ const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail:
   cameraZoom: { title: 'ZOOM', detail: 'Pinch the view.', control: 'view', motion: 'pinch' },
   approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar, then close the map.', control: 'radar', motion: 'tap' },
   fire: { title: 'FIRE', detail: 'Fire at the locked target.', control: 'fire', motion: 'tap' },
-  landing: { title: 'LAND SAFELY', detail: 'Slow down. Steer to the runway. Land.', control: 'throttle', motion: 'down' },
+  landing: { title: 'LAND SAFELY', detail: 'Lower the speed lever. Use the joystick to line up with the runway and land.', control: 'landing', motion: 'down' },
 };
 
 function needsHeldControl(step: TutorialLessonStep): boolean {
@@ -181,6 +181,15 @@ export class TrainingSlides {
     this.showStage();
   }
 
+  retryStage(index = this.index): void {
+    if (!this.active) return;
+    if (!Number.isInteger(index) || index < 0 || index >= trainingSlideIds.length) return;
+    window.clearTimeout(this.completionTimer);
+    this.options.onStageEnd(trainingSlideIds[this.index]!);
+    this.index = index;
+    this.showStage();
+  }
+
   open(index = 0): void {
     if (this.active) return;
     this.active = true;
@@ -252,6 +261,7 @@ export class TrainingSlides {
     if (this.suspended) { this.hand.hidden = true; return; }
     const selector = control === 'view' ? '#game-root canvas'
       : control === 'radar' ? '#radar-panel'
+      : control === 'landing' ? '[data-touch-control="throttle"]'
       : '[data-touch-control="' + control + '"]';
     const rect = document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) { this.hand.hidden = true; return; }
