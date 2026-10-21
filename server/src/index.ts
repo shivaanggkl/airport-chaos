@@ -1752,7 +1752,7 @@ const httpServer = createServer(async (request, response) => {
             profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
             for(const [id,player] of players){
               if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
-              if(slideRequest.slideIndex===5)sendTutorialScreenplayCruise(id,player);
+              if(slideRequest.slideIndex===1)sendTutorialScreenplayCruise(id,player);
               if(slideRequest.slideIndex===7)createTrainingTarget(id,player);
               if(slideRequest.slideIndex===10)sendTutorialLandingApproach(id,player,true);
             }
@@ -2778,8 +2778,8 @@ function sendTutorialScreenplayCruise(playerId:string,player:PlayerState):void{
   if(!player.tutorialMode||player.cityId!=='milwaukee')return;
   const airport=cityAirports.milwaukee[0];
   const heading=airport.heading;
-  const speed=80;
-  const position={x:airport.x,y:1_200,z:airport.z};
+  const speed=55;
+  const position={x:airport.x,y:2_500,z:airport.z};
   const now=Date.now();
   player.position={...position};player.lastAcceptedPosition={...position};player.lastAcceptedTransformAt=now;
   player.rotation={x:0,y:heading,z:0};

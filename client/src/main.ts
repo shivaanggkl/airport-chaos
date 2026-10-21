@@ -2,6 +2,7 @@ import { transportTuning } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
 import { applyAircraftCosmetics as applyEquippedLivery } from './aircraft-cosmetics';
 import { PLAYER_STORAGE_KEY } from './player-storage';
+import { flightLaunchAircraft } from './flight-launch-aircraft';
 import * as THREE from 'three';
 import { actionKeyLabel, cameraControlLabels, keyboardActionBindings, menuBindings, type FlightAction } from './flight-input';
 import { isEditableControl, shouldIgnoreGameplayKeyboardEvent, shouldToggleDesktopControlsHelp } from './controls-help';
@@ -1129,9 +1130,13 @@ function disposeAirplaneMaterials(plane: THREE.Group): void {
   for (const material of materials) material.dispose();
 }
 
-let aircraftType: AircraftType = flightTestMode ? persistedPlayer.selectedAircraft : 'trainer';
+const launchAircraft = launchMode === 'free-fly' && !trainingRequested ? flightLaunchAircraft(persistedPlayer.pilotId) : null;
+let waitingForAuthoritativeAircraft = launchMode === 'free-fly' && !trainingRequested && !flightTestMode && !launchAircraft;
+let aircraftType: AircraftType = flightTestMode ? persistedPlayer.selectedAircraft : launchAircraft?.type ?? 'trainer';
 let currentAircraft = aircraftDefinitions[aircraftType];
 let airplane = createAirplane(aircraftType);
+if (launchAircraft) applyEquippedLivery(airplane, aircraftType, launchAircraft.equippedCosmetics);
+if (waitingForAuthoritativeAircraft) airplane.visible = false;
 airplane.position.set(centralAirport.x, groundPlaneY(centralAirport.x, centralAirport.z + centralAirport.spawnOffset), centralAirport.z + centralAirport.spawnOffset);
 scene.add(airplane);
 const spawnPosition = airplane.position.clone();
@@ -1435,6 +1440,7 @@ const seenCreditRewardIds = new Set<string>();
 let combatMessageTimer: number | undefined;
 let healthFlashTimer: number | undefined;
 let hitMarkerTimer: number | undefined;
+let firedSinceWelcome = false;
 let damageFlashTimer: number | undefined;
 
 type AudioCategory = 'engine' | 'combat' | 'impacts' | 'ui';
@@ -3601,6 +3607,7 @@ function showCombatMessage(message: string, hitConfirmed = false): void {
 }
 
 function showHitMarker(): void {
+  if (!firedSinceWelcome) return;
   hitMarkerElement.classList.remove('visible');
   void hitMarkerElement.offsetWidth;
   hitMarkerElement.classList.add('visible');
@@ -5812,11 +5819,12 @@ async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,sl
   }catch{return false;}
 }
 let screenplayControlReleaseTimer:number|undefined;
-let screenplayBrakeReleaseTimer:number|undefined;
+let screenplayPauseTimer:number|undefined;
 let screenplayStabilizeTimer:number|undefined;
 let screenplayCueActive=false;
 let screenplayLandingCue=false;
 let screenplayFinished=false;
+let screenplayFlightPaused=false;
 function screenplayLevelPitch():number{
   if(onGround)return 0;
   const height=altitudeAboveTerrain();
@@ -5827,7 +5835,7 @@ const trainingSlides=new TrainingSlides({
   host:gameplayInfoElement,
   gameRoot:flightGameRoot,
   onOpen:()=>{
-    trainingSlidesOpen=true;screenplayCueActive=false;screenplayLandingCue=false;screenplayFinished=false;
+    trainingSlidesOpen=true;screenplayCueActive=false;screenplayLandingCue=false;screenplayFlightPaused=true;screenplayFinished=false;
     screenplayDallasUnlockAt=undefined;
     mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
     screenplayStabilizeTimer=window.setInterval(()=>{
@@ -5836,27 +5844,29 @@ const trainingSlides=new TrainingSlides({
     },150);
   },
   onClose:()=>{
-    trainingSlidesOpen=false;screenplayCueActive=false;screenplayLandingCue=false;window.clearInterval(screenplayStabilizeTimer);
+    trainingSlidesOpen=false;screenplayCueActive=false;screenplayLandingCue=false;screenplayFlightPaused=false;
+    window.clearTimeout(screenplayPauseTimer);window.clearInterval(screenplayStabilizeTimer);
     mobileInput.setDemoActive(false);clearHeldActions();mobileInput.reset();tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
   },
   onStage:(step)=>{
     window.clearTimeout(screenplayControlReleaseTimer);
-    window.clearTimeout(screenplayBrakeReleaseTimer);
+    window.clearTimeout(screenplayPauseTimer);
     clearHeldActions();
     screenplayCueActive=['takeoff','turnLeft','turnRight','climb','descend'].includes(step);
     screenplayLandingCue=step==='landing';
+    screenplayFlightPaused=['cameraLook','cameraZoom','approach','targetLock','fire'].includes(step);
+    if(!screenplayFlightPaused&&!onGround){
+      velocity.set(-Math.sin(heading)*55,0,-Math.cos(heading)*55);
+      currentSpeed=55;verticalSpeed=0;
+    }
     if(step==='throttle'){runStarted=true;mobileInput.setThrottleState(.85);}
     if(step==='takeoff')mobileInput.setDemoSteering(0,-.7);
     if(step==='turnLeft'||step==='turnRight'){
       mobileInput.setThrottleState(step==='turnLeft'?.25:.35);
       mobileInput.setDemoSteering(step==='turnLeft'?-.16:.16,screenplayLevelPitch());
-      if(step==='turnLeft'){
-        heldActions.add('throttleDown');
-        screenplayBrakeReleaseTimer=window.setTimeout(()=>{heldActions.delete('throttleDown');mobileInput.setThrottleState(.35);},3_000);
-      }
     }
     if(step==='climb')mobileInput.setDemoSteering(0,-.2);
-    if(step==='descend')mobileInput.setDemoSteering(0,.08);
+    if(step==='descend')mobileInput.setDemoSteering(0,.25);
     if(['takeoff','climb','turnLeft','turnRight','descend'].includes(step))
       screenplayControlReleaseTimer=window.setTimeout(()=>{
         screenplayCueActive=false;
@@ -5868,12 +5878,18 @@ const trainingSlides=new TrainingSlides({
     if(step==='fire'){heldActions.add('fire');screenplayControlReleaseTimer=window.setTimeout(()=>heldActions.delete('fire'),1_000);}
     if(step==='landing')mobileInput.setThrottleState(.08);
     else if(!['throttle','takeoff','turnLeft','turnRight','climb','descend'].includes(step))mobileInput.setDemoSteering(0,screenplayLevelPitch());
+    if(!screenplayFlightPaused)screenplayPauseTimer=window.setTimeout(()=>{
+      screenplayFlightPaused=true;
+      screenplayCueActive=false;
+      clearHeldActions();
+      mobileInput.setDemoSteering(0,0);
+    },step==='throttle'?7_000:step==='takeoff'?4_000:step==='landing'?3_500:2_500);
   },
   onStageEnd:(step)=>{
     window.clearTimeout(screenplayControlReleaseTimer);
-    window.clearTimeout(screenplayBrakeReleaseTimer);
+    window.clearTimeout(screenplayPauseTimer);
     clearHeldActions();
-    screenplayCueActive=false;
+    screenplayCueActive=false;screenplayFlightPaused=true;
     if(step==='landing')mobileInput.clearDemoSteering();
     else mobileInput.setDemoSteering(0,screenplayLevelPitch());
     if(step==='cameraLook')cameraOrbitRecenterAt=performance.now();
@@ -9398,7 +9414,7 @@ function animate(): void {
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
-  if (!crashed && runStarted && !journeyPreflightActive() &&
+  if (!crashed && runStarted && !screenplayFlightPaused && !journeyPreflightActive() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -10107,6 +10123,10 @@ function applyServerProfile(profile: unknown, rewardId?: string, revision = sele
   for (const id of discoveredLocationsByCity[cityId] ?? []) discoveredLocationIds.add(id);
   discoverySystem?.hydrate(discoveredLocationIds);
   if (!flightTestMode && !preserveActiveAircraft && profile.selectedAircraft !== aircraftType) applyServerSelectedAircraft(profile.selectedAircraft, true, !serverReset);
+  if (waitingForAuthoritativeAircraft) {
+    airplane.visible = true;
+    waitingForAuthoritativeAircraft = false;
+  }
   updatePendingAircraftEquip();
   if (aircraftGarage.isOpen()) aircraftGarage.updateProfile({
     credits: profile.credits,
@@ -10383,6 +10403,7 @@ function sendFireIntent(): boolean {
   } catch {
     return false;
   }
+  firedSinceWelcome = true;
   spawnMuzzleFeedback(projectileOrigin, projectileDirection, clientShotId, targetId);
   playFireSound();
   return true;
@@ -10761,6 +10782,9 @@ boundSocket.addEventListener('message', (event) => {
     selectionRevision = message.selectionRevision;
     localPlayerId = message.playerId;
     gameplayInfoCard.reset();
+    firedSinceWelcome = false;
+    window.clearTimeout(hitMarkerTimer);
+    hitMarkerElement.classList.remove('visible');
     for (const id of repairHeartSprites.keys()) setHeartCooldown(id, 0);
     for (const cooldown of message.repairCooldowns ?? []) setHeartCooldown(cooldown.id, cooldown.remainingMs);
     fireCooldown = 0;

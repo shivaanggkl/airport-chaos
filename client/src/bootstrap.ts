@@ -20,6 +20,7 @@ import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
 import { PLAYER_STORAGE_KEY } from './player-storage';
+import { setFlightLaunchAircraft } from './flight-launch-aircraft';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
 import { apiFetch, apiOrigin, apiUrl } from './transport';
@@ -2069,6 +2070,11 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
   if (city.status !== 'available' || !city.loadWorld) return;
   const timePreset = resolveCityTimePreset(city, requestedTimePreset);
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
+  setFlightLaunchAircraft(authoritativeHomeProfile ? {
+    pilotId: garageIdentity.pilotId,
+    type: garageProfile.selectedAircraft,
+    equippedCosmetics: { ...garageProfile.cosmetics?.equipped },
+  } : null);
   missionJourneyReturnPending = false;
   missionJourney.hide();
   appHeader.hide();

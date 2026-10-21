@@ -108,7 +108,7 @@ export class TrainingSlides {
     document.body.dataset.trainingSlideControl = scene.control;
     this.positionHand(scene.control, scene.motion);
     this.actionTimer = window.setTimeout(() => { if (this.active) this.options.onStage(step); }, 800);
-    this.timer = window.setTimeout(() => { void this.advance(); }, 5_200);
+    this.timer = window.setTimeout(() => { void this.advance(); }, 10_000);
   }
 
   private positionHand(control: string, motion: string): void {
