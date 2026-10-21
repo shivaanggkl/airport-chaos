@@ -205,6 +205,7 @@ export class MobileInputControls {
   setDemoActive(active: boolean): void {
     this.demoActive = active;
     if (!active) this.clearDemoSteering();
+    this.refresh();
   }
   setPitchInverted(inverted: boolean) {
     this.pitchInverted=inverted;
@@ -336,7 +337,7 @@ export class MobileInputControls {
   }
 
   private refresh() {
-    const enabled = this.deviceEnabled();
+    const enabled = this.deviceEnabled() || this.demoActive;
     const landscape = innerWidth > innerHeight;
     this.root.hidden = !(enabled && landscape);
     document.documentElement.classList.toggle('touch-controls-enabled', enabled);

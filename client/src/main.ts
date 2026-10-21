@@ -4008,14 +4008,14 @@ document.addEventListener('focusin', (event) => {
 let touchInputReported=false;
 const reportTouchInput=()=>{if(!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}};
 const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
-  if (launchCinematicBlocksInput() || trainingSlidesOpen) {
+  if (launchCinematicBlocksInput()) {
     if (!active) heldActions.delete(action);
     return;
   }
   if(active)reportTouchInput();
-  if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action==='fire')fireWeaponOnce();}
+  if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action.startsWith('aim'))screenplayAimUsed=true;if(action==='fire'){const locked=Boolean(selectedCombatTarget?.locked);if(fireWeaponOnce()&&locked)trainingSlides.recordAction('fire');}}
   else heldActions.delete(action);
-},(value)=>{if(launchCinematicBlocksInput()||trainingSlidesOpen)return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);});
+},(value)=>{if(launchCinematicBlocksInput())return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);if(trainingSlides.acceptsInput('landing'))screenplayLandingLastInputAt=performance.now();});
 window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
   const latest=loadPlayerProgress();
   persistedPlayer.muted=audioManager.isMuted();
@@ -4159,7 +4159,10 @@ window.addEventListener('keydown', (event) => {
     if (!['aimLeft', 'aimRight', 'aimUp', 'aimDown'].includes(keyboardActionBindings[event.code])) runStarted = true;
   }
   const action = keyboardActionBindings[event.code];
-  if (!event.repeat && action === 'fire') fireWeaponOnce();
+  if (!event.repeat && action === 'fire') {
+    const locked=Boolean(selectedCombatTarget?.locked);
+    if(fireWeaponOnce()&&locked)trainingSlides.recordAction('fire');
+  }
   if (event.code === menuBindings.restart && crashed) {
     restartGame();
     return;
@@ -4167,12 +4170,12 @@ window.addEventListener('keydown', (event) => {
   if (action) {
     heldKeyboardCodes.add(event.code);
     heldActions.add(action);
+    if(action.startsWith('aim'))screenplayAimUsed=true;
     noteTutorialActionInput(action);
   }
 });
 window.addEventListener('keyup', (event) => {
   if (shouldIgnoreGameplayKeyboardEvent(event)) return;
-  if (trainingSlidesOpen) { heldKeyboardCodes.delete(event.code); return; }
   if (launchCinematicBlocksInput()) {
     heldKeyboardCodes.delete(event.code);
     return;
@@ -4659,6 +4662,9 @@ type ServerMessage =
       spawnAirportId?: string;
       airborneSpawn?: { position: NetworkVector; heading: number; speed: number };
       resumeFlight?: { position: NetworkVector; rotation: NetworkVector; velocity: NetworkVector; onGround: boolean };
+      trainingSlideIndex?: number;
+      trainingPausedAt?: number;
+      serverNow?: number;
       journeyPauseSupported?: boolean;
       health: number;
       maxHealth: number;
@@ -4676,6 +4682,7 @@ type ServerMessage =
       profile: NetworkProfile;
     }
   | { type: 'journeyPauseState'; attemptId: string; paused: boolean; pausedAt?: number; serverNow?: number }
+  | { type: 'trainingPauseState'; paused: boolean }
   | { type: 'protocolMismatch'; expectedProtocolVersion: number }
   | { type: 'equipRejected'; reason: string; equipRequestId: number }
   | { type: 'aircraftPurchaseResult'; purchaseRequestId: number; aircraftType?: unknown; ok: boolean; reason?: string }
@@ -5818,82 +5825,80 @@ async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,sl
     return response.ok;
   }catch{return false;}
 }
-let screenplayControlReleaseTimer:number|undefined;
-let screenplayPauseTimer:number|undefined;
-let screenplayStabilizeTimer:number|undefined;
-let screenplayCueActive=false;
-let screenplayLandingCue=false;
 let screenplayFinished=false;
 let screenplayFlightPaused=false;
-function screenplayLevelPitch():number{
-  if(onGround)return 0;
-  const height=altitudeAboveTerrain();
-  if(verticalSpeed< -4&&height<260)return -.45;
-  return height<100?-.35:height<180?-.2:height>300?.04:-.06;
+let screenplayControlStartedAt=0;
+let screenplayControlHeading=0;
+let screenplayControlAltitude=0;
+let screenplayAimUsed=false;
+let screenplayMapViewed=false;
+let screenplayLandingLastInputAt=0;
+let trainingPaused=false;
+let trainingPauseDeadlineAt=0;
+let trainingPauseSlideIndex=0;
+let trainingResumePending=false;
+let trainingPauseTimer:number|undefined;
+const trainingPauseOverlay=document.createElement('div');
+trainingPauseOverlay.id='training-pause-overlay';
+trainingPauseOverlay.hidden=true;
+trainingPauseOverlay.innerHTML='<section class="training-pause-card"><h2>TRAINING PAUSED</h2><p>Your flight is saved for <strong data-training-pause-time>02:00</strong>.</p><button type="button" data-training-resume>RESUME TRAINING</button><small data-training-pause-status></small></section>';
+flightGameRoot.append(trainingPauseOverlay);
+const trainingPauseTime=trainingPauseOverlay.querySelector<HTMLElement>('[data-training-pause-time]')!;
+const trainingPauseStatus=trainingPauseOverlay.querySelector<HTMLElement>('[data-training-pause-status]')!;
+const trainingResumeButton=trainingPauseOverlay.querySelector<HTMLButtonElement>('[data-training-resume]')!;
+function updateTrainingPause():void{
+  if(!trainingPaused)return;
+  const seconds=Math.max(0,Math.ceil((trainingPauseDeadlineAt-Date.now())/1_000));
+  trainingPauseTime.textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+  trainingResumeButton.disabled=seconds===0||!connectionReady()||trainingResumePending||document.hidden;
+  trainingPauseStatus.textContent=seconds===0?'Pause expired. Reconnecting to restart training…':
+    !connectionReady()?'Reconnecting…':'';
 }
+function pauseTraining():void{
+  if(!trainingSlides.isOpen()||trainingPaused)return;
+  trainingPaused=true;trainingPauseDeadlineAt=Date.now()+journeyPauseLimitMs;
+  trainingPauseSlideIndex=trainingSlides.currentIndex();
+  trainingSlides.suspend();screenplayFlightPaused=true;
+  clearHeldActions();mobileInput.reset();
+  trainingPauseTimer=window.setInterval(updateTrainingPause,1_000);
+  trainingPauseOverlay.hidden=false;updateTrainingPause();
+}
+function clearTrainingPause():void{
+  trainingPaused=false;trainingResumePending=false;
+  window.clearInterval(trainingPauseTimer);trainingPauseTimer=undefined;
+  trainingPauseOverlay.hidden=true;
+}
+trainingResumeButton.addEventListener('click',()=>{
+  if(!trainingPaused||trainingResumePending||Date.now()>=trainingPauseDeadlineAt||!connectionReady())return;
+  trainingResumePending=true;updateTrainingPause();
+  socket.send(JSON.stringify({type:'trainingResume'}));
+});
+window.addEventListener('pagehide',pauseTraining);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseTraining();else updateTrainingPause();});
 const trainingSlides=new TrainingSlides({
   host:gameplayInfoElement,
   gameRoot:flightGameRoot,
   onOpen:()=>{
-    trainingSlidesOpen=true;screenplayCueActive=false;screenplayLandingCue=false;screenplayFlightPaused=true;screenplayFinished=false;
+    trainingSlidesOpen=true;screenplayFlightPaused=true;screenplayFinished=false;
     screenplayDallasUnlockAt=undefined;
     mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
-    screenplayStabilizeTimer=window.setInterval(()=>{
-      if(!screenplayCueActive&&!screenplayLandingCue&&!onGround)
-        mobileInput.setDemoSteering(0,screenplayLevelPitch());
-    },150);
   },
   onClose:()=>{
-    trainingSlidesOpen=false;screenplayCueActive=false;screenplayLandingCue=false;screenplayFlightPaused=false;
-    window.clearTimeout(screenplayPauseTimer);window.clearInterval(screenplayStabilizeTimer);
+    clearTrainingPause();
+    trainingSlidesOpen=false;screenplayFlightPaused=false;
     mobileInput.setDemoActive(false);clearHeldActions();mobileInput.reset();tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
   },
+  onSkip:()=>endTrainingAndNavigate('city'),
   onStage:(step)=>{
-    window.clearTimeout(screenplayControlReleaseTimer);
-    window.clearTimeout(screenplayPauseTimer);
-    clearHeldActions();
-    screenplayCueActive=['takeoff','turnLeft','turnRight','climb','descend'].includes(step);
-    screenplayLandingCue=step==='landing';
-    screenplayFlightPaused=['cameraLook','cameraZoom','approach','targetLock','fire'].includes(step);
-    if(!screenplayFlightPaused&&!onGround){
-      velocity.set(-Math.sin(heading)*55,0,-Math.cos(heading)*55);
-      currentSpeed=55;verticalSpeed=0;
-    }
-    if(step==='throttle'){runStarted=true;mobileInput.setThrottleState(.85);}
-    if(step==='takeoff')mobileInput.setDemoSteering(0,-.7);
-    if(step==='turnLeft'||step==='turnRight'){
-      mobileInput.setThrottleState(step==='turnLeft'?.25:.35);
-      mobileInput.setDemoSteering(step==='turnLeft'?-.16:.16,screenplayLevelPitch());
-    }
-    if(step==='climb')mobileInput.setDemoSteering(0,-.2);
-    if(step==='descend')mobileInput.setDemoSteering(0,.25);
-    if(['takeoff','climb','turnLeft','turnRight','descend'].includes(step))
-      screenplayControlReleaseTimer=window.setTimeout(()=>{
-        screenplayCueActive=false;
-        mobileInput.setDemoSteering(0,screenplayLevelPitch());
-      },step==='takeoff'?2_600:step==='descend'?650:1_200);
-    if(step==='cameraLook'){cameraOrbitBlend=1;cameraOrbitYaw=.4;cameraOrbitPitch=.18;cameraOrbitRecenterAt=performance.now()+5_000;}
-    if(step==='cameraZoom')applyCameraZoom(.8);
+    clearHeldActions();mobileInput.reset();mobileInput.clearDemoSteering();
+    screenplayFlightPaused=true;screenplayControlStartedAt=0;screenplayAimUsed=false;screenplayMapViewed=false;screenplayLandingLastInputAt=0;
+    if(step==='takeoff')mobileInput.setThrottleState(Math.max(throttle,.8));
+    else if(!onGround&&step!=='landing')mobileInput.setThrottleState(throttle);
     if(step==='approach')setActivityWaypoint(centralAirport.x,centralAirport.z,centralAirport.name);
-    if(step==='fire'){heldActions.add('fire');screenplayControlReleaseTimer=window.setTimeout(()=>heldActions.delete('fire'),1_000);}
-    if(step==='landing')mobileInput.setThrottleState(.08);
-    else if(!['throttle','takeoff','turnLeft','turnRight','climb','descend'].includes(step))mobileInput.setDemoSteering(0,screenplayLevelPitch());
-    if(!screenplayFlightPaused)screenplayPauseTimer=window.setTimeout(()=>{
-      screenplayFlightPaused=true;
-      screenplayCueActive=false;
-      clearHeldActions();
-      mobileInput.setDemoSteering(0,0);
-    },step==='throttle'?7_000:step==='takeoff'?4_000:step==='landing'?3_500:2_500);
   },
-  onStageEnd:(step)=>{
-    window.clearTimeout(screenplayControlReleaseTimer);
-    window.clearTimeout(screenplayPauseTimer);
-    clearHeldActions();
-    screenplayCueActive=false;screenplayFlightPaused=true;
-    if(step==='landing')mobileInput.clearDemoSteering();
-    else mobileInput.setDemoSteering(0,screenplayLevelPitch());
-    if(step==='cameraLook')cameraOrbitRecenterAt=performance.now();
-    if(step==='cameraZoom')applyCameraZoom(1.25);
+  onReady:()=>{screenplayControlStartedAt=0;screenplayAimUsed=false;screenplayMapViewed=false;},
+  onStageEnd:()=>{
+    screenplayFlightPaused=true;screenplayControlStartedAt=0;clearHeldActions();mobileInput.reset();
   },
   onAdvance:(index,step)=>postTrainingSlides('advance',index,step),
   onComplete:async()=>{
@@ -5914,6 +5919,73 @@ const trainingSlides=new TrainingSlides({
     tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-dallas]')!.focus();
   },
 });
+function updateTrainingScreenplay(delta:number):void{
+  if(trainingPaused)return;
+  const step=trainingSlides.currentStep();
+  if(!step||!trainingSlides.isPlayerTurn(step)||crashed)return;
+  if(step==='cameraLook'||step==='cameraZoom'||step==='fire')
+    trainingSlides.updateProgress(step,delta);
+  const now=performance.now();
+  const steering=mobileInput.getSteeringInput();
+  const climb=heldActions.has('pitchUp')||steering.y<-.2;
+  const descend=heldActions.has('pitchDown')||steering.y>.2;
+  const left=heldActions.has('yawLeft')||steering.x<-.2;
+  const right=heldActions.has('yawRight')||steering.x>.2;
+  let control=false;
+  if(step==='throttle'){
+    control=heldActions.has('throttleUp')||(mobileInput.getThrottleTarget()??0)>=.7;
+    screenplayFlightPaused=!control;
+    if(control)trainingSlides.beginAction(step);
+    if(control&&currentSpeed>=currentAircraft.takeoffSpeed&&takeoffRollMeters>=currentAircraft.minimumTakeoffRoll)
+      trainingSlides.recordAction(step);
+    trainingSlides.updateProgress(step,delta,control);
+    return;
+  }
+  if(step==='takeoff'){
+    screenplayFlightPaused=!climb;
+    if(climb)trainingSlides.beginAction(step);
+    if(climb&&!onGround)trainingSlides.recordAction(step);
+    trainingSlides.updateProgress(step,delta,climb);
+    return;
+  }
+  if(step==='turnLeft'||step==='turnRight'||step==='climb'||step==='descend'){
+    control=step==='turnLeft'?left:step==='turnRight'?right:step==='climb'?climb:descend;
+    screenplayFlightPaused=!control;
+    if(!control){screenplayControlStartedAt=0;return;}
+    trainingSlides.beginAction(step);
+    if(!screenplayControlStartedAt){
+      screenplayControlStartedAt=now;screenplayControlHeading=heading;screenplayControlAltitude=altitudeAboveTerrain();
+    }
+    const turned=tutorialTurnProgress(step,heading-screenplayControlHeading)>.035;
+    const altitudeChange=altitudeAboveTerrain()-screenplayControlAltitude;
+    if(now-screenplayControlStartedAt>=800&&(
+      ((step==='turnLeft'||step==='turnRight')&&turned)||
+      (step==='climb'&&altitudeChange>3)||
+      (step==='descend'&&(altitudeChange< -2||pitchControlStrength<-.35))
+    ))trainingSlides.recordAction(step);
+    trainingSlides.updateProgress(step,delta,control);
+    return;
+  }
+  if(step==='targetLock'){
+    if(screenplayAimUsed)trainingSlides.beginAction(step);
+    if(screenplayAimUsed&&combatLockState==='LOCKED')trainingSlides.recordAction(step);
+    const aiming=heldActions.has('aimLeft')||heldActions.has('aimRight')||heldActions.has('aimUp')||heldActions.has('aimDown');
+    trainingSlides.updateProgress(step,delta,aiming||combatLockState==='LOCKED');
+    return;
+  }
+  if(step==='approach'){
+    if(screenplayMapViewed&&!worldMap.isOpen())trainingSlides.recordAction(step);
+    trainingSlides.updateProgress(step,delta,screenplayMapViewed);
+    return;
+  }
+  if(step==='landing'){
+    control=heldActions.has('throttleDown')||heldActions.has('throttleUp')||climb||descend||left||right;
+    if(control){screenplayLandingLastInputAt=now;trainingSlides.beginAction(step);}
+    screenplayFlightPaused=screenplayLandingLastInputAt===0||now-screenplayLandingLastInputAt>8_000;
+    if(screenplayLandingLastInputAt&&onGround)trainingSlides.recordAction(step);
+    trainingSlides.updateProgress(step,delta,control||onGround);
+  }
+}
 let screenplayDallasUnlockAt:number|undefined;
 tutorialIntroPanel.querySelector('[data-training-dallas]')!.addEventListener('click',()=>{
   const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
@@ -5945,7 +6017,7 @@ registerUiBackLayer({
 registerUiBackLayer({
   id: 'training-slides',
   priority: uiBackPriority.modal + 30,
-  isActive: () => trainingSlides.isOpen(),
+  isActive: () => trainingSlides.isOpen() && !worldMap.isOpen(),
   close: () => { trainingSlides.close(); void endTrainingAndNavigate('hub'); },
 });
 registerUiBackLayer({
@@ -6130,7 +6202,7 @@ function requestTutorialRunReset(reason:'crash'|'replay'):void{
   tutorialRunResetPending=true;clearHeldActions();mobileInput.reset();
   socket.send(JSON.stringify({type:'tutorialRunReset',tutorialResetReason:reason}));
 }
-function setGuidedTutorial(active:boolean):void{
+function setGuidedTutorial(active:boolean,resumeSlideIndex?:number):void{
   if(!cityRules.tutorialEnabled)return;
   if(active) cinematicDirector.clearPresentation();
   ambientTraffic?.setTutorialMode(active);
@@ -6145,7 +6217,7 @@ function setGuidedTutorial(active:boolean):void{
   tutorialNavigationCoach=active&&guidedTutorialStep==='approach'&&guidedTutorialSteps.cameraZoom==='completed'&&!tutorialNavigationCoachSeen?(resumeNavigationMap?'map':'radar'):undefined;
   syncTutorialNavigationMap();
   resetTutorialLessonMetrics();
-  tutorialIntroPending=active&&!tutorialIntroShown&&guidedTutorialStep!=='landing';
+  tutorialIntroPending=active&&resumeSlideIndex===undefined&&!tutorialIntroShown&&guidedTutorialStep!=='landing';
   if(tutorialIntroPending)tutorialIntroShown=true;
   tutorialIntroPanel.hidden=true;
   tutorialPanel.hidden=!active||tutorialIntroPending;
@@ -6162,7 +6234,10 @@ function setGuidedTutorial(active:boolean):void{
   }
   if(active&&guidedTutorialStep==='freePractice'){enterFreePractice();return;}
   renderTutorialPanel();
-  if(tutorialIntroPending){
+  if(active&&resumeSlideIndex!==undefined){
+    mobileInput.setPitchInverted(false);
+    trainingSlides.open(resumeSlideIndex);
+  }else if(tutorialIntroPending){
     mobileInput.setPitchInverted(false);
     void postTrainingSlides('start').then(started=>{
       if(!guidedTutorialActive||!tutorialIntroPending)return;
@@ -6905,6 +6980,7 @@ const toggleWorldMapFromHud = () => {
   if (pilotMenu.isOpen()) pilotMenu.close();
   contextualHints.dismiss();
   worldMap.toggle();
+  if(trainingSlides.isPlayerTurn('approach')&&worldMap.isOpen()){screenplayMapViewed=true;trainingSlides.beginAction('approach');}
   if (worldMap.isOpen()) contextualHints.trigger('firstDestination');
 };
 const openTutorialMapFromRadar=()=>{
@@ -6992,6 +7068,7 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     contextualHints.dismiss();
     worldMap.toggle();
+    if(trainingSlides.isPlayerTurn('approach')&&worldMap.isOpen()){screenplayMapViewed=true;trainingSlides.beginAction('approach');}
     if (worldMap.isOpen()) contextualHints.trigger('firstDestination');
   }
 });
@@ -6999,6 +7076,7 @@ window.addEventListener('keydown', (event) => {
 const applyCameraZoom = (zoomFactor: number): void => {
   const previousDistance=cameraDistanceMultiplier;
   cameraDistanceMultiplier = THREE.MathUtils.clamp(cameraDistanceMultiplier * zoomFactor, 0.62, 1.8);
+  if(Math.abs(cameraDistanceMultiplier-previousDistance)>.04)trainingSlides.recordAction('cameraZoom');
   if(guidedTutorialActive&&!tutorialIntroPending&&guidedTutorialStep==='cameraZoom'){
     tutorialZoomTravel+=Math.abs(cameraDistanceMultiplier-previousDistance);
     if(tutorialZoomTravel>=.12)advanceGuidedTutorial('cameraZoomed');
@@ -7083,6 +7161,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
     tutorialCameraTravel+=Math.hypot(deltaX,deltaY);
     if(tutorialCameraTravel>=60)advanceGuidedTutorial('cameraMoved');
   }
+  if(Math.hypot(deltaX,deltaY)>8)trainingSlides.recordAction('cameraLook');
   cameraOrbitPointerX = event.clientX;
   cameraOrbitPointerY = event.clientY;
   // This is the single continuous manual yaw accumulator. It is deliberately
@@ -9408,7 +9487,7 @@ function animate(): void {
   if (stabilityQaMode) stabilityQaFrames += 1;
   const realDelta = clock.getDelta();
   const delta = Math.min(realDelta, 0.05);
-  if (journeyPaused) return;
+  if (journeyPaused || trainingPaused) return;
   updateMissionStartCountdown();
   updateMissionClear(delta);
   mobileInput.syncFlightState(throttle, boostMeter, boostActive);
@@ -9431,6 +9510,7 @@ function animate(): void {
   updateCombatThreatWarning();
   updateGuidedTutorial();
   updateCombatTarget(delta);
+  updateTrainingScreenplay(delta);
   updateAircraftVisuals(delta);
   updateProjectiles(delta);
   updateFlashEffects(muzzleFlashes, muzzleFlashPool, delta);
@@ -10340,7 +10420,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
 });
 
 function sendLocalState(introHandshake = false): void {
-  if (journeyPaused || !localPlayerId || !connectionReady()) return;
+  if (journeyPaused || trainingPaused || !localPlayerId || !connectionReady()) return;
   if (missionStartCountdownPending || missionStartCountdownStartedAt !== null) return;
   if (!introHandshake && (airborneIntroAwaiting || runwayJourneyIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath) && flightLaunchState === 'active')) return;
   flushProfileRewards();
@@ -10756,6 +10836,14 @@ boundSocket.addEventListener('message', (event) => {
       setJourneyPaused(message.paused, pauseDeadlineFromServer(message.pausedAt, message.serverNow), !message.paused);
     return;
   }
+  if (message.type === 'trainingPauseState') {
+    if (!message.paused && trainingPaused && !document.hidden) {
+      clearTrainingPause();
+      trainingSlides.resume(trainingPauseSlideIndex);
+      mobileInput.setThrottleState(throttle);
+    }
+    return;
+  }
   if (message.type === 'welcome') {
     if (message.protocolVersion !== PROTOCOL_VERSION) {
       blockProtocolConnection('Version mismatch — reload page and restart server');
@@ -10780,6 +10868,7 @@ boundSocket.addEventListener('message', (event) => {
     setConnectionWarning(false);
     pendingEquip = undefined;
     selectionRevision = message.selectionRevision;
+    const previousPlayerId=localPlayerId;
     localPlayerId = message.playerId;
     gameplayInfoCard.reset();
     firedSinceWelcome = false;
@@ -10852,7 +10941,26 @@ boundSocket.addEventListener('message', (event) => {
       setFlightState('FLYING');
       updateCamera(1);
     }
-    if (journeyMode && message.resumeFlight) {
+    if(!message.tutorialMode&&trainingSlidesOpen)trainingSlides.close();
+    if(message.tutorialMode&&cityRules.tutorialEnabled){
+      const resumedTraining=Boolean(message.resumeFlight&&message.trainingPausedAt!==undefined);
+      if(!resumedTraining||!trainingSlidesOpen||previousPlayerId!==message.playerId){
+        if(trainingSlidesOpen){trainingSlides.close();tutorialIntroShown=false;}
+        cancelPendingFlightLaunch();
+        applyServerSelectedAircraft(message.activeAircraftType,false,false);
+        setGuidedTutorial(true,resumedTraining?message.trainingSlideIndex??0:undefined);
+      }
+      if(resumedTraining){
+        trainingPauseSlideIndex=message.trainingSlideIndex??0;
+        trainingPaused=true;trainingResumePending=false;
+        trainingPauseDeadlineAt=Date.now()+Math.max(0,message.trainingPausedAt!+journeyPauseLimitMs-(message.serverNow??Date.now()));
+        trainingSlides.suspend();screenplayFlightPaused=true;
+        trainingPauseOverlay.hidden=false;
+        if(trainingPauseTimer===undefined)trainingPauseTimer=window.setInterval(updateTrainingPause,1_000);
+        updateTrainingPause();
+      }
+    }
+    if ((journeyMode||message.tutorialMode) && message.resumeFlight) {
       const flight = message.resumeFlight;
       runStarted = true;
       crashed = false;
@@ -10868,9 +10976,8 @@ boundSocket.addEventListener('message', (event) => {
       boostActive = false;
       setFlightState(onGround ? 'TAXI' : 'FLYING');
       updateCamera(1);
-      setJourneyPaused(true);
+      if(journeyMode)setJourneyPaused(true);
     }
-    if(message.tutorialMode&&cityRules.tutorialEnabled){cancelPendingFlightLaunch();applyServerSelectedAircraft(message.activeAircraftType,false,false);setGuidedTutorial(true);}
     applySocialState(message.social);
     reconcileRemotePlayers(message.players);
     for (const player of message.players) updateRemotePlayer(player);
@@ -10902,6 +11009,11 @@ boundSocket.addEventListener('message', (event) => {
     tutorialNavigationCoach=undefined;tutorialNavigationCoachSeen=false;syncTutorialNavigationMap();
     guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
     tutorialIntroPanel.hidden=!screenplayFinished;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
+    if(trainingSlidesOpen)void postTrainingSlides('start').then(started=>{
+      if(!trainingSlidesOpen)return;
+      if(started)trainingSlides.restart();
+      else showProgressMessage('SERVER REQUIRED TO RESTART TRAINING');
+    });
     gameplayFeedback.push({type:'mission',primaryText:'TRAINING RESTARTED',secondaryText:'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
   } else if(message.type==='tutorialTarget'){
     tutorialTargetId=message.targetId;tutorialTargetRequested=true;

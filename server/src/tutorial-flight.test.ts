@@ -300,11 +300,13 @@ test('ordered gameplay slides unlock Dallas without granting rewards', () => {
   store.setTutorialState(pilot.pilotId,'started');
   assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt),undefined);
   assert.equal(store.startTrainingSlides(pilot.pilotId,startedAt),true);
+  assert.equal(store.trainingSlideIndex(pilot.pilotId),0);
   assert.equal(store.advanceTrainingSlide(pilot.pilotId,1,trainingSlideIds[1]!,startedAt),false);
   assert.equal(store.advanceTrainingSlide(pilot.pilotId,0,'wrong-step',startedAt),false);
   for(let index=0;index<trainingSlideIds.length-1;index++){
     assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+index),undefined);
     assert.equal(store.advanceTrainingSlide(pilot.pilotId,index,trainingSlideIds[index]!,startedAt+index),true);
+    assert.equal(store.trainingSlideIndex(pilot.pilotId),index+1,'resume uses the saved lesson');
     assert.equal(store.advanceTrainingSlide(pilot.pilotId,index,trainingSlideIds[index]!,startedAt+index),true,'retry is idempotent');
     if(index>1)assert.equal(store.advanceTrainingSlide(pilot.pilotId,index-2,trainingSlideIds[index-2]!,startedAt+index),true,'revisiting earlier slides can move forward');
   }

@@ -27,7 +27,7 @@ import { boundJourneyHunterPoint, insideJourneyHunterArena, journeyHunterSteerin
 import { aceDamageAuthorized } from './journey-ace.js';
 import { CrossfireFireCoordinator } from './journey-crossfire.js';
 import { escapeInterval } from './journey-escape.js';
-import { JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
+import { JOURNEY_PAUSE_LIMIT_MS, JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
 import { localJourneyQaUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
 import { SpeedGateTracker } from './speed-gate-validation.js';
 import { observedChampionshipTouchdown } from './championship-landing.js';
@@ -377,6 +377,7 @@ const twoFrontAlpha = territoriesForCity('dallas').find(territory => territory.i
 const twoFrontBravo = territoriesForCity('dallas').find(territory => territory.id === journeyDallas21.bravoTerritoryId)!;
 const playerJourneyAttempts = new Map<string, string>();
 const pausedJourneyPlayers = new Map<string, { attemptId: string; accountId?: string; sessionTokenHash: string }>();
+const pausedTrainingPlayers = new Map<string, { pausedAt: number; sessionTokenHash: string }>();
 const pausedJourneyAttempts = new Set<string>();
 const speedGateTracker = new SpeedGateTracker();
 const speedGateWarningAt = new Map<string, number>();
@@ -1976,7 +1977,7 @@ function broadcastLeaderboard(cityId: CityId): void {
     type: 'leaderboard',
     cityId,
     players: [...players.entries()]
-      .filter(([playerId, player]) => player.cityId === cityId && !player.isBot && !pausedJourneyPlayers.has(playerId))
+      .filter(([playerId, player]) => player.cityId === cityId && !player.isBot && !pausedJourneyPlayers.has(playerId) && !pausedTrainingPlayers.has(playerId))
       .map(([playerId, player]) => ({
         playerId,
         displayName: player.displayName,
@@ -4227,7 +4228,7 @@ function removePlayerProjectiles(playerId: string): void {
 
 function updateRespawningPlayers(now: number): void {
   for (const [playerId, player] of players) {
-    if (pausedJourneyPlayers.has(playerId)) continue;
+    if (pausedJourneyPlayers.has(playerId) || pausedTrainingPlayers.has(playerId)) continue;
     if (
       player.lifeState !== 'respawning' ||
       !player.hasRespawnTransform ||
@@ -6374,7 +6375,7 @@ function logStabilityDiagnostics(): void {
 
 function updateRepairStations(now: number): void {
   for (const [playerId, player] of players) {
-    if (pausedJourneyPlayers.has(playerId)) continue;
+    if (pausedJourneyPlayers.has(playerId) || pausedTrainingPlayers.has(playerId)) continue;
     if (player.lifeState !== 'alive' || !player.hasRespawnTransform || now - player.lastStateAt > 1_500) {
       airportRepairStays.delete(playerId);
       repairLastPosition.delete(playerId);
@@ -6518,7 +6519,7 @@ setInterval(() => {
 }, 1_000);
 setInterval(() => updateTerritories(Date.now()), territoryTickMs);
 setInterval(() => tickMissions(Date.now()), 1_000);
-setInterval(() => expirePausedJourneys(Date.now()), 1_000);
+setInterval(() => { expirePausedJourneys(Date.now()); expirePausedTraining(Date.now()); }, 1_000);
 setInterval(() => {
   const now = Date.now();
   for (const [playerId, attemptId] of playerJourneyAttempts) {
@@ -6664,6 +6665,26 @@ function pausePlayerJourney(playerId: string, now = Date.now()): boolean {
   return true;
 }
 
+function pausePlayerTraining(playerId: string, now = Date.now()): boolean {
+  const player = players.get(playerId);
+  if (!player?.tutorialMode || !player.sessionTokenHash) return false;
+  pausedTrainingPlayers.set(playerId, { pausedAt: pausedTrainingPlayers.get(playerId)?.pausedAt ?? now, sessionTokenHash: player.sessionTokenHash });
+  return true;
+}
+
+function expirePausedTraining(now = Date.now()): void {
+  for (const [playerId, paused] of pausedTrainingPlayers) {
+    if (now - paused.pausedAt < JOURNEY_PAUSE_LIMIT_MS) continue;
+    pausedTrainingPlayers.delete(playerId);
+    for (const [socket, connectedId] of playerSockets) {
+      if (connectedId !== playerId) continue;
+      playerSockets.delete(socket);
+      socket.close(4001, 'Training pause expired');
+    }
+    cleanupHumanPlayer(playerId);
+  }
+}
+
 function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: number): void {
   const shift = (value: number): number => value > 0 ? value + pausedMs : value;
   const player = players.get(playerId);
@@ -6752,6 +6773,7 @@ function cleanupHumanPlayer(playerId: string, socket?: WebSocket): void {
   const paused = pausedJourneyPlayers.get(playerId);
   if (paused) pausedJourneyAttempts.delete(paused.attemptId);
   pausedJourneyPlayers.delete(playerId);
+  pausedTrainingPlayers.delete(playerId);
   const analyticsContext = analyticsContexts.get(playerId);
   const flight = flightAnalytics.get(playerId);
   if (analyticsContext && flight) {
@@ -6807,9 +6829,9 @@ function removeHumanConnection(socket: WebSocket): void {
   const player = players.get(playerId);
   playerSockets.delete(socket);
   if (!player) return;
-  if (pausePlayerJourney(playerId)) {
+  if (pausePlayerJourney(playerId) || pausePlayerTraining(playerId)) {
     broadcastToCity(player.cityId, { type: 'remove', playerId }, socket);
-    console.log(`[server] journey paused: ${playerId}`);
+    console.log(`[server] flight paused: ${playerId}`);
     return;
   }
   cleanupHumanPlayer(playerId, socket);
@@ -6854,6 +6876,20 @@ server.on('connection', (socket, request) => {
   if (activatedTrialOnConnect) profile = profileStore.activateFighterTrial(identity.pilotId)!;
   profile = profileStore.objectivesForCity(identity.pilotId, cityId)!;
   const tutorialMode = Boolean(connectionParams.get('launchMode') !== 'free-fly' && cityCapabilities(cityId)?.tutorialEnabled && profile.tutorial.status === 'started');
+  expirePausedTraining(Date.now());
+  let restoringPausedTraining = false;
+  if (tutorialMode) {
+    const pausedPlayerId = [...pausedTrainingPlayers].find(([id, paused]) =>
+      players.get(id)?.pilotId === profile.pilotId && players.get(id)?.cityId === cityId &&
+      paused.sessionTokenHash === identity.session.tokenHash)?.[0];
+    if (pausedPlayerId) {
+      playerId = pausedPlayerId;
+      restoringPausedTraining = true;
+      const restored = players.get(playerId)!;
+      restored.sessionTokenHash = identity.session.tokenHash;
+      restored.profile = profile;
+    }
+  }
   const intercityArrival=tutorialMode ? {completed:false,credits:0} : profileStore.completeIntercityArrival(identity.pilotId,cityId);
   if(intercityArrival.completed&&intercityArrival.profile)profile=intercityArrival.profile;
   const priorWeeklyRewardId = profile.weeklyReward?.weekId;
@@ -6944,7 +6980,7 @@ server.on('connection', (socket, request) => {
         : candidate);
     if (!journeyAttempt) { socket.close(4003, 'Journey attempt unavailable'); return; }
   }
-  const spawnSlot = restoringPausedJourney ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);
+  const spawnSlot = restoringPausedJourney || restoringPausedTraining ? players.get(playerId)?.spawnSlot ?? 0 : reserveSpawnSlot(cityId);
   const spawnPosition = { x: 0, y: 1.2, z: 45 + spawnSlot * 15 };
   const spawnAirportId = journeyAttempt?.missionId === journeyDallas24.id ? journeyDallas24.startAirportId
     : journeyAttempt?.missionId === journeyDallas23.id ? journeyDallas23.startAirportId
@@ -6972,7 +7008,7 @@ server.on('connection', (socket, request) => {
     const restored = players.get(playerId)!;
     restored.profile = profile;
     restored.sessionTokenHash = identity.session.tokenHash;
-  } else players.set(playerId, {
+  } else if (!restoringPausedTraining) players.set(playerId, {
     pilotId: profile.pilotId,
     accountId: identity.session.accountId,
     sessionTokenHash: identity.session.tokenHash,
@@ -7033,17 +7069,17 @@ server.on('connection', (socket, request) => {
   const journeyToken = new URL(request.url ?? '/', 'http://localhost').searchParams.get('analyticsSession');
   const journeyId = journeyToken && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(journeyToken) ? `${profile.pilotId}:${journeyToken}` : undefined;
   const analyticsContext: AnalyticsContext = { pilotId: profile.pilotId, sessionId: playerId, journeyId, cityId, aircraftType: profile.selectedAircraft, platform: analyticsPlatform(request), ...host };
-  if (!restoringPausedJourney) {
+  if (!restoringPausedJourney && !restoringPausedTraining) {
     analyticsContexts.set(playerId, analyticsContext);
     analyticsStore.startSession(analyticsContext);
   }
-  if (!tutorialMode && !restoringPausedJourney) {
+  if (!tutorialMode && !restoringPausedJourney && !restoringPausedTraining) {
     const startedAt = Date.now();
     flightAnalytics.set(playerId, { startedAt, airborneMs: 0, distanceMeters: 0, startingScore: players.get(playerId)?.score ?? 0, kills: 0, landings: 0, missions: 0 });
     analyticsStore.recordEvent(analyticsContext, 'flight_started', {}, startedAt);
     analyticsStore.recordEvent(analyticsContext, 'game_started', {}, startedAt);
   }
-  if (!restoringPausedJourney) {
+  if (!restoringPausedJourney && !restoringPausedTraining) {
     analyticsStore.recordEvent(analyticsContext,'city_entered',{source:intercityArrival.completed?'intercity':'direct'});
     if(intercityArrival.completed)analyticsStore.recordEvent(analyticsContext,'intercity_route_completed',{amount:intercityArrival.credits,source:intercityArrival.routeId});
     if (activatedTrialOnConnect) analyticsStore.recordEvent(analyticsContext, 'fighter_trial_started', { source: 'garage' });
@@ -7069,11 +7105,13 @@ server.on('connection', (socket, request) => {
       cityId,
       tutorialMode,
       tutorialSteps: profileStore.tutorialStepStates(profile.pilotId),
+      ...(restoringPausedTraining ? { trainingSlideIndex: profileStore.trainingSlideIndex(profile.pilotId) } : {}),
+      ...(restoringPausedTraining ? { trainingPausedAt: pausedTrainingPlayers.get(playerId)!.pausedAt, serverNow: Date.now() } : {}),
       activeAircraftType,
       spawnPosition,
       spawnAirportId,
       ...(!restoringPausedJourney && airborneSpawn ? { airborneSpawn } : {}),
-      ...(restoringPausedJourney ? { resumeFlight: {
+      ...(restoringPausedJourney || restoringPausedTraining ? { resumeFlight: {
         position: players.get(playerId)!.position,
         rotation: players.get(playerId)!.rotation,
         velocity: players.get(playerId)!.velocity,
@@ -7095,7 +7133,7 @@ server.on('connection', (socket, request) => {
         return remainingMs > 0 ? [{ id: beacon.id, remainingMs }] : [];
       }),
       players: [...players.entries()]
-        .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && !pausedJourneyPlayers.has(existingPlayerId) && player.cityId === cityId &&
+        .filter(([existingPlayerId, player]) => existingPlayerId !== playerId && !pausedJourneyPlayers.has(existingPlayerId) && !pausedTrainingPlayers.has(existingPlayerId) && player.cityId === cityId &&
           (!player.trainingOwnerId || player.trainingOwnerId === playerId))
         .map(([existingPlayerId, player]) => ({
           playerId: existingPlayerId,
@@ -7116,7 +7154,10 @@ server.on('connection', (socket, request) => {
     },
   );
   if (journeyAttempt) sendJourneyState(playerId, journeyAttempt);
-  if(tutorialMode&&profileStore.nextPendingTutorialStep(profile.pilotId)==='landing')sendTutorialLandingApproach(playerId,players.get(playerId)!);
+  if(tutorialMode&&!restoringPausedTraining&&profileStore.nextPendingTutorialStep(profile.pilotId)==='landing')sendTutorialLandingApproach(playerId,players.get(playerId)!);
+  if (restoringPausedTraining && (profileStore.trainingSlideIndex(profile.pilotId) ?? 0) >= 8 &&
+      (profileStore.trainingSlideIndex(profile.pilotId) ?? 0) <= 10)
+    createTrainingTarget(playerId, players.get(playerId)!);
   broadcastToCity(cityId, { type: 'cosmeticChanged', playerId, equipped: profile.cosmetics.equipped });
   if (weeklyRewardNew && weeklyReward) {
     sendSocketMessage(socket, { type: 'weeklyRewardClaimed', reward: weeklyReward });
@@ -7178,6 +7219,16 @@ server.on('connection', (socket, request) => {
       } & Partial<Transform>;
       const player = players.get(playerId);
       if (!player) return;
+      if (message.type === 'trainingResume' && pausedTrainingPlayers.has(playerId)) {
+        const paused = pausedTrainingPlayers.get(playerId)!;
+        if (Date.now() - paused.pausedAt >= JOURNEY_PAUSE_LIMIT_MS) { expirePausedTraining(Date.now()); return; }
+        pausedTrainingPlayers.delete(playerId);
+        player.lastStateAt = Date.now();
+        player.lastAcceptedTransformAt = Date.now();
+        sendToPlayer(playerId, { type: 'trainingPauseState', paused: false });
+        return;
+      }
+      if (pausedTrainingPlayers.has(playerId)) return;
       if (message.type === 'journeyPause') {
         if (message.attemptId === playerJourneyAttempts.get(playerId)) pausePlayerJourney(playerId);
         return;

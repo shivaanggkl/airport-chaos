@@ -718,6 +718,11 @@ export class PlayerProfileStore {
     return true;
   }
 
+  trainingSlideIndex(pilotId:string):number|undefined{
+    const row=this.database.prepare('SELECT slide_index FROM pilot_training_slides WHERE pilot_id=?').get(pilotId) as {slide_index:number}|undefined;
+    return row?.slide_index;
+  }
+
   advanceTrainingSlide(pilotId:string,slideIndex:number,slideId:string,now=Date.now()):boolean{
     if(!Number.isInteger(slideIndex)||slideIndex<0||slideIndex>=trainingSlideIds.length-1||trainingSlideIds[slideIndex]!==slideId)return false;
     const result=this.database.prepare(`UPDATE pilot_training_slides SET slide_index=slide_index+1,updated_at=?
