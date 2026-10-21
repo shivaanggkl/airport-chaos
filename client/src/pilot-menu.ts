@@ -12,14 +12,16 @@ import { legalPolicyHref } from './brand';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
-export type PilotMenuSection = 'PROFILE' | 'ACCOUNT' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
+export type PilotMenuSection = 'MISSION' | 'PROFILE' | 'ACCOUNT' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
 export type PilotMenuOptions = {
   sections?: readonly PilotMenuSection[];
   title?: string;
   closeLabel?: string | (() => string);
   showFlightActions?: boolean;
   appShell?: boolean;
+  flightMode?: 'single' | 'training' | 'multiplayer';
   showContextStatus?: boolean;
+  beforeClose?: () => boolean;
   onClose?: () => void;
 };
 
@@ -83,6 +85,9 @@ export type PilotProfileSummary = {
 };
 
 export type PilotMenuData = {
+  flightMission?: { name: string; objective: string; progress: string; time: string; gatesCleared: number; gateCount: number; pauseRemaining?: string };
+  resumeFlight?: () => void;
+  restartFlight?: () => void;
   profileSummary?: PilotProfileSummary;
   account: {
     state: 'guest' | 'account'; email?: string; pilotName: string;
@@ -115,12 +120,12 @@ export type PilotMenuData = {
     canClaim: boolean;
     notice?: string;
     state: { schedule: readonly number[]; nextDay: number; nextAmount: number; claimable: boolean; claimedDays: readonly number[]; claimCount: number; lastClaimedAt?: number; nextEligibleAt: number; serverNow: number };
-    claim: () => Promise<PilotMenuAccountResult>;
+    claim: (source: DOMRect) => Promise<PilotMenuAccountResult>;
     watchAndEarn?: {
       notice?: string;
       phase: 'idle' | 'loading' | 'playing' | 'verifying';
       state: { supported: boolean; rewardCredits: number; rewardCreditsByStep: readonly number[]; maxRewards: number; remaining: number; windowStartedAt?: number; windowEndsAt?: number; serverNow: number; activeAttempt?: { attemptId: string; status: string; expiresAt: number } };
-      watch: () => Promise<void>;
+      watch: (source: DOMRect) => Promise<void>;
     };
     invite?: {
       code: string; url: string; joinedCount: number; qualifiedCount: number; earnedCredits: number;
@@ -280,6 +285,7 @@ export class PilotMenu {
   private inviteOpen = false;
   private inviteNotice = '';
   private rewardsTimer?: number;
+  private rewardCountdownTimer?: number;
   private rewardsReturnFocus?: HTMLElement;
   private rewardsBackground: HTMLElement[] = [];
   private selectedMobileControl: MobileControlId = 'stick';
@@ -418,7 +424,7 @@ export class PilotMenu {
     this.element.hidden = false;
     if (this.backButton) this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
     this.render(data);
-    if (this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(section)) this.backButton?.focus({ preventScroll: true });
+    if ((this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(section)) || this.options.flightMode) this.backButton?.focus({ preventScroll: true });
     if (this.options.appShell && section === 'REWARDS') {
       this.rewardsBackground = [...document.querySelectorAll<HTMLElement>('.home-hangar')];
       this.rewardsBackground.forEach(element => { element.inert = true; });
@@ -441,6 +447,28 @@ export class PilotMenu {
     if (!this.openState || (!force && (this.pointerActive || this.isActivelyScrolling()))) return;
     if (!force && this.activeSection === 'PROFILE' && this.profileNameEditing) { this.lastData = data; return; }
     const snapshot = this.snapshot(data);
+    if (this.options.flightMode === 'single' && this.activeSection === 'MISSION' && this.content?.querySelector('.pilot-flight-mission-layout')) {
+      this.lastData = data;
+      this.lastSnapshot = snapshot;
+      const mission = data.flightMission;
+      const details = this.content.querySelector('.pilot-flight-mission-details');
+      if (mission && details) {
+        const update = (selector: string, value: string) => {
+          const element = details.querySelector<HTMLElement>(selector);
+          if (element && element.textContent !== value) element.textContent = value;
+        };
+        update('h2', mission.name);
+        update('.pilot-flight-mission-objective', mission.objective);
+        update('.pilot-flight-progress-value', mission.progress);
+        update('.pilot-flight-time', mission.time);
+        const segments = details.querySelector('.pilot-flight-gate-segments');
+        if (segments) {
+          segments.setAttribute('aria-label', `${mission.gatesCleared} of ${mission.gateCount} gates cleared`);
+          segments.querySelectorAll('i').forEach((item, index) => item.classList.toggle('is-cleared', index < mission.gatesCleared));
+        }
+      }
+      return;
+    }
     if (snapshot === this.lastSnapshot) {
       if (this.activeSection === 'MISSIONS') this.updateActiveMission(data);
       if (this.activeSection === 'PROGRESS') this.updateLiveProgress(data);
@@ -452,6 +480,7 @@ export class PilotMenu {
 
   private snapshot(data: PilotMenuData): string {
     switch (this.activeSection) {
+      case 'MISSION': return JSON.stringify([this.activeSection, data.flightMission]);
       case 'PROFILE': return JSON.stringify([this.activeSection, data.account.state, data.account.pilotName, data.account.level, data.account.xp, data.profileSummary, data.account.notice]);
       case 'ACCOUNT': return JSON.stringify([this.activeSection, data.account.state, data.account.email, data.account.providers, data.account.notice]);
       case 'MISSIONS': return JSON.stringify([this.activeSection, data.missions.activeId,
@@ -533,25 +562,27 @@ export class PilotMenu {
     if (this.content) return this.content;
     const card = document.createElement('article');
     card.className = 'pilot-menu-card app-shell-panel';
-    card.classList.toggle('is-app-shell-screen', this.options.appShell === true);
+    const settingsLayout = this.options.appShell === true || this.options.flightMode !== undefined;
+    card.classList.toggle('is-app-shell-screen', settingsLayout);
     const header = document.createElement('header');
     const heading = document.createElement('div');
     const kicker = textElement('span', this.options.title ?? 'PILOT MENU', 'pilot-menu-kicker');
-    const title = this.options.appShell ? createContextPageTitle('What do you want to do?') : textElement('h1', 'What do you want to do?');
+    const title = settingsLayout ? createContextPageTitle('What do you want to do?') : textElement('h1', 'What do you want to do?');
     title.dataset.pilotMenuTitle = '';
     const brand = textElement('span', 'AIRPORT CHAOS', 'pilot-menu-kicker');
     heading.append(brand, kicker, title);
     void mountAirportChaosLogo(brand, 'brand-logo-menu');
     const cityStatus = document.createElement('span'); cityStatus.className = 'pilot-menu-city-status'; cityStatus.dataset.cityStatus = '';
     const closeLabel = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
-    const close = this.options.appShell ? createContextBackButton(closeLabel, closeTopUiLayer) : actionButton({ label: closeLabel, run: closeTopUiLayer });
-    if (!this.options.appShell) close.classList.add('context-back');
+    const closeAction = this.options.flightMode ? () => this.close() : closeTopUiLayer;
+    const close = settingsLayout ? createContextBackButton(closeLabel, closeAction) : actionButton({ label: closeLabel, run: closeAction });
+    if (!settingsLayout) close.classList.add('context-back');
     this.backButton = close;
-    if (this.options.appShell) close.classList.add('page-back');
+    if (settingsLayout) close.classList.add('page-back');
     const actions = document.createElement('div'); actions.className = 'pilot-menu-header-actions';
     if (this.options.showContextStatus !== false) actions.append(cityStatus);
-    if (!this.options.appShell) actions.append(close);
-    if (this.options.appShell) header.classList.add('context-page-heading');
+    if (!settingsLayout) actions.append(close);
+    if (settingsLayout) header.classList.add('context-page-heading');
     header.append(heading, actions);
     const content = document.createElement('div');
     content.className = 'pilot-menu-content';
@@ -572,11 +603,11 @@ export class PilotMenu {
     window.addEventListener('pointercancel', releasePointer, { passive: true });
     const navigation = document.createElement('nav');
     navigation.className = 'pilot-menu-navigation';
-    navigation.setAttribute('aria-label', this.options.appShell ? 'Settings sections' : 'Pilot Menu sections');
-    if (this.options.appShell) navigation.classList.add('store-tabs', 'pilot-settings-tabs');
+    navigation.setAttribute('aria-label', this.options.flightMode ? 'Flight menu sections' : this.options.appShell ? 'Settings sections' : 'Pilot Menu sections');
+    if (settingsLayout) navigation.classList.add('store-tabs', 'pilot-settings-tabs');
     for (const name of this.sections) {
       const button = actionButton({ label: name === 'GARAGE' ? 'AIRCRAFTS' : name, run: () => this.switchTo(name) });
-      if (this.options.appShell) button.classList.add('store-tab');
+      if (settingsLayout) button.classList.add('store-tab');
       button.dataset.section = name;
       navigation.append(button);
     }
@@ -591,15 +622,37 @@ export class PilotMenu {
     }
     card.append(header, navigation, content);
     this.element.replaceChildren(card);
-    if (this.options.appShell) this.element.append(close);
+    if (settingsLayout) this.element.append(close);
     this.content = content;
     this.navigation = navigation;
     return content;
   }
 
+  private flightActions(data: PilotMenuData): HTMLDivElement {
+    const actions = document.createElement('div');
+    actions.className = 'pilot-flight-actions';
+    const resume = actionButton({
+      label: this.options.flightMode === 'single' ? 'RESUME MISSION' : this.options.flightMode === 'training' ? 'RETURN TO TRAINING' : 'RETURN TO FLIGHT',
+      run: () => data.resumeFlight?.(), intent: 'primary',
+    });
+    if (this.options.flightMode === 'single') resume.dataset.journeyResume = '';
+    actions.append(resume);
+    if (this.options.flightMode === 'single') {
+      actions.append(actionButton({ label: 'RESTART MISSION', run: () => data.restartFlight?.() }));
+    }
+    actions.append(actionButton({
+      label: this.options.flightMode === 'single' ? 'EXIT TO JOURNEY' : this.options.flightMode === 'training' ? 'EXIT TRAINING' : 'LEAVE SESSION',
+      run: () => data.exitFlight?.(), intent: 'danger',
+    }));
+    if (this.options.flightMode === 'single') actions.append(textElement('small', 'Progress from this attempt will be lost.', 'pilot-flight-exit-note'));
+    return actions;
+  }
+
   private render(data: PilotMenuData, switched = false): void {
     if (this.rewardsTimer !== undefined) window.clearTimeout(this.rewardsTimer);
     this.rewardsTimer = undefined;
+    if (this.rewardCountdownTimer !== undefined) window.clearInterval(this.rewardCountdownTimer);
+    this.rewardCountdownTimer = undefined;
     this.lastData?.map.unmount();
     this.lastData = data;
     this.lastSnapshot = this.snapshot(data);
@@ -607,13 +660,17 @@ export class PilotMenu {
     const card = this.element.querySelector<HTMLElement>('.pilot-menu-card');
     const hubRewards = this.options.appShell === true && this.activeSection === 'REWARDS';
     const hubSettings = this.options.appShell === true && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(this.activeSection);
+    const flightMenu = this.options.flightMode !== undefined;
     this.element.classList.toggle('is-rewards-overlay', hubRewards);
     this.element.classList.toggle('is-hub-profile', this.options.appShell === true && this.activeSection === 'PROFILE');
     this.element.classList.toggle('is-hub-settings', hubSettings);
     card?.classList.toggle('is-hub-rewards', hubRewards);
-    card?.classList.toggle('is-settings', hubSettings);
+    this.element.classList.toggle('is-flight-menu-overlay', flightMenu);
+    card?.classList.toggle('is-settings', hubSettings || flightMenu);
+    card?.classList.toggle('is-flight-menu', flightMenu);
+    card?.classList.toggle('is-flight-help', flightMenu && this.activeSection === 'HELP');
     card?.classList.toggle('is-settings-help', hubSettings && this.activeSection === 'HELP');
-    if (this.backButton && this.options.appShell) {
+    if (this.backButton && (this.options.appShell || flightMenu)) {
       this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
       this.backButton.setAttribute('aria-label', this.backButton.textContent);
       if (this.backButton.parentElement !== this.element) this.element.append(this.backButton);
@@ -623,11 +680,13 @@ export class PilotMenu {
     const cityStatus = this.element.querySelector<HTMLElement>('[data-city-status]');
     if (cityStatus) cityStatus.textContent = `${data.city.name} · ${data.city.timePreset}`;
     const title = this.element.querySelector<HTMLElement>('[data-pilot-menu-title]');
-    if (title) title.textContent = this.activeSection === 'PROFILE' ? 'PILOT PROFILE'
+    if (title) title.textContent = flightMenu ? this.options.flightMode === 'single' ? 'MISSION PAUSED' : this.options.flightMode === 'training' ? 'TRAINING MENU' : 'FLIGHT MENU'
+      : this.activeSection === 'PROFILE' ? 'PILOT PROFILE'
       : this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(this.activeSection) ? 'SETTINGS'
         : this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection === 'GARAGE' ? 'AIRCRAFTS' : this.activeSection;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
+    if (this.options.flightMode === 'multiplayer' || this.options.flightMode === 'training') content.append(textElement('p', this.options.flightMode === 'training' ? '⚠ TRAINING CONTINUES WHILE THIS MENU IS OPEN' : '⚠ FLIGHT CONTINUES WHILE THIS MENU IS OPEN', 'pilot-flight-live-warning'));
     content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');
     const authenticationScreen = this.activeSection === 'PROFILE' && data.account.state === 'guest';
     content.classList.toggle('pilot-menu-content-authentication', authenticationScreen);
@@ -639,8 +698,42 @@ export class PilotMenu {
       button.hidden = sectionName === 'TERRITORIES' && !data.territories.enabled;
       button.classList.toggle('active', button.dataset.section === this.activeSection);
       button.classList.toggle('is-active', button.dataset.section === this.activeSection);
-      if (this.options.appShell) button.setAttribute('aria-pressed', String(button.dataset.section === this.activeSection));
+      if (this.options.appShell || flightMenu) button.setAttribute('aria-pressed', String(button.dataset.section === this.activeSection));
       button.setAttribute('aria-current', button.dataset.section === this.activeSection ? 'page' : 'false');
+    }
+
+    if (this.activeSection === 'MISSION' && this.options.flightMode === 'single') {
+      const mission = data.flightMission;
+      const layout = document.createElement('section'); layout.className = 'pilot-flight-mission-layout';
+      const details = document.createElement('div'); details.className = 'pilot-flight-mission-details';
+      details.append(
+        textElement('h2', mission?.name ?? 'CONNECTING TO MISSION'),
+        textElement('p', mission?.objective ?? 'Connecting to mission', 'pilot-flight-mission-objective'),
+      );
+      const progress = document.createElement('div'); progress.className = 'pilot-flight-mission-progress';
+      progress.append(textElement('strong', mission?.progress ?? '', 'pilot-flight-progress-value'),
+        textElement('span', mission?.time ?? '', 'pilot-flight-time'));
+      details.append(progress);
+      if (mission?.gateCount) {
+        const segments = document.createElement('div'); segments.className = 'pilot-flight-gate-segments';
+        segments.setAttribute('role', 'img');
+        segments.setAttribute('aria-label', `${mission.gatesCleared} of ${mission.gateCount} gates cleared`);
+        for (let gate = 0; gate < mission.gateCount; gate++) {
+          const segment = document.createElement('i'); segment.classList.toggle('is-cleared', gate < mission.gatesCleared);
+          segments.append(segment);
+        }
+        details.append(segments);
+      }
+      if (mission?.pauseRemaining) {
+        const pauseLimit = textElement('p', 'RETURN WITHIN ', 'pilot-flight-pause-limit');
+        const countdown = document.createElement('span');
+        countdown.textContent = mission.pauseRemaining;
+        countdown.dataset.journeyPauseCountdown = '';
+        pauseLimit.append(countdown);
+        details.append(pauseLimit);
+      }
+      layout.append(details);
+      content.append(layout, this.flightActions(data));
     }
 
     if (this.activeSection === 'PROFILE') {
@@ -1033,8 +1126,14 @@ export class PilotMenu {
         claimAmount,
       );
       claimArea.append(claimDetails);
-      const minutes = Math.max(0, Math.ceil(remaining / 60_000));
-      const status = textElement('p', data.rewards.notice ?? (available ? 'READY NOW' : `Next free claim in ${Math.floor(minutes / 60)}h ${minutes % 60}m`), 'pilot-reward-status');
+      const countdown = (milliseconds: number): string => {
+        const seconds = Math.ceil(milliseconds / 1000);
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor(seconds % 3600 / 60);
+        return `Next free claim in ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+      };
+      const notice = data.rewards.notice?.startsWith('+') ? undefined : data.rewards.notice;
+      const status = textElement('p', available ? notice ?? 'READY NOW' : countdown(remaining), 'pilot-reward-status');
       const claim = actionButton({ label: `CLAIM ${state.nextAmount.toLocaleString()}`, disabled: !available || !data.rewards.canClaim, run: () => undefined });
       claim.classList.add('context-action', 'context-action--gold');
       claim.addEventListener('click', () => {
@@ -1043,7 +1142,7 @@ export class PilotMenu {
         claim.disabled = true;
         const label = claim.textContent;
         claim.textContent = 'CLAIMING…';
-        void data.rewards!.claim().then((result) => {
+        void data.rewards!.claim(claim.getBoundingClientRect()).then((result) => {
           status.textContent = result.message;
           if (!result.ok) { claim.disabled = false; claim.textContent = label; }
         }).catch(() => {
@@ -1055,6 +1154,18 @@ export class PilotMenu {
       claimDetails.append(status);
       claimArea.append(claim);
       rewards.append(claimArea);
+      if (!available) {
+        const deadline = Date.now() + remaining;
+        this.rewardCountdownTimer = window.setInterval(() => {
+          const left = Math.max(0, deadline - Date.now());
+          status.textContent = left > 0 ? countdown(left) : 'READY NOW';
+          if (left === 0) {
+            window.clearInterval(this.rewardCountdownTimer);
+            this.rewardCountdownTimer = undefined;
+            if (this.openState && this.activeSection === 'REWARDS' && this.lastData) this.render(this.lastData);
+          }
+        }, 1000);
+      }
       const rewardsLayout = document.createElement('div');
       rewardsLayout.className = 'pilot-rewards-layout';
       rewardsLayout.append(rewards);
@@ -1088,7 +1199,7 @@ export class PilotMenu {
           const watchButton = actionButton({
             label: buttonLabel,
             disabled: !ready || watchData.phase !== 'idle' || Boolean(state.activeAttempt),
-            run: () => { void watchData.watch(); },
+            run: () => { void watchData.watch(watchButton.getBoundingClientRect()); },
           });
           watchButton.setAttribute('aria-label', ready ? `Watch ad ${index + 1} for ${amount} Credits` : `Ad ${index + 1} ${buttonLabel}`);
           step.append(textElement('span', `AD ${index + 1}`), rewardImage('/media/hub/credits.avif', 'pilot-ad-step-art'), textElement('strong', `${amount} CREDITS`), watchButton);
@@ -1167,11 +1278,10 @@ export class PilotMenu {
         rewardsLayout.append(invite);
       }
       content.append(rewardsLayout);
-      const nextRefresh = Math.min(available ? Number.POSITIVE_INFINITY : remaining, watchRemaining);
-      if (Number.isFinite(nextRefresh)) {
+      if (Number.isFinite(watchRemaining) && watchRemaining > 0) {
         this.rewardsTimer = window.setTimeout(() => {
           if (this.openState && this.activeSection === 'REWARDS' && this.lastData) this.render(this.lastData);
-        }, Math.min(nextRefresh, 60_000));
+        }, Math.min(watchRemaining, 60_000));
       }
     }
 
@@ -1280,7 +1390,7 @@ export class PilotMenu {
     if(data.intercity.routes.length){const routes=section('INTERCITY FLIGHTS');routes.append(textElement('p','Land and stop at the departure airport, then begin a city-to-city flight.','pilot-menu-muted'));for(const route of data.intercity.routes)routes.append(this.createCard({name:`FLY TO ${route.destination.toUpperCase()}`,detail:route.distanceLabel,meta:`Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,actions:[{label:'START ROUTE',run:route.start,disabled:!route.available,title:route.reason}]}));content.append(routes);}
     }
 
-    if (this.activeSection === 'CONTROLS' && this.options.appShell) {
+    if (this.activeSection === 'CONTROLS' && (this.options.appShell || flightMenu)) {
       const settings = document.createElement('div'); settings.className = 'pilot-settings-controls';
       const columns = document.createElement('div'); columns.className = 'pilot-settings-columns';
       const flight = section('FLIGHT CONTROLS'); flight.classList.add('pilot-settings-flight');
@@ -1369,10 +1479,12 @@ export class PilotMenu {
       moreButton.setAttribute('aria-pressed', String(this.settingsMoreOpen));
       settings.classList.toggle('is-more', this.settingsMoreOpen);
       footer.append(note, moreButton);
-      settings.append(this.settingsMoreOpen ? other : columns, footer); content.append(settings);
+      if (flightMenu) settings.append(columns);
+      else settings.append(this.settingsMoreOpen ? other : columns, footer);
+      content.append(settings);
     }
 
-    if (this.activeSection === 'CONTROLS' && !this.options.appShell) {
+    if (this.activeSection === 'CONTROLS' && !this.options.appShell && !flightMenu) {
     const controls = section('CONTROLS');
     const selectRow=(label:string,value:string,values:readonly string[],change:(value:string)=>void)=>{const row=document.createElement('label');row.className='pilot-menu-audio-row';row.append(textElement('span',label));const select=document.createElement('select');for(const optionValue of values){const option=document.createElement('option');option.value=optionValue;option.textContent=optionValue.toUpperCase();option.selected=optionValue===value;select.append(option);}select.addEventListener('change',()=>{change(select.value);hapticsManager.emit('selection');});row.append(select);return row;};
     controls.append(
@@ -1418,7 +1530,7 @@ export class PilotMenu {
 
     if (this.activeSection === 'AUDIO') {
     const audio = section('Audio');
-    if (this.options.appShell) {
+    if (this.options.appShell || flightMenu) {
       audio.classList.add('pilot-settings-audio');
       const switches = document.createElement('div'); switches.className = 'pilot-settings-switches';
       switches.append(settingsChoice('SOUND', data.audio.muted ? 'off' : 'on', [
@@ -1455,21 +1567,28 @@ export class PilotMenu {
     }
 
     if (this.activeSection === 'HELP') {
-      const help = section(this.options.appShell ? 'FLIGHT GUIDE' : 'HELP');
-      help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
-      help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
-      const controlGuide = actionButton({ label: this.options.appShell ? 'OPEN CONTROL GUIDE' : 'OPEN CONTROLS', run: () => this.switchTo('CONTROLS') });
-      if (this.options.appShell) controlGuide.classList.add('context-action');
+      const help = section(this.options.appShell || flightMenu ? 'FLIGHT GUIDE' : 'HELP');
+      if (flightMenu) help.append(textElement('p', data.preferences.touchLayout
+        ? 'Left stick turns and changes altitude. The right lever controls throttle and Boost. Fire and aim are separate.'
+        : 'Open Controls for keyboard and mouse flight input.', 'pilot-menu-muted'));
+      else {
+        help.append(textElement('p', 'See the visual guide or open Controls for the current input reference.', 'pilot-menu-muted'));
+        help.append(textElement('p', 'Day and Dusk change the view, not the pilots in your city.', 'pilot-menu-muted'));
+      }
+      const controlGuide = actionButton({ label: this.options.appShell || flightMenu ? 'OPEN CONTROL GUIDE' : 'OPEN CONTROLS', run: () => this.switchTo('CONTROLS') });
+      if (this.options.appShell || flightMenu) controlGuide.classList.add('context-action');
       help.append(controlGuide);
-      if(data.guide.enabled){
+      if(data.guide.enabled && !flightMenu){
         help.append(actionButton({ label: 'OPEN VISUAL GUIDE', run: data.guide.open }));
         help.append(actionButton({ label: 'REPLAY TUTORIAL FLIGHT', run: data.guide.replay }));
       }
-      if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
-      else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
+      if (!flightMenu) {
+        if(data.preferences.touchLayout){const touchHelp=textElement('p','', 'pilot-menu-controls');touchHelp.textContent='TOUCH: Left stick turns and changes altitude. The right lever holds throttle; drag above FAST and keep holding for Boost. Fire and the aim circle remain independent.';help.append(touchHelp);}
+        else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
+      }
       const hints = section('HINTS');
       hints.append(textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'));
-      if (this.options.appShell) hints.append(settingsChoice('GAMEPLAY HINTS', data.hints.enabled ? 'on' : 'off', [
+      if (this.options.appShell || flightMenu) hints.append(settingsChoice('GAMEPLAY HINTS', data.hints.enabled ? 'on' : 'off', [
         { label: 'ON', value: 'on' }, { label: 'OFF', value: 'off' },
       ], value => { if ((value === 'on') !== data.hints.enabled) { data.hints.toggle(); hapticsManager.emit('selection'); } }));
       else hints.append(actionButton({ label: data.hints.enabled ? 'Hints On' : 'Hints Off', run: () => { data.hints.toggle(); hapticsManager.emit('selection'); } }));
@@ -1515,26 +1634,31 @@ export class PilotMenu {
       licenses.append(links);
       content.append(licenses);
     }
+    if (flightMenu && this.activeSection !== 'MISSION') content.append(this.flightActions(data));
     content.scrollTop = scrollTop;
   }
 
   close(notify = true): void {
+    if (notify && this.openState && this.options.beforeClose?.() === false) return;
+    const wasOpen = this.openState;
     this.lastData?.map.unmount();
     if (this.rewardsTimer !== undefined) window.clearTimeout(this.rewardsTimer);
     this.rewardsTimer = undefined;
+    if (this.rewardCountdownTimer !== undefined) window.clearInterval(this.rewardCountdownTimer);
+    this.rewardCountdownTimer = undefined;
     this.openState = false;
     this.pointerActive = false;
     this.element.hidden = true;
     this.sectionHistory.length = 0;
     this.rewardsBackground.forEach(element => { element.inert = false; });
     this.rewardsBackground = [];
-    if (notify) this.options.onClose?.();
+    if (notify && (wasOpen || !this.options.flightMode)) this.options.onClose?.();
     if (notify && this.rewardsReturnFocus?.isConnected) this.rewardsReturnFocus.focus({ preventScroll: true });
     this.rewardsReturnFocus = undefined;
   }
 
   private backOrClose(): void {
-    if (this.options.appShell) { this.close(); return; }
+    if (this.options.appShell || this.options.flightMode) { this.close(); return; }
     const previous = this.sectionHistory.pop();
     if (!previous || !this.lastData) {
       this.close();

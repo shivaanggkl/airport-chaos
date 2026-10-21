@@ -41,14 +41,18 @@ test('Moment of Flight share and screenshot UI is removed', () => {
   assert.doesNotMatch(`${html}\n${main}\n${css}`, /data-moment|MOMENT OF THE FLIGHT|COPY SHARE TEXT|SAVE SCREENSHOT|copyMomentShareText|saveMomentScreenshot/);
 });
 
-test('Radar, Players, and Territories share the responsive top-right stack', () => {
+test('Radar stays top-right while Players and Territories use the shared upper-left card', () => {
   const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
   const panels = readFileSync(new URL('../../client/src/players-panel.ts', import.meta.url), 'utf8');
-  assert.match(html, /id="right-flight-stack"[\s\S]*id="radar-panel"[\s\S]*id="right-hud-stack"[\s\S]*id="real-players"[\s\S]*id="city-territories"/);
+  const card = readFileSync(new URL('../../client/src/gameplay-info-card.ts', import.meta.url), 'utf8');
+  assert.match(html, /id="right-flight-stack"[\s\S]*id="radar-panel"/);
+  assert.doesNotMatch(html, /id="right-hud-stack"|id="real-players"|id="city-territories"/);
+  assert.match(card, /this\.multiplayer\.append\(tabBar, this\.playersRoot, this\.territoriesRoot\)/);
   assert.match(css, /#right-flight-stack\s*\{[^}]*position:\s*fixed;[^}]*top:\s*max\(72px/);
   assert.match(css, /#radar-panel\s*\{[^}]*background:\s*rgb\(24 52 74 \/ 32%\);/);
   assert.match(css, /@media \(min-width: 1100px\) and \(hover: hover\) and \(pointer: fine\)[\s\S]*html:not\(\.native-shell\) #right-flight-stack \{ width: 188px/);
   assert.match(css, /\.touch-controls-active #right-flight-stack\{[^}]*width:124px/);
-  assert.match(panels, /matchMedia\('\(pointer: coarse\)'\)\.matches \|\| innerWidth <= 900/);
+  assert.match(css, /\.gameplay-info-list\s*\{[^}]*overflow:\s*hidden auto;/);
+  assert.match(panels, /this\.onCount\?\.\(sorted\.length\)/);
 });

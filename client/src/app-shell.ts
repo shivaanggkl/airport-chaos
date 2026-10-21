@@ -45,6 +45,7 @@ export class AppShellHeader {
   private readonly pageTitle: HTMLElement;
   private readonly utilities: HTMLElement;
   private readonly credits: HTMLElement;
+  private readonly creditMark: HTMLElement;
   private readonly skyTokens: HTMLElement;
   private readonly tokenCard: HTMLButtonElement;
   private readonly tokenAdd: HTMLElement;
@@ -60,6 +61,9 @@ export class AppShellHeader {
   private readonly avatarImage: HTMLImageElement;
   private readonly avatarFallback: HTMLElement;
   private rewardTimer?: number;
+  private creditAnimationFrame?: number;
+  private creditAnimationTarget?: number;
+  private readonly creditParticles: HTMLImageElement[] = [];
 
   constructor(private readonly element: HTMLElement, handlers: AppShellHandlers) {
     const brand = document.createElement('button');
@@ -109,7 +113,7 @@ export class AppShellHeader {
     this.garage = document.createElement('button');
     this.garage.type = 'button';
     this.garage.className = 'flight-header-control app-shell-action app-shell-garage';
-    this.garage.setAttribute('aria-label', 'Aircraft');
+    this.garage.setAttribute('aria-label', 'Aircraft Hangar');
     this.garage.innerHTML = '<span>AIRCRAFT</span>';
     this.aircraftPreviewHost.className = 'app-shell-aircraft-preview';
     this.aircraftPreviewHost.setAttribute('aria-hidden', 'true');
@@ -130,6 +134,7 @@ export class AppShellHeader {
     const creditsCard = document.createElement('span');
     creditsCard.className = 'flight-header-credits app-shell-credits';
     const creditMark = document.createElement('span'); creditMark.className = 'flight-header-credit-icon app-shell-currency-icon'; creditMark.innerHTML = creditIcon; creditMark.setAttribute('aria-hidden', 'true');
+    this.creditMark = creditMark;
     const creditCopy = document.createElement('span'); creditCopy.className = 'flight-header-credit-copy';
     const creditsLabel = document.createElement('small'); creditsLabel.textContent = 'CREDITS';
     this.credits = document.createElement('strong');
@@ -183,6 +188,7 @@ export class AppShellHeader {
     this.element.classList.toggle('is-page-hidden', document.hidden);
     document.addEventListener('visibilitychange', () => {
       this.element.classList.toggle('is-page-hidden', document.hidden);
+      if (document.hidden) this.stopCreditAnimation();
     });
   }
 
@@ -217,7 +223,8 @@ export class AppShellHeader {
   updateIdentity(pilotName: string, credits: number, skyTokens: number, avatarUrl?: string): void {
     const creditBalance = credits.toLocaleString();
     const tokenBalance = skyTokens.toLocaleString();
-    this.credits.textContent = creditBalance;
+    if (this.creditAnimationTarget !== undefined && this.creditAnimationTarget !== credits) this.stopCreditAnimation();
+    if (this.creditAnimationTarget === undefined) this.credits.textContent = creditBalance;
     this.skyTokens.textContent = tokenBalance;
     this.credits.classList.toggle('is-long-balance', creditBalance.length > 8);
     this.skyTokens.classList.toggle('is-long-balance', tokenBalance.length > 8);
@@ -237,6 +244,62 @@ export class AppShellHeader {
     this.avatarImage.src = avatarUrl;
   }
 
+  animateCreditsEarned(source: DOMRect, previousBalance: number, newBalance: number): void {
+    this.stopCreditAnimation();
+    const target = this.creditMark.getBoundingClientRect();
+    if (newBalance <= previousBalance || this.element.hidden || document.hidden ||
+      source.width <= 0 || target.width <= 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const startX = source.left + source.width / 2;
+    const startY = source.top + source.height / 2;
+    const endX = target.left + target.width / 2;
+    const endY = target.top + target.height / 2;
+    for (let index = 0; index < 5; index += 1) {
+      const coin = document.createElement('img');
+      coin.src = '/media/hub/credits.avif';
+      coin.alt = '';
+      coin.setAttribute('aria-hidden', 'true');
+      coin.className = 'app-shell-credit-flight';
+      document.body.append(coin);
+      this.creditParticles.push(coin);
+    }
+    this.creditAnimationTarget = newBalance;
+    this.credits.textContent = previousBalance.toLocaleString();
+    const startedAt = performance.now();
+    const flightDuration = 850;
+    const countDuration = 470;
+    let landed = false;
+    const frame = (now: number): void => {
+      if (this.creditAnimationTarget !== newBalance) return;
+      const elapsed = now - startedAt;
+      this.creditParticles.forEach((coin, index) => {
+        const progress = Math.max(0, Math.min(1, (elapsed - index * 55) / (flightDuration - 4 * 55)));
+        const eased = 1 - (1 - progress) ** 3;
+        const x = startX + (endX - startX) * eased + (index - 2) * 7 * (1 - eased);
+        const y = startY + (endY - startY) * eased - Math.sin(Math.PI * eased) * 45;
+        coin.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%) scale(${0.7 + 0.4 * Math.sin(Math.PI * progress)})`;
+        coin.style.opacity = String(elapsed < index * 55 ? 0 : Math.min(1, progress * 5, (1 - progress) * 6));
+      });
+      if (elapsed >= flightDuration) {
+        if (!landed) { landed = true; this.creditMark.classList.add('is-credit-landing'); }
+        const countProgress = Math.min(1, (elapsed - flightDuration) / countDuration);
+        const easedCount = 1 - (1 - countProgress) ** 3;
+        this.credits.textContent = Math.round(previousBalance + (newBalance - previousBalance) * easedCount).toLocaleString();
+      }
+      if (elapsed >= flightDuration + countDuration) { this.stopCreditAnimation(); return; }
+      this.creditAnimationFrame = window.requestAnimationFrame(frame);
+    };
+    this.creditAnimationFrame = window.requestAnimationFrame(frame);
+  }
+
+  private stopCreditAnimation(): void {
+    if (this.creditAnimationFrame !== undefined) window.cancelAnimationFrame(this.creditAnimationFrame);
+    this.creditAnimationFrame = undefined;
+    if (this.creditAnimationTarget !== undefined) this.credits.textContent = this.creditAnimationTarget.toLocaleString();
+    this.creditAnimationTarget = undefined;
+    this.creditMark.classList.remove('is-credit-landing');
+    this.creditParticles.splice(0).forEach(coin => coin.remove());
+  }
+
   updateRewards(available: boolean, availableInMs?: number, count?: number): void {
     this.setBadge(this.rewards, this.rewardsIndicator, available ? count ?? 1 : false, 'Rewards');
     if (this.rewardTimer !== undefined) window.clearTimeout(this.rewardTimer);
@@ -249,6 +312,7 @@ export class AppShellHeader {
   }
 
   hide(): void {
+    this.stopCreditAnimation();
     this.element.hidden = true;
   }
 

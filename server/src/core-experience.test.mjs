@@ -2,14 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { applyAircraftCosmetics } from '../../client/src/aircraft-cosmetics.js';
-import { aircraftFlightEnvelope, FLIGHT_UNITS_PER_METER } from '../../shared/aircraft-flight-envelope.mjs';
+import { aircraftFlightEnvelope, FLIGHT_UNITS_PER_METER, KNOTS_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { generateDallasSkyline, dallasFacadePalette, dallasFacadePatterns, skylineAirportExcluded } from '../../shared/dallas-skyline.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 
 test('every aircraft has a fast finite envelope, with independent safe ground handling',()=>{
   for(const envelope of Object.values(aircraftFlightEnvelope)){
-    assert.ok(envelope.topSpeed>=5000);
     assert.equal(envelope.maxSpeed*FLIGHT_UNITS_PER_METER,envelope.topSpeed);
     assert.ok(Object.values(envelope).every(value=>Number.isFinite(value)&&value>0));
     assert.ok(envelope.groundMaxSpeed<envelope.maxSpeed/5);
@@ -17,6 +16,15 @@ test('every aircraft has a fast finite envelope, with independent safe ground ha
   }
   assert.ok(aircraftFlightEnvelope.fighter.maxSpeed>aircraftFlightEnvelope.privateJet.maxSpeed);
   assert.ok(aircraftFlightEnvelope.cargo.acceleration/aircraftFlightEnvelope.cargo.inertia<aircraftFlightEnvelope.trainer.acceleration/aircraftFlightEnvelope.trainer.inertia);
+});
+test('aircraft normal and Boost caps match the tuned HUD speeds in mph',()=>{
+  const mphPerMeterPerSecond=KNOTS_PER_METER_PER_SECOND*1.150779448;
+  const expected={trainer:[1800,2304],cargo:[2100,2625],privateJet:[2700,3510],fighter:[3000,4050]};
+  for(const [type,[normalMph,boostMph]] of Object.entries(expected)){
+    const envelope=aircraftFlightEnvelope[type];
+    assert.equal(Math.round(envelope.maxSpeed*mphPerMeterPerSecond),normalMph,type);
+    assert.equal(Math.round(envelope.maxSpeed*envelope.boostMaxSpeed*mphPerMeterPerSecond),boostMph,type);
+  }
 });
 test('cosmetic path isolates instances, preserves glass and repaints late loaded paint slots',()=>{
   const shared = new THREE.MeshStandardMaterial({color:0xffffff}); shared.name='AC_LIVERY_PRIMARY';

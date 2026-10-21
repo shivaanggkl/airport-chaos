@@ -1,4 +1,4 @@
-import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
+import { altitudeFeet } from '../../shared/multiplayer-altitude.mjs';
 
 export type HumanRosterEntry = {
   playerId: string;
@@ -10,112 +10,75 @@ export type HumanRosterEntry = {
 };
 
 const statusLabel: Record<HumanRosterEntry['status'], string> = {
-  flying: '🟢 FLYING',
-  onGround: '🟡 ON GROUND',
-  destroyed: '💥 DESTROYED',
-  respawning: '⏳ RESPAWNING',
-  spawnSafe: '🛡 SPAWN SAFE',
+  flying: 'FLYING', onGround: 'ON GROUND', destroyed: 'DESTROYED',
+  respawning: 'RESPAWNING', spawnSafe: 'SPAWN SAFE',
 };
 
-const mobilePanelDefault = (): boolean => matchMedia('(pointer: coarse)').matches || innerWidth <= 900;
-
-// Five stable row slots; roster updates only change text that actually changed.
+/** Renders every server-provided pilot inside the shared card's scroll area. */
 export class PlayersPanel {
-  private readonly title = document.createElement('span');
-  private readonly indicator = document.createElement('i');
-  private readonly toggle = document.createElement('button');
-  private readonly content = document.createElement('div');
-  private readonly columns = document.createElement('div');
-  private readonly more = document.createElement('small');
-  private readonly rows = Array.from({ length: 5 }, () => {
+  private readonly empty = document.createElement('small');
+  private readonly rows: ReturnType<typeof PlayersPanel.createRow>[] = [];
+
+  private static createRow() {
     const row = document.createElement('div');
     const identity = document.createElement('div');
+    const dot = document.createElement('i');
+    const aircraft = document.createElement('span');
     const name = document.createElement('span');
-    const ownership = document.createElement('span');
-    const altitude = document.createElement('span');
-    const dots = Array.from({ length: 3 }, () => document.createElement('i'));
+    const status = document.createElement('small');
+    const altitude = document.createElement('small');
     const score = document.createElement('strong');
-    const level = document.createElement('span');
-    const status = document.createElement('span');
     row.className = 'human-player-row';
     identity.className = 'human-player-identity';
-    ownership.className = 'human-player-ownership';
-    altitude.className = 'human-player-altitude';
-    ownership.append(...dots);
-    identity.append(name, altitude, ownership);
-    score.title = 'Live Score';
-    level.title = 'City Level';
+    dot.className = 'human-player-state-dot';
+    aircraft.className = 'human-player-aircraft';
+    aircraft.textContent = '✈';
+    aircraft.setAttribute('aria-hidden', 'true');
     status.className = 'human-player-status';
-    row.append(identity, score, level, status);
-    return { row, name, altitude, ownership, dots, score, level, status };
-  });
-  private collapsed = mobilePanelDefault();
+    altitude.className = 'human-player-altitude';
+    score.title = 'Current flight score';
+    identity.append(dot, aircraft, name, status, altitude);
+    row.append(identity, score);
+    return { row, name, status, altitude, score };
+  }
 
-  constructor(root: HTMLElement) {
-    this.toggle.type = 'button';
-    this.toggle.className = 'flight-panel-summary';
-    this.content.id = 'human-player-rows';
-    this.toggle.setAttribute('aria-controls', this.content.id);
-    this.indicator.setAttribute('aria-hidden', 'true');
-    this.toggle.append(this.title, this.indicator);
-    this.columns.className = 'human-player-columns';
-    this.columns.innerHTML = '<span>PILOT</span><span>LIVE SCORE</span><span>LEVEL</span>';
-    this.content.append(this.columns, ...this.rows.map(row => row.row), this.more);
-    root.append(this.toggle, this.content);
-    this.toggle.onclick = () => {
-      this.collapsed = !this.collapsed;
-      this.applyCollapse();
-    };
+  constructor(private readonly root: HTMLElement, private readonly onCount?: (count: number) => void) {
+    root.classList.add('gameplay-info-list');
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
-    this.applyCollapse();
+    this.empty.className = 'gameplay-info-empty';
+    this.empty.textContent = 'WAITING FOR PILOTS';
+    root.append(this.empty);
     this.update([], null);
-  }
-
-  private applyCollapse(): void {
-    this.content.hidden = this.collapsed;
-    this.toggle.parentElement?.classList.toggle('expanded', !this.collapsed);
-    this.indicator.textContent = this.collapsed ? '▸' : '▾';
-    this.toggle.setAttribute('aria-expanded', String(!this.collapsed));
-    this.toggle.setAttribute('aria-label', this.collapsed ? 'Show players' : 'Hide players');
-  }
-
-  isExpanded(): boolean { return !this.collapsed; }
-  setExpanded(expanded: boolean): void {
-    this.collapsed = !expanded;
-    this.applyCollapse();
   }
 
   update(players: readonly HumanRosterEntry[], localId: string | null,
     ownedTerritories?: (playerId: string) => readonly { name: string; color: string }[]): void {
     const sorted = [...players].sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName) || a.playerId.localeCompare(b.playerId));
-    const shown = sorted.slice(0, 5);
-    const local = sorted.find(player => player.playerId === localId);
-    if (local && !shown.includes(local)) shown[4] = local;
-    const text = (element: HTMLElement, value: string): void => { if (element.textContent !== value) element.textContent = value; };
-    text(this.title, `PLAYERS ${players.length}`);
+    this.onCount?.(sorted.length);
+    while (this.rows.length < sorted.length) {
+      const slot = PlayersPanel.createRow();
+      this.rows.push(slot);
+      this.root.insertBefore(slot.row, this.empty);
+    }
+    this.empty.hidden = sorted.length > 0;
     for (let index = 0; index < this.rows.length; index++) {
-      const slot = this.rows[index], player = shown[index];
-      if (slot.row.hidden !== !player) slot.row.hidden = !player;
+      const slot = this.rows[index], player = sorted[index];
+      slot.row.hidden = !player;
       if (!player) continue;
       const you = player.playerId === localId;
       slot.row.classList.toggle('you', you);
-      slot.row.classList.toggle('destroyed', player.status === 'destroyed');
-      text(slot.name, `${player.displayName}${you ? ' (You)' : ''}`);
-      text(slot.altitude, player.altitudeMeters === undefined ? '' : formatPilotAltitude(player.altitudeMeters));
-      slot.altitude.hidden = player.altitudeMeters === undefined;
-      const ownership = ownedTerritories?.(player.playerId) ?? [];
-      slot.ownership.hidden = ownership.length === 0;
-      slot.ownership.setAttribute('aria-label', ownership.length ? `Owns ${ownership.map(({ name }) => name).join(', ')}` : '');
-      for (let dotIndex = 0; dotIndex < slot.dots.length; dotIndex += 1) {
-        const dot = slot.dots[dotIndex], territory = ownership[dotIndex];
-        dot.hidden = !territory;
-        if (territory) { dot.style.backgroundColor = territory.color; dot.title = territory.name; }
-      }
-      text(slot.score, Math.round(player.score).toLocaleString());
-      text(slot.level, `Lv ${player.masteryLevel}`);
-      text(slot.status, statusLabel[player.status]);
+      slot.row.dataset.status = player.status;
+      const name = you ? 'YOU' : player.displayName;
+      if (slot.name.textContent !== name) slot.name.textContent = name;
+      if (slot.status.textContent !== statusLabel[player.status]) slot.status.textContent = statusLabel[player.status];
+      const feet = player.altitudeMeters === undefined ? undefined : altitudeFeet(player.altitudeMeters);
+      const altitude = feet === undefined ? '' : `${feet.toLocaleString()} FT`;
+      if (slot.altitude.textContent !== altitude) slot.altitude.textContent = altitude;
+      const score = Math.round(player.score).toLocaleString();
+      if (slot.score.textContent !== `${score} PTS`) slot.score.textContent = `${score} PTS`;
+      const territoryNames = ownedTerritories?.(player.playerId).map(territory => territory.name).join(', ');
+      slot.row.setAttribute('aria-label', `${name}, ${statusLabel[player.status]}${altitude ? `, altitude ${altitude}` : ''}, current flight score ${score}, level ${player.masteryLevel}${territoryNames ? `, owns ${territoryNames}` : ''}`);
     }
-    text(this.more, players.length > shown.length ? `+${players.length - shown.length} more · TAB for details` : '');
   }
 }
 
@@ -125,17 +88,13 @@ export type CityTerritoryEntry = {
   controllerId?: string;
   controllerName?: string;
   contested: boolean;
+  captureProgress?: number;
 };
 
-// Fixed row slots retain focus/scroll while authoritative ownership changes.
+/** Displays server-owned territory state without changing the shared card size. */
 export class CityTerritoriesPanel {
-  private readonly title = document.createElement('span');
-  private readonly indicator = document.createElement('i');
-  private readonly toggle = document.createElement('button');
-  private readonly content = document.createElement('div');
   private readonly empty = document.createElement('small');
-  private readonly rows = Array.from({ length: 8 }, () => CityTerritoriesPanel.createRow());
-  private collapsed = mobilePanelDefault();
+  private readonly rows: ReturnType<typeof CityTerritoriesPanel.createRow>[] = [];
 
   private static createRow() {
     const row = document.createElement('div');
@@ -148,55 +107,29 @@ export class CityTerritoriesPanel {
     return { row, dot, name, owner };
   }
 
-  constructor(root: HTMLElement) {
-    this.toggle.type = 'button';
-    this.toggle.className = 'flight-panel-summary';
-    this.content.id = 'city-territory-rows';
-    this.toggle.setAttribute('aria-controls', this.content.id);
-    this.indicator.setAttribute('aria-hidden', 'true');
-    this.toggle.append(this.title, this.indicator);
-    this.empty.className = 'city-territory-empty';
-    this.empty.hidden = true;
-    this.content.append(...this.rows.map(({ row }) => row), this.empty);
-    root.append(this.toggle, this.content);
-    this.toggle.onclick = () => {
-      this.collapsed = !this.collapsed;
-      this.applyCollapse();
-    };
+  constructor(private readonly root: HTMLElement, private readonly onCount?: (count: number) => void) {
+    root.classList.add('gameplay-info-list');
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
-    this.applyCollapse();
+    this.empty.className = 'gameplay-info-empty';
+    this.empty.textContent = 'NO TERRITORIES IN THIS CITY';
+    root.append(this.empty);
     this.update([], null);
   }
 
-  private applyCollapse(): void {
-    this.content.hidden = this.collapsed;
-    this.toggle.parentElement?.classList.toggle('expanded', !this.collapsed);
-    this.indicator.textContent = this.collapsed ? '▸' : '▾';
-    this.toggle.setAttribute('aria-expanded', String(!this.collapsed));
-    this.toggle.setAttribute('aria-label', this.collapsed ? 'Show city territories' : 'Hide city territories');
-  }
-
-  isExpanded(): boolean { return !this.collapsed; }
-  setExpanded(expanded: boolean): void {
-    this.collapsed = !expanded;
-    this.applyCollapse();
-  }
   setEmptyMessage(message: string): void {
-    this.empty.textContent = message;
-    this.empty.hidden = !message || this.rows.some(({ row }) => !row.hidden);
+    this.empty.textContent = message || 'NO TERRITORIES IN THIS CITY';
   }
 
   update(territories: readonly CityTerritoryEntry[], localId: string | null, online = true): void {
+    this.onCount?.(online ? territories.filter(territory => territory.controllerId && !territory.contested).length : 0);
     while (this.rows.length < territories.length) {
       const slot = CityTerritoriesPanel.createRow();
       this.rows.push(slot);
-      this.content.append(slot.row);
+      this.root.insertBefore(slot.row, this.empty);
     }
-    const title = `TERRITORIES${online ? '' : ' · OFFLINE'}`;
-    if (this.title.textContent !== title) this.title.textContent = title;
-    for (let index = 0; index < this.rows.length; index += 1) {
-      const slot = this.rows[index];
-      const territory = territories[index];
+    this.empty.hidden = territories.length > 0;
+    for (let index = 0; index < this.rows.length; index++) {
+      const slot = this.rows[index], territory = territories[index];
       slot.row.hidden = !territory;
       if (!territory) continue;
       if (slot.name.textContent !== territory.name) slot.name.textContent = territory.name;
@@ -204,14 +137,15 @@ export class CityTerritoriesPanel {
         slot.dot.style.backgroundColor = territory.color;
         slot.dot.dataset.color = territory.color;
       }
-      const owner = !online ? 'OFFLINE' : territory.contested ? 'CONTESTED' : !territory.controllerId ? 'Neutral' :
-        territory.controllerId === localId ? 'YOU' : territory.controllerName ?? 'Pilot';
-      if (slot.owner.textContent !== owner) slot.owner.textContent = owner;
-      slot.owner.title = owner;
+      const owner = !online ? 'OFFLINE' : !territory.controllerId ? 'NEUTRAL' :
+        territory.controllerId === localId ? 'YOU' : territory.controllerName ?? 'PILOT';
+      const progress = online && territory.captureProgress ? ` · ${Math.round(Math.min(100, Math.max(0, territory.captureProgress)))}%` : '';
+      const label = `${owner}${territory.contested ? ' · CONTESTED' : ''}${progress}`;
+      if (slot.owner.textContent !== label) slot.owner.textContent = label;
+      slot.owner.title = label;
       slot.row.classList.toggle('you', online && territory.controllerId === localId && !territory.contested);
       slot.row.classList.toggle('contested', online && territory.contested);
       slot.row.classList.toggle('neutral', !territory.contested && (!online || !territory.controllerId));
     }
-    this.empty.hidden = territories.length > 0 || !this.empty.textContent;
   }
 }

@@ -132,17 +132,6 @@
         </button>
       </div>
     </nav>
-    <div id="journey-pause-overlay" class="journey-pause-overlay" role="dialog" aria-modal="true" aria-labelledby="journey-pause-title" hidden>
-      <div class="journey-pause-card">
-        <h2 id="journey-pause-title">MISSION PAUSED</h2>
-        <p>Your aircraft is waiting where you left it for up to 2 minutes. Return before then or the mission will fail.</p>
-        <p class="journey-pause-timer">TIME REMAINING <strong id="journey-pause-countdown" role="timer">02:00</strong></p>
-        <div class="journey-pause-actions">
-          <button id="journey-resume-button" type="button">RESUME</button>
-          <button id="journey-restart-button" type="button">RESTART MISSION</button>
-        </div>
-      </div>
-    </div>
     <aside id="practice-mode-label" class="practice-mode-label" hidden>MILWAUKEE — PRACTICE MODE <small>NO REWARDS</small></aside>
     <aside id="dallas-practice-suggestion" class="dallas-practice-suggestion" hidden aria-live="polite">
       <span>New to Airport Chaos? Try Milwaukee Practice Mode to learn flying and combat.</span>
@@ -183,16 +172,12 @@
         <canvas id="radar" width="180" height="180"></canvas>
         <div class="radar-legend" id="radar-legend"></div>
       </aside>
-      <div id="right-hud-stack">
-        <aside id="real-players" aria-label="Human players"></aside>
-        <aside id="city-territories" aria-label="City territories"></aside>
-      </div>
     </div>
     <aside id="desktop-controls-help" class="desktop-controls-help" hidden aria-hidden="true" aria-label="Desktop flight controls">
       <button id="desktop-controls-help-toggle" type="button" aria-controls="desktop-controls-help-items" aria-expanded="true" title="Collapse controls reference">◀</button>
       <div id="desktop-controls-help-items" class="desktop-controls-help-items">
         <span><kbd>W/S</kbd> Speed</span><span><kbd>A/D or ←/→</kbd> Turn</span><span><kbd>↑/↓</kbd> Pitch</span>
-        <span><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span>
+        <span data-desktop-control="fire"><kbd>SPACE</kbd> Fire</span><span><kbd>SHIFT</kbd> Boost</span>
         <span class="desktop-controls-help-camera"><kbd>Mouse Drag</kbd> Camera</span><span class="desktop-controls-help-camera"><kbd>Mouse Wheel</kbd> Zoom</span>
         <span><kbd>H</kbd> Controls</span>
       </div>

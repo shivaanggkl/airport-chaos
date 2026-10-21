@@ -6,6 +6,8 @@ import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
 import { HorizontalRail } from './horizontal-rail';
 import { confirmCatalogPurchase } from './purchase-confirmation';
+import { StoreAircraftPreviews } from './store-aircraft-previews';
+import { createAircraftDetailPanel, renderAircraftDetailPanel } from './aircraft-detail-panel';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
 
@@ -17,27 +19,25 @@ type StoreHandlers = {
   trial: () => Promise<ActionResult>;
   getTokens: (missing: number) => void;
   viewGarage: (item: StoreItem) => void;
+  equip: (item: StoreItem) => Promise<ActionResult>;
   login: () => void;
   retry: () => void;
 };
 
-const categories: readonly StoreCategory[] = ['FEATURED', 'AIRCRAFT', 'PAINTS', 'EFFECTS', 'CITIES'];
-const categoryIcons: Record<StoreCategory, string> = { FEATURED: '★', AIRCRAFT: '✈', PAINTS: '◈', EFFECTS: '✦', CITIES: '⌖' };
+const categories: readonly StoreCategory[] = ['FEATURED', 'AIRCRAFT', 'EFFECTS', 'CITIES'];
+const categoryIcons: Record<StoreCategory, string> = { FEATURED: '★', AIRCRAFT: '✈', EFFECTS: '✦', CITIES: '⌖' };
 
 function color(value: number): string { return `#${value.toString(16).padStart(6, '0')}`; }
 function isOwned(item: StoreItem, profile: GarageProfile | undefined): boolean {
   if (!profile) return false;
   return ['OWNED', 'EQUIPPED', 'INCLUDED', 'FREE'].includes(storeItemState(item, profile));
 }
-function artwork(item: StoreItem, imageId = item.id): HTMLElement {
+function artwork(item: StoreItem): HTMLElement {
   const art = document.createElement('div'); art.className = `store-art store-art-${item.aircraftType}`;
-  art.setAttribute('aria-hidden', 'true');
-  const image = document.createElement('img');
-  image.src = `/media/store-aircraft/${imageId}.avif`;
-  image.alt = '';
-  image.loading = 'lazy';
-  image.decoding = 'async';
-  art.append(image);
+  art.dataset.storePreviewId = item.id;
+  art.tabIndex = 0;
+  art.setAttribute('role', 'button');
+  art.setAttribute('aria-label', `View ${item.name} aircraft details`);
   if (item.kind === 'paint') {
     const swatches = document.createElement('span'); swatches.className = 'store-art-swatches';
     for (const value of item.colors) { const dot = document.createElement('i'); dot.style.backgroundColor = color(value); swatches.append(dot); }
@@ -50,8 +50,12 @@ export class GameStore {
   private readonly tabs: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly notice: HTMLElement;
+  private readonly detailOverlay: HTMLElement;
+  private readonly frame: HTMLElement;
   private readonly productRail: HorizontalRail;
   private readonly categoryRail: HorizontalRail;
+  private previews?: StoreAircraftPreviews;
+  private detailTrigger?: HTMLElement;
   private profile?: GarageProfile;
   private catalog?: Map<string, PublicStoreCatalogItem>;
   private profilePending = false;
@@ -65,7 +69,23 @@ export class GameStore {
   private category: StoreCategory = 'FEATURED';
 
   constructor(private readonly element: HTMLElement, private readonly handlers: StoreHandlers) {
-    element.innerHTML = `<div class="store-frame"><header class="store-heading context-page-heading"></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div></div><p class="store-notice" role="status" aria-live="polite"></p></div>`;
+    element.innerHTML = `<div class="store-frame"><header class="store-heading context-page-heading"></header><div class="store-category-rail"><nav class="store-tabs" aria-label="Store categories"></nav></div><div class="store-content"><div class="store-rail"><div class="store-grid" tabindex="0" role="region" aria-label="Products, scroll horizontally" aria-live="polite"></div><button class="store-rail-arrow store-rail-prev" type="button" aria-label="Previous products" hidden></button><button class="store-rail-arrow store-rail-next" type="button" aria-label="Next products" hidden></button><div class="store-rail-progress" role="progressbar" aria-label="Product scroll position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="store-rail-thumb"></span></div></div></div><p class="store-notice" role="status" aria-live="polite"></p></div><div class="store-detail-overlay" hidden></div>`;
+    this.frame = element.querySelector('.store-frame')!;
+    this.detailOverlay = element.querySelector('.store-detail-overlay')!;
+    const detailPanel = createAircraftDetailPanel();
+    detailPanel.setAttribute('role', 'dialog');
+    detailPanel.setAttribute('aria-modal', 'true');
+    detailPanel.setAttribute('aria-labelledby', 'store-detail-title');
+    detailPanel.querySelector('.store-detail-title')!.id = 'store-detail-title';
+    const closeDetail = document.createElement('button');
+    closeDetail.type = 'button'; closeDetail.className = 'store-detail-close';
+    closeDetail.setAttribute('aria-label', 'Close aircraft details'); closeDetail.textContent = '×';
+    detailPanel.prepend(closeDetail);
+    this.detailOverlay.append(detailPanel);
+    element.querySelector('.store-detail-close')!.addEventListener('click', () => this.closeDetail());
+    this.detailOverlay.addEventListener('keydown', event => {
+      if (event.key === 'Tab') { event.preventDefault(); this.element.querySelector<HTMLButtonElement>('.store-detail-close')!.focus(); }
+    });
     this.tabs = element.querySelector('.store-tabs')!;
     this.grid = element.querySelector('.store-grid')!;
     this.notice = element.querySelector('.store-notice')!;
@@ -98,6 +118,8 @@ export class GameStore {
     });
     registerUiBackLayer({ id: 'game-store', priority: uiBackPriority.surface,
       isActive: () => this.isOpen(), close: () => handlers.close() });
+    registerUiBackLayer({ id: 'game-store-detail', priority: uiBackPriority.modal,
+      isActive: () => this.isOpen() && !this.detailOverlay.hidden, close: () => this.closeDetail() });
   }
 
   isOpen(): boolean { return !this.element.hidden; }
@@ -116,8 +138,8 @@ export class GameStore {
     this.element.hidden = false; this.render();
     if (wasClosed) recordProductIntent('store_opened');
   }
-  close(): void { this.element.hidden = true; this.category = 'FEATURED'; }
-  hide(): void { this.element.hidden = true; }
+  close(): void { this.closeDetail(false); this.element.hidden = true; this.previews?.stop(); this.category = 'FEATURED'; }
+  hide(): void { this.closeDetail(false); this.element.hidden = true; this.previews?.stop(); }
   update(profile: GarageProfile | undefined, authenticated: boolean): void {
     this.profile = profile; this.authenticated = authenticated; this.profilePending = false;
     this.loading = !this.catalog; this.error = ''; this.render();
@@ -179,7 +201,7 @@ export class GameStore {
       this.grid.append(empty);
     } else {
       this.grid.removeAttribute('aria-busy');
-      const items = (this.category === 'FEATURED' ? storeFeatured : this.category === 'AIRCRAFT' ? storeAircraft : storePaints)
+      const items = (this.category === 'FEATURED' ? storeFeatured : storePaints)
         .filter(item => this.catalog?.has(item.id));
       if (items.length) for (const item of items) this.grid.append(this.card(item));
       else {
@@ -189,6 +211,11 @@ export class GameStore {
     }
     this.productRail.refresh();
     this.categoryRail.refresh();
+    const art = [...this.grid.querySelectorAll<HTMLElement>('[data-store-preview-id]')];
+    if (art.length) {
+      this.previews ??= new StoreAircraftPreviews(this.element.querySelector<HTMLElement>('.store-rail')!, this.grid);
+      this.previews.setCards(art.map(element => ({ art: element, item: storeItemById(element.dataset.storePreviewId!)! })));
+    } else this.previews?.setCards([]);
   }
 
   private price(item: StoreItem, currency: Currency): number | undefined {
@@ -201,11 +228,16 @@ export class GameStore {
   private card(item: StoreItem): HTMLElement {
     const card = document.createElement('article'); card.className = 'game-card-frame store-item-card';
     card.dataset.storeItemId = item.id;
-    card.classList.toggle('is-premium', item.kind === 'aircraft' && item.aircraftType === 'fighter');
     const owned = isOwned(item, this.profile);
+    card.classList.toggle('is-premium', item.aircraftType === 'fighter');
     const purchaseItem = storePurchaseTarget(item);
     const state = this.profile ? storeItemState(item, this.profile) : undefined;
-    const art = artwork(item, purchaseItem.id);
+    const art = artwork(item);
+    art.addEventListener('click', () => this.openDetail(item, art));
+    art.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault(); this.openDetail(item, art);
+    });
     const subtitle = document.createElement('small'); subtitle.className = 'store-art-subtitle'; subtitle.textContent = item.subtitle;
     art.append(subtitle);
     if (owned) art.append(this.statusBadge('OWNED'));
@@ -232,11 +264,18 @@ export class GameStore {
       const required = storeAircraft.find(aircraft => aircraft.aircraftType === item.aircraftType);
       const note = document.createElement('span'); note.className = 'store-card-includes';
       note.textContent = `OWN ${required?.name ?? 'AIRCRAFT'} FIRST`; copy.append(note);
-      footer.append(this.button('BUY AIRCRAFT', () => this.showAircraftCard(item), 'context-action context-action--gold store-card-action'));
+      footer.append(this.button(item.aircraftType === 'trainer' ? 'OPEN IN HANGAR' : 'VIEW AIRCRAFT OPTIONS',
+        () => item.aircraftType === 'trainer' ? this.handlers.viewGarage(item) : this.showAircraftCard(item),
+        'context-action context-action--gold store-card-action'));
     } else if (owned || item.included || (item.kind === 'aircraft' && item.aircraftType === 'trainer')) {
-      const open = this.button(item.kind === 'paint' ? 'OPEN IN HANGAR' : 'OPEN AIRCRAFT', () => this.handlers.viewGarage(item), 'context-action context-action--gold store-card-action');
-      open.setAttribute('aria-label', `Open ${item.name} in Aircraft Hangar`);
-      footer.append(open);
+      const equipped = this.profile?.selectedAircraft === item.aircraftType
+        && (item.kind === 'aircraft' || this.profile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] === item.id);
+      const actionLabel = equipped ? 'EQUIPPED'
+        : item.kind === 'paint' && this.profile?.selectedAircraft === item.aircraftType ? 'USE APPEARANCE' : 'EQUIP AIRCRAFT';
+      const equip = this.button(actionLabel, () => void this.performEquip(item), 'context-action store-card-action store-card-owned');
+      equip.disabled = this.busy || equipped;
+      equip.setAttribute('aria-label', equipped ? `${item.name} equipped` : `Equip ${item.name}`);
+      footer.append(equip);
     } else {
       const creditPrice = this.price(purchaseItem, 'CREDITS');
       const tokenPrice = this.price(purchaseItem, 'SKY_TOKENS');
@@ -246,13 +285,36 @@ export class GameStore {
         const unavailable = document.createElement('span'); unavailable.className = 'store-card-includes';
         unavailable.textContent = 'UNAVAILABLE'; footer.append(unavailable);
       }
-      if (item.kind === 'aircraft' && item.aircraftType === 'fighter' && (!this.profile || this.profile.fighterTrial?.status === 'available')) {
+      if (item.aircraftType === 'fighter' && (!this.profile || this.profile.fighterTrial?.status === 'available')) {
         const trial = this.button('TRY 5 MINUTES', () => void this.performTrial(), 'context-action store-card-action store-card-trial');
         trial.disabled = this.busy; footer.append(trial);
       }
     }
     card.append(copy, footer);
     return card;
+  }
+
+  private openDetail(item: StoreItem, trigger: HTMLElement): void {
+    if (!this.previews) return;
+    this.detailTrigger = trigger;
+    renderAircraftDetailPanel(this.detailOverlay.querySelector<HTMLElement>('.store-detail-panel')!, item.aircraftType);
+    this.detailOverlay.hidden = false;
+    this.frame.inert = true;
+    this.previews.showDetail(this.element.querySelector<HTMLElement>('.store-detail-preview')!, item);
+    this.element.querySelector<HTMLButtonElement>('.store-detail-close')!.focus();
+  }
+
+  private closeDetail(restoreFocus = true): void {
+    if (this.detailOverlay.hidden) return;
+    this.previews?.hideDetail();
+    this.detailOverlay.hidden = true;
+    this.frame.inert = false;
+    if (restoreFocus) {
+      const target = this.detailTrigger?.isConnected ? this.detailTrigger
+        : this.tabs.querySelector<HTMLElement>('.store-tab.is-active');
+      target?.focus();
+    }
+    this.detailTrigger = undefined;
   }
 
   private cardPurchaseRow(item: StoreItem, purchaseItem: StoreItem, currency: Currency, price: number): HTMLElement {
@@ -279,8 +341,9 @@ export class GameStore {
 
   private showAircraftCard(item: StoreItem): void {
     this.setCategory('AIRCRAFT');
+    const offer = storePaints.find(candidate => candidate.aircraftType === item.aircraftType && !candidate.included && this.catalog?.has(candidate.id));
     const card = [...this.grid.querySelectorAll<HTMLElement>('.store-item-card')]
-      .find(candidate => candidate.dataset.storeItemId === item.aircraftType);
+      .find(candidate => candidate.dataset.storeItemId === offer?.id);
     if (card) { this.productRail.reveal(card); card.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true }); }
   }
 
@@ -342,6 +405,17 @@ export class GameStore {
     this.busy = true; this.render();
     try { const result = await this.handlers.trial(); this.setNotice(result.message); }
     catch { this.setNotice('TRIAL UNAVAILABLE — PLEASE TRY AGAIN'); }
+    finally { this.busy = false; this.render(); }
+  }
+
+  private async performEquip(item: StoreItem): Promise<void> {
+    if (this.busy || !this.profile) return;
+    this.busy = true;
+    this.render();
+    try {
+      const result = await this.handlers.equip(item);
+      this.setNotice(result.message);
+    } catch { this.setNotice('UNABLE TO EQUIP AIRCRAFT — PLEASE TRY AGAIN'); }
     finally { this.busy = false; this.render(); }
   }
 }

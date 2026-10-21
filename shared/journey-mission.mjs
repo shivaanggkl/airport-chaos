@@ -389,3 +389,6 @@ export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission 
 export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';
 }
+export function crossesJourneyGateWrongWay(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
+  return journeyGateCrossing(to, from, gateIndex, terrainHeight, mission) === 'VALID';
+}

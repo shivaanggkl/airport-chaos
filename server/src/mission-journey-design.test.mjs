@@ -41,13 +41,22 @@ test('mission state follows progression, including chapter boundaries and full c
 });
 
 test('locked missions stay disabled while completed missions can be replayed', () => {
-  assert.match(view, /button\.disabled = status === 'locked'/);
+  assert.match(view, /button\.disabled = this\.cityLocked \|\| status === 'locked'/);
   assert.match(view, /userSelected && this\.stageButtons\[number - 1\]\?\.disabled/);
   assert.match(view, /if \(this\.stageButtons\[this\.selectedStage - 1\]\?\.disabled\) return/);
   assert.match(view, /play\.disabled = locked/);
   assert.match(view, /completed \? 'REPLAY MISSION/);
   assert.match(bootstrap, /missionJourney\.selectedMissionNumber/);
   assert.match(bootstrap, /\/api\/journey\/dallas\/\$\{mission\}\/launch/);
+});
+
+test('locked Dallas remains viewable while its missions cannot launch', () => {
+  const locked = missionJourneyStatuses(Array(24).fill(false), Array(24).fill(false), false);
+  assert.ok(locked.statuses.every(status => status === 'locked'));
+  assert.match(bootstrap, /cta: unlocked \?[^\n]+: 'LOCKED', locked: !unlocked, disabled: !unlocked && cityJourneyMode !== 'missions'/);
+  assert.match(bootstrap, /missionJourney\.setCityLocked\(!dallasUnlocked\(\)\)/);
+  assert.match(bootstrap, /if \(!dallasUnlocked\(\)\) return;\s+cityJourneyMode = 'missions'/);
+  assert.match(view, /this\.cityLocked \? 'Complete Milwaukee training to unlock Dallas missions\.'/);
 });
 
 test('mission selection supports pointer, keyboard and compact landscape layout', () => {
