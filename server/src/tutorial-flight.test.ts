@@ -11,7 +11,7 @@ import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mj
 import { TutorialStepReconciler } from '../../shared/tutorial-step-reconciler.mjs';
 import { desktopTurnIntent, normalizedPitchCommand } from '../../shared/flight-control-rules.mjs';
 import { joystickInput } from '../../shared/mobile-input-rules.mjs';
-import { TRAINING_FILM_DURATION_MS, trainingFilmScenes } from '../../shared/training-film.mjs';
+import { trainingSlideIds } from '../../shared/training-slides.mjs';
 
 test('tutorial state is versioned and rejects unknown persisted values', () => {
   assert.deepEqual(normalizeTutorialState({ version: 'old', status: 'bad' }), { version: TUTORIAL_VERSION, status: 'new', completedAt: undefined });
@@ -289,28 +289,38 @@ test('completed tutorial can be explicitly replayed without granting credits', (
   assert.equal(db.getOrCreate('tutorial-pilot', 'Pilot').credits, 0);
 });
 
-test('the full training film unlocks Dallas without granting rewards or bypassing its watch time', () => {
-  const path=join(mkdtempSync(join(tmpdir(),'airport-training-film-')),'profiles.sqlite');
+test('ordered gameplay slides unlock Dallas without granting rewards', () => {
+  const path=join(mkdtempSync(join(tmpdir(),'airport-training-slides-')),'profiles.sqlite');
   const store=new PlayerProfileStore(path);
-  const pilot=store.getOrCreate('film-pilot','Pilot');
+  const pilot=store.getOrCreate('slides-pilot','Pilot');
   const startedAt=100_000;
-  assert.equal(trainingFilmScenes.reduce((total,scene)=>total+scene.durationMs,0),TRAINING_FILM_DURATION_MS);
-  assert.equal(store.startTrainingFilm(pilot.pilotId,startedAt),false);
+  assert.deepEqual(trainingSlideIds,tutorialSteps);
+  assert.equal(store.startTrainingSlides(pilot.pilotId,startedAt),false);
   store.setTutorialState(pilot.pilotId,'started');
-  assert.equal(store.completeTrainingFilm(pilot.pilotId,startedAt+TRAINING_FILM_DURATION_MS),undefined);
-  assert.equal(store.startTrainingFilm(pilot.pilotId,startedAt),true);
-  assert.equal(store.completeTrainingFilm(pilot.pilotId,startedAt+TRAINING_FILM_DURATION_MS-1),undefined);
+  assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt),undefined);
+  assert.equal(store.startTrainingSlides(pilot.pilotId,startedAt),true);
+  assert.equal(store.advanceTrainingSlide(pilot.pilotId,1,trainingSlideIds[1]!,startedAt),false);
+  assert.equal(store.advanceTrainingSlide(pilot.pilotId,0,'wrong-step',startedAt),false);
+  for(let index=0;index<trainingSlideIds.length-1;index++){
+    assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+index),undefined);
+    assert.equal(store.advanceTrainingSlide(pilot.pilotId,index,trainingSlideIds[index]!,startedAt+index),true);
+    assert.equal(store.advanceTrainingSlide(pilot.pilotId,index,trainingSlideIds[index]!,startedAt+index),true,'retry is idempotent');
+    if(index>1)assert.equal(store.advanceTrainingSlide(pilot.pilotId,index-2,trainingSlideIds[index-2]!,startedAt+index),true,'revisiting earlier slides can move forward');
+  }
   assert.equal(store.dallasUnlocked(pilot.pilotId),false);
-  const completed=store.completeTrainingFilm(pilot.pilotId,startedAt+TRAINING_FILM_DURATION_MS);
+  const completed=store.completeTrainingSlides(pilot.pilotId,startedAt+trainingSlideIds.length);
   assert.equal(completed?.tutorial.dallasUnlocked,true);
   assert.equal(completed?.credits,0);
-  assert.equal(store.completeTrainingFilm(pilot.pilotId,startedAt+TRAINING_FILM_DURATION_MS+1),undefined);
+  assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+trainingSlideIds.length+1)?.tutorial.dallasUnlocked,true);
   assert.ok(Object.values(store.tutorialStepStates(pilot.pilotId)).every(status=>status==='pending'));
   store.setTutorialState(pilot.pilotId,'started');
   assert.equal(store.dallasUnlocked(pilot.pilotId),true,'replay keeps the city unlocked');
-  store.startTrainingFilm(pilot.pilotId,startedAt);
+  store.startTrainingSlides(pilot.pilotId,startedAt);
+  assert.equal(store.advanceTrainingSlide(pilot.pilotId,0,trainingSlideIds[0]!,startedAt),true);
+  store.resetTutorialRun(pilot.pilotId,true);
+  assert.equal(store.advanceTrainingSlide(pilot.pilotId,1,trainingSlideIds[1]!,startedAt),true,'a flight crash preserves guide progress');
   store.resetTutorialRun(pilot.pilotId);
-  assert.equal(store.completeTrainingFilm(pilot.pilotId,startedAt+TRAINING_FILM_DURATION_MS),undefined);
+  assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+trainingSlideIds.length),undefined);
 });
 
 test('Dallas missions stay locked for unfinished Milwaukee training, including older profiles', () => {
@@ -425,8 +435,8 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
   assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)profileStore\.resetTutorialRun/);
-  assert.match(main, /WELCOME TO FLIGHT TRAINING[\s\S]*Learn to fly in a few minutes\./);
-  assert.match(main, /data-training-film>WATCH FLIGHT FILM<[\s\S]*data-training-start>FLY MYSELF<[\s\S]*data-training-skip>Skip</);
+  assert.match(main, /WELCOME TO FLIGHT TRAINING[\s\S]*Explore each lesson in the real Milwaukee flight/);
+  assert.match(main, /data-training-slides>VIEW GAMEPLAY GUIDE<[\s\S]*data-training-start>FLY MYSELF<[\s\S]*data-training-skip>Skip</);
   assert.match(main, /data-guided-skip>SKIP TRAINING<[\s\S]*data-guided-exit>EXIT TRAINING</);
   assert.match(main, /data-tutorial-completion-actions[\s\S]*CONTINUE[\s\S]*Replay Training[\s\S]*Free Practice/);
   assert.equal((main.match(/className = 'guided-tutorial-panel'/g)??[]).length,1);
@@ -468,7 +478,7 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(main, /message\.type==='tutorialStepResult'/);
   assert.match(main, /tutorialRunReset[\s\S]*TRAINING RESTARTED/);
   assert.match(main, /guidedTrainingCrash[\s\S]*requestTutorialRunReset\('crash'\)/);
-  assert.match(server, /resetTutorialRun\(player\.pilotId\)[\s\S]*resetHumanToSafeRunway\(playerId,player,profile,Date\.now\(\),true,'trainer'\)/);
+  assert.match(server, /resetTutorialRun\(player\.pilotId,message\.tutorialResetReason==='crash'\)[\s\S]*resetHumanToSafeRunway\(playerId,player,profile,Date\.now\(\),true,'trainer'\)/);
   assert.doesNotMatch(readFileSync(new URL('../../client/index.html', import.meta.url),'utf8'),/tutorial-crash-actions|RETRY TUTORIAL|CONTINUE FREE PRACTICE/);
   assert.match(main, /if\(!response\.ok\)throw new Error\('Training session did not close'\)/);
   assert.match(css, /\.training-mode-label/);

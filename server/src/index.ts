@@ -1739,24 +1739,32 @@ const httpServer = createServer(async (request, response) => {
           const host = analyticsHost(request.headers.host);
           analyticsStore.recordEvent({ pilotId: identity.pilotId, ...host, aircraftType: 'fighter' }, 'aircraft_unlocked', { source: 'tester_code' });
         }
-      } else if(payload?.tutorialFilm&&typeof payload.tutorialFilm==='object'){
-        const action=(payload.tutorialFilm as {action?:unknown}).action;
+      } else if(payload?.tutorialSlides&&typeof payload.tutorialSlides==='object'){
+        const slideRequest=payload.tutorialSlides as {action?:unknown;slideIndex?:unknown;slideId?:unknown};
+        const action=slideRequest.action;
         if(action==='start'){
           profileStore.getOrCreate(identity.pilotId,identity.pilotName);
-          if(profileStore.startTrainingFilm(identity.pilotId))profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
-          else error='Start Milwaukee training before watching the film.';
+          if(profileStore.startTrainingSlides(identity.pilotId))profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
+          else error='Start Milwaukee training before opening the guide.';
+        }else if(action==='advance'){
+          if(typeof slideRequest.slideIndex==='number'&&typeof slideRequest.slideId==='string'&&
+            profileStore.advanceTrainingSlide(identity.pilotId,slideRequest.slideIndex,slideRequest.slideId))
+            profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
+          else error='Follow the training slides in order.';
         }else if(action==='complete'){
-          profile=profileStore.completeTrainingFilm(identity.pilotId);
-          if(!profile)error='Finish watching the full training film first.';
+          profile=profileStore.completeTrainingSlides(identity.pilotId);
+          if(!profile)error='Reach the final training slide first.';
           else{
             for(const [id,player] of players){
               if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
               removeTrainingTarget(id);removePlayerProjectiles(id);
               for(const [peer,peerId] of playerSockets)if(peerId===id)peer.close(1000,'Training ended');
             }
-            analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},'tutorial_completed',{source:'training_film',metadata:{tutorialVersion:'tutorial_v1'}});
+            analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},'tutorial_completed',{source:'training_slides',metadata:{tutorialVersion:'tutorial_v1'}});
           }
-        }else error='Invalid training film action';
+        }else error='Invalid training slide action';
+      } else if(payload?.tutorialFilm){
+        error='Update the QA app to use the Milwaukee training slides.';
       } else if(payload?.tutorialState&&typeof payload.tutorialState==='object'){
         const tutorialState=payload.tutorialState as {version?:unknown;status?:unknown;freshRun?:unknown};
         if(tutorialState.version==='tutorial_v1'&&(tutorialState.status==='started'||tutorialState.status==='completed'||tutorialState.status==='skipped')){
@@ -7229,7 +7237,7 @@ server.on('connection', (socket, request) => {
 
       if(message.type==='tutorialRunReset'&&(message.tutorialResetReason==='crash'||message.tutorialResetReason==='replay')){
         if(!player.tutorialMode||player.cityId!=='milwaukee')return;
-        removeTrainingTarget(playerId);removePlayerProjectiles(playerId);profileStore.resetTutorialRun(player.pilotId);
+        removeTrainingTarget(playerId);removePlayerProjectiles(playerId);profileStore.resetTutorialRun(player.pilotId,message.tutorialResetReason==='crash');
         const profile=profileStore.setTutorialState(player.pilotId,'started',Date.now());if(!profile)return;
         resetHumanToSafeRunway(playerId,player,profile,Date.now(),true,'trainer');
         sendToPlayer(playerId,{type:'tutorialRunReset',reason:message.tutorialResetReason,steps:profileStore.tutorialStepStates(player.pilotId),nextStep:tutorialSteps[0]});

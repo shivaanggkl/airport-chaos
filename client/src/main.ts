@@ -37,7 +37,7 @@ import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferr
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tutorialLockPreviewInstruction,tutorialDetectedInstruction,tutorialLandingCoachStage,tutorialLandingCoachInstruction,tutorialTakeoffRecoveryInstruction,tutorialTurnProgress,type TutorialBindings,type TutorialLandingCoachStage,type TutorialLessonStep,type TutorialStepStatus}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { GameplayInfoCard } from './gameplay-info-card';
-import { TrainingFilm } from './training-film';
+import { TrainingSlides } from './training-slides';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
 import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
@@ -4094,6 +4094,7 @@ let tutorialZoomTravel=0;
 let tutorialExitPending=false;
 let tutorialRunResetPending=false;
 let tutorialCrashResetTimer:number|undefined;
+let trainingSlidesOpen=false;
 const flightControlCodes = new Set(Object.keys(keyboardActionBindings));
 function showFirstRunGuide(): void {
   if (!cityRules.tutorialEnabled) return;
@@ -4112,7 +4113,7 @@ flightTutorial.setVisibilityHandler(() => {
 flightTutorial.setHelpAction(showFirstRunGuide);
 window.addEventListener('keydown', (event) => {
   if (shouldIgnoreGameplayKeyboardEvent(event)) return;
-  if (guidedTutorialActive && (tutorialIntroPending || tutorialCompletionPending || tutorialExitPending)) {
+  if (guidedTutorialActive && ((tutorialIntroPending && !trainingSlidesOpen) || tutorialCompletionPending || tutorialExitPending)) {
     if (flightControlCodes.has(event.code)) event.preventDefault();
     return;
   }
@@ -5793,7 +5794,7 @@ document.body.append(tutorialDimmer);
 const tutorialIntroPanel=document.createElement('section');
 tutorialIntroPanel.className='training-intro';tutorialIntroPanel.hidden=true;
 tutorialIntroPanel.setAttribute('role','dialog');tutorialIntroPanel.setAttribute('aria-labelledby','training-intro-title');
-tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">WELCOME TO FLIGHT TRAINING</h1><p>Learn to fly in a few minutes. Watch a guided flight or fly it yourself.</p><div class="training-orientation" data-training-orientation role="group" aria-label="Flight pitch direction"><button type="button" data-pitch-normal aria-pressed="true"><i class="training-stick-demo"><b>↑</b></i>NORMAL<small data-pitch-normal-copy></small></button><button type="button" data-pitch-inverted aria-pressed="false"><i class="training-stick-demo inverted"><b>↓</b></i>INVERTED<small data-pitch-inverted-copy></small></button></div><div class="training-dialog-actions"><button type="button" data-training-film>WATCH FLIGHT FILM</button><button type="button" data-training-start>FLY MYSELF</button><button type="button" data-training-skip>Skip</button></div></div>';
+tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">WELCOME TO FLIGHT TRAINING</h1><p>Explore each lesson in the real Milwaukee flight. Try the controls as you go, or fly the guided training yourself.</p><div class="training-orientation" data-training-orientation role="group" aria-label="Flight pitch direction"><button type="button" data-pitch-normal aria-pressed="true"><i class="training-stick-demo"><b>↑</b></i>NORMAL<small data-pitch-normal-copy></small></button><button type="button" data-pitch-inverted aria-pressed="false"><i class="training-stick-demo inverted"><b>↓</b></i>INVERTED<small data-pitch-inverted-copy></small></button></div><div class="training-dialog-actions"><button type="button" data-training-slides>VIEW GAMEPLAY GUIDE</button><button type="button" data-training-start>FLY MYSELF</button><button type="button" data-training-skip>Skip</button></div></div>';
 document.body.append(tutorialIntroPanel);
 const trainingModeLabel=document.createElement('div');
 trainingModeLabel.className='training-mode-label';trainingModeLabel.hidden=true;
@@ -5815,20 +5816,29 @@ tutorialIntroPanel.querySelector('[data-pitch-normal]')!.addEventListener('click
 tutorialIntroPanel.querySelector('[data-pitch-inverted]')!.addEventListener('click', () => setTrainingOrientation(true));
 tutorialActions.querySelector('[data-guided-skip]')!.addEventListener('click', () => {void endTrainingAndNavigate('city');});
 tutorialActions.querySelector('[data-guided-exit]')!.addEventListener('click', () => {void endTrainingAndNavigate('hub');});
-const trainingFilm=new TrainingFilm({
+async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,slideId?:string):Promise<boolean>{
+  const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
+  try{
+    const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialSlides:{action,slideIndex,slideId}})});
+    return response.ok;
+  }catch{return false;}
+}
+const trainingSlides=new TrainingSlides({
+  host:gameplayInfoElement,
+  gameRoot:flightGameRoot,
   controls:()=>({mode:tutorialInputMode(),inverted:mobileInput.getPitchInverted(),bindings:tutorialBindings}),
-  onClose:()=>{tutorialIntroPanel.hidden=false;tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-film]')!.focus();},
-  onComplete:()=>endTrainingAndNavigate('city','film'),
+  onOpen:()=>{trainingSlidesOpen=true;tutorialPanel.hidden=true;tutorialDimmer.hidden=true;},
+  onClose:()=>{trainingSlidesOpen=false;clearHeldActions();mobileInput.reset();tutorialIntroPending=true;tutorialPanel.hidden=true;tutorialDimmer.hidden=true;tutorialIntroPanel.hidden=false;tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-slides]')!.focus();},
+  onAdvance:(index,step)=>postTrainingSlides('advance',index,step),
+  onComplete:()=>endTrainingAndNavigate('city','slides'),
 });
-tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-film]')!.addEventListener('click',async()=>{
-  const button=tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-film]')!;
+tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-slides]')!.addEventListener('click',async()=>{
+  const button=tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-slides]')!;
   button.disabled=true;
   try{
-    const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
-    const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialFilm:{action:'start'}})});
-    if(!response.ok)throw new Error('Training film could not start');
-    clearHeldActions();mobileInput.reset();tutorialIntroPanel.hidden=true;trainingFilm.open();
-  }catch{showProgressMessage('SERVER REQUIRED TO WATCH TRAINING FILM');}
+    if(!await postTrainingSlides('start'))throw new Error('Training guide could not start');
+    clearHeldActions();mobileInput.reset();tutorialIntroPanel.hidden=true;trainingSlides.open();
+  }catch{showProgressMessage('SERVER REQUIRED TO OPEN TRAINING GUIDE');}
   finally{button.disabled=false;}
 });
 tutorialIntroPanel.querySelector('[data-training-start]')!.addEventListener('click',()=>{clearHeldActions();mobileInput.reset();tutorialIntroPending=false;tutorialIntroPanel.hidden=true;tutorialPanel.hidden=false;tutorialDimmer.hidden=false;resetTutorialLessonMetrics();renderTutorialPanel();tutorialPanel.querySelector<HTMLElement>('[data-tutorial-title]')!.focus();});
@@ -5852,10 +5862,10 @@ registerUiBackLayer({
   close: dismissDallasPracticeSuggestion,
 });
 registerUiBackLayer({
-  id: 'training-film',
+  id: 'training-slides',
   priority: uiBackPriority.modal + 30,
-  isActive: () => trainingFilm.isOpen(),
-  close: () => trainingFilm.close(),
+  isActive: () => trainingSlides.isOpen(),
+  close: () => trainingSlides.close(),
 });
 registerUiBackLayer({
   id: 'training-intro',
@@ -6083,21 +6093,21 @@ function resetTutorialLessonMetrics():void{
   window.clearTimeout(tutorialLockPreviewTimer);tutorialLockPreview=guidedTutorialStep==='targetLock';
   if(tutorialLockPreview)tutorialLockPreviewTimer=window.setTimeout(()=>{tutorialLockPreview=false;renderTutorialPanel();},1600);
 }
-async function endTrainingAndNavigate(destination:'city'|'hub',completion:'flight'|'film'='flight'):Promise<boolean>{
+async function endTrainingAndNavigate(destination:'city'|'hub',completion:'flight'|'slides'='flight'):Promise<boolean>{
   if(!guidedTutorialActive||tutorialExitPending)return false;
   tutorialExitPending=true;
   clearHeldActions();
-  const status=completion==='film'||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
+  const status=completion==='slides'||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
   const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
   let firstDallasUnlockAt: number | undefined;
   try{
-    const body=completion==='film'?{tutorialFilm:{action:'complete'}}:{tutorialState:{version:TUTORIAL_VERSION,status}};
+    const body=completion==='slides'?{tutorialSlides:{action:'complete'}}:{tutorialState:{version:TUTORIAL_VERSION,status}};
     const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!response.ok)throw new Error('Training session did not close');
     const profile=await response.json() as {tutorial?:{completedAt?:number;dallasUnlocked?:boolean}};
     const completedAt=profile.tutorial?.completedAt;
     if(status==='completed'&&!serverProfile.tutorial.completedAt&&profile.tutorial?.dallasUnlocked===true&&typeof completedAt==='number'&&Number.isFinite(completedAt))firstDallasUnlockAt=completedAt;
-  }catch{tutorialExitPending=false;if(completion!=='film')showProgressMessage('SERVER REQUIRED TO EXIT TRAINING');return false;}
+  }catch{tutorialExitPending=false;if(completion!=='slides')showProgressMessage('SERVER REQUIRED TO EXIT TRAINING');return false;}
   window.clearTimeout(tutorialAdvanceTimer);window.clearTimeout(tutorialLockPreviewTimer);tutorialPanel.hidden=true;tutorialIntroPanel.hidden=true;tutorialDimmer.hidden=true;trainingModeLabel.hidden=true;document.body.dataset.tutorialControl='';
   if(completion==='flight'&&connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:status}));
   const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
@@ -10778,7 +10788,7 @@ boundSocket.addEventListener('message', (event) => {
   } else if(message.type==='tutorialRunReset'){
     tutorialRunResetPending=false;window.clearTimeout(tutorialCrashResetTimer);applyTutorialStepStates(message.steps);
     tutorialNavigationCoach=undefined;tutorialNavigationCoachSeen=false;syncTutorialNavigationMap();
-    guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=false;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
+    guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
     tutorialIntroPanel.hidden=true;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
     gameplayFeedback.push({type:'mission',primaryText:'TRAINING RESTARTED',secondaryText:'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
   } else if(message.type==='tutorialTarget'){
