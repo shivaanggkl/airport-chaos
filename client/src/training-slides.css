@@ -1,26 +1,36 @@
-#game-root.training-slides-active .mission-status-layer{z-index:81}
-#game-root .gameplay-info-card.is-tutorial:has(> .training-slides:not([hidden])){display:grid !important}
-#game-root.training-slides-active .gameplay-info-card > .guided-tutorial-panel:not(.training-slides){display:none !important}
-.training-slides{display:flex;flex-direction:column;gap:7px;width:min(340px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 20px));padding:11px;overflow:hidden;pointer-events:auto;touch-action:none;user-select:none;background:rgb(9 28 43 / 88%);border-color:var(--ui-gold)}
-.training-slides[hidden]{display:none}
-.training-slides header{gap:5px}
-.training-slides header small{font-size:10px}
-.training-slides [data-slide-count]{color:var(--ui-gold);font:900 11px var(--font-display);white-space:nowrap}
-.training-slides [data-slide-close]{display:grid;place-items:center;min-width:30px;min-height:30px;padding:0;border:1px solid var(--ui-gold);border-radius:6px;background:var(--ui-glass-main);color:var(--ui-text);font:900 16px var(--font-display);cursor:pointer}
-.training-slides>[data-slide-title]{margin:2px 0 0;color:var(--ui-gold);font:900 18px/1.1 var(--font-display);letter-spacing:.05em}
-.training-slides>[data-slide-detail]{margin:0;color:var(--ui-text);font:600 13px/1.3 var(--font-body)}
-.training-slides .tutorial-control-instruction{padding:7px 8px;font-size:12px}
-.training-slides-status{margin:0;color:#ffdf98;font:700 11px/1.25 var(--font-body)}
-.training-slides-status:empty{display:none}
-.training-slides-progress{display:flex;gap:4px;height:5px}
-.training-slides-progress i{flex:1;border-radius:5px;background:rgb(169 198 218 / 32%)}
-.training-slides-progress i.is-seen{background:var(--ui-gold)}
-.training-slides footer{display:grid;grid-template-columns:1fr 1.5fr;gap:6px}
-.training-slides footer button{min-height:40px;padding:6px 8px;border:1px solid var(--ui-border-strong);border-radius:6px;background:var(--ui-glass-main);color:var(--ui-text);font:800 12px var(--font-display);cursor:pointer}
-.training-slides footer [data-slide-next]{border-color:rgb(249 176 10 / 70%);background:var(--ui-gradient-primary);color:var(--ui-ocean-ink)}
-.training-slides footer button:disabled{opacity:.42;cursor:default}
-.training-slides button:focus-visible{outline:2px solid #fff;outline-offset:2px}
-body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="climb"] [data-touch-control="stick"],body[data-training-slide-control="descend"] [data-touch-control="stick"],body[data-training-slide-control="turnLeft"] [data-touch-control="stick"],body[data-training-slide-control="turnRight"] [data-touch-control="stick"],body[data-training-slide-control="joystick"] [data-touch-control="stick"],body[data-training-slide-control="landing"] [data-touch-control="stick"],body[data-training-slide-control="landing"] [data-touch-control="throttle"],body[data-training-slide-control="fire"] [data-touch-control="fire"]{opacity:1;filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px;animation:tutorial-control-pulse 1.05s ease-in-out infinite}
-body[data-training-slide-control="targetLock"] #acquisition-circle{outline:2px solid var(--ui-gold);outline-offset:6px;animation:tutorial-control-pulse 1.1s ease-in-out infinite}
-body[data-training-slide-control="cameraLook"] #game-root>canvas,body[data-training-slide-control="cameraZoom"] #game-root>canvas{outline:3px solid var(--ui-gold);outline-offset:-5px}
-@media(max-width:950px) and (orientation:landscape){.training-slides{top:max(48px,calc(var(--safe-area-top) + 40px));left:max(8px,var(--safe-area-left));width:min(270px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));gap:5px;padding:8px}.training-slides>[data-slide-title]{font-size:16px}.training-slides>[data-slide-detail]{font-size:11px}.training-slides .tutorial-control-instruction{font-size:11px;padding:6px}.training-slides footer button{min-height:34px;font-size:10px}}
+#game-root.training-screenplay-active .mission-status-layer{z-index:81}
+#game-root.training-screenplay-active #touch-controls{pointer-events:none}
+#game-root.training-screenplay-active .touch-stick i{transition:translate 900ms ease}
+#game-root .gameplay-info-card.is-tutorial:has(> .training-screenplay:not([hidden])){display:grid!important}
+#game-root.training-screenplay-active .gameplay-info-card>.guided-tutorial-panel:not(.training-screenplay){display:none!important}
+.training-screenplay{display:flex;flex-direction:column;gap:7px;width:min(340px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 20px));padding:12px;background:rgb(9 28 43 / 88%);border-color:var(--ui-gold);pointer-events:none}
+.training-screenplay[hidden],.training-screenplay-hand[hidden]{display:none}
+.training-screenplay header{gap:5px}
+.training-screenplay header small{font-size:10px}
+.training-screenplay [data-scene-count]{color:var(--ui-gold);font:900 11px var(--font-display);white-space:nowrap}
+.training-screenplay h2{margin:0;color:var(--ui-gold);font:900 18px/1.1 var(--font-display);letter-spacing:.05em}
+.training-screenplay p{margin:0;color:var(--ui-text);font:600 13px/1.35 var(--font-body)}
+.training-screenplay [data-scene-status]:empty{display:none}
+.training-screenplay [data-scene-retry]{min-height:38px;border:1px solid var(--ui-gold);border-radius:6px;background:var(--ui-gradient-primary);color:var(--ui-ocean-ink);font:900 12px var(--font-display);pointer-events:auto}
+.training-screenplay [data-scene-retry][hidden]{display:none}
+.training-screenplay-progress{display:flex;gap:4px;height:5px}
+.training-screenplay-progress i{flex:1;border-radius:5px;background:rgb(169 198 218 / 32%)}
+.training-screenplay-progress i.is-seen{background:var(--ui-gold)}
+.training-screenplay-progress i.is-current{animation:training-scene-progress 5.2s linear both}
+@keyframes training-scene-progress{from{opacity:.28}to{opacity:1}}
+.training-screenplay-hand{position:fixed;z-index:140;font-size:50px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 3px #071a2e) drop-shadow(0 0 10px #ffdc65);transform:translate(-15%,-20%);animation:training-hand-tap 5.2s ease-in-out both}
+.training-screenplay-hand[data-motion="up"]{animation-name:training-hand-up}
+.training-screenplay-hand[data-motion="down"]{animation-name:training-hand-down}
+.training-screenplay-hand[data-motion="left"]{animation-name:training-hand-left}
+.training-screenplay-hand[data-motion="right"]{animation-name:training-hand-right}
+.training-screenplay-hand[data-motion="pinch"]{animation-name:training-hand-pinch}
+.training-screenplay-hand[data-motion="hold"]{animation-name:training-hand-hold}
+@keyframes training-hand-up{0%,15%,100%{transform:translate(-15%,24px) scale(1)}55%,85%{transform:translate(-15%,-30px) scale(.94)}}
+@keyframes training-hand-down{0%,15%,100%{transform:translate(-15%,-30px) scale(1)}55%,85%{transform:translate(-15%,24px) scale(.94)}}
+@keyframes training-hand-left{0%,15%,100%{transform:translate(18px,-20%) scale(1)}55%,85%{transform:translate(-46px,-20%) scale(.94)}}
+@keyframes training-hand-right{0%,15%,100%{transform:translate(-48px,-20%) scale(1)}55%,85%{transform:translate(18px,-20%) scale(.94)}}
+@keyframes training-hand-pinch{0%,100%{transform:translate(-15%,-20%) scale(.8)}55%{transform:translate(-15%,-20%) scale(1.3)}}
+@keyframes training-hand-hold{0%,100%{transform:translate(-15%,-20%) scale(1)}50%{transform:translate(-15%,-20%) scale(.92)}}
+@keyframes training-hand-tap{0%,100%{transform:translate(-15%,-20%) scale(1)}35%,60%{transform:translate(-15%,-20%) scale(.78)}}
+body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="stick"] [data-touch-control="stick"],body[data-training-slide-control="fire"] [data-touch-control="fire"],body[data-training-slide-control="aim"] #acquisition-circle{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px}
+@media(max-width:950px) and (orientation:landscape){.training-screenplay{width:min(260px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));gap:5px;padding:8px}.training-screenplay h2{font-size:16px}.training-screenplay p{font-size:11px}.training-screenplay-hand{font-size:40px}}

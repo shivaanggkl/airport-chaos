@@ -1748,9 +1748,15 @@ const httpServer = createServer(async (request, response) => {
           else error='Start Milwaukee training before opening the guide.';
         }else if(action==='advance'){
           if(typeof slideRequest.slideIndex==='number'&&typeof slideRequest.slideId==='string'&&
-            profileStore.advanceTrainingSlide(identity.pilotId,slideRequest.slideIndex,slideRequest.slideId))
+            profileStore.advanceTrainingSlide(identity.pilotId,slideRequest.slideIndex,slideRequest.slideId)){
             profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
-          else error='Follow the training slides in order.';
+            for(const [id,player] of players){
+              if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
+              if(slideRequest.slideIndex===5)sendTutorialScreenplayCruise(id,player);
+              if(slideRequest.slideIndex===7)createTrainingTarget(id,player);
+              if(slideRequest.slideIndex===10)sendTutorialLandingApproach(id,player,true);
+            }
+          }else error='Follow the training screenplay in order.';
         }else if(action==='complete'){
           profile=profileStore.completeTrainingSlides(identity.pilotId);
           if(!profile)error='Reach the final training slide first.';
@@ -1758,9 +1764,8 @@ const httpServer = createServer(async (request, response) => {
             for(const [id,player] of players){
               if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
               removeTrainingTarget(id);removePlayerProjectiles(id);
-              for(const [peer,peerId] of playerSockets)if(peerId===id)peer.close(1000,'Training ended');
             }
-            analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},'tutorial_completed',{source:'training_slides',metadata:{tutorialVersion:'tutorial_v1'}});
+            analyticsStore.recordEvent({pilotId:identity.pilotId,...analyticsHost(request.headers.host)},'tutorial_completed',{source:'training_screenplay',metadata:{tutorialVersion:'tutorial_v1'}});
           }
         }else error='Invalid training slide action';
       } else if(payload?.tutorialFilm){
@@ -2769,8 +2774,21 @@ const serverVerifiedTutorialSteps=new Set<TutorialLessonStep>(['takeoff','approa
 function sendTutorialStepResult(playerId:string,result:{ok:boolean;changed:boolean;reason?:string;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>},step:TutorialLessonStep,status:Exclude<TutorialStepStatus,'pending'>):void{
   sendToPlayer(playerId,{type:'tutorialStepResult',ok:result.ok,step,status,nextStep:result.nextStep,steps:result.steps,reason:result.reason});
 }
-function sendTutorialLandingApproach(playerId:string,player:PlayerState):void{
-  if(!player.tutorialMode||player.cityId!=='milwaukee'||profileStore.nextPendingTutorialStep(player.pilotId)!=='landing')return;
+function sendTutorialScreenplayCruise(playerId:string,player:PlayerState):void{
+  if(!player.tutorialMode||player.cityId!=='milwaukee')return;
+  const airport=cityAirports.milwaukee[0];
+  const heading=airport.heading;
+  const speed=80;
+  const position={x:airport.x,y:1_200,z:airport.z};
+  const now=Date.now();
+  player.position={...position};player.lastAcceptedPosition={...position};player.lastAcceptedTransformAt=now;
+  player.rotation={x:0,y:heading,z:0};
+  player.velocity={x:-Math.sin(heading)*speed,y:0,z:-Math.cos(heading)*speed};
+  player.hasRespawnTransform=false;player.lifeState='alive';player.lastStateAt=now;
+  sendToPlayer(playerId,{type:'tutorialScreenplayCruise',position,heading,speed});
+}
+function sendTutorialLandingApproach(playerId:string,player:PlayerState,screenplay=false):void{
+  if(!player.tutorialMode||player.cityId!=='milwaukee'||(!screenplay&&profileStore.nextPendingTutorialStep(player.pilotId)!=='landing'))return;
   const approach=tutorialLandingApproach(cityAirports.milwaukee[0],aircraftFlightEnvelope.trainer.safeLandingSpeed);
   const now=Date.now();
   removeTrainingTarget(playerId);removePlayerProjectiles(playerId);

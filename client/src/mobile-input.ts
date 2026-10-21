@@ -147,6 +147,8 @@ export class MobileInputControls {
   private active = new Set<FlightAction>();
   private joystickPointer: number | undefined;
   private steeringInput = { x: 0, y: 0 };
+  private demoSteering: { x: number; y: number } | undefined;
+  private demoActive = false;
   private throttlePointer: number | undefined;
   private throttleTarget: number | undefined;
   private throttleBoostRequested = false;
@@ -200,6 +202,10 @@ export class MobileInputControls {
   getPitchInverted(): boolean {
     return this.pitchInverted;
   }
+  setDemoActive(active: boolean): void {
+    this.demoActive = active;
+    if (!active) this.clearDemoSteering();
+  }
   setPitchInverted(inverted: boolean) {
     this.pitchInverted=inverted;
     persistPitchInverted(inverted);
@@ -207,9 +213,24 @@ export class MobileInputControls {
   }
   isTouchLayout() { return this.deviceEnabled(); }
   supportsTouchControls() { return matchMedia('(pointer: coarse)').matches || innerWidth <= 900; }
-  getThrottleTarget() { return this.root.hidden ? undefined : this.throttleTarget; }
+  getThrottleTarget() { return this.root.hidden && !this.demoActive ? undefined : this.throttleTarget; }
   // Raw stick input. The shared keyboard/touch pitch command applies inversion once.
-  getSteeringInput() { return this.root.hidden ? { x: 0, y: 0 } : { ...this.steeringInput }; }
+  getSteeringInput() { return this.demoSteering ?? (this.root.hidden ? { x: 0, y: 0 } : { ...this.steeringInput }); }
+
+  setDemoSteering(x: number, y: number): void {
+    this.demoSteering = { x, y };
+    const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
+    const knob = joystickKnobPosition(x, y);
+    stick?.style.setProperty('--touch-x', `${knob.x}px`);
+    stick?.style.setProperty('--touch-y', `${knob.y}px`);
+  }
+
+  clearDemoSteering(): void {
+    this.demoSteering = undefined;
+    const stick = this.root.querySelector<HTMLElement>('[data-touch-stick]');
+    stick?.style.setProperty('--touch-x', '0px');
+    stick?.style.setProperty('--touch-y', '0px');
+  }
 
   setThrottleState(throttle: number) {
     const value = clamp(throttle, 0, 1);

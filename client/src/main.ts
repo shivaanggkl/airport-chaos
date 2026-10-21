@@ -3990,6 +3990,7 @@ flightGarageButtonElement.addEventListener('click', openGarage);
 
 const heldActions = new Set<FlightAction>();
 const heldKeyboardCodes = new Set<string>();
+let trainingSlidesOpen=false;
 function clearHeldActions(): void {
   heldActions.clear();
   heldKeyboardCodes.clear();
@@ -4000,14 +4001,14 @@ document.addEventListener('focusin', (event) => {
 let touchInputReported=false;
 const reportTouchInput=()=>{if(!touchInputReported&&connectionReady()){touchInputReported=true;socket.send(JSON.stringify({type:'analyticsEvent',event:'input_mode_detected',mode:'touch'}));}};
 const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#touch-controls')!, acquisitionCircleElement, (action,active)=>{
-  if (launchCinematicBlocksInput()) {
+  if (launchCinematicBlocksInput() || trainingSlidesOpen) {
     if (!active) heldActions.delete(action);
     return;
   }
   if(active)reportTouchInput();
   if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action==='fire')fireWeaponOnce();}
   else heldActions.delete(action);
-},(value)=>{if(launchCinematicBlocksInput())return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);});
+},(value)=>{if(launchCinematicBlocksInput()||trainingSlidesOpen)return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);});
 window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
   const latest=loadPlayerProgress();
   persistedPlayer.muted=audioManager.isMuted();
@@ -4094,7 +4095,6 @@ let tutorialZoomTravel=0;
 let tutorialExitPending=false;
 let tutorialRunResetPending=false;
 let tutorialCrashResetTimer:number|undefined;
-let trainingSlidesOpen=false;
 const flightControlCodes = new Set(Object.keys(keyboardActionBindings));
 function showFirstRunGuide(): void {
   if (!cityRules.tutorialEnabled) return;
@@ -4113,7 +4113,7 @@ flightTutorial.setVisibilityHandler(() => {
 flightTutorial.setHelpAction(showFirstRunGuide);
 window.addEventListener('keydown', (event) => {
   if (shouldIgnoreGameplayKeyboardEvent(event)) return;
-  if (guidedTutorialActive && ((tutorialIntroPending && !trainingSlidesOpen) || tutorialCompletionPending || tutorialExitPending)) {
+  if (guidedTutorialActive && (tutorialIntroPending || tutorialCompletionPending || tutorialExitPending)) {
     if (flightControlCodes.has(event.code)) event.preventDefault();
     return;
   }
@@ -4165,6 +4165,7 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => {
   if (shouldIgnoreGameplayKeyboardEvent(event)) return;
+  if (trainingSlidesOpen) { heldKeyboardCodes.delete(event.code); return; }
   if (launchCinematicBlocksInput()) {
     heldKeyboardCodes.delete(event.code);
     return;
@@ -4694,6 +4695,7 @@ type ServerMessage =
   | { type: 'tutorialSignal'; signal: 'airborne' | 'targetInRange' | 'targetLocked' | 'targetHit' | 'completed' }
   | { type:'tutorialStepResult';ok:boolean;step:TutorialLessonStep;status:Exclude<TutorialStepStatus,'pending'>;nextStep?:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus>;reason?:string }
   | { type:'tutorialRunReset';reason:'crash'|'replay';nextStep:TutorialLessonStep;steps:Record<TutorialLessonStep,TutorialStepStatus> }
+  | { type:'tutorialScreenplayCruise';position:{x:number;y:number;z:number};heading:number;speed:number }
   | { type:'tutorialLandingApproach';airportId:string;position:{x:number;y:number;z:number};heading:number;speed:number }
   | { type: 'tutorialTarget'; targetId: string }
   | { type: 'pilotLevelUp'; level: number; title?: string }
@@ -5794,26 +5796,12 @@ document.body.append(tutorialDimmer);
 const tutorialIntroPanel=document.createElement('section');
 tutorialIntroPanel.className='training-intro';tutorialIntroPanel.hidden=true;
 tutorialIntroPanel.setAttribute('role','dialog');tutorialIntroPanel.setAttribute('aria-labelledby','training-intro-title');
-tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">WELCOME TO FLIGHT TRAINING</h1><p>Explore each lesson in the real Milwaukee flight. Try the controls as you go, or fly the guided training yourself.</p><div class="training-orientation" data-training-orientation role="group" aria-label="Flight pitch direction"><button type="button" data-pitch-normal aria-pressed="true"><i class="training-stick-demo"><b>↑</b></i>NORMAL<small data-pitch-normal-copy></small></button><button type="button" data-pitch-inverted aria-pressed="false"><i class="training-stick-demo inverted"><b>↓</b></i>INVERTED<small data-pitch-inverted-copy></small></button></div><div class="training-dialog-actions"><button type="button" data-training-slides>VIEW GAMEPLAY GUIDE</button><button type="button" data-training-start>FLY MYSELF</button><button type="button" data-training-skip>Skip</button></div></div>';
+tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">TRAINING COMPLETE</h1><p>You have learned the flight controls. Dallas is now available.</p><div class="training-dialog-actions"><button type="button" data-training-dallas>CONTINUE TO DALLAS</button><button type="button" data-training-practice-now>PRACTICE IN MILWAUKEE</button></div></div>';
 document.body.append(tutorialIntroPanel);
 const trainingModeLabel=document.createElement('div');
 trainingModeLabel.className='training-mode-label';trainingModeLabel.hidden=true;
 trainingModeLabel.innerHTML='<strong>TRAINING MODE · NO REWARDS</strong><div><button type="button" data-training-real>PLAY FOR REAL</button><button type="button" data-training-restart>RESTART TRAINING</button><button type="button" data-training-leave>EXIT</button></div>';
 document.body.append(trainingModeLabel);
-function setTrainingOrientation(inverted: boolean): void {
-  mobileInput.setPitchInverted(inverted);
-  tutorialIntroPanel.querySelector('[data-pitch-normal]')!.setAttribute('aria-pressed', String(!inverted));
-  tutorialIntroPanel.querySelector('[data-pitch-inverted]')!.setAttribute('aria-pressed', String(inverted));
-  const touch=tutorialInputMode()==='touch';
-  tutorialIntroPanel.querySelector<HTMLElement>('[data-pitch-normal-copy]')!.textContent=touch
-    ? 'Joystick UP = + ALT (climb) · DOWN = − ALT (descend)'
-    : `${tutorialBindings.pitchUp} = + ALT (climb) · ${tutorialBindings.pitchDown} = − ALT (descend)`;
-  tutorialIntroPanel.querySelector<HTMLElement>('[data-pitch-inverted-copy]')!.textContent=touch
-    ? 'Joystick DOWN = + ALT (climb) · UP = − ALT (descend)'
-    : `${tutorialBindings.pitchDown} = + ALT (climb) · ${tutorialBindings.pitchUp} = − ALT (descend)`;
-}
-tutorialIntroPanel.querySelector('[data-pitch-normal]')!.addEventListener('click', () => setTrainingOrientation(false));
-tutorialIntroPanel.querySelector('[data-pitch-inverted]')!.addEventListener('click', () => setTrainingOrientation(true));
 tutorialActions.querySelector('[data-guided-skip]')!.addEventListener('click', () => {void endTrainingAndNavigate('city');});
 tutorialActions.querySelector('[data-guided-exit]')!.addEventListener('click', () => {void endTrainingAndNavigate('hub');});
 async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,slideId?:string):Promise<boolean>{
@@ -5823,26 +5811,103 @@ async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,sl
     return response.ok;
   }catch{return false;}
 }
+let screenplayControlReleaseTimer:number|undefined;
+let screenplayBrakeReleaseTimer:number|undefined;
+let screenplayStabilizeTimer:number|undefined;
+let screenplayCueActive=false;
+let screenplayLandingCue=false;
+let screenplayFinished=false;
+function screenplayLevelPitch():number{
+  if(onGround)return 0;
+  const height=altitudeAboveTerrain();
+  if(verticalSpeed< -4&&height<260)return -.45;
+  return height<100?-.35:height<180?-.2:height>300?.04:-.06;
+}
 const trainingSlides=new TrainingSlides({
   host:gameplayInfoElement,
   gameRoot:flightGameRoot,
-  controls:()=>({mode:tutorialInputMode(),inverted:mobileInput.getPitchInverted(),bindings:tutorialBindings}),
-  onOpen:()=>{trainingSlidesOpen=true;tutorialPanel.hidden=true;tutorialDimmer.hidden=true;},
-  onClose:()=>{trainingSlidesOpen=false;clearHeldActions();mobileInput.reset();tutorialIntroPending=true;tutorialPanel.hidden=true;tutorialDimmer.hidden=true;tutorialIntroPanel.hidden=false;tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-slides]')!.focus();},
+  onOpen:()=>{
+    trainingSlidesOpen=true;screenplayCueActive=false;screenplayLandingCue=false;screenplayFinished=false;
+    screenplayDallasUnlockAt=undefined;
+    mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
+    screenplayStabilizeTimer=window.setInterval(()=>{
+      if(!screenplayCueActive&&!screenplayLandingCue&&!onGround)
+        mobileInput.setDemoSteering(0,screenplayLevelPitch());
+    },150);
+  },
+  onClose:()=>{
+    trainingSlidesOpen=false;screenplayCueActive=false;screenplayLandingCue=false;window.clearInterval(screenplayStabilizeTimer);
+    mobileInput.setDemoActive(false);clearHeldActions();mobileInput.reset();tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
+  },
+  onStage:(step)=>{
+    window.clearTimeout(screenplayControlReleaseTimer);
+    window.clearTimeout(screenplayBrakeReleaseTimer);
+    clearHeldActions();
+    screenplayCueActive=['takeoff','turnLeft','turnRight','climb','descend'].includes(step);
+    screenplayLandingCue=step==='landing';
+    if(step==='throttle'){runStarted=true;mobileInput.setThrottleState(.85);}
+    if(step==='takeoff')mobileInput.setDemoSteering(0,-.7);
+    if(step==='turnLeft'||step==='turnRight'){
+      mobileInput.setThrottleState(step==='turnLeft'?.25:.35);
+      mobileInput.setDemoSteering(step==='turnLeft'?-.16:.16,screenplayLevelPitch());
+      if(step==='turnLeft'){
+        heldActions.add('throttleDown');
+        screenplayBrakeReleaseTimer=window.setTimeout(()=>{heldActions.delete('throttleDown');mobileInput.setThrottleState(.35);},3_000);
+      }
+    }
+    if(step==='climb')mobileInput.setDemoSteering(0,-.2);
+    if(step==='descend')mobileInput.setDemoSteering(0,.08);
+    if(['takeoff','climb','turnLeft','turnRight','descend'].includes(step))
+      screenplayControlReleaseTimer=window.setTimeout(()=>{
+        screenplayCueActive=false;
+        mobileInput.setDemoSteering(0,screenplayLevelPitch());
+      },step==='takeoff'?2_600:step==='descend'?650:1_200);
+    if(step==='cameraLook'){cameraOrbitBlend=1;cameraOrbitYaw=.4;cameraOrbitPitch=.18;cameraOrbitRecenterAt=performance.now()+5_000;}
+    if(step==='cameraZoom')applyCameraZoom(.8);
+    if(step==='approach')setActivityWaypoint(centralAirport.x,centralAirport.z,centralAirport.name);
+    if(step==='fire'){heldActions.add('fire');screenplayControlReleaseTimer=window.setTimeout(()=>heldActions.delete('fire'),1_000);}
+    if(step==='landing')mobileInput.setThrottleState(.08);
+    else if(!['throttle','takeoff','turnLeft','turnRight','climb','descend'].includes(step))mobileInput.setDemoSteering(0,screenplayLevelPitch());
+  },
+  onStageEnd:(step)=>{
+    window.clearTimeout(screenplayControlReleaseTimer);
+    window.clearTimeout(screenplayBrakeReleaseTimer);
+    clearHeldActions();
+    screenplayCueActive=false;
+    if(step==='landing')mobileInput.clearDemoSteering();
+    else mobileInput.setDemoSteering(0,screenplayLevelPitch());
+    if(step==='cameraLook')cameraOrbitRecenterAt=performance.now();
+    if(step==='cameraZoom')applyCameraZoom(1.25);
+  },
   onAdvance:(index,step)=>postTrainingSlides('advance',index,step),
-  onComplete:()=>endTrainingAndNavigate('city','slides'),
+  onComplete:async()=>{
+    const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
+    try{
+      const response=await apiFetch(profileUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tutorialSlides:{action:'complete'}})});
+      if(!response.ok)return false;
+      const profile=await response.json() as {tutorial?:{completedAt?:number;dallasUnlocked?:boolean}};
+      if(!serverProfile.tutorial.completedAt&&profile.tutorial?.dallasUnlocked&&typeof profile.tutorial.completedAt==='number')
+        screenplayDallasUnlockAt=profile.tutorial.completedAt;
+      return true;
+    }catch{return false;}
+  },
+  onFinished:()=>{
+    screenplayFinished=true;
+    tutorialIntroPending=true;
+    tutorialIntroPanel.hidden=false;
+    tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-dallas]')!.focus();
+  },
 });
-tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-slides]')!.addEventListener('click',async()=>{
-  const button=tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-slides]')!;
-  button.disabled=true;
-  try{
-    if(!await postTrainingSlides('start'))throw new Error('Training guide could not start');
-    clearHeldActions();mobileInput.reset();tutorialIntroPanel.hidden=true;trainingSlides.open();
-  }catch{showProgressMessage('SERVER REQUIRED TO OPEN TRAINING GUIDE');}
-  finally{button.disabled=false;}
+let screenplayDallasUnlockAt:number|undefined;
+tutorialIntroPanel.querySelector('[data-training-dallas]')!.addEventListener('click',()=>{
+  const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
+  url.searchParams.set('entry','city');
+  if(screenplayDallasUnlockAt!==undefined)url.searchParams.set('dallasUnlock',String(screenplayDallasUnlockAt));
+  window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 });
-tutorialIntroPanel.querySelector('[data-training-start]')!.addEventListener('click',()=>{clearHeldActions();mobileInput.reset();tutorialIntroPending=false;tutorialIntroPanel.hidden=true;tutorialPanel.hidden=false;tutorialDimmer.hidden=false;resetTutorialLessonMetrics();renderTutorialPanel();tutorialPanel.querySelector<HTMLElement>('[data-tutorial-title]')!.focus();});
-tutorialIntroPanel.querySelector('[data-training-skip]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
+tutorialIntroPanel.querySelector('[data-training-practice-now]')!.addEventListener('click',()=>{
+  screenplayFinished=false;tutorialIntroPending=false;tutorialIntroPanel.hidden=true;enterFreePractice();
+});
 tutorialCompletionActions.querySelector('[data-training-play]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
 tutorialCompletionActions.querySelector('[data-training-replay]')!.addEventListener('click',restartGuidedTutorial);
 tutorialCompletionActions.querySelector('[data-training-practice]')!.addEventListener('click',enterFreePractice);
@@ -5865,7 +5930,7 @@ registerUiBackLayer({
   id: 'training-slides',
   priority: uiBackPriority.modal + 30,
   isActive: () => trainingSlides.isOpen(),
-  close: () => trainingSlides.close(),
+  close: () => { trainingSlides.close(); void endTrainingAndNavigate('hub'); },
 });
 registerUiBackLayer({
   id: 'training-intro',
@@ -6066,10 +6131,7 @@ function setGuidedTutorial(active:boolean):void{
   resetTutorialLessonMetrics();
   tutorialIntroPending=active&&!tutorialIntroShown&&guidedTutorialStep!=='landing';
   if(tutorialIntroPending)tutorialIntroShown=true;
-  tutorialIntroPanel.hidden=!tutorialIntroPending;
-  tutorialIntroPanel.querySelector<HTMLElement>('[data-training-orientation]')!.hidden=false;
-  if(tutorialIntroPending)tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-start]')!.focus();
-  setTrainingOrientation(mobileInput.getPitchInverted());
+  tutorialIntroPanel.hidden=true;
   tutorialPanel.hidden=!active||tutorialIntroPending;
   tutorialCompletionActions.hidden=true;
   tutorialDimmer.hidden=!active||tutorialIntroPending;
@@ -6084,6 +6146,14 @@ function setGuidedTutorial(active:boolean):void{
   }
   if(active&&guidedTutorialStep==='freePractice'){enterFreePractice();return;}
   renderTutorialPanel();
+  if(tutorialIntroPending){
+    mobileInput.setPitchInverted(false);
+    void postTrainingSlides('start').then(started=>{
+      if(!guidedTutorialActive||!tutorialIntroPending)return;
+      if(started)trainingSlides.open();
+      else showProgressMessage('SERVER REQUIRED TO START TRAINING');
+    });
+  }
 }
 function resetTutorialLessonMetrics():void{
   tutorialTurnLast=heading;tutorialMovementAmount=0;
@@ -6152,8 +6222,24 @@ function transitionToNextPendingTutorialStep():void{
   if(next==='freePractice'){showTutorialCompletion();return;}
   renderTutorialPanel();
 }
+function applyTutorialScreenplayCruise(message:Extract<ServerMessage,{type:'tutorialScreenplayCruise'}>):void{
+  if(!trainingSlidesOpen||![message.position.x,message.position.y,message.position.z,message.heading,message.speed].every(Number.isFinite))return;
+  cinematicDirector.resetFlight();clearHeldActions();mobileInput.clearDemoSteering();
+  heading=message.heading;pitch=0;roll=0;pitchControlStrength=0;yawControlStrength=0;smoothedTouchSteering={x:0,y:0};
+  airplane.position.set(message.position.x,message.position.y,message.position.z);
+  airplane.rotation.set(0,heading,0,'YXZ');
+  forward.set(0,0,-1).applyQuaternion(airplane.quaternion).normalize();
+  currentSpeed=message.speed;verticalSpeed=0;velocity.copy(forward).multiplyScalar(currentSpeed);
+  throttle=.35;mobileInput.setThrottleState(throttle);
+  boostActive=false;boostVisualStrength=0;speedBrakeStrength=0;landingAssistActive=false;
+  onGround=false;takeoffRollMeters=0;landedFeedbackTime=0;crashed=false;runStarted=true;localLifeState='alive';
+  crashOverlay.classList.add('hidden');flightRecapElement.hidden=true;setFlightState('FLYING');
+  if(cityWorld.updateWorldStreaming)cityWorld.updateWorldStreaming(airplane.position,velocity);
+  else updateOsmCityChunks(airplane.position);
+  updateFlightHud();updateCamera(1);sendLocalState();
+}
 function applyTutorialLandingApproach(message:Extract<ServerMessage,{type:'tutorialLandingApproach'}>):void{
-  if(!guidedTutorialActive||message.airportId!==centralAirport.id||nextPendingTutorialLesson()!=='landing'||
+  if(!guidedTutorialActive||message.airportId!==centralAirport.id||(!trainingSlidesOpen&&nextPendingTutorialLesson()!=='landing')||
     ![message.position.x,message.position.y,message.position.z,message.heading,message.speed].every(Number.isFinite))return;
   cinematicDirector.resetFlight();clearHeldActions();mobileInput.reset();
   tutorialLandingIntentPending=undefined;
@@ -10783,13 +10869,15 @@ boundSocket.addEventListener('message', (event) => {
     }
   } else if(message.type==='tutorialStepResult'){
     if(guidedTutorialActive)applyTutorialStepResult(message);
+  } else if(message.type==='tutorialScreenplayCruise'){
+    applyTutorialScreenplayCruise(message);
   } else if(message.type==='tutorialLandingApproach'){
     applyTutorialLandingApproach(message);
   } else if(message.type==='tutorialRunReset'){
     tutorialRunResetPending=false;window.clearTimeout(tutorialCrashResetTimer);applyTutorialStepStates(message.steps);
     tutorialNavigationCoach=undefined;tutorialNavigationCoachSeen=false;syncTutorialNavigationMap();
     guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
-    tutorialIntroPanel.hidden=true;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
+    tutorialIntroPanel.hidden=!screenplayFinished;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
     gameplayFeedback.push({type:'mission',primaryText:'TRAINING RESTARTED',secondaryText:'Let’s try that again.',intensity:'medium'});renderTutorialPanel();
   } else if(message.type==='tutorialTarget'){
     tutorialTargetId=message.targetId;tutorialTargetRequested=true;

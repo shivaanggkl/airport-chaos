@@ -90,7 +90,8 @@ test('global orientation preference keeps raw touch input and normalizes keyboar
   const menu=readFileSync(new URL('../../client/src/pilot-menu.ts',import.meta.url),'utf8');
   const inputSource=readFileSync(new URL('../../client/src/mobile-input.ts',import.meta.url),'utf8');
   assert.match(main,/const rawPitchInput = keyboardPitchInput \|\| -touchSteering\.y;\s*const pitchInput = normalizedPitchCommand\(rawPitchInput,mobileInput\.getPitchInverted\(\)\)/);
-  assert.match(main,/data-training-orientation[^\n]*\.hidden=false/);
+  assert.match(main,/mobileInput\.setPitchInverted\(false\);[\s\S]*postTrainingSlides\('start'\)/);
+  assert.doesNotMatch(main,/data-training-orientation|data-pitch-inverted|data-pitch-normal/);
   assert.match(main,/flightPitch: \{ inverted: mobileInput\.getPitchInverted\(\)/);
   assert.match(main,/touch: mobileInput\.isTouchLayout\(\)/);
   assert.match(menu,/selectRow\('FLIGHT PITCH',data\.flightPitch\.inverted/);
@@ -435,8 +436,8 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
   assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)profileStore\.resetTutorialRun/);
-  assert.match(main, /WELCOME TO FLIGHT TRAINING[\s\S]*Explore each lesson in the real Milwaukee flight/);
-  assert.match(main, /data-training-slides>VIEW GAMEPLAY GUIDE<[\s\S]*data-training-start>FLY MYSELF<[\s\S]*data-training-skip>Skip</);
+  assert.match(main, /TRAINING COMPLETE[\s\S]*CONTINUE TO DALLAS[\s\S]*PRACTICE IN MILWAUKEE/);
+  assert.match(main, /trainingSlides\.open\(\)/);
   assert.match(main, /data-guided-skip>SKIP TRAINING<[\s\S]*data-guided-exit>EXIT TRAINING</);
   assert.match(main, /data-tutorial-completion-actions[\s\S]*CONTINUE[\s\S]*Replay Training[\s\S]*Free Practice/);
   assert.equal((main.match(/className = 'guided-tutorial-panel'/g)??[]).length,1);
