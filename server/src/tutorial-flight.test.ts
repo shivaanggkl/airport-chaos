@@ -301,12 +301,14 @@ test('ordered gameplay slides unlock Dallas without granting rewards', () => {
   assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt),undefined);
   assert.equal(store.startTrainingSlides(pilot.pilotId,startedAt),true);
   assert.equal(store.trainingSlideIndex(pilot.pilotId),0);
+  assert.equal(store.trainingTargetFireAllowed(pilot.pilotId),false);
   assert.equal(store.advanceTrainingSlide(pilot.pilotId,1,trainingSlideIds[1]!,startedAt),false);
   assert.equal(store.advanceTrainingSlide(pilot.pilotId,0,'wrong-step',startedAt),false);
   for(let index=0;index<trainingSlideIds.length-1;index++){
     assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+index),undefined);
     assert.equal(store.advanceTrainingSlide(pilot.pilotId,index,trainingSlideIds[index]!,startedAt+index),true);
     assert.equal(store.trainingSlideIndex(pilot.pilotId),index+1,'resume uses the saved lesson');
+    assert.equal(store.trainingTargetFireAllowed(pilot.pilotId),trainingSlideIds[index+1]==='fire','training target only takes damage during FIRE');
     assert.equal(store.advanceTrainingSlide(pilot.pilotId,index,trainingSlideIds[index]!,startedAt+index),true,'retry is idempotent');
     if(index>1)assert.equal(store.advanceTrainingSlide(pilot.pilotId,index-2,trainingSlideIds[index-2]!,startedAt+index),true,'revisiting earlier slides can move forward');
   }
@@ -469,7 +471,7 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(main, /type:'tutorialStepStatus',tutorialStep:guidedTutorialStep,tutorialStepStatus:status/);
   assert.match(server, /target\?\.trainingOwnerId === playerId[\s\S]*signal: 'targetLocked'/);
   assert.match(server, /owner\.lockedTargetId===targetId[\s\S]*completeServerTutorialStep\(target\.trainingOwnerId,owner,'targetLock',now\)/);
-  assert.match(server, /nextPendingTutorialStep\(owner\.pilotId\)!=='fire'/);
+  assert.match(server, /trainingTargetFireAllowed\(owner\.pilotId\)/);
   assert.match(server, /lesson!=='approach'&&lesson!=='targetLock'&&lesson!=='fire'/);
   assert.match(server, /tutorialState\.status==='completed'&&\(!profileStore\.tutorialStepsResolved\(identity\.pilotId\)/);
   assert.match(server, /message\.tutorialStatus==='completed'&&\(!profileStore\.tutorialStepsResolved\(player\.pilotId\)/);

@@ -723,6 +723,13 @@ export class PlayerProfileStore {
     return row?.slide_index;
   }
 
+  trainingTargetFireAllowed(pilotId:string):boolean{
+    const slideIndex=this.trainingSlideIndex(pilotId);
+    return slideIndex===undefined
+      ? this.nextPendingTutorialStep(pilotId)==='fire'
+      : slideIndex===trainingSlideIds.indexOf('fire');
+  }
+
   advanceTrainingSlide(pilotId:string,slideIndex:number,slideId:string,now=Date.now()):boolean{
     if(!Number.isInteger(slideIndex)||slideIndex<0||slideIndex>=trainingSlideIds.length-1||trainingSlideIds[slideIndex]!==slideId)return false;
     const result=this.database.prepare(`UPDATE pilot_training_slides SET slide_index=slide_index+1,updated_at=?

@@ -27,7 +27,7 @@ const scenes: Record<TutorialLessonStep, { title: string; detail: string; contro
   cameraZoom: { title: 'ZOOM', detail: 'Pinch the view.', control: 'view', motion: 'pinch' },
   approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar, then close the map.', control: 'radar', motion: 'tap' },
   targetLock: { title: 'AIM', detail: 'Aim at the target until it locks.', control: 'aim', motion: 'hold' },
-  fire: { title: 'FIRE', detail: 'Tap FIRE.', control: 'fire', motion: 'tap' },
+  fire: { title: 'FIRE', detail: 'Fire at the locked target.', control: 'fire', motion: 'tap' },
   landing: { title: 'LAND SAFELY', detail: 'Slow down. Steer to the runway. Land.', control: 'throttle', motion: 'down' },
 };
 
@@ -50,7 +50,6 @@ export class TrainingSlides {
   private readonly status: HTMLElement;
   private readonly retry: HTMLButtonElement;
   private index = 0;
-  private actionTimer: number | undefined;
   private completionTimer: number | undefined;
   private active = false;
   private ready = false;
@@ -107,7 +106,6 @@ export class TrainingSlides {
   suspend(): void {
     if (!this.active || this.suspended) return;
     this.suspended = true;
-    window.clearTimeout(this.actionTimer);
     window.clearTimeout(this.completionTimer);
     this.hand.hidden = true;
   }
@@ -127,7 +125,7 @@ export class TrainingSlides {
       this.completionTimer = window.setTimeout(() => { void this.advance(); }, 850);
     } else if (this.ready) {
       if (!this.playerActionStarted) this.positionHand(scenes[trainingSlideIds[this.index]!].control, scenes[trainingSlideIds[this.index]!].motion);
-    } else this.scheduleReady(trainingSlideIds[this.index]!);
+    } else this.makeReady(trainingSlideIds[this.index]!);
   }
 
   beginAction(step: TutorialLessonStep): void {
@@ -169,7 +167,6 @@ export class TrainingSlides {
 
   restart(): void {
     if (!this.active) return;
-    window.clearTimeout(this.actionTimer);
     window.clearTimeout(this.completionTimer);
     this.options.onStageEnd(trainingSlideIds[this.index]!);
     this.index = 0;
@@ -194,7 +191,6 @@ export class TrainingSlides {
     this.active = false;
     this.suspended = false;
     this.ready = false;
-    window.clearTimeout(this.actionTimer);
     window.clearTimeout(this.completionTimer);
     this.hand.hidden = true;
     this.skip.hidden = true;
@@ -233,18 +229,15 @@ export class TrainingSlides {
     document.body.dataset.trainingSlideControl = scene.control;
     this.positionHand(scene.control, scene.motion);
     this.options.onStage(step);
-    this.scheduleReady(step);
+    this.makeReady(step);
   }
 
-  private scheduleReady(step: TutorialLessonStep): void {
-    if (this.suspended) return;
-    this.actionTimer = window.setTimeout(() => {
-      if (!this.active || this.suspended || this.currentStep() !== step) return;
-      this.ready = true;
-      this.status.textContent = needsHeldControl(step) ? 'YOUR TURN · HOLD UNTIL FULL' : 'YOUR TURN';
-      this.timeProgress.hidden = false;
-      this.options.onReady(step);
-    }, 3_000);
+  private makeReady(step: TutorialLessonStep): void {
+    if (!this.active || this.suspended || this.currentStep() !== step) return;
+    this.ready = true;
+    this.status.textContent = needsHeldControl(step) ? 'YOUR TURN · HOLD UNTIL FULL' : 'YOUR TURN';
+    this.timeProgress.hidden = false;
+    this.options.onReady(step);
   }
 
   private positionHand(control: string, motion: string): void {
@@ -265,7 +258,6 @@ export class TrainingSlides {
     if (!this.active || !this.actionObserved || this.saving) return;
     this.saving = true;
     const step = trainingSlideIds[this.index]!;
-    window.clearTimeout(this.actionTimer);
     this.options.onStageEnd(step);
     this.hand.hidden = true;
     this.status.textContent = 'SAVING TRAINING PROGRESS…';

@@ -4675,7 +4675,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
 
   // The training target only accepts a hit during the FIRE lesson. A lucky
   // early ballistic shot must not destroy the lesson target or skip LOCK.
-  if(victim.trainingOwnerId&&ownerId===victim.trainingOwnerId&&profileStore.nextPendingTutorialStep(owner.pilotId)!=='fire')return false;
+  if(victim.trainingOwnerId&&ownerId===victim.trainingOwnerId&&
+    !profileStore.trainingTargetFireAllowed(owner.pilotId))return false;
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
   const damageDealt = Math.min(victim.health, damage);
