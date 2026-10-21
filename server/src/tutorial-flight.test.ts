@@ -468,7 +468,13 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
   assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)\{[\s\S]*?cleanupHumanPlayer\(id\);[\s\S]*?profileStore\.resetTutorialRun/);
-  assert.match(main, /TRAINING COMPLETE[\s\S]*navigateToDallasUnlock\(\)/);
+  assert.match(main, /onFinished:\(\)=>\{[\s\S]*showTrainingResult\(\)/);
+  assert.match(main, /function showTrainingResult\(\): void \{[\s\S]*journeyResultElement\.classList\.add\('is-terminal', 'is-success', 'is-training'\)/);
+  assert.match(main, /if \(trainingResultActive\) \{ navigateToDallasUnlock\(\); return; \}/);
+  assert.match(main, /if \(landingQuality && !trainingSlidesOpen\) showFlightRecap\('GREAT FLIGHT'\)/);
+  assert.doesNotMatch(main, /screenplayCompletionNavigationTimer/);
+  assert.match(bootstrap, /if \(entryState === 'CITY_SELECTION'\) celebrateDallasUnlock\(\)/);
+  assert.match(css, /\.journey-result\.is-training \.journey-result-credits-icon/);
   assert.match(main, /message\.type === 'landingScored'[\s\S]*trainingSlides\.completeAction\('landing'\)/);
   assert.match(main, /trainingSlides\.open\(\)/);
   assert.match(main, /data-guided-skip>SKIP TRAINING<[\s\S]*data-guided-exit>EXIT TRAINING</);

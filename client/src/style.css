@@ -1764,6 +1764,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-result.is-terminal .has-metrics strong { color: #0b2345; font: 900 clamp(19px, 2.3vw, 29px)/1.1 var(--font-display); white-space: nowrap; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-reward] { display: flex; align-items: center; justify-content: center; min-height: 60px; margin: 0 0 8px; padding: 5px 10px; border: 1px solid #f3c450; border-radius: 11px; color: #0b2345; background: linear-gradient(#fff3c9, #ffe29a); font-size: clamp(17px, 2.3vw, 25px); }
 .journey-result.is-terminal .journey-result-card [data-journey-result-reward] img { display: block; width: 49px; height: 49px; margin-right: 12px; object-fit: contain; }
+.journey-result.is-training .journey-result-credits-icon { display: none !important; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-detail][hidden] { display: none; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-reward] .journey-result-crash-icon { display: none; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-reward] small { display: block; color: #315f7a; font-size: .64em; line-height: 1.1; }
@@ -5586,7 +5587,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 /* Keep the stick below the Journey and training cards. Transient notices move
    around the stick, but never change its position during a mission. */
-.touch-controls-active #game-root:has(.journey-status-layer) [data-touch-control="stick"].uses-default-placement {
+.touch-controls-active #game-root:has(.journey-status-layer) [data-touch-control="stick"] {
   top: max(var(--touch-top), 73.5dvh, calc(max(70px, calc(var(--safe-area-top) + 56px)) + 124px + clamp(55px, 7vw, 87.5px) + 12px));
 }
 .touch-controls-active #game-root:has(.gameplay-info-card.is-tutorial) [data-touch-control="stick"] {

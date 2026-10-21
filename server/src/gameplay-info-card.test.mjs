@@ -138,7 +138,7 @@ test('card keeps shared responsive placement and internal touch scrolling', () =
   assert.match(css, /#game-root \.gameplay-info-card\.is-multiplayer \.gameplay-info-multiplayer\s*\{[^}]*grid-template-rows: 34px minmax\(0, 1fr\);/);
   assert.match(css, /#game-root \.gameplay-info-card\.is-tutorial\s*\{[^}]*height: auto;[^}]*overflow: visible;/);
   assert.match(css, /#game-root \.gameplay-info-card\.is-tutorial \.guided-tutorial-panel\s*\{[^}]*height: auto;[^}]*overflow: visible;/);
-  assert.match(css, /#game-root:has\(\.journey-status-layer\) \[data-touch-control="stick"\]\.uses-default-placement/);
+  assert.match(css, /#game-root:has\(\.journey-status-layer\) \[data-touch-control="stick"\]\s*\{[^}]*top: max\(var\(--touch-top\), 73\.5dvh/);
   assert.match(css, /#game-root:has\(\.gameplay-info-card\.is-tutorial\) \[data-touch-control="stick"\]\s*\{[^}]*top: max\(var\(--touch-top\), 73\.5dvh/);
   assert.match(css, /#game-root \.gameplay-info-tabs button\s*\{[^}]*min-height: 34px;[^}]*pointer-events: auto;/);
   assert.match(css, /#game-root\.noncombat-journey[^}]*\[data-touch-control="fire"\][^}]*\[data-desktop-control="fire"\]/);

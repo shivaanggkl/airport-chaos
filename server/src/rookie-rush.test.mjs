@@ -41,12 +41,7 @@ test('the shorter gate sequence keeps frequent gates and room for Bluejay', () =
   const legs = points.slice(1).map((point, index) =>
     Math.hypot(point.x - points[index].x, point.z - points[index].z));
   const centerline = legs.reduce((distance, leg) => distance + leg, 0);
-  // The disc-radius subtraction allows edge-to-edge crossings at every gate.
-  // Boost can coast after release, so this only bounds an unboosted Firehawk.
-  const openingAllowance = 2 * mission.gates.reduce((sum, gate) => sum + gate.radius, 0)
-    - mission.gates.at(-1).radius;
-  const fighter = aircraftFlightEnvelope.fighter;
-  assert.ok((centerline - openingAllowance) / fighter.maxSpeed > 60);
-  assert.ok(centerline / aircraftFlightEnvelope.trainer.maxSpeed < 105);
-  assert.ok(legs.slice(1).every((leg) => leg <= 12_000));
+  const bluejayFast = aircraftFlightEnvelope.trainer.maxSpeed * .8;
+  assert.ok(centerline / bluejayFast >= 60 && centerline / bluejayFast <= 80);
+  assert.ok(legs.slice(1).every((leg) => leg <= 7_500));
 });

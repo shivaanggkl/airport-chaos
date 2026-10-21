@@ -1292,6 +1292,7 @@ const journeyResultElement = document.createElement('div');
 journeyResultElement.className = 'journey-result hidden';
 journeyResultElement.innerHTML = '<div class="journey-result-card"><div class="journey-result-status-banner" aria-hidden="true"><span class="journey-result-status-mark">✓</span></div><p data-journey-result-heading>MISSION 01 · GOLDEN GATES</p><h2 data-journey-result-title></h2><strong data-journey-result-name>ROOKIE RUSH</strong><div data-journey-result-detail></div><div data-journey-result-reward><img class="journey-result-credits-icon" src="/media/hub/credits.avif" alt="" aria-hidden="true"><img class="journey-result-crash-icon" src="/media/hub/aircraft.png" alt="" aria-hidden="true"><div><span data-journey-reward-copy></span><small data-journey-loss-copy hidden>NO CREDITS LOST</small></div></div><div class="journey-result-actions"><button type="button" data-journey-primary></button><button type="button" data-journey-exit>EXIT TO JOURNEY</button></div></div>';
 const journeyResultCard = journeyResultElement.querySelector<HTMLElement>('.journey-result-card')!;
+let trainingResultActive = false;
 flightGameRoot.append(journeyResultElement);
 const missionClearElement = document.createElement('div');
 missionClearElement.className = 'mission-clear hidden';
@@ -1301,6 +1302,7 @@ const missionFireworkSparks = Array.from({ length: 12 }, (_, index) => `<i style
 missionClearElement.innerHTML = '<div class="mission-clear-content"><div class="mission-clear-fireworks" aria-hidden="true">' + `<div class="mission-clear-firework">${missionFireworkSparks}</div>`.repeat(3) + '</div><div class="mission-clear-stars" aria-hidden="true">' + '<i></i>'.repeat(10) + '</div><div class="mission-clear-sparkles" aria-hidden="true">' + '<i></i>'.repeat(12) + '</div><div class="mission-clear-icon" aria-hidden="true"><span></span></div><strong>MISSION CLEARED</strong><span class="mission-clear-name">ROOKIE RUSH</span></div>';
 flightGameRoot.append(missionClearElement);
 journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.addEventListener('click', () => {
+  if (trainingResultActive) { navigateToDallasUnlock(); return; }
   if (journeyAttempt?.status === 'COMPLETED') void exitFlightToHub(false, true);
   else void retryJourneyMission();
 });
@@ -1309,7 +1311,7 @@ registerUiBackLayer({
   id: 'journey-result',
   priority: uiBackPriority.blockingModal + 30,
   isActive: () => !journeyResultElement.classList.contains('hidden'),
-  close: () => { void exitFlightToHub(false, true); },
+  close: () => { if (trainingResultActive) navigateToDallasUnlock(); else void exitFlightToHub(false, true); },
 });
 const dynamicEventElement = document.querySelector<HTMLElement>('#dynamic-event')!;
 const dynamicEventNameElement = document.querySelector<HTMLElement>('#dynamic-event-name')!;
@@ -3010,6 +3012,8 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
     return;
   }
   const success = attempt.status === 'COMPLETED';
+  trainingResultActive = false;
+  journeyResultElement.classList.remove('is-training');
   const dfwMission = attempt.missionId === journeyDallas01.id;
   const lakeMission = attempt.missionId === journeyDallas02.id;
   const ascentMission = attempt.missionId === journeyDallas03.id;
@@ -3107,6 +3111,26 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = success ? 'CONTINUE' : 'RETRY MISSION';
   journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = success;
   if (success) { if (missionClearAttemptId !== attempt.attemptId) audioManager.playReward(); if (legendaryMission) legendaryPilotUnlocked = true; }
+}
+
+function showTrainingResult(): void {
+  trainingResultActive = true;
+  visibleRecap = undefined;
+  flightRecapElement.hidden = true;
+  journeyResultElement.classList.remove('hidden', 'is-failure');
+  journeyResultElement.classList.add('is-terminal', 'is-success', 'is-training');
+  journeyResultCard.classList.add('game-card-frame');
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = 'TUTORIAL FINISHED';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = 'MILWAUKEE TRAINING';
+  const detail = journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!;
+  detail.classList.remove('has-metrics');
+  detail.textContent = '11 / 11 FLIGHT LESSONS COMPLETE';
+  detail.hidden = false;
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-reward-copy]')!.textContent = 'DALLAS CITY IS NEXT';
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-loss-copy]')!.hidden = true;
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.textContent = 'CONTINUE';
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-exit]')!.hidden = true;
+  journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!.focus();
 }
 
 const missionClearDirection = new THREE.Vector3();
@@ -3762,9 +3786,7 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   const destinationBonus = !landedAirportIds.has(airport.id);
   landedAirportIds.add(airport.id);
   showProgressMessage(rough ? 'ROUGH LANDING' : destinationBonus ? `${airport.name.toUpperCase()} DISCOVERED` : 'LANDING VERIFIED');
-  if (landingQuality) {
-    showFlightRecap('GREAT FLIGHT');
-  }
+  if (landingQuality && !trainingSlidesOpen) showFlightRecap('GREAT FLIGHT');
   if(landingQuality&&!(guidedTutorialActive&&(trainingSlides.currentStep()==='landing'||guidedTutorialStep==='landing')))sendLandingIntent(airport,landingQuality);
   if (landingQuality) stuntCombo?.notifyLanding(landingQuality);
   contextualHints.trigger('garage');
@@ -5827,7 +5849,6 @@ let screenplayTargetHitPending=false;
 let screenplayMapViewed=false;
 let screenplayLandingLastInputAt=0;
 let screenplayLandingVerified=false;
-let screenplayCompletionNavigationTimer:number|undefined;
 let trainingPaused=false;
 let trainingPauseDeadlineAt=0;
 let trainingPauseSlideIndex=0;
@@ -5874,8 +5895,6 @@ const trainingSlides=new TrainingSlides({
   host:gameplayInfoElement,
   gameRoot:flightGameRoot,
   onOpen:()=>{
-    window.clearTimeout(screenplayCompletionNavigationTimer);
-    screenplayCompletionNavigationTimer=undefined;
     trainingSlidesOpen=true;screenplayFlightPaused=true;
     screenplayDallasUnlockAt=undefined;
     mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
@@ -5911,15 +5930,11 @@ const trainingSlides=new TrainingSlides({
     }catch{return false;}
   },
   onFinished:()=>{
-    tutorialIntroPending=true;screenplayFlightPaused=true;
+    tutorialIntroPending=false;screenplayFlightPaused=true;
     gameplayFeedback.clear();
-    gameplayFeedback.push({type:'mission',primaryText:'TRAINING COMPLETE',secondaryText:screenplayDallasUnlockAt!==undefined?'DALLAS UNLOCKED':'READY FOR DALLAS',intensity:'major'});
     audioManager.playReward();
     hapticsManager.emit('rewardSuccess','milwaukee-training-complete');
-    screenplayCompletionNavigationTimer=window.setTimeout(()=>{
-      screenplayCompletionNavigationTimer=undefined;
-      if(tutorialIntroPending&&guidedTutorialActive)navigateToDallasUnlock();
-    },2_800);
+    showTrainingResult();
   },
 });
 window.addEventListener('online',()=>trainingSlides.retryPendingSave());
@@ -5990,7 +6005,10 @@ function navigateToDallasUnlock():void{
   if(screenplayDallasUnlockAt!==undefined)url.searchParams.set('dallasUnlock',String(screenplayDallasUnlockAt));
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
 }
-tutorialCompletionActions.querySelector('[data-training-play]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
+tutorialCompletionActions.querySelector('[data-training-play]')!.addEventListener('click',()=>{
+  if(screenplayDallasUnlockAt!==undefined)navigateToDallasUnlock();
+  else void endTrainingAndNavigate('city');
+});
 tutorialCompletionActions.querySelector('[data-training-replay]')!.addEventListener('click',restartGuidedTutorial);
 tutorialCompletionActions.querySelector('[data-training-practice]')!.addEventListener('click',enterFreePractice);
 trainingModeLabel.querySelector('[data-training-real]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
@@ -6246,12 +6264,9 @@ function resetTutorialLessonMetrics():void{
 }
 async function endTrainingAndNavigate(destination:'city'|'hub',completion:'flight'|'slides'='flight'):Promise<boolean>{
   if(!guidedTutorialActive||tutorialExitPending)return false;
-  const finishedScreenplay=screenplayCompletionNavigationTimer!==undefined;
-  window.clearTimeout(screenplayCompletionNavigationTimer);
-  screenplayCompletionNavigationTimer=undefined;
   tutorialExitPending=true;
   clearHeldActions();
-  const status=completion==='slides'||finishedScreenplay||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
+  const status=completion==='slides'||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
   const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
   let firstDallasUnlockAt: number | undefined;
   try{
@@ -11258,7 +11273,7 @@ boundSocket.addEventListener('message', (event) => {
       cinematicDirector.requestPerfectLanding(`${message.airportId}:${message.quality}:${lastLandingResult.at}`, rewardText);
     }
     queueAtcCallout(`landing-${message.grade}`, message.grade === 'ROUGH' ? 'TOWER: ROUGH LANDING' : 'TOWER: LANDING CONFIRMED', message.grade === 'PERFECT' || message.grade === 'LEGENDARY' ? 'SMOOTH TOUCHDOWN' : undefined);
-    if (visibleRecap && (!perfectLanding || guidedTutorialActive)) showFlightRecap(visibleRecap.title, grade, false);
+    if (visibleRecap && !trainingSlidesOpen && (!perfectLanding || guidedTutorialActive)) showFlightRecap(visibleRecap.title, grade, false);
   } else if (message.type === 'pilotLevelUp') {
     gameplayFeedback.push({ type: 'pilot-level', primaryText: `PILOT LEVEL ${message.level}`, secondaryText: message.title ? `TITLE UNLOCKED — ${message.title}` : undefined, intensity: 'major' });
     audioManager.playReward();

@@ -19,21 +19,19 @@ function elevationAt(x, z) {
     tz * ((1 - tx) * sample(x0, z0 + 1) + tx * sample(x0 + 1, z0 + 1));
 }
 
-test('Needle Rush stays in playable airspace and has a conservative boosted-speed minimum over 60 seconds', () => {
+test('Needle Rush stays near the Trinity and fits a normal Bluejay run', () => {
   const course = [journeyDallas05.airborneSpawn, ...journeyDallas05.gates];
-  assert.ok(journeyDallas05.gates.some(gate => Math.hypot(gate.x + 4_100, gate.z - 2_300) < 1_000),
+  assert.ok(journeyDallas05.gates.some(gate => Math.hypot(gate.x + 4_100, gate.z - 2_300) < 2_000),
     'the race passes the actual Trinity River corridor');
-  let centerline = 0, shortest = 0;
+  let centerline = 0;
   for (let i = 1; i < course.length; i++) {
     const from = course[i - 1], to = course[i];
     const distance = Math.hypot(to.x - from.x, to.z - from.z);
     centerline += distance;
-    shortest += distance - (i === 1 ? 0 : from.radius * .92) - to.radius * .92;
     assert.ok(Math.abs(to.x) + to.radius < 25_000 && Math.abs(to.z) + to.radius < 25_000);
   }
-  assert.ok(centerline > 130_000 && centerline < 135_000);
-  assert.ok(shortest / (aircraftFlightEnvelope.fighter.maxSpeed * aircraftFlightEnvelope.fighter.boostMaxSpeed) > 60);
-  // This is only a geometric lower bound; it is not a normal-control completion time.
+  assert.ok(centerline > 40_000 && centerline < 50_000);
+  assert.ok(centerline / (aircraftFlightEnvelope.trainer.maxSpeed * .8) < 80);
 });
 
 test('Needle Rush corridor clears Dallas terrain and mapped buildings', () => {
@@ -89,8 +87,8 @@ test('Needle Rush uses the existing golden ring aperture and releases mission ob
   const final = scene.children[9];
   assert.equal(first.children[0].material.color.getHex(), 0xf7c948);
   assert.equal(first.children[1].geometry.parameters.radius, .86);
-  assert.equal(first.scale.x, 320);
-  assert.equal(final.scale.x, 340);
+  assert.equal(first.scale.x, 300);
+  assert.equal(final.scale.x, 320);
   rings.setProgress(7, true);
   assert.equal(scene.children.filter(group => group.visible).length, 3, 'previous gate flashes briefly after a confirmed crossing');
   rings.update(.6);

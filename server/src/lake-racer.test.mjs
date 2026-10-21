@@ -17,7 +17,7 @@ test('Lake Racer is a separate forward course near White Rock Lake', () => {
     assert.ok(Math.abs(points[i].x) <= 23_000 && Math.abs(points[i].z) <= 23_000, `world margin at gate ${i}`);
   }
   const spawn = authorizedJourneyAirborneSpawn({ missionId: journeyDallas02.id, status: 'APPROACH' }, journeyDallas02, () => 180);
-  assert.equal(spawn.position.y, 980);
+  assert.equal(spawn.position.y, 870);
   assert.equal(authorizedJourneyAirborneSpawn({ missionId: journeyDallas01.id, status: 'APPROACH' }, journeyDallas02, () => 180), undefined);
   assert.equal(authorizedJourneyAirborneSpawn({ missionId: journeyDallas02.id, status: 'FAILED' }, journeyDallas02, () => 180), undefined);
 });

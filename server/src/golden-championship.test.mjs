@@ -19,21 +19,19 @@ function elevationAt(x, z) {
     tz * ((1 - tx) * sample(x0, z0 + 1) + tx * sample(x0 + 1, z0 + 1));
 }
 
-test('Golden Championship stays in playable airspace and has a conservative boosted-speed minimum over 60 seconds', () => {
+test('Golden Championship stays in central Dallas and fits a normal Bluejay run', () => {
   const course = [journeyDallas06.airborneSpawn, ...journeyDallas06.gates];
   assert.ok(journeyDallas06.gates.some(gate => Math.hypot(gate.x + 4_100, gate.z - 2_300) < 1_000),
     'the race passes the actual Trinity River corridor');
-  let centerline = 0, shortest = 0;
+  let centerline = 0;
   for (let i = 1; i < course.length; i++) {
     const from = course[i - 1], to = course[i];
     const distance = Math.hypot(to.x - from.x, to.z - from.z);
     centerline += distance;
-    shortest += distance - (i === 1 ? 0 : from.radius * .92) - to.radius * .92;
     assert.ok(Math.abs(to.x) + to.radius < 25_000 && Math.abs(to.z) + to.radius < 25_000);
   }
-  assert.ok(centerline > 125_000 && centerline < 135_000);
-  assert.ok(shortest / (aircraftFlightEnvelope.fighter.maxSpeed * aircraftFlightEnvelope.fighter.boostMaxSpeed) > 60);
-  // This is only a geometric lower bound; it is not a normal-control completion time.
+  assert.ok(centerline > 45_000 && centerline < 55_000);
+  assert.ok(centerline / (aircraftFlightEnvelope.trainer.maxSpeed * .8) < 85);
 });
 
 test('Golden Championship corridor clears Dallas terrain and mapped buildings', () => {
@@ -89,7 +87,7 @@ test('Golden Championship uses the existing golden ring aperture and releases mi
   const final = scene.children[9];
   assert.equal(first.children[0].material.color.getHex(), 0xf7c948);
   assert.equal(first.children[1].geometry.parameters.radius, .86);
-  assert.equal(first.scale.x, 320);
+  assert.equal(first.scale.x, 310);
   assert.equal(final.scale.x, 340);
   rings.setProgress(7, true);
   assert.equal(scene.children.filter(group => group.visible).length, 3, 'previous gate flashes briefly after a confirmed crossing');

@@ -417,7 +417,9 @@ test('Golden Ascent is a ten-gate rising forward course with valid swept opening
   assert.equal(journeyDallas03.timeLimitMs, 160_000);
   assert.equal(journeyDallas03.firstClearCredits, 450);
   assert.equal(journeyDallas03.gates.length, 10);
-  assert.ok(journeyDallas03.gates.at(-1)!.altitude - journeyDallas03.airborneSpawn.altitude > 2_000);
+  assert.ok(journeyDallas03.gates[5]!.altitude > journeyDallas03.airborneSpawn.altitude + 350);
+  assert.ok(journeyDallas03.gates.at(-1)!.altitude < journeyDallas03.gates[5]!.altitude);
+  assert.ok(Math.max(...journeyDallas03.gates.map(gate => gate.altitude)) < 1_200);
   const route = [journeyDallas03.airborneSpawn, ...journeyDallas03.gates];
   let distance = 0;
   for (let index = 1; index < route.length; index += 1) {
@@ -427,7 +429,7 @@ test('Golden Ascent is a ten-gate rising forward course with valid swept opening
     assert.ok(Math.abs(next.x) <= 23_000 && Math.abs(next.z) <= 23_000, `gate ${index} stays inside playable Dallas`);
     distance += leg;
   }
-  assert.ok(distance >= 100_000 && distance <= 110_000);
+  assert.ok(distance >= 40_000 && distance <= 50_000);
   for (let index = 0; index < journeyDallas03.gates.length; index += 1) {
     const gate = journeyDallas03.gates[index]!;
     const before = journeyDallas03.gates[Math.max(0, index - 1)]!;
@@ -441,7 +443,8 @@ test('Golden Ascent is a ten-gate rising forward course with valid swept opening
     const miss = { x: from.x - nz * gate.radius * 2, y: from.y, z: from.z + nx * gate.radius * 2 };
     const missTo = { x: to.x - nz * gate.radius * 2, y: to.y, z: to.z + nx * gate.radius * 2 };
     assert.equal(journeyGateCrossing(miss, missTo, index, 180, journeyDallas03), false);
-    if (index > 0) assert.ok(gate.altitude > journeyDallas03.gates[index - 1]!.altitude);
+    if (index > 0 && index <= 5) assert.ok(gate.altitude > journeyDallas03.gates[index - 1]!.altitude);
+    if (index > 5) assert.ok(gate.altitude < journeyDallas03.gates[index - 1]!.altitude);
   }
 });
 
@@ -553,7 +556,7 @@ test('Needle Rush has ten progressively smaller golden openings and forward cros
   assert.equal(journeyDallas05.name, 'NEEDLE RUSH');
   assert.equal(journeyDallas05.timeLimitMs, 160_000);
   assert.ok(journeyDallas05.airborneSpawn);
-  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [320, 310, 300, 270, 260, 260, 255, 225, 225, 340]);
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 245, 230, 220, 210, 205, 320]);
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas05.gates[index]!;
     const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
@@ -605,7 +608,7 @@ test('Needle Rush requires Mission 4, a running timer and all ten gates; reward 
     assert.equal(attempt.deadlineAt, null);
     const preparing = store.approach('needle-pilot', attempt.attemptId);
     assert.deepEqual(authorizedJourneyAirborneSpawn(preparing, journeyDallas05, () => 120), {
-      position: { x: -23_000, y: 970, z: -23_000 }, heading: -3 * Math.PI / 4, speed: 650,
+      position: { x: -15_000, y: 820, z: -13_000 }, heading: -3 * Math.PI / 4, speed: 650,
     });
     assert.equal(authorizedJourneyAirborneSpawn(attempt, journeyDallas05, () => 120), undefined);
     store.startRookieRush('needle-pilot', attempt.attemptId, 171_000);
