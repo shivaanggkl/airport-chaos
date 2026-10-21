@@ -16,7 +16,7 @@ type Options = {
   onFinished: () => void;
 };
 
-const scenes: Record<TutorialLessonStep, { title: string; detail: string; control: string; motion: string }> = {
+const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail: string; control: string; motion: string }> = {
   throttle: { title: 'BUILD SPEED', detail: 'Slide the speed lever UP.', control: 'throttle', motion: 'up' },
   takeoff: { title: 'TAKE OFF', detail: 'Push the joystick UP.', control: 'stick', motion: 'up' },
   turnLeft: { title: 'TURN LEFT', detail: 'Push the joystick LEFT.', control: 'stick', motion: 'left' },
@@ -26,7 +26,6 @@ const scenes: Record<TutorialLessonStep, { title: string; detail: string; contro
   cameraLook: { title: 'LOOK AROUND', detail: 'Drag the view.', control: 'view', motion: 'right' },
   cameraZoom: { title: 'ZOOM', detail: 'Pinch the view.', control: 'view', motion: 'pinch' },
   approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar, then close the map.', control: 'radar', motion: 'tap' },
-  targetLock: { title: 'AIM', detail: 'Aim at the target until it locks.', control: 'aim', motion: 'hold' },
   fire: { title: 'FIRE', detail: 'Fire at the locked target.', control: 'fire', motion: 'tap' },
   landing: { title: 'LAND SAFELY', detail: 'Slow down. Steer to the runway. Land.', control: 'throttle', motion: 'down' },
 };
@@ -156,6 +155,12 @@ export class TrainingSlides {
     if (this.playerActionMs >= 10_000) this.completeStep();
   }
 
+  completeAction(step: TutorialLessonStep): void {
+    if (!this.acceptsInput(step)) return;
+    this.recordAction(step);
+    this.completeStep();
+  }
+
   private completeStep(): void {
     if (!this.active || this.completing) return;
     this.completing = true;
@@ -244,7 +249,6 @@ export class TrainingSlides {
     if (this.suspended) { this.hand.hidden = true; return; }
     const selector = control === 'view' ? '#game-root canvas'
       : control === 'radar' ? '#radar-panel'
-      : control === 'aim' ? '#acquisition-circle'
       : '[data-touch-control="' + control + '"]';
     const rect = document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) { this.hand.hidden = true; return; }

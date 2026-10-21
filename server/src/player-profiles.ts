@@ -530,13 +530,18 @@ export class PlayerProfileStore {
         pilot_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS pilot_training_slides (
-        pilot_id TEXT PRIMARY KEY, slide_index INTEGER NOT NULL, updated_at INTEGER NOT NULL
+        pilot_id TEXT PRIMARY KEY, slide_index INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+        sequence_version INTEGER NOT NULL DEFAULT 2
       );
       CREATE TABLE IF NOT EXISTS pilot_tutorial_steps (
         pilot_id TEXT NOT NULL, step TEXT NOT NULL, status TEXT NOT NULL, updated_at INTEGER NOT NULL,
         PRIMARY KEY (pilot_id, step)
       );
     `);
+    // Existing screenplay runs included AIM at index 9. Move later saved
+    // positions back one slot exactly once so FIRE and LANDING resume correctly.
+    try { this.database.exec('ALTER TABLE pilot_training_slides ADD COLUMN sequence_version INTEGER NOT NULL DEFAULT 1'); } catch { /* already migrated */ }
+    this.database.exec('UPDATE pilot_training_slides SET slide_index=CASE WHEN slide_index>9 THEN slide_index-1 ELSE slide_index END,sequence_version=2 WHERE sequence_version=1');
     // Existing SQLite MVP profiles predate durable ownership. SQLite has no
     // portable ADD COLUMN IF NOT EXISTS, so tolerate the one expected error.
     try { this.database.exec(`ALTER TABLE player_profiles ADD COLUMN owned_aircraft TEXT NOT NULL DEFAULT '["trainer"]'`); } catch { /* already migrated */ }
@@ -714,7 +719,7 @@ export class PlayerProfileStore {
   startTrainingSlides(pilotId:string,now=Date.now()):boolean{
     const state=this.database.prepare('SELECT status FROM pilot_tutorial_state WHERE pilot_id=?').get(pilotId) as {status:string}|undefined;
     if(state?.status!=='started')return false;
-    this.database.prepare('INSERT INTO pilot_training_slides(pilot_id,slide_index,updated_at) VALUES (?,0,?) ON CONFLICT(pilot_id) DO UPDATE SET slide_index=0,updated_at=excluded.updated_at').run(pilotId,now);
+    this.database.prepare('INSERT INTO pilot_training_slides(pilot_id,slide_index,updated_at,sequence_version) VALUES (?,0,?,2) ON CONFLICT(pilot_id) DO UPDATE SET slide_index=0,updated_at=excluded.updated_at,sequence_version=2').run(pilotId,now);
     return true;
   }
 

@@ -1,4 +1,4 @@
 import { tutorialSteps } from './tutorial-flight-rules.mjs';
 
-// Keep the guided view in the same order as the hands-on Milwaukee lessons.
-export const trainingSlideIds = Object.freeze([...tutorialSteps]);
+// Lock acquisition is automatic in the screenplay; the pilot learns it while firing.
+export const trainingSlideIds = Object.freeze(tutorialSteps.filter((step) => step !== 'targetLock'));

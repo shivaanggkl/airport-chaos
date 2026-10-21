@@ -4013,7 +4013,7 @@ const mobileInput=new MobileInputControls(document.querySelector<HTMLElement>('#
     return;
   }
   if(active)reportTouchInput();
-  if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action.startsWith('aim'))screenplayAimUsed=true;if(action==='fire'&&fireWeaponOnce())trainingSlides.beginAction('fire');}
+  if(active){heldActions.add(action);runStarted=true;noteTutorialActionInput(action);if(action==='fire'&&fireWeaponOnce())trainingSlides.beginAction('fire');}
   else heldActions.delete(action);
 },(value)=>{if(launchCinematicBlocksInput())return;reportTouchInput();runStarted=true;noteTutorialThrottleInput(value);if(trainingSlides.acceptsInput('landing'))screenplayLandingLastInputAt=performance.now();});
 window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
@@ -4169,7 +4169,6 @@ window.addEventListener('keydown', (event) => {
   if (action) {
     heldKeyboardCodes.add(event.code);
     heldActions.add(action);
-    if(action.startsWith('aim'))screenplayAimUsed=true;
     noteTutorialActionInput(action);
   }
 });
@@ -5829,7 +5828,6 @@ let screenplayFlightPaused=false;
 let screenplayControlStartedAt=0;
 let screenplayControlHeading=0;
 let screenplayControlAltitude=0;
-let screenplayAimUsed=false;
 let screenplayTargetHitPending=false;
 let screenplayMapViewed=false;
 let screenplayLandingLastInputAt=0;
@@ -5891,12 +5889,12 @@ const trainingSlides=new TrainingSlides({
   onSkip:()=>endTrainingAndNavigate('city'),
   onStage:(step)=>{
     clearHeldActions();mobileInput.reset();mobileInput.clearDemoSteering();
-    screenplayFlightPaused=true;screenplayControlStartedAt=0;screenplayAimUsed=false;screenplayTargetHitPending=false;screenplayMapViewed=false;screenplayLandingLastInputAt=0;
+    screenplayFlightPaused=true;screenplayControlStartedAt=0;screenplayTargetHitPending=false;screenplayMapViewed=false;screenplayLandingLastInputAt=0;
     if(step==='takeoff')mobileInput.setThrottleState(Math.max(throttle,.8));
-    else if(!onGround&&step!=='landing')mobileInput.setThrottleState(throttle);
+    else if(step==='landing'||!onGround)mobileInput.setThrottleState(throttle);
     if(step==='approach')setActivityWaypoint(centralAirport.x,centralAirport.z,centralAirport.name);
   },
-  onReady:()=>{screenplayControlStartedAt=0;screenplayAimUsed=false;screenplayMapViewed=false;},
+  onReady:()=>{screenplayControlStartedAt=0;screenplayMapViewed=false;},
   onStageEnd:()=>{
     screenplayFlightPaused=true;screenplayControlStartedAt=0;clearHeldActions();mobileInput.reset();
   },
@@ -5923,7 +5921,7 @@ function updateTrainingScreenplay(delta:number):void{
   if(trainingPaused)return;
   const step=trainingSlides.currentStep();
   if(!step||!trainingSlides.isPlayerTurn(step)||crashed)return;
-  if(step==='cameraLook'||step==='cameraZoom'||step==='fire')
+  if(step==='cameraLook'||step==='cameraZoom')
     trainingSlides.updateProgress(step,delta);
   const now=performance.now();
   const steering=mobileInput.getSteeringInput();
@@ -5966,12 +5964,6 @@ function updateTrainingScreenplay(delta:number):void{
     trainingSlides.updateProgress(step,delta,control);
     return;
   }
-  if(step==='targetLock'){
-    if(screenplayAimUsed||combatLockState==='LOCKED')trainingSlides.beginAction(step);
-    if(combatLockState==='LOCKED')trainingSlides.recordAction(step);
-    trainingSlides.updateProgress(step,delta,combatLockState==='LOCKED');
-    return;
-  }
   if(step==='approach'){
     if(screenplayMapViewed&&!worldMap.isOpen())trainingSlides.recordAction(step);
     trainingSlides.updateProgress(step,delta,screenplayMapViewed);
@@ -5981,7 +5973,7 @@ function updateTrainingScreenplay(delta:number):void{
     control=heldActions.has('throttleDown')||heldActions.has('throttleUp')||climb||descend||left||right;
     if(control){screenplayLandingLastInputAt=now;trainingSlides.beginAction(step);}
     screenplayFlightPaused=screenplayLandingLastInputAt===0||now-screenplayLandingLastInputAt>8_000;
-    if(screenplayLandingLastInputAt&&onGround)trainingSlides.recordAction(step);
+    if(screenplayLandingLastInputAt&&onGround)trainingSlides.completeAction(step);
     trainingSlides.updateProgress(step,delta,control||onGround);
   }
 }
@@ -6333,7 +6325,7 @@ function applyTutorialLandingApproach(message:Extract<ServerMessage,{type:'tutor
     ![message.position.x,message.position.y,message.position.z,message.heading,message.speed].every(Number.isFinite))return;
   cinematicDirector.resetFlight();clearHeldActions();mobileInput.reset();
   tutorialLandingIntentPending=undefined;
-  throttle=.08;mobileInput.setThrottleState(throttle);
+  throttle=.55;mobileInput.setThrottleState(throttle);
   heading=message.heading;pitch=0;roll=0;pitchControlStrength=0;yawControlStrength=0;smoothedTouchSteering={x:0,y:0};
   airplane.position.set(message.position.x,message.position.y,message.position.z);
   airplane.rotation.set(0,heading,0,'YXZ');
@@ -10839,7 +10831,7 @@ boundSocket.addEventListener('message', (event) => {
     if (!message.paused && trainingPaused && !document.hidden) {
       clearTrainingPause();
       trainingSlides.resume(trainingPauseSlideIndex);
-      if(screenplayTargetHitPending){screenplayTargetHitPending=false;trainingSlides.recordAction('fire');}
+      if(screenplayTargetHitPending){screenplayTargetHitPending=false;trainingSlides.completeAction('fire');}
       mobileInput.setThrottleState(throttle);
     }
     return;
@@ -11020,7 +11012,7 @@ boundSocket.addEventListener('message', (event) => {
   } else if(message.type==='tutorialSignal'){
     if(message.signal==='targetHit'){
       if(trainingPaused&&trainingSlides.currentStep()==='fire')screenplayTargetHitPending=true;
-      else trainingSlides.recordAction('fire');
+      else trainingSlides.completeAction('fire');
     }
   } else if (message.type === 'state') {
     updateRemotePlayer(message);

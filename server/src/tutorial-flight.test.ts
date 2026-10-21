@@ -295,7 +295,7 @@ test('ordered gameplay slides unlock Dallas without granting rewards', () => {
   const store=new PlayerProfileStore(path);
   const pilot=store.getOrCreate('slides-pilot','Pilot');
   const startedAt=100_000;
-  assert.deepEqual(trainingSlideIds,tutorialSteps);
+  assert.deepEqual(trainingSlideIds,tutorialSteps.filter(step=>step!=='targetLock'));
   assert.equal(store.startTrainingSlides(pilot.pilotId,startedAt),false);
   store.setTutorialState(pilot.pilotId,'started');
   assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt),undefined);
@@ -390,6 +390,28 @@ test('an existing tutorial table migrates without treating unfinished training a
   store.recordTutorialStepStatus(existing.pilotId,'landing','completed');
   store.recordTrainingEvidence(existing.pilotId,8);
   assert.equal(store.setTutorialState(existing.pilotId,'completed')?.tutorial.dallasUnlocked,true);
+});
+
+test('saved screenplay positions migrate past the removed AIM lesson once', () => {
+  const path=join(mkdtempSync(join(tmpdir(),'airport-training-slide-migration-')),'profiles.sqlite');
+  const seeded=new PlayerProfileStore(path);
+  seeded.getOrCreate('aim-pilot','Pilot');
+  seeded.setTutorialState('aim-pilot','started');
+  seeded.startTrainingSlides('aim-pilot');
+  const oldDb=new DatabaseSync(path);
+  oldDb.exec('ALTER TABLE pilot_training_slides DROP COLUMN sequence_version');
+  oldDb.prepare('UPDATE pilot_training_slides SET slide_index=10 WHERE pilot_id=?').run('aim-pilot');
+  oldDb.close();
+  const migrated=new PlayerProfileStore(path);
+  assert.equal(migrated.trainingSlideIndex('aim-pilot'),trainingSlideIds.indexOf('fire'));
+  migrated.getOrCreate('fresh-pilot','Pilot');
+  migrated.setTutorialState('fresh-pilot','started');
+  migrated.startTrainingSlides('fresh-pilot');
+  for(let index=0;index<trainingSlideIds.indexOf('fire');index++)
+    assert.equal(migrated.advanceTrainingSlide('fresh-pilot',index,trainingSlideIds[index]!),true);
+  const reopened=new PlayerProfileStore(path);
+  assert.equal(reopened.trainingSlideIndex('aim-pilot'),trainingSlideIds.indexOf('fire'));
+  assert.equal(reopened.trainingSlideIndex('fresh-pilot'),trainingSlideIds.indexOf('fire'));
 });
 
 test('server tutorial evidence survives reconnect/restart, is idempotent, and never grants rewards', () => {

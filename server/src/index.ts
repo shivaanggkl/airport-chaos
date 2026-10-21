@@ -59,6 +59,7 @@ import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/cha
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
 import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
+import { trainingSlideIds } from '../../shared/training-slides.mjs';
 import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from './rewarded-ads.js';
 import { ReferralFlightTracker } from './referral-flight.js';
 
@@ -1753,9 +1754,9 @@ const httpServer = createServer(async (request, response) => {
             profile=profileStore.getOrCreate(identity.pilotId,identity.pilotName);
             for(const [id,player] of players){
               if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
-              if(slideRequest.slideIndex===1)sendTutorialScreenplayCruise(id,player);
-              if(slideRequest.slideIndex===7)createTrainingTarget(id,player);
-              if(slideRequest.slideIndex===10)sendTutorialLandingApproach(id,player,true);
+              if(slideRequest.slideId==='takeoff')sendTutorialScreenplayCruise(id,player);
+              if(slideRequest.slideId==='cameraZoom')createTrainingTarget(id,player);
+              if(slideRequest.slideId==='fire')sendTutorialLandingApproach(id,player,true);
             }
           }else error='Follow the training screenplay in order.';
         }else if(action==='complete'){
@@ -7156,8 +7157,8 @@ server.on('connection', (socket, request) => {
   );
   if (journeyAttempt) sendJourneyState(playerId, journeyAttempt);
   if(tutorialMode&&!restoringPausedTraining&&profileStore.nextPendingTutorialStep(profile.pilotId)==='landing')sendTutorialLandingApproach(playerId,players.get(playerId)!);
-  if (restoringPausedTraining && (profileStore.trainingSlideIndex(profile.pilotId) ?? 0) >= 8 &&
-      (profileStore.trainingSlideIndex(profile.pilotId) ?? 0) <= 10)
+  if (restoringPausedTraining && (profileStore.trainingSlideIndex(profile.pilotId) ?? 0) >= trainingSlideIds.indexOf('approach') &&
+      (profileStore.trainingSlideIndex(profile.pilotId) ?? 0) <= trainingSlideIds.indexOf('fire'))
     createTrainingTarget(playerId, players.get(playerId)!);
   broadcastToCity(cityId, { type: 'cosmeticChanged', playerId, equipped: profile.cosmetics.equipped });
   if (weeklyRewardNew && weeklyReward) {
