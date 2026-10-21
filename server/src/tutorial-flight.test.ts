@@ -313,6 +313,8 @@ test('ordered gameplay slides unlock Dallas without granting rewards', () => {
     if(index>1)assert.equal(store.advanceTrainingSlide(pilot.pilotId,index-2,trainingSlideIds[index-2]!,startedAt+index),true,'revisiting earlier slides can move forward');
   }
   assert.equal(store.dallasUnlocked(pilot.pilotId),false);
+  assert.equal(store.completeTrainingSlides(pilot.pilotId,startedAt+trainingSlideIds.length),undefined,'the last card alone cannot unlock Dallas without a verified landing');
+  store.recordTrainingEvidence(pilot.pilotId,8);
   const completed=store.completeTrainingSlides(pilot.pilotId,startedAt+trainingSlideIds.length);
   assert.equal(completed?.tutorial.dallasUnlocked,true);
   assert.equal(completed?.credits,0);
@@ -464,7 +466,8 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /tutorialState: \{ version: 'tutorial_v1', status: 'started', freshRun: true \}/);
   assert.match(server, /tutorialState\.status==='started'&&tutorialState\.freshRun===true\)\{[\s\S]*?cleanupHumanPlayer\(id\);[\s\S]*?profileStore\.resetTutorialRun/);
-  assert.match(main, /TRAINING COMPLETE[\s\S]*CONTINUE TO DALLAS[\s\S]*PRACTICE IN MILWAUKEE/);
+  assert.match(main, /TRAINING COMPLETE[\s\S]*navigateToDallasUnlock\(\)/);
+  assert.match(main, /message\.type === 'landingScored'[\s\S]*trainingSlides\.completeAction\('landing'\)/);
   assert.match(main, /trainingSlides\.open\(\)/);
   assert.match(main, /data-guided-skip>SKIP TRAINING<[\s\S]*data-guided-exit>EXIT TRAINING</);
   assert.match(main, /data-tutorial-completion-actions[\s\S]*CONTINUE[\s\S]*Replay Training[\s\S]*Free Practice/);

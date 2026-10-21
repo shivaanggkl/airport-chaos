@@ -756,7 +756,7 @@ export class PlayerProfileStore {
       SET status='completed',updated_at=?,completed_at=COALESCE(completed_at,?)
       WHERE pilot_id=? AND status='started' AND EXISTS (
         SELECT 1 FROM pilot_training_slides WHERE pilot_id=? AND slide_index=?
-      )`).run(now,now,pilotId,pilotId,lastIndex);
+      ) AND (evidence & 8)!=0`).run(now,now,pilotId,pilotId,lastIndex);
     if(result.changes===0){
       const state=this.database.prepare(`SELECT s.status,t.slide_index FROM pilot_tutorial_state s
         JOIN pilot_training_slides t ON t.pilot_id=s.pilot_id WHERE s.pilot_id=?`).get(pilotId) as {status:string;slide_index:number}|undefined;

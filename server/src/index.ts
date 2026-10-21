@@ -3203,6 +3203,9 @@ function validateAndRecordLanding(playerId: string, player: PlayerState, airport
   }
   if (!progressionEnabled(player)) {
     const tutorialStepsState=player.tutorialMode?profileStore.tutorialStepStates(player.pilotId):undefined;
+    if(player.tutorialMode&&airport.id===cityAirports.milwaukee[0].id&&
+      profileStore.trainingSlideIndex(player.pilotId)===trainingSlideIds.length-1)
+      profileStore.recordTrainingEvidence(player.pilotId,8);
     if(player.tutorialMode&&tutorialStepsState&&tutorialStepPrerequisitesResolved('landing',tutorialStepsState)){
       profileStore.recordTrainingEvidence(player.pilotId,8);
       completeServerTutorialStep(playerId,player,'landing',now);

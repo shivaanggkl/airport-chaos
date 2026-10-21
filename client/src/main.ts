@@ -5806,11 +5806,6 @@ new MutationObserver(()=>{if(tutorialNavigationCoach==='map'&&!worldMap.isOpen()
 const tutorialDimmer=document.createElement('div');
 tutorialDimmer.className='tutorial-focus-dimmer';tutorialDimmer.hidden=true;tutorialDimmer.setAttribute('aria-hidden','true');
 document.body.append(tutorialDimmer);
-const tutorialIntroPanel=document.createElement('section');
-tutorialIntroPanel.className='training-intro';tutorialIntroPanel.hidden=true;
-tutorialIntroPanel.setAttribute('role','dialog');tutorialIntroPanel.setAttribute('aria-labelledby','training-intro-title');
-tutorialIntroPanel.innerHTML='<div class="app-shell-panel"><h1 id="training-intro-title">TRAINING COMPLETE</h1><p>You have learned the flight controls. Dallas is now available.</p><div class="training-dialog-actions"><button type="button" data-training-dallas>CONTINUE TO DALLAS</button><button type="button" data-training-practice-now>PRACTICE IN MILWAUKEE</button></div></div>';
-document.body.append(tutorialIntroPanel);
 const trainingModeLabel=document.createElement('div');
 trainingModeLabel.className='training-mode-label';trainingModeLabel.hidden=true;
 trainingModeLabel.innerHTML='<strong>TRAINING MODE · NO REWARDS</strong><div><button type="button" data-training-real>PLAY FOR REAL</button><button type="button" data-training-restart>RESTART TRAINING</button><button type="button" data-training-leave>EXIT</button></div>';
@@ -5824,7 +5819,6 @@ async function postTrainingSlides(action:'start'|'advance',slideIndex?:number,sl
     return response.ok;
   }catch{return false;}
 }
-let screenplayFinished=false;
 let screenplayFlightPaused=false;
 let screenplayControlStartedAt=0;
 let screenplayControlHeading=0;
@@ -5832,6 +5826,8 @@ let screenplayControlAltitude=0;
 let screenplayTargetHitPending=false;
 let screenplayMapViewed=false;
 let screenplayLandingLastInputAt=0;
+let screenplayLandingVerified=false;
+let screenplayCompletionNavigationTimer:number|undefined;
 let trainingPaused=false;
 let trainingPauseDeadlineAt=0;
 let trainingPauseSlideIndex=0;
@@ -5878,7 +5874,9 @@ const trainingSlides=new TrainingSlides({
   host:gameplayInfoElement,
   gameRoot:flightGameRoot,
   onOpen:()=>{
-    trainingSlidesOpen=true;screenplayFlightPaused=true;screenplayFinished=false;
+    window.clearTimeout(screenplayCompletionNavigationTimer);
+    screenplayCompletionNavigationTimer=undefined;
+    trainingSlidesOpen=true;screenplayFlightPaused=true;
     screenplayDallasUnlockAt=undefined;
     mobileInput.setDemoActive(true);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;
     flightGameRoot.classList.remove('training-start-pending');
@@ -5891,7 +5889,7 @@ const trainingSlides=new TrainingSlides({
   onSkip:()=>endTrainingAndNavigate('city'),
   onStage:(step)=>{
     clearHeldActions();mobileInput.reset();mobileInput.clearDemoSteering();
-    screenplayFlightPaused=true;screenplayControlStartedAt=0;screenplayTargetHitPending=false;screenplayMapViewed=false;screenplayLandingLastInputAt=0;
+    screenplayFlightPaused=true;screenplayControlStartedAt=0;screenplayTargetHitPending=false;screenplayMapViewed=false;screenplayLandingLastInputAt=0;screenplayLandingVerified=false;
     if(step==='takeoff')mobileInput.setThrottleState(Math.max(throttle,.8));
     else if(step==='landing'||!onGround)mobileInput.setThrottleState(throttle);
     if(step==='approach')setActivityWaypoint(centralAirport.x,centralAirport.z,centralAirport.name);
@@ -5913,10 +5911,15 @@ const trainingSlides=new TrainingSlides({
     }catch{return false;}
   },
   onFinished:()=>{
-    screenplayFinished=true;
-    tutorialIntroPending=true;
-    tutorialIntroPanel.hidden=false;
-    tutorialIntroPanel.querySelector<HTMLButtonElement>('[data-training-dallas]')!.focus();
+    tutorialIntroPending=true;screenplayFlightPaused=true;
+    gameplayFeedback.clear();
+    gameplayFeedback.push({type:'mission',primaryText:'TRAINING COMPLETE',secondaryText:screenplayDallasUnlockAt!==undefined?'DALLAS UNLOCKED':'READY FOR DALLAS',intensity:'major'});
+    audioManager.playReward();
+    hapticsManager.emit('rewardSuccess','milwaukee-training-complete');
+    screenplayCompletionNavigationTimer=window.setTimeout(()=>{
+      screenplayCompletionNavigationTimer=undefined;
+      if(tutorialIntroPending&&guidedTutorialActive)navigateToDallasUnlock();
+    },2_800);
   },
 });
 window.addEventListener('online',()=>trainingSlides.retryPendingSave());
@@ -5973,23 +5976,20 @@ function updateTrainingScreenplay(delta:number):void{
     return;
   }
   if(step==='landing'){
+    if(screenplayLandingVerified){trainingSlides.completeAction(step);return;}
     control=heldActions.has('throttleDown')||heldActions.has('throttleUp')||climb||descend||left||right;
     if(control){screenplayLandingLastInputAt=now;trainingSlides.beginAction(step);}
     screenplayFlightPaused=screenplayLandingLastInputAt===0||now-screenplayLandingLastInputAt>8_000;
-    if(screenplayLandingLastInputAt&&onGround)trainingSlides.completeAction(step);
     trainingSlides.updateProgress(step,delta,control||onGround);
   }
 }
 let screenplayDallasUnlockAt:number|undefined;
-tutorialIntroPanel.querySelector('[data-training-dallas]')!.addEventListener('click',()=>{
+function navigateToDallasUnlock():void{
   const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
   url.searchParams.set('entry','city');
   if(screenplayDallasUnlockAt!==undefined)url.searchParams.set('dallasUnlock',String(screenplayDallasUnlockAt));
   window.location.assign(`${url.pathname}${url.search}${url.hash}`);
-});
-tutorialIntroPanel.querySelector('[data-training-practice-now]')!.addEventListener('click',()=>{
-  screenplayFinished=false;tutorialIntroPending=false;tutorialIntroPanel.hidden=true;enterFreePractice();
-});
+}
 tutorialCompletionActions.querySelector('[data-training-play]')!.addEventListener('click',()=>{void endTrainingAndNavigate('city');});
 tutorialCompletionActions.querySelector('[data-training-replay]')!.addEventListener('click',restartGuidedTutorial);
 tutorialCompletionActions.querySelector('[data-training-practice]')!.addEventListener('click',enterFreePractice);
@@ -6013,12 +6013,6 @@ registerUiBackLayer({
   priority: uiBackPriority.modal + 30,
   isActive: () => trainingSlides.isOpen() && !worldMap.isOpen(),
   close: () => { trainingSlides.close(); void endTrainingAndNavigate('hub'); },
-});
-registerUiBackLayer({
-  id: 'training-intro',
-  priority: uiBackPriority.modal + 20,
-  isActive: () => !tutorialIntroPanel.hidden,
-  close: () => {void endTrainingAndNavigate('hub');},
 });
 registerUiBackLayer({
   id: 'training-session',
@@ -6213,7 +6207,6 @@ function setGuidedTutorial(active:boolean,resumeSlideIndex?:number):void{
   resetTutorialLessonMetrics();
   tutorialIntroPending=active&&resumeSlideIndex===undefined&&!tutorialIntroShown&&guidedTutorialStep!=='landing';
   if(tutorialIntroPending)tutorialIntroShown=true;
-  tutorialIntroPanel.hidden=true;
   tutorialPanel.hidden=!active||tutorialIntroPending;
   tutorialCompletionActions.hidden=true;
   tutorialDimmer.hidden=!active||tutorialIntroPending;
@@ -6253,9 +6246,12 @@ function resetTutorialLessonMetrics():void{
 }
 async function endTrainingAndNavigate(destination:'city'|'hub',completion:'flight'|'slides'='flight'):Promise<boolean>{
   if(!guidedTutorialActive||tutorialExitPending)return false;
+  const finishedScreenplay=screenplayCompletionNavigationTimer!==undefined;
+  window.clearTimeout(screenplayCompletionNavigationTimer);
+  screenplayCompletionNavigationTimer=undefined;
   tutorialExitPending=true;
   clearHeldActions();
-  const status=completion==='slides'||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
+  const status=completion==='slides'||finishedScreenplay||guidedTutorialStep==='freePractice'||tutorialCompletionPending?'completed':'skipped';
   const profileUrl=apiUrl('/api/profile');profileUrl.searchParams.set('pilotId',persistedPlayer.pilotId);profileUrl.searchParams.set('pilotName',displayName);
   let firstDallasUnlockAt: number | undefined;
   try{
@@ -6266,7 +6262,7 @@ async function endTrainingAndNavigate(destination:'city'|'hub',completion:'fligh
     const completedAt=profile.tutorial?.completedAt;
     if(status==='completed'&&!serverProfile.tutorial.completedAt&&profile.tutorial?.dallasUnlocked===true&&typeof completedAt==='number'&&Number.isFinite(completedAt))firstDallasUnlockAt=completedAt;
   }catch{tutorialExitPending=false;if(completion!=='slides')showProgressMessage('SERVER REQUIRED TO EXIT TRAINING');return false;}
-  window.clearTimeout(tutorialAdvanceTimer);window.clearTimeout(tutorialLockPreviewTimer);tutorialPanel.hidden=true;tutorialIntroPanel.hidden=true;tutorialDimmer.hidden=true;trainingModeLabel.hidden=true;document.body.dataset.tutorialControl='';
+  window.clearTimeout(tutorialAdvanceTimer);window.clearTimeout(tutorialLockPreviewTimer);tutorialPanel.hidden=true;tutorialDimmer.hidden=true;trainingModeLabel.hidden=true;document.body.dataset.tutorialControl='';
   if(completion==='flight'&&connectionReady())socket.send(JSON.stringify({type:'tutorialState',tutorialStatus:status}));
   const url=new URL(window.location.href);url.searchParams.delete(CITY_QUERY_PARAM);url.searchParams.delete('time');url.searchParams.delete('training');
   if(firstDallasUnlockAt!==undefined)url.searchParams.set('dallasUnlock',String(firstDallasUnlockAt));
@@ -11010,7 +11006,7 @@ boundSocket.addEventListener('message', (event) => {
     tutorialRunResetPending=false;window.clearTimeout(tutorialCrashResetTimer);applyTutorialStepStates(message.steps);
     tutorialNavigationCoach=undefined;tutorialNavigationCoachSeen=false;syncTutorialNavigationMap();
     guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
-    tutorialIntroPanel.hidden=!screenplayFinished;tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
+    tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
     if(trainingSlidesOpen)void postTrainingSlides('start').then(started=>{
       if(!trainingSlidesOpen)return;
       if(started)trainingSlides.restart();
@@ -11219,6 +11215,10 @@ boundSocket.addEventListener('message', (event) => {
     if (journeyAttempt?.missionId === journeyDallas17.id || journeyAttempt?.missionId === journeyDallas22.id || journeyAttempt?.missionId === journeyDallas24.id)
       championshipLandingIntentPending = undefined;
     lastLandingResult = { airportId: message.airportId, quality: message.quality, grade: message.grade, at: Date.now() };
+    if(guidedTutorialActive&&trainingSlides.currentStep()==='landing'&&message.airportId===centralAirport.id){
+      screenplayLandingVerified=true;
+      trainingSlides.completeAction('landing');
+    }
     if (journeyAttempt?.missionId === journeyDallas06.id) return;
     if (journeyAttempt?.missionId === journeyDallas24.id) {
       if (journeyAttempt.status !== 'COMPLETED' && journeyAttempt.legendaryPhase === 'LANDING')
