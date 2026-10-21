@@ -59,6 +59,7 @@ export class TrainingSlides {
   private completing = false;
   private saving = false;
   private suspended = false;
+  private saveRetries = 0;
 
   constructor(private readonly options: Options) {
     this.root.className = 'guided-tutorial-panel training-screenplay';
@@ -74,6 +75,7 @@ export class TrainingSlides {
     this.timeFill = this.root.querySelector('[data-scene-time-fill]')!;
     this.status = this.root.querySelector('[data-scene-status]')!;
     this.retry = this.root.querySelector('[data-scene-retry]')!;
+    this.retry.textContent = 'RETRY SAVING';
     this.retry.addEventListener('click', () => { void this.advance(); });
     this.hand.className = 'training-screenplay-hand';
     this.hand.setAttribute('aria-hidden', 'true');
@@ -219,6 +221,7 @@ export class TrainingSlides {
     this.actionObserved = false;
     this.completing = false;
     this.saving = false;
+    this.saveRetries = 0;
     this.title.textContent = scene.title;
     this.detail.textContent = scene.detail;
     this.count.textContent = String(this.index + 1) + ' / ' + String(trainingSlideIds.length);
@@ -259,7 +262,7 @@ export class TrainingSlides {
   }
 
   private async advance(): Promise<void> {
-    if (!this.active || !this.actionObserved || this.saving) return;
+    if (!this.active || !this.actionObserved || this.saving || this.suspended) return;
     this.saving = true;
     const step = trainingSlideIds[this.index]!;
     this.options.onStageEnd(step);
@@ -282,10 +285,15 @@ export class TrainingSlides {
         }
         return;
       }
-    } catch { /* Show the retry control after a connection failure. */ }
+    } catch { /* A failed save follows the same retry path as a rejected response. */ }
     if (!this.active) return;
-    this.status.textContent = 'CONNECTION LOST. TRAINING IS PAUSED.';
-    this.retry.hidden = false;
     this.saving = false;
+    if (this.suspended) return; // Resume retries the completed lesson after the app returns.
+    if (this.saveRetries++ === 0) {
+      this.completionTimer = window.setTimeout(() => { void this.advance(); }, 1_000);
+      return;
+    }
+    this.status.textContent = 'PROGRESS NOT SAVED. TAP RETRY.';
+    this.retry.hidden = false;
   }
 }
