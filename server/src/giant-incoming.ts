@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
-import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
 type Building = {
     minX: number;
@@ -147,13 +147,41 @@ export function transportImpact(a:Point,b:Point,before:CollisionPose,after:Colli
     impactFraction(gunLocal(a,before,gun),gunLocal(b,after,gun),gunTree,gunSurface));
  return Number.isFinite(first)?{x:a.x+(b.x-a.x)*first,y:a.y+(b.y-a.y)*first,z:a.z+(b.z-a.z)*first}:undefined;
 }
+/** Classify a server-simulated shot against the exposed Mission 11 parts. */
+export function transportFortressImpact(a:Point,b:Point,before:CollisionPose,after:CollisionPose,coreExposed:boolean):
+    { component:'left'|'right'|'core'|'armor'; point:Point }|undefined {
+    const from=local(a,before), to=local(b,after);
+    const body=impactFraction(from,to,bodyTree);
+    const turretHits=([1,2] as const).map(gun=>impactFraction(gunLocal(a,before,gun),gunLocal(b,after,gun),gunTree,gunSurface));
+    let first=Math.min(body,...turretHits), component:'left'|'right'|'core'|'armor'='armor';
+    for(let i=0;i<2;i++)if(turretHits[i]!<=first+1e-5){first=turretHits[i]!;component=i===0?'left':'right';}
+    // The recess is accessible only through the rear aperture, never through fuselage sides.
+    const {hatch,coreLocal,coreRadius}=journeyDallas11;
+    const entranceZ=hatch.z+.15;
+    if(coreExposed && from[2]!>to[2]! && from[2]!>=entranceZ && to[2]!<=entranceZ){
+        const entrance=Math.max(0,(entranceZ-from[2]!)/(to[2]!-from[2]!));
+        const x=from[0]!+(to[0]!-from[0]!)*entrance, y=from[1]!+(to[1]!-from[1]!)*entrance;
+        if(entrance>=0 && entrance<=1 && Math.abs(x)<hatch.width/2-.1 && y>hatch.bottom+.05 && y<hatch.bottom+hatch.height-.05){
+            const center=[coreLocal.x,coreLocal.y,coreLocal.z], d=sub(to,from), o=sub(from,center), A=dot(d,d), B=2*dot(o,d), C=dot(o,o)-coreRadius**2;
+            const discriminant=B*B-4*A*C;
+            if(discriminant>=0 && A>0){const hit=C<=0?0:(-B-Math.sqrt(discriminant))/(2*A);
+                // The open bay replaces the closed rear shell along this narrow shot corridor.
+                if(hit>=entrance && hit<=1 && body>=entrance-1e-5 && (hit<first || component==='armor')){first=hit;component='core';}
+            }
+        }
+    }
+    return Number.isFinite(first)?{component,point:{x:a.x+(b.x-a.x)*first,y:a.y+(b.y-a.y)*first,z:a.z+(b.z-a.z)*first}}:undefined;
+}
 /** A bullet may leave its own barrel, but never traverse the aircraft hull. */
 export function transportHullImpact(a:Point,b:Point,pose:TransportPose):boolean {return Number.isFinite(impactFraction(local(a,pose),local(b,pose),bodyTree));}
+export function transportBodySweep(a:Point,b:Point,before:TransportPose,after:TransportPose):boolean {
+    return Number.isFinite(impactFraction(local(a,before),local(b,after),bodyTree));
+}
 
 /** Keep player shots in flight until impact, obstruction, or the shared range limit. */
 export function transportProjectileDisposition(missionId: string, traveled: number, blocked: boolean): 'remove' | 'continue' | 'escort' {
     if (traveled >= COMBAT_RANGE || blocked) return 'remove';
-    return missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id ? 'escort' : 'continue';
+    return missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id || missionId === journeyDallas12.id ? 'escort' : 'continue';
 }
 
 export type TransportShot = {
@@ -182,13 +210,16 @@ export type TransportEncounter = {
     gunPitch: number;
     shots: TransportShot[];
     crossfire?: CrossfireGunCycle;
+    fortressTurrets?: [number, number];
+    fortressGunsEnabled?: boolean;
 };
 export type CrossfireGun = { yaw: number; pitch: number; warningUntil: number };
 export type CrossfireGunCycle = { guns: [CrossfireGun, CrossfireGun, CrossfireGun]; activeGun: number | null;
     nextGun: number; nextBurstAt: number; shotsRemaining: number; nextShotAt: number };
-export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number, durationMs = transportTuning.durationMs, crossfire = false): TransportEncounter { return { attemptId, playerId, startedAt, altitude, durationMs, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [],
-    ...(crossfire ? { crossfire: { guns: Array.from({ length: 3 }, () => ({ yaw: 0, pitch: 0, warningUntil: 0 })) as CrossfireGunCycle['guns'],
-      activeGun: null, nextGun: 0, nextBurstAt: startedAt + 2_000, shotsRemaining: 0, nextShotAt: 0 } } : {}) }; }
+export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number, durationMs = transportTuning.durationMs, crossfire = false, fortress = false): TransportEncounter { return { attemptId, playerId, startedAt, altitude, durationMs, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [],
+    ...(crossfire || fortress ? { crossfire: { guns: Array.from({ length: 3 }, () => ({ yaw: 0, pitch: 0, warningUntil: 0 })) as CrossfireGunCycle['guns'],
+      activeGun: null, nextGun: fortress ? 1 : 0, nextBurstAt: startedAt + 2_000, shotsRemaining: 0, nextShotAt: 0 } } : {}),
+    ...(fortress ? { fortressTurrets: [journeyDallas11.turretHealth,journeyDallas11.turretHealth] as [number,number] } : {}) }; }
 export function transportGunMuzzle(p: TransportPose, gun: number, yaw = 0, pitch = 0): Point {
     if (gun === 0) return transportMuzzle(p, yaw, pitch);
     const side = gun === 1 ? -1 : 1, heading = side * Math.PI / 2 + yaw;
@@ -197,6 +228,13 @@ export function transportGunMuzzle(p: TransportPose, gun: number, yaw = 0, pitch
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll), lx = cr * x - sr * y, ly = sr * x + cr * y, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
     return { x: p.x + (c * lx + s * z) * transportTuning.scale, y: p.y + ly * transportTuning.scale,
         z: p.z + (-s * lx + c * z) * transportTuning.scale };
+}
+export function transportFortressTarget(p: TransportPose, component:'left'|'right'|'core'):Point {
+    const x=component==='left'?-11:component==='right'?11:journeyDallas11.coreLocal.x,
+      y=component==='core'?journeyDallas11.coreLocal.y:4.7,z=component==='core'?journeyDallas11.coreLocal.z:0;
+    const cr=Math.cos(p.roll),sr=Math.sin(p.roll),lx=cr*x-sr*y,ly=sr*x+cr*y,c=Math.cos(p.yaw),s=Math.sin(p.yaw);
+    return {x:p.x+(c*lx+s*z)*transportTuning.scale,y:p.y+ly*transportTuning.scale,
+      z:p.z+(-s*lx+c*z)*transportTuning.scale};
 }
 export function transportGunAim(p: TransportPose, target: Point, gun: number): { yaw: number; pitch: number; eligible: boolean } {
     if (gun === 0) return transportAim(p, target);
@@ -208,12 +246,12 @@ export function transportGunAim(p: TransportPose, target: Point, gun: number): {
         Math.abs(yaw) <= transportTuning.yawArc && Math.abs(pitch) <= transportTuning.pitchArc };
 }
 /** One scheduled turn per three seconds; an ineligible gun forfeits its turn. */
-export function stepCrossfireGunCycle(cycle: CrossfireGunCycle, now: number, legal: (gun: number) => boolean): number | null {
+export function stepCrossfireGunCycle(cycle: CrossfireGunCycle, now: number, legal: (gun: number) => boolean, fortress=false): number | null {
     if (cycle.activeGun === null && now >= cycle.nextBurstAt) {
         const gun = cycle.nextGun;
-        cycle.nextGun = (gun + 1) % 3;
-        cycle.nextBurstAt = now + journeyDallas10.gunBurstIntervalMs;
-        if (legal(gun)) { cycle.activeGun = gun; cycle.guns[gun]!.warningUntil = now + journeyDallas10.gunWarningMs; }
+        cycle.nextGun = fortress ? gun === 1 ? 2 : 1 : (gun + 1) % 3;
+        cycle.nextBurstAt = now + (fortress ? journeyDallas11.gunBurstIntervalMs : journeyDallas10.gunBurstIntervalMs);
+        if (legal(gun)) { cycle.activeGun = gun; cycle.guns[gun]!.warningUntil = now + (fortress ? journeyDallas11.gunWarningMs : journeyDallas10.gunWarningMs); }
     }
     const gun = cycle.activeGun;
     if (gun === null) return null;
@@ -227,7 +265,7 @@ export function stepCrossfireGunCycle(cycle: CrossfireGunCycle, now: number, leg
     if (now < cycle.nextShotAt) return null;
     if (!legal(gun)) { cycle.activeGun = null; cycle.shotsRemaining = 0; return null; }
     cycle.shotsRemaining--;
-    cycle.nextShotAt = now + journeyDallas10.gunShotSpacingMs;
+    cycle.nextShotAt = now + (fortress ? journeyDallas11.gunShotSpacingMs : journeyDallas10.gunShotSpacingMs);
     if (cycle.shotsRemaining === 0) cycle.activeGun = null;
     return gun;
 }
@@ -274,8 +312,10 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
                 speed: ballisticShotSpeed(p.velocity, direction), traveled: 0 });
     };
     if (e.crossfire) {
+        if (e.fortressTurrets && e.fortressGunsEnabled === false) return p;
         const cycle = e.crossfire;
         const legal = (gun: number) => {
+            if (e.fortressTurrets && (gun === 0 || e.fortressTurrets[gun-1]! <= 0)) return false;
             const state = cycle.guns[gun]!, gunAim = transportGunAim(p, target, gun);
             const muzzle = transportGunMuzzle(p, gun, state.yaw, state.pitch);
             return gunAim.eligible && Math.abs(state.yaw - gunAim.yaw) < .06 &&
@@ -287,7 +327,7 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
             state.yaw = move(state.yaw, Math.max(-transportTuning.yawArc, Math.min(transportTuning.yawArc, goal.yaw)));
             state.pitch = move(state.pitch, Math.max(-transportTuning.pitchArc, Math.min(transportTuning.pitchArc, goal.pitch)));
         }
-        const gun = stepCrossfireGunCycle(cycle, now, legal);
+        const gun = stepCrossfireGunCycle(cycle, now, legal, !!e.fortressTurrets);
         if (gun !== null) fire(gun, transportGunMuzzle(p, gun, cycle.guns[gun]!.yaw, cycle.guns[gun]!.pitch));
         return p;
     }

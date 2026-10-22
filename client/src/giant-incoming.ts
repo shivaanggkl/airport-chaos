@@ -1,14 +1,60 @@
-import { TransportArrivalSequence } from './transport-arrival';
+import { TransportArrivalSequence } from './transport-arrival.ts';
 import * as THREE from 'three';
 import { TransportDefeatSequence } from './transport-defeat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { transportTuning, type TransportStateMessage, type TransportPoint } from '../../shared/giant-incoming.mjs';
+import { journeyDallas11 } from '../../shared/journey-mission.mjs';
 export type { TransportStateMessage } from '../../shared/giant-incoming.mjs';
+function roundedBayShape(width: number, height: number): THREE.Shape {
+    const half = width / 2, radius = .45;
+    const s = new THREE.Shape();
+    s.moveTo(-half, 0); s.lineTo(half, 0); s.lineTo(half, height-radius);
+    s.quadraticCurveTo(half, height, half-radius, height);
+    s.lineTo(-half+radius, height); s.quadraticCurveTo(-half, height, -half, height-radius);
+    s.closePath(); return s;
+}
+function fortressBay(level: THREE.Group) {
+    const {hatch}=journeyDallas11;
+    const bay = new THREE.Group(); bay.position.set(0,hatch.bottom,hatch.z); level.add(bay);
+    const dark = new THREE.MeshStandardMaterial({ color: 0x10191d, metalness: .72, roughness: .55, side: THREE.DoubleSide });
+    const rim = new THREE.MeshStandardMaterial({ color: 0x596a6d, metalness: .72, roughness: .43, side: THREE.DoubleSide });
+    const steel = new THREE.MeshStandardMaterial({ color: 0x343d3f, metalness: .8, roughness: .5, side: THREE.DoubleSide });
+    const orange = new THREE.MeshStandardMaterial({ color: 0xb56220, emissive: 0x7d2805, emissiveIntensity: .35, metalness: .5, roughness: .48 });
+    const add = (geometry: THREE.BufferGeometry, material: THREE.Material, x:number,y:number,z:number,parent:THREE.Object3D=bay) => {
+        const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);parent.add(mesh);return mesh;
+    };
+    // Two nested curved panels sit against the existing rear fuselage, keeping the bay recessed.
+    add(new THREE.ShapeGeometry(roundedBayShape(hatch.width,hatch.height)),rim,0,0,0);
+    const interior=add(new THREE.ShapeGeometry(roundedBayShape(3.55,3.05)),dark,0,.15,.04);
+    for(const x of [-1.52,1.52]){
+        add(new THREE.BoxGeometry(.12,2.8,.2),steel,x,1.6,.12);
+        add(new THREE.BoxGeometry(.16,.16,1.55),rim,x,.2,.8).rotation.x=-.1;
+    }
+    for(const y of [.7,1.35,2,2.65]) add(new THREE.BoxGeometry(3.05,.1,.14),steel,0,y,.11);
+    // Exposed machinery is compact and readable without a glowing disk or new texture.
+    const machine=new THREE.Group();machine.position.set(0,journeyDallas11.coreLocal.y-hatch.bottom,.18);bay.add(machine);
+    add(new THREE.BoxGeometry(1.65,1.4,.35),steel,0,0,0,machine);
+    for(const x of [-.48,0,.48])for(const y of [-.38,0,.38])add(new THREE.BoxGeometry(.2,.22,.08),orange,x,y,.23,machine);
+    for(const x of [-.95,.95])add(new THREE.CylinderGeometry(.18,.18,1.15,8),rim,x,0,.05,machine).rotation.z=Math.PI/2;
+    const door=new THREE.Group();door.position.set(0,0,.12);bay.add(door);
+    add(new THREE.ShapeGeometry(roundedBayShape(3.7,3.2)),steel,0,0,0,door);
+    for(const x of [-1.25,-.63,0,.63,1.25]) add(new THREE.BoxGeometry(.07,2.7,.07),rim,x,1.55,.06,door);
+    for(const y of [.7,1.4,2.1,2.75]) add(new THREE.BoxGeometry(3.25,.08,.08),rim,0,y,.07,door);
+    const arms:THREE.Object3D[]=[];
+    for(const x of [-1.7,1.7]){
+        const arm=add(new THREE.CylinderGeometry(.055,.055,3.2,6),rim,x,-.75,1.2);
+        arm.rotation.x=.85;arms.push(arm);
+    }
+    arms.forEach(a=>a.visible=false); interior.visible=false; machine.visible=false;
+    return {bay,door,interior,machine,arms};
+}
 /** Attempt-owned view: no targets or resources are registered in Free Fly. */
 export class GiantIncomingView {
     readonly root = new THREE.Group();
     readonly ready: Promise<void>;
     readonly position = new THREE.Vector3();
+    readonly fortressTargetPosition = new THREE.Vector3();
+    private readonly fortressTargetScratch = new THREE.Vector3();
     private levels: THREE.Group[] = [];
     private state?: TransportStateMessage;
     private receivedAt = 0;
@@ -45,6 +91,9 @@ export class GiantIncomingView {
         pitch: THREE.Object3D;
     }[] = [];
     private sideGuns: { yaw: THREE.Object3D; pitch: THREE.Object3D; muzzle: THREE.Object3D }[][] = [];
+    private fortressBays: ReturnType<typeof fortressBay>[] = [];
+    private fortressMarkers: THREE.Mesh[][] = [];
+    private hatchOpen = 0;
     private tracerGeometry = new THREE.CylinderGeometry(.55, .55, 17, 5);
     private tracerMaterial = new THREE.MeshBasicMaterial({ color: 0xffd15a, toneMapped: false });
     private tracers = Array.from({ length: 9 }, () => new THREE.Mesh(this.tracerGeometry, this.tracerMaterial));
@@ -65,7 +114,7 @@ export class GiantIncomingView {
     onWarning?: () => void;
     private wasWarning = false;
     constructor(private scene: THREE.Scene, private readonly terrain:(x:number,z:number)=>number = ()=>0,
-        private readonly crossfire = false) {
+        private readonly crossfire = false, private readonly fortress = false) {
         this.root.rotation.order = 'YXZ';
         this.root.name = 'mission-07-transport';
         this.root.scale.setScalar(transportTuning.scale);
@@ -97,6 +146,15 @@ export class GiantIncomingView {
                         return { yaw, pitch: yaw.getObjectByName('RearGunPitch')!, muzzle: yaw.getObjectByName('RearGunMuzzle')! };
                     }));
                 }
+                if (this.fortress) {
+                    level.getObjectByName('RearGunYaw')!.visible=false;
+                    this.fortressBays.push(fortressBay(level));
+                    const markers = ([-1,1] as const).map(side=>{
+                        const marker=new THREE.Mesh(new THREE.RingGeometry(2.1,2.35,24),new THREE.MeshBasicMaterial({color:0xffd54f,side:THREE.DoubleSide,transparent:true,opacity:.85,depthTest:false}));
+                        marker.position.set(side*11,4.7,2.4);level.add(marker);return marker;
+                    });
+                    this.fortressMarkers.push(markers);
+                }
             }
             if (this.disposed || results.some(r => r.status === 'rejected')) {
                 this.releaseModels();
@@ -108,6 +166,27 @@ export class GiantIncomingView {
         });
     }
     get hasState(): boolean { return this.state !== undefined; }
+    targetedFortressSide(player:THREE.Vector3,heading:number):'left'|'right'{
+        if(!this.fortress || !this.state?.fortress)return 'left';
+        const health=this.state.fortress;
+        if(health.leftHealth<=0)return 'right';if(health.rightHealth<=0)return 'left';
+        const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+        let best:'left'|'right'='left',score=-Infinity;
+        for(const [side,x] of [['left',-11],['right',11]] as const){
+            this.fortressTargetScratch.set(x,4.7,0);this.root.localToWorld(this.fortressTargetScratch);
+            this.fortressTargetScratch.sub(player).normalize();
+            const dot=this.fortressTargetScratch.dot(forward);if(dot>score){score=dot;best=side;}
+        }
+        return best;
+    }
+    updateFortressTarget(player:THREE.Vector3,heading:number):'left'|'right'|'core'{
+        const phase=this.state?.fortress;
+        const side=phase?.leftHealth===0 && phase.rightHealth===0?'core':this.targetedFortressSide(player,heading);
+        this.fortressTargetPosition.set(side==='left'?-11:side==='right'?11:journeyDallas11.coreLocal.x,
+            side==='core'?journeyDallas11.coreLocal.y:4.7,side==='core'?journeyDallas11.coreLocal.z:0);
+        this.root.localToWorld(this.fortressTargetPosition);
+        return side;
+    }
     setState(state: TransportStateMessage) { if (this.disposed || this.final)
         return; if (!this.state)
         this.root.rotation.y = state.pose.yaw; this.state = state; this.receivedAt = performance.now(); this.position.set(state.pose.x, state.pose.y, state.pose.z); if (state.hitSequence > this.hitSequence) {
@@ -169,6 +248,18 @@ export class GiantIncomingView {
             this.root.rotation.z = s.pose.roll;
             const distance = camera.position.distanceTo(this.position), lod = distance < 650 ? 0 : distance < 2200 ? 1 : 2;
             this.levels.forEach((l, i) => l.visible = i === lod);
+            if(this.fortress && s.fortress){
+                const exposed=s.fortress.phase === 'CORE' || s.fortress.phase == null && s.fortress.leftHealth===0 && s.fortress.rightHealth===0;
+                this.hatchOpen=THREE.MathUtils.damp(this.hatchOpen,exposed?1:0,3,delta);
+                const bay=this.fortressBays[lod]!;
+                bay.door.rotation.x=this.hatchOpen*2.05;
+                bay.interior.visible=bay.machine.visible=this.hatchOpen>.1;
+                bay.arms.forEach(arm=>arm.visible=this.hatchOpen>.55);
+                this.fortressMarkers[lod]![0]!.visible=s.fortress.phase!=='ESCORTS' && s.fortress.leftHealth>0;
+                this.fortressMarkers[lod]![1]!.visible=s.fortress.phase!=='ESCORTS' && s.fortress.rightHealth>0;
+                this.sideGuns[lod]![0]!.yaw.visible=s.fortress.leftHealth>0;
+                this.sideGuns[lod]![1]!.yaw.visible=s.fortress.rightHealth>0;
+            }
             for (const fan of this.fans[lod]!)
                 fan.rotation.z += delta * 8;
             this.guns[lod]!.yaw.rotation.y = s.crossfireGuns?.[0]?.yaw ?? s.gunYaw;

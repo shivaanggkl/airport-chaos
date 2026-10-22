@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { transportPose, transportSpawn, transportTuning, transportRouteLength, transportCourse, transportFootprintRadius } from '../../shared/giant-incoming.mjs';
-import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
+import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportBodySweep, transportFortressImpact, stepCrossfireGunCycle, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { indexBuildingsForOcclusion, segmentBlockedByBuildings } from './monster-arrival.js';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 test('larger, slower transport crosses White Rock and fails only after its full city exit', () => {
@@ -25,6 +25,11 @@ test('larger, slower transport crosses White Rock and fails only after its full 
       assert.ok(Math.abs(step-Math.min(transportTuning.speed*(next-ms)/1000,transportRouteLength-ms*transportTuning.speed/1000))<1e-6); distance+=step;
     }
     assert.ok(Math.abs(distance-transportRouteLength)<1e-6);
+    const fortressBefore=transportPose(journeyDallas11.timeLimitMs-1000,900,journeyDallas11.timeLimitMs);
+    const fortressExit=transportPose(journeyDallas11.timeLimitMs,900,journeyDallas11.timeLimitMs);
+    assert.ok(fortressBefore.x-transportFootprintRadius<transportCourse.exitX);
+    assert.ok(fortressExit.x-transportFootprintRadius>=transportCourse.exitX-1e-6);
+    assert.ok(Math.abs(Math.hypot(fortressExit.velocity.x,fortressExit.velocity.z)-transportRouteLength/330)<1e-9);
     const spawn=transportSpawn(100),dfw=cityAirports.dallas.find(a=>a.id==='dfw')!;
     assert.equal(spawn.position.x,dfw.x);assert.equal(spawn.position.z,dfw.z);assert.equal(spawn.position.y,101.2);assert.equal(spawn.speed,0);
 });
@@ -80,3 +85,87 @@ test('indexed occlusion matches the existing unindexed mapped-building rules', (
 test('rear gun interception covers stationary and faster approaching aircraft without homing',()=>{assert.equal(transportInterceptTime({x:0,y:0,z:520},{x:0,y:0,z:0},520),1);assert.ok(Math.abs(transportInterceptTime({x:0,y:0,z:1000},{x:0,y:0,z:-1000},520)-1000/1520)<1e-9);assert.equal(transportInterceptTime({x:0,y:0,z:1000},{x:0,y:0,z:1000},520),0);});
 
 test('rear bullets ignore their own barrel but are blocked by the actual airframe hull',()=>{const p={...transportPose(0),x:0,y:0,z:0,yaw:0,roll:0};const m=transportMuzzle(p);assert.equal(transportHullImpact(m,{x:m.x,y:m.y,z:m.z+1000},p),false);assert.equal(transportHullImpact({x:0,y:40,z:480},{x:0,y:40,z:-480},p),true);});
+test('Fortress crash sweep follows the moving hull without using gun collision',()=>{
+  const p={...transportPose(0),x:0,y:0,z:0,yaw:0,roll:0};
+  assert.equal(transportBodySweep({x:0,y:40,z:480},{x:0,y:40,z:-480},p,p),true);
+  assert.equal(transportBodySweep({x:500,y:50,z:480},{x:500,y:50,z:-480},p,p),false);
+  assert.equal(transportBodySweep({x:0,y:40,z:480},{x:50,y:40,z:-480},p,{...p,x:50}),true);
+});
+
+test('Fortress projectile sweep separates wing turrets, armor, and exposed rear core',()=>{
+  const pose={...transportPose(0),x:0,y:0,z:0,yaw:0,roll:0,sideGuns:[{yaw:0,pitch:0},{yaw:0,pitch:0}]};
+  const shot=(x:number,y:number)=>[{x:x*16,y:y*16,z:480},{x:x*16,y:y*16,z:-128}] as const;
+  for(const [x,side] of [[-11,'left'],[11,'right']] as const){const [a,b]=shot(x,4.7);assert.equal(transportFortressImpact(a,b,pose,pose,false)?.component,side);}
+  const [a,b]=shot(0,journeyDallas11.coreLocal.y);
+  assert.equal(transportFortressImpact(a,b,pose,pose,false)?.component,'armor');
+  assert.equal(transportFortressImpact(a,b,pose,pose,true)?.component,'core');
+  let segmentedHit:'left'|'right'|'core'|'armor'|undefined;
+  for(let z=30;z>16 && !segmentedHit;z-=1.625){
+    segmentedHit=transportFortressImpact({x:0,y:journeyDallas11.coreLocal.y*16,z:z*16},
+      {x:0,y:journeyDallas11.coreLocal.y*16,z:(z-1.625)*16},pose,pose,true)?.component;
+  }
+  assert.equal(segmentedHit,'core');
+  assert.equal(transportFortressImpact({x:500,y:50,z:480},{x:500,y:50,z:-128},pose,pose,true),undefined);
+  assert.equal(journeyDallas11.timeLimitMs,330_000);
+});
+
+test('Fortress side guns alternate two-shot turns, warn first, and skip a dead gun',()=>{
+  const cycle=createTransportEncounter('a','p',0,900,journeyDallas11.timeLimitMs,false,true).crossfire!;
+  const alive=[true,true],shots:{gun:number;at:number}[]=[];
+  for(let ms=0;ms<=11_300;ms+=50){
+    if(ms===7_500)alive[0]=false;
+    const gun=stepCrossfireGunCycle(cycle,ms,index=>index!==0 && alive[index-1]!,true);
+    if(gun!==null)shots.push({gun,at:ms});
+    if(ms<3_000)assert.equal(shots.length,0);
+  }
+  assert.deepEqual(shots,[{gun:1,at:3_000},{gun:1,at:3_250},{gun:2,at:6_000},{gun:2,at:6_250},{gun:2,at:12_000}].filter(s=>s.at<=11_300));
+  assert.equal(cycle.guns[0]!.warningUntil,0);
+});
+
+test('Fortress encounter emits two traveling side-gun shots and no hidden rear-gun shots',()=>{
+  const encounter=createTransportEncounter('fortress','pilot',0,900,journeyDallas11.timeLimitMs,false,true);
+  for(let ms=0;ms<=4_000;ms+=50){
+    const pose=transportPose(ms,900,journeyDallas11.timeLimitMs),c=Math.cos(pose.yaw),s=Math.sin(pose.yaw);
+    const target={x:pose.x+c*-1100+s*350,y:pose.y+65,z:pose.z-s*-1100+c*350};
+    stepTransportEncounter(encounter,target,{x:0,y:0,z:0},[],ms);
+    if(ms<3_000)assert.equal(encounter.shots.length,0);
+  }
+  assert.equal(encounter.shots.length,2);
+  assert.equal(encounter.crossfire?.guns[0].warningUntil,0);
+  encounter.fortressTurrets![0]=0;
+  const previous=encounter.shots.length;
+  for(let ms=4_050;ms<=6_000;ms+=50){
+    const pose=transportPose(ms,900,journeyDallas11.timeLimitMs),c=Math.cos(pose.yaw),s=Math.sin(pose.yaw);
+    const target={x:pose.x+c*-1100+s*350,y:pose.y+65,z:pose.z-s*-1100+c*350};
+    stepTransportEncounter(encounter,target,{x:0,y:0,z:0},[],ms);
+  }
+  assert.equal(encounter.shots.length,previous);
+});
+
+test('Final Intercept transport stays silent for escorts, then shares the fortress gun schedule', () => {
+  const encounter = createTransportEncounter('final', 'pilot', 0, 900, journeyDallas12.timeLimitMs, false, true);
+  encounter.fortressGunsEnabled = false;
+  for (let ms = 0; ms <= 10_000; ms += 50) {
+    const pose = transportPose(ms, 900, journeyDallas12.timeLimitMs);
+    const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
+    stepTransportEncounter(encounter, { x: pose.x - c * 1100 + s * 350, y: pose.y + 65,
+      z: pose.z + s * 1100 + c * 350 }, { x: 0, y: 0, z: 0 }, [], ms);
+  }
+  assert.equal(encounter.shots.length, 0);
+  assert.equal(encounter.crossfire?.activeGun, null);
+  encounter.fortressGunsEnabled = true;
+  encounter.crossfire!.nextBurstAt = 12_000;
+  for (let ms = 10_050; ms <= 13_500; ms += 50) {
+    const pose = transportPose(ms, 900, journeyDallas12.timeLimitMs);
+    const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
+    stepTransportEncounter(encounter, { x: pose.x - c * 1100 + s * 350, y: pose.y + 65,
+      z: pose.z + s * 1100 + c * 350 }, { x: 0, y: 0, z: 0 }, [], ms);
+  }
+  assert.equal(encounter.shots.length, 2);
+  assert.equal(encounter.crossfire?.guns[0].warningUntil, 0);
+  assert.equal(transportProjectileDisposition(journeyDallas12.id, 100, false), 'escort');
+  const before = transportPose(journeyDallas12.timeLimitMs - 1_000, 900, journeyDallas12.timeLimitMs);
+  const exit = transportPose(journeyDallas12.timeLimitMs, 900, journeyDallas12.timeLimitMs);
+  assert.ok(before.x - transportFootprintRadius < transportCourse.exitX);
+  assert.ok(exit.x - transportFootprintRadius >= transportCourse.exitX - 1e-6);
+});

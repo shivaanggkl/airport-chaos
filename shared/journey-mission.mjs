@@ -179,36 +179,31 @@ export const journeyDallas10 = Object.freeze({
   gunShotSpacingMs: 250, gunShotDamage: 10,
 });
 
-// A straight, obstacle-clear corridor west of Downtown. The first four
-// gates descend; the final gate asks for a controlled recovery climb.
 export const journeyDallas11 = Object.freeze({
-  id: 'journey-dallas-11', cityId: 'dallas', name: 'GRAVITY DROP',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 75_000, firstClearCredits: 1_250,
-  prepareMs: 3_000,
-  airborneSpawn: Object.freeze({ x: -5_000, z: -9_000, altitude: 1_650, heading: Math.PI, speed: 220 }),
-  gates: Object.freeze([
-    { x: -5_000, z: -6_500, altitude: 1_550, radius: 110 },
-    { x: -5_000, z: -3_500, altitude: 1_250, radius: 110 },
-    { x: -5_000, z: -500, altitude: 950, radius: 110 },
-    { x: -5_000, z: 2_500, altitude: 650, radius: 110 },
-    { x: -5_000, z: 5_500, altitude: 950, radius: 110 },
-  ]),
+  id: 'journey-dallas-11', cityId: 'dallas', name: 'ARMORED FORTRESS',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_250,
+  startAirportId: 'dfw', turretHealth: 250, coreHealth: 1_500,
+  hatch: Object.freeze({ z: 22.05, bottom: -0.45, width: 3.85, height: 3.35 }),
+  coreLocal: Object.freeze({ x: 0, y: 1.2, z: 21.2 }), coreRadius: 0.9,
+  gunBurstIntervalMs: 3_000, gunWarningMs: 1_000,
+  gunShotSpacingMs: 250, gunShotDamage: 10,
 });
 
-// Northbound from Love Field through clear airspace west of Addison. The
-// 1.35 km legs make the 150 m climb and descent achievable at Bluejay pitch.
 export const journeyDallas12 = Object.freeze({
-  id: 'journey-dallas-12', cityId: 'dallas', name: 'SKY PENDULUM',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 120_000, firstClearCredits: 1_500,
-  startAirportId: 'love',
-  gates: Object.freeze([
-    { x: -5_140, z: -11_200, altitude: 550, radius: 110 },
-    { x: -5_140, z: -12_550, altitude: 700, radius: 110 },
-    { x: -5_140, z: -13_900, altitude: 850, radius: 110 },
-    { x: -5_140, z: -15_250, altitude: 700, radius: 110 },
-    { x: -5_140, z: -16_600, altitude: 550, radius: 110 },
-    { x: -5_140, z: -17_950, altitude: 400, radius: 110 },
-  ]),
+  id: 'journey-dallas-12', cityId: 'dallas', name: 'FINAL INTERCEPT',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 360_000, firstClearCredits: 1_500,
+  startAirportId: 'dfw', turretHealth: journeyDallas11.turretHealth, coreHealth: 1_750,
+  escortCount: 2, escortScale: journeyDallas10.escortScale,
+  escortHealth: journeyDallas10.escortHealth, escortAircraft: journeyDallas10.escortAircraft,
+  escortLiveries: journeyDallas10.escortLiveries,
+  escortFireDelayMs: journeyDallas10.escortFireDelayMs,
+  escortBurstIntervalMs: journeyDallas10.escortBurstIntervalMs,
+  escortShotSpacingMs: journeyDallas10.escortShotSpacingMs,
+  escortShotDamage: journeyDallas10.escortShotDamage,
+  gunBurstIntervalMs: journeyDallas11.gunBurstIntervalMs,
+  gunWarningMs: journeyDallas11.gunWarningMs,
+  gunShotSpacingMs: journeyDallas11.gunShotSpacingMs,
+  gunShotDamage: journeyDallas11.gunShotDamage,
 });
 
 // Northbound open-air corridor from Love Field. The wider rings and slight

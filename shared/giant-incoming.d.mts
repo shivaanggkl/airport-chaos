@@ -51,6 +51,7 @@ export type TransportStateMessage = {
     hitSequence: number;
     hitPosition?: TransportPoint;
     health: number;
+    fortress?: { leftHealth: number; rightHealth: number; coreHealth: number; phase?: 'ESCORTS' | 'TURRETS' | 'CORE' | null };
     shots: TransportShotState[];
     serverNow: number;
 };

@@ -18,7 +18,7 @@ test('timed gate missions start at GO, keep that deadline at gate one, and rejec
   setup.close();
   try {
     const store = new JourneyAttemptStore(path, true);
-    for (const mission of [journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas20]) {
+    for (const mission of [journeyDallas13, journeyDallas20]) {
       const attempt = store.launch('pilot', 'trainer', 1_000, mission.id);
       store.approach('pilot', attempt.attemptId, 1_000);
       assert.equal(store.get('pilot', attempt.attemptId)?.deadlineAt, null);
@@ -36,6 +36,113 @@ test('timed gate missions start at GO, keep that deadline at gate one, and rejec
       store.startTimedGateClock('pilot', late.attemptId, 13_000);
       assert.equal(store.acceptGate('pilot', late.attemptId, 0, 13_000 + mission.timeLimitMs), undefined);
     }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Final Intercept enforces both escort and turret orders, one timer, and one first-clear reward', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-final-intercept-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path, true);
+    for (const first of ['left', 'right'] as const) {
+      const ready = store.launch('pilot', 'trainer', 1_000, journeyDallas12.id);
+      assert.equal(ready.finalPhase, 'ESCORTS');
+      assert.equal(ready.monsterHealth, 1_750);
+      assert.equal(ready.fortressLeftHealth, 250);
+      store.approach('pilot', ready.attemptId, 1_100);
+      const active = store.startGiantIncoming('pilot', ready.attemptId, 2_000)!;
+      assert.equal(active.deadlineAt, 362_000);
+      assert.equal(store.startGiantIncoming('pilot', ready.attemptId, 2_100), undefined);
+      assert.equal(store.hitTransport('pilot', ready.attemptId, 2_100, 999), undefined);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, first, 2_100, 250), undefined);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_100, 1750), undefined);
+      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, true, 2_100), undefined);
+      store.assignRearGuardEscort('pilot', ready.attemptId, 'nightowl', 1);
+      store.assignRearGuardEscort('pilot', ready.attemptId, 'firehawk', 2);
+      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, false, 2_200), undefined);
+      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, true, 2_200)?.finalPhase, 'TURRETS');
+      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, true, 2_300), undefined);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_300, 1750), undefined);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, first, 2_400, 100)?.[first === 'left' ? 'fortressLeftHealth' : 'fortressRightHealth'], 150);
+      assert.equal(new JourneyAttemptStore(path, true).get('pilot', ready.attemptId)?.finalPhase, 'TURRETS');
+      store.hitFortressComponent('pilot', ready.attemptId, first, 2_500, 150);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_600, 1750), undefined);
+      store.hitFortressComponent('pilot', ready.attemptId, first === 'left' ? 'right' : 'left', 2_700, 250);
+      assert.equal(store.get('pilot', ready.attemptId)?.finalPhase, 'CORE');
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, first, 2_800, 25), undefined);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_900, 250)?.monsterHealth, 1_500);
+      const done = store.hitFortressComponent('pilot', ready.attemptId, 'core', 3_000, 1_500)!;
+      assert.equal(done.status, 'COMPLETED');
+      assert.equal(done.firstClearCredits, first === 'left' ? 1_500 : 0);
+      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 3_100, 25), undefined);
+    }
+    const expired = store.launch('pilot', 'trainer', 400_000, journeyDallas12.id);
+    store.approach('pilot', expired.attemptId, 400_100);
+    store.startGiantIncoming('pilot', expired.attemptId, 401_000);
+    assert.equal(store.advanceFinalIntercept('pilot', expired.attemptId, true, 761_000), undefined);
+    assert.equal(store.fail('pilot', expired.attemptId, 'TIME_UP', 761_000)?.status, 'FAILED');
+    const retry = store.launch('pilot', 'trainer', 800_000, journeyDallas12.id);
+    assert.equal(retry.finalPhase, 'ESCORTS');
+    assert.equal(retry.fortressLeftHealth, 250);
+    assert.equal(store.abandon('pilot', retry.attemptId, 800_100)?.status, 'ABANDONED');
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get() as { credits: number }).credits, 1_500);
+    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id = 'journey-dallas-12'").get() as { count: number }).count, 1);
+    check.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Armored Fortress persists either turret order, gates core damage, and pays only once', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-fortress-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0)");
+  setup.close();
+  try {
+    const store = new JourneyAttemptStore(path, true);
+    for (const first of ['left', 'right'] as const) {
+      const launched = store.launch('pilot', 'trainer', 1_000, journeyDallas11.id);
+      assert.equal(launched.monsterHealth, 1_500);
+      assert.equal(launched.fortressLeftHealth, 250);
+      assert.equal(launched.fortressRightHealth, 250);
+      store.approach('pilot', launched.attemptId, 1_100);
+      const active = store.startGiantIncoming('pilot', launched.attemptId, 2_000)!;
+      assert.equal(active.deadlineAt, 2_000 + 330_000);
+      assert.equal(store.acceptGate('pilot', active.attemptId, 0, 2_100), undefined);
+      assert.equal(store.hitTransport('pilot', active.attemptId, 2_100, 500), undefined);
+      assert.equal(store.hitFortressComponent('pilot', active.attemptId, 'core', 2_100, 500), undefined);
+      assert.equal(store.hitFortressComponent('pilot', active.attemptId, first, 2_200, 100)?.fortressLeftHealth,
+        first === 'left' ? 150 : 250);
+      const reopened = new JourneyAttemptStore(path, true);
+      assert.equal(reopened.get('pilot', active.attemptId)?.[first === 'left' ? 'fortressLeftHealth' : 'fortressRightHealth'], 150);
+      reopened.hitFortressComponent('pilot', active.attemptId, first, 2_300, 150);
+      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_350, 500), undefined);
+      const second = first === 'left' ? 'right' : 'left';
+      reopened.hitFortressComponent('pilot', active.attemptId, second, 2_400, 250);
+      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, first, 2_500, 25), undefined);
+      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_600, 500)?.monsterHealth, 1_000);
+      const done = reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_700, 1_000)!;
+      assert.equal(done.status, 'COMPLETED');
+      assert.equal(done.firstClearCredits, first === 'left' ? 1_250 : 0);
+      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_800, 100), undefined);
+      assert.equal(reopened.progress('pilot', journeyDallas11.id).completed, true);
+    }
+    const late = store.launch('pilot', 'trainer', 10_000, journeyDallas11.id);
+    store.approach('pilot', late.attemptId, 10_100);
+    const started = store.startGiantIncoming('pilot', late.attemptId, 11_000)!;
+    assert.equal(store.hitFortressComponent('pilot', started.attemptId, 'left', started.deadlineAt!, 100), undefined);
+    assert.equal(store.fail('pilot', started.attemptId, 'TIME_UP', started.deadlineAt!)?.status, 'FAILED');
+    const retry = store.launch('pilot', 'trainer', 400_000, journeyDallas11.id);
+    assert.equal(retry.fortressLeftHealth, 250);
+    assert.equal(retry.fortressRightHealth, 250);
+    assert.equal(store.abandon('pilot', retry.attemptId, 400_100)?.status, 'ABANDONED');
+    const check = new DatabaseSync(path);
+    assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get() as { credits: number }).credits, 1_250);
+    assert.equal((check.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE reference_id = 'journey-dallas-11'").get() as { count: number }).count, 1);
+    check.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

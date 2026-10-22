@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { journeyDallas07, journeyDallas08 } from '../../shared/journey-mission.mjs';
+import { journeyDallas07, journeyDallas08, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { transportCourse, transportPose, transportRouteLength } from '../../shared/giant-incoming.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
-import { createRearGuardFireState, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
+import { createRearGuardFireState, finalInterceptEscortsCleared, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
 
 test('Rear Guard uses the existing transport corridor and a true five-minute escape', () => {
   assert.equal(journeyDallas08.name, 'REAR GUARD');
@@ -44,6 +44,36 @@ test('escort bursts wait for takeoff, alternate, space shots, and never speed up
   rearGuardShotResolved(fire, 27_250);
   assert.equal(rearGuardShooter(fire, 32_999, [false, true]), null);
   assert.equal(rearGuardShooter(fire, 33_000, [false, true]), 2);
+});
+
+test('Final Intercept escorts use the approved airframes, paint, health and shared firing cadence', () => {
+  assert.deepEqual(journeyDallas12.escortAircraft, ['privateJet', 'fighter']);
+  assert.deepEqual(journeyDallas12.escortLiveries, ['nightowl-forest', 'firehawk-inferno']);
+  assert.deepEqual(journeyDallas12.escortHealth, [175, 225]);
+  const fire = createRearGuardFireState(journeyDallas12);
+  rearGuardTakeoff(fire, 1_000);
+  assert.equal(rearGuardShooter(fire, 5_999, [true, true]), null);
+  assert.equal(rearGuardShooter(fire, 6_000, [true, true]), 1);
+  rearGuardShotResolved(fire, 6_000);
+  assert.equal(rearGuardShooter(fire, 6_249, [true, true]), null);
+  assert.equal(rearGuardShooter(fire, 6_250, [true, true]), 1);
+  rearGuardShotResolved(fire, 6_250);
+  assert.equal(rearGuardShooter(fire, 12_000, [true, true]), 2);
+});
+
+test('Final Intercept advances after either escort kill order, including a removed first escort', () => {
+  const alive = new Set(['nightowl', 'firehawk']);
+  const cleared = () => finalInterceptEscortsCleared('nightowl', 'firehawk', id => alive.has(id));
+  assert.equal(finalInterceptEscortsCleared(null, 'firehawk', id => alive.has(id)), false);
+  assert.equal(cleared(), false);
+  alive.delete('nightowl');
+  assert.equal(cleared(), false);
+  alive.delete('firehawk');
+  assert.equal(cleared(), true);
+  alive.add('nightowl');
+  assert.equal(cleared(), false);
+  alive.delete('nightowl');
+  assert.equal(cleared(), true);
 });
 
 test('a locked Mission 8 escort uses the shared hit and confirmed tracer paths', () => {

@@ -74,15 +74,22 @@ export const journeyDallas10: Readonly<{
   gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas11: Readonly<{
-  id: 'journey-dallas-11'; cityId: 'dallas'; name: 'GRAVITY DROP'; chapter: 'SKY ADVENTURES';
-  timeLimitMs: 75000; firstClearCredits: 1250; prepareMs: 3000;
-  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
-  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+  id: 'journey-dallas-11'; cityId: 'dallas'; name: 'ARMORED FORTRESS'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 330000; firstClearCredits: 1250; startAirportId: 'dfw';
+  turretHealth: 250; coreHealth: 1500;
+  hatch: Readonly<{ z: 22.05; bottom: -0.45; width: 3.85; height: 3.35 }>;
+  coreLocal: Readonly<{ x: 0; y: 1.2; z: 21.2 }>; coreRadius: 0.9;
+  gunBurstIntervalMs: 3000; gunWarningMs: 1000;
+  gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas12: Readonly<{
-  id: 'journey-dallas-12'; cityId: 'dallas'; name: 'SKY PENDULUM'; chapter: 'SKY ADVENTURES';
-  timeLimitMs: 120000; firstClearCredits: 1500; startAirportId: 'love';
-  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+  id: 'journey-dallas-12'; cityId: 'dallas'; name: 'FINAL INTERCEPT'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 360000; firstClearCredits: 1500; startAirportId: 'dfw';
+  turretHealth: 250; coreHealth: 1750;
+  escortCount: 2; escortScale: number; escortHealth: readonly [175, 225];
+  escortAircraft: readonly ['privateJet', 'fighter']; escortLiveries: readonly ['nightowl-forest', 'firehawk-inferno'];
+  escortFireDelayMs: 5000; escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 10;
+  gunBurstIntervalMs: 3000; gunWarningMs: 1000; gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas13: Readonly<{
   id: 'journey-dallas-13'; cityId: 'dallas'; name: 'REDLINE RUSH'; chapter: 'HIGH STAKES';
@@ -153,7 +160,7 @@ export const journeyDallas24: Readonly<{
 export function journeyGatePlane(mission: Readonly<{ gates: readonly { x: number; z: number }[] }>, gateIndex: number):
   { normalX: number; normalZ: number } | null;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
 export function crossesJourneyGateWrongWay(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
   mission?: Parameters<typeof journeyGateCrossing>[4]): boolean;

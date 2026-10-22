@@ -1,6 +1,6 @@
-import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas12 } from '../../shared/journey-mission.mjs';
 
-type EscortMission = typeof journeyDallas08 | typeof journeyDallas09 | typeof journeyDallas10;
+type EscortMission = typeof journeyDallas08 | typeof journeyDallas09 | typeof journeyDallas10 | typeof journeyDallas12;
 
 export type RearGuardFireState = {
   tookOffAt: number | null;
@@ -18,6 +18,12 @@ export type RearGuardFireState = {
 export function createRearGuardFireState(mission: EscortMission = journeyDallas08): RearGuardFireState {
   return { tookOffAt: null, nextBurstAt: Infinity, nextOrdinal: 1, activeOrdinal: null,
     lastBurstAt: null, shotsRemaining: 0, nextShotAt: 0, eligibleAfter: [], waveCombatAt: null, mission };
+}
+
+/** Destroyed mission bots are removed from the player map after their kill event. */
+export function finalInterceptEscortsCleared(firstId: string | null, secondId: string | null,
+  isAlive: (id: string) => boolean): boolean {
+  return firstId !== null && secondId !== null && !isAlive(firstId) && !isAlive(secondId);
 }
 
 export function rearGuardTakeoff(state: RearGuardFireState, now: number): void {
