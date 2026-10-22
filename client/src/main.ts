@@ -154,6 +154,8 @@ type JourneyAttemptState = {
   reinforcementWarningUntil?: number | null;
 };
 let journeyAttempt: JourneyAttemptState | null = null;
+let reinforcementArrivedUntil = 0;
+let reinforcementArrivedAttemptId = '';
 let legendaryPilotUnlocked = false;
 let missionFocus: MissionFocusConfig | null = null;
 let botIsolationActive = false;
@@ -2602,6 +2604,9 @@ function updateJourneyHud(): void {
   const precisionMission = journeyAttempt?.missionId === journeyDallas05.id;
   const championshipMission = journeyAttempt?.missionId === journeyDallas06.id;
   const elevatorMission = journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id;
+  const reinforcementsJustArrived = journeyAttempt?.missionId === journeyDallas09.id &&
+    reinforcementArrivedAttemptId === journeyAttempt.attemptId && performance.now() < reinforcementArrivedUntil;
+  journeyHudTarget?.classList.toggle('reinforcements-arrived', reinforcementsJustArrived);
   const formationMission = false;
   const slalomMission = journeyAttempt?.missionId === journeyDallas10.id;
   const gravityMission = journeyAttempt?.missionId === journeyDallas11.id;
@@ -2704,7 +2709,12 @@ function updateJourneyHud(): void {
       ? 'Destroy transport. Escorts optional.' : 'Destroy the transport';
     const left=journeyAttempt.deadlineAt===null?Math.ceil((journeyAttempt.missionId===journeyDallas09.id ? journeyDallas09.timeLimitMs : journeyAttempt.missionId===journeyDallas08.id ? journeyDallas08.timeLimitMs : journeyDallas07.timeLimitMs)/1000):Math.max(0,Math.ceil((journeyAttempt.deadlineAt-Date.now()-journeyServerTimeOffset)/1000));
     if(journeyHudProgress)journeyHudProgress.textContent=`Escapes in: ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`;
-    if(journeyHudTarget){journeyHudTarget.hidden=journeyAttempt.missionId!==journeyDallas09.id; if(journeyAttempt.missionId===journeyDallas09.id)journeyHudTarget.textContent=`Escorts: ${journeyAttempt.fighterEscortsAlive??0}`;}if(journeyHudTimer)journeyHudTimer.hidden=true;
+    if (journeyHudTarget) {
+      journeyHudTarget.hidden = journeyAttempt.missionId !== journeyDallas09.id;
+      if (journeyAttempt.missionId === journeyDallas09.id)
+        journeyHudTarget.textContent = `ESCORTS: ${journeyAttempt.fighterEscortsAlive ?? 0} ACTIVE${reinforcementsJustArrived ? ' · +2 ARRIVED' : ''}`;
+    }
+    if (journeyHudTimer) journeyHudTimer.hidden = true;
     const percent=Math.max(0,Math.min(100,(journeyAttempt.targetHealth??journeyDallas07.bossHealth)/journeyDallas07.bossHealth*100));
     monsterBossHud.querySelector('strong')!.textContent='TRANSPORT';monsterBossHud.style.setProperty('--monster-health',`${percent}%`);monsterBossHud.querySelector('span')!.textContent=`${Math.round(percent)}%`;
     if (journeyAttempt.missionId === journeyDallas08.id) {
@@ -10725,7 +10735,18 @@ boundSocket.addEventListener('message', (event) => {
       hapticsManager.emit('checkpoint', `${message.attempt.attemptId}:escape-distance`);
     if (message.attempt.missionId === journeyDallas09.id && message.attempt.reinforcementWarningUntil &&
       message.attempt.reinforcementWarningUntil !== previousAttempt?.reinforcementWarningUntil)
-      showProgressMessage('REINFORCEMENTS ARRIVING', Math.max(0, message.attempt.reinforcementWarningUntil - message.serverNow));
+      showProgressMessage('TWO MORE ESCORTS INCOMING', Math.max(0, message.attempt.reinforcementWarningUntil - message.serverNow));
+    if (message.attempt.missionId === journeyDallas09.id && previousAttempt?.attemptId === message.attempt.attemptId &&
+      previousAttempt.reinforcementWarningUntil && !message.attempt.reinforcementWarningUntil && message.attempt.status === 'RACING') {
+      const escortsAlive = message.attempt.fighterEscortsAlive ?? 0;
+      reinforcementArrivedAttemptId = message.attempt.attemptId;
+      reinforcementArrivedUntil = performance.now() + 4_000;
+      showProgressMessage(`+2 ESCORTS ARRIVED · ${escortsAlive} ACTIVE`, 4_000);
+      gameplayFeedback.push({ type: 'reinforcements', primaryText: 'TWO ESCORTS JOINED',
+        secondaryText: `${escortsAlive} PROTECTING THE TRANSPORT`, intensity: 'major' });
+      playIncomingWarningSound();
+      hapticsManager.emit('checkpoint', `${message.attempt.attemptId}:reinforcements`);
+    }
     if (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) {
       if (journeyGateMissionId !== message.attempt.missionId) {
         journeyGates?.dispose();
@@ -10971,7 +10992,10 @@ boundSocket.addEventListener('message', (event) => {
         },
       }));
     } else {
-      applyServerProfile(message.profile);
+      // The welcome already supplies the authoritative spawn and aircraft.
+      // Replacing the temporary model here must not request a respawn: that
+      // would fail a fresh Journey attempt before its intro starts.
+      applyServerProfile(message.profile, undefined, message.selectionRevision, undefined, undefined, false, true);
     }
     if (journeyMode && message.airborneSpawn) {
       runStarted = !missionStartCountdownPending && !airborneIntroAwaiting && !(flightLaunchState === 'active' && (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath));

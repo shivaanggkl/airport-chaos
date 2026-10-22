@@ -6,11 +6,35 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
-import { transportCourse, transportPose, transportRouteLength } from '../../shared/giant-incoming.mjs';
+import { transportCourse, transportFootprintRadius, transportPose, transportRouteLength } from '../../shared/giant-incoming.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, rearGuardReinforcementsJoined, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff, shouldBeginReinforcements } from './rear-guard-fire.js';
+import { reinforcementApproachPoint } from './reinforcement-approach.js';
+
+test('Mission 9 reinforcements enter the forward view and converge outside the transport', () => {
+  const transport = transportPose(120_000, 900, journeyDallas09.timeLimitMs);
+  const pilot = { x: transport.x + Math.sin(transport.yaw) * 500,
+    z: transport.z + Math.cos(transport.yaw) * 500 };
+  for (const ordinal of [3, 4] as const) {
+    const entry = reinforcementApproachPoint(transport, ordinal, 'entry');
+    const formation = reinforcementApproachPoint(transport, ordinal, 'formation');
+    for (const point of [entry, formation]) {
+      const dx = point.x - pilot.x, dz = point.z - pilot.z;
+      const forward = -dx * Math.sin(transport.yaw) - dz * Math.cos(transport.yaw);
+      const lateral = Math.abs(dx * Math.cos(transport.yaw) - dz * Math.sin(transport.yaw));
+      assert.ok(forward > 0 && Math.atan2(lateral, forward) < 45 * Math.PI / 180);
+      assert.ok(Math.hypot(point.x - transport.x, point.z - transport.z) > transportFootprintRadius + 120);
+    }
+    assert.ok(Math.hypot(formation.x - transport.x, formation.z - transport.z) <
+      Math.hypot(entry.x - transport.x, entry.z - transport.z));
+  }
+  const left = reinforcementApproachPoint(transport, 3, 'entry');
+  const right = reinforcementApproachPoint(transport, 4, 'entry');
+  assert.ok((left.x - transport.x) * (right.x - transport.x) +
+    (left.z - transport.z) * (right.z - transport.z) < 0);
+});
 
 test('Mission 9 preserves its reward and uses a 5:30 transport route with four specified escorts', () => {
   assert.equal(journeyDallas09.name, 'REINFORCEMENTS');

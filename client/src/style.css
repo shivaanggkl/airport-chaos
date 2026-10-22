@@ -1698,6 +1698,8 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .journey-hud strong { color: #f6c445; font: 900 13px/1.15 var(--font-display); }
 .journey-hud span { color: #f6fbff; }
 .journey-hud [data-journey-target] { color: #ffe084; font-weight: 900; }
+.journey-hud [data-journey-target].reinforcements-arrived { color: #fff; animation: reinforcement-count-pulse 700ms ease-in-out 3; }
+@keyframes reinforcement-count-pulse { 50% { color: #ffd54f; text-shadow: 0 0 10px #ffd54f; } }
 .journey-hud [data-journey-timer] { color: #bceeff; }
 .journey-hud [data-journey-hint] { color: #ffe084; font-weight: 800; }
 .journey-hud [hidden] { display: none !important; }

@@ -18,6 +18,7 @@ import { advanceMission, initializeMissionAttempt, type MissionSignal } from './
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, crossesJourneyGateWrongWay, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { reinforcementApproachPoint } from './reinforcement-approach.js';
 import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterBodyContact, monsterHandContact, monsterHandPositions, monsterImpact, stepMonsterEncounter, monsterProjectileHits, recordMonsterFiringPosition, segmentBlockedByBuildings, type MonsterEncounter } from './monster-arrival.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
@@ -2745,7 +2746,11 @@ function updateReinforcementWaves(now: number): void {
         target: pilot, rearGuardOrdinal: ordinal, escortMissionId: journeyDallas09.id, escortPose: pose });
       wave.ids[ordinal - 3] = id;
       const escort = players.get(id);
-      if (escort?.bot) escort.bot.journeyProvoked = true;
+      if (escort?.bot) {
+        escort.bot.journeyProvoked = true;
+        // Let the incoming formation cross the player's view before combat AI turns it away.
+        escort.bot.escortReturnUntil = now + journeyDallas09.reinforcementFireDelayMs;
+      }
     }
     const fire = rearGuardFire.get(attemptId);
     if (fire) rearGuardReinforcementsJoined(fire, now);
@@ -5403,11 +5408,16 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   const escortPose = journeySpawn?.rearGuardOrdinal ? journeySpawn.escortPose ?? transportPose(0, transportFlightAltitude, journeyDallas08.timeLimitMs) : undefined;
   const escortSide = journeySpawn?.rearGuardOrdinal && journeySpawn.rearGuardOrdinal % 2 ? -1 : 1;
   const reinforcement = (journeySpawn?.rearGuardOrdinal ?? 0) >= 3;
-  const escortLateral = reinforcement ? 2_200 : 780;
-  const escortAlong = reinforcement ? -1_000 : 500;
+  const reinforcementEntry = reinforcement && escortPose
+    ? reinforcementApproachPoint(escortPose, journeySpawn!.rearGuardOrdinal as 3 | 4, 'entry') : undefined;
+  const reinforcementFormation = reinforcement && escortPose
+    ? reinforcementApproachPoint(escortPose, journeySpawn!.rearGuardOrdinal as 3 | 4, 'formation') : undefined;
+  const escortLateral = 780;
+  const escortAlong = 500;
   const crossfireBehind = journeySpawn?.crossfireOrdinal === 2 ? 1_850 : 1_500;
   const crossfireSide = journeySpawn?.crossfireOrdinal === 2 ? 900 : -650;
-  const proposedSpawnX = escortPose ? escortPose.x + Math.cos(escortPose.yaw) * escortSide * escortLateral + Math.sin(escortPose.yaw) * escortAlong
+  const proposedSpawnX = reinforcementEntry ? reinforcementEntry.x
+    : escortPose ? escortPose.x + Math.cos(escortPose.yaw) * escortSide * escortLateral + Math.sin(escortPose.yaw) * escortAlong
     : journeySpawn?.crossfireOrdinal ? journeySpawn.target.position.x + Math.sin(journeySpawn.target.rotation.y) * crossfireBehind + Math.cos(journeySpawn.target.rotation.y) * crossfireSide
     : journeySpawn?.legendary ? journeySpawn.target.position.x - Math.sin(journeySpawn.target.rotation.y) * 2_600 + Math.cos(journeySpawn.target.rotation.y) * 850
     : journeySpawn?.doubleOrdinal === 1 ? -5_140
@@ -5421,7 +5431,8 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     ? downtown!.center.x : defenseSpawn
     ? defenseSpawn.attacker.position.x >= defenseSpawn.territory.center.x ? defenseSpawn.territory.bounds.minX - 500 : defenseSpawn.territory.bounds.maxX + 500
     : home.x;
-  const proposedSpawnZ = escortPose ? escortPose.z - Math.sin(escortPose.yaw) * escortSide * escortLateral + Math.cos(escortPose.yaw) * escortAlong
+  const proposedSpawnZ = reinforcementEntry ? reinforcementEntry.z
+    : escortPose ? escortPose.z - Math.sin(escortPose.yaw) * escortSide * escortLateral + Math.cos(escortPose.yaw) * escortAlong
     : journeySpawn?.crossfireOrdinal ? journeySpawn.target.position.z + Math.cos(journeySpawn.target.rotation.y) * crossfireBehind - Math.sin(journeySpawn.target.rotation.y) * crossfireSide
     : journeySpawn?.legendary ? journeySpawn.target.position.z - Math.cos(journeySpawn.target.rotation.y) * 2_600 - Math.sin(journeySpawn.target.rotation.y) * 850
     : journeySpawn?.doubleOrdinal === 1 ? -12_000
@@ -5436,7 +5447,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     : defenseSpawn ? defenseSpawn.territory.center.z : home.z + home.runwayLength * 0.34;
   const { x: spawnX, z: spawnZ } = journeySpawn && !leaderSpawn && !journeySpawn.rearGuardOrdinal ? boundJourneyHunterPoint({ x: proposedSpawnX, z: proposedSpawnZ })
     : { x: proposedSpawnX, z: proposedSpawnZ };
-  const spawnY = escortPose ? Math.max(escortPose.y + (reinforcement ? 220 : 150), botSafeFloor(cityId, spawnX, spawnZ, journeyAceClearance) + 50)
+  const spawnY = escortPose ? Math.max(reinforcementEntry?.y ?? escortPose.y + 150, botSafeFloor(cityId, spawnX, spawnZ, journeyAceClearance) + 50)
     : leaderSpawn ? Math.max(...journeyDallas08.leaderRoute.map((point, index) => {
     const previous = journeyDallas08.leaderRoute[(index + journeyDallas08.leaderRoute.length - 1) % journeyDallas08.leaderRoute.length]!;
     return safeBotWaypoint(cityId, { ...previous, y: 0 }, { ...point, y: 0 }, botCruiseClearance).y;
@@ -5453,7 +5464,8 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     : journeySpawn?.escape ? botSafeFloor(cityId, spawnX, spawnZ, journeyEscapeHunterClearance) + 20
     : journeySpawn ? botSafeFloor(cityId, spawnX, spawnZ, botCombatClearance) + 180
     : defenseSpawn ? botSafeFloor(cityId, spawnX, spawnZ, botCruiseClearance) : botRunwayHeight(cityId, home.x, home.z) + 1.2;
-  const spawnHeading = escortPose ? escortPose.yaw
+  const spawnHeading = reinforcementFormation ? Math.atan2(spawnX - reinforcementFormation.x, spawnZ - reinforcementFormation.z)
+    : escortPose ? escortPose.yaw
     : leaderSpawn ? Math.atan2(spawnX - journeyDallas08.leaderRoute[1]!.x, spawnZ - journeyDallas08.leaderRoute[1]!.z)
     : journeySpawn?.breakout ? journeySpawn.target.rotation.y
     : journeySpawn?.siege ? journeySpawn.target.rotation.y
@@ -5493,7 +5505,9 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     ].map(point => safeBotWaypoint(cityId, { x: spawnX, y: spawnY, z: spawnZ }, point, botCombatClearance));
   }
   if (leaderSpawn) bot.route = journeyDallas08.leaderRoute.map(point => ({ x: point.x, y: spawnY, z: point.z }));
-  if (escortPose) bot.route = [{ x: spawnX + 1_000, y: spawnY, z: spawnZ }];
+  if (escortPose) bot.route = [reinforcementFormation
+    ? safeBotWaypoint(cityId, { x: spawnX, y: spawnY, z: spawnZ }, reinforcementFormation, journeyAceClearance)
+    : { x: spawnX + 1_000, y: spawnY, z: spawnZ }];
   if (journeySpawn?.ace) bot.route = [
     { x: -5_140, y: spawnY, z: -12_000 }, { x: -6_240, y: spawnY, z: -13_300 },
     { x: -5_140, y: spawnY, z: -14_600 }, { x: -4_040, y: spawnY, z: -13_300 },
@@ -6211,13 +6225,12 @@ function updateBots(now: number): void {
       if (encounter) {
         const pose = transportPose(now - encounter.startedAt + 2_000, encounter.altitude, encounter.durationMs);
         const side = bot.journeyRearGuardEscort % 2 ? -1 : 1;
-        const lateral = bot.journeyRearGuardEscort >= 3 ? 1_150 : 850;
-        const vertical = bot.journeyRearGuardEscort >= 3 ? 230 : 150;
-        bot.route[0] = safeBotWaypoint(player.cityId, player.position, {
-          x: pose.x + Math.cos(pose.yaw) * side * lateral + Math.sin(pose.yaw) * 350,
-          y: pose.y + vertical,
-          z: pose.z - Math.sin(pose.yaw) * side * lateral + Math.cos(pose.yaw) * 350,
-        }, journeyAceClearance);
+        const formation = bot.journeyRearGuardEscort >= 3
+          ? reinforcementApproachPoint(pose, bot.journeyRearGuardEscort as 3 | 4, 'formation')
+          : { x: pose.x + Math.cos(pose.yaw) * side * 850 + Math.sin(pose.yaw) * 350,
+              y: pose.y + 150,
+              z: pose.z - Math.sin(pose.yaw) * side * 850 + Math.cos(pose.yaw) * 350 };
+        bot.route[0] = safeBotWaypoint(player.cityId, player.position, formation, journeyAceClearance);
         bot.routeIndex = 0;
       }
     }
