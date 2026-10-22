@@ -182,6 +182,10 @@ export class JourneyAttemptStore {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'MISSION_UPDATED' WHERE mission_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(journeyDallas19.id);
     }
+    // Old Mission 9 Heart attempts cannot resume under the transport rules.
+    // Historical completions and rewards remain keyed to the same mission ID.
+    this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', failure_reason = 'MISSION_UPDATED' WHERE mission_id = ? AND status IN ('READY','APPROACH','RACING') AND monster_health IS NULL")
+      .run(journeyDallas09.id);
     for (const axis of ['x', 'y', 'z']) if (!columns.some(column => column.name === `heart_${axis}`))
       this.database.exec(`ALTER TABLE journey_attempts ADD COLUMN heart_${axis} REAL`);
   }
@@ -345,8 +349,8 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas19.id || missionId === journeyDallas07.id || missionId === journeyDallas08.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(missionId === journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
+      if (missionId === journeyDallas19.id || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
+        .run(missionId === journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }
@@ -403,23 +407,24 @@ export class JourneyAttemptStore {
   /** Asset readiness is an owned lifecycle signal, never client progress. */
   startGiantIncoming(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    const mission = current?.missionId === journeyDallas08.id ? journeyDallas08 : journeyDallas07;
+    const mission = current?.missionId === journeyDallas09.id ? journeyDallas09 : current?.missionId === journeyDallas08.id ? journeyDallas08 : journeyDallas07;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?, deadline_at = ?
       WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ? AND status = 'APPROACH'`)
       .run(now, now + mission.timeLimitMs, pilotId, attemptId, mission.id).changes;
     return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
   hitTransport(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
-    const mission = this.get(pilotId, attemptId)?.missionId === journeyDallas08.id ? journeyDallas08 : journeyDallas07;
+    const missionId = this.get(pilotId, attemptId)?.missionId;
+    const mission = missionId === journeyDallas09.id ? journeyDallas09 : missionId === journeyDallas08.id ? journeyDallas08 : journeyDallas07;
     return this.hitEncounter(pilotId, attemptId, mission, now, damage);
   }
 
-  /** Assign each Rear Guard escort once; a destroyed escort is never replaced. */
+  /** Persist the first two transport escorts once; destroyed escorts never return. */
   assignRearGuardEscort(pilotId: string, attemptId: string, escortId: string, ordinal: 1 | 2): JourneyAttempt | undefined {
     const column = ordinal === 1 ? 'target_id' : 'secondary_target_id';
     const changed = this.database.prepare(`UPDATE journey_attempts SET ${column} = ? WHERE pilot_id = ?
-      AND attempt_id = ? AND mission_id = ? AND status = 'RACING' AND ${column} IS NULL`)
-      .run(escortId, pilotId, attemptId, journeyDallas08.id).changes;
+      AND attempt_id = ? AND mission_id IN (?, ?) AND status = 'RACING' AND ${column} IS NULL`)
+      .run(escortId, pilotId, attemptId, journeyDallas08.id, journeyDallas09.id).changes;
     return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
 
@@ -596,40 +601,13 @@ export class JourneyAttemptStore {
 
   assignHunter(pilotId: string, attemptId: string, targetId: string, previousTargetId: string | null = null, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    if (!current || (current.missionId !== journeyDallas09.id && current.missionId !== journeyDallas14.id && current.missionId !== journeyDallas15.id) || !targetId ||
+    if (!current || (current.missionId !== journeyDallas14.id && current.missionId !== journeyDallas15.id) || !targetId ||
       (current.status === 'APPROACH' ? previousTargetId !== null : current.status !== 'RACING' || current.targetId !== previousTargetId)) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', target_id = ?, started_at = COALESCE(started_at, ?)
       WHERE pilot_id = ? AND attempt_id = ? AND status = ? AND target_id IS ?`)
       .run(targetId, now, pilotId, attemptId, current.status, previousTargetId).changes;
     if (changed !== 1) return undefined;
     return this.get(pilotId, attemptId);
-  }
-
-  /** Called only by the server after its own swept physical pickup check. */
-  completeHeartRecovery(pilotId: string, attemptId: string, heartId: string, now = Date.now()): JourneyAttempt | undefined {
-    return this.wallet.transaction(wallet => {
-      const current = this.get(pilotId, attemptId);
-      if (!current || current.missionId !== journeyDallas09.id || current.status !== 'RACING' ||
-        !current.targetId || heartId !== journeyDallas09.heartId ||
-        !this.progress(pilotId, journeyDallas08.id).completed) return undefined;
-      const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
-        (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,0)`)
-        .run(pilotId, current.missionId, attemptId, now).changes === 1;
-      if (!first) this.database.prepare('UPDATE journey_completions SET clear_count = clear_count + 1 WHERE pilot_id = ? AND mission_id = ?')
-        .run(pilotId, current.missionId);
-      let credited = 0;
-      if (first) {
-        const before = wallet.balances(pilotId)?.credits ?? 0;
-        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas09.firstClearCredits,
-          reason: 'MISSION_REWARD', idempotencyKey: `journey:${current.missionId}`, referenceId: current.missionId, createdAt: now });
-        if (!reward.ok) throw new Error('Journey recovery reward failed');
-        credited = Math.max(0, (reward.balance ?? before) - before);
-      }
-      this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', finished_at = ?,
-        first_clear_credits = ? WHERE pilot_id = ? AND attempt_id = ? AND status = 'RACING'`)
-        .run(now, credited, pilotId, attemptId);
-      return this.get(pilotId, attemptId);
-    });
   }
 
   /** Physical mission Heart collection advances only to the landing phase. */

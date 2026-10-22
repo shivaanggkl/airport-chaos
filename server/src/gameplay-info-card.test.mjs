@@ -32,7 +32,10 @@ class FakeElement {
   setAttribute(name, value) { this.attributes.set(name, value); }
   getAttribute(name) { return this.attributes.get(name); }
   addEventListener(name, listener) { this.listeners.set(name, listener); }
-  dispatch(name, key) { this.listeners.get(name)?.({ key, preventDefault() {}, stopPropagation() {} }); }
+  dispatch(name, details = {}) {
+    this.listeners.get(name)?.({ ...(typeof details === 'string' ? { key: details } : details),
+      preventDefault() {}, stopPropagation() {} });
+  }
   focus() { this.focused = true; }
 }
 
@@ -90,6 +93,26 @@ test('training mounts inside the shared flight card and uses its control lane', 
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   assert.match(main, /gameplayInfoCard\.attachTutorial\(tutorialPanel\)/);
   assert.match(main, /const showInfoCard=panelStage\|\|guidedTutorialActive/);
+});
+
+test('a secondary touch opens the shared flight card without a synthesized click', () => {
+  const root = new FakeElement('div');
+  const card = new GameplayInfoCard(root);
+  card.setMode('mission');
+  const toggle = root.children[1];
+  toggle.dispatch('pointerdown', { pointerType: 'touch', pointerId: 2, isPrimary: false });
+  toggle.dispatch('pointerup', { pointerType: 'touch', pointerId: 2, isPrimary: false });
+  assert.equal(root.classList.contains('is-collapsed'), true);
+  toggle.dispatch('click', { detail: 1 });
+  assert.equal(root.classList.contains('is-collapsed'), true, 'synthetic click does not toggle twice');
+  toggle.dispatch('click', { detail: 0 });
+  assert.equal(root.classList.contains('is-collapsed'), false, 'keyboard activation still works');
+
+  card.setMode('multiplayer');
+  const territoriesTab = root.children[0].children[0].children[1];
+  territoriesTab.dispatch('pointerdown', { pointerType: 'touch', pointerId: 3, isPrimary: false });
+  territoriesTab.dispatch('pointerup', { pointerType: 'touch', pointerId: 3, isPrimary: false });
+  assert.equal(card.activeTab, 'territories');
 });
 
 test('server roster and territory updates fill scroll lists without a row cap or stale rows', () => {

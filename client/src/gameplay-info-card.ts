@@ -28,7 +28,7 @@ export class GameplayInfoCard {
       button.setAttribute('role', 'tab');
       button.setAttribute('aria-controls', tab === 'players' ? 'real-players' : 'city-territories');
       button.append(label, count);
-      button.addEventListener('click', () => this.setTab(tab));
+      this.bindTap(button, () => this.setTab(tab));
       button.addEventListener('keydown', event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
@@ -54,7 +54,7 @@ export class GameplayInfoCard {
     this.multiplayer.append(tabBar, this.playersRoot, this.territoriesRoot);
     this.toggle.type = 'button';
     this.toggle.className = 'journey-hud-toggle';
-    this.toggle.addEventListener('click', () => this.setCollapsed(!root.classList.contains('is-collapsed')));
+    this.bindTap(this.toggle, () => this.setCollapsed(!root.classList.contains('is-collapsed')));
     root.addEventListener('wheel', event => event.stopPropagation(), { passive: true });
     root.append(this.multiplayer, this.toggle);
     this.setTab('players');
@@ -62,6 +62,32 @@ export class GameplayInfoCard {
   }
 
   get activeTab(): GameplayInfoTab { return this.tab; }
+
+  private bindTap(button: HTMLButtonElement, activate: () => void): void {
+    let touchPointer: number | undefined;
+    let touchActivatedAt = -Infinity;
+    button.addEventListener('pointerdown', event => {
+      if (event.pointerType !== 'touch' || touchPointer !== undefined) return;
+      event.preventDefault();
+      touchPointer = event.pointerId;
+    });
+    button.addEventListener('pointerup', event => {
+      if (event.pointerType !== 'touch' || event.pointerId !== touchPointer) return;
+      touchPointer = undefined;
+      event.preventDefault();
+      touchActivatedAt = performance.now();
+      activate();
+    });
+    button.addEventListener('pointercancel', event => {
+      if (event.pointerId === touchPointer) touchPointer = undefined;
+    });
+    button.addEventListener('click', event => {
+      // WebKit may synthesize a click after pointerup; a second touch may not
+      // synthesize one at all. Handle the touch once and preserve keyboard clicks.
+      if (event.detail !== 0 && performance.now() - touchActivatedAt < 800) return;
+      activate();
+    });
+  }
 
   attachTutorial(content: HTMLElement): void {
     this.root.append(content);

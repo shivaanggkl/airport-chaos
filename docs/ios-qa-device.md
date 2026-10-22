@@ -1,6 +1,6 @@
 # iPhone staging QA
 
-The `staging` branch is the integration branch. From its checkout, run `bash scripts/install-ios-qa.sh` with the paired iPhone connected. This builds local web assets, points them at the existing staging backend, and installs them as `Airport Chaos QA`. A local install does not trigger a Render deploy. Set `QA_DEVICE_ID` if the paired device changes.
+The `qa` branch is based on `staging` and holds changes for device testing before they are merged. From either checkout, run `bash scripts/install-ios-qa.sh` with the paired iPhone connected. This builds the current local web assets, points them at the existing staging backend, and installs them as `Airport Chaos QA`. A local install does not trigger a Render deploy. Server changes on `qa` are not active on the staging backend until deployed separately. Set `QA_DEVICE_ID` if the paired device changes.
 
 The default build uses the existing signed app ID, so it replaces the staging app on the phone; a later staging install replaces QA. A side-by-side QA app needs a separately provisioned Apple app ID. After that is configured, set `QA_BUNDLE_ID` to the new ID when running the installer.
 

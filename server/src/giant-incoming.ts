@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
-import { journeyDallas08 } from '../../shared/journey-mission.mjs';
+import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
 type Building = {
     minX: number;
@@ -145,7 +145,7 @@ export function transportHullImpact(a:Point,b:Point,pose:TransportPose):boolean 
 /** Keep player shots in flight until impact, obstruction, or the shared range limit. */
 export function transportProjectileDisposition(missionId: string, traveled: number, blocked: boolean): 'remove' | 'continue' | 'escort' {
     if (traveled >= COMBAT_RANGE || blocked) return 'remove';
-    return missionId === journeyDallas08.id ? 'escort' : 'continue';
+    return missionId === journeyDallas08.id || missionId === journeyDallas09.id ? 'escort' : 'continue';
 }
 
 export type TransportShot = {

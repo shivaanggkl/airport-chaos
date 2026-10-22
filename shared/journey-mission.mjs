@@ -4,7 +4,6 @@ import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 
 export const journeyPauseLimitMs = 120_000;
-import { repairsForCity } from './city-repairs.mjs';
 
 export const journeyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
@@ -153,14 +152,17 @@ export const journeyDallas08 = Object.freeze({
   ]),
 });
 
-const recoveryHeart = repairsForCity('dallas').find(beacon => beacon.id === 'outer-northwest-heart' && beacon.kind === 'heart');
-if (!recoveryHeart) throw new Error('Dallas recovery Heart is unavailable');
 export const journeyDallas09 = Object.freeze({
-  id: 'journey-dallas-09', cityId: 'dallas', name: 'ONE HEART LEFT',
+  id: 'journey-dallas-09', cityId: 'dallas', name: 'REINFORCEMENTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 1_050,
-  startAirportId: 'dfw', startHealthFraction: 0.6,
-  heartId: recoveryHeart.id,
-  heart: recoveryHeart,
+  startAirportId: 'dfw', timeLimitMs: 330_000, bossHealth: transportTuning.health,
+  escortCount: 4, initialEscortCount: 2, escortScale: remoteAircraftScale,
+  escortHealth: Object.freeze([75, 125, 175, 225]),
+  escortAircraft: Object.freeze(['trainer', 'cargo', 'privateJet', 'fighter']),
+  escortLiveries: Object.freeze(['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'firehawk-inferno']),
+  reinforcementThreshold: 0.5, reinforcementWarningMs: 3_000, reinforcementFireDelayMs: 3_000,
+  escortFireDelayMs: 5_000, escortBurstIntervalMs: 4_000,
+  initialEscortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
 });
 
 // A broad, low-variation S course west of the authored downtown skyline.

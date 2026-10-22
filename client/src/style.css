@@ -1702,7 +1702,7 @@ body:has(.desktop-controls-help:not([hidden])) .tutorial-help { bottom: 42px; }
 .journey-hud [data-journey-hint] { color: #ffe084; font-weight: 800; }
 .journey-hud [hidden] { display: none !important; }
 .mission-objective-guidance { position: fixed; z-index: 23; inset: 0; pointer-events: none; overflow: hidden; }
-.mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { position: absolute; top: 0; left: 0; color: #fff4c7; border: 1px solid rgb(255 211 91 / 72%); border-radius: 9px; background: linear-gradient(145deg, rgb(6 44 88 / 20%), rgb(7 74 133 / 14%)); box-shadow: 0 2px 8px rgb(0 12 34 / 18%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
+.mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked, .giant-incoming-focus .sky-challenge.journey-hud > .mission-objective-docked { position: absolute; top: 0; left: 0; color: #fff4c7; border: 1px solid rgb(255 211 91 / 72%); border-radius: 9px; background: linear-gradient(145deg, rgb(6 44 88 / 20%), rgb(7 74 133 / 14%)); box-shadow: 0 2px 8px rgb(0 12 34 / 18%); text-shadow: 0 1px 3px #09203d; font: 900 12px/1.2 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
 .mission-objective-guidance > [hidden] { display: none !important; }
 .mission-objective-safe-probe { position: absolute; visibility: hidden; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display: none; }
@@ -1719,6 +1719,17 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .monster-boss-hud div { flex: 1; height: 13px; border: 1px solid rgb(227 168 41 / 40%); border-radius: 5px; overflow: hidden; background: rgb(16 41 67 / 12%); }
 .monster-boss-hud i { display: block; width: var(--monster-health, 100%); height: 100%; background: linear-gradient(90deg, rgb(247 165 34 / 75%), rgb(255 227 91 / 75%)); transition: width 170ms linear; }
 .monster-boss-hud span { color: #ffd15b; min-width: 3ch; text-align: right; }
+.giant-incoming-focus .sky-challenge.journey-hud .monster-boss-hud { position: relative; inset: auto; width: 100%; gap: 7px; padding: 4px 0 0; border: 0; border-top: 1px solid rgb(255 211 91 / 35%); border-radius: 0; background: transparent; font-size: 10px; }
+.giant-incoming-focus .monster-boss-hud strong { min-width: 72px; font: 900 10px/1.1 var(--font-display); }
+.giant-incoming-focus .monster-boss-hud div { height: 7px; }
+.giant-incoming-focus .sky-challenge.journey-hud > .mission-objective-docked { top: calc(100% + 7px); }
+.escort-health-hud { display: grid; gap: 3px; }
+.escort-health-hud.hidden { display: none; }
+.escort-health-hud > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) 4ch; align-items: center; gap: 7px; color: #ffb894; font: 800 10px/1.1 var(--font-display); }
+.escort-health-hud strong { color: inherit; font: inherit; }
+.escort-health-hud > div > div { height: 7px; overflow: hidden; border: 1px solid rgb(255 150 99 / 45%); border-radius: 5px; background: rgb(16 41 67 / 55%); }
+.escort-health-hud i { display: block; width: var(--escort-health, 0%); height: 100%; background: linear-gradient(90deg, #e53935, #ffd54f); transition: width 170ms linear; }
+.escort-health-hud span { text-align: right; }
 @media (max-width: 760px) { .monster-boss-hud { gap: 6px; padding: 5px 7px; font-size: 10px; } }
 @media (max-height: 520px) { .mission-objective-guidance > :is(.mission-objective-marker, .mission-objective-arrow), .monster-boss-hud > .mission-objective-docked { font-size: 10px; } .mission-objective-arrow { min-width: 164px; min-height: 36px; } .mission-objective-arrow-icon { font-size: 22px; } }
 .journey-hud-segments { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; padding-top: 2px; }
@@ -5437,6 +5448,7 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
   height: 30px;
   padding: 0;
   pointer-events: auto;
+  touch-action: none;
   border: 1px solid #f2c656;
   border-radius: 8px;
   color: #ffdc78;
@@ -6398,6 +6410,7 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   min-width: 0;
   min-height: 34px;
   pointer-events: auto;
+  touch-action: none;
   padding: 3px 11px;
   border: 1px solid rgb(130 181 207 / 55%);
   border-radius: 6px 6px 0 0;

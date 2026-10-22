@@ -101,7 +101,9 @@ test('red/blue billboard markers track remote aircraft with authoritative name a
   assert.doesNotMatch(main.slice(main.indexOf('function createRemotePlayerProxy('), main.indexOf('function disposeRemotePlayerProxy(')),
     /context\.moveTo\(48, 15\)/, 'diamond icon removed');
   assert.match(main, /color: visualLanguage\[isBot \? 'ai' : 'player'\]\.color/);
-  assert.match(main, /remote\.playerProxy\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp, Math\.max\(visualScale \* 2,/);
+  assert.match(update, /const contactHeight = Math\.max\(visualScale \* 1\.2, worldPerPixel \* 12\)/);
+  assert.match(update, /remote\.playerProxy\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp, contactHeight\)/);
+  assert.match(update, /remote\.identityTag\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp,[\s\S]*contactHeight \+ worldPerPixel/);
   assert.match(main, /remote\.playerProxy\.scale\.set\(width, width \* \(2 \/ 3\), 1\)/);
   assert.match(update, /labelY >= 50 \+ halfLabelHeight/, 'name tag stays clear of the flight header');
   assert.match(main, /formatPilotAltitude\(altitudeMeters\)/);

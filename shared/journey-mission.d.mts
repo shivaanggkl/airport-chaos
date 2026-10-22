@@ -52,10 +52,15 @@ export const journeyDallas08: Readonly<{
   leaderRoute: readonly Readonly<{ x: number; z: number }>[];
 }>;
 export const journeyDallas09: Readonly<{
-  id: 'journey-dallas-09'; cityId: 'dallas'; name: 'ONE HEART LEFT'; chapter: 'SKY ADVENTURES';
-  firstClearCredits: 1050; startAirportId: 'dfw'; startHealthFraction: 0.6;
-  heartId: 'outer-northwest-heart';
-  heart: { id: string; kind: 'heart'; x: number; z: number; radius: number; altitudeAgl: number };
+  id: 'journey-dallas-09'; cityId: 'dallas'; name: 'REINFORCEMENTS'; chapter: 'SKY ADVENTURES';
+  firstClearCredits: 1050; startAirportId: 'dfw'; timeLimitMs: 330000; bossHealth: 2000;
+  escortCount: 4; initialEscortCount: 2; escortScale: 16;
+  escortHealth: readonly [75, 125, 175, 225];
+  escortAircraft: readonly ['trainer', 'cargo', 'privateJet', 'fighter'];
+  escortLiveries: readonly ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'firehawk-inferno'];
+  reinforcementThreshold: 0.5; reinforcementWarningMs: 3000; reinforcementFireDelayMs: 3000;
+  escortFireDelayMs: 5000; escortBurstIntervalMs: 4000; initialEscortBurstIntervalMs: 6000;
+  escortShotSpacingMs: 250; escortShotDamage: 10;
 }>;
 export const journeyDallas10: Readonly<{
   id: 'journey-dallas-10'; cityId: 'dallas'; name: 'SKYLINE SLALOM'; chapter: 'SKY ADVENTURES';

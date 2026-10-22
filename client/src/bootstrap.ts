@@ -122,6 +122,15 @@ function revealMenuEntrance(): void {
 }
 const missionJourney = new MissionJourney(missionJourneyElement, playJourneyMission, openMissionDetails, closeMissionDetails);
 let journeyAttemptId: string | undefined;
+let journeyLaunchPending = false;
+let pendingAircraftSelection: Promise<boolean> | undefined;
+
+function trackAircraftSelection<T>(operation: Promise<T>, confirmed: (value: T) => boolean): Promise<T> {
+  const completion = operation.then(confirmed, () => false);
+  pendingAircraftSelection = completion;
+  void completion.then(() => { if (pendingAircraftSelection === completion) pendingAircraftSelection = undefined; });
+  return operation;
+}
 let guestQaJourneyAccess = false;
 let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';
 
@@ -212,6 +221,7 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
 }
 
 async function playJourneyMission(): Promise<void> {
+  if (journeyLaunchPending) return;
   if (!dallasUnlocked()) return;
   cityJourneyMode = 'missions';
   if (hubAccount.state !== 'account' && !guestQaJourneyAccess) {
@@ -220,7 +230,9 @@ async function playJourneyMission(): Promise<void> {
     return;
   }
   const mission = missionJourney.selectedMissionNumber === 24 ? 'mission-24' : missionJourney.selectedMissionNumber === 23 ? 'mission-23' : missionJourney.selectedMissionNumber === 22 ? 'mission-22' : missionJourney.selectedMissionNumber === 21 ? 'mission-21' : missionJourney.selectedMissionNumber === 20 ? 'mission-20' : missionJourney.selectedMissionNumber === 19 ? 'mission-19' : missionJourney.selectedMissionNumber === 18 ? 'mission-18' : missionJourney.selectedMissionNumber === 17 ? 'mission-17' : missionJourney.selectedMissionNumber === 16 ? 'mission-16' : missionJourney.selectedMissionNumber === 15 ? 'mission-15' : missionJourney.selectedMissionNumber === 14 ? 'mission-14' : missionJourney.selectedMissionNumber === 13 ? 'mission-13' : missionJourney.selectedMissionNumber === 12 ? 'mission-12' : missionJourney.selectedMissionNumber === 11 ? 'mission-11' : missionJourney.selectedMissionNumber === 10 ? 'mission-10' : missionJourney.selectedMissionNumber === 9 ? 'mission-09' : missionJourney.selectedMissionNumber === 8 ? 'mission-08' : missionJourney.selectedMissionNumber === 7 ? 'mission-07' : missionJourney.selectedMissionNumber === 6 ? 'mission-06' : missionJourney.selectedMissionNumber === 5 ? 'mission-05' : missionJourney.selectedMissionNumber === 4 ? 'mission-04' : missionJourney.selectedMissionNumber === 3 ? 'mission-03' : missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
+  journeyLaunchPending = true;
   try {
+    if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
@@ -237,6 +249,8 @@ async function playJourneyMission(): Promise<void> {
   } catch (error) {
     console.error('[journey] Mission launch failed', error);
     await refreshJourneyProgress();
+  } finally {
+    journeyLaunchPending = false;
   }
 }
 const PENDING_FLY_STORAGE_KEY = 'airport-chaos-pending-fly-v1';
@@ -1495,18 +1509,19 @@ async function refreshHubProfileSummary(): Promise<void> {
   } catch { /* Keep the last authoritative values if offline. */ }
 }
 
-const garage = new AircraftGarage(garageOverlay, async (selectedAircraft) => {
+const garage = new AircraftGarage(garageOverlay, (selectedAircraft) => trackAircraftSelection((async () => {
   const previouslySelected = garageProfile.selectedAircraft;
   const url = apiUrl('/api/profile');
   url.searchParams.set('pilotId', garageIdentity.pilotId); url.searchParams.set('pilotName', garageIdentity.displayName);
   const response = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ equipAircraft: selectedAircraft }) });
-  if (!response.ok) return;
+  if (!response.ok) return false;
   const profile = await response.json() as RemoteGarageProfile;
   applyAuthoritativeHomeProfile(profile);
   if (profile.selectedAircraft !== previouslySelected) hapticsManager.emit('confirmation');
   try { localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}'), version: 1, pilotId: garageIdentity.pilotId, displayName: garageIdentity.displayName, credits: garageProfile.credits, selectedAircraft: garageProfile.selectedAircraft })); } catch { /* server profile remains authoritative */ }
   if (garage.isOpen()) garage.open(garageProfile);
-}, undefined, () => {
+  return profile.selectedAircraft === selectedAircraft;
+})(), confirmed => confirmed), undefined, () => {
   garageOverlay.classList.remove('hub-aircraft');
   if (entryState === 'AIRCRAFT') {
     if (garageReturnState === 'CITY_SELECTION') showSelector();
@@ -1595,7 +1610,7 @@ const gameStore = new GameStore(gameStoreElement, {
   trial: startStoreFirehawkTrial,
   getTokens: missing => { recordProductIntent('store_get_tokens_opened'); void openSkyTokenStore(missing); },
   viewGarage: item => { recordProductIntent('store_view_in_garage', { itemId: item.id, itemType: item.kind }); void openStoreItemInGarage(item); },
-  equip: equipStoreItem,
+  equip: item => trackAircraftSelection(equipStoreItem(item), result => result.ok),
   login: () => { requestStoreLogin(); },
   retry: () => { void openGameStore(false); },
 });
@@ -1770,6 +1785,7 @@ async function equipStoreItem(item: StoreItem): Promise<{ ok: boolean; message: 
       await update({ equipCosmetic: item.id });
     if (garageProfile.selectedAircraft !== item.aircraftType)
       await update({ equipAircraft: item.aircraftType });
+    if (garageProfile.selectedAircraft !== item.aircraftType) throw new Error('AIRCRAFT CHANGE NOT CONFIRMED');
     garage.updateProfile(garageProfile);
     gameStore.update(garageProfile, hubAccount.state === 'account');
     hapticsManager.emit('confirmation');
@@ -2068,6 +2084,7 @@ async function startTrainingFromHub(): Promise<void> {
 }
 
 async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false): Promise<void> {
+  if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
   if (city.status !== 'available' || !city.loadWorld) return;
   const timePreset = resolveCityTimePreset(city, requestedTimePreset);
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -7,7 +7,6 @@ import { test } from 'node:test';
 import { journeyDallas07, journeyDallas08 } from '../../shared/journey-mission.mjs';
 import { transportCourse, transportPose, transportRouteLength } from '../../shared/giant-incoming.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
-import { ballisticInterceptDirection, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
@@ -47,23 +46,21 @@ test('escort bursts wait for takeoff, alternate, space shots, and never speed up
   assert.equal(rearGuardShooter(fire, 33_000, [false, true]), 2);
 });
 
-test('a locked Mission 8 escort can be hit by a traveling, led bullet', () => {
-  const muzzle = { x: 0, y: 900, z: 0 };
-  const shooterVelocity = { x: 0, y: 0, z: -300 };
-  const target = { x: 0, y: 900, z: -900 };
-  const targetVelocity = { x: 230, y: 0, z: 0 };
-  const lead = ballisticInterceptDirection(muzzle, shooterVelocity, target, targetVelocity);
-  assert.ok(lead && lead.x > 0);
-  const speed = ballisticShotSpeed(shooterVelocity, lead);
-  const flightSeconds = (target.z - muzzle.z) / (lead.z * speed);
-  const bulletX = muzzle.x + lead.x * speed * flightSeconds;
-  const escortX = target.x + targetVelocity.x * flightSeconds;
-  assert.ok(Math.abs(bulletX - escortX) < 5, 'ballistic round crosses the moving escort');
-  assert.ok(escortX > 200, 'shooting at its old position would miss');
-  assert.equal(ballisticInterceptDirection(muzzle, { x: 0, y: 0, z: 0 },
-    { x: 0, y: 900, z: -900 }, { x: 0, y: 0, z: -1_000 }), null);
-  assert.equal(ballisticInterceptDirection(muzzle, shooterVelocity,
-    { x: 0, y: 900, z: -4_600 }, { x: 0, y: 0, z: 0 }), null);
+test('a locked Mission 8 escort uses the shared hit and confirmed tracer paths', () => {
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const assistedShot = server.slice(server.indexOf('function createAssistedShot('), server.indexOf('function applyEventAircraftHit('));
+  assert.doesNotMatch(assistedShot, /journeyRearGuardEscort[^\n]*return false/);
+  assert.match(assistedShot, /applyCombatHit\(playerId, targetId,/);
+  const projectile = server.slice(server.indexOf('function createProjectile('), server.indexOf('function broadcastProjectileStates('));
+  assert.match(projectile, /const direction = normalize\(rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)\)/);
+  assert.doesNotMatch(projectile, /ballisticInterceptDirection/);
+
+  const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const muzzleFeedback = client.slice(client.indexOf('function spawnMuzzleFeedback('), client.indexOf('function createAssistedShotMesh('));
+  assert.match(muzzleFeedback, /predicted\.mesh\.visible = !predicted\.predictedTargetId/);
+  assert.doesNotMatch(muzzleFeedback, /ballisticInterceptDirection/);
+  const confirmedVisual = client.slice(client.indexOf('function addAssistedShot('), client.indexOf('function spawnImpactFeedback('));
+  assert.match(confirmedVisual, /visibleCombatTargetPosition\(message\.targetId\)/);
 });
 
 test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and first reward are authoritative', () => {

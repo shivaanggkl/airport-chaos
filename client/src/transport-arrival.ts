@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { transportPose, transportTuning } from '../../shared/giant-incoming.mjs';
+import { transportFootprintRadius, transportPose, transportTuning } from '../../shared/giant-incoming.mjs';
 
 /** Local briefing before transportReady starts the authoritative encounter. */
 export class TransportArrivalSequence {
@@ -20,11 +20,15 @@ export class TransportArrivalSequence {
   private initialized=false;
   private handoffStarted=false;
   private readonly scale=transportTuning.scale/8;
-  constructor(private readonly aircraft:THREE.Group,private readonly terrain:(x:number,z:number)=>number){
+  constructor(private readonly aircraft:THREE.Group,private readonly terrain:(x:number,z:number)=>number,
+    private readonly scene:THREE.Scene,private readonly escorts:readonly THREE.Group[]=[], missionName?: string){
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
-    this.alert.innerHTML='<span>⚠ DALLAS AIR DEFENSE · RED ALERT</span><strong>GIANT INCOMING</strong><p>Hostile transport approaching Dallas.</p><p>Take off from DFW. Destroy it before it escapes.</p>';
+    this.alert.innerHTML=escorts.length
+      ? `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'REINFORCEMENTS' ? 'REINFORCEMENTS' : 'REAR GUARD'}</strong><p>Destroy the transport to win. Escorts are optional.</p>`
+      : '<span>⚠ DALLAS ALERT</span><strong>GIANT INCOMING</strong><p>Destroy the transport before it escapes.</p>';
     document.body.append(this.alert);
+    this.scene.add(...escorts);
   }
   get complete():boolean{return this.elapsed>=TransportArrivalSequence.totalSeconds;}
   get showsPlayer():boolean{return this.elapsed>=TransportArrivalSequence.giantShotSeconds
@@ -35,6 +39,18 @@ export class TransportArrivalSequence {
     const pose=transportPose(this.elapsed*1000);
     this.aircraft.position.set(pose.x,Math.max(pose.y,this.terrain(pose.x,pose.z)+350),pose.z);
     this.aircraft.rotation.set(0,pose.yaw,0);this.aircraft.visible=true;
+    const sideX=Math.cos(pose.yaw),sideZ=-Math.sin(pose.yaw);
+    const forwardX=-Math.sin(pose.yaw),forwardZ=-Math.cos(pose.yaw);
+    this.escorts.forEach((escort,index)=>{
+      const side=index===0?-1:1;
+      const lateral=side*(transportFootprintRadius+180+Math.sin(this.elapsed*1.2+index*2)*12);
+      const ahead=200+Math.sin(this.elapsed*.9+index)*20;
+      escort.position.set(this.aircraft.position.x+sideX*lateral+forwardX*ahead,
+        this.aircraft.position.y+50+Math.sin(this.elapsed*1.4+index)*10,
+        this.aircraft.position.z+sideZ*lateral+forwardZ*ahead);
+      escort.rotation.set(0,pose.yaw,side*.1);
+      escort.visible=this.elapsed<TransportArrivalSequence.giantShotSeconds;
+    });
     this.alert.style.opacity=String(Math.min(1,this.elapsed*2,
       (TransportArrivalSequence.giantShotSeconds-this.elapsed)*2));
   }
@@ -43,9 +59,15 @@ export class TransportArrivalSequence {
     if(this.elapsed<TransportArrivalSequence.giantShotSeconds){
       const yaw=this.aircraft.rotation.y;
       this.target.copy(this.aircraft.position);
-      // Front three-quarter tracking shot, with Dallas along the inbound course behind it.
-      this.goal.set(-Math.cos(yaw)*420-Math.sin(yaw)*460,170,Math.sin(yaw)*420-Math.cos(yaw)*460)
-        .multiplyScalar(this.scale).add(this.target);
+      if(this.escorts.length){
+        // Frame both fighters beyond the transport's wings, clear of its body.
+        this.goal.set(-Math.sin(yaw)*550+Math.cos(yaw)*75,125,
+          -Math.cos(yaw)*550-Math.sin(yaw)*75).multiplyScalar(this.scale).add(this.target);
+      }else{
+        // Preserve Mission 7's front three-quarter tracking shot.
+        this.goal.set(-Math.cos(yaw)*420-Math.sin(yaw)*460,170,
+          Math.sin(yaw)*420-Math.cos(yaw)*460).multiplyScalar(this.scale).add(this.target);
+      }
       this.goal.y=Math.max(this.goal.y,this.terrain(this.goal.x,this.goal.z)+120);
       if(!this.initialized){this.cameraPosition.copy(this.goal);this.initialized=true;}
       this.cameraPosition.lerp(this.goal,1-Math.exp(-delta*3));camera.position.copy(this.cameraPosition);
@@ -91,5 +113,5 @@ export class TransportArrivalSequence {
     camera.position.y=Math.max(camera.position.y,this.terrain(camera.position.x,camera.position.z)+2.2);
     camera.lookAt(this.target);camera.updateMatrixWorld(true);
   }
-  dispose():void{this.alert.remove();}
+  dispose():void{this.alert.remove();this.scene.remove(...this.escorts);}
 }
