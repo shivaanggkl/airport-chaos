@@ -8,6 +8,7 @@ import {
   aircraftVisualConfig,
   groundContactVisualOffset,
 } from '../../shared/aircraft-visual-rules.mjs';
+import { remoteAircraftScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 
 const runwayRootClearance = 1.2;
 
@@ -41,6 +42,20 @@ test('per-aircraft wheel contacts remain at or above runway height through groun
       const lowest = Math.min(...config.groundContacts.map((contact) =>
         runwayRootClearance + rotatedWorldY(contact, pitch, offset)));
       assert.ok(lowest >= -1e-9, `${type} clips by ${-lowest}m at pitch ${pitch}`);
+    }
+  }
+});
+
+test('full-size remote landing gear stays clear through the first metres of takeoff', () => {
+  for (const [type, config] of Object.entries(aircraftVisualConfig)) {
+    for (const pitch of [-0.08, 0, 0.07, 0.2]) {
+      for (const altitude of [0, 1, 2, 8, 16, 24]) {
+        const rootClearance = runwayRootClearance + altitude;
+        const offset = groundContactVisualOffset(config.groundContacts, pitchQuaternion(pitch), rootClearance / remoteAircraftScale) * remoteAircraftScale;
+        const lowest = Math.min(...config.groundContacts.map((contact) =>
+          rootClearance + remoteAircraftScale * rotatedWorldY(contact, pitch, offset / remoteAircraftScale)));
+        assert.ok(lowest >= -1e-9, `${type} clips by ${-lowest}m at ${altitude}m and pitch ${pitch}`);
+      }
     }
   }
 });

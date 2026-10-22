@@ -34,7 +34,7 @@ test('aircraft damage produces the approved regular-combat hit counts', () => {
     assert.equal(Math.ceil(lightHealth / damage), lightHits);
     assert.equal(Math.ceil(heavyHealth / damage), heavyHits);
   }
-  assert.match(server, /damage: projectileDamageForAircraft\(player\.aircraftType\)/);
+  assert.match(server, /damage: damageOverride \?\? projectileDamageForAircraft\(player\.aircraftType\)/);
   assert.match(server, /applyCombatHit\(projectile\.ownerId, hitPlayerId, projectile\.cityId, now, projectile\.damage/);
 });
 

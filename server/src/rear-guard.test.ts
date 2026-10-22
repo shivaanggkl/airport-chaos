@@ -18,7 +18,7 @@ test('Rear Guard uses the existing transport corridor and a true five-minute esc
   assert.equal(journeyDallas08.timeLimitMs, 300_000);
   assert.equal(journeyDallas08.bossHealth, 2_000);
   assert.equal(journeyDallas08.escortCount, 2);
-  assert.equal(journeyDallas08.escortHealth, 100);
+  assert.equal(journeyDallas08.escortHealth, 1_000);
   assert.deepEqual({ x: transportPose(0).x, z: transportPose(0).z }, transportCourse.start);
   const end = transportPose(journeyDallas08.timeLimitMs, 900, journeyDallas08.timeLimitMs);
   assert.ok(Math.abs(end.x - transportCourse.end.x) < 0.001);

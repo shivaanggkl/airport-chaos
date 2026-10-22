@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { attachAircraftAsset, type AircraftAssetType } from './assets';
+import { remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 import type { EntityType, EventCombatMode } from './entity-types';
 import type { CityTimeOfDay } from './city-visuals';
 
@@ -58,6 +59,7 @@ type Actor = {
   rotor?: THREE.Object3D;
   contrail?: THREE.Group;
   eventMarker?: THREE.Sprite;
+  visualSpan: number;
   segment: number;
   segmentProgress: number;
   previousPosition: THREE.Vector3;
@@ -491,6 +493,8 @@ export class AmbientTrafficSystem {
     const root = new THREE.Group();
     root.name = `ambient-traffic-${route.id}`;
     if (route.kind === 'helicopter') root.scale.setScalar(1.55);
+    const visualScale = route.kind === 'helicopter' ? 0.5 : 1;
+    visual.detail.scale.setScalar(visualScale);
     const silhouetteMaterial = (visual.silhouette.material as THREE.MeshBasicMaterial).clone();
     silhouetteMaterial.opacity = 0;
     visual.silhouette.material = silhouetteMaterial;
@@ -499,7 +503,10 @@ export class AmbientTrafficSystem {
     impostor.visible = false;
     root.add(visual.detail, visual.silhouette, impostor);
     const eventMarker = route.entityType === 'event' ? createEventMarker() : undefined;
-    if (eventMarker) root.add(eventMarker);
+    if (eventMarker) {
+      eventMarker.position.y = (route.kind === 'helicopter' ? 4.6 : aircraftDimensions(route.aircraftType).span) * visualScale * 0.3;
+      root.add(eventMarker);
+    }
     let contrail: THREE.Group | undefined;
     if (route.kind === 'highAltitude') {
       contrail = this.createContrail();
@@ -517,6 +524,7 @@ export class AmbientTrafficSystem {
       rotor: visual.rotor,
       contrail,
       eventMarker,
+      visualSpan: (route.kind === 'helicopter' ? 4.6 : aircraftDimensions(route.aircraftType).span) * visualScale,
       segment: 0,
       segmentProgress: 0,
       previousPosition: new THREE.Vector3(),
@@ -557,6 +565,10 @@ export class AmbientTrafficSystem {
     let detailed = 0;
     let silhouettes = 0;
     for (const { actor, distance } of candidates) {
+      const visualScale = remoteAircraftVisualScale(distance) * (actor.route.kind === 'helicopter' ? 0.5 : 1);
+      actor.detail.scale.setScalar(visualScale);
+      actor.visualSpan = (actor.route.kind === 'helicopter' ? 4.6 : aircraftDimensions(actor.route.aircraftType).span) * visualScale;
+      if (actor.eventMarker) actor.eventMarker.position.y = actor.visualSpan * 0.3;
       const isHighAltitude = actor.route.kind === 'highAltitude';
       const maxDistance = isHighAltitude ? highAltitudeDistance : silhouetteDistance;
       const rootLimit = maxDistance + (actor.detailVisible || actor.silhouetteVisible ? visibilityHysteresis : -visibilityHysteresis);
@@ -591,7 +603,7 @@ export class AmbientTrafficSystem {
     const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / viewportHeight;
     const boost = actor.entityType === 'event' ? 1.2 : actor.route.kind === 'helicopter' ? 1.12 : 1;
     const targetPixels = (distance <= 8_000 ? 10 : 7.5) * boost;
-    const targetWidth = THREE.MathUtils.clamp(worldPerPixel * targetPixels, 12, 150);
+    const targetWidth = THREE.MathUtils.clamp(Math.max(worldPerPixel * targetPixels, actor.visualSpan), 12, 220);
     const baseWidth = Math.max(1, actor.silhouetteBaseScale.x * 2);
     const silhouetteScale = THREE.MathUtils.clamp(targetWidth / baseWidth, 1, 9);
     actor.silhouette.scale.copy(actor.silhouetteBaseScale).multiplyScalar(silhouetteScale);

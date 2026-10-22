@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
-import { remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftNearMissRadius, remoteAircraftScale, remoteAircraftVisualScale, remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 
 test('5 Hz Hunter snapshots keep visual motion continuous across ordinary packet jitter', () => {
   const packetTimes = [0, 0.2, 0.41, 0.61, 0.84, 1.04, 1.25];
@@ -60,7 +60,38 @@ test('remote aircraft-contact marker never grows as distance increases', () => {
   }
 });
 
-test('red/blue billboard markers track true-scale aircraft with authoritative name and altitude', () => {
+test('remote aircraft match Rear Guard size at range and physical size nearby, including hit areas', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  assert.equal(remoteAircraftScale, 16);
+  assert.equal(remoteAircraftVisualScale(20), 1);
+  assert.equal(remoteAircraftVisualScale(900), 16);
+  assert.equal(remoteAircraftVisualScale(9_000), 16);
+  assert.ok(remoteAircraftVisualScale(200) < remoteAircraftVisualScale(500));
+  for (let distance = 1; distance <= 1_000; distance += 1) {
+    const growth = remoteAircraftVisualScale(distance) - remoteAircraftVisualScale(distance - 1);
+    assert.ok(growth >= 0 && growth <= 0.018, `abrupt scale change at ${distance}m`);
+  }
+  assert.match(main, /remoteAircraftVisualScale\(distance\)/);
+  const traffic = readFileSync(new URL('../../client/src/ambient-traffic.ts', import.meta.url), 'utf8');
+  assert.match(traffic, /remoteAircraftVisualScale\(distance\)/);
+  assert.match(main, /remoteAircraftCollisionRadius\(remote\.aircraftType, distance\)/);
+  assert.match(server, /remoteAircraftCollisionRadius\(second\.aircraftType, distance\)/);
+  assert.match(server, /remoteAircraftContactRadius\(event\.eventAircraftType, distance\)/);
+  assert.match(server, /player\.bot\?\.journeyRearGuardEscort \? remoteAircraftScale : remoteAircraftVisualScale\(distance\)/);
+  for (const type of ['trainer', 'privateJet', 'cargo', 'fighter'] as const) {
+    for (const distance of [20, 200, 900]) {
+      const contact = remoteAircraftContactRadius(type, distance);
+      assert.ok(contact > 0);
+      assert.equal(remoteAircraftCollisionRadius(type, distance), contact + 2.5);
+      assert.equal(remoteAircraftNearMissRadius(type, distance), contact + 12);
+    }
+  }
+  assert.ok(remoteAircraftContactRadius('cargo', 500) > remoteAircraftContactRadius('trainer', 500));
+  assert.equal(remoteAircraftContactRadius('trainer', 500), remoteAircraftContactRadius('fighter', 500));
+});
+
+test('red/blue billboard markers track remote aircraft with authoritative name and altitude', () => {
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const update = main.slice(main.indexOf('function updateRemotePlayers('), main.indexOf('function updateLockCircle('));
   assert.match(main, /const plane = createAirplane\(player\.aircraftType, true\)/);
@@ -70,7 +101,7 @@ test('red/blue billboard markers track true-scale aircraft with authoritative na
   assert.doesNotMatch(main.slice(main.indexOf('function createRemotePlayerProxy('), main.indexOf('function disposeRemotePlayerProxy(')),
     /context\.moveTo\(48, 15\)/, 'diamond icon removed');
   assert.match(main, /color: visualLanguage\[isBot \? 'ai' : 'player'\]\.color/);
-  assert.match(main, /remote\.playerProxy\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp, Math\.max\(5\.5,/);
+  assert.match(main, /remote\.playerProxy\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp, Math\.max\(visualScale \* 2,/);
   assert.match(main, /remote\.playerProxy\.scale\.set\(width, width \* \(2 \/ 3\), 1\)/);
   assert.match(update, /labelY >= 50 \+ halfLabelHeight/, 'name tag stays clear of the flight header');
   assert.match(main, /formatPilotAltitude\(altitudeMeters\)/);

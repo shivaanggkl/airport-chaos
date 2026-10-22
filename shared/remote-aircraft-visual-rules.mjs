@@ -3,6 +3,23 @@ const smoothstep = (value, start, end) => {
   return t * t * (3 - 2 * t);
 };
 
+// Match the Rear Guard escort silhouette at flying distance, but return to
+// physical size near the pilot so close aircraft do not eclipse the view.
+export const remoteAircraftScale = 16;
+export const aircraftHitRadii = Object.freeze({ trainer: 2.4, privateJet: 2.6, cargo: 3.6, fighter: 2.4 });
+export function remoteAircraftVisualScale(distance) {
+  return Math.max(1, Math.min(remoteAircraftScale, distance * remoteAircraftScale / 900));
+}
+export function remoteAircraftContactRadius(type, distance) {
+  return aircraftHitRadii[type] * 1.6 * remoteAircraftVisualScale(distance);
+}
+export function remoteAircraftCollisionRadius(type, distance) {
+  return remoteAircraftContactRadius(type, distance) + 2.5;
+}
+export function remoteAircraftNearMissRadius(type, distance) {
+  return remoteAircraftContactRadius(type, distance) + 12;
+}
+
 /**
  * Screen-space width for the non-collidable remote-aircraft contact marker.
  * Keep distant contacts readable without making them look artificially close.

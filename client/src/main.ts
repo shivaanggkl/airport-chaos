@@ -48,7 +48,7 @@ import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, ty
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { missionHudObjective, missionHudProgress } from '../../shared/mission-hud.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
-import { remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { remoteAircraftCollisionRadius, remoteAircraftNearMissRadius, remoteAircraftScale, remoteAircraftVisualScale, remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit-receipts.mjs';
 import { KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
@@ -893,6 +893,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   const plane = new THREE.Group();
   const airframeRoot = new THREE.Group();
   airframeRoot.name = 'aircraft-visual-root';
+  if (remote) airframeRoot.scale.setScalar(remoteAircraftScale);
   plane.add(airframeRoot);
   const fallback = new THREE.Group();
   fallback.name = `aircraft-fallback-${type}`;
@@ -5229,7 +5230,7 @@ function refreshAllPlayerIdentityTags(): void {
   for (const remote of remotePlayers.values()) refreshPlayerIdentityTag(remote);
 }
 
-function createTargetBrackets(isBot: boolean, rearGuardEscort = false): THREE.Sprite {
+function createTargetBrackets(isBot: boolean, type: AircraftType, visualScale: number): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
@@ -5240,7 +5241,7 @@ function createTargetBrackets(isBot: boolean, rearGuardEscort = false): THREE.Sp
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const brackets = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-  const size = rearGuardEscort ? aircraftDefinitions.fighter.wingSpan * journeyDallas08.escortScale * 1.2 : 14;
+  const size = aircraftDefinitions[type].wingSpan * visualScale * 1.2;
   brackets.scale.set(size, size, 1);
   brackets.position.set(0, 3, 0);
   brackets.visible = false;
@@ -7429,10 +7430,6 @@ function refreshPlayersPanelAltitude(now = performance.now()): void {
   }
   playersPanel.update([...cityHumanRoster.values()], localPlayerId, ownedTerritoriesForPlayer);
 }
-const collisionRadius = 2.5;
-const nearMissRadius = 12;
-const collisionRadiusSquared = collisionRadius * collisionRadius;
-const nearMissRadiusSquared = nearMissRadius * nearMissRadius;
 const previousInteractionPosition = new THREE.Vector3();
 const interactionSweepStart = new THREE.Vector3();
 let interactionSweepReady = false;
@@ -8058,12 +8055,16 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const targetQuaternion = new THREE.Quaternion().setFromEuler(remoteEuler);
     const plane = createAirplane(player.aircraftType, true);
     if (player.rearGuardEscort) applyRearGuardEscortPaint(plane, journeyDallas08.escortScale);
-    else if (player.equippedCosmetics) applyEquippedLivery(plane, player.aircraftType, player.equippedCosmetics);
+    else {
+      (plane.userData.airframeRoot as THREE.Group).scale.setScalar(remoteAircraftVisualScale(targetPosition.distanceTo(airplane.position)));
+      if (player.equippedCosmetics) applyEquippedLivery(plane, player.aircraftType, player.equippedCosmetics);
+    }
     const ownershipColors = ownedTerritoriesForPlayer(player.playerId).map(({ color }) => color);
     const ownershipAccent = ownershipColors[0];
     const identityTag = createPlayerIdentityTag(player.displayName ?? 'PLAYER', player.aircraftType, player.playerId === kingPlayerId, Boolean(player.isBot), ownershipColors);
     const hullTag = createRemoteHullTag();
-    const targetBrackets = createTargetBrackets(Boolean(player.isBot), Boolean(player.rearGuardEscort));
+    const targetBrackets = createTargetBrackets(Boolean(player.isBot), player.aircraftType,
+      (plane.userData.airframeRoot as THREE.Group).scale.x);
     const playerProxy = createRemotePlayerProxy(Boolean(player.isBot));
     plane.position.copy(targetPosition);
     plane.quaternion.copy(targetQuaternion);
@@ -8121,13 +8122,17 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const replacement = createAirplane(player.aircraftType, true);
     replacement.position.copy(remote.plane.position);
     replacement.quaternion.copy(remote.plane.quaternion);
-    remote.targetBrackets = createTargetBrackets(remote.isBot, Boolean(player.rearGuardEscort));
+    remote.targetBrackets = createTargetBrackets(remote.isBot, player.aircraftType,
+      (replacement.userData.airframeRoot as THREE.Group).scale.x);
     replacement.add(remote.targetBrackets);
     scene.add(replacement);
     remote.plane = replacement;
     remote.aircraftType = player.aircraftType;
     if (player.rearGuardEscort) applyRearGuardEscortPaint(replacement, journeyDallas08.escortScale);
-    else applyEquippedLivery(replacement, player.aircraftType, player.equippedCosmetics ?? remote.plane.userData.equippedCosmetics ?? {});
+    else {
+      (replacement.userData.airframeRoot as THREE.Group).scale.setScalar(remoteAircraftVisualScale(replacement.position.distanceTo(airplane.position)));
+      applyEquippedLivery(replacement, player.aircraftType, player.equippedCosmetics ?? remote.plane.userData.equippedCosmetics ?? {});
+    }
     refreshPlayerIdentityTag(remote);
   }
 
@@ -8174,7 +8179,8 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     (remote.playerProxy.material as THREE.SpriteMaterial).color.set(visualLanguage[remote.isBot ? 'ai' : 'player'].color);
     remote.plane.remove(remote.targetBrackets);
     disposeTargetBrackets(remote.targetBrackets);
-    remote.targetBrackets = createTargetBrackets(remote.isBot, Boolean(player.rearGuardEscort));
+    remote.targetBrackets = createTargetBrackets(remote.isBot, player.aircraftType,
+      (remote.plane.userData.airframeRoot as THREE.Group).scale.x);
     remote.plane.add(remote.targetBrackets);
   }
   if (player.botPersonality) remote.botPersonality = player.botPersonality;
@@ -8327,6 +8333,10 @@ function updateRemotePlayers(delta: number): void {
     }
     const identityVisible = remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
+    const visualScale = remote.plane.userData.rearGuardEscort ? journeyDallas08.escortScale : remoteAircraftVisualScale(distance);
+    (remote.plane.userData.airframeRoot as THREE.Group).scale.setScalar(visualScale);
+    const bracketSize = aircraftDefinitions[remote.aircraftType].wingSpan * visualScale * 1.2;
+    remote.targetBrackets.scale.set(bracketSize, bracketSize, 1);
     const targeted = selectedCombatTarget?.remote === remote;
     const missionTarget = serverProfile.missions[cityId]?.active?.targetId === remote.playerId ||
       (journeyAttempt?.missionId === journeyDallas02.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas23.id || journeyAttempt?.missionId === journeyDallas24.id) && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId);
@@ -8351,7 +8361,7 @@ function updateRemotePlayers(delta: number): void {
       }
       const widthPixels = locked ? 188 : targeted ? 176 : missionTarget ? 168 : distance <= 900 ? 155 : 140;
       remote.identityTag.scale.set(worldPerPixel * widthPixels, worldPerPixel * widthPixels * 0.25, 1);
-      const contactHeight = Math.max(5.5, worldPerPixel * 32);
+      const contactHeight = Math.max(visualScale * 2, worldPerPixel * 32);
       remote.identityTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp,
         contactHeight + worldPerPixel * (targeted ? 70 : 50));
       identityLabelProjection.copy(remote.identityTag.position).project(camera);
@@ -8363,8 +8373,7 @@ function updateRemotePlayers(delta: number): void {
         labelY >= 50 + halfLabelHeight && labelY <= window.innerHeight - halfLabelHeight - 4;
       (remote.identityTag.material as THREE.SpriteMaterial).opacity = targeted || missionTarget ? 1 : distance > 3_000 ? 0.82 : 0.94;
     }
-    remote.hullTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp,
-      remote.plane.userData.rearGuardEscort ? 2 * journeyDallas08.escortScale : 6.8);
+    remote.hullTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, visualScale * 2);
     remote.hullTag.visible = identityVisible && (
       distance <= 320 || selectedCombatTarget?.remote === remote || performance.now() - remote.lastHitAt <= 2_000
     );
@@ -8374,7 +8383,7 @@ function updateRemotePlayers(delta: number): void {
       const targeted = selectedCombatTarget?.remote === remote;
       const targetPixels = remoteProxyPixelWidth(distance) + (targeted ? selectedCombatTarget?.locked ? 4 : 2 : 0);
       const width = worldPerPixel * targetPixels;
-      remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, Math.max(5.5, worldPerPixel * 32));
+      remote.playerProxy.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, Math.max(visualScale * 2, worldPerPixel * 32));
       remote.playerProxy.scale.set(width, width * (2 / 3), 1);
       proxyMaterial.opacity = targeted ? 1 : distance <= COMBAT_RANGE ? 0.96 : 0.82;
     }
@@ -8636,13 +8645,13 @@ function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: nu
   const type = plane.userData.aircraftType as AircraftType;
   const airframeRoot = plane.userData.airframeRoot as THREE.Group | undefined;
   if (airframeRoot) {
-    const heightAboveGroundRoot = plane.position.y - groundPlaneY(plane.position.x, plane.position.z);
-    const groundBlend = THREE.MathUtils.clamp(1 - Math.max(0, heightAboveGroundRoot) / 2, 0, 1);
+    const visualScale = airframeRoot.scale.x;
+    const rootClearance = plane.position.y - groundPlaneY(plane.position.x, plane.position.z) + PLANE_GROUND_Y;
     airframeRoot.position.y = groundContactVisualOffset(
       aircraftGroundContacts[type],
       plane.quaternion,
-      PLANE_GROUND_Y,
-    ) * groundBlend;
+      rootClearance / visualScale,
+    ) * visualScale;
   }
   const assetPropellers = plane.userData.assetPropellers as THREE.Object3D[] | undefined;
   const propellers = assetPropellers?.length ? assetPropellers : visuals.propeller ? [visuals.propeller] : [];
@@ -8690,6 +8699,7 @@ function awardNearMiss(): void {
 
 function updatePlayerInteractions(): void {
   if (guidedTutorialActive || localLifeState !== 'alive') return;
+  const localOnRunway = altitudeAboveTerrain() <= 6 && getAirportAtPosition(airplane.position) !== null;
   const maximumFrameTravel = Math.max(12, currentSpeed * 0.06 + 8);
   if (!interactionSweepReady || previousInteractionPosition.distanceToSquared(airplane.position) > maximumFrameTravel * maximumFrameTravel) {
     previousInteractionPosition.copy(airplane.position);
@@ -8698,13 +8708,15 @@ function updatePlayerInteractions(): void {
   interactionSweepStart.copy(previousInteractionPosition);
   previousInteractionPosition.copy(airplane.position);
   for (const remote of remotePlayers.values()) {
-    if (remote.lifeState !== 'alive' || assignedFormationLeader(remote.playerId) || (remote.isBot && missionFocus?.showAmbientAIAircraft === false && unrelatedFocusedBot(remote.playerId)) || !entityCapabilities(remote.entityType).collidable) {
+    const remoteOnRunway = remote.plane.position.y - groundPlaneY(remote.plane.position.x, remote.plane.position.z) <= 6 && getAirportAtPosition(remote.plane.position) !== null;
+    if (localOnRunway || remoteOnRunway || remote.lifeState !== 'alive' || assignedFormationLeader(remote.playerId) || (remote.isBot && missionFocus?.showAmbientAIAircraft === false && unrelatedFocusedBot(remote.playerId)) || !entityCapabilities(remote.entityType).collidable) {
       remote.nearMissActive = false;
       continue;
     }
     const distanceSquared = airplane.position.distanceToSquared(remote.plane.position);
     const sweptDistanceSquared = interactionSegmentDistanceSquared(remote.plane.position, interactionSweepStart, airplane.position);
-    if (Math.min(distanceSquared, sweptDistanceSquared) <= collisionRadiusSquared) {
+    const distance = Math.sqrt(distanceSquared);
+    if (Math.min(distanceSquared, sweptDistanceSquared) <= remoteAircraftCollisionRadius(remote.aircraftType, distance) ** 2) {
       // Ordered state + collision intent lets the server validate one shared
       // pair and authoritatively destroy each pilot exactly once.
       const now = performance.now();
@@ -8716,7 +8728,7 @@ function updatePlayerInteractions(): void {
       return;
     }
 
-    if (Math.min(distanceSquared, sweptDistanceSquared) <= nearMissRadiusSquared) {
+    if (Math.min(distanceSquared, sweptDistanceSquared) <= remoteAircraftNearMissRadius(remote.aircraftType, distance) ** 2) {
       if (!remote.nearMissActive) {
         remote.nearMissActive = true;
         awardNearMiss();

@@ -1,4 +1,5 @@
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
+import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftScale, remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
@@ -342,18 +343,11 @@ const territoryDefenderOwnerRange = 2_500;
 const territoryDefenderReleaseMs = 1_000;
 let nextBotSerial = 1;
 const aircraftTypes = new Set<AircraftType>(['trainer', 'privateJet', 'cargo', 'fighter']);
-const aircraftHitRadii: Record<AircraftType, number> = {
-  trainer: 2.4,
-  privateJet: 2.6,
-  cargo: 3.6,
-  fighter: 2.4,
-};
-// This only widens projectile-vs-aircraft hit tests.  It intentionally does
-// not affect aircraft collision, which remains calibrated separately.
+// Player bullets use the visible remote-aircraft radii; transport gunshots
+// against the local pilot retain this smaller physical radius.
 const projectileHitRadiusMultiplier = 1.6;
 const projectileVisualRadius = 0.65;
 const combatTransformFreshMs = 1_500;
-const aircraftCollisionRadius = 2.5;
 const respawnClearance = 24;
 // Straight, unlocked rounds remain fast enough to be readable at flight speed.
 const spawnProtectionMs = 3000;
@@ -4329,8 +4323,8 @@ function sweptProjectileHit(
   startZ: number,
   end: Vector3,
   deltaSeconds: number,
+  visualScale = 1,
 ): boolean {
-  const visualScale = player.bot?.journeyRearGuardEscort ? journeyDallas08.escortScale : 1;
   const hitRadius = aircraftHitRadii[player.aircraftType] * visualScale * projectileHitRadiusMultiplier + projectileVisualRadius;
   // The stored transform is the target's end-of-tick position. Rewind it to
   // the segment start before testing relative swept motion; otherwise fast
@@ -4918,9 +4912,13 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
       !first.hasRespawnTransform || !second.hasRespawnTransform ||
       now < first.spawnProtectedUntil || now < second.spawnProtectedUntil ||
       now - first.lastStateAt > combatTransformFreshMs || now - second.lastStateAt > combatTransformFreshMs) return false;
+  // Parked pilots cannot collide while taxiing or taking off.
+  if (runwayOrTaxiSpawnArea(first) || runwayOrTaxiSpawnArea(second)) return false;
   const relativeAllowance = Math.min(30, (Math.hypot(first.velocity.x, first.velocity.y, first.velocity.z) +
     Math.hypot(second.velocity.x, second.velocity.y, second.velocity.z)) * 0.1);
-  if (Math.hypot(first.position.x - second.position.x, first.position.y - second.position.y, first.position.z - second.position.z) > aircraftCollisionRadius + relativeAllowance) return false;
+  const distance = Math.hypot(first.position.x - second.position.x, first.position.y - second.position.y, first.position.z - second.position.z);
+  const visibleRadius = remoteAircraftCollisionRadius(second.aircraftType, distance);
+  if (distance > visibleRadius + relativeAllowance) return false;
   markPlayerDestroyed(firstId, first, now);
   markPlayerDestroyed(secondId, second, now);
   broadcastToCity(first.cityId, { type: 'destroyed', cause: 'collision', playerId: firstId, position: first.position, aircraftType: first.aircraftType, killerId: secondId, killerDisplayName: second.displayName, victimDisplayName: first.displayName, killerScore: second.score, killerReward: 0 });
@@ -4975,9 +4973,11 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   if (!event || event.lifecycle !== 'active' || (event.type !== 'aceIntercept' && event.type !== 'vipEscort') || !event.bossHealth || event.bossHealth <= 0) return false;
   // This is a server-only event target: it never enters player lock or collision paths.
   const bossPosition = eventRoutePosition(event, now);
-  if (distanceToSegmentSquared(bossPosition, start.x, start.y, start.z, end) > 14 * 14) return false;
   const owner = players.get(ownerId);
   if (!owner || owner.tutorialMode || owner.cityId !== cityId || owner.lifeState !== 'alive') return false;
+  const distance = Math.hypot(owner.position.x - bossPosition.x, owner.position.y - bossPosition.y, owner.position.z - bossPosition.z);
+  const hitRadius = event.eventAircraftType ? remoteAircraftContactRadius(event.eventAircraftType, distance) : 14;
+  if (distanceToSegmentSquared(bossPosition, start.x, start.y, start.z, end) > hitRadius * hitRadius) return false;
   const damageDealt = Math.min(event.bossHealth, damage);
   if (event.type === 'vipEscort') {
     event.bossHealth -= damageDealt;
@@ -5229,7 +5229,10 @@ function updateProjectiles(deltaSeconds: number): void {
       ) {
         continue;
       }
-      if (sweptProjectileHit(player, previousX, previousY, previousZ, projectile.position, deltaSeconds)) {
+      const distance = Math.hypot(owner.position.x - player.position.x, owner.position.y - player.position.y, owner.position.z - player.position.z);
+      const targetScale = owner.isBot && !player.isBot ? 1
+        : player.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(distance);
+      if (sweptProjectileHit(player, previousX, previousY, previousZ, projectile.position, deltaSeconds, targetScale)) {
         hitPlayerId = playerId;
         break;
       }

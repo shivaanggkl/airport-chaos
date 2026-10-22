@@ -1,4 +1,5 @@
 import { transportTuning } from './giant-incoming.mjs';
+import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
 
@@ -134,7 +135,7 @@ export const journeyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'REAR GUARD',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
   startAirportId: 'dfw', timeLimitMs: 300_000, bossHealth: transportTuning.health,
-  escortHealth: 100, escortCount: 2, escortScale: 16, escortFireDelayMs: 5_000,
+  escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
   followMs: 15_000,
   minDistance: 80, maxDistance: 450, maxTailAngle: 40 * Math.PI / 180,

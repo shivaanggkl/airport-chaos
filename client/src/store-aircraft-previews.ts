@@ -163,7 +163,7 @@ export class StoreAircraftPreviews {
       this.camera.top = halfHeight;
       this.camera.bottom = -halfHeight;
       this.camera.updateProjectionMatrix();
-      preview.aircraft.rotation.y = this.reducedMotion.matches ? 0.75 : 0.75 + now * 0.00028;
+      preview.aircraft.rotation.y = this.reducedMotion.matches ? 0.75 : 0.75 - now * 0.00028;
       this.renderer.render(preview.scene, this.camera);
     }
     this.renderer.setScissorTest(false);
