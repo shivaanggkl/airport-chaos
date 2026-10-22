@@ -42,7 +42,7 @@ import { GameplayInfoCard } from './gameplay-info-card';
 import { TrainingSlides } from './training-slides';
 import { WorldMap, type WorldMapLayer } from './world-map';
 import { NavigationBeaconSystem, type NavigationDestination } from './navigation-beacons';
-import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { LOCK_ANGLE, AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, BASE_PROJECTILE_SPEED, fireIntervalMs, aimTargetScore, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, ballisticInterceptDirection, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase } from './firehawk-checkout';
 import { TERRITORY_WALL_HEIGHT_METERS, territoriesForCity, territoryContains, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
@@ -386,14 +386,14 @@ skyDome.add(duskSky);
   const starsGeometry = new THREE.BufferGeometry();
   starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
   starsGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-  const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ vertexColors: true, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.88, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+  const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ vertexColors: true, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.88, depthTest: true, depthWrite: false, fog: false, toneMapped: false }));
   stars.renderOrder = -9;
   duskSky.add(stars);
   const moonDirection = new THREE.Vector3(0.42, 0.13, -0.90).normalize();
   const moonPosition = moonDirection.multiplyScalar(SKY_DOME_RADIUS * 0.9);
   const moonHalo = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.ShaderMaterial({
     transparent: true,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
     fog: false,
     toneMapped: false,
@@ -5229,7 +5229,7 @@ function refreshAllPlayerIdentityTags(): void {
   for (const remote of remotePlayers.values()) refreshPlayerIdentityTag(remote);
 }
 
-function createTargetBrackets(isBot: boolean): THREE.Sprite {
+function createTargetBrackets(isBot: boolean, rearGuardEscort = false): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
@@ -5240,7 +5240,8 @@ function createTargetBrackets(isBot: boolean): THREE.Sprite {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const brackets = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-  brackets.scale.set(14, 14, 1);
+  const size = rearGuardEscort ? aircraftDefinitions.fighter.wingSpan * journeyDallas08.escortScale * 1.2 : 14;
+  brackets.scale.set(size, size, 1);
   brackets.position.set(0, 3, 0);
   brackets.visible = false;
   brackets.renderOrder = 5;
@@ -7636,11 +7637,15 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   projectileDirection.copy(direction);
   cameraShakeTime = Math.max(cameraShakeTime, 0.08);
   const predicted = projectilePool.pop() ?? createProjectileVisual();
-  const target = targetId ? remotePlayers.get(targetId)?.plane : undefined;
+  const remoteTarget = targetId ? remotePlayers.get(targetId) : undefined;
+  const target = remoteTarget?.plane;
   predicted.predictedOrigin.copy(projectileOrigin);
   if (target?.visible) {
     predicted.predictedTargetPosition.copy(target.position);
-    predicted.direction.subVectors(predicted.predictedTargetPosition, projectileOrigin).normalize();
+    const lead = remoteTarget && target.userData.rearGuardEscort
+      ? ballisticInterceptDirection(projectileOrigin, velocity, target.position, remoteTarget.velocity) : null;
+    if (lead) predicted.direction.set(lead.x, lead.y, lead.z);
+    else predicted.direction.subVectors(predicted.predictedTargetPosition, projectileOrigin).normalize();
   } else predicted.direction.copy(projectileDirection);
   predicted.speed = ballisticShotSpeed(velocity, predicted.direction);
   predicted.bank = airplane.rotation.z;
@@ -8052,13 +8057,13 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const targetPosition = new THREE.Vector3(player.position.x, player.position.y, player.position.z);
     const targetQuaternion = new THREE.Quaternion().setFromEuler(remoteEuler);
     const plane = createAirplane(player.aircraftType, true);
-    if (player.rearGuardEscort) applyRearGuardEscortPaint(plane);
+    if (player.rearGuardEscort) applyRearGuardEscortPaint(plane, journeyDallas08.escortScale);
     else if (player.equippedCosmetics) applyEquippedLivery(plane, player.aircraftType, player.equippedCosmetics);
     const ownershipColors = ownedTerritoriesForPlayer(player.playerId).map(({ color }) => color);
     const ownershipAccent = ownershipColors[0];
     const identityTag = createPlayerIdentityTag(player.displayName ?? 'PLAYER', player.aircraftType, player.playerId === kingPlayerId, Boolean(player.isBot), ownershipColors);
     const hullTag = createRemoteHullTag();
-    const targetBrackets = createTargetBrackets(Boolean(player.isBot));
+    const targetBrackets = createTargetBrackets(Boolean(player.isBot), Boolean(player.rearGuardEscort));
     const playerProxy = createRemotePlayerProxy(Boolean(player.isBot));
     plane.position.copy(targetPosition);
     plane.quaternion.copy(targetQuaternion);
@@ -8116,17 +8121,17 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const replacement = createAirplane(player.aircraftType, true);
     replacement.position.copy(remote.plane.position);
     replacement.quaternion.copy(remote.plane.quaternion);
-    remote.targetBrackets = createTargetBrackets(remote.isBot);
+    remote.targetBrackets = createTargetBrackets(remote.isBot, Boolean(player.rearGuardEscort));
     replacement.add(remote.targetBrackets);
     scene.add(replacement);
     remote.plane = replacement;
     remote.aircraftType = player.aircraftType;
-    if (player.rearGuardEscort) applyRearGuardEscortPaint(replacement);
+    if (player.rearGuardEscort) applyRearGuardEscortPaint(replacement, journeyDallas08.escortScale);
     else applyEquippedLivery(replacement, player.aircraftType, player.equippedCosmetics ?? remote.plane.userData.equippedCosmetics ?? {});
     refreshPlayerIdentityTag(remote);
   }
 
-  if (player.rearGuardEscort && !remote.plane.userData.rearGuardEscort) applyRearGuardEscortPaint(remote.plane);
+  if (player.rearGuardEscort && !remote.plane.userData.rearGuardEscort) applyRearGuardEscortPaint(remote.plane, journeyDallas08.escortScale);
   else if (!player.rearGuardEscort && player.equippedCosmetics && JSON.stringify(remote.plane.userData.equippedCosmetics) !== JSON.stringify(player.equippedCosmetics)) applyEquippedLivery(remote.plane, player.aircraftType, player.equippedCosmetics);
 
   if (player.displayName && player.displayName !== remote.displayName) {
@@ -8169,7 +8174,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     (remote.playerProxy.material as THREE.SpriteMaterial).color.set(visualLanguage[remote.isBot ? 'ai' : 'player'].color);
     remote.plane.remove(remote.targetBrackets);
     disposeTargetBrackets(remote.targetBrackets);
-    remote.targetBrackets = createTargetBrackets(remote.isBot);
+    remote.targetBrackets = createTargetBrackets(remote.isBot, Boolean(player.rearGuardEscort));
     remote.plane.add(remote.targetBrackets);
   }
   if (player.botPersonality) remote.botPersonality = player.botPersonality;
@@ -8358,7 +8363,8 @@ function updateRemotePlayers(delta: number): void {
         labelY >= 50 + halfLabelHeight && labelY <= window.innerHeight - halfLabelHeight - 4;
       (remote.identityTag.material as THREE.SpriteMaterial).opacity = targeted || missionTarget ? 1 : distance > 3_000 ? 0.82 : 0.94;
     }
-    remote.hullTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, 6.8);
+    remote.hullTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp,
+      remote.plane.userData.rearGuardEscort ? 2 * journeyDallas08.escortScale : 6.8);
     remote.hullTag.visible = identityVisible && (
       distance <= 320 || selectedCombatTarget?.remote === remote || performance.now() - remote.lastHitAt <= 2_000
     );

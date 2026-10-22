@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
-import { applyAircraftCosmetics } from '../../client/src/aircraft-cosmetics.js';
+import { applyAircraftCosmetics, applyRearGuardEscortPaint } from '../../client/src/aircraft-cosmetics.js';
 import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
+import { journeyDallas08 } from '../../shared/journey-mission.mjs';
 
 const expected = [
   ['bluejay-classic', 'LEGACY WHITE', 'trainer', 'credits', 750, 75, 0xf4f7fb, 0x3d7be0, 0x7fd8f6],
@@ -54,6 +55,21 @@ test('unpainted Mammoth and Nightowl render neutral internal finishes instead of
     applyAircraftCosmetics(root, aircraft, {});
     assert.equal(root.material.color.getHex(), expectedBase);
   }
+});
+
+test('Rear Guard enlarges only its escort airframe and keeps its mission paint', () => {
+  const root = new THREE.Group();
+  const airframe = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial();
+  material.name = 'AC_LIVERY_BASE';
+  const body = new THREE.Mesh(new THREE.BoxGeometry(), material);
+  airframe.add(body);
+  root.add(airframe);
+  root.userData.airframeRoot = airframe;
+  applyRearGuardEscortPaint(root, journeyDallas08.escortScale);
+  assert.equal(root.scale.x, 1, 'remote position and UI anchors keep their world scale');
+  assert.equal(airframe.scale.x, journeyDallas08.escortScale);
+  assert.equal(body.material.color.getHex(), 0xe53935);
 });
 
 test('Garage is aircraft-filtered and multiplayer reuses the same equipped cosmetic payload', () => {

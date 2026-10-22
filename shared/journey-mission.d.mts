@@ -44,7 +44,7 @@ export const journeyDallas07: Readonly<{
 export const journeyDallas08: Readonly<{
   id: 'journey-dallas-08'; cityId: 'dallas'; name: 'REAR GUARD'; chapter: 'SKY ADVENTURES';
   firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 300000; bossHealth: 2000;
-  escortHealth: 100; escortCount: 2; escortFireDelayMs: 5000;
+  escortHealth: 100; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
   escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 10; followMs: 15000;
   minDistance: 80; maxDistance: 450; maxTailAngle: number;
   maxHeadingDifference: number; maxAltitudeDifference: 100;

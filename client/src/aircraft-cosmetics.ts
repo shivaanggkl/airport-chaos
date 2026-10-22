@@ -58,7 +58,11 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
   if (visuals?.boostMaterial) visuals.boostMaterial.color.setHex(type === 'fighter' ? 0xff4d1f : type === 'trainer' ? 0xd8f4ff : 0x9eeaff);
 }
 
-export function applyRearGuardEscortPaint(root: THREE.Object3D): void {
+export function applyRearGuardEscortPaint(root: THREE.Object3D, scale: number): void {
   root.userData.rearGuardEscort = true;
+  // Scale only this mission's visual root; keep the remote transform and HUD
+  // markers at their authoritative world positions.
+  const airframeRoot = root.userData.airframeRoot as THREE.Object3D | undefined;
+  airframeRoot?.scale.setScalar(scale);
   applyAircraftCosmetics(root, 'fighter', {});
 }

@@ -41,7 +41,7 @@ import { dallasDisplayNames as place } from '../../shared/dallas-display-names.m
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, ballisticInterceptDirection, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -4330,7 +4330,8 @@ function sweptProjectileHit(
   end: Vector3,
   deltaSeconds: number,
 ): boolean {
-  const hitRadius = aircraftHitRadii[player.aircraftType] * projectileHitRadiusMultiplier + projectileVisualRadius;
+  const visualScale = player.bot?.journeyRearGuardEscort ? journeyDallas08.escortScale : 1;
+  const hitRadius = aircraftHitRadii[player.aircraftType] * visualScale * projectileHitRadiusMultiplier + projectileVisualRadius;
   // The stored transform is the target's end-of-tick position. Rewind it to
   // the segment start before testing relative swept motion; otherwise fast
   // targets are offset by an extra tick of travel and clean shots can miss.
@@ -4583,7 +4584,7 @@ function validatedShotAim(player: PlayerState, reference: unknown, now: number):
   return interpolateAim(from, to, ref.blend!, neutral);
 }
 
-function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }, damageOverride?: number): boolean {
+function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }, damageOverride?: number, lockedTargetId?: string): boolean {
   const now = Date.now();
   if (
     !canFire(player, now) ||
@@ -4595,9 +4596,14 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
 
   const transform = fireTransform ?? player;
   const muzzle = muzzleTransform(transform);
-  const direction = normalize(rotateLocalYxz({ x: aim.x, y: aim.y, z: -1 }, transform.rotation));
   const privateId=playerJourneyAttempts.get(playerId);
   const privateAttempt=privateId?journeyStore.get(player.pilotId,privateId):undefined;
+  const lockedEscort = lockedTargetId && privateAttempt?.missionId === journeyDallas08.id && privateAttempt.status === 'RACING'
+    ? currentLockedTarget(playerId, player, lockedTargetId, now, transform) : undefined;
+  const lead = lockedEscort?.bot?.journeyRearGuardEscort && lockedEscort.bot.journeyAttemptId === privateId &&
+    lockedEscort.bot.journeyTargetPlayerId === playerId
+    ? ballisticInterceptDirection(muzzle.position, player.velocity, lockedEscort.position, lockedEscort.velocity) : null;
+  const direction = lead ?? normalize(rotateLocalYxz({ x: aim.x, y: aim.y, z: -1 }, transform.rotation));
   const projectile: ProjectileState = {
     projectileId: randomUUID(),
     ownerId: playerId,
@@ -7831,7 +7837,7 @@ server.on('connection', (socket, request) => {
           );
         }
         if (!assisted) {
-          if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
+          if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim, undefined, requestedTargetId)) {
             logFireBlocked(playerId, projectiles.size >= maxProjectiles ? 'projectile_cap' : 'invalid_state', now);
           } else {
             const lockedTarget = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);

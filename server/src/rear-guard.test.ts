@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { journeyDallas07, journeyDallas08 } from '../../shared/journey-mission.mjs';
 import { transportCourse, transportPose, transportRouteLength } from '../../shared/giant-incoming.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
+import { ballisticInterceptDirection, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
@@ -44,6 +45,25 @@ test('escort bursts wait for takeoff, alternate, space shots, and never speed up
   rearGuardShotResolved(fire, 27_250);
   assert.equal(rearGuardShooter(fire, 32_999, [false, true]), null);
   assert.equal(rearGuardShooter(fire, 33_000, [false, true]), 2);
+});
+
+test('a locked Mission 8 escort can be hit by a traveling, led bullet', () => {
+  const muzzle = { x: 0, y: 900, z: 0 };
+  const shooterVelocity = { x: 0, y: 0, z: -300 };
+  const target = { x: 0, y: 900, z: -900 };
+  const targetVelocity = { x: 230, y: 0, z: 0 };
+  const lead = ballisticInterceptDirection(muzzle, shooterVelocity, target, targetVelocity);
+  assert.ok(lead && lead.x > 0);
+  const speed = ballisticShotSpeed(shooterVelocity, lead);
+  const flightSeconds = (target.z - muzzle.z) / (lead.z * speed);
+  const bulletX = muzzle.x + lead.x * speed * flightSeconds;
+  const escortX = target.x + targetVelocity.x * flightSeconds;
+  assert.ok(Math.abs(bulletX - escortX) < 5, 'ballistic round crosses the moving escort');
+  assert.ok(escortX > 200, 'shooting at its old position would miss');
+  assert.equal(ballisticInterceptDirection(muzzle, { x: 0, y: 0, z: 0 },
+    { x: 0, y: 900, z: -900 }, { x: 0, y: 0, z: -1_000 }), null);
+  assert.equal(ballisticInterceptDirection(muzzle, shooterVelocity,
+    { x: 0, y: 900, z: -4_600 }, { x: 0, y: 0, z: 0 }), null);
 });
 
 test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and first reward are authoritative', () => {
