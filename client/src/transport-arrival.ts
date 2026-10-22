@@ -25,7 +25,7 @@ export class TransportArrivalSequence {
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
     this.alert.innerHTML=escorts.length
-      ? `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'REINFORCEMENTS' ? 'REINFORCEMENTS' : 'REAR GUARD'}</strong><p>Destroy the transport to win. Escorts are optional.</p>`
+      ? `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'CROSSFIRE' ? 'CROSSFIRE' : missionName === 'REINFORCEMENTS' ? 'REINFORCEMENTS' : 'REAR GUARD'}</strong><p>Destroy the ${missionName === 'CROSSFIRE' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
       : '<span>⚠ DALLAS ALERT</span><strong>GIANT INCOMING</strong><p>Destroy the transport before it escapes.</p>';
     document.body.append(this.alert);
     this.scene.add(...escorts);

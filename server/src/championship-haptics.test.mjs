@@ -29,17 +29,12 @@ test('Gate 6 is a checkpoint and verified landing alone emits victory feedback',
   assert.deepEqual(events, ['checkpoint', 'missionSuccess']);
 });
 
-test('Skyline Slalom confirms Gates 1–4 once and reserves victory feedback for Gate 5', () => {
+test('Crossfire celebrates the gunship defeat without gate feedback', () => {
   const events = [];
   const manager = { emit(event) { events.push(event); } };
-  let previous = { attemptId: 'slalom', missionId: 'journey-dallas-10', status: 'APPROACH', gateIndex: 0 };
-  for (let gateIndex = 1; gateIndex <= 4; gateIndex += 1) {
-    const next = { ...previous, status: 'RACING', gateIndex };
-    emitConfirmedJourneyFeedback(manager, previous, next);
-    previous = next;
-  }
-  emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED', gateIndex: 5 });
-  assert.deepEqual(events, ['checkpoint', 'checkpoint', 'checkpoint', 'checkpoint', 'missionSuccess']);
+  const previous = { attemptId: 'crossfire', missionId: 'journey-dallas-10', status: 'RACING', gateIndex: 0 };
+  emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED' });
+  assert.deepEqual(events, ['missionSuccess']);
 });
 
 test('Gravity Drop confirms Gates 1–4 once and reserves victory feedback for Gate 5', () => {

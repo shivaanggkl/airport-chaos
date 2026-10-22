@@ -44,6 +44,7 @@ export class GiantIncomingView {
         yaw: THREE.Object3D;
         pitch: THREE.Object3D;
     }[] = [];
+    private sideGuns: { yaw: THREE.Object3D; pitch: THREE.Object3D; muzzle: THREE.Object3D }[][] = [];
     private tracerGeometry = new THREE.CylinderGeometry(.55, .55, 17, 5);
     private tracerMaterial = new THREE.MeshBasicMaterial({ color: 0xffd15a, toneMapped: false });
     private tracers = Array.from({ length: 9 }, () => new THREE.Mesh(this.tracerGeometry, this.tracerMaterial));
@@ -63,7 +64,8 @@ export class GiantIncomingView {
     onHit?: () => void;
     onWarning?: () => void;
     private wasWarning = false;
-    constructor(private scene: THREE.Scene, private readonly terrain:(x:number,z:number)=>number = ()=>0) {
+    constructor(private scene: THREE.Scene, private readonly terrain:(x:number,z:number)=>number = ()=>0,
+        private readonly crossfire = false) {
         this.root.rotation.order = 'YXZ';
         this.root.name = 'mission-07-transport';
         this.root.scale.setScalar(transportTuning.scale);
@@ -84,6 +86,17 @@ export class GiantIncomingView {
                 this.root.add(level);
                 this.fans.push([0, 1, 2, 3].map(i => level.getObjectByName(`EngineFan_${i}`)!));
                 this.guns.push({ yaw: level.getObjectByName('RearGunYaw')!, pitch: level.getObjectByName('RearGunPitch')! });
+                if (this.crossfire) {
+                    const original = level.getObjectByName('RearGunYaw')!;
+                    this.sideGuns.push(([-1, 1] as const).map(side => {
+                        const yaw = original.clone(true);
+                        yaw.name = side < 0 ? 'LeftGunYaw' : 'RightGunYaw';
+                        yaw.position.set(side * 11, 4.699999809265137, 0);
+                        yaw.rotation.y = side * Math.PI / 2;
+                        level.add(yaw);
+                        return { yaw, pitch: yaw.getObjectByName('RearGunPitch')!, muzzle: yaw.getObjectByName('RearGunMuzzle')! };
+                    }));
+                }
             }
             if (this.disposed || results.some(r => r.status === 'rejected')) {
                 this.releaseModels();
@@ -158,15 +171,21 @@ export class GiantIncomingView {
             this.levels.forEach((l, i) => l.visible = i === lod);
             for (const fan of this.fans[lod]!)
                 fan.rotation.z += delta * 8;
-            this.guns[lod]!.yaw.rotation.y = s.gunYaw;
-            this.guns[lod]!.pitch.rotation.x = -s.gunPitch;
-            const warning = !this.final && s.warningUntil > s.serverNow;
+            this.guns[lod]!.yaw.rotation.y = s.crossfireGuns?.[0]?.yaw ?? s.gunYaw;
+            this.guns[lod]!.pitch.rotation.x = -(s.crossfireGuns?.[0]?.pitch ?? s.gunPitch);
+            for (let side = 0; side < (this.sideGuns[lod]?.length ?? 0); side++) {
+                const gun = this.sideGuns[lod]![side]!, state = s.crossfireGuns?.[side + 1];
+                gun.yaw.rotation.y = (side === 0 ? -1 : 1) * Math.PI / 2 + (state?.yaw ?? 0);
+                gun.pitch.rotation.x = -(state?.pitch ?? 0);
+            }
+            const warningGun = s.activeGun ?? 0;
+            const warning = !this.final && (s.crossfireGuns?.[warningGun]?.warningUntil ?? s.warningUntil) > s.serverNow;
             if (warning && !this.wasWarning)
                 this.onWarning?.();
             this.wasWarning = warning;
             this.warning.visible = warning;
             this.root.updateMatrixWorld(true);
-            this.levels[lod]!.getObjectByName('RearGunMuzzle')!.getWorldPosition(this.warning.position);
+            (warningGun ? this.sideGuns[lod]?.[warningGun - 1]?.muzzle : this.levels[lod]!.getObjectByName('RearGunMuzzle'))?.getWorldPosition(this.warning.position);
             this.warning.scale.setScalar(1 + Math.sin(this.elapsed * 16) * .2);
             this.tracers.forEach((t, i) => { const shot = s.shots[i]; t.visible = !!shot && !this.final; if (!shot)
                 return; t.position.set(shot.position.x + shot.direction.x * shot.speed * ahead, shot.position.y + shot.direction.y * shot.speed * ahead, shot.position.z + shot.direction.z * shot.speed * ahead); this.direction.set(shot.direction.x, shot.direction.y, shot.direction.z); t.quaternion.setFromUnitVectors(this.up, this.direction); });

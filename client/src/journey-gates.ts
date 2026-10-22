@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas16, journeyDallas20, journeyDallas22, journeyDallas24 } from '../../shared/journey-mission.mjs';
 
 const goldenRace = (id: string): boolean => id === journeyDallas01.id || id === journeyDallas02.id || id === journeyDallas03.id || id === journeyDallas04.id || id === journeyDallas05.id || id === journeyDallas06.id;
 
@@ -31,7 +31,7 @@ export class JourneyGateSystem {
   private previewIndex: number | null = null;
 
   constructor(private readonly scene: THREE.Scene, private readonly heightAt: (x: number, z: number) => number,
-    private readonly mission: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
+    private readonly mission: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas11 | typeof journeyDallas12 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24 = journeyDallas01) {
     for (const [index, gate] of mission.gates.entries()) {
       const group = new THREE.Group();
       group.name = `${mission.id}-gate-${index + 1}`;
@@ -47,7 +47,7 @@ export class JourneyGateSystem {
       const rookie = goldenRace(mission.id);
       const slalom = mission.id === journeyDallas04.id;
       const rim = new THREE.Mesh(rookie && !slalom ? rookieRingShape : ringShape, slalom ? slalomGold : rookie ? rookieGold : cyan);
-      const core = new THREE.Mesh(mission.id === journeyDallas10.id || mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, slalom ? slalomInner : rookie ? rookieInner : ice);
+      const core = new THREE.Mesh(mission.id === journeyDallas11.id || mission.id === journeyDallas12.id || mission.id === journeyDallas13.id || mission.id === journeyDallas16.id || mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id ? precisionOpeningShape : innerShape, slalom ? slalomInner : rookie ? rookieInner : ice);
       const accent = new THREE.Mesh(accentShape, slalom ? slalomAccent : rookie ? rookieAmber : gold);
       accent.rotation.z = -.3;
       if (slalom) accent.scale.setScalar(.98); // Keep the solid highlight inside the accepted outer rim.
@@ -99,8 +99,8 @@ export class JourneyGateSystem {
           .15 + .045 * Math.sin(this.phase * 2.5);
       current.children[2]!.rotation.z = this.phase * .65;
     }
-    if (this.active && current && !goldenRace(this.mission.id) && this.mission.id !== journeyDallas10.id && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
-    if (this.active && current && (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id))
+    if (this.active && current && !goldenRace(this.mission.id) && this.mission.id !== journeyDallas11.id && this.mission.id !== journeyDallas12.id && this.mission.id !== journeyDallas13.id && this.mission.id !== journeyDallas16.id && this.mission.id !== journeyDallas20.id && this.mission.id !== journeyDallas22.id) current.scale.setScalar(this.mission.gates[this.current]!.radius * (1 + .025 * Math.sin(this.phase * 2.5)));
+    if (this.active && current && (this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id))
       current.children[2]!.scale.setScalar(1 + .025 * Math.sin(this.phase * 2.5));
     if (this.flashTime > 0) {
       this.flashTime = Math.max(0, this.flashTime - delta);
@@ -117,7 +117,7 @@ export class JourneyGateSystem {
   private refresh(): void {
     this.gates.forEach((group, index) => {
       group.visible = this.previewAll || this.previewIndex !== null && (this.mission.id === journeyDallas04.id || this.mission.id === journeyDallas05.id) || (this.active && (index === this.current || this.mission.id !== journeyDallas04.id && index === this.current + 1 ||
-        (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
+        (this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) && index > this.current)) ||
         (index === this.flashIndex && this.flashTime > 0);
       if (goldenRace(this.mission.id)) {
         const active = index === (this.previewIndex ?? this.current);
@@ -134,8 +134,8 @@ export class JourneyGateSystem {
           ? part === 2 ? gold : part === 1 ? ice : cyan
           : ice;
       });
-      if (this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) group.children[2]!.scale.setScalar(this.mission.id === journeyDallas12.id && index === 2 ? 1.2 : 1);
-      if (index !== this.current || this.mission.id === journeyDallas10.id || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id)
+      if (this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id) group.children[2]!.scale.setScalar(this.mission.id === journeyDallas12.id && index === 2 ? 1.2 : 1);
+      if (index !== this.current || this.mission.id === journeyDallas11.id || this.mission.id === journeyDallas12.id || this.mission.id === journeyDallas13.id || this.mission.id === journeyDallas16.id || this.mission.id === journeyDallas20.id || this.mission.id === journeyDallas22.id || this.mission.id === journeyDallas24.id)
         group.scale.setScalar(this.mission.gates[index]!.radius * (index === this.current ? 1 : .82));
     });
   }

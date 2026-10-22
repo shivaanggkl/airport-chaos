@@ -1,6 +1,6 @@
-import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
+import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
 
-type EscortMission = typeof journeyDallas08 | typeof journeyDallas09;
+type EscortMission = typeof journeyDallas08 | typeof journeyDallas09 | typeof journeyDallas10;
 
 export type RearGuardFireState = {
   tookOffAt: number | null;
@@ -55,7 +55,7 @@ export function rearGuardShooter(state: RearGuardFireState, now: number, alive: 
       alive[ordinal - 1] && now >= (state.eligibleAfter[ordinal - 1] ?? 0)) ?? null;
     const interval = state.mission === journeyDallas09 && state.waveCombatAt !== null && now >= state.waveCombatAt
       ? journeyDallas09.escortBurstIntervalMs : state.mission === journeyDallas09
-        ? journeyDallas09.initialEscortBurstIntervalMs : journeyDallas08.escortBurstIntervalMs;
+        ? journeyDallas09.initialEscortBurstIntervalMs : state.mission.escortBurstIntervalMs;
     state.nextBurstAt = now + interval;
     if (selected === null) return null;
     state.activeOrdinal = selected;

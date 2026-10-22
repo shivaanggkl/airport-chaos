@@ -46,6 +46,8 @@ export type TransportStateMessage = {
     gunYaw: number;
     gunPitch: number;
     warningUntil: number;
+    crossfireGuns?: readonly { yaw: number; pitch: number; warningUntil: number }[];
+    activeGun?: number | null;
     hitSequence: number;
     hitPosition?: TransportPoint;
     health: number;

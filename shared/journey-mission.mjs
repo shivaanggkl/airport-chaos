@@ -165,19 +165,18 @@ export const journeyDallas09 = Object.freeze({
   initialEscortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
 });
 
-// A broad, low-variation S course west of the authored downtown skyline.
-// Shared by rendering and server swept-crossing validation.
 export const journeyDallas10 = Object.freeze({
-  id: 'journey-dallas-10', cityId: 'dallas', name: 'SKYLINE SLALOM',
-  chapter: 'SKY ADVENTURES', timeLimitMs: 85_000, firstClearCredits: 1_150,
-  startAirportId: 'love',
-  gates: Object.freeze([
-    { x: -4_400, z: -3_300, altitude: 390, radius: 100 },
-    { x: -2_800, z: -1_700, altitude: 400, radius: 100 },
-    { x: -4_400, z: -100, altitude: 410, radius: 100 },
-    { x: -2_800, z: 1_500, altitude: 400, radius: 100 },
-    { x: -4_400, z: 3_100, altitude: 410, radius: 100 },
-  ]),
+  id: 'journey-dallas-10', cityId: 'dallas', name: 'CROSSFIRE',
+  chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_150,
+  startAirportId: 'dfw', bossHealth: transportTuning.health,
+  escortCount: 2, escortScale: remoteAircraftScale,
+  escortHealth: Object.freeze([175, 225]),
+  escortAircraft: Object.freeze(['privateJet', 'fighter']),
+  escortLiveries: Object.freeze(['nightowl-forest', 'firehawk-inferno']),
+  escortFireDelayMs: 5_000, escortBurstIntervalMs: 6_000,
+  escortShotSpacingMs: 250, escortShotDamage: 10,
+  gunBurstIntervalMs: 3_000, gunWarningMs: 1_000,
+  gunShotSpacingMs: 250, gunShotDamage: 10,
 });
 
 // A straight, obstacle-clear corridor west of Downtown. The first four

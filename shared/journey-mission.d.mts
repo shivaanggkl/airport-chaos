@@ -63,9 +63,15 @@ export const journeyDallas09: Readonly<{
   escortShotSpacingMs: 250; escortShotDamage: 10;
 }>;
 export const journeyDallas10: Readonly<{
-  id: 'journey-dallas-10'; cityId: 'dallas'; name: 'SKYLINE SLALOM'; chapter: 'SKY ADVENTURES';
-  timeLimitMs: 85000; firstClearCredits: 1150; startAirportId: 'love';
-  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+  id: 'journey-dallas-10'; cityId: 'dallas'; name: 'CROSSFIRE'; chapter: 'SKY ADVENTURES';
+  timeLimitMs: 330000; firstClearCredits: 1150; startAirportId: 'dfw'; bossHealth: 2000;
+  escortCount: 2; escortScale: 16; escortHealth: readonly [175, 225];
+  escortAircraft: readonly ['privateJet', 'fighter'];
+  escortLiveries: readonly ['nightowl-forest', 'firehawk-inferno'];
+  escortFireDelayMs: 5000; escortBurstIntervalMs: 6000;
+  escortShotSpacingMs: 250; escortShotDamage: 10;
+  gunBurstIntervalMs: 3000; gunWarningMs: 1000;
+  gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas11: Readonly<{
   id: 'journey-dallas-11'; cityId: 'dallas'; name: 'GRAVITY DROP'; chapter: 'SKY ADVENTURES';

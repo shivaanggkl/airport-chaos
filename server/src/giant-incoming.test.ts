@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { transportPose, transportSpawn, transportTuning, transportRouteLength, transportCourse, transportFootprintRadius } from '../../shared/giant-incoming.mjs';
 import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { journeyDallas07, journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
+import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
 import { indexBuildingsForOcclusion, segmentBlockedByBuildings } from './monster-arrival.js';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 test('larger, slower transport crosses White Rock and fails only after its full city exit', () => {
@@ -40,8 +40,8 @@ test('warning precedes three ballistic releases and articulation stays bounded',
     assert.ok(Math.abs(e.gunPitch) <= transportTuning.pitchArc);
 } assert.equal(firstWarning, 2000); assert.equal(e.shots.length, 3); assert.ok(e.shots.every(s => s.speed === 520)); });
 test('exported triangle collision excludes empty bounding-box space and detects swept fuselage', () => { const p = { ...transportPose(0), x: 0, y: 0, z: 0, yaw: 0 }; assert.ok(transportImpact({ x: 0, y: 40, z: 480 }, { x: 0, y: 40, z: -480 }, p, p)); assert.equal(transportImpact({ x: 376, y: 180, z: 480 }, { x: 376, y: 180, z: -480 }, p, p), undefined); const after = { ...p, x: 50 }; assert.ok(transportImpact({ x: 0, y: 40, z: 480 }, { x: 50, y: 40, z: -480 }, p, after)); });
-test('Mission 7, 8 and 9 player bullets keep traveling until they hit the moving transport', () => {
-    for (const mission of [journeyDallas07, journeyDallas08, journeyDallas09]) {
+test('Mission 7–10 player bullets keep traveling until they hit the moving transport', () => {
+    for (const mission of [journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10]) {
         let elapsed = mission.timeLimitMs * .4;
         const pose = transportPose(elapsed, 900, mission.timeLimitMs);
         const rear = { x: Math.sin(pose.yaw), z: Math.cos(pose.yaw) };
@@ -63,7 +63,7 @@ test('Mission 7, 8 and 9 player bullets keep traveling until they hit the moving
         assert.equal(hit, true, `${mission.name} shot must reach the transport`);
         assert.equal(transportProjectileDisposition(mission.id, 10, true), 'remove');
         assert.equal(transportProjectileDisposition(mission.id, COMBAT_RANGE, false), 'remove');
-        assert.equal(transportProjectileDisposition(mission.id, 10, false), mission === journeyDallas08 || mission === journeyDallas09 ? 'escort' : 'continue');
+        assert.equal(transportProjectileDisposition(mission.id, 10, false), mission === journeyDallas07 ? 'continue' : 'escort');
     }
 });
 test('authoritative mapped building envelope sets cruise clearance', () => { assert.equal(transportAltitude([{ minX: 5100, maxX: 5300, minZ: -8600, maxZ: -8400, top: 1100 }], () => 100), 1100 + 250 + 4.41283 * transportTuning.scale); const mapped = loadTransportBuildings(); assert.ok(mapped.length > 10000); assert.ok(transportAltitude(mapped, () => 0) >= 900); });
