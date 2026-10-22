@@ -67,7 +67,7 @@ export class JourneyGateSystem {
   setProgress(gatesPassed: number, active: boolean): void {
     const next = Math.max(0, Math.min(this.mission.gates.length, gatesPassed));
     if (goldenRace(this.mission.id) && next === 0) { this.flashIndex = -1; this.flashTime = 0; }
-    if (next > this.current) { this.flashIndex = this.mission.id === journeyDallas04.id ? -1 : this.current; this.flashTime = .5; }
+    if (next > this.current) { this.flashIndex = this.current; this.flashTime = .5; }
     this.current = next;
     this.active = active;
     this.refresh();

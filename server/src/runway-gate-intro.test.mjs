@@ -8,7 +8,7 @@ import { MissionThreeIntroPath, MISSION_THREE_INTRO_DURATION_MS, MISSION_THREE_I
 import { MissionFourIntroPath, MISSION_FOUR_INTRO_DURATION_MS, MISSION_FOUR_INTRO_SWEEP_MS } from '../../client/src/mission-four-intro.ts';
 import { MissionFiveIntroPath, MISSION_FIVE_INTRO_DURATION_MS, MISSION_FIVE_INTRO_SWEEP_MS } from '../../client/src/mission-five-intro.ts';
 import { MissionSixIntroPath, MISSION_SIX_INTRO_DURATION_MS, MISSION_SIX_INTRO_SWEEP_MS } from '../../client/src/mission-six-intro.ts';
-import { journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06 } from '../../shared/journey-mission.mjs';
 
 for (const [missionNumber, IntroPath, sweepMs, durationMs, gates] of [
   [2, MissionTwoIntroPath, MISSION_TWO_INTRO_SWEEP_MS, MISSION_TWO_INTRO_DURATION_MS, journeyDallas02.gates],
@@ -44,7 +44,7 @@ for (const [missionNumber, IntroPath, sweepMs, durationMs, gates] of [
   assert.equal(intro.fov(3_500, 70), 63);
 });
 
-for (const mission of [journeyDallas04, journeyDallas05, journeyDallas06]) test(`${mission.name} shows all gates during the shared cinematic`, () => {
+for (const mission of [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06]) test(`${mission.name} shows all gates during the shared cinematic`, () => {
   const scene = new THREE.Scene();
   const gates = new JourneyGateSystem(scene, () => 0, mission);
   gates.setProgress(0, true);
@@ -52,5 +52,8 @@ for (const mission of [journeyDallas04, journeyDallas05, journeyDallas06]) test(
   assert.equal(scene.children.filter(gate => gate.visible).length, mission.gates.length);
   gates.setCoursePreview(false);
   assert.equal(scene.children.filter(gate => gate.visible).length, mission === journeyDallas04 ? 1 : 2);
+  gates.setProgress(1, true);
+  gates.update(.05);
+  assert.equal(scene.children[0].children[3].visible, true, 'passing the first gate flashes its ring');
   gates.dispose();
 });

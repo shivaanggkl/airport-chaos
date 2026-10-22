@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { emitConfirmedJourneyFeedback } from '../../client/src/haptics-manager.ts';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06 } from '../../shared/journey-mission.mjs';
+
+for (const mission of [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06]) {
+  test(`${mission.name} confirms every gate, including the later gates`, () => {
+    const events = [];
+    const manager = { emit(event) { events.push(event); } };
+    let previous = { attemptId: mission.id, missionId: mission.id, status: 'APPROACH', gateIndex: 0 };
+    for (let gateIndex = 1; gateIndex < mission.gates.length; gateIndex += 1) {
+      const next = { ...previous, status: 'RACING', gateIndex };
+      emitConfirmedJourneyFeedback(manager, previous, next);
+      previous = next;
+    }
+    emitConfirmedJourneyFeedback(manager, previous, { ...previous, status: 'COMPLETED', gateIndex: mission.gates.length });
+    assert.deepEqual(events, [...Array(mission.gates.length - 1).fill('checkpoint'), 'missionSuccess']);
+  });
+}
 
 test('Gate 6 is a checkpoint and verified landing alone emits victory feedback', () => {
   const events = [];

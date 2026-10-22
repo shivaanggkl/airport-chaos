@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 const RUNWAY_SHOT_MS = 1_500;
 const RUNWAY_DEPARTURE_MS = 2_000;
-const GATE_SWEEP_MS = 10_000;
+// Give each of the ten gates time on screen, including the return leg of the course.
+const GATE_SWEEP_MS = 15_000;
 export const MISSION_ONE_INTRO_SWEEP_MS = RUNWAY_SHOT_MS + RUNWAY_DEPARTURE_MS + GATE_SWEEP_MS;
 export const MISSION_ONE_INTRO_DURATION_MS = MISSION_ONE_INTRO_SWEEP_MS + 1_000;
 

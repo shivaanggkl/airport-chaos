@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06 } from '../../shared/journey-mission.mjs';
 
 export type HapticEvent = 'selection' | 'confirmation' | 'checkpoint' | 'rewardSuccess' | 'missionSuccess' | 'combatSuccess' | 'damage' | 'destruction' | 'failure';
 
@@ -71,6 +72,9 @@ export class HapticsManager {
 export const hapticsManager = new HapticsManager();
 
 type JourneyFeedbackState = { attemptId: string; missionId?: string; status: string; gateIndex: number };
+const goldenGateCounts = new Map<string, number>([
+  journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
+].map(mission => [mission.id, mission.gates.length]));
 
 export function emitConfirmedJourneyFeedback(manager: HapticsManager, previous: JourneyFeedbackState | null, current: JourneyFeedbackState): void {
   if (!previous || previous.attemptId !== current.attemptId) return;
@@ -82,8 +86,12 @@ export function emitConfirmedJourneyFeedback(manager: HapticsManager, previous: 
     manager.emit('failure', current.attemptId);
     return;
   }
+  const goldenGateCount = goldenGateCounts.get(current.missionId ?? '');
   if (current.gateIndex > previous.gateIndex &&
-    (current.missionId === 'journey-dallas-01' || current.missionId === 'journey-dallas-03' || current.missionId === 'journey-dallas-04' ? current.gateIndex < 10 : current.missionId === 'journey-dallas-06' ? current.gateIndex <= 6 : current.missionId === 'journey-dallas-12' || current.missionId === 'journey-dallas-20' ? current.gateIndex < 6 : current.missionId === 'journey-dallas-10' || current.missionId === 'journey-dallas-11' || current.missionId === 'journey-dallas-13' ? current.gateIndex < 5 : current.gateIndex < 4)) {
+    (goldenGateCount !== undefined ? current.gateIndex < goldenGateCount
+      : current.missionId === 'journey-dallas-12' || current.missionId === 'journey-dallas-20' ? current.gateIndex < 6
+      : current.missionId === 'journey-dallas-10' || current.missionId === 'journey-dallas-11' || current.missionId === 'journey-dallas-13' ? current.gateIndex < 5
+      : current.gateIndex < 4)) {
     manager.emit('checkpoint', `${current.attemptId}:${current.gateIndex}`);
   }
 }
