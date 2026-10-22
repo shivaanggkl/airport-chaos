@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { journeyDallas08 } from '../../shared/journey-mission.mjs';
 import { segmentBlockedByBuildings, indexBuildingsForOcclusion } from './monster-arrival.js';
 type Building = {
     minX: number;
@@ -140,6 +141,12 @@ export function transportImpact(a:Point,b:Point,before:TransportPose,after:Trans
 }
 /** A bullet may leave its own barrel, but never traverse the aircraft hull. */
 export function transportHullImpact(a:Point,b:Point,pose:TransportPose):boolean {return Number.isFinite(impactFraction(local(a,pose),local(b,pose),bodyTree));}
+
+/** Keep player shots in flight until impact, obstruction, or the shared range limit. */
+export function transportProjectileDisposition(missionId: string, traveled: number, blocked: boolean): 'remove' | 'continue' | 'escort' {
+    if (traveled >= COMBAT_RANGE || blocked) return 'remove';
+    return missionId === journeyDallas08.id ? 'escort' : 'continue';
+}
 
 export type TransportShot = {
     id: string;

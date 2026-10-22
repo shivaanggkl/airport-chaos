@@ -1,5 +1,5 @@
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
-import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
+import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -5192,13 +5192,17 @@ function updateProjectiles(deltaSeconds: number): void {
       continue;
     }
 
-    if(missionAttemptId && (journeyStore.get(owner.pilotId,missionAttemptId)?.missionId===journeyDallas07.id || journeyStore.get(owner.pilotId,missionAttemptId)?.missionId===journeyDallas08.id)){
+    const missionAttempt = missionAttemptId ? journeyStore.get(owner.pilotId, missionAttemptId) : undefined;
+    const transportMissionId = missionAttempt?.missionId;
+    if (transportMissionId === journeyDallas07.id || transportMissionId === journeyDallas08.id) {
       const start={x:previousX,y:previousY,z:previousZ};
       if(applyTransportHit(projectile.ownerId,start,projectile.position,now,deltaSeconds,projectile.damage)) {removeProjectile(projectile.projectileId);continue;}
-      if(journeyStore.get(owner.pilotId,missionAttemptId)?.missionId===journeyDallas07.id || projectile.traveled>=COMBAT_RANGE||segmentBlockedByBuildings(start,projectile.position,transportBuildings)||projectile.position.y<=dallasTerrain.elevationAt(projectile.position.x,projectile.position.z)) {removeProjectile(projectile.projectileId);continue;}
-      continue;
-    }
-    if (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage) ||
+      const blocked = segmentBlockedByBuildings(start, projectile.position, transportBuildings) ||
+        projectile.position.y <= dallasTerrain.elevationAt(projectile.position.x, projectile.position.z);
+      const disposition = transportProjectileDisposition(transportMissionId, projectile.traveled, blocked);
+      if (disposition === 'remove') {removeProjectile(projectile.projectileId);continue;}
+      if (disposition === 'continue') continue;
+    } else if (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage) ||
       applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage)) {
       removeProjectile(projectile.projectileId);
       continue;
@@ -5210,6 +5214,7 @@ function updateProjectiles(deltaSeconds: number): void {
         playerId === projectile.ownerId ||
         player.entityType !== 'player' ||
         player.cityId !== projectile.cityId ||
+        (transportMissionId === journeyDallas08.id && (!player.bot?.journeyRearGuardEscort || player.bot.journeyAttemptId !== missionAttemptId)) ||
         !tutorialCombatPairAllowed(projectile.ownerId, owner, playerId, player) ||
         player.lifeState !== 'alive' ||
         playerJourneyRunwayPrep.has(playerId) ||
