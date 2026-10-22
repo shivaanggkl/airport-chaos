@@ -131,9 +131,12 @@ export const journeyDallas07 = Object.freeze({
 });
 
 export const journeyDallas08 = Object.freeze({
-  id: 'journey-dallas-08', cityId: 'dallas', name: 'STAY ON HIS SIX',
+  id: 'journey-dallas-08', cityId: 'dallas', name: 'REAR GUARD',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
-  startAirportId: 'love', followMs: 15_000,
+  startAirportId: 'dfw', timeLimitMs: 300_000, bossHealth: transportTuning.health,
+  escortHealth: 100, escortCount: 2, escortFireDelayMs: 5_000,
+  escortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
+  followMs: 15_000,
   minDistance: 80, maxDistance: 450, maxTailAngle: 40 * Math.PI / 180,
   maxHeadingDifference: 45 * Math.PI / 180, maxAltitudeDifference: 100,
   // Match the free Bluejay's MED throttle so pilots can hold formation

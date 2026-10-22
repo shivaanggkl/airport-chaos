@@ -244,11 +244,11 @@ export class AppShellHeader {
     this.avatarImage.src = avatarUrl;
   }
 
-  animateCreditsEarned(source: DOMRect, previousBalance: number, newBalance: number): void {
+  animateCreditsEarned(source: DOMRect, previousBalance: number, newBalance: number): number {
     this.stopCreditAnimation();
     const target = this.creditMark.getBoundingClientRect();
     if (newBalance <= previousBalance || this.element.hidden || document.hidden ||
-      source.width <= 0 || target.width <= 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      source.width <= 0 || target.width <= 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
     const startX = source.left + source.width / 2;
     const startY = source.top + source.height / 2;
     const endX = target.left + target.width / 2;
@@ -289,6 +289,7 @@ export class AppShellHeader {
       this.creditAnimationFrame = window.requestAnimationFrame(frame);
     };
     this.creditAnimationFrame = window.requestAnimationFrame(frame);
+    return flightDuration + countDuration + 100;
   }
 
   private stopCreditAnimation(): void {

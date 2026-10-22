@@ -22,11 +22,12 @@ export const transportTuning = Object.freeze({ scale, health: 2000,
     durationMs: Math.ceil(transportRouteLength / speed * 1000), speed,
     separation: 1200, warningMs: 1000, burstIntervalMs: 6000, shotSpacingMs: 250,
     shotDamage: 10, yawArc: 70 * Math.PI / 180, pitchArc: 45 * Math.PI / 180 });
-export function transportPose(elapsedMs, altitude = 900) {
-    const distance = Math.max(0, Math.min(transportRouteLength, elapsedMs / 1000 * speed));
+export function transportPose(elapsedMs, altitude = 900, durationMs = transportTuning.durationMs) {
+    const travelSpeed = durationMs === transportTuning.durationMs ? speed : transportRouteLength / (durationMs / 1000);
+    const distance = Math.max(0, Math.min(transportRouteLength, elapsedMs / 1000 * travelSpeed));
     return { x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,
         yaw: Math.atan2(-dx, -dz), roll: 0,
-        velocity: { x: dx / norm * speed, y: 0, z: dz / norm * speed } };
+        velocity: { x: dx / norm * travelSpeed, y: 0, z: dz / norm * travelSpeed } };
 }
 export function transportSpawn(groundHeight = 0) {
     const airport = cityAirports.dallas.find(a => a.id === 'dfw');

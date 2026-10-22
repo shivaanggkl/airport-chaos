@@ -345,8 +345,8 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas19.id || missionId === journeyDallas07.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(missionId === journeyDallas07.id ? journeyDallas07.bossHealth : journeyDallas19.bossHealth, attemptId);
+      if (missionId === journeyDallas19.id || missionId === journeyDallas07.id || missionId === journeyDallas08.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
+        .run(missionId === journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }
@@ -402,13 +402,25 @@ export class JourneyAttemptStore {
 
   /** Asset readiness is an owned lifecycle signal, never client progress. */
   startGiantIncoming(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
+    const current = this.get(pilotId, attemptId);
+    const mission = current?.missionId === journeyDallas08.id ? journeyDallas08 : journeyDallas07;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?, deadline_at = ?
       WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ? AND status = 'APPROACH'`)
-      .run(now, now + journeyDallas07.timeLimitMs, pilotId, attemptId, journeyDallas07.id).changes;
+      .run(now, now + mission.timeLimitMs, pilotId, attemptId, mission.id).changes;
     return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
   hitTransport(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
-    return this.hitEncounter(pilotId, attemptId, journeyDallas07, now, damage);
+    const mission = this.get(pilotId, attemptId)?.missionId === journeyDallas08.id ? journeyDallas08 : journeyDallas07;
+    return this.hitEncounter(pilotId, attemptId, mission, now, damage);
+  }
+
+  /** Assign each Rear Guard escort once; a destroyed escort is never replaced. */
+  assignRearGuardEscort(pilotId: string, attemptId: string, escortId: string, ordinal: 1 | 2): JourneyAttempt | undefined {
+    const column = ordinal === 1 ? 'target_id' : 'secondary_target_id';
+    const changed = this.database.prepare(`UPDATE journey_attempts SET ${column} = ? WHERE pilot_id = ?
+      AND attempt_id = ? AND mission_id = ? AND status = 'RACING' AND ${column} IS NULL`)
+      .run(escortId, pilotId, attemptId, journeyDallas08.id).changes;
+    return changed === 1 ? this.get(pilotId, attemptId) : undefined;
   }
 
   /** Only the server projectile simulation invokes this after a swept body hit. */

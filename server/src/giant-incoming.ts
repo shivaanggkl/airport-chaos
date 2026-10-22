@@ -153,6 +153,7 @@ export type TransportEncounter = {
     playerId: string;
     startedAt: number;
     altitude: number;
+    durationMs: number;
     lastTickAt: number;
     lastBroadcastAt: number;
     nextBurstAt: number;
@@ -166,7 +167,7 @@ export type TransportEncounter = {
     gunPitch: number;
     shots: TransportShot[];
 };
-export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number): TransportEncounter { return { attemptId, playerId, startedAt, altitude, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [] }; }
+export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number, durationMs = transportTuning.durationMs): TransportEncounter { return { attemptId, playerId, startedAt, altitude, durationMs, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [] }; }
 export function transportMuzzle(p: TransportPose, yaw = 0, pitch = 0): Point {
     const distance = 2.1299991607666016 * transportTuning.scale, x = Math.sin(yaw) * Math.cos(pitch) * distance, y = 4.699999809265137 * transportTuning.scale + Math.sin(pitch) * distance, z = 18.600000381469727 * transportTuning.scale + Math.cos(yaw) * Math.cos(pitch) * distance;
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll), lx = cr * x - sr * y, ly = sr * x + cr * y, c = Math.cos(p.yaw), s = Math.sin(p.yaw);
@@ -191,7 +192,7 @@ export function transportInterceptTime(offset: Point, velocity: Point, speed: nu
 export function stepTransportEncounter(e: TransportEncounter, target: Point, velocity: Point, buildings: readonly Building[], now: number) {
     const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
     e.lastTickAt = now;
-    const p = transportPose(now - e.startedAt, e.altitude), m = transportMuzzle(p, e.gunYaw, e.gunPitch), aim = transportAim(p, target);
+    const p = transportPose(now - e.startedAt, e.altitude, e.durationMs), m = transportMuzzle(p, e.gunYaw, e.gunPitch), aim = transportAim(p, target);
     const move = (current: number, goal: number) => current + Math.max(-dt * .8, Math.min(dt * .8, goal - current));
     e.gunYaw = move(e.gunYaw, Math.max(-transportTuning.yawArc, Math.min(transportTuning.yawArc, aim.yaw)));
     e.gunPitch = move(e.gunPitch, Math.max(-transportTuning.pitchArc, Math.min(transportTuning.pitchArc, aim.pitch)));

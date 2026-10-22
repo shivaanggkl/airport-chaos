@@ -19,7 +19,7 @@ const missionCards: readonly MissionCard[] = [
   { title: journeyDallas05.name, objective: 'Fly through 10 narrow gates before time runs out.', facts: [{ icon: 'location', label: 'TRINITY RIVER' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas05.firstClearCredits },
   { title: journeyDallas06.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'CENTRAL DALLAS' }, { icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas06.firstClearCredits },
   { title: journeyDallas07.name, objective: 'Shoot down the transport before it leaves Dallas.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: 'GIANT TRANSPORT' }, { icon: 'timer', label: `${Math.ceil(journeyDallas07.timeLimitMs / 1000)} SEC TO EXIT` }], reward: journeyDallas07.firstClearCredits },
-  { title: journeyDallas08.name, objective: 'Follow the plane from behind for 15 seconds.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: 'FOLLOW AI' }, { icon: 'timer', label: seconds(journeyDallas08.followMs) }], reward: journeyDallas08.firstClearCredits },
+  { title: journeyDallas08.name, objective: 'Destroy the transport before it escapes Dallas.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: '2 FIGHTER ESCORTS' }, { icon: 'timer', label: '5:00 TO ESCAPE' }], reward: journeyDallas08.firstClearCredits },
   { title: journeyDallas09.name, objective: 'Escape the Hunter and reach the Repair Heart.', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'health', label: '60% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }], reward: journeyDallas09.firstClearCredits },
   { title: journeyDallas10.name, objective: 'Fly through 5 zigzag gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 GATES' }, { icon: 'timer', label: seconds(journeyDallas10.timeLimitMs) }], reward: journeyDallas10.firstClearCredits },
   { title: journeyDallas11.name, objective: 'Dive through 4 gates, then climb through the last.', facts: [{ icon: 'location', label: 'HIGH-ALTITUDE START' }, { icon: 'gate', label: '5 GATES' }, { icon: 'timer', label: seconds(journeyDallas11.timeLimitMs) }], reward: journeyDallas11.firstClearCredits },
@@ -53,6 +53,7 @@ export class MissionJourney {
   private progressMarker: HTMLElement | null = null;
   private progressSegment: SVGPathElement | null = null;
   private progressAnimationFrame = 0;
+  private progressStartTimer = 0;
   private unlockTimer = 0;
   private progressingFrom: number | null = null;
   private currentMission = 0;
@@ -428,18 +429,25 @@ export class MissionJourney {
     this.select(Number(next.dataset.stage), true, true);
   }
 
-  celebrateCompletion(number: number): void {
+  celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
     if (!this.isOpen || !this.completedStages()[number - 1]) return;
     this.cancelProgressAnimation();
     const next = number + 1;
     if (this.currentMission !== next || !this.stageButtons[next - 1] || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       this.userSelectedStage = false;
+      this.select(number);
+      if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
       this.select(this.currentMission || number);
       return;
     }
 
     const segment = this.routeSegments.find(path => Number(path.dataset.from) === number);
-    if (!segment) { this.select(next); return; }
+    if (!segment) {
+      this.select(number);
+      if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
+      this.select(next);
+      return;
+    }
     const map = this.element.querySelector<HTMLElement>('.mission-journey-map')!;
     const marker = document.createElement('span');
     marker.className = 'mission-journey-progress-marker';
@@ -451,12 +459,16 @@ export class MissionJourney {
     this.element.classList.add('is-advancing');
     this.stageButtons[number - 1]?.classList.add('is-newly-completed');
     this.renderProgress();
+    const creditFlightMs = collectCredits?.(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect()) ?? 0;
 
     const length = segment.getTotalLength();
     this.progressSegment = segment;
     segment.classList.add('is-advancing');
     segment.style.strokeDasharray = String(length);
     segment.style.strokeDashoffset = String(length);
+    const startPoint = segment.getPointAtLength(0);
+    marker.style.left = `${startPoint.x}%`;
+    marker.style.top = `${startPoint.y}%`;
     const duration = number === 12 ? 1_900 : 1_250;
     let startedAt: number | null = null;
     const animate = (now: number): void => {
@@ -486,10 +498,17 @@ export class MissionJourney {
         window.setTimeout(() => unlocked.classList.remove('is-newly-unlocked'), 850);
       }, 360);
     };
-    this.progressAnimationFrame = window.requestAnimationFrame(animate);
+    if (creditFlightMs > 0) {
+      this.progressStartTimer = window.setTimeout(() => {
+        this.progressStartTimer = 0;
+        if (this.progressingFrom === number && this.isOpen) this.progressAnimationFrame = window.requestAnimationFrame(animate);
+      }, creditFlightMs);
+    } else this.progressAnimationFrame = window.requestAnimationFrame(animate);
   }
 
   private cancelProgressAnimation(): void {
+    if (this.progressStartTimer) window.clearTimeout(this.progressStartTimer);
+    this.progressStartTimer = 0;
     if (this.progressAnimationFrame) window.cancelAnimationFrame(this.progressAnimationFrame);
     this.progressAnimationFrame = 0;
     if (this.unlockTimer) window.clearTimeout(this.unlockTimer);

@@ -24,9 +24,9 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
   const item = cosmeticCatalog.find(entry => entry.id === equipped[`livery:${type}`] && entry.aircraftRestriction === type);
   const base = type === 'trainer' ? definition.livery : unpaintedAppearance[type];
   const palette = {
-    AC_LIVERY_BASE: item?.visualConfig.base ?? ('base' in base ? base.base : base.baseColor),
-    AC_LIVERY_PRIMARY: item?.visualConfig.primary ?? ('primary' in base ? base.primary : base.primaryColor),
-    AC_LIVERY_ACCENT: item?.visualConfig.accent ?? ('accent' in base ? base.accent : base.accentColor),
+    AC_LIVERY_BASE: root.userData.rearGuardEscort ? 0xe53935 : item?.visualConfig.base ?? ('base' in base ? base.base : base.baseColor),
+    AC_LIVERY_PRIMARY: root.userData.rearGuardEscort ? 0xff7043 : item?.visualConfig.primary ?? ('primary' in base ? base.primary : base.primaryColor),
+    AC_LIVERY_ACCENT: root.userData.rearGuardEscort ? 0xffd54f : item?.visualConfig.accent ?? ('accent' in base ? base.accent : base.accentColor),
   };
   root.traverse(object => {
     if (!(object instanceof THREE.Mesh)) return;
@@ -56,4 +56,9 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
   });
   const visuals = root.userData.visuals;
   if (visuals?.boostMaterial) visuals.boostMaterial.color.setHex(type === 'fighter' ? 0xff4d1f : type === 'trainer' ? 0xd8f4ff : 0x9eeaff);
+}
+
+export function applyRearGuardEscortPaint(root: THREE.Object3D): void {
+  root.userData.rearGuardEscort = true;
+  applyAircraftCosmetics(root, 'fighter', {});
 }

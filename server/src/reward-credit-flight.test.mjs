@@ -36,7 +36,7 @@ test('earned credits reach the header before its balance counts up', () => {
       frame(start + elapsed);
     };
 
-    header.animateCreditsEarned({ left: 100, top: 350, width: 160, height: 60 }, 100, 125);
+    assert.equal(header.animateCreditsEarned({ left: 100, top: 350, width: 160, height: 60 }, 100, 125), 1_420);
     start = performance.now();
     assert.equal(header.credits.textContent, '100');
     assert.equal(coins.length, 5);

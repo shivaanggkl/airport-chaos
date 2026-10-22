@@ -20,6 +20,7 @@ import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { skyTokenPacks, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { SkyTokenStore, type SkyTokenOffer } from './sky-token-store';
 import { PLAYER_STORAGE_KEY } from './player-storage';
+import { takeJourneyRewardReceipt } from './journey-reward-receipt';
 import { setFlightLaunchAircraft } from './flight-launch-aircraft';
 import { cityCapabilities } from '../../shared/city-registry.mjs';
 import { beginFirehawkCheckout, restoreFirehawkPurchase, verifyCheckoutReturn } from './firehawk-checkout';
@@ -2255,6 +2256,7 @@ async function start(): Promise<void> {
   if (pendingDallasUnlock) cityJourneyMode = 'missions';
   const directJourneyEntry = url.searchParams.get('entry') === 'journey';
   const journeyReceipt = url.searchParams.get('journeyReceipt');
+  let pendingJourneyCelebration: { mission: number; credits: number } | undefined;
   if (authResult || directCityEntry || directJourneyEntry || url.searchParams.has('dallasUnlock')) {
     url.searchParams.delete('auth');
     url.searchParams.delete('provider');
@@ -2285,13 +2287,14 @@ async function start(): Promise<void> {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();
+    const earnedCredits = journeyReceipt ? takeJourneyRewardReceipt(journeyReceipt, garageIdentity.pilotId) : 0;
     if (journeyReceipt && progress) {
       const missions = [progress, ...Array.from({ length: missionJourneyStages.length - 1 }, (_, index) => {
         const mission = progress[`mission${String(index + 2).padStart(2, '0')}` as keyof typeof progress];
         return mission && typeof mission === 'object' ? mission : undefined;
       })];
       const completedIndex = missions.findIndex(mission => mission?.completed && mission.firstAttemptId === journeyReceipt);
-      if (completedIndex >= 0) missionJourney.celebrateCompletion(completedIndex + 1);
+      if (completedIndex >= 0) pendingJourneyCelebration = { mission: completedIndex + 1, credits: earnedCredits };
     }
   } else if (directCityEntry) {
     await showHome();
@@ -2319,6 +2322,13 @@ async function start(): Promise<void> {
   await startupLoading.finish();
   menuEntrancesEnabled = true;
   revealMenuEntrance();
+  if (pendingJourneyCelebration) {
+    const { mission, credits } = pendingJourneyCelebration;
+    const balance = garageProfile.credits;
+    missionJourney.celebrateCompletion(mission, credits > 0 && balance >= credits
+      ? source => appHeader.animateCreditsEarned(source, balance - credits, balance)
+      : undefined);
+  }
   if (entryState === 'CITY_SELECTION') celebrateDallasUnlock();
   if (Capacitor.getPlatform() === 'ios' && entryState !== 'FLIGHT' && entryState !== 'TUTORIAL') {
     void audioManager.unlock();
