@@ -2194,7 +2194,10 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     const label = document.createElement('strong');
     label.textContent = preset.toUpperCase();
     const description = document.createElement('span');
-    description.textContent = preset === 'day' ? 'Bright daytime flying' : preset === 'dusk' ? 'Twilight sky and city lights' : 'Beautiful golden-hour flying';
+    description.textContent = preset === 'day' ? 'Bright daytime flying'
+      : preset === 'dusk' ? 'Twilight sky and city lights'
+      : preset === 'evening' ? 'Beautiful golden-hour flying'
+      : 'City lights under a clear night sky';
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'entry-button entry-button-primary';

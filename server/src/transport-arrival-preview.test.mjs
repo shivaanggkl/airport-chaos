@@ -15,9 +15,9 @@ test('Mission 8 arrival frames both temporary escorts and removes them on handof
     const scene = new THREE.Scene();
     const transport = new THREE.Group();
     const escorts = [new THREE.Group(), new THREE.Group()];
-    const arrival = new TransportArrivalSequence(transport, () => 0, scene, escorts);
+    const arrival = new TransportArrivalSequence(transport, () => 0, scene, escorts, 'REAR GUARD');
     assert.match(alertHtml, /REAR GUARD/);
-    assert.match(alertHtml, /Destroy the transport to win\. Escorts are optional\./);
+    assert.match(alertHtml, /Destroy the transport\. Escorts optional\./);
     arrival.update(2);
     const camera = new THREE.PerspectiveCamera(58, 1280 / 590, 1, 10_000);
     arrival.frame(camera, 0.016, new THREE.Object3D(), new THREE.Vector3(), new THREE.Vector3());
@@ -37,6 +37,9 @@ test('Mission 8 arrival frames both temporary escorts and removes them on handof
     assert.ok(escorts.every(escort => !escort.visible));
     arrival.dispose();
     assert.ok(escorts.every(escort => !scene.children.includes(escort)));
+    const briefingWithoutPreview = new TransportArrivalSequence(transport, () => 0, scene, [], 'REAR GUARD');
+    assert.match(alertHtml, /REAR GUARD.*Destroy the transport\. Escorts optional\./);
+    briefingWithoutPreview.dispose();
   } finally {
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }

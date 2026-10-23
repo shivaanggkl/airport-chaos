@@ -66,9 +66,10 @@ export function ballisticInterceptDirection(origin, shooterVelocity, targetPosit
 export const LOCK_ANGLE = 0.060;
 
 // Search, automatic travel, and manual bias share a forward-only cone.
-// At that chase view, automatic travel reaches about 99px and search 179px.
-export const AIM_ENVELOPE = 0.324;
-export const AIM_MAX_OFFSET = 0.184;
+// At the 590px-tall, 58° chase view, these project to 200px and 100px.
+const chaseFocalLength = 590 / (2 * Math.tan(58 * Math.PI / 360));
+export const AIM_ENVELOPE = Math.atan(200 / chaseFocalLength);
+export const AIM_MAX_OFFSET = Math.atan(100 / chaseFocalLength);
 export const AIM_MANUAL_OFFSET = 0.160;
 export const AIM_SWITCH_MARGIN = 0.015;
 // A shot references server-issued samples, never client-provided aim coordinates.

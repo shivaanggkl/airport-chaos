@@ -24,15 +24,17 @@ export class TransportArrivalSequence {
     private readonly scene:THREE.Scene,private readonly escorts:readonly THREE.Group[]=[], missionName?: string){
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
-    this.alert.innerHTML=escorts.length
+    this.alert.innerHTML=missionName === 'REAR GUARD'
+      ? '<span>⚠ DALLAS ALERT</span><strong>REAR GUARD</strong><p>Destroy the transport. Escorts optional.</p>'
+      : escorts.length
       ? missionName === 'FINAL INTERCEPT'
         ? '<span>⚠ DALLAS ALERT</span><strong>FINAL INTERCEPT</strong><p>Escorts first. Then turrets. Finish the exposed core.</p>'
         : `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'CROSSFIRE' ? 'CROSSFIRE' : missionName === 'REINFORCEMENTS' ? 'REINFORCEMENTS' : 'REAR GUARD'}</strong><p>Destroy the ${missionName === 'CROSSFIRE' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
       : missionName === 'ARMORED FORTRESS'
         ? '<span>⚠ DALLAS ALERT</span><strong>ARMORED FORTRESS</strong><p>Destroy both wing turrets. Then fire into the open cargo core.</p>'
-        : '<span>⚠ DALLAS ALERT</span><strong>GIANT INCOMING</strong><p>Destroy the transport before it escapes.</p>';
+        : '<strong>GIANT INCOMING</strong><p>SHOOT IT DOWN</p>';
     document.body.append(this.alert);
-    this.scene.add(...escorts);
+    if (escorts.length) this.scene.add(...escorts);
   }
   get complete():boolean{return this.elapsed>=TransportArrivalSequence.totalSeconds;}
   get showsPlayer():boolean{return this.elapsed>=TransportArrivalSequence.giantShotSeconds
@@ -117,5 +119,5 @@ export class TransportArrivalSequence {
     camera.position.y=Math.max(camera.position.y,this.terrain(camera.position.x,camera.position.z)+2.2);
     camera.lookAt(this.target);camera.updateMatrixWorld(true);
   }
-  dispose():void{this.alert.remove();this.scene.remove(...this.escorts);}
+  dispose():void{this.alert.remove();if(this.escorts.length)this.scene.remove(...this.escorts);}
 }

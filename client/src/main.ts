@@ -288,6 +288,7 @@ renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = isDallas ? 1.23 : 1.16;
 if (isDallas && worldTimeOfDay === 'evening') renderer.toneMappingExposure = 0.82;
+if (isDallas && worldTimeOfDay === 'night') renderer.toneMappingExposure = 1.1;
 renderer.setClearColor(SKY_COLOR, 1);
 document.querySelector<HTMLElement>('#game-root')!.prepend(renderer.domElement);
 preloadAircraftAssets();
@@ -368,8 +369,9 @@ const skyDome = new THREE.Mesh(
 skyDome.renderOrder = -10;
 scene.add(skyDome);
 const duskSky = new THREE.Group();
-duskSky.visible = worldTimeOfDay === 'dusk';
+duskSky.visible = worldTimeOfDay === 'dusk' || worldTimeOfDay === 'night';
 skyDome.add(duskSky);
+let skyMoon: THREE.Mesh | undefined;
 {
   // One camera-following sky group: no per-star meshes, lights or updates.
   const starPositions = new Float32Array(150 * 3);
@@ -407,12 +409,12 @@ skyDome.add(duskSky);
   moonHalo.scale.setScalar(1_000);
   moonHalo.lookAt(0, 0, 0);
   moonHalo.renderOrder = -8;
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xfff2d4, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
-  moon.position.copy(moonPosition).multiplyScalar(0.999);
-  moon.scale.setScalar(680);
-  moon.lookAt(0, 0, 0);
-  moon.renderOrder = -7;
-  duskSky.add(moonHalo, moon);
+  skyMoon = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xfff2d4, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+  skyMoon.position.copy(moonPosition).multiplyScalar(0.999);
+  skyMoon.scale.setScalar(worldTimeOfDay === 'night' ? 460 : 680);
+  skyMoon.lookAt(0, 0, 0);
+  skyMoon.renderOrder = -7;
+  duskSky.add(moonHalo, skyMoon);
 }
 
 function setLocalTimePreset(requestedPreset: unknown): void {
@@ -428,7 +430,7 @@ function setLocalTimePreset(requestedPreset: unknown): void {
   sun.color.setHex(visualConfig.sunColor);
   sun.intensity = visualConfig.sunIntensity;
   sun.position.set(visualConfig.sunPosition[0], visualConfig.sunPosition[1], visualConfig.sunPosition[2]);
-  renderer.toneMappingExposure = preset === 'evening' ? 0.82 : 1.23;
+  renderer.toneMappingExposure = preset === 'evening' ? 0.82 : preset === 'night' ? 1.1 : 1.23;
   const uniforms = (skyDome.material as THREE.ShaderMaterial).uniforms;
   (uniforms.horizonColor.value as THREE.Color).setHex(visualConfig.horizon);
   (uniforms.middleColor.value as THREE.Color).setHex(visualConfig.middle);
@@ -438,7 +440,8 @@ function setLocalTimePreset(requestedPreset: unknown): void {
   uniforms.duskAmount.value = visualConfig.duskAmount;
   uniforms.eveningAmount.value = visualConfig.eveningAmount;
   (uniforms.sunDirection.value as THREE.Vector3).copy(sun.position).normalize();
-  duskSky.visible = preset === 'dusk';
+  duskSky.visible = preset === 'dusk' || preset === 'night';
+  skyMoon?.scale.setScalar(preset === 'night' ? 460 : 680);
   territoryWallMaterial.uniforms.curtainAlpha.value = preset === 'evening' ? 0 : preset === 'dusk' ? 0.38 : 0.3;
   ambientTraffic?.setTimeOfDay(preset);
   cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: preset });
@@ -9436,7 +9439,8 @@ function updateCamera(delta: number): void {
       : THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
     if (Math.abs(scene.fog.near - targetFogNear) >= 10) scene.fog.near = targetFogNear;
     if (Math.abs(scene.fog.far - targetFogFar) >= 10) scene.fog.far = targetFogFar;
-    if (worldTimeOfDay === 'dusk') scene.fog.color.setRGB(0.18 + altitudeFactor * 0.055, 0.21 + altitudeFactor * 0.06, 0.32 + altitudeFactor * 0.075);
+    if (worldTimeOfDay === 'night') scene.fog.color.setRGB(0.055 + altitudeFactor * 0.025, 0.105 + altitudeFactor * 0.035, 0.17 + altitudeFactor * 0.05);
+    else if (worldTimeOfDay === 'dusk') scene.fog.color.setRGB(0.18 + altitudeFactor * 0.055, 0.21 + altitudeFactor * 0.06, 0.32 + altitudeFactor * 0.075);
     else if (worldTimeOfDay === 'evening') scene.fog.color.setRGB(0.23 + altitudeFactor * 0.03, 0.30 + altitudeFactor * 0.035, 0.31 + altitudeFactor * 0.035);
     else if (isDallas) scene.fog.color.setRGB(0.5 + altitudeFactor * 0.14, 0.71 + altitudeFactor * 0.11, 0.8 + altitudeFactor * 0.1);
     else scene.fog.color.setRGB(0.57 + altitudeFactor * 0.13, 0.76 + altitudeFactor * 0.1, 0.84 + altitudeFactor * 0.09);
@@ -10662,7 +10666,7 @@ boundSocket.addEventListener('message', (event) => {
           if(transportView!==view||journeyAttempt?.attemptId!==message.attempt.attemptId)return;
           if(journeyAttempt.status==='APPROACH'){
             clearHeldActions();boostActive=false;audioManager.playTone(440,.5,'triangle',.08,220,0,'impacts');
-            const arrival=view.beginArrival(arrivalEscorts, message.attempt.missionId === journeyDallas12.id ? 'FINAL INTERCEPT' : message.attempt.missionId === journeyDallas11.id ? 'ARMORED FORTRESS' : message.attempt.missionId === journeyDallas10.id ? 'CROSSFIRE' : message.attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : undefined);
+            const arrival=view.beginArrival(arrivalEscorts, message.attempt.missionId === journeyDallas12.id ? 'FINAL INTERCEPT' : message.attempt.missionId === journeyDallas11.id ? 'ARMORED FORTRESS' : message.attempt.missionId === journeyDallas10.id ? 'CROSSFIRE' : message.attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : message.attempt.missionId === journeyDallas08.id ? 'REAR GUARD' : undefined);
             missionIntroSkip.setAttribute('aria-label', `Skip Mission ${message.attempt.missionId===journeyDallas12.id ? '12' : message.attempt.missionId===journeyDallas11.id ? '11' : message.attempt.missionId===journeyDallas10.id ? '10' : message.attempt.missionId===journeyDallas09.id ? '9' : message.attempt.missionId===journeyDallas08.id ? '8' : '7'} intro`);
             missionIntroSkip.hidden=false;
             await arrival;
@@ -10925,7 +10929,10 @@ boundSocket.addEventListener('message', (event) => {
     journeyPauseSupported = message.journeyPauseSupported === true;
     if (!journeyPauseSupported) setJourneyPaused(false);
     const shouldBeginFlightLaunch = !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode && !message.resumeFlight;
-    if (message.resumeFlight) cancelMissionStartCountdown();
+    // A backgrounded transport intro is still in APPROACH. Its pending
+    // countdown must survive reconnect so the arrival can hand off to flight.
+    if (message.resumeFlight && !(journeyAttempt?.status === 'APPROACH' && missionStartCountdownPending))
+      cancelMissionStartCountdown();
     else if (shouldBeginFlightLaunch && journeyMode) missionStartCountdownPending = true;
     airborneIntroAwaiting = shouldBeginFlightLaunch && journeyMode && Boolean(message.airborneSpawn);
     runwayJourneyIntroAwaiting = shouldBeginFlightLaunch && journeyMode && !message.airborneSpawn;
@@ -11535,8 +11542,10 @@ boundSocket.addEventListener('close', (event) => {
   if (boundSocket !== socket) return;
   if (missionStartCountdownPending || missionStartCountdownStartedAt !== null) {
     if (flightLaunchState === 'pending' || flightLaunchState === 'active') flightLaunchWelcomeHandled = false;
+    const waitingForTransport = missionStartCountdownWaitingForTransport;
     cancelMissionStartCountdown();
     missionStartCountdownPending = true;
+    missionStartCountdownWaitingForTransport = waitingForTransport;
     runStarted = false;
   }
   if (missionFocus) {

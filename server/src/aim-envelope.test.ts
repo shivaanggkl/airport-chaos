@@ -16,11 +16,11 @@ import {
 
 const EPSILON = 1e-10;
 
-test('shared angular aim limits match the narrower on-screen travel', () => {
+test('shared angular aim limits project to 100px travel and 200px search', () => {
   const pixelsAtChaseFov = (angle: number): number => Math.tan(angle) * 590 /
     (2 * Math.tan(58 * Math.PI / 360));
-  assert.equal(Math.round(pixelsAtChaseFov(AIM_MAX_OFFSET)), 99);
-  assert.equal(Math.round(pixelsAtChaseFov(AIM_ENVELOPE)), 179);
+  assert.ok(Math.abs(pixelsAtChaseFov(AIM_MAX_OFFSET) - 100) < EPSILON);
+  assert.ok(Math.abs(pixelsAtChaseFov(AIM_ENVELOPE) - 200) < EPSILON);
   assert.equal(Math.round(pixelsAtChaseFov(LOCK_ANGLE)), 32);
   assert.ok(AIM_MANUAL_OFFSET < AIM_MAX_OFFSET);
   assert.equal(COMBAT_RANGE, 4_500);
@@ -42,18 +42,24 @@ test('horizontal, vertical, and diagonal manual aim stay inside the shared envel
 });
 
 test('targets beyond automatic travel can be found but require manual aim or steering to lock', () => {
-  const targetAngle = 0.25;
   const depth = 1_000;
+  const focalLength = 590 / (2 * Math.tan(58 * Math.PI / 360));
+  const targetAngle = Math.atan(150 / focalLength);
   const targetX = Math.tan(targetAngle) * depth;
   const goal = { x: 0, y: 0 };
 
+  for (const [x, y] of [[100, 0], [-100, 0], [0, 100], [0, -100]] as const) {
+    const atEdge = { x: 0, y: 0 };
+    assert.equal(aimGoal(x * depth / focalLength, y * depth / focalLength, -depth, atEdge), true);
+    assert.ok(Math.abs(Math.hypot(atEdge.x, atEdge.y) - Math.tan(AIM_MAX_OFFSET)) < EPSILON);
+  }
   assert.equal(aimGoal(targetX, 0, -depth, goal), true);
   assert.ok(Math.abs(Math.atan(goal.x) - AIM_MAX_OFFSET) < EPSILON);
   assert.equal(insideDynamicLock(targetX, 0, -depth, goal), false);
   assert.equal(insideDynamicLock(targetX, 0, -depth, { x: Math.tan(targetAngle), y: 0 }), true);
 });
 
-test('center, horizontal, vertical, and diagonal targets obey the new search boundary', () => {
+test('center, horizontal, vertical, and diagonal targets obey the 200px search boundary', () => {
   const depth = 1_000;
   const cases = [
     { angle: 0, azimuth: 0 },
@@ -63,6 +69,9 @@ test('center, horizontal, vertical, and diagonal targets obey the new search bou
     { angle: 0.323, azimuth: 0 },
     { angle: 0.20, azimuth: Math.PI / 2 },
     { angle: 0.323, azimuth: Math.PI / 4 },
+    { angle: AIM_ENVELOPE - 0.001, azimuth: Math.PI },
+    { angle: AIM_ENVELOPE - 0.001, azimuth: -Math.PI / 2 },
+    { angle: AIM_ENVELOPE - 0.001, azimuth: Math.PI / 4 },
   ];
 
   for (const { angle, azimuth } of cases) {
@@ -82,7 +91,7 @@ test('center, horizontal, vertical, and diagonal targets obey the new search bou
   assert.equal(aimGoal(outside, 0, -depth, { x: 0, y: 0 }), false);
 });
 
-test('narrower travel retains the existing per-frame aim speed', () => {
+test('updated travel retains the existing per-frame aim speed', () => {
   const oldRangeStep = { x: 0, y: 0 };
   const newRangeStep = { x: 0, y: 0 };
   const delta = 1 / 60;

@@ -9,19 +9,20 @@ export type MissionJourneyStage = Readonly<{
 }>;
 export type MissionJourneyStatus = 'completed' | 'current' | 'available' | 'locked';
 
-// Percentages share one coordinate system with the SVG routes and stay in chapter order.
-const chapterXs = [[7, 14, 21, 28, 35, 45], [55, 63, 70, 77, 84, 94], [7, 14, 21, 29, 37, 45], [55, 63, 70, 77, 84, 94]] as const;
-const chapterYs = [[38, 35, 36, 34, 37, 36], [36, 38, 35, 36, 37, 35], [84, 83, 80, 81, 84, 83], [84, 85, 81, 83, 85, 83]] as const;
+// Percentages share one coordinate system with the SVG route. Every mission
+// moves right and slightly upward, including the chapter transitions.
+const missionXs = Array.from({ length: 24 }, (_, index) => 2.5 + index * 95 / 23);
+const missionYs = Array.from({ length: 24 }, (_, index) => 74 - index * 40 / 23);
 export const chapterNames = ['TAKE OFF', 'CITY SKIES', 'HIGHER GROUND', 'FINAL APPROACH'] as const;
 
-export const missionJourneyStages: readonly MissionJourneyStage[] = chapterXs.flatMap((xs, chapter) => xs.map((x, index) => ({
-  id: `journey-dallas-${String(chapter * 6 + index + 1).padStart(2, '0')}`,
-  number: chapter * 6 + index + 1,
-  chapter: (chapter + 1) as ChapterNumber,
+export const missionJourneyStages: readonly MissionJourneyStage[] = missionXs.map((x, index) => ({
+  id: `journey-dallas-${String(index + 1).padStart(2, '0')}`,
+  number: index + 1,
+  chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
   implementation: 'playable' as const,
   x,
-  y: chapterYs[chapter]![index]!,
-})));
+  y: missionYs[index]!,
+}));
 
 export function missionJourneyStatuses(completed: readonly boolean[], eligible: readonly boolean[], signInRequired: boolean): {
   currentMission: number;

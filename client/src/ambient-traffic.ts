@@ -304,10 +304,11 @@ export class AmbientTrafficSystem {
 
   setTimeOfDay(preset: CityTimeOfDay): void {
     const dusk = preset === 'dusk';
-    cloudMaterial.color.setHex(dusk ? 0xbac4dc : preset === 'evening' ? 0xf5e9df : 0xf4fbff);
-    cloudMaterial.opacity = dusk ? 0.64 : 0.7;
-    stormCloudMaterial.color.setHex(dusk ? 0x8995b2 : 0xd4dbe0);
-    stormCloudMaterial.opacity = dusk ? 0.62 : 0.68;
+    const night = preset === 'night';
+    cloudMaterial.color.setHex(night ? 0x8ca7c8 : dusk ? 0xbac4dc : preset === 'evening' ? 0xf5e9df : 0xf4fbff);
+    cloudMaterial.opacity = night ? 0.52 : dusk ? 0.64 : 0.7;
+    stormCloudMaterial.color.setHex(night ? 0x627b9e : dusk ? 0x8995b2 : 0xd4dbe0);
+    stormCloudMaterial.opacity = night ? 0.55 : dusk ? 0.62 : 0.68;
   }
 
   update(delta: number, playerPosition: THREE.Vector3, camera: THREE.PerspectiveCamera): void {

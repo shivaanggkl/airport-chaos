@@ -5,6 +5,14 @@ import { monsterDamageSites, setMappedMonsterDamage } from './osm-city';
 
 let monsterDamageScene: THREE.Scene | undefined;
 let monsterDamageDebris: THREE.Group | undefined;
+const facadeGlowUniforms: Array<{ strength: { value: number }; color: { value: THREE.Color } }> = [];
+
+export function setDallasFacadeNight(night: boolean): void {
+  for (const glow of facadeGlowUniforms) {
+    glow.strength.value = night ? 0.38 : 0.09;
+    glow.color.value.setRGB(night ? 0.85 : 0.30, night ? 0.63 : 0.38, night ? 0.34 : 0.36);
+  }
+}
 
 /** Reversible substitution of existing mapped west-Downtown buildings. */
 export function setDowntownMonsterDamage(active: boolean): void {
@@ -39,10 +47,15 @@ export function setDowntownMonsterDamage(active: boolean): void {
 
 export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.MeshStandardMaterial {
   const material=new THREE.MeshStandardMaterial({color:dallasFacadePalette[index],roughness:index===5||index===6||index===7?.72:.3,metalness:.22});
+  const glow = { value: windowGlow };
+  const glowColor = { value: new THREE.Color(0.30, 0.38, 0.36) };
+  facadeGlowUniforms.push({ strength: glow, color: glowColor });
   material.onBeforeCompile=shader=>{
+    shader.uniforms.facadeGlow = glow;
+    shader.uniforms.facadeGlowColor = glowColor;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 facadePosition;');
     shader.vertexShader=shader.vertexShader.replace('#include <worldpos_vertex>',`#include <worldpos_vertex>\nfacadePosition = (instanceMatrix * vec4(transformed,1.0)).xyz;`);
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 facadePosition;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 facadePosition;\nuniform float facadeGlow;\nuniform vec3 facadeGlowColor;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       float column=facadePosition.x+facadePosition.z;
       vec2 cell=vec2(column/${4+index%4}.0,facadePosition.y/${4+index%3}.0);
@@ -57,7 +70,7 @@ export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.Me
       float stripe=mod(floor(cell.x),${2+index%4}.0);
       diffuseColor.rgb *= mix(.76,1.06,windowMask);
       diffuseColor.rgb *= ${index%2===0?'mix(.91,1.06,step(.8,stripe))':'mix(.90,1.06,step(.8,band))'};
-      totalEmissiveRadiance += vec3(.30,.38,.36)*windowMask*step(.83,variation)*detail*${windowGlow.toFixed(3)};
+      totalEmissiveRadiance += facadeGlowColor*windowMask*step(.83,variation)*detail*facadeGlow;
     `);
   };
   material.customProgramCacheKey=()=>`dallas-facade-${index}-${windowGlow.toFixed(3)}`;
@@ -66,6 +79,7 @@ export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.Me
 
 export function addDowntownDistrict(scene:THREE.Scene, obstacles:ObstacleBounds[], airports:ReadonlyArray<AirportDefinition>, heightAt:(x:number,z:number)=>number):void {
   setDowntownMonsterDamage(false);
+  facadeGlowUniforms.length = 0;
   monsterDamageScene = scene;
   const buildings=generateDallasSkyline(airports,obstacles);
   const geometry=new THREE.BoxGeometry(1,1,1);

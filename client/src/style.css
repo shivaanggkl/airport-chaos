@@ -1041,6 +1041,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .city-time-day .city-time-art { background-image: url('/media/city-journey/day.jpg'); }
 .city-time-dusk .city-time-art { background-image: url('/media/city-journey/dusk.jpg'); }
 .city-time-evening .city-time-art { background-image: url('/media/city-journey/evening.png'); }
+.city-time-night .city-time-art { background-image: url('/media/city-journey/night.jpg'); }
 .city-time-option .city-option-copy { text-align: center; }
 .city-time-option strong { color: var(--ac-text-primary); font-size: clamp(25px, 2.6vw, 32px); }
 .city-time-option span { margin-top: 2px; color: var(--ac-text-secondary); }
@@ -6290,7 +6291,9 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   line-height: 1.1;
 }
 .city-options:has(.city-time-evening) {
-  grid-template-columns: repeat(3, var(--menu-selection-width));
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--menu-selection-width);
   justify-content: safe center;
   width: 100%;
   gap: var(--menu-selection-gap);
@@ -6349,10 +6352,17 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
   }
   .city-options .city-time-option { scroll-snap-align: start; }
 }
+@media (min-width: 1180px) and (orientation: landscape) {
+  .city-options:has(.city-time-night) {
+    --menu-selection-width: min(420px, calc((100vw - 100px - 3 * var(--menu-selection-gap)) / 4));
+    justify-content: center;
+    padding-inline: max(16px, var(--safe-area-left)) max(16px, var(--safe-area-right));
+  }
+}
 @media (orientation: portrait) {
   :root { --menu-selection-width: min(380px, calc(100vw - 40px)); --menu-selection-height: clamp(178px, 27.5dvh, 250px); --menu-selection-center-y: max(55dvh, calc(var(--menu-page-header-height) + var(--menu-selection-height) / 2 + 8px)); }
   .home-hangar .home-hangar-contextual { top: var(--menu-selection-center-y); grid-template-columns: var(--menu-selection-width); width: var(--menu-selection-width); gap: 14px; }
-  .city-options:has(.city-time-evening) { grid-template-columns: var(--menu-selection-width); gap: clamp(8px, 1.4vw, 18px); }
+  .city-options:has(.city-time-evening) { gap: clamp(8px, 1.4vw, 18px); }
 }
 
 /* Every menu page enters with the shared header and its content from offscreen. */

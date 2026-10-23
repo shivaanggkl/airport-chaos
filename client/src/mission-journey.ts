@@ -59,6 +59,13 @@ export class MissionJourney {
   private currentMission = 0;
   private selectedStage = 1;
   private userSelectedStage = false;
+  private hasShown = false;
+  private lastShownMission = 0;
+  private dragPointerId: number | null = null;
+  private dragStartX = 0;
+  private dragStartScroll = 0;
+  private dragged = false;
+  private suppressTap = false;
   private panelOpen = false;
   private stageOneCompleted = false;
   private stageOneEligible = false;
@@ -115,10 +122,12 @@ export class MissionJourney {
     element.classList.add('mission-journey');
     element.setAttribute('aria-label', 'Dallas Mission Journey');
     element.innerHTML = `
-      <div class="mission-journey-map" aria-label="Dallas missions, four chapters">
-        <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-        <div class="mission-journey-chapters" aria-hidden="true"></div>
-        <div class="mission-journey-nodes" aria-label="Choose a mission"></div>
+      <div class="mission-journey-viewport" aria-label="Dallas missions, four chapters" tabindex="0">
+        <div class="mission-journey-map">
+          <svg class="mission-journey-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="mission-journey-chapters" aria-hidden="true"></div>
+          <div class="mission-journey-nodes" aria-label="Choose a mission"></div>
+        </div>
       </div>
       <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
         <img class="mission-journey-detail-image" src="/media/city-journey/mission-dallas-journey.avif" alt="Dallas mission artwork">
@@ -127,6 +136,45 @@ export class MissionJourney {
         <button type="button" class="mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
       </div>`;
     this.detail = element.querySelector('.mission-journey-detail')!;
+    const viewport = element.querySelector<HTMLElement>('.mission-journey-viewport')!;
+    viewport.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      this.dragPointerId = event.pointerId;
+      this.dragStartX = event.clientX;
+      this.dragStartScroll = viewport.scrollLeft;
+      this.dragged = false;
+    });
+    viewport.addEventListener('pointermove', event => {
+      if (this.dragPointerId !== event.pointerId) return;
+      const distance = event.clientX - this.dragStartX;
+      if (Math.abs(distance) > 8 && !this.dragged) {
+        this.dragged = true;
+        if (event.pointerType === 'mouse') viewport.setPointerCapture(event.pointerId);
+      }
+      if (this.dragged && event.pointerType === 'mouse') {
+        viewport.scrollLeft = this.dragStartScroll - distance;
+        event.preventDefault();
+      }
+    });
+    viewport.addEventListener('pointerup', event => {
+      if (this.dragPointerId !== event.pointerId) return;
+      this.suppressTap = this.dragged;
+      this.dragPointerId = null;
+      window.setTimeout(() => { this.suppressTap = false; }, 350);
+    });
+    viewport.addEventListener('pointercancel', () => { this.dragPointerId = null; this.dragged = false; });
+    viewport.addEventListener('click', event => {
+      if (!this.suppressTap) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.suppressTap = false;
+    }, true);
+    viewport.addEventListener('keydown', event => {
+      if (event.target !== viewport) return;
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      this.handleNodeKeydown(event, this.selectedStage);
+    });
     element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => {
       if (this.progressingFrom !== null) return;
       if (this.stageButtons[this.selectedStage - 1]?.disabled) return;
@@ -137,23 +185,28 @@ export class MissionJourney {
       const heading = document.createElement('div');
       heading.className = 'mission-journey-chapter-heading';
       heading.dataset.chapter = String(chapter);
+      const first = missionJourneyStages[(chapter - 1) * 6]!;
+      const last = missionJourneyStages[chapter * 6 - 1]!;
+      heading.style.left = `${(first.x + last.x) / 2}%`;
+      heading.style.top = `max(0px, calc(${(first.y + last.y) / 2}% - var(--chapter-heading-offset)))`;
       heading.innerHTML = `<strong>CHAPTER ${chapter}</strong><span>${chapterNames[chapter - 1]}</span>`;
       chapters.append(heading);
+      if (chapter < 4) {
+        const next = missionJourneyStages[chapter * 6]!;
+        const divider = document.createElement('span');
+        divider.className = 'mission-journey-chapter-divider';
+        divider.style.left = `${(last.x + next.x) / 2}%`;
+        divider.style.top = `${(last.y + next.y) / 2}%`;
+        chapters.append(divider);
+      }
     }
     const routes = element.querySelector<SVGSVGElement>('.mission-journey-route')!;
-    // The row turn follows the outer edge so it never crosses mission nodes.
-    const rowTurn = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    rowTurn.setAttribute('d', 'M 94 35 C 102 35 102 47 102 60 L 102 90 Q 102 98 94 98 L 12 98 Q 1 98 7 84');
-    rowTurn.classList.add('mission-journey-segment', 'is-transition');
-    rowTurn.dataset.from = '12';
-    routes.append(rowTurn); this.routeSegments.push(rowTurn);
     for (let number = 1; number < missionJourneyStages.length; number++) {
-      if (number === 12) continue;
       const from = missionJourneyStages[number - 1]!;
       const to = missionJourneyStages[number]!;
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const midX = (from.x + to.x) / 2;
-      const midY = (from.y + to.y) / 2 - (number % 6 === 0 ? 3 : 1.5);
+      const midY = (from.y + to.y) / 2 - 1.2;
       path.setAttribute('d', `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`);
       path.classList.add('mission-journey-segment');
       path.dataset.from = String(number);
@@ -429,6 +482,14 @@ export class MissionJourney {
     this.select(Number(next.dataset.stage), true, true);
   }
 
+  private revealMission(number: number, smooth: boolean): void {
+    const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
+    const button = this.stageButtons[number - 1];
+    if (!button) return;
+    const left = button.offsetLeft - viewport.clientWidth / 2;
+    viewport.scrollTo({ left, behavior: smooth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
+  }
+
   celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
     if (!this.isOpen || !this.completedStages()[number - 1]) return;
     this.cancelProgressAnimation();
@@ -438,6 +499,7 @@ export class MissionJourney {
       this.select(number);
       if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
       this.select(this.currentMission || number);
+      this.revealMission(this.currentMission || number, true);
       return;
     }
 
@@ -446,6 +508,7 @@ export class MissionJourney {
       this.select(number);
       if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
       this.select(next);
+      this.revealMission(next, true);
       return;
     }
     const map = this.element.querySelector<HTMLElement>('.mission-journey-map')!;
@@ -495,6 +558,7 @@ export class MissionJourney {
         this.userSelectedStage = false;
         this.select(next);
         unlocked.classList.add('is-newly-unlocked');
+        this.revealMission(next, true);
         window.setTimeout(() => unlocked.classList.remove('is-newly-unlocked'), 850);
       }, 360);
     };
@@ -528,8 +592,16 @@ export class MissionJourney {
   show(_panelOpen = false): void {
     this.cancelProgressAnimation();
     this.element.hidden = false;
-    this.userSelectedStage = false;
     this.renderProgress();
+    if (this.hasShown && this.lastShownMission !== this.currentMission) {
+      this.userSelectedStage = false;
+      this.renderProgress();
+    }
+    if (!this.hasShown || this.lastShownMission !== this.currentMission) {
+      this.revealMission(this.currentMission || this.selectedStage, false);
+    }
+    this.hasShown = true;
+    this.lastShownMission = this.currentMission;
     this.panelOpen = false;
   }
 
@@ -544,6 +616,13 @@ export class MissionJourney {
     if (userSelected) { this.userSelectedStage = true; hapticsManager.emit('selection'); }
     this.selectedStage = number;
     this.renderProgress();
+    if (userSelected) {
+      const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
+      const button = this.stageButtons[number - 1]!;
+      if (button.offsetLeft < viewport.scrollLeft + button.offsetWidth / 2 || button.offsetLeft > viewport.scrollLeft + viewport.clientWidth - button.offsetWidth / 2) {
+        this.revealMission(number, true);
+      }
+    }
   }
 
   private renderDetails(): void {

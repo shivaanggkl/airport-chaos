@@ -241,6 +241,7 @@ export function addOsmCityData(
   cityData: CompactCityData,
   options: {
     roadMaterial: THREE.Material;
+    streetLightMaterial?: THREE.PointsMaterial;
     buildingMaterials: ReadonlyArray<THREE.Material>;
     waterMaterial: THREE.Material;
     landMaterials: ReadonlyArray<THREE.Material>;
@@ -276,6 +277,8 @@ export function addOsmCityData(
     farGroup.name = `osm-far-${chunk.x}-${chunk.z}`;
 
     const roadBuffers: GeometryBuffers = { positions: [], normals: [], colors: [] };
+    const streetLightPositions: number[] = [];
+    const lightStride = Math.max(1, Math.ceil(chunk.r.length / 6 / 160));
     const highwayAccentBuffers: GeometryBuffers = { positions: [], normals: [] };
     const midRoadBuffers: GeometryBuffers = { positions: [], normals: [] };
     const farRoadBuffers: GeometryBuffers = { positions: [], normals: [] };
@@ -298,6 +301,9 @@ export function addOsmCityData(
       const offsetZ = dx / length * width / 2;
       const startY = options.heightAt(x1, z1) + (bridge ? 6.1 : 0.11);
       const endY = options.heightAt(x2, z2) + (bridge ? 6.1 : 0.11);
+      if (options.streetLightMaterial && (index / 6) % lightStride === 0 && classification !== 5) {
+        streetLightPositions.push(centerX, (startY + endY) * 0.5 + 0.8, centerZ);
+      }
       const a = [x1 + offsetX, startY, z1 + offsetZ] as const;
       const b = [x1 - offsetX, startY, z1 - offsetZ] as const;
       const c = [x2 - offsetX, endY, z2 - offsetZ] as const;
@@ -327,6 +333,11 @@ export function addOsmCityData(
       const roadMesh = new THREE.Mesh(createGeometry(roadBuffers), options.roadMaterial);
       roadMesh.name = 'osm-road';
       chunkGroup.add(roadMesh);
+    }
+    if (streetLightPositions.length && options.streetLightMaterial) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(streetLightPositions, 3));
+      chunkGroup.add(new THREE.Points(geometry, options.streetLightMaterial));
     }
     if (highwayAccentBuffers.positions.length && options.highwayAccentMaterial) {
       const accentMesh = new THREE.Mesh(createGeometry(highwayAccentBuffers), options.highwayAccentMaterial);
@@ -507,10 +518,8 @@ export function disposeOsmGroups(groups: ReadonlyArray<THREE.Group>): void {
   for (const group of groups) {
     group.removeFromParent();
     group.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        monsterTargetMeshes.delete(object);
-        object.geometry.dispose();
-      }
+      if (object instanceof THREE.Mesh) monsterTargetMeshes.delete(object);
+      if (object instanceof THREE.Mesh || object instanceof THREE.Points) object.geometry.dispose();
     });
     group.clear();
   }

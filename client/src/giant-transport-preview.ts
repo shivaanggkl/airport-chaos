@@ -98,7 +98,7 @@ function preset(time: string) { if (time === 'neutral') {
     floor.material.color.set(0x323b43);
 }
 else {
-    const v = createTimeVisuals(true)[time as 'day' | 'dusk' | 'evening'];
+    const v = createTimeVisuals(true)[time as 'day' | 'dusk' | 'evening' | 'night'];
     scene.background = new THREE.Color(v.background);
     hemisphere.color.set(v.ambientSky);
     hemisphere.groundColor.set(v.ambientGround);
@@ -106,8 +106,8 @@ else {
     sun.color.set(v.sunColor);
     sun.intensity = v.sunIntensity;
     sun.position.set(v.sunPosition[0], v.sunPosition[1], v.sunPosition[2]);
-    renderer.toneMappingExposure = time === 'evening' ? .82 : 1.23;
-    floor.material.color.set(0x40564c);
+    renderer.toneMappingExposure = time === 'evening' ? .82 : time === 'night' ? 1.1 : 1.23;
+    floor.material.color.set(time === 'night' ? 0x30494e : 0x40564c);
 } renderer.render(scene, camera); }
 function lod(i: number) { level = i; levels.forEach((m, j) => m.visible = j === i); }
 function inspect() { const box = new THREE.Box3().setFromObject(levels[0]), size = box.getSize(new THREE.Vector3()); const result: {

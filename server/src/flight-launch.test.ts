@@ -53,6 +53,15 @@ test('welcome aircraft selection does not respawn and fail a fresh Journey attem
   assert.match(welcome, /applyServerProfile\(message\.profile, undefined, message\.selectionRevision, undefined, undefined, false, true\)/);
 });
 
+test('reconnecting during a transport intro keeps its start countdown pending', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const welcome = main.slice(main.indexOf("if (message.type === 'welcome')"), main.indexOf('} else if (!protocolReady'));
+  const close = main.slice(main.indexOf("boundSocket.addEventListener('close'"), main.indexOf("boundSocket.addEventListener('error'"));
+  assert.match(close, /const waitingForTransport = missionStartCountdownWaitingForTransport;\s*cancelMissionStartCountdown\(\);\s*missionStartCountdownPending = true;\s*missionStartCountdownWaitingForTransport = waitingForTransport/);
+  assert.match(welcome, /message\.resumeFlight && !\(journeyAttempt\?\.status === 'APPROACH' && missionStartCountdownPending\)/);
+  assert.match(main, /await arrival;[\s\S]*?missionStartCountdownWaitingForTransport=false;beginMissionStartCountdown\(\)/);
+});
+
 test('a terminal result stops an active intro before it can hand off to flight', () => {
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const transport = readFileSync(new URL('../../client/src/giant-incoming.ts', import.meta.url), 'utf8');
@@ -68,7 +77,7 @@ test('Journey timers wait for GO after the mission start countdown', () => {
   assert.match(countdown, /if \(remaining > 0\) \{[\s\S]*?return;[\s\S]*?missionStartCountdownStartedAt = null/);
   assert.match(countdown, /runStarted = true;[\s\S]*?type: 'journeyCountdownComplete', attemptId: journeyAttempt\.attemptId[\s\S]*?sendLocalState\(\)/);
   assert.match(server, /message\.type === 'journeyCountdownComplete'[\s\S]*?message\.attemptId === id && \(attempt\?\.status === 'APPROACH' \|\| attempt\?\.status === 'RACING'\)[\s\S]*?journeyCountdownComplete\.add\(id!\)/);
-  assert.match(server, /attempt\?\.missionId===journeyDallas09\.id\) && attempt\.status==='APPROACH' && transportReady\.has\(attemptId\) && journeyCountdownComplete\.has\(attemptId\)/);
+  assert.match(server, /attempt\?\.missionId===journeyDallas07\.id[\s\S]*?attempt\?\.missionId===journeyDallas12\.id\) && attempt\.status==='APPROACH' && transportReady\.has\(attemptId\) && journeyCountdownComplete\.has\(attemptId\)/);
   assert.match(server, /journeyDallas19\.id && attempt\.status === 'APPROACH' && journeyCountdownComplete\.has\(attemptId\)/);
   assert.match(server, /journeyCountdownComplete\.add\(id!\);[\s\S]*?startRookieRush\(player\.pilotId, id!, now\)[\s\S]*?startTimedGateClock\(player\.pilotId, id!, now\)/);
   assert.match(server, /active && journeyCountdownComplete\.has\(journeyAttemptId\) && \(active\.missionId === journeyDallas01\.id/);

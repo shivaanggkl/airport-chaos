@@ -16,9 +16,10 @@ test('all 24 unique missions occupy four ordered, balanced chapters', () => {
   for (let chapter = 1; chapter <= 4; chapter++) {
     const stages = missionJourneyStages.filter(stage => stage.chapter === chapter);
     assert.deepEqual(stages.map(stage => stage.number), Array.from({ length: 6 }, (_, index) => (chapter - 1) * 6 + index + 1));
-    assert.ok(stages.every(stage => chapter % 2 === 1 ? stage.x < 50 : stage.x > 50));
-    assert.ok(stages.every(stage => chapter <= 2 ? stage.y < 50 : stage.y > 50));
   }
+  assert.ok(missionJourneyStages.every((stage, index) => index === 0 || stage.x > missionJourneyStages[index - 1].x));
+  assert.ok(missionJourneyStages.every((stage, index) => index === 0 || stage.y < missionJourneyStages[index - 1].y));
+  assert.ok(missionJourneyStages.every(stage => stage.y > 25 && stage.y < 75));
   assert.match(view, /stage\.number % 6 === 0 \? '<em class="mission-journey-crown"/);
 });
 
@@ -65,7 +66,10 @@ test('mission selection supports pointer, keyboard and compact landscape layout'
   assert.match(view, /ArrowRight|ArrowDown/);
   assert.match(view, /target\.focus\(\)|next\.focus\(\)/);
   assert.match(view, /this\.renderDetails\(\)/);
-  assert.match(styles, /touch-action: manipulation/);
+  assert.match(view, /this\.suppressTap = this\.dragged/);
+  assert.match(view, /this\.revealMission\(next, true\)/);
+  assert.match(styles, /touch-action: pan-x/);
+  assert.match(styles, /overflow-x: auto/);
   assert.match(styles, /@media \(max-height: 480px\) and \(orientation: landscape\)/);
   assert.match(styles, /overflow: hidden/);
   assert.match(shell, /\.mission-journey \{ background: #092348 url\('\/media\/city-journey\/hangar\.jpg'\)/);

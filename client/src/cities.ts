@@ -64,7 +64,7 @@ export const cities: readonly CityDefinition[] = [
     spawn: { airportId: 'dfw' },
     spawnBrandPlacement: { forwardDistance: 3000, clearanceAgl: 50, width: 420, height: 144, campaignId: 'airport-chaos' },
     bounds: { minX: -25_000, maxX: 25_000, minZ: -25_000, maxZ: 25_000 },
-    timePresets: ['day', 'dusk', 'evening'],
+    timePresets: ['day', 'dusk', 'evening', 'night'],
     loadWorld: () => import('./dallas-world'),
   },
 ];
