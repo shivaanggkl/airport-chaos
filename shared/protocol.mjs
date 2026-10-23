@@ -61,17 +61,15 @@ export function ballisticInterceptDirection(origin, shooterVelocity, targetPosit
   }
   return speed * travelTime <= COMBAT_RANGE ? direction : null;
 }
-// Combat lock geometry is shared: the client renders the same small angular
-// circle around the bounded assisted aim that the server validates.
-// ~4.3° half-angle: roughly half the former on-screen lock-circle diameter.
-export const LOCK_ANGLE = 0.075;
+// The client renders this angular lock circle; the server validates the same cone.
+// At a 590px-tall, 58° chase view it projects to about a 32px radius.
+export const LOCK_ANGLE = 0.060;
 
-// Search is wider than the lock itself. Manual and automatic aim remain
-// bounded inside this forward-only cone. These angular limits are 2× the
-// original 0.20 / 0.115 / 0.10 rad envelope without changing aim step speed.
-export const AIM_ENVELOPE = 0.40;
-export const AIM_MAX_OFFSET = 0.23;
-export const AIM_MANUAL_OFFSET = 0.20;
+// Search, automatic travel, and manual bias share a forward-only cone.
+// At that chase view, automatic travel reaches about 99px and search 179px.
+export const AIM_ENVELOPE = 0.324;
+export const AIM_MAX_OFFSET = 0.184;
+export const AIM_MANUAL_OFFSET = 0.160;
 export const AIM_SWITCH_MARGIN = 0.015;
 // A shot references server-issued samples, never client-provided aim coordinates.
 export function interpolateAim(from, to, blend, out) {

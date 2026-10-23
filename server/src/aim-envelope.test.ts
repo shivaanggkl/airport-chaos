@@ -7,6 +7,7 @@ import {
   AIM_MAX_OFFSET,
   BASE_PROJECTILE_SPEED,
   COMBAT_RANGE,
+  LOCK_ANGLE,
   aimGoal,
   biasAim,
   insideDynamicLock,
@@ -15,15 +16,18 @@ import {
 
 const EPSILON = 1e-10;
 
-test('shared angular aim limits are exactly twice their previous values', () => {
-  assert.equal(AIM_ENVELOPE, 0.40);
-  assert.equal(AIM_MAX_OFFSET, 0.23);
-  assert.equal(AIM_MANUAL_OFFSET, 0.20);
+test('shared angular aim limits match the narrower on-screen travel', () => {
+  const pixelsAtChaseFov = (angle: number): number => Math.tan(angle) * 590 /
+    (2 * Math.tan(58 * Math.PI / 360));
+  assert.equal(Math.round(pixelsAtChaseFov(AIM_MAX_OFFSET)), 99);
+  assert.equal(Math.round(pixelsAtChaseFov(AIM_ENVELOPE)), 179);
+  assert.equal(Math.round(pixelsAtChaseFov(LOCK_ANGLE)), 32);
+  assert.ok(AIM_MANUAL_OFFSET < AIM_MAX_OFFSET);
   assert.equal(COMBAT_RANGE, 4_500);
   assert.equal(BASE_PROJECTILE_SPEED, 520);
 });
 
-test('horizontal, vertical, and diagonal manual aim use the expanded envelope', () => {
+test('horizontal, vertical, and diagonal manual aim stay inside the shared envelope', () => {
   const horizontal = { x: 0, y: 0 };
   const vertical = { x: 0, y: 0 };
   const diagonal = { x: 0, y: 0 };
@@ -37,27 +41,28 @@ test('horizontal, vertical, and diagonal manual aim use the expanded envelope', 
   assert.ok(Math.atan(Math.hypot(diagonal.x, diagonal.y)) < AIM_ENVELOPE);
 });
 
-test('targets beyond the previous envelope are acquired and validated against the same aim', () => {
-  const targetAngle = 0.30;
+test('targets beyond automatic travel can be found but require manual aim or steering to lock', () => {
+  const targetAngle = 0.25;
   const depth = 1_000;
   const targetX = Math.tan(targetAngle) * depth;
   const goal = { x: 0, y: 0 };
 
   assert.equal(aimGoal(targetX, 0, -depth, goal), true);
   assert.ok(Math.abs(Math.atan(goal.x) - AIM_MAX_OFFSET) < EPSILON);
+  assert.equal(insideDynamicLock(targetX, 0, -depth, goal), false);
   assert.equal(insideDynamicLock(targetX, 0, -depth, { x: Math.tan(targetAngle), y: 0 }), true);
 });
 
-test('center, former limits, expanded horizontal/vertical limits, and diagonals validate', () => {
+test('center, horizontal, vertical, and diagonal targets obey the new search boundary', () => {
   const depth = 1_000;
   const cases = [
     { angle: 0, azimuth: 0 },
     { angle: 0.10, azimuth: 0 },
     { angle: 0.20, azimuth: 0 },
     { angle: 0.30, azimuth: 0 },
-    { angle: 0.399, azimuth: 0 },
+    { angle: 0.323, azimuth: 0 },
     { angle: 0.20, azimuth: Math.PI / 2 },
-    { angle: 0.399, azimuth: Math.PI / 4 },
+    { angle: 0.323, azimuth: Math.PI / 4 },
   ];
 
   for (const { angle, azimuth } of cases) {
@@ -77,7 +82,7 @@ test('center, former limits, expanded horizontal/vertical limits, and diagonals 
   assert.equal(aimGoal(outside, 0, -depth, { x: 0, y: 0 }), false);
 });
 
-test('expanded travel retains the existing per-frame aim speed', () => {
+test('narrower travel retains the existing per-frame aim speed', () => {
   const oldRangeStep = { x: 0, y: 0 };
   const newRangeStep = { x: 0, y: 0 };
   const delta = 1 / 60;
