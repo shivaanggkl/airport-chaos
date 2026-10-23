@@ -1,6 +1,6 @@
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
 import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftScale, remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
-import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,transportHullImpact,transportBodySweep,transportFortressImpact,transportFortressTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
+import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -2386,9 +2386,11 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   if (attempt.status === 'COMPLETED' || attempt.status === 'FAILED' || attempt.status === 'ABANDONED')
     journeyCountdownComplete.delete(attempt.attemptId);
   if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id) && attempt.status==='RACING' && attempt.startedAt!==null){
-    const e=transportEncounters.get(attempt.attemptId)??createTransportEncounter(attempt.attemptId,playerId,attempt.startedAt,transportFlightAltitude,
+    const existingEncounter=transportEncounters.get(attempt.attemptId);
+    const e=existingEncounter??createTransportEncounter(attempt.attemptId,playerId,attempt.startedAt,transportFlightAltitude,
       attempt.missionId===journeyDallas12.id ? journeyDallas12.timeLimitMs : attempt.missionId===journeyDallas11.id ? journeyDallas11.timeLimitMs : attempt.missionId===journeyDallas10.id ? journeyDallas10.timeLimitMs : attempt.missionId===journeyDallas09.id ? journeyDallas09.timeLimitMs : attempt.missionId===journeyDallas08.id ? journeyDallas08.timeLimitMs : journeyDallas07.timeLimitMs,
       attempt.missionId===journeyDallas10.id, attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id);
+    if(!existingEncounter){const pilot=players.get(playerId);if(pilot){e.lastCollisionPilotPosition={...pilot.position};e.lastCollisionPilotRotation={...pilot.rotation};}}
     if(e.fortressTurrets){e.fortressTurrets[0]=attempt.fortressLeftHealth??0;e.fortressTurrets[1]=attempt.fortressRightHealth??0;e.fortressGunsEnabled=attempt.missionId!==journeyDallas12.id || attempt.finalPhase!=='ESCORTS';}
     e.playerId=playerId;transportEncounters.set(attempt.attemptId,e);
   }
@@ -5197,14 +5199,20 @@ function updateTransportEncounters(now: number): void {
         const pilot = players.get(e.playerId), a = pilot && journeyStore.get(pilot.pilotId, e.attemptId);
         if (!pilot || a?.status !== 'RACING' || a.deadlineAt === null || now >= a.deadlineAt)
             continue;
-        const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
+        const previousTickAt=e.lastTickAt;
+        const dt = Math.max(0, Math.min(.1, (now - previousTickAt) / 1000));
         const pose = stepTransportEncounter(e, pilot.position, pilot.velocity, transportBuildings, now);
-        const previousPilot = { x: pilot.position.x - pilot.velocity.x * dt, y: pilot.position.y - pilot.velocity.y * dt, z: pilot.position.z - pilot.velocity.z * dt };
-        const transportHit = (a.missionId === journeyDallas11.id || a.missionId === journeyDallas12.id)
-          ? transportBodySweep(previousPilot, pilot.position, transportPose(now - dt * 1000 - e.startedAt, e.altitude, e.durationMs), pose)
-          : transportImpact(previousPilot, pilot.position, transportPose(now - dt * 1000 - e.startedAt, e.altitude, e.durationMs), pose);
+        const previousPilot=e.lastCollisionPilotPosition??{x:pilot.position.x-pilot.velocity.x*dt,y:pilot.position.y-pilot.velocity.y*dt,z:pilot.position.z-pilot.velocity.z*dt};
+        const previousRotation=e.lastCollisionPilotRotation??pilot.rotation;
+        e.lastCollisionPilotPosition={...pilot.position};
+        e.lastCollisionPilotRotation={...pilot.rotation};
+        const fortress=a.missionId===journeyDallas11.id||a.missionId===journeyDallas12.id;
+        const sideGuns=e.crossfire?.guns.slice(1);
+        const beforePose={...transportPose(previousTickAt-e.startedAt,e.altitude,e.durationMs),gunYaw:e.gunYaw,gunPitch:e.gunPitch,sideGuns};
+        const transportHit=transportAircraftImpact(previousPilot,pilot.position,previousRotation,pilot.rotation,pilot.aircraftType,beforePose,
+          {...pose,gunYaw:e.gunYaw,gunPitch:e.gunPitch,sideGuns},fortress);
         if (pilot.lifeState === 'alive' && transportHit) {
-            sendToPlayer(e.playerId, { type: 'transportCollision', attemptId: e.attemptId, position: typeof transportHit === 'boolean' ? pilot.position : transportHit });
+            sendToPlayer(e.playerId, { type: 'transportCollision', attemptId: e.attemptId, position: transportHit });
             failPlayerJourney(e.playerId, 'CRASHED', now);
             markPlayerDestroyed(e.playerId, pilot, now);
             continue;

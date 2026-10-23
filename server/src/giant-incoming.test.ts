@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { transportPose, transportSpawn, transportTuning, transportRouteLength, transportCourse, transportFootprintRadius } from '../../shared/giant-incoming.mjs';
-import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportBodySweep, transportFortressImpact, stepCrossfireGunCycle, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
+import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportAircraftImpact, transportBodySweep, transportFortressImpact, stepCrossfireGunCycle, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { indexBuildingsForOcclusion, segmentBlockedByBuildings } from './monster-arrival.js';
@@ -90,6 +90,23 @@ test('Fortress crash sweep follows the moving hull without using gun collision',
   assert.equal(transportBodySweep({x:0,y:40,z:480},{x:0,y:40,z:-480},p,p),true);
   assert.equal(transportBodySweep({x:500,y:50,z:480},{x:500,y:50,z:-480},p,p),false);
   assert.equal(transportBodySweep({x:0,y:40,z:480},{x:50,y:40,z:-480},p,{...p,x:50}),true);
+});
+test('player airframe sweep catches nose, wing, and underside before the center crosses the transport',()=>{
+  const p={...transportPose(0),x:0,y:0,z:0,yaw:0,roll:0};
+  const rotation={x:0,y:0,z:0};
+  const crash=(a:{x:number;y:number;z:number},b:{x:number;y:number;z:number})=>
+    transportAircraftImpact(a,b,rotation,rotation,'trainer',p,p,true);
+  const noseA={x:0,y:40,z:380},noseB={x:0,y:40,z:355};
+  assert.equal(transportImpact(noseA,noseB,p,p,false),undefined);
+  assert.ok(crash(noseA,noseB));
+  const wingA={x:310,y:40,z:0},wingB={x:276,y:40,z:0};
+  assert.equal(transportImpact(wingA,wingB,p,p,false),undefined);
+  assert.ok(crash(wingA,wingB));
+  const belowA={x:0,y:-90,z:0},belowB={x:0,y:-71.2,z:0};
+  assert.equal(transportImpact(belowA,belowB,p,p,false),undefined);
+  assert.ok(crash(belowA,belowB));
+  assert.equal(crash({x:400,y:180,z:480},{x:400,y:180,z:-480}),undefined);
+  assert.ok(transportAircraftImpact({x:0,y:40,z:480},{x:50,y:40,z:-480},rotation,rotation,'trainer',p,{...p,x:50},true));
 });
 
 test('Fortress projectile sweep separates wing turrets, armor, and exposed rear core',()=>{

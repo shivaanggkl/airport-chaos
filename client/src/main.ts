@@ -7912,7 +7912,7 @@ function updateProjectiles(delta: number): void {
   }
 }
 
-function createDestructionEffect(position: THREE.Vector3, type: AircraftType): void {
+function createDestructionEffect(position: THREE.Vector3, type: AircraftType, scaleMultiplier = 1): void {
   if (destructionEffects.length >= MAX_DESTRUCTION_EFFECTS) {
     const oldest = destructionEffects.shift();
     if (oldest) recycleDestructionEffect(oldest);
@@ -7922,7 +7922,7 @@ function createDestructionEffect(position: THREE.Vector3, type: AircraftType): v
     effect.group.position.copy(position);
     effect.group.visible = true;
     effect.elapsed = 0;
-    effect.scale = type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9;
+    effect.scale = (type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9) * scaleMultiplier;
     effect.flashMaterial.opacity = 0.98;
     effect.fireMaterial.opacity = 0.8;
     effect.fireMaterial.color.setHex(type === 'fighter' ? 0xff4b19 : 0xff7925);
@@ -7957,7 +7957,7 @@ function createDestructionEffect(position: THREE.Vector3, type: AircraftType): v
   const flash = new THREE.Mesh(destructionFlashGeometry, flashMaterial);
   const fire = new THREE.Mesh(destructionFlashGeometry, fireMaterial);
   const smoke = new THREE.Mesh(destructionFlashGeometry, smokeMaterial);
-  const scale = type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9;
+  const scale = (type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9) * scaleMultiplier;
   flash.scale.setScalar(1.4 * scale);
   fire.scale.setScalar(2.4 * scale);
   smoke.scale.setScalar(2 * scale);
@@ -10645,10 +10645,15 @@ boundSocket.addEventListener('message', (event) => {
   if (message.type === 'transportCollision') {
     if (message.attemptId !== journeyAttemptId || journeyAttempt?.status !== 'RACING' || transportCollisionAttemptId === message.attemptId) return;
     transportCollisionAttemptId = message.attemptId;
-    transportCollisionResultAt = performance.now() + 1_000;
+    transportCollisionResultAt = performance.now() + 1_250;
     transportCollisionPlayerWasVisible = airplane.visible;
     const impact = new THREE.Vector3(message.position.x, message.position.y, message.position.z);
-    createDestructionEffect(impact, aircraftType);
+    // Lift the existing blast off the transport skin toward the chase camera,
+    // so the hull cannot hide the impact before the failure card appears.
+    const towardCamera = camera.position.clone().sub(impact);
+    if (towardCamera.lengthSq() > 1) impact.addScaledVector(towardCamera.normalize(), 9);
+    createDestructionEffect(impact, aircraftType, 3);
+    audioManager.playTone(90, 0.55, 'sawtooth', 0.16, 32, 0, 'impacts');
     airplane.visible = false;
     localLifeState = 'destroyed';
     health = 0;

@@ -141,11 +141,43 @@ function impactFraction(start:number[],end:number[],meshTree:Box,surface=triangl
     visit(meshTree);
     return first;
 }
-export function transportImpact(a:Point,b:Point,before:CollisionPose,after:CollisionPose):Point|undefined {
- let first=Math.min(impactFraction(local(a,before),local(b,after),bodyTree),impactFraction(gunLocal(a,before),gunLocal(b,after),gunTree,gunSurface));
+export function transportImpact(a:Point,b:Point,before:CollisionPose,after:CollisionPose,includeRearGun=true):Point|undefined {
+ let first=impactFraction(local(a,before),local(b,after),bodyTree);
+ if(includeRearGun)first=Math.min(first,impactFraction(gunLocal(a,before),gunLocal(b,after),gunTree,gunSurface));
  if(before.sideGuns&&after.sideGuns)for(const gun of [1,2])first=Math.min(first,
     impactFraction(gunLocal(a,before,gun),gunLocal(b,after,gun),gunTree,gunSurface));
  return Number.isFinite(first)?{x:a.x+(b.x-a.x)*first,y:a.y+(b.y-a.y)*first,z:a.z+(b.z-a.z)*first}:undefined;
+}
+type AircraftType = 'trainer'|'privateJet'|'cargo'|'fighter';
+type AircraftRotation = {x:number;y:number;z:number};
+// Physical extents of the existing player aircraft, in their local +X wing / -Z nose axes.
+const crashAirframes:Record<AircraftType,{halfWing:number;nose:number;tail:number;belly:number}>= {
+    trainer:{halfWing:4.2,nose:4,tail:2.6,belly:.7},
+    privateJet:{halfWing:3.6,nose:5.5,tail:3.5,belly:.75},
+    cargo:{halfWing:5.75,nose:5.3,tail:3.6,belly:1},
+    fighter:{halfWing:3.4,nose:5.5,tail:3,belly:.65},
+};
+function aircraftPoint(center:Point,rotation:AircraftRotation,x:number,y:number,z:number):Point {
+    const cy=Math.cos(rotation.y),sy=Math.sin(rotation.y),cp=Math.cos(rotation.x),sp=Math.sin(rotation.x),cr=Math.cos(rotation.z),sr=Math.sin(rotation.z);
+    const rx=cr*x-sr*y,ry=sr*x+cr*y;
+    const py=cp*ry-sp*z,pz=sp*ry+cp*z;
+    return {x:center.x+cy*rx+sy*pz,y:center.y+py,z:center.z-sy*rx+cy*pz};
+}
+/** Sweep the nose, fuselage, belly, and wing span against the visible transport surfaces. */
+export function transportAircraftImpact(a:Point,b:Point,rotationA:AircraftRotation,rotationB:AircraftRotation,
+    aircraftType:AircraftType,before:CollisionPose,after:CollisionPose,fortress=false):Point|undefined {
+    const shape=crashAirframes[aircraftType];
+    const probes:[number,number,number][]=[[0,0,0],[0,0,-shape.nose],[0,0,shape.tail],[0,-shape.belly,0],[0,shape.belly,0],
+        [-shape.halfWing,0,0],[-shape.halfWing*.55,0,0],[shape.halfWing*.55,0,0],[shape.halfWing,0,0]];
+    let nearest:Point|undefined,travel=Infinity;
+    for(const [x,y,z] of probes){
+        const start=aircraftPoint(a,rotationA,x,y,z),end=aircraftPoint(b,rotationB,x,y,z);
+        const hit=transportImpact(start,end,before,after,!fortress);
+        if(!hit)continue;
+        const distance=(hit.x-start.x)**2+(hit.y-start.y)**2+(hit.z-start.z)**2;
+        if(distance<travel){travel=distance;nearest=hit;}
+    }
+    return nearest;
 }
 /** Classify a server-simulated shot against the exposed Mission 11 parts. */
 export function transportFortressImpact(a:Point,b:Point,before:CollisionPose,after:CollisionPose,coreExposed:boolean):
@@ -198,6 +230,8 @@ export type TransportEncounter = {
     altitude: number;
     durationMs: number;
     lastTickAt: number;
+    lastCollisionPilotPosition?: Point;
+    lastCollisionPilotRotation?: {x:number;y:number;z:number};
     lastBroadcastAt: number;
     nextBurstAt: number;
     warningUntil: number;
