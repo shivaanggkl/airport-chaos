@@ -45,6 +45,8 @@ export const journeyDallas08: Readonly<{
   id: 'journey-dallas-08'; cityId: 'dallas'; name: 'REAR GUARD'; chapter: 'SKY ADVENTURES';
   firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 300000; bossHealth: 2000;
   escortHealth: 1000; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
+  escortAircraft: readonly ['trainer', 'trainer'];
+  escortLiveries: readonly ['bluejay-skybolt', 'bluejay-aurora'];
   escortBurstIntervalMs: 6000; escortShotSpacingMs: 250; escortShotDamage: 10; followMs: 15000;
   minDistance: 80; maxDistance: 450; maxTailAngle: number;
   maxHeadingDifference: number; maxAltitudeDifference: 100;
@@ -66,8 +68,8 @@ export const journeyDallas10: Readonly<{
   id: 'journey-dallas-10'; cityId: 'dallas'; name: 'CROSSFIRE'; chapter: 'SKY ADVENTURES';
   timeLimitMs: 330000; firstClearCredits: 1150; startAirportId: 'dfw'; bossHealth: 2000;
   escortCount: 2; escortScale: 16; escortHealth: readonly [175, 225];
-  escortAircraft: readonly ['privateJet', 'fighter'];
-  escortLiveries: readonly ['nightowl-forest', 'firehawk-inferno'];
+  escortAircraft: readonly ['privateJet', 'cargo'];
+  escortLiveries: readonly ['nightowl-forest', 'mammoth-sand'];
   escortFireDelayMs: 5000; escortBurstIntervalMs: 6000;
   escortShotSpacingMs: 250; escortShotDamage: 10;
   gunBurstIntervalMs: 3000; gunWarningMs: 1000;

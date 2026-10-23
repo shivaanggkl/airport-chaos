@@ -2202,6 +2202,17 @@ let monsterView: MonsterArrivalView | undefined;
 let transportView:GiantIncomingView|undefined;
 let transportViewAttemptId="";
 let pendingTransportResultId:string|null=null;
+let transportCollisionAttemptId: string | null = null;
+let transportCollisionResultAt = 0;
+let transportCollisionResultTimer: number | null = null;
+let transportCollisionPlayerWasVisible = true;
+function resetTransportCollisionPresentation(): void {
+  if (transportCollisionResultTimer !== null) window.clearTimeout(transportCollisionResultTimer);
+  transportCollisionResultTimer = null;
+  transportCollisionResultAt = 0;
+  if (transportCollisionAttemptId !== null) airplane.visible = transportCollisionPlayerWasVisible;
+  transportCollisionAttemptId = null;
+}
 let transportHidPlayer=false;
 let transportPlayerWasVisible=true;
 const monsterBossHud = document.createElement('div');
@@ -2996,6 +3007,13 @@ function journeyResultMetric(label: string, value: string): HTMLElement {
 
 function showJourneyResult(attempt: JourneyAttemptState): void {
   if (attempt.status !== 'COMPLETED' && attempt.status !== 'FAILED' && attempt.status !== 'ABANDONED') return;
+  if (attempt.status === 'FAILED' && attempt.attemptId === transportCollisionAttemptId && performance.now() < transportCollisionResultAt) {
+    if (transportCollisionResultTimer === null) transportCollisionResultTimer = window.setTimeout(() => {
+      transportCollisionResultTimer = null;
+      if (journeyAttempt?.attemptId === attempt.attemptId && journeyAttempt.status === 'FAILED') showJourneyResult(journeyAttempt);
+    }, Math.ceil(transportCollisionResultAt - performance.now()));
+    return;
+  }
   if((attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id) && attempt.status==='COMPLETED' && transportView && !transportView.defeatComplete){
     const view=transportView;view.finish('defeat');
     if(pendingTransportResultId===attempt.attemptId)return;
@@ -3787,12 +3805,12 @@ function rewardLanding(airport: AirportDefinition, landingQuality?: LandingQuali
   contextualHints.trigger('garage');
 }
 
-function endRun(message: EndReason, title: string = message): void {
+function endRun(message: EndReason, title: string = message, reportCrash = true): void {
   if (crashed) return;
   if (journeyPreflightActive()) return;
   cinematicDirector.clearPresentation();
-  if (journeyMode && connectionReady()) socket.send(JSON.stringify({ type: 'journeyCrash' }));
-  if (message === 'CRASHED' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'crash' }));
+  if (reportCrash && journeyMode && connectionReady()) socket.send(JSON.stringify({ type: 'journeyCrash' }));
+  if (reportCrash && message === 'CRASHED' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'crash' }));
   crashed = true;
   landingSpeedCueElement.classList.add('hidden');
   speedElement.classList.remove('landing-risk');
@@ -4718,6 +4736,7 @@ type ServerMessage =
   | { type: 'journeyAttempt'; attempt: JourneyAttemptState; serverNow: number }
   | TransportStateMessage
   | {type:'transportFinal';attemptId:string;kind:'defeat'|'timeout';at:number}
+  | {type:'transportCollision';attemptId:string;position:NetworkVector}
   | MonsterStateMessage
   | { type: 'monsterFinal'; attemptId: string; kind: 'defeat' | 'timeout'; at: number }
   | { type: 'journeyGateTooHigh'; gateIndex: number }
@@ -10297,6 +10316,7 @@ function requestFlightExit(openFirehawkGarage = false): void {
 async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = false): Promise<void> {
   if (flightExitPending) return;
   flightExitPending = true;
+  resetTransportCollisionPresentation();
   pendingTransportResultId=null;
   flightGameRoot.classList.remove('transport-defeat-cinematic');
   championshipLandingIntentPending = undefined;
@@ -10395,6 +10415,7 @@ async function retryJourneyMission(): Promise<void> {
     if (!response.ok) throw new Error('Retry was not authorized');
     const result = await response.json() as { attempt?: { attemptId?: string } };
     if (!result.attempt?.attemptId) throw new Error('Retry attempt was missing');
+    resetTransportCollisionPresentation();
     journeyAttemptId = result.attempt.attemptId;
     championshipLandingIntentPending = undefined;
     const url = new URL(window.location.href);
@@ -10621,6 +10642,20 @@ boundSocket.addEventListener('message', (event) => {
     }return;
   }
   if(message.type==='transportFinal'){if(message.attemptId===journeyAttemptId)transportView?.finish(message.kind);return;}
+  if (message.type === 'transportCollision') {
+    if (message.attemptId !== journeyAttemptId || journeyAttempt?.status !== 'RACING' || transportCollisionAttemptId === message.attemptId) return;
+    transportCollisionAttemptId = message.attemptId;
+    transportCollisionResultAt = performance.now() + 1_000;
+    transportCollisionPlayerWasVisible = airplane.visible;
+    const impact = new THREE.Vector3(message.position.x, message.position.y, message.position.z);
+    createDestructionEffect(impact, aircraftType);
+    airplane.visible = false;
+    localLifeState = 'destroyed';
+    health = 0;
+    updateHealthDisplay(true);
+    endRun('CRASHED', 'AIRCRAFT DESTROYED', false);
+    return;
+  }
   if (message.type === 'journeyAttempt') {
     if (!journeyMode || message.attempt.attemptId !== journeyAttemptId) return;
     const previousAttempt = journeyAttempt;

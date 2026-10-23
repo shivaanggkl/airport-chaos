@@ -4573,8 +4573,8 @@ function canFire(player: PlayerState, now: number): boolean {
 
 function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
   if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
-  const interval = player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
-    ? journeyDallas09.escortShotSpacingMs : fireIntervalMs(player.aircraftType);
+  const interval = player.bot?.journeyEscortMissionId === journeyDallas08.id || player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
+    ? journeyDallas08.escortShotSpacingMs : fireIntervalMs(player.aircraftType);
   if (now - player.lastFireAt < interval) return 'cooldown';
   return undefined;
 }
@@ -5200,9 +5200,11 @@ function updateTransportEncounters(now: number): void {
         const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
         const pose = stepTransportEncounter(e, pilot.position, pilot.velocity, transportBuildings, now);
         const previousPilot = { x: pilot.position.x - pilot.velocity.x * dt, y: pilot.position.y - pilot.velocity.y * dt, z: pilot.position.z - pilot.velocity.z * dt };
-        if (pilot.lifeState === 'alive' && ((a.missionId === journeyDallas11.id || a.missionId === journeyDallas12.id)
+        const transportHit = (a.missionId === journeyDallas11.id || a.missionId === journeyDallas12.id)
           ? transportBodySweep(previousPilot, pilot.position, transportPose(now - dt * 1000 - e.startedAt, e.altitude, e.durationMs), pose)
-          : transportImpact(previousPilot, pilot.position, transportPose(now - dt * 1000 - e.startedAt, e.altitude, e.durationMs), pose))) {
+          : transportImpact(previousPilot, pilot.position, transportPose(now - dt * 1000 - e.startedAt, e.altitude, e.durationMs), pose);
+        if (pilot.lifeState === 'alive' && transportHit) {
+            sendToPlayer(e.playerId, { type: 'transportCollision', attemptId: e.attemptId, position: typeof transportHit === 'boolean' ? pilot.position : transportHit });
             failPlayerJourney(e.playerId, 'CRASHED', now);
             markPlayerDestroyed(e.playerId, pilot, now);
             continue;
@@ -5339,14 +5341,14 @@ function desiredBotCount(cityId: CityId): number {
 function transportEscortHealth(bot: BotRuntime | undefined): number | undefined {
   if (!bot?.journeyRearGuardEscort) return undefined;
   return bot.journeyEscortMissionId === journeyDallas10.id || bot.journeyEscortMissionId === journeyDallas12.id
-    ? journeyDallas10.escortHealth[bot.journeyRearGuardEscort - 1]
+    ? (bot.journeyEscortMissionId === journeyDallas12.id ? journeyDallas12 : journeyDallas10).escortHealth[bot.journeyRearGuardEscort - 1]
     : bot.journeyEscortMissionId === journeyDallas09.id
       ? journeyDallas09.escortHealth[bot.journeyRearGuardEscort - 1] : journeyDallas08.escortHealth;
 }
 
 function transportEscortCosmetics(bot: BotRuntime | undefined): Record<string, string> | undefined {
-  if (!bot?.journeyRearGuardEscort || bot.journeyEscortMissionId !== journeyDallas09.id && bot.journeyEscortMissionId !== journeyDallas10.id && bot.journeyEscortMissionId !== journeyDallas12.id) return undefined;
-  const mission = bot.journeyEscortMissionId === journeyDallas12.id ? journeyDallas12 : bot.journeyEscortMissionId === journeyDallas10.id ? journeyDallas10 : journeyDallas09;
+  if (!bot?.journeyRearGuardEscort || bot.journeyEscortMissionId !== journeyDallas08.id && bot.journeyEscortMissionId !== journeyDallas09.id && bot.journeyEscortMissionId !== journeyDallas10.id && bot.journeyEscortMissionId !== journeyDallas12.id) return undefined;
+  const mission = bot.journeyEscortMissionId === journeyDallas12.id ? journeyDallas12 : bot.journeyEscortMissionId === journeyDallas10.id ? journeyDallas10 : bot.journeyEscortMissionId === journeyDallas09.id ? journeyDallas09 : journeyDallas08;
   const type = mission.escortAircraft[bot.journeyRearGuardEscort - 1];
   const livery = mission.escortLiveries[bot.journeyRearGuardEscort - 1];
   return type && livery ? { [`livery:${type}`]: livery } : undefined;
@@ -5450,8 +5452,9 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   const id = `bot:${cityId}:${nextBotSerial}`;
   const name = `${botNames[(nextBotSerial - 1) % botNames.length]}-${20 + ((nextBotSerial * 7) % 80)}`;
   const botAircraftType = leaderSpawn ? 'trainer' : journeySpawn?.rearGuardOrdinal
-    ? (journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id ? journeyDallas10.escortAircraft[journeySpawn.rearGuardOrdinal - 1]
-      : journeySpawn.escortMissionId === journeyDallas09.id ? journeyDallas09.escortAircraft[journeySpawn.rearGuardOrdinal - 1] : 'fighter') as AircraftType : botAircraft(personality);
+    ? (journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id ? (journeySpawn.escortMissionId === journeyDallas12.id ? journeyDallas12 : journeyDallas10).escortAircraft[journeySpawn.rearGuardOrdinal - 1]
+      : journeySpawn.escortMissionId === journeyDallas09.id ? journeyDallas09.escortAircraft[journeySpawn.rearGuardOrdinal - 1]
+      : journeyDallas08.escortAircraft[journeySpawn.rearGuardOrdinal - 1]) as AircraftType : botAircraft(personality);
   const downtown = journeySpawn && !leaderSpawn && !journeySpawn.recovery && !journeySpawn.escape && !journeySpawn.ace && !journeySpawn.siege && !journeySpawn.breakout && !journeySpawn.crossfireOrdinal && !journeySpawn.doubleOrdinal && !journeySpawn.rearGuardOrdinal ? territoriesForCity('dallas').find(territory => territory.id === 'downtown')! : undefined;
   const escortPose = journeySpawn?.rearGuardOrdinal ? journeySpawn.escortPose ?? transportPose(0, transportFlightAltitude, journeyDallas08.timeLimitMs) : undefined;
   const escortSide = journeySpawn?.rearGuardOrdinal && journeySpawn.rearGuardOrdinal % 2 ? -1 : 1;
@@ -5577,10 +5580,10 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     cityId, position: { x: spawnX, y: spawnY, z: spawnZ },
     rotation: { x: 0, y: spawnHeading, z: 0 }, aircraftType: botAircraftType,
     displayName: journeySpawn?.rearGuardOrdinal ? journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id
-      ? `${['NIGHTOWL', 'FIREHAWK'][journeySpawn.rearGuardOrdinal - 1]} ESCORT` : journeySpawn.escortMissionId === journeyDallas09.id
-      ? `${['BLUEJAY', 'MAMMOTH', 'NIGHTOWL', 'FIREHAWK'][journeySpawn.rearGuardOrdinal - 1]} ESCORT` : `FIGHTER ESCORT ${journeySpawn.rearGuardOrdinal}` : leaderSpawn ? 'AI LEADER' : journeySpawn?.legendary ? 'LEGENDARY ACE' : journeySpawn?.ace ? journeyDallas15.bossName : journeySpawn?.doubleOrdinal ? `HUNTER ${journeySpawn.doubleOrdinal}` : name,
+      ? `${(journeySpawn.escortMissionId === journeyDallas12.id ? ['NIGHTOWL', 'FIREHAWK'] : ['NIGHTOWL', 'MAMMOTH'])[journeySpawn.rearGuardOrdinal - 1]} ESCORT` : journeySpawn.escortMissionId === journeyDallas09.id
+      ? `${['BLUEJAY', 'MAMMOTH', 'NIGHTOWL', 'FIREHAWK'][journeySpawn.rearGuardOrdinal - 1]} ESCORT` : `BLUEJAY ESCORT ${journeySpawn.rearGuardOrdinal}` : leaderSpawn ? 'AI LEADER' : journeySpawn?.legendary ? 'LEGENDARY ACE' : journeySpawn?.ace ? journeyDallas15.bossName : journeySpawn?.doubleOrdinal ? `HUNTER ${journeySpawn.doubleOrdinal}` : name,
     score: 0, health: journeySpawn?.rearGuardOrdinal ? journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id
-      ? journeyDallas10.escortHealth[journeySpawn.rearGuardOrdinal - 1]! : journeySpawn.escortMissionId === journeyDallas09.id
+      ? (journeySpawn.escortMissionId === journeyDallas12.id ? journeyDallas12 : journeyDallas10).escortHealth[journeySpawn.rearGuardOrdinal - 1]! : journeySpawn.escortMissionId === journeyDallas09.id
       ? journeyDallas09.escortHealth[journeySpawn.rearGuardOrdinal - 1]! : journeyDallas08.escortHealth : journeySpawn?.legendary ? journeyDallas24.bossHealth : journeySpawn?.ace ? journeyDallas15.bossHealth : maxHealthForAircraft(botAircraftType), lifeState: 'alive', hasRespawnTransform: true,
     lastFireAt: 0, spawnProtectedUntil: Date.now() + 1_500, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
     lastStateAt: Date.now(), lastAcceptedPosition: { x: spawnX, y: spawnY, z: spawnZ }, lastAcceptedTransformAt: Date.now(),
