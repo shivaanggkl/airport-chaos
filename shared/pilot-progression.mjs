@@ -22,6 +22,17 @@ export function pilotTitleForLevel(level) {
   return 'ROOKIE';
 }
 
+export const earnedRankDefinitions = Object.freeze([
+  { id: 'rookie', level: 1 }, { id: 'pathfinder', level: 5 },
+  { id: 'aviator', level: 10 }, { id: 'ace', level: 15 },
+  { id: 'elite', level: 25 }, { id: 'sky_commander', level: 35 },
+  { id: 'legend', level: 50 },
+]);
+
+export function earnedRankIdForLevel(level) {
+  return [...earnedRankDefinitions].reverse().find(rank => level >= rank.level)?.id ?? 'rookie';
+}
+
 export function utcDayId(now = Date.now()) { return new Date(now).toISOString().slice(0, 10); }
 
 export function utcDayDistance(fromDay, toDay) {
@@ -31,8 +42,8 @@ export function utcDayDistance(fromDay, toDay) {
 }
 
 export const pilotXpRewards = Object.freeze({
-  distance5km: 5, landing: 25, discovery: 15, aiKill: 15, humanKill: 40,
-  territoryCapture: 50, event: 50, pvpVictory: 40,
+  distance5km: 5, landing: 25, discovery: 15, aiKill: 15,
+  territoryCapture: 50, event: 50, skyDuelVictory: 40, skyDuelDefeat: 10, missionReplay: 10,
   mission: Object.freeze({ EASY: 40, MEDIUM: 70, HARD: 110, 'VERY HARD': 160, EXTREME: 250 }),
 });
 

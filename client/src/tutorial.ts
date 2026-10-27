@@ -1,6 +1,7 @@
 import { shouldOfferTutorial } from '../../shared/tutorial-flight-rules.mjs';
 import { actionKeyLabel, desktopTurnKeyLabel, menuKeyLabel } from './flight-input';
-import { targetBracketMarkup, identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
+import { identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
+import { aimingReticleMarkup } from './aiming-reticle';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
 import { mountAirportChaosLogo } from './brand';
@@ -40,8 +41,8 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; visual: s
   },
   {
     nav: 'Fight', icon: 'player', title: 'FIGHT',
-    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Target near the aiming circle')}<div class="help-combat-example"><div class="acquisition-circle locked"></div><span class="help-enemy-brackets">${targetBracketMarkup()}<i>◆</i></span><strong class="help-locked">LOCKED</strong></div></div>` + legend(['player', 'ai']),
-    instructions: steps('Put the target near the aiming circle', 'GET CLOSER means it is out of range', `Press <kbd>${actionKeyLabel('fire')}</kbd> to shoot`),
+    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Target inside a red locked aiming circle between white brackets')}<div class="help-combat-example"><div class="acquisition-circle locked">${aimingReticleMarkup}</div><strong class="help-locked">LOCKED</strong></div></div>` + legend(['player', 'ai']),
+    instructions: steps('Keep the target inside the circle', 'Red circle and LOCKED mean ready to fire', 'GET CLOSER means it is out of range', `Press <kbd>${actionKeyLabel('fire')}</kbd> to shoot`),
   },
   {
     nav: 'Repair', icon: 'repairHeart', title: 'REPAIR YOUR PLANE',

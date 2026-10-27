@@ -6,6 +6,7 @@ import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './a
 import { HomeHangar, type HomeHangarData } from './home-hangar';
 import { LAUNCH_MODE_PARAM, type LaunchMode } from './launch-mode';
 import { AppShellHeader, type AppShellActive } from './app-shell';
+import { showPendingRankHelmetUnlock } from './rank-helmet-unlock';
 import { createLockIcon } from './lock-icon';
 import { HubInfoDialog } from './hub-info-dialog';
 import { GameStore } from './game-store';
@@ -56,6 +57,7 @@ const cityHelp = document.querySelector<HTMLButtonElement>('#city-help')!;
 const cityHelpDialog = document.querySelector<HTMLElement>('#city-help-dialog')!;
 const cityHelpCopy = document.querySelector<HTMLElement>('#city-help-copy')!;
 const timeOptions = document.querySelector<HTMLElement>('#time-options')!;
+const multiplayerFreeFly = document.querySelector<HTMLButtonElement>('#multiplayer-free-fly')!;
 const cityBack = document.querySelector<HTMLButtonElement>('#city-back')!;
 const citySelectTitle = document.querySelector<HTMLElement>('#city-select-title')!;
 const citySelectDescription = document.querySelector<HTMLElement>('#city-select-description')!;
@@ -70,8 +72,8 @@ let menuEntranceRoot: HTMLElement | undefined;
 let menuEntranceItems: HTMLElement[] = [];
 
 function menuContentFor(root: HTMLElement): HTMLElement[] {
-  const selectors = root === homeHangarElement ? ['.home-hangar-missions', '.home-hangar-free-fly', '.home-hangar-settings']
-    : root === citySelector ? [citySelector.dataset.view === 'time' ? '.city-options' : '.city-journey', '.city-help']
+  const selectors = root === homeHangarElement ? ['.home-hangar-missions', '.home-hangar-free-fly', '.home-hangar-store', '.home-hangar-sponsor', '.home-hangar-settings']
+    : root === citySelector ? [citySelector.dataset.view === 'time' || citySelector.dataset.view === 'multiplayer' ? '.city-options' : '.city-journey', '.city-help']
     : root === missionJourneyElement ? ['.mission-journey-map', '.mission-journey-detail']
     : root === gameStoreElement ? ['.store-category-rail', '.store-content', '.store-notice']
     : root === garageOverlay ? ['.garage-card']
@@ -131,7 +133,6 @@ function trackAircraftSelection<T>(operation: Promise<T>, confirmed: (value: T) 
   void completion.then(() => { if (pendingAircraftSelection === completion) pendingAircraftSelection = undefined; });
   return operation;
 }
-let guestQaJourneyAccess = false;
 let journeyAttemptMission: 'mission-01' | 'mission-02' | 'mission-03' | 'mission-04' | 'mission-05' | 'mission-06' | 'mission-07' | 'mission-08' | 'mission-09' | 'mission-10' | 'mission-11' | 'mission-12' | 'mission-13' | 'mission-14' | 'mission-15' | 'mission-16' | 'mission-17' | 'mission-18' | 'mission-19' | 'mission-20' | 'mission-21' | 'mission-22' | 'mission-23' | 'mission-24' = 'mission-01';
 
 function abandonPendingJourneyLaunch(): void {
@@ -146,9 +147,8 @@ function abandonPendingJourneyLaunch(): void {
 async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAttemptId?: string; mission02?: { completed: boolean; firstAttemptId?: string }; mission03?: { completed: boolean; firstAttemptId?: string }; mission04?: { completed: boolean; firstAttemptId?: string }; mission05?: { completed: boolean; firstAttemptId?: string }; mission06?: { completed: boolean; firstAttemptId?: string }; mission07?: { completed: boolean; firstAttemptId?: string }; mission08?: { completed: boolean; firstAttemptId?: string }; mission09?: { completed: boolean; firstAttemptId?: string }; mission10?: { completed: boolean; firstAttemptId?: string }; mission11?: { completed: boolean; firstAttemptId?: string }; mission12?: { completed: boolean; firstAttemptId?: string }; mission13?: { completed: boolean; firstAttemptId?: string }; mission14?: { completed: boolean; firstAttemptId?: string }; mission15?: { completed: boolean; firstAttemptId?: string }; mission16?: { completed: boolean; firstAttemptId?: string }; mission17?: { completed: boolean; firstAttemptId?: string }; mission18?: { completed: boolean; firstAttemptId?: string }; mission19?: { completed: boolean; firstAttemptId?: string }; mission20?: { completed: boolean; firstAttemptId?: string }; mission21?: { completed: boolean; firstAttemptId?: string }; mission22?: { completed: boolean; firstAttemptId?: string }; mission23?: { completed: boolean; firstAttemptId?: string }; mission24?: { completed: boolean; firstAttemptId?: string } } | undefined> {
   try {
     const response = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
-    if (!response.ok) { guestQaJourneyAccess = false; if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData(); missionJourney.setSignInRequired(hubAccount.state !== 'account'); missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); missionJourney.setStageSevenProgress(false, false); missionJourney.setStageEightProgress(false, false); missionJourney.setStageNineProgress(false, false); missionJourney.setStageTenProgress(false, false); missionJourney.setStageElevenProgress(false, false); missionJourney.setStageTwelveProgress(false, false); missionJourney.setStageThirteenProgress(false, false); missionJourney.setStageFourteenProgress(false, false); missionJourney.setStageFifteenProgress(false, false); missionJourney.setStageSixteenProgress(false, false); missionJourney.setStageSeventeenProgress(false, false); missionJourney.setStageEighteenProgress(false, false); return undefined; }
-    const progress = await response.json() as { guestQaAccess?: boolean; eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission07?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission08?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission09?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission10?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission11?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission12?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission13?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission14?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission15?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission16?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission17?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission18?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission19?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission20?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission21?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission22?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission23?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission24?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
-    guestQaJourneyAccess = progress.guestQaAccess === true;
+    if (!response.ok) { if (response.status === 403 && hubAccount.state === 'account') await refreshHubPilotData(); missionJourney.setSignInRequired(false); missionJourney.setStageOneProgress(false, false); missionJourney.setStageTwoProgress(false, false); missionJourney.setStageThreeProgress(false, false); missionJourney.setStageFourProgress(false, false); missionJourney.setStageFiveProgress(false, false); missionJourney.setStageSixProgress(false, false); missionJourney.setStageSevenProgress(false, false); missionJourney.setStageEightProgress(false, false); missionJourney.setStageNineProgress(false, false); missionJourney.setStageTenProgress(false, false); missionJourney.setStageElevenProgress(false, false); missionJourney.setStageTwelveProgress(false, false); missionJourney.setStageThirteenProgress(false, false); missionJourney.setStageFourteenProgress(false, false); missionJourney.setStageFifteenProgress(false, false); missionJourney.setStageSixteenProgress(false, false); missionJourney.setStageSeventeenProgress(false, false); missionJourney.setStageEighteenProgress(false, false); return undefined; }
+    const progress = await response.json() as { eligible?: boolean; completed?: boolean; firstAttemptId?: string; mission02?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission03?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission04?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission05?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission06?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission07?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission08?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission09?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission10?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission11?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission12?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission13?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission14?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission15?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission16?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission17?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission18?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission19?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission20?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission21?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission22?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission23?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string }; mission24?: { eligible?: boolean; completed?: boolean; firstAttemptId?: string } };
     missionJourney.setSignInRequired(false);
     missionJourney.setStageOneProgress(progress.eligible === true, progress.completed === true);
     missionJourney.setStageTwoProgress(progress.mission02?.eligible === true, progress.mission02?.completed === true);
@@ -199,7 +199,6 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
       mission23: { completed: progress.mission23?.completed === true, firstAttemptId: progress.mission23?.firstAttemptId },
       mission24: { completed: progress.mission24?.completed === true, firstAttemptId: progress.mission24?.firstAttemptId } };
   } catch {
-    guestQaJourneyAccess = false;
     missionJourney.setStageOneProgress(false, false);
     missionJourney.setStageTwoProgress(false, false);
     missionJourney.setStageThreeProgress(false, false);
@@ -224,11 +223,6 @@ async function playJourneyMission(): Promise<void> {
   if (journeyLaunchPending) return;
   if (!dallasUnlocked()) return;
   cityJourneyMode = 'missions';
-  if (hubAccount.state !== 'account' && !guestQaJourneyAccess) {
-    hubAccountNotice = { ok: true, message: 'SIGN IN TO PLAY MISSIONS' };
-    await openHubPilotMenu('PROFILE', false);
-    return;
-  }
   const mission = missionJourney.selectedMissionNumber === 24 ? 'mission-24' : missionJourney.selectedMissionNumber === 23 ? 'mission-23' : missionJourney.selectedMissionNumber === 22 ? 'mission-22' : missionJourney.selectedMissionNumber === 21 ? 'mission-21' : missionJourney.selectedMissionNumber === 20 ? 'mission-20' : missionJourney.selectedMissionNumber === 19 ? 'mission-19' : missionJourney.selectedMissionNumber === 18 ? 'mission-18' : missionJourney.selectedMissionNumber === 17 ? 'mission-17' : missionJourney.selectedMissionNumber === 16 ? 'mission-16' : missionJourney.selectedMissionNumber === 15 ? 'mission-15' : missionJourney.selectedMissionNumber === 14 ? 'mission-14' : missionJourney.selectedMissionNumber === 13 ? 'mission-13' : missionJourney.selectedMissionNumber === 12 ? 'mission-12' : missionJourney.selectedMissionNumber === 11 ? 'mission-11' : missionJourney.selectedMissionNumber === 10 ? 'mission-10' : missionJourney.selectedMissionNumber === 9 ? 'mission-09' : missionJourney.selectedMissionNumber === 8 ? 'mission-08' : missionJourney.selectedMissionNumber === 7 ? 'mission-07' : missionJourney.selectedMissionNumber === 6 ? 'mission-06' : missionJourney.selectedMissionNumber === 5 ? 'mission-05' : missionJourney.selectedMissionNumber === 4 ? 'mission-04' : missionJourney.selectedMissionNumber === 3 ? 'mission-03' : missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
   journeyLaunchPending = true;
   try {
@@ -315,7 +309,8 @@ type RemoteGarageProfile = GarageProfile & {
   legacyImportPending?: boolean; legendaryPilot?: boolean;
   tutorial?: { version: 'tutorial_v1'; status: 'new' | 'started' | 'completed' | 'skipped'; completedAt?: number; dallasUnlocked: boolean };
   kills?: number; deaths?: number;
-  pilotProgress?: { xp: number; level: number; title: string; nextLevelXp: number };
+  pilotProgress?: { xp: number; level: number; title: string; rankId?: string; nextLevelXp: number };
+  profileCosmetics?: { ownedPremiumBadges: string[]; ownedAvatarFrames: string[]; equippedPremiumBadge: string | null; equippedAvatarFrame: string };
   missions?: Partial<Record<string, { active?: { missionId: string; attemptId?: string; progress: number }; completions: Record<string, { count: number; lastCompletedAt: number }> }>>;
   objectives?: Partial<Record<string, {
     dailyId?: string; weeklyId?: string;
@@ -507,8 +502,7 @@ function tokenStoreAvailable(): boolean {
 }
 
 function showAppHeader(active: AppShellActive): void {
-  if (entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() &&
-      (['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'] as const).some(section => hubPilotMenu.isSectionOpen(section))) {
+  if (entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() && hubPilotMenu.isHubSettingsOpen()) {
     appHeader.hide();
     return;
   }
@@ -517,6 +511,7 @@ function showAppHeader(active: AppShellActive): void {
     return;
   }
   const pageTitle = skyTokenStore.isOpen() ? 'GET SKY TOKENS'
+    : !citySelector.hidden && citySelector.dataset.view === 'multiplayer' ? 'DALLAS MULTIPLAYER'
     : !citySelector.hidden && citySelector.dataset.view === 'time' ? 'CHOOSE TIME'
     : entryState === 'CITY_SELECTION' ? 'CHOOSE CITY'
     : entryState === 'MISSION_JOURNEY' ? 'CHOOSE MISSION'
@@ -538,7 +533,7 @@ function showAppHeader(active: AppShellActive): void {
     tokenStoreAvailable: tokenStoreAvailable(),
     rewardsAvailable: homeData.rewardsAvailable,
     rewardsAvailableInMs: homeData.rewardsAvailableInMs,
-    avatarUrl: hubAccount.avatarUrl,
+    pilotLevel: authoritativeHomeProfile?.pilotProgress?.level,
   });
 }
 function refreshAppHeaderIdentity(): void {
@@ -546,7 +541,7 @@ function refreshAppHeaderIdentity(): void {
     authoritativeHomeProfile?.pilotName ?? garageIdentity.displayName,
     garageProfile.credits,
     Math.max(0, authoritativeHomeProfile?.skyTokens ?? 0),
-    hubAccount.avatarUrl,
+    authoritativeHomeProfile?.pilotProgress?.level,
   );
   const homeData = homeHangarData();
   appHeader.updateRewards(homeData.rewardsAvailable, homeData.rewardsAvailableInMs);
@@ -575,7 +570,7 @@ let entryState: EntryState = 'STARTUP';
 let garageReturnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'STORE' = 'HANGAR';
 let hubPilotMenuReturnState: 'HANGAR' | 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'STORE' = 'HANGAR';
 let missionJourneyReturnPending = false;
-let timeSelectionReturnState: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELECTION';
+let timeSelectionReturnState: 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'MULTIPLAYER_MODES' = 'CITY_SELECTION';
 let hubMissionPreferredCity: CityDefinition['id'] | undefined;
 let garageOpenRequest = 0;
 function applyAuthoritativeHomeProfile(profile: RemoteGarageProfile): void {
@@ -587,6 +582,7 @@ function applyAuthoritativeHomeProfile(profile: RemoteGarageProfile): void {
   garageIdentity.displayName = profile.pilotName ?? garageIdentity.displayName;
   cacheAuthoritativeProfile(profile);
   refreshAppHeaderIdentity();
+  if (entryState === 'HANGAR') showPendingRankHelmetUnlock(profile.pilotId, profile.pilotProgress?.level);
 }
 async function loadGarageProfile(): Promise<GarageProfile> {
   const url = apiUrl('/api/profile');
@@ -651,9 +647,9 @@ type CityJourneyEntry = Readonly<{
 }>;
 const CITY_JOURNEY_SELECTION_KEY = 'airport-chaos-city-journey-selection-v1';
 const CITY_JOURNEY_MODE_KEY = 'airport-chaos-city-journey-mode-v1';
-type CityJourneyMode = LaunchMode;
+type CityJourneyMode = 'missions' | 'free-fly' | 'multiplayer';
 let cityJourneyMode: CityJourneyMode = (() => {
-  try { return sessionStorage.getItem(CITY_JOURNEY_MODE_KEY) === 'free-fly' ? 'free-fly' : 'missions'; }
+  try { const stored = sessionStorage.getItem(CITY_JOURNEY_MODE_KEY); return stored === 'free-fly' || stored === 'multiplayer' ? stored : 'missions'; }
   catch { return 'missions'; }
 })();
 const cityJourneyEntries: readonly CityJourneyEntry[] = Object.freeze([
@@ -693,10 +689,10 @@ function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: st
   if (cityJourneyMode === 'free-fly' && !capabilities?.competitiveEnabled && !capabilities?.practiceMode) {
     return { detail: 'COMING SOON', status: 'FREE FLY UNAVAILABLE', cta: 'LOCKED', disabled: true };
   }
-  const unlocked = cityJourneyMode === 'free-fly' || entry.id !== 'dallas' || dallasUnlocked();
+  const unlocked = cityJourneyMode !== 'missions' || entry.id !== 'dallas' || dallasUnlocked();
   const detail = cityJourneyMode === 'missions'
     ? `${missionJourneyStages.filter(stage => stage.implementation === 'playable').length} MISSIONS`
-    : capabilities?.competitiveEnabled ? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY';
+    : cityJourneyMode === 'multiplayer' ? 'MULTIPLAYER' : capabilities?.competitiveEnabled ? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY';
   return { city, detail, status: unlocked ? 'AVAILABLE' : 'COMPLETE MILWAUKEE TRAINING FIRST', cta: unlocked ? cityJourneyMode === 'missions' ? 'VIEW MISSIONS' : 'CONTINUE' : 'LOCKED', locked: !unlocked, disabled: !unlocked && cityJourneyMode !== 'missions' };
 }
 
@@ -722,23 +718,53 @@ function activateCityJourneyCard(index: number): void {
   else chooseCity(state.city);
 }
 
+function createMenuCarouselCard(cardClass: string, artClass: string, copyClass: string): { card: HTMLElement; art: HTMLElement; copy: HTMLElement } {
+  const card = document.createElement('article');
+  card.className = `game-card-frame menu-selection-card menu-card-carousel-card ${cardClass}`;
+  const art = document.createElement('div');
+  art.className = `menu-selection-card-art menu-card-carousel-art ${artClass}`;
+  art.setAttribute('aria-hidden', 'true');
+  const copy = document.createElement('div');
+  copy.className = `menu-selection-card-copy menu-card-carousel-copy ${copyClass}`;
+  card.append(art, copy);
+  return { card, art, copy };
+}
+
+function positionMenuCarouselCard(card: HTMLElement, offset: number): void {
+  card.classList.toggle('is-selected', offset === 0);
+  card.classList.toggle('is-previous', offset === -1);
+  card.classList.toggle('is-next', offset === 1);
+  card.classList.toggle('is-before', offset < -1);
+  card.classList.toggle('is-after', offset > 1);
+  card.classList.toggle('is-hidden', Math.abs(offset) > 1);
+  card.setAttribute('aria-hidden', Math.abs(offset) > 1 ? 'true' : 'false');
+}
+
+function cityJourneyFullCardSrc(entry: CityJourneyEntry): string {
+  return (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york') && cityJourneyMode === 'missions'
+    ? `/media/city-journey/${entry.id}-single-player-card.png`
+    : `/media/city-journey/${entry.id}-card.png`;
+}
+
 function createCityJourneyCards(): void {
   if (cityJourneyViews.length) return;
   cityJourneyTrack.replaceChildren();
   cityJourneyEntries.forEach((entry, index) => {
-    const card = document.createElement('article');
-    card.className = 'menu-selection-card city-journey-card';
+    const { card, art, copy } = createMenuCarouselCard('city-journey-card', 'city-journey-art', 'city-journey-copy');
     card.classList.add(`city-journey-${entry.id}`);
     card.dataset.cityJourneyId = entry.id;
     card.setAttribute('role', 'option');
 
-    const art = document.createElement('div');
-    art.className = 'menu-selection-card-art city-journey-art';
-    art.setAttribute('aria-hidden', 'true');
     card.style.setProperty('--journey-art-image', `url("${entry.artImage}")`);
     card.style.setProperty('--journey-art-position', entry.artPosition);
-    const copy = document.createElement('div');
-    copy.className = 'menu-selection-card-copy city-journey-copy';
+    if (entry.id === 'dallas' || entry.id === 'milwaukee' || entry.id === 'california' || entry.id === 'new-york') {
+      const fullCard = document.createElement('img');
+      fullCard.className = 'city-journey-full-card-image';
+      fullCard.src = cityJourneyFullCardSrc(entry);
+      fullCard.alt = '';
+      fullCard.setAttribute('aria-hidden', 'true');
+      card.append(fullCard);
+    }
     const subtitle = document.createElement('small');
     subtitle.textContent = entry.subtitle;
     const title = document.createElement('h2');
@@ -751,9 +777,7 @@ function createCityJourneyCards(): void {
     lock.className = 'city-journey-lock';
     lock.append(createLockIcon());
     lock.setAttribute('aria-hidden', 'true');
-    copy.append(subtitle, title, detail, status, lock);
-    card.append(art, copy);
-
+    copy.append(title, subtitle, detail, status, lock);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'entry-button entry-button-primary city-journey-cta';
@@ -769,10 +793,16 @@ function createCityJourneyCards(): void {
       hapticsManager.emit('selection');
       setCityJourneyIndex(index);
     });
+    if (entry.id === 'dallas' || entry.id === 'milwaukee') card.addEventListener('keydown', event => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      activateCityJourneyCard(index);
+    });
     cityJourneyTrack.append(card);
 
     cityJourneyViews.push({ card, detail, status, lock, cta: button });
   });
+  cityJourneyTrack.append(cityJourneyPrevious, cityJourneyNext);
 }
 
 function renderCityJourney(): void {
@@ -780,27 +810,41 @@ function renderCityJourney(): void {
   cityOptions.classList.toggle('is-unlock-pending', pendingDallasUnlock && cityJourneyMode === 'missions');
   cityJourneyViews.forEach((view, index) => {
     const offset = index - cityJourneyIndex;
-    const state = cityJourneyState(cityJourneyEntries[index]!);
-    const unlocking = pendingDallasUnlock && cityJourneyMode === 'missions' && cityJourneyEntries[index]!.id === 'dallas';
+    const entry = cityJourneyEntries[index]!;
+    const state = cityJourneyState(entry);
+    const dallasFullCard = entry.id === 'dallas' && cityJourneyMode !== 'free-fly';
+    const newYorkFullCard = entry.id === 'new-york' && cityJourneyMode !== 'free-fly';
+    const fullCardDisplay = entry.id === 'milwaukee' || entry.id === 'california' || dallasFullCard || newYorkFullCard;
+    const unlocking = pendingDallasUnlock && cityJourneyMode === 'missions' && entry.id === 'dallas';
     view.card.setAttribute('aria-selected', offset === 0 ? 'true' : 'false');
-    view.card.setAttribute('aria-hidden', Math.abs(offset) > 1 ? 'true' : 'false');
-    view.card.classList.toggle('is-selected', offset === 0);
-    view.card.classList.toggle('is-previous', offset === -1);
-    view.card.classList.toggle('is-next', offset === 1);
-    view.card.classList.toggle('is-before', offset < -1);
-    view.card.classList.toggle('is-after', offset > 1);
+    positionMenuCarouselCard(view.card, offset);
+    view.card.classList.toggle('is-full-card-display', fullCardDisplay);
+    view.card.classList.toggle('is-california-single-player', entry.id === 'california' && cityJourneyMode === 'missions');
+    if (dallasFullCard || entry.id === 'california' || newYorkFullCard) {
+      const image = view.card.querySelector<HTMLImageElement>('.city-journey-full-card-image');
+      const src = cityJourneyFullCardSrc(entry);
+      if (image && image.getAttribute('src') !== src) image.src = src;
+    }
+    view.card.tabIndex = fullCardDisplay && offset === 0 && !state.disabled ? 0 : -1;
+    if (dallasFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Dallas, Single Player' : 'Dallas, Multiplayer');
+    else if (entry.id === 'milwaukee') view.card.setAttribute('aria-label', 'Milwaukee, Training City');
+    else if (entry.id === 'california') view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'California, Single Player, Coming Soon' : 'California, Multiplayer, Coming Soon');
+    else if (newYorkFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'New York, Single Player, Coming Soon' : 'New York, Multiplayer, Coming Soon');
+    else view.card.removeAttribute('aria-label');
     view.card.classList.toggle('is-locked', unlocking || state.locked === true || state.disabled === true);
-    view.detail.textContent = state.detail;
+    view.detail.textContent = state.detail === cityJourneyEntries[index]!.subtitle ? '' : state.detail;
     view.status.textContent = unlocking ? 'TRAINING COMPLETE' : state.status;
     view.lock.hidden = !unlocking && state.locked !== true && state.disabled !== true;
     view.cta.textContent = unlocking ? 'UNLOCKING…' : state.cta;
     view.cta.disabled = unlocking || state.disabled === true;
     view.cta.setAttribute('aria-disabled', unlocking || state.disabled === true ? 'true' : 'false');
-    view.cta.tabIndex = offset === 0 ? 0 : -1;
+    view.cta.tabIndex = offset === 0 && !fullCardDisplay ? 0 : -1;
     view.card.classList.toggle('is-enterable', offset === 0 && !unlocking && !state.disabled && Boolean(state.city));
   });
   cityJourneyPrevious.disabled = pendingDallasUnlock && cityJourneyMode === 'missions' || cityJourneyIndex === 0;
   cityJourneyNext.disabled = pendingDallasUnlock && cityJourneyMode === 'missions' || cityJourneyIndex === cityJourneyEntries.length - 1;
+  cityJourneyPrevious.hidden = cityJourneyIndex === 0;
+  cityJourneyNext.hidden = cityJourneyIndex === cityJourneyEntries.length - 1;
 }
 
 function setCityJourneyIndex(index: number, remember = true): void {
@@ -928,7 +972,9 @@ cityOptions.addEventListener('pointercancel', event => {
 
 const homeHangar = new HomeHangar(homeHangarElement, {
   missions: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('missions'); },
-  freeFly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('free-fly'); },
+  freeFly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); showSelector('', { mode: 'multiplayer', preferDallas: true }); },
+  store: () => { hapticsManager.emit('selection'); void openGameStore(); },
+  sponsor: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openAdvertise(trigger); },
   settings: () => { if (entryState !== 'HANGAR') return; hapticsManager.emit('selection'); void openHubPilotMenu('CONTROLS', false); },
 }, homeHangarData());
 
@@ -1415,12 +1461,12 @@ async function claimDailyReward(source: DOMRect): Promise<{ ok: boolean; message
 
 function hasPendingHubFly(): boolean {
   if (hubFlyIntent) return true;
-  try { return ['1', 'missions', 'free-fly'].includes(sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) ?? ''); }
+  try { return ['1', 'missions', 'free-fly', 'multiplayer'].includes(sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) ?? ''); }
   catch { return false; }
 }
 
 function pendingHubFlyMode(): CityJourneyMode {
-  try { return sessionStorage.getItem(PENDING_FLY_STORAGE_KEY) === 'free-fly' ? 'free-fly' : hubFlyMode; }
+  try { const stored = sessionStorage.getItem(PENDING_FLY_STORAGE_KEY); return stored === 'free-fly' || stored === 'multiplayer' ? stored : hubFlyMode; }
   catch { return hubFlyMode; }
 }
 
@@ -1597,7 +1643,11 @@ const garage = new AircraftGarage(garageOverlay, (selectedAircraft) => trackAirc
     applyAuthoritativeHomeProfile(result); garage.updateProfile(garageProfile);
     garage.showActionResult(`${aircraftDisplayName(type)} UNLOCKED`); audioManager.playPurchaseSuccess(); hapticsManager.emit('rewardSuccess', `aircraft:${type}`);
   } catch { garage.showActionResult('SERVER UNAVAILABLE — SKY TOKENS NOT SPENT'); }
-}, missing => { void openSkyTokenStore(missing); });
+}, missing => { void openSkyTokenStore(missing); }, () => {
+  hapticsManager.emit('selection');
+  void openGameStore();
+  gameStore.setCategory('AIRCRAFT');
+});
 
 if (nativePurchaseProvider) {
   garage.setNativeStorePrice();
@@ -1687,8 +1737,15 @@ async function openStoreItemInGarage(item: StoreItem): Promise<void> {
 }
 
 window.addEventListener('popstate', () => {
+  if (entryState === 'CITY_SELECTION' && citySelector.dataset.view === 'multiplayer') {
+    showSelector('', { mode: 'multiplayer', preferDallas: true });
+    return;
+  }
   if (entryState === 'CITY_SELECTION' && citySelector.dataset.view === 'time') {
-    if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') showMissionJourney(false);
+    if (window.history.state?.airportChaosEntryView === 'MULTIPLAYER_MODES') {
+      const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
+      if (dallas) showDallasMultiplayerCards(dallas, false);
+    } else if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') showMissionJourney(false);
     else showSelector();
     return;
   }
@@ -1903,6 +1960,7 @@ function showHome(): Promise<void> {
   missionJourney.hide();
   homeHangar.show(homeHangarData());
   showAppHeader(undefined);
+  showPendingRankHelmetUnlock(authoritativeHomeProfile?.pilotId, authoritativeHomeProfile?.pilotProgress?.level);
   playMenuEntrance(homeHangarElement);
   appHeader.aircraftPreviewHost.title = homeHangarData().aircraftName;
   return garage.showcase(appHeader.aircraftPreviewHost, garageProfile);
@@ -1937,15 +1995,20 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   citySelector.hidden = false;
   cityOptions.hidden = false;
   timeOptions.hidden = true;
+  timeOptions.classList.remove('menu-card-carousel', 'multiplayer-mode-cards', 'time-selection-cards');
+  timeOptions.removeAttribute('role');
+  timeOptions.onwheel = null;
+  multiplayerFreeFly.hidden = true;
   cityBack.textContent = 'BACK TO PILOT HUB';
   citySelectTitle.textContent = 'CHOOSE CITY';
   showAppHeader(undefined);
   citySelectDescription.textContent = 'Choose your city.';
-  cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : 'Free Fly cities');
-  cityHelp.setAttribute('aria-label', `${cityJourneyMode === 'missions' ? 'Missions' : 'Free Fly'} help`);
+  cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : cityJourneyMode === 'multiplayer' ? 'Multiplayer cities' : 'Free Fly cities');
+  cityHelp.setAttribute('aria-label', `${cityJourneyMode === 'missions' ? 'Missions' : cityJourneyMode === 'multiplayer' ? 'Multiplayer' : 'Free Fly'} help`);
   cityHelpCopy.textContent = cityJourneyMode === 'missions'
     ? 'Use the arrows, swipe, or tap a nearby city. View Dallas’s journey at any time. Complete Milwaukee training to unlock its missions.'
-    : 'Use the arrows, swipe, or tap a nearby city. Choose Continue, pick a time, and fly freely. Milwaukee is a training city; Dallas supports multiplayer. Locked cities cannot launch.';
+    : cityJourneyMode === 'multiplayer' ? 'Choose Dallas for Sky Duel. Free Fly remains available in Dallas and Milwaukee.'
+      : 'Use the arrows, swipe, or tap a nearby city. Choose Continue, pick a time, and fly freely. Milwaukee is a training city; Dallas supports multiplayer. Locked cities cannot launch.';
   cityJourneyIndex = pendingDallasUnlock && cityJourneyMode === 'missions'
     ? Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'))
     : preferredCityJourneyIndex(options.preferDallas === true);
@@ -1973,7 +2036,7 @@ function showMissionJourney(pushHistory = true, refreshProgress = true): void {
   garage.hideShowcase();
   citySelector.hidden = true;
   missionJourney.setCityLocked(!dallasUnlocked());
-  missionJourney.setSignInRequired(hubAccount.state !== 'account' && !guestQaJourneyAccess);
+  missionJourney.setSignInRequired(false);
   missionJourney.show(window.history.state?.missionDetailsOpen === true);
   if (refreshProgress) void refreshJourneyProgress();
   showAppHeader(undefined);
@@ -2014,6 +2077,11 @@ registerUiBackLayer({
 
 function returnFromCitySelection(): void {
   if (!cityHelpDialog.hidden) { closeCityHelp(true); return; }
+  if (citySelector.dataset.view === 'multiplayer') {
+    if (window.history.state?.airportChaosEntryView === 'MULTIPLAYER_MODES') window.history.back();
+    else showSelector('', { mode: 'multiplayer', preferDallas: true });
+    return;
+  }
   if (citySelector.dataset.view === 'time') {
     returnFromTimeSelection();
     return;
@@ -2079,14 +2147,14 @@ async function startTrainingFromHub(): Promise<void> {
     await enterCity(city, 'day', true);
   } catch (error) {
     console.error('[tutorial-entry] Unable to create training session.', error);
-    await showHome();
+    showSelector('Unable to start Milwaukee training. Please try again.', { mode: 'missions' });
   }
 }
 
-async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false): Promise<void> {
+async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false, modeOverride?: LaunchMode): Promise<void> {
   if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
   if (city.status !== 'available' || !city.loadWorld) return;
-  const timePreset = resolveCityTimePreset(city, requestedTimePreset);
+  const timePreset = modeOverride === 'sky-duel' ? 'day' : resolveCityTimePreset(city, requestedTimePreset);
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   setFlightLaunchAircraft(authoritativeHomeProfile ? {
     pilotId: garageIdentity.pilotId,
@@ -2121,7 +2189,7 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
   url.searchParams.set('time', timePreset);
-  url.searchParams.set(LAUNCH_MODE_PARAM, cityJourneyMode);
+  url.searchParams.set(LAUNCH_MODE_PARAM, modeOverride ?? cityJourneyMode);
   if (trainingSession) url.searchParams.set('training', '1');
   else url.searchParams.delete('training');
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && journeyAttemptId) url.searchParams.set('journeyAttempt', journeyAttemptId);
@@ -2138,6 +2206,17 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
 function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
   recordProductIntent('city_selected', { cityId: city.id });
+  if (cityJourneyMode === 'multiplayer') {
+    if (city.id === 'dallas') showDallasMultiplayerCards(city);
+    else if (city.id === 'milwaukee') {
+      void enterCity(city, 'day', false, 'free-fly').catch((error: unknown) => {
+        console.error('[city-entry] Unable to initialize gameplay.', error);
+        showSelector('Unable to load this city.');
+      });
+    }
+    else showTimeSelection(city);
+    return;
+  }
   if (cityJourneyMode === 'free-fly') {
     abandonPendingJourneyLaunch();
     showTimeSelection(city);
@@ -2159,7 +2238,137 @@ function chooseCity(city: CityDefinition): void {
   showTimeSelection(city, 'CITY_SELECTION');
 }
 
-function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'MISSION_JOURNEY' = 'CITY_SELECTION'): void {
+function showDallasMultiplayerCards(city: CityDefinition, pushHistory = true): void {
+  closeCityHelp();
+  if (pushHistory && window.history.state?.airportChaosEntryView !== 'MULTIPLAYER_MODES')
+    window.history.pushState({ airportChaosEntryView: 'MULTIPLAYER_MODES' }, '', window.location.href);
+  citySelector.dataset.view = 'multiplayer';
+  cityOptions.hidden = true;
+  timeOptions.hidden = false;
+  multiplayerFreeFly.hidden = true;
+  cityBack.textContent = 'BACK TO CITIES';
+  citySelectTitle.textContent = 'DALLAS MULTIPLAYER';
+  citySelectDescription.textContent = '';
+  showAppHeader(undefined);
+  timeOptions.replaceChildren();
+  timeOptions.classList.remove('time-selection-cards');
+  timeOptions.classList.add('menu-card-carousel', 'multiplayer-mode-cards');
+  timeOptions.removeAttribute('role');
+  timeOptions.onwheel = null;
+  const modes = [
+    { id: 'sky', title: 'SKY DUEL', subtitle: '1 VS 1', playable: true },
+    { id: 'squad', title: 'SQUAD BATTLE', subtitle: '3 VS 3', playable: false },
+    { id: 'fleet', title: 'FLEET WAR', subtitle: '', playable: false },
+    { id: 'city', title: 'CITY CONTROL', subtitle: 'CAPTURE & HOLD', playable: false },
+  ] as const;
+  const fullCardArtwork = {
+    sky: 'sky-duel',
+    squad: 'squad-battle',
+    fleet: 'fleet-war',
+    city: 'city-control',
+  } as const;
+  const track = document.createElement('div');
+  track.className = 'menu-card-carousel-track multiplayer-mode-track';
+  const cards: HTMLElement[] = [];
+  let enteringSkyDuel = false;
+  let ignoreCardClickUntil = 0;
+  let selectedIndex = 0;
+  for (const mode of modes) {
+    const { card } = createMenuCarouselCard(`city-time-option multiplayer-mode-card multiplayer-mode-${mode.id}${mode.playable ? ' is-playable' : ' is-coming-soon'}`, 'multiplayer-mode-art', 'multiplayer-mode-copy');
+    card.classList.add('is-full-artwork');
+    card.setAttribute('aria-label', mode.id === 'sky' ? 'Sky Duel, 1 versus 1, entry 500 Credits, prize 1,000 Credits, first to 3'
+      : mode.id === 'squad' ? 'Squad Battle, 3 versus 3, coming soon'
+      : mode.id === 'city' ? 'City Control, capture and hold, coming soon' : 'Fleet War, coming soon');
+    if (mode.playable) card.setAttribute('role', 'button');
+    const fullCard = document.createElement('img');
+    fullCard.className = 'multiplayer-mode-full-card-image';
+    fullCard.src = `/media/multiplayer/${fullCardArtwork[mode.id]}-card.png`;
+    fullCard.alt = '';
+    fullCard.setAttribute('aria-hidden', 'true');
+    card.replaceChildren(fullCard);
+    track.append(card);
+    cards.push(card);
+  }
+  const previous = document.createElement('button');
+  previous.type = 'button';
+  previous.className = 'city-journey-arrow city-journey-arrow-previous';
+  previous.setAttribute('aria-label', 'Previous multiplayer mode');
+  previous.textContent = '‹';
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'city-journey-arrow city-journey-arrow-next';
+  next.setAttribute('aria-label', 'Next multiplayer mode');
+  next.textContent = '›';
+  const selectMode = (index: number): void => {
+    selectedIndex = Math.max(0, Math.min(index, modes.length - 1));
+    cards.forEach((card, cardIndex) => {
+      const distance = cardIndex - selectedIndex;
+      positionMenuCarouselCard(card, distance);
+      card.setAttribute('aria-current', cardIndex === selectedIndex ? 'true' : 'false');
+      if (modes[cardIndex]?.playable) {
+        card.tabIndex = cardIndex === selectedIndex ? 0 : -1;
+        card.setAttribute('aria-disabled', enteringSkyDuel ? 'true' : 'false');
+      }
+    });
+    previous.hidden = previous.disabled = selectedIndex === 0;
+    next.hidden = next.disabled = selectedIndex === modes.length - 1;
+  };
+  const startSkyDuel = (): void => {
+    if (selectedIndex !== 0 || enteringSkyDuel || performance.now() < ignoreCardClickUntil) return;
+    enteringSkyDuel = true;
+    cards[0]?.setAttribute('aria-disabled', 'true');
+    hapticsManager.emit('selection');
+    void enterCity(city, 'day', false, 'sky-duel').catch((error: unknown) => {
+      console.error('[sky-duel] Unable to initialize gameplay.', error);
+      enteringSkyDuel = false;
+      showDallasMultiplayerCards(city, false);
+      citySelectionError.textContent = 'Unable to load Sky Duel.';
+      citySelectionError.hidden = false;
+    });
+  };
+  cards.forEach((card, index) => card.addEventListener('click', () => {
+    if (performance.now() < ignoreCardClickUntil) return;
+    if (index !== selectedIndex) selectMode(index);
+    else if (modes[index]?.playable) startSkyDuel();
+  }));
+  cards[0]?.addEventListener('keydown', (event) => {
+    if (event.target === cards[0] && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      startSkyDuel();
+    }
+  });
+  previous.addEventListener('click', () => selectMode(selectedIndex - 1));
+  next.addEventListener('click', () => selectMode(selectedIndex + 1));
+  track.append(previous, next);
+  timeOptions.append(track);
+  timeOptions.tabIndex = 0;
+  timeOptions.setAttribute('aria-label', 'Dallas multiplayer modes');
+  timeOptions.onkeydown = (event) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      selectMode(selectedIndex + (event.key === 'ArrowRight' ? 1 : -1));
+    }
+  };
+  let touchStartX = 0;
+  timeOptions.ontouchstart = (event) => { touchStartX = event.changedTouches[0]?.screenX ?? 0; };
+  timeOptions.ontouchend = (event) => {
+    const distance = (event.changedTouches[0]?.screenX ?? touchStartX) - touchStartX;
+    if (Math.abs(distance) > 45) {
+      ignoreCardClickUntil = performance.now() + 350;
+      selectMode(selectedIndex + (distance < 0 ? 1 : -1));
+    }
+  };
+  selectMode(selectedIndex);
+  citySelectionError.hidden = true;
+  playMenuEntrance(citySelector);
+}
+
+multiplayerFreeFly.addEventListener('click', () => {
+  const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
+  if (dallas) showTimeSelection(dallas, 'MULTIPLAYER_MODES');
+});
+
+function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'MISSION_JOURNEY' | 'MULTIPLAYER_MODES' = 'CITY_SELECTION'): void {
   closeCityHelp();
   timeSelectionReturnState = returnTo;
   if (window.history.state?.airportChaosEntryView !== 'TIME_SELECTION') {
@@ -2167,58 +2376,125 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
   }
   citySelector.dataset.view = 'time';
   cityOptions.hidden = true;
+  multiplayerFreeFly.hidden = true;
+  timeOptions.classList.remove('multiplayer-mode-cards');
+  timeOptions.classList.add('menu-card-carousel', 'time-selection-cards');
+  timeOptions.setAttribute('role', 'listbox');
+  timeOptions.setAttribute('aria-label', 'Time of day');
+  timeOptions.tabIndex = 0;
   timeOptions.replaceChildren();
   timeOptions.hidden = false;
-  cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSION JOURNEY' : 'BACK TO CITIES';
+  cityBack.textContent = returnTo === 'MISSION_JOURNEY' ? 'BACK TO MISSION JOURNEY' : returnTo === 'MULTIPLAYER_MODES' ? 'BACK TO MULTIPLAYER' : 'BACK TO CITIES';
   citySelectTitle.textContent = 'CHOOSE TIME';
   showAppHeader(undefined);
   citySelectDescription.textContent = `${city.displayName} · Choose a time to fly.`;
   let preferred = 'dusk';
   try { preferred = localStorage.getItem(`airport-chaos-time-${city.id}`) ?? 'dusk'; } catch { /* default dusk */ }
   preferred = resolveCityTimePreset(city, preferred);
-  for (const preset of city.timePresets) {
+  const track = document.createElement('div');
+  track.className = 'menu-card-carousel-track';
+  const cards: HTMLElement[] = [];
+  let selectedIndex = Math.max(0, city.timePresets.findIndex(preset => preset === preferred));
+  let launching = false;
+  let ignoreCardClickUntil = 0;
+  const launchPreset = (index: number): void => {
+    if (index !== selectedIndex || launching || performance.now() < ignoreCardClickUntil) return;
+    const preset = city.timePresets[index];
+    if (!preset) return;
+    launching = true;
+    hapticsManager.emit('selection');
+    try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
+    void enterCity(city, preset, false, cityJourneyMode === 'multiplayer' ? 'free-fly' : undefined).catch((error: unknown) => {
+      console.error('[city-entry] Unable to initialize gameplay.', error);
+      launching = false;
+      showSelector('Unable to load this city.');
+    });
+  };
+  for (const [index, preset] of city.timePresets.entries()) {
     const option = document.createElement('article');
-    option.className = 'menu-selection-card city-option city-time-option';
+    option.className = 'game-card-frame menu-selection-card menu-card-carousel-card city-option city-time-option';
     option.classList.add(`city-${city.id}`);
     option.classList.add(`city-time-${preset}`);
     if (preset === preferred) option.classList.add('is-preferred');
-    const art = document.createElement('div');
-    art.className = 'menu-selection-card-art city-time-art';
-    art.setAttribute('aria-hidden', 'true');
-    if (city.id === 'milwaukee') {
-      art.style.backgroundImage = `url("${milwaukeeJourneyImage}")`;
-      art.style.backgroundPosition = 'center 46%';
-    }
-    const copy = document.createElement('div');
-    copy.className = 'menu-selection-card-copy city-option-copy';
-    const label = document.createElement('strong');
-    label.textContent = preset.toUpperCase();
-    const description = document.createElement('span');
-    description.textContent = preset === 'day' ? 'Bright daytime flying'
-      : preset === 'dusk' ? 'Twilight sky and city lights'
-      : preset === 'evening' ? 'Beautiful golden-hour flying'
-      : 'City lights under a clear night sky';
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'entry-button entry-button-primary';
-    button.textContent = 'Play';
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-label', preset === 'day' ? 'Day, daytime flying'
+      : preset === 'dusk' ? 'Night, dusk flying'
+      : 'Evening, golden-hour flying');
     option.addEventListener('click', () => {
-      hapticsManager.emit('selection');
-      try { localStorage.setItem(`airport-chaos-time-${city.id}`, preset); } catch { /* no persistence available */ }
-      void enterCity(city, preset).catch((error: unknown) => {
-        console.error('[city-entry] Unable to initialize gameplay.', error);
-        showSelector('Unable to load this city.');
-      });
+      if (performance.now() < ignoreCardClickUntil) return;
+      if (index !== selectedIndex) selectTime(index);
+      else launchPreset(index);
     });
-    copy.append(label, description, button);
-    option.append(art, copy);
-    timeOptions.append(option);
+    option.addEventListener('keydown', event => {
+      if (event.target !== option || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      launchPreset(index);
+    });
+    option.classList.add('is-full-artwork');
+    const image = document.createElement('img');
+    image.className = 'city-time-full-card-image';
+    image.src = `/media/city-journey/${preset}-card.png`;
+    image.alt = '';
+    image.setAttribute('aria-hidden', 'true');
+    option.append(image);
+    track.append(option);
+    cards.push(option);
   }
+  const previous = document.createElement('button');
+  previous.type = 'button';
+  previous.className = 'city-journey-arrow city-journey-arrow-previous';
+  previous.setAttribute('aria-label', 'Previous time');
+  previous.textContent = '‹';
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'city-journey-arrow city-journey-arrow-next';
+  next.setAttribute('aria-label', 'Next time');
+  next.textContent = '›';
+  function selectTime(index: number): void {
+    selectedIndex = Math.max(0, Math.min(index, cards.length - 1));
+    cards.forEach((card, cardIndex) => {
+      const selected = cardIndex === selectedIndex;
+      positionMenuCarouselCard(card, cardIndex - selectedIndex);
+      card.setAttribute('aria-selected', selected ? 'true' : 'false');
+      card.tabIndex = selected ? 0 : -1;
+    });
+    previous.hidden = previous.disabled = selectedIndex === 0;
+    next.hidden = next.disabled = selectedIndex === cards.length - 1;
+  }
+  previous.addEventListener('click', () => selectTime(selectedIndex - 1));
+  next.addEventListener('click', () => selectTime(selectedIndex + 1));
+  track.append(previous, next);
+  timeOptions.append(track);
+  timeOptions.onkeydown = event => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    selectTime(selectedIndex + (event.key === 'ArrowRight' ? 1 : -1));
+  };
+  let wheelAt = 0;
+  timeOptions.onwheel = event => {
+    if (Math.abs(event.deltaX) < 18 || Math.abs(event.deltaX) <= Math.abs(event.deltaY) || performance.now() - wheelAt < 360) return;
+    event.preventDefault();
+    wheelAt = performance.now();
+    selectTime(selectedIndex + (event.deltaX > 0 ? 1 : -1));
+  };
+  let touchStartX = 0;
+  timeOptions.ontouchstart = event => { touchStartX = event.changedTouches[0]?.screenX ?? 0; };
+  timeOptions.ontouchend = event => {
+    const distance = (event.changedTouches[0]?.screenX ?? touchStartX) - touchStartX;
+    if (Math.abs(distance) < 45) return;
+    ignoreCardClickUntil = performance.now() + 350;
+    selectTime(selectedIndex + (distance < 0 ? 1 : -1));
+  };
+  selectTime(selectedIndex);
   playMenuEntrance(citySelector);
 }
 function returnFromTimeSelection(): void {
   if (window.history.state?.airportChaosEntryView === 'TIME_SELECTION') window.history.back();
   else if (timeSelectionReturnState === 'MISSION_JOURNEY') showMissionJourney(false);
+  else if (timeSelectionReturnState === 'MULTIPLAYER_MODES') {
+    const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
+    if (dallas) showDallasMultiplayerCards(dallas, false);
+  }
   else showSelector();
 }
 cityBack.addEventListener('click', returnFromCitySelection);
@@ -2270,6 +2546,7 @@ async function start(): Promise<void> {
     }
   }
   const directCityEntry = url.searchParams.get('entry') === 'city';
+  const directMultiplayerEntry = url.searchParams.get('entry') === 'multiplayer';
   const dallasUnlockReceipt = Number(url.searchParams.get('dallasUnlock'));
   pendingDallasUnlock = dallasUnlockReceipt > 0 && authoritativeHomeProfile?.tutorial?.dallasUnlocked === true &&
     authoritativeHomeProfile.tutorial.completedAt === dallasUnlockReceipt;
@@ -2277,7 +2554,7 @@ async function start(): Promise<void> {
   const directJourneyEntry = url.searchParams.get('entry') === 'journey';
   const journeyReceipt = url.searchParams.get('journeyReceipt');
   let pendingJourneyCelebration: { mission: number; credits: number } | undefined;
-  if (authResult || directCityEntry || directJourneyEntry || url.searchParams.has('dallasUnlock')) {
+  if (authResult || directCityEntry || directMultiplayerEntry || directJourneyEntry || url.searchParams.has('dallasUnlock')) {
     url.searchParams.delete('auth');
     url.searchParams.delete('provider');
     url.searchParams.delete('linked');
@@ -2285,11 +2562,6 @@ async function start(): Promise<void> {
     url.searchParams.delete('journeyReceipt');
     url.searchParams.delete('dallasUnlock');
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-  }
-  let directJourneyAvailable = hubAccount.state === 'account';
-  if (directJourneyEntry && !directJourneyAvailable) {
-    await refreshJourneyProgress();
-    directJourneyAvailable = guestQaJourneyAccess;
   }
   if (authResult === 'success' && resumePendingHubFly()) {
     // The original FLY action continues without requiring another click.
@@ -2303,7 +2575,7 @@ async function start(): Promise<void> {
       await showHome();
       await openHubPilotMenu('PROFILE', false);
     }
-  } else if (directJourneyEntry && directJourneyAvailable) {
+  } else if (directJourneyEntry) {
     await showHome();
     showMissionJourney(false, false);
     const progress = await refreshJourneyProgress();
@@ -2316,6 +2588,11 @@ async function start(): Promise<void> {
       const completedIndex = missions.findIndex(mission => mission?.completed && mission.firstAttemptId === journeyReceipt);
       if (completedIndex >= 0) pendingJourneyCelebration = { mission: completedIndex + 1, credits: earnedCredits };
     }
+  } else if (directMultiplayerEntry) {
+    await showHome();
+    showSelector('', { preferDallas: true, mode: 'multiplayer' });
+    const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
+    if (dallas) showDallasMultiplayerCards(dallas);
   } else if (directCityEntry) {
     await showHome();
     if (pendingDallasUnlock) showSelector('', { mode: 'missions' });

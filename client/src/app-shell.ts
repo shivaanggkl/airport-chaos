@@ -1,4 +1,5 @@
 import { mountAirportChaosLogo } from './brand';
+import { createRankHelmet, rankHelmetForLevel } from './rank-helmets';
 
 export type AppShellActive = 'STORE' | 'GARAGE' | 'REWARDS' | 'PROFILE' | 'SETTINGS' | undefined;
 
@@ -16,7 +17,8 @@ export type AppShellHeaderData = {
   rewardsAvailable: boolean;
   rewardsCount?: number;
   rewardsAvailableInMs?: number;
-  avatarUrl?: string;
+  pilotLevel?: number;
+  readOnlyWallet?: boolean;
 };
 
 export type AppShellHandlers = {
@@ -35,7 +37,6 @@ const advertiseIcon = '<img src="/media/hub/advertise.avif" alt="" aria-hidden="
 const friendsIcon = '<img src="/media/hub/friends.avif" alt="" aria-hidden="true" />';
 const storeIcon = '<img src="/media/hub/store.png" alt="" aria-hidden="true" />';
 const rewardsIcon = '<img src="/media/hub/rewards.png" alt="" aria-hidden="true" />';
-const profileIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.8 19c.8-3.2 3-5 6.2-5s5.4 1.8 6.2 5"/></svg>';
 const creditIcon = '<img src="/media/hub/credits.avif" alt="" aria-hidden="true" />';
 const tokenIcon = '<img src="/media/hub/sky-tokens.avif" alt="" aria-hidden="true" />';
 
@@ -58,12 +59,16 @@ export class AppShellHeader {
   private readonly rewards: HTMLButtonElement;
   private readonly rewardsIndicator: HTMLElement;
   private readonly avatar: HTMLButtonElement;
-  private readonly avatarImage: HTMLImageElement;
-  private readonly avatarFallback: HTMLElement;
+  private readonly profileLabel: HTMLSpanElement;
+  private readonly helmetMark: HTMLElement;
   private rewardTimer?: number;
   private creditAnimationFrame?: number;
   private creditAnimationTarget?: number;
   private readonly creditParticles: HTMLImageElement[] = [];
+  private readonly onVisibilityChange = (): void => {
+    this.element.classList.toggle('is-page-hidden', document.hidden);
+    if (document.hidden) this.stopCreditAnimation();
+  };
 
   constructor(private readonly element: HTMLElement, handlers: AppShellHandlers) {
     const brand = document.createElement('button');
@@ -162,40 +167,24 @@ export class AppShellHeader {
     this.avatar.className = 'flight-header-control flight-header-avatar app-shell-action app-shell-avatar';
     this.avatar.setAttribute('aria-label', 'Open profile');
     this.avatar.addEventListener('click', handlers.profile);
-    this.avatarImage = document.createElement('img');
-    this.avatarImage.alt = '';
-    this.avatarImage.referrerPolicy = 'no-referrer';
-    this.avatarImage.hidden = true;
-    this.avatarFallback = document.createElement('span');
-    this.avatarFallback.className = 'avatar-fallback';
-    this.avatarFallback.innerHTML = profileIcon;
-    this.avatarImage.addEventListener('load', () => {
-      this.avatarImage.hidden = false;
-      this.avatarFallback.hidden = true;
-    });
-    this.avatarImage.addEventListener('error', () => {
-      this.avatarImage.hidden = true;
-      this.avatarImage.removeAttribute('src');
-      this.avatarFallback.hidden = false;
-    });
     const profileLabel = document.createElement('span');
+    this.profileLabel = profileLabel;
     profileLabel.className = 'app-shell-profile-label';
-    profileLabel.textContent = 'PROFILE';
-    this.avatar.append(this.avatarImage, this.avatarFallback, profileLabel);
+    profileLabel.textContent = 'Pilot';
+    this.helmetMark = document.createElement('span');
+    this.helmetMark.className = 'app-shell-helmet-mark';
+    this.avatar.append(this.helmetMark, profileLabel);
 
     utilities.append(this.garage, this.store, this.rewards);
     this.element.replaceChildren(brand, this.avatar, this.pageBack, this.pageTitle, this.advertise, this.friends, utilities, wallet);
     this.element.classList.toggle('is-page-hidden', document.hidden);
-    document.addEventListener('visibilitychange', () => {
-      this.element.classList.toggle('is-page-hidden', document.hidden);
-      if (document.hidden) this.stopCreditAnimation();
-    });
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   show(data: AppShellHeaderData): void {
-    this.updateIdentity(data.pilotName, data.credits, data.skyTokens, data.avatarUrl);
-    this.tokenCard.disabled = false;
-    this.tokenAdd.hidden = false;
+    this.updateIdentity(data.pilotName, data.credits, data.skyTokens, data.pilotLevel);
+    this.tokenCard.disabled = data.readOnlyWallet === true;
+    this.tokenAdd.hidden = data.readOnlyWallet === true;
     this.tokenCard.dataset.storeAvailable = String(Boolean(data.tokenStoreAvailable));
     this.updateRewards(data.rewardsAvailable, data.rewardsAvailableInMs, data.rewardsCount);
     this.setBadge(this.store, this.storeIndicator, data.storeAttention, 'Store');
@@ -220,7 +209,8 @@ export class AppShellHeader {
     this.element.hidden = false;
   }
 
-  updateIdentity(pilotName: string, credits: number, skyTokens: number, avatarUrl?: string): void {
+  updateIdentity(pilotName: string, credits: number, skyTokens: number, pilotLevel?: number): void {
+    const displayedPilotName = pilotName.trim() || 'Pilot';
     const creditBalance = credits.toLocaleString();
     const tokenBalance = skyTokens.toLocaleString();
     if (this.creditAnimationTarget !== undefined && this.creditAnimationTarget !== credits) this.stopCreditAnimation();
@@ -229,19 +219,15 @@ export class AppShellHeader {
     this.credits.classList.toggle('is-long-balance', creditBalance.length > 8);
     this.skyTokens.classList.toggle('is-long-balance', tokenBalance.length > 8);
     this.tokenCard.setAttribute('aria-label', `Sky Tokens, ${tokenBalance} available`);
-    this.avatar.setAttribute('aria-label', `Open ${pilotName || 'pilot'} profile`);
-    this.avatarFallback.hidden = false;
-    this.avatarImage.hidden = true;
-    if (!avatarUrl) {
-      this.avatarImage.removeAttribute('src');
-      return;
+    this.profileLabel.textContent = displayedPilotName;
+    this.avatar.setAttribute('aria-label', `Open ${displayedPilotName} profile`);
+    const verifiedLevel = pilotLevel !== undefined && Number.isFinite(pilotLevel) ? pilotLevel : 1;
+    const helmet = rankHelmetForLevel(verifiedLevel);
+    if (this.helmetMark.dataset.rankId !== helmet.id) {
+      this.helmetMark.replaceChildren(createRankHelmet(helmet, 'small'));
+      this.helmetMark.dataset.rankId = helmet.id;
     }
-    if (this.avatarImage.getAttribute('src') === avatarUrl && this.avatarImage.complete && this.avatarImage.naturalWidth > 0) {
-      this.avatarImage.hidden = false;
-      this.avatarFallback.hidden = true;
-      return;
-    }
-    this.avatarImage.src = avatarUrl;
+    this.avatar.title = `${displayedPilotName} · ${helmet.title} · Level ${verifiedLevel}`;
   }
 
   animateCreditsEarned(source: DOMRect, previousBalance: number, newBalance: number): number {
@@ -315,6 +301,12 @@ export class AppShellHeader {
   hide(): void {
     this.stopCreditAnimation();
     this.element.hidden = true;
+  }
+
+  dispose(): void {
+    this.hide();
+    if (this.rewardTimer !== undefined) window.clearTimeout(this.rewardTimer);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   focusBack(): void { this.pageBack.focus(); }

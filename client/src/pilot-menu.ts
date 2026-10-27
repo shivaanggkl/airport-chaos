@@ -7,12 +7,15 @@ import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-
 import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
 import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
+import { createRankHelmet, rankHelmetForLevel, rankHelmets } from './rank-helmets';
+import { createLockIcon } from './lock-icon';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { legalPolicyHref } from './brand';
 import { recordProductIntent } from './product-analytics';
 import { hapticsManager } from './haptics-manager';
 export type PilotMenuAction = { label: string; run: () => void; disabled?: boolean; title?: string; intent?: 'primary' | 'danger' };
 export type PilotMenuSection = 'MISSION' | 'PROFILE' | 'ACCOUNT' | 'MISSIONS' | 'REWARDS' | 'MAP' | 'PLAYERS' | 'TERRITORIES' | 'PROGRESS' | 'GARAGE' | 'CONTROLS' | 'AUDIO' | 'HELP' | 'WORLD / CITIES' | 'LEGAL / SUPPORT' | 'DATA LICENSES';
+const hubSettingsSections: readonly PilotMenuSection[] = ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'];
 export type PilotMenuOptions = {
   sections?: readonly PilotMenuSection[];
   title?: string;
@@ -220,9 +223,9 @@ function actionButton(action: PilotMenuAction): HTMLButtonElement {
   return button;
 }
 
-function settingsChoice(label: string, current: string, choices: readonly { label: string; value: string }[], change: (value: string) => void): HTMLElement {
+function settingsChoice(label: string, current: string, choices: readonly { label: string; value: string }[], change: (value: string) => void, showHeading = true): HTMLElement {
   const group = document.createElement('div'); group.className = 'pilot-settings-choice';
-  group.append(textElement('h3', label));
+  if (showHeading) group.append(textElement('h3', label));
   const options = document.createElement('div'); options.className = 'pilot-settings-choice-options';
   options.setAttribute('role', 'group'); options.setAttribute('aria-label', label);
   for (const choice of choices) {
@@ -407,6 +410,7 @@ export class PilotMenu {
 
   isOpen(): boolean { return this.openState; }
   isSectionOpen(section: PilotMenuSection): boolean { return this.openState && this.activeSection === section; }
+  isHubSettingsOpen(): boolean { return this.openState && this.options.appShell === true && hubSettingsSections.includes(this.activeSection); }
   isActivelyScrolling(now = performance.now()): boolean { return now - this.lastScrollInteractionAt < 260; }
 
   open(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'): void {
@@ -424,7 +428,7 @@ export class PilotMenu {
     this.element.hidden = false;
     if (this.backButton) this.backButton.textContent = typeof this.options.closeLabel === 'function' ? this.options.closeLabel() : this.options.closeLabel ?? 'BACK TO GAME';
     this.render(data);
-    if ((this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(section)) || this.options.flightMode) this.backButton?.focus({ preventScroll: true });
+    if (this.isHubSettingsOpen() || this.options.flightMode) this.backButton?.focus({ preventScroll: true });
     if (this.options.appShell && section === 'REWARDS') {
       this.rewardsBackground = [...document.querySelectorAll<HTMLElement>('.home-hangar')];
       this.rewardsBackground.forEach(element => { element.inert = true; });
@@ -659,7 +663,7 @@ export class PilotMenu {
     const content = this.ensureContent();
     const card = this.element.querySelector<HTMLElement>('.pilot-menu-card');
     const hubRewards = this.options.appShell === true && this.activeSection === 'REWARDS';
-    const hubSettings = this.options.appShell === true && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(this.activeSection);
+    const hubSettings = this.isHubSettingsOpen();
     const flightMenu = this.options.flightMode !== undefined;
     this.element.classList.toggle('is-rewards-overlay', hubRewards);
     this.element.classList.toggle('is-hub-profile', this.options.appShell === true && this.activeSection === 'PROFILE');
@@ -682,7 +686,7 @@ export class PilotMenu {
     const title = this.element.querySelector<HTMLElement>('[data-pilot-menu-title]');
     if (title) title.textContent = flightMenu ? this.options.flightMode === 'single' ? 'MISSION PAUSED' : this.options.flightMode === 'training' ? 'TRAINING MENU' : 'FLIGHT MENU'
       : this.activeSection === 'PROFILE' ? 'PILOT PROFILE'
-      : this.options.appShell && ['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'].includes(this.activeSection) ? 'SETTINGS'
+      : hubSettings ? 'SETTINGS'
         : this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection === 'GARAGE' ? 'AIRCRAFTS' : this.activeSection;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
@@ -809,24 +813,12 @@ export class PilotMenu {
         const levelRange = Math.max(1, pilot.nextLevelXp - levelStartXp);
         const levelProgress = pilot.level >= 50 ? levelRange : Math.max(0, Math.min(levelRange, pilot.xp - levelStartXp));
         const identity = document.createElement('div'); identity.className = 'game-card-frame pilot-profile-hero';
-        const emblem = document.createElement('span'); emblem.className = 'pilot-profile-avatar'; emblem.setAttribute('aria-hidden', 'true');
-        emblem.innerHTML = `<svg viewBox="0 0 100 100" focusable="false" aria-hidden="true">
-          <defs><radialGradient id="pilotPortraitBlue"><stop stop-color="#22a6dc"/><stop offset="1" stop-color="#075597"/></radialGradient>
-          <linearGradient id="pilotPortraitGold" x2="0" y2="1"><stop stop-color="#fff6b7"/><stop offset=".45" stop-color="#e4b744"/><stop offset="1" stop-color="#986118"/></linearGradient></defs>
-          <circle cx="50" cy="50" r="48" fill="url(#pilotPortraitGold)"/><circle cx="50" cy="50" r="43" fill="url(#pilotPortraitBlue)" stroke="#f6e7a9" stroke-width="1"/>
-          <path d="M18 86c4-19 17-28 32-28s28 9 32 28" fill="#123866" stroke="#051e43" stroke-width="2"/>
-          <path d="M34 62l16 28 16-28-8-5H42z" fill="#f8fbff"/><path d="M46 68h8l-2 8 4 13H44l4-13z" fill="#0b4782"/>
-          <path d="M41 58h18v9l-9 8-9-8z" fill="#f2d5b9"/><ellipse cx="50" cy="47" rx="14" ry="17" fill="#f7e3c8"/>
-          <path d="M33 41c1-13 8-21 17-21s16 8 17 21" fill="#113963"/><path d="M30 42h40v7c-12 6-28 6-40 0z" fill="#102b54" stroke="#061d3e" stroke-width="1.5"/>
-          <path d="M36 34h28l-3 6H39z" fill="#1f5082"/><path d="M43 36l7 3 7-3-7 8z" fill="url(#pilotPortraitGold)"/>
-          <path d="M23 82l13-19 9 24M77 82L64 63l-9 24" fill="#0a284d" stroke="#4778a2" stroke-width="1"/>
-          <circle cx="50" cy="50" r="47" fill="none" stroke="#fff7cd" stroke-width="2"/>
-        </svg>`;
+        const emblem = createRankHelmet(rankHelmetForLevel(pilot.level), 'large'); emblem.classList.add('pilot-profile-avatar');
         const identityCopy = document.createElement('div'); identityCopy.className = 'pilot-profile-identity-copy';
-        identityCopy.append(textElement('strong', account.pilotName), textElement('span', summary ? `PILOT ID  ${summary.publicPilotId}` : 'LOADING PILOT ID'), textElement('b', `LEVEL ${pilot.level}`));
+        identityCopy.append(textElement('strong', account.pilotName), textElement('span', summary ? `PILOT ID  ${summary.publicPilotId}` : 'LOADING PILOT ID'), textElement('b', `LEVEL ${pilot.level} · ${rankHelmetForLevel(pilot.level).title}`));
         const xp = document.createElement('div'); xp.className = 'pilot-profile-xp';
         const xpBar = document.createElement('progress'); xpBar.max = levelRange; xpBar.value = levelProgress; xpBar.setAttribute('aria-label', `Level ${pilot.level} progress`);
-        xp.append(xpBar, textElement('span', `${pilot.xp.toLocaleString()} / ${pilot.nextLevelXp.toLocaleString()} XP`));
+        xp.append(xpBar, textElement('span', pilot.level >= 50 ? `${pilot.xp.toLocaleString()} XP · MAX LEVEL` : `${pilot.xp.toLocaleString()} / ${pilot.nextLevelXp.toLocaleString()} XP`));
         identityCopy.append(xp);
         const edit = document.createElement('div'); edit.className = 'pilot-profile-edit';
         if (this.profileNameEditing) {
@@ -872,6 +864,26 @@ export class PilotMenu {
         const feedback = this.profileFeedback ?? account.notice;
         message.textContent = feedback?.message ?? ''; message.hidden = !feedback; message.classList.toggle('error', feedback?.ok === false);
         profile.append(identity, message);
+
+        const helmets = document.createElement('section'); helmets.className = 'pilot-profile-section pilot-profile-helmets';
+        helmets.append(textElement('h2', 'PILOT HELMETS'));
+        const helmetCollection = document.createElement('div'); helmetCollection.className = 'pilot-profile-helmet-collection';
+        const currentHelmet = rankHelmetForLevel(pilot.level);
+        for (const helmet of rankHelmets) {
+          const locked = pilot.level < helmet.level;
+          const current = helmet.id === currentHelmet.id;
+          const item = document.createElement('div'); item.className = 'pilot-profile-helmet-item';
+          if (current) item.classList.add('is-current');
+          item.title = locked ? `${helmet.title} · Unlock at Level ${helmet.level}` : `${helmet.title} · Level ${helmet.level}`;
+          const label = document.createElement('div'); label.className = 'pilot-profile-helmet-label';
+          const status = textElement('span', current ? 'CURRENT' : locked ? `Unlock at Level ${helmet.level}` : 'UNLOCKED');
+          if (locked) status.prepend(createLockIcon());
+          label.append(textElement('strong', helmet.title), status);
+          item.append(createRankHelmet(helmet, 'thumbnail', locked), label);
+          helmetCollection.append(item);
+        }
+        helmets.append(helmetCollection);
+        profile.append(helmets);
 
         const statistics = document.createElement('section'); statistics.className = 'pilot-profile-section';
         const statisticsHeading = document.createElement('div'); statisticsHeading.className = 'pilot-profile-section-heading';
@@ -1294,7 +1306,7 @@ export class PilotMenu {
     scoreCard.querySelector('.pilot-progress-value')!.setAttribute('data-progress-slot', 'score');
     cards.append(creditsCard, scoreCard);
     const pilot = data.progression.pilotProgress;
-    const pilotCard = this.progressCard('pilot-level', '✦ PILOT LEVEL', `Level ${pilot.level} · ${pilot.title}`, `${pilot.xp.toLocaleString()} XP`);
+    const pilotCard = this.progressCard('pilot-level', '✦ PILOT LEVEL', `Level ${pilot.level} · ${pilot.title}`, pilot.level >= 50 ? `${pilot.xp.toLocaleString()} XP · MAX LEVEL` : `${pilot.xp.toLocaleString()} XP`);
     const pilotBar = document.createElement('progress'); pilotBar.max = Math.max(1, pilot.nextLevelXp); pilotBar.value = Math.min(pilot.xp, pilot.nextLevelXp); pilotCard.append(pilotBar); cards.append(pilotCard);
     const dailyPlan = this.progressCard('daily-plan', '☀ DAILY FLIGHT PLAN', `${data.objectives.daily.filter(item => item.completed).length} / ${data.objectives.daily.length} COMPLETE`, 'Finish today’s short flight goals. Resets at UTC midnight.');
     for (const item of data.objectives.daily) {

@@ -140,6 +140,7 @@ export class AircraftGarage {
     private readonly onEquipCosmetic?: (id: string) => void,
     private readonly onTokenPurchase?: (type: AircraftType) => void,
     private readonly onGetTokens?: (missing: number) => void,
+    private readonly onOpenStore?: () => void,
   ) {
     registerUiBackLayer({
       id: `aircraft-garage-${++AircraftGarage.instanceCount}`,
@@ -158,12 +159,24 @@ export class AircraftGarage {
     this.equippedPanel = createAircraftDetailPanel();
     const note = document.createElement('p');
     note.className = 'garage-equipped-note';
-    note.textContent = 'To change aircraft, choose an owned aircraft in the Store and tap EQUIP AIRCRAFT.';
+    note.textContent = this.onOpenStore
+      ? 'Tap OPEN STORE to choose or buy an aircraft, then equip it.'
+      : 'To change aircraft, choose an owned aircraft in the Store and tap EQUIP AIRCRAFT.';
     const status = document.createElement('p');
     status.className = 'garage-equipped-status'; status.setAttribute('role', 'status');
     const footer = document.createElement('footer');
     footer.className = 'garage-equipped-footer';
-    footer.append(note, status);
+    footer.append(note);
+    if (this.onOpenStore) {
+      const storeButton = document.createElement('button');
+      storeButton.type = 'button';
+      storeButton.className = 'entry-button entry-button-primary garage-equipped-store';
+      storeButton.textContent = 'OPEN STORE';
+      storeButton.setAttribute('aria-label', 'Open Aircraft tab in Store');
+      storeButton.addEventListener('click', () => this.onOpenStore?.());
+      footer.append(storeButton);
+    }
+    footer.append(status);
     this.equippedPanel.append(footer);
     equippedPage.append(equippedHeader, this.equippedPanel);
     element.append(equippedPage);

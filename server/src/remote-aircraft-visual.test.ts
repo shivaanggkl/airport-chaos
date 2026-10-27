@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
-import { remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftNearMissRadius, remoteAircraftScale, remoteAircraftVisualScale, remoteInterpolationDuration, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftNearMissRadius, remoteAircraftScale, remoteAircraftVisualScale, remoteInterpolationDuration, remotePredictionSeconds, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 
 test('5 Hz Hunter snapshots keep visual motion continuous across ordinary packet jitter', () => {
   const packetTimes = [0, 0.2, 0.41, 0.61, 0.84, 1.04, 1.25];
@@ -35,6 +35,20 @@ test('5 Hz Hunter snapshots keep visual motion continuous across ordinary packet
 test('remote interpolation uses elapsed wall time when rendering frames are slow', () => {
   const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   assert.match(main, /const realDelta = clock\.getDelta\(\);[\s\S]*?updateRemotePlayers\(realDelta\)/);
+});
+
+test('late transforms keep remote aircraft moving briefly without unbounded drift', () => {
+  assert.equal(remotePredictionSeconds(0.1, 0.1, false), 0);
+  assert.ok(remotePredictionSeconds(0.3, 0.1, false) > 0.13,
+    'a 300 ms human update gap should not leave the plane stationary');
+  assert.ok(remotePredictionSeconds(0.5, 0.24, true) > 0.18,
+    'a 500 ms bot update gap should not leave the plane stationary');
+  assert.ok(remotePredictionSeconds(3, 0.1, false) < 0.18,
+    'a disconnected player must never drift indefinitely');
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  assert.match(main, /remote\.plane\.position\.addScaledVector\(remote\.velocity,[\s\S]*?remotePredictionSeconds\(/);
+  assert.match(main, /definition\.maxSpeed \* FLIGHT_UNITS_PER_METER \* \(definition\.boostMaxSpeed/);
+  assert.match(main, /if \(combatOffset\.lengthSq\(\) > plausibleSpeed \* plausibleSpeed\) remote\.velocity\.set\(0, 0, 0\)/);
 });
 
 test('remote aircraft-contact marker stays readable close and compact far away', () => {
@@ -76,7 +90,7 @@ test('remote aircraft match Rear Guard size at range and physical size nearby, i
   const traffic = readFileSync(new URL('../../client/src/ambient-traffic.ts', import.meta.url), 'utf8');
   assert.match(traffic, /remoteAircraftVisualScale\(distance\)/);
   assert.match(main, /remoteAircraftCollisionRadius\(remote\.aircraftType, distance\)/);
-  assert.match(server, /remoteAircraftCollisionRadius\(second\.aircraftType, distance\)/);
+  assert.match(server, /remoteAircraftCollisionRadius\(first\.skyDuelMode \? 'trainer' : second\.aircraftType, distance\)/);
   assert.match(server, /remoteAircraftContactRadius\(event\.eventAircraftType, distance\)/);
   assert.match(server, /player\.bot\?\.journeyRearGuardEscort \? remoteAircraftScale : remoteAircraftVisualScale\(distance\)/);
   for (const type of ['trainer', 'privateJet', 'cargo', 'fighter'] as const) {

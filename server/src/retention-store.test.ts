@@ -5,19 +5,20 @@ import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PlayerProfileStore } from './player-profiles.js';
+import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits } from '../../shared/daily-rewards.mjs';
 
 function store() { return new PlayerProfileStore(join(mkdtempSync(join(tmpdir(), 'airport-retention-')), 'profiles.sqlite')); }
 
-test('daily rewards use a 20-hour cooldown, preserve progress after missed days, and cycle after day seven', () => {
+test('daily rewards use the configured cooldown, preserve progress after missed days, and cycle after day seven', () => {
   const db = store(); db.getOrCreate('pilot-a', 'Pilot A');
   const day = Date.UTC(2026, 0, 1);
-  assert.equal(db.claimDailyReward('pilot-a', day)?.credits, 250);
-  assert.equal(db.claimDailyReward('pilot-a', day + 19 * 60 * 60_000)?.claimed, false);
-  for (let index = 1; index < 7; index += 1) db.claimDailyReward('pilot-a', day + index * 20 * 60 * 60_000);
-  assert.equal(db.dailyRewardState('pilot-a', day + 7 * 20 * 60 * 60_000)?.nextDay, 1);
+  assert.equal(db.claimDailyReward('pilot-a', day)?.credits, dailyRewardCredits[0]);
+  assert.equal(db.claimDailyReward('pilot-a', day + DAILY_REWARD_COOLDOWN_MS - 1)?.claimed, false);
+  for (let index = 1; index < 7; index += 1) db.claimDailyReward('pilot-a', day + index * DAILY_REWARD_COOLDOWN_MS);
+  assert.equal(db.dailyRewardState('pilot-a', day + 7 * DAILY_REWARD_COOLDOWN_MS)?.nextDay, 1);
   const afterMissedDays = db.claimDailyReward('pilot-a', day + 10 * 86_400_000);
   assert.equal(afterMissedDays?.day, 1);
-  assert.equal(afterMissedDays?.credits, 250);
+  assert.equal(afterMissedDays?.credits, dailyRewardCredits[0]);
 });
 
 test('daily flight plan is compact, solo-achievable, and reward progress is idempotent', () => {
@@ -35,11 +36,12 @@ test('daily flight plan is compact, solo-achievable, and reward progress is idem
 
 test('pilot XP migration is once-only and records only improve', () => {
   const db = store(); const first = db.getOrCreate('pilot-b', 'Pilot B');
-  const xp = db.awardPilotXp('pilot-b', 6_300)!;
-  assert.equal(xp.levelUp, 15); assert.equal(xp.title, 'ACE');
+  const xp = db.awardVerifiedXp({ pilotId: 'pilot-b', source: 'MISSION_FIRST', eventId: 'dallas:test-extreme',
+    cityId: 'dallas', missionId: 'test-extreme', difficulty: 'EXTREME', now: Date.UTC(2026, 0, 1) })!;
+  assert.equal(xp.result.awarded, true);
   assert.equal(db.updatePersonalRecord('pilot-b', 'top_speed', 500, 'dallas'), true);
   assert.equal(db.updatePersonalRecord('pilot-b', 'top_speed', 400, 'dallas'), false);
-  assert.equal(db.getOrCreate('pilot-b', 'Pilot B').pilotProgress.xp, first.pilotProgress.xp + 6_300);
+  assert.equal(db.getOrCreate('pilot-b', 'Pilot B').pilotProgress.xp, first.pilotProgress.xp + 250);
 });
 
 test('PvP reward is idempotent, pair-cooled, and practice remains playable', () => {

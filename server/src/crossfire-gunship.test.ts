@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { transportCourse, transportPose, transportRouteLength, transportTuning } from '../../shared/giant-incoming.mjs';
-import { journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+import { journeyDallas09, journeyDallas10, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { excludesFocusedBotInteraction, missionFocusForAttempt } from '../../shared/mission-focus.mjs';
 import { createTransportEncounter, stepCrossfireGunCycle, stepTransportEncounter, transportGunAim,
   transportGunMuzzle, transportHullImpact, transportImpact } from './giant-incoming.js';
@@ -21,9 +21,11 @@ test('Crossfire uses the 5:30 Dallas transport course and exactly two specified 
   assert.equal(journeyDallas10.bossHealth, 2_000);
   assert.equal(journeyDallas10.timeLimitMs, 330_000);
   assert.equal(journeyDallas10.escortCount, 2);
-  assert.deepEqual(journeyDallas10.escortAircraft, ['privateJet', 'fighter']);
+  assert.deepEqual(journeyDallas10.escortAircraft, ['privateJet', 'cargo']);
   assert.deepEqual(journeyDallas10.escortHealth, [175, 225]);
-  assert.deepEqual(journeyDallas10.escortLiveries, ['nightowl-forest', 'firehawk-inferno']);
+  assert.deepEqual(journeyDallas10.escortLiveries, ['nightowl-forest', 'mammoth-sand']);
+  assert.deepEqual(journeyDallas12.escortAircraft, ['privateJet', 'fighter']);
+  assert.deepEqual(journeyDallas12.escortLiveries, ['nightowl-forest', 'firehawk-inferno']);
   for (let index = 0; index < 2; index++)
     assert.equal(cosmeticCatalog.find(item => item.id === journeyDallas10.escortLiveries[index])?.aircraftRestriction,
       journeyDallas10.escortAircraft[index]);

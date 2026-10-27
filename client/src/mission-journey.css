@@ -1,11 +1,11 @@
-.mission-journey { --journey-detail-height: clamp(88px, 14dvh, 108px); --journey-detail-gap: clamp(12px, 2dvh, 18px); --chapter-heading-offset: clamp(84px, 17dvh, 128px); position: fixed; z-index: 5; inset: 0; overflow: hidden; isolation: isolate; color: #fff; background: #092348 url('/media/city-journey/hangar.jpg') center / cover no-repeat; -webkit-user-select: none; user-select: none; }
+.mission-journey { --journey-detail-height: clamp(146px, 31dvh, 190px); --journey-detail-gap: 12px; --chapter-heading-offset: clamp(112px, 22dvh, 150px); position: fixed; z-index: 5; inset: 0; overflow: hidden; isolation: isolate; color: #fff; background: var(--menu-background); -webkit-user-select: none; user-select: none; }
 .mission-journey[hidden], .mission-journey [hidden] { display: none !important; }
 .mission-journey button { font-family: var(--font-display); cursor: pointer; }
 .mission-journey button:focus-visible { outline: 3px solid #fff3aa; outline-offset: 3px; }
-.mission-journey-viewport { position: absolute; top: calc(var(--hub-header-total, 104px) + 4px); right: max(0px, var(--safe-area-right)); bottom: calc(max(10px, var(--safe-area-bottom)) + var(--journey-detail-height) + var(--journey-detail-gap)); left: max(0px, var(--safe-area-left)); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; cursor: grab; }
+.mission-journey-viewport { position: absolute; top: calc(var(--hub-header-total, 104px) + 4px); right: max(0px, var(--safe-area-right)); bottom: calc(max(24px, var(--safe-area-bottom)) + var(--journey-detail-height) + var(--journey-detail-gap)); left: max(0px, var(--safe-area-left)); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; cursor: grab; }
 .mission-journey-viewport::-webkit-scrollbar { display: none; }
 .mission-journey-viewport:active { cursor: grabbing; }
-.mission-journey-map { --journey-step: clamp(105px, 10.5vw, 156px); position: relative; width: calc(23 * var(--journey-step) + 148px); height: 100%; min-height: 0; }
+.mission-journey-map { --journey-step: clamp(130px, 13vw, 180px); position: relative; width: calc(23 * var(--journey-step) + 148px); height: 100%; min-height: 0; }
 .mission-journey-route, .mission-journey-chapters, .mission-journey-nodes { position: absolute; inset: 0; width: 100%; height: 100%; }
 .mission-journey-route { overflow: visible; pointer-events: none; }
 .mission-journey-segment { fill: none; stroke: #abb5c4; stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px #092045); }
@@ -19,13 +19,14 @@
 .mission-journey-chapter-heading { transform: translateX(-50%); }
 .mission-journey-chapter-heading strong { font: 900 clamp(12px, 1.55vw, 19px)/1.05 var(--font-display); }
 .mission-journey-chapter-heading span { color: #ffd369; font: 900 clamp(9px, 1.2vw, 15px)/1.05 var(--font-display); white-space: nowrap; }
+.mission-journey-chapter-heading.is-selected { border-color: #ffd778; box-shadow: inset 0 1px #d6f6ff, 0 0 0 2px rgb(9 43 92 / 70%), 0 0 15px rgb(255 209 102 / 70%); }
 .mission-journey-chapter-divider { position: absolute; width: 2px; height: clamp(64px, 17dvh, 96px); background: linear-gradient(transparent, #ffe09b 35%, #ffe09b 65%, transparent); filter: drop-shadow(0 0 4px #ffcd69); transform: translate(-50%, -50%); }
 .mission-journey-chapter-divider::after { position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; border: 1px solid #fff1b9; background: #ffd675; content: ''; transform: translate(-50%, -50%) rotate(45deg); }
 .mission-journey-node { position: absolute; z-index: 2; display: grid; place-items: center; width: clamp(62px, 7vw, 96px); height: clamp(62px, 7vw, 96px); padding: 0; border: 3px solid #52eaff; border-radius: 50%; color: #fff; background: radial-gradient(circle at 35% 22%, #62eaff, #087ac6 53%, #073980); box-shadow: inset 0 2px #e5fbff, 0 0 12px #1edcff; font: 900 clamp(22px, 2.9vw, 35px)/1 var(--font-display); text-shadow: 0 2px 2px #123862; transform: translate(-50%, -50%); touch-action: pan-x; }
 .mission-journey-node:not(:disabled):hover { filter: brightness(1.12); }
-.mission-journey-node.is-selected:not(.is-locked) { outline: 2px solid #fff5ba; outline-offset: 3px; }
+.mission-journey-node.is-selected { outline: 3px solid #ffe087; outline-offset: 3px; box-shadow: inset 0 2px #e5fbff, 0 0 0 5px rgb(21 58 111 / 65%), 0 0 18px 4px rgb(255 205 90 / 75%); }
 .mission-journey-node:not(.is-completed) .mission-journey-check { display: none; }
-.mission-journey-node.is-completed .mission-journey-check { position: absolute; right: -7px; bottom: -6px; display: grid; place-items: center; width: 46%; aspect-ratio: 1; border: 2px solid #d6faff; border-radius: 50%; color: #fff; background: #07538c; box-shadow: 0 0 6px #45d9ff; }
+.mission-journey-node.is-completed .mission-journey-check { position: absolute; right: -7px; bottom: -6px; display: grid; place-items: center; width: 46%; aspect-ratio: 1; border: 2px solid #d6ffe9; border-radius: 50%; color: #fff; background: linear-gradient(#12bb68, #06894a); box-shadow: inset 0 1px rgb(255 255 255 / 35%), 0 0 6px #39d68a; }
 .mission-journey-node.is-completed .mission-journey-check svg { width: 80%; height: 80%; }
 .mission-journey-node.is-current { width: clamp(72px, 8vw, 108px); height: clamp(72px, 8vw, 108px); border-color: #ffeaa2; background: radial-gradient(circle at 35% 20%, #fff4bd, #ffc44b 55%, #a3570b); box-shadow: inset 0 2px #fff9df, 0 0 14px #ffcb57; }
 .mission-journey-node.is-current::after { position: absolute; top: calc(100% + 3px); left: 50%; padding: 3px 6px; border-radius: 5px; background: #ffd663; color: #102a51; content: 'CURRENT'; font: 900 clamp(7px, .83vw, 11px)/1 var(--font-display); text-shadow: none; white-space: nowrap; transform: translateX(-50%); }
@@ -37,7 +38,7 @@
 @keyframes mission-current-pointer { 50% { transform: translate(-50%, -5px); } }
 @keyframes mission-completed-flash { 50% { filter: brightness(1.65) drop-shadow(0 0 12px #77ffc2); } }
 @keyframes mission-unlocked-flash { 35% { filter: brightness(1.7) drop-shadow(0 0 18px #ffe36d); } }
-.mission-journey-node.is-locked { border-color: #a5abb8; color: #d4d6da; background: radial-gradient(circle at 35% 20%, #646b78, #272f43 68%, #161e30); box-shadow: inset 0 2px #aeb5bd, 0 2px 4px #071630; cursor: not-allowed; pointer-events: none; }
+.mission-journey-node.is-locked { border-color: #a5abb8; color: #d4d6da; background: radial-gradient(circle at 35% 20%, #646b78, #272f43 68%, #161e30); box-shadow: inset 0 2px #aeb5bd, 0 2px 4px #071630; }
 .mission-journey-node.is-locked .mission-journey-number { transform: translateY(-13%); }
 .mission-journey-node.is-unlocking { box-shadow: inset 0 2px #fff5c5, 0 0 20px 5px #ffdb70; }
 .mission-journey-node.is-unlocking .ui-lock-icon path { transform-origin: 15% 90%; animation: mission-shackle-open 360ms ease-out forwards; }
@@ -48,20 +49,22 @@
 .mission-journey-crown svg { display: block; width: 100%; height: 100%; }
 .mission-journey-node.is-locked .mission-journey-crown { color: #c4c9cc; }
 .mission-journey-node.is-current .mission-journey-crown { left: -5px; transform: translateX(-70%); }
-.mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(10px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: clamp(112px, 18vw, 210px) minmax(0, 1fr) auto auto; align-items: center; gap: clamp(7px, 1.2vw, 16px); width: min(980px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 6px 8px; border: 2px solid #7be8ff; border-radius: 16px; color: #0b2345; background: linear-gradient(150deg, #fff, #f2f9ff 53%, #d8f4fa); box-shadow: inset 0 1px #fff, 0 0 12px #18d2ff, 0 4px 12px #05183599; }
-.mission-journey-detail-image { display: block; width: 100%; height: calc(var(--journey-detail-height) - 16px); border-radius: 10px; object-fit: cover; object-position: center; }
-.mission-journey-detail-copy { min-width: 0; }
-.mission-journey-detail-copy strong { display: block; overflow: hidden; color: #10204b; font: 900 clamp(11px, 1.45vw, 18px)/1.15 var(--font-display); white-space: nowrap; text-overflow: ellipsis; }
-.mission-journey-detail-copy p { display: -webkit-box; overflow: hidden; margin: 4px 0 0; color: #365279; font: 600 clamp(9px, 1.12vw, 14px)/1.2 var(--font-body); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.mission-journey-reward { display: flex; align-items: center; gap: 3px; color: #865205; white-space: nowrap; }
-.mission-journey-reward img { display: block; width: clamp(18px, 2.4vw, 29px); height: clamp(18px, 2.4vw, 29px); object-fit: contain; }
-.mission-journey-reward strong { font: 900 clamp(11px, 1.45vw, 18px)/1 var(--font-display); }
-.mission-journey-reward small { color: #087a9d; font: 900 13px/1 var(--font-display); }
-.mission-journey-play { min-width: clamp(112px, 14vw, 178px); min-height: clamp(44px, 9dvh, 58px); padding: 0 9px; border: 2px solid var(--menu-gold-border); border-radius: 13px; color: var(--menu-gold-ink); background: var(--menu-gold-fill); box-shadow: var(--menu-gold-shadow); font: 900 clamp(10px, 1.35vw, 17px)/1 var(--font-display); white-space: nowrap; }
-.mission-journey-play:disabled { cursor: not-allowed; filter: grayscale(1); }
+.mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(24px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) minmax(190px, 255px); align-items: center; gap: 18px; width: min(1120px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 16px 22px 16px clamp(22px, 4.5vw, 58px); border: 3px solid #f7c85b; border-radius: 22px; color: #f4faff; background: radial-gradient(circle at 72% 45%, rgb(11 117 211 / 27%), transparent 45%), linear-gradient(130deg, rgb(4 20 51 / 95%), rgb(5 42 96 / 94%) 65%, rgb(4 20 51 / 96%)); box-shadow: inset 0 1px rgb(255 244 191 / 70%), inset 0 0 24px rgb(28 168 238 / 20%), 0 0 12px rgb(255 192 66 / 55%), 0 7px 22px rgb(0 13 41 / 60%); }
+.mission-journey-detail-copy { display: grid; align-content: center; min-width: 0; gap: 5px; }
+.mission-journey-detail-copy > span { color: #ffd87c; font: 900 clamp(16px, 1.8vw, 23px)/1 var(--font-display); letter-spacing: .04em; }
+.mission-journey-detail-copy strong { display: block; color: #ffd05e; font: 900 clamp(23px, 2.7vw, 34px)/1.04 var(--font-display); text-shadow: 0 3px 2px #7c3d08, 0 5px 8px rgb(0 9 35 / 75%); overflow-wrap: anywhere; }
+.mission-journey-detail-copy p { display: -webkit-box; overflow: hidden; margin: 7px 0 0; color: #edf8ff; font: 600 clamp(16px, 1.7vw, 20px)/1.25 var(--font-body); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mission-journey-detail-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; height: 82%; border-inline: 1px solid rgb(111 207 246 / 42%); }
+.mission-journey-reward, .mission-journey-time { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; gap: 4px; white-space: nowrap; }
+.mission-journey-reward { border-right: 1px solid rgb(111 207 246 / 35%); }
+.mission-journey-reward > span, .mission-journey-time > span { width: 100%; color: #9fc8e7; font: 900 clamp(12px, 1.2vw, 16px)/1 var(--font-display); letter-spacing: .03em; text-align: center; white-space: normal; }
+.mission-journey-reward strong, .mission-journey-time strong { color: #fff; font: 900 clamp(22px, 2.1vw, 28px)/1 var(--font-display); text-shadow: 0 2px 4px #001535; }
+.mission-journey-reward img, .mission-journey-time svg { display: block; width: clamp(40px, 4vw, 54px); height: clamp(40px, 4vw, 54px); object-fit: contain; }
+.mission-journey-time svg { color: #58d5ff; filter: drop-shadow(0 0 4px rgb(53 190 255 / 70%)); }
+.mission-journey-play { --context-action-size: clamp(17px, 1.85vw, 24px); width: 100%; min-height: clamp(60px, 13dvh, 82px); padding: 0 10px; white-space: nowrap; }
 @media (max-height: 480px) and (orientation: landscape) {
-  .mission-journey { --journey-detail-height: clamp(68px, 18dvh, 80px); --journey-detail-gap: 10px; }
-  .mission-journey-viewport { top: calc(var(--hub-header-total, 78px) + 2px); bottom: calc(max(5px, var(--safe-area-bottom)) + var(--journey-detail-height) + var(--journey-detail-gap)); }
+  .mission-journey { --journey-detail-height: clamp(120px, 34dvh, 146px); --journey-detail-gap: 7px; --chapter-heading-offset: 85px; }
+  .mission-journey-viewport { top: calc(var(--hub-header-total, 78px) + 2px); bottom: calc(max(8px, var(--safe-area-bottom)) + var(--journey-detail-height) + var(--journey-detail-gap)); }
   .mission-journey-map { --journey-step: 105px; }
   .mission-journey-chapter-heading { border-radius: 8px; }
   .mission-journey-node { width: 58px; height: 58px; font-size: 20px; }
@@ -70,8 +73,25 @@
   .mission-journey-node.is-locked .mission-journey-number { transform: translateY(-19%); }
   .mission-journey-lock { --lock-icon-size: clamp(9px, 1.1vw, 13px); }
   .mission-journey-node.is-current::after { top: calc(100% + 2px); padding: 2px 4px; }
-  .mission-journey-detail { padding: 4px 6px; border-radius: 11px; }
-  .mission-journey-detail-image { height: calc(var(--journey-detail-height) - 12px); }
-  .mission-journey-play { min-height: 43px; }
+  .mission-journey-detail { bottom: max(8px, var(--safe-area-bottom)); grid-template-columns: minmax(0, 1fr) minmax(185px, 220px) minmax(118px, 160px); gap: 9px; padding: 9px 11px 9px 18px; border-radius: 13px; border-width: 2px; }
+  .mission-journey-detail-copy { gap: 2px; }
+  .mission-journey-detail-copy > span { font-size: clamp(11px, 1.6vw, 15px); }
+  .mission-journey-detail-copy strong { font-size: clamp(18px, 2.5vw, 25px); }
+  .mission-journey-detail-copy p { margin-top: 3px; font-size: clamp(13px, 1.6vw, 15px); }
+  .mission-journey-detail-facts { gap: 0; }
+  .mission-journey-reward, .mission-journey-time { gap: 3px; }
+  .mission-journey-reward > span, .mission-journey-time > span { font-size: 11px; }
+  .mission-journey-reward strong, .mission-journey-time strong { font-size: clamp(18px, 2.2vw, 21px); }
+  .mission-journey-reward img, .mission-journey-time svg { width: 32px; height: 32px; }
+  .mission-journey-play { --context-action-size: clamp(12px, 1.5vw, 15px); min-height: 54px; padding-inline: 7px; }
+}
+@media (max-width: 700px) and (orientation: landscape) {
+  .mission-journey-detail { grid-template-columns: minmax(0, 1fr) minmax(128px, 150px) minmax(100px, 118px); gap: 6px; padding-inline: 9px; }
+  .mission-journey-detail-copy strong { font-size: 16px; }
+  .mission-journey-detail-copy p { font-size: 12px; }
+  .mission-journey-reward > span, .mission-journey-time > span { font-size: 10px; }
+  .mission-journey-reward strong, .mission-journey-time strong { font-size: 15px; }
+  .mission-journey-reward img, .mission-journey-time svg { width: 24px; height: 24px; }
+  .mission-journey-play { --context-action-size: 10px; min-height: 48px; }
 }
 @media (prefers-reduced-motion: reduce) { .mission-journey *, .mission-journey *::before, .mission-journey *::after { animation: none !important; transition: none !important; } }

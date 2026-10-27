@@ -4,12 +4,13 @@ import { getCity, resolveCityTimePreset } from '../../client/src/cities.ts';
 import { createTimeVisuals } from '../../client/src/time-visuals.ts';
 import { DiscoverySystem } from '../../client/src/discoveries.ts';
 
-test('Dallas supports Day, Dusk, Evening, and Night in card order', () => {
+test('Dallas offers Day, Dusk, and Evening and rejects removed presets', () => {
   const dallas = getCity('dallas');
   assert.ok(dallas);
-  assert.deepEqual(dallas.timePresets, ['day', 'dusk', 'evening', 'night']);
+  assert.deepEqual(dallas.timePresets, ['day', 'dusk', 'evening']);
   for (const preset of dallas.timePresets) assert.equal(resolveCityTimePreset(dallas, preset), preset);
-  assert.equal(resolveCityTimePreset(dallas, 'night'), 'night');
+  assert.equal(resolveCityTimePreset(dallas, 'night'), 'day');
+  assert.equal(resolveCityTimePreset(dallas, 'satellite'), 'day');
   assert.equal(resolveCityTimePreset(dallas, null), 'day');
 });
 
@@ -20,6 +21,7 @@ test('Milwaukee remains Day-only even with a Dallas preference or URL value', ()
   assert.equal(resolveCityTimePreset(milwaukee, 'evening'), 'day');
   assert.equal(resolveCityTimePreset(milwaukee, 'dusk'), 'day');
   assert.equal(resolveCityTimePreset(milwaukee, 'night'), 'day');
+  assert.equal(resolveCityTimePreset(milwaukee, 'satellite'), 'day');
 });
 
 test('Evening sun is before sunset while Day and Dusk retain their light values', () => {
@@ -29,10 +31,7 @@ test('Evening sun is before sunset while Day and Dusk retain their light values'
   assert.equal(presets.evening.sunIntensity, 2.25);
   assert.equal(presets.evening.duskAmount, 0);
   assert.equal(presets.evening.eveningAmount, 1);
-  assert.equal(presets.night.eveningAmount, 0);
-  assert.equal(presets.night.duskAmount, 0);
-  assert.ok(presets.night.ambientIntensity > presets.dusk.ambientIntensity);
-  assert.ok(presets.night.sunIntensity < presets.dusk.sunIntensity);
+  assert.equal('night' in presets, false);
   const [x, y, z] = presets.evening.sunPosition;
   const elevation = Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI;
   assert.ok(elevation >= 18 && elevation <= 22, `sun elevation ${elevation}`);

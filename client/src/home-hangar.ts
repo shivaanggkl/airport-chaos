@@ -9,6 +9,8 @@ export type HomeHangarData = {
 type HomeHangarHandlers = {
   missions: () => void;
   freeFly: () => void;
+  store: () => void;
+  sponsor: (trigger: HTMLButtonElement) => void;
   settings: () => void;
 };
 
@@ -23,6 +25,9 @@ export class HomeHangar {
     this.aircraft = element.querySelector<HTMLElement>('[data-home-aircraft-name]')!;
     element.querySelector('[data-home-missions]')!.addEventListener('click', handlers.missions);
     element.querySelector('[data-home-free-fly]')!.addEventListener('click', handlers.freeFly);
+    element.querySelector('[data-home-store]')!.addEventListener('click', handlers.store);
+    const sponsor = element.querySelector<HTMLButtonElement>('[data-home-sponsor]')!;
+    sponsor.addEventListener('click', () => handlers.sponsor(sponsor));
     element.querySelector('[data-home-settings]')!.addEventListener('click', handlers.settings);
     const syncVisibility = (): void => { element.classList.toggle('is-backgrounded', document.hidden); };
     document.addEventListener('visibilitychange', syncVisibility);

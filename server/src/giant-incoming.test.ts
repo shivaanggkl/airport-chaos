@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { transportPose, transportSpawn, transportTuning, transportRouteLength, transportCourse, transportFootprintRadius } from '../../shared/giant-incoming.mjs';
-import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportBodySweep, transportFortressImpact, stepCrossfireGunCycle, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
+import { createTransportEncounter, transportAim, transportMuzzle, stepTransportEncounter, transportImpact, transportAircraftImpact, transportBodySweep, transportFortressImpact, stepCrossfireGunCycle, transportProjectileDisposition, loadTransportBuildings, transportAltitude, transportInterceptTime, transportHullImpact } from './giant-incoming.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
 import { indexBuildingsForOcclusion, segmentBlockedByBuildings } from './monster-arrival.js';
@@ -91,6 +91,23 @@ test('Fortress crash sweep follows the moving hull without using gun collision',
   assert.equal(transportBodySweep({x:500,y:50,z:480},{x:500,y:50,z:-480},p,p),false);
   assert.equal(transportBodySweep({x:0,y:40,z:480},{x:50,y:40,z:-480},p,{...p,x:50}),true);
 });
+test('player airframe sweep catches nose, wing, and underside before the center crosses the transport',()=>{
+  const p={...transportPose(0),x:0,y:0,z:0,yaw:0,roll:0};
+  const rotation={x:0,y:0,z:0};
+  const crash=(a:{x:number;y:number;z:number},b:{x:number;y:number;z:number})=>
+    transportAircraftImpact(a,b,rotation,rotation,'trainer',p,p,true);
+  const noseA={x:0,y:40,z:380},noseB={x:0,y:40,z:355};
+  assert.equal(transportImpact(noseA,noseB,p,p,false),undefined);
+  assert.ok(crash(noseA,noseB));
+  const wingA={x:310,y:40,z:0},wingB={x:276,y:40,z:0};
+  assert.equal(transportImpact(wingA,wingB,p,p,false),undefined);
+  assert.ok(crash(wingA,wingB));
+  const belowA={x:0,y:-90,z:0},belowB={x:0,y:-71.2,z:0};
+  assert.equal(transportImpact(belowA,belowB,p,p,false),undefined);
+  assert.ok(crash(belowA,belowB));
+  assert.equal(crash({x:400,y:180,z:480},{x:400,y:180,z:-480}),undefined);
+  assert.ok(transportAircraftImpact({x:0,y:40,z:480},{x:50,y:40,z:-480},rotation,rotation,'trainer',p,{...p,x:50},true));
+});
 
 test('Fortress projectile sweep separates wing turrets, armor, and exposed rear core',()=>{
   const pose={...transportPose(0),x:0,y:0,z:0,yaw:0,roll:0,sideGuns:[{yaw:0,pitch:0},{yaw:0,pitch:0}]};
@@ -122,7 +139,7 @@ test('Fortress side guns alternate two-shot turns, warn first, and skip a dead g
   assert.equal(cycle.guns[0]!.warningUntil,0);
 });
 
-test('Fortress encounter emits two traveling side-gun shots and no hidden rear-gun shots',()=>{
+test('Fortress side guns still fire when the target is outside the tail arc',()=>{
   const encounter=createTransportEncounter('fortress','pilot',0,900,journeyDallas11.timeLimitMs,false,true);
   for(let ms=0;ms<=4_000;ms+=50){
     const pose=transportPose(ms,900,journeyDallas11.timeLimitMs),c=Math.cos(pose.yaw),s=Math.sin(pose.yaw);
@@ -142,26 +159,48 @@ test('Fortress encounter emits two traveling side-gun shots and no hidden rear-g
   assert.equal(encounter.shots.length,previous);
 });
 
-test('Final Intercept transport stays silent for escorts, then shares the fortress gun schedule', () => {
+test('transport tail fires when a pilot is behind it in Missions 8 through 12', () => {
+  for (const [mission, crossfire, fortress, expectedShots] of [
+    [journeyDallas08, false, false, 3], [journeyDallas09, false, false, 3],
+    [journeyDallas10, true, false, 2], [journeyDallas11, false, true, 3],
+    [journeyDallas12, false, true, 3],
+  ] as const) {
+    const encounter = createTransportEncounter(mission.id, 'pilot', 0, 900, mission.timeLimitMs, crossfire, fortress);
+    if (mission.id === journeyDallas12.id) encounter.fortressGunsEnabled = false;
+    for (let ms = 0; ms <= 4_000; ms += 50) {
+      const pose = transportPose(ms, 900, mission.timeLimitMs);
+      const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
+      stepTransportEncounter(encounter, { x: pose.x + s * 1_200, y: pose.y + 65, z: pose.z + c * 1_200 },
+        { x: 0, y: 0, z: 0 }, [], ms);
+    }
+    assert.equal(encounter.shots.length, expectedShots, mission.name);
+    if (fortress) {
+      assert.equal(encounter.crossfire?.activeGun, null);
+      assert.equal(encounter.crossfire?.guns[0].yaw, encounter.gunYaw);
+    }
+  }
+});
+
+test('Final Intercept fires its tail during escorts and its side guns after escorts', () => {
   const encounter = createTransportEncounter('final', 'pilot', 0, 900, journeyDallas12.timeLimitMs, false, true);
   encounter.fortressGunsEnabled = false;
-  for (let ms = 0; ms <= 10_000; ms += 50) {
+  for (let ms = 0; ms <= 4_000; ms += 50) {
     const pose = transportPose(ms, 900, journeyDallas12.timeLimitMs);
     const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
-    stepTransportEncounter(encounter, { x: pose.x - c * 1100 + s * 350, y: pose.y + 65,
-      z: pose.z + s * 1100 + c * 350 }, { x: 0, y: 0, z: 0 }, [], ms);
+    stepTransportEncounter(encounter, { x: pose.x + s * 1_200, y: pose.y + 65,
+      z: pose.z + c * 1_200 }, { x: 0, y: 0, z: 0 }, [], ms);
   }
-  assert.equal(encounter.shots.length, 0);
+  assert.equal(encounter.shots.length, 3);
   assert.equal(encounter.crossfire?.activeGun, null);
   encounter.fortressGunsEnabled = true;
-  encounter.crossfire!.nextBurstAt = 12_000;
-  for (let ms = 10_050; ms <= 13_500; ms += 50) {
+  encounter.crossfire!.nextBurstAt = 6_000;
+  for (let ms = 4_050; ms <= 7_500; ms += 50) {
     const pose = transportPose(ms, 900, journeyDallas12.timeLimitMs);
     const c = Math.cos(pose.yaw), s = Math.sin(pose.yaw);
     stepTransportEncounter(encounter, { x: pose.x - c * 1100 + s * 350, y: pose.y + 65,
       z: pose.z + s * 1100 + c * 350 }, { x: 0, y: 0, z: 0 }, [], ms);
   }
-  assert.equal(encounter.shots.length, 2);
+  assert.equal(encounter.shots.length, 5);
   assert.equal(encounter.crossfire?.guns[0].warningUntil, 0);
   assert.equal(transportProjectileDisposition(journeyDallas12.id, 100, false), 'escort');
   const before = transportPose(journeyDallas12.timeLimitMs - 1_000, 900, journeyDallas12.timeLimitMs);

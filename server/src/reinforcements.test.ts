@@ -44,8 +44,8 @@ test('Mission 9 preserves its reward and uses a 5:30 transport route with four s
   assert.equal(journeyDallas09.escortCount, 4);
   assert.equal(journeyDallas09.initialEscortCount, 2);
   assert.deepEqual(journeyDallas09.escortHealth, [75, 125, 175, 225]);
-  assert.deepEqual(journeyDallas09.escortAircraft, ['trainer', 'cargo', 'privateJet', 'fighter']);
-  assert.deepEqual(journeyDallas09.escortLiveries, ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'firehawk-inferno']);
+  assert.deepEqual(journeyDallas09.escortAircraft, ['trainer', 'cargo', 'privateJet', 'privateJet']);
+  assert.deepEqual(journeyDallas09.escortLiveries, ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'nightowl-royal-violet']);
   for (let i = 0; i < 4; i++) {
     const cosmetic = cosmeticCatalog.find(item => item.id === journeyDallas09.escortLiveries[i]);
     assert.equal(cosmetic?.aircraftRestriction, journeyDallas09.escortAircraft[i]);

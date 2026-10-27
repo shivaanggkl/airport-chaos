@@ -46,7 +46,7 @@ test('client uses one director and server owns presentation-trigger facts', () =
   assert.match(main, /message\.type === 'landingScored'[\s\S]*requestPerfectLanding/);
   assert.match(main, /lockingThreatIds\.size > 0[\s\S]*flightLaunchState === 'pending'/);
   assert.match(main, /kind !== 'PERFECT_LANDING'\) return;[\s\S]*clearHeldActions/);
-  assert.match(main, /cinematicFrame\?\.kind === 'TAKEOFF'[\s\S]*defaultChaseDistance \* 0\.1/);
+  assert.doesNotMatch(main, /cinematicFrame\?\.kind === 'TAKEOFF'/);
   assert.match(main, /cinematicFrame\?\.kind === 'PERFECT_LANDING'[\s\S]*cameraFrameSize/);
   assert.match(main, /visibilitychange[\s\S]*cinematicDirector\.clearPresentation/);
   assert.match(main, /airport-chaos-city-exit[\s\S]*cinematicDirector\.dispose/);

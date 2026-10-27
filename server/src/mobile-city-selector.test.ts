@@ -19,7 +19,8 @@ test('City Journey uses live cards and the existing city registry', () => {
 });
 
 test('Missions and Free Fly keep separate launch routes', () => {
-  assert.match(html, /data-home-missions>[\s\S]*<strong>MISSIONS<\/strong>[\s\S]*data-home-free-fly>[\s\S]*<strong>FREE FLY<\/strong>/);
+  assert.match(html, /data-home-missions aria-label="Missions, Single Player">\s*<img class="home-hangar-card-image" src="\/media\/hub\/missions-card\.jpg"/);
+  assert.match(html, /data-home-free-fly aria-label="Multiplayer, Free Fly">\s*<img class="home-hangar-card-image" src="\/media\/hub\/multiplayer-card\.jpg"/);
   assert.match(bootstrap, /type CityJourneyMode = LaunchMode/);
   assert.match(bootstrap, /requestHubFly\('missions'\)[\s\S]*requestHubFly\('free-fly'\)/);
   assert.match(bootstrap, /if \(cityJourneyMode === 'free-fly'\) \{\s*abandonPendingJourneyLaunch\(\);\s*showTimeSelection\(city\);\s*return;/);

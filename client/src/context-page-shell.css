@@ -5,15 +5,15 @@
   min-height: 100dvh;
   isolation: isolate;
   overflow-x: hidden;
-  background: #305389;
+  background: var(--menu-background);
 }
 
 .context-fullscreen-page::before {
   position: absolute;
   z-index: -1;
-  inset: -12px;
+  inset: -28px;
   background: var(--menu-background);
-  filter: blur(7px);
+  filter: blur(12px);
   pointer-events: none;
   content: '';
 }
