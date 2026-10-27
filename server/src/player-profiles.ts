@@ -8,14 +8,17 @@ import { ECONOMY_VERSION, REDSPEAR_TRIAL_DURATION_MS, aircraftCreditPrice, aircr
 import { aircraftSkyTokenPrice, skyTokenPack, type SkyTokenPackId } from '../../shared/sky-token-economy.mjs';
 import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
-import { pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
+import { earnedRankIdForLevel, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits, dailyRewardForDay } from '../../shared/daily-rewards.mjs';
 import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
+import { defaultAvatarFrameId, premiumBadgeIds, premiumFrameIds } from '../../shared/profile-cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
+import { cityDiscoveries } from '../../shared/city-discoveries.mjs';
 import { tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 import { trainingSlideIds } from '../../shared/training-slides.mjs';
 import { PlayerWallet, type WalletBalances, type WalletTransactionReason } from './player-wallet.js';
+import { PilotXpLedger, type XpAward, type XpAwardResult } from './pilot-xp-ledger.js';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 export type CityId = 'milwaukee' | 'dallas';
@@ -44,7 +47,7 @@ export type PlayerProfile = {
   mastery: Partial<Record<CityId, CityMastery>>;
   missions: Partial<Record<CityId, MissionCityState>>;
   legacyImportPending: boolean;
-  pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
+  pilotProgress: { xp: number; level: number; title: string; rankId: string; nextLevelXp: number };
   dailyStreak: { current: number; longest: number; cycleDay: number; lastClaimDay?: string; nextReward: number };
   dailyReward: DailyRewardState;
   personalRecords: Record<string, { value: number; cityId?: CityId; achievedAt: number }>;
@@ -55,6 +58,7 @@ export type PlayerProfile = {
     inviterRewardsInWindow: number; inviterRewardsRemaining: number; nextInviterRewardAt?: number;
   };
   cosmetics: { ownedIds: string[]; equipped: Record<string, string> };
+  profileCosmetics: { ownedPremiumBadges: string[]; ownedAvatarFrames: string[]; equippedPremiumBadge: string | null; equippedAvatarFrame: string };
   season?: SeasonProgress;
   intercityRoute?: { routeId:string;fromCityId:CityId;toCityId:CityId;startedAt:number };
   tutorial: { version:'tutorial_v1'; status:'new'|'started'|'completed'|'skipped'; completedAt?:number; dallasUnlocked:boolean };
@@ -361,6 +365,7 @@ export class PlayerProfileStore {
   private readonly database: DatabaseSync;
   private readonly databasePath: string;
   private readonly wallet: PlayerWallet;
+  private readonly xpLedger: PilotXpLedger;
   private readonly qaDallasUnlocked: boolean;
   private lastReceiptPruneAt = 0;
   private lastReceiptPruneCount = 0;
@@ -565,6 +570,23 @@ export class PlayerProfileStore {
       CREATE INDEX IF NOT EXISTS pilot_referrals_referrer_rewarded ON pilot_referrals(referrer_pilot_id, inviter_rewarded_at);
     `);
     this.wallet = new PlayerWallet(this.database);
+    this.xpLedger = new PilotXpLedger(this.database);
+    this.database.exec(`CREATE TABLE IF NOT EXISTS pilot_profile_cosmetic_ownership (
+      pilot_id TEXT NOT NULL REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+      category TEXT NOT NULL CHECK(category IN ('premium_badge','avatar_frame')),
+      cosmetic_id TEXT NOT NULL, acquired_at INTEGER NOT NULL, verified_receipt TEXT NOT NULL UNIQUE,
+      PRIMARY KEY(pilot_id,category,cosmetic_id)
+    );
+    CREATE TABLE IF NOT EXISTS pilot_profile_cosmetic_equipment (
+      pilot_id TEXT NOT NULL REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+      category TEXT NOT NULL CHECK(category IN ('premium_badge','avatar_frame')),
+      cosmetic_id TEXT NOT NULL, PRIMARY KEY(pilot_id,category)
+    );
+    CREATE TABLE IF NOT EXISTS pilot_verified_distance_progress (
+      pilot_id TEXT PRIMARY KEY REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT,
+      meters REAL NOT NULL DEFAULT 0 CHECK(meters>=0),
+      batches_consumed INTEGER NOT NULL DEFAULT 0 CHECK(batches_consumed>=0)
+    );`);
     try { this.database.exec('ALTER TABLE player_profiles ADD COLUMN sky_token_deficit INTEGER NOT NULL DEFAULT 0 CHECK(sky_token_deficit >= 0)'); } catch { /* already migrated */ }
     this.database.exec(`CREATE TABLE IF NOT EXISTS sky_token_purchases (
       provider TEXT NOT NULL CHECK(provider IN ('stripe','apple','google')),
@@ -1191,6 +1213,21 @@ export class PlayerProfileStore {
     return { ok: true, profile: this.toProfile(row) };
   }
 
+  equipProfileCosmetic(pilotId: string, category: 'premium_badge' | 'avatar_frame', cosmeticId: string | null): { ok: boolean; profile?: PlayerProfile } {
+    const row = this.getRow(pilotId);
+    if (!row || category !== 'premium_badge' && category !== 'avatar_frame') return { ok: false };
+    if (cosmeticId === null || category === 'avatar_frame' && cosmeticId === defaultAvatarFrameId) {
+      this.database.prepare('DELETE FROM pilot_profile_cosmetic_equipment WHERE pilot_id=? AND category=?').run(pilotId, category);
+      return { ok: true, profile: this.toProfile(row) };
+    }
+    const known = category === 'premium_badge' ? premiumBadgeIds : premiumFrameIds;
+    if (!known.includes(cosmeticId) || !this.database.prepare('SELECT 1 FROM pilot_profile_cosmetic_ownership WHERE pilot_id=? AND category=? AND cosmetic_id=?')
+      .get(pilotId, category, cosmeticId)) return { ok: false };
+    this.database.prepare(`INSERT INTO pilot_profile_cosmetic_equipment(pilot_id,category,cosmetic_id) VALUES(?,?,?)
+      ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`).run(pilotId, category, cosmeticId);
+    return { ok: true, profile: this.toProfile(row) };
+  }
+
   dailyRewardState(pilotId: string, now = Date.now()): DailyRewardState | undefined {
     const profile = this.getRow(pilotId); if (!profile) return undefined;
     this.ensurePilotProgression(profile);
@@ -1253,13 +1290,17 @@ export class PlayerProfileStore {
     });
   }
 
-  awardPilotXp(pilotId: string, amount: number): { profile: PlayerProfile; levelUp?: number; title?: string } | undefined {
-    const row = this.getRow(pilotId); if (!row || !Number.isFinite(amount) || amount <= 0) return undefined;
+  awardVerifiedXp(input: XpAward): { profile: PlayerProfile; result: XpAwardResult } | undefined {
+    const row = this.getRow(input.pilotId);
+    if (!row) return undefined;
     this.ensurePilotProgression(row);
-    const before = this.pilotProgression(pilotId);
-    this.database.prepare('UPDATE pilot_progression SET xp=MIN(100000000,xp+?) WHERE pilot_id=?').run(Math.floor(amount), pilotId);
-    const after = this.pilotProgression(pilotId);
-    return { profile: this.toProfile(this.getRow(pilotId)!), levelUp: after.level > before.level ? after.level : undefined, title: after.level > before.level ? after.title : undefined };
+    const result = this.xpLedger.award(input);
+    return { profile: this.toProfile(this.getRow(input.pilotId)!), result };
+  }
+
+  xpDailyTotal(pilotId: string, now = Date.now()): number {
+    return (this.database.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM pilot_xp_ledger WHERE pilot_id=? AND day_id=?')
+      .get(pilotId, utcDayId(now)) as { total: number }).total;
   }
 
   awardScore(pilotId: string, amount: number): PlayerProfile | undefined {
@@ -1369,11 +1410,11 @@ export class PlayerProfileStore {
       const row = this.getRow(pilotId);
       if (!row) throw new Error('Profile disappeared during legacy import');
       if (row.legacy_imported) return this.toProfile(row);
+      this.ensurePilotProgression(row);
       const importedCredits = boundedInteger(legacy.credits, 1_000_000);
       const credits = importedCredits >= legacyDevCreditThreshold
         ? migratedDevCredits
         : Math.max(boundedInteger(row.credits, 1_000_000), importedCredits);
-      const discoveries = parseDiscoveries(legacy.discoveries);
       const usableAircraft = usableAircraftForRow(row);
       const trial = parseFighterTrial(row.fighter_trial);
       const requestedAircraft = trial.status === 'pending' || trial.status === 'active'
@@ -1383,7 +1424,7 @@ export class PlayerProfileStore {
       this.database.prepare(`UPDATE player_profiles SET pilot_name = ?, score = MAX(score, ?), selected_aircraft = ?, total_distance = ?, successful_landings = ?, discoveries = ?, legacy_imported = 1 WHERE pilot_id = ?`)
         .run(
           assignedPilotName(legacy.pilotName ?? row.pilot_name, pilotId), boundedInteger(legacy.score, 100_000_000), selectedAircraft,
-          boundedNumber(legacy.totalDistance, 10_000_000), boundedInteger(legacy.successfulLandings, 100_000), JSON.stringify(discoveries), pilotId,
+          row.total_distance, row.successful_landings, row.discoveries, pilotId,
         );
       const difference = credits - boundedInteger(row.credits, 1_000_000);
       if (difference > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: difference, reason: 'MIGRATION', referenceId: 'legacy-profile' });
@@ -1401,27 +1442,62 @@ export class PlayerProfileStore {
     return this.toProfile(this.getRow(pilotId)!);
   }
 
-  updateProgress(pilotId: string, progress: ProfileProgress): PlayerProfile | undefined {
-    return this.wallet.transaction((wallet) => {
+  updateProgress(pilotId: string, _progress: ProfileProgress): PlayerProfile | undefined {
+    // Legacy client snapshots are never evidence of distance, landings, or discoveries.
+    const row = this.getRow(pilotId);
+    return row ? this.toProfile(row) : undefined;
+  }
+
+  recordVerifiedDiscovery(pilotId: string, cityId: CityId, locationId: string, now = Date.now()): { profile: PlayerProfile; xp: XpAwardResult } | undefined {
+    const definition = cityDiscoveries[cityId].find(item => item.id === locationId);
+    if (!definition) return undefined;
+    return this.wallet.transaction(wallet => {
       const row = this.getRow(pilotId);
       if (!row) return undefined;
-      const discoveries = parseDiscoveries(progress.discoveries);
-      const mergedDiscoveries = rowDiscoveries(row);
-      let newDiscoveries = 0;
-      for (const cityId of cityIds) {
-        const previous = new Set(mergedDiscoveries[cityId] ?? []);
-        const maximum = capabilitiesForCity(cityId).discoveryTotal;
-        const merged = [...new Set([...previous, ...(discoveries[cityId] ?? [])])].slice(0, maximum);
-        newDiscoveries += Math.max(0, merged.length - previous.size);
-        mergedDiscoveries[cityId] = merged;
-      }
-      const currentAircraft = selectedOwnedAircraft(row.selected_aircraft, usableAircraftForRow(row));
-      this.database.prepare(`UPDATE player_profiles SET selected_aircraft = ?, total_distance = MAX(total_distance, ?), successful_landings = MAX(successful_landings, ?), discoveries = ? WHERE pilot_id = ?`)
-        .run(currentAircraft, boundedNumber(progress.totalDistance, 10_000_000), boundedInteger(progress.successfulLandings, 100_000), JSON.stringify(mergedDiscoveries), pilotId);
-      const reward = newDiscoveries * economyRewards.discovery;
-      if (reward > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount: reward, reason: 'DISCOVERY_REWARD', referenceId: 'discoveries' });
-      return this.toProfile(this.getRow(pilotId)!);
+      this.ensurePilotProgression(row);
+      const discoveries = rowDiscoveries(row);
+      if ((discoveries[cityId] ?? []).includes(locationId)) return undefined;
+      discoveries[cityId] = [...(discoveries[cityId] ?? []), locationId];
+      this.database.prepare('UPDATE player_profiles SET discoveries=? WHERE pilot_id=?').run(JSON.stringify(discoveries), pilotId);
+      const credit = wallet.credit({ pilotId, currency: 'CREDITS', amount: economyRewards.discovery,
+        reason: 'DISCOVERY_REWARD', referenceId: locationId, idempotencyKey: `discovery:${cityId}:${locationId}`, createdAt: now });
+      if (!credit.ok) throw new Error('Discovery credit failed');
+      const xp = this.xpLedger.awardInTransaction({ pilotId, source: 'DISCOVERY', eventId: `${cityId}:${locationId}`, cityId, now });
+      return { profile: this.toProfile(this.getRow(pilotId)!), xp };
     });
+  }
+
+  recordAcceptedFlightDistance(pilotId: string, meters: number, now = Date.now()): XpAwardResult[] {
+    if (!Number.isFinite(meters) || meters <= 0 || meters > 50_000 || !Number.isSafeInteger(now)) return [];
+    return this.wallet.transaction(() => {
+      const row = this.getRow(pilotId);
+      if (!row) return [];
+      this.ensurePilotProgression(row);
+      this.database.prepare('UPDATE player_profiles SET total_distance=MIN(100000000,total_distance+?) WHERE pilot_id=?')
+        .run(meters, pilotId);
+      this.database.prepare(`INSERT INTO pilot_verified_distance_progress(pilot_id,meters) VALUES(?,?)
+        ON CONFLICT(pilot_id) DO UPDATE SET meters=meters+excluded.meters`).run(pilotId, meters);
+      const progress = this.database.prepare('SELECT meters,batches_consumed FROM pilot_verified_distance_progress WHERE pilot_id=?')
+        .get(pilotId) as { meters: number; batches_consumed: number };
+      const reached = Math.floor(progress.meters / 5_000);
+      const awards: XpAwardResult[] = [];
+      for (let batch = progress.batches_consumed + 1; batch <= reached; batch += 1)
+        awards.push(this.xpLedger.awardInTransaction({ pilotId, source: 'DISTANCE', eventId: `distance:${batch}`, now }));
+      if (reached > progress.batches_consumed)
+        this.database.prepare('UPDATE pilot_verified_distance_progress SET batches_consumed=? WHERE pilot_id=?').run(reached, pilotId);
+      return awards;
+    });
+  }
+
+  recordScoredLanding(pilotId: string): void {
+    this.database.prepare('UPDATE player_profiles SET successful_landings=MIN(1000000,successful_landings+1) WHERE pilot_id=?')
+      .run(pilotId);
+  }
+
+  recordAcceptedPracticeDistance(pilotId: string, meters: number): void {
+    if (!Number.isFinite(meters) || meters <= 0 || meters > 50_000) return;
+    this.database.prepare('UPDATE player_profiles SET total_distance=MIN(100000000,total_distance+?) WHERE pilot_id=?')
+      .run(meters, pilotId);
   }
 
   equipAircraft(pilotId: string, requestedAircraft: unknown): PlayerProfile | undefined {
@@ -1617,9 +1693,20 @@ export class PlayerProfileStore {
     reason: WalletTransactionReason = 'FLIGHT_REWARD',
     referenceId?: string,
   ): PlayerProfile | undefined {
+    return this.awardServerRewardAndXp(pilotId, credits, stats, reason, referenceId).profile;
+  }
+
+  awardServerRewardAndXp(
+    pilotId: string,
+    credits: number,
+    stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>,
+    reason: WalletTransactionReason = 'FLIGHT_REWARD',
+    referenceId?: string,
+    xpAward?: Omit<XpAward, 'pilotId'>,
+  ): { profile?: PlayerProfile; xp?: XpAwardResult } {
     const row = this.getRow(pilotId);
-    if (!row) return undefined;
-    this.wallet.transaction((wallet) => {
+    if (!row) return {};
+    const xp = this.wallet.transaction((wallet) => {
       const amount = boundedInteger(credits, 100_000);
       if (amount > 0) wallet.credit({ pilotId, currency: 'CREDITS', amount, reason, referenceId });
       this.database.prepare(`UPDATE player_profiles SET kills = kills + ?, deaths = deaths + ?, challenge_completions = challenge_completions + ?, event_completions = event_completions + ? WHERE pilot_id = ?`)
@@ -1627,8 +1714,13 @@ export class PlayerProfileStore {
           boundedInteger(stats?.kills, 1_000_000), boundedInteger(stats?.deaths, 1_000_000),
           boundedInteger(stats?.challengeCompletions, 1_000_000), boundedInteger(stats?.eventCompletions, 1_000_000), pilotId,
         );
+      if (xpAward) {
+        this.ensurePilotProgression(row);
+        return this.xpLedger.awardInTransaction({ ...xpAward, pilotId });
+      }
+      return undefined;
     });
-    return this.toProfile(this.getRow(pilotId)!);
+    return { profile: this.toProfile(this.getRow(pilotId)!), xp };
   }
 
   awardServerRewardOnce(
@@ -1637,7 +1729,8 @@ export class PlayerProfileStore {
     credits: number,
     stats?: Partial<Pick<PlayerProfile, 'kills' | 'deaths' | 'challengeCompletions' | 'eventCompletions'>>,
     reason: WalletTransactionReason = 'EVENT_REWARD',
-  ): { profile?: PlayerProfile; awarded: boolean } {
+    xpAward?: Omit<XpAward, 'pilotId'>,
+  ): { profile?: PlayerProfile; awarded: boolean; xp?: XpAwardResult } {
     const row = this.getRow(pilotId);
     const compactId = rewardId.replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 160);
     if (!row || !compactId) return { awarded: false };
@@ -1657,7 +1750,12 @@ export class PlayerProfileStore {
             boundedInteger(stats?.challengeCompletions, 1_000_000), boundedInteger(stats?.eventCompletions, 1_000_000), pilotId,
           );
       }
-      return { profile: this.toProfile(this.getRow(pilotId)!), awarded: receipt.changes > 0 };
+      let xp: XpAwardResult | undefined;
+      if (receipt.changes > 0 && xpAward) {
+        this.ensurePilotProgression(row);
+        xp = this.xpLedger.awardInTransaction({ ...xpAward, pilotId });
+      }
+      return { profile: this.toProfile(this.getRow(pilotId)!), awarded: receipt.changes > 0, xp };
     });
   }
 
@@ -1835,7 +1933,7 @@ export class PlayerProfileStore {
     return this.toProfile(this.getRow(pilotId)!);
   }
 
-  completeMission(pilotId: string, cityId: CityId, attemptId: string, now = Date.now()): { profile: PlayerProfile; credits: number; score: number; missionId: string; cargoBonusCredits: number } | undefined {
+  completeMission(pilotId: string, cityId: CityId, attemptId: string, now = Date.now()): { profile: PlayerProfile; credits: number; score: number; missionId: string; cargoBonusCredits: number; xp: XpAwardResult; xpSource: 'MISSION_FIRST' | 'MISSION_REPLAY' | null } | undefined {
     return this.wallet.transaction((wallet) => {
       const row = this.getRow(pilotId);
       if (!row) return undefined;
@@ -1854,7 +1952,16 @@ export class PlayerProfileStore {
         pilotId, currency: 'CREDITS', amount: cargoReward.credits, reason: 'MISSION_REWARD',
         idempotencyKey: `mission:${attemptId}`, referenceId: mission.id, context: { cityId }, createdAt: now,
       });
-      return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward, missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits };
+      this.ensurePilotProgression(row);
+      const xp = mission.difficulty === 'PRACTICE'
+        ? { awarded: false, amount: 0, beforeLevel: this.pilotProgression(pilotId).level,
+          afterLevel: this.pilotProgression(pilotId).level, reason: 'INELIGIBLE' as const }
+        : this.xpLedger.awardInTransaction({ pilotId, source: previous ? 'MISSION_REPLAY' : 'MISSION_FIRST',
+          eventId: previous ? `${cityId}:${mission.id}:${utcDayId(now)}` : `${cityId}:${mission.id}`,
+          cityId, missionId: mission.id, difficulty: mission.difficulty, now });
+      return { profile: this.toProfile(this.getRow(pilotId)!), credits: cargoReward.credits, score: mission.scoreReward,
+        missionId: mission.id, cargoBonusCredits: cargoReward.bonusCredits, xp,
+        xpSource: mission.difficulty === 'PRACTICE' ? null : previous ? 'MISSION_REPLAY' : 'MISSION_FIRST' };
     });
   }
 
@@ -1871,13 +1978,15 @@ export class PlayerProfileStore {
       Math.floor(row.total_distance / 5_000) * 5 + row.successful_landings * 25 + discoveryCount * 15 +
       row.kills * 15 + row.challenge_completions * 50 + row.event_completions * 50 + missionCount * 40);
     this.database.prepare('INSERT OR IGNORE INTO pilot_progression(pilot_id,xp,seeded) VALUES(?,?,1)').run(row.pilot_id, seededXp);
+    this.database.prepare(`INSERT OR IGNORE INTO pilot_xp_ledger(pilot_id,source,event_id,amount,day_id,awarded_at)
+      VALUES(?,'MIGRATION_BASELINE','baseline',?,'migration',0)`).run(row.pilot_id, seededXp);
   }
 
   private pilotProgression(pilotId: string): PlayerProfile['pilotProgress'] {
     const row = this.database.prepare('SELECT xp FROM pilot_progression WHERE pilot_id=?').get(pilotId) as { xp?: number } | undefined;
     const xp = boundedInteger(row?.xp, 100_000_000);
     const level = pilotLevelForXp(xp);
-    return { xp, level, title: pilotTitleForLevel(level), nextLevelXp: level >= 50 ? pilotXpForLevel(50) : pilotXpForLevel(level + 1) };
+    return { xp, level, title: pilotTitleForLevel(level), rankId: earnedRankIdForLevel(level), nextLevelXp: level >= 50 ? pilotXpForLevel(50) : pilotXpForLevel(level + 1) };
   }
 
   private streakState(pilotId: string): PlayerProfile['dailyStreak'] {
@@ -1963,6 +2072,18 @@ export class PlayerProfileStore {
         ownedIds: (this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ cosmetic_id: string }>).map(item => item.cosmetic_id).filter(id => cosmeticCatalog.some(item => item.id === id)),
         equipped: Object.fromEntries((this.database.prepare('SELECT category,cosmetic_id FROM pilot_equipped_cosmetics WHERE pilot_id=?').all(row.pilot_id) as Array<{ category: string; cosmetic_id: string }>).map(item => [item.category, item.cosmetic_id])),
       },
+      profileCosmetics: (() => {
+        const owned = this.database.prepare('SELECT category,cosmetic_id FROM pilot_profile_cosmetic_ownership WHERE pilot_id=?').all(row.pilot_id) as Array<{ category: string; cosmetic_id: string }>;
+        const equipped = this.database.prepare('SELECT category,cosmetic_id FROM pilot_profile_cosmetic_equipment WHERE pilot_id=?').all(row.pilot_id) as Array<{ category: string; cosmetic_id: string }>;
+        const badge = equipped.find(item => item.category === 'premium_badge')?.cosmetic_id;
+        const frame = equipped.find(item => item.category === 'avatar_frame')?.cosmetic_id;
+        return {
+          ownedPremiumBadges: owned.filter(item => item.category === 'premium_badge').map(item => item.cosmetic_id),
+          ownedAvatarFrames: owned.filter(item => item.category === 'avatar_frame').map(item => item.cosmetic_id),
+          equippedPremiumBadge: badge && owned.some(item => item.category === 'premium_badge' && item.cosmetic_id === badge) ? badge : null,
+          equippedAvatarFrame: frame && owned.some(item => item.category === 'avatar_frame' && item.cosmetic_id === frame) ? frame : defaultAvatarFrameId,
+        };
+      })(),
       season: this.seasonProgress(row.pilot_id, 'dallas'),
       intercityRoute: this.activeIntercityRoute(row.pilot_id),
       tutorial: (()=>{const state=this.database.prepare('SELECT version,status,completed_at FROM pilot_tutorial_state WHERE pilot_id=?').get(row.pilot_id) as {version?:string;status?:string;completed_at?:number}|undefined;const status=state?.status==='started'||state?.status==='completed'||state?.status==='skipped'?state.status:'new';return{version:'tutorial_v1' as const,status,completedAt:Number.isFinite(state?.completed_at)?state!.completed_at:undefined,dallasUnlocked:this.qaDallasUnlocked||Number.isFinite(state?.completed_at)};})(),

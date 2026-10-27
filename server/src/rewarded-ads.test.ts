@@ -157,6 +157,6 @@ test('shared client hides unsupported web ads and native callbacks cannot mutate
   assert.match(provider, /Capacitor\.isNativePlatform\(\)/);
   assert.match(bootstrap, /hubRewardedAdStatus && rewardedAdProvider/);
   assert.match(bootstrap, /VERIFYING|verifying/);
-  assert.match(menu, /WATCH & EARN[\s\S]*WATCH VIDEO/);
+  assert.match(menu, /WATCH & EARN[\s\S]*: 'WATCH'/);
   assert.doesNotMatch(`${ios}\n${android}`, /credits|wallet|REWARDED_AD/i);
 });

@@ -12,9 +12,13 @@ const brand = readFileSync(new URL('../../client/src/brand.ts', import.meta.url)
 const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../../client/vite.config.ts', import.meta.url), 'utf8');
 
-test('crash dialog keeps normal restart while guided training crashes use the authoritative automatic reset path', () => {
+test('free-flight crashes use the shared result card while guided training keeps automatic reset', () => {
   assert.match(html, /data-crash-restart>RESTART FLIGHT/);
   assert.match(main, /\[data-crash-restart\][^\n]+restartGame\(\)/);
+  assert.ok(main.includes("if (!journeyMode && !guidedTrainingCrash) { flightEndedAt = Date.now(); showFlightEndResult(title); }"));
+  assert.match(main, /crashOverlay\.classList\.toggle\('hidden', !guidedTrainingCrash\)/);
+  assert.match(main, /if \(flightEndResultActive\)[^\n]+restartGame\(\)/);
+  assert.match(main, /journeyResultElement\.classList\.add\('is-terminal', 'is-failure', 'is-flight-result'\)/);
   assert.match(main, /guidedTrainingCrash=cityRules\.tutorialEnabled&&guidedTutorialActive/);
   assert.match(main, /requestTutorialRunReset\('crash'\)/);
   assert.doesNotMatch(html, /data-tutorial-retry|data-tutorial-free|tutorial-crash-actions/);

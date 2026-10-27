@@ -39,3 +39,10 @@ export function remoteInterpolationDuration(previous, packetInterval, isBot) {
     : Math.max(0.09, Math.min(0.2, packetInterval * 1.08));
   return previous + (target - previous) * 0.35;
 }
+
+/** Brief, fading visual prediction when a transform arrives late. */
+export function remotePredictionSeconds(timeSinceUpdate, interpolationDuration, isBot) {
+  const overdue = Math.max(0, timeSinceUpdate - interpolationDuration);
+  const limit = isBot ? 0.24 : 0.18;
+  return limit * Math.tanh(overdue / limit);
+}

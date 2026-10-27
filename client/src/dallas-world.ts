@@ -1,4 +1,5 @@
-import { addDowntownDistrict, setDallasFacadeNight } from './dallas-skyline';
+import { cityDiscoveries } from '../../shared/city-discoveries.mjs';
+import { addDowntownDistrict } from './dallas-skyline';
 import { inDallasCore } from '../../shared/dallas-skyline.mjs';
 import * as THREE from 'three';
 import dallasElevationJson from './data/dallas-elevation.json';
@@ -51,39 +52,21 @@ let streamedBuildingMaterials: THREE.MeshStandardMaterial[] = [];
 let streamedWaterMaterial: THREE.MeshStandardMaterial | undefined;
 let streamedLandMaterials: THREE.MeshStandardMaterial[] = [];
 let streamedRoadMaterial: THREE.MeshStandardMaterial | undefined;
-let streamedStreetLightMaterial: THREE.PointsMaterial | undefined;
-let streamedWindowGlowStrengths: Array<{ value: number }> = [];
+let streamedRoofMaterial: THREE.MeshStandardMaterial | undefined;
+let streamedTreeCrownMaterial: THREE.MeshStandardMaterial | undefined;
+let streamedDetailMaterials: THREE.Material[] = [];
+function disposeStreamedMaterials(): void {
+  for (const material of [...streamedBuildingMaterials, ...streamedLandMaterials, ...streamedDetailMaterials]) material.dispose();
+  streamedWaterMaterial?.dispose();
+  streamedRoadMaterial?.dispose();
+  streamedDetailMaterials = [];
+}
 const streamedLandColors = [0x3d8a51, 0x256a48, 0x4a565a, 0x82916e, 0x917760, 0xaa8f50, 0x708653, 0x3c5059] as const;
-const streamedNightLandColors = [0x234d46, 0x1c3d3d, 0x35474e, 0x4a615c, 0x66594f, 0x71634b, 0x4a5d51, 0x33434f] as const;
 const streamedBuildingColors = {
   day: [0xd0b69a, 0xa7bbc0, 0xb8b6ae, 0x3589aa, 0x8b998c],
   dusk: [0xa79488, 0x829ba4, 0x8f9394, 0x2e6681, 0x7c8178],
   evening: [0xa98b73, 0x536e73, 0x476c52, 0x30718b, 0x71806d],
-  night: [0x77838b, 0x586e7b, 0x68757e, 0x22536a, 0x60736d],
 } as const;
-function addStreamedWindowGlow(material: THREE.MeshStandardMaterial, family: number): void {
-  const strength = { value: 0 };
-  streamedWindowGlowStrengths.push(strength);
-  material.onBeforeCompile = shader => {
-    shader.uniforms.dallasWindowGlow = strength;
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 dallasFacadePosition; varying vec3 dallasFacadeNormal;');
-    shader.vertexShader = shader.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\ndallasFacadePosition = transformed; dallasFacadeNormal = normal;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 dallasFacadePosition; varying vec3 dallasFacadeNormal; uniform float dallasWindowGlow;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      if (dallasWindowGlow > 0.0 && abs(dallasFacadeNormal.y) < 0.4) {
-        vec2 cell = vec2((dallasFacadePosition.x + dallasFacadePosition.z * 0.37) / 4.7, dallasFacadePosition.y / 3.5);
-        vec2 grid = fract(cell);
-        vec2 aa = max(fwidth(cell), vec2(0.015));
-        float detail = 1.0 - smoothstep(0.18, 0.55, max(aa.x, aa.y));
-        float windowX = smoothstep(0.24 - aa.x, 0.24 + aa.x, grid.x) * (1.0 - smoothstep(0.68 - aa.x, 0.68 + aa.x, grid.x));
-        float windowY = smoothstep(0.30 - aa.y, 0.30 + aa.y, grid.y) * (1.0 - smoothstep(0.72 - aa.y, 0.72 + aa.y, grid.y));
-        float lit = step(0.78, fract(sin(dot(floor(cell), vec2(12.9898, 78.233))) * 43758.5453));
-        totalEmissiveRadiance += vec3(0.85, 0.58, 0.32) * windowX * windowY * lit * detail * dallasWindowGlow;
-      }
-    `);
-  };
-  material.customProgramCacheKey = () => `dallas-streamed-windows-${family}`;
-}
 export function configureWorldVisuals(options: { quality: CityVisualQuality; timeOfDay: CityTimeOfDay }): void {
   visualQuality = options.quality;
   timeOfDay = options.timeOfDay;
@@ -91,36 +74,34 @@ export function configureWorldVisuals(options: { quality: CityVisualQuality; tim
 export function setTimeOfDay(preset: CityTimeOfDay): void {
   timeOfDay = preset;
   const dusk = preset === 'dusk';
-  const night = preset === 'night';
-  airportMaterials.glass.emissive.setHex(night ? 0xc48750 : dusk ? 0x9c6135 : 0x000000);
-  airportMaterials.glass.emissiveIntensity = night ? 0.52 : dusk ? 0.38 : 0;
+  airportMaterials.glass.emissive.setHex(dusk ? 0x9c6135 : 0x000000);
+  airportMaterials.glass.emissiveIntensity = dusk ? 0.38 : 0;
   for (const glass of [landmarkMaterials.glassDark, landmarkMaterials.glassBlue, landmarkMaterials.glassGreen]) {
-    glass.emissive.setHex(night ? 0x396c88 : dusk ? 0x315063 : 0x000000);
-    glass.emissiveIntensity = night ? 0.32 : dusk ? 0.2 : 0;
+    glass.emissive.setHex(dusk ? 0x315063 : 0x000000);
+    glass.emissiveIntensity = dusk ? 0.2 : 0;
   }
-  landmarkMaterials.river.color.setHex(night ? 0x123957 : dusk ? 0x173c6a : preset === 'evening' ? 0x176b94 : 0x075e96);
-  airportMaterials.runway.color.setHex(night ? 0x303e4a : preset === 'evening' ? 0x737b79 : 0x18252b);
-  airportMaterials.taxiway.color.setHex(night ? 0x344753 : preset === 'evening' ? 0x566260 : 0x34454c);
-  horizonMaterial?.color.setHex(night ? 0x30494e : dusk ? 0x3d5147 : preset === 'evening' ? 0x41694a : 0x4c7847);
-  terrainMaterial?.color.setHex(night ? 0x839895 : preset === 'evening' ? 0xbcd0ac : 0xffffff);
-  streamedRoadMaterial?.color.setHex(night ? 0xa7b3ba : 0xffffff);
-  streamedLandMaterials.forEach((material, index) => material.color.setHex(night ? streamedNightLandColors[index]! : streamedLandColors[index]!));
+  landmarkMaterials.river.color.setHex(dusk ? 0x173c6a : preset === 'evening' ? 0x176b94 : 0x075e96);
+  airportMaterials.runway.color.setHex(preset === 'evening' ? 0x737b79 : 0x18252b);
+  airportMaterials.taxiway.color.setHex(preset === 'evening' ? 0x566260 : 0x34454c);
+  horizonMaterial?.color.setHex(dusk ? 0x3d5147 : preset === 'evening' ? 0x41694a : 0x4c7847);
+  terrainMaterial?.color.setHex(preset === 'evening' ? 0xbcd0ac : 0xffffff);
+  streamedRoadMaterial?.color.setHex(0xffffff);
+  streamedRoofMaterial?.color.setHex(0xffffff);
+  streamedTreeCrownMaterial?.color.setHex(0x9ac18d);
+  streamedLandMaterials.forEach((material, index) => material.color.setHex(streamedLandColors[index]!));
   streamedBuildingMaterials.forEach((material, index) => {
     material.color.setHex(streamedBuildingColors[preset][index]!);
     if (index === 3) {
-      material.emissive.setHex(night ? 0x1a4861 : dusk ? 0x102b3c : 0x000000);
-      material.emissiveIntensity = night ? 0.3 : dusk ? 0.18 : 0;
+      material.emissive.setHex(dusk ? 0x102b3c : 0x000000);
+      material.emissiveIntensity = dusk ? 0.18 : 0;
     }
   });
-  streamedWindowGlowStrengths.forEach(glow => { glow.value = night ? 0.72 : 0; });
-  if (streamedStreetLightMaterial) streamedStreetLightMaterial.visible = night;
   if (streamedWaterMaterial) {
-    streamedWaterMaterial.color.setHex(night ? 0x123b59 : dusk ? 0x173e6f : preset === 'evening' ? 0x146d96 : 0x075f99);
-    streamedWaterMaterial.emissive.setHex(night ? 0x112d48 : dusk ? 0x241f40 : 0x043950);
-    streamedWaterMaterial.emissiveIntensity = night ? 0.12 : dusk ? 0.2 : 0.24;
+    streamedWaterMaterial.color.setHex(dusk ? 0x173e6f : preset === 'evening' ? 0x146d96 : 0x075f99);
+    streamedWaterMaterial.emissive.setHex(dusk ? 0x241f40 : 0x043950);
+    streamedWaterMaterial.emissiveIntensity = dusk ? 0.2 : 0.24;
   }
-  cityVisualLayer?.setDusk(dusk || night);
-  setDallasFacadeNight(night);
+  cityVisualLayer?.setDusk(dusk);
 }
 type CompactElevationData = {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -182,27 +163,7 @@ export const stuntZones: ReadonlyArray<StuntZone> = [
   { id: 'downtown-dallas', kind: 'landmark', ...dallasLocations.downtown, radius: 900, minAltitude: 0, maxAltitude: 360 },
   { id: 'las-colinas', kind: 'landmark', ...dallasLocations.lasColinas, radius: 760, minAltitude: 0, maxAltitude: 300 },
 ];
-export const discoveries: ReadonlyArray<DiscoveryDefinition> = [
-  // Airport radii deliberately remain inside the associated spawn offset:
-  // taking off cannot instantly discover the airport the player spawned at.
-  { id: 'dfw-international', name: place.dfw, type: 'airport', ...dallasLocations.dfw, radius: 700, minAltitude: 0, maxAltitude: 280, credits: 75, setId: 'airport-tour', setBonus: 300 },
-  { id: 'love-field', name: place.love, type: 'airport', ...dallasLocations.loveField, radius: 460, minAltitude: 0, maxAltitude: 240, credits: 100, setId: 'airport-tour', setBonus: 300 },
-  { id: 'addison-airport', name: place.addison, type: 'airport', ...dallasLocations.addison, radius: 380, minAltitude: 0, maxAltitude: 220, credits: 100, setId: 'airport-tour', setBonus: 300 },
-  { id: 'dallas-executive', name: place.executive, type: 'airstrip', ...dallasLocations.dallasExecutive, radius: 320, minAltitude: 0, maxAltitude: 210, credits: 125, setId: 'airport-tour', setBonus: 300 },
-  { id: 'reunion-tower', name: place.reunion, type: 'downtown', ...dallasLocations.reunionTower, radius: 120, minAltitude: 110, maxAltitude: 300, credits: 125, setId: 'downtown-icons', setBonus: 275 },
-  { id: 'downtown-plaza', name: 'Central Plaza', type: 'landmark', ...dallasLocations.downtownPlaza, radius: 130, minAltitude: 130, maxAltitude: 400, credits: 100, setId: 'downtown-icons', setBonus: 275 },
-  { id: 'fountain-district', name: 'Fountain District', type: 'rooftop', ...dallasLocations.fountainDistrict, radius: 120, minAltitude: 110, maxAltitude: 340, credits: 125, setId: 'downtown-icons', setBonus: 275 },
-  { id: 'las-colinas', name: place.lasColinas, type: 'landmark', ...dallasLocations.lasColinas, radius: 340, minAltitude: 80, maxAltitude: 360, credits: 100 },
-  { id: 'white-rock-lake', name: 'White Rock Lake', type: 'water', ...dallasLocations.whiteRock, radius: 560, minAltitude: 20, maxAltitude: 350, credits: 100 },
-  { id: 'trinity-corridor', name: 'Trinity River Corridor', type: 'water', ...dallasLocations.trinityNorth, radius: 320, minAltitude: 20, maxAltitude: 260, credits: 100 },
-  { id: 'trinity-crossing', name: 'Trinity Crossing', type: 'bridge', ...dallasLocations.trinity, radius: 130, minAltitude: 18, maxAltitude: 105, credits: 150 },
-  { id: 'i35e-overlook', name: 'I-35E Overlook', type: 'bridge', ...dallasLocations.i35eCrossing, radius: 220, minAltitude: 35, maxAltitude: 210, credits: 125 },
-  { id: 'secret-ghost-strip', name: 'GHOST STRIP', type: 'secret', x: -18_900, z: 7_800, radius: 180, minAltitude: 0, maxAltitude: 120, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
-  { id: 'secret-skyline-gap', name: 'SKYLINE GAP', type: 'secret', x: -520, z: -485, radius: 75, minAltitude: 105, maxAltitude: 245, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
-  { id: 'secret-under-bridge', name: 'UNDER THE BRIDGE', type: 'secret', ...dallasLocations.trinity, radius: 85, minAltitude: 8, maxAltitude: 55, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
-  { id: 'secret-hangar-9', name: 'HANGAR 9', type: 'secret', x: -6_180, z: 10_560, radius: 110, minAltitude: 0, maxAltitude: 100, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false },
-  { id: 'secret-midnight-signal', name: 'MIDNIGHT SIGNAL', type: 'secret', x: 3_900, z: -13_200, radius: 120, minAltitude: 60, maxAltitude: 260, credits: 100, setId: 'dallas-secrets', setBonus: 300, mapVisible: false, timePreset: 'dusk' },
-];
+export const discoveries: ReadonlyArray<DiscoveryDefinition> = cityDiscoveries.dallas;
 // Ambient-only routes stay deliberately clear of runway surfaces. They use the
 // same city coordinates as the flight world and can later be promoted into
 // scripted traffic events without entering player/network combat state.
@@ -1166,6 +1127,7 @@ function addCityBox(
   return mesh;
 }
 
+const towerFacadeStrip = new THREE.PlaneGeometry(1, 1);
 function addSteppedTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: number, z: number, width: number, depth: number, height: number, material: THREE.Material, rotation = 0): void {
   const podiumHeight = Math.min(28, height * 0.14);
   const shaftHeight = (height - podiumHeight) * 0.8;
@@ -1173,6 +1135,28 @@ function addSteppedTower(scene: THREE.Scene, obstacles: ObstacleBounds[], x: num
   addCityBox(scene, obstacles, x, z, width * 1.2, podiumHeight, depth * 1.2, landmarkMaterials.concrete, rotation);
   addCityBox(scene, obstacles, x, z, width, shaftHeight, depth, material, rotation, true, podiumHeight);
   addCityBox(scene, obstacles, x, z, width * 0.72, crownHeight, depth * 0.72, material, rotation, true, podiumHeight + shaftHeight);
+  // Thin face markings give existing Downtown and Las Colinas glass shafts
+  // readable vertical bays. They are batched per tower and add no solid volume.
+  const strips = new THREE.InstancedMesh(towerFacadeStrip, landmarkMaterials.steel, 8);
+  const dummy = new THREE.Object3D();
+  const baseY = getTerrainHeight(x, z);
+  let index = 0;
+  for (const side of [-1, 1]) for (const offset of [-0.24, 0.24]) {
+    for (const [localX, localZ, faceRotation] of [
+      [offset * width, side * depth * 0.501, side > 0 ? 0 : Math.PI],
+      [side * width * 0.501, offset * depth, side > 0 ? Math.PI / 2 : -Math.PI / 2],
+    ]) {
+      dummy.position.set(x + localX * Math.cos(rotation) + localZ * Math.sin(rotation),
+        baseY + podiumHeight + shaftHeight * 0.5,
+        z - localX * Math.sin(rotation) + localZ * Math.cos(rotation));
+      dummy.rotation.set(0, rotation + faceRotation, 0);
+      dummy.scale.set(1.15, shaftHeight * 0.96, 1);
+      dummy.updateMatrix();
+      strips.setMatrixAt(index++, dummy.matrix);
+    }
+  }
+  strips.name = 'dallas-office-facade-bays';
+  scene.add(strips);
 }
 
 const signaturePrism = new THREE.CylinderGeometry(1, 1, 1, 6);
@@ -1372,14 +1356,14 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
   dallasScenery?.dispose();
   dallasScenery = new DallasScenery(scene, waterBounds, getTerrainHeight, visualQuality);
   cityVisualLayer?.dispose();
-  cityVisualLayer = new CityVisualLayer(scene, cityVisualConfig, getTerrainHeight, visualQuality, timeOfDay === 'dusk' || timeOfDay === 'night');
+  cityVisualLayer = new CityVisualLayer(scene, cityVisualConfig, getTerrainHeight, visualQuality, timeOfDay === 'dusk');
   const arena = cityVisualConfig.arena!;
   obstacleBounds.push({ x: arena.x, z: arena.z, halfX: arena.radiusX, halfZ: arena.radiusZ, height: 76, baseY: getTerrainHeight(arena.x, arena.z), polygon: [] });
   if (visualQuality === 'high') for (const site of cityVisualConfig.orientationSites ?? []) {
     obstacleBounds.push({ x: site.x, z: site.z, halfX: site.kind === 'crane' ? 70 : 20, halfZ: 20, height: 92, baseY: getTerrainHeight(site.x, site.z), polygon: [] });
   }
   dallasStreamer?.dispose();
-  streamedWindowGlowStrengths = [];
+  disposeStreamedMaterials();
   streamedBuildingMaterials = streamedBuildingColors[timeOfDay].map((color, index) => {
     const material = new THREE.MeshStandardMaterial({
       color, roughness: [0.88, 0.72, 0.6, 0.22, 0.8][index],
@@ -1387,13 +1371,19 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
       emissive: dusk && index === 3 ? 0x102b3c : 0x000000,
       emissiveIntensity: dusk && index === 3 ? 0.18 : 0,
     });
-    addStreamedWindowGlow(material, index);
     return material;
   });
   streamedWaterMaterial = enhanceWaterMaterial(new THREE.MeshStandardMaterial({ color: dusk ? 0x173e6f : timeOfDay === 'evening' ? 0x146d96 : 0x075f99, emissive: dusk ? 0x241f40 : 0x043950, emissiveIntensity: dusk ? 0.2 : 0.24, roughness: 0.2, metalness: 0.24 }));
   streamedRoadMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: depthOffsetDirection, polygonOffsetUnits: depthOffsetDirection });
-  streamedStreetLightMaterial = new THREE.PointsMaterial({ color: 0xffc787, size: 3.5, sizeAttenuation: false, transparent: true, opacity: 0.88, depthWrite: false, toneMapped: false, visible: false });
   streamedLandMaterials = streamedLandColors.map((color, index) => new THREE.MeshStandardMaterial({ color, roughness: [1, 1, 0.94, 1, 0.94, 1, 1, 0.94][index] }));
+  streamedRoofMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.92, side: THREE.DoubleSide });
+  streamedTreeCrownMaterial = new THREE.MeshStandardMaterial({ color: 0x9ac18d, roughness: 1, side: THREE.DoubleSide });
+  const drivewayMaterial = new THREE.MeshStandardMaterial({ color: 0x72777a, roughness: 1, side: THREE.DoubleSide });
+  const bridgeTrimMaterial = new THREE.MeshStandardMaterial({ color: 0xbcc2bd, roughness: 0.95, side: THREE.DoubleSide });
+  const shorelineMaterial = new THREE.MeshStandardMaterial({ color: 0x9dbbaa, roughness: 0.96, side: THREE.DoubleSide });
+  const treeTrunkMaterial = new THREE.MeshStandardMaterial({ color: 0x665843, roughness: 1, side: THREE.DoubleSide });
+  const highwayAccentMaterial = new THREE.MeshBasicMaterial({ color: 0xffe3a0, depthWrite: false, toneMapped: false });
+  streamedDetailMaterials = [streamedRoofMaterial, streamedTreeCrownMaterial, drivewayMaterial, bridgeTrimMaterial, shorelineMaterial, treeTrunkMaterial, highwayAccentMaterial];
   dallasStreamer = new DallasChunkStreamer(scene, {
     // The runtime chunks are already LOD-specific and collision grids are
     // static gameplay data. Avoid building throwaway duplicate arrays while
@@ -1402,13 +1392,18 @@ export function createWorld(scene: THREE.Scene, depthOffsetDirection = -1): { ob
     isBuildingExcluded: inDallasCore,
     monsterDamageTargets: true,
     roadMaterial: streamedRoadMaterial,
-    streetLightMaterial: streamedStreetLightMaterial,
+    roofMaterial: streamedRoofMaterial,
+    drivewayMaterial,
+    bridgeTrimMaterial,
+    shorelineMaterial,
+    treeTrunkMaterial,
+    treeCrownMaterial: streamedTreeCrownMaterial,
     buildingMaterials: streamedBuildingMaterials,
     waterMaterial: streamedWaterMaterial,
     landMaterials: streamedLandMaterials,
     aerowayMaterials: [airportMaterials.runway, airportMaterials.taxiway],
     majorHighwayWidth: 38,
-    highwayAccentMaterial: new THREE.MeshBasicMaterial({ color: 0xffe3a0, depthWrite: false, toneMapped: false }),
+    highwayAccentMaterial,
     heightAt: getTerrainHeight,
     isExcluded: (x, z, padding) => airports.some((airport) => Math.abs(x - airport.x) < airportSafetyWidth[airport.id] + padding && Math.abs(z - airport.z) < airport.runwayLength / 2 + 500 + padding)
       || (Math.abs(x - arena.x) < arena.radiusX + 35 + padding && Math.abs(z - arena.z) < arena.radiusZ + 35 + padding),
@@ -1430,12 +1425,13 @@ export function getWorldStreamingVisualDebug(position: THREE.Vector3, camera: TH
 }
 export function disposeWorldStreaming(): void {
   dallasStreamer?.dispose(); dallasStreamer = undefined;
+  disposeStreamedMaterials();
+  streamedRoofMaterial = undefined;
+  streamedTreeCrownMaterial = undefined;
   streamedBuildingMaterials = [];
-  streamedWindowGlowStrengths = [];
   streamedWaterMaterial = undefined;
   streamedLandMaterials = [];
   streamedRoadMaterial = undefined;
-  streamedStreetLightMaterial = undefined;
   dallasScenery?.dispose(); dallasScenery = undefined;
 }
 

@@ -269,7 +269,9 @@ test('Google A logout cannot leak cached profile data into Google B and returnin
   const firstGuest = sessions.issue(undefined, false, 1_000);
   profiles.getOrCreate(firstGuest.pilotId, 'Pilot');
   profiles.importLegacy(firstGuest.pilotId, { pilotName: '666', credits: 9_300, score: 700, totalDistance: 321 });
-  profiles.awardPilotXp(firstGuest.pilotId, 275);
+  profiles.awardVerifiedXp({ pilotId: firstGuest.pilotId, source: 'MISSION_FIRST', eventId: 'dallas:test-extreme',
+    cityId: 'dallas', missionId: 'test-extreme', difficulty: 'EXTREME', now: 1_000 });
+  profiles.awardVerifiedXp({ pilotId: firstGuest.pilotId, source: 'LANDING', eventId: 'dallas:dfw:1970-01-01', cityId: 'dallas', now: 1_000 });
   profiles.grantAircraftEntitlements(firstGuest.pilotId, ['fighter'], 'test:purchase');
   const accountA = completeTestProvider(sessions, firstGuest.cookie, 'google', 'login', 'google-account-a', {
     email: 'account-a@example.com', now: 2_000,

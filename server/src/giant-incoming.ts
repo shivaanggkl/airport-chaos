@@ -346,7 +346,6 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
                 speed: ballisticShotSpeed(p.velocity, direction), traveled: 0 });
     };
     if (e.crossfire) {
-        if (e.fortressTurrets && e.fortressGunsEnabled === false) return p;
         const cycle = e.crossfire;
         const legal = (gun: number) => {
             if (e.fortressTurrets && (gun === 0 || e.fortressTurrets[gun-1]! <= 0)) return false;
@@ -356,14 +355,16 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
                 Math.abs(state.pitch - gunAim.pitch) < .06 &&
                 !transportHullImpact(muzzle, target, p) && !segmentBlockedByBuildings(muzzle, target, buildings);
         };
-        for (let gun = 0; gun < 3; gun++) {
+        for (let gun = e.fortressTurrets ? 1 : 0; gun < 3; gun++) {
             const state = cycle.guns[gun]!, goal = transportGunAim(p, target, gun);
             state.yaw = move(state.yaw, Math.max(-transportTuning.yawArc, Math.min(transportTuning.yawArc, goal.yaw)));
             state.pitch = move(state.pitch, Math.max(-transportTuning.pitchArc, Math.min(transportTuning.pitchArc, goal.pitch)));
         }
-        const gun = stepCrossfireGunCycle(cycle, now, legal, !!e.fortressTurrets);
-        if (gun !== null) fire(gun, transportGunMuzzle(p, gun, cycle.guns[gun]!.yaw, cycle.guns[gun]!.pitch));
-        return p;
+        if (!e.fortressTurrets || e.fortressGunsEnabled !== false) {
+            const gun = stepCrossfireGunCycle(cycle, now, legal, !!e.fortressTurrets);
+            if (gun !== null) fire(gun, transportGunMuzzle(p, gun, cycle.guns[gun]!.yaw, cycle.guns[gun]!.pitch));
+        }
+        if (!e.fortressTurrets) return p;
     }
     const clear = aim.eligible && !transportHullImpact(m,target,p) && !segmentBlockedByBuildings(m, target, buildings);
     if (now >= e.nextBurstAt && !e.warningUntil && !e.shotsRemaining && clear) {
@@ -379,6 +380,12 @@ export function stepTransportEncounter(e: TransportEncounter, target: Point, vel
         e.shotsRemaining--;
         e.nextShotAt = now + transportTuning.shotSpacingMs;
         if (clear && Math.abs(e.gunYaw - aim.yaw) < .06 && Math.abs(e.gunPitch - aim.pitch) < .06) fire(0, m);
+    }
+    if (e.fortressTurrets && e.crossfire) {
+        const tail = e.crossfire.guns[0]!;
+        tail.yaw = e.gunYaw;
+        tail.pitch = e.gunPitch;
+        tail.warningUntil = e.warningUntil;
     }
     return p;
 }

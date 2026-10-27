@@ -28,10 +28,10 @@ export class TransportArrivalSequence {
       ? '<span>⚠ DALLAS ALERT</span><strong>REAR GUARD</strong><p>Destroy the transport. Escorts optional.</p>'
       : escorts.length
       ? missionName === 'FINAL INTERCEPT'
-        ? '<span>⚠ DALLAS ALERT</span><strong>FINAL INTERCEPT</strong><p>Escorts first. Then turrets. Finish the exposed core.</p>'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Shoot both guard planes, both wing guns, then the orange target inside.</p>'
         : `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'CROSSFIRE' ? 'CROSSFIRE' : missionName === 'REINFORCEMENTS' ? 'REINFORCEMENTS' : 'REAR GUARD'}</strong><p>Destroy the ${missionName === 'CROSSFIRE' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
       : missionName === 'ARMORED FORTRESS'
-        ? '<span>⚠ DALLAS ALERT</span><strong>ARMORED FORTRESS</strong><p>Destroy both wing turrets. Then fire into the open cargo core.</p>'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Shoot both wing guns. Then shoot the orange target inside.</p>'
         : '<strong>GIANT INCOMING</strong><p>SHOOT IT DOWN</p>';
     document.body.append(this.alert);
     if (escorts.length) this.scene.add(...escorts);

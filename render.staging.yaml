@@ -31,6 +31,12 @@ services:
         value: "false"
       - key: AIRPORT_CHAOS_SKY_TOKEN_ANDROID_ENABLED
         value: "false"
+      # Free, no-reward AI opponent for QA; paid matchmaking remains human-only.
+      - key: AIRPORT_CHAOS_SKY_DUEL_AI_TEST_ENABLED
+        value: "1"
+      # QA-only real-player Sky Duel; the public production service stays unchanged.
+      - key: AIRPORT_CHAOS_SKY_DUEL_STAKES_ENABLED
+        value: "1"
     disk:
       name: airport-chaos-staging-data
       mountPath: /var/data

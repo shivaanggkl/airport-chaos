@@ -14,7 +14,7 @@ export type AnalyticsEventName =
   | 'fighter_checkout_created' | 'fighter_purchase_completed' | 'fighter_checkout_cancelled'
   | 'fighter_purchase_refunded'
   | 'purchase_recovery_created' | 'purchase_recovery_succeeded'
-  | 'daily_streak_claimed' | 'pilot_level_up' | 'personal_record_broken' | 'weekly_reward_awarded'
+  | 'daily_streak_claimed' | 'pilot_level_up' | 'pilot_rank_achieved' | 'pilot_xp_earned' | 'pilot_xp_rejected' | 'pilot_xp_daily_total' | 'personal_record_broken' | 'weekly_reward_awarded'
   | 'pvp_challenge_sent' | 'pvp_challenge_accepted' | 'pvp_challenge_completed'
   | 'referral_attached' | 'referral_signup_attributed' | 'referral_qualified' | 'referral_inviter_rewarded' | 'referral_new_player_rewarded' | 'referral_cap_reached'
   | 'chaos_moment_started' | 'chaos_moment_completed' | 'secret_discovered'
@@ -49,7 +49,7 @@ const validEventNames = new Set<AnalyticsEventName>([
   'fighter_checkout_created', 'fighter_purchase_completed', 'fighter_checkout_cancelled',
   'fighter_purchase_refunded',
   'purchase_recovery_created', 'purchase_recovery_succeeded',
-  'daily_streak_claimed', 'pilot_level_up', 'personal_record_broken', 'weekly_reward_awarded',
+  'daily_streak_claimed', 'pilot_level_up', 'pilot_rank_achieved', 'pilot_xp_earned', 'pilot_xp_rejected', 'pilot_xp_daily_total', 'personal_record_broken', 'weekly_reward_awarded',
   'pvp_challenge_sent', 'pvp_challenge_accepted', 'pvp_challenge_completed', 'referral_attached', 'referral_signup_attributed',
   'referral_qualified', 'referral_inviter_rewarded', 'referral_new_player_rewarded', 'referral_cap_reached',
   'chaos_moment_started', 'chaos_moment_completed', 'secret_discovered',

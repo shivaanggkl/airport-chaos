@@ -68,12 +68,11 @@ test('idle braking cannot hold a stalled aircraft up by braking its vertical fal
     let fallSpeed = 9.4;
     let fallDistance = 0;
     for (let frame = 0; frame < 5 / frameSeconds; frame += 1) {
-      // The existing stall response gradually points the nose down, which
-      // turns part of the fall into forward airflow and adds brake authority.
-      const noseDownForwardSpeed = fallSpeed * Math.sin(0.3);
+      // A level nose does not turn vertical fall into forward brake authority.
+      const forwardSpeed = slowForwardSpeed;
       const airspeed = fallSpeed;
       const baseDrag = aircraft.drag * (airspeed / aircraft.maxSpeed) ** 2 / aircraft.inertia;
-      const airborneBrake = airborneAirbrakeDeceleration(noseDownForwardSpeed, 1, aircraft);
+      const airborneBrake = airborneAirbrakeDeceleration(forwardSpeed, 1, aircraft);
       fallSpeed += (9.81 - baseDrag - airborneBrake) * frameSeconds;
       fallDistance += fallSpeed * frameSeconds;
     }
@@ -81,7 +80,7 @@ test('idle braking cannot hold a stalled aircraft up by braking its vertical fal
   }
 });
 
-test('power-off descent visibly lowers the nose and a stall deepens it without removing recovery', () => {
+test('idle and stall descent keep a neutral nose level while explicit dives and climb recovery work', () => {
   for (const type of aircraftTypes) {
     const aircraft = aircraftDefinitions[type];
     const cruise = aircraft.maxSpeed * 0.45;
@@ -89,7 +88,9 @@ test('power-off descent visibly lowers the nose and a stall deepens it without r
     const idleGlide = airbornePitchTarget(0, cruise, 0, aircraft);
     const stalled = airbornePitchTarget(0, 0, 0, aircraft);
     assert.equal(powered, 0, `${type} pitches down while powered`);
-    assert.ok(idleGlide < -0.09 && stalled < idleGlide - 0.19, `${type} remains level during idle stall`);
+    assert.equal(idleGlide, 0, `${type} automatically dips its nose at idle`);
+    assert.equal(stalled, 0, `${type} automatically dips its nose in a stall`);
+    assert.ok(airbornePitchTarget(-0.5, cruise, 0, aircraft) < 0, `${type} cannot follow an explicit dive command`);
     assert.ok(airbornePitchTarget(1, 0, 0, aircraft) <= 0.01, `${type} can hold a full climb through a stall`);
     assert.ok(airbornePitchTarget(1, aircraft.takeoffSpeed, 0.8, aircraft) > 0,
       `${type} cannot recover its climb attitude after gaining speed`);

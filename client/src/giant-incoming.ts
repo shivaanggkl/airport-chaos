@@ -150,7 +150,7 @@ export class GiantIncomingView {
                     level.getObjectByName('RearGunYaw')!.visible=false;
                     this.fortressBays.push(fortressBay(level));
                     const markers = ([-1,1] as const).map(side=>{
-                        const marker=new THREE.Mesh(new THREE.RingGeometry(2.1,2.35,24),new THREE.MeshBasicMaterial({color:0xffd54f,side:THREE.DoubleSide,transparent:true,opacity:.85,depthTest:false}));
+                        const marker=new THREE.Mesh(new THREE.RingGeometry(2.1,2.35,24),new THREE.MeshBasicMaterial({color:0xff4545,side:THREE.DoubleSide,transparent:true,opacity:.85,depthTest:false}));
                         marker.position.set(side*11,4.7,2.4);level.add(marker);return marker;
                     });
                     this.fortressMarkers.push(markers);

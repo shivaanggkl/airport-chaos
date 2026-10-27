@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
-import { applyAircraftCosmetics, applyRearGuardEscortPaint, applyReinforcementEscortPaint } from '../../client/src/aircraft-cosmetics.js';
+import { applyAircraftCosmetics, applyReinforcementEscortPaint } from '../../client/src/aircraft-cosmetics.js';
 import { cosmeticCatalog, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
 import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
 
@@ -57,22 +57,27 @@ test('unpainted Mammoth and Nightowl render neutral internal finishes instead of
   }
 });
 
-test('Rear Guard enlarges only its escort airframe and keeps its mission paint', () => {
-  const root = new THREE.Group();
-  const airframe = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial();
-  material.name = 'AC_LIVERY_BASE';
-  const body = new THREE.Mesh(new THREE.BoxGeometry(), material);
-  airframe.add(body);
-  root.add(airframe);
-  root.userData.airframeRoot = airframe;
-  applyRearGuardEscortPaint(root, journeyDallas08.escortScale);
-  assert.equal(root.scale.x, 1, 'remote position and UI anchors keep their world scale');
-  assert.equal(airframe.scale.x, journeyDallas08.escortScale);
-  assert.equal(body.material.color.getHex(), 0xe53935);
+test('Rear Guard uses separate blue and purple Bluejay paints without changing remote scale', () => {
+  assert.deepEqual(journeyDallas08.escortAircraft, ['trainer', 'trainer']);
+  assert.deepEqual(journeyDallas08.escortLiveries, ['bluejay-skybolt', 'bluejay-aurora']);
+  journeyDallas08.escortAircraft.forEach((type, index) => {
+    const root = new THREE.Group();
+    const airframe = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial();
+    material.name = 'AC_LIVERY_BASE';
+    const body = new THREE.Mesh(new THREE.BoxGeometry(), material);
+    airframe.add(body);
+    root.add(airframe);
+    root.userData.airframeRoot = airframe;
+    applyReinforcementEscortPaint(root, type, journeyDallas08.escortScale,
+      { [`livery:${type}`]: journeyDallas08.escortLiveries[index] });
+    assert.equal(root.scale.x, 1, 'remote position and UI anchors keep their world scale');
+    assert.equal(airframe.scale.x, journeyDallas08.escortScale);
+    assert.equal(body.material.color.getHex(), cosmeticCatalog.find(item => item.id === journeyDallas08.escortLiveries[index]).visualConfig.base);
+  });
 });
 
-test('Reinforcements uses four catalog paints per escort without recoloring the player or Rear Guard', () => {
+test('Reinforcements uses four catalog paints per escort without recoloring the player', () => {
   journeyDallas09.escortAircraft.forEach((type, index) => {
     const root = new THREE.Group();
     const airframe = new THREE.Group();
@@ -87,7 +92,6 @@ test('Reinforcements uses four catalog paints per escort without recoloring the 
     assert.equal(root.scale.x, 1);
     assert.equal(airframe.scale.x, journeyDallas09.escortScale);
     assert.equal(body.material.color.getHex(), cosmeticCatalog.find(item => item.id === journeyDallas09.escortLiveries[index]).visualConfig.base);
-    assert.equal(root.userData.rearGuardEscortPaint, undefined);
   });
 });
 
@@ -105,7 +109,7 @@ test('Garage is aircraft-filtered and multiplayer reuses the same equipped cosme
   assert.match(garage, /premium\.hidden = !profileReady \|\| this\.selected !== 'fighter' \|\| owned/);
   assert.match(garage, /buy\.hidden = owned/);
   assert.match(garage, /trialSummary\.hidden = !profileReady \|\| owned/);
-  assert.match(garage, /this\.selected === 'fighter' \? 0\.9 : 1/);
+  assert.match(garage, /exactHangarFrame && this\.selected === 'fighter' \? 0\.9/);
   assert.match(client, /player\.equippedCosmetics[^\n]*applyEquippedLivery/);
   assert.match(server, /equippedCosmetics: player\.profile\?\.cosmetics\?\.equipped \?\? \{\}/);
   assert.match(server, /type: 'cosmeticChanged'[\s\S]*equipped: result\.profile\.cosmetics\.equipped/);

@@ -50,17 +50,21 @@
       <div class="home-hangar-stage" data-home-hangar-stage aria-label="Equipped aircraft showcase"></div>
       <div class="home-hangar-aircraft-name" data-home-aircraft-name>BLUEJAY TRAINER</div>
       <div class="home-hangar-contextual" aria-label="Choose how to fly">
-        <button class="game-card-frame menu-selection-card home-hangar-mode home-hangar-missions" type="button" data-home-missions>
-          <img class="menu-selection-card-art" src="/media/hub/mission-medal.png" alt="" aria-hidden="true" />
-          <span class="menu-selection-card-copy home-hangar-mode-copy"><strong>MISSIONS</strong><span>Save cities. Complete missions.</span><small>SINGLE PLAYER</small></span>
-          <span class="home-hangar-mode-arrow" aria-hidden="true">›</span>
+        <button class="game-card-frame menu-selection-card home-hangar-mode home-hangar-missions" type="button" data-home-missions aria-label="Missions, Single Player">
+          <img class="home-hangar-card-image" src="/media/hub/missions-card.jpg" alt="" aria-hidden="true" />
         </button>
-        <button class="game-card-frame menu-selection-card home-hangar-mode home-hangar-free-fly" type="button" data-home-free-fly>
-          <img class="menu-selection-card-art" src="/media/hub/free-fly-globe.png" alt="" aria-hidden="true" />
-          <span class="menu-selection-card-copy home-hangar-mode-copy"><strong>FREE FLY</strong><span>Explore cities. Fly with other players.</span><small>MULTIPLAYER</small></span>
-          <span class="home-hangar-mode-arrow" aria-hidden="true">›</span>
+        <button class="game-card-frame menu-selection-card home-hangar-mode home-hangar-free-fly" type="button" data-home-free-fly aria-label="Multiplayer, Free Fly">
+          <img class="home-hangar-card-image" src="/media/hub/multiplayer-card.jpg" alt="" aria-hidden="true" />
         </button>
       </div>
+      <button class="home-hangar-store" type="button" data-home-store aria-label="Open Store">
+        <img src="/media/hub/store.png" alt="" aria-hidden="true" />
+        <span>STORE</span>
+      </button>
+      <button class="home-hangar-sponsor" type="button" data-home-sponsor aria-label="Advertise in Airport Chaos">
+        <img src="/media/hub/advertise.avif" alt="" aria-hidden="true" />
+        <span><small>SPONSORSHIP AVAILABLE</small><strong>YOUR BRAND HERE</strong></span>
+      </button>
       <button class="home-hangar-settings" type="button" data-home-settings aria-label="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <defs><linearGradient id="home-settings-metal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#edf0f1"/><stop offset=".55" stop-color="#aeb8bf"/><stop offset="1" stop-color="#78858f"/></linearGradient></defs>
@@ -79,12 +83,13 @@
           <h1 class="context-winged-title" id="city-select-title">CHOOSE CITY</h1>
           <p id="city-select-description">Choose your city.</p>
         </div>
-        <div id="city-options" class="city-journey" role="listbox" aria-label="City Journey" tabindex="0">
-          <div class="city-journey-track" data-city-journey-track></div>
+        <div id="city-options" class="city-journey menu-card-carousel" role="listbox" aria-label="City Journey" tabindex="0">
+          <div class="city-journey-track menu-card-carousel-track" data-city-journey-track></div>
           <button class="city-journey-arrow city-journey-arrow-previous" type="button" data-city-previous aria-label="Previous city">‹</button>
           <button class="city-journey-arrow city-journey-arrow-next" type="button" data-city-next aria-label="Next city">›</button>
         </div>
         <div id="time-options" class="city-options" hidden></div>
+        <button id="multiplayer-free-fly" class="multiplayer-free-fly entry-button" type="button" hidden>FREE FLY · CHOOSE TIME</button>
         <div id="city-selection-error" class="city-selection-error" hidden></div>
       </section>
       <button id="city-help" class="city-help" type="button" aria-label="City Journey help">?</button>
@@ -158,6 +163,7 @@
         <span id="active-mission-progress"></span>
         <progress id="active-mission-bar" max="1" value="0" aria-label="Mission progress" hidden></progress>
       </aside>
+      <div id="gameplay-feedback" hidden aria-live="polite"></div>
       <div id="flight-notifications" class="flight-notifications" aria-live="polite">
         <div id="connection-status" class="connection-status hidden" role="status">Connection lost — reconnecting…</div>
         <div id="world-status" class="world-status hidden">Leaving City 1</div>
@@ -183,7 +189,6 @@
       </div>
     </aside>
     <aside id="flight-recap" class="flight-recap" hidden aria-live="polite"><strong data-recap-title>FLIGHT COMPLETE</strong><div data-recap-stats></div><button type="button" data-recap-fly>FLY AGAIN</button><button type="button" data-recap-close>CONTINUE</button></aside>
-    <div id="gameplay-feedback" hidden aria-live="polite"></div>
     <aside id="contextual-hint" class="contextual-hint hidden" aria-live="polite">
       <strong id="contextual-hint-title"></strong>
       <span id="contextual-hint-body"></span>

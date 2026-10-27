@@ -3,51 +3,13 @@ import './context-page-shell.css';
 import { hapticsManager } from './haptics-manager';
 import { createLockIcon } from './lock-icon';
 import { chapterNames, missionJourneyStages, missionJourneyStatuses } from './mission-journey-model';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { missionJourneyDetails } from './mission-journey-content';
 export { missionJourneyStages } from './mission-journey-model';
 export type { MissionJourneyStage } from './mission-journey-model';
 
-type FactIcon = 'location' | 'gate' | 'timer' | 'target' | 'health' | 'capture' | 'landing';
-type MissionFact = Readonly<{ icon: FactIcon; label: string }>;
-type MissionCard = Readonly<{ title: string; objective: string; facts: readonly [MissionFact, MissionFact, MissionFact]; reward: number }>;
-const seconds = (milliseconds: number): string => `${milliseconds / 1000} SEC`;
-const missionCards: readonly MissionCard[] = [
-  { title: journeyDallas01.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD / TRINITY' }, { icon: 'gate', label: `${journeyDallas01.gates.length} GATES` }, { icon: 'timer', label: '2:30 RACE' }], reward: journeyDallas01.firstClearCredits },
-  { title: journeyDallas02.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'WHITE ROCK LAKE' }, { icon: 'gate', label: `${journeyDallas02.gates.length} GATES` }, { icon: 'timer', label: '2:30 RACE' }], reward: journeyDallas02.firstClearCredits },
-  { title: journeyDallas03.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'DALLAS SKYLINE' }, { icon: 'gate', label: `${journeyDallas03.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas03.firstClearCredits },
-  { title: journeyDallas04.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'DOWNTOWN' }, { icon: 'gate', label: `${journeyDallas04.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas04.firstClearCredits },
-  { title: journeyDallas05.name, objective: 'Fly through 10 narrow gates before time runs out.', facts: [{ icon: 'location', label: 'TRINITY RIVER' }, { icon: 'gate', label: `${journeyDallas05.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas05.firstClearCredits },
-  { title: journeyDallas06.name, objective: 'Fly through 10 gates before time runs out.', facts: [{ icon: 'location', label: 'CENTRAL DALLAS' }, { icon: 'gate', label: `${journeyDallas06.gates.length} GATES` }, { icon: 'timer', label: '2:40 RACE' }], reward: journeyDallas06.firstClearCredits },
-  { title: journeyDallas07.name, objective: 'Shoot down the transport before it leaves Dallas.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: 'GIANT TRANSPORT' }, { icon: 'timer', label: `${Math.ceil(journeyDallas07.timeLimitMs / 1000)} SEC TO EXIT` }], reward: journeyDallas07.firstClearCredits },
-  { title: journeyDallas08.name, objective: 'Destroy the transport before it escapes Dallas.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: '2 FIGHTER ESCORTS' }, { icon: 'timer', label: '5:00 TO ESCAPE' }], reward: journeyDallas08.firstClearCredits },
-  { title: journeyDallas09.name, objective: 'Destroy the transport to win. Escorts are optional.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: '4 ESCORTS MAX' }, { icon: 'timer', label: '5:30 TO EXIT' }], reward: journeyDallas09.firstClearCredits },
-  { title: journeyDallas10.name, objective: 'Destroy the gunship. Escorts are optional.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: 'GUNSHIP + 2 ESCORTS' }, { icon: 'timer', label: '5:30 TO EXIT' }], reward: journeyDallas10.firstClearCredits },
-  { title: journeyDallas11.name, objective: 'Destroy both turrets, then the exposed core.', facts: [{ icon: 'location', label: 'DFW RUNWAY' }, { icon: 'target', label: '2 TURRETS + CORE' }, { icon: 'timer', label: '5:30 TO EXIT' }], reward: journeyDallas11.firstClearCredits },
-  { title: journeyDallas12.name, objective: 'Destroy escorts, turrets, then the exposed core.', facts: [{ icon: 'location', label: 'DFW' }, { icon: 'target', label: '3 PHASES' }, { icon: 'timer', label: seconds(journeyDallas12.timeLimitMs) }], reward: journeyDallas12.firstClearCredits },
-  { title: journeyDallas13.name, objective: 'Fly through 5 speed gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 SPEED GATES' }, { icon: 'timer', label: seconds(journeyDallas13.timeLimitMs) }], reward: journeyDallas13.firstClearCredits },
-  { title: journeyDallas14.name, objective: 'Stay at least 450 m from the Hunter for 10 seconds.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: '450 M ESCAPE' }, { icon: 'timer', label: '10 SEC HOLD' }], reward: journeyDallas14.firstClearCredits },
-  { title: journeyDallas15.name, objective: 'Shoot down the Ace.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'health', label: '300 HP BOSS' }, { icon: 'target', label: 'AIR COMBAT' }], reward: journeyDallas15.firstClearCredits },
-  { title: journeyDallas16.name, objective: 'Fly through 5 gates while escaping two Hunters.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '5 GATES' }, { icon: 'target', label: '2 HUNTERS' }], reward: journeyDallas16.firstClearCredits },
-  { title: journeyDallas17.name, objective: 'Repair your plane, then land at DFW with 780+ points.', facts: [{ icon: 'health', label: '45% HEALTH' }, { icon: 'target', label: 'REPAIR HEART' }, { icon: 'landing', label: 'LAND 780+' }], reward: journeyDallas17.firstClearCredits },
-  { title: journeyDallas18.name, objective: 'Capture the area, then defend it for 40 seconds.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'capture', label: 'CAPTURE & DEFEND' }, { icon: 'timer', label: '40 SEC HOLD' }], reward: journeyDallas18.firstClearCredits },
-  { title: journeyDallas19.name, objective: 'Destroy the monster before time runs out.', facts: [{ icon: 'location', label: 'AIRBORNE START' }, { icon: 'timer', label: '2:30 LIMIT' }, { icon: 'target', label: '1 MONSTER' }], reward: journeyDallas19.firstClearCredits },
-  { title: journeyDallas20.name, objective: 'Fly through 6 high and low gates before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'gate', label: '6 GATES' }, { icon: 'timer', label: seconds(journeyDallas20.timeLimitMs) }], reward: journeyDallas20.firstClearCredits },
-  { title: journeyDallas21.name, objective: 'Capture both areas before time runs out.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'capture', label: '2 TERRITORIES' }, { icon: 'timer', label: '120 SEC TRANSFER' }], reward: journeyDallas21.firstClearCredits },
-  { title: journeyDallas22.name, objective: 'Fly through 3 gates, then make a perfect landing.', facts: [{ icon: 'location', label: 'DFW APPROACH' }, { icon: 'gate', label: '3 GATES' }, { icon: 'landing', label: 'PERFECT LANDING' }], reward: journeyDallas22.firstClearCredits },
-  { title: journeyDallas23.name, objective: 'Defeat two Hunters. Repair between fights.', facts: [{ icon: 'location', label: 'LOVE FIELD' }, { icon: 'target', label: '2 HUNTERS' }, { icon: 'health', label: 'REPAIR HEART' }], reward: journeyDallas23.firstClearCredits },
-  { title: journeyDallas24.name, objective: 'Fly through 3 gates, defeat the Ace, and land perfectly.', facts: [{ icon: 'gate', label: '3 GATES' }, { icon: 'health', label: '300 HP ACE' }, { icon: 'landing', label: 'PERFECT LANDING' }], reward: journeyDallas24.firstClearCredits },
-];
-const factIcons: Readonly<Record<FactIcon, string>> = {
-  location: '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
-  gate: '<circle cx="12" cy="12" r="8"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>',
-  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
-  target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>',
-  health: '<path d="M12 22s-8-4.6-8-11V5l8-3 8 3v6c0 6.4-8 11-8 11Z"/><path d="M8 12h8m-4-4v8"/>',
-  capture: '<path d="M5 22V3m0 1c5-3 9 3 15 0v11c-6 3-10-3-15 0"/>',
-  landing: '<path d="M2 19h20M5 15l7 3 7-3M12 3v13m-3-3 3 3 3-3"/>',
-};
 export class MissionJourney {
   private readonly detail: HTMLElement;
+  private detailAnimation: Animation | null = null;
   private readonly stageButtons: HTMLButtonElement[] = [];
   private readonly routeSegments: SVGPathElement[] = [];
   private progressMarker: HTMLElement | null = null;
@@ -130,10 +92,12 @@ export class MissionJourney {
         </div>
       </div>
       <div class="mission-journey-detail" aria-label="Selected mission details" aria-live="polite">
-        <img class="mission-journey-detail-image" src="/media/city-journey/mission-dallas-journey.avif" alt="Dallas mission artwork">
-        <div class="mission-journey-detail-copy"><strong><span data-mission-index>MISSION 01</span> · <span data-mission-title></span></strong><p data-mission-objective></p></div>
-        <span class="mission-journey-reward" data-mission-reward role="img"><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><strong data-mission-reward-amount></strong><small data-mission-reward-claimed hidden aria-hidden="true">✓</small></span>
-        <button type="button" class="mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
+        <div class="mission-journey-detail-copy"><span data-mission-index>MISSION 01</span><strong data-mission-title></strong><p data-mission-objective></p></div>
+        <div class="mission-journey-detail-facts">
+          <div class="mission-journey-reward" data-mission-reward><img src="/media/hub/credits.avif" alt="" aria-hidden="true"><span data-mission-reward-label>REWARD</span><strong data-mission-reward-amount></strong></div>
+          <div class="mission-journey-time" data-mission-time><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg><span>TIME LIMIT</span><strong data-mission-time-value></strong></div>
+        </div>
+        <button type="button" class="context-action context-action--gold mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
       </div>`;
     this.detail = element.querySelector('.mission-journey-detail')!;
     const viewport = element.querySelector<HTMLElement>('.mission-journey-viewport')!;
@@ -175,9 +139,10 @@ export class MissionJourney {
       event.preventDefault();
       this.handleNodeKeydown(event, this.selectedStage);
     });
-    element.querySelector<HTMLButtonElement>('[data-mission-play]')!.addEventListener('click', () => {
+    const playButton = element.querySelector<HTMLButtonElement>('[data-mission-play]')!;
+    playButton.addEventListener('click', () => {
       if (this.progressingFrom !== null) return;
-      if (this.stageButtons[this.selectedStage - 1]?.disabled) return;
+      if (playButton.disabled) return;
       hapticsManager.emit('confirmation'); onPlayMission();
     });
     const chapters = element.querySelector<HTMLElement>('.mission-journey-chapters')!;
@@ -447,10 +412,6 @@ export class MissionJourney {
     this.currentMission = currentMission;
     if (this.progressingFrom !== null) this.selectedStage = this.progressingFrom;
     else if (!this.userSelectedStage) this.selectedStage = this.currentMission || (completed.every(Boolean) ? 24 : 1);
-    else if (statuses[this.selectedStage - 1] === 'locked') {
-      this.userSelectedStage = false;
-      this.selectedStage = this.currentMission || 1;
-    }
     this.stageButtons.forEach((button, index) => {
       const number = index + 1;
       const status = this.progressingFrom === number - 1 ? 'locked' : statuses[index]!;
@@ -458,9 +419,11 @@ export class MissionJourney {
       button.classList.toggle('is-completed', status === 'completed');
       button.classList.toggle('is-current', status === 'current');
       button.classList.toggle('is-selected', number === this.selectedStage);
-      button.disabled = this.cityLocked || status === 'locked';
       button.setAttribute('aria-pressed', String(number === this.selectedStage));
-      button.setAttribute('aria-label', `Mission ${number}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : status}`);
+      button.setAttribute('aria-label', `Mission ${number}, ${status === 'completed' ? 'completed, select to replay' : status === 'current' ? 'current mission' : 'locked, view details'}`);
+    });
+    this.element.querySelectorAll<HTMLElement>('.mission-journey-chapter-heading').forEach(heading => {
+      heading.classList.toggle('is-selected', Number(heading.dataset.chapter) === missionJourneyStages[this.selectedStage - 1]?.chapter);
     });
     for (const segment of this.routeSegments) {
       const from = Number(segment.dataset.from);
@@ -490,6 +453,38 @@ export class MissionJourney {
     viewport.scrollTo({ left, behavior: smooth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
   }
 
+  private revealTransition(from: number, to: number, ready: () => void): void {
+    const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
+    const source = this.stageButtons[from - 1]!;
+    const destination = this.stageButtons[to - 1]!;
+    const padding = Math.min(24, viewport.clientWidth * .04);
+    const leftEdge = source.offsetLeft - source.offsetWidth / 2;
+    const rightEdge = destination.offsetLeft + destination.offsetWidth / 2;
+    if (leftEdge >= viewport.scrollLeft + padding && rightEdge <= viewport.scrollLeft + viewport.clientWidth - padding) {
+      ready();
+      return;
+    }
+    const targetLeft = Math.max(0, Math.min(viewport.scrollWidth - viewport.clientWidth,
+      (source.offsetLeft + destination.offsetLeft) / 2 - viewport.clientWidth / 2));
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      viewport.scrollLeft = targetLeft;
+      ready();
+      return;
+    }
+    const startLeft = viewport.scrollLeft;
+    let startedAt: number | null = null;
+    const move = (now: number): void => {
+      if (this.progressingFrom !== from || !this.isOpen) return;
+      startedAt ??= now;
+      const progress = Math.min(1, (now - startedAt) / 500);
+      const eased = progress * progress * (3 - 2 * progress);
+      viewport.scrollLeft = startLeft + (targetLeft - startLeft) * eased;
+      if (progress < 1) this.progressAnimationFrame = window.requestAnimationFrame(move);
+      else { this.progressAnimationFrame = 0; ready(); }
+    };
+    this.progressAnimationFrame = window.requestAnimationFrame(move);
+  }
+
   celebrateCompletion(number: number, collectCredits?: (source: DOMRect) => number): void {
     if (!this.isOpen || !this.completedStages()[number - 1]) return;
     this.cancelProgressAnimation();
@@ -497,6 +492,7 @@ export class MissionJourney {
     if (this.currentMission !== next || !this.stageButtons[next - 1] || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       this.userSelectedStage = false;
       this.select(number);
+      this.revealMission(number, false);
       if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
       this.select(this.currentMission || number);
       this.revealMission(this.currentMission || number, true);
@@ -506,68 +502,72 @@ export class MissionJourney {
     const segment = this.routeSegments.find(path => Number(path.dataset.from) === number);
     if (!segment) {
       this.select(number);
+      this.revealMission(number, false);
       if (collectCredits) collectCredits(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect());
       this.select(next);
       this.revealMission(next, true);
       return;
     }
-    const map = this.element.querySelector<HTMLElement>('.mission-journey-map')!;
-    const marker = document.createElement('span');
-    marker.className = 'mission-journey-progress-marker';
-    marker.setAttribute('aria-hidden', 'true');
-    map.append(marker);
-    this.progressMarker = marker;
     this.progressingFrom = number;
     this.userSelectedStage = false;
     this.element.classList.add('is-advancing');
-    this.stageButtons[number - 1]?.classList.add('is-newly-completed');
     this.renderProgress();
-    const creditFlightMs = collectCredits?.(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect()) ?? 0;
-
-    const length = segment.getTotalLength();
-    this.progressSegment = segment;
-    segment.classList.add('is-advancing');
-    segment.style.strokeDasharray = String(length);
-    segment.style.strokeDashoffset = String(length);
-    const startPoint = segment.getPointAtLength(0);
-    marker.style.left = `${startPoint.x}%`;
-    marker.style.top = `${startPoint.y}%`;
-    const duration = number === 12 ? 1_900 : 1_250;
-    let startedAt: number | null = null;
-    const animate = (now: number): void => {
+    this.revealTransition(number, next, () => {
       if (this.progressingFrom !== number || !this.isOpen) return;
-      startedAt ??= now;
-      const progress = Math.min(1, (now - startedAt) / duration);
-      const eased = progress * progress * (3 - 2 * progress);
-      const point = segment.getPointAtLength(length * eased);
-      marker.style.left = `${point.x}%`;
-      marker.style.top = `${point.y}%`;
-      segment.style.strokeDashoffset = String(length * (1 - eased));
-      if (progress < 1) {
-        this.progressAnimationFrame = window.requestAnimationFrame(animate);
-        return;
-      }
-      this.progressAnimationFrame = 0;
-      const unlocked = this.stageButtons[next - 1]!;
-      marker.remove();
-      this.progressMarker = null;
-      unlocked.classList.add('is-unlocking');
-      this.unlockTimer = window.setTimeout(() => {
-        this.unlockTimer = 0;
-        this.cancelProgressAnimation();
-        this.userSelectedStage = false;
-        this.select(next);
-        unlocked.classList.add('is-newly-unlocked');
-        this.revealMission(next, true);
-        window.setTimeout(() => unlocked.classList.remove('is-newly-unlocked'), 850);
-      }, 360);
-    };
-    if (creditFlightMs > 0) {
-      this.progressStartTimer = window.setTimeout(() => {
-        this.progressStartTimer = 0;
-        if (this.progressingFrom === number && this.isOpen) this.progressAnimationFrame = window.requestAnimationFrame(animate);
-      }, creditFlightMs);
-    } else this.progressAnimationFrame = window.requestAnimationFrame(animate);
+      const map = this.element.querySelector<HTMLElement>('.mission-journey-map')!;
+      const marker = document.createElement('span');
+      marker.className = 'mission-journey-progress-marker';
+      marker.setAttribute('aria-hidden', 'true');
+      map.append(marker);
+      this.progressMarker = marker;
+      this.stageButtons[number - 1]?.classList.add('is-newly-completed');
+      const creditFlightMs = collectCredits?.(this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.getBoundingClientRect()) ?? 0;
+
+      const length = segment.getTotalLength();
+      this.progressSegment = segment;
+      segment.classList.add('is-advancing');
+      segment.style.strokeDasharray = String(length);
+      segment.style.strokeDashoffset = String(length);
+      const startPoint = segment.getPointAtLength(0);
+      marker.style.left = `${startPoint.x}%`;
+      marker.style.top = `${startPoint.y}%`;
+      const duration = number === 12 ? 1_900 : 1_250;
+      let startedAt: number | null = null;
+      const animate = (now: number): void => {
+        if (this.progressingFrom !== number || !this.isOpen) return;
+        startedAt ??= now;
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = progress * progress * (3 - 2 * progress);
+        const point = segment.getPointAtLength(length * eased);
+        marker.style.left = `${point.x}%`;
+        marker.style.top = `${point.y}%`;
+        segment.style.strokeDashoffset = String(length * (1 - eased));
+        if (progress < 1) {
+          this.progressAnimationFrame = window.requestAnimationFrame(animate);
+          return;
+        }
+        this.progressAnimationFrame = 0;
+        const unlocked = this.stageButtons[next - 1]!;
+        marker.remove();
+        this.progressMarker = null;
+        unlocked.classList.add('is-unlocking');
+        this.unlockTimer = window.setTimeout(() => {
+          this.unlockTimer = 0;
+          this.cancelProgressAnimation();
+          this.userSelectedStage = false;
+          this.select(next);
+          unlocked.classList.add('is-newly-unlocked');
+          this.revealMission(next, true);
+          window.setTimeout(() => unlocked.classList.remove('is-newly-unlocked'), 850);
+        }, 360);
+      };
+      if (creditFlightMs > 0) {
+        this.progressStartTimer = window.setTimeout(() => {
+          this.progressStartTimer = 0;
+          if (this.progressingFrom === number && this.isOpen) this.progressAnimationFrame = window.requestAnimationFrame(animate);
+        }, creditFlightMs);
+      } else this.progressAnimationFrame = window.requestAnimationFrame(animate);
+    });
   }
 
   private cancelProgressAnimation(): void {
@@ -605,21 +605,39 @@ export class MissionJourney {
     this.panelOpen = false;
   }
 
-  hide(): void { this.cancelProgressAnimation(); this.element.hidden = true; }
+  hide(): void {
+    this.cancelProgressAnimation();
+    this.detailAnimation?.cancel();
+    this.detailAnimation = null;
+    this.element.hidden = true;
+  }
   closePanel(): void { this.panelOpen = false; }
 
   private setPanelOpen(_open: boolean): void { this.panelOpen = false; }
 
   private select(number: number, _animate = true, userSelected = false): void {
     const stage = missionJourneyStages[number - 1];
-    if (!stage || userSelected && this.stageButtons[number - 1]?.disabled || userSelected && this.progressingFrom !== null) return;
+    if (!stage || userSelected && this.progressingFrom !== null) return;
+    const changed = number !== this.selectedStage;
+    const chapterChanged = stage.chapter !== missionJourneyStages[this.selectedStage - 1]?.chapter;
     if (userSelected) { this.userSelectedStage = true; hapticsManager.emit('selection'); }
     this.selectedStage = number;
     this.renderProgress();
+    if (userSelected && changed && this.isOpen && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.detailAnimation?.cancel();
+      const distance = window.innerHeight - this.detail.offsetTop + 12;
+      const animation = this.detail.animate([
+        { transform: `translateY(${distance}px)` },
+        { transform: 'translateY(0)' },
+      ], { duration: 360, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+      this.detailAnimation = animation;
+      animation.onfinish = () => { if (this.detailAnimation === animation) this.detailAnimation = null; };
+    }
     if (userSelected) {
       const viewport = this.element.querySelector<HTMLElement>('.mission-journey-viewport')!;
       const button = this.stageButtons[number - 1]!;
-      if (button.offsetLeft < viewport.scrollLeft + button.offsetWidth / 2 || button.offsetLeft > viewport.scrollLeft + viewport.clientWidth - button.offsetWidth / 2) {
+      const edgePadding = 24;
+      if (chapterChanged || button.offsetLeft < viewport.scrollLeft + button.offsetWidth / 2 + edgePadding || button.offsetLeft > viewport.scrollLeft + viewport.clientWidth - button.offsetWidth / 2 - edgePadding) {
         this.revealMission(number, true);
       }
     }
@@ -632,26 +650,28 @@ export class MissionJourney {
       this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = '';
       this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = 'Complete earlier missions to unlock.';
       this.detail.querySelector<HTMLElement>('[data-mission-reward]')!.hidden = true;
+      this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = true;
       this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!.hidden = true;
       return;
     }
-    const card = missionCards[stage.number - 1]!;
+    const card = missionJourneyDetails[stage.number - 1]!;
     const completed = !this.cityLocked && this.completedStages()[stage.number - 1] === true;
     const eligible = this.isStageEligible(stage.number);
     const signInRequired = this.signInRequired && stage.number === 1 && !completed;
     const locked = this.cityLocked || (!completed && !eligible && !signInRequired);
     this.detail.querySelector<HTMLElement>('[data-mission-index]')!.textContent = `MISSION ${String(stage.number).padStart(2, '0')}`;
     this.detail.querySelector<HTMLElement>('[data-mission-title]')!.textContent = card.title;
-    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = this.cityLocked ? 'Complete Milwaukee training to unlock Dallas missions.' : locked ? `Complete Mission ${stage.number - 1} to unlock.` : card.objective;
-    this.detail.querySelector<HTMLImageElement>('.mission-journey-detail-image')!.alt = `Dallas Mission ${stage.number} artwork`;
+    this.detail.querySelector<HTMLElement>('[data-mission-objective]')!.textContent = card.description;
     const reward = this.detail.querySelector<HTMLElement>('[data-mission-reward]')!;
     reward.hidden = false;
-    reward.setAttribute('aria-label', `${card.reward.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = card.reward.toLocaleString();
-    this.detail.querySelector<HTMLElement>('[data-mission-reward-claimed]')!.hidden = !completed;
+    this.detail.querySelector<HTMLElement>('[data-mission-time]')!.hidden = false;
+    reward.setAttribute('aria-label', `${card.rewardCredits.toLocaleString()} Credits${completed ? ', claimed' : ''}`);
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-label]')!.textContent = completed ? 'REWARD CLAIMED' : 'REWARD';
+    this.detail.querySelector<HTMLElement>('[data-mission-reward-amount]')!.textContent = card.rewardCredits.toLocaleString();
+    this.detail.querySelector<HTMLElement>('[data-mission-time-value]')!.textContent = card.timeLimit;
     const play = this.detail.querySelector<HTMLButtonElement>('[data-mission-play]')!;
     play.disabled = locked;
-    play.hidden = locked;
+    play.hidden = false;
     play.textContent = completed ? 'REPLAY MISSION ▶' : signInRequired ? 'SIGN IN TO PLAY ▶' : 'PLAY MISSION ▶';
     this.detail.classList.toggle('is-locked', locked);
   }

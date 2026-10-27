@@ -1,3 +1,4 @@
+import { cityDiscoveries } from '../../shared/city-discoveries.mjs';
 import * as THREE from 'three';
 import { addSceneryAsset, replaceTreesWithInstancedAsset } from './assets';
 import { addOsmCity, type ImportedRoadSegment } from './city1-osm';
@@ -64,18 +65,7 @@ export const stuntZones: ReadonlyArray<StuntZone> = [
   { id: 'downtown-skyline', kind: 'landmark', x: -1525, z: -2820, radius: 950, minAltitude: 0, maxAltitude: 280 },
 ];
 
-export const discoveries: ReadonlyArray<DiscoveryDefinition> = [
-  { id: 'central-international', name: 'Central International', type: 'airport', x: 0, z: 0, radius: 820, minAltitude: 0, maxAltitude: 260, credits: 75, setId: 'airport-tour', setBonus: 250 },
-  { id: 'coast-airport', name: 'Coast Airport', type: 'airport', x: 5100, z: 3550, radius: 560, minAltitude: 0, maxAltitude: 220, credits: 75, setId: 'airport-tour', setBonus: 250 },
-  { id: 'mountain-airfield', name: 'Mountain Airfield', type: 'airstrip', x: -2300, z: -5000, radius: 420, minAltitude: 0, maxAltitude: 190, credits: 100, setId: 'airport-tour', setBonus: 250 },
-  { id: 'countryside-airstrip', name: 'Countryside Airstrip', type: 'airstrip', x: -4300, z: 3800, radius: 360, minAltitude: 0, maxAltitude: 170, credits: 125, setId: 'airport-tour', setBonus: 250 },
-  { id: 'downtown-landmark-a', name: 'Downtown Tower', type: 'downtown', x: -1525, z: -2820, radius: 210, minAltitude: 90, maxAltitude: 460, credits: 100, setId: 'skyline-tour', setBonus: 225 },
-  { id: 'downtown-landmark-b', name: 'Riverfront Tower', type: 'landmark', x: -1778, z: -2400, radius: 220, minAltitude: 100, maxAltitude: 460, credits: 100, setId: 'skyline-tour', setBonus: 225 },
-  { id: 'downtown-landmark-c', name: 'Civic Spire', type: 'rooftop', x: -895, z: -2400, radius: 170, minAltitude: 100, maxAltitude: 410, credits: 125, setId: 'skyline-tour', setBonus: 225 },
-  { id: 'coast-highway-bridge', name: 'Coast Highway Bridge', type: 'bridge', x: 3500, z: 500, radius: 240, minAltitude: 10, maxAltitude: 100, credits: 125 },
-  { id: 'coast-lake', name: 'Coast Lake', type: 'water', x: 3500, z: 0, radius: 700, minAltitude: 20, maxAltitude: 280, credits: 75 },
-  { id: 'mountain-ridge', name: 'Mountain Ridge', type: 'secret', x: -4300, z: -4300, radius: 300, minAltitude: 300, maxAltitude: 950, credits: 300, mapVisible: false },
-];
+export const discoveries: ReadonlyArray<DiscoveryDefinition> = cityDiscoveries.milwaukee;
 
 type BoxPlacement = { x: number; y: number; z: number; width: number; height: number; depth: number; rotation?: number; color?: number };
 const placementColor = new THREE.Color();

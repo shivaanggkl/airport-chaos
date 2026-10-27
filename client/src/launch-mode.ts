@@ -1,10 +1,10 @@
-export type LaunchMode = 'missions' | 'free-fly';
+export type LaunchMode = 'missions' | 'free-fly' | 'sky-duel';
 
 export const LAUNCH_MODE_PARAM = 'launchMode';
 
 export function launchModeFromUrl(search: string): LaunchMode {
   const params = new URLSearchParams(search);
   const mode = params.get(LAUNCH_MODE_PARAM);
-  if (mode === 'missions' || mode === 'free-fly') return mode;
+  if (mode === 'missions' || mode === 'free-fly' || mode === 'sky-duel') return mode;
   return params.has('journeyAttempt') ? 'missions' : 'free-fly';
 }

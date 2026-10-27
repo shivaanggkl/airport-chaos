@@ -15,16 +15,19 @@ test('representatives preserve source centers, heights and ground elevations', (
     const result = representativeBuildings(source, grid);
     assert.deepEqual(result.map(item => [(item[4] + item[8]) / 2, (item[5] + item[9]) / 2]).sort((a, b) => a[0] - b[0]), [[10, 10], [250, 250]]);
     assert.deepEqual(result.map(item => item[3]).sort(), [155, 160]);
-    assert.deepEqual(result.map(item => item[0]).sort(), grid === 360 ? [36, 57] : [29, 44]);
+    assert.deepEqual(result.map(item => item[0]).sort(), [40, 70]);
+    assert.ok(result.every(item => source.some(original => item[0] === original[0] && item[3] === original[3] &&
+      JSON.stringify(item.slice(4)) === JSON.stringify(original.slice(4)))));
+    assert.ok(result.every(item => item[1] === 2));
   }
 });
 
-test('large independent footprints never merge and retain proportions within caps', () => {
+test('large independent mapped footprints never merge or shrink', () => {
   const source = [building(100, 100, 500, 40), building(800, 700, 600, 35)];
   for (const grid of [360, 1000]) {
     const result = representativeBuildings(source, grid);
     assert.equal(result.length, 2);
-    assert.ok(result.every(item => item[8] - item[4] <= (grid === 360 ? 220 : 260)));
+    assert.deepEqual(result.map(item => item[8] - item[4]).sort((a,b)=>a-b), [500,600]);
     assert.ok(result.every(item => item[9] - item[5] <= 40));
   }
 });
@@ -35,8 +38,17 @@ test('selection is deterministic, capped and distributed across occupied cells',
     const a = representativeBuildings(source, grid);
     const b = representativeBuildings(source, grid);
     assert.deepEqual(a, b);
-    assert.ok(a.length <= (grid === 360 ? 8 : 6));
+    assert.ok(a.length <= (grid === 360 ? 12 : 8));
     assert.ok(Math.max(...a.map(item => item[4])) - Math.min(...a.map(item => item[4])) > 100);
+  }
+});
+
+test('a mapped tower survives distant LOD selection beside broad low buildings', () => {
+  const low = Array.from({ length: 14 }, (_, index) => building(index * 16, 70, 70, 42, 9));
+  const tower = building(110, 115, 25, 25, 154);
+  for (const grid of [360, 1000]) {
+    const selected = representativeBuildings([...low, tower], grid);
+    assert.ok(selected.some(item => item[0] === tower[0] && item[4] === tower[4]));
   }
 });
 

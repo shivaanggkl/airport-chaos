@@ -93,11 +93,12 @@ export function airbornePitchTarget(pitchControl,forwardSpeed,throttle,envelope)
   const commandedPitch=command>=0
     ? envelope.maxClimbPitch*command
     : (envelope.maxDivePitch??envelope.maxClimbPitch)*command;
-  // Power-off flight settles into a shallow glide. As forward airflow falls
-  // below stall speed the nose drops further instead of falling wings-level.
+  // Low power and stall reduce an upward pitch command, but must not point
+  // the nose down unless the pilot explicitly commands a dive.
   const powerOff=1-clamp(throttle/.2,0,1);
   const stall=clamp((envelope.stallSpeed-Math.max(0,forwardSpeed))/(envelope.stallSpeed*.52),0,1);
-  return clamp(commandedPitch-.1*powerOff-.2*stall,-.35,envelope.maxClimbPitch);
+  const target=commandedPitch-.1*powerOff-.2*stall;
+  return clamp(command>=0?Math.max(0,target):target,-.35,envelope.maxClimbPitch);
 }
 
 export function airborneLiftFactor(forwardSpeed,angleOfAttack,throttle,stallFactor,envelope){

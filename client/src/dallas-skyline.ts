@@ -5,14 +5,6 @@ import { monsterDamageSites, setMappedMonsterDamage } from './osm-city';
 
 let monsterDamageScene: THREE.Scene | undefined;
 let monsterDamageDebris: THREE.Group | undefined;
-const facadeGlowUniforms: Array<{ strength: { value: number }; color: { value: THREE.Color } }> = [];
-
-export function setDallasFacadeNight(night: boolean): void {
-  for (const glow of facadeGlowUniforms) {
-    glow.strength.value = night ? 0.38 : 0.09;
-    glow.color.value.setRGB(night ? 0.85 : 0.30, night ? 0.63 : 0.38, night ? 0.34 : 0.36);
-  }
-}
 
 /** Reversible substitution of existing mapped west-Downtown buildings. */
 export function setDowntownMonsterDamage(active: boolean): void {
@@ -49,7 +41,6 @@ export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.Me
   const material=new THREE.MeshStandardMaterial({color:dallasFacadePalette[index],roughness:index===5||index===6||index===7?.72:.3,metalness:.22});
   const glow = { value: windowGlow };
   const glowColor = { value: new THREE.Color(0.30, 0.38, 0.36) };
-  facadeGlowUniforms.push({ strength: glow, color: glowColor });
   material.onBeforeCompile=shader=>{
     shader.uniforms.facadeGlow = glow;
     shader.uniforms.facadeGlowColor = glowColor;
@@ -79,7 +70,6 @@ export function createDallasFacadeMaterial(index:number,windowGlow=.09):THREE.Me
 
 export function addDowntownDistrict(scene:THREE.Scene, obstacles:ObstacleBounds[], airports:ReadonlyArray<AirportDefinition>, heightAt:(x:number,z:number)=>number):void {
   setDowntownMonsterDamage(false);
-  facadeGlowUniforms.length = 0;
   monsterDamageScene = scene;
   const buildings=generateDallasSkyline(airports,obstacles);
   const geometry=new THREE.BoxGeometry(1,1,1);

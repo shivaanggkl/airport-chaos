@@ -1,0 +1,2 @@
+export type CityDiscovery = Readonly<{ id: string; name: string; type: 'landmark'|'airstrip'|'rooftop'|'bridge'|'water'|'downtown'|'airport'|'secret'; x: number; z: number; radius: number; minAltitude: number; maxAltitude: number; credits: number; setId?: string; setBonus?: number; mapVisible?: boolean; timePreset?: 'day'|'dusk'|'evening' }>;
+export const cityDiscoveries: Readonly<{ milwaukee: readonly CityDiscovery[]; dallas: readonly CityDiscovery[] }>;

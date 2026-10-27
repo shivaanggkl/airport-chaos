@@ -43,9 +43,9 @@ test('tutorial combat no longer suppresses Fire on either side of the protocol',
   assert.doesNotMatch(clientMain, /function fireWeaponOnce\(\): boolean \{\s*if \(guidedTutorialActive\) return false;/);
   assert.doesNotMatch(clientMain, /function updateCombatTarget\(delta = 0\): void \{\s*if \(guidedTutorialActive\)/);
   assert.doesNotMatch(serverMain, /if \(message\.type === 'fire'\) \{\s*if \(player\.tutorialMode\) return;/);
-  assert.match(clientMain, /if\(active\)\{heldActions\.add\(action\);runStarted=true;noteTutorialActionInput\(action\);if\(action==='fire'\)fireWeaponOnce\(\);\}/);
+  assert.match(clientMain, /if\(active\)\{heldActions\.add\(action\);runStarted=true;noteTutorialActionInput\(action\);if\(action==='fire'&&fireWeaponOnce\(\)\)trainingSlides\.beginAction\('fire'\);\}/);
   assert.match(clientMain, /fireCooldown = Math\.max\(0, fireCooldown - delta\)/);
-  assert.match(clientMain, /if \(!sendFireIntent\(\)\)[\s\S]*fireCooldown = 0\.25/);
+  assert.match(clientMain, /if \(!sendFireIntent\(\)\)[\s\S]*fireCooldown = fireIntervalMs\(skyDuelMode \? 'trainer' : aircraftType\) \/ 1_000/);
 });
 
 test('tutorial entry is city-scoped and practice progression is server-authoritative', () => {
@@ -55,12 +55,12 @@ test('tutorial entry is city-scoped and practice progression is server-authorita
   assert.doesNotMatch(clientMain, /airport-chaos-start-tutorial/);
   assert.match(clientMain, /profile\.tutorial\.status !== 'new'[\s\S]*profile\.totalDistance > 500[\s\S]*dallasPracticeSuggestionElement\.hidden = false/);
   assert.match(clientMain, /practiceSuggestion: true/);
-  assert.match(serverMain, /const tutorialMode = Boolean\(cityCapabilities\(cityId\)\?\.tutorialEnabled && profile\.tutorial\.status === 'started'\)/);
-  assert.match(serverMain, /return Boolean\(player && !player\.tutorialMode && cityCapabilities\(player\.cityId\)\?\.progressionEnabled\)/);
+  assert.match(serverMain, /const tutorialMode = Boolean\(connectionParams\.get\('launchMode'\) !== 'free-fly' && !skyDuelMode && cityCapabilities\(cityId\)\?\.tutorialEnabled && profile\.tutorial\.status === 'started'\)/);
+  assert.match(serverMain, /return Boolean\(player && !player\.tutorialMode && !player\.skyDuelMode && cityCapabilities\(player\.cityId\)\?\.progressionEnabled\)/);
   assert.match(serverMain, /tutorialCombatPairAllowed/);
-  assert.match(serverMain, /!target\.isBot && !target\.tutorialMode && !playerJourneyRunwayPrep\.has\(id\) &&\s*\(!missionFocusedPlayers\.has\(id\) \|\| allowedFocusedBot\(botId, id\)\) && target\.cityId === bot\.cityId/);
+  assert.match(serverMain, /!target\.isBot && !target\.tutorialMode && !playerJourneyRunwayPrep\.has\(id\) &&[\s\S]*\(!missionFocusedPlayers\.has\(id\) \|\| allowedFocusedBot\(botId, id\)\) && target\.cityId === bot\.cityId/);
   assert.match(serverMain, /!player\.isBot && !player\.tutorialMode/);
   assert.match(serverMain, /type: 'tutorialSignal', signal: 'targetHit'/);
-  assert.match(serverMain, /if \(!progressionEnabled\(player\)\) \{ sendProfile\(playerId, player\.profile\); return; \}/);
+  assert.match(serverMain, /if \(message\.type === 'profileProgress'\) \{[\s\S]*sendProfile\(playerId, player\.profile\);/);
   assert.match(serverMain, /const eligibleForReward = isHumanPilot\(killer\) && progressionEnabled\(killer\)/);
 });
