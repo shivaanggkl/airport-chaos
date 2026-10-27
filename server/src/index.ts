@@ -297,6 +297,7 @@ type SkyDuelSession = {
 const skyDuelQueue = new Map<string, DuelQueueEntry>();
 const skyDuelSessions = new Map<string, SkyDuelSession>();
 const skyDuelFairWaitNotified = new Set<string>();
+const SKY_DUEL_AI_FALLBACK_MS = 12_000;
 const skyDuelCenter = { x: -750, z: -6_500 };
 const skyDuelBoundaryRadius = 12_000;
 const skyDuelHealth = 100;
@@ -388,7 +389,7 @@ function createSkyDuelPracticeBot(ownerId: string, now: number): string | undefi
   players.set(id, {
     pilotId: id, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId: 'dallas', position, rotation: { x: 0, y: Math.PI / 2, z: 0 }, aircraftType: 'trainer',
-    displayName: 'AI PRACTICE PILOT', score: 0, health: skyDuelHealth, lifeState: 'respawning',
+    displayName: 'AI PLAYER', score: 0, health: skyDuelHealth, lifeState: 'respawning',
     hasRespawnTransform: true, lastFireAt: now, spawnProtectedUntil: now + 2_000,
     velocity: { x: -150, y: 0, z: 0 }, boostActive: false, lastStateAt: now,
     lastAcceptedPosition: { ...position }, lastAcceptedTransformAt: now,
@@ -417,7 +418,7 @@ function startSkyDuelAiPractice(playerId: string, now: number): void {
   skyDuelSpawn(playerId, session, now);
   skyDuelSpawn(botId, session, now);
   sendToPlayer(playerId, { type: 'skyDuelLoading', matchId: session.id, practice: true,
-    pilotA: player.displayName, pilotB: 'AI PRACTICE PILOT', pilotAId: player.pilotId,
+    pilotA: player.displayName, pilotB: 'AI PLAYER', pilotAId: player.pilotId,
     pilotBId: botId, levelA: player.profile.pilotProgress.level, levelB: 1,
     aircraftA: player.aircraftType, avatarA: skyDuelCardDetails(player).avatar,
     aircraftB: players.get(botId)?.aircraftType });
@@ -528,6 +529,12 @@ function skyDuelTick(now: number): void {
     const opponent = closestDuelOpponent(entry,
       [...skyDuelQueue.values()].filter(candidate => hasOpenPlayerSocket(candidate.playerId)), now);
     if (!opponent) {
+      if (skyDuelAiPracticeEnabled && now - entry.queuedAt >= SKY_DUEL_AI_FALLBACK_MS) {
+        skyDuelQueue.delete(playerId);
+        skyDuelFairWaitNotified.delete(playerId);
+        startSkyDuelAiPractice(playerId, now);
+        continue;
+      }
       if (now - entry.queuedAt >= 45_000 && !skyDuelFairWaitNotified.has(playerId)) {
         skyDuelFairWaitNotified.add(playerId);
         sendToPlayer(playerId, { type: 'skyDuelWaiting', elapsedMs: now - entry.queuedAt, fairWait: true });

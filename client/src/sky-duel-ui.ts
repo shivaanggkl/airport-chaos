@@ -244,7 +244,7 @@ export class SkyDuelUi {
       this.localPilot = local;
       this.opponentPilot = opponent;
       this.renderPilot(this.localCard, local, 'YOU', this.paidReservationConfirmed);
-      this.renderPilot(this.opponentCard, opponent, 'OPPONENT', this.paidReservationConfirmed);
+      this.renderPilot(this.opponentCard, opponent, this.practiceMatch ? 'AI PLAYER' : 'OPPONENT', this.paidReservationConfirmed);
       this.matchup.hidden = false;
       this.practiceBadge.hidden = !this.practiceMatch;
       this.pot.hidden = !this.paidReservationConfirmed;
@@ -282,7 +282,7 @@ export class SkyDuelUi {
       this.hud.hidden = this.phase === 'countdown';
       this.headerElement.hidden = this.phase !== 'countdown';
       const localIsA = this.localPilotId === this.pilotAId;
-      this.score.textContent = `YOU ${localIsA ? this.scoreA : this.scoreB}/3 · ${this.practiceMatch ? 'AI PILOT' : 'OPPONENT'} ${localIsA ? this.scoreB : this.scoreA}/3`;
+      this.score.textContent = `YOU ${localIsA ? this.scoreA : this.scoreB}/3 · ${this.practiceMatch ? 'AI PLAYER' : 'OPPONENT'} ${localIsA ? this.scoreB : this.scoreA}/3`;
       if (phaseChanged || !this.notice.textContent) this.notice.textContent = this.defaultNotice();
       if (this.phase === 'countdown') this.enterCountdown(message.countdownEndsAt ?? this.countdownEndsAt);
       else this.clearPresentationTimers();
