@@ -11569,6 +11569,7 @@ boundSocket.addEventListener('message', (event) => {
     showProgressMessage(message.winnerId === localPlayerId ? `CHALLENGE WON${message.rewarded ? '' : ' · PRACTICE'}` : 'CHALLENGE COMPLETE');
   } else if (message.type === 'skyDuelSpawn') {
     if (!skyDuelMode) return;
+    if (skyDuelUi?.hasAbandonedSearch() || document.hidden) return;
     skyDuelUi?.handle(message);
     resetCrashPresentation();
     airplane.visible = true;
@@ -11594,7 +11595,8 @@ boundSocket.addEventListener('message', (event) => {
     message.type === 'skyDuelPractice' || message.type === 'skyDuelBoundary' ||
     message.type === 'skyDuelOpponentDisconnected' || message.type === 'skyDuelOpponentReconnected') {
     skyDuelUi?.handle(message);
-    if (message.type === 'skyDuelState' && (message.phase === 'active' || message.phase === 'overtime')) runStarted = true;
+    if (!skyDuelUi?.hasAbandonedSearch() && message.type === 'skyDuelState' &&
+      (message.phase === 'active' || message.phase === 'overtime')) runStarted = true;
     if (message.type === 'skyDuelResult') { runStarted = false; airplane.visible = true; }
   } else if (message.type === 'profile') {
     legendaryPilotUnlocked = message.legendaryPilot === true;
