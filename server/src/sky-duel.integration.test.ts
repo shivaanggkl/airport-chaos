@@ -215,27 +215,31 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5500,
       'cancelling a new search never debits Credits');
     a.send('skyDuelQueue');
-    const practice = await a.waitFor('skyDuelLoading', message => message.practice === true, 20_000);
-    assert.equal(practice.pilotB, 'AI PLAYER');
-    await a.waitFor('skyDuelFound', message => message.matchId === practice.matchId);
-    await a.waitFor('skyDuelState', message => message.matchId === practice.matchId && message.phase === 'active');
-    const aiId = practice.pilotBId;
+    const aiMatch = await a.waitFor('skyDuelLoading', message => message.aiOpponent === true && message.practice === false, 20_000);
+    assert.equal(aiMatch.pilotB, 'AI PLAYER');
+    assert.equal(aiMatch.entry, 500);
+    assert.equal(aiMatch.prize, 1000);
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000);
+    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 0);
+    await a.waitFor('skyDuelFound', message => message.matchId === aiMatch.matchId);
+    await a.waitFor('skyDuelState', message => message.matchId === aiMatch.matchId && message.phase === 'active');
+    const aiId = aiMatch.pilotBId;
     assert.equal(a.messages.some(message => message.type === 'playerState' && message.playerId === aiId && message.isBot === true), true);
     assert.equal(b.messages.some(message => message.type === 'playerState' && message.playerId === aiId), false,
-      'practice AI is private to its pilot');
-    const practiceState = setInterval(() => a?.sendState(), 100);
-    const practiceFire = setInterval(() => a?.send('fire'), 350);
-    try {
-      await a.waitFor('skyDuelState', message => message.matchId === practice.matchId &&
-        (Number(message.scoreA) >= 1 || Number(message.scoreB) >= 1), 25_000);
-    } finally { clearInterval(practiceFire); clearInterval(practiceState); }
-    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5500,
-      'AI practice has no Credit reward');
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sky_duel_matches").get()?.count, 2,
-      'AI practice creates no paid match record');
+      'AI is private to its pilot');
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sky_duel_matches").get()?.count, 3,
+      'AI fallback creates a paid match record');
+    a.send('skyDuelSurrender');
+    const aiResult = await a.waitFor('skyDuelResult', message => message.matchId === aiMatch.matchId);
+    assert.equal(aiResult.outcome, 'WIN_B');
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000);
+    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 1000);
+    a.send('skyDuelPractice');
+    const practice = await a.waitFor('skyDuelLoading', message => message.practice === true);
     a.send('skyDuelSurrender');
     const practiceResult = await a.waitFor('skyDuelResult', message => message.matchId === practice.matchId);
     assert.equal(practiceResult.practice, true);
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000, 'explicit AI practice remains free');
     a.close(); b.close();
     a = new PilotClient(port, fifth.cookie, fifth.pilotId, false);
     b = new PilotClient(port, sixth.cookie, sixth.pilotId, false);

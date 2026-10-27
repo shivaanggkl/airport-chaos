@@ -10,7 +10,7 @@ type DuelMessage = {
   countdownEndsAt?: number; phase?: string; scoreA?: number; scoreB?: number; endsAt?: number; recovered?: boolean;
   outcome?: string; balanceA?: number; balanceB?: number; entry?: number; prize?: number;
   secondsLeft?: number; reconnectSeconds?: number; boundaryMeters?: number;
-  protectedUntil?: number; practice?: boolean;
+  protectedUntil?: number; practice?: boolean; aiOpponent?: boolean;
 };
 
 type PilotPresentation = { name: string; level: number; aircraft: string; avatar?: string; helmetVerified?: boolean };
@@ -47,6 +47,7 @@ export class SkyDuelUi {
   private paidEnabled = false;
   private aiPracticeEnabled = false;
   private practiceMatch = false;
+  private aiOpponent = false;
   private paidReservationConfirmed = false;
   private queuedAt = 0;
   private fairWait = false;
@@ -233,6 +234,7 @@ export class SkyDuelUi {
       this.matchId = message.matchId;
       if (message.recovered && message.type === 'skyDuelLoading') this.presentationAckMatchId = '';
       this.practiceMatch = message.practice === true;
+      this.aiOpponent = message.aiOpponent === true || this.practiceMatch;
       this.paidReservationConfirmed = !this.practiceMatch && message.entry === entryCredits && message.prize === prizeCredits;
       this.pilotAId = message.pilotAId ?? '';
       this.protectedUntil = message.protectedUntil ?? this.protectedUntil;
@@ -257,7 +259,7 @@ export class SkyDuelUi {
       this.localPilot = local;
       this.opponentPilot = opponent;
       this.renderPilot(this.localCard, local, 'YOU', this.paidReservationConfirmed);
-      this.renderPilot(this.opponentCard, opponent, this.practiceMatch ? 'AI PLAYER' : 'OPPONENT', this.paidReservationConfirmed);
+      this.renderPilot(this.opponentCard, opponent, this.aiOpponent ? 'AI PLAYER' : 'OPPONENT', this.paidReservationConfirmed);
       this.matchup.hidden = false;
       this.practiceBadge.hidden = !this.practiceMatch;
       this.pot.hidden = !this.paidReservationConfirmed;
@@ -295,7 +297,7 @@ export class SkyDuelUi {
       this.hud.hidden = this.phase === 'countdown';
       this.headerElement.hidden = this.phase !== 'countdown';
       const localIsA = this.localPilotId === this.pilotAId;
-      this.score.textContent = `YOU ${localIsA ? this.scoreA : this.scoreB}/3 · ${this.practiceMatch ? 'AI PLAYER' : 'OPPONENT'} ${localIsA ? this.scoreB : this.scoreA}/3`;
+      this.score.textContent = `YOU ${localIsA ? this.scoreA : this.scoreB}/3 · ${this.aiOpponent ? 'AI PLAYER' : 'OPPONENT'} ${localIsA ? this.scoreB : this.scoreA}/3`;
       if (phaseChanged || !this.notice.textContent) this.notice.textContent = this.defaultNotice();
       if (this.phase === 'countdown') this.enterCountdown(message.countdownEndsAt ?? this.countdownEndsAt);
       else this.clearPresentationTimers();
@@ -334,6 +336,7 @@ export class SkyDuelUi {
       this.headerElement.hidden = false;
       this.matchup.hidden = true;
       this.practiceMatch = message.practice === true;
+      this.aiOpponent = message.aiOpponent === true || this.practiceMatch;
       this.renderResultPilots();
       const isA = this.localPilotId === message.pilotA;
       this.balance = (isA ? message.balanceA : message.balanceB) ?? this.balance;
@@ -477,6 +480,7 @@ export class SkyDuelUi {
     this.stopHelmetRotation();
     this.phase = 'entry';
     this.practiceMatch = false;
+    this.aiOpponent = false;
     this.paidReservationConfirmed = false;
     this.autoQueue = false;
     this.panel.hidden = false;
@@ -494,7 +498,7 @@ export class SkyDuelUi {
       : this.balance < competitiveModes.skyDuel.entryCredits ? 'You need 500 Credits.'
         : this.balance + competitiveModes.skyDuel.entryCredits > 1_000_000 ? 'Wallet is too close to its limit.' : '');
     this.copy.textContent = this.paidEnabled
-      ? `Battle one real pilot. First to 3 wins!\nEntry: 500 Credits · Prize: 1,000 Credits · Up to 4 minutes\nYour Credits: ${this.balance.toLocaleString()}${reason ? `\n${reason}` : ''}`
+      ? `Battle a real pilot or AI PLAYER. First to 3 wins!\nEntry: 500 Credits · Prize: 1,000 Credits · Up to 4 minutes\nYour Credits: ${this.balance.toLocaleString()}${reason ? `\n${reason}` : ''}`
       : `FREE PRACTICE · NO CREDITS OR REWARDS${reason ? `\n${reason}` : ''}`;
     const play = this.button('PLAY SKY DUEL', () => this.startSearch());
     play.disabled = Boolean(reason) || this.abandonedSearch;

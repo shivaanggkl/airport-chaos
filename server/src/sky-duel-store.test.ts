@@ -97,3 +97,30 @@ test('a concurrent wallet action cannot spend held entry Credits', () => {
     db.close();
   } finally { f.close(); }
 });
+
+test('AI contributes its own reserved stake; a human win pays 1,000 once and cancellation refunds both', () => {
+  const f = fixture();
+  const aiId = 'sky-duel-ai:a';
+  try {
+    const profiles = new PlayerProfileStore(f.path);
+    profiles.getOrCreate(aiId, 'AI PLAYER');
+    const first = f.store.reserveAi('a', aiId, 1);
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    assert.equal(f.store.balance('a'), 4500);
+    assert.equal(f.store.balance(aiId), 0);
+    f.store.start(first.match.id, 2);
+    const win = f.store.settle(first.match.id, 'WIN_A', 3, 0, 3, { a: false, b: false })!;
+    assert.equal(win.balanceA, 5500);
+    assert.equal(f.store.settle(first.match.id, 'WIN_A', 3, 0, 4)?.balanceA, 5500);
+
+    const second = f.store.reserveAi('a', aiId, 5);
+    assert.equal(second.ok, true);
+    if (!second.ok) return;
+    assert.equal(f.store.balance('a'), 5000);
+    assert.equal(f.store.balance(aiId), 0);
+    f.store.settle(second.match.id, 'CANCELLED', 0, 0, 6);
+    assert.equal(f.store.balance('a'), 5500);
+    assert.equal(f.store.balance(aiId), 500);
+  } finally { f.close(); }
+});
