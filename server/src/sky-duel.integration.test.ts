@@ -63,7 +63,7 @@ class PilotClient {
   close(): void { this.socket.close(); }
 }
 
-test('real two-player combat, reconnect, surrender, payouts, and isolated AI practice', { timeout: 100_000 }, async () => {
+test('real two-player combat, reconnect, surrender, payouts, and isolated AI fallback', { timeout: 110_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'airport-chaos-duel-live-'));
   const path = join(dir, 'profiles.sqlite');
   const profiles = new PlayerProfileStore(path);
@@ -210,8 +210,9 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI pra
     await a.waitFor('skyDuelCancelled');
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5500,
       'cancelling a new search never debits Credits');
-    a.send('skyDuelPractice');
-    const practice = await a.waitFor('skyDuelLoading', message => message.practice === true);
+    a.send('skyDuelQueue');
+    const practice = await a.waitFor('skyDuelLoading', message => message.practice === true, 20_000);
+    assert.equal(practice.pilotB, 'AI PLAYER');
     await a.waitFor('skyDuelFound', message => message.matchId === practice.matchId);
     await a.waitFor('skyDuelState', message => message.matchId === practice.matchId && message.phase === 'active');
     const aiId = practice.pilotBId;
