@@ -8141,8 +8141,13 @@ server.on('connection', (socket, request) => {
           return;
         }
         if (message.type === 'skyDuelCancel') {
-          if (skyDuelQueue.delete(playerId)) sendToPlayer(playerId, { type: 'skyDuelCancelled' });
+          skyDuelQueue.delete(playerId);
           skyDuelFairWaitNotified.delete(playerId);
+          // A reservation may have completed just before a queued pilot cancelled.
+          const session = player.skyDuelMatchId && skyDuelSessions.get(player.skyDuelMatchId);
+          if (session) skyDuelFinish(session, session.phase === 'loading' || session.phase === 'countdown' ? 'CANCELLED' :
+            session.playerA === playerId ? 'WIN_B' : 'WIN_A', Date.now(), 'forfeit');
+          else sendToPlayer(playerId, { type: 'skyDuelCancelled' });
           return;
         }
         if (message.type === 'skyDuelSurrender') {

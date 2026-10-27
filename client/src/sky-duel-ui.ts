@@ -61,6 +61,7 @@ export class SkyDuelUi {
   private boundaryNoticeUntil = 0;
   private phase = 'connecting';
   private autoQueue = true;
+  private abandonedSearch = false;
   private pendingBack = false;
   private opponentDisconnected = false;
   private rotationIndex = -1;
@@ -75,9 +76,10 @@ export class SkyDuelUi {
   private presentationAckMatchId = '';
   private pendingState?: DuelMessage;
   private readonly onVisibilityChange = (): void => {
-    if (document.hidden) this.stopHelmetRotation();
+    if (document.hidden) this.leaveBackgroundedSearch();
     else if (this.phase === 'searching' && this.localPilotId) this.startHelmetRotation();
   };
+  private readonly onPageHide = (): void => this.leaveBackgroundedSearch();
   private queueTimer?: number;
   private tickId: number;
 
@@ -141,6 +143,7 @@ export class SkyDuelUi {
     host.append(this.root);
     for (const helmet of rankHelmets) { const image = new Image(); image.src = helmet.src; }
     document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('pagehide', this.onPageHide);
     this.tickId = window.setInterval(() => this.tick(), 250);
     this.renderConnecting();
   }
@@ -156,6 +159,8 @@ export class SkyDuelUi {
     this.header.updateIdentity(pilot.name, credits, skyTokens, pilot.level);
     this.headerElement.querySelector<HTMLElement>('.app-shell-wallet')!.hidden = false;
     if (this.matchId || this.phase === 'active' || this.phase === 'overtime') return;
+    if (document.hidden) this.leaveBackgroundedSearch();
+    if (this.abandonedSearch) { this.send('skyDuelCancel'); this.showEntry(); return; }
     if (!paidEnabled) { this.autoQueue = false; this.showEntry(); return; }
     if (this.phase === 'searching') { this.renderSearching(); return; }
     if (this.phase === 'unavailable') { this.showEntry(); return; }
@@ -194,8 +199,16 @@ export class SkyDuelUi {
 
   hasReservedMatch(): boolean { return Boolean(this.matchId) && !this.practiceMatch; }
   hasPracticeMatch(): boolean { return Boolean(this.matchId) && this.practiceMatch; }
+  hasAbandonedSearch(): boolean { return this.abandonedSearch; }
 
   handle(message: DuelMessage): void {
+    if (this.abandonedSearch) {
+      if (message.type === 'skyDuelCancelled' || message.type === 'skyDuelResult') {
+        this.abandonedSearch = false;
+        this.showEntry();
+      }
+      return;
+    }
     if (message.type === 'skyDuelWaiting') {
       if (this.matchId || this.phase === 'active' || this.phase === 'result') return;
       if (!this.queuedAt) this.queuedAt = Date.now() - (message.elapsedMs ?? 0);
@@ -448,9 +461,11 @@ export class SkyDuelUi {
   }
 
   private startSearch(): void {
+    if (document.hidden || this.abandonedSearch) return;
     if (!this.paidEnabled || this.balance < competitiveModes.skyDuel.entryCredits ||
       this.balance + competitiveModes.skyDuel.entryCredits > 1_000_000) { this.showEntry(); return; }
     if (!this.send('skyDuelQueue')) { this.showEntry('Connection lost. Try again.'); return; }
+    this.abandonedSearch = false;
     this.queuedAt = Date.now();
     this.fairWait = false;
     this.phase = 'searching';
@@ -482,15 +497,30 @@ export class SkyDuelUi {
       ? `Battle one real pilot. First to 3 wins!\nEntry: 500 Credits · Prize: 1,000 Credits · Up to 4 minutes\nYour Credits: ${this.balance.toLocaleString()}${reason ? `\n${reason}` : ''}`
       : `FREE PRACTICE · NO CREDITS OR REWARDS${reason ? `\n${reason}` : ''}`;
     const play = this.button('PLAY SKY DUEL', () => this.startSearch());
-    play.disabled = Boolean(reason);
-    this.actions.replaceChildren(play,
-      this.button(this.aiPracticeEnabled ? 'PLAY AI PRACTICE' : 'FREE PRACTICE', () => {
+    play.disabled = Boolean(reason) || this.abandonedSearch;
+    const practice = this.button(this.aiPracticeEnabled ? 'PLAY AI PRACTICE' : 'FREE PRACTICE', () => {
         this.phase = 'loading'; this.heading.textContent = 'AI PRACTICE';
         this.copy.textContent = 'Loading free practice. No Credits or rating at stake.';
         this.actions.replaceChildren(); this.send('skyDuelPractice');
-      }, this.paidEnabled ? 'secondary' : 'primary'),
+      }, this.paidEnabled ? 'secondary' : 'primary');
+    practice.disabled = this.abandonedSearch;
+    this.actions.replaceChildren(play, practice,
       ...(this.balance < competitiveModes.skyDuel.entryCredits ? [this.button('EARN CREDITS IN MISSIONS', this.earnCredits, 'secondary')] : []),
       this.button('BACK TO MULTIPLAYER', this.back, 'secondary'));
+  }
+
+  private leaveBackgroundedSearch(): void {
+    this.stopHelmetRotation();
+    if (this.phase !== 'searching' && this.phase !== 'found' && this.phase !== 'collecting' &&
+      this.phase !== 'countdown' && !(this.phase === 'connecting' && this.autoQueue)) return;
+    this.abandonedSearch = true;
+    this.autoQueue = false;
+    window.clearTimeout(this.queueTimer);
+    if (this.queuedAt || this.matchId) this.send('skyDuelCancel');
+    this.queuedAt = 0;
+    this.matchId = '';
+    this.pendingState = undefined;
+    if (this.localPilotId) this.showEntry();
   }
 
   private renderCountdown(): void {
@@ -687,6 +717,7 @@ export class SkyDuelUi {
     this.stopHelmetRotation();
     this.clearPresentationTimers();
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('pagehide', this.onPageHide);
     this.header.dispose();
     this.root.remove();
   }

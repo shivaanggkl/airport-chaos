@@ -73,10 +73,14 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
   const second = sessions.issue(undefined, false, now);
   const third = sessions.issue(undefined, false, now);
   const fourth = sessions.issue(undefined, false, now);
+  const fifth = sessions.issue(undefined, false, now);
+  const sixth = sessions.issue(undefined, false, now);
   profiles.getOrCreate(first.pilotId, 'First');
   profiles.getOrCreate(second.pilotId, 'Second');
   profiles.getOrCreate(third.pilotId, 'Third');
   profiles.getOrCreate(fourth.pilotId, 'Fourth');
+  profiles.getOrCreate(fifth.pilotId, 'Fifth');
+  profiles.getOrCreate(sixth.pilotId, 'Sixth');
   const signedFirst = await sessions.signUp(sessions.resolveSession(`airport_chaos_session=${first.cookie}`)!,
     'duel-first@example.com', 'a long first password', now);
   const signedSecond = await sessions.signUp(sessions.resolveSession(`airport_chaos_session=${second.cookie}`)!,
@@ -84,8 +88,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
   assert.equal(signedFirst.ok, true);
   assert.equal(signedSecond.ok, true);
   const db = new DatabaseSync(path);
-  db.prepare('UPDATE player_profiles SET credits = 5000 WHERE pilot_id IN (?,?,?,?)')
-    .run(first.pilotId, second.pilotId, third.pilotId, fourth.pilotId);
+  db.prepare('UPDATE player_profiles SET credits = 5000 WHERE pilot_id IN (?,?,?,?,?,?)')
+    .run(first.pilotId, second.pilotId, third.pilotId, fourth.pilotId, fifth.pilotId, sixth.pilotId);
   const port = await availablePort();
   const child = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
     cwd: resolve(import.meta.dirname, '../..'),
@@ -232,6 +236,18 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     a.send('skyDuelSurrender');
     const practiceResult = await a.waitFor('skyDuelResult', message => message.matchId === practice.matchId);
     assert.equal(practiceResult.practice, true);
+    a.close(); b.close();
+    a = new PilotClient(port, fifth.cookie, fifth.pilotId, false);
+    b = new PilotClient(port, sixth.cookie, sixth.pilotId, false);
+    await Promise.all([a.waitFor('welcome'), b.waitFor('welcome')]);
+    a.send('skyDuelQueue'); b.send('skyDuelQueue');
+    const pending = await a.waitFor('skyDuelLoading', message => message.practice !== true);
+    await b.waitFor('skyDuelLoading', message => message.matchId === pending.matchId);
+    a.send('skyDuelCancel');
+    const cancelled = await a.waitFor('skyDuelResult', message => message.matchId === pending.matchId);
+    assert.equal(cancelled.outcome, 'CANCELLED', 'leaving during matchmaking cancels a newly reserved match');
+    assert.equal(profiles.getOrCreate(fifth.pilotId, 'Fifth').credits, 5000);
+    assert.equal(profiles.getOrCreate(sixth.pilotId, 'Sixth').credits, 5000);
   } finally {
     a?.close(); b?.close(); child.kill('SIGTERM'); db.close();
     if (child.exitCode === null) await new Promise(resolveWait => child.once('exit', resolveWait));
