@@ -28,6 +28,8 @@ class PilotClient {
   readonly messages: Message[] = [];
   readonly socket: WebSocket;
   private spawn?: { position: { x: number; y: number; z: number }; heading: number };
+  private pose?: { position: { x: number; y: number; z: number }; heading: number };
+  private combatPose?: { position: { x: number; y: number; z: number }; heading: number };
   constructor(port: number, cookie: string, pilotId: string, private readonly autoReady = true) {
     this.socket = new WebSocket(`ws://127.0.0.1:${port}/?city=dallas&launchMode=sky-duel&protocol=${PROTOCOL_VERSION}&pilotId=${pilotId}`,
       { origin: `http://127.0.0.1:${port}`, headers: { Cookie: `airport_chaos_session=${cookie}` } });
@@ -35,8 +37,13 @@ class PilotClient {
       try {
         const message = JSON.parse(String(data)) as Message;
         this.messages.push(message);
+        if (message.type === 'welcome' && message.resumeFlight) {
+          const resumed = message.resumeFlight as { position: { x: number; y: number; z: number }; rotation: { y: number } };
+          this.pose = { position: { ...resumed.position }, heading: resumed.rotation.y };
+        }
         if (message.type === 'skyDuelSpawn') {
           this.spawn = message as typeof this.spawn;
+          this.pose = { position: { ...this.spawn!.position }, heading: this.spawn!.heading };
           this.sendState();
           if (this.autoReady) this.send('skyDuelReady');
         }
@@ -46,9 +53,25 @@ class PilotClient {
   }
   send(type: string): void { this.socket.send(JSON.stringify({ type })); }
   sendState(): void {
-    if (!this.spawn || this.socket.readyState !== WebSocket.OPEN) return;
-    this.socket.send(JSON.stringify({ type: 'state', position: this.spawn.position,
-      rotation: { x: 0, y: this.spawn.heading, z: 0 }, boostActive: false }));
+    if (!this.pose || this.socket.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({ type: 'state', position: this.pose.position,
+      rotation: { x: 0, y: this.pose.heading, z: 0 }, boostActive: false }));
+  }
+  setCombatPose(position: { x: number; y: number; z: number }, heading: number): void {
+    this.combatPose = { position, heading };
+  }
+  stepCombatPose(): void {
+    if (this.pose && this.combatPose) {
+      const step = (current: number, target: number, limit: number) =>
+        current + Math.max(-limit, Math.min(limit, target - current));
+      this.pose.position = {
+        x: step(this.pose.position.x, this.combatPose.position.x, 20),
+        y: step(this.pose.position.y, this.combatPose.position.y, 10),
+        z: step(this.pose.position.z, this.combatPose.position.z, 20),
+      };
+      this.pose.heading = step(this.pose.heading, this.combatPose.heading, 0.07);
+    }
+    this.sendState();
   }
   async waitFor(type: string, check: (message: Message) => boolean = () => true, timeoutMs = 12_000): Promise<Message> {
     const deadline = Date.now() + timeoutMs;
@@ -61,6 +84,16 @@ class PilotClient {
       ({ type: message.type, phase: message.phase, scoreA: message.scoreA, scoreB: message.scoreB })) )}`);
   }
   close(): void { this.socket.close(); }
+}
+
+function positionForCombat(shooter: PilotClient, target: PilotClient, shooterSpawn: Message, targetSpawn: Message): void {
+  const from = shooterSpawn.position as { x: number; y: number; z: number };
+  const to = targetSpawn.position as { x: number; y: number; z: number };
+  const shooterWest = from.x < to.x;
+  const altitude = Math.max(from.y, to.y) + 150;
+  shooter.setCombatPose({ x: to.x + (shooterWest ? -250 : 250), y: altitude, z: to.z },
+    shooterWest ? -Math.PI / 2 : Math.PI / 2);
+  target.setCombatPose({ x: to.x, y: altitude, z: to.z }, 0);
 }
 
 test('real two-player combat, reconnect, surrender, payouts, and isolated AI fallback', { timeout: 110_000 }, async () => {
@@ -133,7 +166,15 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     b = new PilotClient(port, signedSecond.cookie!, second.pilotId, false);
     await Promise.all([a.waitFor('welcome'), b.waitFor('welcome')]);
     a.send('skyDuelQueue'); b.send('skyDuelQueue');
-    await Promise.all([a.waitFor('skyDuelLoading'), b.waitFor('skyDuelLoading')]);
+    const [loadingA, loadingB] = await Promise.all([a.waitFor('skyDuelLoading'), b.waitFor('skyDuelLoading')]);
+    assert.equal(loadingA.playerAId, loadingB.playerAId);
+    assert.equal(loadingA.playerBId, loadingB.playerBId);
+    assert.notEqual(loadingA.playerAId, loadingA.playerBId, 'HUD participants have distinct live entity IDs');
+    const [spawnA, spawnB] = await Promise.all([a.waitFor('skyDuelSpawn'), b.waitFor('skyDuelSpawn')]);
+    assert.equal(spawnA.speed, 0);
+    assert.equal(spawnB.speed, 0);
+    assert.equal(Math.abs(Number((spawnA.position as { x: number }).x) - Number((spawnB.position as { x: number }).x)), 690,
+      'human pilots start on separate DFW runways');
     await new Promise(resolveWait => setTimeout(resolveWait, 1_200));
     assert.equal(a.messages.some(message => message.type === 'skyDuelFound'), false,
       'countdown waits for both clients to finish loading');
@@ -146,6 +187,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     b.send('skyDuelPresentationReady');
     const [foundA, foundB] = await Promise.all([a.waitFor('skyDuelFound'), b.waitFor('skyDuelFound')]);
     assert.equal(foundA.matchId, foundB.matchId);
+    assert.equal(foundA.playerAId, loadingA.playerAId);
+    assert.equal(foundA.playerBId, loadingA.playerBId);
     assert.equal(foundA.countdownEndsAt, foundB.countdownEndsAt, 'both pilots receive one authoritative start time');
     assert.ok(Number(foundA.countdownEndsAt) - Date.now() > 4_000, 'match starts after a five-second countdown');
     assert.equal(typeof foundA.aircraftA, 'string');
@@ -169,7 +212,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     await b.waitFor('skyDuelState', message => message.phase === 'active');
     assert.equal(profiles.getOrCreate(second.pilotId, 'Second').credits, 4500,
       'reconnect never reserves a second stake');
-    const keepState = setInterval(() => { a?.sendState(); b?.sendState(); }, 100);
+    positionForCombat(a, b, spawnA, spawnB);
+    const keepState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const fire = setInterval(() => a?.send('fire'), 350);
     try {
       await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 1, 15_000);
@@ -192,9 +236,11 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     a.send('skyDuelQueue'); b.send('skyDuelQueue');
     const secondFound = await a.waitFor('skyDuelFound');
     await b.waitFor('skyDuelFound');
+    const [secondSpawnA, secondSpawnB] = await Promise.all([a.waitFor('skyDuelSpawn'), b.waitFor('skyDuelSpawn')]);
     const thirdIsA = secondFound.pilotAId === third.pilotId;
     await a.waitFor('skyDuelState', message => message.phase === 'active');
-    const combatState = setInterval(() => { a?.sendState(); b?.sendState(); }, 100);
+    positionForCombat(a, b, secondSpawnA, secondSpawnB);
+    const combatState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const combatFire = setInterval(() => a?.send('fire'), 350);
     try {
       const win = await a.waitFor('skyDuelResult', message => message.outcome === (thirdIsA ? 'WIN_A' : 'WIN_B'), 35_000);
@@ -219,27 +265,54 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(aiMatch.pilotB, 'AI PLAYER');
     assert.equal(aiMatch.entry, 500);
     assert.equal(aiMatch.prize, 1000);
-    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000);
-    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 0);
+    assert.equal(aiMatch.playerBId, aiMatch.pilotBId, 'AI telemetry uses the match participant ID');
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000, 'AI match reserves the human stake');
+    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 0, 'AI reserves its own stake');
     await a.waitFor('skyDuelFound', message => message.matchId === aiMatch.matchId);
     await a.waitFor('skyDuelState', message => message.matchId === aiMatch.matchId && message.phase === 'active');
     const aiId = aiMatch.pilotBId;
-    assert.equal(a.messages.some(message => message.type === 'playerState' && message.playerId === aiId && message.isBot === true), true);
+    const aiStart = await a.waitFor('playerState', message => message.playerId === aiId && message.isBot === true);
+    assert.ok(Number.isFinite(aiStart.altitudeMeters), 'AI starting altitude is available to the HUD');
+    const aiStartPosition = aiStart.position as { x: number; y: number; z: number };
+    const aiSpawn = a.messages.filter(message => message.type === 'skyDuelSpawn').at(-1)!;
+    assert.equal(Math.abs(aiStartPosition.x - Number((aiSpawn.position as { x: number }).x)), 690,
+      'AI starts on the parallel DFW runway');
     assert.equal(b.messages.some(message => message.type === 'playerState' && message.playerId === aiId), false,
-      'AI is private to its pilot');
+      'practice AI is private to its pilot');
+    const aiState = setInterval(() => a?.sendState(), 100);
+    try {
+      await a.waitFor('state', message => message.playerId === aiId &&
+        Number((message.position as { z: number }).z) < aiStartPosition.z - 15, 15_000);
+    } finally { clearInterval(aiState); }
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sky_duel_matches").get()?.count, 3,
-      'AI fallback creates a paid match record');
+      'paid AI fallback creates an authoritative match record');
     a.send('skyDuelSurrender');
     const aiResult = await a.waitFor('skyDuelResult', message => message.matchId === aiMatch.matchId);
     assert.equal(aiResult.outcome, 'WIN_B');
-    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000);
-    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 1000);
+    assert.equal(aiResult.aiOpponent, true);
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000,
+      'forfeiting the paid AI match loses the reserved entry');
+    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 1000,
+      'AI receives the same settled pool when the human forfeits');
     a.send('skyDuelPractice');
     const practice = await a.waitFor('skyDuelLoading', message => message.practice === true);
     a.send('skyDuelSurrender');
-    const practiceResult = await a.waitFor('skyDuelResult', message => message.matchId === practice.matchId);
-    assert.equal(practiceResult.practice, true);
-    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000, 'explicit AI practice remains free');
+    await a.waitFor('skyDuelResult', message => message.matchId === practice.matchId && message.practice === true);
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000,
+      'explicit AI practice remains free');
+    a.send('skyDuelQueue');
+    const absentMatch = await a.waitFor('skyDuelLoading', message => message.aiOpponent === true &&
+      message.practice === false && message.matchId !== aiMatch.matchId, 20_000);
+    a.close();
+    await new Promise(resolveWait => setTimeout(resolveWait, 16_000));
+    a = new PilotClient(port, third.cookie, third.pilotId);
+    await a.waitFor('welcome');
+    const absenceResult = await a.waitFor('skyDuelResult', message => message.matchId === absentMatch.matchId);
+    assert.equal(absenceResult.outcome, 'WIN_B', 'an absent pilot forfeits before gameplay starts');
+    assert.equal(absenceResult.prize, 0, 'the AI does not receive the unused prize pool');
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 4500);
+    assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 500);
+    a.socket.send(JSON.stringify({ type: 'skyDuelResultSeen', matchId: absentMatch.matchId }));
     a.close(); b.close();
     a = new PilotClient(port, fifth.cookie, fifth.pilotId, false);
     b = new PilotClient(port, sixth.cookie, sixth.pilotId, false);

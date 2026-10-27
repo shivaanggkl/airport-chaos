@@ -124,3 +124,20 @@ test('AI contributes its own reserved stake; a human win pays 1,000 once and can
     assert.equal(f.store.balance(aiId), 500);
   } finally { f.close(); }
 });
+
+test('an absent human loses the reserved entry without paying the AI wallet', () => {
+  const f = fixture();
+  const aiId = 'sky-duel-ai:a';
+  try {
+    new PlayerProfileStore(f.path).getOrCreate(aiId, 'AI PLAYER');
+    const reserved = f.store.reserveAi('a', aiId, 1);
+    assert.equal(reserved.ok, true);
+    if (!reserved.ok) return;
+    f.store.start(reserved.match.id, 2);
+    const result = f.store.settle(reserved.match.id, 'WIN_B', 0, 0, 3, { a: false, b: false }, true)!;
+    assert.equal(result.match.outcome, 'WIN_B');
+    assert.equal(result.balanceA, 4_500);
+    assert.equal(result.balanceB, 0);
+    assert.equal(f.store.settle(reserved.match.id, 'WIN_B', 0, 0, 4)?.balanceB, 0);
+  } finally { f.close(); }
+});

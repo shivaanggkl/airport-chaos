@@ -140,12 +140,13 @@ export class SkyDuelStore {
     return row ? this.record(row) : undefined;
   }
 
-  settle(id: string, outcome: DuelOutcome, scoreA: number, scoreB: number, now = Date.now(), xpEligible: { a: boolean; b: boolean } = { a: false, b: false }): DuelReceipt | undefined {
+  settle(id: string, outcome: DuelOutcome, scoreA: number, scoreB: number, now = Date.now(), xpEligible: { a: boolean; b: boolean } = { a: false, b: false }, aiForfeit = false): DuelReceipt | undefined {
     return this.wallet.transaction(wallet => {
       const match = this.get(id);
       if (!match) return undefined;
       if (match.status === 'SETTLED') return this.receipt(match);
       if (outcome !== 'CANCELLED' && match.status !== 'STARTED') throw new Error('Competitive result requires a started match');
+      if (aiForfeit && (outcome !== 'WIN_B' || match.pilotB !== `sky-duel-ai:${match.pilotA}`)) throw new Error('Invalid AI forfeit');
       if (!Number.isSafeInteger(scoreA) || !Number.isSafeInteger(scoreB) || scoreA < 0 || scoreB < 0) throw new Error('Invalid Sky Duel score');
       const rankedResult = outcome === 'WIN_A' && scoreA > scoreB || outcome === 'WIN_B' && scoreB > scoreA;
       const activeMs = match.startedAt === null ? 0 : Math.max(0, now - match.startedAt);
@@ -154,7 +155,7 @@ export class SkyDuelStore {
         b: rankedResult && xpEligible.b && (outcome === 'WIN_B' || activeMs >= 60_000 && scoreB > 0),
       };
       const amountA = outcome === 'WIN_A' ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
-      const amountB = outcome === 'WIN_B' ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
+      const amountB = outcome === 'WIN_B' && !aiForfeit ? SKY_DUEL_POOL : outcome === 'DRAW' || outcome === 'CANCELLED' ? SKY_DUEL_ENTRY : 0;
       const reason = outcome === 'WIN_A' || outcome === 'WIN_B' ? 'SKY_DUEL_PAYOUT' : 'SKY_DUEL_REFUND';
       if (amountA) {
         const result = wallet.credit({ pilotId: match.pilotA, currency: 'CREDITS', amount: amountA, reason, referenceId: id, idempotencyKey: `${id}:settle:a`, createdAt: now });
