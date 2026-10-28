@@ -304,7 +304,7 @@ type SkyDuelRematch = { matchId: string; pilotA: string; pilotB: string; aiOppon
   readyA: boolean; readyB: boolean; startsAt: number; expiresAt: number };
 const skyDuelRematches = new Map<string, SkyDuelRematch>();
 const SKY_DUEL_AI_FALLBACK_MS = 12_000;
-const SKY_DUEL_RUNWAY_INTRO_MS = 3_000;
+const SKY_DUEL_RUNWAY_INTRO_MS = 5_000;
 const SKY_DUEL_RUNWAY_COUNTDOWN_MS = 3_000;
 const skyDuelCenter = skyDuelArenaCenter;
 const skyDuelRunwayElevations = skyDuelAirportIds.map(id => dallasAirportElevations.get(id)!);

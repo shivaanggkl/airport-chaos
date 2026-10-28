@@ -8592,8 +8592,12 @@ function updateRemotePlayers(delta: number): void {
     // a fresh transform is no longer a real aircraft and must not leave its
     // red proxy/fallback behind at an airport.
     if (remote.timeSinceUpdate > remoteStateStaleSeconds) {
-      removeRemotePlayer(remote.playerId);
-      continue;
+      if (skyDuelMode && skyDuelUi?.blocksFlightInput() && remote.playerId === skyDuelUi.opponentEntityId())
+        remote.timeSinceUpdate = remoteStateStaleSeconds;
+      else {
+        removeRemotePlayer(remote.playerId);
+        continue;
+      }
     }
     remote.interpolationElapsed = Math.min(remote.interpolationDuration, remote.interpolationElapsed + delta);
     const interpolation = remote.interpolationElapsed / remote.interpolationDuration;
@@ -10181,9 +10185,10 @@ const skyDuelIntroTarget = new THREE.Vector3();
 
 function renderSkyDuelRunwayIntro(): boolean {
   const progress = skyDuelUi?.runwayIntroProgress();
+  const countdown = skyDuelUi?.runwayCountdownActive() ?? false;
   const opponent = skyDuelUi ? remotePlayers.get(skyDuelUi.opponentEntityId()) : undefined;
-  const visible = progress !== undefined;
-  skyDuelUi?.setRunwayIntroVisible(visible);
+  const visible = progress !== undefined || countdown;
+  skyDuelUi?.setRunwayIntroVisible(visible, countdown);
   if (!visible || progress === undefined || !opponent || !airplane.visible || !skyDuelIntroCamera) return false;
 
   // WebGLRenderer viewport/scissor APIs use CSS pixels and apply pixelRatio internally.
@@ -10196,6 +10201,7 @@ function renderSkyDuelRunwayIntro(): boolean {
   const remoteAirframe = opponent.plane.userData.airframeRoot as THREE.Group;
   const remoteScale = remoteAirframe.scale.x;
   const remoteVisible = opponent.plane.visible;
+  const localVisible = airplane.visible;
   opponent.plane.visible = true;
   remoteAirframe.scale.setScalar(remoteAirframe.userData.duelVisualScale as number);
   const sweep = smoothstep01(Math.min(1, progress / 0.8));
@@ -10203,6 +10209,8 @@ function renderSkyDuelRunwayIntro(): boolean {
   const radius = Math.max(19, cameraFrameSize.x * 1.7);
   renderer.setScissorTest(true);
   for (const [index, plane] of [airplane, opponent.plane].entries()) {
+    airplane.visible = index === 0;
+    opponent.plane.visible = index === 1;
     const width = index === 0 ? leftWidth : size.x - leftWidth;
     const x = index === 0 ? 0 : leftWidth;
     skyDuelIntroOffset.set(Math.sin(angle) * radius, Math.max(5, cameraFrameSize.y * 1.1), Math.cos(angle) * radius)
@@ -10222,6 +10230,7 @@ function renderSkyDuelRunwayIntro(): boolean {
   skyDome.position.copy(skyDuelIntroSkyPosition);
   remoteAirframe.scale.setScalar(remoteScale);
   opponent.plane.visible = remoteVisible;
+  airplane.visible = localVisible;
   return true;
 }
 let protocolReady = false;

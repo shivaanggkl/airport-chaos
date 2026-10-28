@@ -6828,6 +6828,8 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .gara
 .sky-duel-flight:has(.sky-duel-ui.is-runway-intro) > :not(canvas):not(.sky-duel-ui) { visibility: hidden; }
 .sky-duel-runway-intro { position: fixed; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); pointer-events: none; }
 .sky-duel-runway-intro[hidden] { display: none; }
+.sky-duel-runway-intro.is-countdown .sky-duel-runway-side,
+.sky-duel-runway-intro.is-countdown::after { display: none; }
 .sky-duel-runway-intro::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: linear-gradient(180deg, #ffe08a, #64dfff 50%, #ffe08a); box-shadow: 0 0 10px rgb(52 214 255 / 65%); }
 .sky-duel-runway-side { display: flex; flex-direction: column; align-items: center; justify-content: space-between; min-width: 0; padding: calc(var(--safe-area-top) + 18px) 18px calc(var(--safe-area-bottom) + 18px); text-align: center; background: linear-gradient(180deg, rgb(2 24 59 / 54%), transparent 28%, transparent 72%, rgb(2 24 59 / 64%)); }
 .sky-duel-runway-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; font: 900 clamp(16px, 2.7vw, 30px)/1.15 var(--font-display); letter-spacing: .055em; text-shadow: 0 2px 7px #071b42; }

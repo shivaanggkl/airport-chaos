@@ -147,9 +147,15 @@ export class SkyDuelUi {
 
   runwayIntroProgress(): number | undefined {
     if (this.phase !== 'launch' || this.opponentDisconnected || !this.launchStartedAt ||
-      Date.now() >= this.launchEndsAt) return undefined;
+      Date.now() >= this.launchCountdownAt) return undefined;
     return Math.max(0, Math.min(1, (Date.now() - this.launchStartedAt) /
       (this.launchCountdownAt - this.launchStartedAt)));
+  }
+
+  runwayCountdownActive(): boolean {
+    const now = Date.now();
+    return this.phase === 'launch' && !this.opponentDisconnected &&
+      now >= this.launchCountdownAt && now < this.launchEndsAt;
   }
 
   isRunwayLaunchActive(): boolean { return this.phase === 'launch'; }
@@ -158,13 +164,14 @@ export class SkyDuelUi {
       this.phase === 'loading' || this.phase === 'countdown' || this.phase === 'launch');
   }
 
-  setRunwayIntroVisible(visible: boolean): void {
+  setRunwayIntroVisible(visible: boolean, countdown = false): void {
     const remaining = this.launchEndsAt - Date.now();
-    this.runwayCountdown.hidden = !visible || Date.now() < this.launchCountdownAt;
+    this.runwayCountdown.hidden = !visible || !countdown;
     if (!this.runwayCountdown.hidden) {
       const number = String(Math.max(1, Math.ceil(remaining / 1_000)));
       if (this.runwayCountdown.textContent !== number) this.runwayCountdown.textContent = number;
     }
+    this.runwayIntro.classList.toggle('is-countdown', visible && countdown);
     if (this.runwayIntro.hidden === !visible) return;
     this.runwayIntro.hidden = !visible;
     this.root.classList.toggle('is-runway-intro', visible);

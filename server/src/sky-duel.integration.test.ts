@@ -221,7 +221,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
         message.type === 'playerState' && message.playerId === peerId && message.lifeState === 'respawning'),
       'each pilot receives the opponent runway pose before the split view begins');
     }
-    assert.equal(Number(launchA.launchCountdownAt) - Number(launchA.launchStartedAt), 3_000);
+    assert.equal(Number(launchA.launchCountdownAt) - Number(launchA.launchStartedAt), 5_000);
     assert.equal(Number(launchA.launchEndsAt) - Number(launchA.launchCountdownAt), 3_000);
     assert.equal(a.messages.some(message => message.type === 'skyDuelState' && message.phase === 'active'), false,
       'the match clock does not start during the runway presentation');
