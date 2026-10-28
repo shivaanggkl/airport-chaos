@@ -230,6 +230,31 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sky_duel_receipts').get()?.count, 1);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM wallet_transactions WHERE reason = ?').get('SKY_DUEL_PAYOUT')?.count, 1);
 
+    a.socket.send(JSON.stringify({ type: 'skyDuelRematchReady', matchId: resultA.matchId }));
+    const [readyA, readyB] = await Promise.all([
+      a.waitFor('skyDuelRematchState', message => message.matchId === resultA.matchId && (message.readyA === true || message.readyB === true)),
+      b.waitFor('skyDuelRematchState', message => message.matchId === resultA.matchId && (message.readyA === true || message.readyB === true)),
+    ]);
+    assert.deepEqual([readyA.readyA, readyA.readyB], [readyB.readyA, readyB.readyB]);
+    assert.equal(a.messages.filter(message => message.type === 'skyDuelLoading').length, 1,
+      'one replay choice cannot start or charge a new match');
+    b.socket.send(JSON.stringify({ type: 'skyDuelRematchReady', matchId: resultA.matchId }));
+    await Promise.all([
+      a.waitFor('skyDuelRematchState', message => message.matchId === resultA.matchId && message.readyA === true && message.readyB === true),
+      b.waitFor('skyDuelRematchState', message => message.matchId === resultA.matchId && message.readyA === true && message.readyB === true),
+    ]);
+    const [rematchA, rematchB] = await Promise.all([
+      a.waitFor('skyDuelLoading', message => message.matchId !== resultA.matchId),
+      b.waitFor('skyDuelLoading', message => message.matchId !== resultA.matchId),
+    ]);
+    assert.equal(rematchA.matchId, rematchB.matchId);
+    assert.equal(profiles.getOrCreate(first.pilotId, 'First').credits, 4000);
+    assert.equal(profiles.getOrCreate(second.pilotId, 'Second').credits, 5000);
+    a.send('skyDuelCancel');
+    await a.waitFor('skyDuelResult', message => message.matchId === rematchA.matchId && message.outcome === 'CANCELLED');
+    assert.equal(profiles.getOrCreate(first.pilotId, 'First').credits, 4500);
+    assert.equal(profiles.getOrCreate(second.pilotId, 'Second').credits, 5500);
+
     a.close(); b.close();
     a = new PilotClient(port, third.cookie, third.pilotId);
     b = new PilotClient(port, fourth.cookie, fourth.pilotId);
@@ -254,7 +279,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
       'the guest winner receives the same server-verified XP');
     assert.equal(profiles.getOrCreate(fourth.pilotId, 'Fourth').pilotProgress.xp, 0,
       'an inactive guest loser receives no XP');
-    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sky_duel_receipts').get()?.count, 2);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sky_duel_receipts').get()?.count, 3);
     a.send('skyDuelQueue');
     await a.waitFor('skyDuelWaiting');
     a.send('skyDuelCancel');
@@ -285,7 +310,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
       await a.waitFor('state', message => message.playerId === aiId &&
         Number((message.position as { z: number }).z) < aiStartPosition.z - 15, 15_000);
     } finally { clearInterval(aiState); }
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sky_duel_matches").get()?.count, 3,
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sky_duel_matches").get()?.count, 4,
       'paid AI fallback creates an authoritative match record');
     a.send('skyDuelSurrender');
     const aiResult = await a.waitFor('skyDuelResult', message => message.matchId === aiMatch.matchId);
@@ -295,6 +320,16 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
       'forfeiting the paid AI match loses the reserved entry');
     assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 1000,
       'AI receives the same settled pool when the human forfeits');
+    a.socket.send(JSON.stringify({ type: 'skyDuelRematchReady', matchId: aiResult.matchId }));
+    await a.waitFor('skyDuelRematchState', message => message.matchId === aiResult.matchId &&
+      message.readyA === true && message.readyB === true);
+    const aiRematch = await a.waitFor('skyDuelLoading', message => message.aiOpponent === true &&
+      message.matchId !== aiResult.matchId);
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 4500);
+    a.send('skyDuelCancel');
+    await a.waitFor('skyDuelResult', message => message.matchId === aiRematch.matchId && message.outcome === 'CANCELLED');
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000,
+      'a cancelled AI rematch refunds its new reservation');
     a.send('skyDuelPractice');
     const practice = await a.waitFor('skyDuelLoading', message => message.practice === true);
     a.send('skyDuelSurrender');
@@ -303,7 +338,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
       'explicit AI practice remains free');
     a.send('skyDuelQueue');
     const absentMatch = await a.waitFor('skyDuelLoading', message => message.aiOpponent === true &&
-      message.practice === false && message.matchId !== aiMatch.matchId, 20_000);
+      message.practice === false && message.matchId !== aiMatch.matchId && message.matchId !== aiRematch.matchId, 20_000);
     a.close();
     await new Promise(resolveWait => setTimeout(resolveWait, 16_000));
     a = new PilotClient(port, third.cookie, third.pilotId);
