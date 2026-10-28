@@ -9,20 +9,20 @@ export const aircraftVisualConfig = Object.freeze({
       Object.freeze({ x: 0, y: -0.35, z: 3.25, radius: 0.575, boostLength: 3.2 }),
     ]),
     groundContacts: Object.freeze([
-      Object.freeze({ x: -1.02, y: -1.235, z: 0.64 }),
-      Object.freeze({ x: 1.02, y: -1.235, z: 0.64 }),
-      Object.freeze({ x: 0, y: -1.235, z: -1.46 }),
+      Object.freeze({ x: -0.96, y: -1.21, z: 0.70 }),
+      Object.freeze({ x: 0.96, y: -1.21, z: 0.70 }),
+      Object.freeze({ x: 0, y: -1.21, z: -2.19 }),
     ]),
   }),
   privateJet: Object.freeze({
     effectAnchors: Object.freeze([
-      Object.freeze({ x: -2.02, y: -0.75, z: 0.98, radius: 0.31 }),
-      Object.freeze({ x: 2.02, y: -0.75, z: 0.98, radius: 0.31 }),
+      Object.freeze({ x: -2.026, y: -1.536, z: -0.132, radius: 0.47 }),
+      Object.freeze({ x: 2.026, y: -1.536, z: -0.132, radius: 0.47 }),
     ]),
     groundContacts: Object.freeze([
-      Object.freeze({ x: -1.18, y: -1.121, z: 0.89 }),
-      Object.freeze({ x: 1.18, y: -1.121, z: 0.89 }),
-      Object.freeze({ x: 0, y: -1.121, z: -2.45 }),
+      Object.freeze({ x: -0.936, y: -1.923, z: 0.700 }),
+      Object.freeze({ x: 0.936, y: -1.923, z: 0.700 }),
+      Object.freeze({ x: 0, y: -1.926, z: -4.576 }),
     ]),
   }),
   cargo: Object.freeze({
@@ -41,12 +41,12 @@ export const aircraftVisualConfig = Object.freeze({
   fighter: Object.freeze({
     // Primitive fallback only; the loaded REDSPEAR uses ExhaustSocket_Main.
     effectAnchors: Object.freeze([
-      Object.freeze({ x: 0, y: -0.18, z: 2.9, radius: 0.46 }),
+      Object.freeze({ x: 0, y: -0.342, z: 4.217, radius: 0.38 }),
     ]),
     groundContacts: Object.freeze([
-      Object.freeze({ x: -0.89, y: -1.15, z: 0.72 }),
-      Object.freeze({ x: 0.89, y: -1.15, z: 0.72 }),
-      Object.freeze({ x: 0, y: -1.15, z: -2.32 }),
+      Object.freeze({ x: -0.818, y: -1.512, z: 1.013 }),
+      Object.freeze({ x: 0.818, y: -1.512, z: 1.013 }),
+      Object.freeze({ x: 0, y: -1.512, z: -2.306 }),
     ]),
   }),
 });

@@ -6,7 +6,7 @@
  */
 export const aircraftMuzzleSockets = Object.freeze({
   trainer: Object.freeze({ position: Object.freeze({ x: 0, y: -0.38, z: -3.37 }), forward: Object.freeze({ x: 0, y: 0, z: -1 }) }),
-  privateJet: Object.freeze({ position: Object.freeze({ x: 0, y: -0.19, z: -4.62 }), forward: Object.freeze({ x: 0, y: 0, z: -1 }) }),
+  privateJet: Object.freeze({ position: Object.freeze({ x: 0, y: -0.714, z: -5.884 }), forward: Object.freeze({ x: 0, y: 0, z: -1 }) }),
   cargo: Object.freeze({ position: Object.freeze({ x: 0, y: -0.28, z: -4.48 }), forward: Object.freeze({ x: 0, y: 0, z: -1 }) }),
-  fighter: Object.freeze({ position: Object.freeze({ x: 0, y: -0.25, z: -4.38 }), forward: Object.freeze({ x: 0, y: 0, z: -1 }) }),
+  fighter: Object.freeze({ position: Object.freeze({ x: 0, y: -0.437, z: -4.327 }), forward: Object.freeze({ x: 0, y: 0, z: -1 }) }),
 });

@@ -49,7 +49,9 @@ const urls: Record<AssetKey, string> = {
 
 const loader = new GLTFLoader();
 const cache = new Map<AssetKey, Promise<THREE.Group>>();
-const aircraftAssetVersion = 'airport-chaos-original-v2';
+const aircraftAssetVersion = 'bluejay-premium-v3';
+const fighterAssetVersion = 'firehawk-premium-v4';
+const nightowlAssetVersion = 'nightowl-airliner-v1';
 const bounds = new THREE.Box3();
 const size = new THREE.Vector3();
 const center = new THREE.Vector3();
@@ -68,7 +70,7 @@ function loadAsset(key: AssetKey): Promise<THREE.Group> {
   const cached = cache.get(key);
   if (cached) return cached;
   const assetUrl = key === 'trainer' || key === 'privateJet' || key === 'cargo' || key === 'fighter'
-    ? `${urls[key]}?v=${aircraftAssetVersion}`
+    ? `${urls[key]}?v=${key === 'fighter' ? fighterAssetVersion : key === 'privateJet' ? nightowlAssetVersion : aircraftAssetVersion}`
     : urls[key];
   const request = loader.loadAsync(assetUrl).then((gltf) => {
     markSharedAsset(gltf.scene);
@@ -135,8 +137,13 @@ export function attachAircraftAsset(
       model.name = `aircraft-asset-${type}`;
       visualParent.add(model);
       const propellers: THREE.Object3D[] = [];
-      model.traverse((object) => { if (object.name.startsWith('Propeller_') && !object.name.endsWith('_Blades')) propellers.push(object); });
+      const propellerBlurs: THREE.Object3D[] = [];
+      model.traverse((object) => {
+        if (object.name.startsWith('Propeller_') && !object.name.endsWith('_Blades') && !object.name.endsWith('_Blur')) propellers.push(object);
+        if (object.name.endsWith('_Blur')) propellerBlurs.push(object);
+      });
       plane.userData.assetPropellers = propellers;
+      plane.userData.assetPropellerBlurs = propellerBlurs;
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
       applyAircraftCosmetics(plane, type, plane.userData.equippedCosmetics ?? {});

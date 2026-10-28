@@ -891,7 +891,7 @@ const lastEventTypes = new Map<CityId, DynamicEventType>();
 const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(fileURLToPath(new URL('../data/player-profiles.sqlite', import.meta.url)));
 const localJourneyQaUnlockAll = localJourneyQaUnlockEnabled();
 const stagingJourneyQaUnlockAll = stagingJourneyQaUnlockEnabled() || localJourneyQaUnlockAll;
-const profileStore = new PlayerProfileStore(profileDatabasePath, stagingJourneyQaUnlockAll);
+const profileStore = new PlayerProfileStore(profileDatabasePath, stagingJourneyQaUnlockAll, localJourneyQaUnlockAll);
 // Paid entry is deliberately opt-in. Public production must keep this unset
 // until the operator has commercial, legal, and platform clearance.
 const skyDuelStakesEnabled = process.env.AIRPORT_CHAOS_SKY_DUEL_STAKES_ENABLED === '1';
@@ -2288,6 +2288,7 @@ const httpServer = createServer(async (request, response) => {
               if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
               if(slideRequest.slideId==='takeoff')sendTutorialScreenplayCruise(id,player);
               if(slideRequest.slideId==='cameraZoom')createTrainingTarget(id,player);
+              if(slideRequest.slideId==='approach')createTrainingTarget(id,player);
               if(slideRequest.slideId==='fire')sendTutorialLandingApproach(id,player,true);
             }
           }else error='Follow the training screenplay in order.';
@@ -6243,19 +6244,26 @@ function removeTrainingTarget(ownerId: string): void {
 const trainingApproachRange = Math.min(COMBAT_RANGE, 600);
 function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.now()): string | undefined {
   if (!owner.tutorialMode || owner.cityId !== 'milwaukee' || owner.lifeState !== 'alive' || !owner.hasRespawnTransform) return undefined;
+  const screenplay = profileStore.trainingSlideIndex(owner.pilotId) !== undefined;
+  const forward = forwardDirection(owner);
+  const targetDistance = screenplay ? trainingApproachRange * 0.65 : trainingApproachRange + 150;
+  const targetX = owner.position.x + forward.x * targetDistance;
+  const targetZ = owner.position.z + forward.z * targetDistance;
+  const targetY = Math.max(owner.position.y + (screenplay ? forward.y * targetDistance : 20), botTerrainHeight(owner.cityId, targetX, targetZ) + 85);
   const existing=[...players.entries()].find(([,candidate])=>candidate.trainingOwnerId===ownerId&&candidate.lifeState==='alive');
   if(existing){
+    if(screenplay){
+      existing[1].position={x:targetX,y:targetY,z:targetZ};
+      existing[1].lastAcceptedPosition={...existing[1].position};
+      existing[1].lastAcceptedTransformAt=now;
+    }
     existing[1].lastStateAt=now;
     sendToPlayer(ownerId,botStateMessage(existing[0],existing[1],'playerState'));
     sendToPlayer(ownerId,{type:'tutorialTarget',targetId:existing[0]});
     return existing[0];
   }
   removeTrainingTarget(ownerId);
-  const forward = forwardDirection(owner);
   const targetId = `training:${ownerId}`;
-  const targetX = owner.position.x + forward.x * (trainingApproachRange + 150);
-  const targetZ = owner.position.z + forward.z * (trainingApproachRange + 150);
-  const targetY = Math.max(owner.position.y + 20, botTerrainHeight(owner.cityId, targetX, targetZ) + 85);
   const target: PlayerState = {
     pilotId: targetId, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId: owner.cityId, position: { x: targetX, y: targetY, z: targetZ },

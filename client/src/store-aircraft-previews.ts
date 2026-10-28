@@ -15,7 +15,7 @@ function appearanceId(item: StoreItem): string {
   if (item.kind === 'paint') return item.id;
   return item.aircraftType === 'fighter' ? 'firehawk-inferno'
     : item.aircraftType === 'cargo' ? 'mammoth-sand'
-      : item.aircraftType === 'privateJet' ? 'nightowl-forest' : 'bluejay-skybolt';
+      : item.aircraftType === 'privateJet' ? 'nightowl-sky-blue' : 'bluejay-skybolt';
 }
 
 export class StoreAircraftPreviews {

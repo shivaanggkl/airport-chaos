@@ -5,7 +5,7 @@ import { cosmeticCatalog, cosmeticUnlockPrice } from './cosmetics.mjs';
 // Public display prices only. Purchase handlers independently validate the
 // product, entitlement, balance, and current server-side price.
 export function publicStoreCatalog() {
-  const paints = cosmeticCatalog.map(item => {
+  const paints = cosmeticCatalog.filter(item => !item.retired).map(item => {
     const priced = item.unlockType === 'credits' || item.unlockType === 'tokens';
     return {
       id: item.id,

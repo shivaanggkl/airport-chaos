@@ -45,7 +45,7 @@ test('verified Token packs are durable, once-only wallet grants with a purchase 
 test('approved packs and aircraft Token prices keep the exact 100-Token base unit', () => {
   assert.deepEqual(Object.values(skyTokenPacks).map(pack => [pack.tokens, pack.usdCents]),
     [[100, 100], [500, 500], [1200, 1200], [2400, 2400]]);
-  assert.deepEqual(aircraftSkyTokenPrices, { cargo: 600, privateJet: 1300, fighter: 2400 });
+  assert.deepEqual(aircraftSkyTokenPrices, { cargo: 600, privateJet: 1350, fighter: 2400 });
 });
 
 test('the server resolves all four approved Stripe Price IDs separately for test and live', () => {
@@ -195,10 +195,10 @@ test('verified packs fund fixed aircraft plus appearance combinations', () => {
     assert.equal(stripePurchase(store, 'cs_pack_2400', 'SKY_TOKENS_2400').profile.skyTokens, 4100);
     assert.equal(stripePurchase(store, 'cs_pack_extra_500', 'SKY_TOKENS_500').profile.skyTokens, 4600);
     assert.equal(store.purchaseCosmetic('token-pilot', 'mammoth-sand', 'SKY_TOKENS').ok, true);
-    assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').ok, true);
+    assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS').ok, true);
     assert.equal(store.purchaseAircraftWithSkyTokens('token-pilot', 'fighter').ok, true);
     const profile = store.getOrCreate('token-pilot', 'Token Pilot');
-    assert.equal(profile.skyTokens, 300);
+    assert.equal(profile.skyTokens, 250);
     assert.ok((['cargo', 'privateJet', 'fighter'] as const).every(aircraft => profile.unlockedAircraft.includes(aircraft)));
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE reason='SKY_TOKEN_SPEND'").get() as { n: number }).n, 3);
   } finally { cleanup(); }
@@ -208,10 +208,10 @@ test('Token combination purchase spends once and preserves Firehawk entitlement'
   const { store, db, cleanup } = fixture();
   try {
     stripePurchase(store, 'cs_purchase_2400_first', 'SKY_TOKENS_2400');
-    const first = store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS');
-    assert.equal(first.ok, true); assert.equal(first.profile?.skyTokens, 1100);
+    const first = store.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS');
+    assert.equal(first.ok, true); assert.equal(first.profile?.skyTokens, 1050);
     assert.ok(first.profile?.unlockedAircraft.includes('privateJet'));
-    assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').profile?.skyTokens, 1100);
+    assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS').profile?.skyTokens, 1050);
     assert.equal(store.purchaseAircraftWithSkyTokens('token-pilot', 'fighter').ok, false);
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE reason='SKY_TOKEN_SPEND'").get() as { n: number }).n, 1);
     stripePurchase(store, 'cs_purchase_2400', 'SKY_TOKENS_2400');
@@ -227,16 +227,17 @@ test('verified refunds never make a wallet negative and later purchases settle d
   try {
     stripePurchase(store, 'cs_refund_1200', 'SKY_TOKENS_1200');
     stripePurchase(store, 'cs_refund_extra_100', 'SKY_TOKENS_100');
-    store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS');
+    stripePurchase(store, 'cs_refund_extra_100b', 'SKY_TOKENS_100');
+    store.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS');
     const refund = store.refundVerifiedSkyTokenPurchase('stripe', 'cs_refund_1200', 1200);
     assert.equal(refund.applied, true); assert.equal(refund.profile?.skyTokens, 0);
     assert.match(store.purchaseCosmetic('token-pilot', 'bluejay-classic', 'SKY_TOKENS').reason ?? '', /REFUNDED SKY TOKENS/);
     assert.equal(store.refundVerifiedSkyTokenPurchase('stripe', 'cs_refund_1200', 1200).applied, false);
     assert.equal(stripePurchase(store, 'cs_refund_1200', 'SKY_TOKENS_1200').applied, false);
-    assert.equal((db.prepare("SELECT sky_token_deficit AS n FROM player_profiles WHERE pilot_id='token-pilot'").get() as { n: number }).n, 1200);
+    assert.equal((db.prepare("SELECT sky_token_deficit AS n FROM player_profiles WHERE pilot_id='token-pilot'").get() as { n: number }).n, 1150);
     assert.equal(stripePurchase(store, 'cs_replenish_500', 'SKY_TOKENS_500').profile.skyTokens, 0);
-    assert.equal((db.prepare("SELECT sky_token_deficit AS n FROM player_profiles WHERE pilot_id='token-pilot'").get() as { n: number }).n, 700);
-    assert.equal(stripePurchase(store, 'cs_replenish_1200', 'SKY_TOKENS_1200').profile.skyTokens, 500);
+    assert.equal((db.prepare("SELECT sky_token_deficit AS n FROM player_profiles WHERE pilot_id='token-pilot'").get() as { n: number }).n, 650);
+    assert.equal(stripePurchase(store, 'cs_replenish_1200', 'SKY_TOKENS_1200').profile.skyTokens, 550);
     assert.equal((db.prepare("SELECT sky_token_deficit AS n FROM player_profiles WHERE pilot_id='token-pilot'").get() as { n: number }).n, 0);
   } finally { cleanup(); }
 });
@@ -321,10 +322,11 @@ test('independent profile-store instances cannot spend the same Tokens twice', (
   try {
     stripePurchase(store, 'cs_cross_instance', 'SKY_TOKENS_1200');
     stripePurchase(store, 'cs_cross_instance_100', 'SKY_TOKENS_100');
+    stripePurchase(store, 'cs_cross_instance_100b', 'SKY_TOKENS_100');
     const other = new PlayerProfileStore(path);
-    assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').ok, true);
-    assert.equal(other.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').ok, false);
-    assert.equal(other.purchaseCosmetic('token-pilot', 'nightowl-forest', 'SKY_TOKENS').profile?.skyTokens, 0);
+    assert.equal(store.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS').ok, true);
+    assert.equal(other.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS').ok, false);
+    assert.equal(other.purchaseCosmetic('token-pilot', 'nightowl-sky-blue', 'SKY_TOKENS').profile?.skyTokens, 50);
     assert.equal(other.purchaseCosmetic('token-pilot', 'mammoth-sand', 'SKY_TOKENS').ok, false);
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM wallet_transactions WHERE reason='SKY_TOKEN_SPEND'").get() as { n: number }).n, 1);
   } finally { cleanup(); }

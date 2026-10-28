@@ -124,7 +124,7 @@ test('independent purchase requests cannot overspend the same Credit balance', a
     first.awardServerReward('spend-pilot', 33_000, undefined, 'ADMIN_ADJUSTMENT');
     const [cargo, privateJet] = await Promise.all([
       new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(first.purchaseCosmetic('spend-pilot', 'mammoth-sand')))),
-      new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(second.purchaseCosmetic('spend-pilot', 'nightowl-forest')))),
+      new Promise<ReturnType<PlayerProfileStore['purchaseCosmetic']>>((resolve) => setImmediate(() => resolve(second.purchaseCosmetic('spend-pilot', 'nightowl-sky-blue')))),
     ]);
     assert.equal(Number(cargo.ok) + Number(privateJet.ok), 1);
     const final = first.getOrCreate('spend-pilot', 'Spend Pilot');

@@ -911,9 +911,9 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   const fallback = new THREE.Group();
   fallback.name = `aircraft-fallback-${type}`;
   airframeRoot.add(fallback);
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: remote ? 0xe05252 : definition.bodyColor, roughness: 0.55 });
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: remote && type !== 'fighter' ? 0xe05252 : definition.bodyColor, roughness: 0.55 });
   bodyMaterial.name = 'AC_LIVERY_BASE';
-  const accentMaterial = new THREE.MeshStandardMaterial({ color: remote ? 0x9e1f2b : definition.accentColor, roughness: 0.5 });
+  const accentMaterial = new THREE.MeshStandardMaterial({ color: remote && type !== 'fighter' ? 0x9e1f2b : definition.accentColor, roughness: 0.5 });
   accentMaterial.name = 'AC_LIVERY_PRIMARY';
   const dark = new THREE.MeshStandardMaterial({ color: 0x18323f, roughness: 0.35 });
   const exhaustMaterial = type === 'trainer'
@@ -1034,7 +1034,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   body.scale.set(definition.bodyRadius, definition.bodyLength, definition.bodyRadius);
   fallback.add(body);
 
-  const nose = new THREE.Mesh(aircraftNoseGeometry, accentMaterial);
+  const nose = new THREE.Mesh(aircraftNoseGeometry, type === 'fighter' ? dark : accentMaterial);
   nose.rotation.x = -Math.PI / 2;
   nose.scale.set(definition.bodyRadius * 0.9, definition.noseLength, definition.bodyRadius * 0.9);
   nose.position.z = -(definition.bodyLength + definition.noseLength) / 2;
@@ -1084,14 +1084,14 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
       addEngine(side * definition.wingSpan * 0.39, -0.38, 0.32, 1.45, 0.32);
     }
   } else {
-    const deltaWings = new THREE.Mesh(fighterWingGeometry, accentMaterial);
+    const deltaWings = new THREE.Mesh(fighterWingGeometry, bodyMaterial);
     deltaWings.scale.set(definition.wingSpan / 6.8, 1, definition.wingDepth / 2.2);
     deltaWings.position.z = -0.05;
     fallback.add(deltaWings);
-    addBox(1.35, 0.13, 2.5, -0.78, 0.02, -1.25, accentMaterial, -0.24);
-    addBox(1.35, 0.13, 2.5, 0.78, 0.02, -1.25, accentMaterial, 0.24);
-    addBox(0.14, 1.5, 0.9, -0.62, 0.72, 1.75, accentMaterial, 0, -0.18);
-    addBox(0.14, 1.5, 0.9, 0.62, 0.72, 1.75, accentMaterial, 0, 0.18);
+    addBox(1.1, 0.025, 1.65, -1.08, 0.09, -0.65, accentMaterial, -0.34);
+    addBox(1.1, 0.025, 1.65, 1.08, 0.09, -0.65, accentMaterial, 0.34);
+    addBox(0.14, 1.6, 1.1, 0, 0.78, definition.bodyLength * 0.38, accentMaterial, 0.35);
+    addEngine(0, -0.47, -0.52, 0.78, 0.27);
     addEngine(0, -0.18, 1.55, 2.7, 0.46);
   }
 
@@ -1127,7 +1127,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
     }
     nozzle.add(fighterExhaustSocket);
     fighterExhaustSocket.position.set(0, 0, 0);
-  }, airframeRoot);
+    }, airframeRoot);
   if (adDebugMode && !remote) attachAircraftLivery(plane, getAircraftLivery(cityId, adPlacements, type), definition);
 
   return plane;
@@ -8937,6 +8937,11 @@ function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: nu
   const assetPropellers = plane.userData.assetPropellers as THREE.Object3D[] | undefined;
   const propellers = assetPropellers?.length ? assetPropellers : visuals.propeller ? [visuals.propeller] : [];
   for (const propeller of propellers) propeller.rotation.z += delta * (7 + power * 34);
+  const propellerBlurs = plane.userData.assetPropellerBlurs as THREE.Object3D[] | undefined;
+  if (propellerBlurs) for (const blur of propellerBlurs) {
+    blur.visible = power > 0.32;
+    blur.scale.setScalar(Math.min(1, power * 1.25));
+  }
   const isFighter = type === 'fighter';
   if (visuals.exhaustMaterial) {
     visuals.exhaustMaterial.opacity = 0.012 + power * (isFighter ? 0.055 : 0.085);

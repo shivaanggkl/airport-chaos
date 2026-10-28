@@ -367,11 +367,14 @@ export class PlayerProfileStore {
   private readonly wallet: PlayerWallet;
   private readonly xpLedger: PilotXpLedger;
   private readonly qaDallasUnlocked: boolean;
+  private readonly localQaAircraftUnlocked: boolean;
+  private readonly localQaAircraftSeeded = new Set<string>();
   private lastReceiptPruneAt = 0;
   private lastReceiptPruneCount = 0;
 
-  constructor(filePath: string, qaDallasUnlocked = false) {
+  constructor(filePath: string, qaDallasUnlocked = false, localQaAircraftUnlocked = false) {
     this.qaDallasUnlocked = qaDallasUnlocked;
+    this.localQaAircraftUnlocked = localQaAircraftUnlocked;
     mkdirSync(dirname(filePath), { recursive: true });
     this.databasePath = filePath;
     this.database = new DatabaseSync(filePath);
@@ -984,6 +987,24 @@ export class PlayerProfileStore {
         row = this.getRow(pilotId)!;
       }
     }
+    if (this.localQaAircraftUnlocked && !this.localQaAircraftSeeded.has(pilotId)) {
+      this.wallet.transaction(() => {
+        const entitlements = new Set(parseEntitlements(row!.aircraft_entitlements));
+        entitlements.add(aircraftEntitlement('fighter')!);
+        this.database.prepare('UPDATE player_profiles SET owned_aircraft = ?, aircraft_entitlements = ? WHERE pilot_id = ?')
+          .run(JSON.stringify(aircraftOrder), JSON.stringify([...entitlements]), pilotId);
+        this.database.prepare(`INSERT OR IGNORE INTO aircraft_entitlement_sources (pilot_id,entitlement,source,granted_at) VALUES (?,?,?,?)`)
+          .run(pilotId, aircraftEntitlement('fighter')!, 'local-qa', Date.now());
+        const grantPaint = this.database.prepare('INSERT OR IGNORE INTO pilot_cosmetics (pilot_id,cosmetic_id,acquired_at) VALUES (?,?,?)');
+        for (const cosmetic of cosmeticCatalog) {
+          if (cosmetic.category === 'livery' && !cosmetic.retired) {
+            grantPaint.run(pilotId, cosmetic.id, Date.now());
+          }
+        }
+      });
+      this.localQaAircraftSeeded.add(pilotId);
+      row = this.getRow(pilotId)!;
+    }
     this.ensurePilotProgression(row);
     return this.toProfile(row);
   }
@@ -1167,7 +1188,7 @@ export class PlayerProfileStore {
       const ownsAircraft = ownedAircraft.includes(item.aircraftRestriction as AircraftType);
       const ownsPaint = !!this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId);
       if (ownsPaint && ownsAircraft) return { ok: false, reason: 'ALREADY OWNED', profile: this.toProfile(row) };
-      if (item.unlockType !== 'credits' && item.unlockType !== 'tokens') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
+      if (item.retired || item.unlockType !== 'credits' && item.unlockType !== 'tokens') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
       if (!ownsAircraft && item.aircraftRestriction === 'trainer') return { ok: false, reason: 'OWN AIRCRAFT FIRST', profile: this.toProfile(row) };
       const price = cosmeticUnlockPrice(item, currency);
       if (price === undefined) return { ok: false, reason: 'CURRENCY NOT SUPPORTED FOR PAINT', profile: this.toProfile(row) };

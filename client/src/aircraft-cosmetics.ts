@@ -6,6 +6,8 @@ const paintFinish = Object.freeze({
   AC_LIVERY_BASE: Object.freeze({ roughness: 0.24, metalness: 0.16 }),
   AC_LIVERY_PRIMARY: Object.freeze({ roughness: 0.20, metalness: 0.28 }),
   AC_LIVERY_ACCENT: Object.freeze({ roughness: 0.18, metalness: 0.42 }),
+  N2_PAINT_PRIMARY: Object.freeze({ roughness: 0.25, metalness: 0.12 }),
+  N2_PAINT_ACCENT: Object.freeze({ roughness: 0.28, metalness: 0.12 }),
 });
 
 // An owned Mammoth or Nightowl still needs a visible base finish before any
@@ -13,7 +15,7 @@ const paintFinish = Object.freeze({
 const unpaintedAppearance = {
   cargo: { base: 0x8d9da9, primary: 0xd2dce3, accent: 0x526b7d },
   privateJet: { base: 0xb7c6d1, primary: 0xe0e8ed, accent: 0x60798b },
-  fighter: { base: 0x4a5158, primary: 0xc7ccd2, accent: 0x5b7fa3 },
+  fighter: { base: 0xe8eced, primary: 0xd52030, accent: 0xbfcbd0 },
 } as const;
 
 // Retain the selection on the root so asynchronously loaded GLBs use the same
@@ -27,6 +29,8 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
     AC_LIVERY_BASE: item?.visualConfig.base ?? ('base' in base ? base.base : base.baseColor),
     AC_LIVERY_PRIMARY: item?.visualConfig.primary ?? ('primary' in base ? base.primary : base.primaryColor),
     AC_LIVERY_ACCENT: item?.visualConfig.accent ?? ('accent' in base ? base.accent : base.accentColor),
+    N2_PAINT_PRIMARY: item?.visualConfig.primary ?? 0x215eac,
+    N2_PAINT_ACCENT: item?.visualConfig.accent ?? 0x14365d,
   };
   root.traverse(object => {
     if (!(object instanceof THREE.Mesh)) return;
