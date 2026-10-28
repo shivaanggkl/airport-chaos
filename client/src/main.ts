@@ -13,7 +13,8 @@ import { visualLanguage, identityText, targetBracketPath, playerFacingText, terr
 import { flightTutorial } from './tutorial';
 import './style.css';
 import { AdPlacementManager, attachAircraftLivery, createRingSponsor, eventSponsorFor, getAircraftLivery, resolveAdPlacement, sponsorCreative } from './ad-placement';
-import { aircraftDefinitions, aircraftDisplayName, aircraftEffectAnchors, aircraftGroundContacts, aircraftMuzzleSockets, type AircraftDefinition, type AircraftType } from './aircraft';
+import { aircraftDefinitions, aircraftDisplayName, aircraftEffectAnchors, aircraftGroundContacts, aircraftPresentationDimensions, type AircraftDefinition, type AircraftType } from './aircraft';
+import { aircraftPresentationMuzzleSockets, aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 import { AircraftGarage } from './garage';
 import { AmbientTrafficSystem } from './ambient-traffic';
 import { attachAircraftAsset, preloadAircraftAssets } from './assets';
@@ -57,7 +58,7 @@ import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit
 import { FLIGHT_UNITS_PER_METER, KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
-import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, desktopTurnIntent, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, desktopTurnIntent, hasRunwayLiftoffLift, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
@@ -65,7 +66,7 @@ import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
 import { weatherZoneAt, weatherZonesForCity, type WeatherZone } from '../../shared/weather-zones.mjs';
 import { combatThreatDirection } from '../../shared/combat-warning.mjs';
 import { killNotice } from '../../shared/kill-notice.mjs';
-import { DESTRUCTION_EFFECT_DURATION_SECONDS, DESTRUCTION_FRAGMENT_COUNT, MAX_DESTRUCTION_EFFECTS, groundContactVisualOffset } from '../../shared/aircraft-visual-rules.mjs';
+import { DESTRUCTION_EFFECT_DURATION_SECONDS, DESTRUCTION_FRAGMENT_COUNT, MAX_DESTRUCTION_EFFECTS, groundContactVisualOffset, runwayVisualSurfaceOffset, smoothAirborneGroundContactOffset } from '../../shared/aircraft-visual-rules.mjs';
 import { apiFetch, apiUrl, realtimeUrl } from './transport';
 import { monitorConnectivity } from './connectivity';
 import { reconnectDelay } from '../../shared/native-transport.mjs';
@@ -256,7 +257,7 @@ const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER
 const METERS_PER_SECOND_TO_MPH = MPH_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
-let worldTimeOfDay: CityTimeOfDay = skyDuelMode ? 'day' : resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
+let worldTimeOfDay: CityTimeOfDay = skyDuelMode ? 'evening' : resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
 const timeVisuals = createTimeVisuals(isDallas);
 let visualConfig = timeVisuals[worldTimeOfDay];
 let graphicsQualityMode:GraphicsQualityMode=preferredGraphicsQuality();
@@ -268,11 +269,16 @@ const CAMERA_NEAR = 2;
 const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
 const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
 const CAMERA_CHASE_FOV = 58;
-const CAMERA_TARGET_WIDTH_FRACTION = 0.255;
+const CAMERA_TARGET_WIDTH_FRACTION = 0.305;
 const SKY_DOME_RADIUS = 18_000;
 
 function groundPlaneY(x: number, z: number): number {
   return getTerrainHeight(x, z) + PLANE_GROUND_Y;
+}
+
+function aircraftVisualGroundY(position: THREE.Vector3): number {
+  return getTerrainHeight(position.x, position.z) +
+    (getAirportAtPosition(position) ? runwayVisualSurfaceOffset : 0);
 }
 
 function altitudeAboveTerrain(): number {
@@ -900,13 +906,9 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   const plane = new THREE.Group();
   const airframeRoot = new THREE.Group();
   airframeRoot.name = 'aircraft-visual-root';
-  const trainer = aircraftDefinitions.trainer;
-  const duelVisualScale = skyDuelMode
-    ? Math.max(trainer.wingSpan, trainer.bodyLength + trainer.noseLength) /
-      Math.max(definition.wingSpan, definition.bodyLength + definition.noseLength)
-    : 1;
-  airframeRoot.userData.duelVisualScale = duelVisualScale;
-  airframeRoot.scale.setScalar((remote ? remoteAircraftScale : 1) * duelVisualScale);
+  const presentationScale = aircraftPresentationScale[type];
+  airframeRoot.userData.presentationScale = presentationScale;
+  airframeRoot.scale.setScalar((remote ? remoteAircraftScale : 1) * presentationScale);
   plane.add(airframeRoot);
   const fallback = new THREE.Group();
   fallback.name = `aircraft-fallback-${type}`;
@@ -1112,7 +1114,7 @@ function createAirplane(type: AircraftType, remote = false): THREE.Group {
   plane.userData.airframeRoot = airframeRoot;
   // The fallback and normalized GLB share a nose-facing local -Z axis. This
   // render-frame anchor is the client counterpart to the server spawn point.
-  const muzzle = aircraftMuzzleSockets[type];
+  const muzzle = aircraftPresentationMuzzleSockets[type];
   const muzzleAnchor = new THREE.Object3D();
   muzzleAnchor.name = 'aircraft-muzzle-anchor';
   muzzleAnchor.position.set(muzzle.position.x, muzzle.position.y, muzzle.position.z);
@@ -1397,10 +1399,6 @@ territoryDefenseWaypointElement.addEventListener('click', () => {
 });
 const rewardFeedbackElement = document.querySelector<HTMLDivElement>('#reward-feedback')!;
 const dallasPracticeSuggestionElement = document.querySelector<HTMLElement>('#dallas-practice-suggestion')!;
-const missionReminderElement = document.querySelector<HTMLElement>('#mission-reminder')!;
-const missionReminderCopyElement = document.querySelector<HTMLElement>('#mission-reminder-copy')!;
-const missionReminderOpenElement = missionReminderElement.querySelector<HTMLButtonElement>('[data-mission-reminder-open]')!;
-const missionReminderDismissElement = missionReminderElement.querySelector<HTMLButtonElement>('[data-mission-reminder-dismiss]')!;
 const dallasPracticeSuggestionKey = `airport-chaos-dallas-practice-suggestion-v1:${persistedPlayer.pilotId}`;
 let dallasPracticeSuggestionDismissed = false;
 function dismissDallasPracticeSuggestion(): void {
@@ -7181,68 +7179,6 @@ radarPanelElement.addEventListener('keydown', (event) => {
   openTutorialMapFromRadar();
 });
 
-const missionReminderFirstDelaySeconds = 60;
-const missionReminderRepeatDelayMs = 10 * 60_000;
-const missionReminderMaxPerSession = 2;
-let missionReminderFlightSeconds = 0;
-let missionReminderCount = 0;
-let missionReminderLastEndedAt = -Infinity;
-let missionReminderHideTimer: number | undefined;
-let missionAvailabilityCheckedAt = -Infinity;
-let missionAvailable = false;
-
-function hideMissionReminder(startCooldown = true): void {
-  if (missionReminderElement.hidden) return;
-  missionReminderElement.hidden = true;
-  window.clearTimeout(missionReminderHideTimer);
-  missionReminderHideTimer = undefined;
-  missionReminderFlightSeconds = 0;
-  if (startCooldown) missionReminderLastEndedAt = performance.now();
-}
-
-function cityHasAvailableMission(): boolean {
-  if (journeyMode || launchMode === 'free-fly') return false;
-  const now = performance.now();
-  if (now - missionAvailabilityCheckedAt < 1_000) return missionAvailable;
-  missionAvailabilityCheckedAt = now;
-  missionAvailable = missionsForCity(cityId).some((definition) => !definition.retired && !missionUnavailableReason(definition));
-  return missionAvailable;
-}
-
-function updateMissionReminder(deltaSeconds: number): void {
-  const noMission = !profileActiveMissionAttempt(serverProfile);
-  const actuallyFlying = profileHydrated && protocolReady && localLifeState === 'alive' && runStarted && !onGround && !crashed;
-  const gameplayVisible = citySelectorElement.hidden && pilotMenuOverlayElement.hidden && !worldMap.isOpen() && !aircraftGarage.isOpen() &&
-    !flightTutorial.isOpen() && dallasPracticeSuggestionElement.hidden && !identityTransitionInProgress;
-  const eligible = noMission && actuallyFlying && gameplayVisible && cityHasAvailableMission();
-  if (!eligible) {
-    if (!missionReminderElement.hidden) hideMissionReminder();
-    return;
-  }
-  if (!missionReminderElement.hidden || missionReminderCount >= missionReminderMaxPerSession) return;
-  missionReminderFlightSeconds += deltaSeconds;
-  if (missionReminderFlightSeconds < missionReminderFirstDelaySeconds || performance.now() - missionReminderLastEndedAt < missionReminderRepeatDelayMs) return;
-  missionReminderCopyElement.textContent = cityRules.practiceMode
-    ? 'Start a practice mission to build flight skills. Practice Mode gives no permanent rewards.'
-    : 'Start a mission to earn rewards and progress.';
-  missionReminderElement.hidden = false;
-  missionReminderCount += 1;
-  window.clearTimeout(missionReminderHideTimer);
-  missionReminderHideTimer = window.setTimeout(() => hideMissionReminder(), 8_000);
-}
-
-missionReminderDismissElement.addEventListener('click', closeTopUiLayer);
-missionReminderOpenElement.addEventListener('click', () => {
-  hideMissionReminder();
-  openPilotMenu('MISSIONS');
-});
-registerUiBackLayer({
-  id: 'mission-reminder',
-  priority: uiBackPriority.transient,
-  isActive: () => !missionReminderElement.hidden,
-  close: () => hideMissionReminder(),
-});
-
 window.addEventListener('keydown', (event) => {
   if (shouldIgnoreGameplayKeyboardEvent(event)) return;
   if (launchCinematicBlocksInput()) return;
@@ -7849,7 +7785,7 @@ function updateFlashEffects(effects: FlashEffect[], pool: FlashEffect[], delta: 
 
 function getCurrentMuzzleTransform(origin: THREE.Vector3, direction: THREE.Vector3): void {
   airplane.updateWorldMatrix(true, true);
-  const socket = aircraftMuzzleSockets[aircraftType];
+  const socket = aircraftPresentationMuzzleSockets[aircraftType];
   const anchor = airplane.userData.muzzleAnchor as THREE.Object3D | undefined;
   if (anchor) {
     anchor.getWorldPosition(origin);
@@ -8331,7 +8267,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     if (player.rearGuardEscort) applyEscortPaint(plane, player);
     else {
       (plane.userData.airframeRoot as THREE.Group).scale.setScalar(remoteAircraftVisualScale(targetPosition.distanceTo(airplane.position)) *
-        ((plane.userData.airframeRoot as THREE.Group).userData.duelVisualScale as number));
+        aircraftPresentationScale[player.aircraftType]);
       if (player.equippedCosmetics) applyEquippedLivery(plane, player.aircraftType, player.equippedCosmetics);
     }
     const ownershipColors = ownedTerritoriesForPlayer(player.playerId).map(({ color }) => color);
@@ -8406,7 +8342,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     if (player.rearGuardEscort) applyEscortPaint(replacement, player);
     else {
       (replacement.userData.airframeRoot as THREE.Group).scale.setScalar(remoteAircraftVisualScale(replacement.position.distanceTo(airplane.position)) *
-        ((replacement.userData.airframeRoot as THREE.Group).userData.duelVisualScale as number));
+        aircraftPresentationScale[player.aircraftType]);
       applyEquippedLivery(replacement, player.aircraftType, player.equippedCosmetics ?? remote.plane.userData.equippedCosmetics ?? {});
     }
     refreshPlayerIdentityTag(remote);
@@ -8624,15 +8560,15 @@ function updateRemotePlayers(delta: number): void {
     const identityVisible = remoteIdentityVisible(remote);
     const distance = remote.plane.position.distanceTo(airplane.position);
     const visualScale = remote.plane.userData.rearGuardEscort ? journeyAttempt?.missionId === journeyDallas12.id ? journeyDallas12.escortScale : journeyAttempt?.missionId === journeyDallas10.id ? journeyDallas10.escortScale : journeyAttempt?.missionId === journeyDallas09.id ? journeyDallas09.escortScale : journeyDallas08.escortScale : remoteAircraftVisualScale(distance);
-    (remote.plane.userData.airframeRoot as THREE.Group).scale.setScalar(visualScale *
-      ((remote.plane.userData.airframeRoot as THREE.Group).userData.duelVisualScale as number));
-    const bracketSize = aircraftDefinitions[remote.aircraftType].wingSpan * visualScale * 1.2;
+    const renderedScale = visualScale * (remote.plane.userData.rearGuardEscort ? 1 : aircraftPresentationScale[remote.aircraftType]);
+    (remote.plane.userData.airframeRoot as THREE.Group).scale.setScalar(renderedScale);
+    const bracketSize = aircraftDefinitions[remote.aircraftType].wingSpan * renderedScale * 1.2;
     remote.targetBrackets.scale.set(bracketSize, bracketSize, 1);
     const targeted = selectedCombatTarget?.remote === remote;
     const missionTarget = (journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas12.id && journeyAttempt.finalPhase === 'ESCORTS') && remote.plane.userData.rearGuardEscort || serverProfile.missions[cityId]?.active?.targetId === remote.playerId ||
       (journeyAttempt?.missionId === journeyDallas02.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas23.id || journeyAttempt?.missionId === journeyDallas24.id) && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId);
     const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
-    const contactHeight = Math.max(visualScale * 1.2, worldPerPixel * 12);
+    const contactHeight = Math.max(renderedScale * 1.2, worldPerPixel * 12);
     identityLabelProjection.copy(remote.plane.position).project(camera);
     const nearReticle = Math.abs(identityLabelProjection.x) < 0.18 && Math.abs(identityLabelProjection.y) < 0.24;
     remote.identityTag.visible = identityVisible && distance > 35 && distance <= 7_000 &&
@@ -8938,15 +8874,20 @@ function updatePlaneVisuals(plane: THREE.Group, power: number, boostStrength: nu
   if (!visuals) return;
   const type = plane.userData.aircraftType as AircraftType;
   const airframeRoot = plane.userData.airframeRoot as THREE.Group | undefined;
+  const rootClearance = plane.position.y - aircraftVisualGroundY(plane.position);
   if (airframeRoot) {
     const visualScale = airframeRoot.scale.x;
-    const rootClearance = plane.position.y - groundPlaneY(plane.position.x, plane.position.z) + PLANE_GROUND_Y;
-    airframeRoot.position.y = groundContactVisualOffset(
+    const requiredOffset = groundContactVisualOffset(
       aircraftGroundContacts[type],
       plane.quaternion,
       rootClearance / visualScale,
     ) * visualScale;
+    airframeRoot.position.y = plane === airplane && !onGround
+      ? smoothAirborneGroundContactOffset(airframeRoot.position.y, requiredOffset, delta)
+      : requiredOffset;
   }
+  const assetGear = plane.userData.assetGear as THREE.Object3D | undefined;
+  if (assetGear) assetGear.visible = (plane === airplane && onGround) || rootClearance < 5;
   const assetPropellers = plane.userData.assetPropellers as THREE.Object3D[] | undefined;
   const propellers = assetPropellers?.length ? assetPropellers : visuals.propeller ? [visuals.propeller] : [];
   for (const propeller of propellers) propeller.rotation.z += delta * (7 + power * 34);
@@ -9317,7 +9258,8 @@ function updateFlight(delta: number): void {
       setFlightState(currentSpeed >= currentAircraft.takeoffSpeed * 0.6 ? 'TAKEOFF' : 'TAXI');
     }
 
-    if (currentSpeed >= currentAircraft.takeoffSpeed && takeoffRollMeters >= currentAircraft.minimumTakeoffRoll && pitch >= 0.07) {
+    if (currentSpeed >= currentAircraft.takeoffSpeed && takeoffRollMeters >= currentAircraft.minimumTakeoffRoll && pitch >= 0.07 &&
+      hasRunwayLiftoffLift(currentSpeed, pitch, throttle, currentAircraft)) {
       if (resetRegionsOnNextTakeoff) {
         visitedRegionsThisFlight.clear();
         resetRegionsOnNextTakeoff = false;
@@ -9604,13 +9546,6 @@ function updateCamera(delta: number): void {
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
   cameraChaseQuaternion.copy(airplane.quaternion);
-  // Keep some horizon in view during a power-off stall. A fully body-locked
-  // chase camera rotates with the falling aircraft and hides its nose drop.
-  const stallView = !onGround && throttle < 0.2
-    ? 0.65 * (1 - throttle / 0.2) * THREE.MathUtils.clamp(
-      (currentAircraft.stallSpeed * 1.5 - Math.max(0, velocity.dot(forward))) / (currentAircraft.stallSpeed * 0.8), 0, 1)
-    : 0;
-  cameraChaseQuaternion.slerp(cameraOrbitYawQuaternion, stallView);
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
@@ -9888,7 +9823,6 @@ function animate(): void {
     flightRecap.maxAltitude = Math.max(flightRecap.maxAltitude, altitudeAboveTerrain());
   }
   updateWeapons(delta);
-  updateMissionReminder(delta);
   if (!crashed && runStarted) updatePlayerInteractions();
   if (challengeModeEnabled) updateCheckpointFeedback(delta);
   updateEventVisual();
@@ -10214,25 +10148,27 @@ function renderSkyDuelRunwayIntro(): boolean {
   const remoteVisible = opponent.plane.visible;
   const localVisible = airplane.visible;
   opponent.plane.visible = true;
-  const introScale = remoteAirframe.userData.duelVisualScale as number;
+  const introScale = remoteAirframe.userData.presentationScale as number;
   remoteAirframe.scale.setScalar(introScale);
-  const rootClearance = opponent.plane.position.y -
-    groundPlaneY(opponent.plane.position.x, opponent.plane.position.z) + PLANE_GROUND_Y;
+  const rootClearance = opponent.plane.position.y - aircraftVisualGroundY(opponent.plane.position);
   remoteAirframe.position.y = groundContactVisualOffset(
     aircraftGroundContacts[opponent.aircraftType], opponent.plane.quaternion, rootClearance / introScale,
   ) * introScale;
   const sweep = smoothstep01(Math.min(1, progress / 0.8));
   const angle = THREE.MathUtils.lerp(1.35, 0, sweep);
-  const radius = Math.max(19, cameraFrameSize.x * 1.7);
+  const opponentDimensions = aircraftPresentationDimensions[opponent.aircraftType];
+  const introExtent = Math.max(cameraFrameSize.x, opponentDimensions.span, opponentDimensions.length);
+  const introHeight = Math.max(cameraFrameSize.y, opponentDimensions.span * 0.3);
+  const radius = Math.max(19, introExtent * 1.7);
   renderer.setScissorTest(true);
   for (const [index, plane] of [airplane, opponent.plane].entries()) {
     airplane.visible = index === 0;
     opponent.plane.visible = index === 1;
     const width = index === 0 ? leftWidth : size.x - leftWidth;
     const x = index === 0 ? 0 : leftWidth;
-    skyDuelIntroOffset.set(Math.sin(angle) * radius, Math.max(5, cameraFrameSize.y * 1.1), Math.cos(angle) * radius)
+    skyDuelIntroOffset.set(Math.sin(angle) * radius, Math.max(5, introHeight * 1.1), Math.cos(angle) * radius)
       .applyQuaternion(plane.quaternion).add(plane.position);
-    skyDuelIntroTarget.set(0, Math.max(1.4, cameraFrameSize.y * 0.3), 0)
+    skyDuelIntroTarget.set(0, Math.max(1.4, introHeight * 0.3), 0)
       .applyQuaternion(plane.quaternion).add(plane.position);
     skyDuelIntroCamera.position.copy(skyDuelIntroOffset);
     skyDuelIntroCamera.lookAt(skyDuelIntroTarget);

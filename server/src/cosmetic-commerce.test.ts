@@ -156,3 +156,17 @@ test('migration keeps historical ownership and grants a usable paint only to pre
     assert.equal(store.purchaseCosmetic('new', 'nightowl-forest').reason, 'COSMETIC NOT PURCHASABLE');
   } finally { cleanup(); }
 });
+
+test('an aircraft owner missing paint after migration receives the legacy included finish', () => {
+  const { store, database, cleanup } = fixture();
+  try {
+    store.getOrCreate('late-owner', 'Pilot');
+    database.prepare("UPDATE player_profiles SET owned_aircraft='[\"trainer\",\"privateJet\"]', selected_aircraft='privateJet' WHERE pilot_id='late-owner'").run();
+    const before = store.walletBalances('late-owner');
+    const repaired = store.getOrCreate('late-owner', 'Pilot');
+    assert.equal(repaired.selectedAircraft, 'privateJet');
+    assert.equal(repaired.cosmetics.equipped['livery:privateJet'], 'nightowl-forest');
+    assert.deepEqual(store.walletBalances('late-owner'), before);
+    assert.equal(store.getOrCreate('late-owner', 'Pilot').cosmetics.equipped['livery:privateJet'], 'nightowl-forest');
+  } finally { cleanup(); }
+});

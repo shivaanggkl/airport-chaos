@@ -3,8 +3,9 @@ import { aircraftRoles } from './visual-language';
 import * as THREE from 'three';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { createContextBackButton, createContextPageTitle } from './context-page-shell';
-import { aircraftDefinitions, aircraftDisplayName, garageStats, type AircraftType } from './aircraft';
+import { aircraftDefinitions, aircraftDisplayName, aircraftPresentationDimensions, garageStats, type AircraftType } from './aircraft';
 import { attachAircraftAsset } from './assets';
+import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 import { firehawkProduct, aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
 import { aircraftSkyTokenPrice } from '../../shared/sky-token-economy.mjs';
 import { legalConfig } from '../../shared/legal-config.mjs';
@@ -556,14 +557,15 @@ export class AircraftGarage {
     this.previewContent.position.set(0, 0, 0);
     this.userAdjustedZoom = false;
     const definition = aircraftDefinitions[this.selected];
+    const dimensions = aircraftPresentationDimensions[this.selected];
     const plane = new THREE.Group();
     const fallback = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(definition.bodyRadius, definition.bodyRadius, definition.bodyLength, 12), new THREE.MeshStandardMaterial({ color: definition.bodyColor, roughness: 0.45 }));
     body.material.name = 'AC_LIVERY_BASE';
-    body.rotation.x = Math.PI / 2; fallback.add(body); plane.add(fallback); this.previewContent.add(plane);
+    body.rotation.x = Math.PI / 2; fallback.add(body); fallback.scale.setScalar(aircraftPresentationScale[this.selected]); plane.add(fallback); this.previewContent.add(plane);
     this.framePreview(true);
     this.headerFallbackPending = true;
-    const assetReady = attachAircraftAsset(plane, fallback, this.selected, definition.bodyLength + definition.noseLength, definition.wingSpan, () => {
+    const assetReady = attachAircraftAsset(plane, fallback, this.selected, dimensions.length, dimensions.span, () => {
       // A cached GLB can resolve after the player chose another card.  Only
       // reframe if this plane is still the active preview.
       if (this.previewContent.children.includes(plane)) { this.headerFallbackPending = true; this.framePreview(false); }

@@ -6,6 +6,7 @@ import { aircraftDefinitions } from '../../client/src/aircraft.js';
 import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { aircraftVisualConfig } from '../../shared/aircraft-visual-rules.mjs';
 import { aircraftHitRadii } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
 function readGlb(path) {
   const binary = readFileSync(new URL(path, import.meta.url));
@@ -77,7 +78,7 @@ test('Bluejay, Nightowl and Firehawk keep distinct, consistent game-scale propor
   assert.ok(firehawk.height < nightowl.height);
   assert.ok(nightowl.span < mammoth.span, 'cargo remains the widest aircraft');
   assert.ok(nightowl.length > firehawk.length * 1.3, 'airliner must look clearly larger than fighter');
-  assert.equal(aircraftHitRadii.privateJet, 3.4);
+  assert.equal(aircraftHitRadii.privateJet, 3.4 * aircraftPresentationScale.privateJet);
 });
 
 test('resized Nightowl wheels, exhausts and muzzle match authored model anchors', () => {

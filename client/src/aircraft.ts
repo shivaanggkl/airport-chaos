@@ -2,6 +2,7 @@ import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
 import { aircraftFlightEnvelope, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftEconomy } from '../../shared/aircraft-economy.mjs';
 import { aircraftVisualConfig } from '../../shared/aircraft-visual-rules.mjs';
+import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
 export type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 
@@ -27,6 +28,13 @@ export const aircraftDefinitions: Record<AircraftType, AircraftDefinition> = {
   cargo: { ...aircraftFlightEnvelope.cargo, name: 'GRAVITAS CARGO', callsign: 'MAMMOTH', access: aircraftEconomy.cargo.access, creditsRequired: aircraftEconomy.cargo.credits, idleThrottle: 0.04, throttleResponse: 0.38, throttleDecay: 0.055, lift: 1.24, pitchInputRise: 4.3, pitchInputRelease: 1.45, pitchReturnRate: 0.9, climbLiftBoost: 1.13, rollInputRelease: 2.15, rollLevelRate: 0.42, stability: 0.68, cameraDamping: 3.15, cameraFrameScale: 1.08, cameraHeight: 4.6, bodyColor: 0xd8b76a, accentColor: 0xc7ccd2, bodyLength: 7.2, bodyRadius: 1, noseLength: 1.7, wingSpan: 11.5, wingDepth: 1.8, tailSpan: 4.5, enginePods: 4, livery: { id: 'mammoth-sand', name: 'LEGACY GOLD', baseColor: 0xd8b76a, primaryColor: 0xc7ccd2, accentColor: 0xa9783e } },
   fighter: { ...aircraftFlightEnvelope.fighter, name: 'REDSPEAR FIGHTER', callsign: 'FIREHAWK', access: aircraftEconomy.fighter.access, creditsRequired: aircraftEconomy.fighter.credits, idleThrottle: 0.01, throttleResponse: 0.88, throttleDecay: 0.16, lift: 1.4, pitchInputRise: 10, pitchInputRelease: 3.2, pitchReturnRate: 1.6, climbLiftBoost: 1.08, rollInputRelease: 7.2, rollLevelRate: 1.38, stability: 0.22, cameraDamping: 5.8, cameraFrameScale: 0.91, cameraHeight: 3.5, bodyColor: 0xe8eced, accentColor: 0xd52030, bodyLength: 6, bodyRadius: 0.58, noseLength: 2.5, wingSpan: 6.8, wingDepth: 2.2, tailSpan: 2.8, enginePods: 1, livery: { id: 'firehawk-inferno', name: 'FIREHAWK INFERNO', baseColor: 0xe8eced, primaryColor: 0xd52030, accentColor: 0xbfcbd0 } },
 };
+
+export const aircraftPresentationDimensions: Readonly<Record<AircraftType, Readonly<{ span: number; length: number }>>> =
+  Object.fromEntries((Object.keys(aircraftDefinitions) as AircraftType[]).map(type => {
+    const definition = aircraftDefinitions[type];
+    const scale = aircraftPresentationScale[type];
+    return [type, Object.freeze({ span: definition.wingSpan * scale, length: (definition.bodyLength + definition.noseLength) * scale })];
+  })) as Record<AircraftType, Readonly<{ span: number; length: number }>>;
 
 const fastestAircraftSpeed = Math.max(...Object.values(aircraftDefinitions).map(({ maxSpeed }) => maxSpeed));
 const strongestAircraftAcceleration = Math.max(...Object.values(aircraftDefinitions).map(({ acceleration, inertia }) => acceleration / inertia));

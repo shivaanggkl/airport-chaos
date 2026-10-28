@@ -18,3 +18,4 @@ export function throttleTargetDeceleration(airspeed:number,throttle:number,envel
 export function airborneAirbrakeDeceleration(forwardSpeed:number,strength:number,envelope:{drag:number;maxSpeed:number;airbrakeDrag?:number;inertia:number}):number;
 export function airbornePitchTarget(pitchControl:number,forwardSpeed:number,throttle:number,envelope:{maxClimbPitch:number;maxDivePitch?:number;stallSpeed:number}):number;
 export function airborneLiftFactor(forwardSpeed:number,angleOfAttack:number,throttle:number,stallFactor:number,envelope:{lift:number;takeoffSpeed:number;climbLiftBoost:number}):number;
+export function hasRunwayLiftoffLift(speed:number,pitch:number,throttle:number,envelope:{lift:number;takeoffSpeed:number;climbLiftBoost:number}):boolean;

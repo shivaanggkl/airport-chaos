@@ -65,7 +65,8 @@ body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
 .store-grid {
   position: relative; display: flex; gap: 16px; min-width: 0; min-height: 0; overflow-x: auto; overflow-y: hidden;
   margin-left: 9px; padding-right: 8px;
-  overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x;
+  overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
 }
 .store-rail.is-dragging .store-grid { scroll-snap-type: none; cursor: grabbing; }
 .store-grid:not(:has(.store-empty, .store-skeleton)) { cursor: grab; }
@@ -95,7 +96,7 @@ body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
 .store-art {
   position: relative; display: grid; place-items: center; min-width: 0; min-height: 0;
   width: 100%; padding: 0; overflow: hidden; border: 1px solid #b4c5d5; border-radius: 10px;
-  background: #fff; cursor: pointer;
+  background: radial-gradient(ellipse 70% 60% at 50% 44%, #496f9d 0%, #244875 48%, #0a1d3b 100%); cursor: pointer;
 }
 .store-art-subtitle {
   position: absolute; z-index: 2; top: 7px; left: 7px; max-width: calc(100% - 14px);
@@ -104,6 +105,11 @@ body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
 }
 .store-art-swatches { position: absolute; z-index: 2; right: 7px; bottom: 7px; display: flex; gap: 4px; padding: 4px 5px; border-radius: 99px; background: rgb(255 255 255 / 85%); }
 .store-art-swatches i { width: 13px; height: 13px; border: 1px solid #8b9dae; border-radius: 50%; }
+.store-art-role {
+  position: absolute; z-index: 2; bottom: 10px; left: 10px; max-width: calc(100% - 85px);
+  color: #f9d77a; font: 900 clamp(10px, 1vw, 13px)/1.1 var(--font-display);
+  letter-spacing: .04em; text-shadow: 0 2px 5px #06162c;
+}
 .store-status-badge {
   position: absolute; z-index: 3; top: 7px; right: 7px; display: inline-flex; align-items: center; gap: 5px;
   min-height: 25px; padding: 2px 8px 2px 4px; border: 1px solid #20a454; border-radius: 99px;
@@ -181,6 +187,17 @@ body:has(.app-shell-header.is-page:not([hidden])) .store-heading {
   box-shadow: 0 3px 10px rgb(0 0 0 / 30%); font: 900 32px/1 var(--font-display); cursor: pointer;
 }
 .store-detail-close:focus-visible, .store-art:focus-visible { outline: 3px solid #1ac8e3; outline-offset: 2px; }
+.game-store .store-detail-preview {
+  background: radial-gradient(ellipse 65% 70% at 50% 45%, #496f9d, #244875 52%, #0a1d3b);
+  cursor: grab; touch-action: none;
+}
+.game-store .store-detail-preview:active { cursor: grabbing; }
+.game-store .store-detail-preview::before { display: none; }
+.store-detail-rotate-hint {
+  position: absolute; z-index: 2; bottom: 12px; left: 14px; pointer-events: none;
+  color: #f9d77a; font: 900 clamp(11px, 1.2vw, 14px)/1 var(--font-display);
+  letter-spacing: .06em; text-shadow: 0 2px 5px #06162c;
+}
 .store-skeleton { border: 1px solid #cbdce5; border-radius: 15px; background: linear-gradient(110deg, #e8f0f4, #fff, #e8f0f4); }
 .store-loading-status { position: absolute; margin: 10px; color: #0b2345; font: 800 12px/1.2 var(--font-display); letter-spacing: .09em; }
 @container store-rail (max-width: 750px) {

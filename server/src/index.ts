@@ -13,7 +13,7 @@ import type { XpAwardResult } from './pilot-xp-ledger.js';
 import { PilotProfileSummaryStore } from './pilot-profile-summary.js';
 import { cityCapabilities, routeDefinition } from '../../shared/city-registry.mjs';
 import { cityDiscoveries } from '../../shared/city-discoveries.mjs';
-import { aircraftMuzzleSockets } from '../../shared/aircraft-muzzles.mjs';
+import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
 import { primaryTerritoryAt, territoriesForCity, territoryContains, territoryMembershipTransition, type CityTerritory } from '../../shared/city-territories.mjs';
 import { missionForCity, missionsForCity, type CityMission } from '../../shared/city-missions.mjs';
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
@@ -38,7 +38,7 @@ import { SpeedGateTracker } from './speed-gate-validation.js';
 import { observedChampionshipTouchdown } from './championship-landing.js';
 import { aircraftGroundOffset, airportForCity, cityAirports } from '../../shared/city-airports.mjs';
 import { maxHealthForAircraft } from '../../shared/aircraft-health.mjs';
-import { earnedRankDefinitions, utcDayId } from '../../shared/pilot-progression.mjs';
+import { earnedRankDefinitions, PILOT_LEVEL_CAP, utcDayId } from '../../shared/pilot-progression.mjs';
 import { landingGradeForScore, landingPrecisionScore } from '../../shared/landing-scoring.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
@@ -310,6 +310,18 @@ const skyDuelCenter = skyDuelArenaCenter;
 const skyDuelRunwayElevations = skyDuelAirportIds.map(id => dallasAirportElevations.get(id)!);
 const skyDuelBoundaryRadius = 12_000;
 const skyDuelHealth = 100;
+const skyDuelAiTuning = Object.freeze({
+  aircraft: 'fighter' as AircraftType,
+  detectionRange: 6_500,
+  reactionDelayMs: 120,
+  waypointRefreshMs: 600,
+  shotIntervalMs: 200,
+  aimSpread: 0.008,
+});
+
+function skyDuelPilotLevel(player: PlayerState | undefined, aiOpponent: boolean): number {
+  return aiOpponent ? PILOT_LEVEL_CAP : player?.profile?.pilotProgress.level ?? 1;
+}
 
 function skyDuelPeer(playerId: string): string | undefined {
   const session = players.get(playerId)?.skyDuelMatchId && skyDuelSessions.get(players.get(playerId)!.skyDuelMatchId!);
@@ -423,7 +435,7 @@ function createSkyDuelPracticeBot(ownerId: string, now: number): string | undefi
   };
   players.set(id, {
     pilotId: id, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
-    cityId: 'dallas', position, rotation: { x: 0, y: heading, z: 0 }, aircraftType: 'trainer',
+    cityId: 'dallas', position, rotation: { x: 0, y: heading, z: 0 }, aircraftType: skyDuelAiTuning.aircraft,
     displayName: 'AI PLAYER', score: 0, health: skyDuelHealth, lifeState: 'respawning',
     hasRespawnTransform: true, lastFireAt: now, spawnProtectedUntil: now + 2_000,
     velocity: { x: 0, y: 0, z: 0 }, boostActive: false, lastStateAt: now,
@@ -471,7 +483,7 @@ function startSkyDuelAiMatch(playerId: string, now: number, paid: boolean): bool
   sendToPlayer(playerId, { type: 'skyDuelLoading', matchId: session.id, practice: !paid, aiOpponent: true,
     playerAId: session.playerA, playerBId: session.playerB,
     pilotA: player.displayName, pilotB: 'AI PLAYER', pilotAId: player.pilotId,
-    pilotBId: botId, levelA: player.profile.pilotProgress.level, levelB: 1,
+    pilotBId: botId, levelA: player.profile.pilotProgress.level, levelB: skyDuelPilotLevel(bot, true),
     aircraftA: player.aircraftType, avatarA: skyDuelCardDetails(player).avatar,
     aircraftB: players.get(botId)?.aircraftType,
     ...(paid ? { entry: competitiveModes.skyDuel.entryCredits, prize: competitiveModes.skyDuel.prizeCredits } : {}) });
@@ -581,7 +593,8 @@ function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: numbe
     removeBot(session.playerB);
     sendToPlayer(session.playerA, { type: 'skyDuelResult', matchId: session.id, practice: true,
       outcome, scoreA: session.scoreA, scoreB: session.scoreB,
-      pilotA: pilot?.pilotId, pilotB: session.playerB, rematchAvailable: Boolean(rematch) });
+      pilotA: pilot?.pilotId, pilotB: session.playerB, pilotNameB: 'AI PLAYER',
+      levelB: PILOT_LEVEL_CAP, aiOpponent: true, rematchAvailable: Boolean(rematch) });
     if (!hasOpenPlayerSocket(session.playerA)) cleanupHumanPlayer(session.playerA);
     return;
   }
@@ -623,7 +636,7 @@ function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: numbe
     pilotNameA: players.get(session.playerA)?.displayName,
     pilotNameB: session.aiOpponent ? 'AI PLAYER' : players.get(session.playerB)?.displayName,
     levelA: players.get(session.playerA)?.profile?.pilotProgress.level,
-    levelB: players.get(session.playerB)?.profile?.pilotProgress.level ?? 1,
+    levelB: skyDuelPilotLevel(players.get(session.playerB), session.aiOpponent === true),
     balanceA: receipt.balanceA, balanceB: receipt.balanceB,
     entry: competitiveModes.skyDuel.entryCredits,
     prize: outcome === 'WIN_A' || outcome === 'WIN_B' && !(session.aiOpponent && cause === 'absence') ? competitiveModes.skyDuel.prizeCredits : 0,
@@ -737,7 +750,7 @@ function skyDuelTick(now: number): void {
         pilotA: players.get(session.playerA)?.displayName, pilotB: players.get(session.playerB)?.displayName,
         pilotAId: players.get(session.playerA)?.pilotId, pilotBId: players.get(session.playerB)?.pilotId,
         levelA: players.get(session.playerA)?.profile?.pilotProgress.level,
-        levelB: players.get(session.playerB)?.profile?.pilotProgress.level ?? 1,
+        levelB: skyDuelPilotLevel(players.get(session.playerB), session.aiOpponent === true),
         aircraftA: skyDuelCardDetails(players.get(session.playerA)).aircraft,
         aircraftB: skyDuelCardDetails(players.get(session.playerB)).aircraft,
         avatarA: skyDuelCardDetails(players.get(session.playerA)).avatar,
@@ -4993,7 +5006,7 @@ function forwardDirection(transform: Pick<Transform, 'rotation'>): Vector3 {
 }
 
 function muzzleTransform(transform: Transform): { position: Vector3; direction: Vector3 } {
-  const socket = aircraftMuzzleSockets[transform.aircraftType];
+  const socket = aircraftPresentationMuzzleSockets[transform.aircraftType];
   const localPosition = rotateLocalYxz(socket.position, transform.rotation);
   return {
     position: {
@@ -6374,7 +6387,8 @@ function botCombatTarget(botId: string, bot: PlayerState, now: number): [string,
       (!bot.bot?.journeyTargetPlayerId || id === bot.bot.journeyTargetPlayerId) &&
       (bot.cityId !== 'milwaukee' || target.milwaukeeBotsProvoked) && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
-    .filter((candidate) => candidate.distance > 90 && candidate.distance < hunterDetectionRange)
+    .filter((candidate) => candidate.distance > 90 && candidate.distance <
+      (bot.skyDuelPracticeOwnerId ? skyDuelAiTuning.detectionRange : hunterDetectionRange))
     .filter((candidate) => {
       const currentHunters = [...players.values()].filter((other) => other.isBot && other.lifeState === 'alive' && other.bot?.combatTargetId === candidate.id && isHunterCombatPhase(other.bot.phase)).length;
       const heat = currentHeat(candidate.id, now).level;
@@ -6651,11 +6665,11 @@ function beginHunterApproach(player: PlayerState, bot: BotRuntime, targetId: str
   bot.combatTargetId = targetId;
   bot.combatTurnSign = cross >= 0 ? 1 : -1;
   bot.combatWaypoint = hunterInterceptWaypoint(player, bot, target);
-  bot.combatWaypointRefreshAt = now + 1_100;
+  bot.combatWaypointRefreshAt = now + (player.skyDuelPracticeOwnerId ? skyDuelAiTuning.waypointRefreshMs : 1_100);
   bot.blindZoneEscapeUntil = 0;
   const distance = Math.hypot(target.position.x - player.position.x, target.position.y - player.position.y, target.position.z - player.position.z);
   bot.combatPhaseUntil = now + Math.min(25_000, Math.max(8_000, distance / Math.max(70, bot.speed) * 1_400));
-  bot.attackFireAfter = now + hunterReactionDelayMs + Math.random() * 320;
+  bot.attackFireAfter = now + (player.skyDuelPracticeOwnerId ? skyDuelAiTuning.reactionDelayMs : hunterReactionDelayMs + Math.random() * 320);
   bot.phase = 'approach';
 }
 
@@ -6831,7 +6845,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
       } else if (now >= bot.combatWaypointRefreshAt) {
         // Intercept updates are deliberately sparse and retain the same target.
         bot.combatWaypoint = hunterInterceptWaypoint(player, bot, target[1]);
-        bot.combatWaypointRefreshAt = now + 1_100;
+        bot.combatWaypointRefreshAt = now + (player.skyDuelPracticeOwnerId ? skyDuelAiTuning.waypointRefreshMs : 1_100);
       }
     }
   } else if (bot.phase === 'attackPass') {
@@ -7003,10 +7017,10 @@ function updateBots(now: number): void {
         .map(id => Boolean(id && players.get(id)?.lifeState === 'alive')) : [];
       const escortAllowed = !bot.journeyRearGuardEscort || Boolean(escortFire &&
         rearGuardShooter(escortFire, now, escortAlive) === bot.journeyRearGuardEscort);
-      if (canShoot && crossfireAllowed && escortAllowed && (bot.journeyRearGuardEscort || Math.random() < (bot.defenseTerritoryId ? 0.92 : 0.84))) {
-        // Halve only Mission 2's angular scatter. Its firing rate, ballistic
-        // lead, damage and ordinary Hunter behavior remain unchanged.
-        const spread = bot.defenseTerritoryId ? 0.01 : bot.journeyAttemptId ? 0.014 : 0.028;
+      if (canShoot && crossfireAllowed && escortAllowed && (player.skyDuelPracticeOwnerId || bot.journeyRearGuardEscort || Math.random() < (bot.defenseTerritoryId ? 0.92 : 0.84))) {
+        // Sky Duel's fallback AI has tighter aim; other Hunters keep their
+        // existing spread and all shots remain server-owned ballistics.
+        const spread = player.skyDuelPracticeOwnerId ? skyDuelAiTuning.aimSpread : bot.defenseTerritoryId ? 0.01 : bot.journeyAttemptId ? 0.014 : 0.028;
         const variance = (Math.random() - 0.5) * spread;
         if (createProjectile(botId, player, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + variance * 0.45 },
           bot.journeyRearGuardEscort ? journeyDallas08.escortShotDamage : undefined)) {
@@ -7026,9 +7040,11 @@ function updateBots(now: number): void {
         if (bot.defenseTerritoryId) console.log(`DEFENDER_NO_FIRE dist=${Math.round(solution.distance)} vertical=${Math.round(solution.vertical)} angle=${Math.round(solution.angle * 180 / Math.PI)} reason=${bot.noFireReason}`);
         else console.log(`HUNTER_NO_FIRE ${bot.noFireReason} target=${bot.combatTargetId}`);
       }
-      // 2–4 imperfect shots per committed pass when the geometry is good,
-      // with quick retries after a missed window instead of silent fly-bys.
-      if (!bot.journeyRearGuardEscort) bot.nextFireAt = now + (canShoot ? hunterShotIntervalMinMs + Math.random() * hunterShotIntervalJitterMs : 260);
+      if (!bot.journeyRearGuardEscort) {
+        const nextShotDelay = !canShoot ? 260 : player.skyDuelPracticeOwnerId
+          ? skyDuelAiTuning.shotIntervalMs : hunterShotIntervalMinMs + Math.random() * hunterShotIntervalJitterMs;
+        bot.nextFireAt = now + nextShotDelay;
+      }
     }
 
     const followingCombatWaypoint = Boolean(combatNavigation);
@@ -8183,7 +8199,7 @@ server.on('connection', (socket, request) => {
         pilotA: players.get(session.playerA)?.displayName, pilotB: players.get(session.playerB)?.displayName,
         pilotAId: players.get(session.playerA)?.pilotId, pilotBId: players.get(session.playerB)?.pilotId,
         levelA: players.get(session.playerA)?.profile?.pilotProgress.level,
-        levelB: players.get(session.playerB)?.profile?.pilotProgress.level ?? 1,
+        levelB: skyDuelPilotLevel(players.get(session.playerB), session.aiOpponent === true),
         aircraftA: skyDuelCardDetails(players.get(session.playerA)).aircraft,
         aircraftB: skyDuelCardDetails(players.get(session.playerB)).aircraft,
         avatarA: skyDuelCardDetails(players.get(session.playerA)).avatar,

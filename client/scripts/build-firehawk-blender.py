@@ -16,7 +16,11 @@ bpy.ops.object.delete(use_global=False)
 
 
 def color(hex_value):
-    return tuple(int(hex_value[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    # Blender shader colors are linear; convert authored sRGB swatches before
+    # glTF export so the deep red livery does not wash out to pink.
+    channels = [int(hex_value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    return tuple(channel / 12.92 if channel <= .04045 else
+                 ((channel + .055) / 1.055) ** 2.4 for channel in channels)
 
 
 def material(name, rgb, roughness, metalness):
@@ -34,12 +38,12 @@ BASE = material('AC_LIVERY_BASE', 'e8eced', .31, .14)
 RED = material('AC_LIVERY_PRIMARY', 'd52030', .78, .0)
 SILVER = material('AC_LIVERY_ACCENT', 'bfcbd0', .32, .31)
 PANEL = material('AC_PANEL_LINES', '8496a4', .56, .10)
-GLASS = material('AC_GLASS', '0b1724', .20, .19)
+GLASS = material('AC_GLASS', '08111b', .16, .12)
 DARK = material('AC_DARK', '20262b', .43, .12)
 METAL = material('AC_METAL', '7a8790', .30, .67)
 TIRE = material('AC_TIRE', '101417', .82, .02)
 INLET = material('AC_INLET_VOID', '030507', .96, .0)
-GLASS.node_tree.nodes.get('Principled BSDF').inputs['Alpha'].default_value = .88
+GLASS.node_tree.nodes.get('Principled BSDF').inputs['Alpha'].default_value = .96
 GLASS.surface_render_method = 'BLENDED'
 
 
@@ -133,19 +137,21 @@ def ribbon(name, points, mat, smooth=False):
 
 
 body_sections = [
-    (-3.48, .31, .27, -.02), (-3.22, .37, .30, -.01),
-    (-2.87, .42, .34, .00), (-2.44, .49, .38, .01),
-    (-2.00, .55, .42, .01), (-1.52, .63, .45, .01),
-    (-1.04, .72, .47, .00), (-.55, .82, .47, -.01),
-    (0, .85, .47, -.01), (.63, .82, .46, -.01),
-    (1.25, .73, .43, -.01), (1.91, .61, .41, -.01),
-    (2.55, .54, .39, -.02), (3.16, .49, .38, -.02),
+    (-3.48, .31, .27, -.02), (-3.22, .36, .30, -.01),
+    (-2.87, .42, .34, .00), (-2.44, .48, .38, .02),
+    (-2.00, .54, .41, .03), (-1.52, .62, .43, .035),
+    (-1.04, .69, .45, .03), (-.55, .78, .47, .015),
+    (0, .84, .48, .005), (.63, .86, .47, .00),
+    (1.25, .80, .44, -.005), (1.91, .69, .41, -.01),
+    (2.55, .58, .39, -.015), (3.16, .51, .38, -.02),
     (3.64, .45, .36, -.02), (3.88, .42, .34, -.02),
 ]
 loft('Fuselage continuous white shell', body_sections, BASE, radial=48, square=.83)
 loft('Long charcoal radome', [
-    (-4.68, .003, .003, -.10), (-4.51, .075, .065, -.09),
-    (-4.24, .18, .15, -.06), (-3.86, .28, .24, -.03), body_sections[0],
+    (-5.02, .003, .003, -.10), (-4.92, .027, .024, -.09),
+    (-4.73, .088, .078, -.08), (-4.48, .16, .14, -.065),
+    (-4.20, .23, .20, -.045), (-3.84, .29, .25, -.025),
+    body_sections[0],
 ], DARK, radial=48)
 loft('Low blended dorsal spine', [
     (-.19, .16, .035, .43), (.24, .22, .085, .44),
@@ -157,17 +163,22 @@ loft('Low blended dorsal spine', [
 # Main wing stations specify an actual airfoil volume instead of a flat
 # extruded triangle. The near-root leading-edge extension flows into the
 # fuselage; spanwise curvature and taper continue into a thin clipped tip.
+# The fighter's source silhouette is roughly one-and-a-half times as long as
+# it is wide. Keep that proportion in the authored mesh, not in camera zoom.
+wing_span_factor = .87
 wing_stations = [
-    (.56, -1.70, 1.66, .01, .22),
-    (.78, -1.66, 1.68, .01, .215),
-    (1.06, -1.46, 1.67, .015, .20),
-    (1.42, -1.22, 1.62, .022, .18),
-    (1.88, -.96, 1.55, .030, .15),
-    (2.35, -.70, 1.46, .045, .12),
-    (2.83, -.42, 1.36, .061, .09),
-    (3.25, -.19, 1.26, .078, .067),
-    (3.51, -.07, 1.22, .084, .05),
+    (.56, -1.79, 1.66, .01, .23),
+    (.78, -1.73, 1.70, .01, .22),
+    (1.06, -1.57, 1.70, .015, .205),
+    (1.42, -1.35, 1.68, .022, .18),
+    (1.88, -1.09, 1.62, .030, .15),
+    (2.35, -.82, 1.54, .045, .12),
+    (2.83, -.54, 1.44, .061, .09),
+    (3.25, -.31, 1.34, .078, .067),
+    (3.51, -.17, 1.29, .084, .05),
 ]
+wing_stations = [(x * wing_span_factor, lead, trail, cy, thickness)
+                 for x, lead, trail, cy, thickness in wing_stations]
 profile = [0, .025, .085, .18, .32, .50, .68, .82, .92, .975, 1]
 
 
@@ -181,6 +192,7 @@ def station_at(x):
 
 
 def wing_point(side, x, fraction, upper=True, lift=.0):
+    x *= wing_span_factor
     _, lead, trail, cy, thickness = station_at(x)
     z = lead + (trail - lead) * fraction
     camber = .016 * math.sin(math.pi * fraction)
@@ -214,8 +226,8 @@ def wing_surface(name, stations, side, mat, thickness_factor=1):
     return mesh(name, vertices, faces, mat)
 
 
-def upper_mark(name, side, coordinates, mat):
-    points = [wing_point(side, x, fraction, lift=.009) for x, fraction in coordinates]
+def upper_mark(name, side, coordinates, mat, lift=.009):
+    points = [wing_point(side, x, fraction, lift=lift) for x, fraction in coordinates]
     # Top-facing winding for both mirrored sides.
     a, b, c = [Vector(point) for point in points[:3]]
     if (b - a).cross(c - a).y < 0:
@@ -225,25 +237,37 @@ def upper_mark(name, side, coordinates, mat):
 
 for side in (-1, 1):
     wing_surface('Shaped swept main wing', wing_stations, side, BASE)
-    # A separate curved leading-edge root fairing carries the wing into the
-    # upper fuselage. It fills the abrupt triangle at the cockpit shoulder.
-    mesh('Blended leading-edge root extension', [
-        (side * .47, .22, -2.33), (side * .61, .24, -2.17),
-        (side * .83, .20, -1.91), (side * 1.06, .15, -1.46),
-        (side * .80, .02, -1.49), (side * .53, .09, -1.93),
-    ], [(0, 1, 2, 3, 4, 5) if side > 0 else (5, 4, 3, 2, 1, 0)], BASE)
+    # The leading-edge root is an airfoil volume. Its inner stations bury into
+    # the fuselage and its outer stations meet the main wing's upper surface.
+    wing_surface('Sculpted wing-root shoulder', [
+        (.34, -2.38, .48, .20, .10),
+        (.47, -2.29, .93, .19, .12),
+        (.65, -2.04, 1.38, .13, .16),
+        (.86, -1.72, 1.67, .055, .19),
+        (1.07, -1.56, 1.70, .017, .205),
+    ], side, BASE)
     # Each red field is a designed, multi-part wing motif. Slender silver
     # separators and aileron seams make it read as aircraft paint, not tape.
     upper_mark('Red racing feather forward', side, [
-        (.93, .26), (1.39, .23), (2.05, .18), (3.21, .11),
-        (3.31, .16), (2.45, .26), (1.74, .34), (.97, .37),
+        (.93, .26), (1.39, .22), (2.05, .16), (3.21, .10),
+        (3.31, .17), (2.75, .24), (2.33, .31), (1.74, .40), (.97, .43),
     ], RED)
     upper_mark('Red racing feather aft', side, [
-        (1.06, .56), (1.54, .54), (2.14, .49), (3.19, .44),
-        (3.12, .50), (2.24, .59), (1.57, .66), (1.09, .66),
+        (1.14, .55), (1.62, .53), (2.18, .47), (3.16, .41),
+        (3.08, .49), (2.30, .60), (1.64, .69), (1.16, .68),
     ], RED)
+    upper_mark('White falcon wing flash', side, [
+        (2.02, .22), (2.64, .17), (2.92, .16), (2.60, .22),
+        (2.32, .29), (2.45, .25), (2.13, .32),
+    ], BASE, .018)
+    upper_mark('White falcon trailing feather', side, [
+        (2.13, .32), (2.45, .25), (2.58, .25), (2.29, .35),
+    ], BASE, .018)
     upper_mark('Aileron hinge', side, [
         (1.22, .83), (3.36, .83), (3.36, .845), (1.22, .845),
+    ], PANEL)
+    upper_mark('Leading edge panel break', side, [
+        (.98, .13), (2.91, .12), (2.92, .127), (.98, .138),
     ], PANEL)
     upper_mark('Outer wing panel seam', side, [
         (3.19, .08), (3.20, .08), (3.20, .92), (3.19, .92),
@@ -252,16 +276,31 @@ for side in (-1, 1):
         (1.75, .78), (1.77, .78), (1.78, .94), (1.76, .94),
     ], PANEL)
     # Tip plates and visual-only stores use the same low-cost material slots.
+    tip_x = side * 3.51 * wing_span_factor
+    store_x = side * 2.26 * wing_span_factor
     beam('Red wingtip', wing_point(side, 3.51, .12, lift=-.10),
-         wing_point(side, 3.51, .88, lift=-.10), .066, .055, RED, 8)
-    beam('Underwing store', (side * 2.26, -.23, -.17), (side * 2.26, -.23, .79), .12, .10, SILVER, 12)
-    beam('Store pylon', (side * 2.26, -.07, .24), (side * 2.26, -.23, .24), .06, .045, METAL, 8)
+         wing_point(side, 3.51, .88, lift=-.10), .054, .045, RED, 8)
+    # A pointed, slim external store and its pylon replace the old blunt tube.
+    beam('Underwing store body', (store_x, -.23, -.09),
+         (store_x, -.23, .69), .10, .09, SILVER, 12)
+    beam('Underwing store pointed nose', (store_x, -.23, -.34),
+         (store_x, -.23, -.09), .005, .10, SILVER, 12)
+    beam('Underwing store tail', (store_x, -.23, .69),
+         (store_x, -.23, .82), .09, .02, RED, 10)
+    beam('Store pylon', (store_x, -.07, .24), (store_x, -.23, .24), .055, .04, METAL, 8)
+    # A separate tapered tip rail gives the fighter a sharp, purposeful edge.
+    beam('Wingtip launch rail', (tip_x, -.02, -.25),
+         (tip_x, -.02, 1.07), .035, .025, SILVER, 8)
 
 
 def tail_wing(side):
     stations = [(.38, 2.23, 3.65, .16, .12), (.81, 2.42, 3.58, .18, .10),
                 (1.32, 2.70, 3.43, .22, .067), (1.69, 2.84, 3.36, .25, .035)]
     wing_surface('Swept horizontal stabilizer', stations, side, BASE, .80)
+    ribbon('Red tailplane sweep', [
+        (side * .65, .255, 2.62), (side * 1.49, .275, 2.96),
+        (side * 1.54, .275, 3.03), (side * .73, .255, 2.78),
+    ], RED)
     beam('Red tailplane tip', (side * 1.69, .25, 2.88),
          (side * 1.69, .25, 3.33), .038, .030, RED, 8)
 
@@ -291,6 +330,8 @@ def fin():
          (2.58, 1.26)],
         [(2.60, 1.05), (2.90, 1.19), (3.19, 1.35),
          (2.98, 1.39), (2.73, 1.25)],
+        [(2.26, .80), (2.57, .99), (2.91, 1.05),
+         (2.70, 1.09), (2.38, .94)],
     ]
     for side in (-1, 1):
         for points in graphic:
@@ -300,6 +341,18 @@ def fin():
             (side * .071, .52, 3.34), (side * .071, 1.56, 3.09),
             (side * .071, 1.56, 3.104), (side * .071, .52, 3.355),
         ], PANEL)
+        # Small raised letter strokes remain legible from either side without
+        # adding a texture to every instance of the aircraft.
+        for stroke in (
+            [(0, 1), (.12, 0), (.24, 1)],
+            [(.33, .72), (.42, 1), (.42, 0)],
+            [(.94, .89), (.80, 1), (.71, .62), (.72, .12),
+             (.88, 0), (1, .22), (.96, .48), (.76, .46)],
+        ):
+            tube_polyline('V16 fin marking', [
+                (side * .083, .54 + .18 * y, 2.87 + (.49 * u if side < 0 else .49 * (1 - u)))
+                for u, y in stroke
+            ], .013, BASE, 6)
 
 
 fin()
@@ -310,17 +363,17 @@ def canopy_surface():
     mesh('Cockpit opening', [(-.32, .39, -2.57), (.32, .39, -2.57),
          (.44, .39, -1.52), (.33, .39, -.36), (-.33, .39, -.36),
          (-.44, .39, -1.52)], [(0, 1, 2, 3, 4, 5)], DARK, False)
-    loft('Pilot seat', [(-1.32, .17, .16, .52), (-1.05, .20, .20, .56),
-         (-.74, .17, .21, .58)], DARK, radial=16)
-    loft('Pilot helmet', [(-1.49, .12, .13, .71), (-1.32, .16, .17, .73),
-         (-1.14, .11, .12, .71)], METAL, radial=16)
+    loft('Pilot seat', [(-1.32, .17, .14, .46), (-1.05, .20, .18, .48),
+         (-.74, .17, .19, .48)], DARK, radial=16)
+    loft('Pilot helmet', [(-1.49, .11, .11, .62), (-1.32, .14, .13, .64),
+         (-1.14, .10, .10, .62)], DARK, radial=16)
     sections = [
-        (-2.78, .015, .015, .35), (-2.65, .12, .09, .36),
-        (-2.48, .22, .20, .37), (-2.27, .31, .32, .38),
-        (-2.04, .38, .40, .39), (-1.78, .43, .46, .40),
-        (-1.48, .45, .48, .40), (-1.19, .45, .47, .40),
-        (-.90, .41, .42, .40), (-.65, .34, .34, .39),
-        (-.41, .24, .24, .38), (-.22, .12, .12, .36),
+        (-2.90, .015, .015, .35), (-2.72, .12, .075, .36),
+        (-2.50, .22, .17, .37), (-2.27, .31, .27, .38),
+        (-2.04, .38, .34, .39), (-1.78, .43, .39, .40),
+        (-1.48, .45, .42, .40), (-1.19, .45, .42, .40),
+        (-.90, .41, .38, .40), (-.65, .34, .31, .39),
+        (-.41, .24, .22, .38), (-.22, .12, .10, .36),
         (-.10, .015, .015, .35),
     ]
     steps = 32
@@ -348,32 +401,35 @@ def canopy_surface():
     # in side and three-quarter views without a large opaque canopy stripe.
     for side in (-1, 1):
         tube_polyline('Angled windscreen frame', [
-            (side * .12, .46, -2.65), (side * .25, .61, -2.43),
-            (side * .42, .80, -1.78),
+            (side * .12, .46, -2.72), (side * .25, .58, -2.43),
+            (side * .42, .75, -1.78),
         ], .011, METAL, 8)
 
 
 canopy_surface()
 
 
-def body_width(z):
+def body_surface_x(z, y):
     for first, second in zip(body_sections, body_sections[1:]):
         if z <= second[0]:
             t = (z - first[0]) / (second[0] - first[0])
-            return first[1] + t * (second[1] - first[1])
-    return body_sections[-1][1]
+            width, height, cy = [first[i] + t * (second[i] - first[i]) for i in (1, 2, 3)]
+            break
+    else:
+        _, width, height, cy = body_sections[-1]
+    vertical = min(1, abs((y - cy) / height)) ** (2 / .83)
+    return width * max(0, 1 - vertical) ** (.83 / 2)
 
 
 for side in (-1, 1):
-    path = [(-2.71, .015, .012), (-2.31, .055, -.013),
-            (-1.40, .087, .013), (-.40, .094, .022),
-            (.65, .080, .012), (1.75, .026, .007),
-            (2.29, .008, .006)]
+    path = [(-2.21, .245, .215), (-1.52, .325, .270),
+            (-.72, .370, .315), (.32, .380, .325),
+            (1.33, .340, .290), (2.15, .260, .220),
+            (2.73, .150, .135)]
     vertices = []
     for z, upper, lower in path:
         for y in (upper, lower):
-            width = body_width(z)
-            x = side * (width * math.sqrt(max(.01, 1 - (y / .45) ** 2)) + .012)
+            x = side * (body_surface_x(z, y) + .012)
             vertices.append((x, y, z))
     faces = []
     for i in range(len(path) - 1):
@@ -412,12 +468,6 @@ def intake():
     loft('Recessed single inlet throat', [lip_inner, (-1.94, .28, .18, -.63),
          (-1.38, .21, .14, -.55)],
          INLET, radial=count, square=.68, inward=True)
-    for side in (-1, 1):
-        # Side-visible recess follows the lip into the dark throat.
-        ribbon('Intake side recess', [
-            (side * .415, -.49, -2.08), (side * .465, -.48, -1.78),
-            (side * .46, -.68, -1.51), (side * .39, -.80, -1.90),
-        ], INLET)
     mesh('Dark inlet depth',
          [(0, -.55, -1.39)] + [(v[0] * .68, -.55 + (v[1] + .64) * .74, -1.39)
                                for v in vertices[count:]],
@@ -455,14 +505,15 @@ def nozzle():
         n = (j + 1) % 32
         faces.append((j, n, 32 + n, 32 + j))
     mesh('Concentric nozzle exit ring', vertices, faces, METAL)
-    exit_disk = [(0, -.02, 4.155)] + [
-        (.313 * math.cos(math.tau * j / 32),
-         -.02 + .29 * math.sin(math.tau * j / 32), 4.155)
-        for j in range(32)
-    ]
+    exit_disk = []
+    for z in (4.155, 4.152):
+        exit_disk.append((0, -.02, z))
+        exit_disk.extend((.313 * math.cos(math.tau * j / 32),
+                          -.02 + .29 * math.sin(math.tau * j / 32), z)
+                         for j in range(32))
     mesh('Dark recessed exhaust face', exit_disk,
          [(0, 1 + j, 1 + (j + 1) % 32) for j in range(32)] +
-         [(0, 1 + (j + 1) % 32, 1 + j) for j in range(32)],
+         [(33, 34 + (j + 1) % 32, 34 + j) for j in range(32)],
          TIRE, False)
 
 
@@ -519,21 +570,29 @@ for side in (-1, 1):
     ], BASE)
 
 
-# A mesh per material keeps the imported asset to six draw calls even though
-# the geometry has many deliberately authored surfaces and control details.
+# Keep the visual landing gear separate so flight can stow it without touching
+# wheel contacts, collisions, or the ground/airborne state machine.
 root = bpy.data.objects.new('Redspear_Fighter', None)
 bpy.context.collection.objects.link(root)
+gear_root = bpy.data.objects.new('FighterLandingGear', None)
+bpy.context.collection.objects.link(gear_root)
+gear_root.parent = root
 for mat in (BASE, RED, SILVER, PANEL, GLASS, DARK, METAL, TIRE, INLET):
-    objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.data.materials[0] == mat]
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in objects:
-        obj.select_set(True)
-    bpy.context.view_layer.objects.active = objects[0]
-    if len(objects) > 1:
-        bpy.ops.object.join()
-    joined = bpy.context.view_layer.objects.active
-    joined.name = mat.name
-    joined.parent = root
+    for gear in (False, True):
+        objects = [obj for obj in bpy.data.objects if obj.type == 'MESH' and
+                   obj.data.materials[0] == mat and
+                   obj.name.startswith(('Main ', 'Nose ')) == gear]
+        if not objects:
+            continue
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in objects:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = objects[0]
+        if len(objects) > 1:
+            bpy.ops.object.join()
+        joined = bpy.context.view_layer.objects.active
+        joined.name = ('Gear_' if gear else '') + mat.name
+        joined.parent = gear_root if gear else root
 
 socket = bpy.data.objects.new('ExhaustSocket_Main', None)
 bpy.context.collection.objects.link(socket)

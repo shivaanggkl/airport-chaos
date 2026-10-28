@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { aircraftDefinitions } from '../../client/src/aircraft.ts';
-import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
+import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, hasRunwayLiftoffLift, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 
 const aircraftTypes = ['trainer', 'privateJet', 'cargo', 'fighter'];
 const frameSeconds = 1 / 60;
@@ -49,6 +49,16 @@ test('idle and low airspeed produce a much faster descent without removing stall
     assert.ok(slowAltitude < -15, `${type} did not sink decisively as airspeed fell: ${slowAltitude}`);
     assert.ok(airborneLiftFactor(aircraft.takeoffSpeed, aircraft.maxClimbPitch, 1, 1, aircraft) > 1,
       `${type} lost its climb authority at takeoff speed`);
+  }
+});
+
+test('liftoff waits for enough lift instead of briefly airborne then resetting pitch on touchdown', () => {
+  for (const type of aircraftTypes) {
+    const aircraft = aircraftDefinitions[type];
+    assert.equal(hasRunwayLiftoffLift(aircraft.takeoffSpeed, 0.07, 1, aircraft), false,
+      `${type} leaves the runway before it can climb`);
+    assert.equal(hasRunwayLiftoffLift(aircraft.takeoffSpeed, aircraft.maxClimbPitch, 1, aircraft), true,
+      `${type} cannot take off with a deliberate climb command`);
   }
 });
 

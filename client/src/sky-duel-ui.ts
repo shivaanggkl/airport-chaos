@@ -133,7 +133,7 @@ export class SkyDuelUi {
     for (const [side, element, pilot] of [['local', this.localHud, this.localPilot],
       ['opponent', this.opponentHud, this.opponentPilot]] as const) {
       element.querySelector<HTMLElement>('.sky-duel-hud-name')!.textContent = pilot?.name || (side === 'opponent' ? 'OPPONENT' : 'YOU');
-      element.querySelector<HTMLElement>('.sky-duel-hud-level')!.textContent = pilot && !pilot.isAi && pilot.helmetVerified !== false ? `L${pilot.level}` : '';
+      element.querySelector<HTMLElement>('.sky-duel-hud-level')!.textContent = pilot && pilot.helmetVerified !== false ? `L${pilot.level}` : '';
       const helmet = element.querySelector<HTMLElement>('.sky-duel-hud-helmet')!;
       helmet.replaceChildren();
       if (pilot && pilot.helmetVerified !== false) helmet.append(createRankHelmet(rankHelmetForLevel(pilot.level), 'small'));
@@ -246,6 +246,9 @@ export class SkyDuelUi {
     center.className = 'sky-duel-matchup-center';
     const vs = document.createElement('strong'); vs.className = 'sky-duel-versus'; vs.textContent = 'VS';
     this.pot = document.createElement('div'); this.pot.className = 'sky-duel-pot'; this.pot.hidden = true;
+    const potCoin = document.createElement('img'); potCoin.src = '/media/hub/credits.avif'; potCoin.alt = '';
+    const potAmount = document.createElement('span'); potAmount.textContent = `${prizeCredits.toLocaleString()} Credits`;
+    this.pot.append(potCoin, potAmount);
     this.countdown = document.createElement('div'); this.countdown.className = 'sky-duel-countdown'; this.countdown.hidden = true;
     this.countdownNumber = document.createElement('strong'); this.countdownNumber.className = 'sky-duel-countdown-number';
     this.countdown.append(this.countdownNumber);
@@ -328,7 +331,7 @@ export class SkyDuelUi {
   setBalance(credits: number): void {
     if (this.resultPayoutPending && credits !== this.balance) {
       this.clearPresentationTimers();
-      this.pot.textContent = '';
+      this.pot.classList.remove('is-filled');
       if (this.rematchState) this.showRematchState(this.rematchState);
     }
     this.balance = credits;
@@ -432,7 +435,6 @@ export class SkyDuelUi {
       this.matchup.hidden = false;
       this.practiceBadge.hidden = !this.practiceMatch;
       this.pot.hidden = !this.paidReservationConfirmed;
-      this.pot.textContent = '';
       this.pot.classList.remove('is-filled');
       this.copy.textContent = '';
       this.countdown.hidden = true;
@@ -554,7 +556,6 @@ export class SkyDuelUi {
         winnerCard.querySelector<HTMLElement>('.sky-duel-helmet-slot')!.append(shower);
       }
       this.pot.hidden = !paidPrize;
-      this.pot.textContent = paidPrize ? `${prizeCredits.toLocaleString()} Credits` : '';
       this.pot.classList.toggle('is-filled', paidPrize);
       for (const card of [this.localCard, this.opponentCard])
         card.querySelector<HTMLElement>('.sky-duel-stake')!.classList.toggle('is-collected', paidPrize);
@@ -675,8 +676,8 @@ export class SkyDuelUi {
     name.textContent = isLocal ? '' : pilot?.name ?? '';
     name.hidden = isLocal;
     const rank = pilot && pilot.helmetVerified !== false ? rankHelmetForLevel(pilot.level) : undefined;
-    level.textContent = rank && pilot && !pilot.isAi ? `Level ${pilot.level}` : '';
-    if (rank && pilot && !pilot.isAi) level.dataset.rank = rank.id;
+    level.textContent = rank && pilot ? `Level ${pilot.level}` : '';
+    if (rank && pilot) level.dataset.rank = rank.id;
     else delete level.dataset.rank;
     helmet.replaceChildren();
     if (rank) helmet.append(createRankHelmet(rank, 'large'));
@@ -691,7 +692,7 @@ export class SkyDuelUi {
     this.resultPilots.replaceChildren();
     for (const pilot of [this.localPilot, this.opponentPilot]) {
       if (!pilot) continue;
-      this.resultPilots.append(this.pilotIdentity(pilot, !this.practiceMatch || pilot === this.localPilot));
+      this.resultPilots.append(this.pilotIdentity(pilot, true));
     }
     this.resultPilots.hidden = this.resultPilots.childElementCount === 0;
   }
@@ -703,10 +704,8 @@ export class SkyDuelUi {
     const copy = document.createElement('div');
     const name = document.createElement('strong'); name.textContent = pilot.name;
     copy.append(name);
-    if (!pilot.isAi) {
-      const level = document.createElement('span'); level.textContent = `Level ${pilot.level}`;
-      copy.append(level);
-    }
+    const level = document.createElement('span'); level.textContent = `Level ${pilot.level}`;
+    copy.append(level);
     identity.append(copy);
     return identity;
   }
@@ -878,7 +877,7 @@ export class SkyDuelUi {
   private beginResultPayout(): void {
     if (this.phase !== 'result' || !this.resultPayoutPending) return;
     const source = this.pot.getBoundingClientRect();
-    this.pot.textContent = '';
+    this.pot.classList.remove('is-filled');
     const duration = this.header.animateCreditsEarned(source, this.balance - prizeCredits, this.balance);
     if (duration) this.coinTimer = window.setTimeout(() => this.finishResultPayout(), duration);
     else this.finishResultPayout();
@@ -886,7 +885,7 @@ export class SkyDuelUi {
 
   private finishResultPayout(): void {
     if (this.phase !== 'result') return;
-    this.pot.textContent = '';
+    this.pot.classList.remove('is-filled');
     this.resultPayoutPending = false;
     this.header.updateIdentity(this.localPilot.name, this.balance, this.skyTokens, this.localPilot.level);
     if (this.rematchState) this.showRematchState(this.rematchState);
@@ -898,7 +897,7 @@ export class SkyDuelUi {
     if (!this.paidReservationConfirmed) { this.finishCollection(); return; }
     this.phase = 'collecting';
     this.pot.hidden = false;
-    this.pot.textContent = '';
+    this.pot.classList.remove('is-filled');
     if (!reducedMotion()) this.animateCoins();
     for (const card of [this.localCard, this.opponentCard])
       card.querySelector<HTMLElement>('.sky-duel-stake')!.classList.add('is-collected');
@@ -940,7 +939,6 @@ export class SkyDuelUi {
     if (this.paidReservationConfirmed) {
       this.localCard.querySelector<HTMLElement>('.sky-duel-stake')!.classList.add('is-collected');
       this.opponentCard.querySelector<HTMLElement>('.sky-duel-stake')!.classList.add('is-collected');
-      this.pot.textContent = `${prizeCredits.toLocaleString()} Credits`;
       this.pot.classList.add('is-filled');
     }
     if (this.matchId && this.presentationAckMatchId !== this.matchId && this.send('skyDuelPresentationReady'))
@@ -963,7 +961,6 @@ export class SkyDuelUi {
     this.copy.textContent = '';
     if (this.paidReservationConfirmed) {
       this.pot.hidden = false;
-      this.pot.textContent = `${prizeCredits.toLocaleString()} Credits`;
       this.pot.classList.add('is-filled');
       this.localCard.querySelector<HTMLElement>('.sky-duel-stake')!.classList.add('is-collected');
       this.opponentCard.querySelector<HTMLElement>('.sky-duel-stake')!.classList.add('is-collected');

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Falcon V16 visual comparison</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;background:#0b1728;color:#e9f2ff;font:16px system-ui,sans-serif}main{max-width:1500px;margin:auto;padding:24px}h1{margin:0 0 8px;color:#ffc955}p{color:#a9bed4}figure{margin:0}img{display:block;width:100%;height:auto} .reference{max-width:980px;margin:22px auto 32px;border:1px solid #547694} .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px} .pair{margin:32px 0} .pair h2{color:#ffc955;text-transform:capitalize} .tile{background:#15253b;border:1px solid #547694}figcaption{padding:8px 12px;font-weight:700} @media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+<main>
+  <h1>Falcon V16 — visual comparison</h1>
+  <p>Approved reference above. Before and after below use identical cameras and lighting. The reference is illustrative artwork, so its separate views are not guaranteed to be geometrically consistent.</p>
+  <figure class="reference"><img src="reference.jpeg" alt="Approved Falcon V16 reference poster"><figcaption>Approved reference</figcaption></figure>
+  <figure class="reference"><img src="after/hero-airborne.png" alt="Updated Falcon V16 with landing gear stowed"><figcaption>Updated airborne presentation, visual gear stowed</figcaption></figure>
+  <div id="views"></div>
+  <figure class="reference"><img src="flight-gameplay.png" alt="Falcon V16 in the Milwaukee flight view"><figcaption>Actual Milwaukee flight view (local QA session)</figcaption></figure>
+</main>
+<script>
+  const root=document.querySelector('#views');
+  for(const view of ['front-three-quarter','side','front','rear','top']){
+    const section=document.createElement('section');section.className='pair';
+    const heading=document.createElement('h2');heading.textContent=view.replaceAll('-',' ');section.append(heading);
+    const grid=document.createElement('div');grid.className='grid';
+    for(const state of ['before','after']){
+      const figure=document.createElement('figure');figure.className='tile';
+      const image=document.createElement('img');image.src=`${state}/${view}.png`;image.alt=`${state} ${view}`;
+      const caption=document.createElement('figcaption');caption.textContent=state.toUpperCase();
+      figure.append(image,caption);grid.append(figure);
+    }
+    section.append(grid);root.append(section);
+  }
+</script>

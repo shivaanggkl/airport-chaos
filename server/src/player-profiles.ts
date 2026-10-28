@@ -953,11 +953,18 @@ export class PlayerProfileStore {
     const equip = this.database.prepare(`INSERT INTO pilot_equipped_cosmetics VALUES(?,?,?)
       ON CONFLICT(pilot_id,category) DO UPDATE SET cosmetic_id=excluded.cosmetic_id`);
     const remove = this.database.prepare('DELETE FROM pilot_equipped_cosmetics WHERE pilot_id=? AND category=?');
+    const legacyIncludedPaint: Partial<Record<AircraftType, string>> = {
+      cargo: 'mammoth-sand', privateJet: 'nightowl-forest', fighter: 'firehawk-inferno',
+    };
     for (const type of aircraftOrder) {
       const slot = `livery:${type}`;
       const current = (readEquipped.get(pilotId, slot) as { cosmetic_id?: string } | undefined)?.cosmetic_id;
       const currentItem = cosmeticCatalog.find(item => item.id === current);
       const aircraftAvailable = type === 'trainer' || ownedAircraft.includes(type);
+      if (aircraftAvailable && !cosmeticCatalog.some(item => item.aircraftRestriction === type && ownedIds.has(item.id))) {
+        const included = legacyIncludedPaint[type];
+        if (included) { insertOwned.run(pilotId, included, now); ownedIds.add(included); }
+      }
       if (aircraftAvailable && currentItem?.aircraftRestriction === type && ownedIds.has(currentItem.id)) continue;
       const fallback = fallbackLiveryIds[type] ?? cosmeticCatalog.find(item => item.aircraftRestriction === type && ownedIds.has(item.id))?.id;
       if (aircraftAvailable && fallback && ownedIds.has(fallback)) equip.run(pilotId, slot, fallback);

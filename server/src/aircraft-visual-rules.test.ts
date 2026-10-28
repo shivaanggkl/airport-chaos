@@ -7,8 +7,11 @@ import {
   MAX_DESTRUCTION_EFFECTS,
   aircraftVisualConfig,
   groundContactVisualOffset,
+  runwayVisualSurfaceOffset,
+  smoothAirborneGroundContactOffset,
 } from '../../shared/aircraft-visual-rules.mjs';
 import { remoteAircraftScale } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
 const runwayRootClearance = 1.2;
 
@@ -46,6 +49,20 @@ test('per-aircraft wheel contacts remain at or above runway height through groun
   }
 });
 
+test('every aircraft clears both cities runway paint at gameplay presentation scale', () => {
+  assert.ok(runwayVisualSurfaceOffset > 0.2495);
+  for (const [type, config] of Object.entries(aircraftVisualConfig)) {
+    const scale = aircraftPresentationScale[type as keyof typeof aircraftPresentationScale];
+    for (const pitch of [-0.08, 0, 0.07, 0.2]) {
+      const rootClearance = runwayRootClearance - runwayVisualSurfaceOffset;
+      const offset = groundContactVisualOffset(config.groundContacts, pitchQuaternion(pitch), rootClearance / scale) * scale;
+      const lowest = Math.min(...config.groundContacts.map((contact) =>
+        runwayRootClearance + scale * rotatedWorldY(contact, pitch, offset / scale)));
+      assert.ok(lowest >= runwayVisualSurfaceOffset - 1e-9, `${type} clips runway at pitch ${pitch}`);
+    }
+  }
+});
+
 test('full-size remote landing gear stays clear through the first metres of takeoff', () => {
   for (const [type, config] of Object.entries(aircraftVisualConfig)) {
     for (const pitch of [-0.08, 0, 0.07, 0.2]) {
@@ -58,6 +75,25 @@ test('full-size remote landing gear stays clear through the first metres of take
       }
     }
   }
+});
+
+test('Nightowl rises smoothly while its landing-gear offset releases after takeoff', () => {
+  const scale = aircraftPresentationScale.privateJet;
+  const contacts = aircraftVisualConfig.privateJet.groundContacts;
+  const quaternion = pitchQuaternion(0.1);
+  const frameSeconds = 1 / 60;
+  let offset = groundContactVisualOffset(contacts, quaternion, runwayRootClearance / scale) * scale;
+  let visualHeight = offset;
+  for (let frame = 1; frame <= 180; frame += 1) {
+    const altitude = frame * 0.08;
+    const required = groundContactVisualOffset(contacts, quaternion, (runwayRootClearance + altitude) / scale) * scale;
+    offset = smoothAirborneGroundContactOffset(offset, required, frameSeconds);
+    const nextHeight = altitude + offset;
+    assert.ok(offset >= required - 1e-9, `gear clips at frame ${frame}`);
+    assert.ok(nextHeight > visualHeight, `Nightowl pauses or drops at frame ${frame}`);
+    visualHeight = nextHeight;
+  }
+  assert.ok(offset < 0.05, `gear offset has not settled: ${offset}`);
 });
 
 test('authoritative destroyed position is carried to the pooled client blast', () => {

@@ -1,3 +1,5 @@
+import { aircraftPresentationScale } from './aircraft-presentation-scale.mjs';
+
 const smoothstep = (value, start, end) => {
   const t = Math.max(0, Math.min(1, (value - start) / (end - start)));
   return t * t * (3 - 2 * t);
@@ -6,7 +8,12 @@ const smoothstep = (value, start, end) => {
 // Match the Rear Guard escort silhouette at flying distance, but return to
 // physical size near the pilot so close aircraft do not eclipse the view.
 export const remoteAircraftScale = 16;
-export const aircraftHitRadii = Object.freeze({ trainer: 2.4, privateJet: 3.4, cargo: 3.6, fighter: 2.4 });
+export const aircraftHitRadii = Object.freeze({
+  trainer: 2.4,
+  privateJet: 3.4 * aircraftPresentationScale.privateJet,
+  cargo: 3.6 * aircraftPresentationScale.cargo,
+  fighter: 2.4 * aircraftPresentationScale.fighter,
+});
 export function remoteAircraftVisualScale(distance) {
   return Math.max(1, Math.min(remoteAircraftScale, distance * remoteAircraftScale / 900));
 }

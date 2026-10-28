@@ -5,6 +5,7 @@ type HorizontalRailOptions = {
   progress?: HTMLElement;
   thumb?: HTMLElement;
   draggable?: boolean;
+  snapOnDragEnd?: boolean;
   wheel?: boolean;
   keyboard?: boolean;
   onResize?: () => void;
@@ -14,9 +15,13 @@ type HorizontalRailOptions = {
 export class HorizontalRail {
   private readonly observer: ResizeObserver;
   private dragStart?: { x: number; scrollLeft: number; pointerId: number };
+  private refreshFrame = 0;
 
   constructor(private readonly root: HTMLElement, private readonly viewport: HTMLElement, private readonly options: HorizontalRailOptions) {
-    viewport.addEventListener('scroll', () => this.refresh(), { passive: true });
+    viewport.addEventListener('scroll', () => {
+      if (this.refreshFrame) return;
+      this.refreshFrame = requestAnimationFrame(() => { this.refreshFrame = 0; this.refresh(); });
+    }, { passive: true });
     options.previous?.addEventListener('click', () => this.move(-1));
     options.next?.addEventListener('click', () => this.move(1));
     if (options.draggable) this.enableMouseDrag();
@@ -90,6 +95,7 @@ export class HorizontalRail {
       if (!this.root.classList.contains('is-dragging')) return;
       this.root.classList.remove('is-dragging');
       if (this.viewport.hasPointerCapture(event.pointerId)) this.viewport.releasePointerCapture(event.pointerId);
+      if (this.options.snapOnDragEnd === false) return;
       const nearest = this.positions().reduce((closest, position) => Math.abs(position - this.viewport.scrollLeft) < Math.abs(closest - this.viewport.scrollLeft) ? position : closest, 0);
       this.viewport.scrollTo({ left: nearest, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     };
@@ -103,7 +109,10 @@ export class HorizontalRail {
       const max = this.viewport.scrollWidth - this.viewport.clientWidth;
       if (max <= 2 || (event.deltaY < 0 && this.viewport.scrollLeft <= 0) || (event.deltaY > 0 && this.viewport.scrollLeft >= max)) return;
       event.preventDefault();
-      this.viewport.scrollLeft += event.deltaY;
+      const delta = event.deltaY * (event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? this.viewport.clientWidth : 1);
+      if (event.deltaMode || Math.abs(delta) >= 50) {
+        this.viewport.scrollBy({ left: delta, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      } else this.viewport.scrollLeft += delta;
     }, { passive: false });
   }
 

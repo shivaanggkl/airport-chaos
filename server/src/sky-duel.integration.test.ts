@@ -309,15 +309,19 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     a.send('skyDuelQueue');
     const aiMatch = await a.waitFor('skyDuelLoading', message => message.aiOpponent === true && message.practice === false, 20_000);
     assert.equal(aiMatch.pilotB, 'AI PLAYER');
+    assert.equal(aiMatch.levelB, 50, 'fallback AI displays the top pilot rank');
+    assert.equal(aiMatch.aircraftB, 'fighter', 'fallback AI flies the strongest combat aircraft');
     assert.equal(aiMatch.entry, 500);
     assert.equal(aiMatch.prize, 1000);
     assert.equal(aiMatch.playerBId, aiMatch.pilotBId, 'AI telemetry uses the match participant ID');
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000, 'AI match reserves the human stake');
     assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 0, 'AI reserves its own stake');
-    await a.waitFor('skyDuelFound', message => message.matchId === aiMatch.matchId);
+    const aiFound = await a.waitFor('skyDuelFound', message => message.matchId === aiMatch.matchId);
+    assert.equal(aiFound.levelB, 50);
     await a.waitFor('skyDuelState', message => message.matchId === aiMatch.matchId && message.phase === 'active', 18_000);
     const aiId = aiMatch.pilotBId;
     const aiStart = await a.waitFor('playerState', message => message.playerId === aiId && message.isBot === true);
+    assert.equal(aiStart.aircraftType, 'fighter');
     assert.ok(Number.isFinite(aiStart.altitudeMeters), 'AI starting altitude is available to the HUD');
     const aiStartPosition = aiStart.position as { x: number; y: number; z: number };
     const aiSpawn = a.messages.filter(message => message.type === 'skyDuelSpawn').at(-1)!;
@@ -336,6 +340,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const aiResult = await a.waitFor('skyDuelResult', message => message.matchId === aiMatch.matchId);
     assert.equal(aiResult.outcome, 'WIN_B');
     assert.equal(aiResult.aiOpponent, true);
+    assert.equal(aiResult.levelB, 50);
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000,
       'forfeiting the paid AI match loses the reserved entry');
     assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 1000,

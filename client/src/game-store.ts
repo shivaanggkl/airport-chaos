@@ -8,6 +8,7 @@ import { HorizontalRail } from './horizontal-rail';
 import { confirmCatalogPurchase } from './purchase-confirmation';
 import { StoreAircraftPreviews } from './store-aircraft-previews';
 import { createAircraftDetailPanel, renderAircraftDetailPanel } from './aircraft-detail-panel';
+import { aircraftRoles } from './visual-language';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
 
@@ -43,6 +44,8 @@ function artwork(item: StoreItem): HTMLElement {
     for (const value of item.colors) { const dot = document.createElement('i'); dot.style.backgroundColor = color(value); swatches.append(dot); }
     art.append(swatches);
   }
+  const role = document.createElement('span'); role.className = 'store-art-role'; role.textContent = aircraftRoles[item.aircraftType];
+  art.append(role);
   return art;
 }
 
@@ -81,6 +84,9 @@ export class GameStore {
     closeDetail.type = 'button'; closeDetail.className = 'store-detail-close';
     closeDetail.setAttribute('aria-label', 'Close aircraft details'); closeDetail.textContent = '×';
     detailPanel.prepend(closeDetail);
+    const rotateHint = document.createElement('span'); rotateHint.className = 'store-detail-rotate-hint';
+    rotateHint.textContent = 'DRAG TO ROTATE';
+    detailPanel.querySelector('.store-detail-preview')!.append(rotateHint);
     this.detailOverlay.append(detailPanel);
     element.querySelector('.store-detail-close')!.addEventListener('click', () => this.closeDetail());
     this.detailOverlay.addEventListener('keydown', event => {
@@ -114,7 +120,7 @@ export class GameStore {
       next: element.querySelector<HTMLButtonElement>('.store-rail-next')!,
       progress: element.querySelector<HTMLElement>('.store-rail-progress')!,
       thumb: element.querySelector<HTMLElement>('.store-rail-thumb')!,
-      draggable: true, wheel: true, keyboard: true,
+      draggable: true, snapOnDragEnd: false, wheel: true, keyboard: true,
     });
     registerUiBackLayer({ id: 'game-store', priority: uiBackPriority.surface,
       isActive: () => this.isOpen(), close: () => handlers.close() });

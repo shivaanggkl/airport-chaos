@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { attachAircraftAsset, type AircraftAssetType } from './assets';
-import { aircraftDefinitions } from './aircraft';
+import { aircraftPresentationDimensions } from './aircraft';
 import { remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 import type { EntityType, EventCombatMode } from './entity-types';
 import type { CityTimeOfDay } from './city-visuals';
@@ -220,8 +220,7 @@ const ambientImpostorMaterial = new THREE.SpriteMaterial({ map: impostorTexture,
 const eventImpostorMaterial = new THREE.SpriteMaterial({ map: impostorTexture, color: 0xffc25d, transparent: true, opacity: 0, depthWrite: false });
 
 function aircraftDimensions(type: AircraftAssetType | undefined): { length: number; span: number } {
-  const definition = aircraftDefinitions[type ?? 'trainer'];
-  return { length: definition.bodyLength + definition.noseLength, span: definition.wingSpan };
+  return aircraftPresentationDimensions[type ?? 'trainer'];
 }
 
 function createAirframe(type: AircraftAssetType | undefined): { detail: THREE.Group; silhouette: THREE.Mesh } {

@@ -2379,34 +2379,6 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 }
 .unified-flight-hud .landing-risk { color: #ff8b82; }
 
-.mission-reminder {
-  position: fixed;
-  z-index: 20;
-  top: max(70px, calc(env(safe-area-inset-top) + 66px));
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  max-width: min(520px, calc(100vw - 28px));
-  padding: 7px 8px 7px 11px;
-  box-sizing: border-box;
-  color: var(--ui-text);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: 7px;
-  background: rgb(24 52 74 / 78%);
-  box-shadow: var(--ui-shadow);
-  backdrop-filter: blur(5px);
-  pointer-events: auto;
-  transform: translateX(-50%);
-}
-.mission-reminder[hidden] { display: none; }
-.mission-reminder > div { display: grid; gap: 2px; min-width: 0; }
-.mission-reminder strong { color: var(--ui-gold); font: 700 12px/1.2 var(--font-display); }
-.mission-reminder span { color: var(--text-secondary); font: 500 12px/1.25 var(--font-body); }
-.mission-reminder button { min-height: 28px; padding: 4px 7px; border: 1px solid var(--ui-border-strong); border-radius: 5px; color: var(--ui-text); background: rgb(23 117 223 / 22%); font: 700 11px/1 var(--font-display); cursor: pointer; }
-.mission-reminder button[data-mission-reminder-open] { color: var(--ui-ocean-ink); border-color: rgb(249 176 10 / 74%); background: var(--ui-gradient-primary); }
-.mission-reminder button[data-mission-reminder-dismiss] { min-width: 28px; padding-inline: 5px; color: var(--text-secondary); background: transparent; }
-
 .desktop-controls-help {
   position: fixed;
   z-index: 9;
@@ -2875,9 +2847,6 @@ body:has(.combat-threat-warning:not(.hidden)) .landing-speed-cue { top: 118px; }
 body:has(#world-map-overlay:not(.hidden)) #reward-feedback,
 body:has(#pilot-menu-overlay:not([hidden])) #reward-feedback,
 body:has(#garage-overlay:not([hidden])) #reward-feedback { visibility: hidden; }
-body:has(#world-map-overlay:not(.hidden)) #mission-reminder,
-body:has(#pilot-menu-overlay:not([hidden])) #mission-reminder,
-body:has(#garage-overlay:not([hidden])) #mission-reminder { display: none; }
 .map-legend { position: absolute; z-index: 1; top: 6px; left: 50%; display: flex; gap: 8px 14px; max-width: calc(100% - 20px); padding: 4px 8px; overflow: hidden; border:1px solid var(--ui-border); border-radius: 3px; color:var(--ui-text); background: var(--ui-bg-soft); font: 600 12px/1.2 var(--font-body); white-space: nowrap; pointer-events: none; transform: translateX(-50%); }
 .territory-color-dot { display: inline-block; flex: none; width: 10px; height: 10px; border: 1px solid #07151e; border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 255 255 / 40%); vertical-align: middle; }
 .territory-color-legend { margin: 8px 0; color: var(--ui-text); font: 600 var(--font-meta-size) var(--font-body); }
@@ -3207,7 +3176,7 @@ body:has(#world-map-overlay:not(.hidden)) :is(.unified-flight-hud,#flight-hud,.m
 .touch-controls-active #radar{width:78px;height:78px;background:rgb(2 12 22 / 34%)}
 body:has(#world-map-overlay:not(.hidden)) #right-flight-stack{display:none}
 @media(max-width:1100px){.desktop-controls-help-items{gap:3px 8px}.desktop-controls-help-items span:not(:last-child)::after{margin-left:8px}.practice-mode-label{bottom:max(60px,calc(env(safe-area-inset-bottom) + 52px))}}
-@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:4px;width:100%;padding:calc(var(--safe-area-top) + 6px) max(7px,var(--safe-area-right)) 0 max(7px,var(--safe-area-left))}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud button{min-width:44px;min-height:44px;padding:3px 5px;font-size:10px}.mission-reminder{top:max(48px,calc(env(safe-area-inset-top) + 42px));max-width:calc(100vw - 160px);padding:5px 6px 5px 8px}.mission-reminder span{font-size:11px}.mission-reminder button{min-height:27px;padding:3px 5px;font-size:10px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
+@media(max-width:700px) and (orientation:landscape){.unified-flight-hud{--hud-gap:4px;width:100%;padding:calc(var(--safe-area-top) + 6px) max(7px,var(--safe-area-right)) 0 max(7px,var(--safe-area-left))}.flight-hud-stat{gap:2px}.unified-flight-hud small{font-size:9px}.unified-flight-hud strong{font-size:12px}.unified-flight-hud button{min-width:44px;min-height:44px;padding:3px 5px;font-size:10px}.reward-feedback{max-width:calc(100vw - 150px);padding:3px 6px;font-size:13px}.touch-stick,.touch-fire{width:104px;height:104px!important}.touch-throttle-lever{width:70px;height:142px}.pilot-mobile-control-editor{grid-template-columns:1fr}}
 @media(max-width:800px){.unified-flight-hud{grid-template:"left utilities" auto "center center" auto/minmax(0,1fr) auto;align-content:center;row-gap:4px;min-height:calc(106px + var(--safe-area-top));padding-bottom:5px}.flight-hud-left{grid-area:left}.flight-hud-center{grid-area:center;justify-self:center;flex-wrap:wrap;justify-content:center}.unified-flight-hud .flight-hud-utilities{grid-area:utilities;width:auto;justify-content:center;padding:0}.mission-status-layer{top:max(144px,calc(var(--safe-area-top) + 138px))}}
 @media (max-width: 800px) and (orientation: landscape) and (max-height: 520px) { .sky-challenge.journey-hud { top: calc(108px + var(--safe-area-top)); } }
 @media(max-width:480px){.flight-hud-left,.flight-hud-center{--hud-gap:3px}.unified-flight-hud button{padding-inline:5px}.unified-flight-hud .flight-exit-button{font-size:9px}.unified-flight-hud small{font-size:8px}.unified-flight-hud strong{font-size:11px}.unified-flight-hud .flight-hud-utilities .flight-header-garage span{display:none}.unified-flight-hud .flight-hud-utilities .flight-header-garage{min-width:44px}}
@@ -6865,8 +6834,8 @@ body:has(.sky-duel-ui.is-presentation)::before { opacity: 0; }
 .sky-duel-result-pilot span:not(.rank-helmet) { color: #087eab; font: 800 11px/1.2 var(--font-display); }
 .sky-duel-summary-card h2 { color: var(--menu-card-ink); text-shadow: none; }
 .sky-duel-summary-card p { color: var(--menu-card-ink); text-shadow: none; line-height: 1.6; }
-.sky-duel-matchup { --sky-duel-helmet-size: clamp(90px, min(22vw, 28dvh), 180px); --sky-duel-row-gap: clamp(3px, .8dvh, 8px); --sky-duel-label-height: 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, .38fr) minmax(0, 1fr); align-items: stretch; gap: 0; width: min(680px, 70vw); min-height: 0; }
-.sky-duel-matchup.has-winner { --sky-duel-winner-extra: calc(30px + var(--sky-duel-row-gap)); }
+.sky-duel-matchup { --sky-duel-helmet-size: clamp(90px, min(22vw, 28dvh), 180px); --sky-duel-row-gap: clamp(3px, .8dvh, 8px); --sky-duel-label-height: 28px; --sky-duel-winner-height: 28px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, .38fr) minmax(0, 1fr); align-items: stretch; gap: 0; width: min(680px, 70vw); min-height: 0; }
+.sky-duel-matchup.has-winner { --sky-duel-winner-extra: calc(var(--sky-duel-winner-height) + var(--sky-duel-row-gap)); }
 .sky-duel-pilot-card { display: grid; justify-items: center; align-content: start; gap: var(--sky-duel-row-gap); min-width: 0; color: #fff; }
 .sky-duel-side-label { display: flex; align-items: center; justify-content: center; gap: .3em; box-sizing: border-box; max-width: 100%; min-height: var(--sky-duel-label-height); overflow: hidden; padding: 3px 13px 5px; border-bottom: 2px solid #f5ca61; color: #fff; background: linear-gradient(90deg, transparent, rgb(8 42 91 / 72%), transparent); font: 900 clamp(14px, 1.5vw, 18px)/1.1 var(--font-display); letter-spacing: .08em; text-shadow: 0 2px 5px #082044; white-space: nowrap; }
 .sky-duel-side-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -6875,12 +6844,12 @@ body:has(.sky-duel-ui.is-presentation)::before { opacity: 0; }
 .sky-duel-helmet-slot .rank-helmet { width: 100%; height: 100%; }
 .sky-duel-waiting-note { position: absolute; z-index: 1; top: -5px; left: 50%; transform: translateX(-50%); padding: 3px 7px; border: 1px solid #f5ca61; border-radius: 5px; color: #fff; background: rgb(7 31 70 / 92%); font: 800 clamp(9px, 1vw, 12px)/1.1 var(--font-display); white-space: nowrap; }
 .sky-duel-waiting-note[hidden] { display: none; }
-.sky-duel-winner-label { display: none; box-sizing: border-box; height: 30px; color: #ffe07b; font: 900 clamp(20px, 2.3vw, 28px)/30px var(--font-display); letter-spacing: .09em; white-space: nowrap; text-shadow: 0 2px 5px #082044, 0 0 12px #ffd45e; }
+.sky-duel-winner-label { display: none; box-sizing: border-box; height: var(--sky-duel-winner-height); color: #ffe07b; font: 900 clamp(20px, 1.9vw, 24px)/var(--sky-duel-winner-height) var(--font-display); letter-spacing: .04em; text-align: center; white-space: nowrap; text-shadow: 0 2px 5px #082044, 0 0 9px #ffd45e; }
 .sky-duel-matchup.has-winner .sky-duel-winner-label { display: block; }
 .sky-duel-matchup.has-winner .sky-duel-pilot-card:not(.is-winner) .sky-duel-winner-label { visibility: hidden; }
 @supports (-webkit-background-clip: text) {
   .sky-duel-pilot-card.is-winner .sky-duel-winner-label {
-    background: radial-gradient(circle at 22% 38%, #fff 0 1px, transparent 5px), radial-gradient(circle at 70% 65%, #fff 0 1px, transparent 5px), linear-gradient(105deg, #f9b738 35%, #fff9df 48%, #fff 50%, #fff9df 52%, #f9b738 65%);
+    background: linear-gradient(105deg, #f9b738 35%, #fff9df 48%, #fff 50%, #fff9df 52%, #f9b738 65%);
     background-size: 220% 100%;
     background-position: 100% 0;
     -webkit-background-clip: text;
@@ -6913,9 +6882,10 @@ body:has(.sky-duel-ui.is-presentation)::before { opacity: 0; }
 .sky-duel-stake, .sky-duel-pot, .sky-duel-practice { box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 4px 10px; border: 2px solid #f7cf66; border-radius: 8px; color: #ffe18a; background: linear-gradient(155deg, rgb(9 43 92 / 94%), rgb(5 28 69 / 94%)); box-shadow: inset 0 1px rgb(255 255 255 / 22%), 0 4px 9px rgb(0 15 45 / 35%); font: 900 clamp(11px, 1.2vw, 15px)/1 var(--font-display); white-space: nowrap; }
 .sky-duel-stake, .sky-duel-pot { border-color: var(--ui-navigation-button-border); border-radius: 14px; color: #fff; background: var(--ui-back-button-fill); box-shadow: var(--ui-navigation-button-shadow); }
 .sky-duel-stake { min-height: 44px; padding: 5px 13px; color: #fff; font-size: clamp(15px, 1.6vw, 19px); }
-.sky-duel-stake img { width: 32px; height: 32px; object-fit: contain; }
+.sky-duel-stake img, .sky-duel-pot img { width: 32px; height: 32px; object-fit: contain; }
 .sky-duel-stake.is-collected > * { visibility: hidden; }
 .sky-duel-pot { min-width: 230px; min-height: 60px; padding: 9px 18px; color: #fff; font-size: clamp(18px, 1.9vw, 23px); transition: box-shadow 250ms ease, color 250ms ease; }
+.sky-duel-pot:not(.is-filled) > * { visibility: hidden; }
 .sky-duel-practice { border-color: #74dff4; color: #c8f5ff; }
 .sky-duel-stake[hidden], .sky-duel-pot[hidden], .sky-duel-practice[hidden], .sky-duel-countdown[hidden] { display: none; }
 .sky-duel-matchup-center { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: calc(var(--sky-duel-label-height) + var(--sky-duel-row-gap) + var(--sky-duel-winner-extra, 0px)) var(--sky-duel-helmet-size) auto; justify-items: center; align-content: start; min-width: 0; }
@@ -6972,15 +6942,16 @@ body:has(.sky-duel-ui.is-presentation)::before { opacity: 0; }
   .sky-duel-panel.is-matchmaking { padding-top: calc(var(--hub-header-total) + 4px); }
   .sky-duel-panel h2 { font-size: clamp(24px, 4vw, 32px); }
   .sky-duel-panel p { font-size: 13px; }
-  .sky-duel-matchup { --sky-duel-helmet-size: clamp(96px, 32dvh, 126px); --sky-duel-row-gap: 2px; --sky-duel-label-height: 20px; }
+  .sky-duel-matchup { --sky-duel-helmet-size: clamp(96px, 32dvh, 126px); --sky-duel-row-gap: 2px; --sky-duel-label-height: 20px; --sky-duel-winner-height: 23px; }
   .sky-duel-pilot-card { gap: 2px; }
   .sky-duel-side-label { padding-block: 2px 3px; font-size: 13px; }
+  .sky-duel-winner-label { font-size: 19px; }
   .sky-duel-pilot-name { font-size: 16px; }
   .sky-duel-level { font-size: 11px; }
   .sky-duel-stake, .sky-duel-pot, .sky-duel-practice { min-height: 22px; padding: 2px 5px; font-size: 10px; }
   .sky-duel-stake { min-height: 38px; padding: 3px 10px; font-size: 14px; }
-  .sky-duel-stake img { width: 28px; height: 28px; }
-  .sky-duel-pot { min-width: 190px; min-height: 50px; padding: 6px 14px; font-size: 17px; }
+  .sky-duel-stake img, .sky-duel-pot img { width: 28px; height: 28px; }
+  .sky-duel-pot { min-width: 190px; min-height: 50px; padding: 6px 10px; font-size: 17px; }
   .sky-duel-versus { font-size: 43px; }
   .sky-duel-countdown { margin-top: 5px; }
   .sky-duel-countdown { width: 44px; height: 44px; }

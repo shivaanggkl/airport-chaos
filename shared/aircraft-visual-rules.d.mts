@@ -9,9 +9,11 @@ export type AircraftVisualConfig = Readonly<{
 export const DESTRUCTION_EFFECT_DURATION_SECONDS: number;
 export const DESTRUCTION_FRAGMENT_COUNT: number;
 export const MAX_DESTRUCTION_EFFECTS: number;
+export const runwayVisualSurfaceOffset: number;
 export const aircraftVisualConfig: Readonly<Record<AircraftVisualType, AircraftVisualConfig>>;
 export function groundContactVisualOffset(
   contacts: ReadonlyArray<AircraftGroundContact>,
   quaternion: Readonly<{ x: number; y: number; z: number; w: number }>,
   rootClearance: number,
 ): number;
+export function smoothAirborneGroundContactOffset(currentOffset: number, requiredOffset: number, delta: number): number;

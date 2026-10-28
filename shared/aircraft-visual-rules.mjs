@@ -1,6 +1,9 @@
 export const DESTRUCTION_EFFECT_DURATION_SECONDS = 0.9;
 export const DESTRUCTION_FRAGMENT_COUNT = 6;
 export const MAX_DESTRUCTION_EFFECTS = 6;
+// Highest painted runway surface is 0.2495 above terrain (Milwaukee).
+// Leave a small gap so tires do not intersect either city's runway markings.
+export const runwayVisualSurfaceOffset = 0.26;
 
 export const aircraftVisualConfig = Object.freeze({
   trainer: Object.freeze({
@@ -41,12 +44,12 @@ export const aircraftVisualConfig = Object.freeze({
   fighter: Object.freeze({
     // Primitive fallback only; the loaded REDSPEAR uses ExhaustSocket_Main.
     effectAnchors: Object.freeze([
-      Object.freeze({ x: 0, y: -0.342, z: 4.217, radius: 0.38 }),
+      Object.freeze({ x: 0, y: -0.333, z: 4.259, radius: 0.38 }),
     ]),
     groundContacts: Object.freeze([
-      Object.freeze({ x: -0.818, y: -1.512, z: 1.013 }),
-      Object.freeze({ x: 0.818, y: -1.512, z: 1.013 }),
-      Object.freeze({ x: 0, y: -1.512, z: -2.306 }),
+      Object.freeze({ x: -0.795, y: -1.471, z: 1.142 }),
+      Object.freeze({ x: 0.795, y: -1.471, z: 1.142 }),
+      Object.freeze({ x: 0, y: -1.471, z: -2.086 }),
     ]),
   }),
 });
@@ -66,4 +69,10 @@ export function groundContactVisualOffset(contacts, quaternion, rootClearance) {
       worldYFromX * contact.x + worldYFromY * contact.y + worldYFromZ * contact.z);
   }
   return Math.max(0, (-rootClearance - lowestWorldY) / worldYFromY);
+}
+
+// Release the runway wheel offset gradually after liftoff. Never go below the
+// clearance required by the contacts, so the model cannot sink into the ground.
+export function smoothAirborneGroundContactOffset(currentOffset, requiredOffset, delta) {
+  return requiredOffset + Math.max(0, currentOffset - requiredOffset) * Math.exp(-3 * Math.max(0, delta));
 }

@@ -27,7 +27,7 @@ test('Firehawk has a compact single-engine model and unchanged purchase identity
   assert.ok(binary.length < 1_500_000);
   assert.ok(triangles < 12_000);
   assert.ok(primitives.length <= 12);
-  assert.ok(length / span > 1.20 && length / span < 1.30);
+  assert.ok(length / span > 1.45 && length / span < 1.52);
   for (const slot of ['AC_LIVERY_BASE', 'AC_LIVERY_PRIMARY', 'AC_LIVERY_ACCENT', 'AC_PANEL_LINES', 'AC_INLET_VOID', 'AC_GLASS', 'AC_DARK', 'AC_METAL', 'AC_TIRE']) {
     assert.ok(model.materials.some(material => material.name === slot), `missing ${slot}`);
   }
@@ -35,6 +35,10 @@ test('Firehawk has a compact single-engine model and unchanged purchase identity
   assert.equal(sockets.length, 1);
   assert.ok(Math.abs(sockets[0].translation[1] - -0.02) < 0.001);
   assert.ok(Math.abs(sockets[0].translation[2] - 4.18) < 0.001);
+  const gear = model.nodes.find(node => node.name === 'FighterLandingGear');
+  assert.ok(gear, 'visual landing gear must be grouped for airborne stowage');
+  assert.ok(gear.children?.length > 0);
+  assert.ok(gear.children.every(index => model.nodes[index].mesh !== undefined));
   const inferno = cosmeticCatalog.find(item => item.id === 'firehawk-inferno');
   assert.equal(inferno.aircraftRestriction, 'fighter');
   assert.equal(inferno.skyTokenPrice, 2_400);
@@ -49,7 +53,7 @@ test('Firehawk muzzle, wheel contacts, and exhaust align with the normalized mod
   for (const contact of contacts) {
     assert.ok(Math.abs(contact.y - (bounds.min[1] - centerY) * scale) < 0.025);
   }
-  assert.deepEqual(contacts.map(contact => contact.x), [-0.818, 0.818, 0]);
+  assert.deepEqual(contacts.map(contact => contact.x), [-0.795, 0.795, 0]);
   assert.ok(Math.abs(contacts[0].z - (0.81 - centerZ) * scale) < 0.025);
   assert.ok(Math.abs(contacts[2].z - (-2.68 - centerZ) * scale) < 0.025);
   const exhaust = aircraftVisualConfig.fighter.effectAnchors[0];

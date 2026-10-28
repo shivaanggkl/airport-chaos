@@ -50,7 +50,7 @@ const urls: Record<AssetKey, string> = {
 const loader = new GLTFLoader();
 const cache = new Map<AssetKey, Promise<THREE.Group>>();
 const aircraftAssetVersion = 'bluejay-premium-v3';
-const fighterAssetVersion = 'firehawk-premium-v4';
+const fighterAssetVersion = 'firehawk-falcon-v16-v1';
 const nightowlAssetVersion = 'nightowl-airliner-v1';
 const bounds = new THREE.Box3();
 const size = new THREE.Vector3();
@@ -144,6 +144,7 @@ export function attachAircraftAsset(
       });
       plane.userData.assetPropellers = propellers;
       plane.userData.assetPropellerBlurs = propellerBlurs;
+      plane.userData.assetGear = type === 'fighter' ? model.getObjectByName('FighterLandingGear') : undefined;
       fallback.visible = false;
       plane.userData.assetStatus = 'loaded';
       applyAircraftCosmetics(plane, type, plane.userData.equippedCosmetics ?? {});

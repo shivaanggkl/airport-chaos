@@ -111,3 +111,9 @@ export function airborneLiftFactor(forwardSpeed,angleOfAttack,throttle,stallFact
   const idleLiftScale=.35+.65*clamp(throttle/.2,0,1);
   return liftCoefficient*Math.min(1.28,(forwardSpeed/envelope.takeoffSpeed)**2)*stallFactor*envelope.lift*(1+throttle*envelope.climbLiftBoost*.08)*idleLiftScale;
 }
+
+// Called only once the runway speed threshold is met, where stallFactor is 1.
+// A brief nose-up input must not trigger liftoff before the wings can climb.
+export function hasRunwayLiftoffLift(speed,pitch,throttle,envelope){
+  return airborneLiftFactor(speed,pitch,throttle,1,envelope)*Math.cos(pitch)>=1;
+}
