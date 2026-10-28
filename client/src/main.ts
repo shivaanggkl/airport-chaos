@@ -228,7 +228,7 @@ let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
 let missionClearStartedAt: number | null = null;
 let missionClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || flightDialogOpen();
+const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
   (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
     missionStartCountdownPending || missionStartCountdownStartedAt !== null);
@@ -4892,8 +4892,8 @@ type ServerMessage =
   | { type: 'skyDuelCancelled' }
   | { type: 'skyDuelError'; reason: string }
   | { type: 'skyDuelLoading'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; entry?: number; prize?: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
-  | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
-  | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'active' | 'overtime'; scoreA: number; scoreB: number; endsAt: number; countdownEndsAt?: number }
+  | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
+  | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'launch' | 'active' | 'overtime'; scoreA: number; scoreB: number; endsAt?: number; countdownEndsAt?: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number }
   | { type: 'skyDuelResult'; matchId: string; outcome: 'WIN_A' | 'WIN_B' | 'DRAW' | 'CANCELLED'; pilotA: string; pilotB: string; pilotNameA?: string; pilotNameB?: string; levelA?: number; levelB?: number; aiOpponent?: boolean; balanceA?: number; balanceB?: number; scoreA: number; scoreB: number; entry?: number; prize?: number; practice?: boolean; rematchAvailable?: boolean }
   | { type: 'skyDuelRematchState'; matchId: string; available: boolean; readyA: boolean; readyB: boolean; reason?: string }
   | { type: 'skyDuelSpawn'; position: NetworkVector; heading: number; speed: number; health: number; protectedUntil: number; active: boolean }
@@ -9818,6 +9818,7 @@ function animate(): void {
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
   if (!crashed && runStarted && !screenplayFlightPaused && !journeyPreflightActive() &&
+    !skyDuelUi?.blocksFlightInput() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -9930,7 +9931,7 @@ function animate(): void {
     stabilityQaTiming.updateTotalMs += updateMs;
     stabilityQaTiming.updateMaxMs = Math.max(stabilityQaTiming.updateMaxMs, updateMs);
   }
-  renderer.render(scene, camera);
+  if (!renderSkyDuelRunwayIntro()) renderer.render(scene, camera);
   if (stabilityQaTiming) {
     const renderMs = performance.now() - qaRenderStartedAt;
     stabilityQaTiming.renderTotalMs += renderMs;
@@ -10172,6 +10173,58 @@ const skyDuelUi = skyDuelMode ? new SkyDuelUi(flightGameRoot,
   () => { void exitFlightToHub(false, true); },
   message => showProgressMessage(message, 1_500),
   flightLaunchAircraft(persistedPlayer.pilotId)) : undefined;
+const skyDuelIntroCamera = skyDuelMode ? new THREE.PerspectiveCamera(52, 1, CAMERA_NEAR, CAMERA_BASE_FAR) : undefined;
+const skyDuelIntroViewportSize = new THREE.Vector2();
+const skyDuelIntroSkyPosition = new THREE.Vector3();
+const skyDuelIntroOffset = new THREE.Vector3();
+const skyDuelIntroTarget = new THREE.Vector3();
+
+function renderSkyDuelRunwayIntro(): boolean {
+  const progress = skyDuelUi?.runwayIntroProgress();
+  const opponent = skyDuelUi ? remotePlayers.get(skyDuelUi.opponentEntityId()) : undefined;
+  const visible = progress !== undefined &&
+    (opponent?.lifeState === 'alive' || opponent?.lifeState === 'respawning') && airplane.visible;
+  skyDuelUi?.setRunwayIntroVisible(visible);
+  if (!visible || progress === undefined || !opponent || !skyDuelIntroCamera) return false;
+
+  // WebGLRenderer viewport/scissor APIs use CSS pixels and apply pixelRatio internally.
+  const size = renderer.getSize(skyDuelIntroViewportSize);
+  const leftWidth = Math.floor(size.x / 2);
+  skyDuelIntroCamera.aspect = leftWidth / size.y;
+  skyDuelIntroCamera.far = camera.far;
+  skyDuelIntroCamera.updateProjectionMatrix();
+  skyDuelIntroSkyPosition.copy(skyDome.position);
+  const remoteAirframe = opponent.plane.userData.airframeRoot as THREE.Group;
+  const remoteScale = remoteAirframe.scale.x;
+  const remoteVisible = opponent.plane.visible;
+  opponent.plane.visible = true;
+  remoteAirframe.scale.setScalar(remoteAirframe.userData.duelVisualScale as number);
+  const sweep = smoothstep01(Math.min(1, progress / 0.8));
+  const angle = THREE.MathUtils.lerp(1.35, 0, sweep);
+  const radius = Math.max(19, cameraFrameSize.x * 1.7);
+  renderer.setScissorTest(true);
+  for (const [index, plane] of [airplane, opponent.plane].entries()) {
+    const width = index === 0 ? leftWidth : size.x - leftWidth;
+    const x = index === 0 ? 0 : leftWidth;
+    skyDuelIntroOffset.set(Math.sin(angle) * radius, Math.max(5, cameraFrameSize.y * 1.1), Math.cos(angle) * radius)
+      .applyQuaternion(plane.quaternion).add(plane.position);
+    skyDuelIntroTarget.set(0, Math.max(1.4, cameraFrameSize.y * 0.3), 0)
+      .applyQuaternion(plane.quaternion).add(plane.position);
+    skyDuelIntroCamera.position.copy(skyDuelIntroOffset);
+    skyDuelIntroCamera.lookAt(skyDuelIntroTarget);
+    skyDuelIntroCamera.updateMatrixWorld();
+    skyDome.position.copy(skyDuelIntroCamera.position);
+    renderer.setViewport(x, 0, width, size.y);
+    renderer.setScissor(x, 0, width, size.y);
+    renderer.render(scene, skyDuelIntroCamera);
+  }
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, size.x, size.y);
+  skyDome.position.copy(skyDuelIntroSkyPosition);
+  remoteAirframe.scale.setScalar(remoteScale);
+  opponent.plane.visible = remoteVisible;
+  return true;
+}
 let protocolReady = false;
 let protocolBlocked = false;
 let reconnectAttempt = 0;
@@ -11609,6 +11662,10 @@ boundSocket.addEventListener('message', (event) => {
     skyDuelUi?.handle(message);
     if (!skyDuelUi?.hasAbandonedSearch() && message.type === 'skyDuelState' &&
       (message.phase === 'active' || message.phase === 'overtime')) runStarted = true;
+    if (message.type === 'skyDuelState' && message.phase === 'launch') {
+      runStarted = false;
+      resetFlightLaunchInput();
+    }
     if (message.type === 'skyDuelResult') { runStarted = false; airplane.visible = true; }
   } else if (message.type === 'profile') {
     legendaryPilotUnlocked = message.legendaryPilot === true;

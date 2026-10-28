@@ -205,7 +205,18 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
       Number(message.countdownEndsAt) > Number(foundA.countdownEndsAt));
     assert.ok(Number(resumedCountdown.countdownEndsAt) - Date.now() > 3_500,
       'a reconnect before combat restarts a shared countdown');
-    await a.waitFor('skyDuelState', message => message.phase === 'active');
+    const [launchA, launchB] = await Promise.all([
+      a.waitFor('skyDuelState', message => message.phase === 'launch', 15_000),
+      b.waitFor('skyDuelState', message => message.phase === 'launch', 15_000),
+    ]);
+    assert.equal(launchA.launchStartedAt, launchB.launchStartedAt, 'both pilots share the runway intro');
+    assert.equal(launchA.launchCountdownAt, launchB.launchCountdownAt, 'both pilots share the runway countdown');
+    assert.equal(launchA.launchEndsAt, launchB.launchEndsAt, 'both pilots start play together');
+    assert.equal(Number(launchA.launchCountdownAt) - Number(launchA.launchStartedAt), 3_000);
+    assert.equal(Number(launchA.launchEndsAt) - Number(launchA.launchCountdownAt), 3_000);
+    assert.equal(a.messages.some(message => message.type === 'skyDuelState' && message.phase === 'active'), false,
+      'the match clock does not start during the runway presentation');
+    await a.waitFor('skyDuelState', message => message.phase === 'active', 18_000);
     b.close();
     await a.waitFor('skyDuelOpponentDisconnected');
     b = new PilotClient(port, signedSecond.cookie!, second.pilotId);
@@ -264,7 +275,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     await b.waitFor('skyDuelFound');
     const [secondSpawnA, secondSpawnB] = await Promise.all([a.waitFor('skyDuelSpawn'), b.waitFor('skyDuelSpawn')]);
     const thirdIsA = secondFound.pilotAId === third.pilotId;
-    await a.waitFor('skyDuelState', message => message.phase === 'active');
+    await a.waitFor('skyDuelState', message => message.phase === 'active', 18_000);
     positionForCombat(a, b, secondSpawnA, secondSpawnB);
     const combatState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const combatFire = setInterval(() => a?.send('fire'), 350);
@@ -295,7 +306,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5000, 'AI match reserves the human stake');
     assert.equal(profiles.getOrCreate(`sky-duel-ai:${third.pilotId}`, 'AI PLAYER').credits, 0, 'AI reserves its own stake');
     await a.waitFor('skyDuelFound', message => message.matchId === aiMatch.matchId);
-    await a.waitFor('skyDuelState', message => message.matchId === aiMatch.matchId && message.phase === 'active');
+    await a.waitFor('skyDuelState', message => message.matchId === aiMatch.matchId && message.phase === 'active', 18_000);
     const aiId = aiMatch.pilotBId;
     const aiStart = await a.waitFor('playerState', message => message.playerId === aiId && message.isBot === true);
     assert.ok(Number.isFinite(aiStart.altitudeMeters), 'AI starting altitude is available to the HUD');
