@@ -56,6 +56,7 @@ import { formatRewardFeedback } from '../../shared/reward-feedback.mjs';
 import { reconcileCreditSnapshot, type CreditReceipt } from '../../shared/credit-receipts.mjs';
 import { FLIGHT_UNITS_PER_METER, KNOTS_PER_METER_PER_SECOND, MPH_PER_METER_PER_SECOND } from '../../shared/aircraft-flight-envelope.mjs';
 import { aircraftGroundOffset } from '../../shared/city-airports.mjs';
+import { competitiveModes } from '../../shared/competitive-modes.mjs';
 import { airborneAirbrakeDeceleration, airborneLiftFactor, airbornePitchTarget, COORDINATED_BANK_CAP, desktopTurnIntent, normalizedPitchCommand, smoothMobileSteering, stepCoordinatedBank, throttleTargetDeceleration } from '../../shared/flight-control-rules.mjs';
 import { aircraftDisplayOrder, firehawkProduct } from '../../shared/aircraft-economy.mjs';
 import { repairsForCity } from '../../shared/city-repairs.mjs';
@@ -456,6 +457,7 @@ window.addEventListener('airport-chaos-time-change', (event) => setLocalTimePres
 
 const depthOffsetDirection = renderer.capabilities.reversedDepthBuffer ? 1 : -1;
 const { obstacleBounds, mountainBounds, waterBounds } = createWorld(scene, depthOffsetDirection);
+if (skyDuelMode) scene.getObjectByName('dallas-scenic-balloons-and-boats')?.removeFromParent();
 // City gameplay configuration owns repair placement; these are intentionally
 // tiny shared meshes, not streamed world detail or collectables.
 const repairBeaconGroup = new THREE.Group();
@@ -519,9 +521,10 @@ for (const beacon of cityId === 'dallas' ? [...repairsForCity(cityId), journeyDa
   repairBeaconGroup.add(ring);
 }
 scene.add(repairBeaconGroup);
+repairBeaconGroup.visible = !skyDuelMode;
 const adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight, cityWorld.hasWorldBuildingDetailAt, worldVisualQuality);
 const ambientTraffic = cityWorld.ambientTrafficConfig
-  ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight, worldVisualQuality === 'high')
+  ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight, worldVisualQuality === 'high' && !skyDuelMode)
   : undefined;
 ambientTraffic?.setTimeOfDay(worldTimeOfDay);
 const configuredWeatherZones = weatherZonesForCity(cityId);
@@ -839,7 +842,7 @@ const navigationBeacons = new NavigationBeaconSystem(
   cityWorld.navigationDestinations ?? fallbackNavigationDestinations,
   getTerrainHeight,
 );
-navigationBeacons.setEnabled(navigationMarkersEnabled);
+navigationBeacons.setEnabled(navigationMarkersEnabled && !skyDuelMode);
 
 function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   const next = missionFocusForAttempt(attempt);
@@ -878,7 +881,7 @@ function applyMissionFocus(attempt: JourneyAttemptState | null): void {
   }
   for (const child of repairBeaconGroup.children) if (child instanceof THREE.Mesh) child.visible = !recovering;
   flightGameRoot.classList.toggle('mission-focus-active', next !== null);
-  navigationBeacons.setEnabled(navigationMarkersEnabled && (next?.showUnrelatedAirportLabels ?? true) && (next?.showUnrelatedLandmarkLabels ?? true));
+  navigationBeacons.setEnabled(!skyDuelMode && navigationMarkersEnabled && (next?.showUnrelatedAirportLabels ?? true) && (next?.showUnrelatedLandmarkLabels ?? true));
   ambientTraffic?.setMissionFocus(next !== null && !next.showAmbientAIAircraft);
   territoryBorderRefreshAt = 0;
   if (next) for (const entry of territoryBorders) { entry.wall.visible = false; entry.label.hidden = true; }
@@ -1441,11 +1444,11 @@ const combatThreatLabelElement = document.querySelector<HTMLElement>('#combat-th
 const activeContractElement = document.querySelector<HTMLDivElement>('#active-contract')!;
 const contractPanelElement = document.querySelector<HTMLElement>('#contract-panel')!;
 const territoryCaptureElement = document.querySelector<HTMLElement>('#territory-capture')!;
-territoryCaptureElement.hidden = !cityRules.territoriesEnabled;
-territoryDefenseAlertElement.hidden = !cityRules.territoriesEnabled;
+territoryCaptureElement.hidden = !cityRules.territoriesEnabled || skyDuelMode;
+territoryDefenseAlertElement.hidden = !cityRules.territoriesEnabled || skyDuelMode;
 document.querySelector<HTMLElement>('#practice-mode-label')!.hidden = !cityRules.practiceMode;
 document.querySelector<HTMLElement>('#tutorial-help')!.hidden = !cityRules.tutorialEnabled;
-document.querySelector<HTMLElement>('#map-territory-list')?.closest<HTMLElement>('.map-intelligence-panel')?.toggleAttribute('hidden', !cityRules.territoriesEnabled);
+document.querySelector<HTMLElement>('#map-territory-list')?.closest<HTMLElement>('.map-intelligence-panel')?.toggleAttribute('hidden', !cityRules.territoriesEnabled || skyDuelMode);
 contractPanelElement.classList.add('hidden');
 const contractTypeElement = document.querySelector<HTMLElement>('#contract-type')!;
 const contractDetailElement = document.querySelector<HTMLDivElement>('#contract-detail')!;
@@ -1735,11 +1738,18 @@ function setFlightState(state: FlightState): void {
   else if (state === 'FLYING' && previous === 'TAKEOFF') queueAtcCallout('airborne', 'TOWER: GOOD DEPARTURE');
 }
 
+let nextSkyDuelHudUpdateAt = 0;
 function updateFlightHud(): void {
   const speedMph = Math.round(currentSpeed * METERS_PER_SECOND_TO_MPH).toLocaleString();
   speedElement.textContent = speedMph;
   const altitudeFeet = Math.round(altitudeAboveTerrain() * METERS_TO_FEET).toLocaleString();
   altitudeElement.textContent = altitudeFeet;
+  if (skyDuelMode && skyDuelUi && performance.now() >= nextSkyDuelHudUpdateAt) {
+    nextSkyDuelHudUpdateAt = performance.now() + 100;
+    const opponent = remotePlayers.get(skyDuelUi.opponentEntityId());
+    skyDuelUi.updateTelemetry(health, altitudeAboveTerrain() * METERS_TO_FEET,
+      opponent?.health, opponent?.altitudeMeters === undefined ? undefined : opponent.altitudeMeters * METERS_TO_FEET);
+  }
   // Guidance must remain visible when the pilot is misaligned and assist is
   // unavailable. It observes the same touchdown predicate, not a new envelope.
   const approachAirport = !onGround && !crashed && flightState !== 'TAKEOFF' &&
@@ -2309,7 +2319,7 @@ let joinedEventId: string | null = null;
 let skippedEventId: string | null = null;
 let kingPlayerId: string | undefined;
 const formationMembers = new Set<string>();
-const territoryDefinitions = territoriesForCity(cityId);
+const territoryDefinitions = skyDuelMode ? [] : territoriesForCity(cityId);
 const territoryState = new Map<string, NetworkTerritoryState>();
 const neutralTerritoryColor: string = territoryOwnershipColors.neutral;
 function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; color: string }> {
@@ -2474,7 +2484,7 @@ const territoryBorders = territoryDefinitions.map((definition) => {
   return { definition, wall, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, pulseUntil: 0, styleSignature: '' };
 });
 // One lightweight ground outline matches the server's horizontal defense radius.
-const siegeDefenseBoundary = cityId === 'dallas' ? (() => {
+const siegeDefenseBoundary = cityId === 'dallas' && !skyDuelMode ? (() => {
   const definition = territoryDefinition(journeyDallas18.territoryId)!;
   const points: THREE.Vector3[] = [];
   for (let i = 0; i < 64; i += 1) {
@@ -3449,7 +3459,7 @@ dynamicEventSkipElement.addEventListener('click', () => {
   updateDynamicEventHud();
 });
 
-if (cityWorld.skyChallenges?.length && !journeyMode) {
+if (cityWorld.skyChallenges?.length && !journeyMode && !skyDuelMode) {
   skyChallenges = new SkyChallengeSystem(scene, cityWorld.skyChallenges, getTerrainHeight, {
     onScore: (points) => {
       if (!cityRules.progressionEnabled) return;
@@ -4173,7 +4183,7 @@ window.addEventListener('airport-chaos-menu-preferences-changed',()=>{
   persistedPlayer.navigationMarkersEnabled=latest.navigationMarkersEnabled;
   contextualHints.setEnabled(latest.hintsEnabled);
   navigationMarkersEnabled=latest.navigationMarkersEnabled;
-  navigationBeacons.setEnabled(navigationMarkersEnabled && (missionFocus?.showUnrelatedAirportLabels ?? true) && (missionFocus?.showUnrelatedLandmarkLabels ?? true));
+  navigationBeacons.setEnabled(!skyDuelMode && navigationMarkersEnabled && (missionFocus?.showUnrelatedAirportLabels ?? true) && (missionFocus?.showUnrelatedLandmarkLabels ?? true));
   graphicsQualityMode=preferredGraphicsQuality();
   Object.assign(audioLevels,audioManager.getLevels());
   mobileInput.syncPreferences();
@@ -4881,10 +4891,11 @@ type ServerMessage =
   | { type: 'skyDuelWaiting'; elapsedMs: number; fairWait: boolean }
   | { type: 'skyDuelCancelled' }
   | { type: 'skyDuelError'; reason: string }
-  | { type: 'skyDuelLoading'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; entry?: number; prize?: number; practice?: boolean; phase?: string; recovered?: boolean }
-  | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean }
+  | { type: 'skyDuelLoading'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; entry?: number; prize?: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
+  | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
   | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'active' | 'overtime'; scoreA: number; scoreB: number; endsAt: number; countdownEndsAt?: number }
-  | { type: 'skyDuelResult'; matchId: string; outcome: 'WIN_A' | 'WIN_B' | 'DRAW' | 'CANCELLED'; pilotA: string; pilotB: string; balanceA?: number; balanceB?: number; scoreA: number; scoreB: number; entry?: number; prize?: number; practice?: boolean }
+  | { type: 'skyDuelResult'; matchId: string; outcome: 'WIN_A' | 'WIN_B' | 'DRAW' | 'CANCELLED'; pilotA: string; pilotB: string; pilotNameA?: string; pilotNameB?: string; levelA?: number; levelB?: number; aiOpponent?: boolean; balanceA?: number; balanceB?: number; scoreA: number; scoreB: number; entry?: number; prize?: number; practice?: boolean; rematchAvailable?: boolean }
+  | { type: 'skyDuelRematchState'; matchId: string; available: boolean; readyA: boolean; readyB: boolean; reason?: string }
   | { type: 'skyDuelSpawn'; position: NetworkVector; heading: number; speed: number; health: number; protectedUntil: number; active: boolean }
   | { type: 'skyDuelPractice' }
   | { type: 'skyDuelBoundary'; secondsLeft?: number; boundaryMeters?: number }
@@ -5805,6 +5816,7 @@ const pilotMenu = new PilotMenu(pilotMenuOverlayElement, (section) => {
   sections: flightMenuMode === 'single' ? ['MISSION', 'CONTROLS', 'AUDIO', 'HELP'] : ['CONTROLS', 'AUDIO', 'HELP'],
   closeLabel: 'Back to flight',
   showFlightActions: false,
+  forfeitMatch: skyDuelMode ? () => requestFlightExit() : undefined,
   showContextStatus: false,
   beforeClose: () => {
     if (flightMenuMode !== 'single' || !journeyPaused) return true;
@@ -5951,7 +5963,7 @@ function syncTutorialNavigationMap():void{
   worldMapOverlayElement.classList.toggle('tutorial-navigation-map',visible);
   const mapTerritoryList=document.querySelector<HTMLElement>('#map-territory-list');
   const mapTerritoryPanel=mapTerritoryList?.closest<HTMLElement>('.map-intelligence-panel');
-  mapTerritoryPanel?.toggleAttribute('hidden',!cityRules.territoriesEnabled&&!visible);
+  mapTerritoryPanel?.toggleAttribute('hidden',(!cityRules.territoriesEnabled||skyDuelMode)&&!visible);
   if(mapTerritoryList)mapTerritoryList.dataset.empty=visible&&!cityRules.territoriesEnabled?'Territories are available in Dallas.':'';
   const panelStage=tutorialNavigationCoach==='players'||tutorialNavigationCoach==='territories';
   const showInfoCard=panelStage||guidedTutorialActive||journeyMode||launchMode==='free-fly'&&!trainingRequested;
@@ -7055,7 +7067,7 @@ function pilotMenuData(): PilotMenuData {
       toggle: () => {
         navigationMarkersEnabled = !navigationMarkersEnabled;
         persistedPlayer.navigationMarkersEnabled = navigationMarkersEnabled;
-  navigationBeacons.setEnabled(navigationMarkersEnabled && (missionFocus?.showUnrelatedAirportLabels ?? true) && (missionFocus?.showUnrelatedLandmarkLabels ?? true));
+  navigationBeacons.setEnabled(!skyDuelMode && navigationMarkersEnabled && (missionFocus?.showUnrelatedAirportLabels ?? true) && (missionFocus?.showUnrelatedLandmarkLabels ?? true));
         savePlayerProgress();
         renderPilotMenu(true);
       },
@@ -9025,10 +9037,8 @@ function getAirportAtPosition(position: THREE.Vector3): AirportDefinition | null
     const sine = Math.sin(airport.heading);
     const lateral = offsetX * cosine - offsetZ * sine;
     const longitudinal = offsetX * sine + offsetZ * cosine;
-    if (
-      Math.abs(lateral) <= airport.runwayWidth / 2 &&
-      Math.abs(longitudinal) <= airport.runwayLength / 2
-    ) {
+    const onPrimaryRunway = Math.abs(lateral) <= airport.runwayWidth / 2;
+    if (onPrimaryRunway && Math.abs(longitudinal) <= airport.runwayLength / 2) {
       return airport;
     }
   }
@@ -10157,9 +10167,11 @@ async function realtimeSocketUrl(): Promise<URL> {
 // of rejecting this module and leaving the game root hidden.
 let socket!: WebSocket;
 const skyDuelUi = skyDuelMode ? new SkyDuelUi(flightGameRoot,
-  type => { if (!connectionReady()) return false; socket.send(JSON.stringify({ type })); return true; },
+  (type, matchId) => { if (!connectionReady()) return false; socket.send(JSON.stringify({ type, ...(matchId ? { matchId } : {}) })); return true; },
   () => { void exitFlightToHub(); },
-  () => { void exitFlightToHub(false, true); }) : undefined;
+  () => { void exitFlightToHub(false, true); },
+  message => showProgressMessage(message, 1_500),
+  flightLaunchAircraft(persistedPlayer.pilotId)) : undefined;
 let protocolReady = false;
 let protocolBlocked = false;
 let reconnectAttempt = 0;
@@ -10573,17 +10585,16 @@ let flightExitPending = false;
 function requestFlightExit(openFirehawkGarage = false): void {
   if (flightExitPending) return;
   if (skyDuelMode) {
-    if (skyDuelUi?.hasReservedMatch()) {
-      showFlightDialog('Exit Sky Duel?', 'Leaving after the battle starts loses your 500-Credit entry.', [
+    if (skyDuelUi?.hasReservedMatch() || skyDuelUi?.hasPracticeMatch()) {
+      showFlightDialog('Forfeit match?', skyDuelUi.hasReservedMatch()
+        ? 'Leaving after the battle starts loses your 500-Credit entry.'
+        : 'Leave AI practice? No Credits are at stake.', [
         { label: 'STAY', secondary: true, run: () => undefined },
-        { label: 'EXIT DUEL', run: () => {
+        { label: 'FORFEIT MATCH', run: () => {
           if (connectionReady()) socket.send(JSON.stringify({ type: 'skyDuelSurrender' }));
           void exitFlightToHub();
         } },
       ]);
-    } else if (skyDuelUi?.hasPracticeMatch()) {
-      if (connectionReady()) socket.send(JSON.stringify({ type: 'skyDuelSurrender' }));
-      void exitFlightToHub();
     } else void exitFlightToHub();
     return;
   }
@@ -11592,7 +11603,7 @@ boundSocket.addEventListener('message', (event) => {
     if (connectionReady()) socket.send(JSON.stringify({ type: 'skyDuelReady' }));
   } else if (message.type === 'skyDuelWaiting' || message.type === 'skyDuelCancelled' ||
     message.type === 'skyDuelError' || message.type === 'skyDuelLoading' || message.type === 'skyDuelFound' ||
-    message.type === 'skyDuelState' || message.type === 'skyDuelResult' ||
+    message.type === 'skyDuelState' || message.type === 'skyDuelResult' || message.type === 'skyDuelRematchState' ||
     message.type === 'skyDuelPractice' || message.type === 'skyDuelBoundary' ||
     message.type === 'skyDuelOpponentDisconnected' || message.type === 'skyDuelOpponentReconnected') {
     skyDuelUi?.handle(message);

@@ -17,7 +17,8 @@ test('one flight menu shell exposes only mode-appropriate tabs and actions', () 
   assert.match(menu, /this\.options\.flightMode === 'single' \? 'MISSION PAUSED' : this\.options\.flightMode === 'training' \? 'TRAINING MENU' : 'FLIGHT MENU'/);
   assert.match(menu, /this\.options\.appShell \|\| this\.options\.flightMode\) \{ this\.close\(\); return; \}/);
   assert.match(menu, /label: this\.options\.flightMode === 'single' \? 'RESUME MISSION' : this\.options\.flightMode === 'training' \? 'RETURN TO TRAINING' : 'RETURN TO FLIGHT'/);
-  assert.match(menu, /label: this\.options\.flightMode === 'single' \? 'EXIT TO JOURNEY' : this\.options\.flightMode === 'training' \? 'EXIT TRAINING' : 'LEAVE SESSION'/);
+  assert.match(menu, /label: this\.options\.forfeitMatch \? 'FORFEIT MATCH' : this\.options\.flightMode === 'single' \? 'EXIT TO JOURNEY' : this\.options\.flightMode === 'training' \? 'EXIT TRAINING' : 'LEAVE SESSION'/);
+  assert.match(main, /forfeitMatch: skyDuelMode \? \(\) => requestFlightExit\(\) : undefined/);
 });
 
 test('single-player menu uses authoritative pause and live mission data; multiplayer stays live', () => {
