@@ -521,11 +521,13 @@ export class MobileInputControls {
       this.apply([], 'throttle');
       lever.classList.remove('is-dragging', 'is-boosting');
       this.throttlePointer = undefined;
-      if (lever.hasPointerCapture(event.pointerId)) lever.releasePointerCapture(event.pointerId);
+      this.releaseCapture(lever, event.pointerId);
     };
     lever.addEventListener('pointerup', stop);
     lever.addEventListener('pointercancel', stop);
     lever.addEventListener('lostpointercapture', (event) => stop(event as PointerEvent));
+    window.addEventListener('pointerup', stop, { capture: true });
+    window.addEventListener('pointercancel', stop, { capture: true });
   }
 
   private bindAimTarget() {

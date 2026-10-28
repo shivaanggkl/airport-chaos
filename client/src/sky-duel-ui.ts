@@ -1,4 +1,5 @@
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
+import { dallasDisplayNames } from '../../shared/dallas-display-names.mjs';
 import { AppShellHeader } from './app-shell';
 import type { FlightLaunchAircraft } from './flight-launch-aircraft';
 import { createRankHelmet, rankHelmetForLevel, rankHelmets } from './rank-helmets';
@@ -9,7 +10,8 @@ type DuelMessage = {
   pilotAId?: string; pilotBId?: string; aircraftA?: string; aircraftB?: string;
   playerAId?: string; playerBId?: string;
   avatarA?: string; avatarB?: string;
-  countdownEndsAt?: number; phase?: string; scoreA?: number; scoreB?: number; endsAt?: number; recovered?: boolean;
+  countdownEndsAt?: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number;
+  phase?: string; scoreA?: number; scoreB?: number; endsAt?: number; recovered?: boolean;
   outcome?: string; balanceA?: number; balanceB?: number; entry?: number; prize?: number;
   secondsLeft?: number; reconnectSeconds?: number; boundaryMeters?: number;
   protectedUntil?: number; practice?: boolean; aiOpponent?: boolean;
@@ -51,6 +53,12 @@ export class SkyDuelUi {
   private readonly localScore: HTMLElement;
   private readonly opponentScore: HTMLElement;
   private readonly clock: HTMLElement;
+  private readonly runwayIntro: HTMLElement;
+  private readonly runwayLocalName: HTMLElement;
+  private readonly runwayOpponentName: HTMLElement;
+  private readonly runwayLocalAirport: HTMLElement;
+  private readonly runwayOpponentAirport: HTMLElement;
+  private readonly runwayCountdown: HTMLElement;
   private localPilot: PilotPresentation = { name: 'PILOT', level: 1, aircraft: 'trainer' };
   private opponentPilot?: PilotPresentation;
   private balance = 0;
@@ -71,6 +79,9 @@ export class SkyDuelUi {
   private scoreB = 0;
   private endsAt = 0;
   private countdownEndsAt = 0;
+  private launchStartedAt = 0;
+  private launchCountdownAt = 0;
+  private launchEndsAt = 0;
   private phase = 'connecting';
   private autoQueue = true;
   private abandonedSearch = false;
@@ -132,6 +143,45 @@ export class SkyDuelUi {
   opponentEntityId(): string {
     if (!this.matchId || !this.playerAId || !this.playerBId) return '';
     return this.localPilotId === this.pilotAId ? this.playerBId : this.playerAId;
+  }
+
+  runwayIntroProgress(): number | undefined {
+    if (this.phase !== 'launch' || this.opponentDisconnected || !this.launchStartedAt ||
+      Date.now() >= this.launchCountdownAt) return undefined;
+    return Math.max(0, Math.min(1, (Date.now() - this.launchStartedAt) /
+      (this.launchCountdownAt - this.launchStartedAt)));
+  }
+
+  runwayCountdownActive(): boolean {
+    const now = Date.now();
+    return this.phase === 'launch' && !this.opponentDisconnected &&
+      now >= this.launchCountdownAt && now < this.launchEndsAt;
+  }
+
+  isRunwayLaunchActive(): boolean { return this.phase === 'launch'; }
+  blocksFlightInput(): boolean {
+    return Boolean(this.matchId) && (this.phase === 'found' || this.phase === 'collecting' ||
+      this.phase === 'loading' || this.phase === 'countdown' || this.phase === 'launch');
+  }
+
+  setRunwayIntroVisible(visible: boolean, countdown = false): void {
+    const remaining = this.launchEndsAt - Date.now();
+    this.runwayCountdown.hidden = !visible || !countdown;
+    if (!this.runwayCountdown.hidden) {
+      const number = String(Math.max(1, Math.ceil(remaining / 1_000)));
+      if (this.runwayCountdown.textContent !== number) this.runwayCountdown.textContent = number;
+    }
+    this.runwayIntro.classList.toggle('is-countdown', visible && countdown);
+    if (this.runwayIntro.hidden === !visible) return;
+    this.runwayIntro.hidden = !visible;
+    this.root.classList.toggle('is-runway-intro', visible);
+    if (visible) {
+      const localIsA = this.localPilotId === this.pilotAId;
+      this.runwayLocalName.textContent = this.localPilot.name.toUpperCase();
+      this.runwayOpponentName.textContent = (this.opponentPilot?.name || 'AI PLAYER').toUpperCase();
+      this.runwayLocalAirport.textContent = `${localIsA ? dallasDisplayNames.dfw : dallasDisplayNames.love} · RUNWAY`;
+      this.runwayOpponentAirport.textContent = `${localIsA ? dallasDisplayNames.love : dallasDisplayNames.dfw} · RUNWAY`;
+    }
   }
 
   updateTelemetry(localHealth: number, localAltitudeFeet: number, opponentHealth?: number, opponentAltitudeFeet?: number): void {
@@ -220,7 +270,27 @@ export class SkyDuelUi {
     scoreboard.append(this.localScore, this.clock, this.opponentScore);
     this.hud.append(this.localHud, scoreboard, this.opponentHud);
     this.hud.hidden = true;
-    this.root.append(this.headerElement, this.hud, this.panel);
+    this.runwayIntro = document.createElement('div');
+    this.runwayIntro.className = 'sky-duel-runway-intro';
+    this.runwayIntro.hidden = true;
+    const runwaySide = (side: 'local' | 'opponent'): [HTMLElement, HTMLElement, HTMLElement] => {
+      const column = document.createElement('div');
+      column.className = `sky-duel-runway-side sky-duel-runway-${side}`;
+      const name = document.createElement('strong'); name.className = 'sky-duel-runway-name';
+      const airport = document.createElement('span'); airport.className = 'sky-duel-runway-airport';
+      column.append(name, airport);
+      return [column, name, airport];
+    };
+    const [localSide, localName, localAirport] = runwaySide('local');
+    const [opponentSide, opponentName, opponentAirport] = runwaySide('opponent');
+    this.runwayLocalName = localName;
+    this.runwayOpponentName = opponentName;
+    this.runwayLocalAirport = localAirport;
+    this.runwayOpponentAirport = opponentAirport;
+    this.runwayCountdown = document.createElement('strong');
+    this.runwayCountdown.className = 'sky-duel-runway-countdown';
+    this.runwayIntro.append(localSide, opponentSide, this.runwayCountdown);
+    this.root.append(this.headerElement, this.hud, this.panel, this.runwayIntro);
     host.append(this.root);
     for (const helmet of rankHelmets) { const image = new Image(); image.src = helmet.src; }
     document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -320,7 +390,7 @@ export class SkyDuelUi {
         this.phase === 'result' && message.matchId === this.resultMatchId) return;
       if (message.type === 'skyDuelLoading' && this.seenMatches.has(message.matchId) && !message.recovered) return;
       if (message.type === 'skyDuelFound' && !message.recovered &&
-        (this.phase === 'countdown' || this.phase === 'active' || this.phase === 'overtime')) return;
+        (this.phase === 'countdown' || this.phase === 'launch' || this.phase === 'active' || this.phase === 'overtime')) return;
       this.queuedAt = 0;
       this.autoQueue = false;
       this.matchId = message.matchId;
@@ -368,7 +438,8 @@ export class SkyDuelUi {
       this.countdown.hidden = true;
       this.actions.replaceChildren();
       if (message.type === 'skyDuelFound') {
-        this.enterCountdown(message.countdownEndsAt ?? 0, message.phase);
+        if (message.phase === 'launch') this.enterLaunch(message);
+        else this.enterCountdown(message.countdownEndsAt ?? 0, message.phase);
       } else {
         this.seenMatches.add(message.matchId);
         this.phase = 'found';
@@ -388,15 +459,16 @@ export class SkyDuelUi {
       this.scoreA = message.scoreA ?? this.scoreA;
       this.scoreB = message.scoreB ?? this.scoreB;
       this.endsAt = message.endsAt ?? this.endsAt;
-      this.panel.hidden = this.phase !== 'countdown';
-      this.root.classList.toggle('is-presentation', this.phase === 'countdown');
+      this.panel.hidden = this.phase !== 'countdown' && !(this.phase === 'launch' && this.opponentDisconnected);
+      this.root.classList.toggle('is-presentation', this.phase === 'countdown' || this.phase === 'launch');
       this.root.classList.remove('is-searching');
-      this.hud.hidden = this.phase === 'countdown';
-      this.headerElement.hidden = this.phase !== 'countdown';
+      this.hud.hidden = this.phase === 'countdown' || this.phase === 'launch';
+      this.headerElement.hidden = this.phase !== 'countdown' && !(this.phase === 'launch' && this.opponentDisconnected);
       const localIsA = this.localPilotId === this.pilotAId;
       this.localScore.textContent = String(localIsA ? this.scoreA : this.scoreB);
       this.opponentScore.textContent = String(localIsA ? this.scoreB : this.scoreA);
       if (this.phase === 'countdown') this.enterCountdown(message.countdownEndsAt ?? this.countdownEndsAt);
+      else if (this.phase === 'launch') this.enterLaunch(message);
       else this.clearPresentationTimers();
     } else if (message.type === 'skyDuelBoundary') {
       if (message.secondsLeft) this.notify(`RETURN TO BATTLE AREA · ${message.secondsLeft} SEC`);
@@ -406,6 +478,11 @@ export class SkyDuelUi {
       this.opponentDisconnected = true;
       this.setWaitingNote(this.opponentCard, 'WAITING FOR PILOT');
       if (this.phase === 'countdown') this.countdown.hidden = true;
+      if (this.phase === 'launch') {
+        this.panel.hidden = false;
+        this.headerElement.hidden = false;
+        this.copy.textContent = 'Waiting for pilot';
+      }
       if (this.phase === 'found' || this.phase === 'collecting' || this.phase === 'loading') this.clearPresentationTimers();
     } else if (message.type === 'skyDuelOpponentReconnected') {
       this.opponentDisconnected = false;
@@ -720,7 +797,7 @@ export class SkyDuelUi {
 
   private leaveBackgroundedSearch(): void {
     this.stopHelmetRotation();
-    if (this.matchId && ['found', 'collecting', 'loading', 'countdown'].includes(this.phase)) {
+    if (this.matchId && ['found', 'collecting', 'loading', 'countdown', 'launch'].includes(this.phase)) {
       this.send('skyDuelBackgrounded');
       this.setWaitingNote(this.localCard, 'WAITING FOR YOU');
       this.countdown.hidden = true;
@@ -883,6 +960,7 @@ export class SkyDuelUi {
     if (!Number.isFinite(endsAt) || endsAt <= 0) { this.phase = 'loading'; this.finishCollection(); return; }
     this.countdownEndsAt = endsAt;
     this.phase = 'countdown';
+    this.copy.textContent = '';
     if (this.paidReservationConfirmed) {
       this.pot.hidden = false;
       this.pot.textContent = `${prizeCredits.toLocaleString()} Credits`;
@@ -892,6 +970,22 @@ export class SkyDuelUi {
     }
     this.countdown.hidden = this.opponentDisconnected;
     this.renderCountdown();
+  }
+
+  private enterLaunch(message: DuelMessage): void {
+    if (!Number.isFinite(message.launchStartedAt) || !Number.isFinite(message.launchCountdownAt) ||
+      !Number.isFinite(message.launchEndsAt) || !message.launchStartedAt || !message.launchCountdownAt ||
+      !message.launchEndsAt) return;
+    this.phase = 'launch';
+    this.launchStartedAt = message.launchStartedAt;
+    this.launchCountdownAt = message.launchCountdownAt;
+    this.launchEndsAt = message.launchEndsAt;
+    this.panel.hidden = !this.opponentDisconnected;
+    this.headerElement.hidden = !this.opponentDisconnected;
+    this.hud.hidden = true;
+    this.root.classList.add('is-presentation');
+    this.countdown.hidden = true;
+    this.copy.textContent = this.opponentDisconnected ? 'Waiting for pilot' : '';
   }
 
   private clearCoins(): void {

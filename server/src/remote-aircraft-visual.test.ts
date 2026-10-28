@@ -90,7 +90,7 @@ test('remote aircraft match Rear Guard size at range and physical size nearby, i
   const traffic = readFileSync(new URL('../../client/src/ambient-traffic.ts', import.meta.url), 'utf8');
   assert.match(traffic, /remoteAircraftVisualScale\(distance\)/);
   assert.match(main, /remoteAircraftCollisionRadius\(remote\.aircraftType, distance\)/);
-  assert.match(server, /remoteAircraftCollisionRadius\(first\.skyDuelMode \? 'trainer' : second\.aircraftType, distance\)/);
+  assert.match(server, /remoteAircraftCollisionRadius\(second\.aircraftType, distance\)/);
   assert.match(server, /remoteAircraftContactRadius\(event\.eventAircraftType, distance\)/);
   assert.match(server, /player\.bot\?\.journeyRearGuardEscort \? remoteAircraftScale : remoteAircraftVisualScale\(distance\)/);
   for (const type of ['trainer', 'privateJet', 'cargo', 'fighter'] as const) {

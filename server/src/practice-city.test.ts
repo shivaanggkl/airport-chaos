@@ -45,7 +45,7 @@ test('tutorial combat no longer suppresses Fire on either side of the protocol',
   assert.doesNotMatch(serverMain, /if \(message\.type === 'fire'\) \{\s*if \(player\.tutorialMode\) return;/);
   assert.match(clientMain, /if\(active\)\{heldActions\.add\(action\);runStarted=true;noteTutorialActionInput\(action\);if\(action==='fire'&&fireWeaponOnce\(\)\)trainingSlides\.beginAction\('fire'\);\}/);
   assert.match(clientMain, /fireCooldown = Math\.max\(0, fireCooldown - delta\)/);
-  assert.match(clientMain, /if \(!sendFireIntent\(\)\)[\s\S]*fireCooldown = fireIntervalMs\(skyDuelMode \? 'trainer' : aircraftType\) \/ 1_000/);
+  assert.match(clientMain, /if \(!sendFireIntent\(\)\)[\s\S]*fireCooldown = fireIntervalMs\(aircraftType\) \/ 1_000/);
 });
 
 test('tutorial entry is city-scoped and practice progression is server-authoritative', () => {

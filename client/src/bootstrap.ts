@@ -740,6 +740,46 @@ function positionMenuCarouselCard(card: HTMLElement, offset: number): void {
   card.setAttribute('aria-hidden', Math.abs(offset) > 1 ? 'true' : 'false');
 }
 
+function installMenuCarouselSwipe(container: HTMLElement, onGestureEnd: (direction: -1 | 0 | 1) => void): void {
+  let pointer: { id: number; x: number; y: number; dragging: boolean } | undefined;
+  container.onpointerdown = event => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('.city-journey-arrow')) return;
+    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+  };
+  container.onpointermove = event => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    const dx = event.clientX - pointer.x;
+    const dy = event.clientY - pointer.y;
+    if (!pointer.dragging && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { pointer = undefined; return; }
+    if (!pointer.dragging && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      pointer.dragging = true;
+      container.classList.add('is-dragging');
+      container.setPointerCapture(event.pointerId);
+    }
+    if (!pointer.dragging) return;
+    event.preventDefault();
+    const limit = Math.max(70, container.clientWidth * .28);
+    const bounded = Math.max(-limit, Math.min(limit, dx));
+    container.style.setProperty('--journey-drag-x', `${bounded}px`);
+    container.style.setProperty('--journey-side-drag-x', `${bounded * .55}px`);
+  };
+  const finish = (event: PointerEvent, cancelled: boolean): void => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    const dx = event.clientX - pointer.x;
+    const dy = event.clientY - pointer.y;
+    const wasDragging = pointer.dragging;
+    pointer = undefined;
+    if (!wasDragging) return;
+    container.classList.remove('is-dragging');
+    void container.offsetWidth;
+    container.style.removeProperty('--journey-drag-x');
+    container.style.removeProperty('--journey-side-drag-x');
+    onGestureEnd(!cancelled && Math.abs(dx) >= 42 && Math.abs(dx) > Math.abs(dy) ? dx < 0 ? 1 : -1 : 0);
+  };
+  container.onpointerup = event => finish(event, false);
+  container.onpointercancel = event => finish(event, true);
+}
+
 function cityJourneyFullCardSrc(entry: CityJourneyEntry): string {
   return (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york') && cityJourneyMode === 'missions'
     ? `/media/city-journey/${entry.id}-single-player-card.png`
@@ -2355,15 +2395,10 @@ function showDallasMultiplayerCards(city: CityDefinition, pushHistory = true): v
       selectMode(selectedIndex + (event.key === 'ArrowRight' ? 1 : -1));
     }
   };
-  let touchStartX = 0;
-  timeOptions.ontouchstart = (event) => { touchStartX = event.changedTouches[0]?.screenX ?? 0; };
-  timeOptions.ontouchend = (event) => {
-    const distance = (event.changedTouches[0]?.screenX ?? touchStartX) - touchStartX;
-    if (Math.abs(distance) > 45) {
-      ignoreCardClickUntil = performance.now() + 350;
-      selectMode(selectedIndex + (distance < 0 ? 1 : -1));
-    }
-  };
+  installMenuCarouselSwipe(timeOptions, direction => {
+    ignoreCardClickUntil = performance.now() + 350;
+    if (direction) selectMode(selectedIndex + direction);
+  });
   selectMode(selectedIndex);
   citySelectionError.hidden = true;
   playMenuEntrance(citySelector);
@@ -2483,14 +2518,10 @@ function showTimeSelection(city: CityDefinition, returnTo: 'CITY_SELECTION' | 'M
     wheelAt = performance.now();
     selectTime(selectedIndex + (event.deltaX > 0 ? 1 : -1));
   };
-  let touchStartX = 0;
-  timeOptions.ontouchstart = event => { touchStartX = event.changedTouches[0]?.screenX ?? 0; };
-  timeOptions.ontouchend = event => {
-    const distance = (event.changedTouches[0]?.screenX ?? touchStartX) - touchStartX;
-    if (Math.abs(distance) < 45) return;
+  installMenuCarouselSwipe(timeOptions, direction => {
     ignoreCardClickUntil = performance.now() + 350;
-    selectTime(selectedIndex + (distance < 0 ? 1 : -1));
-  };
+    if (direction) selectTime(selectedIndex + direction);
+  });
   selectTime(selectedIndex);
   playMenuEntrance(citySelector);
 }

@@ -6626,6 +6626,7 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .gara
   pointer-events: none;
   transition: transform .34s ease, opacity .34s ease, filter .34s ease, box-shadow .34s ease, visibility .34s;
 }
+.menu-card-carousel.is-dragging .menu-card-carousel-card.menu-selection-card { transition: none; cursor: grabbing; }
 .menu-card-carousel .menu-card-carousel-card.is-selected {
   z-index: 2;
   opacity: 1;
@@ -6823,6 +6824,19 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .gara
 
 .sky-duel-ui { position: fixed; inset: 0; z-index: 9999; pointer-events: none; font-family: var(--font-display), 'Courier New', monospace; color: #f4f7f5; }
 .sky-duel-ui.is-presentation { pointer-events: auto; }
+.sky-duel-ui.is-runway-intro { pointer-events: none; }
+.sky-duel-ui.is-runway-intro :is(.app-shell-header, .sky-duel-panel) { display: none; }
+.sky-duel-flight:has(.sky-duel-ui.is-runway-intro) > :not(canvas):not(.sky-duel-ui) { visibility: hidden; }
+.sky-duel-runway-intro { position: fixed; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); pointer-events: none; }
+.sky-duel-runway-intro[hidden] { display: none; }
+.sky-duel-runway-intro.is-countdown .sky-duel-runway-side,
+.sky-duel-runway-intro.is-countdown::after { display: none; }
+.sky-duel-runway-intro::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: linear-gradient(180deg, #ffe08a, #64dfff 50%, #ffe08a); box-shadow: 0 0 10px rgb(52 214 255 / 65%); }
+.sky-duel-runway-side { display: flex; flex-direction: column; align-items: center; justify-content: space-between; min-width: 0; padding: calc(var(--safe-area-top) + 18px) 18px calc(var(--safe-area-bottom) + 18px); text-align: center; background: linear-gradient(180deg, rgb(2 24 59 / 54%), transparent 28%, transparent 72%, rgb(2 24 59 / 64%)); }
+.sky-duel-runway-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; font: 900 clamp(16px, 2.7vw, 30px)/1.15 var(--font-display); letter-spacing: .055em; text-shadow: 0 2px 7px #071b42; }
+.sky-duel-runway-airport { max-width: 100%; color: #ffe08a; font: 900 clamp(11px, 1.6vw, 18px)/1.2 var(--font-display); letter-spacing: .045em; text-shadow: 0 2px 6px #071b42; }
+.sky-duel-runway-countdown { position: absolute; left: 50%; top: 50%; z-index: 1; display: grid; place-items: center; width: clamp(42px, 5.5vw, 62px); height: clamp(42px, 5.5vw, 62px); transform: translate(-50%, -50%); border: 2px solid #ffd66a; border-radius: 50%; color: #ffe08a; background: #092856; box-shadow: 0 3px 16px rgb(0 15 51 / 65%); font: 900 clamp(22px, 3vw, 34px)/1 var(--font-display); }
+.sky-duel-runway-countdown[hidden] { display: none; }
 body:has(.sky-duel-ui.is-presentation)::before { opacity: 0; }
 .sky-duel-ui .app-shell-header { pointer-events: auto; }
 .sky-duel-panel { pointer-events: auto; position: fixed; inset: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(7px, 1.5dvh, 15px); width: 100%; height: 100dvh; overflow: hidden; padding: calc(var(--menu-page-header-height) + 8px) max(14px, var(--safe-area-right)) max(12px, var(--safe-area-bottom)) max(14px, var(--safe-area-left)); text-align: center; background: var(--menu-background); isolation: isolate; }

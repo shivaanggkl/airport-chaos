@@ -17,7 +17,14 @@ test('aircraft fire rates use the same cadence on client and server', () => {
     assert.equal(FIRE_RATE_PER_SECOND[aircraftType], shotsPerSecond);
     assert.equal(fireIntervalMs(aircraftType), 1_000 / shotsPerSecond);
   }
-  assert.match(client, /fireCooldown = fireIntervalMs\(skyDuelMode \? 'trainer' : aircraftType\) \/ 1_000/);
+  assert.match(client, /fireCooldown = fireIntervalMs\(aircraftType\) \/ 1_000/);
+});
+
+test('Sky Duel uses the equipped aircraft flight envelope and resets controls at spawn', () => {
+  assert.match(client, /currentAircraft = aircraftDefinitions\[aircraftType\]/);
+  assert.match(server, /const envelope = aircraftFlightEnvelope\[player\.aircraftType\]/);
+  assert.match(client, /skyDuelUi\?\.handle\(message\);\s*resetCrashPresentation\(\);\s*resetFlightLaunchInput\(\);\s*pitchControlStrength = 0;\s*yawControlStrength = 0;/);
+  assert.match(server, /const skyDuelHealth = 100;/);
 });
 
 test('aircraft damage produces the approved regular-combat hit counts', () => {
@@ -34,14 +41,15 @@ test('aircraft damage produces the approved regular-combat hit counts', () => {
     assert.equal(Math.ceil(lightHealth / damage), lightHits);
     assert.equal(Math.ceil(heavyHealth / damage), heavyHits);
   }
-  assert.match(server, /damage: damageOverride \?\? \(player\.skyDuelMode \? skyDuelDamage : projectileDamageForAircraft\(player\.aircraftType\)\)/);
+  assert.match(server, /damage: damageOverride \?\? projectileDamageForAircraft\(player\.aircraftType\)/);
+  assert.match(server, /if \(owner\.skyDuelMatchId\)[\s\S]*const dealt = Math\.min\(victim\.health, damage\)/);
   assert.match(server, /applyCombatHit\(projectile\.ownerId, hitPlayerId, projectile\.cityId, now, projectile\.damage/);
 });
 
 test('grounded runway aircraft can fire, be targeted, and take projectile damage', () => {
   assert.doesNotMatch(client, /if \(onGround\) return 'protection'/);
   assert.doesNotMatch(server, /runwayCombatProtected|runwayCombatProtectionActive|runway_protected/);
-  assert.match(server, /function fireBlockReason[\s\S]*player\.lifeState !== 'alive'[\s\S]*fireIntervalMs\(player\.skyDuelMode \? 'trainer' : player\.aircraftType\)[\s\S]*now - player\.lastFireAt < interval/);
+  assert.match(server, /function fireBlockReason[\s\S]*player\.lifeState !== 'alive'[\s\S]*fireIntervalMs\(player\.aircraftType\)[\s\S]*now - player\.lastFireAt < interval/);
   assert.match(server, /function applyCombatHit[\s\S]*victim\.lifeState !== 'alive' \|\| now < victim\.spawnProtectedUntil/);
   assert.match(server, /function updateProjectiles[\s\S]*now < player\.spawnProtectedUntil[\s\S]*sweptProjectileHit/);
 });

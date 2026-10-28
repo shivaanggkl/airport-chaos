@@ -228,7 +228,7 @@ let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
 let missionClearStartedAt: number | null = null;
 let missionClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || flightDialogOpen();
+const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
   (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
     missionStartCountdownPending || missionStartCountdownStartedAt !== null);
@@ -1150,7 +1150,7 @@ function disposeAirplaneMaterials(plane: THREE.Group): void {
 const launchAircraft = launchMode === 'free-fly' && !trainingRequested ? flightLaunchAircraft(persistedPlayer.pilotId) : null;
 let waitingForAuthoritativeAircraft = launchMode === 'free-fly' && !trainingRequested && !flightTestMode && !launchAircraft;
 let aircraftType: AircraftType = flightTestMode ? persistedPlayer.selectedAircraft : launchAircraft?.type ?? 'trainer';
-let currentAircraft = skyDuelMode ? aircraftDefinitions.trainer : aircraftDefinitions[aircraftType];
+let currentAircraft = aircraftDefinitions[aircraftType];
 let airplane = createAirplane(aircraftType);
 if (launchAircraft) applyEquippedLivery(airplane, aircraftType, launchAircraft.equippedCosmetics);
 if (waitingForAuthoritativeAircraft) airplane.visible = false;
@@ -1429,8 +1429,9 @@ const heatRowElement = document.querySelector<HTMLElement>('#heat-row')!;
 heatRowElement.style.color = visualLanguage.heat.color;
 heatRowElement.hidden = !cityRules.competitiveEnabled;
 const heatLevelElement = document.querySelector<HTMLSpanElement>('#heat-level')!;
+const radarAirportColor = 'rgba(205, 219, 229, 0.62)';
 document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'] as const)
-  .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
+  .map(kind => `<span style="color:${kind === 'airport' ? radarAirportColor : visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'] as const)
   .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
@@ -1982,16 +1983,15 @@ function drawRadarMarker(
     return;
   }
 
-  radarContext.save();
-  radarContext.translate(x, y);
-  radarContext.rotate(Math.PI / 4);
-  radarContext.fillStyle = visualLanguage.airport.color;
-  radarContext.fillRect(-3.5, -3.5, 7, 7);
-  radarContext.restore();
-  radarContext.fillStyle = visualLanguage.airport.color;
-  radarContext.font = '8px ui-monospace, monospace';
-  radarContext.textAlign = 'center';
-  radarContext.fillText(label, x, Math.max(9, y - 7));
+  radarContext.fillStyle = radarAirportColor;
+  radarContext.beginPath();
+  radarContext.arc(x, y, 2.5, 0, Math.PI * 2);
+  radarContext.fill();
+  if (!pinned) {
+    radarContext.font = '8px ui-monospace, monospace';
+    radarContext.textAlign = 'center';
+    radarContext.fillText(label, x, Math.max(9, y - 7));
+  }
 }
 
 function drawRadarTerritories(direction: THREE.Vector3, onlyId?: string): void {
@@ -2061,29 +2061,37 @@ function updateRadar(direction: THREE.Vector3): void {
   if (missionFocus?.showUnrelatedAirportLabels !== false) for (const airport of airports) {
     drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
   }
-  for (const beacon of repairsForCity(cityId)) {
-    drawRadarMarker(direction, beacon.x, beacon.z, beacon.kind === 'heart' ? 'repairHeart' : 'repair');
+  if (!skyDuelMode) for (const beacon of repairsForCity(cityId)) {
+    if (beacon.kind === 'heart') drawRadarMarker(direction, beacon.x, beacon.z, 'repairHeart');
   }
-  // Human radar presence comes from the authoritative same-city roster, not
-  // the optional 3D remote-aircraft lifecycle. Last-known positions remain
-  // stable through brief transform throttling, but never outlive an active
-  // aircraft lifecycle (destroyed/respawning pilots stay in PLAYERS only).
-  for (const human of cityHumanRoster.values()) {
-    if (human.playerId === localPlayerId || !humanHasActiveAircraft(human)) continue;
-    const track = humanRadarTracks.get(human.playerId);
-    if (!track) continue;
-    const remote = remotePlayers.get(human.playerId);
-    drawRadarMarker(direction, track.x, track.z, 'player', '', human.playerId === kingPlayerId, (remote?.heatLevel ?? 0) >= 4,
-      selectedCombatTarget?.remote.playerId === human.playerId, selectedCombatTarget?.remote.playerId === human.playerId && selectedCombatTarget.locked,
-      primaryTerritoryColorForPlayer(human.playerId), lockingThreatIds.has(human.playerId),
-      formatRelativeAltitude(track.altitudeMeters - altitudeAboveTerrain()));
-  }
-  for (const remote of remotePlayers.values()) {
-    if (!remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
-    drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ACE HUNTER' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : journeyAttempt?.missionId === journeyDallas23.id && (journeyAttempt.doublePhase === 'FIRST_FIGHT' && journeyAttempt.targetId === remote.playerId || journeyAttempt.doublePhase === 'FINAL_FIGHT' && journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : '', false, remote.heatLevel >= 4,
-      selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
-      primaryTerritoryColorForPlayer(remote.playerId), lockingThreatIds.has(remote.playerId),
-      remote.altitudeMeters === undefined ? '' : formatRelativeAltitude(remote.altitudeMeters - altitudeAboveTerrain()));
+  if (skyDuelMode) {
+    const opponent = remotePlayers.get(skyDuelUi?.opponentEntityId() ?? '');
+    if (opponent && opponent.lifeState !== 'destroyed') {
+      drawRadarMarker(direction, opponent.plane.position.x, opponent.plane.position.z, 'player', '', false, false,
+        selectedCombatTarget?.remote === opponent, selectedCombatTarget?.remote === opponent && selectedCombatTarget.locked);
+    }
+  } else {
+    // Human radar presence comes from the authoritative same-city roster, not
+    // the optional 3D remote-aircraft lifecycle. Last-known positions remain
+    // stable through brief transform throttling, but never outlive an active
+    // aircraft lifecycle (destroyed/respawning pilots stay in PLAYERS only).
+    for (const human of cityHumanRoster.values()) {
+      if (human.playerId === localPlayerId || !humanHasActiveAircraft(human)) continue;
+      const track = humanRadarTracks.get(human.playerId);
+      if (!track) continue;
+      const remote = remotePlayers.get(human.playerId);
+      drawRadarMarker(direction, track.x, track.z, 'player', '', human.playerId === kingPlayerId, (remote?.heatLevel ?? 0) >= 4,
+        selectedCombatTarget?.remote.playerId === human.playerId, selectedCombatTarget?.remote.playerId === human.playerId && selectedCombatTarget.locked,
+        primaryTerritoryColorForPlayer(human.playerId), lockingThreatIds.has(human.playerId),
+        formatRelativeAltitude(track.altitudeMeters - altitudeAboveTerrain()));
+    }
+    for (const remote of remotePlayers.values()) {
+      if (!remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
+      drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ACE HUNTER' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : journeyAttempt?.missionId === journeyDallas23.id && (journeyAttempt.doublePhase === 'FIRST_FIGHT' && journeyAttempt.targetId === remote.playerId || journeyAttempt.doublePhase === 'FINAL_FIGHT' && journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : '', false, remote.heatLevel >= 4,
+        selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
+        primaryTerritoryColorForPlayer(remote.playerId), lockingThreatIds.has(remote.playerId),
+        remote.altitudeMeters === undefined ? '' : formatRelativeAltitude(remote.altitudeMeters - altitudeAboveTerrain()));
+    }
   }
   if (activeMissionDefinition?.type === 'assignedHunter' && activeMission?.targetId) {
     const hunter = remotePlayers.get(activeMission.targetId);
@@ -2236,6 +2244,7 @@ let transportViewAttemptId="";
 let pendingTransportResultId:string|null=null;
 let transportCollisionAttemptId: string | null = null;
 let crashSequence: CrashSequence | null = null;
+let crashImpactPosition: THREE.Vector3 | null = null;
 let crashPresentationStarted = false;
 let crashPlayerWasVisible = true;
 let crashTrainingResetPending = false;
@@ -2244,6 +2253,7 @@ transportCrashFlash.className = 'transport-crash-flash';
 flightGameRoot.append(transportCrashFlash);
 function resetCrashPresentation(): void {
   crashSequence = null;
+  crashImpactPosition = null;
   crashTrainingResetPending = false;
   transportCrashFlash.style.opacity = '0';
   if (crashPresentationStarted) airplane.visible = crashPlayerWasVisible;
@@ -2251,15 +2261,17 @@ function resetCrashPresentation(): void {
   transportCollisionAttemptId = null;
 }
 function showCrashBlast(sequence: CrashSequence): void {
-  const blast = airplane.position.clone();
-  blast.y += 1;
+  const blast = sequence.surface === 'transport' && crashImpactPosition
+    ? crashImpactPosition : airplane.position.clone().add(new THREE.Vector3(0, 1, 0));
   createDestructionEffect(blast, aircraftType, 3);
   playDestructionSound();
+  if (sequence.surface === 'transport') audioManager.playTone(90, 0.55, 'sawtooth', 0.16, 32, 0, 'impacts');
   hapticsManager.emit('failure', `impact-crash:${sequence.attemptId}:${sequence.surface}`);
   airplane.visible = false;
 }
-function beginCrashPresentation(surface: CrashSurface): void {
+function beginCrashPresentation(surface: CrashSurface, impactPosition?: THREE.Vector3): void {
   if (crashed || journeyPreflightActive() || crashSequence) return;
+  crashImpactPosition = impactPosition ?? null;
   crashPlayerWasVisible = airplane.visible;
   crashPresentationStarted = true;
   crashSequence = new CrashSequence(journeyAttemptId, surface);
@@ -4032,7 +4044,7 @@ function applyServerSelectedAircraft(nextType: AircraftType, resetFlight = true,
   scene.remove(airplane);
   disposeAirplaneMaterials(airplane);
   aircraftType = nextType;
-  currentAircraft = skyDuelMode ? aircraftDefinitions.trainer : aircraftDefinitions[aircraftType];
+  currentAircraft = aircraftDefinitions[aircraftType];
   maxHealth = skyDuelMode ? 100 : maxHealthForAircraft(aircraftType);
   health = Math.min(health, maxHealth);
   airplane = createAirplane(aircraftType);
@@ -4888,8 +4900,8 @@ type ServerMessage =
   | { type: 'skyDuelCancelled' }
   | { type: 'skyDuelError'; reason: string }
   | { type: 'skyDuelLoading'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; entry?: number; prize?: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
-  | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
-  | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'active' | 'overtime'; scoreA: number; scoreB: number; endsAt: number; countdownEndsAt?: number }
+  | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
+  | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'launch' | 'active' | 'overtime'; scoreA: number; scoreB: number; endsAt?: number; countdownEndsAt?: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number }
   | { type: 'skyDuelResult'; matchId: string; outcome: 'WIN_A' | 'WIN_B' | 'DRAW' | 'CANCELLED'; pilotA: string; pilotB: string; pilotNameA?: string; pilotNameB?: string; levelA?: number; levelB?: number; aiOpponent?: boolean; balanceA?: number; balanceB?: number; scoreA: number; scoreB: number; entry?: number; prize?: number; practice?: boolean; rematchAvailable?: boolean }
   | { type: 'skyDuelRematchState'; matchId: string; available: boolean; readyA: boolean; readyB: boolean; reason?: string }
   | { type: 'skyDuelSpawn'; position: NetworkVector; heading: number; speed: number; health: number; protectedUntil: number; active: boolean }
@@ -7519,10 +7531,10 @@ function styleMissionProjectile(mesh: THREE.Group, local: boolean, shooterType?:
   core.scale.copy(glow.scale);
   updateMonsterTracerSize(mesh);
 }
-function updateBluejayTracer(mesh: THREE.Group, startedAt: number, now: number): void {
+function updateBluejayTracer(mesh: THREE.Group, startedAt: number, now: number, lifetimeMs = bluejayTracerLifetimeMs): void {
   if (!mesh.userData.bluejayShot) return;
   const tracer = mesh.children[2] as THREE.Mesh;
-  const fade = Math.max(0, 1 - (now - startedAt) / bluejayTracerLifetimeMs);
+  const fade = Math.max(0, 1 - (now - startedAt) / lifetimeMs);
   tracer.visible = fade > 0;
   if (tracer.visible) tracer.material = bluejayTracerMaterials[Math.min(3, Math.floor((1 - fade) * 4))]!;
   tracer.scale.setScalar(fade);
@@ -7948,10 +7960,6 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   const targetPosition = new THREE.Vector3(message.targetPosition.x, message.targetPosition.y, message.targetPosition.z);
   const liveTarget = visibleCombatTargetPosition(message.targetId);
   if (liveTarget) targetPosition.copy(liveTarget);
-  if (message.ownerId === localPlayerId) {
-    assistedShotDirection.subVectors(targetPosition, origin).normalize();
-    showAimQaRay(origin, assistedShotDirection);
-  }
   assistedShotDirection.subVectors(targetPosition, origin).normalize();
   const distance = origin.distanceTo(targetPosition);
   const ownerVelocity = message.ownerId === localPlayerId ? velocity : remotePlayers.get(message.ownerId)?.velocity;
@@ -7960,6 +7968,10 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   const duration = message.ownerId === localPlayerId
     ? THREE.MathUtils.clamp(distance / visualSpeed, 0.12, 0.35)
     : Math.max(0.001, Math.min(0.08 + THREE.MathUtils.clamp(distance / COMBAT_RANGE, 0, 1) * 0.07, distance / visualSpeed));
+  const targetVelocity = message.targetId === localPlayerId ? velocity : remotePlayers.get(message.targetId)?.velocity;
+  if (liveTarget && targetVelocity) targetPosition.addScaledVector(targetVelocity, duration);
+  assistedShotDirection.subVectors(targetPosition, origin).normalize();
+  if (message.ownerId === localPlayerId) showAimQaRay(origin, assistedShotDirection);
   mesh.position.copy(origin);
   mesh.quaternion.setFromUnitVectors(projectileForward, assistedShotDirection);
   mesh.rotateZ(bank);
@@ -7979,7 +7991,7 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     elapsed: 0,
     duration,
     bluejayShot: shooterType === 'trainer',
-    visualStartedAt: predictedProjectile?.visualStartedAt ?? now,
+    visualStartedAt: now,
   });
 }
 
@@ -8131,11 +8143,8 @@ function updateProjectiles(delta: number): void {
   for (let index = assistedShotVisuals.length - 1; index >= 0; index -= 1) {
     const shot = assistedShotVisuals[index];
     shot.mesh.visible = true;
-    // The server confirms the hit, but its position was sampled before this
-    // visual traveled. Follow the latest displayed airframe so the tracer and
-    // impact meet the aircraft instead of an empty point in the sky.
-    const liveTarget = visibleCombatTargetPosition(shot.targetId);
-    if (liveTarget) shot.targetPosition.copy(liveTarget);
+    // A fixed, velocity-led destination keeps the confirmed shot on one
+    // straight path instead of bending after a moving target each frame.
     shot.elapsed += delta;
     const progress = THREE.MathUtils.clamp(shot.elapsed / shot.duration, 0, 1);
     assistedShotPoint.lerpVectors(shot.origin, shot.targetPosition, progress);
@@ -8144,7 +8153,7 @@ function updateProjectiles(delta: number): void {
     shot.mesh.quaternion.setFromUnitVectors(projectileForward, assistedShotDirection);
     shot.mesh.rotateZ(shot.bank);
     shot.mesh.scale.z = Math.min(1, assistedShotPoint.distanceTo(shot.targetPosition) / 11.5);
-    updateBluejayTracer(shot.mesh, shot.visualStartedAt, now);
+    updateBluejayTracer(shot.mesh, shot.visualStartedAt, now, Math.max(bluejayTracerLifetimeMs, shot.duration * 1_000));
     if (progress < 1) continue;
     if (shot.confirmedDamage !== undefined) {
       spawnFlash(impactFlashes, impactFlashPool, shot.targetPosition, shot.bluejayShot ? 0.12 : 0.28,
@@ -8588,8 +8597,12 @@ function updateRemotePlayers(delta: number): void {
     // a fresh transform is no longer a real aircraft and must not leave its
     // red proxy/fallback behind at an airport.
     if (remote.timeSinceUpdate > remoteStateStaleSeconds) {
-      removeRemotePlayer(remote.playerId);
-      continue;
+      if (skyDuelMode && skyDuelUi?.blocksFlightInput() && remote.playerId === skyDuelUi.opponentEntityId())
+        remote.timeSinceUpdate = remoteStateStaleSeconds;
+      else {
+        removeRemotePlayer(remote.playerId);
+        continue;
+      }
     }
     remote.interpolationElapsed = Math.min(remote.interpolationDuration, remote.interpolationElapsed + delta);
     const interpolation = remote.interpolationElapsed / remote.interpolationDuration;
@@ -9789,7 +9802,7 @@ function fireWeaponOnce(): boolean {
   }
   // Never consume the local cadence for an intent that was not emitted. This
   // prevents a transient lifecycle/socket gate from looking like a stuck gun.
-  fireCooldown = fireIntervalMs(skyDuelMode ? 'trainer' : aircraftType) / 1_000;
+  fireCooldown = fireIntervalMs(aircraftType) / 1_000;
   return true;
 }
 
@@ -9819,6 +9832,7 @@ function animate(): void {
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
   if (!crashed && runStarted && !screenplayFlightPaused && !journeyPreflightActive() &&
+    !skyDuelUi?.blocksFlightInput() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -9931,7 +9945,7 @@ function animate(): void {
     stabilityQaTiming.updateTotalMs += updateMs;
     stabilityQaTiming.updateMaxMs = Math.max(stabilityQaTiming.updateMaxMs, updateMs);
   }
-  renderer.render(scene, camera);
+  if (!renderSkyDuelRunwayIntro()) renderer.render(scene, camera);
   if (stabilityQaTiming) {
     const renderMs = performance.now() - qaRenderStartedAt;
     stabilityQaTiming.renderTotalMs += renderMs;
@@ -10173,6 +10187,70 @@ const skyDuelUi = skyDuelMode ? new SkyDuelUi(flightGameRoot,
   () => { void exitFlightToHub(false, true); },
   message => showProgressMessage(message, 1_500),
   flightLaunchAircraft(persistedPlayer.pilotId)) : undefined;
+const skyDuelIntroCamera = skyDuelMode ? new THREE.PerspectiveCamera(52, 1, CAMERA_NEAR, CAMERA_BASE_FAR) : undefined;
+const skyDuelIntroViewportSize = new THREE.Vector2();
+const skyDuelIntroSkyPosition = new THREE.Vector3();
+const skyDuelIntroOffset = new THREE.Vector3();
+const skyDuelIntroTarget = new THREE.Vector3();
+
+function renderSkyDuelRunwayIntro(): boolean {
+  const progress = skyDuelUi?.runwayIntroProgress();
+  const countdown = skyDuelUi?.runwayCountdownActive() ?? false;
+  const opponent = skyDuelUi ? remotePlayers.get(skyDuelUi.opponentEntityId()) : undefined;
+  const visible = progress !== undefined || countdown;
+  skyDuelUi?.setRunwayIntroVisible(visible, countdown);
+  if (!visible || progress === undefined || !opponent || !airplane.visible || !skyDuelIntroCamera) return false;
+
+  // WebGLRenderer viewport/scissor APIs use CSS pixels and apply pixelRatio internally.
+  const size = renderer.getSize(skyDuelIntroViewportSize);
+  const leftWidth = Math.floor(size.x / 2);
+  skyDuelIntroCamera.aspect = leftWidth / size.y;
+  skyDuelIntroCamera.far = camera.far;
+  skyDuelIntroCamera.updateProjectionMatrix();
+  skyDuelIntroSkyPosition.copy(skyDome.position);
+  const remoteAirframe = opponent.plane.userData.airframeRoot as THREE.Group;
+  const remoteScale = remoteAirframe.scale.x;
+  const remoteAirframeY = remoteAirframe.position.y;
+  const remoteVisible = opponent.plane.visible;
+  const localVisible = airplane.visible;
+  opponent.plane.visible = true;
+  const introScale = remoteAirframe.userData.duelVisualScale as number;
+  remoteAirframe.scale.setScalar(introScale);
+  const rootClearance = opponent.plane.position.y -
+    groundPlaneY(opponent.plane.position.x, opponent.plane.position.z) + PLANE_GROUND_Y;
+  remoteAirframe.position.y = groundContactVisualOffset(
+    aircraftGroundContacts[opponent.aircraftType], opponent.plane.quaternion, rootClearance / introScale,
+  ) * introScale;
+  const sweep = smoothstep01(Math.min(1, progress / 0.8));
+  const angle = THREE.MathUtils.lerp(1.35, 0, sweep);
+  const radius = Math.max(19, cameraFrameSize.x * 1.7);
+  renderer.setScissorTest(true);
+  for (const [index, plane] of [airplane, opponent.plane].entries()) {
+    airplane.visible = index === 0;
+    opponent.plane.visible = index === 1;
+    const width = index === 0 ? leftWidth : size.x - leftWidth;
+    const x = index === 0 ? 0 : leftWidth;
+    skyDuelIntroOffset.set(Math.sin(angle) * radius, Math.max(5, cameraFrameSize.y * 1.1), Math.cos(angle) * radius)
+      .applyQuaternion(plane.quaternion).add(plane.position);
+    skyDuelIntroTarget.set(0, Math.max(1.4, cameraFrameSize.y * 0.3), 0)
+      .applyQuaternion(plane.quaternion).add(plane.position);
+    skyDuelIntroCamera.position.copy(skyDuelIntroOffset);
+    skyDuelIntroCamera.lookAt(skyDuelIntroTarget);
+    skyDuelIntroCamera.updateMatrixWorld();
+    skyDome.position.copy(skyDuelIntroCamera.position);
+    renderer.setViewport(x, 0, width, size.y);
+    renderer.setScissor(x, 0, width, size.y);
+    renderer.render(scene, skyDuelIntroCamera);
+  }
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, size.x, size.y);
+  skyDome.position.copy(skyDuelIntroSkyPosition);
+  remoteAirframe.scale.setScalar(remoteScale);
+  remoteAirframe.position.y = remoteAirframeY;
+  opponent.plane.visible = remoteVisible;
+  airplane.visible = localVisible;
+  return true;
+}
 let protocolReady = false;
 let protocolBlocked = false;
 let reconnectAttempt = 0;
@@ -10953,7 +11031,10 @@ boundSocket.addEventListener('message', (event) => {
   if (message.type === 'transportCollision') {
     if (message.attemptId !== journeyAttemptId || journeyAttempt?.status !== 'RACING' || transportCollisionAttemptId === message.attemptId) return;
     transportCollisionAttemptId = message.attemptId;
-    beginCrashPresentation('transport');
+    const impact = new THREE.Vector3(message.position.x, message.position.y, message.position.z);
+    const towardCamera = camera.position.clone().sub(impact);
+    if (towardCamera.lengthSq() > 1) impact.addScaledVector(towardCamera.normalize(), 9);
+    beginCrashPresentation('transport', impact);
     localLifeState = 'destroyed';
     health = 0;
     updateHealthDisplay(true);
@@ -11581,6 +11662,16 @@ boundSocket.addEventListener('message', (event) => {
     if (skyDuelUi?.hasAbandonedSearch() || document.hidden) return;
     skyDuelUi?.handle(message);
     resetCrashPresentation();
+    resetFlightLaunchInput();
+    pitchControlStrength = 0;
+    yawControlStrength = 0;
+    smoothedTouchSteering = { x: 0, y: 0 };
+    speedBrakeStrength = 0;
+    landingAssistActive = false;
+    boostMeter = 100;
+    takeoffThrustBlend = 1;
+    landedFeedbackTime = 0;
+    cameraShakeTime = 0;
     airplane.visible = true;
     runStarted = message.active;
     crashed = false;
@@ -11607,6 +11698,10 @@ boundSocket.addEventListener('message', (event) => {
     skyDuelUi?.handle(message);
     if (!skyDuelUi?.hasAbandonedSearch() && message.type === 'skyDuelState' &&
       (message.phase === 'active' || message.phase === 'overtime')) runStarted = true;
+    if (message.type === 'skyDuelState' && message.phase === 'launch') {
+      runStarted = false;
+      resetFlightLaunchInput();
+    }
     if (message.type === 'skyDuelResult') { runStarted = false; airplane.visible = true; }
   } else if (message.type === 'profile') {
     legendaryPilotUnlocked = message.legendaryPilot === true;
