@@ -147,7 +147,7 @@ export class SkyDuelUi {
 
   runwayIntroProgress(): number | undefined {
     if (this.phase !== 'launch' || this.opponentDisconnected || !this.launchStartedAt ||
-      !this.playerAId || !this.playerBId || Date.now() >= this.launchEndsAt) return undefined;
+      Date.now() >= this.launchEndsAt) return undefined;
     return Math.max(0, Math.min(1, (Date.now() - this.launchStartedAt) /
       (this.launchCountdownAt - this.launchStartedAt)));
   }

@@ -365,6 +365,19 @@ function skyDuelBotRoute(position: Vector3, heading: number): Vector3[] {
   ];
 }
 
+function sendSkyDuelPeerState(playerId: string): void {
+  const player = players.get(playerId);
+  const peerId = skyDuelPeer(playerId);
+  if (!player || !peerId) return;
+  sendToPlayer(peerId, {
+    type: 'playerState', playerId, cityId: 'dallas', position: player.position, rotation: player.rotation,
+    altitudeMeters: Math.max(0, player.position.y - botTerrainHeight('dallas', player.position.x, player.position.z)),
+    aircraftType: player.aircraftType, equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
+    displayName: player.displayName, lifeState: player.lifeState, health: player.health,
+    maxHealth: skyDuelHealth, isBot: player.isBot, boostActive: player.boostActive,
+  });
+}
+
 function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): void {
   const player = players.get(playerId);
   if (!player) return;
@@ -394,14 +407,7 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
   sendToPlayer(playerId, { type: 'skyDuelSpawn', position, heading, speed: 0, health: skyDuelHealth,
     protectedUntil: player.spawnProtectedUntil, active: session.phase === 'active' || session.phase === 'overtime' });
   sendToPlayer(playerId, { type: 'skyDuelBoundary', secondsLeft: 0 });
-  const peerId = skyDuelPeer(playerId);
-  if (peerId) sendToPlayer(peerId, {
-    type: 'playerState', playerId, cityId: 'dallas', position, rotation: player.rotation,
-    altitudeMeters: Math.max(0, position.y - botTerrainHeight('dallas', position.x, position.z)),
-    aircraftType: player.aircraftType, equippedCosmetics: player.profile?.cosmetics?.equipped ?? {},
-    displayName: player.displayName, lifeState: 'respawning', health: player.health,
-    maxHealth: skyDuelHealth, isBot: player.isBot, boostActive: false,
-  });
+  sendSkyDuelPeerState(playerId);
 }
 
 function createSkyDuelPracticeBot(ownerId: string, now: number): string | undefined {
@@ -750,6 +756,7 @@ function skyDuelTick(now: number): void {
       for (const participantId of [session.playerA, session.playerB]) {
         const participant = players.get(participantId);
         if (participant) participant.spawnProtectedUntil = session.launchEndsAt + 2_000;
+        sendSkyDuelPeerState(participantId);
       }
     }
     if (session.phase === 'launch' && now >= session.launchEndsAt && aConnected && bConnected) {

@@ -10182,10 +10182,9 @@ const skyDuelIntroTarget = new THREE.Vector3();
 function renderSkyDuelRunwayIntro(): boolean {
   const progress = skyDuelUi?.runwayIntroProgress();
   const opponent = skyDuelUi ? remotePlayers.get(skyDuelUi.opponentEntityId()) : undefined;
-  const visible = progress !== undefined &&
-    (opponent?.lifeState === 'alive' || opponent?.lifeState === 'respawning') && airplane.visible;
+  const visible = progress !== undefined;
   skyDuelUi?.setRunwayIntroVisible(visible);
-  if (!visible || progress === undefined || !opponent || !skyDuelIntroCamera) return false;
+  if (!visible || progress === undefined || !opponent || !airplane.visible || !skyDuelIntroCamera) return false;
 
   // WebGLRenderer viewport/scissor APIs use CSS pixels and apply pixelRatio internally.
   const size = renderer.getSize(skyDuelIntroViewportSize);

@@ -212,6 +212,15 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(launchA.launchStartedAt, launchB.launchStartedAt, 'both pilots share the runway intro');
     assert.equal(launchA.launchCountdownAt, launchB.launchCountdownAt, 'both pilots share the runway countdown');
     assert.equal(launchA.launchEndsAt, launchB.launchEndsAt, 'both pilots start play together');
+    for (const [client, peerId] of [[a, loadingA.playerBId], [b, loadingB.playerAId]] as const) {
+      const launchIndex = client.messages.findIndex(message => message === (client === a ? launchA : launchB));
+      let countdownIndex = launchIndex - 1;
+      while (countdownIndex >= 0 && (client.messages[countdownIndex].type !== 'skyDuelState' ||
+        client.messages[countdownIndex].phase !== 'countdown')) countdownIndex -= 1;
+      assert.ok(countdownIndex >= 0 && client.messages.slice(countdownIndex + 1, launchIndex).some(message =>
+        message.type === 'playerState' && message.playerId === peerId && message.lifeState === 'respawning'),
+      'each pilot receives the opponent runway pose before the split view begins');
+    }
     assert.equal(Number(launchA.launchCountdownAt) - Number(launchA.launchStartedAt), 3_000);
     assert.equal(Number(launchA.launchEndsAt) - Number(launchA.launchCountdownAt), 3_000);
     assert.equal(a.messages.some(message => message.type === 'skyDuelState' && message.phase === 'active'), false,
