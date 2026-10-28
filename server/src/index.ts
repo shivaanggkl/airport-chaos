@@ -71,7 +71,7 @@ import { SkyDuelStore, type DuelOutcome } from './sky-duel-store.js';
 import { closestDuelOpponent, type DuelQueueEntry } from './sky-duel-matchmaking.js';
 import { duelTakedownWinner, duelTimeoutWinner } from './sky-duel-rules.js';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
-import { skyDuelRunwaySpawn } from './sky-duel-spawn.js';
+import { skyDuelAirportIds, skyDuelArenaCenter, skyDuelRunwaySpawn } from './sky-duel-spawn.js';
 
 type AircraftType = 'trainer' | 'privateJet' | 'cargo' | 'fighter';
 type CityId = 'milwaukee' | 'dallas';
@@ -300,9 +300,8 @@ const skyDuelSessions = new Map<string, SkyDuelSession>();
 const skyDuelFairWaitNotified = new Set<string>();
 const pendingSkyDuelResults = new Map<string, { matchId: string; message: object }>();
 const SKY_DUEL_AI_FALLBACK_MS = 12_000;
-const skyDuelAirport = airportForCity('dallas', 'dfw')!;
-const skyDuelCenter = { x: skyDuelAirport.x, z: skyDuelAirport.z };
-const skyDuelRunwayElevation = dallasAirportElevations.get('dfw')!;
+const skyDuelCenter = skyDuelArenaCenter;
+const skyDuelRunwayElevations = skyDuelAirportIds.map(id => dallasAirportElevations.get(id)!);
 const skyDuelBoundaryRadius = 12_000;
 const skyDuelHealth = 100;
 const skyDuelDamage = projectileDamageForAircraft('trainer');
@@ -364,7 +363,8 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
   const player = players.get(playerId);
   if (!player) return;
   const isA = session.playerA === playerId;
-  const { position, heading } = skyDuelRunwaySpawn(isA ? 0 : 1, skyDuelRunwayElevation);
+  const slot = isA ? 0 : 1;
+  const { position, heading } = skyDuelRunwaySpawn(slot, skyDuelRunwayElevations[slot]);
   player.position = position;
   player.lastAcceptedPosition = { ...position };
   player.lastAcceptedTransformAt = now;
@@ -402,7 +402,7 @@ function createSkyDuelPracticeBot(ownerId: string, now: number): string | undefi
   const owner = players.get(ownerId);
   if (!owner) return undefined;
   const id = `sky-duel-ai:${ownerId}`;
-  const { position, heading } = skyDuelRunwaySpawn(1, skyDuelRunwayElevation);
+  const { position, heading } = skyDuelRunwaySpawn(1, skyDuelRunwayElevations[1]);
   const bot: BotRuntime = {
     personality: 'hunter', phase: 'taxi', journeyTargetPlayerId: ownerId,
     route: skyDuelBotRoute(position, heading), routeIndex: 0, speed: 0, desiredSpeed: 0, nextDecisionAt: now + 5_000,
@@ -468,7 +468,7 @@ function startSkyDuelAiMatch(playerId: string, now: number, paid: boolean): void
 function skyDuelPracticeSpawn(playerId: string, now: number): void {
   const player = players.get(playerId);
   if (!player) return;
-  const { position, heading } = skyDuelRunwaySpawn(0, skyDuelRunwayElevation);
+  const { position, heading } = skyDuelRunwaySpawn(0, skyDuelRunwayElevations[0]);
   player.position = position;
   player.lastAcceptedPosition = { ...position };
   player.lastAcceptedTransformAt = now;
@@ -5943,10 +5943,8 @@ function botRunwayHeight(cityId: CityId, x: number, z: number): number {
     const dx = x - airport.x, dz = z - airport.z;
     const along = dx * Math.sin(airport.heading) + dz * Math.cos(airport.heading);
     const lateral = dx * Math.cos(airport.heading) - dz * Math.sin(airport.heading);
-    const onDuelRunway = cityId === 'dallas' && airport.id === 'dfw' &&
-      Math.abs(lateral - competitiveModes.skyDuel.runwayLaterals[1]) <= 27;
     if (Math.abs(along) <= airport.runwayLength * 0.5 + 300 &&
-      (Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3) || onDuelRunway)) {
+      Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3)) {
       return cityId === 'dallas' ? dallasAirportElevations.get(airport.id)! : 0;
     }
   }
@@ -6996,10 +6994,8 @@ function groundedAtAirport(player: PlayerState): { id: string } | undefined {
     const dz = player.position.z - airport.z;
     const along = dx * Math.sin(airport.heading) + dz * Math.cos(airport.heading);
     const lateral = dx * Math.cos(airport.heading) - dz * Math.sin(airport.heading);
-    const onDuelRunway = player.skyDuelMode && airport.id === 'dfw' &&
-      Math.abs(lateral - competitiveModes.skyDuel.runwayLaterals[1]) <= 27;
     if (Math.abs(along) <= airport.runwayLength * 0.5 + 150 &&
-      (Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3) || onDuelRunway)) return airport;
+      Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3)) return airport;
   }
   return undefined;
 }
@@ -7012,10 +7008,8 @@ function runwayOrTaxiSpawnArea(player: PlayerState): { id: string } | undefined 
     const dz = player.position.z - airport.z;
     const along = dx * Math.sin(airport.heading) + dz * Math.cos(airport.heading);
     const lateral = dx * Math.cos(airport.heading) - dz * Math.sin(airport.heading);
-    const onDuelRunway = player.skyDuelMode && airport.id === 'dfw' &&
-      Math.abs(lateral - competitiveModes.skyDuel.runwayLaterals[1]) <= 27;
     if (Math.abs(along) <= airport.runwayLength * 0.5 + 150 &&
-      (Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3) || onDuelRunway)) return airport;
+      Math.abs(lateral) <= Math.max(110, airport.runwayWidth * 3)) return airport;
   }
   return undefined;
 }

@@ -65,9 +65,9 @@ class PilotClient {
       const step = (current: number, target: number, limit: number) =>
         current + Math.max(-limit, Math.min(limit, target - current));
       this.pose.position = {
-        x: step(this.pose.position.x, this.combatPose.position.x, 20),
+        x: step(this.pose.position.x, this.combatPose.position.x, 50),
         y: step(this.pose.position.y, this.combatPose.position.y, 10),
-        z: step(this.pose.position.z, this.combatPose.position.z, 20),
+        z: step(this.pose.position.z, this.combatPose.position.z, 50),
       };
       this.pose.heading = step(this.pose.heading, this.combatPose.heading, 0.07);
     }
@@ -91,12 +91,13 @@ function positionForCombat(shooter: PilotClient, target: PilotClient, shooterSpa
   const to = targetSpawn.position as { x: number; y: number; z: number };
   const shooterWest = from.x < to.x;
   const altitude = Math.max(from.y, to.y) + 150;
-  shooter.setCombatPose({ x: to.x + (shooterWest ? -250 : 250), y: altitude, z: to.z },
+  const center = { x: (from.x + to.x) / 2, z: (from.z + to.z) / 2 };
+  shooter.setCombatPose({ x: center.x + (shooterWest ? -250 : 250), y: altitude, z: center.z },
     shooterWest ? -Math.PI / 2 : Math.PI / 2);
-  target.setCombatPose({ x: to.x, y: altitude, z: to.z }, 0);
+  target.setCombatPose({ x: center.x, y: altitude, z: center.z }, 0);
 }
 
-test('real two-player combat, reconnect, surrender, payouts, and isolated AI fallback', { timeout: 110_000 }, async () => {
+test('real two-player combat, reconnect, surrender, payouts, and isolated AI fallback', { timeout: 200_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'airport-chaos-duel-live-'));
   const path = join(dir, 'profiles.sqlite');
   const profiles = new PlayerProfileStore(path);
@@ -173,8 +174,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const [spawnA, spawnB] = await Promise.all([a.waitFor('skyDuelSpawn'), b.waitFor('skyDuelSpawn')]);
     assert.equal(spawnA.speed, 0);
     assert.equal(spawnB.speed, 0);
-    assert.equal(Math.abs(Number((spawnA.position as { x: number }).x) - Number((spawnB.position as { x: number }).x)), 690,
-      'human pilots start on separate DFW runways');
+    assert.equal(Math.abs(Number((spawnA.position as { x: number }).x) - Number((spawnB.position as { x: number }).x)), 17_660,
+      'human pilots start at DFW and Love Field');
     await new Promise(resolveWait => setTimeout(resolveWait, 1_200));
     assert.equal(a.messages.some(message => message.type === 'skyDuelFound'), false,
       'countdown waits for both clients to finish loading');
@@ -216,7 +217,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const keepState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const fire = setInterval(() => a?.send('fire'), 350);
     try {
-      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 1, 15_000);
+      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 1, 40_000);
     } finally { clearInterval(fire); clearInterval(keepState); }
     a.send('skyDuelSurrender');
     const [resultA, resultB] = await Promise.all([a.waitFor('skyDuelResult'), b.waitFor('skyDuelResult')]);
@@ -243,7 +244,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const combatState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const combatFire = setInterval(() => a?.send('fire'), 350);
     try {
-      const win = await a.waitFor('skyDuelResult', message => message.outcome === (thirdIsA ? 'WIN_A' : 'WIN_B'), 35_000);
+      const win = await a.waitFor('skyDuelResult', message => message.outcome === (thirdIsA ? 'WIN_A' : 'WIN_B'), 85_000);
       assert.equal(thirdIsA ? win.scoreA : win.scoreB, 3);
       assert.equal(thirdIsA ? win.scoreB : win.scoreA, 0);
     } finally { clearInterval(combatFire); clearInterval(combatState); }
@@ -275,8 +276,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.ok(Number.isFinite(aiStart.altitudeMeters), 'AI starting altitude is available to the HUD');
     const aiStartPosition = aiStart.position as { x: number; y: number; z: number };
     const aiSpawn = a.messages.filter(message => message.type === 'skyDuelSpawn').at(-1)!;
-    assert.equal(Math.abs(aiStartPosition.x - Number((aiSpawn.position as { x: number }).x)), 690,
-      'AI starts on the parallel DFW runway');
+    assert.equal(Math.abs(aiStartPosition.x - Number((aiSpawn.position as { x: number }).x)), 17_660,
+      'AI starts on the Love Field runway');
     assert.equal(b.messages.some(message => message.type === 'playerState' && message.playerId === aiId), false,
       'practice AI is private to its pilot');
     const aiState = setInterval(() => a?.sendState(), 100);

@@ -1,22 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cityAirports, aircraftGroundOffset } from '../../shared/city-airports.mjs';
-import { competitiveModes } from '../../shared/competitive-modes.mjs';
-import { skyDuelRunwaySpawn } from './sky-duel-spawn.js';
+import { skyDuelArenaCenter, skyDuelRunwaySpawn } from './sky-duel-spawn.js';
 
-test('Sky Duel pilots start stationary on separate DFW runway centerlines', () => {
-  const dfw = cityAirports.dallas.find(airport => airport.id === 'dfw')!;
-  const elevation = 123;
-  const starts = [skyDuelRunwaySpawn(0, elevation), skyDuelRunwaySpawn(1, elevation)];
+test('Sky Duel pilots start on the DFW and Love Field runway centerlines inside the arena', () => {
+  const airports = ['dfw', 'love'].map(id => cityAirports.dallas.find(airport => airport.id === id)!);
+  const elevations = [123, 145];
+  const starts = [skyDuelRunwaySpawn(0, elevations[0]!), skyDuelRunwaySpawn(1, elevations[1]!)];
   for (const [slot, start] of starts.entries()) {
-    const dx = start.position.x - dfw.x, dz = start.position.z - dfw.z;
-    const lateral = dx * Math.cos(dfw.heading) - dz * Math.sin(dfw.heading);
-    const along = dx * Math.sin(dfw.heading) + dz * Math.cos(dfw.heading);
-    assert.equal(lateral, competitiveModes.skyDuel.runwayLaterals[slot]);
-    assert.ok(along > 0 && along < 3_850 / 2, 'both starts fit the rendered runways');
-    assert.equal(start.position.y, elevation + aircraftGroundOffset);
-    assert.equal(start.heading, dfw.heading);
+    const airport = airports[slot]!;
+    const dx = start.position.x - airport.x, dz = start.position.z - airport.z;
+    const lateral = dx * Math.cos(airport.heading) - dz * Math.sin(airport.heading);
+    const along = dx * Math.sin(airport.heading) + dz * Math.cos(airport.heading);
+    assert.equal(lateral, 0);
+    assert.ok(along > 0 && along < airport.runwayLength / 2, `${airport.id} start fits the runway`);
+    assert.equal(start.position.y, elevations[slot]! + aircraftGroundOffset);
+    assert.equal(start.heading, airport.heading);
+    assert.ok(Math.hypot(start.position.x - skyDuelArenaCenter.x, start.position.z - skyDuelArenaCenter.z) < 12_000);
   }
   assert.ok(Math.hypot(starts[0]!.position.x - starts[1]!.position.x,
-    starts[0]!.position.z - starts[1]!.position.z) > 600);
+    starts[0]!.position.z - starts[1]!.position.z) > 10_000);
 });
