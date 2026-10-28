@@ -668,11 +668,12 @@ export class AircraftGarage {
   }
 
   private previewAppearance() {
-    return this.selectedAppearance() ?? cosmeticCatalog.find(item => item.aircraftRestriction === this.selected);
+    return this.selectedAppearance() ?? cosmeticCatalog.find(item => item.aircraftRestriction === this.selected && !item.retired);
   }
 
   private selectedAppearance() {
-    const appearances = cosmeticCatalog.filter(item => item.aircraftRestriction === this.selected);
+    const appearances = cosmeticCatalog.filter(item => item.aircraftRestriction === this.selected &&
+      (!item.retired || this.profile.cosmetics?.ownedIds.includes(item.id)));
     const equippedId = this.profile.cosmetics?.equipped?.[`livery:${this.selected}`];
     return appearances.find(item => item.id === this.previewCosmetic)
       ?? appearances.find(item => item.id === equippedId)
@@ -737,7 +738,8 @@ export class AircraftGarage {
     const heading = document.createElement('h2'); heading.textContent = 'APPEARANCE';
     const list = document.createElement('div'); list.className = 'garage-cosmetic-list';
     root.append(heading, list);
-    const appearances = cosmeticCatalog.filter(entry => entry.aircraftRestriction === this.selected);
+    const appearances = cosmeticCatalog.filter(entry => entry.aircraftRestriction === this.selected &&
+      (!entry.retired || this.profile.cosmetics?.ownedIds.includes(entry.id)));
     if (appearances.length > 3) {
       list.classList.add('is-many');
       list.style.setProperty('--garage-cosmetic-count', String(appearances.length));

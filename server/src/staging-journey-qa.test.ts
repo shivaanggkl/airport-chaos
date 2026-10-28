@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { JourneyAttemptStore } from './journey-attempts.js';
+import { PlayerProfileStore } from './player-profiles.js';
 import { localJourneyQaUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
 
 test('local QA unlock requires a disposable database and cannot activate in production or Render', () => {
@@ -51,6 +52,37 @@ test('QA unlock allows every Dallas mission without recording false completion o
     assert.equal((verify.prepare('SELECT COUNT(*) AS count FROM journey_completions').get() as { count: number }).count, 0);
     assert.equal((verify.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'qa-pilot'").get() as { credits: number }).credits, 0);
     verify.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('local QA grants every aircraft with a usable appearance without changing balances', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-aircraft-qa-'));
+  const path = join(directory, 'profiles.sqlite');
+  try {
+    const regular = new PlayerProfileStore(path);
+    const existing = regular.getOrCreate('existing-pilot', 'Pilot');
+    const startingCredits = existing.credits;
+    assert.deepEqual(existing.unlockedAircraft, ['trainer']);
+
+    const qa = new PlayerProfileStore(path, true, true);
+    for (const pilotId of ['existing-pilot', 'new-pilot']) {
+      const profile = qa.getOrCreate(pilotId, 'Pilot');
+      assert.deepEqual(profile.unlockedAircraft, ['trainer', 'cargo', 'privateJet', 'fighter']);
+      assert.equal(profile.tutorial.dallasUnlocked, true);
+      assert.equal(profile.cosmetics.equipped['livery:cargo'], 'mammoth-sand');
+      assert.equal(profile.cosmetics.equipped['livery:privateJet'], 'nightowl-sky-blue');
+      for (const id of ['nightowl-sky-blue', 'nightowl-sunset-red', 'nightowl-forest-green', 'nightowl-premium-gold']) {
+        assert.ok(profile.cosmetics.ownedIds.includes(id));
+      }
+      assert.equal(profile.cosmetics.equipped['livery:fighter'], 'firehawk-inferno');
+      assert.equal(profile.credits, startingCredits);
+      assert.equal(profile.skyTokens, 0);
+    }
+    const reopened = new PlayerProfileStore(path);
+    assert.deepEqual(reopened.getOrCreate('existing-pilot', 'Pilot').unlockedAircraft, ['trainer', 'cargo', 'privateJet', 'fighter']);
+    assert.equal(reopened.getOrCreate('existing-pilot', 'Pilot').tutorial.dallasUnlocked, false);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

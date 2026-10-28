@@ -20,13 +20,19 @@ function fixture() {
 const prices: Record<string, [number | undefined, number]> = {
   'bluejay-classic': [750, 75], 'bluejay-aurora': [1_500, 125],
   'mammoth-sand': [13_000, 600], 'mammoth-desert-sand': [14_000, 650], 'mammoth-arctic-rescue': [15_000, 750],
-  'nightowl-forest': [31_000, 1_300], 'nightowl-midnight-executive': [32_000, 1_350], 'nightowl-royal-violet': [33_000, 1_450],
+  'nightowl-sky-blue': [33_000, 1_350], 'nightowl-sunset-red': [33_000, 1_350],
+  'nightowl-forest-green': [33_000, 1_350], 'nightowl-premium-gold': [33_000, 1_350],
   'firehawk-inferno': [undefined, 2_400],
 };
 
 test('every aircraft and appearance combination has one fixed catalog price', () => {
-  assert.equal(cosmeticCatalog.length, 10);
+  assert.equal(cosmeticCatalog.filter(item => !item.retired).length, 11);
   for (const item of cosmeticCatalog) {
+    if (item.retired) {
+      assert.equal(cosmeticUnlockPrice(item), undefined);
+      assert.equal(cosmeticUnlockPrice(item, 'SKY_TOKENS'), undefined);
+      continue;
+    }
     if (item.id === 'bluejay-skybolt') {
       assert.equal(item.unlockType, 'included');
       assert.deepEqual([item.creditPrice, item.skyTokenPrice], [0, 0]);
@@ -37,7 +43,7 @@ test('every aircraft and appearance combination has one fixed catalog price', ()
 test('aircraft-only purchases are unavailable; each selected appearance atomically unlocks its aircraft', () => {
   const { store, database, wallet, path, cleanup } = fixture();
   try {
-    for (const [type, id] of [['cargo', 'mammoth-sand'], ['privateJet', 'nightowl-forest']] as const) {
+    for (const [type, id] of [['cargo', 'mammoth-sand'], ['privateJet', 'nightowl-sky-blue']] as const) {
       assert.match(store.purchaseAircraft('pilot', type).reason ?? '', /CHOOSE AN APPEARANCE/);
       assert.match(store.purchaseAircraftWithSkyTokens('pilot', type).reason ?? '', /CHOOSE AN APPEARANCE/);
       for (const currency of ['CREDITS', 'SKY_TOKENS'] as const) {
@@ -64,7 +70,7 @@ test('buying another appearance keeps its full listed price, even after reload',
   try {
     for (const [pilotId, type, first, second, fullPrice] of [
       ['mammoth', 'cargo', 'mammoth-arctic-rescue', 'mammoth-sand', 13_000],
-      ['nightowl', 'privateJet', 'nightowl-royal-violet', 'nightowl-midnight-executive', 32_000],
+      ['nightowl', 'privateJet', 'nightowl-premium-gold', 'nightowl-sunset-red', 33_000],
     ] as const) {
       store.getOrCreate(pilotId, 'Pilot');
       store.awardServerReward(pilotId, 100_000);
@@ -141,9 +147,12 @@ test('migration keeps historical ownership and grants a usable paint only to pre
     assert.ok(migrated.unlockedAircraft.includes('privateJet'));
     assert.ok(migrated.cosmetics.ownedIds.includes('mammoth-sand'));
     assert.ok(migrated.cosmetics.ownedIds.includes('nightowl-forest'));
+    assert.equal(migrated.cosmetics.equipped['livery:privateJet'], 'nightowl-forest');
+    assert.equal(store.equipCosmetic('legacy', 'nightowl-forest').ok, true);
     assert.deepEqual(store.walletBalances('legacy'), before);
     new PlayerProfileStore(path);
     assert.equal((database.prepare("SELECT COUNT(*) n FROM pilot_cosmetics WHERE pilot_id='legacy' AND cosmetic_id IN ('mammoth-sand','nightowl-forest')").get() as { n: number }).n, 2);
     assert.equal(store.getOrCreate('new', 'Pilot').cosmetics.ownedIds.includes('mammoth-sand'), false);
+    assert.equal(store.purchaseCosmetic('new', 'nightowl-forest').reason, 'COSMETIC NOT PURCHASABLE');
   } finally { cleanup(); }
 });

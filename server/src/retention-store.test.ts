@@ -85,7 +85,7 @@ test('new pilots receive only the Bluejay default; verified Firehawk grants incl
   assert.equal(db.equipCosmetic('cosmetic-defaults', 'bluejay-aurora').ok, false);
   db.awardServerReward('cosmetic-defaults', 100_000);
   assert.equal(db.purchaseCosmetic('cosmetic-defaults', 'mammoth-sand').profile?.cosmetics.equipped['livery:cargo'], 'mammoth-sand');
-  assert.equal(db.purchaseCosmetic('cosmetic-defaults', 'nightowl-forest').profile?.cosmetics.equipped['livery:privateJet'], 'nightowl-forest');
+  assert.equal(db.purchaseCosmetic('cosmetic-defaults', 'nightowl-sky-blue').profile?.cosmetics.equipped['livery:privateJet'], 'nightowl-sky-blue');
   const trial = db.requestFighterTrial('cosmetic-defaults');
   assert.equal(trial.ok, true);
   assert.equal(trial.profile?.cosmetics.ownedIds.includes('firehawk-inferno'), false);

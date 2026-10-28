@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate:aircraft": "node scripts/generate-airport-chaos-aircraft.mjs"
+    "generate:aircraft": "node scripts/generate-airport-chaos-aircraft.mjs",
+    "generate:firehawk": "blender -b --python scripts/build-firehawk-blender.py"
   },
   "dependencies": {
     "three": "^0.179.1"

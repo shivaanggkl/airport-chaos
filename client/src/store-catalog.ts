@@ -17,7 +17,7 @@ export type StoreItem = {
 const paintOrder = [
   'bluejay-classic', 'bluejay-skybolt', 'bluejay-aurora',
   'mammoth-sand', 'mammoth-desert-sand', 'mammoth-arctic-rescue',
-  'nightowl-forest', 'nightowl-midnight-executive', 'nightowl-royal-violet',
+  'nightowl-sky-blue', 'nightowl-sunset-red', 'nightowl-forest-green', 'nightowl-premium-gold',
   'firehawk-inferno',
 ];
 
@@ -51,7 +51,7 @@ export const storeItems = [...storeAircraft, ...storePaints];
 export function storePurchaseTarget(item: StoreItem): StoreItem {
   if (item.kind !== 'aircraft') return item;
   const includedPaintId = item.aircraftType === 'cargo' ? 'mammoth-sand'
-    : item.aircraftType === 'privateJet' ? 'nightowl-forest' : undefined;
+    : item.aircraftType === 'privateJet' ? 'nightowl-sky-blue' : undefined;
   return includedPaintId ? storePaints.find(paint => paint.id === includedPaintId)! : item;
 }
 

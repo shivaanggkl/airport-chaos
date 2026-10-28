@@ -15,7 +15,7 @@ export const aircraftDisplayOrder = Object.freeze(['trainer', 'cargo', 'privateJ
 export const aircraftEconomy = Object.freeze({
   trainer: Object.freeze({ access: 'free', credits: 0 }),
   cargo: Object.freeze({ access: 'credits', credits: 13_000 }),
-  privateJet: Object.freeze({ access: 'credits', credits: 31_000 }),
+  privateJet: Object.freeze({ access: 'credits', credits: 33_000 }),
   fighter: Object.freeze({ access: 'premium', credits: 0, usdPrice: firehawkProduct.displayPrice, entitlement: firehawkProduct.entitlement }),
 });
 export function aircraftCreditPrice(type) {
