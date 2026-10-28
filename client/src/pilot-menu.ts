@@ -7,8 +7,7 @@ import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-
 import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
 import { pilotXpForLevel } from '../../shared/pilot-progression.mjs';
-import { createRankHelmet, rankHelmetForLevel, rankHelmets } from './rank-helmets';
-import { createLockIcon } from './lock-icon';
+import { createRankHelmet, rankHelmetForLevel } from './rank-helmets';
 import { legalConfig } from '../../shared/legal-config.mjs';
 import { legalPolicyHref } from './brand';
 import { recordProductIntent } from './product-analytics';
@@ -21,6 +20,7 @@ export type PilotMenuOptions = {
   title?: string;
   closeLabel?: string | (() => string);
   showFlightActions?: boolean;
+  forfeitMatch?: () => void;
   appShell?: boolean;
   flightMode?: 'single' | 'training' | 'multiplayer';
   showContextStatus?: boolean;
@@ -645,8 +645,8 @@ export class PilotMenu {
       actions.append(actionButton({ label: 'RESTART MISSION', run: () => data.restartFlight?.() }));
     }
     actions.append(actionButton({
-      label: this.options.flightMode === 'single' ? 'EXIT TO JOURNEY' : this.options.flightMode === 'training' ? 'EXIT TRAINING' : 'LEAVE SESSION',
-      run: () => data.exitFlight?.(), intent: 'danger',
+      label: this.options.forfeitMatch ? 'FORFEIT MATCH' : this.options.flightMode === 'single' ? 'EXIT TO JOURNEY' : this.options.flightMode === 'training' ? 'EXIT TRAINING' : 'LEAVE SESSION',
+      run: () => this.options.forfeitMatch ? this.options.forfeitMatch() : data.exitFlight?.(), intent: 'danger',
     }));
     if (this.options.flightMode === 'single') actions.append(textElement('small', 'Progress from this attempt will be lost.', 'pilot-flight-exit-note'));
     return actions;
@@ -864,26 +864,6 @@ export class PilotMenu {
         const feedback = this.profileFeedback ?? account.notice;
         message.textContent = feedback?.message ?? ''; message.hidden = !feedback; message.classList.toggle('error', feedback?.ok === false);
         profile.append(identity, message);
-
-        const helmets = document.createElement('section'); helmets.className = 'pilot-profile-section pilot-profile-helmets';
-        helmets.append(textElement('h2', 'PILOT HELMETS'));
-        const helmetCollection = document.createElement('div'); helmetCollection.className = 'pilot-profile-helmet-collection';
-        const currentHelmet = rankHelmetForLevel(pilot.level);
-        for (const helmet of rankHelmets) {
-          const locked = pilot.level < helmet.level;
-          const current = helmet.id === currentHelmet.id;
-          const item = document.createElement('div'); item.className = 'pilot-profile-helmet-item';
-          if (current) item.classList.add('is-current');
-          item.title = locked ? `${helmet.title} · Unlock at Level ${helmet.level}` : `${helmet.title} · Level ${helmet.level}`;
-          const label = document.createElement('div'); label.className = 'pilot-profile-helmet-label';
-          const status = textElement('span', current ? 'CURRENT' : locked ? `Unlock at Level ${helmet.level}` : 'UNLOCKED');
-          if (locked) status.prepend(createLockIcon());
-          label.append(textElement('strong', helmet.title), status);
-          item.append(createRankHelmet(helmet, 'thumbnail', locked), label);
-          helmetCollection.append(item);
-        }
-        helmets.append(helmetCollection);
-        profile.append(helmets);
 
         const statistics = document.createElement('section'); statistics.className = 'pilot-profile-section';
         const statisticsHeading = document.createElement('div'); statisticsHeading.className = 'pilot-profile-section-heading';

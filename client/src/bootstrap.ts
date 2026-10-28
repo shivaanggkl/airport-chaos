@@ -2156,10 +2156,16 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
   if (city.status !== 'available' || !city.loadWorld) return;
   const timePreset = modeOverride === 'sky-duel' ? 'day' : resolveCityTimePreset(city, requestedTimePreset);
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
+  const launchProgress = authoritativeHomeProfile?.pilotProgress;
   setFlightLaunchAircraft(authoritativeHomeProfile ? {
     pilotId: garageIdentity.pilotId,
     type: garageProfile.selectedAircraft,
     equippedCosmetics: { ...garageProfile.cosmetics?.equipped },
+    pilotPreview: modeOverride === 'sky-duel' && authoritativeHomeProfile.pilotName &&
+      launchProgress && Number.isSafeInteger(launchProgress.level) && launchProgress.level > 0
+      ? { name: authoritativeHomeProfile.pilotName, level: launchProgress.level,
+          credits: authoritativeHomeProfile.credits, skyTokens: authoritativeHomeProfile.skyTokens ?? 0 }
+      : undefined,
   } : null);
   missionJourneyReturnPending = false;
   missionJourney.hide();

@@ -1,9 +1,10 @@
 import type { AircraftType } from './aircraft';
 
-type FlightLaunchAircraft = {
+export type FlightLaunchAircraft = {
   pilotId: string;
   type: AircraftType;
   equippedCosmetics: Record<string, string>;
+  pilotPreview?: { name: string; level: number; credits: number; skyTokens: number };
 };
 
 let launchAircraft: FlightLaunchAircraft | null = null;
