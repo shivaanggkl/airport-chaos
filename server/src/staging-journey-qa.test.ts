@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { PlayerProfileStore } from './player-profiles.js';
-import { localJourneyQaUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
+import { localJourneyQaUnlockEnabled, stagingJourneyQaPilotUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
 
 test('local QA unlock requires a disposable database and cannot activate in production or Render', () => {
   const local = {
@@ -30,6 +30,41 @@ test('QA unlock requires the explicit switch on the exact staging service and br
   assert.equal(stagingJourneyQaUnlockEnabled({ ...staging, JOURNEY_STAGING_UNLOCK_ALL: 'false' }), false);
   assert.equal(stagingJourneyQaUnlockEnabled({ ...staging, RENDER_SERVICE_ID: 'production-service' }), false);
   assert.equal(stagingJourneyQaUnlockEnabled({ ...staging, RENDER_GIT_BRANCH: 'main' }), false);
+  assert.equal(stagingJourneyQaPilotUnlockEnabled({ ...staging, JOURNEY_STAGING_UNLOCK_ALL: 'false' }), true);
+  assert.equal(stagingJourneyQaPilotUnlockEnabled({ ...staging, RENDER_SERVICE_ID: 'production-service' }), false);
+  assert.equal(stagingJourneyQaPilotUnlockEnabled({ ...staging, RENDER_GIT_BRANCH: 'main' }), false);
+});
+
+test('staging per-pilot QA access unlocks missions only for the granted pilot without false clears or rewards', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'airport-journey-pilot-qa-'));
+  const path = join(directory, 'profiles.sqlite');
+  const setup = new DatabaseSync(path);
+  setup.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('qa-pilot', 100, 50), ('other-pilot', 100, 50)");
+  setup.close();
+  try {
+    const normal = new JourneyAttemptStore(path);
+    const database = new DatabaseSync(path);
+    database.prepare('INSERT INTO journey_qa_unlocked_pilots (pilot_id, granted_at) VALUES (?, ?)').run('qa-pilot', 1_000);
+    database.close();
+    assert.equal(normal.qaMissionAccess('qa-pilot'), false);
+    assert.throws(() => normal.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-24'), /locked/);
+
+    const staging = new JourneyAttemptStore(path, false, true);
+    assert.equal(staging.qaMissionAccess('qa-pilot'), true);
+    assert.equal(staging.qaMissionAccess('other-pilot'), false);
+    assert.equal(staging.launch('qa-pilot', 'trainer', 1_000, 'journey-dallas-24').missionId, 'journey-dallas-24');
+    assert.throws(() => staging.launch('other-pilot', 'trainer', 1_000, 'journey-dallas-24'), /locked/);
+    assert.equal(staging.progress('qa-pilot', 'journey-dallas-24').completed, false);
+    const verify = new DatabaseSync(path);
+    assert.equal((verify.prepare('SELECT COUNT(*) AS count FROM journey_completions').get() as { count: number }).count, 0);
+    assert.deepEqual(verify.prepare('SELECT pilot_id, credits, sky_tokens FROM player_profiles ORDER BY pilot_id').all().map(row => ({ ...row })), [
+      { pilot_id: 'other-pilot', credits: 100, sky_tokens: 50 },
+      { pilot_id: 'qa-pilot', credits: 100, sky_tokens: 50 },
+    ]);
+    verify.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('QA unlock allows every Dallas mission without recording false completion or credits', () => {
