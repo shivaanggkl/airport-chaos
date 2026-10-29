@@ -23,10 +23,12 @@ const prices: Record<string, [number | undefined, number]> = {
   'nightowl-sky-blue': [33_000, 1_350], 'nightowl-sunset-red': [33_000, 1_350],
   'nightowl-forest-green': [33_000, 1_350], 'nightowl-premium-gold': [33_000, 1_350],
   'firehawk-inferno': [undefined, 2_400],
+  'firehawk-midnight-black': [undefined, 2_400],
+  'firehawk-stealth-gray': [undefined, 2_400],
 };
 
 test('every aircraft and appearance combination has one fixed catalog price', () => {
-  assert.equal(cosmeticCatalog.filter(item => !item.retired).length, 11);
+  assert.equal(cosmeticCatalog.filter(item => !item.retired).length, 13);
   for (const item of cosmeticCatalog) {
     if (item.retired) {
       assert.equal(cosmeticUnlockPrice(item), undefined);
@@ -85,9 +87,10 @@ test('buying another appearance keeps its full listed price, even after reload',
   } finally { cleanup(); }
 });
 
-test('Bluejay optional paints are separate; Firehawk plus Inferno is one Token unlock', () => {
-  const { store, wallet, cleanup } = fixture();
+test('Bluejay paints are separate; one Firehawk unlock includes every Firehawk appearance', () => {
+  const { store, wallet, path, cleanup } = fixture();
   try {
+    const firehawkPaintIds = cosmeticCatalog.filter(item => item.aircraftRestriction === 'fighter').map(item => item.id);
     assert.deepEqual(store.getOrCreate('bluejay', 'Pilot').cosmetics.ownedIds, ['bluejay-skybolt']);
     assert.equal(store.purchaseCosmetic('bluejay', 'bluejay-classic').ok, false);
     store.awardServerReward('bluejay', 750);
@@ -100,15 +103,51 @@ test('Bluejay optional paints are separate; Firehawk plus Inferno is one Token u
     assert.equal(result.ok, true);
     assert.equal(result.profile?.skyTokens, 0);
     assert.ok(result.profile?.unlockedAircraft.includes('fighter'));
-    assert.ok(result.profile?.cosmetics.ownedIds.includes('firehawk-inferno'));
+    assert.deepEqual(firehawkPaintIds.filter(id => result.profile?.cosmetics.ownedIds.includes(id)), firehawkPaintIds);
     assert.equal(store.purchaseCosmetic('firehawk', 'firehawk-inferno', 'SKY_TOKENS').ok, false);
+    assert.equal(store.purchaseCosmetic('firehawk', 'firehawk-midnight-black', 'SKY_TOKENS').ok, false);
+    assert.equal(store.walletBalances('firehawk')?.skyTokens, 0);
     store.getOrCreate('firehawk-paint', 'Pilot');
     wallet.credit({ pilotId: 'firehawk-paint', currency: 'SKY_TOKENS', amount: 2_400, reason: 'ADMIN_ADJUSTMENT' });
     const paintRoute = store.purchaseCosmetic('firehawk-paint', 'firehawk-inferno', 'SKY_TOKENS');
     assert.equal(paintRoute.ok, true);
     assert.ok(paintRoute.profile?.unlockedAircraft.includes('fighter'));
     assert.equal(paintRoute.profile?.cosmetics.equipped['livery:fighter'], 'firehawk-inferno');
+    assert.deepEqual(firehawkPaintIds.filter(id => paintRoute.profile?.cosmetics.ownedIds.includes(id)), firehawkPaintIds);
     assert.equal(paintRoute.profile?.skyTokens, 0);
+    store.getOrCreate('firehawk-midnight', 'Pilot');
+    wallet.credit({ pilotId: 'firehawk-midnight', currency: 'SKY_TOKENS', amount: 2_400, reason: 'ADMIN_ADJUSTMENT' });
+    const midnightRoute = store.purchaseCosmetic('firehawk-midnight', 'firehawk-midnight-black', 'SKY_TOKENS');
+    assert.equal(midnightRoute.ok, true);
+    assert.ok(midnightRoute.profile?.unlockedAircraft.includes('fighter'));
+    assert.equal(midnightRoute.profile?.cosmetics.equipped['livery:fighter'], 'firehawk-midnight-black');
+    assert.deepEqual(firehawkPaintIds.filter(id => midnightRoute.profile?.cosmetics.ownedIds.includes(id)), firehawkPaintIds);
+    assert.equal(midnightRoute.profile?.skyTokens, 0);
+    assert.equal(store.equipCosmetic('firehawk-midnight', 'firehawk-stealth-gray').ok, true);
+    assert.equal(new PlayerProfileStore(path).getOrCreate('firehawk-midnight', 'Pilot').cosmetics.equipped['livery:fighter'], 'firehawk-stealth-gray');
+    store.getOrCreate('firehawk-stealth', 'Pilot');
+    wallet.credit({ pilotId: 'firehawk-stealth', currency: 'SKY_TOKENS', amount: 2_400, reason: 'ADMIN_ADJUSTMENT' });
+    const stealthRoute = store.purchaseCosmetic('firehawk-stealth', 'firehawk-stealth-gray', 'SKY_TOKENS');
+    assert.equal(stealthRoute.ok, true);
+    assert.deepEqual(firehawkPaintIds.filter(id => stealthRoute.profile?.cosmetics.ownedIds.includes(id)), firehawkPaintIds);
+    assert.equal(stealthRoute.profile?.cosmetics.equipped['livery:fighter'], 'firehawk-stealth-gray');
+    assert.equal(stealthRoute.profile?.skyTokens, 0);
+    assert.equal(store.purchaseCosmetic('firehawk-stealth', 'firehawk-inferno', 'SKY_TOKENS').ok, false);
+    assert.equal(store.walletBalances('firehawk-stealth')?.skyTokens, 0);
+  } finally { cleanup(); }
+});
+
+test('existing Firehawk entitlements gain every appearance without another purchase', () => {
+  const { store, database, cleanup } = fixture();
+  try {
+    store.getOrCreate('legacy-firehawk', 'Pilot');
+    const granted = store.grantAircraftEntitlements('legacy-firehawk', ['fighter']);
+    assert.ok(granted);
+    database.prepare("DELETE FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id <> 'firehawk-inferno'").run('legacy-firehawk');
+    const restored = store.getOrCreate('legacy-firehawk', 'Pilot');
+    const firehawkPaintIds = cosmeticCatalog.filter(item => item.aircraftRestriction === 'fighter').map(item => item.id);
+    assert.deepEqual(firehawkPaintIds.filter(id => restored.cosmetics.ownedIds.includes(id)), firehawkPaintIds);
+    assert.equal(store.walletBalances('legacy-firehawk')?.skyTokens, 0);
   } finally { cleanup(); }
 });
 
