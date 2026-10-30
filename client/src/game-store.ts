@@ -265,6 +265,10 @@ export class GameStore {
       const appearanceValue = document.createElement('strong'); appearanceValue.textContent = appearanceName;
       included.append(appearanceLabel, appearanceValue); copy.append(included);
     }
+    if (item.aircraftType === 'fighter' && !owned) {
+      const bundle = document.createElement('span'); bundle.className = 'store-card-includes';
+      bundle.textContent = 'ALL FIREHAWK APPEARANCES INCLUDED'; copy.append(bundle);
+    }
     const footer = document.createElement('div'); footer.className = 'store-card-footer';
     if (state === 'REQUIRES AIRCRAFT' || (item.included && !this.profile)) {
       const required = storeAircraft.find(aircraft => aircraft.aircraftType === item.aircraftType);
@@ -388,7 +392,7 @@ export class GameStore {
     if (missing) { if (currency === 'SKY_TOKENS') this.handlers.getTokens(missing); return; }
     if (!this.profile || (currency === 'SKY_TOKENS' && !this.tokenSpendingAvailable)) return;
     const balance = currency === 'CREDITS' ? this.profile.credits : this.profile.skyTokens ?? 0;
-    const name = item.aircraftType === 'fighter' ? 'FIREHAWK + INFERNO'
+    const name = item.aircraftType === 'fighter' ? 'FIREHAWK + ALL APPEARANCES'
       : item.kind === 'paint' && item.aircraftType !== 'trainer'
         ? `${storeAircraft.find(aircraft => aircraft.aircraftType === item.aircraftType)?.name} + ${item.name}` : item.name;
     confirmCatalogPurchase(name, currency, price, balance, () => { void this.submitUnlock(item, currency); });

@@ -26,9 +26,9 @@ test('Firehawk has a compact single-engine model and unchanged purchase identity
     (primitive.indices === undefined ? model.accessors[primitive.attributes.POSITION].count : model.accessors[primitive.indices].count) / 3, 0);
   assert.ok(binary.length < 1_500_000);
   assert.ok(triangles < 12_000);
-  assert.ok(primitives.length <= 12);
+  assert.ok(primitives.length <= 14);
   assert.ok(length / span > 1.45 && length / span < 1.52);
-  for (const slot of ['AC_LIVERY_BASE', 'AC_LIVERY_PRIMARY', 'AC_LIVERY_ACCENT', 'AC_PANEL_LINES', 'AC_INLET_VOID', 'AC_GLASS', 'AC_DARK', 'AC_METAL', 'AC_TIRE']) {
+  for (const slot of ['AC_LIVERY_BASE', 'AC_LIVERY_PRIMARY', 'AC_LIVERY_ACCENT', 'AC_FIREHAWK_FIN', 'AC_FIREHAWK_MARK', 'AC_PANEL_LINES', 'AC_INLET_VOID', 'AC_GLASS', 'AC_DARK', 'AC_METAL', 'AC_TIRE']) {
     assert.ok(model.materials.some(material => material.name === slot), `missing ${slot}`);
   }
   const sockets = model.nodes.filter(node => node.name === 'ExhaustSocket_Main');
@@ -42,7 +42,7 @@ test('Firehawk has a compact single-engine model and unchanged purchase identity
   const inferno = cosmeticCatalog.find(item => item.id === 'firehawk-inferno');
   assert.equal(inferno.aircraftRestriction, 'fighter');
   assert.equal(inferno.skyTokenPrice, 2_400);
-  assert.deepEqual(inferno.visualConfig, { base: 0xe8eced, primary: 0xd52030, accent: 0xbfcbd0 });
+  assert.deepEqual(inferno.visualConfig, { base: 0xb2bec6, primary: 0xd52030, accent: 0x9eacb6 });
 });
 
 test('Firehawk muzzle, wheel contacts, and exhaust align with the normalized model', () => {

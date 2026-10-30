@@ -104,9 +104,11 @@ export class JourneyAttemptStore {
   private readonly database: DatabaseSync;
   private readonly wallet: PlayerWallet;
   private readonly allowAllMissionsForQa: boolean;
+  private readonly allowPerPilotQaUnlocks: boolean;
 
-  constructor(filePath: string, allowAllMissionsForQa = false) {
+  constructor(filePath: string, allowAllMissionsForQa = false, allowPerPilotQaUnlocks = false) {
     this.allowAllMissionsForQa = allowAllMissionsForQa;
+    this.allowPerPilotQaUnlocks = allowPerPilotQaUnlocks;
     this.database = new DatabaseSync(filePath);
     this.database.exec('PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;');
     this.wallet = new PlayerWallet(this.database);
@@ -128,6 +130,11 @@ export class JourneyAttemptStore {
         pilot_id TEXT NOT NULL, mission_id TEXT NOT NULL, first_attempt_id TEXT NOT NULL,
         completed_at INTEGER NOT NULL, best_time_ms INTEGER NOT NULL, clear_count INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY(pilot_id, mission_id),
+        FOREIGN KEY(pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT
+      );
+      CREATE TABLE IF NOT EXISTS journey_qa_unlocked_pilots (
+        pilot_id TEXT PRIMARY KEY,
+        granted_at INTEGER NOT NULL,
         FOREIGN KEY(pilot_id) REFERENCES player_profiles(pilot_id) ON DELETE RESTRICT
       );
     `);
@@ -262,6 +269,12 @@ export class JourneyAttemptStore {
     return { completed: true, firstAttemptId: row.first_attempt_id, ...(bestTimeMs === undefined ? {} : { bestTimeMs }) };
   }
 
+  qaMissionAccess(pilotId: string): boolean {
+    if (this.allowAllMissionsForQa) return true;
+    if (!this.allowPerPilotQaUnlocks) return false;
+    return Boolean(this.database.prepare('SELECT 1 FROM journey_qa_unlocked_pilots WHERE pilot_id = ?').get(pilotId));
+  }
+
   chapterOneComplete(pilotId: string): boolean {
     return [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06]
       .every(mission => this.progress(pilotId, mission.id).completed);
@@ -326,7 +339,7 @@ export class JourneyAttemptStore {
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
     if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && missionId !== journeyDallas19.id && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
-    if (!this.allowAllMissionsForQa) {
+    if (!this.qaMissionAccess(pilotId)) {
       if (missionId === journeyDallas02.id && !this.progress(pilotId).completed) throw new Error('Journey mission is locked');
       if (missionId === journeyDallas03.id && !this.progress(pilotId, journeyDallas02.id).completed) throw new Error('Journey mission is locked');
       if (missionId === journeyDallas04.id && !this.progress(pilotId, journeyDallas03.id).completed) throw new Error('Journey mission is locked');

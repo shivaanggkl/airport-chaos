@@ -6,16 +6,25 @@ const paintFinish = Object.freeze({
   AC_LIVERY_BASE: Object.freeze({ roughness: 0.24, metalness: 0.16 }),
   AC_LIVERY_PRIMARY: Object.freeze({ roughness: 0.20, metalness: 0.28 }),
   AC_LIVERY_ACCENT: Object.freeze({ roughness: 0.18, metalness: 0.42 }),
+  AC_FIREHAWK_FIN: Object.freeze({ roughness: 0.78, metalness: 0.0 }),
+  AC_FIREHAWK_MARK: Object.freeze({ roughness: 0.31, metalness: 0.50 }),
+  AC_MISSILE_NOSE: Object.freeze({ roughness: 0.38, metalness: 0.18 }),
+  AC_PANEL_LINES: Object.freeze({ roughness: 0.56, metalness: 0.10 }),
   N2_PAINT_PRIMARY: Object.freeze({ roughness: 0.25, metalness: 0.12 }),
   N2_PAINT_ACCENT: Object.freeze({ roughness: 0.28, metalness: 0.12 }),
 });
+const firehawkSilverFinish = Object.freeze({ roughness: 0.31, metalness: 0.50 });
+const firehawkAccentFinish = Object.freeze({ roughness: 0.28, metalness: 0.55 });
+const firehawkMidnightFinish = Object.freeze({ roughness: 0.28, metalness: 0.18 });
+const firehawkMidnightAccentFinish = Object.freeze({ roughness: 0.28, metalness: 0.28 });
+const firehawkGoldFinish = Object.freeze({ roughness: 0.24, metalness: 0.22 });
 
 // An owned Mammoth or Nightowl still needs a visible base finish before any
 // catalog paint is unlocked. These neutral colors are internal, not products.
 const unpaintedAppearance = {
   cargo: { base: 0x8d9da9, primary: 0xd2dce3, accent: 0x526b7d },
   privateJet: { base: 0xb7c6d1, primary: 0xe0e8ed, accent: 0x60798b },
-  fighter: { base: 0xe8eced, primary: 0xd52030, accent: 0xbfcbd0 },
+  fighter: { base: 0xb2bec6, primary: 0xd52030, accent: 0x9eacb6 },
 } as const;
 
 // Retain the selection on the root so asynchronously loaded GLBs use the same
@@ -24,11 +33,18 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
   root.userData.equippedCosmetics = { ...equipped };
   const definition = aircraftDefinitions[type];
   const item = cosmeticCatalog.find(entry => entry.id === equipped[`livery:${type}`] && entry.aircraftRestriction === type);
+  const midnightBlack = item?.id === 'firehawk-midnight-black';
+  const stealthGray = item?.id === 'firehawk-stealth-gray';
   const base = type === 'trainer' ? definition.livery : unpaintedAppearance[type];
   const palette = {
     AC_LIVERY_BASE: item?.visualConfig.base ?? ('base' in base ? base.base : base.baseColor),
     AC_LIVERY_PRIMARY: item?.visualConfig.primary ?? ('primary' in base ? base.primary : base.primaryColor),
     AC_LIVERY_ACCENT: item?.visualConfig.accent ?? ('accent' in base ? base.accent : base.accentColor),
+    AC_FIREHAWK_FIN: midnightBlack ? item?.visualConfig.base : item?.visualConfig.primary ?? definition.livery.primaryColor,
+    AC_FIREHAWK_MARK: midnightBlack ? item?.visualConfig.primary
+      : stealthGray ? item?.visualConfig.accent : item?.visualConfig.base ?? definition.livery.baseColor,
+    AC_MISSILE_NOSE: midnightBlack ? 0x35404c : stealthGray ? 0x27323d : 0x225a84,
+    AC_PANEL_LINES: midnightBlack ? 0x667280 : 0x8496a4,
     N2_PAINT_PRIMARY: item?.visualConfig.primary ?? 0x215eac,
     N2_PAINT_ACCENT: item?.visualConfig.accent ?? 0x14365d,
   };
@@ -42,7 +58,13 @@ export function applyAircraftCosmetics(root: THREE.Object3D, type: AircraftType,
     }
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
       const slot = material.name as keyof typeof palette;
-      const finish = paintFinish[slot];
+      const finish = midnightBlack && (slot === 'AC_LIVERY_PRIMARY' || slot === 'AC_FIREHAWK_MARK') ? firehawkGoldFinish
+        : midnightBlack && (slot === 'AC_LIVERY_BASE' || slot === 'AC_FIREHAWK_FIN') ? firehawkMidnightFinish
+        : midnightBlack && slot === 'AC_LIVERY_ACCENT' ? firehawkMidnightAccentFinish
+        : stealthGray && slot === 'AC_FIREHAWK_FIN' ? firehawkMidnightFinish
+        : type === 'fighter' && slot === 'AC_LIVERY_BASE' ? firehawkSilverFinish
+        : type === 'fighter' && slot === 'AC_LIVERY_ACCENT' ? firehawkAccentFinish
+          : paintFinish[slot];
       if (material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhongMaterial) {
         const color = palette[slot];
         if (color !== undefined) material.color.setHex(color);

@@ -13,7 +13,9 @@ export const cosmeticCatalog = [
   ['nightowl-forest', 'livery', 'LEGACY GREEN', 'privateJet', 'credits', 31_000, 1_300, { base: 0x4f9b71, primary: 0x8fd8b5, accent: 0xc6cfd5 }, true],
   ['nightowl-midnight-executive', 'livery', 'AZURE EXECUTIVE', 'privateJet', 'credits', 32_000, 1_350, { base: 0x5b9fe3, primary: 0x9edcf6, accent: 0xc5cdd6 }, true],
   ['nightowl-royal-violet', 'livery', 'ROYAL VIOLET', 'privateJet', 'credits', 33_000, 1_450, { base: 0x8f73d9, primary: 0xa8b0ba, accent: 0xd6b86a }, true],
-  ['firehawk-inferno', 'livery', 'FIREHAWK INFERNO', 'fighter', 'tokens', 0, 2_400, { base: 0xe8eced, primary: 0xd52030, accent: 0xbfcbd0 }],
+  ['firehawk-inferno', 'livery', 'FIREHAWK INFERNO', 'fighter', 'tokens', 0, 2_400, { base: 0xb2bec6, primary: 0xd52030, accent: 0x9eacb6 }],
+  ['firehawk-midnight-black', 'livery', 'MIDNIGHT BLACK', 'fighter', 'tokens', 0, 2_400, { base: 0x35404c, primary: 0xf0c764, accent: 0x87929c }],
+  ['firehawk-stealth-gray', 'livery', 'STEALTH GRAY', 'fighter', 'tokens', 0, 2_400, { base: 0x9baab6, primary: 0x27323d, accent: 0xdce3e8 }],
 ].map(([id, category, displayName, aircraftRestriction, unlockType, creditPrice, skyTokenPrice, visualConfig, retired]) => ({
   id, category, displayName, description: displayName, aircraftRestriction, unlockType, creditPrice, skyTokenPrice, requiredLevel: 0, visualConfig, retired: retired === true,
 }));

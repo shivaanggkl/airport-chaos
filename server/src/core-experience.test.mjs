@@ -39,8 +39,8 @@ test('cosmetic path isolates instances, preserves glass and repaints late loaded
   assert.equal(late.material.color.getHex(),0xf07cb4);
   applyAircraftCosmetics(root,'trainer',{'livery:trainer':'unknown'});
   assert.equal(paint.material.color.getHex(),0x77d8f2);
-  assert.equal(cosmeticCatalog.filter(item=>!item.retired).length,11);
-  assert.deepEqual(Object.fromEntries(['trainer','cargo','privateJet','fighter'].map(type=>[type,cosmeticCatalog.filter(item=>item.aircraftRestriction===type&&!item.retired).length])),{trainer:3,cargo:3,privateJet:4,fighter:1});
+  assert.equal(cosmeticCatalog.filter(item=>!item.retired).length,13);
+  assert.deepEqual(Object.fromEntries(['trainer','cargo','privateJet','fighter'].map(type=>[type,cosmeticCatalog.filter(item=>item.aircraftRestriction===type&&!item.retired).length])),{trainer:3,cargo:3,privateJet:4,fighter:3});
 });
 test('Dallas core is deterministic, at least 80% high-rise, with 15 facades and safe airport approaches',()=>{
   const buildings=generateDallasSkyline(cityAirports.dallas);

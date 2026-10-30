@@ -20,7 +20,9 @@ const expected = [
   ['nightowl-forest', 'LEGACY GREEN', 'privateJet', 'credits', 31_000, 1_300, 0x4f9b71, 0x8fd8b5, 0xc6cfd5],
   ['nightowl-midnight-executive', 'AZURE EXECUTIVE', 'privateJet', 'credits', 32_000, 1_350, 0x5b9fe3, 0x9edcf6, 0xc5cdd6],
   ['nightowl-royal-violet', 'ROYAL VIOLET', 'privateJet', 'credits', 33_000, 1_450, 0x8f73d9, 0xa8b0ba, 0xd6b86a],
-  ['firehawk-inferno', 'FIREHAWK INFERNO', 'fighter', 'tokens', 0, 2_400, 0xe8eced, 0xd52030, 0xbfcbd0],
+  ['firehawk-inferno', 'FIREHAWK INFERNO', 'fighter', 'tokens', 0, 2_400, 0xb2bec6, 0xd52030, 0x9eacb6],
+  ['firehawk-midnight-black', 'MIDNIGHT BLACK', 'fighter', 'tokens', 0, 2_400, 0x35404c, 0xf0c764, 0x87929c],
+  ['firehawk-stealth-gray', 'STEALTH GRAY', 'fighter', 'tokens', 0, 2_400, 0x9baab6, 0x27323d, 0xdce3e8],
 ];
 
 test('catalog contains four purchasable Nightowl airliner paints and retained legacy entitlements', () => {
@@ -28,7 +30,7 @@ test('catalog contains four purchasable Nightowl airliner paints and retained le
     item.id, item.displayName, item.aircraftRestriction, item.unlockType, item.creditPrice, item.skyTokenPrice,
     item.visualConfig.base, item.visualConfig.primary, item.visualConfig.accent,
   ]), expected);
-  assert.deepEqual(Object.fromEntries(['trainer', 'cargo', 'privateJet', 'fighter'].map(type => [type, cosmeticCatalog.filter(item => item.aircraftRestriction === type && !item.retired).length])), { trainer: 3, cargo: 3, privateJet: 4, fighter: 1 });
+  assert.deepEqual(Object.fromEntries(['trainer', 'cargo', 'privateJet', 'fighter'].map(type => [type, cosmeticCatalog.filter(item => item.aircraftRestriction === type && !item.retired).length])), { trainer: 3, cargo: 3, privateJet: 4, fighter: 3 });
   assert.deepEqual(cosmeticCatalog.filter(item => item.retired).map(item => item.id), ['nightowl-forest', 'nightowl-midnight-executive', 'nightowl-royal-violet']);
   assert.deepEqual(defaultCosmeticIds, ['bluejay-skybolt']);
   assert.deepEqual(fallbackLiveryIds, { trainer: 'bluejay-skybolt', cargo: undefined, privateJet: undefined, fighter: undefined });
@@ -46,10 +48,45 @@ test('all palettes and premium finishes apply through the shared local, preview,
     assert.equal(baseMesh.material.color.getHex(), base);
     assert.equal(primaryMesh.material.color.getHex(), primary);
     assert.equal(accentMesh.material.color.getHex(), accent);
-    assert.deepEqual([baseMesh.material.roughness, baseMesh.material.metalness], [0.24, 0.16]);
-    assert.deepEqual([primaryMesh.material.roughness, primaryMesh.material.metalness], [0.20, 0.28]);
-    assert.deepEqual([accentMesh.material.roughness, accentMesh.material.metalness], [0.18, 0.42]);
+    assert.deepEqual([baseMesh.material.roughness, baseMesh.material.metalness],
+      id === 'firehawk-midnight-black' ? [0.28, 0.18] : aircraft === 'fighter' ? [0.31, 0.50] : [0.24, 0.16]);
+    assert.deepEqual([primaryMesh.material.roughness, primaryMesh.material.metalness],
+      id === 'firehawk-midnight-black' ? [0.24, 0.22] : [0.20, 0.28]);
+    assert.deepEqual([accentMesh.material.roughness, accentMesh.material.metalness],
+      id === 'firehawk-midnight-black' ? [0.28, 0.28] : aircraft === 'fighter' ? [0.28, 0.55] : [0.18, 0.42]);
   }
+});
+
+test('Firehawk fin, emblem, and wing field use independent Midnight Black colors', () => {
+  const root = new THREE.Group();
+  const add = name => {
+    const material = new THREE.MeshStandardMaterial({ color: 0 });
+    material.name = name;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), material);
+    root.add(mesh);
+    return mesh;
+  };
+  const fin = add('AC_FIREHAWK_FIN');
+  const mark = add('AC_FIREHAWK_MARK');
+  const missileNose = add('AC_MISSILE_NOSE');
+  const panels = add('AC_PANEL_LINES');
+  applyAircraftCosmetics(root, 'fighter', { 'livery:fighter': 'firehawk-midnight-black' });
+  assert.equal(fin.material.color.getHex(), 0x35404c);
+  assert.deepEqual([fin.material.roughness, fin.material.metalness], [0.28, 0.18]);
+  assert.equal(mark.material.color.getHex(), 0xf0c764);
+  assert.equal(missileNose.material.color.getHex(), 0x35404c);
+  assert.equal(panels.material.color.getHex(), 0x667280);
+  applyAircraftCosmetics(root, 'fighter', { 'livery:fighter': 'firehawk-inferno' });
+  assert.equal(fin.material.color.getHex(), 0xd52030);
+  assert.deepEqual([fin.material.roughness, fin.material.metalness], [0.78, 0]);
+  assert.equal(mark.material.color.getHex(), 0xb2bec6);
+  assert.equal(missileNose.material.color.getHex(), 0x225a84);
+  assert.equal(panels.material.color.getHex(), 0x8496a4);
+  applyAircraftCosmetics(root, 'fighter', { 'livery:fighter': 'firehawk-stealth-gray' });
+  assert.equal(fin.material.color.getHex(), 0x27323d);
+  assert.deepEqual([fin.material.roughness, fin.material.metalness], [0.28, 0.18]);
+  assert.equal(mark.material.color.getHex(), 0xdce3e8);
+  assert.equal(missileNose.material.color.getHex(), 0x27323d);
 });
 
 test('Nightowl airliner repaint changes its authored stripe materials without tinting glass', () => {

@@ -947,6 +947,13 @@ export class PlayerProfileStore {
     const activeIds = new Set(cosmeticCatalog.map(item => item.id));
     const ownedIds = new Set((this.database.prepare('SELECT cosmetic_id FROM pilot_cosmetics WHERE pilot_id=?').all(pilotId) as Array<{ cosmetic_id: string }>)
       .map(item => item.cosmetic_id).filter(id => activeIds.has(id)));
+    if (ownedAircraft.includes('fighter')) {
+      for (const item of cosmeticCatalog) {
+        if (item.aircraftRestriction !== 'fighter' || ownedIds.has(item.id)) continue;
+        insertOwned.run(pilotId, item.id, now);
+        ownedIds.add(item.id);
+      }
+    }
     const slots = aircraftOrder.map(type => `livery:${type}`);
     this.database.prepare(`DELETE FROM pilot_equipped_cosmetics WHERE pilot_id=? AND category NOT IN (${slots.map(() => '?').join(',')})`).run(pilotId, ...slots);
     const readEquipped = this.database.prepare('SELECT cosmetic_id FROM pilot_equipped_cosmetics WHERE pilot_id=? AND category=?');
@@ -1194,7 +1201,8 @@ export class PlayerProfileStore {
       const ownedAircraft = parseOwnedAircraft(row.owned_aircraft, parseEntitlements(row.aircraft_entitlements));
       const ownsAircraft = ownedAircraft.includes(item.aircraftRestriction as AircraftType);
       const ownsPaint = !!this.database.prepare('SELECT 1 FROM pilot_cosmetics WHERE pilot_id=? AND cosmetic_id=?').get(pilotId, cosmeticId);
-      if (ownsPaint && ownsAircraft) return { ok: false, reason: 'ALREADY OWNED', profile: this.toProfile(row) };
+      if (ownsAircraft && (ownsPaint || item.aircraftRestriction === 'fighter'))
+        return { ok: false, reason: 'ALREADY OWNED', profile: this.toProfile(row) };
       if (item.retired || item.unlockType !== 'credits' && item.unlockType !== 'tokens') return { ok: false, reason: 'COSMETIC NOT PURCHASABLE' };
       if (!ownsAircraft && item.aircraftRestriction === 'trainer') return { ok: false, reason: 'OWN AIRCRAFT FIRST', profile: this.toProfile(row) };
       const price = cosmeticUnlockPrice(item, currency);
