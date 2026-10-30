@@ -5189,25 +5189,24 @@ function combatAimCandidates(ownerId: string, owner: PlayerState, now: number): 
   const transport = attemptId ? transportEncounters.get(attemptId) : undefined;
   const origin = muzzleTransform(owner).position;
   const forward = forwardDirection(owner);
-  const add = (id: string, position: Vector3, velocity: Vector3, objective = false) => {
+  const add = (id: string, position: Vector3, velocity: Vector3) => {
     const offset = { x: position.x - origin.x, y: position.y - origin.y, z: position.z - origin.z };
     const distance = Math.hypot(offset.x, offset.y, offset.z);
     if (distance < .001 || distance > COMBAT_RANGE) return;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot(forward, normalize(offset)))));
     const retained = id === owner.assistedAim?.selection.targetId;
     if (angle > AIM_ENVELOPE + (retained ? .10 : 0) || combatLineBlocked(owner, origin, position)) return;
-    candidates.push({ id, position, velocity, distance, angle, aligned: angle <= AIM_ENVELOPE, objective });
+    candidates.push({ id, position, velocity, distance, angle, aligned: angle <= AIM_ENVELOPE });
   };
-  if (attempt?.missionId !== journeyDallas07.id && (!transport || transport.fortressGunsEnabled === false ||
-    attempt?.missionId === journeyDallas08.id || attempt?.missionId === journeyDallas09.id)) {
-    for (const [id, target] of players) {
-      if (id === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
-        target.lifeState !== 'alive' || now < target.spawnProtectedUntil || now - target.lastStateAt > combatTransformFreshMs ||
-        !sameCombatContext(owner, target) || !tutorialCombatPairAllowed(ownerId, owner, id, target) ||
-        focusedBotInteractionExcluded(ownerId, owner, id, target) || playerJourneyRunwayPrep.has(id)) continue;
-      if (transport && (!target.bot?.journeyRearGuardEscort || target.bot.journeyAttemptId !== attemptId)) continue;
-      add(id, target.position, target.velocity);
-    }
+  for (const [id, target] of players) {
+    if (id === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
+      target.lifeState !== 'alive' || now < target.spawnProtectedUntil || now - target.lastStateAt > combatTransformFreshMs ||
+      !sameCombatContext(owner, target) || !tutorialCombatPairAllowed(ownerId, owner, id, target) ||
+      focusedBotInteractionExcluded(ownerId, owner, id, target) || playerJourneyRunwayPrep.has(id)) continue;
+    if (transport && (!target.bot?.journeyRearGuardEscort || target.bot.journeyAttemptId !== attemptId)) continue;
+    // Mission phases may protect enemies, but never change how eligible targets are aimed at.
+    if (target.bot?.journeyRearGuardEscort && attempt?.missionId === journeyDallas12.id && attempt.finalPhase !== 'ESCORTS') continue;
+    add(id, target.position, target.velocity);
   }
   if (transport && attempt?.status === 'RACING' && attempt.deadlineAt !== null && now < attempt.deadlineAt &&
     transport.playerId === ownerId && !(attempt.missionId === journeyDallas12.id && attempt.finalPhase === 'ESCORTS')) {
@@ -5220,8 +5219,7 @@ function combatAimCandidates(ownerId: string, owner: PlayerState, now: number): 
       position = points.sort((a, b) => dot(normalize({ x: b.x-origin.x, y:b.y-origin.y,z:b.z-origin.z }), forward) -
         dot(normalize({x:a.x-origin.x,y:a.y-origin.y,z:a.z-origin.z}),forward))[0]!;
     }
-    add(`transport:${attemptId}`, position, pose.velocity,
-      attempt.missionId === journeyDallas08.id || attempt.missionId === journeyDallas09.id);
+    add(`transport:${attemptId}`, position, pose.velocity);
   }
   return candidates;
 }
@@ -5251,7 +5249,7 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
     if (intercept && !combatLineBlocked(owner, muzzle, intercept.point)) {
       aim.leadPoint = intercept.point;
       const local = targetInAircraftSpace({ ...owner, position: muzzle }, { position: intercept.point });
-      if (owner.skyDuelMode || candidate.angle <= SMART_ASSIST_CONE) assistedInterceptAim(local, goal, Boolean(owner.skyDuelMode));
+      if (candidate.angle <= SMART_ASSIST_CONE) assistedInterceptAim(local, goal);
     }
   }
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);

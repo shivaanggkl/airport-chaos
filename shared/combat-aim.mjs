@@ -1,8 +1,8 @@
-import { AIM_ENVELOPE, AIM_MAX_OFFSET, ballisticIntercept } from './protocol.mjs';
+import { AIM_ENVELOPE, ballisticIntercept } from './protocol.mjs';
 
-export const TARGET_SWITCH_DWELL_MS = 240;
+export const TARGET_SWITCH_DWELL_MS = 120;
 export const TARGET_TURN_GRACE_MS = 300;
-export const TARGET_SWITCH_MARGIN = 0.025;
+export const TARGET_SWITCH_MARGIN = 0.01;
 export const SMART_ASSIST_CONE = 0.10;
 
 // Once interpolation reaches the current sample, the previous sample no
@@ -23,21 +23,20 @@ export function combatAimBlend(previousReceivedAt, currentReceivedAt, now) {
 export function selectCombatTarget(state, candidates, now) {
   const current = candidates.find(candidate => candidate.id === state.targetId);
   const aligned = candidates.filter(candidate => candidate.aligned);
-  const score = candidate => candidate.angle + candidate.distance * 0.000004 -
-    (candidate.objective && candidate.angle < 0.12 ? 0.025 : 0);
   let best;
   for (const candidate of aligned) {
-    if (!best || score(candidate) < score(best) || score(candidate) === score(best) && candidate.id < best.id) best = candidate;
+    if (!best || candidate.angle < best.angle || candidate.angle === best.angle &&
+      (candidate.distance < best.distance || candidate.distance === best.distance && candidate.id < best.id)) best = candidate;
   }
   if (current?.aligned) state.lastAlignedAt = now;
   const retained = current && (current.aligned || now - state.lastAlignedAt <= TARGET_TURN_GRACE_MS);
-  if (!retained) {
+  if (!retained || (!current.aligned && best)) {
     state.targetId = best?.id;
     state.lastAlignedAt = now;
     state.challengerId = undefined;
     return best;
   }
-  if (!best || best.id === current.id || score(best) + TARGET_SWITCH_MARGIN >= score(current)) {
+  if (!best || best.id === current.id || best.angle + TARGET_SWITCH_MARGIN >= current.angle) {
     state.challengerId = undefined;
     return current;
   }
@@ -61,12 +60,11 @@ export const combatIntercept = ballisticIntercept;
 
 // Camera-independent aim goal. Only a narrow opportunity may move the gun;
 // selection can survive a turn without pulling the weapon after that target.
-export function assistedInterceptAim(localDirection, out, competitive = false) {
+export function assistedInterceptAim(localDirection, out) {
   out.x = out.y = 0;
   if (!finiteVector(localDirection) || localDirection.z >= -0.000001) return false;
   const angle = Math.atan2(Math.hypot(localDirection.x, localDirection.y), -localDirection.z);
-  const limit = competitive ? AIM_MAX_OFFSET : SMART_ASSIST_CONE;
-  if (angle > Math.min(AIM_ENVELOPE, limit)) return false;
+  if (angle > Math.min(AIM_ENVELOPE, SMART_ASSIST_CONE)) return false;
   out.x = localDirection.x / -localDirection.z;
   out.y = localDirection.y / -localDirection.z;
   return true;

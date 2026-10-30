@@ -43,22 +43,33 @@ test('one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; c
         assert.equal(selectCombatTarget(state, enemies, 1300)?.id, '0');
         assert.equal(selectCombatTarget(state, enemies, 1300 + TARGET_SWITCH_DWELL_MS)?.id, '1');
         enemies[1]!.aligned = false;
-        assert.equal(selectCombatTarget(state, enemies, 1550)?.id, '1');
+        assert.notEqual(selectCombatTarget(state, enemies, 1550)?.id, '1', 'an aligned alternative replaces a target left behind during a turn');
         assert.notEqual(selectCombatTarget(state, enemies, 1550 + TARGET_TURN_GRACE_MS + 1)?.id, '1');
         assert.notEqual(selectCombatTarget(state, enemies.filter(e => e.id !== state.targetId), 3000)?.id, '1');
     }
 });
-test('mission objective bias is conditional and gives way to a clearly aimed escort; invalid targets release immediately', () => {
+test('pointing outranks target distance and mission objective identity; invalid targets release immediately', () => {
     const state: CombatSelection = { challengerSince: 0, lastAlignedAt: 0 };
-    const transport = { id: 'transport', angle: .07, distance: 800, aligned: true, objective: true };
-    const escort = { id: 'escort', angle: .06, distance: 700, aligned: true };
-    assert.equal(selectCombatTarget(state, [escort, transport], 0)?.id, 'transport');
-    escort.angle = 0;
-    selectCombatTarget(state, [escort, transport], 10);
-    assert.equal(selectCombatTarget(state, [escort, transport], 300)?.id, 'escort');
-    assert.equal(selectCombatTarget(state, [transport], 310)?.id, 'transport');
+    const transport = { id: 'transport', angle: .07, distance: 200, aligned: true };
+    const escort = { id: 'escort', angle: .04, distance: 4000, aligned: true };
+    assert.equal(selectCombatTarget(state, [escort, transport], 0)?.id, 'escort');
+    transport.angle = 0;
+    assert.equal(selectCombatTarget(state, [escort, transport], 10)?.id, 'escort');
+    assert.equal(selectCombatTarget(state, [escort, transport], 10 + TARGET_SWITCH_DWELL_MS)?.id, 'transport');
+    assert.equal(selectCombatTarget(state, [escort], 310)?.id, 'escort');
     assert.equal(selectCombatTarget(state, [], 320), undefined);
     assert.equal(state.targetId, undefined);
+});
+test('brief turns retain selection only while no aligned replacement exists', () => {
+    const state: CombatSelection = { challengerSince: 0, lastAlignedAt: 0 };
+    const first = { id: 'first', angle: .05, distance: 600, aligned: true };
+    const second = { id: 'second', angle: .01, distance: 1000, aligned: true };
+    selectCombatTarget(state, [first], 0);
+    first.aligned = false;
+    assert.equal(selectCombatTarget(state, [first], 50)?.id, 'first');
+    assert.equal(selectCombatTarget(state, [first, second], 60)?.id, 'second');
+    second.aligned = false;
+    assert.equal(selectCombatTarget(state, [second], 60 + TARGET_TURN_GRACE_MS + 1), undefined);
 });
 test('interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets', () => {
     for (const targetVelocity of [zero, { x: 0, y: 0, z: 100 }, { x: 0, y: 0, z: -200 }, { x: 300, y: 35, z: 0 }, { x: -600, y: -40, z: 50 }]) {
@@ -86,6 +97,7 @@ test('assistance is narrow, forward-only, bounded, and has no in-flight target d
     const out = { x: 0, y: 0 };
     assert.equal(assistedInterceptAim({ x: .04, y: .02, z: -1 }, out), true);
     assert.ok(Math.hypot(out.x, out.y) < .10);
+    assert.equal(assistedInterceptAim({ x: .15, y: 0, z: -1 }, out), false, 'all modes use the same modest assistance limit');
     assert.equal(assistedInterceptAim({ x: .4, y: 0, z: -1 }, out), false);
     assert.deepEqual(out, { x: 0, y: 0 });
     assert.equal(assistedInterceptAim({ x: 0, y: 0, z: 1 }, out), false);

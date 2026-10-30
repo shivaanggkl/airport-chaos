@@ -5676,17 +5676,6 @@ let previousServerAimReceivedAt = -Infinity;
 const lockBoresightPoint = new THREE.Vector3();
 const aimClipPoint = new THREE.Vector4();
 const aimScreenPoint = { x: 0, y: 0, edge: false, angle: 0 };
-const leadScreenPoint = { x: 0, y: 0, edge: false, angle: 0 };
-const serverLeadPoint = new THREE.Vector3();
-const displayedLeadPoint = new THREE.Vector3();
-let leadDisplayTargetId: string | null = null;
-let leadDisplayAt = 0;
-let hasServerLeadPoint = false;
-const leadIndicatorElement = document.createElement('div');
-leadIndicatorElement.id = 'combat-lead-indicator';
-leadIndicatorElement.setAttribute('aria-hidden', 'true');
-leadIndicatorElement.hidden = true;
-flightGameRoot.append(leadIndicatorElement);
 let combatShotPulseUntil = 0;
 let combatHitFlashUntil = 0;
 const transportReticleOrigin = new THREE.Vector3();
@@ -8547,30 +8536,15 @@ function updateLockCircle(): void {
   acquisitionCircleElement.classList.toggle('firing', performance.now() < combatShotPulseUntil);
   acquisitionCircleElement.classList.toggle('confirmed-hit', performance.now() < combatHitFlashUntil);
   acquisitionCircleElement.style.setProperty('--aim-edge-angle', `${aimScreenPoint.angle}rad`);
-  acquisitionCircleElement.style.setProperty('--acquisition-size', '38px');
+  const radius = Math.tan(LOCK_ANGLE) * window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+  acquisitionCircleElement.style.setProperty('--acquisition-size', `${(radius * 4).toFixed(1)}px`);
   acquisitionCircleElement.style.left = `${aimScreenPoint.x.toFixed(1)}px`;
   acquisitionCircleElement.style.top = `${aimScreenPoint.y.toFixed(1)}px`;
   lockCircleCenterX = aimScreenPoint.x; lockCircleCenterY = aimScreenPoint.y;
-  lockCircleRadius = 19;
+  lockCircleRadius = radius;
   targetFeedbackElement.style.left = `${THREE.MathUtils.clamp(aimScreenPoint.x, 100, Math.max(100, window.innerWidth - 100))}px`;
   targetFeedbackElement.style.top = `${Math.min(window.innerHeight - 80, aimScreenPoint.y + 48)}px`;
   targetFeedbackElement.style.visibility = enabled && !aimScreenPoint.edge ? 'visible' : 'hidden';
-  leadIndicatorElement.hidden = true;
-  if (enabled && hasServerLeadPoint && performance.now() - serverAimReceivedAt <= 500) {
-    const now = performance.now();
-    if (leadDisplayTargetId !== serverAimTargetId || now - leadDisplayAt > 500) displayedLeadPoint.copy(serverLeadPoint);
-    else displayedLeadPoint.lerp(serverLeadPoint, 1 - Math.exp(-14 * Math.min(.1, (now - leadDisplayAt) / 1000)));
-    leadDisplayTargetId = serverAimTargetId; leadDisplayAt = now;
-    aimClipPoint.set(displayedLeadPoint.x, displayedLeadPoint.y, displayedLeadPoint.z, 1)
-      .applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
-    combatAimProjection(aimClipPoint.x, aimClipPoint.y, aimClipPoint.w, window.innerWidth, window.innerHeight, leadScreenPoint);
-    if (!leadScreenPoint.edge) {
-      leadIndicatorElement.hidden = false;
-      leadIndicatorElement.style.left = `${leadScreenPoint.x.toFixed(1)}px`;
-      leadIndicatorElement.style.top = `${leadScreenPoint.y.toFixed(1)}px`;
-    }
-  }
-
 }
 
 function clearCombatTarget(): void {
@@ -8583,8 +8557,6 @@ function clearCombatTarget(): void {
   previousAimId = serverAimId = 0;
   serverAimReceivedAt = -Infinity;
   previousServerAimReceivedAt = -Infinity;
-  hasServerLeadPoint = false;
-  leadIndicatorElement.hidden = true;
   combatLockState = 'SEARCHING';
   acquisitionCircleElement.classList.remove('target-near', 'locked');
   requestedLockTargetId = null;
@@ -8673,7 +8645,6 @@ function updateCombatTarget(delta = 0): void {
   let outOfRangeDistance = Number.POSITIVE_INFINITY;
   let outOfRangeScore = Number.POSITIVE_INFINITY;
   for (const remote of remotePlayers.values()) {
-    if (journeyAttempt?.missionId===journeyDallas07.id && journeyAttempt.status==='RACING') continue;
     if (remote.cityId !== cityId || remote.entityType !== 'player' || remote.timeSinceUpdate > 0.5 || remote.lifeState !== 'alive' || !remote.plane.visible || !entityCapabilities(remote.entityType).targetable) continue;
     if (assignedFormationLeader(remote.playerId)) continue;
     if (!remote.isBot && cityHumanRoster.get(remote.playerId)?.status === 'spawnSafe') continue;
@@ -11604,8 +11575,6 @@ boundSocket.addEventListener('message', (event) => {
     serverAim.x = message.aimX;
     serverAim.y = message.aimY;
     serverAimTargetId = message.candidateId ?? null;
-    hasServerLeadPoint = Boolean(message.leadPoint && [message.leadPoint.x, message.leadPoint.y, message.leadPoint.z].every(Number.isFinite));
-    if (hasServerLeadPoint) serverLeadPoint.copy(message.leadPoint!);
     previousServerAimReceivedAt = serverAimReceivedAt;
     serverAimReceivedAt = performance.now();
     serverLockedTargetId = message.targetId ?? null;

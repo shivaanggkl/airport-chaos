@@ -1,8 +1,7 @@
-// A compact firing crosshair; the projected host follows the actual gun ray.
-export const aimingReticleMarkup = `<svg class="aiming-reticle-svg" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-  <circle class="aiming-reticle-outline" cx="20" cy="20" r="9"/>
-  <path class="aiming-reticle-outline" d="M20 4V12 M20 28V36 M4 20H12 M28 20H36"/>
-  <circle class="aiming-reticle-ring" cx="20" cy="20" r="9"/>
-  <path class="aiming-reticle-brackets" d="M20 4V12 M20 28V36 M4 20H12 M28 20H36"/>
-  <circle class="aiming-reticle-center" cx="20" cy="20" r="1.5"/>
+// One projected circle shows the gun ray and changes colour on server-confirmed lock.
+export const aimingReticleMarkup = `<svg class="aiming-reticle-svg" viewBox="0 0 200 140" aria-hidden="true" focusable="false">
+  <circle class="aiming-reticle-outline" cx="100" cy="70" r="50"/>
+  <path class="aiming-reticle-outline" d="M50 10H30V130H50 M150 10H170V130H150"/>
+  <circle class="aiming-reticle-ring" cx="100" cy="70" r="50"/>
+  <path class="aiming-reticle-brackets" d="M50 10H30V130H50 M150 10H170V130H150"/>
 </svg>`;

@@ -11,7 +11,7 @@ import { PilotSessionStore } from './session-auth.js';
 import { randomUUID } from 'node:crypto';
 import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
-import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
+import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 type Vec = {
@@ -171,11 +171,11 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('M8 and M9 select their transport, allow steering to escorts, and damage the transport only on projectile arrival', { timeout: 120000 }, async () => {
+test('M8, M9 and M10 select their transport, allow steering to escorts, and damage the transport only on projectile arrival', { timeout: 120000 }, async () => {
     const db = `/private/tmp/airport-chaos-combat-${randomUUID()}.sqlite`;
     const profiles = new PlayerProfileStore(db, true, true), sessions = new PilotSessionStore(db), journeys = new JourneyAttemptStore(db, true);
-    const pilots = [sessions.issue(undefined, false), sessions.issue(undefined, false)];
-    const missions = [journeyDallas08, journeyDallas09];
+    const pilots = [sessions.issue(undefined, false), sessions.issue(undefined, false), sessions.issue(undefined, false)];
+    const missions = [journeyDallas08, journeyDallas09, journeyDallas10];
     const attempts = pilots.map((pilot, i) => { profiles.getOrCreate(pilot.pilotId, 'Mission QA'); profiles.grantAircraftEntitlements(pilot.pilotId, ['fighter'], 'test:combat'); profiles.equipAircraft(pilot.pilotId, 'fighter'); return journeys.launch(pilot.pilotId, 'fighter', Date.now(), missions[i]!.id); });
     const p = await port();
     const child = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], { cwd: resolve(import.meta.dirname, '../..'), env: { ...process.env, PORT: String(p), AIRPORT_CHAOS_PROFILE_DB: db, AIRPORT_CHAOS_LOCAL_QA_UNLOCK_ALL: 'true', AIRPORT_CHAOS_DEV_QA: '1', NODE_ENV: 'test' }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -216,7 +216,7 @@ test('M8 and M9 select their transport, allow steering to escorts, and damage th
         }
         await wait(() => clients.every(c => c.messages.some(m => m.type === 'transportState') && c.messages.some(m => m.type === 'journeyAttempt' && m.attempt.status === 'RACING')), 'transport encounter starts', 15000);
         await delay(160);
-        await wait(() => clients.every(c => c.messages.filter(m => m.type === 'transportState').at(-1)!.pose.x + Math.sin(c.yaw) * 1000 > -24500 && c.pose && c.goal && Math.hypot(c.pose.x - c.goal.x, c.pose.y - c.goal.y, c.pose.z - c.goal.z) < 90), 'legal approach to both transports', 70000).catch(error => { console.error(JSON.stringify({ clients: clients.map(c => ({ pose: c.pose, goal: c.goal, yaw: c.yaw, journey: c.messages.filter(m => m.type === 'journeyAttempt').at(-1) })), log: output.slice(-4000) })); throw error; });
+        await wait(() => clients.every(c => c.messages.filter(m => m.type === 'transportState').at(-1)!.pose.x + Math.sin(c.yaw) * 1000 > -24500 && c.pose && c.goal && Math.hypot(c.pose.x - c.goal.x, c.pose.y - c.goal.y, c.pose.z - c.goal.z) < 90), 'legal approach to all transports', 70000).catch(error => { console.error(JSON.stringify({ clients: clients.map(c => ({ pose: c.pose, goal: c.goal, yaw: c.yaw, journey: c.messages.filter(m => m.type === 'journeyAttempt').at(-1) })), log: output.slice(-4000) })); throw error; });
         for (const c of clients)
             for (let n = 0; n < 8; n++) {
                 c.send({ type: 'lock' });
@@ -240,13 +240,22 @@ test('M8 and M9 select their transport, allow steering to escorts, and damage th
             assert.ok(escort, 'assigned escorts are present');
             c.aimTargetId = escort.playerId;
             const turnUntil = Date.now() + 15000;
+            let firingTick = 0;
             while (Date.now() < turnUntil) {
                 c.send({ type: 'lock' });
+                // Keep firing through the turn, as holding FIRE does in the app.
+                if (firingTick++ % 2 === 0) {
+                    const aim = c.messages.filter(m => m.type === 'lockState').at(-1)!;
+                    c.send({ type: 'fire', clientShotId: `switch-${i}-${firingTick}`,
+                        aimSample: { from: aim.aimId, to: aim.aimId, blend: 1 } });
+                }
                 await delay(100);
                 if (c.messages.filter(m => m.type === 'lockState').at(-1)?.candidateId === escort.playerId)
                     break;
             }
             assert.ok(c.messages.some(m => m.type === 'lockState' && m.candidateId === escort.playerId), 'clear escort alignment can replace the mission objective: ' + JSON.stringify({ pose: c.pose, yaw: c.yaw, pitch: c.pitch, escort: c.messages.filter(m => m.type === 'state' && m.playerId === escort.playerId).at(-1), lock: c.messages.filter(m => m.type === 'lockState').at(-1) }));
+            assert.ok(c.messages.some(m => m.type === 'projectileSpawn' &&
+                String(m.clientShotId).startsWith(`switch-${i}-`)), 'firing remains active while switching targets');
         }
     }
     finally {
