@@ -1,0 +1,190 @@
+{
+  "build": "PASS",
+  "testFiles": 135,
+  "tests": 750,
+  "passed": 714,
+  "failed": 36,
+  "newFailuresComparedWithFeatureSource": [],
+  "failures": [
+    {
+      "test": "major desktop and shared mobile surfaces use dark blue translucent glass",
+      "file": "server/src/blue-gold-aurora-theme.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "screen overlays preserve vivid game surfaces and a clean City Journey background",
+      "file": "server/src/blue-gold-aurora-theme.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target",
+      "file": "server/src/combat-warning.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "exit flight and city guide behavior remains available without cluttering active-flight menu navigation",
+      "file": "server/src/correctness-retention.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "native-only web placement uses a safe external link and no flight popup",
+      "file": "server/src/correctness-retention.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "authoritative altitude is emitted by the server and used by roster and radar",
+      "file": "server/src/defect-fix-pass.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "mission preview and countdown cannot simulate flight or report a preflight crash",
+      "file": "server/src/flight-launch.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "mission reminder is bounded, airborne-only, and opens Missions directly",
+      "file": "server/src/game-entry-account-hud.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Gravity Drop uses five honest forward rings, descending then recovering within Bluejay pitch bounds",
+      "file": "server/src/gravity-drop.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Dallas OSM roofs and authored skyline leave the complete gate corridor clear",
+      "file": "server/src/gravity-drop.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "airborne spawn is server-owned, stable and ordinary movement security rejects a forged jump",
+      "file": "server/src/gravity-drop.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "dive guidance follows actual elevation and confirmed objective",
+      "file": "server/src/gravity-drop.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "preparation, sequence, timeout, first-clear reward, cap and replay are authoritative",
+      "file": "server/src/gravity-drop.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Pilot Hub routes Missions and Free Fly through separate city selection modes",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "account UI offers Google, Apple, or device-bound guest play without password accounts",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Pilot Hub leaves space for launch cards and keeps legal links in the Pilot Menu",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Garage equip and close return to the Hub with current authoritative profile state",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Pilot Hub routes to canonical Garage and profile screens without duplicate panels",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Hub renderer and ambient motion pause offscreen or in the background",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Pilot Hub presents live Missions and Free Fly cards with integrated navigation",
+      "file": "server/src/home-hangar.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "City Journey uses live cards and the existing city registry",
+      "file": "server/src/mobile-city-selector.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Missions and Free Fly keep separate launch routes",
+      "file": "server/src/mobile-city-selector.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Free Fly advertises only supported city features and keeps time selection",
+      "file": "server/src/mobile-city-selector.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "carousel prevents swipe activation and restores selection",
+      "file": "server/src/mobile-city-selector.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "every mobile Controls preference changes its supported behavior",
+      "file": "server/src/mobile-input.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "profile keyboard recovery tracks VisualViewport and restores the normal layout after dismissal",
+      "file": "server/src/native-mobile-shell.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "local stability diagnostics expose frame, scene, streaming, and realtime costs without a production telemetry path",
+      "file": "server/src/native-mobile-shell.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "generation pipeline propagates provenance into future manifests",
+      "file": "server/src/osm-license.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "speed thresholds are about 75% of sustainable FAST cruise for every eligible aircraft",
+      "file": "server/src/redline-rush.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "remote aircraft match Rear Guard size at range and physical size nearby, including hit areas",
+      "file": "server/src/remote-aircraft-visual.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "red/blue billboard markers track remote aircraft with authoritative name and altitude",
+      "file": "server/src/remote-aircraft-visual.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Sky Pendulum has six honest forward gates on a clear three-up three-down corridor",
+      "file": "server/src/sky-pendulum.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "confirmed guidance uses actual gate, altitude and attempt state",
+      "file": "server/src/sky-pendulum.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "eligibility, six sequential gates, timeout, first-clear, wallet cap and replay are server-owned",
+      "file": "server/src/sky-pendulum.test.mjs",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "P6 local HTTP ingestion rejects origin, forged fields and disabled state",
+      "file": "server/src/sponsorship-measurement.test.ts",
+      "reproducedBeforeIntegration": true
+    },
+    {
+      "test": "Dallas missions stay locked for unfinished Milwaukee training, including older profiles",
+      "file": "server/src/tutorial-flight.test.ts",
+      "reproducedBeforeIntegration": true
+    }
+  ]
+}

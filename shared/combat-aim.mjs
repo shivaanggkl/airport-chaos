@@ -80,4 +80,3 @@ export function combatAimProjection(x, y, w, width, height, out) {
   out.x = centerX + dx * extent; out.y = centerY + dy * extent;
   out.edge = true; out.angle = Math.atan2(dy, dx); return out;
 }
-

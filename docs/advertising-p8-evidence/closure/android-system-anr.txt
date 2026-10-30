@@ -16,7 +16,7 @@ E/ActivityManager(  630): ----- Output from /proc/pressure/io -----
 E/ActivityManager(  630): some avg10=13.56 avg60=9.13 avg300=2.65 total=8916790
 E/ActivityManager(  630): full avg10=0.18 avg60=0.72 avg300=0.26 total=1156170
 E/ActivityManager(  630): ----- End output from /proc/pressure/io -----
-E/ActivityManager(  630): 
+E/ActivityManager(  630):
 E/ActivityManager(  630): CPU usage from 5662ms to -379ms ago (2026-10-29 18:31:41.420 to 2026-10-29 18:31:47.461):
 E/ActivityManager(  630):   40% 446/android.hardware.graphics.composer3-service.ranchu: 0.4% user + 39% kernel
 E/ActivityManager(  630):   39% 476/surfaceflinger: 3.8% user + 35% kernel / faults: 236 minor
