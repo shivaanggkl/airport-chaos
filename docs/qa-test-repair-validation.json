@@ -1,0 +1,192 @@
+{
+  "build": "PASS",
+  "fullSuite": {
+    "tests": 749,
+    "passed": 749,
+    "failed": 0,
+    "skipped": 0
+  },
+  "previousFailuresAddressed": 36,
+  "resolutions": [
+    {
+      "previousFailure": "major desktop and shared mobile surfaces use dark blue translucent glass",
+      "previousFile": "server/src/blue-gold-aurora-theme.test.mjs",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "screen overlays preserve vivid game surfaces and a clean City Journey background",
+      "previousFile": "server/src/blue-gold-aurora-theme.test.mjs",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target",
+      "previousFile": "server/src/combat-warning.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "exit flight and city guide behavior remains available without cluttering active-flight menu navigation",
+      "previousFile": "server/src/correctness-retention.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "native-only web placement uses a safe external link and no flight popup",
+      "previousFile": "server/src/correctness-retention.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "authoritative altitude is emitted by the server and used by roster and radar",
+      "previousFile": "server/src/defect-fix-pass.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "mission preview and countdown cannot simulate flight or report a preflight crash",
+      "previousFile": "server/src/flight-launch.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "mission reminder is bounded, airborne-only, and opens Missions directly",
+      "previousFile": "server/src/game-entry-account-hud.test.mjs",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Gravity Drop uses five honest forward rings, descending then recovering within Bluejay pitch bounds",
+      "previousFile": "server/src/gravity-drop.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "Dallas OSM roofs and authored skyline leave the complete gate corridor clear",
+      "previousFile": "server/src/gravity-drop.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "airborne spawn is server-owned, stable and ordinary movement security rejects a forged jump",
+      "previousFile": "server/src/gravity-drop.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "dive guidance follows actual elevation and confirmed objective",
+      "previousFile": "server/src/gravity-drop.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "preparation, sequence, timeout, first-clear reward, cap and replay are authoritative",
+      "previousFile": "server/src/gravity-drop.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "Pilot Hub routes Missions and Free Fly through separate city selection modes",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "account UI offers Google, Apple, or device-bound guest play without password accounts",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Pilot Hub leaves space for launch cards and keeps legal links in the Pilot Menu",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Garage equip and close return to the Hub with current authoritative profile state",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Pilot Hub routes to canonical Garage and profile screens without duplicate panels",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Hub renderer and ambient motion pause offscreen or in the background",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Pilot Hub presents live Missions and Free Fly cards with integrated navigation",
+      "previousFile": "server/src/home-hangar.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "City Journey uses live cards and the existing city registry",
+      "previousFile": "server/src/mobile-city-selector.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Missions and Free Fly keep separate launch routes",
+      "previousFile": "server/src/mobile-city-selector.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Free Fly advertises only supported city features and keeps time selection",
+      "previousFile": "server/src/mobile-city-selector.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "carousel prevents swipe activation and restores selection",
+      "previousFile": "server/src/mobile-city-selector.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "every mobile Controls preference changes its supported behavior",
+      "previousFile": "server/src/mobile-input.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "profile keyboard recovery tracks VisualViewport and restores the normal layout after dismissal",
+      "previousFile": "server/src/native-mobile-shell.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "local stability diagnostics expose frame, scene, streaming, and realtime costs without a production telemetry path",
+      "previousFile": "server/src/native-mobile-shell.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "generation pipeline propagates provenance into future manifests",
+      "previousFile": "server/src/osm-license.test.ts",
+      "resolution": "Real temporary-fixture generator test verifies attribution/provenance and unchanged Near data"
+    },
+    {
+      "previousFailure": "speed thresholds are about 75% of sustainable FAST cruise for every eligible aircraft",
+      "previousFile": "server/src/redline-rush.test.mjs",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "remote aircraft match Rear Guard size at range and physical size nearby, including hit areas",
+      "previousFile": "server/src/remote-aircraft-visual.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "red/blue billboard markers track remote aircraft with authoritative name and altitude",
+      "previousFile": "server/src/remote-aircraft-visual.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    },
+    {
+      "previousFailure": "Sky Pendulum has six honest forward gates on a clear three-up three-down corridor",
+      "previousFile": "server/src/sky-pendulum.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "confirmed guidance uses actual gate, altitude and attempt state",
+      "previousFile": "server/src/sky-pendulum.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "eligibility, six sequential gates, timeout, first-clear, wallet cap and replay are server-owned",
+      "previousFile": "server/src/sky-pendulum.test.mjs",
+      "resolution": "Retired gate missions replaced by current fortress contracts, with existing geometry/phase/live coverage retained"
+    },
+    {
+      "previousFailure": "P6 local HTTP ingestion rejects origin, forged fields and disabled state",
+      "previousFile": "server/src/sponsorship-measurement.test.ts",
+      "resolution": "Live HTTP fixture and report range now follow server wall-clock UTC; fixed-clock unit boundary checks retained"
+    },
+    {
+      "previousFailure": "Dallas missions stay locked for unfinished Milwaukee training, including older profiles",
+      "previousFile": "server/src/tutorial-flight.test.ts",
+      "resolution": "Updated assertions to the verified current UI/shared contract"
+    }
+  ]
+}

@@ -54,11 +54,11 @@ test('major desktop and shared mobile surfaces use dark blue translucent glass',
   // The octagon uses a translucent SVG face instead of a solid button fill.
   assert.match(css, /\.touch-stick\{[^}]+background:transparent/);
   assert.match(css, /\.touch-stick-frame-outer\{[^}]*fill:url\(#touch-stick-surface\)/);
-  assert.match(css, /\.gameplay-info-card\.is-multiplayer\s*\{[^}]+background:\s*rgb\(9 26 48 \/ 88%\)/s);
+  assert.match(css, /\.gameplay-info-card\.is-multiplayer\s*\{[^}]+background:\s*var\(--gameplay-info-card-fill\)/s);
 });
 
 test('screen overlays preserve vivid game surfaces and a clean City Journey background', () => {
-  assert.match(css, /\.city-selector\s*\{[^}]+linear-gradient\([^}]+url\('\/media\/city-journey\/hangar\.jpg'\)[^}]+var\(--ac-bg-deep\)/s);
+  assert.match(css, /\.city-selector\s*\{[^}]+background:\s*var\(--menu-background\)/s);
   assert.doesNotMatch(css, /\.launch-background/);
   assert.match(css, /\.garage-overlay\s*\{[^}]+background:\s*transparent;/s);
   assert.match(css, /\.pilot-menu-overlay\s*\{[^}]+background:\s*transparent;/s);

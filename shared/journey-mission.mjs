@@ -215,8 +215,8 @@ export const journeyDallas13 = Object.freeze({
   id: 'journey-dallas-13', cityId: 'dallas', name: 'REDLINE RUSH',
   chapter: 'HIGH STAKES', timeLimitMs: 90_000, firstClearCredits: 1_650,
   startAirportId: 'love',
-  // Rounded to 10 world units/s from 75% of each aircraft's sustained
-  // straight-flight speed at the mobile FAST position (~85% throttle).
+  // Explicitly tuned world-units/s thresholds; each is attainable at the
+  // current mobile FAST stop. Keep these independent of envelope retuning.
   speedThresholds: Object.freeze({ trainer: 640, privateJet: 830, cargo: 660, fighter: 960 }),
   gates: Object.freeze([
     { x: -5_140, z: -10_500, altitude: 480, radius: 135 },

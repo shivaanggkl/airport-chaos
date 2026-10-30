@@ -15,15 +15,10 @@ test('city entry account refresh never opens Pilot Menu automatically', () => {
   assert.match(menu, /open\(data: PilotMenuData, section: PilotMenuSection = 'MISSIONS'\)/);
 });
 
-test('mission reminder is bounded, airborne-only, and opens Missions directly', () => {
-  assert.match(html, /id="mission-reminder"[\s\S]*No mission active[\s\S]*data-mission-reminder-open>MISSIONS/);
-  assert.match(main, /missionReminderFirstDelaySeconds = 60/);
-  assert.match(main, /missionReminderRepeatDelayMs = 10 \* 60_000/);
-  assert.match(main, /missionReminderMaxPerSession = 2/);
-  assert.match(main, /localLifeState === 'alive'[\s\S]*!onGround[\s\S]*!crashed/);
-  assert.match(main, /window\.setTimeout\(\(\) => hideMissionReminder\(\), 8_000\)/);
-  assert.match(main, /openPilotMenu\('MISSIONS'\)/);
-  assert.match(main, /Practice Mode gives no permanent rewards/);
+test('Missions remain directly reachable without the retired reminder popup', () => {
+  assert.doesNotMatch(html, /id="mission-reminder"/);
+  assert.match(main, /function openActiveMissionFromHud\(\)[\s\S]*openPilotMenu\('MISSIONS'\)/);
+  assert.match(main, /cityGuide: openCityGuide/);
 });
 
 test('flight menus keep profile out of single-player and multiplayer HUDs', () => {

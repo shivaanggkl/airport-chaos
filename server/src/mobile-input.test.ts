@@ -35,7 +35,7 @@ test('every mobile Controls preference changes its supported behavior',()=>{
   assert.match(input,/supportsTouchControls\(\) \{ return matchMedia\('\(pointer: coarse\)'\)\.matches \|\| innerWidth <= 900; \}/);
   assert.match(input,/localStorage\.setItem\(LAYOUT_KEY, JSON\.stringify\(this\.layout\)\)/);
   assert.match(input,/mobileControlStyle\(placement\.x, placement\.y, placement\.scale\)[\s\S]*--touch-left[\s\S]*--touch-top[\s\S]*--touch-scale/);
-  assert.match(menu,/\[\['x','Horizontal'\],\['y','Vertical'\],\['scale','Size'\]\]/);
+  assert.match(menu,/\[\['x',\s*'Horizontal'\],\s*\['y',\s*'Vertical'\],\s*\['scale',\s*'Size'\]\]/);
   assert.doesNotMatch(menu,/JOYSTICK SENSITIVITY|JOYSTICK DEAD.?ZONE|INVERT (?:X|Y|PITCH|TURN)/i);
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   assert.match(main,/touchLayout:mobileInput\.supportsTouchControls\(\)[\s\S]*setTouchMode:[\s\S]*mobileInput\.setMode\(mode\)[\s\S]*renderPilotMenu\(\)/);

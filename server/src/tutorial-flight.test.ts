@@ -367,12 +367,12 @@ test('Dallas missions stay locked for unfinished Milwaukee training, including o
   const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
   assert.match(server,/if \(!dallasUnlocked\) \{ jsonResponse\(response, 403, \{ error: 'Complete Milwaukee training to unlock Dallas\.'/);
   assert.match(server,/requestedJourneyAttemptId && cityId === 'dallas' && !entryProfile\.tutorial\.dallasUnlocked/);
-  assert.match(server,/connectionParams\.get\('launchMode'\) !== 'free-fly' && cityCapabilities\(cityId\)\?\.tutorialEnabled/);
+  assert.match(server,/connectionParams\.get\('launchMode'\) !== 'free-fly' && !skyDuelMode && cityCapabilities\(cityId\)\?\.tutorialEnabled/);
   const entry=readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
-  assert.match(entry,/const unlocked = cityJourneyMode === 'free-fly' \|\| entry\.id !== 'dallas' \|\| dallasUnlocked\(\)/);
+  assert.match(entry,/const unlocked = cityJourneyMode !== 'missions' \|\| entry\.id !== 'dallas' \|\| dallasUnlocked\(\)/);
   assert.match(entry,/if \(cityJourneyMode === 'missions' && city\.id === 'dallas' && !dallasUnlocked\(\)\)/);
   const flight=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
-  assert.match(flight,/if \(launchMode === 'free-fly' && !trainingRequested\) url\.searchParams\.set\(LAUNCH_MODE_PARAM, 'free-fly'\)/);
+  assert.match(flight,/if \(\(launchMode === 'free-fly' \|\| skyDuelMode\) && !trainingRequested\) url\.searchParams\.set\(LAUNCH_MODE_PARAM, launchMode\)/);
 });
 
 test('an existing tutorial table migrates without treating unfinished training as complete', () => {

@@ -28,7 +28,7 @@ test('exit flight and city guide behavior remains available without cluttering a
   const main = read('client/src/main.ts');
   assert.doesNotMatch(menu, /label: 'EXIT FLIGHT'|label: 'CITY GUIDE'/);
   assert.match(main, /function openCityGuide\(\)/);
-  assert.match(main, /flightExitButtonElement\.addEventListener\('click', \(\) => requestFlightExit\(\)\)/);
+  assert.match(main, /exitFlight: requestFlightExit/);
   assert.match(main, /Current mission progress will be abandoned\./);
   assert.match(main, /abandonMission: \{ cityId: missionCityId, expectedAttemptId: activeMission\.attemptId \}/);
   assert.match(main, /latest\.pilotId !== serverProfile\.pilotId \|\| profileActiveMissionAttempt\(latest\)/);
@@ -69,12 +69,12 @@ test('Firehawk repeat-failure eligibility is durable, capped, and ownership-awar
   assert.equal(firehawkProduct.displayPrice, '$24.00');
 });
 
-test('native-only web placement uses a safe external link and no flight popup', () => {
+test('external policy links remain safe and native promotion cannot interrupt flight', () => {
   const menu = read('client/src/pilot-menu.ts');
   const main = read('client/src/main.ts');
   const bootstrap = read('client/src/bootstrap.ts');
-  assert.match(menu, /if \(data\.nativeWebPromotion && account\.state === 'account'\)/);
-  assert.match(menu, /externalLink\('fly\.vadensoftware\.com', 'https:\/\/fly\.vadensoftware\.com'\)/);
+  assert.match(menu, /externalLink\('Terms of Use', legalPolicyHref\(legalConfig\.policyRoutes\.terms\)\)/);
+  assert.match(menu, /externalLink\('Support', legalPolicyHref\(legalConfig\.policyRoutes\.support\)\)/);
   assert.match(menu, /link\.rel = 'noopener noreferrer'/);
   assert.match(main, /nativeWebPromotion: nativePurchaseProvider !== undefined/);
   assert.match(bootstrap, /nativeWebPromotion: nativePurchaseProvider !== undefined/);

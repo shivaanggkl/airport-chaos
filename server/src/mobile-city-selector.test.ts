@@ -11,18 +11,18 @@ test('City Journey uses live cards and the existing city registry', () => {
   assert.match(html, /id="city-selector"[\s\S]*data-city-journey-track[\s\S]*data-city-previous[\s\S]*data-city-next/);
   assert.doesNotMatch(html, /data-city-journey-dots/);
   assert.match(html, /id="city-help"[\s\S]*id="city-help-dialog"/);
-  assert.match(css, /\.city-selector\s*\{[^}]*hangar\.jpg/);
+  assert.match(css, /\.city-selector\s*\{[^}]*background: var\(--menu-background\)/);
   assert.match(bootstrap, /\.\.\.cities\.map\(\(city, index\) =>/);
   assert.match(bootstrap, /missionJourneyStages\.filter\(stage => stage\.implementation === 'playable'\)\.length/);
   assert.match(bootstrap, /detail: 'COMING SOON', status: 'CITY LOCKED', cta: 'LOCKED', disabled: true/);
-  assert.match(bootstrap, /view\.cta\.disabled = state\.disabled === true/);
+  assert.match(bootstrap, /view\.cta\.disabled = unlocking \|\| state\.disabled === true/);
 });
 
 test('Missions and Free Fly keep separate launch routes', () => {
   assert.match(html, /data-home-missions aria-label="Missions, Single Player">\s*<img class="home-hangar-card-image" src="\/media\/hub\/missions-card\.jpg"/);
   assert.match(html, /data-home-free-fly aria-label="Multiplayer, Free Fly">\s*<img class="home-hangar-card-image" src="\/media\/hub\/multiplayer-card\.jpg"/);
-  assert.match(bootstrap, /type CityJourneyMode = LaunchMode/);
-  assert.match(bootstrap, /requestHubFly\('missions'\)[\s\S]*requestHubFly\('free-fly'\)/);
+  assert.match(bootstrap, /type CityJourneyMode = 'missions' \| 'free-fly' \| 'multiplayer'/);
+  assert.match(bootstrap, /requestHubFly\('missions'\)[\s\S]*showSelector\('', \{ mode: 'multiplayer', preferDallas: true \}\)/);
   assert.match(bootstrap, /if \(cityJourneyMode === 'free-fly'\) \{\s*abandonPendingJourneyLaunch\(\);\s*showTimeSelection\(city\);\s*return;/);
   assert.match(bootstrap, /if \(city\.id === 'dallas'\) \{\s*showMissionJourney\(\)/);
   assert.match(bootstrap, /if \(state\.training\) void startTrainingFromHub\(\)/);
@@ -33,9 +33,9 @@ test('Missions and Free Fly keep separate launch routes', () => {
 test('Free Fly advertises only supported city features and keeps time selection', () => {
   assert.match(bootstrap, /capabilities\?\.competitiveEnabled \? 'MULTIPLAYER FREE FLY' : 'PRACTICE FREE FLY'/);
   assert.match(bootstrap, /!capabilities\?\.competitiveEnabled && !capabilities\?\.practiceMode/);
-  assert.match(bootstrap, /tutorial\?\.status !== 'started'[\s\S]*START TRAINING IN MISSIONS FIRST/);
-  assert.match(bootstrap, /for \(const preset of city\.timePresets\)/);
-  assert.match(bootstrap, /void enterCity\(city, preset\)/);
+  assert.match(bootstrap, /cityJourneyMode !== 'missions' \|\| entry\.id !== 'dallas' \|\| dallasUnlocked\(\)/);
+  assert.match(bootstrap, /for \(const \[index, preset\] of city\.timePresets\.entries\(\)\)/);
+  assert.match(bootstrap, /void enterCity\(city, preset/);
   assert.match(bootstrap, /citySelectTitle\.textContent = 'CHOOSE CITY'/);
   assert.match(bootstrap, /!citySelector\.hidden && citySelector\.dataset\.view === 'time' \? 'CHOOSE TIME'[\s\S]*entryState === 'MISSION_JOURNEY' \? 'CHOOSE MISSION'/);
   assert.match(bootstrap, /cityHelpCopy\.textContent = cityJourneyMode === 'missions'/);
@@ -43,11 +43,11 @@ test('Free Fly advertises only supported city features and keeps time selection'
 
 test('carousel prevents swipe activation and restores selection', () => {
   assert.match(bootstrap, /cityJourneyClickBlockedUntil = performance\.now\(\) \+ 350/);
-  assert.match(bootstrap, /cityJourneyLaunching \|\| performance\.now\(\) < cityJourneyClickBlockedUntil/);
+  assert.match(bootstrap, /cityJourneyLaunching \|\| pendingDallasUnlock && cityJourneyMode === 'missions' \|\| performance\.now\(\) < cityJourneyClickBlockedUntil/);
   assert.match(bootstrap, /setCityJourneyIndex\(cityJourneyIndex \+ direction\)/);
   assert.match(bootstrap, /localStorage\.getItem\(CITY_JOURNEY_SELECTION_KEY\)/);
-  assert.match(bootstrap, /cityJourneyPrevious\.disabled = cityJourneyIndex === 0/);
-  assert.match(bootstrap, /cityJourneyNext\.disabled = cityJourneyIndex === cityJourneyEntries\.length - 1/);
+  assert.match(bootstrap, /cityJourneyPrevious\.disabled = pendingDallasUnlock && cityJourneyMode === 'missions' \|\| cityJourneyIndex === 0/);
+  assert.match(bootstrap, /cityJourneyNext\.disabled = pendingDallasUnlock && cityJourneyMode === 'missions' \|\| cityJourneyIndex === cityJourneyEntries\.length - 1/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.city-journey-card \{ transition: none; \}/);
   assert.match(css, /\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\)/);
 });

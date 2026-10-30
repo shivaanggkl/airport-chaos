@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { journeyDallas12, journeyDallas13, journeyGateCrossing } from '../../shared/journey-mission.mjs';
+import { throttleSpeedTarget } from '../../shared/flight-control-rules.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
@@ -84,9 +85,10 @@ test('Redline course has five forward, wide gates and a safe northbound corridor
   assert.equal(confirmedGateObjective({ attemptId: 'a', status: 'COMPLETED', gateIndex: 5 }, mission.gates, elevationAt), null);
 });
 
-test('speed thresholds are about 75% of sustainable FAST cruise for every eligible aircraft', () => {
+test('tuned speed thresholds are positive and attainable at FAST for every eligible aircraft', () => {
   for (const [type, envelope] of Object.entries(aircraftFlightEnvelope)) {
-    assert.ok(Math.abs(journeyDallas13.speedThresholds[type] - envelope.maxSpeed * .85 * .75) <= 5);
+    assert.ok(journeyDallas13.speedThresholds[type] > 0);
+    assert.ok(journeyDallas13.speedThresholds[type] <= throttleSpeedTarget(.8, envelope));
     assert.ok(journeyDallas13.speedThresholds[type] < envelope.maxSpeed);
   }
   assert.equal(journeyDallas13.speedThresholds.trainer, 640);

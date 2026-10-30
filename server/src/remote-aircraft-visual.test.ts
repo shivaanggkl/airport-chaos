@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
-import { remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftNearMissRadius, remoteAircraftScale, remoteAircraftVisualScale, remoteInterpolationDuration, remotePredictionSeconds, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
+import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftNearMissRadius, remoteAircraftScale, remoteAircraftVisualScale, remoteInterpolationDuration, remotePredictionSeconds, remoteProxyPixelWidth } from '../../shared/remote-aircraft-visual-rules.mjs';
 
 test('5 Hz Hunter snapshots keep visual motion continuous across ordinary packet jitter', () => {
   const packetTimes = [0, 0.2, 0.41, 0.61, 0.84, 1.04, 1.25];
@@ -102,7 +102,7 @@ test('remote aircraft match Rear Guard size at range and physical size nearby, i
     }
   }
   assert.ok(remoteAircraftContactRadius('cargo', 500) > remoteAircraftContactRadius('trainer', 500));
-  assert.equal(remoteAircraftContactRadius('trainer', 500), remoteAircraftContactRadius('fighter', 500));
+  assert.ok(Math.abs(remoteAircraftContactRadius('fighter', 500) / remoteAircraftContactRadius('trainer', 500) - aircraftHitRadii.fighter / aircraftHitRadii.trainer) < 1e-12);
 });
 
 test('red/blue billboard markers track remote aircraft with authoritative name and altitude', () => {
@@ -115,11 +115,11 @@ test('red/blue billboard markers track remote aircraft with authoritative name a
   assert.doesNotMatch(main.slice(main.indexOf('function createRemotePlayerProxy('), main.indexOf('function disposeRemotePlayerProxy(')),
     /context\.moveTo\(48, 15\)/, 'diamond icon removed');
   assert.match(main, /color: visualLanguage\[isBot \? 'ai' : 'player'\]\.color/);
-  assert.match(update, /const contactHeight = Math\.max\(visualScale \* 1\.2, worldPerPixel \* 12\)/);
+  assert.match(update, /const contactHeight = Math\.max\(renderedScale \* 1\.2, worldPerPixel \* 12\)/);
   assert.match(update, /remote\.playerProxy\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp, contactHeight\)/);
   assert.match(update, /remote\.identityTag\.position\.copy\(remote\.plane\.position\)\.addScaledVector\(cameraWorldUp,[\s\S]*contactHeight \+ worldPerPixel/);
   assert.match(main, /remote\.playerProxy\.scale\.set\(width, width \* \(2 \/ 3\), 1\)/);
-  assert.match(update, /labelY >= 50 \+ halfLabelHeight/, 'name tag stays clear of the flight header');
+  assert.match(update, /labelY >= 96 \+ halfLabelHeight/, 'name tag stays clear of the flight header');
   assert.match(main, /formatPilotAltitude\(altitudeMeters\)/);
   assert.match(update, /remote\.altitudeMeters \?\? humanRadarTracks\.get\(remote\.playerId\)\?\.altitudeMeters/);
   assert.match(main, /'ai'[\s\S]*formatRelativeAltitude\(remote\.altitudeMeters - altitudeAboveTerrain\(\)\)/,

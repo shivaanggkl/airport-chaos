@@ -43,7 +43,7 @@ test('mission preview and countdown cannot simulate flight or report a preflight
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(main, /const journeyPreflightActive = \(\): boolean => journeyMode &&[\s\S]*missionStartCountdownStartedAt !== null/);
   assert.match(main, /function endRun\([\s\S]*?if \(journeyPreflightActive\(\)\) return/);
-  assert.match(main, /if \(!crashed && runStarted && !screenplayFlightPaused && !journeyPreflightActive\(\)/);
+  assert.match(main, /if \(!crashed && runStarted && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive\(\)/);
   assert.match(server, /if \(message\.type === 'journeyCrash'\) \{[\s\S]*?if \(player\.hasRespawnTransform\) failPlayerJourney\(playerId, 'CRASHED'\)/);
 });
 

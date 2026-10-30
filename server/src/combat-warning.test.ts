@@ -35,7 +35,7 @@ test('the assigned Journey Hunter retaliates only after its pilot locks or hits 
   assert.match(server, /attempt\.status !== 'RACING' \|\|\s*attempt\.targetId !== targetId && attempt\.secondaryTargetId !== targetId/);
   assert.match(server, /bot\.journeyProvoked = true;\s*beginHunterApproach\(hunter, bot, pilotId, pilot, now\)/);
   assert.match(server, /const canAttack = !bot\.journeyAttemptId \|\| bot\.journeyProvoked === true/);
-  assert.match(server, /if \(canAttack && combatTarget && combatSolution && now >= Math\.max\(bot\.nextFireAt, bot\.attackFireAfter\)\)/);
+  assert.match(server, /if \(canAttack && combatTarget && combatSolution && \(bot\.journeyRearGuardEscort \|\| now >= Math\.max\(bot\.nextFireAt, bot\.attackFireAfter\)\)\)/);
 });
 
 test('one shared warning drives HUD, radar, audio, and stale-threat cleanup', () => {

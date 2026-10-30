@@ -25,11 +25,11 @@ test('Pilot Hub routes Missions and Free Fly through separate city selection mod
   const bootstrap = read('client/src/bootstrap.ts');
   const main = read('client/src/main.ts');
   assert.match(bootstrap, /missions: \(\) => [^\n]*requestHubFly\('missions'\)/);
-  assert.match(bootstrap, /freeFly: \(\) => [^\n]*requestHubFly\('free-fly'\)/);
+  assert.match(bootstrap, /freeFly: \(\) => [^\n]*showSelector\('', \{ mode: 'multiplayer', preferDallas: true \}\)/);
   assert.match(bootstrap, /async function requestHubFly\(mode: CityJourneyMode = cityJourneyMode\)[\s\S]*refreshHubPilotData\(\)[\s\S]*showSelector\('', \{ mode,[\s\S]*rememberPendingHubFly\(mode\)/);
   assert.match(bootstrap, /if \(options\.mode\) cityJourneyMode = options\.mode/);
   assert.match(bootstrap, /if \(city\.id === 'dallas'\) \{\s*showMissionJourney\(\)/);
-  assert.match(bootstrap, /url\.searchParams\.set\(LAUNCH_MODE_PARAM, cityJourneyMode\)/);
+  assert.match(bootstrap, /url\.searchParams\.set\(LAUNCH_MODE_PARAM, modeOverride \?\? cityJourneyMode\)/);
   assert.match(main, /launchMode === 'missions' && cityId === 'dallas'/);
   assert.match(bootstrap, /function resumePendingHubFly\(\)[\s\S]*hubAccount\.state !== 'account'[\s\S]*clearPendingHubFly\(\)[\s\S]*showSelector/);
   assert.match(bootstrap, /function continueHubAsGuest\(\)[\s\S]*hasPendingHubFly\(\)[\s\S]*clearPendingHubFly\(\)[\s\S]*showSelector/);
@@ -51,16 +51,16 @@ test('account UI offers Google, Apple, or device-bound guest play without passwo
   const bootstrap = read('client/src/bootstrap.ts');
   const css = read('client/src/style.css');
   assert.doesNotMatch(menu, /You are signed in\. Log out first to use another account\./);
-  assert.match(menu, /section\('PROFILE'\)[\s\S]*Your pilot identity and account\./);
-  assert.match(menu, /pilotXpForLevel\(pilot\.level\)[\s\S]*pilot-profile-identity[\s\S]*LEVEL \$\{pilot\.level\} · \$\{pilot\.title\}/);
-  assert.match(menu, /\['CREDITS', account\.credits\], \['SCORE', account\.score\], \['AIRCRAFT', account\.ownedAircraft\], \['BADGES', account\.badges\]/);
+  assert.match(menu, /section\('PROFILE'\)[\s\S]*pilot-account-card/);
+  assert.match(menu, /pilotXpForLevel\(pilot\.level\)[\s\S]*pilot-profile-identity[\s\S]*LEVEL \$\{pilot\.level\} · \$\{rankHelmetForLevel\(pilot\.level\)\.title\}/);
+  assert.match(menu, /summary\.lifetimeCreditsEarned\.toLocaleString\(\)[\s\S]*LIFETIME CREDITS EARNED/);
   assert.match(menu, /profileNameEditing[\s\S]*CANCEL[\s\S]*SAVE[\s\S]*EDIT NAME/);
-  assert.match(menu, /data\.nativeWebPromotion && account\.state === 'account'/);
+  assert.match(menu, /if \(this\.activeSection === 'ACCOUNT'\)/);
   assert.match(menu, /this\.options\.closeLabel[\s\S]*BACK TO GAME/);
   assert.doesNotMatch(menu, /LINKED ACCOUNTS|LINK \$\{method\.label\}/);
   assert.match(menu, /CHOOSE HOW TO PLAY/);
   assert.match(menu, /Continue with \$\{provider === 'google' \? 'Google' : 'Apple'\}/);
-  assert.match(menu, /pilot-auth-divider[\s\S]*PLAY AS GUEST[\s\S]*Guest progress stays on this device[\s\S]*legalConfig\.policyRoutes\.terms[\s\S]*legalConfig\.policyRoutes\.privacy/);
+  assert.match(menu, /pilot-auth-divider[\s\S]*PLAY AS GUEST[\s\S]*Playing as Guest — progress is saved on this device[\s\S]*legalConfig\.policyRoutes\.terms[\s\S]*legalConfig\.policyRoutes\.privacy/);
   assert.doesNotMatch(menu, /pilot-account-auth-form|authMode|Password|CREATE ACCOUNT/);
   assert.match(menu, /if \(actionPending\) return;[\s\S]*querySelectorAll<HTMLButtonElement \| HTMLInputElement>\('button, input'\)[\s\S]*aria-busy/);
   assert.match(css, /\.pilot-menu-card \.pilot-provider-google[\s\S]*background: #fff/);
@@ -92,7 +92,7 @@ test('Pilot Hub leaves space for launch cards and keeps legal links in the Pilot
   const menu = read('client/src/pilot-menu.ts');
   assert.doesNotMatch(html, /id="home-brand-signature"/);
   assert.doesNotMatch(bootstrap, /mountCompactBrandFooter/);
-  assert.match(menu, /this\.activeSection === 'LEGAL \/ SUPPORT'[\s\S]*Terms of Use[\s\S]*Privacy Policy[\s\S]*Refund Policy[\s\S]*Support/);
+  assert.match(menu, /private legalSupportSections\(\)[\s\S]*Terms of Use[\s\S]*Privacy Policy[\s\S]*Refund Policy[\s\S]*Support/);
 });
 
 test('flight entry keeps the city visible until gameplay is ready and the launch wait is visible', () => {
@@ -123,7 +123,7 @@ test('Garage equip and close return to the Hub with current authoritative profil
   assert.match(bootstrap, /const profile = await response\.json\(\) as RemoteGarageProfile;[\s\S]*applyAuthoritativeHomeProfile\(profile\)/);
   assert.match(bootstrap, /if \(entryState === 'AIRCRAFT'\)[\s\S]*garageReturnState === 'CITY_SELECTION'[\s\S]*void showHome\(\)/);
   assert.match(bootstrap, /function showHome[\s\S]*homeHangar\.show\(homeHangarData\(\)\);[\s\S]*garage\.showcase\(appHeader\.aircraftPreviewHost, garageProfile\)/);
-  assert.match(bootstrap, /authoritativeHomeProfile = profile/);
+  assert.match(bootstrap, /authoritativeHomeProfile = \{ \.\.\.profile/);
 });
 
 test('Pilot Hub routes to canonical Garage and profile screens without duplicate panels', () => {
@@ -139,7 +139,7 @@ test('Pilot Hub routes to canonical Garage and profile screens without duplicate
   assert.match(bootstrap, /profile: \(\) => \{ hapticsManager\.emit\('selection'\); void openHubPilotMenu\('PROFILE', true, !missionJourneyReturnPending\); \}/);
   assert.doesNotMatch(bootstrap, /settings: \(\) => \{ void openHubPilotMenu\('SETTINGS'\); \}/);
   assert.match(bootstrap, /const hubPilotMenu = new PilotMenu\(pilotMenuOverlay/);
-  assert.match(bootstrap, /sections: \['PROFILE', 'REWARDS', 'PROGRESS', 'GARAGE', 'CONTROLS', 'AUDIO', 'HELP', 'WORLD \/ CITIES', 'LEGAL \/ SUPPORT', 'DATA LICENSES'\]/);
+  assert.match(bootstrap, /sections: \['CONTROLS', 'AUDIO', 'HELP', 'ACCOUNT'\]/);
   assert.match(bootstrap, /const hubSection = section === 'MISSIONS' \? 'PROFILE' : section/);
   assert.match(bootstrap, /closeLabel: \(\) => hubPilotMenuReturnState === 'CITY_SELECTION' \? 'BACK TO CITY SELECTION' : hubPilotMenuReturnState === 'MISSION_JOURNEY' \? 'BACK TO MISSIONS' : hubPilotMenuReturnState === 'STORE' \? 'BACK TO STORE' : 'BACK TO PILOT HUB'/);
   assert.match(bootstrap, /onClose: \(\) => \{[\s\S]*hubPilotMenuReturnState === 'CITY_SELECTION'[\s\S]*showSelector\(\)[\s\S]*void showHome\(\)/);
@@ -149,7 +149,7 @@ test('Pilot Hub routes to canonical Garage and profile screens without duplicate
   assert.match(menu, /this\.activeSection === 'AUDIO'/);
   assert.match(menu, /this\.activeSection === 'HELP'[\s\S]*OPEN CONTROLS[\s\S]*Hints On/);
   assert.match(menu, /this\.activeSection === 'WORLD \/ CITIES'/);
-  assert.match(menu, /this\.activeSection === 'LEGAL \/ SUPPORT'[\s\S]*Terms of Use[\s\S]*Privacy Policy[\s\S]*Refund Policy[\s\S]*Support/);
+  assert.match(menu, /private legalSupportSections\(\)[\s\S]*Terms of Use[\s\S]*Privacy Policy[\s\S]*Refund Policy[\s\S]*Support/);
   assert.doesNotMatch(menu, /label: 'CITY GUIDE'|label: 'EXIT FLIGHT'|label: 'WORLD \/ CITIES'/);
   assert.match(menu, /label: 'RESTART \/ RESPAWN'[\s\S]*intent: 'danger'/);
   assert.doesNotMatch(home, /openPanel|renderPanel|ACTIVE MISSION|DAILY FLIGHT PLAN|PILOT PROFILE/);
@@ -188,7 +188,7 @@ test('Hub renderer and ambient motion pause offscreen or in the background', () 
   assert.match(garage, /this\.idleOrbitAnchor = this\.orbitYaw;[\s\S]*this\.targetOrbitYaw = this\.orbitYaw;[\s\S]*this\.idleOrbitStartedAt = performance\.now\(\)/);
   assert.match(garage, /if \(!this\.isPreviewActive\(\) \|\| document\.hidden \|\| this\.windowBlurred\)/);
   assert.match(garage, /this\.idleOrbitAnchor \+ \(performance\.now\(\) - this\.idleOrbitStartedAt\) \* 0\.00022/);
-  assert.match(garage, /else this\.targetOrbitYaw \+= 0\.002/);
+  assert.match(garage, /const pulse = Math\.sin\(\(performance\.now\(\) - this\.idleOrbitStartedAt\) \* 0\.0011\)/);
   assert.match(home, /classList\.toggle\('is-backgrounded', document\.hidden\)/);
   assert.match(css, /\.home-hangar\.is-backgrounded \* \{ animation-play-state: paused !important; \}/);
 });
@@ -203,7 +203,7 @@ test('Pilot Hub presents live Missions and Free Fly cards with integrated naviga
   assert.match(html, /data-home-free-fly aria-label="Multiplayer, Free Fly">\s*<img class="home-hangar-card-image" src="\/media\/hub\/multiplayer-card\.jpg"/);
   assert.doesNotMatch(html, /data-home-fly/);
   assert.doesNotMatch(journey, /data-mission-free|mission-journey-free-dock/);
-  assert.match(shell, /utilities\.append\(this\.garage, this\.rewards, this\.store\)/);
+  assert.match(shell, /utilities\.append\(this\.garage, this\.store, this\.rewards\)/);
   assert.match(shell, /replaceChildren\(brand, this\.avatar, this\.pageBack, this\.pageTitle, this\.advertise, this\.friends, utilities, wallet\)/);
   assert.match(shell, /this\.avatar\.hidden = isPage/);
   assert.match(shell, /this\.garage\.prepend\(this\.aircraftPreviewHost\)/);

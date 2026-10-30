@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const menu = read('client/src/pilot-menu.ts');
 const notice = read('client/public/osm-data-license.txt');
 const preprocess = read('scripts/preprocess-osm.mjs');
-const chunker = read('scripts/chunk-dallas-data.mjs');
 const dallas = JSON.parse(read('client/public/data/dallas/manifest.json'));
 const milwaukeeSource = JSON.parse(read('client/src/data/city1-osm.json'));
 const milwaukeePublic = JSON.parse(read('client/public/data/milwaukee/city-osm.json'));
@@ -45,5 +48,20 @@ test('generation pipeline propagates provenance into future manifests', () => {
   for (const field of ['provider', 'sourceUrl', 'downloadedAt', 'osmSnapshotAt', 'extractedAt', 'geographicBounds', 'importer', 'pipelineVersion', 'generatedAt']) {
     assert.match(preprocess, new RegExp(`\\b${field}\\b`));
   }
-  assert.match(chunker, /provenance: city\.provenance/);
+  const directory = mkdtempSync(join(tmpdir(), 'osm-provenance-'));
+  try {
+    const provenance = { provider: 'fixture', sourceUrl: 'https://www.openstreetmap.org', pipelineVersion: 'fixture-v3' };
+    const chunks = ['near', 'mid', 'far'].map(lod => ({ id: 'cell', lod, filename: `${lod}.json`, bytes: 0 }));
+    const manifest = { v: 3, chunks, provenance, attribution: '© OpenStreetMap contributors', license: 'ODbL' };
+    writeFileSync(join(directory, 'manifest.json'), JSON.stringify(manifest));
+    for (const chunk of chunks) writeFileSync(join(directory, chunk.filename), JSON.stringify({ b: [], provenance }));
+    const near = readFileSync(join(directory, 'near.json'), 'utf8');
+    execFileSync(process.execPath, [fileURLToPath(new URL('../../scripts/chunk-dallas-data.mjs', import.meta.url)), directory]);
+    const updated = JSON.parse(readFileSync(join(directory, 'manifest.json'), 'utf8'));
+    assert.deepEqual(updated.provenance, provenance);
+    assert.equal(updated.attribution, manifest.attribution);
+    assert.equal(updated.license, manifest.license);
+    assert.equal(readFileSync(join(directory, 'near.json'), 'utf8'), near);
+    for (const lod of ['mid', 'far']) assert.deepEqual(JSON.parse(readFileSync(join(directory, `${lod}.json`), 'utf8')).provenance, provenance);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

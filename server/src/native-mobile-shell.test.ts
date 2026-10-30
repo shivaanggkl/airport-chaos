@@ -87,7 +87,7 @@ test('profile keyboard recovery tracks VisualViewport and restores the normal la
   assert.match(viewport, /restoreScrollOrigin[\s\S]*window\.scrollTo\(\{ left: 0, top: 0, behavior: 'instant' \}\)/);
   assert.match(viewport, /awaitingRecovery[\s\S]*editableViewportRecovered[\s\S]*finishViewportRecovery/);
   assert.match(viewport, /finishViewportRecovery[\s\S]*window\.dispatchEvent\(new Event\('resize'\)\)/);
-  assert.match(css, /\.native-shell\.editable-keyboard-open \.pilot-menu-overlay\s*\{[^}]*top: var\(--editable-viewport-top\)[^}]*width: var\(--editable-viewport-width\)[^}]*height: var\(--editable-viewport-height\)/);
+  assert.match(css, /html\.editable-keyboard-open \.pilot-menu-overlay\s*\{[^}]*top: var\(--editable-viewport-top\)[^}]*width: var\(--editable-viewport-width\)[^}]*height: var\(--editable-viewport-height\)/);
   assert.match(css, /:is\(\.native-shell, \.touch-controls-enabled\)[^{]*input:not\(\[type='range'\]\)[^{]*\{[^}]*font-size:\s*16px/);
   assert.doesNotMatch(html, /maximum-scale|user-scalable/);
 });
@@ -96,7 +96,7 @@ test('local stability diagnostics expose frame, scene, streaming, and realtime c
   const main = readProjectFile('client/src/main.ts');
 
   assert.match(main, /const stabilityQaTiming = stabilityQaMode \?/);
-  assert.match(main, /frame ms avg\/max/);
+  assert.match(main, /frame ms avg\/p95\/max/);
   assert.match(main, /scene objects .* meshes/);
   assert.match(main, /sockets created\/open\/close\/reconnect/);
   assert.match(main, /if \(cityWorld\.updateWorldStreaming\) cityWorld\.updateWorldStreaming/);

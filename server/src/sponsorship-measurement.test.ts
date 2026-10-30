@@ -13,7 +13,7 @@ import { DIRECTORY_PLACEMENT_ID, SponsorshipMeasurementStore, eligibleSponsorEve
 
 const actor = 'isolated-p6-test';
 const worldIds = ['dallas-dfw-terminal-sign', 'dallas-love-terminal-sign', 'dallas-dfw-north-arrival'] as const;
-function fixture() {
+function fixture(now = new Date('2026-10-29T12:00:00.000Z')) {
   const dir = mkdtempSync(join(tmpdir(), 'airport-p6-')), db = join(dir, 'profiles.sqlite'), assets = join(dir, 'assets');
   mkdirSync(assets);
   const management = new SponsorshipManagementStore(db, { assetRoot: assets });
@@ -30,9 +30,8 @@ function fixture() {
     management.setCreativeStatus(id, 'APPROVED', null, actor);
     return id;
   });
-  const now = new Date('2026-10-29T12:00:00.000Z');
   const campaign = management.createCampaign({ advertiserId: advertiser, title: 'P6 internal QA',
-    startsAt: '2026-10-29T11:00:00.000Z', endsAt: '2026-11-29T11:00:00.000Z' }, actor).id;
+    startsAt: new Date(now.getTime() - 60 * 60_000).toISOString(), endsAt: new Date(now.getTime() + (31 * 24 - 1) * 60 * 60_000).toISOString() }, actor).id;
   placements.forEach((id, index) => management.addAssignment(campaign, creatives[index], id, actor));
   management.setCampaignStatus(campaign, 'IN_REVIEW', null, actor);
   management.setCampaignStatus(campaign, 'APPROVED', null, actor);
@@ -100,7 +99,7 @@ test('P6 production measurement gate is off despite local flags', () => {
 });
 
 test('P6 local HTTP ingestion rejects origin, forged fields and disabled state', async () => {
-  const f = fixture(); let child: ReturnType<typeof spawn> | undefined;
+  const f = fixture(new Date()); let child: ReturnType<typeof spawn> | undefined;
   try {
     const probe = createServer(); await new Promise<void>(done => probe.listen(0, '127.0.0.1', done));
     const address = probe.address(); assert.ok(address && typeof address !== 'string');
@@ -122,7 +121,7 @@ test('P6 local HTTP ingestion rejects origin, forged fields and disabled state',
     assert.equal((await post({ events: [valid] })).status, 202);
     const concurrent = f.event('HUB_ESTIMATED_EXPOSURE');
     assert.deepEqual((await Promise.all([post({ events: [concurrent] }), post({ events: [concurrent] })])).map(response => response.status), [202, 202]);
-    assert.equal(f.measurement.daily(f.campaign, '2026-10-29', '2026-10-29').reduce((sum, row) => sum + row.count, 0), 2);
+    assert.equal(f.measurement.daily(f.campaign, new Date(f.now.getTime() - 86400_000).toISOString().slice(0, 10), new Date(Date.now() + 86400_000).toISOString().slice(0, 10)).reduce((sum, row) => sum + row.count, 0), 2);
     assert.equal((await post({ events: [{ ...valid, eventId: randomUUID(), type: 'BOGUS' }] })).status, 400);
     assert.equal((await post({ events: [{ ...valid, eventId: randomUUID(), url: 'https://example.com' }] })).status, 400);
     assert.equal((await post({ events: [{ ...valid, eventId: randomUUID(), campaignId: randomUUID() }] })).status, 400);

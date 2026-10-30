@@ -19,7 +19,7 @@ test('authoritative altitude is emitted by the server and used by roster and rad
   const players = read('client/src/players-panel.ts');
   assert.match(server, /altitudeMeters: Math\.max\(0, player\.position\.y - botTerrainHeight/);
   assert.match(main, /formatRelativeAltitude\(track\.altitudeMeters - altitudeAboveTerrain\(\)\)/);
-  assert.match(players, /formatPilotAltitude\(player\.altitudeMeters\)/);
+  assert.match(players, /altitudeFeet\(player\.altitudeMeters\)/);
 });
 
 test('perfect landing survives network latency and exposes the sweep over the recap', () => {
