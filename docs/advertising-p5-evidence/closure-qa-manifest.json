@@ -1,0 +1,83 @@
+{
+  "phase": "P5 final closure",
+  "date": "2026-10-29",
+  "environment": {
+    "browser": "Headless Google Chrome 156.0.8078.48 via Chromium DevTools Protocol",
+    "host": "macOS 27.0.1",
+    "graphics": "software WebGL",
+    "deviceTesting": "desktop browser emulation; no physical iPhone or Android device",
+    "server": "same-host local production build with isolated SQLite database and Airport Chaos QA creatives"
+  },
+  "captures": [
+    {
+      "file": "closure-freefly-1536x707.png",
+      "scenario": "Dallas Free Fly, QA-sponsored DFW terminal sign",
+      "innerWidth": 1536,
+      "innerHeight": 707,
+      "devicePixelRatio": 1,
+      "pngWidth": 1536,
+      "pngHeight": 707,
+      "result": "PASS"
+    },
+    {
+      "file": "closure-freefly-844x390.png",
+      "scenario": "Dallas Free Fly, QA-sponsored DFW terminal sign, touch emulation",
+      "innerWidth": 844,
+      "innerHeight": 390,
+      "devicePixelRatio": 1,
+      "pngWidth": 844,
+      "pngHeight": 390,
+      "result": "PASS"
+    },
+    {
+      "file": "closure-freefly-667x375.png",
+      "scenario": "Dallas Free Fly, QA-sponsored DFW terminal sign, touch emulation",
+      "innerWidth": 667,
+      "innerHeight": 375,
+      "devicePixelRatio": 1,
+      "pngWidth": 667,
+      "pngHeight": 375,
+      "result": "PASS"
+    },
+    {
+      "file": "closure-mission-focus-667x375.png",
+      "scenario": "Active Dallas Mission 1 Rookie Rush Golden Gates, house sign and no paid creative, touch emulation",
+      "innerWidth": 667,
+      "innerHeight": 375,
+      "devicePixelRatio": 1,
+      "pngWidth": 667,
+      "pngHeight": 375,
+      "result": "PASS"
+    },
+    {
+      "file": "closure-freefly-restored-667x375.png",
+      "scenario": "Dallas Free Fly after exiting Golden Gates Mission 1, QA-sponsored DFW terminal sign restored",
+      "innerWidth": 667,
+      "innerHeight": 375,
+      "devicePixelRatio": 1,
+      "pngWidth": 667,
+      "pngHeight": 375,
+      "result": "PASS"
+    },
+    {
+      "file": "closure-combat-1536x707.png",
+      "scenario": "Active Dallas Ace Intercept development QA event with real target aircraft and combat HUD",
+      "innerWidth": 1536,
+      "innerHeight": 707,
+      "devicePixelRatio": 1,
+      "pngWidth": 1536,
+      "pngHeight": 707,
+      "result": "PASS"
+    },
+    {
+      "file": "closure-combat-844x390.png",
+      "scenario": "Active Dallas Ace Intercept development QA event with touch combat controls",
+      "innerWidth": 844,
+      "innerHeight": 390,
+      "devicePixelRatio": 1,
+      "pngWidth": 844,
+      "pngHeight": 390,
+      "result": "PASS"
+    }
+  ]
+}

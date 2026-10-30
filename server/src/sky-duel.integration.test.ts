@@ -212,7 +212,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.equal(launchA.launchStartedAt, launchB.launchStartedAt, 'both pilots share the runway intro');
     assert.equal(launchA.launchCountdownAt, launchB.launchCountdownAt, 'both pilots share the runway countdown');
     assert.equal(launchA.launchEndsAt, launchB.launchEndsAt, 'both pilots start play together');
-    for (const [client, peerId] of [[a, loadingA.playerBId], [b, loadingB.playerAId]] as const) {
+    for (const [client, peerId] of [[a, firstIsA ? loadingA.playerBId : loadingA.playerAId], [b, firstIsA ? loadingB.playerAId : loadingB.playerBId]] as const) {
       const launchIndex = client.messages.findIndex(message => message === (client === a ? launchA : launchB));
       let countdownIndex = launchIndex - 1;
       while (countdownIndex >= 0 && (client.messages[countdownIndex].type !== 'skyDuelState' ||

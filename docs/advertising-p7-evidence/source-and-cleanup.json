@@ -1,0 +1,13 @@
+{
+  "branch": "feature/advertising",
+  "commit": "95a6787e9b37de3f7a50922660f3004ee71ec957",
+  "preExistingFilesChanged": [
+    "server/src/sponsorship-management-cli.ts",
+    "server/src/sponsorship-management.ts"
+  ],
+  "preExistingFilesMissing": [],
+  "qaStatusEntries": 28,
+  "qaWorktreeEditedByP7": false,
+  "isolatedFixturesRemoved": true,
+  "clientApplicationFilesChangedByP7": false
+}

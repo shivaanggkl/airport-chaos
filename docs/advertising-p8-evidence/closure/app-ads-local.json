@@ -1,0 +1,19 @@
+{
+  "missing": {
+    "status": 404,
+    "contentType": "text/plain; charset=utf-8",
+    "body": "Asset not found"
+  },
+  "temporaryFile": {
+    "status": 200,
+    "contentType": "text/plain; charset=utf-8",
+    "body": "# P8 isolated local MIME probe; NOT an authorized seller entry.\n"
+  },
+  "head": {
+    "status": 200,
+    "contentType": "text/plain; charset=utf-8",
+    "body": ""
+  },
+  "publisherEntryAvailable": false,
+  "productionPublished": false
+}

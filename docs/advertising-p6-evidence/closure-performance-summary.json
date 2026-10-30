@@ -1,0 +1,249 @@
+{
+  "method": {
+    "browser": "headed Chrome 156 with Apple M1 Metal",
+    "viewport": [
+      1536,
+      707
+    ],
+    "dpr": 1,
+    "lighting": "Day",
+    "aircraft": "starter Trainer",
+    "graphics": "AUTO resolving to desktop HIGH; antialias on, shadows off",
+    "warmupSeconds": {
+      "hub": 10,
+      "world": 15
+    },
+    "observationSeconds": {
+      "hub": 58,
+      "world": 60
+    },
+    "orderPerScenario": [
+      [
+        "OFF",
+        "ON"
+      ],
+      [
+        "ON",
+        "OFF"
+      ],
+      [
+        "OFF",
+        "ON"
+      ]
+    ],
+    "timing": "requestAnimationFrame presentation intervals; not GPU frame time",
+    "builds": "Matched off/on pairs use identical application code. Hub samples precede the world-only episode correction; all world samples follow it."
+  },
+  "scenarios": {
+    "hub": {
+      "off": {
+        "runs": 3,
+        "p95PerRunMs": [
+          35.2,
+          34.8,
+          35.3
+        ],
+        "medianP95Ms": 35.2,
+        "medianFrameMs": 33.3,
+        "averageFps": 29.99,
+        "longTasksTotal": 0,
+        "longTaskMsTotal": 0,
+        "medianDrawCalls": null,
+        "textureRange": null,
+        "materialRange": null,
+        "geometryRange": null,
+        "heapEndMiB": [
+          7.5,
+          5.7,
+          5.5
+        ],
+        "measurementRequests": 0,
+        "eventRequestBytes": 0,
+        "acceptedEvents": 0,
+        "ingestionResponseMedianMs": null,
+        "ingestionResponseP95Ms": null
+      },
+      "on": {
+        "runs": 3,
+        "p95PerRunMs": [
+          35.3,
+          35.3,
+          35.3
+        ],
+        "medianP95Ms": 35.3,
+        "medianFrameMs": 33.3,
+        "averageFps": 29.99,
+        "longTasksTotal": 0,
+        "longTaskMsTotal": 0,
+        "medianDrawCalls": null,
+        "textureRange": null,
+        "materialRange": null,
+        "geometryRange": null,
+        "heapEndMiB": [
+          5.5,
+          6.0,
+          5.6
+        ],
+        "measurementRequests": 0,
+        "eventRequestBytes": 0,
+        "acceptedEvents": 0,
+        "ingestionResponseMedianMs": null,
+        "ingestionResponseP95Ms": null
+      },
+      "differenceMs": 0.1,
+      "differencePercent": 0.28
+    },
+    "dfw": {
+      "off": {
+        "runs": 3,
+        "p95PerRunMs": [
+          35,
+          35.3,
+          34.6
+        ],
+        "medianP95Ms": 35,
+        "medianFrameMs": 33.3,
+        "averageFps": 29.99,
+        "longTasksTotal": 0,
+        "longTaskMsTotal": 0,
+        "medianDrawCalls": 1878.0,
+        "textureRange": [
+          15,
+          16
+        ],
+        "materialRange": [
+          454,
+          454
+        ],
+        "geometryRange": [
+          2226,
+          2241
+        ],
+        "heapEndMiB": [
+          117.9,
+          109.9,
+          113.8
+        ],
+        "measurementRequests": 0,
+        "eventRequestBytes": 0,
+        "acceptedEvents": 0,
+        "ingestionResponseMedianMs": null,
+        "ingestionResponseP95Ms": null
+      },
+      "on": {
+        "runs": 3,
+        "p95PerRunMs": [
+          35.1,
+          34.8,
+          34.5
+        ],
+        "medianP95Ms": 34.8,
+        "medianFrameMs": 33.3,
+        "averageFps": 29.99,
+        "longTasksTotal": 0,
+        "longTaskMsTotal": 0,
+        "medianDrawCalls": 1885,
+        "textureRange": [
+          15,
+          17
+        ],
+        "materialRange": [
+          453,
+          455
+        ],
+        "geometryRange": [
+          2238,
+          2251
+        ],
+        "heapEndMiB": [
+          115.8,
+          103.8,
+          111.4
+        ],
+        "measurementRequests": 3,
+        "eventRequestBytes": 780,
+        "acceptedEvents": 3,
+        "ingestionResponseMedianMs": 13.34,
+        "ingestionResponseP95Ms": 15.55
+      },
+      "differenceMs": -0.2,
+      "differencePercent": -0.57
+    },
+    "stream": {
+      "off": {
+        "runs": 3,
+        "p95PerRunMs": [
+          34.7,
+          34.6,
+          33.8
+        ],
+        "medianP95Ms": 34.6,
+        "medianFrameMs": 33.3,
+        "averageFps": 30.01,
+        "longTasksTotal": 4,
+        "longTaskMsTotal": 219,
+        "medianDrawCalls": 2227.0,
+        "textureRange": [
+          15,
+          23
+        ],
+        "materialRange": [
+          454,
+          455
+        ],
+        "geometryRange": [
+          2165,
+          3126
+        ],
+        "heapEndMiB": [
+          180.6,
+          132.9,
+          132.0
+        ],
+        "measurementRequests": 0,
+        "eventRequestBytes": 0,
+        "acceptedEvents": 0,
+        "ingestionResponseMedianMs": null,
+        "ingestionResponseP95Ms": null
+      },
+      "on": {
+        "runs": 3,
+        "p95PerRunMs": [
+          34.9,
+          35.3,
+          34.2
+        ],
+        "medianP95Ms": 34.9,
+        "medianFrameMs": 33.3,
+        "averageFps": 30.0,
+        "longTasksTotal": 3,
+        "longTaskMsTotal": 150,
+        "medianDrawCalls": 2230.5,
+        "textureRange": [
+          15,
+          23
+        ],
+        "materialRange": [
+          453,
+          456
+        ],
+        "geometryRange": [
+          2226,
+          3114
+        ],
+        "heapEndMiB": [
+          126.3,
+          143.1,
+          141.0
+        ],
+        "measurementRequests": 3,
+        "eventRequestBytes": 780,
+        "acceptedEvents": 3,
+        "ingestionResponseMedianMs": 8.41,
+        "ingestionResponseP95Ms": 9.6
+      },
+      "differenceMs": 0.3,
+      "differencePercent": 0.87
+    }
+  }
+}

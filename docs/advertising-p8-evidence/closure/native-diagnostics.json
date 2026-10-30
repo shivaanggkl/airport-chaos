@@ -1,0 +1,31 @@
+{
+  "ios": {
+    "sampleUnit": "ca-app-pub-3940256099942544/1712485313",
+    "appBoundDomainsRetained": true,
+    "consentCanRequestAds": true,
+    "errorDomain": "com.google.admob",
+    "errorCode": 5,
+    "errorUserInfoKeys": [
+      "NSLocalizedDescription",
+      "gad_response_info"
+    ],
+    "hasUnderlyingError": false,
+    "loaded": false,
+    "presented": false,
+    "uiTestPassed": 0,
+    "uiTestFailed": 1,
+    "fixture": "isolated SDK diagnostic, not authenticated game/wallet lifecycle"
+  },
+  "androidOriginalAvd": {
+    "googlePlay": true,
+    "api": 36,
+    "gpu": "swiftshader",
+    "systemAnrBeforeGame": [
+      "com.android.phone",
+      "com.android.systemui"
+    ],
+    "gameProcessCreated": true,
+    "webviewLocalAssetsRequested": true,
+    "validUsableStartupEstablished": false
+  }
+}

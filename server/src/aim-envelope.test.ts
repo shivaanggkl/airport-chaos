@@ -104,7 +104,7 @@ test('client prediction and server projectiles both derive direction from the sh
   const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(client, /projectileDirection\.set\(visualAim\.x, visualAim\.y, -1\)\.normalize\(\)/);
-  assert.match(client, /aimSample: \{ from: previousAimId, to: serverAimId, blend: visualAimBlend \}/);
+  assert.match(client, /aimSample:[\s\S]*?\{ from: previousAimId, to: serverAimId, blend: visualAimBlend \}/);
   assert.match(server, /const shotAim = validatedShotAim\(player, message\.aimSample, now\)/);
   assert.match(server, /rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)/);
   assert.match(client, /if \(distance > COMBAT_RANGE\)/);

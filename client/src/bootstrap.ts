@@ -4,6 +4,9 @@ import type { CityTimeOfDay } from './city-visuals';
 import { AircraftGarage, type GarageProfile } from './garage';
 import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
 import { HomeHangar, type HomeHangarData } from './home-hangar';
+import { getSponsorCatalog, type PublicSponsor } from './sponsorship-catalog';
+import { setSponsorMeasurementCatalog, flushSponsorMeasurements } from './sponsorship-measurement';
+import type { BusinessRoute } from './advertise-page';
 import { LAUNCH_MODE_PARAM, type LaunchMode } from './launch-mode';
 import { AppShellHeader, type AppShellActive } from './app-shell';
 import { showPendingRankHelmetUnlock } from './rank-helmet-unlock';
@@ -379,10 +382,35 @@ let hubFlyIntent = false;
 let hubFlyMode: CityJourneyMode = 'missions';
 let hubFlyGateActive = false;
 const hubInfoDialog = new HubInfoDialog();
+let advertiseOverlay: HTMLElement | undefined;
+let advertiseController: { setRoute: (route: BusinessRoute, sponsorId?: string) => void; destroy: () => void } | undefined;
+let advertiseReturnFocus: HTMLElement | undefined;
+async function openAdvertisePage(trigger: HTMLElement, restoredRoute?: BusinessRoute, sponsorId?: string, detailIntentSource?: 'HUB'): Promise<void> {
+  if (advertiseOverlay) return;
+  const { mountAdvertiseExperience } = await import('./advertise-page');
+  advertiseReturnFocus = trigger;
+  advertiseOverlay = document.createElement('div');
+  advertiseOverlay.className = 'advertise-overlay';
+  document.body.append(advertiseOverlay);
+  const openRoute = (route: BusinessRoute, id?: string) => {
+    window.history.pushState({ airportChaosBusiness: route, sponsorId: id }, '', route === 'details' ? `/sponsors/${id}` : `/${route}`);
+    advertiseController?.setRoute(route, id);
+  };
+  advertiseController = mountAdvertiseExperience(advertiseOverlay, {
+    route: restoredRoute ?? 'advertise', sponsorId, detailIntentSource, onNavigate: openRoute, onClose: () => window.history.back(),
+  });
+  if (!restoredRoute || (restoredRoute === 'details' && window.history.state?.airportChaosBusiness !== 'details')) openRoute(restoredRoute ?? 'advertise', sponsorId);
+  advertiseOverlay.querySelector<HTMLElement>('[data-back]')?.focus();
+}
+registerUiBackLayer({
+  id: 'advertise-page', priority: uiBackPriority.blockingModal,
+  isActive: () => Boolean(advertiseOverlay),
+  close: () => window.history.back(),
+});
 const appHeader = new AppShellHeader(document.querySelector<HTMLElement>('#app-shell-header')!, {
   home: () => { void showHome(); },
   back: () => { hapticsManager.emit('selection'); closeTopUiLayer(); },
-  advertise: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openAdvertise(trigger); },
+  advertise: trigger => { hapticsManager.emit('selection'); void openAdvertisePage(trigger); },
   friends: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openFriends(trigger); },
   store: () => { hapticsManager.emit('selection'); void openGameStore(); },
   garage: () => { hapticsManager.emit('selection'); void openStartGarage(entryState === 'STORE' || (entryState === 'PILOT_MENU' && hubPilotMenuReturnState === 'STORE') ? 'STORE' : missionJourneyReturnPending ? 'MISSION_JOURNEY' : 'HANGAR'); },
@@ -1010,13 +1038,40 @@ cityOptions.addEventListener('pointercancel', event => {
   }
 });
 
+let currentHubSponsor: PublicSponsor | null = null;
+let hubSponsorExpiresAt = 0;
+let hubSponsorTimer: ReturnType<typeof setTimeout> | undefined;
+let hubSponsorRequest = 0;
 const homeHangar = new HomeHangar(homeHangarElement, {
   missions: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('missions'); },
   freeFly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); showSelector('', { mode: 'multiplayer', preferDallas: true }); },
   store: () => { hapticsManager.emit('selection'); void openGameStore(); },
-  sponsor: trigger => { hapticsManager.emit('selection'); hubInfoDialog.openAdvertise(trigger); },
+  sponsor: trigger => { hapticsManager.emit('selection'); void openAdvertisePage(trigger,
+    currentHubSponsor && performance.now() < hubSponsorExpiresAt && trigger.classList.contains('is-sponsored') ? 'details' : undefined,
+    currentHubSponsor?.advertiserId, currentHubSponsor ? 'HUB' : undefined); },
   settings: () => { if (entryState !== 'HANGAR') return; hapticsManager.emit('selection'); void openHubPilotMenu('CONTROLS', false); },
 }, homeHangarData());
+
+async function refreshHubSponsor(): Promise<void> {
+  const request = ++hubSponsorRequest;
+  if (hubSponsorTimer) clearTimeout(hubSponsorTimer);
+  homeHangar.setSponsor(null);
+  currentHubSponsor = null;
+  const catalog = await getSponsorCatalog(true);
+  if (request !== hubSponsorRequest || !homeHangar.isVisible()) return;
+  setSponsorMeasurementCatalog(catalog);
+  currentHubSponsor = catalog.hub;
+  homeHangar.setSponsor(catalog.hub, catalog.measurementEnabled);
+  hubSponsorExpiresAt = performance.now() + catalog.maxAgeMs;
+  if (catalog.hub) hubSponsorTimer = setTimeout(() => {
+    currentHubSponsor = null;
+    homeHangar.setSponsor(null);
+    void flushSponsorMeasurements();
+  }, catalog.maxAgeMs);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && homeHangar.isVisible()) void refreshHubSponsor();
+});
 
 let hubStoredPreferences: Record<string, unknown> = {};
 try { hubStoredPreferences = JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY) ?? '{}') as Record<string, unknown>; } catch { /* use defaults */ }
@@ -1372,6 +1427,14 @@ async function refreshRewardedAdStatus(): Promise<void> {
     const response = await apiFetch(apiUrl('/api/rewarded-ads/status'), { cache: 'no-store' });
     const result = await response.json() as { rewardedAds?: RewardedAdStatus };
     hubRewardedAdStatus = response.ok ? result.rewardedAds : undefined;
+    if (response.ok && result.rewardedAds && !result.rewardedAds.activeAttempt && hubRewardedAdPhase === 'verifying') {
+      // A callback may settle while Rewards is closed. Do not leave the next action locked.
+      rewardedAdPollGeneration += 1;
+      hubRewardedAdPhase = 'idle'; hubRewardedAdNotice = undefined;
+      const profileResponse = await apiFetch(apiUrl('/api/auth/status'), { cache: 'no-store' });
+      const profileResult = await profileResponse.json() as { profile?: RemoteGarageProfile };
+      if (profileResponse.ok && profileResult.profile) applyAuthoritativeHomeProfile(profileResult.profile);
+    }
   } catch { hubRewardedAdStatus = undefined; }
 }
 
@@ -1409,7 +1472,7 @@ async function waitForRewardedAdVerification(attemptId: string, expectedCredits:
       }
       if (['FAILED', 'EXPIRED', 'CLOSED_WITHOUT_REWARD'].includes(result.attemptStatus)) {
         hubRewardedAdPhase = 'idle';
-        hubRewardedAdNotice = result.attemptStatus === 'CLOSED_WITHOUT_REWARD' ? 'Finish the video to earn Credits.' : 'Unable to verify reward. Please try again.';
+        hubRewardedAdNotice = result.attemptStatus === 'CLOSED_WITHOUT_REWARD' ? 'No reward earned.' : 'Unable to verify reward. Please try again.';
         hubPilotMenu.refresh(hubPilotMenuData(), true);
         return;
       }
@@ -1425,7 +1488,7 @@ async function waitForRewardedAdVerification(attemptId: string, expectedCredits:
 async function watchRewardedAd(source: DOMRect): Promise<void> {
   if (!rewardedAdProvider || hubRewardedAdPhase !== 'idle') return;
   let attempt: RewardedAdAttempt | undefined;
-  hubRewardedAdPhase = 'loading'; hubRewardedAdNotice = undefined;
+  hubRewardedAdPhase = 'loading'; hubRewardedAdNotice = 'Loading video...';
   hubPilotMenu.refresh(hubPilotMenuData(), true);
   try {
     const response = await apiFetch(apiUrl('/api/rewarded-ads/attempt'), {
@@ -1442,22 +1505,24 @@ async function watchRewardedAd(source: DOMRect): Promise<void> {
     const shown = await rewardedAdProvider.show();
     audioManager.setMenuMusicDesired(true);
     if (shown.state === 'qualified') {
-      await recordRewardedAdEvent(attempt.attemptId, 'qualified');
-      hubRewardedAdPhase = 'verifying'; hubRewardedAdNotice = "We're verifying your reward.";
+      // Advisory transport failure must not terminally fail a completed video. SSV remains authoritative.
+      await recordRewardedAdEvent(attempt.attemptId, 'qualified').catch(() => undefined);
+      hubRewardedAdPhase = 'verifying'; hubRewardedAdNotice = 'Verifying your reward...';
       hubPilotMenu.refresh(hubPilotMenuData(), true);
       await waitForRewardedAdVerification(attempt.attemptId, attempt.rewardCredits, source);
       return;
     }
     await recordRewardedAdEvent(attempt.attemptId, shown.state === 'closed' ? 'closed' : 'failed');
     hubRewardedAdPhase = 'idle';
-    hubRewardedAdNotice = shown.state === 'closed' ? 'Finish the video to earn Credits.' : 'Unable to start video. Please try again.';
+    hubRewardedAdNotice = shown.state === 'closed' ? 'No reward earned.' : 'Unable to start video. Please try again.';
   } catch (error) {
     audioManager.setMenuMusicDesired(true);
+    await rewardedAdProvider.discard().catch(() => undefined);
     if (attempt) await recordRewardedAdEvent(attempt.attemptId, 'failed').catch(() => undefined);
     hubRewardedAdPhase = 'idle';
     if (error instanceof Error && error.message.includes('No video')) recordProductIntent('rewarded_ad_no_fill');
     hubRewardedAdNotice = error instanceof Error && error.message.includes('No video')
-      ? 'No video available right now. Try again later.' : error instanceof Error ? error.message : 'Unable to start video. Please try again.';
+      ? 'No video available right now.' : error instanceof Error ? error.message : 'Unable to start video. Please try again.';
   }
   hubPilotMenu.refresh(hubPilotMenuData(), true);
 }
@@ -1466,6 +1531,13 @@ async function openHubRewards(): Promise<void> {
   recordProductIntent('rewards_viewed');
   await openHubPilotMenu('REWARDS', true, true);
   if (hubRewardedAdStatus?.supported) recordProductIntent('rewarded_ad_offer_viewed');
+  const pending = hubRewardedAdStatus?.activeAttempt;
+  if (pending && ['AD_STARTED', 'PENDING_VERIFICATION'].includes(pending.status) && !['loading', 'playing'].includes(hubRewardedAdPhase)) {
+    hubRewardedAdPhase = 'verifying';
+    hubRewardedAdNotice = 'Verifying your reward...';
+    void waitForRewardedAdVerification(pending.attemptId, hubRewardedAdStatus!.rewardCredits,
+      document.querySelector('.pilot-watch-earn')?.getBoundingClientRect() ?? new DOMRect());
+  }
 }
 
 async function claimDailyReward(source: DOMRect): Promise<{ ok: boolean; message: string }> {
@@ -1777,6 +1849,24 @@ async function openStoreItemInGarage(item: StoreItem): Promise<void> {
 }
 
 window.addEventListener('popstate', () => {
+  if (advertiseOverlay) {
+    const route = window.history.state?.airportChaosBusiness;
+    if (route === 'advertise' || route === 'sponsors' || route === 'details') advertiseController?.setRoute(route, window.history.state?.sponsorId);
+    else {
+      advertiseController?.destroy();
+      advertiseOverlay.remove();
+      advertiseController = undefined;
+      advertiseOverlay = undefined;
+      advertiseReturnFocus?.focus();
+      advertiseReturnFocus = undefined;
+    }
+    return;
+  }
+  const businessRoute = window.history.state?.airportChaosBusiness;
+  if (businessRoute === 'advertise' || businessRoute === 'sponsors' || businessRoute === 'details') {
+    void openAdvertisePage(menuHeader.querySelector<HTMLElement>('.app-shell-advertise') ?? menuHeader, businessRoute, window.history.state?.sponsorId);
+    return;
+  }
   if (entryState === 'CITY_SELECTION' && citySelector.dataset.view === 'multiplayer') {
     showSelector('', { mode: 'multiplayer', preferDallas: true });
     return;
@@ -1999,6 +2089,7 @@ function showHome(): Promise<void> {
   citySelector.hidden = true;
   missionJourney.hide();
   homeHangar.show(homeHangarData());
+  void refreshHubSponsor();
   showAppHeader(undefined);
   showPendingRankHelmetUnlock(authoritativeHomeProfile?.pilotId, authoritativeHomeProfile?.pilotProgress?.level);
   playMenuEntrance(homeHangarElement);
@@ -2291,7 +2382,10 @@ function showDallasMultiplayerCards(city: CityDefinition, pushHistory = true): v
   citySelector.dataset.view = 'multiplayer';
   cityOptions.hidden = true;
   timeOptions.hidden = false;
-  multiplayerFreeFly.hidden = true;
+  // Existing Free Fly entry is exposed only for local P1 world inspection.
+  // The server still validates all authenticated actions and rewards.
+  multiplayerFreeFly.hidden = !(['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+    new URLSearchParams(window.location.search).get('p1qa') === '1');
   cityBack.textContent = 'BACK TO CITIES';
   citySelectTitle.textContent = 'DALLAS MULTIPLAYER';
   citySelectDescription.textContent = '';

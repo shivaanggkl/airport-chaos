@@ -1,0 +1,12 @@
+{
+  "boot": {
+    "exit": 0,
+    "output": "\n",
+    "error": ""
+  },
+  "anr": {
+    "exit": 0,
+    "output": "ACTIVITY MANAGER LAST ANR (dumpsys activity lastanr)\n  <no ANR has occurred since boot>\n",
+    "error": ""
+  }
+}

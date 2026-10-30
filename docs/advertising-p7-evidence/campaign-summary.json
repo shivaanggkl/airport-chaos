@@ -1,0 +1,78 @@
+{
+  "advertiser": "Airport Chaos — Sponsorship QA Demo",
+  "campaignId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+  "campaignStatus": "APPROVED",
+  "startsAt": "2026-10-29T19:21:01.744Z",
+  "endsAt": "2026-11-28T19:21:01.744Z",
+  "dateRange": {
+    "from": "2026-10-29",
+    "to": "2026-10-29"
+  },
+  "assignments": [
+    {
+      "placementId": "global-hub-spotlight",
+      "city": "global",
+      "surface": "HUB"
+    }
+  ],
+  "totals": {
+    "HUB_ESTIMATED_EXPOSURE": 3,
+    "WORLD_ESTIMATED_EXPOSURE": 0,
+    "SPONSOR_DETAILS_OPEN": 2,
+    "SPONSOR_WEBSITE_ACTION": 0
+  },
+  "reports": {
+    "total": 1,
+    "open": 0,
+    "reasons": {
+      "OTHER": 1
+    }
+  },
+  "daily": [
+    {
+      "date": "2026-10-29",
+      "advertiserId": "ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2",
+      "campaignId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+      "creativeId": "45a47ef2-fef4-4956-8e3a-a807ceccfcb5",
+      "placementId": "global-hub-spotlight",
+      "cityId": "global",
+      "platform": "web",
+      "type": "HUB_ESTIMATED_EXPOSURE",
+      "count": 1
+    },
+    {
+      "date": "2026-10-29",
+      "advertiserId": "ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2",
+      "campaignId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+      "creativeId": "c4124057-6e2d-4e4b-8937-21997687863b",
+      "placementId": "global-hub-spotlight",
+      "cityId": "global",
+      "platform": "web",
+      "type": "HUB_ESTIMATED_EXPOSURE",
+      "count": 2
+    },
+    {
+      "date": "2026-10-29",
+      "advertiserId": "ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2",
+      "campaignId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+      "creativeId": "45a47ef2-fef4-4956-8e3a-a807ceccfcb5",
+      "placementId": "global-hub-spotlight",
+      "cityId": "global",
+      "platform": "web",
+      "type": "SPONSOR_DETAILS_OPEN",
+      "count": 1
+    },
+    {
+      "date": "2026-10-29",
+      "advertiserId": "ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2",
+      "campaignId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+      "creativeId": "c4124057-6e2d-4e4b-8937-21997687863b",
+      "placementId": "global-hub-spotlight",
+      "cityId": "global",
+      "platform": "web",
+      "type": "SPONSOR_DETAILS_OPEN",
+      "count": 1
+    }
+  ],
+  "caveat": "Exposure totals are internal estimates based on eligible in-game presentation and are not independently audited advertising impressions."
+}

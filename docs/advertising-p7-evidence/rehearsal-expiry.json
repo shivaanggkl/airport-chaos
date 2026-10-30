@@ -1,0 +1,12 @@
+{
+  "before": {
+    "sponsored": true,
+    "width": 1536,
+    "height": 707,
+    "dpr": 1
+  },
+  "pausedServerHouse": true,
+  "clientHouse": true,
+  "fallbackAfterEndMs": 1043,
+  "campaign": "6b2db026-3b96-42cc-aa8b-f7300746d670"
+}

@@ -45,7 +45,9 @@ import { dallasDisplayNames as place } from '../../shared/dallas-display-names.m
 import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
-import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
+import { combatIntercept, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { AIM_ENVELOPE, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -62,6 +64,10 @@ import { skyTokenPack, skyTokenPacks, type SkyTokenPackId } from '../../shared/s
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
 import { advanceCargoRush, canCompleteLandingChaosEvent } from '../../shared/chaos-event-rules.mjs';
 import { BoundedRateLimiter, trustedClientIp, type RateLimitRule } from './rate-limiter.js';
+import { SponsorshipInquiryStore, validateSponsorshipInquiry } from './sponsorship-inquiries.js';
+import { SponsorshipManagementStore } from './sponsorship-management.js';
+import { SponsorshipDelivery, SponsorshipReportStore, sponsorDeliveryGates, sponsorReportReasons } from './sponsorship-delivery.js';
+import { SponsorshipMeasurementStore, sponsorMeasurementEnabled, validSponsorEvent } from './sponsorship-measurement.js';
 import { TrialNetworkGuard } from './trial-network-guard.js';
 import { tutorialLandingApproach, tutorialStepPrerequisitesResolved, tutorialSteps, type TutorialLessonStep, type TutorialStepStatus } from '../../shared/tutorial-flight-rules.mjs';
 import { trainingSlideIds } from '../../shared/training-slides.mjs';
@@ -103,8 +109,10 @@ type PlayerState = Transform & {
   lastFireAt: number;
   spawnProtectedUntil: number;
   lockedTargetId?: string;
-  assistedAim?: { x: number; y: number; updatedAt: number; targetId?: string };
-  aimSamples?: Array<{ id: number; x: number; y: number; at: number }>;
+  assistedAim?: { x: number; y: number; updatedAt: number; targetId?: string; selection: CombatSelection; leadPoint?: Vector3 };
+  recentShotIds?: Set<string>;
+  acceptedStateSequence?: number;
+  aimSamples?: Array<{ id: number; x: number; y: number; at: number; targetId?: string }>;
   aimSequence?: number;
   velocity: Vector3;
   lastStateAt: number;
@@ -932,6 +940,13 @@ const profileDatabasePath = process.env.AIRPORT_CHAOS_PROFILE_DB ?? resolve(file
 const localJourneyQaUnlockAll = localJourneyQaUnlockEnabled();
 const stagingJourneyQaUnlockAll = stagingJourneyQaUnlockEnabled() || localJourneyQaUnlockAll;
 const profileStore = new PlayerProfileStore(profileDatabasePath, stagingJourneyQaUnlockAll, localJourneyQaUnlockAll);
+const sponsorshipInquiryStore = new SponsorshipInquiryStore(profileDatabasePath);
+const sponsorshipManagementStore = new SponsorshipManagementStore(profileDatabasePath, { assetRoot: process.env.AIRPORT_CHAOS_SPONSOR_ASSET_ROOT });
+const sponsorshipGates = sponsorDeliveryGates();
+const sponsorshipDelivery = new SponsorshipDelivery(sponsorshipManagementStore, sponsorshipGates);
+const sponsorshipReportStore = new SponsorshipReportStore(profileDatabasePath);
+const sponsorshipMeasurementStore = new SponsorshipMeasurementStore(profileDatabasePath);
+const sponsorshipInquiriesEnabled = process.env.SPONSORSHIP_PUBLIC_INQUIRIES_ENABLED === 'true';
 // Paid entry is deliberately opt-in. Public production must keep this unset
 // until the operator has commercial, legal, and platform clearance.
 const skyDuelStakesEnabled = process.env.AIRPORT_CHAOS_SKY_DUEL_STAKES_ENABLED === '1';
@@ -1008,7 +1023,11 @@ const pilotSessions = new PilotSessionStore(profileDatabasePath);
 pilotSessions.prune();
 analyticsStore.prune();
 const securityLimiter = new BoundedRateLimiter(20_000);
+const acceptedSponsorReports = new Map<string, number>();
 const securityLimits = {
+  sponsorshipInquiryIp: { limit: Math.max(1, Math.min(20, Number(process.env.SPONSORSHIP_INQUIRIES_PER_IP_HOUR) || 3)), windowMs: 60 * 60_000 },
+  sponsorshipReportIp: { limit: 5, windowMs: 60 * 60_000 },
+  sponsorshipEventIp: { limit: 240, windowMs: 60 * 60_000 },
   checkoutPilot: { limit: 5, windowMs: 10 * 60_000 }, checkoutIp: { limit: 10, windowMs: 10 * 60_000 },
   recoveryPilot: { limit: 5, windowMs: 15 * 60_000 }, recoveryIp: { limit: 10, windowMs: 15 * 60_000 },
   testerPilot: { limit: 5, windowMs: 10 * 60_000 }, testerIp: { limit: 10, windowMs: 10 * 60_000 },
@@ -1181,6 +1200,7 @@ const contentTypes: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
   '.avif': 'image/avif',
   '.jpg': 'image/jpeg',
   '.mp4': 'video/mp4',
@@ -1278,6 +1298,12 @@ function nativeAuthPlatform(request: IncomingMessage): NativeAuthPlatform | unde
   return nativePlatformForOrigin(String(request.headers.origin ?? ''));
 }
 
+function sponsorQaPlatform(request: IncomingMessage): 'web' | 'ios' | 'android' | 'unknown' {
+  const address = request.socket.remoteAddress ?? '';
+  if (address !== '::1' && !address.startsWith('127.') && !address.startsWith('::ffff:127.')) return 'unknown';
+  return nativeAuthPlatform(request) ?? 'web';
+}
+
 function skyTokenCommerceAvailable(request: IncomingMessage): boolean {
   const platform = nativeAuthPlatform(request);
   if (platform === 'ios') return process.env.AIRPORT_CHAOS_SKY_TOKEN_COMMERCE_ENABLED === 'true' &&
@@ -1328,6 +1354,150 @@ const httpServer = createServer(async (request, response) => {
   const requestUrl = new URL(request.url ?? '/', 'http://localhost');
   if (rejectsApiRequestOrigin(request, requestUrl.pathname, configuredWebOrigin)) {
     jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+  }
+  if (requestUrl.pathname === '/api/sponsorship/inquiries') {
+    if (request.method === 'GET') {
+      jsonResponse(response, 200, { available: sponsorshipInquiriesEnabled }); return;
+    }
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'GET, POST' }); response.end(); return; }
+    if (!sponsorshipInquiriesEnabled) { jsonResponse(response, 503, { error: 'Online inquiries are temporarily unavailable.' }); return; }
+    const inquiryOrigin = String(request.headers.origin ?? '');
+    const inquiryHost = String(request.headers.host ?? '').toLowerCase();
+    let sameSite = false;
+    try { sameSite = new URL(inquiryOrigin).host.toLowerCase() === inquiryHost; } catch { /* Reject missing or invalid origins. */ }
+    if (!sameSite && !isNativeAppOrigin(inquiryOrigin)) {
+      jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+    }
+    const contentType = String(request.headers['content-type'] ?? '').toLowerCase();
+    if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/.test(contentType)) {
+      jsonResponse(response, 415, { error: 'JSON is required.' }); return;
+    }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) {
+      jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+    }
+    const declaredSize = Number(request.headers['content-length'] ?? 0);
+    if (declaredSize > 4096) { jsonResponse(response, 413, { error: 'Inquiry is too large.' }); return; }
+    const raw = await readRawBody(request, 4096);
+    if (!raw) { jsonResponse(response, 413, { error: 'Inquiry is too large.' }); return; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw.toString('utf8')); } catch { jsonResponse(response, 400, { error: 'Invalid inquiry.' }); return; }
+    const inquiry = validateSponsorshipInquiry(parsed);
+    if (!inquiry) { jsonResponse(response, 400, { error: 'Invalid inquiry.' }); return; }
+    const ipLimit = limitedBy('sponsorship-inquiry-ip', trustedClientIp(request), securityLimits.sponsorshipInquiryIp);
+    if (ipLimit.limited) { rateLimited(response, ipLimit.retryAfterMs); return; }
+    try {
+      const result = sponsorshipInquiryStore.create(inquiry);
+      if ('limited' in result) { rateLimited(response, result.retryAfterMs); return; }
+      jsonResponse(response, 201, { requestId: result.id, status: 'RECEIVED' });
+    } catch {
+      jsonResponse(response, 503, { error: 'Online inquiries are temporarily unavailable.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/sponsorship/catalog') {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    try {
+      jsonResponse(response, 200, sponsorshipDelivery.catalog(new Date(), sponsorQaPlatform(request)));
+    } catch {
+      jsonResponse(response, 503, { error: 'Sponsor catalog unavailable.' });
+    }
+    return;
+  }
+  if (requestUrl.pathname === '/api/sponsorship/events') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    if (!sponsorMeasurementEnabled(process.env, sponsorshipGates)) { jsonResponse(response, 503, { error: 'Measurement unavailable.' }); return; }
+    const eventOrigin = String(request.headers.origin ?? '');
+    let sameSite = false;
+    try { sameSite = new URL(eventOrigin).host.toLowerCase() === String(request.headers.host ?? '').toLowerCase(); } catch { /* fail closed */ }
+    if (!sameSite && !isNativeAppOrigin(eventOrigin)) {
+      jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+    }
+    if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(String(request.headers['content-type'] ?? ''))) {
+      jsonResponse(response, 415, { error: 'JSON is required.' }); return;
+    }
+    if (!sameOriginJsonRequest(request, configuredWebOrigin)) {
+      jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+    }
+    if (Number(request.headers['content-length'] ?? 0) > 8192) { jsonResponse(response, 413, { error: 'Batch is too large.' }); return; }
+    const raw = await readRawBody(request, 8192);
+    if (!raw) { jsonResponse(response, 413, { error: 'Batch is too large.' }); return; }
+    let input: unknown;
+    try { input = JSON.parse(raw.toString('utf8')); } catch { jsonResponse(response, 400, { error: 'Invalid batch.' }); return; }
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => key !== 'events') ||
+      !Array.isArray((input as { events?: unknown }).events) || (input as { events: unknown[] }).events.length < 1 ||
+      (input as { events: unknown[] }).events.length > 20 || !(input as { events: unknown[] }).events.every(validSponsorEvent)) {
+      jsonResponse(response, 400, { error: 'Invalid batch.' }); return;
+    }
+    const ipLimit = limitedBy('sponsorship-event-ip', trustedClientIp(request), securityLimits.sponsorshipEventIp);
+    if (ipLimit.limited) { rateLimited(response, ipLimit.retryAfterMs); return; }
+    try {
+      const result = sponsorshipMeasurementStore.ingest((input as { events: import('./sponsorship-measurement.js').SponsorEvent[] }).events,
+        sponsorshipDelivery, sponsorshipManagementStore, sponsorQaPlatform(request));
+      jsonResponse(response, 202, result);
+    } catch (error) {
+      jsonResponse(response, error instanceof Error && /Invalid|Ineligible/.test(error.message) ? 400 : 503, { error: 'Measurement unavailable.' });
+    }
+    return;
+  }
+  const sponsorCreativeMatch = /^\/api\/sponsorship\/creative\/([0-9a-f-]{36})$/.exec(requestUrl.pathname);
+  if (sponsorCreativeMatch) {
+    if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
+    try {
+      const catalog = sponsorshipDelivery.catalog(new Date(), sponsorQaPlatform(request));
+      if (catalog.hub?.creativeId !== sponsorCreativeMatch[1] && !catalog.world.some(item => item.creativeId === sponsorCreativeMatch[1])) {
+        response.writeHead(404); response.end(); return;
+      }
+      const asset = sponsorshipManagementStore.readCreativeBytes(sponsorCreativeMatch[1]);
+      if (!asset || requestUrl.searchParams.get('v') !== asset.sha256) { response.writeHead(404); response.end(); return; }
+      response.writeHead(200, { 'Content-Type': asset.format === 'JPEG' ? 'image/jpeg' : asset.format === 'PNG' ? 'image/png' : 'image/webp',
+        'Cache-Control': 'private, max-age=60', 'Content-Length': asset.bytes.length });
+      response.end(asset.bytes);
+    } catch { response.writeHead(404); response.end(); }
+    return;
+  }
+  if (requestUrl.pathname === '/api/sponsorship/reports') {
+    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }); response.end(); return; }
+    const reportOrigin = String(request.headers.origin ?? '');
+    let sameSite = false;
+    try { sameSite = new URL(reportOrigin).host.toLowerCase() === String(request.headers.host ?? '').toLowerCase(); } catch { /* fail closed */ }
+    if ((!sameSite && !isNativeAppOrigin(reportOrigin)) || !sameOriginJsonRequest(request, configuredWebOrigin)) {
+      jsonResponse(response, 403, { error: 'Request origin is not allowed.' }); return;
+    }
+    if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(String(request.headers['content-type'] ?? ''))) {
+      jsonResponse(response, 415, { error: 'JSON is required.' }); return;
+    }
+    if (Number(request.headers['content-length'] ?? 0) > 2048) { jsonResponse(response, 413, { error: 'Report is too large.' }); return; }
+    const raw = await readRawBody(request, 2048);
+    if (!raw) { jsonResponse(response, 413, { error: 'Report is too large.' }); return; }
+    let input: Record<string, unknown>;
+    try { input = JSON.parse(raw.toString('utf8')) as Record<string, unknown>; } catch { jsonResponse(response, 400, { error: 'Invalid report.' }); return; }
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['campaignId','creativeId','reason','description'].includes(key)) ||
+      typeof input.campaignId !== 'string' || typeof input.creativeId !== 'string' ||
+      !sponsorReportReasons.includes(input.reason as (typeof sponsorReportReasons)[number]) ||
+      (input.description !== undefined && (typeof input.description !== 'string' || input.description.trim().length > 300 || /[\u0000-\u001f\u007f]/.test(input.description)))) {
+      jsonResponse(response, 400, { error: 'Invalid report.' }); return;
+    }
+    try {
+      const catalog = sponsorshipDelivery.catalog(new Date(), sponsorQaPlatform(request));
+      const sponsor = catalog.hub?.campaignId === input.campaignId && catalog.hub?.creativeId === input.creativeId ? catalog.hub : undefined;
+      if (!sponsor) { jsonResponse(response, 400, { error: 'Invalid report.' }); return; }
+      const ip = trustedClientIp(request);
+      const duplicateKey = `${ip}:${sponsor.campaignId}:${input.reason}`;
+      const duplicateUntil = acceptedSponsorReports.get(duplicateKey) ?? 0;
+      if (duplicateUntil > Date.now()) { rateLimited(response, duplicateUntil - Date.now()); return; }
+      const general = limitedBy('sponsorship-report-ip', ip, securityLimits.sponsorshipReportIp);
+      if (general.limited) { rateLimited(response, general.retryAfterMs); return; }
+      const description = typeof input.description === 'string' ? input.description.trim() || null : null;
+      const id = sponsorshipReportStore.create(sponsor, input.reason as (typeof sponsorReportReasons)[number], description);
+      if (acceptedSponsorReports.size >= 20_000) for (const [key, until] of acceptedSponsorReports) if (until <= Date.now()) acceptedSponsorReports.delete(key);
+      if (acceptedSponsorReports.size >= 20_000) acceptedSponsorReports.delete(acceptedSponsorReports.keys().next().value!);
+      acceptedSponsorReports.set(duplicateKey, Date.now() + 60 * 60_000);
+      jsonResponse(response, 201, { reportId: id, status: 'RECEIVED' });
+    } catch { jsonResponse(response, 503, { error: 'Report unavailable.' }); }
+    return;
+  }
+  if (requestUrl.pathname.startsWith('/api/sponsorship/')) {
+    jsonResponse(response, 404, { error: 'Not found.' }); return;
   }
   if (requestUrl.pathname === '/api/rewarded-ads/admob/ssv') {
     if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(); return; }
@@ -2401,7 +2571,9 @@ const httpServer = createServer(async (request, response) => {
 
   try {
     const pathname = requestUrl.pathname;
-    const relativePath = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1));
+    const relativePath = pathname === '/' ? 'index.html'
+      : pathname === '/advertise' || pathname === '/sponsors' || /^\/sponsors\/[0-9a-f-]{36}$/.test(pathname) ? 'advertise.html'
+      : decodeURIComponent(pathname.slice(1));
     const requestedPath = resolve(clientDist, relativePath);
     if (requestedPath !== clientDist && !requestedPath.startsWith(`${clientDist}${sep}`)) {
       response.writeHead(404);
@@ -2499,11 +2671,11 @@ function sendLockState(playerId: string, targetId?: string): void {
   const aim = player.assistedAim;
   for (const [socket, socketPlayerId] of playerSockets) {
     if (socketPlayerId === playerId && socket.readyState === WebSocket.OPEN) {
-      const sample = { id: player.aimSequence = (player.aimSequence ?? 0) + 1, x: aim?.x ?? 0, y: aim?.y ?? 0, at: Date.now() };
+      const sample = { id: player.aimSequence = (player.aimSequence ?? 0) + 1, x: aim?.x ?? 0, y: aim?.y ?? 0, at: Date.now(), targetId: aim?.targetId };
       const samples = player.aimSamples ??= [];
       samples.push(sample);
       if (samples.length > 8) samples.shift();
-      sendSocketMessage(socket, { type: 'lockState', targetId, candidateId: aim?.targetId, aimX: sample.x, aimY: sample.y, aimId: sample.id });
+      sendSocketMessage(socket, { type: 'lockState', targetId, candidateId: aim?.targetId, aimX: sample.x, aimY: sample.y, aimId: sample.id, leadPoint: aim?.leadPoint });
       return;
     }
   }
@@ -3023,6 +3195,13 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   }
 }
 function removeJourneyHunter(attempt: JourneyAttempt): void {
+  for (const [playerId, player] of players) {
+    if (playerJourneyAttempts.get(playerId) !== attempt.attemptId) continue;
+    player.assistedAim = undefined;
+    player.aimSamples = undefined;
+    setServerLock(playerId, player);
+    removePlayerProjectiles(playerId);
+  }
   if(attempt.missionId===journeyDallas07.id || attempt.missionId===journeyDallas08.id || attempt.missionId===journeyDallas09.id || attempt.missionId===journeyDallas10.id || attempt.missionId===journeyDallas11.id || attempt.missionId===journeyDallas12.id){
     const e=transportEncounters.get(attempt.attemptId);if(e)for(const shot of projectiles.values())if(shot.ownerId===e.playerId)removeProjectile(shot.projectileId);
     transportEncounters.delete(attempt.attemptId);transportReady.delete(attempt.attemptId);
@@ -5018,70 +5197,60 @@ function muzzleTransform(transform: Transform): { position: Vector3; direction: 
   };
 }
 
-function validFireTransform(player: PlayerState, candidate: unknown): Transform | undefined {
-  if (!candidate || typeof candidate !== 'object') return undefined;
-  const value = candidate as Partial<Transform>;
-  if (!value.position || !value.rotation || value.aircraftType !== player.aircraftType) return undefined;
-  const values = [value.position.x, value.position.y, value.position.z, value.rotation.x, value.rotation.y, value.rotation.z];
-  if (!values.every(Number.isFinite)) return undefined;
-  const speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
-  const envelope = aircraftFlightEnvelope[player.aircraftType];
-  const tolerance = 20 + Math.min(speed, envelope.maxSpeed * envelope.boostMaxSpeed) * 0.35;
-  const positionDelta = Math.hypot(
-    value.position.x - player.position.x,
-    value.position.y - player.position.y,
-    value.position.z - player.position.z,
-  );
-  if (positionDelta > tolerance) return undefined;
-  const proposed = forwardDirection(value as Transform);
-  if (dot(proposed, forwardDirection(player)) < 0.65) return undefined;
-  return value as Transform;
-}
-
 function dot(left: Vector3, right: Vector3): number {
   return left.x * right.x + left.y * right.y + left.z * right.z;
 }
 
-function closestLockTarget(
-  ownerId: string,
-  player: PlayerState,
-  direction: Vector3,
-  now: number,
-  origin: Vector3 = player.position,
-): [string, PlayerState] | undefined {
-  let closest: [string, PlayerState] | undefined;
-  let closestScore = Number.POSITIVE_INFINITY;
-  let retained: [string, PlayerState] | undefined;
-  let retainedScore = Number.POSITIVE_INFINITY;
-  for (const [targetId, target] of players) {
-    if (
-      targetId === ownerId ||
-      target.entityType !== 'player' ||
-      target.cityId !== player.cityId ||
-      !tutorialCombatPairAllowed(ownerId, player, targetId, target) ||
-      !sameCombatContext(player, target) ||
-      target.lifeState !== 'alive' ||
-      now < target.spawnProtectedUntil ||
-      now - target.lastStateAt > combatTransformFreshMs ||
-      focusedBotInteractionExcluded(ownerId, player, targetId, target)
-    ) continue;
-    const offset = {
-      x: target.position.x - origin.x,
-      y: target.position.y - origin.y,
-      z: target.position.z - origin.z,
-    };
+type AimCandidate = CombatCandidate & { position: Vector3; velocity: Vector3 };
+
+function combatLineBlocked(owner: PlayerState, origin: Vector3, end: Vector3): boolean {
+  if (owner.skyDuelMode || owner.cityId !== 'dallas') return false;
+  const buildings = transportBuildings;
+  return segmentBlockedByBuildings(origin, end, buildings) || end.y <= dallasTerrain.elevationAt(end.x, end.z);
+}
+
+function combatAimCandidates(ownerId: string, owner: PlayerState, now: number): AimCandidate[] {
+  const candidates: AimCandidate[] = [];
+  const attemptId = playerJourneyAttempts.get(ownerId);
+  const attempt = attemptId ? journeyStore.get(owner.pilotId, attemptId) : undefined;
+  const transport = attemptId ? transportEncounters.get(attemptId) : undefined;
+  const origin = muzzleTransform(owner).position;
+  const forward = forwardDirection(owner);
+  const add = (id: string, position: Vector3, velocity: Vector3, objective = false) => {
+    const offset = { x: position.x - origin.x, y: position.y - origin.y, z: position.z - origin.z };
     const distance = Math.hypot(offset.x, offset.y, offset.z);
-    if (distance > COMBAT_RANGE) continue;
-    const angle = Math.acos(Math.max(-1, Math.min(1, dot(direction, normalize(offset)))));
-    if (distance < 0.000001 || angle > AIM_ENVELOPE) continue;
-    const score = aimTargetScore(angle, distance);
-    if (targetId === player.assistedAim?.targetId) { retained = [targetId, target]; retainedScore = score; }
-    if (score < closestScore) {
-      closest = [targetId, target];
-      closestScore = score;
+    if (distance < .001 || distance > COMBAT_RANGE) return;
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot(forward, normalize(offset)))));
+    const retained = id === owner.assistedAim?.selection.targetId;
+    if (angle > AIM_ENVELOPE + (retained ? .10 : 0) || combatLineBlocked(owner, origin, position)) return;
+    candidates.push({ id, position, velocity, distance, angle, aligned: angle <= AIM_ENVELOPE, objective });
+  };
+  if (attempt?.missionId !== journeyDallas07.id && (!transport || transport.fortressGunsEnabled === false ||
+    attempt?.missionId === journeyDallas08.id || attempt?.missionId === journeyDallas09.id)) {
+    for (const [id, target] of players) {
+      if (id === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
+        target.lifeState !== 'alive' || now < target.spawnProtectedUntil || now - target.lastStateAt > combatTransformFreshMs ||
+        !sameCombatContext(owner, target) || !tutorialCombatPairAllowed(ownerId, owner, id, target) ||
+        focusedBotInteractionExcluded(ownerId, owner, id, target) || playerJourneyRunwayPrep.has(id)) continue;
+      if (transport && (!target.bot?.journeyRearGuardEscort || target.bot.journeyAttemptId !== attemptId)) continue;
+      add(id, target.position, target.velocity);
     }
   }
-  return retained && retainedScore <= closestScore + AIM_SWITCH_MARGIN ? retained : closest;
+  if (transport && attempt?.status === 'RACING' && attempt.deadlineAt !== null && now < attempt.deadlineAt &&
+    transport.playerId === ownerId && !(attempt.missionId === journeyDallas12.id && attempt.finalPhase === 'ESCORTS')) {
+    const pose = transportPose(now - transport.startedAt, transport.altitude, transport.durationMs);
+    let position: Vector3 = { x: pose.x, y: pose.y + 12, z: pose.z };
+    if (transport.fortressTurrets) {
+      const parts: ('left' | 'right' | 'core')[] = transport.fortressTurrets.every(health => health <= 0)
+        ? ['core'] : transport.fortressTurrets.flatMap((health, index) => health > 0 ? [index === 0 ? 'left' as const : 'right' as const] : []);
+      const points = parts.map(part => transportFortressTarget(pose, part));
+      position = points.sort((a, b) => dot(normalize({ x: b.x-origin.x, y:b.y-origin.y,z:b.z-origin.z }), forward) -
+        dot(normalize({x:a.x-origin.x,y:a.y-origin.y,z:a.z-origin.z}),forward))[0]!;
+    }
+    add(`transport:${attemptId}`, position, pose.velocity,
+      attempt.missionId === journeyDallas08.id || attempt.missionId === journeyDallas09.id);
+  }
+  return candidates;
 }
 
 function targetInAircraftSpace(transform: Transform, target: Pick<PlayerState,'position'>): Vector3 {
@@ -5094,58 +5263,40 @@ function targetInAircraftSpace(transform: Transform, target: Pick<PlayerState,'p
 }
 
 function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, manualHorizontal: unknown, manualVertical: unknown): void {
-  const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now };
-  const transportId = playerJourneyAttempts.get(ownerId), transport = transportId ? transportEncounters.get(transportId) : undefined;
-  const candidate = (!transport || transport.durationMs === journeyDallas08.timeLimitMs || transport.durationMs === journeyDallas09.timeLimitMs || transport.durationMs === journeyDallas12.timeLimitMs && transport.fortressGunsEnabled === false) && owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
-    ? closestLockTarget(ownerId, owner, forwardDirection(owner), now) : undefined;
+  if (owner.assistedAim && now - owner.assistedAim.updatedAt < 50) return;
+  const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now,
+    selection: { challengerSince: now, lastAlignedAt: now } };
+  const candidates = owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
+    ? combatAimCandidates(ownerId, owner, now) : [];
+  const candidate = selectCombatTarget(aim.selection, candidates, now);
+  aim.targetId = candidate?.id;
+  aim.leadPoint = undefined;
   const goal = { x: 0, y: 0 };
-  aim.targetId = candidate?.[0];
-  if (candidate) {
-    const local = targetInAircraftSpace(owner, candidate[1]);
-    aimGoal(local.x, local.y, local.z, goal);
-  }
-  if(transport && !candidate && transport.fortressGunsEnabled !== false && transport.playerId===ownerId && owner.lifeState==='alive' && now-transport.startedAt<transport.durationMs){
-    const pose=transportPose(now-transport.startedAt,transport.altitude,transport.durationMs);
-    const fortress=transport.fortressTurrets;
-    const possible:('left'|'right'|'core')[]=fortress
-      ? fortress[0]<=0 && fortress[1]<=0 ? ['core'] : [fortress[0]>0?'left':null,fortress[1]>0?'right':null].filter((side):side is 'left'|'right'=>side!==null)
-      : [];
-    const forward=forwardDirection(owner);
-    const point=possible.length ? possible.map(side=>transportFortressTarget(pose,side)).sort((a,b)=>
-      dot({x:b.x-owner.position.x,y:b.y-owner.position.y,z:b.z-owner.position.z},forward)/Math.hypot(b.x-owner.position.x,b.y-owner.position.y,b.z-owner.position.z)
-      -dot({x:a.x-owner.position.x,y:a.y-owner.position.y,z:a.z-owner.position.z},forward)/Math.hypot(a.x-owner.position.x,a.y-owner.position.y,a.z-owner.position.z))[0]!
-      : {x:pose.x,y:pose.y+12,z:pose.z};
-    const offset={x:point.x-owner.position.x,y:point.y-owner.position.y,z:point.z-owner.position.z};
-    const distance=Math.hypot(offset.x,offset.y,offset.z);
-    if(distance>0 && distance<=COMBAT_RANGE){
-      const direction={x:offset.x/distance,y:offset.y/distance,z:offset.z/distance},speed=ballisticShotSpeed(owner.velocity,direction),v=pose.velocity;
-      const qa=v.x*v.x+v.y*v.y+v.z*v.z-speed*speed,qb=2*(offset.x*v.x+offset.y*v.y+offset.z*v.z),qc=distance*distance,disc=qb*qb-4*qa*qc;
-      const lead=disc>=0 && qa<0?Math.min(COMBAT_RANGE/speed,Math.max(0,(-qb-Math.sqrt(disc))/(2*qa))):0;
-      const local=targetInAircraftSpace(owner,{position:{x:point.x+v.x*lead,y:point.y,z:point.z+v.z*lead}});
-      if(aimGoal(local.x,local.y,local.z,goal))aim.targetId=`transport:${transport.attemptId}`;
+  if (candidate?.aligned) {
+    const muzzle = muzzleTransform(owner).position;
+    const intercept = combatIntercept(muzzle, owner.velocity, candidate.position, candidate.velocity);
+    if (intercept && !combatLineBlocked(owner, muzzle, intercept.point)) {
+      aim.leadPoint = intercept.point;
+      const local = targetInAircraftSpace({ ...owner, position: muzzle }, { position: intercept.point });
+      if (owner.skyDuelMode || candidate.angle <= SMART_ASSIST_CONE) assistedInterceptAim(local, goal, Boolean(owner.skyDuelMode));
     }
   }
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);
   stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
   aim.updatedAt = now;
-  const targetId = candidate && validDynamicTarget(ownerId, owner, candidate[0], now) ? candidate[0] : undefined;
+  const targetId = candidate && validDynamicTarget(ownerId, owner, candidate.id, now) ? candidate.id : undefined;
   setServerLock(ownerId, owner, targetId, true);
 }
 
-function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: string, now: number, transform: Transform = owner): PlayerState | undefined {
+function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: string, now: number, transform: Transform = owner): Pick<PlayerState, 'position'> | undefined {
   const aim = owner.assistedAim;
-  const target = players.get(targetId);
-  if (!aim || aim.targetId !== targetId || now - aim.updatedAt > 500 ||
-      owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs ||
-      !target || targetId === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
-      !sameCombatContext(owner, target) ||
-      focusedBotInteractionExcluded(ownerId, owner, targetId, target) ||
-      !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
-      target.lifeState !== 'alive' || now < target.spawnProtectedUntil ||
-      now - target.lastStateAt > combatTransformFreshMs) return undefined;
-  const local = targetInAircraftSpace(transform, target);
+  if (!aim || aim.targetId !== targetId || !aim.leadPoint || now - aim.updatedAt > 500 ||
+    owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs) return undefined;
+  const candidate = combatAimCandidates(ownerId, owner, now).find(item => item.id === targetId && item.aligned);
+  if (!candidate) return undefined;
+  const local = targetInAircraftSpace({ ...transform, position: muzzleTransform(transform).position }, { position: aim.leadPoint });
   if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
-  return target;
+  return candidate;
 }
 
 // The lock displayed to the shooter and the eligibility check at trigger time
@@ -5156,7 +5307,7 @@ function currentLockedTarget(
   targetId: string | undefined,
   now: number,
   fireTransform?: Transform,
-): PlayerState | undefined {
+): Pick<PlayerState, 'position'> | undefined {
   if (!targetId || owner.lockedTargetId !== targetId) return undefined;
   const transform = fireTransform ?? owner;
   return validDynamicTarget(ownerId, owner, targetId, now, transform);
@@ -5184,40 +5335,15 @@ function logFireBlocked(playerId: string, reason: string, now = Date.now()): voi
   console.info(`[combat] FIRE_BLOCKED ${reason} player=${playerId.slice(0, 8)}`);
 }
 
-function logLockShotReject(
-  ownerId: string,
-  owner: PlayerState,
-  targetId: string | undefined,
-  fireTransform: Transform | undefined,
-  reason: string,
-  now = Date.now(),
-): void {
-  if (!stabilityDiagnosticsEnabled) return;
-  const key = `${ownerId}:lock-shot:${reason}`;
-  if (now - (fireBlockedDebugAt.get(key) ?? 0) < 1_000) return;
-  fireBlockedDebugAt.set(key, now);
-  const transform = fireTransform ?? owner;
-  const target = targetId ? players.get(targetId) : undefined;
-  const offset = target ? {
-    x: target.position.x - transform.position.x,
-    y: target.position.y - transform.position.y,
-    z: target.position.z - transform.position.z,
-  } : undefined;
-  const distance = offset ? Math.hypot(offset.x, offset.y, offset.z) : Number.NaN;
-  const angle = offset && distance > 0
-    ? Math.acos(Math.max(-1, Math.min(1, dot(forwardDirection(transform), normalize(offset)))))
-    : Number.NaN;
-  console.info(`[combat] LOCK_SHOT_REJECT ${reason} distance=${Number.isFinite(distance) ? distance.toFixed(1) : 'n/a'}m angle=${Number.isFinite(angle) ? (angle * 180 / Math.PI).toFixed(2) : 'n/a'}deg player=${ownerId.slice(0, 8)}`);
-}
-
-function validatedShotAim(player: PlayerState, reference: unknown, now: number): { x: number; y: number } {
+function validatedShotAim(player: PlayerState, reference: unknown, now: number): { x: number; y: number } | undefined {
   const neutral = { x: 0, y: 0 };
-  if (!reference || typeof reference !== 'object') return neutral;
+  if (reference === undefined) return neutral;
+  if (!reference || typeof reference !== 'object') return undefined;
   const ref = reference as { from?: number; to?: number; blend?: number };
-  if (!Number.isFinite(ref.blend) || ref.blend! < 0 || ref.blend! > 1) return neutral;
+  if (!Number.isFinite(ref.blend) || ref.blend! < 0 || ref.blend! > 1) return undefined;
   const from = player.aimSamples?.find(sample => sample.id === ref.from);
   const to = player.aimSamples?.find(sample => sample.id === ref.to);
-  if (!from || !to || from.id > to.id || now - from.at > 600 || now - to.at > 500) return neutral;
+  if (!from || !to || from.id > to.id || now - from.at > 600 || now - to.at > 500) return undefined;
   return interpolateAim(from, to, ref.blend!, neutral);
 }
 
@@ -5261,6 +5387,7 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
     position: projectile.position,
     direction: projectile.direction,
     speed: projectile.speed,
+    serverNow: now,
     mode: projectile.mode,
     clientShotId: projectile.clientShotId,
   };
@@ -5304,19 +5431,19 @@ function broadcastProjectileStates(now: number): void {
     });
     statesByCity.set(projectile.cityId, states);
   }
-  for(const [owner,batch]of privateStatesByOwner)sendToPlayer(owner,{type:'projectileStates',projectiles:batch.map(p=>({projectileId:p.projectileId,position:p.position,direction:p.direction,mode:p.mode}))});
+  for(const [owner,batch]of privateStatesByOwner)sendToPlayer(owner,{type:'projectileStates',serverNow:now,projectiles:batch.map(p=>({projectileId:p.projectileId,position:p.position,direction:p.direction,mode:p.mode}))});
   for (const [id, batch] of duelStates) {
     const session = skyDuelSessions.get(id);
-    if (session) sendSkyDuel(session, { type: 'projectileStates', projectiles: batch.map(p => ({
+    if (session) sendSkyDuel(session, { type: 'projectileStates', serverNow: now, projectiles: batch.map(p => ({
       projectileId: p.projectileId, position: p.position, direction: p.direction, mode: p.mode,
     })) });
   }
   for (const [cityId, projectiles] of statesByCity) {
-    broadcastToCity(cityId, { type: 'projectileStates', projectiles });
+    broadcastToCity(cityId, { type: 'projectileStates', serverNow: now, projectiles });
   }
 }
 
-function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, damage: number, shotDistance = 0): boolean {
+function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: number, damage: number, shotDistance = 0, impact?: { impactId: string; impactPosition: Vector3 }): boolean {
   const victim = players.get(victimId);
   const owner = players.get(ownerId);
   if (
@@ -5331,7 +5458,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     const dealt = Math.min(victim.health, damage);
     victim.health -= dealt;
     sendSkyDuel(session, { type: 'damage', playerId: victimId, shooterId: ownerId,
-      health: victim.health, maxHealth: skyDuelHealth, damage: dealt });
+      health: victim.health, maxHealth: skyDuelHealth, damage: dealt, ...impact });
     if (victim.health === 0) {
       markPlayerDestroyed(victimId, victim, now);
       sendSkyDuel(session, { type: 'destroyed', cause: 'combat', playerId: victimId,
@@ -5409,7 +5536,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   airportRepairStays.delete(victimId);
   const damageMessage = {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health,
-    maxHealth: transportEscortHealth(victim.bot) ?? (victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType)), damage: damageDealt,
+    maxHealth: transportEscortHealth(victim.bot) ?? (victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType)), damage: damageDealt, ...impact,
   };
   if (victim.bot?.journeyRearGuardEscort && victim.bot.journeyTargetPlayerId) sendToPlayer(victim.bot.journeyTargetPlayerId, damageMessage);
   else if (victim.trainingOwnerId) sendToPlayer(victim.trainingOwnerId, damageMessage);
@@ -5645,45 +5772,6 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   updateKing(first.cityId);
   handleWantedDestruction(secondId, firstId, now);
   handleWantedDestruction(firstId, secondId, now);
-  return true;
-}
-
-function createAssistedShot(
-  playerId: string,
-  player: PlayerState,
-  targetId: string,
-  clientShotId: string | undefined,
-  fireTransform: Transform | undefined,
-  shotAim: { x: number; y: number },
-): boolean {
-  const now = Date.now();
-  const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
-  if (!target || !canFire(player, now)) return false;
-  const local = targetInAircraftSpace(fireTransform ?? player, target);
-  if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
-  player.lastFireAt = now;
-  sendIncomingFire(targetId, playerId);
-  const muzzle = muzzleTransform(fireTransform ?? player);
-  const assistedShot = {
-    type: 'assistedShot',
-    shotId: randomUUID(),
-    ownerId: playerId,
-    targetId,
-    origin: muzzle.position,
-    targetPosition: target.position,
-    clientShotId,
-  };
-  if (player.skyDuelMatchId) {
-    const session = skyDuelSessions.get(player.skyDuelMatchId);
-    if (session) sendSkyDuel(session, assistedShot);
-  } else if (target.bot?.journeyRearGuardEscort) sendToPlayer(playerId, assistedShot);
-  else broadcastToCity(player.cityId, assistedShot);
-  // A server-valid lock is an assisted hit.  Damage can only fail here if a
-  // concurrent lifecycle transition made the target invalid after validation;
-  // do not turn that already-emitted assisted shot into a second ballistic one.
-  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z))) {
-    logLockShotReject(playerId, player, targetId, fireTransform, 'damage_state_changed', now);
-  }
   return true;
 }
 
@@ -5939,6 +6027,11 @@ function updateProjectiles(deltaSeconds: number): void {
     projectile.position.z += projectile.direction.z * step;
     projectile.traveled += step;
 
+    if (!projectile.skyDuelMatchId && !projectile.skyDuelPractice &&
+      !transportEncounters.has(playerJourneyAttempts.get(projectile.ownerId) ?? '') &&
+      combatLineBlocked(owner, { x: previousX, y: previousY, z: previousZ }, projectile.position)) {
+      removeProjectile(projectile.projectileId); continue;
+    }
     const missionAttemptId = playerJourneyAttempts.get(projectile.ownerId);
     if (projectile.cityId === 'dallas' && missionAttemptId && monsterEncounters.has(missionAttemptId) &&
       (segmentBlockedByBuildings({ x: previousX, y: previousY, z: previousZ }, projectile.position, monsterDistrictBuildings) ||
@@ -5964,6 +6057,7 @@ function updateProjectiles(deltaSeconds: number): void {
     }
 
     let hitPlayerId: string | null = null;
+    let hitFraction = Infinity;
     for (const [playerId, player] of players) {
       if (
         playerId === projectile.ownerId ||
@@ -5982,15 +6076,20 @@ function updateProjectiles(deltaSeconds: number): void {
       const distance = Math.hypot(owner.position.x - player.position.x, owner.position.y - player.position.y, owner.position.z - player.position.z);
       const targetScale = owner.isBot && !player.isBot ? 1
         : player.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(distance);
-      if (sweptProjectileHit(player, previousX, previousY, previousZ, projectile.position, deltaSeconds, targetScale)) {
-        hitPlayerId = playerId;
-        break;
-      }
+      const radius = aircraftHitRadii[player.aircraftType] * targetScale * projectileHitRadiusMultiplier + projectileVisualRadius;
+      const fraction = projectileImpactFraction({ x: previousX, y: previousY, z: previousZ }, projectile.position,
+        player.position, player.velocity, deltaSeconds, radius);
+      if (fraction !== null && fraction < hitFraction) { hitPlayerId = playerId; hitFraction = fraction; }
+
     }
 
     if (hitPlayerId) {
+      projectile.position = { x: previousX + (projectile.position.x - previousX) * hitFraction,
+        y: previousY + (projectile.position.y - previousY) * hitFraction,
+        z: previousZ + (projectile.position.z - previousZ) * hitFraction };
       removeProjectile(projectile.projectileId);
-      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.damage, projectile.traveled);
+      applyCombatHit(projectile.ownerId, hitPlayerId, projectile.cityId, now, projectile.damage, projectile.traveled,
+        { impactId: projectile.projectileId, impactPosition: { ...projectile.position } });
       continue;
     }
 
@@ -7637,6 +7736,12 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
     player.lastAcceptedTransformAt = shift(player.lastAcceptedTransformAt);
     player.spawnProtectedUntil = shift(player.spawnProtectedUntil);
     player.lastFireAt = shift(player.lastFireAt);
+    if (player.assistedAim) {
+      player.assistedAim.updatedAt = shift(player.assistedAim.updatedAt);
+      player.assistedAim.selection.lastAlignedAt = shift(player.assistedAim.selection.lastAlignedAt);
+      player.assistedAim.selection.challengerSince = shift(player.assistedAim.selection.challengerSince);
+    }
+    for (const sample of player.aimSamples ?? []) sample.at = shift(sample.at);
     if (player.missionLastFlightAt !== undefined) player.missionLastFlightAt = shift(player.missionLastFlightAt);
   }
   for (const [botId, botPlayer] of players) {
@@ -8060,6 +8165,7 @@ server.on('connection', (socket, request) => {
     }
   }
   lastSentCredits.set(playerId, profile.credits);
+  players.get(playerId)!.acceptedStateSequence = undefined;
   playerSockets.set(socket, playerId);
   if (journeyAttempt) {
     playerJourneyAttempts.set(playerId, journeyAttempt.attemptId);
@@ -8246,6 +8352,7 @@ server.on('connection', (socket, request) => {
         aimHorizontal?: unknown;
         aimVertical?: unknown;
         aimSample?: unknown;
+        stateSequence?: unknown;
         clientShotId?: unknown;
         eventId?: unknown;
         challengeId?: unknown;
@@ -8842,34 +8949,25 @@ server.on('connection', (socket, request) => {
         const blocked = fireBlockReason(player, now);
         if (blocked) {
           logFireBlocked(playerId, blocked, now);
+          if (typeof message.clientShotId === 'string' && message.clientShotId.length <= 80) sendToPlayer(playerId, { type: 'shotRejected', clientShotId: message.clientShotId });
           return;
         }
         const clientShotId = typeof message.clientShotId === 'string' && message.clientShotId.length <= 80
           ? message.clientShotId
           : undefined;
-        const requestedTargetId = typeof message.targetId === 'string' ? message.targetId : undefined;
-        const fireTransform = validFireTransform(player, message.transform);
-        const shotAim = validatedShotAim(player, message.aimSample, now);
-        const assisted = requestedTargetId && requestedTargetId === player.lockedTargetId
-          ? createAssistedShot(playerId, player, requestedTargetId, clientShotId, fireTransform, shotAim)
-          : false;
-        if (requestedTargetId && !assisted && !players.get(requestedTargetId)?.bot?.journeyRearGuardEscort) {
-          logLockShotReject(
-            playerId,
-            player,
-            requestedTargetId,
-            fireTransform,
-            requestedTargetId === player.lockedTargetId ? 'lock_geometry' : 'stale_lock',
-            now,
-          );
+        if (clientShotId && player.recentShotIds?.has(clientShotId)) return;
+        if (clientShotId) {
+          const ids = player.recentShotIds ??= new Set<string>();
+          ids.add(clientShotId);
+          if (ids.size > 128) ids.delete(ids.values().next().value!);
         }
-        if (!assisted) {
-          if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
-            logFireBlocked(playerId, projectiles.size >= maxProjectiles ? 'projectile_cap' : 'invalid_state', now);
-          } else {
-            const lockedTarget = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);
-            if (lockedTarget && player.lockedTargetId) sendIncomingFire(player.lockedTargetId, playerId);
-          }
+        const shotAim = validatedShotAim(player, message.aimSample, now);
+        if (!shotAim || message.stateSequence !== undefined && message.stateSequence !== player.acceptedStateSequence ||
+          now - player.lastAcceptedTransformAt > combatTransformFreshMs ||
+          !createProjectile(playerId, player, clientShotId, undefined, shotAim)) {
+          if (clientShotId) sendToPlayer(playerId, { type: 'shotRejected', clientShotId });
+        } else if (currentLockedTarget(playerId, player, player.lockedTargetId, now)) {
+          sendIncomingFire(player.lockedTargetId!, playerId);
         }
         return;
       }
@@ -8923,6 +9021,8 @@ server.on('connection', (socket, request) => {
       }
 
       if (message.type !== 'state' || !message.position || !message.rotation) return;
+      if (message.stateSequence !== undefined && (!Number.isSafeInteger(message.stateSequence) ||
+        (message.stateSequence as number) <= (player.acceptedStateSequence ?? -1))) return;
 
       const stateNow = Date.now();
       const values = [
@@ -8978,6 +9078,7 @@ server.on('connection', (socket, request) => {
       player.position = message.position;
       player.lastAcceptedPosition = { ...message.position };
       player.lastAcceptedTransformAt = stateNow;
+      if (typeof message.stateSequence === 'number') player.acceptedStateSequence = message.stateSequence;
       player.rotation = message.rotation;
       player.boostActive = message.boostActive === true;
       // Transform packets never equip aircraft. Explicit equipAircraft above

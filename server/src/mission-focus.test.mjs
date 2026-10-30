@@ -56,7 +56,8 @@ test('focused-bot exclusion is reciprocal; Journey pilot isolation is applied se
 test('only the server-owned attempt and bot owner authorize the Hunter exception across combat paths', () => {
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(server, /missionFocusHunterTargets\.set\(playerId, focusedTargetId\)/);
-  assert.match(server, /attempt\.missionId === journeyDallas09\.id \|\| attempt\.missionId === journeyDallas14\.id/);
+  // Mission eligibility is exercised above through missionFocusForAttempt;
+  // this guard must use server-owned assignment and bot ownership, not a fixed mission list.
   assert.match(server, /hunter\?\.journeyTargetPlayerId === pilotId && hunter\.journeyAttemptId === playerJourneyAttempts\.get\(pilotId\)/);
   assert.match(server, /focusedBotInteractionExcluded\(ownerId, owner, victimId, victim\)/);
   assert.match(server, /focusedBotInteractionExcluded\(projectile\.ownerId, owner, playerId, player\)/);

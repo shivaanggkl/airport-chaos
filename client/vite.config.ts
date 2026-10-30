@@ -1,9 +1,14 @@
 import { defineConfig, type Connect, type Plugin } from 'vite';
 import { policyPage } from '../server/src/legal-pages.ts';
+import { resolve } from 'node:path';
 
 function publicPageMiddleware(request: Connect.IncomingMessage, response: Connect.ServerResponse, next: Connect.NextFunction): void {
   if (request.method !== 'GET' && request.method !== 'HEAD') { next(); return; }
   const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+  if (pathname === '/advertise' || pathname === '/sponsors' || /^\/sponsors\/[0-9a-f-]{36}$/.test(pathname)) {
+    request.url = '/advertise.html';
+    next(); return;
+  }
   const page = policyPage(pathname);
   if (!page) { next(); return; }
   response.statusCode = 200;
@@ -20,4 +25,7 @@ const publicPages = (): Plugin => ({
   configurePreviewServer(server) { server.middlewares.use(publicPageMiddleware); },
 });
 
-export default defineConfig({ plugins: [publicPages()] });
+export default defineConfig({
+  plugins: [publicPages()],
+  build: { rollupOptions: { input: { main: resolve(import.meta.dirname, 'index.html'), advertise: resolve(import.meta.dirname, 'advertise.html') } } },
+});
