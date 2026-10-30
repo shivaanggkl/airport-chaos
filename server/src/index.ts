@@ -2474,7 +2474,6 @@ const httpServer = createServer(async (request, response) => {
             for(const [id,player] of players){
               if(player.pilotId!==identity.pilotId||!player.tutorialMode)continue;
               if(slideRequest.slideId==='takeoff')sendTutorialScreenplayCruise(id,player);
-              if(slideRequest.slideId==='cameraZoom')createTrainingTarget(id,player);
               if(slideRequest.slideId==='approach')createTrainingTarget(id,player);
               if(slideRequest.slideId==='fire')sendTutorialLandingApproach(id,player,true);
             }
@@ -5549,7 +5548,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     !profileStore.trainingTargetFireAllowed(owner.pilotId))return false;
 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
-  const damageDealt = Math.min(victim.health, damage);
+  const damageDealt = Math.min(victim.health, victim.trainingOwnerId ? 1 : damage);
   victim.health -= damageDealt;
   if (victim.health > 0 && !owner.isBot) provokeJourneyHunter(ownerId, owner, victimId, now);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
@@ -5558,7 +5557,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   airportRepairStays.delete(victimId);
   const damageMessage = {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health,
-    maxHealth: transportEscortHealth(victim.bot) ?? (victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType)), damage: damageDealt, ...impact,
+    maxHealth: victim.trainingOwnerId ? 6 : transportEscortHealth(victim.bot) ?? (victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType)), damage: damageDealt, ...impact,
   };
   if (victim.bot?.journeyRearGuardEscort && victim.bot.journeyTargetPlayerId) sendToPlayer(victim.bot.journeyTargetPlayerId, damageMessage);
   else if (victim.trainingOwnerId) sendToPlayer(victim.trainingOwnerId, damageMessage);
@@ -6167,7 +6166,7 @@ function botStateMessage(playerId: string, player: PlayerState, type: 'state' | 
     altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
     aircraftType: player.aircraftType, cityId: player.cityId, displayName: player.displayName,
     lifeState: player.lifeState, health: player.health,
-    maxHealth: transportEscortHealth(player.bot) ?? (player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)), isBot: true,
+    maxHealth: player.trainingOwnerId ? 6 : transportEscortHealth(player.bot) ?? (player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)), isBot: true,
     botPersonality: player.bot?.personality, boostActive: false,
     ...(player.bot?.journeyRearGuardEscort ? { rearGuardEscort: true } : {}),
     ...(transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
@@ -6418,7 +6417,9 @@ function removeTrainingTarget(ownerId: string): void {
 const trainingApproachRange = Math.min(COMBAT_RANGE, 600);
 function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.now()): string | undefined {
   if (!owner.tutorialMode || owner.cityId !== 'milwaukee' || owner.lifeState !== 'alive' || !owner.hasRespawnTransform) return undefined;
-  const screenplay = profileStore.trainingSlideIndex(owner.pilotId) !== undefined;
+  const slideIndex = profileStore.trainingSlideIndex(owner.pilotId);
+  const screenplay = slideIndex !== undefined;
+  if (screenplay && slideIndex !== trainingSlideIds.indexOf('fire')) return undefined;
   const forward = forwardDirection(owner);
   const targetDistance = screenplay ? trainingApproachRange * 0.65 : trainingApproachRange + 150;
   const targetX = owner.position.x + forward.x * targetDistance;
@@ -6442,7 +6443,7 @@ function createTrainingTarget(ownerId: string, owner: PlayerState, now = Date.no
     pilotId: targetId, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId: owner.cityId, position: { x: targetX, y: targetY, z: targetZ },
     rotation: { x: 0, y: owner.rotation.y + Math.PI, z: 0 }, aircraftType: 'trainer',
-    displayName: 'TRAINING TARGET', score: 0, health: projectileDamageForAircraft('trainer'), lifeState: 'alive', hasRespawnTransform: true,
+    displayName: 'TRAINING TARGET', score: 0, health: 6, lifeState: 'alive', hasRespawnTransform: true,
     lastFireAt: 0, spawnProtectedUntil: 0, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
     lastStateAt: now, lastAcceptedPosition: { x: targetX, y: targetY, z: targetZ }, lastAcceptedTransformAt: now,
     chaosQaEnabled: false, tutorialMode: true, trainingOwnerId: ownerId, territoryIds: new Set(),
@@ -8312,7 +8313,7 @@ server.on('connection', (socket, request) => {
           botPersonality: player.bot?.personality,
           boostActive: player.boostActive,
           health: player.health,
-          maxHealth: transportEscortHealth(player.bot) ?? (player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)),
+          maxHealth: player.trainingOwnerId ? 6 : transportEscortHealth(player.bot) ?? (player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)),
           ...(player.bot?.journeyRearGuardEscort ? { rearGuardEscort: true } : {}),
           ...(transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
         })),

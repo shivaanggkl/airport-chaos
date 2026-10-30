@@ -109,6 +109,14 @@ export class HubInfoDialog {
     this.showAction(trigger, 'SIGN IN', signIn);
   }
 
+  openTrainingReplay(trigger: HTMLElement, replay: () => void): void {
+    this.heading.textContent = 'Train again?';
+    this.lead.textContent = '';
+    this.description.textContent = 'You already completed training.';
+    this.showAction(trigger, 'TRAIN AGAIN', replay);
+    this.actionClose.textContent = 'CANCEL';
+  }
+
   private showAction(trigger: HTMLElement, label: string, action: () => void): void {
     this.balance.hidden = true;
     this.contact.hidden = true;
@@ -126,6 +134,7 @@ export class HubInfoDialog {
     this.dialog.close();
     this.returnFocus?.focus();
     this.returnFocus = undefined;
+    this.actionClose.textContent = 'CLOSE';
   }
 
   private open(trigger: HTMLElement): void {

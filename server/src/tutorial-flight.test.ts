@@ -517,7 +517,7 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(main, /message\.type==='tutorialLandingApproach'/);
   assert.match(main, /message\.type==='tutorialStepResult'/);
   assert.match(main, /tutorialRunReset[\s\S]*TRAINING RESTARTED/);
-  assert.match(main, /message\.reason==='crash'&&message\.trainingSlideIndex!==undefined\)trainingSlides\.retryStage\(message\.trainingSlideIndex\)/);
+  assert.match(main, /message\.reason==='crash'&&message\.trainingSlideIndex!==undefined\)\{\s*trainingSlides\.retryStage\(message\.trainingSlideIndex\)/);
   assert.match(main, /guidedTrainingCrash[\s\S]*requestTutorialRunReset\('crash'\)/);
   assert.match(server, /resetTutorialRun\(player\.pilotId,message\.tutorialResetReason==='crash'\)[\s\S]*resetHumanToSafeRunway\(playerId,player,profile,Date\.now\(\),true,'trainer'\)/);
   assert.match(server, /if\(slide==='landing'\)sendTutorialLandingApproach\(playerId,player,true\)/);
@@ -529,4 +529,13 @@ test('training HUD provides authoritative fresh entry, persistent exits, and fre
   assert.match(css,/width:min\(310px/);
   assert.match(css,/width:min\(270px/);
   assert.match(css,/background:rgb\(9 28 43 \/ 76%\)/);
+});
+
+ test('screenplay isolates radar from combat and requires six authoritative hits', () => {
+  const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+  assert.match(server,/if \(screenplay && slideIndex !== trainingSlideIds.indexOf\('fire'\)\) return undefined/);
+  assert.doesNotMatch(server,/slideRequest.slideId==='cameraZoom'\)createTrainingTarget/);
+  assert.match(server,/health: 6, lifeState: 'alive'/);
+  assert.match(server,/Math.min\(victim.health, victim.trainingOwnerId \? 1 : damage\)/);
+  assert.match(server,/maxHealth: player.trainingOwnerId \? 6/);
 });

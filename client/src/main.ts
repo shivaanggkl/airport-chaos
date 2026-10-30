@@ -3979,6 +3979,9 @@ function endRun(message: EndReason, title: string = message, reportCrash = true)
     runStarted = false;
     return;
   }
+  if (trainingSlides.currentStep() === 'landing') trainingCrashFeedback = title.startsWith('CRASH — ')
+    ? `${title.slice(8)}. Line up, slow down and descend gently.`
+    : 'You hit an obstacle. Stay clear and line up with the runway.';
   cinematicDirector.clearPresentation();
   if (reportCrash && journeyMode && connectionReady()) socket.send(JSON.stringify({ type: 'journeyCrash' }));
   if (reportCrash && message === 'CRASHED' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'crash' }));
@@ -6060,6 +6063,7 @@ let screenplayTargetHitPending=false;
 let screenplayMapViewed=false;
 let screenplayLandingLastInputAt=0;
 let screenplayLandingVerified=false;
+let trainingCrashFeedback='';
 let trainingPaused=false;
 let trainingPauseDeadlineAt=0;
 let trainingPauseSlideIndex=0;
@@ -6206,6 +6210,12 @@ function updateTrainingScreenplay(delta:number):void{
     control=heldActions.has('throttleDown')||heldActions.has('throttleUp')||climb||descend||left||right;
     if(control){screenplayLandingLastInputAt=now;trainingSlides.beginAction(step);}
     screenplayFlightPaused=screenplayLandingLastInputAt===0||now-screenplayLandingLastInputAt>8_000;
+    const stage=tutorialLandingCoachStage({airport:centralAirport,position:airplane.position,heading,speed:currentSpeed,
+      verticalSpeed,altitude:altitudeAboveTerrain(),throttle,stallSpeed:currentAircraft.stallSpeed,takeoffSpeed:currentAircraft.takeoffSpeed,
+      safeLandingSpeed:currentAircraft.safeLandingSpeed,safeDescentRate:currentAircraft.safeDescentRate,
+      landingTilt:currentAircraft.landingTilt,roll,pitch,landingAssistActive});
+    trainingSlides.setGuidance(trainingCrashFeedback || tutorialLandingCoachInstruction(stage,tutorialInputMode(),mobileInput.getPitchInverted(),tutorialBindings).controlInstruction);
+    if(control)trainingCrashFeedback='';
     trainingSlides.updateProgress(step,delta,control||onGround);
   }
 }
@@ -6622,7 +6632,7 @@ function updateGuidedTutorial():void{
     // The lesson teaches the down-pitch control. Waiting for a 20 m altitude
     // loss makes the step lag behind the joystick while climb momentum fades.
     if(pitchControlStrength<=-.35&&altitudeAboveTerrain()>8)advanceGuidedTutorial('descentComplete');
-  }else if((guidedTutorialStep==='approach'||guidedTutorialStep==='targetLock'||guidedTutorialStep==='fire')&&!onGround&&connectionReady()&&
+  }else if((!trainingSlidesOpen||trainingSlides.currentStep()==='fire')&&(guidedTutorialStep==='approach'||guidedTutorialStep==='targetLock'||guidedTutorialStep==='fire')&&!onGround&&connectionReady()&&
     (!tutorialTargetId||!remotePlayers.has(tutorialTargetId))&&(!tutorialTargetRequested||performance.now()-tutorialTargetRequestedAt>=1_500)){
     tutorialTargetRequested=true;tutorialTargetRequestedAt=performance.now();socket.send(JSON.stringify({type:'tutorialTargetRequest'}));
   }
@@ -11396,7 +11406,10 @@ boundSocket.addEventListener('message', (event) => {
     guidedTutorialStep=message.nextStep;tutorialCompletionPending=false;tutorialIntroPending=trainingSlidesOpen;tutorialIntroShown=true;tutorialStepCompleting=false;tutorialStepRequestPending=false;tutorialStepRequestStep=undefined;tutorialCompletionPresentationStep=undefined;tutorialStepReconciler.reset();
     tutorialCompletionActions.hidden=true;trainingModeLabel.hidden=true;tutorialTargetRequested=false;tutorialTargetRequestedAt=Number.NEGATIVE_INFINITY;tutorialTargetId=undefined;resetTutorialLessonMetrics();restartGame(false);
     if(trainingSlidesOpen){
-      if(message.reason==='crash'&&message.trainingSlideIndex!==undefined)trainingSlides.retryStage(message.trainingSlideIndex);
+      if(message.reason==='crash'&&message.trainingSlideIndex!==undefined){
+        trainingSlides.retryStage(message.trainingSlideIndex);
+        if(trainingCrashFeedback)trainingSlides.setGuidance(trainingCrashFeedback);
+      }
       else void postTrainingSlides('start').then(started=>{
         if(!trainingSlidesOpen)return;
         if(started)trainingSlides.restart();

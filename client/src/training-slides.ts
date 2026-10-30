@@ -26,8 +26,8 @@ const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail:
   cameraLook: { title: 'LOOK AROUND', detail: 'Drag the view.', control: 'view', motion: 'right' },
   cameraZoom: { title: 'ZOOM', detail: 'Pinch the view.', control: 'view', motion: 'pinch' },
   approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar, then close the map.', control: 'radar', motion: 'tap' },
-  fire: { title: 'FIRE', detail: 'Fire at the locked target.', control: 'fire', motion: 'tap' },
-  landing: { title: 'LAND SAFELY', detail: 'Lower the speed lever. Use the joystick to line up with the runway and land.', control: 'landing', motion: 'down' },
+  fire: { title: 'FIRE', detail: 'Hold FIRE. Hit the target six times.', control: 'fire', motion: 'tap' },
+  landing: { title: 'LAND SAFELY', detail: 'Line up with the runway. Lower speed, then descend gently with wings level.', control: 'landing', motion: 'down' },
 };
 
 function needsHeldControl(step: TutorialLessonStep): boolean {
@@ -138,9 +138,9 @@ export class TrainingSlides {
 
   updateProgress(step: TutorialLessonStep, deltaSeconds: number, controlActive = this.actionObserved): void {
     if (!this.isPlayerTurn(step) || !this.playerActionStarted || !controlActive || this.completing) return;
-    this.playerActionMs = Math.min(10_000, this.playerActionMs + Math.max(0, deltaSeconds) * 1_000);
-    if (this.playerActionMs >= 10_000 && this.actionObserved) this.completeStep();
-    else this.renderProgress(Math.min(99, Math.floor(this.playerActionMs / 100)));
+    this.playerActionMs = Math.min(3_000, this.playerActionMs + Math.max(0, deltaSeconds) * 1_000);
+    if (this.playerActionMs >= 3_000 && this.actionObserved) this.completeStep();
+    else this.renderProgress(Math.min(99, Math.floor(this.playerActionMs / 30)));
   }
 
   private renderProgress(percent: number): void {
@@ -150,12 +150,16 @@ export class TrainingSlides {
     this.timeProgress.setAttribute('aria-valuenow', String(percent));
   }
 
+  setGuidance(detail: string): void {
+    if (this.active && !this.completing && this.detail.textContent !== detail) this.detail.textContent = detail;
+  }
+
   recordAction(step: TutorialLessonStep): void {
     if (!this.acceptsInput(step)) return;
     this.beginAction(step);
     this.actionObserved = true;
     this.status.textContent = needsHeldControl(step) ? 'NICE! KEEP HOLDING' : 'NICE!';
-    if (this.playerActionMs >= 10_000) this.completeStep();
+    if (this.playerActionMs >= 3_000) this.completeStep();
   }
 
   completeAction(step: TutorialLessonStep): void {

@@ -9,8 +9,7 @@
 #game-root.training-screenplay-active #flight-map-button{position:fixed;z-index:83;top:max(10px,calc(var(--safe-area-top) + 6px));right:max(16px,var(--safe-area-right));pointer-events:auto}
 #game-root.training-screenplay-active #right-flight-stack{top:max(72px,calc(var(--safe-area-top) + 62px))}
 #game-root.training-screenplay-active #flight-hud > :not(#flight-reference):not(#acquisition-circle):not(#target-feedback){display:none!important}
-#game-root.training-screenplay-active #mission-status-layer{top:max(10px,calc(var(--safe-area-top) + 6px));left:50%;width:min(480px,calc(100vw - 340px));transform:translateX(-50%)}
-body[data-training-slide-control="fire"] #game-root.training-screenplay-active #mission-status-layer{top:max(94px,calc(var(--safe-area-top) + 88px));left:max(16px,var(--safe-area-left));width:min(300px,calc(48vw - var(--safe-area-left) - 16px));transform:none}
+#game-root.training-screenplay-active #mission-status-layer{top:auto;bottom:max(12px,calc(var(--safe-area-bottom) + 8px));left:50%;width:min(480px,max(200px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 360px)));transform:translateX(-50%)}
 #game-root.training-screenplay-active #mission-status-layer > :not(.gameplay-info-card),
 #game-root.training-screenplay-active .gameplay-info-card.is-tutorial > :not(.training-screenplay){display:none!important}
 #game-root.training-screenplay-active .gameplay-info-card.is-tutorial{min-height:0;height:auto;max-height:none;padding:0;border:1px solid rgb(168 221 255 / 75%);border-left:4px solid var(--ui-gold);border-radius:10px;background:var(--gameplay-info-card-fill)}

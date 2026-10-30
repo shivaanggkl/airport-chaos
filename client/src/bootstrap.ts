@@ -2249,7 +2249,12 @@ registerUiBackLayer({
   close: returnFromCitySelection,
 });
 
-async function startTrainingFromHub(): Promise<void> {
+async function startTrainingFromHub(replayConfirmed = false): Promise<void> {
+  if (authoritativeHomeProfile?.tutorial?.completedAt && !replayConfirmed) {
+    hubInfoDialog.openTrainingReplay(document.activeElement instanceof HTMLElement ? document.activeElement : document.body,
+      () => { void startTrainingFromHub(true); });
+    return;
+  }
   if (entryState === 'TUTORIAL' || entryState === 'FLIGHT') return;
   const city = cities.find((candidate) => candidate.id === 'milwaukee' && candidate.status === 'available');
   if (!city || !cityCapabilities(city.id)?.tutorialEnabled) return;
