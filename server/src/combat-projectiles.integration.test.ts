@@ -178,6 +178,22 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre'),'nearby shot accepted');
         const nearbyShot=shooter.messages.find(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre')!;
         await wait(()=>shooter.messages.some(m=>m.type==='damage' && m.impactId===nearbyShot.projectileId),'off-centre target hit by actual travelling bullet');
+        target.goal = {x:shooter.pose!.x,y:shooter.pose!.y,z:shooter.pose!.z-1600};
+        await wait(()=>Math.hypot(target.pose!.x-target.goal!.x,target.pose!.y-target.goal!.y,target.pose!.z-target.goal!.z)<.01,'moving-contact setup',10000);
+        target.goal.x += 600;
+        let movingLocked = false;
+        for(let i=0;i<25;i++) {
+            shooter.send({type:'lock',targetId:target.id});
+            await delay(100);
+            const sample=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
+            if(i>8 && sample.targetId===target.id) {movingLocked=true;break;}
+        }
+        assert.ok(movingLocked,'normal moving contact retains server-confirmed lock');
+        const movingSample=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
+        shooter.send({type:'fire',clientShotId:'moving-contact',aimSample:{from:movingSample.aimId,to:movingSample.aimId,blend:1}});
+        await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn' && m.clientShotId==='moving-contact'),'moving shot accepted');
+        const movingShot=shooter.messages.find(m=>m.type==='projectileSpawn' && m.clientShotId==='moving-contact')!;
+        await wait(()=>shooter.messages.some(m=>m.type==='damage' && m.impactId===movingShot.projectileId),'moving target hit by a travelling round');
         shooter.send({ type: 'respawn' });
         await wait(() => shooter.messages.some(m => m.type === 'projectileRemove' && m.projectileId === turned.projectileId), 'respawn removes stale projectile');
     }

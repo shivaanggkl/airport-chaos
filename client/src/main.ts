@@ -91,7 +91,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { aimingReticleMarkup } from './aiming-reticle';
-import { combatAimAligned, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
+import { combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -5672,7 +5672,6 @@ let serverAimId = 0;
 let visualAimBlend = 1;
 const neutralAim = { x: 0, y: 0 };
 let serverAimTargetId: string | null = null;
-let serverLeadPoint: NetworkVector | undefined;
 let serverAimReceivedAt = -Infinity;
 let previousServerAimReceivedAt = -Infinity;
 const lockBoresightPoint = new THREE.Vector3();
@@ -8558,7 +8557,6 @@ function clearCombatTarget(): void {
   lockedTargetId = null;
   serverLockedTargetId = null;
   serverAimTargetId = null;
-  serverLeadPoint = undefined;
   serverAim.x = serverAim.y = 0;
   previousServerAim.x = previousServerAim.y = visualAim.x = visualAim.y = 0;
   previousAimId = serverAimId = 0;
@@ -8628,13 +8626,6 @@ function validateServerLock(targetId: string | null, delta: number): void {
   if (lockValidationElapsed < 0.1 || !localPlayerId || !connectionReady()) return;
   lockValidationElapsed = 0;
   socket.send(JSON.stringify({ type: 'lock', targetId, aimHorizontal: manualAimX, aimVertical: manualAimY }));
-}
-
-function visualFiringSolutionReady(): boolean {
-  if (!serverLeadPoint || performance.now() - serverAimReceivedAt > 500) return false;
-  getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
-  combatOffset.copy(serverLeadPoint).sub(transportReticleOrigin).applyQuaternion(combatInverseQuaternion);
-  return combatAimAligned(combatOffset, visualAim);
 }
 
 function updateCombatTarget(delta = 0): void {
@@ -8717,7 +8708,7 @@ function updateCombatTarget(delta = 0): void {
     selectedCombatTarget = null;
     updateLockCircle();
     combatLockState = 'SEARCHING';
-    acquisitionCircleElement.classList.toggle('locked', Boolean(freshAim && serverLockedTargetId?.startsWith('transport:') && visualFiringSolutionReady()));
+    acquisitionCircleElement.classList.toggle('locked', Boolean(freshAim && serverLockedTargetId?.startsWith('transport:')));
     acquisitionCircleElement.classList.remove('target-near');
     showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
     for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
@@ -8729,7 +8720,7 @@ function updateCombatTarget(delta = 0): void {
 
   combatOffset.copy(candidate.plane.position).sub(airplane.position).applyQuaternion(combatInverseQuaternion);
   const nearReticle = insideDynamicLock(combatOffset.x, combatOffset.y, combatOffset.z, visualAim);
-  const locked = assisted && serverLockedTargetId === targetId && visualFiringSolutionReady();
+  const locked = assisted && serverLockedTargetId === targetId;
   if (selectedCombatTarget) {
     selectedCombatTarget.remote = candidate;
     selectedCombatTarget.distance = candidateDistance;
@@ -11583,7 +11574,6 @@ boundSocket.addEventListener('message', (event) => {
     serverAim.x = message.aimX;
     serverAim.y = message.aimY;
     serverAimTargetId = message.candidateId ?? null;
-    serverLeadPoint = message.leadPoint;
     previousServerAimReceivedAt = serverAimReceivedAt;
     serverAimReceivedAt = performance.now();
     serverLockedTargetId = message.targetId ?? null;

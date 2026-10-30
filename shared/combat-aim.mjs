@@ -93,16 +93,16 @@ export function combatAimProjection(x, y, w, width, height, out) {
 }
 
 // Readiness is tighter than acquisition: the firing ray must converge within
-// two world units of the predicted intercept, not merely share a broad cone.
+// the existing target hit radius of the predicted intercept, not merely a broad cone.
 // This is feedback only; actual swept collision still decides damage.
-export function combatAimAligned(localPoint, aim) {
-  if (!finiteVector(localPoint) || !Number.isFinite(aim.x) || !Number.isFinite(aim.y)) return false;
+export function combatAimAligned(localPoint, aim, hitRadius = 2) {
+  if (!finiteVector(localPoint) || !Number.isFinite(aim.x) || !Number.isFinite(aim.y) || !Number.isFinite(hitRadius) || hitRadius <= 0) return false;
   const distance = Math.hypot(localPoint.x, localPoint.y, localPoint.z);
   if (distance <= 0 || distance > COMBAT_RANGE || !insideReadyEnvelope(localPoint)) return false;
   const length = Math.hypot(aim.x, aim.y, 1);
   const along = (localPoint.x * aim.x + localPoint.y * aim.y - localPoint.z) / length;
   return along > 0 && Math.hypot(localPoint.x - aim.x / length * along,
-    localPoint.y - aim.y / length * along, localPoint.z + along / length) <= 2;
+    localPoint.y - aim.y / length * along, localPoint.z + along / length) <= hitRadius;
 }
 function insideReadyEnvelope(point) {
   return point.z < 0 && Math.atan2(Math.hypot(point.x, point.y), -point.z) <= AIM_ENVELOPE;

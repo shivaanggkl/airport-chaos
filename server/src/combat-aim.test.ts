@@ -172,3 +172,11 @@ test('automatic acquisition converges on the nearby off-centre target without a 
     for(let frame=0;frame<180;frame++) stepAim(aim,goal,1/60,AIM_ENVELOPE);
     assert.equal(combatAimAligned(point,aim),true);
 });
+
+test('moving-target lock uses the actual hit size instead of an arbitrary two-metre point', () => {
+    const point={x:30,y:0,z:-2300}, aim={x:0,y:0};
+    assert.equal(combatAimAligned(point,aim),false);
+    assert.equal(combatAimAligned(point,aim,60),true,'normal tracking lag still intersects the existing aircraft hit area');
+    assert.equal(combatAimAligned({x:65,y:0,z:-2300},aim,60),false,'a genuine miss cannot turn red');
+    assert.equal(combatAimAligned(point,aim,NaN),false);
+});

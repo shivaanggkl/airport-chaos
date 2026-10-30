@@ -5293,7 +5293,12 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
   const intercept = combatIntercept(muzzle, owner.velocity, candidate.position, candidate.velocity);
   if (!intercept || combatLineBlocked(owner, muzzle, intercept.point)) return undefined;
   const local = targetInAircraftSpace({ ...transform, position: muzzle }, { position: intercept.point });
-  if (!combatAimAligned(local, aim)) return undefined;
+  const target = players.get(targetId);
+  const targetScale = target?.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(candidate.distance);
+  const hitRadius = target
+    ? aircraftHitRadii[target.aircraftType] * targetScale * projectileHitRadiusMultiplier + projectileVisualRadius
+    : 2;
+  if (!combatAimAligned(local, aim, hitRadius)) return undefined;
   return candidate;
 }
 

@@ -109,7 +109,7 @@ test('client prediction and server projectiles both derive direction from the sh
   assert.match(server, /rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)/);
   assert.match(client, /if \(distance > COMBAT_RANGE\)/);
   assert.match(client, /maxAuthoritativeProjectileAgeMs = \(COMBAT_RANGE \/ BASE_PROJECTILE_SPEED \+ 1\) \* 1_000/);
-  assert.match(server, /if \(!combatAimAligned\(local, aim\)\) return undefined/);
+  assert.match(server, /if \(!combatAimAligned\(local, aim, hitRadius\)\) return undefined/);
   const sharedAim = readFileSync(new URL('../../shared/combat-aim.mjs', import.meta.url), 'utf8');
   assert.match(sharedAim, /distance > COMBAT_RANGE/);
   assert.match(server, /COMBAT_RANGE - projectile\.traveled/);
