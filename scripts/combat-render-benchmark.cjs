@@ -54,7 +54,11 @@ const harness=`window.__combatQa = {
   clearProjectileVisuals();localPlayerId=beforeId;
   acquisitionCircleElement.classList.add('locked');
   const ringStroke=getComputedStyle(acquisitionCircleElement.querySelector('.aiming-reticle-ring')).stroke;
-  const bracketStroke=getComputedStyle(acquisitionCircleElement.querySelector('.aiming-reticle-brackets')).stroke;
+  acquisitionCircleElement.classList.add('confirmed-hit');
+  const lockedHitStroke=getComputedStyle(acquisitionCircleElement.querySelector('.aiming-reticle-ring')).stroke;
+  acquisitionCircleElement.classList.remove('confirmed-hit');
+  const bracketElement=acquisitionCircleElement.querySelector('.aiming-reticle-brackets');
+  const bracketStroke=bracketElement?getComputedStyle(bracketElement).stroke:null;
   const extraTargetBoxes=[...remotePlayers.values()].filter(r=>r.targetBrackets.visible).length;
   // Moving selected-target markers must stay on the rendered aircraft, not its lead point.
   const selected=remotePlayers.get('qa-1');let maxTargetMarkerError=0;
@@ -63,6 +67,7 @@ const harness=`window.__combatQa = {
     selected.plane.position.copy(airplane.position).add(new THREE.Vector3(160,40,-1600).applyQuaternion(airplane.quaternion));
     selectedCombatTarget={remote:selected,distance:1608,locked:true};
     visualAim.x=-.12;visualAim.y=.04;updateLockCircle();
+    if(typeof combatMarkerTransitionAt!=='undefined'){combatMarkerTransitionAt=performance.now()-200;updateLockCircle();}
     const projected=selected.plane.position.clone().project(camera);
     maxTargetMarkerError=Math.max(maxTargetMarkerError,Math.hypot(lockCircleCenterX-(projected.x*.5+.5)*window.innerWidth,lockCircleCenterY-(-projected.y*.5+.5)*window.innerHeight));
   }
@@ -78,8 +83,24 @@ const harness=`window.__combatQa = {
   }finally{socket=savedSocket;localPlayerId=savedId;protocolReady=savedReady;protocolBlocked=savedBlocked;}
   const newCandidateRequested=requests.some(m=>m.type==='lock'&&m.targetId);
   const unconfirmedStaysNeutral=!acquisitionCircleElement.classList.contains('locked');
+  let smoothAcquisition=null;
+  if(typeof combatMarkerTransitionAt!=='undefined'){
+    this.scene({count:2});
+    const one=remotePlayers.get('qa-0'),two=remotePlayers.get('qa-1');
+    one.plane.position.copy(airplane.position).add(new THREE.Vector3(-160,0,-1200));
+    two.plane.position.copy(airplane.position).add(new THREE.Vector3(160,0,-1200));
+    selectedCombatTarget={remote:one,distance:1210,locked:true};serverLockedTargetId=one.playerId;serverAimTargetId=one.playerId;serverAimReceivedAt=performance.now();
+    updateLockCircle();combatMarkerTransitionAt=performance.now()-200;updateLockCircle();const start=lockCircleCenterX;
+    selectedCombatTarget={remote:two,distance:1210,locked:true};serverLockedTargetId=two.playerId;serverAimTargetId=two.playerId;
+    updateLockCircle();const first=lockCircleCenterX,redDuringTravel=acquisitionCircleElement.classList.contains('locked');
+    combatMarkerTransitionAt=performance.now()-90;updateLockCircle();const middle=lockCircleCenterX;
+    combatMarkerTransitionAt=performance.now()-200;updateLockCircle();const end=lockCircleCenterX,redAfterTravel=acquisitionCircleElement.classList.contains('locked');
+    selectedCombatTarget=null;serverAimTargetId=null;serverLockedTargetId=null;updateLockCircle();const redAfterLoss=acquisitionCircleElement.classList.contains('locked');
+    smoothAcquisition={start,first,middle,end,redDuringTravel,redAfterTravel,redAfterLoss};
+  }
 
-  return {circleWidths:[first,second],ownSurvives,bounded,afterClear:clientProjectiles.size+predictedProjectiles.size,ringStroke,bracketStroke,extraTargetBoxes,maxTargetMarkerError,newCandidateRequested,unconfirmedStaysNeutral};
+
+  return {circleWidths:[first,second],ownSurvives,bounded,afterClear:clientProjectiles.size+predictedProjectiles.size,ringStroke,lockedHitStroke,bracketStroke,extraTargetBoxes,maxTargetMarkerError,newCandidateRequested,unconfirmedStaysNeutral,smoothAcquisition};
  },
  async measure(count,seconds=20){
   this.scene({count});

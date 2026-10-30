@@ -1,0 +1,35 @@
+TAP version 13
+# (node:33669) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+not ok 1 - real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+  ---
+  duration_ms: 33345.756708
+  type: 'test'
+  location: '/Users/shiva/Documents/GitHub/airport-chaos/server/src/combat-projectiles.integration.test.ts:83:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    close in-cone aircraft retains its confirmed lock: {"closeSample":{"type":"lockState","candidateId":"4c729b6f-67fc-453d-bcf4-4313f5b09b35","aimX":0.13483749746602533,"aimY":0.0014944382595546233,"aimId":31,"leadPoint":{"x":0,"y":401.2,"z":-34.99999999999999}},"shooter":{"x":0,"y":401.2,"z":45},"target":{"x":0,"y":401.2,"z":-35},"states":[{"type":"state","playerId":"4c729b6f-67fc-453d-bcf4-4313f5b09b35","position":{"x":0,"y":401.2,"z":-35},"altitudeMeters":401.2,"rotation":{"x":0,"y":0,"z":0},"aircraftType":"trainer","equippedCosmetics":{"livery:trainer":"bluejay-skybolt"},"cityId":"milwaukee","displayName":"Aim Two","lifeState":"alive","boostActive":false,"health":25,"maxHealth":100},{"type":"state","playerId":"4c729b6f-67fc-453d-bcf4-4313f5b09b35","position":{"x":0,"y":401.2,"z":-35},"altitudeMeters":401.2,"rotation":{"x":0,"y":0,"z":0},"aircraftType":"trainer","equippedCosmetics":{"livery:trainer":"bluejay-skybolt"},"cityId":"milwaukee","displayName":"Aim Two","lifeState":"alive","boostActive":false,"health":25,"maxHealth":100}],"damage":[{"type":"damage","playerId":"4c729b6f-67fc-453d-bcf4-4313f5b09b35","shooterId":"4e1e23e9-4a46-438e-a24a-733de1db476c","health":75,"maxHealth":100,"damage":25,"impactId":"1c3bf811-527f-4ffa-957c-7d346d5f1bcd","impactPosition":{"x":0,"y":401.1724413255319,"z":-699.7366735381358}},{"type":"damage","playerId":"4c729b6f-67fc-453d-bcf4-4313f5b09b35","shooterId":"4e1e23e9-4a46-438e-a24a-733de1db476c","health":50,"maxHealth":100,"damage":25,"impactId":"97680628-f3eb-4626-a221-7725f11a3286","impactPosition":{"x":164.3122357595271,"y":429.8907955064409,"z":-647.1865021692466}},{"type":"damage","playerId":"4c729b6f-67fc-453d-bcf4-4313f5b09b35","shooterId":"4e1e23e9-4a46-438e-a24a-733de1db476c","health":25,"maxHealth":100,"damage":25,"impactId":"41852686-9d58-416f-bdb2-1f8a3cb08877","impactPosition":{"x":280.78838446431894,"y":401.22171070982216,"z":-1494.229493746379}}],"destruction":[],"log":"(node:33671) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n[server] healthy and listening on http://0.0.0.0:54145\n[server] player connected: 4e1e23e9-4a46-438e-a24a-733de1db476c (1 humans online)\n[server] player connected: 4c729b6f-67fc-453d-bcf4-4313f5b09b35 (2 humans online)\n"}
+    + actual - expected
+    
+    + undefined
+    - '4c729b6f-67fc-453d-bcf4-4313f5b09b35'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '4c729b6f-67fc-453d-bcf4-4313f5b09b35'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/Users/shiva/Documents/GitHub/airport-chaos/server/src/combat-projectiles.integration.test.ts:204:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 33591.401

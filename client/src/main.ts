@@ -5677,6 +5677,12 @@ let previousServerAimReceivedAt = -Infinity;
 const lockBoresightPoint = new THREE.Vector3();
 const aimClipPoint = new THREE.Vector4();
 const aimScreenPoint = { x: 0, y: 0, edge: false, angle: 0 };
+let combatMarkerTargetId: string | null = null;
+let combatMarkerInitialized = false;
+let combatMarkerTransitionAt = -Infinity;
+const combatMarkerFrom = { x: 0, y: 0 };
+const combatMarkerLast = { x: 0, y: 0 };
+const combatMarkerTravelMs = 180;
 let combatShotPulseUntil = 0;
 let combatHitFlashUntil = 0;
 const transportReticleOrigin = new THREE.Vector3();
@@ -8536,11 +8542,31 @@ function updateLockCircle(): void {
   aimClipPoint.set(lockBoresightPoint.x, lockBoresightPoint.y, lockBoresightPoint.z, 1)
     .applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
   combatAimProjection(aimClipPoint.x, aimClipPoint.y, aimClipPoint.w, window.innerWidth, window.innerHeight, aimScreenPoint);
+  const markerId = confirmedTargetPosition ? selectedCombatTarget?.remote.playerId ?? serverAimTargetId : null;
+  const now = performance.now();
+  if (markerId !== combatMarkerTargetId) {
+    combatMarkerTargetId = markerId;
+    combatMarkerTransitionAt = now;
+    combatMarkerFrom.x = combatMarkerLast.x;
+    combatMarkerFrom.y = combatMarkerLast.y;
+  }
+  const travel = combatMarkerInitialized && !aimScreenPoint.edge
+    ? Math.min(1, (now - combatMarkerTransitionAt) / combatMarkerTravelMs) : 1;
+  if (travel < 1) {
+    const eased = 1 - (1 - travel) ** 3;
+    aimScreenPoint.x = THREE.MathUtils.lerp(combatMarkerFrom.x, aimScreenPoint.x, eased);
+    aimScreenPoint.y = THREE.MathUtils.lerp(combatMarkerFrom.y, aimScreenPoint.y, eased);
+  }
+  combatMarkerLast.x = aimScreenPoint.x;
+  combatMarkerLast.y = aimScreenPoint.y;
+  combatMarkerInitialized = true;
   const enabled = runStarted && !crashed && localLifeState === 'alive' && !journeyPaused && !trainingPaused &&
     !journeyPreflightActive() && !launchCinematicBlocksInput() && !transportView?.defeatActive && !transportView?.arrivalActive &&
     (!journeyMode || Boolean(journeyAttempt && journeyCombatMissionIds.has(journeyAttempt.missionId)));
   acquisitionCircleElement.style.visibility = enabled ? 'visible' : 'hidden';
   acquisitionCircleElement.classList.toggle('aim-edge', aimScreenPoint.edge);
+  acquisitionCircleElement.classList.toggle('locked', enabled && travel === 1 && markerId !== null &&
+    now - serverAimReceivedAt <= 500 && serverLockedTargetId === markerId);
   acquisitionCircleElement.classList.toggle('firing', performance.now() < combatShotPulseUntil);
   acquisitionCircleElement.classList.toggle('confirmed-hit', performance.now() < combatHitFlashUntil);
   acquisitionCircleElement.style.setProperty('--aim-edge-angle', `${aimScreenPoint.angle}rad`);
@@ -8566,6 +8592,8 @@ function clearCombatTarget(): void {
   serverAimReceivedAt = -Infinity;
   previousServerAimReceivedAt = -Infinity;
   combatLockState = 'SEARCHING';
+  combatMarkerInitialized = false;
+  combatMarkerTargetId = null;
   acquisitionCircleElement.classList.remove('target-near', 'locked');
   requestedLockTargetId = null;
   lockValidationElapsed = Number.POSITIVE_INFINITY;
@@ -8713,7 +8741,6 @@ function updateCombatTarget(delta = 0): void {
     selectedCombatTarget = null;
     updateLockCircle();
     combatLockState = 'SEARCHING';
-    acquisitionCircleElement.classList.toggle('locked', Boolean(freshAim && serverLockedTargetId?.startsWith('transport:')));
     acquisitionCircleElement.classList.remove('target-near');
     showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
     for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
@@ -8734,7 +8761,6 @@ function updateCombatTarget(delta = 0): void {
   updateLockCircle();
   combatLockState = locked ? 'LOCKED' : 'SEARCHING';
   acquisitionCircleElement.classList.toggle('target-near', assisted);
-  acquisitionCircleElement.classList.toggle('locked', locked);
   showTargetRangeFeedback(candidate, candidateDistance, true, locked);
   for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
   if (combatQaElement) {

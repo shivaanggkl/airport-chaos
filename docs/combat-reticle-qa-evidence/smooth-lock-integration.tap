@@ -1,0 +1,86 @@
+TAP version 13
+# (node:35241) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+ok 1 - real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+  ---
+  duration_ms: 34609.162
+  type: 'test'
+  ...
+# Subtest: M8, M9 and M10 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+ok 2 - M8, M9 and M10 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+  ---
+  duration_ms: 57428.472875
+  type: 'test'
+  ...
+# Subtest: threat direction follows the player-relative radar bearing
+ok 3 - threat direction follows the player-relative radar bearing
+  ---
+  duration_ms: 0.524209
+  type: 'test'
+  ...
+# Subtest: server warning events reuse authoritative human and bot combat state
+ok 4 - server warning events reuse authoritative human and bot combat state
+  ---
+  duration_ms: 1.378542
+  type: 'test'
+  ...
+# Subtest: the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target
+ok 5 - the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target
+  ---
+  duration_ms: 0.629666
+  type: 'test'
+  ...
+# Subtest: one shared warning drives HUD, radar, audio, and stale-threat cleanup
+ok 6 - one shared warning drives HUD, radar, audio, and stale-threat cleanup
+  ---
+  duration_ms: 1.046542
+  type: 'test'
+  ...
+# Subtest: aircraft fire rates use the same cadence on client and server
+ok 7 - aircraft fire rates use the same cadence on client and server
+  ---
+  duration_ms: 1.473
+  type: 'test'
+  ...
+# Subtest: Sky Duel uses the equipped aircraft flight envelope and resets controls at spawn
+ok 8 - Sky Duel uses the equipped aircraft flight envelope and resets controls at spawn
+  ---
+  duration_ms: 1.248708
+  type: 'test'
+  ...
+# Subtest: aircraft damage produces the approved regular-combat hit counts
+ok 9 - aircraft damage produces the approved regular-combat hit counts
+  ---
+  duration_ms: 1.576625
+  type: 'test'
+  ...
+# Subtest: grounded runway aircraft can fire, be targeted, and take projectile damage
+ok 10 - grounded runway aircraft can fire, be targeted, and take projectile damage
+  ---
+  duration_ms: 9.069708
+  type: 'test'
+  ...
+# Subtest: temporary spawn protection remains independent of runway state
+ok 11 - temporary spawn protection remains independent of runway state
+  ---
+  duration_ms: 0.387833
+  type: 'test'
+  ...
+# (node:35244) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+ok 12 - real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+  ---
+  duration_ms: 161192.631292
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 161451.790708

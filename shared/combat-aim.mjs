@@ -1,4 +1,4 @@
-import { AIM_ENVELOPE, COMBAT_RANGE, ballisticIntercept } from './protocol.mjs';
+import { AIM_ENVELOPE, COMBAT_RANGE, insideDynamicLock, ballisticIntercept } from './protocol.mjs';
 
 export const TARGET_SWITCH_DWELL_MS = 120;
 export const TARGET_TURN_GRACE_MS = 300;
@@ -59,14 +59,16 @@ const finiteVector = value => value && [value.x, value.y, value.z].every(Number.
 export const combatIntercept = ballisticIntercept;
 
 // Camera-independent aim goal within the same bounded acquisition area.
-// Selection outside that area never pulls the weapon after a target.
+// Callers filter the actual target through acquisition first. A moving target
+// can need lead beyond the gun travel; clamp at the edge instead of snapping home.
 export function assistedInterceptAim(localDirection, out) {
   out.x = out.y = 0;
   if (!finiteVector(localDirection) || localDirection.z >= -0.000001) return false;
-  const angle = Math.atan2(Math.hypot(localDirection.x, localDirection.y), -localDirection.z);
-  if (angle > Math.min(AIM_ENVELOPE, SMART_ASSIST_CONE)) return false;
-  out.x = localDirection.x / -localDirection.z;
-  out.y = localDirection.y / -localDirection.z;
+  const x = localDirection.x / -localDirection.z, y = localDirection.y / -localDirection.z;
+  const radius = Math.hypot(x, y), limit = Math.tan(Math.min(AIM_ENVELOPE, SMART_ASSIST_CONE));
+  const scale = radius > limit ? limit / radius : 1;
+  out.x = x * scale;
+  out.y = y * scale;
   return true;
 }
 
@@ -92,18 +94,10 @@ export function combatAimProjection(x, y, w, width, height, out) {
   out.edge = true; out.angle = Math.atan2(dy, dx); return out;
 }
 
-// Readiness is tighter than acquisition: the firing ray must converge within
-// the existing target hit radius of the predicted intercept, not merely a broad cone.
-// This is feedback only; actual swept collision still decides damage.
-export function combatAimAligned(localPoint, aim, hitRadius = 2) {
-  if (!finiteVector(localPoint) || !Number.isFinite(aim.x) || !Number.isFinite(aim.y) || !Number.isFinite(hitRadius) || hitRadius <= 0) return false;
-  const distance = Math.hypot(localPoint.x, localPoint.y, localPoint.z);
-  if (distance <= 0 || distance > COMBAT_RANGE || !insideReadyEnvelope(localPoint)) return false;
-  const length = Math.hypot(aim.x, aim.y, 1);
-  const along = (localPoint.x * aim.x + localPoint.y * aim.y - localPoint.z) / length;
-  return along > 0 && Math.hypot(localPoint.x - aim.x / length * along,
-    localPoint.y - aim.y / length * along, localPoint.z + along / length) <= hitRadius;
-}
-function insideReadyEnvelope(point) {
-  return point.z < 0 && Math.atan2(Math.hypot(point.x, point.y), -point.z) <= AIM_ENVELOPE;
+// Lock acquisition uses the same angular tolerance at every distance.
+// It confirms a reachable target, not an automatic or guaranteed damage event.
+export function combatLockReady(localPoint, aim) {
+  return finiteVector(localPoint) && Number.isFinite(aim.x) && Number.isFinite(aim.y) &&
+    Math.hypot(localPoint.x, localPoint.y, localPoint.z) <= COMBAT_RANGE &&
+    insideDynamicLock(localPoint.x, localPoint.y, localPoint.z, aim);
 }

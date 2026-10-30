@@ -48,7 +48,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { combatIntercept, combatAimAligned, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { combatIntercept, combatLockReady, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
@@ -5293,12 +5293,7 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
   const intercept = combatIntercept(muzzle, owner.velocity, candidate.position, candidate.velocity);
   if (!intercept || combatLineBlocked(owner, muzzle, intercept.point)) return undefined;
   const local = targetInAircraftSpace({ ...transform, position: muzzle }, { position: intercept.point });
-  const target = players.get(targetId);
-  const targetScale = target?.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(candidate.distance);
-  const hitRadius = target
-    ? aircraftHitRadii[target.aircraftType] * targetScale * projectileHitRadiusMultiplier + projectileVisualRadius
-    : 2;
-  if (!combatAimAligned(local, aim, hitRadius)) return undefined;
+  if (!combatLockReady(local, aim)) return undefined;
   return candidate;
 }
 

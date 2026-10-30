@@ -7011,7 +7011,8 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 #acquisition-circle.locked .aiming-reticle-ring { stroke: #ff4545; }
 
 #acquisition-circle.firing .aiming-reticle-ring { stroke-width: 2; }
-#acquisition-circle.confirmed-hit .aiming-reticle-ring { stroke: #ffda78; }
+#acquisition-circle.confirmed-hit .aiming-reticle-ring { stroke-width: 2.5; }
+#acquisition-circle.confirmed-hit:not(.locked) .aiming-reticle-ring { stroke: #ffda78; }
 #acquisition-circle.aim-edge .aiming-reticle-svg { display: none; }
 #acquisition-circle.aim-edge::after { content: ''; position: absolute; top: calc(50% - 5px); left: calc(50% - 5px); width: 10px; height: 10px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: rotate(calc(var(--aim-edge-angle) + 45deg)); filter: drop-shadow(0 1px 1px #10243b); }
 

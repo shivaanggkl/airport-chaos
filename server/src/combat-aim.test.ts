@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { performance } from 'node:perf_hooks';
-import { selectCombatTarget, combatAimAligned, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { selectCombatTarget, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
@@ -98,8 +98,8 @@ test('assistance covers the acquisition area, stays forward-only and bounded, an
     assert.equal(assistedInterceptAim({ x: .04, y: .02, z: -1 }, out), true);
     assert.ok(Math.hypot(out.x, out.y) < .10);
     assert.equal(assistedInterceptAim({ x: .30, y: 0, z: -1 }, out), true, 'nearby targets inside the acquisition area receive assistance in every mode');
-    assert.equal(assistedInterceptAim({ x: .4, y: 0, z: -1 }, out), false);
-    assert.deepEqual(out, { x: 0, y: 0 });
+    assert.equal(assistedInterceptAim({ x: .4, y: 0, z: -1 }, out), true);
+    assert.ok(Math.abs(out.x-Math.tan(AIM_ENVELOPE))<1e-12,'lead at the travel edge stays bounded instead of returning to centre');
     assert.equal(assistedInterceptAim({ x: 0, y: 0, z: 1 }, out), false);
 });
 test('actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit', () => {
@@ -153,14 +153,14 @@ test('bounded dense targeting/interception workload records timing without a har
     t.diagnostic(`20 candidates + intercept: ${((performance.now() - start) / 10000).toFixed(4)} ms/update`);
 });
 
-test('red readiness requires convergence, feasible travel range and forward acquisition', () => {
-    assert.equal(combatAimAligned({x:0,y:0,z:-4499}, {x:0,y:0}), true);
-    assert.equal(combatAimAligned({x:0,y:0,z:-4501}, {x:0,y:0}), false);
-    assert.equal(combatAimAligned({x:100,y:0,z:-4400}, {x:0,y:0}), false, 'old broad cone could signal ready despite a 100-unit miss');
-    assert.equal(combatAimAligned({x:100,y:0,z:-4400}, {x:100/4400,y:0}), true);
-    assert.equal(combatAimAligned({x:200,y:0,z:-730}, {x:200/730,y:0}), true);
-    assert.equal(combatAimAligned({x:0,y:0,z:730}, {x:0,y:0}), false);
-    assert.equal(combatAimAligned({x:0,y:0,z:-730}, {x:NaN,y:0}), false);
+test('red lock requires angular acquisition, feasible travel range and forward acquisition', () => {
+    assert.equal(combatLockReady({x:0,y:0,z:-4499}, {x:0,y:0}), true);
+    assert.equal(combatLockReady({x:0,y:0,z:-4501}, {x:0,y:0}), false);
+    assert.equal(combatLockReady({x:400,y:0,z:-4400}, {x:0,y:0}), false, 'targets outside the lock cone cannot turn red');
+    assert.equal(combatLockReady({x:100,y:0,z:-4400}, {x:100/4400,y:0}), true);
+    assert.equal(combatLockReady({x:200,y:0,z:-730}, {x:200/730,y:0}), true);
+    assert.equal(combatLockReady({x:0,y:0,z:730}, {x:0,y:0}), false);
+    assert.equal(combatLockReady({x:0,y:0,z:-730}, {x:NaN,y:0}), false);
     assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-4400},{x:0,y:0,z:-100}), null, 'inside current distance does not guarantee an intercept inside bullet travel');
 });
 
@@ -168,15 +168,25 @@ test('automatic acquisition converges on the nearby off-centre target without a 
     const point = {x:200,y:35,z:-730};
     const goal = {x:0,y:0}, aim = {x:0,y:0};
     assert.equal(assistedInterceptAim(point,goal),true);
-    assert.equal(combatAimAligned(point,aim),false);
+    assert.equal(combatLockReady(point,aim),false);
     for(let frame=0;frame<180;frame++) stepAim(aim,goal,1/60,AIM_ENVELOPE);
-    assert.equal(combatAimAligned(point,aim),true);
+    assert.equal(combatLockReady(point,aim),true);
 });
 
-test('moving-target lock uses the actual hit size instead of an arbitrary two-metre point', () => {
-    const point={x:30,y:0,z:-2300}, aim={x:0,y:0};
-    assert.equal(combatAimAligned(point,aim),false);
-    assert.equal(combatAimAligned(point,aim,60),true,'normal tracking lag still intersects the existing aircraft hit area');
-    assert.equal(combatAimAligned({x:65,y:0,z:-2300},aim,60),false,'a genuine miss cannot turn red');
-    assert.equal(combatAimAligned(point,aim,NaN),false);
+test('approaching targets keep the same angular lock rule through close range', () => {
+    for (const distance of [4400,2300,900,300,100,25]) {
+        const angle=.04, point={x:Math.sin(angle)*distance,y:0,z:-Math.cos(angle)*distance};
+        assert.equal(combatLockReady(point,{x:0,y:0}),true,`in-cone target at ${distance}`);
+        assert.equal(combatLockReady({x:Math.sin(.08)*distance,y:0,z:-Math.cos(.08)*distance},{x:0,y:0}),false);
+    }
+    assert.equal(combatLockReady({x:0,y:0,z:25},{x:0,y:0}),false,'passing behind clears a real lost lock');
+    assert.equal(combatLockReady({x:0,y:0,z:-4501},{x:0,y:0}),false,'range remains enforced');
+});
+
+test('lead crossing the travel boundary cannot reverse the aim toward centre', () => {
+    const inside={x:0,y:0},outside={x:0,y:0};
+    assistedInterceptAim({x:Math.tan(AIM_ENVELOPE-.001),y:0,z:-1},inside);
+    assistedInterceptAim({x:Math.tan(AIM_ENVELOPE+.001),y:0,z:-1},outside);
+    assert.ok(outside.x>=inside.x && outside.x-inside.x<.003);
+    assert.equal(outside.y,0);
 });

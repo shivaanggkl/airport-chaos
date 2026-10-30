@@ -2,10 +2,10 @@
 
 ## Changes
 
-- Reticle reduced from 112 to 96 px. Removed the separate box around a selected aircraft.
+- Reticle reduced from 112 to 96 px. Current version uses the circle alone, without brackets or a separate target box.
 - Locked readiness colours only the circle red. Brackets stay cyan; confirmed-hit flashes affect only the circle.
 - Automatic aiming now covers the existing shared acquisition cone instead of the narrower 0.10 rad assist cone. The same shared rule applies across combat missions and multiplayer; target protection remains authoritative.
-- Server readiness recomputes a feasible intercept and checks aircraft alignment against the existing authoritative aircraft hit radius. The previous broad angular predicate could report a lock while the bullet would miss by a large distance.
+- Server readiness recomputes a feasible intercept and uses the shared angular lock tolerance consistently across target distances. The previous broad angular predicate could report a lock while the bullet would miss by a large distance.
 - The client colours the circle directly from a fresh server-confirmed lock, without a duplicate geometric test against a delayed world position.
 
 Bullet travel remains capped at 4500 world units. Current target distance alone does not prove that an escaping target can be intercepted within that travel budget. A red firing solution predicts current motion; it cannot guarantee a hit if the target subsequently dodges. Bullets remain straight, independent and server-authoritative.
@@ -37,3 +37,17 @@ The circle previously projected the ballistic lead ray while naming the selected
 A fresh empty server candidate previously overwrote a newly eligible local candidate before sending its lock request. Local candidates now wake the confirmation request immediately; only a fresh server-confirmed target can turn red. Server eligibility, protection, damage and ballistics are unchanged by this correction.
 
 Matched client runtime fixtures against `2ccadc1` reproduced a maximum 78.60 px marker offset through tested turns/banks, reduced to zero after the correction. The new-candidate request check changed from false to true; unconfirmed candidates stayed neutral in both versions. Both runs had zero browser errors. These are controlled runtime fixtures, not physical-device gameplay approval. Twenty-one focused automated tests and the client build passed.
+
+## Circle-only smooth tracking closure
+
+Compared the earlier circle implementation at `d38e7b6` without changing branches or restoring historical source. Restored its angular lock acquisition rule rather than applying a separate point/hull tolerance to the red indicator. The existing 20.6-degree search/travel envelope and 4.5 km bullet-travel limit remain unchanged. A valid lock still requires a feasible, unobstructed intercept, current authoritative poses, eligible target/context and the shared forward lock cone. Red is an in-range acquired lock, not an automatic damage event or a guarantee against a subsequent dodge.
+
+Removed bracket paths. New target acquisition, switching and release use a 180 ms eased marker transition; once acquired, the marker follows the rendered aircraft without an additional tracking lag. The circle does not turn red while travelling to a different target, and stale/invalid/lost locks clear it. Confirmed-hit feedback pulses stroke thickness while preserving the red locked colour.
+
+A forward lead point crossing the weapon travel boundary previously zeroed the aim goal. It now clamps at the same boundary instead of reversing toward centre. Actual targets outside the server acquisition cone remain ineligible. This adds no steering range and changes no damage, fire rate, physical collision, mission protection or wallet authority.
+
+Runtime fixture checks verify monotonic transition progress, neutral colour during acquisition, red after arrival on a confirmed lock, immediate colour clearing on loss, red preserved during hit feedback, circle-only markup, zero settled marker error through tested turns/banks, and immediate new-candidate requests. These checks are controlled browser fixtures, not physical-device acceptance.
+
+The new real-server close test initially stopped sending aim requests during its approach, leaving a deliberately stale firing direction. Its recorded failure is retained as a test-setup diagnostic. The final scenario sends the real client's 10 Hz requests during approach, verifies the target remains alive, and asserts ten consecutive confirmed-lock samples at 80 metres. The same server scenario also verifies off-centre acquisition and actual moving-target bullet damage.
+
+Final validation: 34 tests passed (22 focused plus 12 integration/regression), zero failures; native/Web/server builds passed; updated QA app installed wirelessly. See the retained follow-up integration results for mission switching, protection, projectile authority and Sky Duel. Production is outside this QA/staging delivery.
