@@ -1,0 +1,345 @@
+TAP version 13
+# Subtest: shared angular aim limits project to 100px travel and 200px search
+ok 1 - shared angular aim limits project to 100px travel and 200px search
+  ---
+  duration_ms: 1.280959
+  type: 'test'
+  ...
+# Subtest: horizontal, vertical, and diagonal manual aim stay inside the shared envelope
+ok 2 - horizontal, vertical, and diagonal manual aim stay inside the shared envelope
+  ---
+  duration_ms: 0.351458
+  type: 'test'
+  ...
+# Subtest: targets beyond automatic travel can be found but require manual aim or steering to lock
+ok 3 - targets beyond automatic travel can be found but require manual aim or steering to lock
+  ---
+  duration_ms: 0.487625
+  type: 'test'
+  ...
+# Subtest: center, horizontal, vertical, and diagonal targets obey the 200px search boundary
+ok 4 - center, horizontal, vertical, and diagonal targets obey the 200px search boundary
+  ---
+  duration_ms: 0.552083
+  type: 'test'
+  ...
+# Subtest: updated travel retains the existing per-frame aim speed
+ok 5 - updated travel retains the existing per-frame aim speed
+  ---
+  duration_ms: 0.1755
+  type: 'test'
+  ...
+# Subtest: client prediction and server projectiles both derive direction from the shared aim sample
+ok 6 - client prediction and server projectiles both derive direction from the shared aim sample
+  ---
+  duration_ms: 3.9165
+  type: 'test'
+  ...
+# Subtest: delayed aim updates cannot restart interpolation through an expired previous sample
+ok 7 - delayed aim updates cannot restart interpolation through an expired previous sample
+  ---
+  duration_ms: 0.832917
+  type: 'test'
+  ...
+# Subtest: fully blended shots reference only the contributing aim sample; partial blends retain both references
+ok 8 - fully blended shots reference only the contributing aim sample; partial blends retain both references
+  ---
+  duration_ms: 0.229083
+  type: 'test'
+  ...
+# Subtest: one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+ok 9 - one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+  ---
+  duration_ms: 1.529125
+  type: 'test'
+  ...
+# Subtest: pointing outranks target distance and mission objective identity; invalid targets release immediately
+ok 10 - pointing outranks target distance and mission objective identity; invalid targets release immediately
+  ---
+  duration_ms: 0.103
+  type: 'test'
+  ...
+# Subtest: brief turns retain selection only while no aligned replacement exists
+ok 11 - brief turns retain selection only while no aligned replacement exists
+  ---
+  duration_ms: 0.068083
+  type: 'test'
+  ...
+# Subtest: interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+ok 12 - interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+  ---
+  duration_ms: 1.777084
+  type: 'test'
+  ...
+# Subtest: assistance covers the acquisition area, stays forward-only and bounded, and has no in-flight target dependency
+ok 13 - assistance covers the acquisition area, stays forward-only and bounded, and has no in-flight target dependency
+  ---
+  duration_ms: 0.273209
+  type: 'test'
+  ...
+# Subtest: actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+ok 14 - actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+  ---
+  duration_ms: 3.106667
+  type: 'test'
+  ...
+# Subtest: continuous collision returns earliest physical impact and detects fast crossing targets
+ok 15 - continuous collision returns earliest physical impact and detects fast crossing targets
+  ---
+  duration_ms: 0.290292
+  type: 'test'
+  ...
+# Subtest: bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+ok 16 - bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+  ---
+  duration_ms: 38.865375
+  type: 'test'
+  ...
+# 20 candidates + intercept: 0.0038 ms/update
+# Subtest: red lock requires angular acquisition, feasible travel range and forward acquisition
+ok 17 - red lock requires angular acquisition, feasible travel range and forward acquisition
+  ---
+  duration_ms: 0.396
+  type: 'test'
+  ...
+# Subtest: automatic acquisition converges on the nearby off-centre target without a second manual aiming action
+ok 18 - automatic acquisition converges on the nearby off-centre target without a second manual aiming action
+  ---
+  duration_ms: 0.529041
+  type: 'test'
+  ...
+# Subtest: approaching targets keep the same angular lock rule through close range
+ok 19 - approaching targets keep the same angular lock rule through close range
+  ---
+  duration_ms: 0.276666
+  type: 'test'
+  ...
+# Subtest: lead crossing the travel boundary cannot reverse the aim toward centre
+ok 20 - lead crossing the travel boundary cannot reverse the aim toward centre
+  ---
+  duration_ms: 0.131708
+  type: 'test'
+  ...
+# Subtest: automatic aim keeps its world direction through player bank, pitch and turn
+ok 21 - automatic aim keeps its world direction through player bank, pitch and turn
+  ---
+  duration_ms: 0.406375
+  type: 'test'
+  ...
+# (node:49131) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+ok 22 - real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+  ---
+  duration_ms: 37482.554958
+  type: 'test'
+  ...
+# Subtest: M8, M9 and M10 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+ok 23 - M8, M9 and M10 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+  ---
+  duration_ms: 57689.945292
+  type: 'test'
+  ...
+# Subtest: threat direction follows the player-relative radar bearing
+ok 24 - threat direction follows the player-relative radar bearing
+  ---
+  duration_ms: 0.65175
+  type: 'test'
+  ...
+# Subtest: server warning events reuse authoritative human and bot combat state
+ok 25 - server warning events reuse authoritative human and bot combat state
+  ---
+  duration_ms: 1.677667
+  type: 'test'
+  ...
+# Subtest: the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target
+ok 26 - the assigned Journey Hunter retaliates only after its pilot locks or hits the assigned target
+  ---
+  duration_ms: 1.141
+  type: 'test'
+  ...
+# Subtest: one shared warning drives HUD, radar, audio, and stale-threat cleanup
+ok 27 - one shared warning drives HUD, radar, audio, and stale-threat cleanup
+  ---
+  duration_ms: 1.39175
+  type: 'test'
+  ...
+# Subtest: all 24 missions use the requested Day, Night and Evening defaults
+ok 28 - all 24 missions use the requested Day, Night and Evening defaults
+  ---
+  duration_ms: 1.043166
+  type: 'test'
+  ...
+# Subtest: missions skip the chooser and reapply defaults from the received mission
+ok 29 - missions skip the chooser and reapply defaults from the received mission
+  ---
+  duration_ms: 1.553125
+  type: 'test'
+  ...
+# Subtest: Sky Duel consistently enters Evening without a time chooser
+ok 30 - Sky Duel consistently enters Evening without a time chooser
+  ---
+  duration_ms: 2.499167
+  type: 'test'
+  ...
+# Subtest: native transport selects the build backend while web remains same-origin
+ok 31 - native transport selects the build backend while web remains same-origin
+  ---
+  duration_ms: 1.349875
+  type: 'test'
+  ...
+# Subtest: native and web origin allowlist is exact
+ok 32 - native and web origin allowlist is exact
+  ---
+  duration_ms: 0.229667
+  type: 'test'
+  ...
+# Subtest: native auth uses official SDK adapters and never accepts client account authority
+ok 33 - native auth uses official SDK adapters and never accepts client account authority
+  ---
+  duration_ms: 5.325791
+  type: 'test'
+  ...
+# Subtest: web and native provider-link API requests are rejected before OAuth starts
+ok 34 - web and native provider-link API requests are rejected before OAuth starts
+  ---
+  duration_ms: 1.957125
+  type: 'test'
+  ...
+# Subtest: reconnect backoff is bounded and jittered
+ok 35 - reconnect backoff is bounded and jittered
+  ---
+  duration_ms: 0.242
+  type: 'test'
+  ...
+# Subtest: client uses one transport for REST and WebSocket and has no Capacitor server URL
+ok 36 - client uses one transport for REST and WebSocket and has no Capacitor server URL
+  ---
+  duration_ms: 3.163375
+  type: 'test'
+  ...
+# Subtest: iOS secure session transport pins each build to its configured backend
+ok 37 - iOS secure session transport pins each build to its configured backend
+  ---
+  duration_ms: 1.95275
+  type: 'test'
+  ...
+# Subtest: staging iOS keeps its player cache separate from production
+ok 38 - staging iOS keeps its player cache separate from production
+  ---
+  duration_ms: 2.877
+  type: 'test'
+  ...
+# Subtest: staging Token preview cannot start a native purchase
+ok 39 - staging Token preview cannot start a native purchase
+  ---
+  duration_ms: 2.607791
+  type: 'test'
+  ...
+# Subtest: realtime ticket issuance accepts a secure account or guest session
+ok 40 - realtime ticket issuance accepts a secure account or guest session
+  ---
+  duration_ms: 1.411375
+  type: 'test'
+  ...
+# Subtest: account and guest gameplay derive identity from a secure server session
+ok 41 - account and guest gameplay derive identity from a secure server session
+  ---
+  duration_ms: 1.937792
+  type: 'test'
+  ...
+# Subtest: new password accounts are disabled while historical password records remain untouched
+ok 42 - new password accounts are disabled while historical password records remain untouched
+  ---
+  duration_ms: 1.732792
+  type: 'test'
+  ...
+# Subtest: native offline recovery probes only while connectivity remains down
+ok 43 - native offline recovery probes only while connectivity remains down
+  ---
+  duration_ms: 2.077917
+  type: 'test'
+  ...
+# Subtest: gameplay bootstrap is not blocked by the initial realtime ticket request
+ok 44 - gameplay bootstrap is not blocked by the initial realtime ticket request
+  ---
+  duration_ms: 3.761917
+  type: 'test'
+  ...
+# Subtest: aircraft fire rates use the same cadence on client and server
+ok 45 - aircraft fire rates use the same cadence on client and server
+  ---
+  duration_ms: 1.281208
+  type: 'test'
+  ...
+# Subtest: Sky Duel uses the equipped aircraft flight envelope and resets controls at spawn
+ok 46 - Sky Duel uses the equipped aircraft flight envelope and resets controls at spawn
+  ---
+  duration_ms: 0.90925
+  type: 'test'
+  ...
+# Subtest: aircraft damage produces the approved regular-combat hit counts
+ok 47 - aircraft damage produces the approved regular-combat hit counts
+  ---
+  duration_ms: 1.550541
+  type: 'test'
+  ...
+# Subtest: grounded runway aircraft can fire, be targeted, and take projectile damage
+ok 48 - grounded runway aircraft can fire, be targeted, and take projectile damage
+  ---
+  duration_ms: 13.772916
+  type: 'test'
+  ...
+# Subtest: temporary spawn protection remains independent of runway state
+ok 49 - temporary spawn protection remains independent of runway state
+  ---
+  duration_ms: 0.512458
+  type: 'test'
+  ...
+# (node:49136) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+ok 50 - real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+  ---
+  duration_ms: 161175.623458
+  type: 'test'
+  ...
+# Subtest: accepts normal, boosted, skipped-packet, and bounded stunt movement
+ok 51 - accepts normal, boosted, skipped-packet, and bounded stunt movement
+  ---
+  duration_ms: 0.812292
+  type: 'test'
+  ...
+# Subtest: rejects instant horizontal and vertical teleports
+ok 52 - rejects instant horizontal and vertical teleports
+  ---
+  duration_ms: 0.092375
+  type: 'test'
+  ...
+# Subtest: rejects malformed and out-of-world positions
+ok 53 - rejects malformed and out-of-world positions
+  ---
+  duration_ms: 0.1025
+  type: 'test'
+  ...
+# Subtest: accepts physical aircraft rotation rates and rejects impossible attitude jumps
+ok 54 - accepts physical aircraft rotation rates and rejects impossible attitude jumps
+  ---
+  duration_ms: 0.168292
+  type: 'test'
+  ...
+# Subtest: bounded coordinated desktop turning remains valid within the aircraft envelope
+ok 55 - bounded coordinated desktop turning remains valid within the aircraft envelope
+  ---
+  duration_ms: 0.537
+  type: 'test'
+  ...
+1..55
+# tests 55
+# suites 0
+# pass 55
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 161681.15625

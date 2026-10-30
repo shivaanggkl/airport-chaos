@@ -91,7 +91,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { aimingReticleMarkup } from './aiming-reticle';
-import { combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
+import { rebaseCombatAim, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -4981,7 +4981,7 @@ type ServerMessage =
         mode: ProjectileMode;
       }>;
     }
-  | { type: 'lockState'; targetId?: string; candidateId?: string; aimX: number; aimY: number; aimId: number; leadPoint?: NetworkVector }
+  | { type: 'lockState'; targetId?: string; candidateId?: string; aimX: number; aimY: number; aimId: number; aimRotation?: NetworkVector; leadPoint?: NetworkVector }
   | { type: 'combatThreat'; attackerId: string; locked: boolean }
   | { type: 'incomingFire'; attackerId: string }
   | ({ type: 'heatState' } & NetworkHeatState)
@@ -5667,6 +5667,10 @@ const combatInverseQuaternion = new THREE.Quaternion();
 const visualAim = { x: 0, y: 0 };
 const serverAim = { x: 0, y: 0 };
 const previousServerAim = { x: 0, y: 0 };
+let serverAimRotation: NetworkVector | undefined;
+let previousServerAimRotation: NetworkVector | undefined;
+const rebasedPreviousAim = {x:0,y:0};
+const rebasedCurrentAim = {x:0,y:0};
 let previousAimId = 0;
 let serverAimId = 0;
 let visualAimBlend = 1;
@@ -8586,6 +8590,7 @@ function clearCombatTarget(): void {
   lockedTargetId = null;
   serverLockedTargetId = null;
   serverAimTargetId = null;
+  serverAimRotation = previousServerAimRotation = undefined;
   serverAim.x = serverAim.y = 0;
   previousServerAim.x = previousServerAim.y = visualAim.x = visualAim.y = 0;
   previousAimId = serverAimId = 0;
@@ -8734,7 +8739,11 @@ function updateCombatTarget(delta = 0): void {
   validateServerLock(targetId, delta);
   const assisted = Boolean(serverCandidate && freshAim);
   visualAimBlend = combatAimBlend(previousServerAimReceivedAt, serverAimReceivedAt, performance.now());
-  if (freshAim) interpolateAim(previousServerAim, serverAim, visualAimBlend, visualAim);
+  if (freshAim) {
+    rebaseCombatAim(previousServerAim, previousServerAimRotation, airplane.rotation, rebasedPreviousAim);
+    rebaseCombatAim(serverAim, serverAimRotation, airplane.rotation, rebasedCurrentAim);
+    interpolateAim(rebasedPreviousAim, rebasedCurrentAim, visualAimBlend, visualAim);
+  }
   else visualAim.x = visualAim.y = 0;
 
   if (!candidate || !assisted) {
@@ -11597,10 +11606,13 @@ boundSocket.addEventListener('message', (event) => {
     localShotAircraftTypes.delete(message.clientShotId);
   } else if (message.type === 'lockState') {
     if (!Number.isFinite(message.aimX) || !Number.isFinite(message.aimY) || !Number.isSafeInteger(message.aimId) || message.aimId <= serverAimId) return;
+    if (message.aimRotation && ![message.aimRotation.x, message.aimRotation.y, message.aimRotation.z].every(Number.isFinite)) return;
+    previousServerAimRotation = serverAimRotation;
+    serverAimRotation = message.aimRotation;
     previousServerAim.x = serverAim.x;
     previousServerAim.y = serverAim.y;
     previousAimId = serverAimId || message.aimId;
-    if (!serverAimId) { previousServerAim.x = message.aimX; previousServerAim.y = message.aimY; }
+    if (!serverAimId) { previousServerAim.x = message.aimX; previousServerAim.y = message.aimY; previousServerAimRotation=serverAimRotation; }
     serverAimId = message.aimId;
     serverAim.x = message.aimX;
     serverAim.y = message.aimY;

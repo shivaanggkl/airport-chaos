@@ -101,3 +101,23 @@ export function combatLockReady(localPoint, aim) {
     Math.hypot(localPoint.x, localPoint.y, localPoint.z) <= COMBAT_RANGE &&
     insideDynamicLock(localPoint.x, localPoint.y, localPoint.z, aim);
 }
+
+// Re-express a server-issued automatic aim direction in the current aircraft
+// frame (Euler YXZ). No client geometry or target position is trusted here.
+export function rebaseCombatAim(aim, from, to, out) {
+  if (!from) { out.x=aim.x; out.y=aim.y; return out; }
+  let x=aim.x, y=aim.y, z=-1;
+  let c=Math.cos(from.z), s=Math.sin(from.z), a=c*x-s*y; y=s*x+c*y; x=a;
+  c=Math.cos(from.x);s=Math.sin(from.x);a=c*y-s*z;z=s*y+c*z;y=a;
+  c=Math.cos(from.y);s=Math.sin(from.y);a=c*x+s*z;z=-s*x+c*z;x=a;
+  c=Math.cos(to.y);s=Math.sin(to.y);a=c*x-s*z;z=s*x+c*z;x=a;
+  c=Math.cos(to.x);s=Math.sin(to.x);a=c*y+s*z;z=-s*y+c*z;y=a;
+  c=Math.cos(to.z);s=Math.sin(to.z);a=c*x+s*y;y=-s*x+c*y;x=a;
+  out.x=out.y=0;
+  if (z < -0.000001) {
+    const lateral=Math.hypot(x,y),limit=Math.tan(AIM_ENVELOPE);
+    const scale=lateral>0?Math.min(1/-z,limit/lateral):0;
+    out.x=x*scale;out.y=y*scale;
+  }
+  return out;
+}

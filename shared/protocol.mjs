@@ -1,6 +1,6 @@
 // This number is intentionally shared by the browser and the Node server.
 // Increment it whenever a websocket payload changes incompatibly.
-export const PROTOCOL_VERSION = 29;
+export const PROTOCOL_VERSION = 30;
 // One authoritative range drives acquisition, projectile travel,
 // intercept feasibility, and Hunter firing eligibility.
 export const COMBAT_RANGE = 4500;

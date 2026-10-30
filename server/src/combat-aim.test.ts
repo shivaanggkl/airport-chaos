@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { performance } from 'node:perf_hooks';
-import { selectCombatTarget, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
@@ -189,4 +189,22 @@ test('lead crossing the travel boundary cannot reverse the aim toward centre', (
     assistedInterceptAim({x:Math.tan(AIM_ENVELOPE+.001),y:0,z:-1},outside);
     assert.ok(outside.x>=inside.x && outside.x-inside.x<.003);
     assert.equal(outside.y,0);
+});
+
+test('automatic aim keeps its world direction through player bank, pitch and turn', () => {
+    for (const from of [{x:0,y:0,z:0},{x:.1,y:.2,z:.6},{x:-.1,y:-.2,z:-.6}]) {
+        const aim={x:.06,y:.03};
+        const world=new THREE.Vector3(aim.x,aim.y,-1).normalize().applyEuler(new THREE.Euler(from.x,from.y,from.z,'YXZ'));
+        for (const to of [{x:from.x+.06,y:from.y+.1,z:from.z+.5},{x:from.x-.06,y:from.y-.1,z:from.z-.5}]) {
+            const corrected=rebaseCombatAim(aim,from,to,{x:0,y:0});
+            const actual=new THREE.Vector3(corrected.x,corrected.y,-1).normalize().applyEuler(new THREE.Euler(to.x,to.y,to.z,'YXZ'));
+            assert.ok(actual.angleTo(world)<1e-6,'bank/turn cannot drag a saved automatic firing vector');
+            const old=new THREE.Vector3(aim.x,aim.y,-1).normalize().applyEuler(new THREE.Euler(to.x,to.y,to.z,'YXZ'));
+            assert.ok(old.angleTo(world)>.06,'old aircraft-local reuse reproduces loss of lock');
+        }
+    }
+    const manual={x:.1,y:.02};
+    assert.deepEqual(rebaseCombatAim(manual,undefined,{x:1,y:1,z:1},{x:0,y:0}),manual,'manual/no-target samples remain aircraft-relative');
+    const clamped=rebaseCombatAim({x:0,y:0},{x:0,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0});
+    assert.ok(Math.atan(Math.hypot(clamped.x,clamped.y))<=AIM_ENVELOPE+1e-12);
 });

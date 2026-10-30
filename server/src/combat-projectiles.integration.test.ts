@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
@@ -13,7 +15,7 @@ import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
-import { combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
+import { combatShotAimSample, combatAimBlend, combatLockReady } from '../../shared/combat-aim.mjs';
 type Vec = {
     x: number;
     y: number;
@@ -51,6 +53,8 @@ class Client {
     goalYaw = 0;
     pitch = 0;
     goalPitch = 0;
+    roll = 0;
+    goalRoll = 0;
     id = '';
     aimTargetId?: string;
     constructor(port: number, cookie: string, readonly city: 'milwaukee' | 'dallas' = 'milwaukee', attempt?: string) {
@@ -77,7 +81,8 @@ class Client {
         this.pose = { x: step(this.pose.x, this.goal.x, this.city === 'dallas' ? 85 : 6), y: step(this.pose.y, this.goal.y, this.city === 'dallas' ? 40 : 8), z: step(this.pose.z, this.goal.z, this.city === 'dallas' ? 85 : 15) };
         this.yaw = step(this.yaw, this.goalYaw, .04);
         this.pitch = step(this.pitch, this.goalPitch, .02);
-        this.send({ type: 'state', position: this.pose, rotation: { x: this.pitch, y: this.yaw, z: 0 }, boostActive: false });
+        this.roll = step(this.roll, this.goalRoll, .04);
+        this.send({ type: 'state', position: this.pose, rotation: { x: this.pitch, y: this.yaw, z: this.roll }, boostActive: false });
     }
 }
 test('real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction', { timeout: 75000 }, async () => {
@@ -173,13 +178,33 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         const nearby=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
         assert.equal(nearby.targetId,target.id,'nearby target receives an accurate automatic firing solution');
         assert.ok(nearby.aimX>.2,'assistance reaches the existing detection area beyond the old 0.10 rad limit');
-        assert.ok(shooter.messages.slice(acquireStart).some(m=>m.type==='lockState' && m.candidateId===target.id && !m.targetId),'selection does not declare a lock before convergence');
+        for(const lock of shooter.messages.slice(acquireStart).filter(m=>m.type==='lockState'&&m.targetId===target.id)) {
+            const rotation=lock.aimRotation;
+            assert.ok(rotation&&lock.leadPoint,'a confirmed lock publishes its authoritative aim frame and intercept');
+            const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(rotation.x,rotation.y,rotation.z,'YXZ'));
+            const muzzle=new THREE.Vector3().copy(aircraftPresentationMuzzleSockets.trainer.position).applyQuaternion(q).add(new THREE.Vector3().copy(shooter.pose!));
+            const local=new THREE.Vector3().copy(lock.leadPoint).sub(muzzle).applyQuaternion(q.invert());
+            assert.equal(combatLockReady(local,{x:lock.aimX,y:lock.aimY}),true,'lock is only confirmed after actual angular convergence, including when already aligned');
+        }
         shooter.send({type:'fire',clientShotId:'nearby-offcentre',aimSample:{from:nearby.aimId,to:nearby.aimId,blend:1}});
         await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre'),'nearby shot accepted');
         const nearbyShot=shooter.messages.find(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre')!;
         await wait(()=>shooter.messages.some(m=>m.type==='damage' && m.impactId===nearbyShot.projectileId),'off-centre target hit by actual travelling bullet');
         target.goal = {x:shooter.pose!.x,y:shooter.pose!.y,z:shooter.pose!.z-1600};
         await wait(()=>Math.hypot(target.pose!.x-target.goal!.x,target.pose!.y-target.goal!.y,target.pose!.z-target.goal!.z)<.01,'moving-contact setup',10000);
+        const curveStart=shooter.messages.length;
+        for(let segment=0;segment<6;segment++) {
+            target.goal={x:shooter.pose!.x+Math.sin(segment*.4)*180,y:shooter.pose!.y,z:shooter.pose!.z-1600+Math.cos(segment*.4)*80};
+            target.goalYaw=Math.sin(segment*.4)*.2;target.goalRoll=Math.sin(segment*.4)*.4;
+            for(let sample=0;sample<4;sample++) {
+                shooter.send({type:'lock',targetId:target.id});await delay(100);
+                const tracking=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
+                assert.equal(tracking.targetId,target.id,'eligible curving contact remains acquired while its lead changes');
+            }
+        }
+        const curveStates=shooter.messages.slice(curveStart).filter(m=>m.type==='state'&&m.playerId===target.id);
+        assert.ok(Math.max(...curveStates.map(m=>m.position.x))-Math.min(...curveStates.map(m=>m.position.x))>60,'authoritative opponent actually travels sideways');
+        assert.ok(Math.max(...curveStates.map(m=>m.position.z))-Math.min(...curveStates.map(m=>m.position.z))>20,'authoritative opponent follows a curved path');
         target.goal.x += 600;
         let movingLocked = false;
         for(let i=0;i<25;i++) {
@@ -209,6 +234,18 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
             const closeSample=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
             assert.equal(closeSample.targetId,target.id,'close in-cone aircraft retains its confirmed lock: '+JSON.stringify(closeSample));
         }
+        shooter.send({type:'lock',targetId:target.id});await delay(100);
+        const bankSample=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
+        assert.ok(bankSample.aimRotation,'automatic samples carry their authoritative orientation');
+        const bankStart=shooter.messages.length;
+        shooter.goalYaw=.12;shooter.goalPitch=.06;shooter.goalRoll=.5;
+        await delay(320);
+        assert.equal(shooter.messages.slice(bankStart).some(m=>m.type==='lockState'&&!m.targetId),false,'accepted bank/turn cannot invalidate a stationary world target');
+        shooter.send({type:'fire',clientShotId:'banked-saved-aim',aimSample:{from:bankSample.aimId,to:bankSample.aimId,blend:1}});
+        await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn'&&m.clientShotId==='banked-saved-aim'),'saved automatic sample accepted after bank/turn');
+        const bankShot=shooter.messages.find(m=>m.type==='projectileSpawn'&&m.clientShotId==='banked-saved-aim')!;
+        assert.ok(Math.abs(bankShot.direction.x)<.01&&Math.abs(bankShot.direction.y)<.01&&bankShot.direction.z<-.99,'saved aim keeps its world direction instead of rotating with the aircraft');
+        await wait(()=>shooter.messages.some(m=>m.type==='damage'&&m.impactId===bankShot.projectileId),'banked shot hits through real authoritative projectile travel');
         shooter.send({ type: 'respawn' });
         await wait(() => shooter.messages.some(m => m.type === 'projectileRemove' && m.projectileId === turned.projectileId), 'respawn removes stale projectile');
     }

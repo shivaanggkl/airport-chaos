@@ -48,7 +48,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { combatIntercept, combatLockReady, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { combatIntercept, combatLockReady, rebaseCombatAim, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
@@ -111,10 +111,10 @@ type PlayerState = Transform & {
   lastFireAt: number;
   spawnProtectedUntil: number;
   lockedTargetId?: string;
-  assistedAim?: { x: number; y: number; updatedAt: number; targetId?: string; selection: CombatSelection; leadPoint?: Vector3 };
+  assistedAim?: { x: number; y: number; updatedAt: number; targetId?: string; selection: CombatSelection; leadPoint?: Vector3; rotation?: Vector3; trackingTargetId?: string };
   recentShotIds?: Set<string>;
   acceptedStateSequence?: number;
-  aimSamples?: Array<{ id: number; x: number; y: number; at: number; targetId?: string }>;
+  aimSamples?: Array<{ id: number; x: number; y: number; at: number; targetId?: string; rotation?: Vector3 }>;
   aimSequence?: number;
   velocity: Vector3;
   lastStateAt: number;
@@ -2648,11 +2648,11 @@ function sendLockState(playerId: string, targetId?: string): void {
   const aim = player.assistedAim;
   for (const [socket, socketPlayerId] of playerSockets) {
     if (socketPlayerId === playerId && socket.readyState === WebSocket.OPEN) {
-      const sample = { id: player.aimSequence = (player.aimSequence ?? 0) + 1, x: aim?.x ?? 0, y: aim?.y ?? 0, at: Date.now(), targetId: aim?.targetId };
+      const sample = { id: player.aimSequence = (player.aimSequence ?? 0) + 1, x: aim?.x ?? 0, y: aim?.y ?? 0, at: Date.now(), targetId: aim?.targetId, rotation: aim?.rotation };
       const samples = player.aimSamples ??= [];
       samples.push(sample);
       if (samples.length > 8) samples.shift();
-      sendSocketMessage(socket, { type: 'lockState', targetId, candidateId: aim?.targetId, aimX: sample.x, aimY: sample.y, aimId: sample.id, leadPoint: aim?.leadPoint });
+      sendSocketMessage(socket, { type: 'lockState', targetId, candidateId: aim?.targetId, aimX: sample.x, aimY: sample.y, aimId: sample.id, aimRotation: sample.rotation, leadPoint: aim?.leadPoint });
       return;
     }
   }
@@ -5261,6 +5261,7 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
   if (owner.assistedAim && now - owner.assistedAim.updatedAt < 50) return;
   const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now,
     selection: { challengerSince: now, lastAlignedAt: now } };
+  if (aim.rotation) rebaseCombatAim(aim, aim.rotation, owner.rotation, aim);
   const candidates = owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
     ? combatAimCandidates(ownerId, owner, now) : [];
   const candidate = selectCombatTarget(aim.selection, candidates, now);
@@ -5276,10 +5277,15 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
       if (candidate.angle <= SMART_ASSIST_CONE) assistedInterceptAim(local, goal);
     }
   }
+  const automatic = Boolean(candidate?.aligned && aim.leadPoint && !manualHorizontal && !manualVertical);
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);
-  stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
+  if (automatic && aim.trackingTargetId === candidate!.id) { aim.x=goal.x; aim.y=goal.y; }
+  else stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
+  aim.rotation = automatic ? {...owner.rotation} : undefined;
+  if (!automatic || aim.trackingTargetId !== candidate?.id) aim.trackingTargetId = undefined;
   aim.updatedAt = now;
   const targetId = candidate && validDynamicTarget(ownerId, owner, candidate.id, now) ? candidate.id : undefined;
+  if (targetId && automatic) aim.trackingTargetId = targetId;
   setServerLock(ownerId, owner, targetId, true);
 }
 
@@ -5342,7 +5348,9 @@ function validatedShotAim(player: PlayerState, reference: unknown, now: number):
   const from = player.aimSamples?.find(sample => sample.id === ref.from);
   const to = player.aimSamples?.find(sample => sample.id === ref.to);
   if (!from || !to || from.id > to.id || now - from.at > 600 || now - to.at > 500) return undefined;
-  return interpolateAim(from, to, ref.blend!, neutral);
+  const rebasedFrom = rebaseCombatAim(from, from.rotation, player.rotation, {x:0,y:0});
+  const rebasedTo = rebaseCombatAim(to, to.rotation, player.rotation, {x:0,y:0});
+  return interpolateAim(rebasedFrom, rebasedTo, ref.blend!, neutral);
 }
 
 function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }, damageOverride?: number): boolean {
@@ -9111,6 +9119,10 @@ server.on('connection', (socket, request) => {
       player.lastAcceptedTransformAt = stateNow;
       if (typeof message.stateSequence === 'number') player.acceptedStateSequence = message.stateSequence;
       player.rotation = message.rotation;
+      if (player.assistedAim?.rotation) {
+        rebaseCombatAim(player.assistedAim, player.assistedAim.rotation, player.rotation, player.assistedAim);
+        player.assistedAim.rotation = {...player.rotation};
+      }
       player.boostActive = message.boostActive === true;
       // Transform packets never equip aircraft. Explicit equipAircraft above
       // is the only selection path accepted by the server profile.

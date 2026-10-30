@@ -14,3 +14,5 @@ export type CombatProjection = { x: number; y: number; edge: boolean; angle: num
 export function combatAimProjection(x: number, y: number, w: number, width: number, height: number, out: CombatProjection): CombatProjection;
 
 export function combatLockReady(localPoint: CombatVector, aim: { x: number; y: number }): boolean;
+
+export function rebaseCombatAim(aim: {x:number;y:number}, from: CombatVector | undefined, to: CombatVector, out: {x:number;y:number}): {x:number;y:number};
