@@ -29,3 +29,11 @@ User explicitly authorized committing the current QA combat changes, pushing QA,
 The first reticle patch was too strict: a fixed two-unit threshold ignored the real aircraft hit size, and the client independently compared a delayed lead point against its newer aircraft transform. This suppressed the red circle during ordinary movement. The duplicate client gate is removed; aircraft readiness uses the existing collision radius without modifying collisions or damage.
 
 Follow-up validation: 19 focused tests passed, the extended real-server airborne test acquired and hit a moving target, and Mission 8/9/10 transport-to-escort integration passed (21 tests total). Client, server and iOS builds passed. Matching QA client installed wirelessly. No new controls, UI elements, firing rates, weapon range or damage rules.
+
+## Selected-target positioning and acquisition correction
+
+The circle previously projected the ballistic lead ray while naming the selected aircraft. It now anchors to the selected aircraft's rendered position (or selected transport objective), returning to the firing guide without a confirmed candidate. Bullets retain server-authoritative predictive lead; the circle is the target marker, not a promise that the target cannot dodge.
+
+A fresh empty server candidate previously overwrote a newly eligible local candidate before sending its lock request. Local candidates now wake the confirmation request immediately; only a fresh server-confirmed target can turn red. Server eligibility, protection, damage and ballistics are unchanged by this correction.
+
+Matched client runtime fixtures against `2ccadc1` reproduced a maximum 78.60 px marker offset through tested turns/banks, reduced to zero after the correction. The new-candidate request check changed from false to true; unconfirmed candidates stayed neutral in both versions. Both runs had zero browser errors. These are controlled runtime fixtures, not physical-device gameplay approval. Twenty-one focused automated tests and the client build passed.

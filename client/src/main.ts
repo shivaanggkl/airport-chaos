@@ -8517,8 +8517,8 @@ function updateLockCircle(): void {
   // Projection must use this frame's chase/orbit transform, not the matrix
   // cached by the previous renderer.render call.
   camera.updateMatrixWorld(true);
-  // Project the same muzzle origin and rotation used by sendFireIntent.
-  // Camera orbit never changes weapon authority.
+  // The one circle tracks the selected aircraft. With no confirmed candidate,
+  // it returns to the firing guide. Bullet lead remains server-authoritative.
   const transportTarget = (journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id || journeyAttempt?.missionId === journeyDallas12.id) && transportView?.hasState
     ? transportView : undefined;
   getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
@@ -8529,7 +8529,10 @@ function updateLockCircle(): void {
   const depth = targetPosition
     ? Math.max(1, transportReticleDirection.copy(targetPosition).sub(origin).dot(combatAimForward))
     : COMBAT_RANGE;
-  lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
+  const confirmedTargetPosition = selectedCombatTarget?.remote.plane.position ??
+    (serverAimTargetId?.startsWith('transport:') && performance.now() - serverAimReceivedAt <= 500 ? targetPosition : undefined);
+  if (confirmedTargetPosition) lockBoresightPoint.copy(confirmedTargetPosition);
+  else lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
   aimClipPoint.set(lockBoresightPoint.x, lockBoresightPoint.y, lockBoresightPoint.z, 1)
     .applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
   combatAimProjection(aimClipPoint.x, aimClipPoint.y, aimClipPoint.w, window.innerWidth, window.innerHeight, aimScreenPoint);
@@ -8686,7 +8689,9 @@ function updateCombatTarget(delta = 0): void {
   if (freshAim) {
     serverCandidate = serverAimTargetId ? remotePlayers.get(serverAimTargetId) ?? null : null;
     if (serverCandidate && (serverCandidate.lifeState !== 'alive' || !serverCandidate.plane.visible || serverCandidate.timeSinceUpdate > .5)) serverCandidate = null;
-    candidate = serverCandidate;
+    // A recent empty server result must not suppress a newly visible local
+    // candidate's lock request. Only server confirmation grants a red lock.
+    if (serverCandidate || serverAimTargetId) candidate = serverCandidate;
   }
   if (serverCandidate && freshAim) {
     candidate = serverCandidate;

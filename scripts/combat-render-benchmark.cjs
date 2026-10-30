@@ -5,6 +5,7 @@ const esbuild=require('../node_modules/esbuild');
 const root=path.resolve(__dirname,'..'),baseline=process.argv.includes('--baseline');
 const output=process.argv.find(v=>v.startsWith('--output='))?.slice(9)||'/tmp/airport-combat-render.json';
 const setting=(name,fallback)=>process.argv.find(v=>v.startsWith('--'+name+'='))?.split('=').slice(1).join('=')||fallback;
+const baselineRef=setting('baseline-ref','4ba21da');
 const counts=setting('counts','10,25,50,100').split(',').map(Number),seconds=Number(setting('seconds','20')),dpr=Number(setting('dpr','1'));
 if(counts.some(n=>!Number.isInteger(n)||n<1||n>100)||!Number.isFinite(seconds)||seconds<5||seconds>120||!Number.isFinite(dpr)||dpr<1||dpr>3)throw Error('Invalid benchmark bounds');
 const harness=`window.__combatQa = {
@@ -55,7 +56,30 @@ const harness=`window.__combatQa = {
   const ringStroke=getComputedStyle(acquisitionCircleElement.querySelector('.aiming-reticle-ring')).stroke;
   const bracketStroke=getComputedStyle(acquisitionCircleElement.querySelector('.aiming-reticle-brackets')).stroke;
   const extraTargetBoxes=[...remotePlayers.values()].filter(r=>r.targetBrackets.visible).length;
-  return {circleWidths:[first,second],ownSurvives,bounded,afterClear:clientProjectiles.size+predictedProjectiles.size,ringStroke,bracketStroke,extraTargetBoxes};
+  // Moving selected-target markers must stay on the rendered aircraft, not its lead point.
+  const selected=remotePlayers.get('qa-1');let maxTargetMarkerError=0;
+  if(selected)for(const pose of [[0,0,0],[.2,.3,.6],[-.2,-.3,-.6]]){
+    airplane.rotation.set(...pose,'YXZ');updateCamera(1);camera.updateMatrixWorld(true);
+    selected.plane.position.copy(airplane.position).add(new THREE.Vector3(160,40,-1600).applyQuaternion(airplane.quaternion));
+    selectedCombatTarget={remote:selected,distance:1608,locked:true};
+    visualAim.x=-.12;visualAim.y=.04;updateLockCircle();
+    const projected=selected.plane.position.clone().project(camera);
+    maxTargetMarkerError=Math.max(maxTargetMarkerError,Math.hypot(lockCircleCenterX-(projected.x*.5+.5)*window.innerWidth,lockCircleCenterY-(-projected.y*.5+.5)*window.innerHeight));
+  }
+  this.scene({count:2});
+  const savedSocket=socket,savedId=localPlayerId,savedReady=protocolReady,savedBlocked=protocolBlocked;
+  const requests=[];
+  try{
+    localPlayerId='marker-qa';protocolReady=true;protocolBlocked=false;
+    socket={readyState:WebSocket.OPEN,send:raw=>requests.push(JSON.parse(raw))};
+    for(const r of remotePlayers.values()){r.plane.position.copy(airplane.position).add(new THREE.Vector3(0,0,-1200));r.timeSinceUpdate=0;}
+    serverAimTargetId=null;serverLockedTargetId=null;serverAimReceivedAt=performance.now();requestedLockTargetId=null;
+    updateCombatTarget(.016);
+  }finally{socket=savedSocket;localPlayerId=savedId;protocolReady=savedReady;protocolBlocked=savedBlocked;}
+  const newCandidateRequested=requests.some(m=>m.type==='lock'&&m.targetId);
+  const unconfirmedStaysNeutral=!acquisitionCircleElement.classList.contains('locked');
+
+  return {circleWidths:[first,second],ownSurvives,bounded,afterClear:clientProjectiles.size+predictedProjectiles.size,ringStroke,bracketStroke,extraTargetBoxes,maxTargetMarkerError,newCandidateRequested,unconfirmedStaysNeutral};
  },
  async measure(count,seconds=20){
   this.scene({count});
@@ -86,7 +110,7 @@ const harness=`window.__combatQa = {
  await page.route('**/src/bootstrap.ts*',r=>r.fulfill({contentType:'application/javascript',body:''}));
  await page.route('**/src/main.ts*',async route=>{
   const response=await route.fetch();let body=await response.text();
-  if(baseline){let source=execFileSync('git',['show','4ba21da:client/src/main.ts'],{cwd:root,encoding:'utf8',maxBuffer:8*1024*1024});
+  if(baseline){let source=execFileSync('git',['show',baselineRef+':client/src/main.ts'],{cwd:root,encoding:'utf8',maxBuffer:8*1024*1024});
    source=source.replace(/(['"])(\.\.?\/[^'"\n]+)\1/g,(all,q,p)=>{let file=path.resolve(root+'/client/src',p);if(!path.extname(file))file+='.ts';return q+(file.startsWith(root+'/client/src/')?'/src/'+file.slice((root+'/client/src/').length):'/@fs'+file)+q});
    source=source.replace(/from 'three'/,"from '/node_modules/.vite/deps/three.js'").replaceAll('import.meta.env','({DEV:true})');body=esbuild.transformSync(source,{loader:'ts',format:'esm',target:'esnext'}).code;
   }

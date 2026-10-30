@@ -1,0 +1,137 @@
+TAP version 13
+# Subtest: shared angular aim limits project to 100px travel and 200px search
+ok 1 - shared angular aim limits project to 100px travel and 200px search
+  ---
+  duration_ms: 1.658041
+  type: 'test'
+  ...
+# Subtest: horizontal, vertical, and diagonal manual aim stay inside the shared envelope
+ok 2 - horizontal, vertical, and diagonal manual aim stay inside the shared envelope
+  ---
+  duration_ms: 0.563167
+  type: 'test'
+  ...
+# Subtest: targets beyond automatic travel can be found but require manual aim or steering to lock
+ok 3 - targets beyond automatic travel can be found but require manual aim or steering to lock
+  ---
+  duration_ms: 0.2
+  type: 'test'
+  ...
+# Subtest: center, horizontal, vertical, and diagonal targets obey the 200px search boundary
+ok 4 - center, horizontal, vertical, and diagonal targets obey the 200px search boundary
+  ---
+  duration_ms: 0.234417
+  type: 'test'
+  ...
+# Subtest: updated travel retains the existing per-frame aim speed
+ok 5 - updated travel retains the existing per-frame aim speed
+  ---
+  duration_ms: 0.176541
+  type: 'test'
+  ...
+# Subtest: client prediction and server projectiles both derive direction from the shared aim sample
+ok 6 - client prediction and server projectiles both derive direction from the shared aim sample
+  ---
+  duration_ms: 6.311458
+  type: 'test'
+  ...
+# Subtest: delayed aim updates cannot restart interpolation through an expired previous sample
+ok 7 - delayed aim updates cannot restart interpolation through an expired previous sample
+  ---
+  duration_ms: 1.446916
+  type: 'test'
+  ...
+# Subtest: fully blended shots reference only the contributing aim sample; partial blends retain both references
+ok 8 - fully blended shots reference only the contributing aim sample; partial blends retain both references
+  ---
+  duration_ms: 0.361833
+  type: 'test'
+  ...
+# Subtest: one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+ok 9 - one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+  ---
+  duration_ms: 3.765041
+  type: 'test'
+  ...
+# Subtest: pointing outranks target distance and mission objective identity; invalid targets release immediately
+ok 10 - pointing outranks target distance and mission objective identity; invalid targets release immediately
+  ---
+  duration_ms: 0.23025
+  type: 'test'
+  ...
+# Subtest: brief turns retain selection only while no aligned replacement exists
+ok 11 - brief turns retain selection only while no aligned replacement exists
+  ---
+  duration_ms: 0.213958
+  type: 'test'
+  ...
+# Subtest: interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+ok 12 - interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+  ---
+  duration_ms: 1.008292
+  type: 'test'
+  ...
+# Subtest: assistance covers the acquisition area, stays forward-only and bounded, and has no in-flight target dependency
+ok 13 - assistance covers the acquisition area, stays forward-only and bounded, and has no in-flight target dependency
+  ---
+  duration_ms: 0.485667
+  type: 'test'
+  ...
+# Subtest: actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+ok 14 - actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+  ---
+  duration_ms: 5.199458
+  type: 'test'
+  ...
+# Subtest: continuous collision returns earliest physical impact and detects fast crossing targets
+ok 15 - continuous collision returns earliest physical impact and detects fast crossing targets
+  ---
+  duration_ms: 0.780166
+  type: 'test'
+  ...
+# Subtest: bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+ok 16 - bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+  ---
+  duration_ms: 51.005333
+  type: 'test'
+  ...
+# 20 candidates + intercept: 0.0050 ms/update
+# Subtest: red readiness requires convergence, feasible travel range and forward acquisition
+ok 17 - red readiness requires convergence, feasible travel range and forward acquisition
+  ---
+  duration_ms: 0.35275
+  type: 'test'
+  ...
+# Subtest: automatic acquisition converges on the nearby off-centre target without a second manual aiming action
+ok 18 - automatic acquisition converges on the nearby off-centre target without a second manual aiming action
+  ---
+  duration_ms: 0.207333
+  type: 'test'
+  ...
+# Subtest: moving-target lock uses the actual hit size instead of an arbitrary two-metre point
+ok 19 - moving-target lock uses the actual hit size instead of an arbitrary two-metre point
+  ---
+  duration_ms: 0.292333
+  type: 'test'
+  ...
+# Subtest: obsolete flight guidance prompt is absent from the shared desktop and mobile UI
+ok 20 - obsolete flight guidance prompt is absent from the shared desktop and mobile UI
+  ---
+  duration_ms: 3.224417
+  type: 'test'
+  ...
+# Subtest: flight logic, tutorial guidance, and compact status notifications remain wired
+ok 21 - flight logic, tutorial guidance, and compact status notifications remain wired
+  ---
+  duration_ms: 0.532667
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 346.123125

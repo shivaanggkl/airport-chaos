@@ -1,0 +1,47 @@
+{
+  "baseline": false,
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "dpr": 1
+  },
+  "results": [
+    {
+      "count": 2,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+      "frames": 181,
+      "frameP50Ms": 16.69999998807907,
+      "frameP95Ms": 16.900000005960464,
+      "frameP99Ms": 17.400000005960464,
+      "cpuP95Ms": 4.700000017881393,
+      "meanFps": 59.99933702354464,
+      "heapMiB": 52.44167900085449,
+      "projectiles": 12,
+      "pool": 2,
+      "drawCalls": 271,
+      "triangles": 166884,
+      "geometries": 229,
+      "textures": 16,
+      "visibleIdentityTags": 0,
+      "visibleHealthTags": 1,
+      "reticleWidth": 96,
+      "afterClear": 0
+    }
+  ],
+  "errors": [],
+  "checks": {
+    "circleWidths": [
+      96,
+      96
+    ],
+    "ownSurvives": true,
+    "bounded": true,
+    "afterClear": 0,
+    "ringStroke": "rgb(255, 69, 69)",
+    "bracketStroke": "rgb(184, 244, 255)",
+    "extraTargetBoxes": 0,
+    "maxTargetMarkerError": 0,
+    "newCandidateRequested": true,
+    "unconfirmedStaysNeutral": true
+  }
+}
