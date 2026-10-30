@@ -1,0 +1,23 @@
+E/ActivityManager(  630): ANR in com.android.systemui
+E/ActivityManager(  630): PID: 877
+E/ActivityManager(  630): Reason: Process ProcessRecord{ef9b82a 877:com.android.systemui/u0a187} failed to complete startup
+E/ActivityManager(  630): ErrorId: 767a3cbd-fa0e-4847-988b-bd17ecae7078
+E/ActivityManager(  630): Frozen: false
+E/ActivityManager(  630): Load: 11.8 / 3.08 / 1.04
+E/ActivityManager(  630): ----- Output from /proc/pressure/memory -----
+E/ActivityManager(  630): some avg10=0.02 avg60=0.11 avg300=0.03 total=170841
+E/ActivityManager(  630): full avg10=0.00 avg60=0.00 avg300=0.00 total=19713
+E/ActivityManager(  630): ----- End output from /proc/pressure/memory -----
+E/ActivityManager(  630): ----- Output from /proc/pressure/cpu -----
+E/ActivityManager(  630): some avg10=89.60 avg60=47.17 avg300=12.81 total=41593585
+E/ActivityManager(  630): full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+E/ActivityManager(  630): ----- End output from /proc/pressure/cpu -----
+E/ActivityManager(  630): ----- Output from /proc/pressure/io -----
+E/ActivityManager(  630): some avg10=13.56 avg60=9.13 avg300=2.65 total=8916790
+E/ActivityManager(  630): full avg10=0.18 avg60=0.72 avg300=0.26 total=1156170
+E/ActivityManager(  630): ----- End output from /proc/pressure/io -----
+E/ActivityManager(  630): 
+E/ActivityManager(  630): CPU usage from 5662ms to -379ms ago (2026-10-29 18:31:41.420 to 2026-10-29 18:31:47.461):
+E/ActivityManager(  630):   40% 446/android.hardware.graphics.composer3-service.ranchu: 0.4% user + 39% kernel
+E/ActivityManager(  630):   39% 476/surfaceflinger: 3.8% user + 35% kernel / faults: 236 minor
+E/ActivityManager(  630):   23% 630/system_server: 16% user + 6.9% kernel / faults: 1314 minor 43 major

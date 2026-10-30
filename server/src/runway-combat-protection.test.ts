@@ -51,7 +51,7 @@ test('grounded runway aircraft can fire, be targeted, and take projectile damage
   assert.doesNotMatch(server, /runwayCombatProtected|runwayCombatProtectionActive|runway_protected/);
   assert.match(server, /function fireBlockReason[\s\S]*player\.lifeState !== 'alive'[\s\S]*fireIntervalMs\(player\.aircraftType\)[\s\S]*now - player\.lastFireAt < interval/);
   assert.match(server, /function applyCombatHit[\s\S]*victim\.lifeState !== 'alive' \|\| now < victim\.spawnProtectedUntil/);
-  assert.match(server, /function updateProjectiles[\s\S]*now < player\.spawnProtectedUntil[\s\S]*sweptProjectileHit/);
+  assert.match(server, /function updateProjectiles[\s\S]*now < player\.spawnProtectedUntil[\s\S]*projectileImpactFraction/);
 });
 
 test('temporary spawn protection remains independent of runway state', () => {

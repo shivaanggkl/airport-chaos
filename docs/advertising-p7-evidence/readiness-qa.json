@@ -1,0 +1,11 @@
+{
+  "technical": "READY",
+  "commercial": "QA_SIMULATED",
+  "serving": "BLOCKED",
+  "blockers": [
+    "PRODUCTION_ACTIVATION_NOT_AUTHORIZED"
+  ],
+  "simulated": true,
+  "currentScheduleEligible": true,
+  "platform": "web"
+}

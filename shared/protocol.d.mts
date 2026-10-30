@@ -8,6 +8,7 @@ export const PROJECTILE_DAMAGE_BY_AIRCRAFT: Readonly<Record<StableAircraftType, 
 export function projectileDamageForAircraft(aircraftType: string): number;
 export function ballisticShotSpeed(velocity: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number }): number;
 export function ballisticInterceptDirection(origin: { x: number; y: number; z: number }, shooterVelocity: { x: number; y: number; z: number }, targetPosition: { x: number; y: number; z: number }, targetVelocity: { x: number; y: number; z: number }): { x: number; y: number; z: number } | null;
+export function ballisticIntercept(origin: { x: number; y: number; z: number }, shooterVelocity: { x: number; y: number; z: number }, targetPosition: { x: number; y: number; z: number }, targetVelocity: { x: number; y: number; z: number }): { direction: { x: number; y: number; z: number }; point: { x: number; y: number; z: number }; seconds: number; speed: number } | null;
 export const LOCK_ANGLE: number;
 export const AIM_ENVELOPE: number;
 export const AIM_MAX_OFFSET: number;

@@ -26,7 +26,7 @@ test('server warning events reuse authoritative human and bot combat state', () 
   assert.match(server, /if \(targetId\) sendToPlayer\(targetId, \{ type: 'combatThreat', attackerId: playerId, locked: true \}\)/);
   assert.match(server, /const botLockTargetId = canAttack && combatTarget && combatSolution && !combatSolution\.reason/);
   assert.match(server, /setServerLock\(botId, player, botLockTargetId\)/);
-  assert.match(server, /player\.lastFireAt = now;\s*sendIncomingFire\(targetId, playerId\);\s*const muzzle/);
+  assert.match(server, /currentLockedTarget\(playerId, player, player\.lockedTargetId, now\)\) \{\s*sendIncomingFire\(player\.lockedTargetId!, playerId\)/);
   assert.match(server, /if \(player\.lockedTargetId === targetId\) sendIncomingFire\(targetId, botId\)/);
   assert.doesNotMatch(server, /combatThreat[\s\S]{0,120}(?:hunterDetectionRange|radarRange)/);
 });

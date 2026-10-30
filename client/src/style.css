@@ -4774,6 +4774,11 @@ body:has(.app-shell-header:not([hidden]))::before { opacity: 0; }
 .home-hangar-sponsor span { display: grid; gap: 2px; min-width: 0; }
 .home-hangar-sponsor small { color: #ffe28b; font: 800 clamp(8px, 1vw, 11px)/1 var(--font-display); letter-spacing: .12em; white-space: nowrap; }
 .home-hangar-sponsor strong { font: 900 clamp(11px, 2.2vw, 22px)/1 var(--font-display); letter-spacing: .04em; white-space: nowrap; }
+.home-hangar-sponsor.is-sponsored strong,.home-hangar-sponsor.is-sponsored em{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.home-hangar-sponsor.is-sponsored em{font:600 clamp(8px,1vw,11px)/1.1 var(--font-display);font-style:normal;color:#dcf4ff}
+.home-hangar-sponsor.is-sponsored{overflow:hidden;justify-content:flex-start}
+.home-hangar-sponsor.is-sponsored img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:left center}
+.home-hangar-sponsor.is-sponsored span{position:relative;margin-left:clamp(57px,19%,92px);width:calc(100% - 60px);text-shadow:0 1px 4px #081c3a}
 .home-hangar-store:is(:hover, :focus-visible), .home-hangar-sponsor:is(:hover, :focus-visible) { filter: brightness(1.12); }
 .home-hangar-store:focus-visible, .home-hangar-sponsor:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 @media (max-width: 540px) {
@@ -5540,6 +5545,9 @@ html.editable-keyboard-open .pilot-menu-card.is-pilot-profile .pilot-profile-nam
 }
 .touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { left: calc(100% - clamp(54px, 8vw, 95px)); top: 73.5%; }
 
+@media (max-width: 1000px) and (orientation: landscape) {
+  .touch-controls-active #game-root [data-touch-control="fire"].uses-default-placement { left: calc(100% - max(72px, 8vw)); }
+}
 @media (max-width: 800px) and (orientation: landscape) {
   #game-root .flight-game-hud { grid-template: "menu stats utilities" auto / minmax(0, 1fr) auto minmax(0, 1fr); min-height: 0; }
   #game-root .flight-game-hud .flight-hud-center { gap: 4px; }
@@ -6994,3 +7002,21 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
   .pilot-profile-avatar { width: 65px; height: 65px; }
 }
 @media (prefers-reduced-motion: reduce) { .rank-helmet-unlock { animation: none; } }
+
+/* Combat guidance stays compact and above world labels at every viewport. */
+#acquisition-circle { z-index: 12; width: 38px; color: #b8f4ff; }
+#acquisition-circle .aiming-reticle-svg { width: 100%; height: 100%; }
+#acquisition-circle .aiming-reticle-outline { stroke: #10243b; stroke-width: 3; stroke-opacity: .85; }
+#acquisition-circle :is(.aiming-reticle-ring,.aiming-reticle-brackets) { stroke: currentColor; stroke-width: 1.3; stroke-opacity: 1; }
+#acquisition-circle .aiming-reticle-center { fill: #f5feff; stroke: none; }
+#acquisition-circle.locked { color: #83f6ad; }
+#acquisition-circle.locked .aiming-reticle-ring { stroke: currentColor; }
+#acquisition-circle.firing .aiming-reticle-center { r: 2.3; }
+#acquisition-circle.confirmed-hit { color: #ffda78; }
+#acquisition-circle.aim-edge .aiming-reticle-svg { display: none; }
+#acquisition-circle.aim-edge::after { content: ''; position: absolute; top: 13px; left: 12px; width: 10px; height: 10px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: rotate(calc(var(--aim-edge-angle) + 45deg)); filter: drop-shadow(0 1px 1px #10243b); }
+#combat-lead-indicator { position: fixed; z-index: 11; width: 9px; height: 9px; border: 1px solid #f5c76b; box-shadow: 0 0 0 1px #10243b99; transform: translate(-50%,-50%) rotate(45deg); pointer-events: none; }
+#combat-lead-indicator[hidden] { display: none; }
+#game-root.noncombat-journey #combat-lead-indicator { display: none; }
+
+.target-feedback.locked b { color: #83f6ad; }

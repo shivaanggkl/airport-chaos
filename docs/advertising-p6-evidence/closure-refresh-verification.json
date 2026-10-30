@@ -1,0 +1,28 @@
+{
+  "scenario": "stationary approved DFW sign",
+  "runs": 3,
+  "secondsPerRun": 60,
+  "catalogRefreshesDuringRuns": 3,
+  "events": [
+    {
+      "type": "WORLD_ESTIMATED_EXPOSURE",
+      "placementId": "dallas-dfw-terminal-sign",
+      "eventId": "31794a0b-a43f-4d82-a2d2-975cff6e0c61",
+      "receivedAt": "2026-10-29T18:39:32.283Z"
+    },
+    {
+      "type": "WORLD_ESTIMATED_EXPOSURE",
+      "placementId": "dallas-dfw-terminal-sign",
+      "eventId": "62962e86-abb6-4a8d-a7f4-761961b2f08e",
+      "receivedAt": "2026-10-29T18:40:57.796Z"
+    },
+    {
+      "type": "WORLD_ESTIMATED_EXPOSURE",
+      "placementId": "dallas-dfw-terminal-sign",
+      "eventId": "35ff89de-dd87-4771-9e20-05c480c495ce",
+      "receivedAt": "2026-10-29T18:45:12.950Z"
+    }
+  ],
+  "expectedEvents": 3,
+  "actualEvents": 3
+}

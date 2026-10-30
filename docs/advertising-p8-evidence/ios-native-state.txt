@@ -1,0 +1,68 @@
+Attributes: Application, 0x10332a5f0, pid: 73255, label: 'Airport Chaos'
+Element subtree:
+ →Application, 0x10332a5f0, pid: 73255, label: 'Airport Chaos'
+    Window (Main), 0x103b24200, {{0.0, 0.0}, {852.0, 393.0}}
+      Other, 0x10332b560, {{-1.0, -1.0}, {1.0, 1.0}}
+        WebView, 0x103325970, {{-1.0, -1.0}, {852.0, 393.0}}
+          WebView, 0x103322660, {{-1.0, -1.0}, {852.0, 393.0}}
+            WebView, 0x103323770, {{-1.0, -1.0}, {852.0, 393.0}}
+              Other, 0x103325cf0, {{0.0, 0.0}, {852.0, 393.0}}
+                Other, 0x10332f6b0, {{0.0, 0.0}, {852.0, 393.0}}
+                  Other, 0x103320000, {{0.0, -1.0}, {852.0, 393.0}}
+                    Other, 0x10332a950, {{0.0, -1.0}, {852.0, 393.0}}
+                      Other, 0x103329ec0, {{169.0, 18.0}, {512.0, 355.0}}, label: 'My data preferences, web dialog', Focused
+                        Image, 0x103b24590, {{395.0, 50.0}, {60.0, 61.0}}, label: 'Welcome to Airport Chaos', Focused
+                        Other, 0x103b23b20, {{193.0, 126.0}, {464.0, 31.0}}, label: 'My data preferences', value: 1, Focused
+                          StaticText, 0x103b21e50, {{320.0, 127.0}, {210.0, 29.0}}, label: 'My data preferences', value: My data preferences, Focused
+                        Other, 0x103b1db10, {{203.0, 172.0}, {454.0, 68.0}}, label: 'Allow the sale or sharing of my data By allowing the sale or sharing of your data, you will see interest-based ads on our sites', value: 1, Focused
+                        Other, 0x103b25070, {{237.0, 172.0}, {420.0, 68.0}}, label: 'Allow the sale or sharing of my data By allowing the sale or sharing of your data, you will see interest-based ads on our sites', Focused
+                          StaticText, 0x103b25190, {{239.0, 173.0}, {290.0, 24.0}}, label: 'Allow the sale or sharing of my data', value: Allow the sale or ..., Focused
+                          StaticText, 0x103b2af80, {{239.0, 201.0}, {395.0, 39.0}}, label: 'By allowing the sale or sharing of your data, you will see interest-based ads on our sites', value: By allowing the sa..., Focused
+                        Other, 0x103b2b0a0, {{203.0, 255.0}, {454.0, 106.0}}, label: 'Don't sell or share my data We won't sell or share your personal information to inform the ads you see. You may still see interest-based ads if your information is sold or shared by other companies or was sold or shared previously.', value: 0, Focused
+                        Other, 0x103b2ff70, {{237.0, 255.0}, {420.0, 106.0}}, label: 'Don't sell or share my data We won't sell or share your personal information to inform the ads you see. You may still see interest-based ads if your information is sold or shared by other companies or was sold or shared previously.', Focused
+                          StaticText, 0x103b30090, {{239.0, 256.0}, {215.0, 24.0}}, label: 'Don't sell or share my data', value: Don't sell or shar..., Focused
+                          StaticText, 0x103326420, {{239.0, 284.0}, {411.0, 77.0}}, label: 'We won't sell or share your personal information to inform the ads you see. You may still see interest-based ads if your information is sold or shared by other companies or was sold or shared previously.', value: We won't sell or s..., Focused
+                        Other, 0x10332ca40, {{169.0, 308.0}, {512.0, 41.0}}, label: 'content information', Focused
+                          Button, 0x10332cdb0, {{325.0, 308.0}, {200.0, 41.0}}, label: 'Save and close', Focused
+            Other, 0x103c211b0, {{818.0, -1.0}, {30.0, 393.0}}, label: 'Vertical scroll bar, 1 page', value: 0%
+            Other, 0x103c22960, {{58.0, 359.0}, {793.0, 30.0}}, label: 'Horizontal scroll bar, 1 page', value: 0%
+      Other, 0x1033229c0, {{0.0, 0.0}, {852.0, 393.0}}
+        Other, 0x103329140, {{0.0, 0.0}, {852.0, 393.0}}
+          WebView, 0x1033267a0, {{0.0, 0.0}, {852.0, 393.0}}
+            WebView, 0x103327ee0, {{0.0, 0.0}, {852.0, 393.0}}
+              WebView, 0x103330ae0, {{0.0, 0.0}, {852.0, 393.0}}
+                Other, 0x103323420, {{0.0, 0.0}, {852.0, 393.0}}
+                  Other, 0x10332c340, {{0.0, 0.0}, {852.0, 393.0}}
+                    Other, 0x103330430, {{0.0, 0.0}, {852.0, 393.0}}
+                      Other, 0x103327440, {{0.0, 0.0}, {852.0, 395.0}}, Focused
+                        Other, 0x10332b8f0, {{24.0, 24.0}, {804.0, 27.0}}, label: 'P8 isolated native SDK QA — ios', value: 1, Focused
+                          StaticText, 0x10332bfd0, {{24.0, 24.0}, {327.0, 27.0}}, label: 'P8 isolated native SDK QA — ios', value: P8 isolated native..., Focused
+                        Other, 0x103f089f0, {{24.0, 69.0}, {804.0, 29.0}}, Focused
+                          StaticText, 0x103b301b0, {{24.0, 69.0}, {758.0, 29.0}}, label: 'Real Capacitor / AdMob / UMP. Official test unit only. No production wallet.', value: Real Capacitor / A..., Focused
+                        Button, 0x1033300c0, {{32.0, 124.0}, {277.0, 53.0}}, label: 'Check privacy and load test ad', Focused
+                        Button, 0x103330780, {{324.0, 124.0}, {153.0, 53.0}}, label: 'Present test ad', Focused, Disabled
+                        Button, 0x103324280, {{492.0, 124.0}, {154.0, 53.0}}, label: 'Privacy options', Focused
+                        Link, 0x103317180, {{653.0, 134.0}, {158.0, 29.0}}, label: 'Return to game', Focused
+                          StaticText, 0x10332fd60, {{653.0, 134.0}, {158.0, 29.0}}, label: 'Return to game', value: Return to game, Focused
+                        Other, 0x10332e7f0, {{24.0, 200.0}, {804.0, 171.0}}, Focused
+                          StaticText, 0x103329b60, {{24.0, 200.0}, {657.0, 171.0}}, label: 'Ready. No ad loaded.
+AUTOMATED NATIVE INTEGRATION TEST - 2026-10-29T23:01:43.738Z
+PASS live unit rejected: Unable to start video.
+PASS empty presentation rejected: Unable to start video.
+START 2026-10-29T23:01:43.778Z
+UMP {"required":true,"canRequestAds":true}
+DENIED/UNAVAILABLE No video available right now. Try again later. [code com.google.admob:5]
+OPTIONS {"canRequestAds":true,"required":true}
+NATIVE TEST COMPLETE 2026-10-29T23:02:11.717Z', value: Ready. No ad loade..., Focused
+              Other, 0x103331c40, {{819.0, 49.3}, {30.0, 294.3}}, label: 'Vertical scroll bar, 2 pages', value: 0%
+              Other, 0x103326eb0, {{46.7, 360.0}, {758.7, 30.0}}, label: 'Horizontal scroll bar, 1 page', value: 0%
+    Window, 0x103b302d0, {{0.0, 0.0}, {852.0, 393.0}}
+      Other, 0x103b303f0, {{0.0, 0.0}, {852.0, 393.0}}
+        Other, 0x103b30510, {{0.0, 0.0}, {852.0, 393.0}}
+Path to element:
+ →Application, 0x10332a5f0, pid: 73255, label: 'Airport Chaos'
+Query chain:
+ →Find: Target Application 'com.vadensoftware.airportchaos'
+  Output: {
+    Application, 0x103e21ba0, pid: 73255, label: 'Airport Chaos'
+  }

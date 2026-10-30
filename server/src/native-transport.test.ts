@@ -148,7 +148,10 @@ test('staging Token preview cannot start a native purchase', () => {
   const garage = readFileSync(new URL('../../client/src/garage.ts', import.meta.url), 'utf8');
   const store = readFileSync(new URL('../../client/src/sky-token-store.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /nativePurchaseProvider === 'apple' && apiOrigin === 'https:\/\/airport-chaos-staging\.onrender\.com' && import\.meta\.env\.VITE_STAGING_TOKEN_STORE_PREVIEW === 'true'/);
-  assert.match(bootstrap, /skyTokenStore\.open\([^;]+, !skyTokenCommerceEnabled\)/);
+  assert.match(bootstrap, /skyTokenStore\.open\([^;]+, hubAccount\.state === 'account' && !skyTokenCommerceEnabled\)/);
+  const purchaseHandler = bootstrap.slice(bootstrap.indexOf('new SkyTokenStore(async packId =>'), bootstrap.indexOf('async function refreshSkyTokenCatalog'));
+  assert.ok(purchaseHandler.indexOf("if (hubAccount.state !== 'account')") < purchaseHandler.indexOf('purchaseNativeSkyTokenPack(packId)'),
+    'guest purchase clicks must require sign-in before native checkout');
   assert.match(garage, /tokenBuy\.disabled = [^;]+this\.tokenCommercePreview/);
   assert.match(garage, /buy\.disabled = [^;]+this\.tokenCommercePreview/);
   assert.match(garage, /tokenBuy\.disabled = [^;]+this\.tokenCommercePreview/);

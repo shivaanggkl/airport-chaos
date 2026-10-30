@@ -91,14 +91,15 @@ function configuredAdUnit(value: string | undefined, fallback?: string): string 
 }
 
 export function rewardedAdConfiguration(environment: NodeJS.ProcessEnv = process.env): RewardedAdConfiguration {
-  const development = environment.NODE_ENV !== 'production';
-  const enabled = enabledFlag(environment.AIRPORT_CHAOS_REWARDED_ADS_ENABLED, development);
+  const development = environment.NODE_ENV !== 'production' && !environment.RENDER_SERVICE_ID && environment.AIRPORT_CHAOS_DEV_QA === '1';
+  // P8 is test-only until audience, provider and owner release approval exist.
+  const enabled = development && enabledFlag(environment.AIRPORT_CHAOS_REWARDED_ADS_ENABLED, development);
   const iosAdUnit = configuredAdUnit(environment.AIRPORT_CHAOS_ADMOB_IOS_REWARDED_AD_UNIT_ID, development ? iosTestAdUnit : undefined);
   const androidAdUnit = configuredAdUnit(environment.AIRPORT_CHAOS_ADMOB_ANDROID_REWARDED_AD_UNIT_ID, development ? androidTestAdUnit : undefined);
   return {
     enabled,
-    ios: { enabled: enabled && enabledFlag(environment.AIRPORT_CHAOS_REWARDED_ADS_IOS_ENABLED, true) && Boolean(iosAdUnit), adUnitId: iosAdUnit },
-    android: { enabled: enabled && enabledFlag(environment.AIRPORT_CHAOS_REWARDED_ADS_ANDROID_ENABLED, true) && Boolean(androidAdUnit), adUnitId: androidAdUnit },
+    ios: { enabled: enabled && enabledFlag(environment.AIRPORT_CHAOS_REWARDED_ADS_IOS_ENABLED, true) && iosAdUnit === iosTestAdUnit, adUnitId: iosAdUnit },
+    android: { enabled: enabled && enabledFlag(environment.AIRPORT_CHAOS_REWARDED_ADS_ANDROID_ENABLED, true) && androidAdUnit === androidTestAdUnit, adUnitId: androidAdUnit },
     webEnabled: false,
     providerRewardAmount: environment.AIRPORT_CHAOS_ADMOB_REWARD_AMOUNT?.trim() || '1',
     providerRewardItem: environment.AIRPORT_CHAOS_ADMOB_REWARD_ITEM?.trim() || undefined,
@@ -255,6 +256,7 @@ export class RewardedAdStore {
       const cycleStartedAt = attempt.window_started_at;
       const validCycle = cycleStartedAt !== undefined && Number.isSafeInteger(cycleStartedAt) &&
         attempt.created_at >= cycleStartedAt && attempt.created_at < cycleStartedAt + REWARDED_AD_WINDOW_MS &&
+        timestamp < cycleStartedAt + REWARDED_AD_WINDOW_MS &&
         Boolean(this.database.prepare('SELECT 1 FROM pilot_daily_reward_claims WHERE pilot_id=? AND claimed_at=?').get(attempt.pilot_id, cycleStartedAt));
       if (!validCycle) return { ok: false, duplicate: false, rewarded: false, pilotId: attempt.pilot_id, attemptId: attempt.attempt_id, code: 'CLAIM_REQUIRED' };
       const completed = this.completedCount(attempt.pilot_id, cycleStartedAt);

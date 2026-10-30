@@ -1,0 +1,110 @@
+[
+  {
+    "id": "557a13f0-e139-4366-98bb-112884b6992e",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "host-shell:shiva",
+    "action": "COMMERCIAL_EVIDENCE_RECORDED",
+    "details": "{\"simulated\":true,\"platform\":\"web\",\"references\":{\"identity\":\"TEST-ONLY-identity\",\"creativeRights\":\"TEST-ONLY-creativeRights\",\"artwork\":\"TEST-ONLY-artwork\",\"agreement\":\"TEST-ONLY-agreement\",\"invoice\":\"TEST-ONLY-invoice\",\"paymentCondition\":\"TEST-ONLY-paymentCondition\",\"inventory\":\"TEST-ONLY-inventory\",\"privacyAudiencePolicy\":\"TEST-ONLY-privacyAudiencePolicy\",\"operations\":\"TEST-ONLY-operations\",\"ownerGoLive\":\"TEST-ONLY-ownerGoLive\"}}",
+    "createdAt": "2026-10-29T19:19:32.486Z"
+  },
+  {
+    "id": "7d4a83be-e6ee-4752-827c-a96cb165bdce",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "DELIVERY_APPROVAL",
+    "details": "{\"approved\":true}",
+    "createdAt": "2026-10-29T19:18:58.014Z"
+  },
+  {
+    "id": "4909e686-20f0-450f-88bc-3f1199da1491",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "COMMERCIAL_EVIDENCE_RECORDED",
+    "details": "{\"simulated\":true,\"platform\":\"web\",\"references\":{\"identity\":\"TEST-ONLY-identity\",\"creativeRights\":\"TEST-ONLY-creativeRights\",\"artwork\":\"TEST-ONLY-artwork\",\"agreement\":\"TEST-ONLY-agreement\",\"invoice\":\"TEST-ONLY-invoice\",\"paymentCondition\":\"TEST-ONLY-paymentCondition\",\"inventory\":\"TEST-ONLY-inventory\",\"privacyAudiencePolicy\":\"TEST-ONLY-privacyAudiencePolicy\",\"operations\":\"TEST-ONLY-operations\",\"ownerGoLive\":\"TEST-ONLY-ownerGoLive\"}}",
+    "createdAt": "2026-10-29T19:18:57.950Z"
+  },
+  {
+    "id": "afb8d9bb-f535-4d73-8d6d-288694e4b05e",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "STATUS",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"from\":\"IN_REVIEW\",\"to\":\"APPROVED\"}",
+    "createdAt": "2026-10-29T19:18:57.948Z"
+  },
+  {
+    "id": "855f9be5-3e33-467f-8939-4546bf770694",
+    "recordType": "assignment",
+    "recordId": "e21c0dd3-8091-4efd-b406-ec441e5573de",
+    "actor": "isolated-p7-operator",
+    "action": "CHANGE",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"campaignId\":\"6b2db026-3b96-42cc-aa8b-f7300746d670\",\"creativeId\":\"c4124057-6e2d-4e4b-8937-21997687863b\"}",
+    "createdAt": "2026-10-29T19:18:57.879Z"
+  },
+  {
+    "id": "19aacdbf-aedc-4431-9149-c1af66ec3015",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "host-shell:shiva",
+    "action": "STATUS",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"from\":\"APPROVED\",\"to\":\"PAUSED\"}",
+    "createdAt": "2026-10-29T19:17:05.767Z"
+  },
+  {
+    "id": "4fe89815-a381-4054-84c5-e671e41643c4",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "DELIVERY_APPROVAL",
+    "details": "{\"approved\":true}",
+    "createdAt": "2026-10-29T19:15:40.989Z"
+  },
+  {
+    "id": "ebde8f28-3bf0-4270-8cfc-dbe7e01d94f6",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "COMMERCIAL_EVIDENCE_RECORDED",
+    "details": "{\"simulated\":true,\"platform\":\"web\",\"references\":{\"identity\":\"TEST-ONLY-identity\",\"creativeRights\":\"TEST-ONLY-creativeRights\",\"artwork\":\"TEST-ONLY-artwork\",\"agreement\":\"TEST-ONLY-agreement\",\"invoice\":\"TEST-ONLY-invoice\",\"paymentCondition\":\"TEST-ONLY-paymentCondition\",\"inventory\":\"TEST-ONLY-inventory\",\"privacyAudiencePolicy\":\"TEST-ONLY-privacyAudiencePolicy\",\"operations\":\"TEST-ONLY-operations\",\"ownerGoLive\":\"TEST-ONLY-ownerGoLive\"}}",
+    "createdAt": "2026-10-29T19:15:40.911Z"
+  },
+  {
+    "id": "989428a9-8aae-4554-a6bd-32dcd85352aa",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "STATUS",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"from\":\"IN_REVIEW\",\"to\":\"APPROVED\"}",
+    "createdAt": "2026-10-29T19:15:40.910Z"
+  },
+  {
+    "id": "da1c4fb8-c481-430e-857b-5fc5f6a35858",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "STATUS",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"from\":\"DRAFT\",\"to\":\"IN_REVIEW\"}",
+    "createdAt": "2026-10-29T19:15:40.834Z"
+  },
+  {
+    "id": "dd365238-0bac-4005-97f9-76ae89807c23",
+    "recordType": "assignment",
+    "recordId": "e21c0dd3-8091-4efd-b406-ec441e5573de",
+    "actor": "isolated-p7-operator",
+    "action": "ADD",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"campaignId\":\"6b2db026-3b96-42cc-aa8b-f7300746d670\",\"creativeId\":\"45a47ef2-fef4-4956-8e3a-a807ceccfcb5\",\"placementId\":\"global-hub-spotlight\"}",
+    "createdAt": "2026-10-29T19:15:40.833Z"
+  },
+  {
+    "id": "525d9f03-0e53-45f1-b22c-af397af26ab1",
+    "recordType": "campaign",
+    "recordId": "6b2db026-3b96-42cc-aa8b-f7300746d670",
+    "actor": "isolated-p7-operator",
+    "action": "CREATE",
+    "details": "{\"advertiserId\":\"ea85fb8f-5cbe-43d6-8358-fa039d0dc7e2\",\"startsAt\":\"2026-10-29T19:14:40.831Z\",\"endsAt\":\"2026-11-28T19:14:40.831Z\"}",
+    "createdAt": "2026-10-29T19:15:40.832Z"
+  }
+]

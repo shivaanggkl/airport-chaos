@@ -1,0 +1,520 @@
+{
+  "before": {
+    "at": 1793300122982,
+    "totals": [
+      {
+        "type": "HUB_ESTIMATED_EXPOSURE",
+        "count": 3
+      },
+      {
+        "type": "WORLD_ESTIMATED_EXPOSURE",
+        "count": 12
+      }
+    ],
+    "credits": {
+      "credits": 0
+    },
+    "trace": {
+      "generated": [
+        {
+          "id": "d541e1b1-98ac-4d39-b4e1-721e49dcf9f0",
+          "at": 1793300089201
+        }
+      ],
+      "sent": [
+        {
+          "at": 1793300119210,
+          "events": [
+            {
+              "type": "WORLD_ESTIMATED_EXPOSURE",
+              "campaignId": "7f5be24d-2000-49b2-b552-1dc43ca5730a",
+              "creativeId": "a10d86f7-6e73-4bb6-9d31-227c0b3f2a1f",
+              "placementId": "dallas-dfw-terminal-sign",
+              "cityId": "dallas",
+              "eventId": "d541e1b1-98ac-4d39-b4e1-721e49dcf9f0"
+            }
+          ]
+        }
+      ],
+      "matches": [],
+      "botStates": 1085,
+      "controls": []
+    }
+  },
+  "activeStart": 1793300141419,
+  "initial": {
+    "generated": [],
+    "sent": [],
+    "matches": [
+      {
+        "at": 1793300127140,
+        "type": "skyDuelSpawn"
+      },
+      {
+        "at": 1793300127145,
+        "type": "skyDuelBoundary"
+      },
+      {
+        "at": 1793300127150,
+        "type": "skyDuelLoading",
+        "practice": true,
+        "aiOpponent": true,
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48",
+        "levelB": 50,
+        "pilotB": "AI PLAYER"
+      },
+      {
+        "at": 1793300128359,
+        "type": "skyDuelFound",
+        "practice": true,
+        "aiOpponent": true,
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48",
+        "levelB": 50,
+        "pilotB": "AI PLAYER"
+      },
+      {
+        "at": 1793300133365,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300134364,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300135365,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300136364,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300137365,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300138366,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300139367,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300140372,
+        "type": "skyDuelState",
+        "phase": "launch",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      },
+      {
+        "at": 1793300141394,
+        "type": "skyDuelState",
+        "phase": "active",
+        "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+      }
+    ],
+    "botStates": 2,
+    "controls": []
+  },
+  "renderSuppression": [
+    {
+      "enabled": false,
+      "measurementEnabled": false,
+      "sponsors": 0,
+      "episodes": 0,
+      "pending": 0,
+      "visiblePlacements": 0
+    }
+  ],
+  "after": {
+    "at": 1793300180414,
+    "totals": [
+      {
+        "type": "HUB_ESTIMATED_EXPOSURE",
+        "count": 3
+      },
+      {
+        "type": "WORLD_ESTIMATED_EXPOSURE",
+        "count": 12
+      }
+    ],
+    "credits": {
+      "credits": 0
+    },
+    "trace": {
+      "generated": [],
+      "sent": [],
+      "matches": [
+        {
+          "at": 1793300127140,
+          "type": "skyDuelSpawn"
+        },
+        {
+          "at": 1793300127145,
+          "type": "skyDuelBoundary"
+        },
+        {
+          "at": 1793300127150,
+          "type": "skyDuelLoading",
+          "practice": true,
+          "aiOpponent": true,
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48",
+          "levelB": 50,
+          "pilotB": "AI PLAYER"
+        },
+        {
+          "at": 1793300128359,
+          "type": "skyDuelFound",
+          "practice": true,
+          "aiOpponent": true,
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48",
+          "levelB": 50,
+          "pilotB": "AI PLAYER"
+        },
+        {
+          "at": 1793300133365,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300134364,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300135365,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300136364,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300137365,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300138366,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300139367,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300140372,
+          "type": "skyDuelState",
+          "phase": "launch",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300141394,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300142371,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300143372,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300144373,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300145371,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300146372,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300147373,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300148374,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300149375,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300150376,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300151377,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300152378,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300153379,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300154381,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300155380,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300156381,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300157383,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300158383,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300159384,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300160384,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300161385,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300162387,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300164387,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300165389,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300166391,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300167393,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300168395,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300169397,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300170399,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300171401,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300172408,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300173406,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300174406,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300175406,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300176408,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300177409,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300179411,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        },
+        {
+          "at": 1793300180413,
+          "type": "skyDuelState",
+          "phase": "active",
+          "matchId": "6e2650e2-55fc-4088-9130-4b7063e47a48"
+        }
+      ],
+      "botStates": 188,
+      "controls": []
+    },
+    "hud": "\u2630\n\u2665 FULL REPAIR \u00b7 100%\n\u25c0\nW/S Speed\nA/D or \u2190/\u2192 Turn\n\u2191/\u2193 Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS\nPILOT-450\nL1\n60\n0 FT\n0\n3:22\n0\n2,025 FT\n100\nL50\nAI PLAYER"
+  },
+  "restored": {
+    "at": 1793300292307,
+    "totals": [
+      {
+        "type": "HUB_ESTIMATED_EXPOSURE",
+        "count": 3
+      },
+      {
+        "type": "WORLD_ESTIMATED_EXPOSURE",
+        "count": 13
+      }
+    ],
+    "credits": {
+      "credits": 0
+    },
+    "trace": {
+      "generated": [
+        {
+          "id": "292d6dfb-a4a5-498c-98cf-04454fd7def2",
+          "at": 1793300258551
+        }
+      ],
+      "sent": [
+        {
+          "at": 1793300288555,
+          "events": [
+            {
+              "type": "WORLD_ESTIMATED_EXPOSURE",
+              "campaignId": "7f5be24d-2000-49b2-b552-1dc43ca5730a",
+              "creativeId": "a10d86f7-6e73-4bb6-9d31-227c0b3f2a1f",
+              "placementId": "dallas-dfw-terminal-sign",
+              "cityId": "dallas",
+              "eventId": "292d6dfb-a4a5-498c-98cf-04454fd7def2"
+            }
+          ]
+        }
+      ],
+      "matches": [],
+      "botStates": 1080,
+      "controls": []
+    }
+  },
+  "exit": {
+    "observedAt": "2026-10-29T18:56:41.671262+00:00",
+    "action": "Normal Forfeit Match confirmation",
+    "destinationText": "DALLAS MULTIPLAYER\nCREDITS\n0\nSKY TOKENS\n0\n+\n\u203a",
+    "credits": 0,
+    "result": "Returned to Dallas Multiplayer selection",
+    "serverOutcomePacket": "Not retained across page navigation"
+  }
+}

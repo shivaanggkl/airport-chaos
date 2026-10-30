@@ -9,14 +9,15 @@ const entry = readFileSync(new URL('../../client/src/entry.ts', import.meta.url)
 const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
 const brand = readFileSync(new URL('../../client/src/brand.ts', import.meta.url), 'utf8');
+const pilotMenu = readFileSync(new URL('../../client/src/pilot-menu.ts', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
 const viteConfig = readFileSync(new URL('../../client/vite.config.ts', import.meta.url), 'utf8');
 
 test('free-flight crashes use the shared result card while guided training keeps automatic reset', () => {
   assert.match(html, /data-crash-restart>RESTART FLIGHT/);
   assert.match(main, /\[data-crash-restart\][^\n]+restartGame\(\)/);
-  assert.ok(main.includes("if (!journeyMode && !guidedTrainingCrash) { flightEndedAt = Date.now(); showFlightEndResult(title); }"));
-  assert.match(main, /crashOverlay\.classList\.toggle\('hidden', !guidedTrainingCrash\)/);
+  assert.match(main, /if \(!journeyMode && !guidedTrainingCrash\)\s*\{\s*flightEndedAt = Date\.now\(\);\s*if \(!crashSequence\) showFlightEndResult\(title\);\s*\}/);
+  assert.match(main, /crashOverlay\.classList\.toggle\('hidden', !guidedTrainingCrash \|\| crashSequence !== null\)/);
   assert.match(main, /if \(flightEndResultActive\)[^\n]+restartGame\(\)/);
   assert.match(main, /journeyResultElement\.classList\.add\('is-terminal', 'is-failure', 'is-flight-result'\)/);
   assert.match(main, /guidedTrainingCrash=cityRules\.tutorialEnabled&&guidedTutorialActive/);
@@ -46,7 +47,8 @@ test('all public legal and support routes render standalone pages', () => {
   assert.doesNotMatch(html, /src="\/src\/bootstrap\.ts"/);
   assert.match(entry, /policyPage\(window\.location\.pathname\)/);
   assert.match(entry, /if \(standalonePage\)[\s\S]+document\.write\(standalonePage\)[\s\S]+else \{\s*void import\('\.\/bootstrap'\)/);
-  assert.match(brand, /\['Support', legalConfig\.policyRoutes\.support\]/);
+  assert.match(pilotMenu, /externalLink\('Support', legalPolicyHref\(legalConfig\.policyRoutes\.support\)\)/);
+  assert.match(brand, /export function legalPolicyHref\(path: string\)/);
   assert.match(policyPage('/terms'), /h2\{[^}]+color:#F9B00A/);
   assert.match(policyPage('/terms'), /a\{color:#F9B00A\}/);
 });

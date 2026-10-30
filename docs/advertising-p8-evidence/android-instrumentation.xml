@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="com.vadensoftware.airportchaos.ExampleInstrumentedTest" tests="2" failures="1" errors="0" skipped="0" time="126.589" timestamp="2026-10-29T23:09:12" hostname="localhost">
+  <properties>
+    <property name="device" value="medium_phone(AVD) - 16" />
+    <property name="flavor" value="" />
+    <property name="project" value=":app" />
+  </properties>
+  <testcase name="useAppContext" classname="com.vadensoftware.airportchaos.ExampleInstrumentedTest" time="0.04" />
+  <testcase name="privacyAndNativeAd" classname="com.vadensoftware.airportchaos.P8NativeTest" time="113.996">
+    <failure>java.lang.AssertionError: Actual native fixture must be visible, not an OS ANR dialog
+at org.junit.Assert.fail(Assert.java:89)
+at org.junit.Assert.assertTrue(Assert.java:42)
+at com.vadensoftware.airportchaos.P8NativeTest.privacyAndNativeAd(P8NativeTest.java:31)
+</failure>
+  </testcase>
+</testsuite>

@@ -1,3 +1,4 @@
+import { rewardedAdPrivacy } from './rewarded-ads';
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
 import { actionKeyLabel, cameraControlLabels, controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { mountAirportChaosLogo } from './brand';
@@ -395,6 +396,21 @@ export class PilotMenu {
       externalLink('Support', legalPolicyHref(legalConfig.policyRoutes.support)),
     );
     legal.append(textElement('p', 'Policies and help for Airport Chaos.', 'pilot-menu-muted'), links);
+    const privacyManager = rewardedAdPrivacy;
+    if (privacyManager) {
+      const privacy = actionButton({ label: 'Video Ad Privacy Options', run: () => {
+        privacy.disabled = true;
+        void privacyManager.open().then(status => { privacy.hidden = !status.required; })
+          .catch(() => { status.textContent = 'Video privacy options are unavailable. Please try again later.'; })
+          .finally(() => { privacy.disabled = false; });
+      } });
+      const status = textElement('p', '', 'pilot-menu-muted'); status.setAttribute('role', 'status');
+      privacy.hidden = true;
+      void privacyManager.current().then(value => { privacy.hidden = !value.required; }).catch(() => undefined);
+      legal.append(privacy, status, externalLink('Report a video ad', 'mailto:support@vadensoftware.com?subject=Rewarded%20video%20ad%20concern'),
+        textElement('p', 'Describe the ad and concern. Do not include account secrets or personal information. This does not automatically identify the video.', 'pilot-menu-muted'));
+    }
+
     const advertising = section('BUSINESS CONTACT');
     const sponsorInfo = document.createElement('div'); sponsorInfo.className = 'pilot-menu-sponsor-info';
     sponsorInfo.append(textElement('p', 'Interested in advertising in Airport Chaos?'),
@@ -1172,9 +1188,10 @@ export class PilotMenu {
         const hasCycle = state.windowStartedAt !== undefined && watchRemaining > 0;
         const completed = hasCycle ? state.maxRewards - state.remaining : 0;
         const capped = hasCycle && state.remaining <= 0;
-        const pending = watchData.phase === 'verifying' || state.activeAttempt?.status === 'PENDING_VERIFICATION';
+        const pending = watchData.phase === 'verifying' || ['AD_STARTED', 'PENDING_VERIFICATION'].includes(state.activeAttempt?.status ?? '');
+        const awaitingPrevious = state.activeAttempt?.status === 'CREATED' && watchData.phase === 'idle';
         const adTotal = state.rewardCreditsByStep.reduce((total, amount) => total + amount, 0);
-        watch.append(textElement('p', `Complete each video in order. All four ads: ${adTotal.toLocaleString()} Credits.`, 'pilot-menu-muted'));
+        watch.append(textElement('p', 'Optional videos unlock for 1 hour after you claim your Daily Reward.', 'pilot-menu-muted'));
         const steps = document.createElement('div');
         steps.className = 'pilot-ad-steps';
         state.rewardCreditsByStep.forEach((amount, index) => {
@@ -1187,6 +1204,7 @@ export class PilotMenu {
             : !ready ? '🔒 LOCKED'
               : watchData.phase === 'loading' ? 'LOADING…'
                 : pending ? 'VERIFYING…'
+                  : awaitingPrevious ? 'PENDING…'
                   : watchData.phase === 'playing' ? 'PLAYING…' : 'WATCH';
           const watchButton = actionButton({
             label: buttonLabel,
@@ -1199,11 +1217,12 @@ export class PilotMenu {
         });
         watch.append(steps);
         const availability = !state.supported ? 'Rewarded videos are unavailable right now.'
-          : !hasCycle ? 'Claim your free hourly reward to unlock the four ads.'
-            : capped ? 'ALL FOUR VIDEO REWARDS CLAIMED' : `Ad ${completed + 1} of ${state.maxRewards} is ready`;
+          : !hasCycle ? data.rewards.state.claimable ? 'Claim your Daily Reward to unlock videos.' : 'Reward time has ended.'
+            : capped ? 'All available video rewards claimed.' : `Ad ${completed + 1} of ${state.maxRewards} is ready`;
         if (!hasCycle || !state.supported || capped) watch.append(textElement('p', availability, 'pilot-watch-availability'));
-        watch.append(textElement('p', `Free claim + all four ads: ${(data.rewards.state.nextAmount + adTotal).toLocaleString()} Credits.`, 'pilot-watch-total'));
+        watch.append(textElement('p', `All four verified videos: ${adTotal.toLocaleString()} Credits.`, 'pilot-watch-total'));
         if (watchData.notice) watch.append(textElement('p', watchData.notice, 'pilot-watch-status'));
+        else if (awaitingPrevious) watch.append(textElement('p', 'A previous video attempt is pending. It will become available again after the server clears or expires it.', 'pilot-watch-status'));
         rewards.append(watch);
       }
       const inviteData = data.rewards.invite;

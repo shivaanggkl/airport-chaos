@@ -1,0 +1,15 @@
+{
+  "isolatedFixtures": [
+    {
+      "platform": "ios",
+      "credits": 25,
+      "skyTokens": 0
+    },
+    {
+      "platform": "android",
+      "credits": 25,
+      "skyTokens": 0
+    }
+  ],
+  "rewardedLedgerRows": 0
+}

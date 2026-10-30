@@ -1,0 +1,75 @@
+.advertise-app{position:relative;display:block;min-height:100dvh;overflow-x:hidden;color:#eef8ff;background:radial-gradient(circle at 12% 3%,#164775 0,transparent 33%),radial-gradient(circle at 93% 20%,#194c74 0,transparent 35%),#071a34;font:400 16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-sizing:border-box;scroll-behavior:smooth}
+.advertise-app *{box-sizing:border-box}
+.advertise-app [hidden]{display:none!important}
+.advertise-app button,.advertise-app input,.advertise-app textarea,.advertise-app select{font:inherit}
+.advertise-app button{cursor:pointer}
+.advertise-app a{color:inherit}
+.advertise-app :focus-visible{outline:3px solid #7eeaff;outline-offset:3px}
+.adp-topbar{height:70px;padding:0 clamp(20px,4vw,64px);display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:1px solid #3686ab88;background:#081b37ee;position:sticky;top:0;z-index:5;backdrop-filter:blur(12px)}
+.adp-back{min-width:92px;min-height:44px;border:1px solid #7db6ce80;border-radius:12px;color:#eafaff;background:#103153;font-size:30px!important;line-height:1!important;display:flex;align-items:center;gap:8px;padding:0 14px}
+.adp-back span{font-size:12px;font-weight:900;letter-spacing:.1em}
+.adp-brand{text-decoration:none;font-weight:1000;letter-spacing:.14em;font-size:clamp(13px,1.7vw,23px);white-space:nowrap;color:#ffd46f!important;text-shadow:0 2px 12px #e6a53155}
+.adp-wings{color:#6fe1f1;margin-right:8px}
+.adp-top-contact{font-size:12px;font-weight:900;letter-spacing:.12em;text-decoration:none;border-bottom:1px solid #75c7e1;padding:10px 0;white-space:nowrap}
+.adp-main,.adp-directory{width:min(1280px,calc(100% - 40px));margin:auto}
+.adp-hero{display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:clamp(24px,4vw,60px);padding:clamp(36px,6vw,74px) 0 46px}
+.adp-eyebrow{display:block;color:#76dff3;font-size:11px;font-weight:900;letter-spacing:.18em;margin-bottom:12px}
+.adp-hero h1,.adp-directory h1{font-size:clamp(32px,4.6vw,66px);line-height:1.03;letter-spacing:-.025em;margin:0 0 18px;font-weight:1000}
+.adp-hero h1 em{font-style:normal;color:#ffce62;display:block}
+.adp-hero p{font-size:clamp(17px,1.7vw,22px);color:#cde2ef;max-width:36ch;margin:0 0 26px}
+.adp-actions{display:flex;gap:12px;flex-wrap:wrap}
+.adp-button{min-height:46px;border-radius:10px;padding:11px 19px;text-decoration:none;font-size:12px!important;font-weight:900!important;letter-spacing:.075em;display:inline-flex;justify-content:center;align-items:center;text-align:center;transition:transform .15s ease,background .15s ease}
+.adp-button:hover{transform:translateY(-2px)}
+.adp-button-gold{color:#172640!important;border:1px solid #ffd987;background:linear-gradient(#ffe396,#f8b72f);box-shadow:0 5px 15px #e69f2633}
+.adp-button-outline{color:#ebfbff!important;border:1px solid #6fcbe4;background:#0f3655}
+.adp-hero-frame{position:relative;padding:7px;border:1px solid #62bfdba0;border-radius:18px;background:#0b2948;box-shadow:0 20px 45px #020c21a0;overflow:hidden}
+.adp-hero-frame img{width:100%;aspect-ratio:16/8.3;object-fit:cover;display:block;border-radius:11px}
+.adp-hero-frame span{position:absolute;bottom:18px;left:19px;background:#071c35dd;border:1px solid #8cd4e8aa;border-radius:6px;padding:5px 8px;font-size:9px;letter-spacing:.12em;font-weight:900}
+.adp-section{padding:36px 0}
+.adp-section-heading{margin-bottom:20px}
+.adp-section h2,.adp-sponsors-teaser h2,.adp-inquiry h2{font-size:clamp(22px,2.6vw,34px);line-height:1.1;margin:0;letter-spacing:.025em;font-weight:1000}
+.adp-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.adp-card{border:1px solid #4ba3c988;border-radius:15px;background:linear-gradient(#12385d,#0b2a4a);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 24px #05142a66}
+.adp-card>img,.adp-combo{width:100%;height:clamp(125px,14vw,180px);object-fit:cover;background:#21445e;display:block}
+.adp-combo{display:flex;overflow:hidden}.adp-combo img{width:50%;height:100%;object-fit:cover}
+.adp-card>div:last-child{padding:18px;display:flex;flex:1;flex-direction:column}
+.adp-card h3,.adp-benefit-grid h3{font-size:17px;line-height:1.1;margin:0 0 8px;color:#ffe0a0;font-weight:1000}
+.adp-card p{margin:0 0 12px;color:#e0edf5;font-size:14px;line-height:1.4;min-height:3.9em}
+.adp-card small{font-size:11px;color:#9dc4d6;margin-top:auto}
+.adp-card button{min-height:44px;text-align:left;margin-top:12px;border:0;border-top:1px solid #70aac455;color:#7fe7fb;background:transparent;font-size:12px;font-weight:1000;letter-spacing:.1em}
+.adp-card button span{float:right;font-size:18px}
+.adp-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.adp-gallery figure{margin:0;border:1px solid #5799b488;border-radius:12px;overflow:hidden;background:#113453}
+.adp-gallery img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+.adp-gallery figcaption{padding:10px 13px;font-size:10px;font-weight:900;letter-spacing:.1em;color:#bde9f6}
+.adp-benefit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.adp-benefit-grid>div{border-left:2px solid #e9b34f;padding:2px 16px}
+.adp-benefit-grid span{color:#76dff3;font-size:12px;font-weight:900}.adp-benefit-grid h3{margin-top:8px}.adp-benefit-grid p{color:#c7ddeb;font-size:14px;margin:0}
+.adp-sponsors-teaser{margin:38px 0;padding:25px 30px;border:1px solid #b9984d91;border-radius:15px;background:linear-gradient(100deg,#163e61,#112b4d);display:flex;align-items:center;justify-content:space-between;gap:20px}
+.adp-sponsors-teaser p{margin:8px 0 0;color:#cfe2ee}
+.adp-inquiry{display:grid;grid-template-columns:.75fr 1.25fr;gap:clamp(24px,4vw,55px);align-items:start;padding:34px 0 58px}
+.adp-inquiry-intro>p{color:#d0e1ec;max-width:35ch}.adp-privacy-note{font-size:13px!important;color:#a9cbdc!important}.adp-privacy-note a{text-decoration:underline;color:#87e6f8}
+.adp-form-panel{border:1px solid #5ab9d4a0;border-radius:16px;background:#0e2e4c;padding:clamp(18px,2.4vw,30px);box-shadow:0 14px 32px #03102088}
+.adp-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.adp-form-grid label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:800;color:#ebf9ff}.adp-form-grid label span{color:#ffcf6c}.adp-form-grid label small{font-weight:400;color:#b3cfdd}.adp-wide{grid-column:1/-1}
+.adp-form-grid input,.adp-form-grid select,.adp-form-grid textarea{width:100%;min-height:44px;padding:10px 12px;border:1px solid #7daec288;border-radius:8px;background:#f6fbff;color:#102941;outline:none}.adp-form-grid textarea{min-height:100px;resize:vertical}.adp-form-grid :is(input,select,textarea):focus{border-color:#1bbbdc;box-shadow:0 0 0 3px #58ddf34a}
+.adp-form-status{min-height:22px;margin:14px 0 10px;font-size:13px;color:#beddec}.adp-form-status[data-state="error"],.adp-form-status[data-state="rate-limited"]{color:#ffd1a9}.adp-form-status[data-state="success"]{color:#8df6bf}
+.adp-submit{width:100%}.adp-submit:disabled{opacity:.52;cursor:not-allowed;transform:none}.adp-fallback{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:13px}.adp-fallback a,.adp-fallback button,.adp-footer nav button{border:0;background:transparent;color:#94eaff;font-size:12px;font-weight:900;text-decoration:underline;min-height:44px;display:inline-flex;align-items:center;letter-spacing:.04em}
+.adp-retry{min-height:44px;display:block;margin:8px auto 0;border:0;background:transparent;color:#94eaff;font-size:12px;font-weight:900;text-decoration:underline}
+.adp-footer{border-top:1px solid #4e97b364;padding:25px 0 32px;color:#bcd6e4;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px 24px}.adp-footer p{margin:0}.adp-footer nav{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.adp-footer a{font-size:12px;font-weight:800;text-decoration:none;color:#94eaff}.adp-footer small{width:100%;color:#8fb3c7}
+.adp-directory{min-height:calc(100dvh - 70px);display:grid;place-items:center}.adp-directory-panel{text-align:center;padding:55px 30px;border:1px solid #67b0cd88;border-radius:18px;background:#103354;width:min(100%,620px)}.adp-directory-panel p{font-size:18px;color:#c7dfeb;margin:0 0 24px}
+.adp-directory-panel:has(.adp-sponsor-card){width:min(100%,900px)}
+.adp-sponsor-card{display:flex;align-items:center;gap:22px;padding:20px;text-align:left;border:1px solid #67b0cd88;border-radius:14px;background:#0b2b4c;margin:0 0 16px}
+.adp-sponsor-card img,.adp-sponsor-details>img{width:min(100%,240px);height:auto;aspect-ratio:8/1;object-fit:contain;flex:none}
+.adp-sponsor-card h2{font-size:22px;margin:3px 0;color:#fff}.adp-sponsor-card small{font-size:11px;letter-spacing:.16em;color:#ffcf71;font-weight:900}
+.adp-sponsor-card p{font-size:14px;margin:0 0 12px}.adp-sponsor-details{display:grid;justify-items:center;gap:14px}
+.adp-sponsor-details>img{width:min(100%,500px);height:auto;aspect-ratio:8/1;object-fit:contain}.adp-sponsor-details h1{font-size:clamp(24px,4vw,42px);margin:0}.adp-sponsor-details>p{margin:0 0 8px}
+.adp-sponsor-details .adp-button{min-width:210px}.adp-sponsor-details form{display:grid;gap:12px;width:min(100%,440px);text-align:left;border-top:1px solid #67b0cd88;padding-top:18px}
+.adp-sponsor-details label{display:grid;gap:5px;font-size:13px;font-weight:800}.adp-sponsor-details select,.adp-sponsor-details textarea{width:100%;border:1px solid #81c9db;border-radius:8px;background:#f4fbff;color:#102941;padding:10px;min-height:44px}
+.adp-sponsor-details textarea{resize:vertical}.adp-sponsor-details [data-report-status]{font-size:13px;min-height:20px;color:#aef1cd;margin:0}
+@media(max-width:540px){.adp-sponsor-card{flex-direction:column;text-align:center}.adp-directory-panel{padding:28px 16px}}
+@media(max-width:540px){.adp-directory{align-items:start;padding:24px 0}}
+@media(max-width:700px){.adp-topbar{height:60px;padding:0 14px}.adp-top-contact{display:none}.adp-brand{font-size:14px}.adp-main,.adp-directory{width:calc(100% - 28px)}.adp-hero{grid-template-columns:1fr;padding:25px 0 20px;gap:20px}.adp-hero-frame img{aspect-ratio:16/7}.adp-cards{grid-template-columns:1fr}.adp-card{display:grid;grid-template-columns:34% 1fr}.adp-card>img,.adp-combo{height:100%;min-height:160px}.adp-combo{flex-direction:column}.adp-combo img{width:100%;height:50%}.adp-card p{min-height:0}.adp-gallery{grid-template-columns:1fr}.adp-benefit-grid{grid-template-columns:1fr}.adp-sponsors-teaser{padding:20px;align-items:start;flex-direction:column}.adp-inquiry{grid-template-columns:1fr}.adp-form-grid{grid-template-columns:1fr}.adp-wide{grid-column:auto}}
+@media(max-width:420px){.adp-brand{font-size:11px;letter-spacing:.08em}.adp-back{min-width:62px;padding:0 8px}.adp-back span{display:none}.adp-hero h1{font-size:35px}.adp-actions .adp-button{width:100%}.adp-card{display:flex}.adp-card>img,.adp-combo{height:145px}}
+@media(prefers-reduced-motion:reduce){.advertise-app{scroll-behavior:auto}.adp-button{transition:none}}
+/* The in-game page sits above the Hub while retaining the running scene underneath. */
+.advertise-overlay{position:fixed;inset:0;z-index:1000;overflow:auto}.advertise-overlay.advertise-app{min-height:0}

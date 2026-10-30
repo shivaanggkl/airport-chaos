@@ -1,0 +1,73 @@
+{
+  "environment": "macOS desktop Chromium 156; isolated same-host QA http://127.0.0.1:8096; emulated viewport 1536x707 DPR1 for captures",
+  "notPhysicalMobileTesting": true,
+  "screenshots": {
+    "report-duplicate-safe.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "cdc4e4d2ea51a99cd2514438718264e71b3a766df62e60670479be628a3fe70f"
+    },
+    "directory-qa.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "d106b4a3a94e3e29e3a75d8d7b4bef9227d4a099436102af9c2e3ebda23a83c6"
+    },
+    "hub-qa.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "7c97ea1d04d8dfbad57d7f99b64ab920eb5931d4f22efc2c039d60351bc94b09"
+    },
+    "hub-global-pause.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "368002087851047687a4db71d79db171863cb9a93859dc9040d4ec5191517c46"
+    },
+    "hub-expiring-qa.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "1b1259c678a7506632451b71596460bdb7d10b586189c5eebb1235ef1a22166d"
+    },
+    "hub-expired-house.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "e345ff8c024f213e0d9d5bea42fe1df15a97a2a333267c740e9b816bf8c49cdd"
+    },
+    "details-qa.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "ac59605f68af34fb004e2bde1e6791d2ae73baa5e0cc5a44c2db25b3d9cc189f"
+    },
+    "hub-paused-house.png": {
+      "width": 1536,
+      "height": 707,
+      "sha256": "74b25455897448fd25a3b7c4f5cf25724b005d8e6b01264980cb7a9f5eb08579"
+    }
+  },
+  "observedCounts": {
+    "HUB_ESTIMATED_EXPOSURE": 3,
+    "WORLD_ESTIMATED_EXPOSURE": 0,
+    "SPONSOR_DETAILS_OPEN": 2,
+    "SPONSOR_WEBSITE_ACTION": 0
+  },
+  "reportCounts": {
+    "total": 1,
+    "open": 0,
+    "reasons": {
+      "OTHER": 1
+    }
+  },
+  "tests": {
+    "selectedRegressionPassed": 46,
+    "failed": 0,
+    "skipped": 0,
+    "p7Included": 6,
+    "build": "client and server passed"
+  },
+  "commercial": "NOT AUTHORIZED; all test references are simulated; no real advertiser or payment",
+  "productionHostAccess": "UNVERIFIED: Render connector has no selected workspace; workspace confirmation required before private service reads",
+  "cleanup": {
+    "temporaryDatabaseAssetsAndBrowserRemoved": true,
+    "qaFlagsPersisted": false,
+    "ports8096and9227Closed": true
+  }
+}

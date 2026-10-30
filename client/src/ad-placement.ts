@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { sponsorshipApi, type PublicWorldSponsor } from './sponsorship-catalog';
+import { recordSponsorMeasurement, SponsorExposureEpisode } from './sponsorship-measurement';
 import {
   canCombatSuppressPlacement,
   isAirborneAdPlacement,
@@ -102,6 +104,8 @@ type RenderedPlacement = {
   creativeWidth: number;
   creativeHeight: number;
   projectedPixels: number;
+  panels: THREE.Mesh[];
+  houseMaterials: THREE.Material[];
 };
 
 type RingSponsorRuntime = {
@@ -163,6 +167,37 @@ function isActive(placement: AdPlacement, now = Date.now()): boolean {
   return placement.enabled && now >= Date.parse(placement.startAt) && now <= Date.parse(placement.endAt);
 }
 
+function drawTallHouseCreative(
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  creative: AdCreative,
+  level: 'near' | 'mid' | 'far',
+  logo?: HTMLImageElement,
+): void {
+  const { width, height } = canvas;
+  context.fillStyle = creative.background ?? '#102b3e';
+  context.fillRect(0, 0, width, height);
+  context.strokeStyle = creative.accent ?? '#71c7e6';
+  context.lineWidth = Math.max(1, width * 0.025);
+  context.strokeRect(width * 0.08, height * 0.035, width * 0.84, height * 0.93);
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = creative.foreground ?? '#f5fcff';
+  context.font = `900 ${Math.round(width * (level === 'far' ? 0.37 : 0.21))}px Arial, sans-serif`;
+  if (level === 'far') {
+    context.fillText('AC', width * 0.5, height * 0.5, width * 0.76);
+    return;
+  }
+  context.fillText('AIRPORT', width * 0.5, height * 0.17, width * 0.76);
+  context.fillText('CHAOS', width * 0.5, height * 0.8, width * 0.76);
+  if (logo) {
+    const size = Math.min(width * 0.76 / logo.naturalWidth, height * 0.31 / logo.naturalHeight);
+    const logoWidth = logo.naturalWidth * size;
+    const logoHeight = logo.naturalHeight * size;
+    context.drawImage(logo, (width - logoWidth) * 0.5, height * 0.48 - logoHeight * 0.5, logoWidth, logoHeight);
+  }
+}
+
 function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near', aspect = 3.2): THREE.MeshBasicMaterial {
   const portrait = aspect < 1.35;
   const aspectKey = Math.max(0.2, Math.round(aspect * 10) / 10);
@@ -182,19 +217,22 @@ function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   if (creative.reference === sponsorCatalog['airport-chaos'].creative.reference) {
-    context.strokeStyle = accent;
-    context.lineWidth = Math.max(2, unit * 0.015);
-    context.strokeRect(unit * 0.045, unit * 0.07, canvas.width - unit * 0.09, unit * 0.86);
-    context.fillStyle = creative.foreground ?? '#ffffff';
-    context.font = `900 ${Math.round(unit * (aspectKey < 2 ? 0.27 : 0.35))}px Arial, sans-serif`;
-    context.fillText(creative.headline, canvas.width * 0.5, level === 'far' ? unit * 0.54 : unit * 0.42, canvas.width * 0.87);
-    if (level !== 'far') {
-      context.fillStyle = accent;
-      context.font = `700 ${Math.round(unit * 0.105)}px Arial, sans-serif`;
-      context.fillText(creative.subline ?? '', canvas.width * 0.5, unit * 0.68, canvas.width * 0.82);
-      if (level === 'near') {
-        context.font = `700 ${Math.round(unit * 0.058)}px Arial, sans-serif`;
-        context.fillText(creative.footer ?? '', canvas.width * 0.5, unit * 0.84, canvas.width * 0.72);
+    if (aspectKey < 0.35) drawTallHouseCreative(context, canvas, creative, level);
+    else {
+      context.strokeStyle = accent;
+      context.lineWidth = Math.max(2, unit * 0.015);
+      context.strokeRect(unit * 0.045, unit * 0.07, canvas.width - unit * 0.09, unit * 0.86);
+      context.fillStyle = creative.foreground ?? '#ffffff';
+      context.font = `900 ${Math.round(unit * (aspectKey < 2 ? 0.27 : 0.35))}px Arial, sans-serif`;
+      context.fillText(creative.headline, canvas.width * 0.5, level === 'far' ? unit * 0.54 : unit * 0.42, canvas.width * 0.87);
+      if (level !== 'far') {
+        context.fillStyle = accent;
+        context.font = `700 ${Math.round(unit * 0.105)}px Arial, sans-serif`;
+        context.fillText(creative.subline ?? '', canvas.width * 0.5, unit * 0.68, canvas.width * 0.82);
+        if (level === 'near') {
+          context.font = `700 ${Math.round(unit * 0.058)}px Arial, sans-serif`;
+          context.fillText(creative.footer ?? '', canvas.width * 0.5, unit * 0.84, canvas.width * 0.72);
+        }
       }
     }
   } else if (creative.reference.startsWith('self:')) {
@@ -292,6 +330,11 @@ function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near
   if (creative.reference === sponsorCatalog['airport-chaos'].creative.reference) {
     void loadAirportChaosLogo().then((image) => {
       if (!image) return;
+      if (aspectKey < 0.35) {
+        drawTallHouseCreative(context, canvas, creative, level, image);
+        texture.needsUpdate = true;
+        return;
+      }
       const width = canvas.width;
       const height = canvas.height;
       context.fillStyle = creative.background ?? '#102b3e';
@@ -553,6 +596,7 @@ function groundGeometryFor(placement: AdPlacement, heightAt?: (x: number, z: num
 
 function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: number) => number): RenderedPlacement {
   const group = new THREE.Group();
+  const panels: THREE.Mesh[] = [];
   const creativeSize = skyCreativeSize(placement);
   group.name = `ad-placement-${placement.id}`;
   group.position.set(placement.position.x, placement.position.y, placement.position.z);
@@ -577,6 +621,7 @@ function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: 
       if (!ground) panel.scale.set(placement.size.x, placement.size.y, 1);
       if (!ground) panel.position.z = 0.12;
       panel.name = `ad-${level}-${placement.id}`;
+      panels.push(panel);
       lod.addLevel(panel, distance);
     }
     group.add(lod);
@@ -611,6 +656,8 @@ function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: 
     creativeWidth: creativeSize.width,
     creativeHeight: creativeSize.height,
     projectedPixels: 0,
+    panels,
+    houseMaterials: panels.map(panel => panel.material as THREE.Material),
   };
 }
 
@@ -670,6 +717,14 @@ export class AdPlacementManager {
   private debugElapsed = 0;
   private readonly debugElement?: HTMLDivElement;
   private readonly liveryMetrics = new Map<string, LiveryMetric>();
+  private readonly sponsored = new Map<string, { url: string; texture: THREE.Texture; material: THREE.MeshBasicMaterial }>();
+  private readonly worldSponsors = new Map<string, PublicWorldSponsor>();
+  private readonly sponsorEpisodes = new Map<string, SponsorExposureEpisode>();
+  private readonly sponsorEpisodeIdentities = new Map<string, string>();
+  private sponsorMeasurementEnabled = false;
+  private readonly pendingSponsor = new Map<string, { url: string; texture: THREE.Texture; token: number }>();
+  private sponsorToken = 0;
+  private disposed = false;
 
   constructor(
     scene: THREE.Scene,
@@ -710,6 +765,73 @@ export class AdPlacementManager {
       rendered.group.visible = false;
       rendered.metrics.continuousVisibleSeconds = 0;
     }
+    if (!enabled && this.sponsorMeasurementEnabled) for (const episode of this.sponsorEpisodes.values()) episode.update(false);
+  }
+
+  setSponsorMeasurementEnabled(enabled: boolean): void {
+    this.sponsorMeasurementEnabled = enabled;
+    if (!enabled) {
+      this.sponsorEpisodes.clear();
+      this.sponsorEpisodeIdentities.clear();
+    }
+  }
+
+  setWorldSponsors(entries: ReadonlyArray<PublicWorldSponsor>): void {
+    if (this.disposed) return;
+    const previous = new Map(this.worldSponsors);
+    this.worldSponsors.clear();
+    for (const entry of entries) {
+      this.worldSponsors.set(entry.placementId, entry);
+      const identity = `${entry.campaignId}:${entry.creativeId}`;
+      // A catalog refresh briefly restores house art. Keep the same exposure
+      // episode unless the campaign/creative actually changes.
+      if (this.sponsorMeasurementEnabled && this.sponsorEpisodeIdentities.get(entry.placementId) !== identity) {
+        this.sponsorEpisodes.set(entry.placementId, new SponsorExposureEpisode());
+        this.sponsorEpisodeIdentities.set(entry.placementId, identity);
+      }
+    }
+    for (const id of previous.keys()) if (!this.worldSponsors.has(id)) this.sponsorEpisodes.get(id)?.update(false);
+    const desired = new Map(entries.map(entry => [entry.placementId, entry.assetUrl]));
+    for (const rendered of this.rendered) {
+      if (!rendered.panels.length) continue;
+      const url = desired.get(rendered.placement.id);
+      const active = this.sponsored.get(rendered.placement.id);
+      const pending = this.pendingSponsor.get(rendered.placement.id);
+      if (url && (active?.url === url || pending?.url === url)) continue;
+      if (pending) { pending.texture.dispose(); this.pendingSponsor.delete(rendered.placement.id); }
+      if (active) {
+        rendered.panels.forEach((panel, index) => { panel.material = rendered.houseMaterials[index]; });
+        active.material.dispose(); active.texture.dispose();
+        this.sponsored.delete(rendered.placement.id);
+      }
+      if (!url) continue;
+      const token = ++this.sponsorToken;
+      const texture = new THREE.TextureLoader().load(sponsorshipApi(url), loaded => {
+        const current = this.pendingSponsor.get(rendered.placement.id);
+        if (this.disposed || current?.token !== token) { loaded.dispose(); return; }
+        this.pendingSponsor.delete(rendered.placement.id);
+        const image = loaded.image as HTMLImageElement | undefined;
+        const aspect = image?.naturalWidth && image?.naturalHeight ? image.naturalWidth / image.naturalHeight : 0;
+        const targetAspect = rendered.placement.size.x / rendered.placement.size.y;
+        if (!Number.isFinite(aspect) || Math.abs(aspect / targetAspect - 1) > 0.08) { loaded.dispose(); return; }
+        loaded.colorSpace = THREE.SRGBColorSpace;
+        loaded.minFilter = THREE.LinearMipmapLinearFilter;
+        loaded.magFilter = THREE.LinearFilter;
+        loaded.generateMipmaps = true;
+        loaded.anisotropy = 4;
+        const material = new THREE.MeshBasicMaterial({ map: loaded, side: THREE.DoubleSide, toneMapped: false });
+        rendered.panels.forEach(panel => { panel.material = material; });
+        this.sponsored.set(rendered.placement.id, { url, texture: loaded, material });
+      }, undefined, () => {
+        if (this.pendingSponsor.get(rendered.placement.id)?.token === token) this.pendingSponsor.delete(rendered.placement.id);
+        texture.dispose();
+      });
+      this.pendingSponsor.set(rendered.placement.id, { url, texture, token });
+    }
+  }
+
+  getSponsorResourceCount(): { textures: number; materials: number; pending: number } {
+    return { textures: this.sponsored.size, materials: this.sponsored.size, pending: this.pendingSponsor.size };
   }
 
   update(camera: THREE.Camera, delta: number, localLiveryPlane?: THREE.Group, combatActive = false, combatX = 0, combatY = 0, combatRadius = 0): void {
@@ -799,7 +921,14 @@ export class AdPlacementManager {
         projectedHeight >= minimumPixels && projectedWidth >= minimumPixels * 2;
       if (!visible) {
         rendered.metrics.continuousVisibleSeconds = 0;
+        if (this.sponsorMeasurementEnabled) this.sponsorEpisodes.get(rendered.placement.id)?.update(false);
         continue;
+      }
+      const worldSponsor = this.worldSponsors.get(rendered.placement.id);
+      if (this.sponsorMeasurementEnabled && worldSponsor && this.sponsorEpisodes.get(rendered.placement.id)?.update(
+        Boolean(this.sponsored.has(rendered.placement.id) && !document.hidden && !combatActive))) {
+        recordSponsorMeasurement({ type: 'WORLD_ESTIMATED_EXPOSURE', campaignId: worldSponsor.campaignId,
+          creativeId: worldSponsor.creativeId, placementId: worldSponsor.placementId, cityId: worldSponsor.cityId });
       }
       rendered.metrics.totalVisibleSeconds += interval;
       rendered.metrics.continuousVisibleSeconds += interval;
@@ -845,6 +974,8 @@ export class AdPlacementManager {
   }
 
   dispose(scene: THREE.Scene): void {
+    this.setWorldSponsors([]);
+    this.disposed = true;
     for (const rendered of this.rendered) {
       scene.remove(rendered.group);
       rendered.ownedGeometry?.dispose();

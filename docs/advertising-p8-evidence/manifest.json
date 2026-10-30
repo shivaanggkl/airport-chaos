@@ -1,0 +1,108 @@
+{
+  "status": "BLOCKED",
+  "branch": "feature/advertising",
+  "commit": "95a6787e9b37de3f7a50922660f3004ee71ec957",
+  "changedPreExistingFiles": [
+    "android/app/src/main/AndroidManifest.xml",
+    "client/src/bootstrap.ts",
+    "client/src/pilot-menu.ts",
+    "client/src/rewarded-ads.ts",
+    "native-auth/android/src/main/java/com/vadensoftware/airportchaos/nativeauth/NativeRewardedAdPlugin.java",
+    "native-auth/ios/Sources/NativeAuthPlugin/NativeRewardedAdPlugin.swift",
+    "server/src/rewarded-ads.test.ts",
+    "server/src/rewarded-ads.ts"
+  ],
+  "missingPreExistingFiles": [],
+  "otherWorktreesEdited": false,
+  "simulator": "Disposable iPhone 15 Pro / iOS 17.5; real native XCTest, not physical iPhone",
+  "android": "medium_phone AVD Android16/API36, read-only/no saved snapshot; not physical Android",
+  "nativeBuilds": {
+    "iosDebug": "PASS",
+    "androidDebug": "PASS"
+  },
+  "selectedRegression": {
+    "passed": 103,
+    "failed": 0,
+    "skipped": 0
+  },
+  "focusedIncludedInRegression": {
+    "passed": 27,
+    "failed": 0
+  },
+  "iosFixtureXCTest": {
+    "passed": 1,
+    "failed": 0,
+    "meaning": "WebView survival assertion only; video request timed out com.google.admob:5"
+  },
+  "androidStrictInstrumentation": {
+    "passed": 1,
+    "failed": 1,
+    "meaning": "Actual fixture visibility failed; blank capture after prior system ANR"
+  },
+  "unverified": [
+    "native video presentation/qualification/dismissal",
+    "normal authenticated game Rewards end-to-end",
+    "audio/gameplay/frame-pacing restoration",
+    "native feature-off/on performance comparison",
+    "complete consent geography/refusal/lifecycle matrix",
+    "physical devices",
+    "real AdMob publisher SSV callback",
+    "production/store/legal approval"
+  ],
+  "screenshots": {
+    "android-system-blocker.png": {
+      "width": 1080,
+      "height": 2400,
+      "sha256": "39b0c98888771eb94b280f94543f97b0e089f5c2863c3a21152dbc2f2c5fb9a3"
+    },
+    "ios-native-result.png": {
+      "width": 1178,
+      "height": 2556,
+      "sha256": "4fe35ded4ef041565561d751b771e0701b880668466660f6bd611fcec7a57f59"
+    },
+    "ios-first-native-return.png": {
+      "width": 1178,
+      "height": 2556,
+      "sha256": "a446d53e838c52b09818e5517d1e1db3ff9149443ec346c1d6ca7c8a9420d140"
+    },
+    "ios-native-ready.png": {
+      "width": 2556,
+      "height": 1179,
+      "sha256": "4a64726801490424436832dfabc390fcc53affbaace73392b00b0d65217cbc2f"
+    },
+    "android-native-result.png": {
+      "width": 2400,
+      "height": 1080,
+      "sha256": "7b18cca463ae28d9496145adbed0d84c944adf1382747731c59fea67df30a034"
+    }
+  },
+  "finalApplicationSha256": {
+    "android/app/src/main/AndroidManifest.xml": "be4ea997e0d4f54e9b9a4fbfb5287c70faa9f5bc1b2ebf4e1f52d3cc858d8e56",
+    "client/src/bootstrap.ts": "6652427835ea2e0cdca5a03e0c52fc02d42bf923feb681bbb7d3e6ee98d9f5b3",
+    "client/src/pilot-menu.ts": "b8a0b2f6c8aed83478a04daf44ef7869fd4889ab0689785084a9c688c4319bb5",
+    "client/src/rewarded-ads.ts": "f56684b6df57016eb7180d75a680dffb85e2654a31a6d7196b7230aff3b6d3d4",
+    "native-auth/android/src/main/java/com/vadensoftware/airportchaos/nativeauth/NativeRewardedAdPlugin.java": "16093118f5caeb06a7e3ccb9f4b1134f2e387d8e29d2952c2a7270d138e3bf5d",
+    "native-auth/ios/Sources/NativeAuthPlugin/NativeRewardedAdPlugin.swift": "b2a39ebc144322b58a622f2b67f69dbfda92b09ac6a6c99c754fc8bfc04a8f4e",
+    "server/src/rewarded-ads.test.ts": "2cf90feba8eb71844077db7c4f0721435f2a521cac949fc8226623b55b5209f9",
+    "server/src/rewarded-ads.ts": "2bc062e00cd841e1568815f9d6cd95adebd5fa3e1a1799c6bfc11e5227f740f0"
+  },
+  "nativeRuntimeProvenance": "Recorded native UI trials precede final privacy getter/error-fallback/first-party-ID refinements; final plugin source compiled, but no successful final video presentation is established.",
+  "otherWorktrees": [
+    {
+      "path": "/Users/shiva/Documents/GitHub/airport-chaos-sky-duel",
+      "statusEntryCount": 26,
+      "editedByP8": false
+    },
+    {
+      "path": "/Users/shiva/Documents/GitHub/airport-chaos-bugfixes",
+      "statusEntryCount": 28,
+      "editedByP8": false
+    }
+  ],
+  "cleanup": {
+    "isolatedDatabaseAssetsProjectCopiesAndSdkFixturesRemoved": true,
+    "ownSimulatorDeleted": true,
+    "readOnlyEmulatorStopped": true,
+    "productionFlagsPersisted": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "branch": "feature/advertising",
+  "commit": "95a6787e9b37de3f7a50922660f3004ee71ec957",
+  "baselineMissingFiles": [],
+  "changedSinceSnapshot": [
+    "server/src/aim-envelope.test.ts",
+    "server/src/rear-guard.test.ts",
+    "server/src/combat-warning.test.ts",
+    "server/src/index.ts",
+    "client/src/main.ts",
+    "docs/advertising-p8.md"
+  ],
+  "writtenByThisClosure": [
+    "server/src/index.ts (plain-text MIME mapping only)",
+    "docs/advertising-p8.md",
+    "docs/advertising-p8-evidence/closure/"
+  ],
+  "concurrentUnrelatedWorkPreserved": true,
+  "regression": {
+    "passed": 103,
+    "failed": 0,
+    "skipped": 0
+  },
+  "finalBuild": {
+    "client": "PASS",
+    "server": "FAIL: combat-aim.test.ts:48 TS2345, concurrent new file"
+  },
+  "native": {
+    "iosDebugBuild": "PASS",
+    "androidDebugBuild": "PASS",
+    "iosRuntimeTest": {
+      "pass": 0,
+      "fail": 1
+    },
+    "androidFreshRuntimeTest": "UNRUN: emulator still booting; APK not installed"
+  },
+  "productionFlagsChanged": false,
+  "publisherFilePublished": false,
+  "ownedFixturesRemoved": true
+}

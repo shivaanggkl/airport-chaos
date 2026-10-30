@@ -1,0 +1,939 @@
+{
+  "schemaVersion": 1,
+  "sourceInventory": "advertising-p0-inventory.json",
+  "commercialActivation": "DISABLED",
+  "qualificationMeaning": "Technical QA only; never commercial approval",
+  "placements": [
+    {
+      "id": "dallas-dfw-north-arrival",
+      "status": "QA_APPROVED",
+      "reasonCode": "RESERVE_VISIBLE_DAY_DUSK_EVENING_NEAR_MEDIUM_ANGLE",
+      "evidence": [
+        "advertising-p1-evidence/dfw-arrival-day-near.png",
+        "advertising-p1-evidence/dfw-arrival-day-medium.png",
+        "advertising-p1-evidence/dfw-arrival-dusk-near.png",
+        "advertising-p1-evidence/dfw-arrival-dusk-medium.png",
+        "advertising-p1-evidence/dfw-arrival-evening-near.png",
+        "advertising-p1-evidence/dfw-arrival-evening-medium.png",
+        "advertising-p1-evidence/dfw-arrival-evening-angle.png",
+        "advertising-p1-evidence/dfw-arrival-evening-far.png"
+      ]
+    },
+    {
+      "id": "dallas-dfw-west-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-dfw-terminal-sign",
+      "status": "QA_APPROVED",
+      "reasonCode": "VISIBLE_MOUNTED_DAY_DUSK_EVENING_NEAR_MEDIUM_ANGLE",
+      "evidence": [
+        "advertising-p1-evidence/dfw-day-near.png",
+        "advertising-p1-evidence/dfw-day-medium.png",
+        "advertising-p1-evidence/dfw-dusk-near.png",
+        "advertising-p1-evidence/dfw-dusk-medium.png",
+        "advertising-p1-evidence/dfw-evening-near.png",
+        "advertising-p1-evidence/dfw-evening-medium.png",
+        "advertising-p1-evidence/dfw-evening-angle.png",
+        "advertising-p1-evidence/dfw-evening-far.png"
+      ]
+    },
+    {
+      "id": "dallas-dfw-airport-chaos-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-terminal-sign",
+      "status": "QA_APPROVED",
+      "reasonCode": "VISIBLE_MOUNTED_DAY_DUSK_EVENING_NEAR_MEDIUM_ANGLE",
+      "evidence": [
+        "advertising-p1-evidence/love-day-near.png",
+        "advertising-p1-evidence/love-day-medium.png",
+        "advertising-p1-evidence/love-dusk-near.png",
+        "advertising-p1-evidence/love-dusk-medium.png",
+        "advertising-p1-evidence/love-evening-near.png",
+        "advertising-p1-evidence/love-evening-medium.png",
+        "advertising-p1-evidence/love-evening-angle.png",
+        "advertising-p1-evidence/love-evening-far.png"
+      ]
+    },
+    {
+      "id": "dallas-addison-terminal-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-terminal-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-dfw-approach-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-approach-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-approach-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-approach-sign",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-i35e-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-us75-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-plaza-wrap-south",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-plaza-wrap-west",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-tower-wrap-south",
+      "status": "BLOCKED",
+      "reasonCode": "OCCLUDED_FROM_MEDIUM_APPROACH",
+      "evidence": [
+        "advertising-p1-evidence/tower-evening-baseline.png",
+        "advertising-p1-evidence/tower-day-near.png",
+        "advertising-p1-evidence/tower-day-medium.png"
+      ]
+    },
+    {
+      "id": "dallas-downtown-tower-wrap-west",
+      "status": "CANDIDATE",
+      "reasonCode": "P1_RESERVE_ADJACENT_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-rooftop",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-airport-chaos-rooftop",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-metro-arena-facade",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-colinas-wrap-north",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-colinas-wrap-east",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-colinas-rooftop",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-dfw-hangar-rooftop",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-hangar-rooftop",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-hangar-rooftop",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-i35e-commercial-roof",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-commercial-roof",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-trinity-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-interchange",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-commercial-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-east-i30-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-dfw-grass-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-grass-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-grass-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-grass-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-park-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-open-green-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-open-green-brand",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-dfw-west-grass",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-west-grass",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-west-grass",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-west-grass",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-south-park",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-south-green",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-trinity-open-green",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-i35e-open-green",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-south-green",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-south-green",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-east-open-green",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-i35e-commercial-wall",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-commercial-wall",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-edge-wall",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-dfw-las-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-las-downtown-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-downtown-love-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-addison-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-addison-east-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-north-corridor",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-love-commercial-roof",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-executive-commercial-roof",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-us75-commercial-roof",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-trinity-commercial-roof",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-dfw-west",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-dfw-las",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-las-north",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-las-downtown",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-downtown-west",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-downtown-love",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-love-north",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-love-addison",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-addison-west",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-executive-north",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-executive-trinity",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-dfw-high",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-las-high",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-northwest",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-north-high",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-executive-high",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-downtown-high",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-white-rock",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-white-rock-high",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-east",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-far-east",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-southwest",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-southeast",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-0-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-0-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-0-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-0-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-1-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-1-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-1-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-1-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-2-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-2-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-2-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-2-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-3-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-3-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-3-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-0-3-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-0-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-0-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-0-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-0-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-1-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-1-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-1-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-1-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-2-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-2-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-2-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-2-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-3-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-3-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-3-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-1-3-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-0-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-0-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-0-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-0-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-1-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-1-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-1-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-1-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-2-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-2-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-2-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-2-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-3-0",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-3-1",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-3-2",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skyboard-upper-2-3-3",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skygate-dfw-las",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skygate-las-east",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skygate-downtown-west",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skygate-love-side",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skygate-addison-west",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-skygate-executive-north",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-blimp-las-downtown",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-blimp-love-addison",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-blimp-dfw-north",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-blimp-white-rock",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-blimp-east",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "DEFERRED_NOT_VISUALLY_QUALIFIED",
+      "evidence": []
+    },
+    {
+      "id": "dallas-blimp-south",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-trainer-livery",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-private-jet-livery",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-cargo-livery",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    },
+    {
+      "id": "dallas-fighter-livery",
+      "status": "HOUSE_ONLY",
+      "reasonCode": "EXISTING_HOUSE_CREATIVE",
+      "evidence": []
+    }
+  ]
+}
