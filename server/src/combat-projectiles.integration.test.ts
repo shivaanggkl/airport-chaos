@@ -158,6 +158,26 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         shooter.send({ type: 'fire', clientShotId: 'converged-fresh-reference', aimSample: combatShotAimSample(oldAim.aimId, freshAim.aimId, combatAimBlend(0, 650, 675)) });
         await wait(() => shooter.messages.some(m => m.type === 'projectileSpawn' && m.clientShotId === 'converged-fresh-reference'), 'converged shot accepts only the fresh sample');
         assert.equal(shooter.messages.some(m => m.type === 'projectileSpawn' && m.clientShotId === 'expired-contributing-reference'), false);
+        // Reproduce the reported nearby, off-centre contact using real server acquisition.
+        shooter.goalYaw = 0;
+        target.goal = { x: shooter.pose!.x + 200, y: shooter.pose!.y + 35, z: shooter.pose!.z - 730 };
+        await wait(() => Math.hypot(target.pose!.x-target.goal!.x, target.pose!.y-target.goal!.y, target.pose!.z-target.goal!.z) < .01 && Math.abs(shooter.yaw) < .001, 'off-centre airborne setup', 10000);
+        await delay(300);
+        const acquireStart = shooter.messages.length;
+        for (let i=0;i<30;i++) {
+            shooter.send({type:'lock', targetId:target.id});
+            await delay(100);
+            const latest=shooter.messages.filter(m=>m.type==='lockState').at(-1);
+            if(latest?.targetId===target.id && latest.aimX>.2) break;
+        }
+        const nearby=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
+        assert.equal(nearby.targetId,target.id,'nearby target receives an accurate automatic firing solution');
+        assert.ok(nearby.aimX>.2,'assistance reaches the existing detection area beyond the old 0.10 rad limit');
+        assert.ok(shooter.messages.slice(acquireStart).some(m=>m.type==='lockState' && m.candidateId===target.id && !m.targetId),'selection does not declare a lock before convergence');
+        shooter.send({type:'fire',clientShotId:'nearby-offcentre',aimSample:{from:nearby.aimId,to:nearby.aimId,blend:1}});
+        await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre'),'nearby shot accepted');
+        const nearbyShot=shooter.messages.find(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre')!;
+        await wait(()=>shooter.messages.some(m=>m.type==='damage' && m.impactId===nearbyShot.projectileId),'off-centre target hit by actual travelling bullet');
         shooter.send({ type: 'respawn' });
         await wait(() => shooter.messages.some(m => m.type === 'projectileRemove' && m.projectileId === turned.projectileId), 'respawn removes stale projectile');
     }

@@ -1,3 +1,5 @@
+import { CombatSpatialIndex } from './combat-spatial-index.js';
+import { CombatProjectileBudget } from './combat-projectile-budget.js';
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
 import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftScale, remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
@@ -46,7 +48,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { combatIntercept, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { combatIntercept, combatAimAligned, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
@@ -116,6 +118,7 @@ type PlayerState = Transform & {
   aimSequence?: number;
   velocity: Vector3;
   lastStateAt: number;
+  lastNetworkStateAt?: number;
   lastAcceptedPosition: Vector3;
   lastAcceptedTransformAt: number;
   chaosQaEnabled: boolean;
@@ -894,8 +897,9 @@ const combatTransformFreshMs = 1_500;
 const respawnClearance = 24;
 // Straight, unlocked rounds remain fast enough to be readable at flight speed.
 const spawnProtectionMs = 3000;
-const maxProjectiles = 256;
-const projectileStateBroadcastMs = 50;
+const projectileBudget = new CombatProjectileBudget();
+// Straight rounds are simulated locally between authoritative corrections.
+const projectileStateBroadcastMs = 1000;
 const eventTickMs = 250;
 const eventBroadcastMs = 500;
 const eventAvailableMinMs = 240_000;
@@ -2689,7 +2693,12 @@ function clearLocksForTarget(targetId: string): void {
 
 // Locks are state, not a one-off client request. Re-evaluate every affected
 // city transform so a target leaving the shared cone is cleared immediately.
+const cityLockRefreshAt = new Map<CityId, number>();
 function refreshCityLocks(cityId: CityId, now: number): void {
+  // Movement packets may arrive thousands of times per second. UI lock refresh
+  // is 10 Hz per city; trigger-time eligibility is still checked independently.
+  if (now - (cityLockRefreshAt.get(cityId) ?? -Infinity) < 100) return;
+  cityLockRefreshAt.set(cityId, now);
   for (const [playerId, player] of players) {
     // Bot locks are refreshed by updateBots from botFireSolution; only human
     // assisted locks use currentLockedTarget and assistedAim samples.
@@ -2698,8 +2707,22 @@ function refreshCityLocks(cityId: CityId, now: number): void {
   }
 }
 
-function broadcastLeaderboard(cityId: CityId): void {
+const leaderboardSentAt = new Map<CityId, number>();
+const leaderboardPending = new Map<CityId, ReturnType<typeof setTimeout>>();
+function broadcastLeaderboard(cityId: CityId, immediate = false): void {
   const now = Date.now();
+  // A burst of kills changes the same roster repeatedly. Send its latest state,
+  // without delaying damage, rewards, removal or new-connection initialization.
+  const remaining = 250 - (now - (leaderboardSentAt.get(cityId) ?? -Infinity));
+  if (!immediate && remaining > 0) {
+    if (!leaderboardPending.has(cityId)) leaderboardPending.set(cityId, setTimeout(() => {
+      leaderboardPending.delete(cityId); broadcastLeaderboard(cityId);
+    }, remaining));
+    return;
+  }
+  const pending = leaderboardPending.get(cityId);
+  if (pending) { clearTimeout(pending); leaderboardPending.delete(cityId); }
+  leaderboardSentAt.set(cityId, now);
   const message = {
     type: 'leaderboard',
     cityId,
@@ -5013,6 +5036,7 @@ function handleWantedDestruction(killerId: string, victimId: string, now: number
 function removeProjectile(projectileId: string): void {
   const projectile = projectiles.get(projectileId);
   if (!projectile || !projectiles.delete(projectileId)) return;
+  projectileBudget.release(projectile.ownerId, projectile.cityId);
   const removed={type:'projectileRemove',projectileId};
   if (projectile.skyDuelPractice) sendToPlayer(projectile.ownerId, removed);
   else if (projectile.skyDuelMatchId) {
@@ -5265,8 +5289,11 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
     owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs) return undefined;
   const candidate = combatAimCandidates(ownerId, owner, now).find(item => item.id === targetId && item.aligned);
   if (!candidate) return undefined;
-  const local = targetInAircraftSpace({ ...transform, position: muzzleTransform(transform).position }, { position: aim.leadPoint });
-  if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
+  const muzzle = muzzleTransform(transform).position;
+  const intercept = combatIntercept(muzzle, owner.velocity, candidate.position, candidate.velocity);
+  if (!intercept || combatLineBlocked(owner, muzzle, intercept.point)) return undefined;
+  const local = targetInAircraftSpace({ ...transform, position: muzzle }, { position: intercept.point });
+  if (!combatAimAligned(local, aim)) return undefined;
   return candidate;
 }
 
@@ -5322,7 +5349,7 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
   const now = Date.now();
   if (
     !canFire(player, now) ||
-    projectiles.size >= maxProjectiles
+    !projectileBudget.reserve(playerId, player.cityId)
   ) {
     return false;
   }
@@ -5409,8 +5436,23 @@ function broadcastProjectileStates(now: number): void {
       projectileId: p.projectileId, position: p.position, direction: p.direction, mode: p.mode,
     })) });
   }
+  const globalProjectiles = projectiles;
   for (const [cityId, projectiles] of statesByCity) {
-    broadcastToCity(cityId, { type: 'projectileStates', serverNow: now, projectiles });
+    for (const [socket, playerId] of playerSockets) {
+      const viewer = players.get(playerId);
+      if (!viewer || viewer.cityId !== cityId || viewer.skyDuelMode) continue;
+      const visible = projectiles.filter(p => {
+        const shot = globalProjectiles.get(p.projectileId);
+        return shot?.ownerId === playerId;
+      });
+      for (const shot of projectiles) {
+        if (visible.length >= 256) break;
+        if (globalProjectiles.get(shot.projectileId)?.ownerId === playerId) continue;
+        const p = shot.position;
+        if ((p.x-viewer.position.x)**2 + (p.y-viewer.position.y)**2 + (p.z-viewer.position.z)**2 <= 1500**2) visible.push(shot);
+      }
+      sendSocketMessage(socket, { type: 'projectileStates', serverNow: now, projectiles: visible });
+    }
   }
 }
 
@@ -5973,9 +6015,20 @@ function updateTransportEncounters(now: number): void {
     }
 }
 
+const combatSpatialIndex = new CombatSpatialIndex<{ cityId: CityId; position: Vector3; id: string; player: PlayerState }>();
+const combatNearbyPlayers: { cityId: CityId; position: Vector3; id: string; player: PlayerState }[] = [];
+const maxCombatHitRadius = Math.max(...Object.values(aircraftHitRadii)) * remoteAircraftScale * projectileHitRadiusMultiplier + projectileVisualRadius;
 function updateProjectiles(deltaSeconds: number): void {
   const now = Date.now();
   updateRespawningPlayers(now);
+  const maxTargetSpeed = new Map<CityId, number>();
+  const indexedPlayers: typeof combatNearbyPlayers = [];
+  for (const [id, player] of players) if (player.entityType === 'player' && player.lifeState === 'alive') {
+    indexedPlayers.push({ cityId: player.cityId, position: player.position, id, player });
+    maxTargetSpeed.set(player.cityId, Math.max(maxTargetSpeed.get(player.cityId) ?? 0, Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z)));
+  }
+  combatSpatialIndex.rebuild(indexedPlayers);
+
 
   for (const projectile of projectiles.values()) {
     const owner = players.get(projectile.ownerId);
@@ -6031,7 +6084,8 @@ function updateProjectiles(deltaSeconds: number): void {
 
     let hitPlayerId: string | null = null;
     let hitFraction = Infinity;
-    for (const [playerId, player] of players) {
+    combatSpatialIndex.query(projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, maxCombatHitRadius + (maxTargetSpeed.get(projectile.cityId) ?? 0) * deltaSeconds, combatNearbyPlayers);
+    for (const { id: playerId, player } of combatNearbyPlayers) {
       if (
         playerId === projectile.ownerId ||
         player.entityType !== 'player' ||
@@ -8312,7 +8366,7 @@ server.on('connection', (socket, request) => {
     sendSocketMessage(socket, { type: 'weeklyRewardClaimed', reward: weeklyReward });
     analyticsStore.recordEvent(analyticsContext, 'weekly_reward_awarded', { amount: weeklyReward.credits, metadata: { rank: weeklyReward.rank, category: weeklyReward.category } });
   }
-  broadcastLeaderboard(cityId);
+  broadcastLeaderboard(cityId, true);
 
   socket.on('message', (data) => {
     if (playerSockets.get(socket) !== playerId) return;
@@ -9300,6 +9354,8 @@ server.on('connection', (socket, request) => {
       }
       refreshCityLocks(player.cityId, stateNow);
 
+      if (!firstValidTransform && stateNow - (player.lastNetworkStateAt ?? 0) < 100) return;
+      player.lastNetworkStateAt = stateNow;
       const update = {
         type: 'state',
         playerId,

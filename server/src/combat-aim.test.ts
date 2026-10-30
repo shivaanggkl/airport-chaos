@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { performance } from 'node:perf_hooks';
-import { selectCombatTarget, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { selectCombatTarget, combatAimAligned, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { ballisticShotSpeed, COMBAT_RANGE, interpolateAim } from '../../shared/protocol.mjs';
+import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
 test('delayed aim updates cannot restart interpolation through an expired previous sample', () => {
     assert.equal(combatAimBlend(0, 1146, 1195), 1);
@@ -93,11 +93,11 @@ test('interception preserves inherited speed for stationary, approaching, retrea
     assert.equal(combatIntercept(zero, zero, { x: NaN, y: 0, z: 0 }, zero), null);
     assert.equal(combatIntercept(zero, zero, { x: 0, y: 0, z: -5000 }, zero), null);
 });
-test('assistance is narrow, forward-only, bounded, and has no in-flight target dependency', () => {
+test('assistance covers the acquisition area, stays forward-only and bounded, and has no in-flight target dependency', () => {
     const out = { x: 0, y: 0 };
     assert.equal(assistedInterceptAim({ x: .04, y: .02, z: -1 }, out), true);
     assert.ok(Math.hypot(out.x, out.y) < .10);
-    assert.equal(assistedInterceptAim({ x: .15, y: 0, z: -1 }, out), false, 'all modes use the same modest assistance limit');
+    assert.equal(assistedInterceptAim({ x: .30, y: 0, z: -1 }, out), true, 'nearby targets inside the acquisition area receive assistance in every mode');
     assert.equal(assistedInterceptAim({ x: .4, y: 0, z: -1 }, out), false);
     assert.deepEqual(out, { x: 0, y: 0 });
     assert.equal(assistedInterceptAim({ x: 0, y: 0, z: 1 }, out), false);
@@ -151,4 +151,24 @@ test('bounded dense targeting/interception workload records timing without a har
         combatIntercept(zero, zero, { x: 30, y: 2, z: -800 }, { x: 100, y: 0, z: 0 });
     }
     t.diagnostic(`20 candidates + intercept: ${((performance.now() - start) / 10000).toFixed(4)} ms/update`);
+});
+
+test('red readiness requires convergence, feasible travel range and forward acquisition', () => {
+    assert.equal(combatAimAligned({x:0,y:0,z:-4499}, {x:0,y:0}), true);
+    assert.equal(combatAimAligned({x:0,y:0,z:-4501}, {x:0,y:0}), false);
+    assert.equal(combatAimAligned({x:100,y:0,z:-4400}, {x:0,y:0}), false, 'old broad cone could signal ready despite a 100-unit miss');
+    assert.equal(combatAimAligned({x:100,y:0,z:-4400}, {x:100/4400,y:0}), true);
+    assert.equal(combatAimAligned({x:200,y:0,z:-730}, {x:200/730,y:0}), true);
+    assert.equal(combatAimAligned({x:0,y:0,z:730}, {x:0,y:0}), false);
+    assert.equal(combatAimAligned({x:0,y:0,z:-730}, {x:NaN,y:0}), false);
+    assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-4400},{x:0,y:0,z:-100}), null, 'inside current distance does not guarantee an intercept inside bullet travel');
+});
+
+test('automatic acquisition converges on the nearby off-centre target without a second manual aiming action', () => {
+    const point = {x:200,y:35,z:-730};
+    const goal = {x:0,y:0}, aim = {x:0,y:0};
+    assert.equal(assistedInterceptAim(point,goal),true);
+    assert.equal(combatAimAligned(point,aim),false);
+    for(let frame=0;frame<180;frame++) stepAim(aim,goal,1/60,AIM_ENVELOPE);
+    assert.equal(combatAimAligned(point,aim),true);
 });

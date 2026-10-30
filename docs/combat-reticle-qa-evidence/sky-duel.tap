@@ -1,0 +1,6 @@
+# Subtest: real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+ok 39 - real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+  ---
+  duration_ms: 158920.998583
+  type: 'test'
+  ...

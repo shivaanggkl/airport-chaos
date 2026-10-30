@@ -91,7 +91,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { aimingReticleMarkup } from './aiming-reticle';
-import { combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
+import { combatAimAligned, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -1479,6 +1479,7 @@ document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mis
   .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
 acquisitionCircleElement.innerHTML = aimingReticleMarkup;
+acquisitionCircleElement.style.setProperty('--acquisition-size', '96px');
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
@@ -5671,6 +5672,7 @@ let serverAimId = 0;
 let visualAimBlend = 1;
 const neutralAim = { x: 0, y: 0 };
 let serverAimTargetId: string | null = null;
+let serverLeadPoint: NetworkVector | undefined;
 let serverAimReceivedAt = -Infinity;
 let previousServerAimReceivedAt = -Infinity;
 const lockBoresightPoint = new THREE.Vector3();
@@ -7886,8 +7888,15 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   const ownerIsBot = remotePlayers.get(message.ownerId)?.isBot === true;
   if (ownerIsBot && unrelatedFocusedBot(message.ownerId)) return;
   if (clientProjectiles.size >= maxClientProjectiles) {
-    const oldestProjectileId = clientProjectiles.keys().next().value as string | undefined;
-    if (oldestProjectileId) removeClientProjectile(oldestProjectileId);
+    // Cosmetic traffic must not evict the pilot's own live rounds.
+    let oldestRemoteId: string | undefined;
+    for (const [id, shot] of clientProjectiles) if (!shot.local) { oldestRemoteId = id; break; }
+    if (oldestRemoteId) removeClientProjectile(oldestRemoteId);
+    else if (message.ownerId !== localPlayerId) return;
+    else {
+      const oldestId = clientProjectiles.keys().next().value;
+      if (oldestId) removeClientProjectile(oldestId);
+    }
   }
   const predicted = message.ownerId === localPlayerId && message.clientShotId
     ? predictedProjectiles.get(message.clientShotId)
@@ -8458,9 +8467,8 @@ function updateRemotePlayers(delta: number): void {
     const worldPerPixel = distance * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / Math.max(1, window.innerHeight);
     const contactHeight = Math.max(renderedScale * 1.2, worldPerPixel * 12);
     identityLabelProjection.copy(remote.plane.position).project(camera);
-    const nearReticle = Math.abs(identityLabelProjection.x) < 0.18 && Math.abs(identityLabelProjection.y) < 0.24;
-    remote.identityTag.visible = identityVisible && distance > 35 && distance <= 7_000 &&
-      identityLabelProjection.z > -1 && identityLabelProjection.z < 1 && (targeted || !nearReticle);
+    remote.identityTag.visible = identityVisible && targeted && distance > 35 && distance <= 7_000 &&
+      identityLabelProjection.z > -1 && identityLabelProjection.z < 1;
     if (remote.identityTag.visible) {
       const locked = Boolean(targeted && selectedCombatTarget?.locked);
       const now = performance.now();
@@ -8492,9 +8500,7 @@ function updateRemotePlayers(delta: number): void {
       (remote.identityTag.material as THREE.SpriteMaterial).opacity = targeted || missionTarget ? 1 : distance > 3_000 ? 0.82 : 0.94;
     }
     remote.hullTag.position.copy(remote.plane.position).addScaledVector(cameraWorldUp, contactHeight + worldPerPixel * 14);
-    remote.hullTag.visible = identityVisible && (
-      distance <= 320 || selectedCombatTarget?.remote === remote || performance.now() - remote.lastHitAt <= 2_000
-    );
+    remote.hullTag.visible = identityVisible && targeted;
     const proxyMaterial = remote.playerProxy.material as THREE.SpriteMaterial;
     remote.playerProxy.visible = identityVisible && distance <= 12_000;
     if (remote.playerProxy.visible) {
@@ -8536,8 +8542,8 @@ function updateLockCircle(): void {
   acquisitionCircleElement.classList.toggle('firing', performance.now() < combatShotPulseUntil);
   acquisitionCircleElement.classList.toggle('confirmed-hit', performance.now() < combatHitFlashUntil);
   acquisitionCircleElement.style.setProperty('--aim-edge-angle', `${aimScreenPoint.angle}rad`);
-  const radius = Math.tan(LOCK_ANGLE) * window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
-  acquisitionCircleElement.style.setProperty('--acquisition-size', `${(radius * 4).toFixed(1)}px`);
+  // This is a stable firing guide, not the server's angular eligibility boundary.
+  const radius = 24;
   acquisitionCircleElement.style.left = `${aimScreenPoint.x.toFixed(1)}px`;
   acquisitionCircleElement.style.top = `${aimScreenPoint.y.toFixed(1)}px`;
   lockCircleCenterX = aimScreenPoint.x; lockCircleCenterY = aimScreenPoint.y;
@@ -8552,6 +8558,7 @@ function clearCombatTarget(): void {
   lockedTargetId = null;
   serverLockedTargetId = null;
   serverAimTargetId = null;
+  serverLeadPoint = undefined;
   serverAim.x = serverAim.y = 0;
   previousServerAim.x = previousServerAim.y = visualAim.x = visualAim.y = 0;
   previousAimId = serverAimId = 0;
@@ -8593,7 +8600,7 @@ function showTargetRangeFeedback(remote: RemotePlayer | null, distance: number, 
   const label = remote.displayName?.trim() || (remote.isBot ? 'AI PILOT' : 'PILOT');
   const distanceText = distance < 1_000 ? `${Math.round(distance / 10) * 10} M` : `${(distance / 1_000).toFixed(1)} KM`;
   const status = !inRange ? transition === 'out' ? 'OUT OF RANGE' : 'GET CLOSER'
-    : transition === 'in' ? 'IN RANGE' : locked ? 'LOCKED' : '';
+    : '';
   if (targetNameDistanceElement.textContent !== `${distanceText} · ${label}`) targetNameDistanceElement.textContent = `${distanceText} · ${label}`;
   if (targetRangeElement.textContent !== status) targetRangeElement.textContent = status;
   targetFeedbackElement.classList.remove('hidden');
@@ -8621,6 +8628,13 @@ function validateServerLock(targetId: string | null, delta: number): void {
   if (lockValidationElapsed < 0.1 || !localPlayerId || !connectionReady()) return;
   lockValidationElapsed = 0;
   socket.send(JSON.stringify({ type: 'lock', targetId, aimHorizontal: manualAimX, aimVertical: manualAimY }));
+}
+
+function visualFiringSolutionReady(): boolean {
+  if (!serverLeadPoint || performance.now() - serverAimReceivedAt > 500) return false;
+  getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
+  combatOffset.copy(serverLeadPoint).sub(transportReticleOrigin).applyQuaternion(combatInverseQuaternion);
+  return combatAimAligned(combatOffset, visualAim);
 }
 
 function updateCombatTarget(delta = 0): void {
@@ -8703,7 +8717,7 @@ function updateCombatTarget(delta = 0): void {
     selectedCombatTarget = null;
     updateLockCircle();
     combatLockState = 'SEARCHING';
-    acquisitionCircleElement.classList.toggle('locked', Boolean(freshAim && serverLockedTargetId?.startsWith('transport:')));
+    acquisitionCircleElement.classList.toggle('locked', Boolean(freshAim && serverLockedTargetId?.startsWith('transport:') && visualFiringSolutionReady()));
     acquisitionCircleElement.classList.remove('target-near');
     showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
     for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
@@ -8715,7 +8729,7 @@ function updateCombatTarget(delta = 0): void {
 
   combatOffset.copy(candidate.plane.position).sub(airplane.position).applyQuaternion(combatInverseQuaternion);
   const nearReticle = insideDynamicLock(combatOffset.x, combatOffset.y, combatOffset.z, visualAim);
-  const locked = assisted && serverLockedTargetId === targetId;
+  const locked = assisted && serverLockedTargetId === targetId && visualFiringSolutionReady();
   if (selectedCombatTarget) {
     selectedCombatTarget.remote = candidate;
     selectedCombatTarget.distance = candidateDistance;
@@ -8726,13 +8740,7 @@ function updateCombatTarget(delta = 0): void {
   acquisitionCircleElement.classList.toggle('target-near', assisted);
   acquisitionCircleElement.classList.toggle('locked', locked);
   showTargetRangeFeedback(candidate, candidateDistance, true, locked);
-  for (const remote of remotePlayers.values()) {
-    lockTargetProjected.copy(remote.plane.position).project(camera);
-    remote.targetBrackets.visible = remote === candidate && remote.plane.visible &&
-      lockTargetProjected.z >= -1 && lockTargetProjected.z <= 1 && Math.abs(lockTargetProjected.x) < .94 &&
-      (1 - lockTargetProjected.y) * window.innerHeight * .5 > 96 && Math.abs(lockTargetProjected.y) < .75;
-    if (remote.targetBrackets.visible) (remote.targetBrackets.material as THREE.SpriteMaterial).opacity = locked ? 1 : 0.58;
-  }
+  for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
   if (combatQaElement) {
     lockTargetProjected.copy(candidate.plane.position).project(camera);
     const targetScreenX = (lockTargetProjected.x * 0.5 + 0.5) * window.innerWidth;
@@ -11575,6 +11583,7 @@ boundSocket.addEventListener('message', (event) => {
     serverAim.x = message.aimX;
     serverAim.y = message.aimY;
     serverAimTargetId = message.candidateId ?? null;
+    serverLeadPoint = message.leadPoint;
     previousServerAimReceivedAt = serverAimReceivedAt;
     serverAimReceivedAt = performance.now();
     serverLockedTargetId = message.targetId ?? null;

@@ -1,0 +1,707 @@
+{
+  "node": "v22.18.0",
+  "platform": "darwin",
+  "results": [
+    {
+      "driverEventLoopP95Ms": 11.501567,
+      "bytesByType": {
+        "state": 22712231,
+        "projectileSpawn": 2880030,
+        "projectileStates": 223909280,
+        "lockState": 159264,
+        "heatState": 94500,
+        "leaderboard": 872400,
+        "shotRejected": 26783,
+        "projectileRemove": 568620
+      },
+      "unacknowledged": 0,
+      "count": 10,
+      "seconds": 30.003250083999998,
+      "scenario": "parallel",
+      "clientKind": "validated synthetic protocol clients; not human pilots or physical devices",
+      "sent": 1490,
+      "accepted": 958,
+      "rejected": 532,
+      "acceptedPerPilot": [
+        97,
+        97,
+        97,
+        97,
+        97,
+        97,
+        94,
+        94,
+        94,
+        94
+      ],
+      "damage": 0,
+      "destructions": 0,
+      "maxActive": 256,
+      "aggregateMbps": 66.9855718421575,
+      "receivedMessages": 84922,
+      "ackP50Ms": 5.3648339999999735,
+      "ackP95Ms": 7.915125000003172,
+      "transformRejects": 0,
+      "type": "snapshot",
+      "rssMiB": 90.671875,
+      "heapMiB": 135.4179229736328,
+      "cpuCorePercent": 12.22598411872247,
+      "eventLoopP95Ms": 12.247039,
+      "eventLoopMaxMs": 18.710527,
+      "timers": [
+        {
+          "name": "()=>{const now=Date.now();const deltaSeconds=Math.min(.1,(now-lastProjectileUpdate)/1e3);lastProjectileUpdate=now;updateProjectiles(deltaSeconds)}",
+          "count": 593,
+          "p95Ms": 3.5702909999999974,
+          "maxMs": 11.232791000000361
+        },
+        {
+          "name": "()=>updateBots(Date.now())",
+          "count": 149,
+          "p95Ms": 1.6254999999982829,
+          "maxMs": 2.731416000000536
+        },
+        {
+          "name": "()=>updateFighterTrialExpiries(Date.now())",
+          "count": 60,
+          "p95Ms": 0.04824999999982538,
+          "maxMs": 0.08608300000196323
+        },
+        {
+          "name": "()=>updateRepairStations(Date.now())",
+          "count": 60,
+          "p95Ms": 0.13062499999796273,
+          "maxMs": 0.1551660000004631
+        },
+        {
+          "name": "()=>{const now=Date.now();updateFormations(now)}",
+          "count": 60,
+          "p95Ms": 0.14025000000037835,
+          "maxMs": 0.21370799999931478
+        },
+        {
+          "name": "()=>updateDynamicEvents(Date.now())",
+          "count": 119,
+          "p95Ms": 0.1688750000030268,
+          "maxMs": 0.26641700000254787
+        },
+        {
+          "name": "()=>{const now=Date.now();for(const[playerId,attemptId]of playerJourneyAttempts){if(pausedJourneyAttempts.has(attemptId))continue;const player=players.get(playerId);if(!p",
+          "count": 119,
+          "p95Ms": 0.027292000002489658,
+          "maxMs": 0.16045800000028976
+        },
+        {
+          "name": "()=>updateTerritories(Date.now())",
+          "count": 75,
+          "p95Ms": 0.23291700000117999,
+          "maxMs": 0.29237499999908323
+        },
+        {
+          "name": "()=>skyDuelTick(Date.now())",
+          "count": 30,
+          "p95Ms": 0.06629200000043056,
+          "maxMs": 0.0709580000002461
+        },
+        {
+          "name": "()=>{updateCityHeat(Date.now());for(const cityId of cityIds)broadcastLeaderboard(cityId)}",
+          "count": 30,
+          "p95Ms": 2.4255410000005213,
+          "maxMs": 3.4202080000031856
+        },
+        {
+          "name": "()=>tickMissions(Date.now())",
+          "count": 30,
+          "p95Ms": 0.10941600000114704,
+          "maxMs": 0.1274169999996957
+        },
+        {
+          "name": "()=>{expirePausedJourneys(Date.now());expirePausedTraining(Date.now())}",
+          "count": 30,
+          "p95Ms": 0.7938340000000608,
+          "maxMs": 0.9797079999989364
+        },
+        {
+          "name": "()=>expirePvpChallenges(Date.now())",
+          "count": 30,
+          "p95Ms": 0.009000000000014552,
+          "maxMs": 0.010291000002325745
+        },
+        {
+          "name": "()=>{for(const cityId of cityIds)reconcileBots(cityId)}",
+          "count": 30,
+          "p95Ms": 0.04216699999960838,
+          "maxMs": 0.043207999999140156
+        },
+        {
+          "name": "()=>{const now=Date.now();pruneEphemeralRuntimeState(now);logStabilityDiagnostics()}",
+          "count": 1,
+          "p95Ms": 6.309375000000728,
+          "maxMs": 6.309375000000728
+        }
+      ]
+    },
+    {
+      "driverEventLoopP95Ms": 11.575295,
+      "bytesByType": {
+        "state": 144067446,
+        "lockState": 389521,
+        "projectileSpawn": 7724775,
+        "projectileStates": 582367525,
+        "leaderboard": 5406000,
+        "shotRejected": 137679,
+        "heatState": 519750,
+        "projectileRemove": 1555200
+      },
+      "unacknowledged": 0,
+      "count": 25,
+      "seconds": 30.003512957999998,
+      "scenario": "parallel",
+      "clientKind": "validated synthetic protocol clients; not human pilots or physical devices",
+      "sent": 3725,
+      "accepted": 1024,
+      "rejected": 2701,
+      "acceptedPerPilot": [
+        44,
+        44,
+        44,
+        44,
+        44,
+        44,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "damage": 0,
+      "destructions": 0,
+      "maxActive": 256,
+      "aggregateMbps": 197.8882664943704,
+      "receivedMessages": 441276,
+      "ackP50Ms": 10.600375000001804,
+      "ackP95Ms": 15.434500000003027,
+      "transformRejects": 0,
+      "type": "snapshot",
+      "rssMiB": 106.796875,
+      "heapMiB": 136.25574493408203,
+      "cpuCorePercent": 26.557084448210144,
+      "eventLoopP95Ms": 14.147583,
+      "eventLoopMaxMs": 24.035327,
+      "timers": [
+        {
+          "name": "()=>{const now=Date.now();const deltaSeconds=Math.min(.1,(now-lastProjectileUpdate)/1e3);lastProjectileUpdate=now;updateProjectiles(deltaSeconds)}",
+          "count": 593,
+          "p95Ms": 7.35570799999914,
+          "maxMs": 16.015290999999706
+        },
+        {
+          "name": "()=>updateBots(Date.now())",
+          "count": 149,
+          "p95Ms": 1.262457999999242,
+          "maxMs": 1.7172090000003664
+        },
+        {
+          "name": "()=>updateDynamicEvents(Date.now())",
+          "count": 119,
+          "p95Ms": 0.09516699999949196,
+          "maxMs": 0.2782499999993888
+        },
+        {
+          "name": "()=>{const now=Date.now();for(const[playerId,attemptId]of playerJourneyAttempts){if(pausedJourneyAttempts.has(attemptId))continue;const player=players.get(playerId);if(!p",
+          "count": 119,
+          "p95Ms": 0.005083000000013271,
+          "maxMs": 0.009790999998585903
+        },
+        {
+          "name": "()=>updateTerritories(Date.now())",
+          "count": 75,
+          "p95Ms": 0.21945899999991525,
+          "maxMs": 0.2791250000009313
+        },
+        {
+          "name": "()=>updateFighterTrialExpiries(Date.now())",
+          "count": 60,
+          "p95Ms": 0.03858300000138115,
+          "maxMs": 0.08195899999918765
+        },
+        {
+          "name": "()=>updateRepairStations(Date.now())",
+          "count": 60,
+          "p95Ms": 0.09249999999883585,
+          "maxMs": 0.12391699999716366
+        },
+        {
+          "name": "()=>{const now=Date.now();updateFormations(now)}",
+          "count": 60,
+          "p95Ms": 0.26512499999989814,
+          "maxMs": 0.31849999999940337
+        },
+        {
+          "name": "()=>skyDuelTick(Date.now())",
+          "count": 30,
+          "p95Ms": 0.05141700000058336,
+          "maxMs": 0.07595800000126474
+        },
+        {
+          "name": "()=>{updateCityHeat(Date.now());for(const cityId of cityIds)broadcastLeaderboard(cityId)}",
+          "count": 30,
+          "p95Ms": 7.060375000000931,
+          "maxMs": 7.9473330000000715
+        },
+        {
+          "name": "()=>tickMissions(Date.now())",
+          "count": 30,
+          "p95Ms": 0.18141599999944447,
+          "maxMs": 0.20762500000091677
+        },
+        {
+          "name": "()=>{expirePausedJourneys(Date.now());expirePausedTraining(Date.now())}",
+          "count": 30,
+          "p95Ms": 0.5716669999983424,
+          "maxMs": 0.6773339999999735
+        },
+        {
+          "name": "()=>expirePvpChallenges(Date.now())",
+          "count": 30,
+          "p95Ms": 0.009583000000930042,
+          "maxMs": 0.009917000001223641
+        },
+        {
+          "name": "()=>{for(const cityId of cityIds)reconcileBots(cityId)}",
+          "count": 30,
+          "p95Ms": 0.04237500000090222,
+          "maxMs": 0.06504100000165636
+        },
+        {
+          "name": "()=>{const now=Date.now();pruneEphemeralRuntimeState(now);logStabilityDiagnostics()}",
+          "count": 1,
+          "p95Ms": 1.6771660000013071,
+          "maxMs": 1.6771660000013071
+        }
+      ]
+    },
+    {
+      "driverEventLoopP95Ms": 11.468799,
+      "bytesByType": {
+        "state": 577713133,
+        "lockState": 757565,
+        "projectileSpawn": 15479000,
+        "projectileStates": 1161188400,
+        "leaderboard": 21574500,
+        "shotRejected": 325920,
+        "heatState": 1984500,
+        "projectileRemove": 3110400
+      },
+      "unacknowledged": 0,
+      "count": 50,
+      "seconds": 30.003864583999995,
+      "scenario": "parallel",
+      "clientKind": "validated synthetic protocol clients; not human pilots or physical devices",
+      "sent": 7400,
+      "accepted": 1024,
+      "rejected": 6376,
+      "acceptedPerPilot": [
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20
+      ],
+      "damage": 0,
+      "destructions": 0,
+      "maxActive": 256,
+      "aggregateMbps": 475.1743664248769,
+      "receivedMessages": 1627240,
+      "ackP50Ms": 16.71483399999852,
+      "ackP95Ms": 23.348584000006667,
+      "transformRejects": 0,
+      "type": "snapshot",
+      "rssMiB": 123.96875,
+      "heapMiB": 149.09601593017578,
+      "cpuCorePercent": 31.97442521339845,
+      "eventLoopP95Ms": 15.106047,
+      "eventLoopMaxMs": 157.679615,
+      "timers": [
+        {
+          "name": "()=>{const now=Date.now();const deltaSeconds=Math.min(.1,(now-lastProjectileUpdate)/1e3);lastProjectileUpdate=now;updateProjectiles(deltaSeconds)}",
+          "count": 590,
+          "p95Ms": 3.7395419999993464,
+          "maxMs": 16.338665999999648
+        },
+        {
+          "name": "()=>updateDynamicEvents(Date.now())",
+          "count": 119,
+          "p95Ms": 0.05008300000190502,
+          "maxMs": 0.25454200000240235
+        },
+        {
+          "name": "()=>{const now=Date.now();for(const[playerId,attemptId]of playerJourneyAttempts){if(pausedJourneyAttempts.has(attemptId))continue;const player=players.get(playerId);if(!p",
+          "count": 119,
+          "p95Ms": 0.0024159999993571546,
+          "maxMs": 0.010000000002037268
+        },
+        {
+          "name": "()=>updateTerritories(Date.now())",
+          "count": 75,
+          "p95Ms": 0.13795799999934388,
+          "maxMs": 0.17479199999797856
+        },
+        {
+          "name": "()=>updateBots(Date.now())",
+          "count": 148,
+          "p95Ms": 0.8575000000000728,
+          "maxMs": 3.6293749999967986
+        },
+        {
+          "name": "()=>updateFighterTrialExpiries(Date.now())",
+          "count": 60,
+          "p95Ms": 0.05137500000273576,
+          "maxMs": 0.05883399999947869
+        },
+        {
+          "name": "()=>updateRepairStations(Date.now())",
+          "count": 60,
+          "p95Ms": 0.08158299999922747,
+          "maxMs": 0.08654199999909906
+        },
+        {
+          "name": "()=>{const now=Date.now();updateFormations(now)}",
+          "count": 60,
+          "p95Ms": 0.4151660000006814,
+          "maxMs": 0.4650419999998121
+        },
+        {
+          "name": "()=>skyDuelTick(Date.now())",
+          "count": 30,
+          "p95Ms": 0.02620800000113377,
+          "maxMs": 0.029458000000886386
+        },
+        {
+          "name": "()=>{updateCityHeat(Date.now());for(const cityId of cityIds)broadcastLeaderboard(cityId)}",
+          "count": 30,
+          "p95Ms": 10.611791999999696,
+          "maxMs": 11.453041999997367
+        },
+        {
+          "name": "()=>tickMissions(Date.now())",
+          "count": 30,
+          "p95Ms": 0.1395830000001297,
+          "maxMs": 0.1782920000005106
+        },
+        {
+          "name": "()=>{expirePausedJourneys(Date.now());expirePausedTraining(Date.now())}",
+          "count": 30,
+          "p95Ms": 0.2541250000031141,
+          "maxMs": 0.32208300000093004
+        },
+        {
+          "name": "()=>expirePvpChallenges(Date.now())",
+          "count": 30,
+          "p95Ms": 0.0033750000002328306,
+          "maxMs": 0.004957999999533058
+        },
+        {
+          "name": "()=>{for(const cityId of cityIds)reconcileBots(cityId)}",
+          "count": 30,
+          "p95Ms": 0.025707999999212916,
+          "maxMs": 0.054707999999664025
+        },
+        {
+          "name": "()=>{const now=Date.now();pruneEphemeralRuntimeState(now);logStabilityDiagnostics()}",
+          "count": 1,
+          "p95Ms": 0.6564170000019658,
+          "maxMs": 0.6564170000019658
+        }
+      ]
+    },
+    {
+      "driverEventLoopP95Ms": 11.722751,
+      "bytesByType": {
+        "state": 2315432715,
+        "projectileSpawn": 30989800,
+        "projectileStates": 2235986200,
+        "lockState": 1496160,
+        "shotRejected": 705218,
+        "leaderboard": 83325700,
+        "heatState": 7749000,
+        "projectileRemove": 6220800
+      },
+      "unacknowledged": 0,
+      "count": 100,
+      "seconds": 30.00795108299999,
+      "scenario": "parallel",
+      "clientKind": "validated synthetic protocol clients; not human pilots or physical devices",
+      "sent": 14800,
+      "accepted": 1024,
+      "rejected": 13776,
+      "acceptedPerPilot": [
+        13,
+        13,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        10,
+        10,
+        12,
+        12,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "damage": 0,
+      "destructions": 0,
+      "maxActive": 256,
+      "aggregateMbps": 1248.177346077421,
+      "receivedMessages": 6234905,
+      "ackP50Ms": 55.193625000014435,
+      "ackP95Ms": 408.7428750000254,
+      "transformRejects": 0,
+      "type": "snapshot",
+      "rssMiB": 146.859375,
+      "heapMiB": 174.40660858154297,
+      "cpuCorePercent": 75.34318650627033,
+      "eventLoopP95Ms": 38.731775,
+      "eventLoopMaxMs": 258.605055,
+      "timers": [
+        {
+          "name": "()=>updateTerritories(Date.now())",
+          "count": 74,
+          "p95Ms": 0.22545800000079907,
+          "maxMs": 0.6801249999989523
+        },
+        {
+          "name": "()=>{const now=Date.now();const deltaSeconds=Math.min(.1,(now-lastProjectileUpdate)/1e3);lastProjectileUpdate=now;updateProjectiles(deltaSeconds)}",
+          "count": 570,
+          "p95Ms": 5.107707999999548,
+          "maxMs": 67.01708299999882
+        },
+        {
+          "name": "()=>updateBots(Date.now())",
+          "count": 145,
+          "p95Ms": 1.1830840000038734,
+          "maxMs": 1.7904159999998228
+        },
+        {
+          "name": "()=>updateFighterTrialExpiries(Date.now())",
+          "count": 59,
+          "p95Ms": 0.04550000000017462,
+          "maxMs": 0.07295800000065356
+        },
+        {
+          "name": "()=>updateRepairStations(Date.now())",
+          "count": 59,
+          "p95Ms": 0.11199999999917054,
+          "maxMs": 0.1424169999991136
+        },
+        {
+          "name": "()=>{const now=Date.now();updateFormations(now)}",
+          "count": 59,
+          "p95Ms": 0.8568750000013097,
+          "maxMs": 1.2154999999984284
+        },
+        {
+          "name": "()=>updateDynamicEvents(Date.now())",
+          "count": 116,
+          "p95Ms": 0.04504199999792036,
+          "maxMs": 0.23741700000027777
+        },
+        {
+          "name": "()=>{const now=Date.now();for(const[playerId,attemptId]of playerJourneyAttempts){if(pausedJourneyAttempts.has(attemptId))continue;const player=players.get(playerId);if(!p",
+          "count": 116,
+          "p95Ms": 0.0019170000014128163,
+          "maxMs": 0.00408400000014808
+        },
+        {
+          "name": "()=>skyDuelTick(Date.now())",
+          "count": 30,
+          "p95Ms": 0.026625000000422006,
+          "maxMs": 0.027375000001484295
+        },
+        {
+          "name": "()=>{updateCityHeat(Date.now());for(const cityId of cityIds)broadcastLeaderboard(cityId)}",
+          "count": 30,
+          "p95Ms": 30.593041000000085,
+          "maxMs": 31.679583000001003
+        },
+        {
+          "name": "()=>tickMissions(Date.now())",
+          "count": 29,
+          "p95Ms": 0.1814589999994496,
+          "maxMs": 0.2215840000026219
+        },
+        {
+          "name": "()=>{expirePausedJourneys(Date.now());expirePausedTraining(Date.now())}",
+          "count": 29,
+          "p95Ms": 0.20687499999985448,
+          "maxMs": 0.21895799999765586
+        },
+        {
+          "name": "()=>expirePvpChallenges(Date.now())",
+          "count": 29,
+          "p95Ms": 0.003041999996639788,
+          "maxMs": 0.004666000000725035
+        },
+        {
+          "name": "()=>{for(const cityId of cityIds)reconcileBots(cityId)}",
+          "count": 29,
+          "p95Ms": 0.030082999999649473,
+          "maxMs": 0.06199999999807915
+        },
+        {
+          "name": "()=>{const now=Date.now();pruneEphemeralRuntimeState(now);logStabilityDiagnostics()}",
+          "count": 1,
+          "p95Ms": 1.0107919999973092,
+          "maxMs": 1.0107919999973092
+        }
+      ]
+    }
+  ]
+}

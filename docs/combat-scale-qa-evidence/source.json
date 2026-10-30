@@ -1,0 +1,16 @@
+{
+  "branch": "qa",
+  "baseCommit": "4ba21daa05d8a010851376fa0452fc10b77d69a0",
+  "sha256": {
+    "client/src/main.ts": "138d0a21f068270ddcf61bbf2f766f6fb9416fe14798e070be4ffe97daa6f8bc",
+    "server/src/index.ts": "e6039d4d180c2cd1a3eb04aca246afd69d522fa1bc7d9eab6396b8737328cbc3",
+    "server/src/combat-projectile-budget.ts": "39580798ee24d4dccfa8c707652996eeb99b7002def7fc2669f74051431e362b",
+    "server/src/combat-spatial-index.ts": "eacdd45581ac09e1fb2fba7314564f8829e4114259ac0700b7843d50cfe971bf"
+  },
+  "physicalProfiling": {
+    "iPhone": "xctrace Game Performance attach failed: timed out waiting for device to boot; exit 13",
+    "Android": "adb devices returned no connected device"
+  },
+  "deployment": "No commits, pushes, merges or deployments in this task.",
+  "iphoneInstall": "Latest QA client installed wirelessly successfully; native build and Capacitor staging sync completed."
+}

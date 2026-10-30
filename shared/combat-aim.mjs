@@ -1,9 +1,9 @@
-import { AIM_ENVELOPE, ballisticIntercept } from './protocol.mjs';
+import { AIM_ENVELOPE, COMBAT_RANGE, ballisticIntercept } from './protocol.mjs';
 
 export const TARGET_SWITCH_DWELL_MS = 120;
 export const TARGET_TURN_GRACE_MS = 300;
 export const TARGET_SWITCH_MARGIN = 0.01;
-export const SMART_ASSIST_CONE = 0.10;
+export const SMART_ASSIST_CONE = AIM_ENVELOPE;
 
 // Once interpolation reaches the current sample, the previous sample no
 // longer contributes to the firing vector and must not extend its lifetime.
@@ -58,8 +58,8 @@ const finiteVector = value => value && [value.x, value.y, value.z].every(Number.
 // does not approximate inherited speed using an unrelated camera vector.
 export const combatIntercept = ballisticIntercept;
 
-// Camera-independent aim goal. Only a narrow opportunity may move the gun;
-// selection can survive a turn without pulling the weapon after that target.
+// Camera-independent aim goal within the same bounded acquisition area.
+// Selection outside that area never pulls the weapon after a target.
 export function assistedInterceptAim(localDirection, out) {
   out.x = out.y = 0;
   if (!finiteVector(localDirection) || localDirection.z >= -0.000001) return false;
@@ -90,4 +90,20 @@ export function combatAimProjection(x, y, w, width, height, out) {
     (bottom - top) / 2 / Math.max(Math.abs(dy), .00001));
   out.x = centerX + dx * extent; out.y = centerY + dy * extent;
   out.edge = true; out.angle = Math.atan2(dy, dx); return out;
+}
+
+// Readiness is tighter than acquisition: the firing ray must converge within
+// two world units of the predicted intercept, not merely share a broad cone.
+// This is feedback only; actual swept collision still decides damage.
+export function combatAimAligned(localPoint, aim) {
+  if (!finiteVector(localPoint) || !Number.isFinite(aim.x) || !Number.isFinite(aim.y)) return false;
+  const distance = Math.hypot(localPoint.x, localPoint.y, localPoint.z);
+  if (distance <= 0 || distance > COMBAT_RANGE || !insideReadyEnvelope(localPoint)) return false;
+  const length = Math.hypot(aim.x, aim.y, 1);
+  const along = (localPoint.x * aim.x + localPoint.y * aim.y - localPoint.z) / length;
+  return along > 0 && Math.hypot(localPoint.x - aim.x / length * along,
+    localPoint.y - aim.y / length * along, localPoint.z + along / length) <= 2;
+}
+function insideReadyEnvelope(point) {
+  return point.z < 0 && Math.atan2(Math.hypot(point.x, point.y), -point.z) <= AIM_ENVELOPE;
 }

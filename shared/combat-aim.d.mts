@@ -12,3 +12,5 @@ export function combatIntercept(origin: CombatVector, shooterVelocity: CombatVec
 export function assistedInterceptAim(localDirection: CombatVector, out: { x: number; y: number }): boolean;
 export type CombatProjection = { x: number; y: number; edge: boolean; angle: number };
 export function combatAimProjection(x: number, y: number, w: number, width: number, height: number, out: CombatProjection): CombatProjection;
+
+export function combatAimAligned(localPoint: CombatVector, aim: { x: number; y: number }): boolean;
