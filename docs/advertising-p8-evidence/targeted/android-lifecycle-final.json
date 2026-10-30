@@ -1,0 +1,27 @@
+{
+  "events": [
+    {
+      "hidden": true,
+      "at": 615301.4
+    },
+    {
+      "hidden": false,
+      "at": 616045.7000000001
+    }
+  ],
+  "complete": {
+    "requestedAt": 282987.29999999993,
+    "result": {
+      "state": "qualified"
+    },
+    "returnedAt": 435407.79999999993
+  },
+  "early": {
+    "requestedAt": 487830.4,
+    "result": {
+      "state": "qualified"
+    },
+    "returnedAt": 615830.9999999999
+  },
+  "hubVisible": true
+}

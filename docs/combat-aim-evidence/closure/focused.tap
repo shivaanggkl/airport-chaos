@@ -1,0 +1,73 @@
+TAP version 13
+# Subtest: fully blended shots reference only the contributing aim sample; partial blends retain both references
+ok 1 - fully blended shots reference only the contributing aim sample; partial blends retain both references
+  ---
+  duration_ms: 1.537291
+  type: 'test'
+  ...
+# Subtest: one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+ok 2 - one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+  ---
+  duration_ms: 2.129
+  type: 'test'
+  ...
+# Subtest: mission objective bias is conditional and gives way to a clearly aimed escort; invalid targets release immediately
+ok 3 - mission objective bias is conditional and gives way to a clearly aimed escort; invalid targets release immediately
+  ---
+  duration_ms: 0.122542
+  type: 'test'
+  ...
+# Subtest: interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+ok 4 - interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+  ---
+  duration_ms: 1.061417
+  type: 'test'
+  ...
+# Subtest: assistance is narrow, forward-only, bounded, and has no in-flight target dependency
+ok 5 - assistance is narrow, forward-only, bounded, and has no in-flight target dependency
+  ---
+  duration_ms: 0.151125
+  type: 'test'
+  ...
+# Subtest: actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+ok 6 - actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+  ---
+  duration_ms: 2.76475
+  type: 'test'
+  ...
+# Subtest: continuous collision returns earliest physical impact and detects fast crossing targets
+ok 7 - continuous collision returns earliest physical impact and detects fast crossing targets
+  ---
+  duration_ms: 0.182917
+  type: 'test'
+  ...
+# Subtest: bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+ok 8 - bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+  ---
+  duration_ms: 60.194417
+  type: 'test'
+  ...
+# 20 candidates + intercept: 0.0060 ms/update
+# (node:44859) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+ok 9 - real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+  ---
+  duration_ms: 10962.361291
+  type: 'test'
+  ...
+# Subtest: M8 and M9 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+ok 10 - M8 and M9 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+  ---
+  duration_ms: 51400.292833
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 62802.498625

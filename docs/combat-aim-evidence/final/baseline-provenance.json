@@ -1,0 +1,9 @@
+{
+  "source": "Previously retained pre-upgrade source fixture; no repository checkout or branch switch",
+  "sha256": {
+    "client/src/main.ts": "ac55407b3cf3d98d2c782ba4c95049886bfe70b4a97b41f4d25f0da232a666f7",
+    "client/src/style.css": "ba27a971e4dd10ad4fdb3182d86b0d53391b38e23e21041bfa070a34768b4b00",
+    "client/src/aiming-reticle.ts": "2ede8fac920a76eb1011f46e8b8be61d93bac555a53787fae8594045ffdbb903",
+    "shared/protocol.mjs": "89a87cfcd04c6e014ef4ef479aaab55fc4bde65b69b50db88d462745986fb773"
+  }
+}

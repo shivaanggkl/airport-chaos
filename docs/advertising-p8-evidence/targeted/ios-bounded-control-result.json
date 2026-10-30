@@ -1,0 +1,56 @@
+[
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145284.25775095835
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145284.3528599167
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145284.35448720833
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "OTHER",
+    "event": "consent-return",
+    "privacyOptions": 2,
+    "status": 2,
+    "uptime": 145284.5958421667
+  },
+  {
+    "event": "sdk-init-start",
+    "uptime": 145284.60205779166
+  },
+  {
+    "event": "sdk-init-complete",
+    "uptime": 145284.74518479168
+  },
+  {
+    "canRequestAds": true,
+    "event": "rewarded-load-start",
+    "mainThread": true,
+    "presenterActive": true,
+    "uptime": 145284.74581904168
+  },
+  {
+    "code": 11,
+    "domain": "com.google.admob",
+    "durationSeconds": 0.5112187500053551,
+    "event": "rewarded-load-error",
+    "message": "Request Error: Internal error.",
+    "responseInfo": {
+      "adapterCount": 0,
+      "adapters": [],
+      "loadedAdapterPresent": false
+    },
+    "underlying": null,
+    "uptime": 145285.25795108333
+  }
+]

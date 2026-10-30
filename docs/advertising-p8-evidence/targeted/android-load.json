@@ -1,0 +1,13 @@
+{
+  "privacy": {
+    "required": false,
+    "canRequestAds": true
+  },
+  "emptyShow": "rejected",
+  "invalidUnit": "rejected",
+  "loaded": false,
+  "error": {
+    "message": "Video privacy choices are required before loading an ad."
+  },
+  "durationMs": 29
+}

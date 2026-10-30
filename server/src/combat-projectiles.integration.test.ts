@@ -13,6 +13,7 @@ import { JourneyAttemptStore } from './journey-attempts.js';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { journeyDallas08, journeyDallas09 } from '../../shared/journey-mission.mjs';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 type Vec = {
     x: number;
     y: number;
@@ -142,6 +143,21 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         await wait(() => shooter.messages.some(m => m.type === 'projectileSpawn' && m.clientShotId === 'new-heading'), 'new-heading shot');
         const turned = shooter.messages.find(m => m.type === 'projectileSpawn' && m.clientShotId === 'new-heading')!;
         assert.ok(turned.direction.x < -.3, 'new shots use newly accepted aircraft orientation');
+        await delay(200);
+        shooter.send({ type: 'lock' });
+        await delay(100);
+        const oldAim = shooter.messages.filter(m => m.type === 'lockState').at(-1)!;
+        await delay(650);
+        shooter.send({ type: 'lock' });
+        await wait(() => shooter.messages.some(m => m.type === 'lockState' && m.aimId > oldAim.aimId), 'fresh aim after sparse lock updates');
+        const freshAim = shooter.messages.filter(m => m.type === 'lockState').at(-1)!;
+        shooter.send({ type: 'fire', clientShotId: 'legacy-converged-reference', aimSample: { from: oldAim.aimId, to: freshAim.aimId, blend: 1 } });
+        await wait(() => shooter.messages.some(m => m.type === 'shotRejected' && m.clientShotId === 'legacy-converged-reference'), 'legacy converged packet reproduces stale-reference rejection');
+        shooter.send({ type: 'fire', clientShotId: 'expired-contributing-reference', aimSample: { from: oldAim.aimId, to: freshAim.aimId, blend: .5 } });
+        await wait(() => shooter.messages.some(m => m.type === 'shotRejected' && m.clientShotId === 'expired-contributing-reference'), 'expired contributing sample remains rejected');
+        shooter.send({ type: 'fire', clientShotId: 'converged-fresh-reference', aimSample: combatShotAimSample(oldAim.aimId, freshAim.aimId, combatAimBlend(0, 650, 675)) });
+        await wait(() => shooter.messages.some(m => m.type === 'projectileSpawn' && m.clientShotId === 'converged-fresh-reference'), 'converged shot accepts only the fresh sample');
+        assert.equal(shooter.messages.some(m => m.type === 'projectileSpawn' && m.clientShotId === 'expired-contributing-reference'), false);
         shooter.send({ type: 'respawn' });
         await wait(() => shooter.messages.some(m => m.type === 'projectileRemove' && m.projectileId === turned.projectileId), 'respawn removes stale projectile');
     }

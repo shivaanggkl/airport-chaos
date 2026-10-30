@@ -1,0 +1,115 @@
+TAP version 13
+# Subtest: shared angular aim limits project to 100px travel and 200px search
+ok 1 - shared angular aim limits project to 100px travel and 200px search
+  ---
+  duration_ms: 0.926
+  type: 'test'
+  ...
+# Subtest: horizontal, vertical, and diagonal manual aim stay inside the shared envelope
+ok 2 - horizontal, vertical, and diagonal manual aim stay inside the shared envelope
+  ---
+  duration_ms: 0.601333
+  type: 'test'
+  ...
+# Subtest: targets beyond automatic travel can be found but require manual aim or steering to lock
+ok 3 - targets beyond automatic travel can be found but require manual aim or steering to lock
+  ---
+  duration_ms: 0.516417
+  type: 'test'
+  ...
+# Subtest: center, horizontal, vertical, and diagonal targets obey the 200px search boundary
+ok 4 - center, horizontal, vertical, and diagonal targets obey the 200px search boundary
+  ---
+  duration_ms: 0.525459
+  type: 'test'
+  ...
+# Subtest: updated travel retains the existing per-frame aim speed
+ok 5 - updated travel retains the existing per-frame aim speed
+  ---
+  duration_ms: 0.255042
+  type: 'test'
+  ...
+# Subtest: client prediction and server projectiles both derive direction from the shared aim sample
+ok 6 - client prediction and server projectiles both derive direction from the shared aim sample
+  ---
+  duration_ms: 7.499708
+  type: 'test'
+  ...
+# Subtest: delayed aim updates cannot restart interpolation through an expired previous sample
+ok 7 - delayed aim updates cannot restart interpolation through an expired previous sample
+  ---
+  duration_ms: 2.052417
+  type: 'test'
+  ...
+# Subtest: fully blended shots reference only the contributing aim sample; partial blends retain both references
+ok 8 - fully blended shots reference only the contributing aim sample; partial blends retain both references
+  ---
+  duration_ms: 0.699291
+  type: 'test'
+  ...
+# Subtest: one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+ok 9 - one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell
+  ---
+  duration_ms: 4.861209
+  type: 'test'
+  ...
+# Subtest: mission objective bias is conditional and gives way to a clearly aimed escort; invalid targets release immediately
+ok 10 - mission objective bias is conditional and gives way to a clearly aimed escort; invalid targets release immediately
+  ---
+  duration_ms: 0.3835
+  type: 'test'
+  ...
+# Subtest: interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+ok 11 - interception preserves inherited speed for stationary, approaching, retreating, crossing and fast targets
+  ---
+  duration_ms: 1.79625
+  type: 'test'
+  ...
+# Subtest: assistance is narrow, forward-only, bounded, and has no in-flight target dependency
+ok 12 - assistance is narrow, forward-only, bounded, and has no in-flight target dependency
+  ---
+  duration_ms: 0.245041
+  type: 'test'
+  ...
+# Subtest: actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+ok 13 - actual muzzle ray projects consistently through bank, climb, dive, turn, zoom and camera orbit
+  ---
+  duration_ms: 5.632708
+  type: 'test'
+  ...
+# Subtest: continuous collision returns earliest physical impact and detects fast crossing targets
+ok 14 - continuous collision returns earliest physical impact and detects fast crossing targets
+  ---
+  duration_ms: 0.183041
+  type: 'test'
+  ...
+# Subtest: bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+ok 15 - bounded dense targeting/interception workload records timing without a hardware-dependent pass threshold
+  ---
+  duration_ms: 57.909
+  type: 'test'
+  ...
+# 20 candidates + intercept: 0.0057 ms/update
+# (node:50721) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+ok 16 - real server shots travel before damage, ignore forged geometry, resolve once, reject stale samples and retain emitted direction
+  ---
+  duration_ms: 11607.33475
+  type: 'test'
+  ...
+# Subtest: M8 and M9 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+ok 17 - M8 and M9 select their transport, allow steering to escorts, and damage the transport only on projectile arrival
+  ---
+  duration_ms: 49384.949583
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 61459.277458

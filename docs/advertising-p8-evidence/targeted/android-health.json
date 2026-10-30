@@ -1,0 +1,39 @@
+{
+  "elapsedSeconds": 20.8,
+  "emulatorExit": null,
+  "boot": {
+    "exit": 0,
+    "out": "1",
+    "error": ""
+  },
+  "bootAnimation": {
+    "exit": 0,
+    "out": "",
+    "error": ""
+  },
+  "activityService": {
+    "exit": 0,
+    "out": "Service activity: found",
+    "error": ""
+  },
+  "gms": {
+    "exit": 0,
+    "out": "package:com.google.android.gms.supervision\npackage:com.google.android.gms",
+    "error": ""
+  },
+  "lastAnr": {
+    "exit": 0,
+    "out": "ACTIVITY MANAGER LAST ANR (dumpsys activity lastanr)\n  <no ANR has occurred since boot>",
+    "error": ""
+  },
+  "referenceApp": {
+    "exit": 0,
+    "out": "Starting: Intent { act=android.settings.SETTINGS }\nStatus: ok\nLaunchState: COLD\nActivity: com.android.settings/.homepage.SettingsHomepageActivity\nTotalTime: 1879\nWaitTime: 1909\nComplete",
+    "error": ""
+  },
+  "lastAnrAfterReference": {
+    "exit": 0,
+    "out": "ACTIVITY MANAGER LAST ANR (dumpsys activity lastanr)\n  <no ANR has occurred since boot>",
+    "error": ""
+  }
+}

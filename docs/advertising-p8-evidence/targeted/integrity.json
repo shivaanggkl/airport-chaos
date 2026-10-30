@@ -1,0 +1,10 @@
+{
+  "headBefore": "831fa674426b449f90218960831926f8667f9545",
+  "headAfter": "831fa674426b449f90218960831926f8667f9545",
+  "changedTrackedFiles": [
+    "docs/advertising-p8.md"
+  ],
+  "missingBaselineFiles": [],
+  "applicationSourceUnchanged": true,
+  "noCommitsPushesOrDeployments": true
+}

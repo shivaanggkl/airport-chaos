@@ -1,0 +1,925 @@
+[
+  {
+    "mission": 9,
+    "errors": [],
+    "sent": {
+      "player": 2,
+      "transportReady": 1,
+      "journeyCountdownComplete": 1,
+      "state": 390,
+      "analyticsEvent": 1,
+      "lock": 83,
+      "profileProgress": 8,
+      "fire": 5
+    },
+    "received": {
+      "playerState": 8,
+      "welcome": 1,
+      "journeyAttempt": 2,
+      "transportState": 407,
+      "cosmeticChanged": 1,
+      "leaderboard": 73,
+      "state": 2352,
+      "heatState": 155,
+      "eventState": 130,
+      "territoryState": 75,
+      "territoryNotice": 1,
+      "lockState": 83,
+      "takeoffConfirmed": 1,
+      "profile": 26,
+      "weeklyLeaderboards": 1,
+      "projectileSpawn": 5,
+      "projectileStates": 217,
+      "projectileRemove": 5
+    },
+    "lockKinds": [],
+    "actions": [
+      "normal throttle and climb keyboard input",
+      "bank/turn while firing",
+      "dive input"
+    ],
+    "snapshots": [
+      "☰\nⅡ\n100\n200\n0\nMPH\n0\nFT\n♥ FULL REPAIR · 100%\nM9: Reinforcements\n5:26\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n100%\nBLUEJAY\n100%\nMAMMOTH\n100%\nNIGHTOWL 3\n—\nNIGHTOWL 4\n—\n↖\nTRANSPORT · 4.6 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS",
+      "☰\nⅡ\n100\n200\n1,947\nMPH\n2,025\nFT\n♥ FULL REPAIR · 100%\nM9: Reinforcements\n4:52\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n100%\nBLUEJAY\n100%\nMAMMOTH\n100%\nNIGHTOWL 3\n—\nNIGHTOWL 4\n—\n→\nTRANSPORT · 2.6 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS"
+    ],
+    "phase": "RACING",
+    "lastState": {
+      "at": 1793334679387,
+      "type": "state",
+      "stateSequence": 390,
+      "position": {
+        "x": -22362.17500732362,
+        "y": 866.99898983112,
+        "z": -15089.637544510315
+      },
+      "rotation": {
+        "x": -0.06654295436953518,
+        "y": -1.862035007853892,
+        "z": -0.13072826589701309
+      },
+      "aircraftType": "fighter",
+      "cityId": "dallas",
+      "boostActive": false
+    },
+    "ownSpawns": 5,
+    "url": "http://127.0.0.1:8091/?city=dallas&time=day&launchMode=missions&journeyAttempt=REDACTED",
+    "trace": [
+      {
+        "at": 1793334642468,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 1
+      },
+      {
+        "at": 1793334642880,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 2
+      },
+      {
+        "at": 1793334643202,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 3
+      },
+      {
+        "at": 1793334643569,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 4
+      },
+      {
+        "at": 1793334643940,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 5
+      },
+      {
+        "at": 1793334644317,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 6
+      },
+      {
+        "at": 1793334644723,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 7
+      },
+      {
+        "at": 1793334645114,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 8
+      },
+      {
+        "at": 1793334645539,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 9
+      },
+      {
+        "at": 1793334645894,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 10
+      },
+      {
+        "at": 1793334646245,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 11
+      },
+      {
+        "at": 1793334646600,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 12
+      },
+      {
+        "at": 1793334646951,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 13
+      },
+      {
+        "at": 1793334647303,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 14
+      },
+      {
+        "at": 1793334647658,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 15
+      },
+      {
+        "at": 1793334648013,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 16
+      },
+      {
+        "at": 1793334648370,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 17
+      },
+      {
+        "at": 1793334648725,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 18
+      },
+      {
+        "at": 1793334649074,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 19
+      },
+      {
+        "at": 1793334649428,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 20
+      },
+      {
+        "at": 1793334649789,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 21
+      },
+      {
+        "at": 1793334650141,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 22
+      },
+      {
+        "at": 1793334650495,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 23
+      },
+      {
+        "at": 1793334650847,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 24
+      },
+      {
+        "at": 1793334651206,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 25
+      },
+      {
+        "at": 1793334651567,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 26
+      },
+      {
+        "at": 1793334651919,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 27
+      },
+      {
+        "at": 1793334652276,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 28
+      },
+      {
+        "at": 1793334652631,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 29
+      },
+      {
+        "at": 1793334652982,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 30
+      },
+      {
+        "at": 1793334653333,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 31
+      },
+      {
+        "at": 1793334653690,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 32
+      },
+      {
+        "at": 1793334654053,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 33
+      },
+      {
+        "at": 1793334654406,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 34
+      },
+      {
+        "at": 1793334654759,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 35
+      },
+      {
+        "at": 1793334655124,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 36
+      },
+      {
+        "at": 1793334655483,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 37
+      },
+      {
+        "at": 1793334655850,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 38
+      },
+      {
+        "at": 1793334656263,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 39
+      },
+      {
+        "at": 1793334656679,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 40
+      },
+      {
+        "at": 1793334657040,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 41
+      },
+      {
+        "at": 1793334657440,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 42
+      },
+      {
+        "at": 1793334657797,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 43
+      },
+      {
+        "at": 1793334658150,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 44
+      },
+      {
+        "at": 1793334658509,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 45
+      },
+      {
+        "at": 1793334658870,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 46
+      },
+      {
+        "at": 1793334659221,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 47
+      },
+      {
+        "at": 1793334659580,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 48
+      },
+      {
+        "at": 1793334659940,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 49
+      },
+      {
+        "at": 1793334660302,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 50
+      },
+      {
+        "at": 1793334660650,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 51
+      },
+      {
+        "at": 1793334660830,
+        "direction": "received",
+        "type": "takeoffConfirmed",
+        "airportId": "dfw",
+        "confirmedAt": 1793334660828
+      },
+      {
+        "at": 1793334661030,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 52
+      },
+      {
+        "at": 1793334661375,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 53
+      },
+      {
+        "at": 1793334661727,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 54
+      },
+      {
+        "at": 1793334662083,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 55
+      },
+      {
+        "at": 1793334662425,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 56
+      },
+      {
+        "at": 1793334662768,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 57
+      },
+      {
+        "at": 1793334663111,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 58
+      },
+      {
+        "at": 1793334663459,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 59
+      },
+      {
+        "at": 1793334663817,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 60
+      },
+      {
+        "at": 1793334664181,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 61
+      },
+      {
+        "at": 1793334664540,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 62
+      },
+      {
+        "at": 1793334664885,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 63
+      },
+      {
+        "at": 1793334665231,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 64
+      },
+      {
+        "at": 1793334665571,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 65
+      },
+      {
+        "at": 1793334665904,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 66
+      },
+      {
+        "at": 1793334666253,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 67
+      },
+      {
+        "at": 1793334666598,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 68
+      },
+      {
+        "at": 1793334666927,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 69
+      },
+      {
+        "at": 1793334667267,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 70
+      },
+      {
+        "at": 1793334667607,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 71
+      },
+      {
+        "at": 1793334667908,
+        "direction": "sent",
+        "type": "fire",
+        "clientShotId": "18072d3e-0790-42c9-9f64-3b4c832a484f",
+        "stateSequence": 306,
+        "aimSample": {
+          "from": 71,
+          "to": 71,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334667961,
+        "direction": {
+          "x": 0,
+          "y": 0.1146154259598116,
+          "z": -0.9934099376048395
+        },
+        "type": "projectileSpawn",
+        "projectileId": "e83205b1-21d4-4294-978e-bb7604592dcd",
+        "ownerId": "158a8586-acd4-443e-83c5-f9ba9d2005b9",
+        "position": {
+          "x": -22799.943723074437,
+          "y": 545.3321796361118,
+          "z": -14004.051461351331
+        },
+        "speed": 520,
+        "serverNow": 1793334667908,
+        "mode": "ballistic",
+        "clientShotId": "18072d3e-0790-42c9-9f64-3b4c832a484f"
+      },
+      {
+        "at": 1793334667975,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 72
+      },
+      {
+        "at": 1793334668301,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 73
+      },
+      {
+        "at": 1793334668483,
+        "direction": "sent",
+        "type": "fire",
+        "clientShotId": "b26b40c6-d291-4099-8914-545efdef2e44",
+        "stateSequence": 313,
+        "aimSample": {
+          "from": 73,
+          "to": 73,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334668483,
+        "direction": {
+          "x": 0.3040835639020277,
+          "y": 0.08639589008997206,
+          "z": -0.9487196299962403
+        },
+        "type": "projectileSpawn",
+        "projectileId": "c6759966-6b89-49c5-9ac8-1825f5197f07",
+        "ownerId": "158a8586-acd4-443e-83c5-f9ba9d2005b9",
+        "position": {
+          "x": -22795.80925300783,
+          "y": 606.5188046543574,
+          "z": -14243.72145893033
+        },
+        "speed": 1727.7245794643443,
+        "serverNow": 1793334668476,
+        "mode": "ballistic",
+        "clientShotId": "b26b40c6-d291-4099-8914-545efdef2e44"
+      },
+      {
+        "at": 1793334668766,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 74
+      },
+      {
+        "at": 1793334669258,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 75
+      },
+      {
+        "at": 1793334669466,
+        "direction": "sent",
+        "type": "fire",
+        "clientShotId": "1cb28166-c723-4fdd-976a-cfb572c9660e",
+        "stateSequence": 324,
+        "aimSample": {
+          "from": 75,
+          "to": 75,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334669466,
+        "direction": {
+          "x": 0.7769660173149281,
+          "y": 0.04879036783418855,
+          "z": -0.6276490324571397
+        },
+        "type": "projectileSpawn",
+        "projectileId": "6dc7a2c6-22db-49ec-a2da-a1a44145858a",
+        "ownerId": "158a8586-acd4-443e-83c5-f9ba9d2005b9",
+        "position": {
+          "x": -22763.522555799955,
+          "y": 665.3832565062444,
+          "z": -14490.487224746306
+        },
+        "speed": 1480.4551444233346,
+        "serverNow": 1793334669456,
+        "mode": "ballistic",
+        "clientShotId": "1cb28166-c723-4fdd-976a-cfb572c9660e"
+      },
+      {
+        "at": 1793334669668,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 76
+      },
+      {
+        "at": 1793334670209,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 77
+      },
+      {
+        "at": 1793334671705,
+        "direction": "sent",
+        "type": "fire",
+        "clientShotId": "90f7ac70-57d5-4193-bdb2-cd966ea0b3eb",
+        "stateSequence": 335,
+        "aimSample": {
+          "from": 77,
+          "to": 77,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334671705,
+        "direction": {
+          "x": 0.9929898732312461,
+          "y": 0.02291734707652982,
+          "z": -0.11595648693871251
+        },
+        "type": "projectileSpawn",
+        "projectileId": "655f0a26-6e95-4e62-9623-e73b0b658306",
+        "ownerId": "158a8586-acd4-443e-83c5-f9ba9d2005b9",
+        "position": {
+          "x": -22689.612768526524,
+          "y": 720.907481427326,
+          "z": -14708.320584042227
+        },
+        "speed": 970.2725282714769,
+        "serverNow": 1793334670490,
+        "mode": "ballistic",
+        "clientShotId": "90f7ac70-57d5-4193-bdb2-cd966ea0b3eb"
+      },
+      {
+        "at": 1793334672745,
+        "direction": "received",
+        "type": "projectileRemove",
+        "projectileId": "c6759966-6b89-49c5-9ac8-1825f5197f07"
+      },
+      {
+        "at": 1793334672764,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 78
+      },
+      {
+        "at": 1793334672766,
+        "direction": "received",
+        "type": "projectileRemove",
+        "projectileId": "6dc7a2c6-22db-49ec-a2da-a1a44145858a"
+      },
+      {
+        "at": 1793334674378,
+        "direction": "sent",
+        "type": "fire",
+        "clientShotId": "bb16fef9-8e90-4fbb-a9d1-b2c4757c49b2",
+        "stateSequence": 353
+      },
+      {
+        "at": 1793334674378,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 79
+      },
+      {
+        "at": 1793334674378,
+        "direction": {
+          "x": 0.990720583697374,
+          "y": 0.010892319601797153,
+          "z": 0.13547723946119872
+        },
+        "type": "projectileSpawn",
+        "projectileId": "b1f1a149-4c8d-44f1-b803-1614144f189a",
+        "ownerId": "158a8586-acd4-443e-83c5-f9ba9d2005b9",
+        "position": {
+          "x": -22599.62748612801,
+          "y": 768.6818825036672,
+          "z": -14864.397688348101
+        },
+        "speed": 928.4162403525722,
+        "serverNow": 1793334674365,
+        "mode": "ballistic",
+        "clientShotId": "bb16fef9-8e90-4fbb-a9d1-b2c4757c49b2"
+      },
+      {
+        "at": 1793334676176,
+        "direction": "received",
+        "type": "projectileRemove",
+        "projectileId": "655f0a26-6e95-4e62-9623-e73b0b658306"
+      },
+      {
+        "at": 1793334676178,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 80
+      },
+      {
+        "at": 1793334676563,
+        "direction": "received",
+        "type": "projectileRemove",
+        "projectileId": "e83205b1-21d4-4294-978e-bb7604592dcd"
+      },
+      {
+        "at": 1793334677290,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 81
+      },
+      {
+        "at": 1793334678229,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 82
+      },
+      {
+        "at": 1793334679196,
+        "direction": "received",
+        "type": "projectileRemove",
+        "projectileId": "b1f1a149-4c8d-44f1-b803-1614144f189a"
+      },
+      {
+        "at": 1793334679387,
+        "direction": "received",
+        "type": "lockState",
+        "aimX": 0,
+        "aimY": 0,
+        "aimId": 83
+      }
+    ]
+  }
+]

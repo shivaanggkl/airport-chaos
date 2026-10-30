@@ -1,0 +1,259 @@
+[
+  {
+    "appBoundDomains": false,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145055.80245479167
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145055.95252883335
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145055.95328008334
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "OTHER",
+    "event": "consent-return",
+    "privacyOptions": 2,
+    "status": 2,
+    "uptime": 145056.26439154168
+  },
+  {
+    "event": "sdk-init-start",
+    "uptime": 145056.278063375
+  },
+  {
+    "event": "sdk-init-complete",
+    "uptime": 145058.16325633336
+  },
+  {
+    "canRequestAds": true,
+    "event": "rewarded-load-start",
+    "mainThread": true,
+    "presenterActive": true,
+    "uptime": 145058.16487879166
+  },
+  {
+    "durationSeconds": 1.7490195000136737,
+    "event": "rewarded-loaded",
+    "uptime": 145059.91461820834
+  },
+  {
+    "event": "reward-qualified",
+    "uptime": 145068.13373366668
+  },
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145284.25775095835
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145284.3528599167
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145284.35448720833
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "OTHER",
+    "event": "consent-return",
+    "privacyOptions": 2,
+    "status": 2,
+    "uptime": 145284.5958421667
+  },
+  {
+    "event": "sdk-init-start",
+    "uptime": 145284.60205779166
+  },
+  {
+    "event": "sdk-init-complete",
+    "uptime": 145284.74518479168
+  },
+  {
+    "canRequestAds": true,
+    "event": "rewarded-load-start",
+    "mainThread": true,
+    "presenterActive": true,
+    "uptime": 145284.74581904168
+  },
+  {
+    "code": 11,
+    "domain": "com.google.admob",
+    "durationSeconds": 0.5112187500053551,
+    "event": "rewarded-load-error",
+    "message": "Request Error: Internal error.",
+    "responseInfo": {
+      "adapterCount": 0,
+      "adapters": [],
+      "loadedAdapterPresent": false
+    },
+    "underlying": null,
+    "uptime": 145285.25795108333
+  },
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145477.43983075002
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145477.51182279168
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145477.51246458336
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "EEA",
+    "event": "consent-return",
+    "privacyOptions": 1,
+    "status": 3,
+    "uptime": 145481.67250525
+  },
+  {
+    "event": "sdk-init-start",
+    "uptime": 145481.724261125
+  },
+  {
+    "event": "sdk-init-complete",
+    "uptime": 145481.98340116668
+  },
+  {
+    "canRequestAds": true,
+    "event": "rewarded-load-start",
+    "mainThread": true,
+    "presenterActive": true,
+    "uptime": 145481.98440762502
+  },
+  {
+    "code": 11,
+    "domain": "com.google.admob",
+    "durationSeconds": 0.6297007499961182,
+    "event": "rewarded-load-error",
+    "message": "Request Error: Internal error.",
+    "responseInfo": {
+      "adapterCount": 0,
+      "adapters": [],
+      "loadedAdapterPresent": false
+    },
+    "underlying": null,
+    "uptime": 145482.614879875
+  },
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145581.73338691666
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145581.84967175
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145581.86297104167
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "EEA",
+    "event": "consent-return",
+    "privacyOptions": 1,
+    "status": 3,
+    "uptime": 145585.63977545834
+  },
+  {
+    "canRequestAds": true,
+    "event": "privacy-options-return",
+    "status": 3,
+    "uptime": 145588.98531708334
+  },
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145593.19659833334
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145593.29130850002
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145593.29223058335
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "EEA",
+    "event": "consent-return",
+    "privacyOptions": 1,
+    "status": 3,
+    "uptime": 145593.806458
+  },
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145678.29478841668
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145678.35476125
+  },
+  {
+    "canRequestAdsBeforeUpdate": false,
+    "event": "consent-update-start",
+    "uptime": 145678.37028250002
+  },
+  {
+    "appBoundDomains": true,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145683.12536575002
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145683.23170566667
+  },
+  {
+    "canRequestAdsBeforeUpdate": false,
+    "event": "consent-update-start",
+    "uptime": 145683.23348033335
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "EEA",
+    "event": "consent-return",
+    "privacyOptions": 1,
+    "status": 3,
+    "uptime": 145686.55822641667
+  }
+]

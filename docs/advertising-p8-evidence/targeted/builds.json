@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "831fa674426b449f90218960831926f8667f9545",
+  "integratedClientAndServer": {
+    "command": "npm run build",
+    "exitCode": 0
+  },
+  "serverEmptyOutput": {
+    "command": "./node_modules/.bin/tsc -p server/tsconfig.json --outDir <isolated-copy>/server-clean",
+    "exitCode": 0
+  },
+  "iosSDKControl": "BUILD SUCCEEDED",
+  "iosAirportBridgeCopy": "BUILD SUCCEEDED",
+  "iosAppBoundControl": "BUILD SUCCEEDED",
+  "androidDebug": "BUILD SUCCESSFUL; 147 tasks",
+  "androidDiagnosticDebug": "BUILD SUCCESSFUL; 147 tasks; 16 executed, 131 up-to-date",
+  "productionConfigurationProbe": {
+    "forcedEnableFlagsInProduction": true,
+    "enabled": false,
+    "ios": false,
+    "android": false,
+    "web": false
+  },
+  "temporaryHarnessCorrections": [
+    "NSError bridging and optional UIViewController access in diagnostic-only Swift instrumentation.",
+    "Generated XCTest Info.plist configuration and installing the updated fixture before running UI tests.",
+    "Direct WebView CDP attachment instead of unsupported browser-context management; explicitly selected the localhost game WebView."
+  ]
+}

@@ -1,0 +1,51 @@
+[
+  {
+    "appBoundDomains": false,
+    "event": "control-start",
+    "mainThread": true,
+    "os": "Version 17.5 (Build 21F79)",
+    "uptime": 145055.80245479167
+  },
+  {
+    "event": "consent-update-start",
+    "uptime": 145055.95252883335
+  },
+  {
+    "event": "network-path",
+    "expensive": false,
+    "satisfied": true,
+    "uptime": 145055.95328008334
+  },
+  {
+    "canRequestAds": true,
+    "debugGeography": "OTHER",
+    "event": "consent-return",
+    "privacyOptions": 2,
+    "status": 2,
+    "uptime": 145056.26439154168
+  },
+  {
+    "event": "sdk-init-start",
+    "uptime": 145056.278063375
+  },
+  {
+    "event": "sdk-init-complete",
+    "uptime": 145058.16325633336
+  },
+  {
+    "canRequestAds": true,
+    "event": "rewarded-load-start",
+    "mainThread": true,
+    "presenterActive": true,
+    "uptime": 145058.16487879166
+  },
+  {
+    "durationSeconds": 1.7490195000136737,
+    "event": "rewarded-loaded",
+    "uptime": 145059.91461820834
+  },
+  {
+    "event": "reward-qualified",
+    "uptime": 145068.13373366668
+  }
+]

@@ -1,0 +1,6271 @@
+[
+  {
+    "mission": 8,
+    "errors": [],
+    "events": [
+      {
+        "at": 1793353714255,
+        "type": "journeyAttempt",
+        "status": "APPROACH",
+        "health": 2000
+      },
+      {
+        "at": 1793353721059,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793353737527,
+        "type": "takeoffConfirmed"
+      },
+      {
+        "at": 1793353740173,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353740294,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353740585,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353740806,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353740989,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353741152,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353741397,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353741551,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742081,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742202,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742324,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742451,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742568,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742691,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742822,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353742944,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353743061,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353743191,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353743318,
+        "type": "projectileSpawn",
+        "id": "fd032458-13a3-4b6a-bfd8-198e6f9444c0",
+        "direction": {
+          "x": -0.75244665045855,
+          "y": 0.39937169280226814,
+          "z": 0.5237616721391131
+        },
+        "position": {
+          "x": -23110.74405922398,
+          "y": 512.956465995481,
+          "z": -13515.596203165756
+        }
+      },
+      {
+        "at": 1793353743319,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353743449,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353743519,
+        "type": "projectileSpawn",
+        "id": "ed2e43cd-e21e-4323-aef8-22cba78111fa",
+        "direction": {
+          "x": -0.536243943580257,
+          "y": 0.43317782676321637,
+          "z": 0.7244303992615104
+        },
+        "position": {
+          "x": -23137.877985260064,
+          "y": 528.7270477589262,
+          "z": -13512.38388341293
+        }
+      },
+      {
+        "at": 1793353743700,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353743726,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353744005,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353744109,
+        "type": "projectileSpawn",
+        "id": "72dc340d-d573-4329-bc57-f3467287d899",
+        "direction": {
+          "x": -0.441046567986919,
+          "y": 0.3661008885787381,
+          "z": 0.8194193457862822
+        },
+        "position": {
+          "x": -23169.292395063927,
+          "y": 548.1493208255023,
+          "z": -13498.862019330218
+        }
+      },
+      {
+        "at": 1793353744189,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353744388,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353744525,
+        "type": "projectileSpawn",
+        "id": "68bcff3c-97cb-4eea-99df-bd84ee4e776f",
+        "direction": {
+          "x": -0.43407489735350213,
+          "y": 0.35355300216841895,
+          "z": 0.8286007833361279
+        },
+        "position": {
+          "x": -23204.49340648318,
+          "y": 571.8423634276946,
+          "z": -13473.322765362038
+        }
+      },
+      {
+        "at": 1793353744629,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1960
+      },
+      {
+        "at": 1793353744632,
+        "type": "projectileRemove",
+        "id": "ed2e43cd-e21e-4323-aef8-22cba78111fa"
+      },
+      {
+        "at": 1793353744632,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353744811,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1920
+      },
+      {
+        "at": 1793353744814,
+        "type": "projectileRemove",
+        "id": "fd032458-13a3-4b6a-bfd8-198e6f9444c0"
+      },
+      {
+        "at": 1793353744850,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353744974,
+        "type": "projectileSpawn",
+        "id": "94b11acc-b5b5-4cd8-8f33-49666bf62c74",
+        "direction": {
+          "x": -0.4051515415818654,
+          "y": 0.35555309644907984,
+          "z": 0.842279184094745
+        },
+        "position": {
+          "x": -23241.78868744219,
+          "y": 598.3798796717444,
+          "z": -13437.088427972916
+        }
+      },
+      {
+        "at": 1793353745145,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353745840,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353746108,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353746175,
+        "type": "projectileSpawn",
+        "id": "03a89a10-92c5-4a2e-bf96-135ffa506090",
+        "direction": {
+          "x": -0.07621287670683481,
+          "y": 0.4132540549109055,
+          "z": 0.9074208965655152
+        },
+        "position": {
+          "x": -23281.16896131969,
+          "y": 629.8929953750225,
+          "z": -13388.744191361895
+        }
+      },
+      {
+        "at": 1793353746435,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353746782,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353746927,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1880
+      },
+      {
+        "at": 1793353746930,
+        "type": "projectileRemove",
+        "id": "03a89a10-92c5-4a2e-bf96-135ffa506090"
+      },
+      {
+        "at": 1793353747886,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353748813,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353751047,
+        "type": "projectileRemove",
+        "id": "94b11acc-b5b5-4cd8-8f33-49666bf62c74"
+      },
+      {
+        "at": 1793353751202,
+        "type": "projectileRemove",
+        "id": "72dc340d-d573-4329-bc57-f3467287d899"
+      },
+      {
+        "at": 1793353751410,
+        "type": "projectileRemove",
+        "id": "68bcff3c-97cb-4eea-99df-bd84ee4e776f"
+      },
+      {
+        "at": 1793353755147,
+        "type": "projectileSpawn",
+        "id": "2cf7057e-9daa-4c1d-b719-257b6d174659",
+        "direction": {
+          "x": 0.8432190962923043,
+          "y": 0.015705332313686652,
+          "z": 0.537340579320887
+        },
+        "position": {
+          "x": -23309.831746303207,
+          "y": 786.2201393139303,
+          "z": -13091.194031485302
+        }
+      },
+      {
+        "at": 1793353755324,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353756102,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353756463,
+        "type": "projectileSpawn",
+        "id": "30aeaf99-f081-4e50-894d-27e0f5fd3418",
+        "direction": {
+          "x": 0.9815251719036715,
+          "y": 0.07568857783761444,
+          "z": 0.17572585496843482
+        },
+        "position": {
+          "x": -23260.833194733572,
+          "y": 822.8569723375676,
+          "z": -13014.98904274333
+        }
+      },
+      {
+        "at": 1793353756854,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353757442,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353757736,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353758226,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353758306,
+        "type": "projectileSpawn",
+        "id": "420dcb85-78b3-4a91-97ed-16a48bfca8e4",
+        "direction": {
+          "x": 0.9799762194702626,
+          "y": 0.006234254938109442,
+          "z": 0.19901694233943637
+        },
+        "position": {
+          "x": -23188.558980159833,
+          "y": 857.7219994079858,
+          "z": -12944.440340733174
+        }
+      },
+      {
+        "at": 1793353758773,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353759323,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353759666,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353760108,
+        "type": "projectileSpawn",
+        "id": "8de52ed5-be13-4e27-a8e1-793fcd2b5674",
+        "direction": {
+          "x": 0.9872091439748519,
+          "y": -0.03519891290722953,
+          "z": 0.1554964391315413
+        },
+        "position": {
+          "x": -23092.769981958885,
+          "y": 891.5045406491225,
+          "z": -12881.070708757166
+        }
+      },
+      {
+        "at": 1793353760268,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353760521,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353760814,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1840
+      },
+      {
+        "at": 1793353760816,
+        "type": "projectileRemove",
+        "id": "420dcb85-78b3-4a91-97ed-16a48bfca8e4"
+      },
+      {
+        "at": 1793353761033,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353761360,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353761583,
+        "type": "projectileRemove",
+        "id": "30aeaf99-f081-4e50-894d-27e0f5fd3418"
+      },
+      {
+        "at": 1793353761762,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353761763,
+        "type": "projectileSpawn",
+        "id": "892b778d-6814-48fe-8cd1-7e2031c91519",
+        "direction": {
+          "x": 0.9933862640841331,
+          "y": 0.050268562734671667,
+          "z": 0.10323178739884083
+        },
+        "position": {
+          "x": -22974.090222116545,
+          "y": 923.3610246726013,
+          "z": -12824.0543508697
+        }
+      },
+      {
+        "at": 1793353762160,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353762725,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353763015,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353763418,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353763418,
+        "type": "projectileSpawn",
+        "id": "7a6225fa-c31e-42f4-a759-fa68f9b54171",
+        "direction": {
+          "x": 0.9853810500836339,
+          "y": -0.09216702013316448,
+          "z": 0.14328093570272366
+        },
+        "position": {
+          "x": -22833.096561159422,
+          "y": 952.7779057118753,
+          "z": -12773.091800894264
+        }
+      },
+      {
+        "at": 1793353763748,
+        "type": "projectileRemove",
+        "id": "2cf7057e-9daa-4c1d-b719-257b6d174659"
+      },
+      {
+        "at": 1793353763888,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353764424,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353764700,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353765094,
+        "type": "projectileSpawn",
+        "id": "d955827f-1bf8-4240-8c19-8f835d6d99cc",
+        "direction": {
+          "x": 0.9890719453317186,
+          "y": 0.032742276252338436,
+          "z": 0.1437519749552858
+        },
+        "position": {
+          "x": -22670.11168160879,
+          "y": 980.1874541452402,
+          "z": -12726.664926229982
+        }
+      },
+      {
+        "at": 1793353765186,
+        "type": "projectileRemove",
+        "id": "8de52ed5-be13-4e27-a8e1-793fcd2b5674"
+      },
+      {
+        "at": 1793353765223,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353765500,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353765545,
+        "type": "projectileRemove",
+        "id": "892b778d-6814-48fe-8cd1-7e2031c91519"
+      },
+      {
+        "at": 1793353766025,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353766321,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353766738,
+        "type": "projectileSpawn",
+        "id": "bb8441a0-a4a1-4c85-9236-f24092853b66",
+        "direction": {
+          "x": 0.9885488939269633,
+          "y": -0.030679181815474327,
+          "z": 0.14774935573094924
+        },
+        "position": {
+          "x": -22485.53802708231,
+          "y": 1004.3535731889035,
+          "z": -12684.090114114555
+        }
+      },
+      {
+        "at": 1793353766825,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353767146,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353767669,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353767970,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353768111,
+        "type": "projectileRemove",
+        "id": "7a6225fa-c31e-42f4-a759-fa68f9b54171"
+      },
+      {
+        "at": 1793353768375,
+        "type": "projectileSpawn",
+        "id": "82151612-cf6a-4b72-a5cc-c37d38dd0032",
+        "direction": {
+          "x": 0.9874361483433796,
+          "y": -0.06717927279831964,
+          "z": 0.14302726401312515
+        },
+        "position": {
+          "x": -22279.697046069017,
+          "y": 1026.036195559091,
+          "z": -12644.308403949206
+        }
+      },
+      {
+        "at": 1793353768524,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353768728,
+        "type": "projectileRemove",
+        "id": "d955827f-1bf8-4240-8c19-8f835d6d99cc"
+      },
+      {
+        "at": 1793353768730,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1800
+      },
+      {
+        "at": 1793353768732,
+        "type": "projectileRemove",
+        "id": "bb8441a0-a4a1-4c85-9236-f24092853b66"
+      },
+      {
+        "at": 1793353768785,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353769223,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353769638,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353770066,
+        "type": "projectileSpawn",
+        "id": "511083e1-1216-4ac2-bff9-f64bf458407f",
+        "direction": {
+          "x": 0.9938571157997848,
+          "y": -0.03765140770363955,
+          "z": 0.10406923114959357
+        },
+        "position": {
+          "x": -22053.163597370807,
+          "y": 1044.82656061897,
+          "z": -12603.994324774823
+        }
+      },
+      {
+        "at": 1793353770512,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353770939,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353771188,
+        "type": "projectileRemove",
+        "id": "82151612-cf6a-4b72-a5cc-c37d38dd0032"
+      },
+      {
+        "at": 1793353771753,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1760
+      },
+      {
+        "at": 1793353771755,
+        "type": "projectileRemove",
+        "id": "511083e1-1216-4ac2-bff9-f64bf458407f"
+      },
+      {
+        "at": 1793353771814,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353771814,
+        "type": "projectileSpawn",
+        "id": "777fec06-62dd-4e36-a30b-e4d252d2096c",
+        "direction": {
+          "x": 0.9868825075687837,
+          "y": -0.01955510599594244,
+          "z": 0.16025140899298562
+        },
+        "position": {
+          "x": -21806.281498503984,
+          "y": 1060.6516364825495,
+          "z": -12565.430404876552
+        }
+      },
+      {
+        "at": 1793353772297,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353773171,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353773591,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353773591,
+        "type": "projectileSpawn",
+        "id": "f45baa09-9709-4587-8b39-ca57e339a6dc",
+        "direction": {
+          "x": 0.9880932654597648,
+          "y": -0.010310811989725274,
+          "z": 0.15351021434800727
+        },
+        "position": {
+          "x": -21553.386375684408,
+          "y": 1073.6570440826686,
+          "z": -12527.6920760718
+        }
+      },
+      {
+        "at": 1793353774508,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353774883,
+        "type": "projectileRemove",
+        "id": "777fec06-62dd-4e36-a30b-e4d252d2096c"
+      },
+      {
+        "at": 1793353774976,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353775420,
+        "type": "projectileSpawn",
+        "id": "65be744a-7002-4465-9e64-04ace1281523",
+        "direction": {
+          "x": 0.9922302946695836,
+          "y": -0.026596223384155963,
+          "z": 0.12153881372471838
+        },
+        "position": {
+          "x": -21307.99092233675,
+          "y": 1083.6148398323323,
+          "z": -12490.10645990477
+        }
+      },
+      {
+        "at": 1793353775921,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353776371,
+        "type": "projectileRemove",
+        "id": "f45baa09-9709-4587-8b39-ca57e339a6dc"
+      },
+      {
+        "at": 1793353776386,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353777314,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353777314,
+        "type": "projectileSpawn",
+        "id": "92e5cff8-7161-4f79-b64a-857b29f75c37",
+        "direction": {
+          "x": 0.9904916094644993,
+          "y": -0.06394594166026933,
+          "z": 0.12180840745041863
+        },
+        "position": {
+          "x": -21070.830975365774,
+          "y": 1090.9272751866317,
+          "z": -12454.822764710716
+        }
+      },
+      {
+        "at": 1793353777797,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353778804,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353779150,
+        "type": "projectileRemove",
+        "id": "65be744a-7002-4465-9e64-04ace1281523"
+      },
+      {
+        "at": 1793353780718,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353780741,
+        "type": "projectileSpawn",
+        "id": "2e9cfba3-2525-4c25-a3be-889a3f09f17c",
+        "direction": {
+          "x": 0.9918632342456789,
+          "y": -0.03373483063081487,
+          "z": 0.12275701916392263
+        },
+        "position": {
+          "x": -20837.351969081374,
+          "y": 1095.9142768238326,
+          "z": -12421.937014046223
+        }
+      },
+      {
+        "at": 1793353780742,
+        "type": "projectileRemove",
+        "id": "2e9cfba3-2525-4c25-a3be-889a3f09f17c"
+      },
+      {
+        "at": 1793353780744,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1760
+      },
+      {
+        "at": 1793353780746,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1720
+      },
+      {
+        "at": 1793353780747,
+        "type": "projectileRemove",
+        "id": "92e5cff8-7161-4f79-b64a-857b29f75c37"
+      },
+      {
+        "at": 1793353781502,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353781954,
+        "type": "projectileSpawn",
+        "id": "6587b9ae-2c71-4fe8-aa0e-b158f98612a5",
+        "direction": {
+          "x": 0.9922383525970778,
+          "y": -0.0179966677716791,
+          "z": 0.12304134095722699
+        },
+        "position": {
+          "x": -20603.939107610815,
+          "y": 1098.9100141934446,
+          "z": -12390.334984914225
+        }
+      },
+      {
+        "at": 1793353782415,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353783334,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353783789,
+        "type": "projectileSpawn",
+        "id": "f7f1eeec-b398-4038-be56-1081500d6bea",
+        "direction": {
+          "x": 0.9913024396615624,
+          "y": -0.04679592007941723,
+          "z": 0.12300249991343712
+        },
+        "position": {
+          "x": -20347.88495335761,
+          "y": 1100.685316945985,
+          "z": -12356.626919141292
+        }
+      },
+      {
+        "at": 1793353784280,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353784588,
+        "type": "projectileRemove",
+        "id": "6587b9ae-2c71-4fe8-aa0e-b158f98612a5"
+      },
+      {
+        "at": 1793353785265,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353785744,
+        "type": "projectileSpawn",
+        "id": "482472ac-345d-41c2-9168-3d5277713c61",
+        "direction": {
+          "x": 0.9923849802141131,
+          "y": 0.0018651104810279756,
+          "z": 0.12316075839457971
+        },
+        "position": {
+          "x": -20088.043506904305,
+          "y": 1100.9828439682465,
+          "z": -12323.063933490275
+        }
+      },
+      {
+        "at": 1793353785984,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1680
+      },
+      {
+        "at": 1793353785986,
+        "type": "projectileRemove",
+        "id": "f7f1eeec-b398-4038-be56-1081500d6bea"
+      },
+      {
+        "at": 1793353786211,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353787197,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353787667,
+        "type": "projectileSpawn",
+        "id": "6dade78d-e62a-4aad-9136-665863af9833",
+        "direction": {
+          "x": 0.9909060307412291,
+          "y": -0.05458990864610753,
+          "z": 0.12298447103058233
+        },
+        "position": {
+          "x": -19837.199846878568,
+          "y": 1099.6613135370162,
+          "z": -12291.053401604306
+        }
+      },
+      {
+        "at": 1793353788143,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353788207,
+        "type": "projectileRemove",
+        "id": "482472ac-345d-41c2-9168-3d5277713c61"
+      },
+      {
+        "at": 1793353789108,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353789603,
+        "type": "projectileSpawn",
+        "id": "56d8177c-bb5a-44c8-badb-2e4c872c0a68",
+        "direction": {
+          "x": 0.9919740412457079,
+          "y": -0.028795180417626576,
+          "z": 0.1231192067850294
+        },
+        "position": {
+          "x": -19602.21925849062,
+          "y": 1097.6655311176567,
+          "z": -12261.303787711704
+        }
+      },
+      {
+        "at": 1793353789957,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1640
+      },
+      {
+        "at": 1793353789959,
+        "type": "projectileRemove",
+        "id": "6dade78d-e62a-4aad-9136-665863af9833"
+      },
+      {
+        "at": 1793353790106,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353791101,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353791597,
+        "type": "shotRejected",
+        "clientShotId": "c142ee52-8fc8-43d3-a8a5-7064693c110e"
+      },
+      {
+        "at": 1793353792104,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353792832,
+        "type": "projectileRemove",
+        "id": "56d8177c-bb5a-44c8-badb-2e4c872c0a68"
+      },
+      {
+        "at": 1793353793127,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353794128,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353795105,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353796065,
+        "type": "aim",
+        "candidateId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9"
+      },
+      {
+        "at": 1793353810691,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353811225,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353811671,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353812658,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353813289,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353813670,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353813725,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353841586,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353842043,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353842928,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353843819,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353844700,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353845228,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353845582,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353846126,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353846477,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353847026,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793353847350,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354008600,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354009172,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354010185,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354011149,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354012113,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354012621,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354013717,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354014812,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354015882,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354016427,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354016944,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354017525,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354017994,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354018530,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354019028,
+        "type": "aim",
+        "candidateId": "bot:dallas:7"
+      },
+      {
+        "at": 1793354019515,
+        "type": "aim",
+        "candidateId": "bot:dallas:8"
+      },
+      {
+        "at": 1793354019994,
+        "type": "aim",
+        "candidateId": "bot:dallas:8"
+      },
+      {
+        "at": 1793354020504,
+        "type": "aim",
+        "candidateId": "bot:dallas:8"
+      },
+      {
+        "at": 1793354021125,
+        "type": "transportFinal",
+        "attemptId": "40b17355-7a8b-4ce9-8377-cac07bdbc3e9",
+        "kind": "timeout"
+      },
+      {
+        "at": 1793354021131,
+        "type": "journeyAttempt",
+        "status": "FAILED",
+        "health": 1640
+      }
+    ],
+    "checks": [
+      "normal keyboard takeoff",
+      "closed-loop keyboard bank/turn and fire; no injected poses or aim"
+    ],
+    "shots": [
+      {
+        "at": 1793353743298,
+        "type": "fire",
+        "clientShotId": "56df3f6a-8e7e-49ec-9a66-c934771f9b46",
+        "stateSequence": 227,
+        "aimSample": {
+          "from": 77,
+          "to": 77,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353743519,
+        "type": "fire",
+        "clientShotId": "c1aab73d-a96f-41d9-b68f-81014b81dd21",
+        "stateSequence": 230,
+        "aimSample": {
+          "from": 78,
+          "to": 79,
+          "blend": 0.6069999998807907
+        }
+      },
+      {
+        "at": 1793353744109,
+        "type": "fire",
+        "clientShotId": "29462912-3a34-4b12-a547-5f1a1921248b",
+        "stateSequence": 237,
+        "aimSample": {
+          "from": 81,
+          "to": 82,
+          "blend": 0.9570000001788139
+        }
+      },
+      {
+        "at": 1793353744525,
+        "type": "fire",
+        "clientShotId": "edfdfb62-cb00-402a-aaa0-a73e69cef81e",
+        "stateSequence": 242,
+        "aimSample": {
+          "from": 84,
+          "to": 84,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353744974,
+        "type": "fire",
+        "clientShotId": "7c961302-97b7-4895-b2c1-c154fd068970",
+        "stateSequence": 248,
+        "aimSample": {
+          "from": 86,
+          "to": 86,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353746125,
+        "type": "fire",
+        "clientShotId": "1edb8dd8-ce58-4467-a39f-051703f4a522",
+        "stateSequence": 260,
+        "aimSample": {
+          "from": 88,
+          "to": 89,
+          "blend": 0.17099999994039536
+        }
+      },
+      {
+        "at": 1793353755096,
+        "type": "fire",
+        "clientShotId": "688e24e3-fe48-41f7-bd24-b6e495d4b4dc",
+        "stateSequence": 327,
+        "aimSample": {
+          "from": 98,
+          "to": 98,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353756462,
+        "type": "fire",
+        "clientShotId": "d3001361-ecea-461c-9cc9-48960a116230",
+        "stateSequence": 342,
+        "aimSample": {
+          "from": 100,
+          "to": 100,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353758306,
+        "type": "fire",
+        "clientShotId": "5870ef50-31cc-4b39-88ac-f413d20cf076",
+        "stateSequence": 361,
+        "aimSample": {
+          "from": 104,
+          "to": 104,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353760108,
+        "type": "fire",
+        "clientShotId": "fde66ea8-f9b2-4c54-8ddf-72e050af8d08",
+        "stateSequence": 380,
+        "aimSample": {
+          "from": 107,
+          "to": 107,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353761762,
+        "type": "fire",
+        "clientShotId": "a239b643-e8cd-4cf9-a7d2-471321add5aa",
+        "stateSequence": 398,
+        "aimSample": {
+          "from": 111,
+          "to": 111,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353763418,
+        "type": "fire",
+        "clientShotId": "b4b1a967-ca48-4177-9ed6-69cd2425cff7",
+        "stateSequence": 415,
+        "aimSample": {
+          "from": 115,
+          "to": 115,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353765094,
+        "type": "fire",
+        "clientShotId": "d09cb188-2e65-457c-9db2-52bc2b3a5291",
+        "stateSequence": 433,
+        "aimSample": {
+          "from": 119,
+          "to": 119,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353766737,
+        "type": "fire",
+        "clientShotId": "59282aaa-84e0-4ade-85ea-c21583206892",
+        "stateSequence": 451,
+        "aimSample": {
+          "from": 123,
+          "to": 123,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353768375,
+        "type": "fire",
+        "clientShotId": "c3fbea29-eb28-4b77-b44d-06bc5199a384",
+        "stateSequence": 468,
+        "aimSample": {
+          "from": 127,
+          "to": 127,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353770065,
+        "type": "fire",
+        "clientShotId": "fbe70b39-aca6-4ef5-a053-8e8f9ef450b8",
+        "stateSequence": 486,
+        "aimSample": {
+          "from": 131,
+          "to": 131,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353771814,
+        "type": "fire",
+        "clientShotId": "ffd1c7fa-fbf0-4e1e-af44-de6bc8442ace",
+        "stateSequence": 504
+      },
+      {
+        "at": 1793353773591,
+        "type": "fire",
+        "clientShotId": "12e8e641-3778-43c2-bb1b-4ed9c30cf5ed",
+        "stateSequence": 523,
+        "aimSample": {
+          "from": 136,
+          "to": 136,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353775420,
+        "type": "fire",
+        "clientShotId": "ae539d97-5c3a-421b-9883-f6b0eb35d562",
+        "stateSequence": 542,
+        "aimSample": {
+          "from": 139,
+          "to": 139,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353777312,
+        "type": "fire",
+        "clientShotId": "db6a472c-629f-4e76-aba7-c7eaa64a97e5",
+        "stateSequence": 562
+      },
+      {
+        "at": 1793353780717,
+        "type": "fire",
+        "clientShotId": "11158345-e6e7-460d-80a9-2fa8fd16a665",
+        "stateSequence": 583,
+        "aimSample": {
+          "from": 144,
+          "to": 144,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353781954,
+        "type": "fire",
+        "clientShotId": "2f31fc58-7642-4a96-9f81-5e552b5dd529",
+        "stateSequence": 597,
+        "aimSample": {
+          "from": 146,
+          "to": 146,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353783789,
+        "type": "fire",
+        "clientShotId": "15b2daca-ca96-40ef-9343-4ebeae41e609",
+        "stateSequence": 616,
+        "aimSample": {
+          "from": 148,
+          "to": 148,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353785744,
+        "type": "fire",
+        "clientShotId": "9f992fc7-9c2b-41c6-a5b8-1987b2cf2b66",
+        "stateSequence": 637,
+        "aimSample": {
+          "from": 150,
+          "to": 150,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353787667,
+        "type": "fire",
+        "clientShotId": "138caacd-bdf3-49fc-b133-47a74d254a5f",
+        "stateSequence": 657,
+        "aimSample": {
+          "from": 152,
+          "to": 152,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353789603,
+        "type": "fire",
+        "clientShotId": "4f5d2e05-d6cc-47d8-8200-7b96941e36e5",
+        "stateSequence": 677,
+        "aimSample": {
+          "from": 154,
+          "to": 154,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793353791597,
+        "type": "fire",
+        "clientShotId": "c142ee52-8fc8-43d3-a8a5-7064693c110e",
+        "stateSequence": 698,
+        "aimSample": {
+          "from": 156,
+          "to": 156,
+          "blend": 1
+        }
+      }
+    ],
+    "damages": [
+      {
+        "at": 1793353751050,
+        "type": "damage",
+        "playerId": "97f78bcc-439c-43cb-9b84-70eac6c03513",
+        "shooterId": "transport:40b17355-7a8b-4ce9-8377-cac07bdbc3e9",
+        "health": 190,
+        "maxHealth": 200,
+        "damage": 10
+      },
+      {
+        "at": 1793353780744,
+        "type": "damage",
+        "playerId": "bot:dallas:7",
+        "shooterId": "97f78bcc-439c-43cb-9b84-70eac6c03513",
+        "health": 960,
+        "maxHealth": 1000,
+        "damage": 40,
+        "impactId": "2e9cfba3-2525-4c25-a3be-889a3f09f17c",
+        "impactPosition": {
+          "x": -20521.838326985555,
+          "y": 1085.1831609700337,
+          "z": -12382.887765246624
+        }
+      }
+    ],
+    "controls": [
+      {
+        "at": 1793353739217,
+        "distance": 1952.213488156687,
+        "speed": 415.30015999153454,
+        "yawError": 1.4650689085345086,
+        "pitchError": 0.16220329117046073,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.2999999999999995,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353742279,
+        "distance": 1250.967282422399,
+        "speed": 181.94527999629125,
+        "yawError": 0.5683375324716735,
+        "pitchError": 0.257722106595242,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.20574396745068926,
+          "y": 1.5998105859733087,
+          "z": 0.228812296178718
+        }
+      },
+      {
+        "at": 1793353745354,
+        "distance": 648.4727369255733,
+        "speed": 296.38751999395845,
+        "yawError": 0.27610957630108635,
+        "pitchError": 0.1869540187617939,
+        "target": "transport",
+        "transportHealth": 1920,
+        "rotation": {
+          "x": 0.3186522734555302,
+          "y": 2.6917531426529906,
+          "z": 0.5699346946002715
+        }
+      },
+      {
+        "at": 1793353749849,
+        "distance": 783.0786588131059,
+        "speed": 338.4092799931019,
+        "yawError": 0.6103042664103671,
+        "pitchError": -0.20389034397978698,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.4069473102951937,
+          "y": 3.573963452160127,
+          "z": 0.8348335153001314
+        }
+      },
+      {
+        "at": 1793353753822,
+        "distance": 1407.2716915067233,
+        "speed": 398.75967999187174,
+        "yawError": 0.5116016787049696,
+        "pitchError": -0.10997684157363848,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.19313968985158358,
+          "y": 3.901589930990523,
+          "z": 0.8351938781700418
+        }
+      },
+      {
+        "at": 1793353756878,
+        "distance": 1821.4922554894674,
+        "speed": 521.248639989375,
+        "yawError": -0.027708589503571555,
+        "pitchError": -0.04309663285044773,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.07576103173524891,
+          "y": 4.535232399298972,
+          "z": 0.4399557939678363
+        }
+      },
+      {
+        "at": 1793353759961,
+        "distance": 2212.010688266067,
+        "speed": 616.0211199874431,
+        "yawError": -0.009999672453170771,
+        "pitchError": -0.03051780592562919,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.0364675861669051,
+          "y": 4.559788294298439,
+          "z": 0.066715202228153
+        }
+      },
+      {
+        "at": 1793353763018,
+        "distance": 2543.7533705614273,
+        "speed": 785.8963199839803,
+        "yawError": -0.00934102439600235,
+        "pitchError": -0.03553598275973969,
+        "target": "transport",
+        "transportHealth": 1840,
+        "rotation": {
+          "x": 0.02291650350738291,
+          "y": 4.581259693739803,
+          "z": -0.04451857484494238
+        }
+      },
+      {
+        "at": 1793353766078,
+        "distance": 2765.337779383307,
+        "speed": 929.8431999810462,
+        "yawError": -0.027812533626444067,
+        "pitchError": 0.022157505121060097,
+        "target": "transport",
+        "transportHealth": 1840,
+        "rotation": {
+          "x": -0.050385127033193235,
+          "y": 4.611671221791172,
+          "z": 0.15747798892128675
+        }
+      },
+      {
+        "at": 1793353769146,
+        "distance": 2958.6732328361973,
+        "speed": 1127.8819199770094,
+        "yawError": 0.05072768248683104,
+        "pitchError": 0.021787724144425043,
+        "target": "transport",
+        "transportHealth": 1800,
+        "rotation": {
+          "x": -0.0594626618370547,
+          "y": 4.536165118953457,
+          "z": -0.15755329083839897
+        }
+      },
+      {
+        "at": 1793353772196,
+        "distance": 3070.7507387411288,
+        "speed": 1276.299199973984,
+        "yawError": 0.03583265346456368,
+        "pitchError": -0.02512521038391702,
+        "target": "transport",
+        "transportHealth": 1760,
+        "rotation": {
+          "x": -0.019556352529622,
+          "y": 4.551412581610788,
+          "z": -0.20011741930614374
+        }
+      },
+      {
+        "at": 1793353775246,
+        "distance": 3183.7201137647244,
+        "speed": 1229.3599999749408,
+        "yawError": 0.024760733539906068,
+        "pitchError": 0.008095151114853393,
+        "target": "transport",
+        "transportHealth": 1760,
+        "rotation": {
+          "x": -0.057019019729909,
+          "y": 4.561230188152039,
+          "z": 0.2415307901066999
+        }
+      },
+      {
+        "at": 1793353778322,
+        "distance": 3379.174112157664,
+        "speed": 1181.526719975916,
+        "yawError": -0.005554240673717214,
+        "pitchError": 0.005199830924306127,
+        "target": "transport",
+        "transportHealth": 1760,
+        "rotation": {
+          "x": -0.05452834198433567,
+          "y": 4.589739406715647,
+          "z": 3.474611272635461e-18
+        }
+      },
+      {
+        "at": 1793353782746,
+        "distance": 3698.757253104771,
+        "speed": 1268.2524799741482,
+        "yawError": -0.008611312932453185,
+        "pitchError": -0.03188923715074733,
+        "target": "transport",
+        "transportHealth": 1720,
+        "rotation": {
+          "x": -0.015336576600647819,
+          "y": 4.588986878446677,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353785808,
+        "distance": 3796.284160008613,
+        "speed": 1305.3567999733918,
+        "yawError": -0.011525469033398327,
+        "pitchError": -0.04835198412148202,
+        "target": "transport",
+        "transportHealth": 1720,
+        "rotation": {
+          "x": 0.0018651115624434408,
+          "y": 4.588914499280151,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353788867,
+        "distance": 3962.677558014684,
+        "speed": 1203.8787199754602,
+        "yawError": -0.01438166507884706,
+        "pitchError": -0.0046599275770290716,
+        "target": "transport",
+        "transportHealth": 1680,
+        "rotation": {
+          "x": -0.03966012450109141,
+          "y": 4.58890588541191,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353791939,
+        "distance": 4174.895201207777,
+        "speed": 1117.152959977228,
+        "yawError": -0.017079451282832926,
+        "pitchError": -0.026347146479968157,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.015185579528355114,
+          "y": 4.588904466691544,
+          "z": -8.674617551985674e-19
+        }
+      },
+      {
+        "at": 1793353794989,
+        "distance": 4400.445267428382,
+        "speed": 1091.6716799777475,
+        "yawError": -0.01955222124136544,
+        "pitchError": -0.03301780443942063,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.0058144503708164545,
+          "y": 4.588904229093338,
+          "z": -4.336882000026927e-19
+        }
+      },
+      {
+        "at": 1793353798040,
+        "distance": 4548.165320744601,
+        "speed": 1255.7353599744033,
+        "yawError": -0.022179711350326346,
+        "pitchError": -0.034932951684294666,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.0018971376728358453,
+          "y": 4.5889041860762445,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353801089,
+        "distance": 4697.165403206588,
+        "speed": 1294.6278399736104,
+        "yawError": -0.024568855157075055,
+        "pitchError": -0.03438459039352963,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.0007264005186442256,
+          "y": 4.5889041806697835,
+          "z": 5.421012292646935e-20
+        }
+      },
+      {
+        "at": 1793353804312,
+        "distance": 4965.9504563563305,
+        "speed": 1246.7945599745854,
+        "yawError": -0.026507936777677907,
+        "pitchError": -0.032618851244549836,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.000326392792576623,
+          "y": 4.58890417981852,
+          "z": 2.7105055755918956e-20
+        }
+      },
+      {
+        "at": 1793353807832,
+        "distance": 5421.615976116924,
+        "speed": 1195.3849599756334,
+        "yawError": -0.02764582969385174,
+        "pitchError": -0.030004128744291814,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.00020196643925164098,
+          "y": 4.588904179672721,
+          "z": -1.35525274324756e-20
+        }
+      },
+      {
+        "at": 1793353810909,
+        "distance": 5625.07530753645,
+        "speed": 1162.3039999763078,
+        "yawError": -0.029399424151426354,
+        "pitchError": -0.028760614273035126,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.00007733151279517784,
+          "y": 4.588904179588731,
+          "z": 6.776263598295983e-21
+        }
+      },
+      {
+        "at": 1793353813994,
+        "distance": 5808.071659419163,
+        "speed": 1245.006399974622,
+        "yawError": -0.02326260642969189,
+        "pitchError": -0.02767044554811351,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.00003022766600905693,
+          "y": 4.581193840659188,
+          "z": 0.19983375003988635
+        }
+      },
+      {
+        "at": 1793353817041,
+        "distance": 5914.104627869726,
+        "speed": 1283.898879973829,
+        "yawError": 0.0599195503377097,
+        "pitchError": -0.02692330130513546,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.000009785366435619736,
+          "y": 4.496483620993828,
+          "z": 0.15728786119215515
+        }
+      },
+      {
+        "at": 1793353820104,
+        "distance": 6100.864715387366,
+        "speed": 1205.219839975433,
+        "yawError": 0.01969672130525637,
+        "pitchError": -0.02594935281669656,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.000004197029300169295,
+          "y": 4.536052332050495,
+          "z": -0.4887118560263194
+        }
+      },
+      {
+        "at": 1793353823265,
+        "distance": 6313.392294830568,
+        "speed": 1152.916159976499,
+        "yawError": -0.044581579904701775,
+        "pitchError": -0.024958035461872235,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -0.0000014222159186454773,
+          "y": 4.600065952290834,
+          "z": -0.08904435602488261
+        }
+      },
+      {
+        "at": 1793353826315,
+        "distance": 6521.487148607975,
+        "speed": 1184.6559999758522,
+        "yawError": -0.08582494022621899,
+        "pitchError": -0.02406055487919354,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.704192277689344e-7,
+          "y": 4.641589316585197,
+          "z": 0.30895893603273994
+        }
+      },
+      {
+        "at": 1793353829370,
+        "distance": 6616.037865438939,
+        "speed": 1272.722879974057,
+        "yawError": 0.10328091215468783,
+        "pitchError": -0.023565891202304814,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.7804043798974696e-7,
+          "y": 4.4521094325724055,
+          "z": 0.10912518603274532
+        }
+      },
+      {
+        "at": 1793353832432,
+        "distance": 6856.048937527262,
+        "speed": 1239.6419199747313,
+        "yawError": -0.1343795106907437,
+        "pitchError": -0.0226889265622362,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -7.984677903583045e-8,
+          "y": 4.690234596748262,
+          "z": -0.0907085639672586
+        }
+      },
+      {
+        "at": 1793353835496,
+        "distance": 7047.562655893252,
+        "speed": 1196.2790399756152,
+        "yawError": 0.1333192732260653,
+        "pitchError": -0.021993683819466883,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.0843280596215556e-8,
+          "y": 4.422275836847492,
+          "z": 0.15897228206612252
+        }
+      },
+      {
+        "at": 1793353838554,
+        "distance": 7173.854492688544,
+        "speed": 1304.909759973401,
+        "yawError": 0.026618151236556885,
+        "pitchError": -0.021500027297683806,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.099987437247485e-8,
+          "y": 4.529584666406853,
+          "z": -0.4405289679338795
+        }
+      },
+      {
+        "at": 1793353841616,
+        "distance": 7325.136467605933,
+        "speed": 1266.4643199741845,
+        "yawError": -0.06869012395458071,
+        "pitchError": -0.020977750036275927,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -4.6376194551278616e-9,
+          "y": 4.6259017352759635,
+          "z": 0.6072342413658224
+        }
+      },
+      {
+        "at": 1793353844665,
+        "distance": 7457.424850365176,
+        "speed": 1179.2915199759614,
+        "yawError": -0.09418639278455186,
+        "pitchError": -0.020511559874672576,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.2409633342626292e-9,
+          "y": 4.6510065419338185,
+          "z": 0.007732991365822036
+        }
+      },
+      {
+        "at": 1793353847717,
+        "distance": 7609.753542315862,
+        "speed": 1145.316479976654,
+        "yawError": -0.029567155297467205,
+        "pitchError": -0.020020678938018493,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -4.04888653324633e-10,
+          "y": 4.584479420608024,
+          "z": 2.5849394142282115e-26
+        }
+      },
+      {
+        "at": 1793353850777,
+        "distance": 7719.585220132155,
+        "speed": 1286.1340799737836,
+        "yawError": 0.02517141619486398,
+        "pitchError": -0.01965304894963488,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.3210698665196032e-10,
+          "y": 4.528249282396661,
+          "z": -6.591949207419397e-17
+        }
+      },
+      {
+        "at": 1793353853833,
+        "distance": 7892.843674072954,
+        "speed": 1259.3116799743302,
+        "yawError": -0.004117065578620437,
+        "pitchError": -0.01916797567964838,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.0582825376644734e-11,
+          "y": 4.557233007992573,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353856884,
+        "distance": 8088.9801186734685,
+        "speed": 1181.9737599759067,
+        "yawError": -0.00899438336599243,
+        "pitchError": -0.01865670651542078,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.9367803989238664e-11,
+          "y": 4.562077036926546,
+          "z": -1.6155871338926322e-27
+        }
+      },
+      {
+        "at": 1793353859938,
+        "distance": 8279.433489424286,
+        "speed": 1150.2339199765538,
+        "yawError": -0.009808053356056702,
+        "pitchError": -0.01818302167374954,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -7.41579436443986e-12,
+          "y": 4.56288627841708,
+          "z": 8.077935669463161e-28
+        }
+      },
+      {
+        "at": 1793353862986,
+        "distance": 8477.85952911309,
+        "speed": 1236.0655999748042,
+        "yawError": -0.00995017834208298,
+        "pitchError": -0.01771557589812052,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.8394549059983475e-12,
+          "y": 4.563024454779062,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353866034,
+        "distance": 8694.976538379988,
+        "speed": 1281.2166399738837,
+        "yawError": -0.00995461506620352,
+        "pitchError": -0.017244267575223862,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.087207083553899e-12,
+          "y": 4.563048723282128,
+          "z": 1.0097419586828951e-28
+        }
+      },
+      {
+        "at": 1793353869089,
+        "distance": 8877.723459272675,
+        "speed": 1206.5609599754055,
+        "yawError": -0.009984295002995334,
+        "pitchError": -0.01684725210502887,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -4.885136326341795e-13,
+          "y": 4.5630525243889455,
+          "z": -5.048709793414476e-29
+        }
+      },
+      {
+        "at": 1793353872139,
+        "distance": 9140.13214617219,
+        "speed": 1167.2214399762074,
+        "yawError": -0.009929761417406735,
+        "pitchError": -0.016340798317975583,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.195033245086567e-13,
+          "y": 4.563053377572559,
+          "z": -1.262177448353619e-29
+        }
+      },
+      {
+        "at": 1793353875186,
+        "distance": 9398.963389740109,
+        "speed": 1149.786879976563,
+        "yawError": -0.009877783355216363,
+        "pitchError": -0.015867891206597717,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -9.862920142176088e-14,
+          "y": 4.563053570505624,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353878231,
+        "distance": 9573.206450108137,
+        "speed": 1288.369279973738,
+        "yawError": -0.00990757743736268,
+        "pitchError": -0.015538582692541002,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.776441957379865e-14,
+          "y": 4.563053618460076,
+          "z": 3.1554436208840472e-30
+        }
+      },
+      {
+        "at": 1793353881296,
+        "distance": 9807.621483901312,
+        "speed": 1282.5577599738565,
+        "yawError": -0.009885376311257165,
+        "pitchError": -0.015141015405516508,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.6968647527583092e-14,
+          "y": 4.563053626260101,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353884344,
+        "distance": 10035.74715519649,
+        "speed": 1207.9020799753782,
+        "yawError": -0.009863750190829388,
+        "pitchError": -0.014770575883026167,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -7.624504816039172e-15,
+          "y": 4.563053628023195,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353887396,
+        "distance": 10297.189304134969,
+        "speed": 1168.5625599761802,
+        "yawError": -0.009819239812813161,
+        "pitchError": -0.01437170718598112,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.425910850897649e-15,
+          "y": 4.563053628418924,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353890444,
+        "distance": 10564.789216205485,
+        "speed": 1150.6809599765447,
+        "yawError": -0.009771271628330889,
+        "pitchError": -0.013984524617446679,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.539360973791787e-15,
+          "y": 4.563053628508406,
+          "z": -9.860761315262648e-32
+        }
+      },
+      {
+        "at": 1793353893488,
+        "distance": 10809.129725351697,
+        "speed": 1238.3007999747585,
+        "yawError": -0.009741820996888006,
+        "pitchError": -0.013643321520060214,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.91679471756341e-16,
+          "y": 4.563053628529045,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353896532,
+        "distance": 11022.493202142905,
+        "speed": 1283.4518399738383,
+        "yawError": -0.0097365498089663,
+        "pitchError": -0.01335165588226197,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.107916205454242e-16,
+          "y": 4.563053628533902,
+          "z": 2.465190328815662e-32
+        }
+      },
+      {
+        "at": 1793353899583,
+        "distance": 11265.573459596553,
+        "speed": 1236.0655999748042,
+        "yawError": -0.009713763431182552,
+        "pitchError": -0.013038290083970457,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.3964767691598816e-16,
+          "y": 4.5630536285350045,
+          "z": -1.232595164407831e-32
+        }
+      },
+      {
+        "at": 1793353902630,
+        "distance": 11524.563065819968,
+        "speed": 1169.009599976171,
+        "yawError": -0.009679178050004933,
+        "pitchError": -0.012720836094110755,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.274774601003742e-17,
+          "y": 4.563053628535251,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353905679,
+        "distance": 11772.197062236746,
+        "speed": 1153.36319997649,
+        "yawError": -0.009648888669593991,
+        "pitchError": -0.01242852927376513,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.8194379715380584e-17,
+          "y": 4.563053628535308,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353908728,
+        "distance": 12031.534137235523,
+        "speed": 1238.7478399747495,
+        "yawError": -0.009616237289503648,
+        "pitchError": -0.012136604107580067,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.2668551431439543e-17,
+          "y": 4.563053628535316,
+          "z": 1.5407439555097887e-33
+        }
+      },
+      {
+        "at": 1793353911778,
+        "distance": 12249.330887172448,
+        "speed": 1290.6044799736924,
+        "yawError": -0.0096110064054302,
+        "pitchError": -0.011894188160554656,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.6923470915544805e-18,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353914846,
+        "distance": 12491.455168097658,
+        "speed": 1234.2774399748407,
+        "yawError": -0.009593847797368693,
+        "pitchError": -0.011638707628581966,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.557736422043856e-18,
+          "y": 4.563053628535316,
+          "z": 1.925929944387236e-34
+        }
+      },
+      {
+        "at": 1793353917893,
+        "distance": 12746.464549087279,
+        "speed": 1183.7619199758703,
+        "yawError": -0.009567209972165291,
+        "pitchError": -0.01138151026210758,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.1492650570018555e-18,
+          "y": 4.563053628535316,
+          "z": 9.62964972193618e-35
+        }
+      },
+      {
+        "at": 1793353920962,
+        "distance": 13070.401864346657,
+        "speed": 1151.5750399765263,
+        "yawError": -0.009493546779788286,
+        "pitchError": -0.011084307728498931,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.059987577744799e-19,
+          "y": 4.563053628535316,
+          "z": 4.81482486096809e-35
+        }
+      },
+      {
+        "at": 1793353924010,
+        "distance": 13318.652040113137,
+        "speed": 1186.8911999758066,
+        "yawError": -0.009469641142311611,
+        "pitchError": -0.010853887745540509,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.722927940871295e-19,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353927098,
+        "distance": 13570.712963136877,
+        "speed": 1288.369279973738,
+        "yawError": -0.009451238268824304,
+        "pitchError": -0.010627836552722675,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.2234903910375397e-19,
+          "y": 4.563053628535316,
+          "z": 1.2037062152420224e-35
+        }
+      },
+      {
+        "at": 1793353930149,
+        "distance": 13788.239069757552,
+        "speed": 1261.9939199742757,
+        "yawError": -0.009449309223139335,
+        "pitchError": -0.01043507000280916,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.497496700122726e-20,
+          "y": 4.563053628535316,
+          "z": -6.018531076210112e-36
+        }
+      },
+      {
+        "at": 1793353934245,
+        "distance": 14144.96306636205,
+        "speed": 1181.526719975916,
+        "yawError": -0.009410034218764384,
+        "pitchError": -0.010143068022525252,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.0030937155766178e-20,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353937300,
+        "distance": 14467.57391606925,
+        "speed": 1156.9395199764172,
+        "yawError": -0.009347368016122215,
+        "pitchError": -0.009901176544799849,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.0562161408717908e-20,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353940369,
+        "distance": 14775.460451795594,
+        "speed": 1150.6809599765447,
+        "yawError": -0.009291929009757038,
+        "pitchError": -0.00967905992817901,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.569347692336796e-21,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353943422,
+        "distance": 15028.728030680164,
+        "speed": 1245.006399974622,
+        "yawError": -0.009275230762220343,
+        "pitchError": -0.009492884657669436,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.502469229406331e-21,
+          "y": 4.563053628535316,
+          "z": -1.88079096131566e-37
+        }
+      },
+      {
+        "at": 1793353946475,
+        "distance": 15324.911808952345,
+        "speed": 1287.0281599737652,
+        "yawError": -0.009233889957845886,
+        "pitchError": -0.009292734222792693,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.3195330660668049e-21,
+          "y": 4.563053628535316,
+          "z": -9.4039548065783e-38
+        }
+      },
+      {
+        "at": 1793353949647,
+        "distance": 15569.956745878384,
+        "speed": 1239.6419199747313,
+        "yawError": -0.009225022037431007,
+        "pitchError": -0.009123615573788631,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.929044256942193e-22,
+          "y": 4.563053628535316,
+          "z": -4.70197740328915e-38
+        }
+      },
+      {
+        "at": 1793353952697,
+        "distance": 15824.042410021559,
+        "speed": 1188.67935997577,
+        "yawError": -0.00920975226463192,
+        "pitchError": -0.008954605288556279,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.664091314177001e-22,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353955747,
+        "distance": 16127.406121440326,
+        "speed": 1156.0454399764353,
+        "yawError": -0.00916348784921237,
+        "pitchError": -0.008770209338657822,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.4047551669244196e-22,
+          "y": 4.563053628535316,
+          "z": -1.1754943508222875e-38
+        }
+      },
+      {
+        "at": 1793353958795,
+        "distance": 16395.624775529697,
+        "speed": 1188.67935997577,
+        "yawError": -0.009142610427524933,
+        "pitchError": -0.008605329476085152,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.311971839924629e-23,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353961845,
+        "distance": 16628.663018372776,
+        "speed": 1290.1574399737015,
+        "yawError": -0.009138312764566092,
+        "pitchError": -0.008462221053282098,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.8361517683704084e-23,
+          "y": 4.563053628535316,
+          "z": 2.938735877055719e-39
+        }
+      },
+      {
+        "at": 1793353964887,
+        "distance": 16927.054840410055,
+        "speed": 1281.6636799738747,
+        "yawError": -0.009102049177291714,
+        "pitchError": -0.00829713728241091,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.4954813408980118e-23,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353967937,
+        "distance": 17154.52181365407,
+        "speed": 1207.0079999753964,
+        "yawError": -0.00909951632855297,
+        "pitchError": -0.008165286110373942,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.71963081762338e-24,
+          "y": 4.563053628535316,
+          "z": -7.346839692639297e-40
+        }
+      },
+      {
+        "at": 1793353970979,
+        "distance": 17414.929073832176,
+        "speed": 1167.6684799761983,
+        "yawError": -0.009084135411709694,
+        "pitchError": -0.008022004851243327,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.019324754532872e-24,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353974082,
+        "distance": 17681.83976620736,
+        "speed": 1149.786879976563,
+        "yawError": -0.00906592016063954,
+        "pitchError": -0.007880261550044258,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.356670064287737e-24,
+          "y": 4.563053628535316,
+          "z": -9.183549615799121e-41
+        }
+      },
+      {
+        "at": 1793353977132,
+        "distance": 17935.921259584808,
+        "speed": 1237.406719974777,
+        "yawError": -0.00905436759727316,
+        "pitchError": -0.007747799490863086,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.0959115463525315e-25,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353980182,
+        "distance": 18216.987303116242,
+        "speed": 1291.9455999736651,
+        "yawError": -0.009026935048299411,
+        "pitchError": -0.007612351588116994,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.214327976028238e-25,
+          "y": 4.563053628535316,
+          "z": -2.2958874039497803e-41
+        }
+      },
+      {
+        "at": 1793353983229,
+        "distance": 18458.267616774945,
+        "speed": 1235.1715199748223,
+        "yawError": -0.009022911909774866,
+        "pitchError": -0.007492155033125264,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.4442906598017754e-25,
+          "y": 4.563053628535316,
+          "z": 1.1479437019748901e-41
+        }
+      },
+      {
+        "at": 1793353986282,
+        "distance": 18715.339066267872,
+        "speed": 1184.6559999758522,
+        "yawError": -0.009011592802453205,
+        "pitchError": -0.0073689096019540195,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -6.48961626052911e-26,
+          "y": 4.563053628535316,
+          "z": -5.739718509874451e-42
+        }
+      },
+      {
+        "at": 1793353989330,
+        "distance": 18963.579549562724,
+        "speed": 1152.4691199765082,
+        "yawError": -0.009000960546065893,
+        "pitchError": -0.007252293870816961,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.915972551861817e-26,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353992419,
+        "distance": 19226.638838689145,
+        "speed": 1238.3007999747585,
+        "yawError": -0.008986978360373965,
+        "pitchError": -0.0071334796683361415,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.3102309261223194e-26,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353995468,
+        "distance": 19400.702356812024,
+        "speed": 1290.1574399737015,
+        "yawError": -0.009013516808811883,
+        "pitchError": -0.007043962472081444,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.016781005968194e-27,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793353998528,
+        "distance": 19623.16480773673,
+        "speed": 1233.8303999748498,
+        "yawError": -0.009014699803301806,
+        "pitchError": -0.006944106364056351,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.254185012614645e-27,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354001581,
+        "distance": 19880.462349639467,
+        "speed": 1183.3148799758794,
+        "yawError": -0.009003997505961902,
+        "pitchError": -0.006834731075704724,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.0128706166467054e-27,
+          "y": 4.563053628535316,
+          "z": -8.96831017167883e-44
+        }
+      },
+      {
+        "at": 1793354004626,
+        "distance": 20072.283586488655,
+        "speed": 1151.1279999765354,
+        "yawError": -0.009018807873386802,
+        "pitchError": -0.0067452682741838315,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.8782095352724774e-28,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354007673,
+        "distance": 20271.011234629423,
+        "speed": 1236.959679974786,
+        "yawError": -0.009033476717724231,
+        "pitchError": -0.006655243796019623,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -1.4849388413766756e-28,
+          "y": 4.563053628535316,
+          "z": 1.1210387714598537e-44
+        }
+      },
+      {
+        "at": 1793354010746,
+        "distance": 20444.223070901997,
+        "speed": 1282.1107199738656,
+        "yawError": -0.009059290969676257,
+        "pitchError": -0.006574471527265669,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -5.685725184712552e-29,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354013797,
+        "distance": 20612.792986700915,
+        "speed": 1207.4550399753873,
+        "yawError": -0.009083084166676449,
+        "pitchError": -0.006496723181490864,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -2.1770237248359687e-29,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354016841,
+        "distance": 20875.64680490642,
+        "speed": 1157.8335999763988,
+        "yawError": -0.00906944781046246,
+        "pitchError": -0.006396116108727284,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -9.781998151391603e-30,
+          "y": 4.563053628535316,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354019896,
+        "distance": 21083.783276891343,
+        "speed": 1187.7852799757884,
+        "yawError": -0.009078933998569494,
+        "pitchError": -0.006310082215065318,
+        "target": "transport",
+        "transportHealth": 1640,
+        "rotation": {
+          "x": -3.745457502789531e-30,
+          "y": 4.563053628535316,
+          "z": -3.503246160812043e-46
+        }
+      }
+    ],
+    "transportHealth": 1640,
+    "minTransportHealth": 1640,
+    "body": "☰\n175\n190\n2,932\nMPH\n2,911\nFT\n♥ FULL REPAIR · 100%\nBOOST READY\nBOOST\nFAST\nMED\nSLOW\nIDLE\nFIRE\nDALLAS\nMISSION FAILED\nREAR GUARD\nTransport escaped\nNO CREDITS LOST\nRETRY MISSION\nEXIT TO JOURNEY",
+    "phase": "FAILED",
+    "ownProjectileCount": 26,
+    "finalStatus": "FAILED",
+    "exit": {
+      "via": "normal result button",
+      "gameHidden": true,
+      "newEvents": [],
+      "url": "http://127.0.0.1:8091/"
+    }
+  },
+  {
+    "mission": 9,
+    "errors": [],
+    "events": [
+      {
+        "at": 1793354036304,
+        "type": "journeyAttempt",
+        "status": "APPROACH",
+        "health": 2000
+      },
+      {
+        "at": 1793354041378,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793354057276,
+        "type": "takeoffConfirmed"
+      },
+      {
+        "at": 1793354060642,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354060732,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354063135,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354063259,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354063380,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354063513,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354063649,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354063783,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354063917,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064052,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064186,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064322,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064452,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064578,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064713,
+        "type": "aim",
+        "candidateId": "transport:17773274-6067-44b1-af07-f1a060296c56"
+      },
+      {
+        "at": 1793354064974,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354065077,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354065078,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354065309,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354067046,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354068099,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354069893,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354069915,
+        "type": "aim",
+        "candidateId": "bot:dallas:16"
+      },
+      {
+        "at": 1793354070200,
+        "type": "projectileSpawn",
+        "id": "31599aa1-ae67-4d88-bc99-d85b54cb524a",
+        "direction": {
+          "x": 0.7122273351008764,
+          "y": 0.1749414544397849,
+          "z": 0.6797997577622374
+        },
+        "position": {
+          "x": -23320.487056915037,
+          "y": 612.7505530724497,
+          "z": -13512.492171785507
+        }
+      },
+      {
+        "at": 1793354071776,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354072099,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354072768,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354072768,
+        "type": "projectileSpawn",
+        "id": "aa10b49d-118e-49c8-8df7-3b4d62419b8b",
+        "direction": {
+          "x": 0.8279536842937836,
+          "y": 0.047207566857827676,
+          "z": 0.5588059970112289
+        },
+        "position": {
+          "x": -23306.55222623437,
+          "y": 626.1609200735628,
+          "z": -13460.192737816169
+        }
+      },
+      {
+        "at": 1793354073573,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354074364,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354074531,
+        "type": "projectileSpawn",
+        "id": "e8b75471-c334-4ae0-8914-28c931e921e6",
+        "direction": {
+          "x": 0.9720321661144034,
+          "y": 0.04841255860760117,
+          "z": 0.22980359485440277
+        },
+        "position": {
+          "x": -23270.442508348657,
+          "y": 640.462539684975,
+          "z": -13403.212996707154
+        }
+      },
+      {
+        "at": 1793354075152,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354075975,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354075975,
+        "type": "projectileSpawn",
+        "id": "84853b75-b1f3-4494-afcb-eec3126153c6",
+        "direction": {
+          "x": 0.9612496592962959,
+          "y": 0.2546575035969003,
+          "z": -0.10558716003638836
+        },
+        "position": {
+          "x": -23212.633586693555,
+          "y": 656.5047245821843,
+          "z": -13351.60895020417
+        }
+      },
+      {
+        "at": 1793354076796,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354077589,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354077589,
+        "type": "projectileSpawn",
+        "id": "eee72938-1b51-4c76-8d21-7f5b1aabd574",
+        "direction": {
+          "x": 0.9709911409756021,
+          "y": 0.23806622229445384,
+          "z": 0.02237583404805281
+        },
+        "position": {
+          "x": -23134.531189913054,
+          "y": 676.2728936661392,
+          "z": -13309.270613365585
+        }
+      },
+      {
+        "at": 1793354078354,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354078853,
+        "type": "projectileRemove",
+        "id": "31599aa1-ae67-4d88-bc99-d85b54cb524a"
+      },
+      {
+        "at": 1793354079124,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354079479,
+        "type": "projectileRemove",
+        "id": "aa10b49d-118e-49c8-8df7-3b4d62419b8b"
+      },
+      {
+        "at": 1793354079888,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354082525,
+        "type": "projectileRemove",
+        "id": "84853b75-b1f3-4494-afcb-eec3126153c6"
+      },
+      {
+        "at": 1793354083095,
+        "type": "projectileRemove",
+        "id": "e8b75471-c334-4ae0-8914-28c931e921e6"
+      },
+      {
+        "at": 1793354083768,
+        "type": "projectileRemove",
+        "id": "eee72938-1b51-4c76-8d21-7f5b1aabd574"
+      },
+      {
+        "at": 1793354086573,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354086660,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354086736,
+        "type": "projectileSpawn",
+        "id": "8e2a84d8-9c65-4443-affa-6860860f4689",
+        "direction": {
+          "x": -0.9550136664138588,
+          "y": -0.0848875028490572,
+          "z": -0.28415314325695945
+        },
+        "position": {
+          "x": -22469.195894812252,
+          "y": 986.436342548285,
+          "z": -13555.468076834502
+        }
+      },
+      {
+        "at": 1793354086822,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354086966,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354086966,
+        "type": "projectileSpawn",
+        "id": "8aacbc80-edf3-478d-a959-c6a87a9dc30b",
+        "direction": {
+          "x": -0.9530534007002146,
+          "y": 0.03819841482177281,
+          "z": -0.3003832493979315
+        },
+        "position": {
+          "x": -22501.256426276304,
+          "y": 1008.0365237976505,
+          "z": -13614.74601782176
+        }
+      },
+      {
+        "at": 1793354087129,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354087264,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354087264,
+        "type": "projectileSpawn",
+        "id": "ec766770-35fc-4009-accb-8b0c300d5675",
+        "direction": {
+          "x": -0.8720826212259147,
+          "y": -0.14251308665460344,
+          "z": -0.4681473292542799
+        },
+        "position": {
+          "x": -22555.630605643168,
+          "y": 1027.0427841584828,
+          "z": -13674.468770282561
+        }
+      },
+      {
+        "at": 1793354087397,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354087531,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354087531,
+        "type": "projectileSpawn",
+        "id": "538296ed-6d8e-4e00-8e11-723562ad917d",
+        "direction": {
+          "x": -0.9169443769551233,
+          "y": -0.07307821907910049,
+          "z": -0.39226596011712184
+        },
+        "position": {
+          "x": -22631.25764581491,
+          "y": 1042.9261336102054,
+          "z": -13738.506505496756
+        }
+      },
+      {
+        "at": 1793354087683,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354087819,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354087819,
+        "type": "projectileSpawn",
+        "id": "f1b668fa-907f-4547-9d11-ac71deca6da2",
+        "direction": {
+          "x": -0.9950958374466118,
+          "y": 0.017842796813072912,
+          "z": -0.09729290261017887
+        },
+        "position": {
+          "x": -22729.156087482956,
+          "y": 1056.4957968061844,
+          "z": -13801.670641368462
+        }
+      },
+      {
+        "at": 1793354087959,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354088093,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354088093,
+        "type": "projectileSpawn",
+        "id": "713c89d0-78e3-4ea5-be4b-a67e1e69e2ae",
+        "direction": {
+          "x": -0.9475415704673451,
+          "y": -0.20308504077985345,
+          "z": -0.24682268625011458
+        },
+        "position": {
+          "x": -22848.925824516155,
+          "y": 1067.1191605247905,
+          "z": -13859.376331837282
+        }
+      },
+      {
+        "at": 1793354088277,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354088350,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354088350,
+        "type": "projectileSpawn",
+        "id": "f46162f7-f059-4c8d-90e7-64c285d6e459",
+        "direction": {
+          "x": -0.8927523350130193,
+          "y": -0.23950469353253476,
+          "z": -0.3816159982294877
+        },
+        "position": {
+          "x": -22987.729886220433,
+          "y": 1071.890952991563,
+          "z": -13917.756786184398
+        }
+      },
+      {
+        "at": 1793354088479,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354088610,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354088610,
+        "type": "projectileSpawn",
+        "id": "8381652a-55f4-416f-9a6e-61bfbe8014a5",
+        "direction": {
+          "x": -0.997975024175413,
+          "y": -0.028114174413516435,
+          "z": -0.05705650111188272
+        },
+        "position": {
+          "x": -23139.333202517628,
+          "y": 1071.8392356890663,
+          "z": -13976.903257184373
+        }
+      },
+      {
+        "at": 1793354088747,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354089325,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354089388,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354089515,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354089649,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090233,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090296,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090425,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090545,
+        "type": "projectileSpawn",
+        "id": "cfc0c924-39f0-4d7b-a9e8-071f51fd241d",
+        "direction": {
+          "x": -0.9426769147383769,
+          "y": 0.11924514050016365,
+          "z": -0.31167423840675573
+        },
+        "position": {
+          "x": -23797.38953435859,
+          "y": 1055.0223597998424,
+          "z": -14097.821670122501
+        }
+      },
+      {
+        "at": 1793354090545,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090561,
+        "type": "projectileRemove",
+        "id": "f46162f7-f059-4c8d-90e7-64c285d6e459"
+      },
+      {
+        "at": 1793354090669,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090732,
+        "type": "projectileSpawn",
+        "id": "46316116-1ada-4d5e-b4f4-505fb1522700",
+        "direction": {
+          "x": -0.9902764176916197,
+          "y": -0.03832857666088501,
+          "z": -0.13372934148870755
+        },
+        "position": {
+          "x": -23859.905542334884,
+          "y": 1053.082477996586,
+          "z": -14106.851160988965
+        }
+      },
+      {
+        "at": 1793354090792,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354090916,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091049,
+        "type": "projectileSpawn",
+        "id": "07771b28-cd54-4617-8e46-b999d6387c0a",
+        "direction": {
+          "x": -0.9407639914004531,
+          "y": -0.27998603041910297,
+          "z": -0.19123528768101727
+        },
+        "position": {
+          "x": -23912.601239615306,
+          "y": 1050.320357036737,
+          "z": -14114.962304873174
+        }
+      },
+      {
+        "at": 1793354091049,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091176,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091234,
+        "type": "projectileSpawn",
+        "id": "9a7c21a4-a1aa-42ad-9fb7-3554bc0eb5e3",
+        "direction": {
+          "x": -0.854588517327544,
+          "y": -0.1497187412072965,
+          "z": -0.4972552308253905
+        },
+        "position": {
+          "x": -23953.856276392442,
+          "y": 1049.3964316123524,
+          "z": -14123.167509792482
+        }
+      },
+      {
+        "at": 1793354091299,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091427,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091493,
+        "type": "projectileSpawn",
+        "id": "34d0bd88-dd30-4a62-a7b9-c7740f28043e",
+        "direction": {
+          "x": -0.8136859423971681,
+          "y": 0.0977477009194287,
+          "z": -0.5730275509172299
+        },
+        "position": {
+          "x": -23985.0761120203,
+          "y": 1048.818499454601,
+          "z": -14130.909674454897
+        }
+      },
+      {
+        "at": 1793354091562,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091696,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091742,
+        "type": "projectileRemove",
+        "id": "713c89d0-78e3-4ea5-be4b-a67e1e69e2ae"
+      },
+      {
+        "at": 1793354091764,
+        "type": "projectileSpawn",
+        "id": "4eb716c2-9f5b-4ba0-a33c-6f064050234a",
+        "direction": {
+          "x": -0.8955009827306866,
+          "y": -0.049306929962287416,
+          "z": -0.4423198125633405
+        },
+        "position": {
+          "x": -24010.618860805735,
+          "y": 1046.6818181556364,
+          "z": -14137.489639983245
+        }
+      },
+      {
+        "at": 1793354091833,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354091896,
+        "type": "projectileRemove",
+        "id": "ec766770-35fc-4009-accb-8b0c300d5675"
+      },
+      {
+        "at": 1793354091896,
+        "type": "projectileRemove",
+        "id": "538296ed-6d8e-4e00-8e11-723562ad917d"
+      },
+      {
+        "at": 1793354091964,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354092000,
+        "type": "projectileRemove",
+        "id": "f1b668fa-907f-4547-9d11-ac71deca6da2"
+      },
+      {
+        "at": 1793354092027,
+        "type": "projectileSpawn",
+        "id": "17ecef1c-f3c0-47ce-9488-95586c2f1593",
+        "direction": {
+          "x": -0.8213677240029105,
+          "y": -0.27369450015239066,
+          "z": -0.5004461834729202
+        },
+        "position": {
+          "x": -24033.485426761858,
+          "y": 1043.5760616328585,
+          "z": -14144.707678380735
+        }
+      },
+      {
+        "at": 1793354092102,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354092104,
+        "type": "projectileRemove",
+        "id": "8381652a-55f4-416f-9a6e-61bfbe8014a5"
+      },
+      {
+        "at": 1793354092227,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354092293,
+        "type": "projectileSpawn",
+        "id": "1638084c-ce10-4908-a6ac-dadd43350fbf",
+        "direction": {
+          "x": -0.9235800118278502,
+          "y": -0.12938374753473297,
+          "z": -0.3609152360678839
+        },
+        "position": {
+          "x": -24059.559490751744,
+          "y": 1041.462458248947,
+          "z": -14154.03334235637
+        }
+      },
+      {
+        "at": 1793354092355,
+        "type": "projectileRemove",
+        "id": "8aacbc80-edf3-478d-a959-c6a87a9dc30b"
+      },
+      {
+        "at": 1793354092363,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354092363,
+        "type": "projectileRemove",
+        "id": "9a7c21a4-a1aa-42ad-9fb7-3554bc0eb5e3"
+      },
+      {
+        "at": 1793354092366,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793354092499,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354095361,
+        "type": "projectileRemove",
+        "id": "8e2a84d8-9c65-4443-affa-6860860f4689"
+      },
+      {
+        "at": 1793354095926,
+        "type": "projectileRemove",
+        "id": "cfc0c924-39f0-4d7b-a9e8-071f51fd241d"
+      },
+      {
+        "at": 1793354096336,
+        "type": "projectileRemove",
+        "id": "46316116-1ada-4d5e-b4f4-505fb1522700"
+      },
+      {
+        "at": 1793354096955,
+        "type": "projectileRemove",
+        "id": "07771b28-cd54-4617-8e46-b999d6387c0a"
+      },
+      {
+        "at": 1793354097005,
+        "type": "projectileRemove",
+        "id": "17ecef1c-f3c0-47ce-9488-95586c2f1593"
+      },
+      {
+        "at": 1793354098390,
+        "type": "projectileRemove",
+        "id": "34d0bd88-dd30-4a62-a7b9-c7740f28043e"
+      },
+      {
+        "at": 1793354098469,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354098469,
+        "type": "projectileSpawn",
+        "id": "04fcb401-65b0-4ad7-93cb-5841db3ba1a4",
+        "direction": {
+          "x": 0.9901740195534616,
+          "y": -0.002427994984592507,
+          "z": 0.13981958318381507
+        },
+        "position": {
+          "x": -24225.986681295806,
+          "y": 1001.762147643927,
+          "z": -14461.887110468553
+        }
+      },
+      {
+        "at": 1793354098503,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354098503,
+        "type": "projectileRemove",
+        "id": "4eb716c2-9f5b-4ba0-a33c-6f064050234a"
+      },
+      {
+        "at": 1793354099013,
+        "type": "projectileRemove",
+        "id": "1638084c-ce10-4908-a6ac-dadd43350fbf"
+      },
+      {
+        "at": 1793354099206,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354099568,
+        "type": "projectileSpawn",
+        "id": "665921bd-581b-473a-8b06-6899bc130a18",
+        "direction": {
+          "x": 0.9022203905673556,
+          "y": 0.05452882366190387,
+          "z": 0.42781418189973264
+        },
+        "position": {
+          "x": -24170.199922056065,
+          "y": 1000.2744122007224,
+          "z": -14484.271736851051
+        }
+      },
+      {
+        "at": 1793354099940,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354100743,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354101147,
+        "type": "projectileSpawn",
+        "id": "1ebf9282-0366-4c64-a617-125383dba316",
+        "direction": {
+          "x": 0.9022106828293608,
+          "y": -0.0063719319059148405,
+          "z": 0.4312485156755496
+        },
+        "position": {
+          "x": -24097.19856175303,
+          "y": 998.6842917754855,
+          "z": -14492.538201478743
+        }
+      },
+      {
+        "at": 1793354101548,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354106118,
+        "type": "projectileRemove",
+        "id": "665921bd-581b-473a-8b06-6899bc130a18"
+      },
+      {
+        "at": 1793354106869,
+        "type": "projectileRemove",
+        "id": "1ebf9282-0366-4c64-a617-125383dba316"
+      },
+      {
+        "at": 1793354106897,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354107075,
+        "type": "projectileRemove",
+        "id": "04fcb401-65b0-4ad7-93cb-5841db3ba1a4"
+      },
+      {
+        "at": 1793354107137,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354107137,
+        "type": "projectileSpawn",
+        "id": "f0674afa-cfe7-4eb7-95bf-88b702dd943e",
+        "direction": {
+          "x": 0.9926480799850421,
+          "y": 0.057367283025695784,
+          "z": 0.10657759680279526
+        },
+        "position": {
+          "x": -23698.94704757112,
+          "y": 996.5251223859678,
+          "z": -14426.504555028323
+        }
+      },
+      {
+        "at": 1793354107729,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354108521,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354108521,
+        "type": "projectileSpawn",
+        "id": "125122c7-cacf-46aa-b493-e9732faedb0e",
+        "direction": {
+          "x": 0.9728979801487485,
+          "y": -0.05254701348167145,
+          "z": 0.2251851051838078
+        },
+        "position": {
+          "x": -23538.98554387979,
+          "y": 995.8863231592093,
+          "z": -14396.601169296337
+        }
+      },
+      {
+        "at": 1793354109076,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354109312,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354109774,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354110110,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354110110,
+        "type": "projectileSpawn",
+        "id": "ae660f5a-18a8-44a9-ad07-9504977fe8ec",
+        "direction": {
+          "x": 0.9687307550372283,
+          "y": 0.06801597315382907,
+          "z": 0.23860962185322482
+        },
+        "position": {
+          "x": -23358.67577097551,
+          "y": 995.7013838171824,
+          "z": -14360.819790512729
+        }
+      },
+      {
+        "at": 1793354110700,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354112076,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354112113,
+        "type": "projectileRemove",
+        "id": "125122c7-cacf-46aa-b493-e9732faedb0e"
+      },
+      {
+        "at": 1793354112114,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354112114,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354112114,
+        "type": "shotRejected",
+        "clientShotId": "3ee80466-1674-474c-a23e-6f9eed3be6d3"
+      },
+      {
+        "at": 1793354113126,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354113170,
+        "type": "projectileRemove",
+        "id": "ae660f5a-18a8-44a9-ad07-9504977fe8ec"
+      },
+      {
+        "at": 1793354115743,
+        "type": "projectileRemove",
+        "id": "f0674afa-cfe7-4eb7-95bf-88b702dd943e"
+      },
+      {
+        "at": 1793354121959,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122093,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122216,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122344,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122469,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122529,
+        "type": "projectileSpawn",
+        "id": "0b4adaef-60d1-422b-8873-c61e80da4d29",
+        "direction": {
+          "x": -0.9918900761929942,
+          "y": 0.04544839033834722,
+          "z": -0.11869507388897615
+        },
+        "position": {
+          "x": -22401.732778271355,
+          "y": 980.3226019774567,
+          "z": -13690.939478862994
+        }
+      },
+      {
+        "at": 1793354122597,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122606,
+        "type": "projectileRemove",
+        "id": "0b4adaef-60d1-422b-8873-c61e80da4d29"
+      },
+      {
+        "at": 1793354122681,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122728,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354122728,
+        "type": "projectileSpawn",
+        "id": "ab339d95-6fbf-41e1-8304-93050a2cee69",
+        "direction": {
+          "x": -0.9897405558453806,
+          "y": -0.07394707593988659,
+          "z": -0.1222516342419098
+        },
+        "position": {
+          "x": -22494.808628680068,
+          "y": 982.3623350424741,
+          "z": -13686.21731148214
+        }
+      },
+      {
+        "at": 1793354122760,
+        "type": "projectileRemove",
+        "id": "ab339d95-6fbf-41e1-8304-93050a2cee69"
+      },
+      {
+        "at": 1793354122855,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123004,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123004,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123004,
+        "type": "projectileSpawn",
+        "id": "a5cc5cda-cbe0-42f8-b862-e9cdef22d365",
+        "direction": {
+          "x": -0.9967806748281833,
+          "y": 0.0539483527902645,
+          "z": 0.059311563124645875
+        },
+        "position": {
+          "x": -22609.000218537774,
+          "y": 984.213217086931,
+          "z": -13686.551536055153
+        }
+      },
+      {
+        "at": 1793354123019,
+        "type": "projectileRemove",
+        "id": "a5cc5cda-cbe0-42f8-b862-e9cdef22d365"
+      },
+      {
+        "at": 1793354123162,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123309,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123309,
+        "type": "projectileSpawn",
+        "id": "d69af250-39be-4c80-a6fb-6cc2ac67b6f3",
+        "direction": {
+          "x": -0.9854663404162428,
+          "y": 0.12726623992662722,
+          "z": 0.11251398171585436
+        },
+        "position": {
+          "x": -22743.482113946524,
+          "y": 986.9270868706377,
+          "z": -13683.872742005477
+        }
+      },
+      {
+        "at": 1793354123327,
+        "type": "projectileRemove",
+        "id": "d69af250-39be-4c80-a6fb-6cc2ac67b6f3"
+      },
+      {
+        "at": 1793354123329,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793354123470,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123622,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123622,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123622,
+        "type": "projectileSpawn",
+        "id": "54887b26-ea3b-4415-93a0-6d82203c63a4",
+        "direction": {
+          "x": -0.9949670621525628,
+          "y": -0.0767945808692673,
+          "z": -0.06436720889250985
+        },
+        "position": {
+          "x": -22897.586925312764,
+          "y": 991.0337444105671,
+          "z": -13679.22116888947
+        }
+      },
+      {
+        "at": 1793354123794,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123978,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354123978,
+        "type": "projectileSpawn",
+        "id": "ecfe1843-7a04-4e0e-95d3-68ce49dbd1cc",
+        "direction": {
+          "x": -0.9716106905392771,
+          "y": -0.12601299068439897,
+          "z": 0.20023334439738763
+        },
+        "position": {
+          "x": -23066.45379118702,
+          "y": 993.6782311795994,
+          "z": -13675.163685694512
+        }
+      },
+      {
+        "at": 1793354124105,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354127032,
+        "type": "projectileRemove",
+        "id": "54887b26-ea3b-4415-93a0-6d82203c63a4"
+      },
+      {
+        "at": 1793354128166,
+        "type": "projectileRemove",
+        "id": "ecfe1843-7a04-4e0e-95d3-68ce49dbd1cc"
+      },
+      {
+        "at": 1793354131058,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354131491,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354132360,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354133256,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354134135,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354135020,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354135896,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354142397,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354143261,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354144120,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354144981,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354145844,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354146828,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354147262,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354148143,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354170594,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354171082,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354172071,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354173044,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354174024,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354174977,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354175943,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354176899,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354177875,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354178376,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354178851,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354179803,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354180747,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354181349,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354207833,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354208725,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354209601,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354210489,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354211013,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354212029,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354212477,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354213445,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354214352,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354214875,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354215302,
+        "type": "aim",
+        "candidateId": "bot:dallas:15"
+      },
+      {
+        "at": 1793354371375,
+        "type": "transportFinal",
+        "attemptId": "17773274-6067-44b1-af07-f1a060296c56",
+        "kind": "timeout"
+      },
+      {
+        "at": 1793354371381,
+        "type": "journeyAttempt",
+        "status": "FAILED",
+        "health": 2000
+      }
+    ],
+    "checks": [
+      "normal keyboard takeoff",
+      "owned projectile destroyed an enemy",
+      "closed-loop keyboard bank/turn and fire; no injected poses or aim"
+    ],
+    "shots": [
+      {
+        "at": 1793354070150,
+        "type": "fire",
+        "clientShotId": "478b7628-4296-4ad8-afc3-ae97d8648762",
+        "stateSequence": 270,
+        "aimSample": {
+          "from": 100,
+          "to": 100,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354072768,
+        "type": "fire",
+        "clientShotId": "ca45affb-89e0-416e-8b7c-7f2eb898eaf8",
+        "stateSequence": 297
+      },
+      {
+        "at": 1793354074480,
+        "type": "fire",
+        "clientShotId": "5ed1b99f-41fe-4383-8a1d-c06482f05720",
+        "stateSequence": 316,
+        "aimSample": {
+          "from": 105,
+          "to": 105,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354075975,
+        "type": "fire",
+        "clientShotId": "6643fc39-c748-4c40-a292-6e19df4581ee",
+        "stateSequence": 331
+      },
+      {
+        "at": 1793354077589,
+        "type": "fire",
+        "clientShotId": "6b25fb1b-5f38-4b14-8041-1f79f1f22921",
+        "stateSequence": 348
+      },
+      {
+        "at": 1793354086685,
+        "type": "fire",
+        "clientShotId": "481bc97a-a234-4e07-adb5-9879dbb97c6e",
+        "stateSequence": 441,
+        "aimSample": {
+          "from": 128,
+          "to": 129,
+          "blend": 0.24200000017881393
+        }
+      },
+      {
+        "at": 1793354086966,
+        "type": "fire",
+        "clientShotId": "853de07b-e845-4419-be94-0e567e5dfef3",
+        "stateSequence": 444,
+        "aimSample": {
+          "from": 130,
+          "to": 130,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354087264,
+        "type": "fire",
+        "clientShotId": "c109ef4a-eb42-46f5-980b-21532c382166",
+        "stateSequence": 448,
+        "aimSample": {
+          "from": 132,
+          "to": 132,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354087531,
+        "type": "fire",
+        "clientShotId": "ebded1fc-08b8-4086-9901-eb349961e695",
+        "stateSequence": 452,
+        "aimSample": {
+          "from": 134,
+          "to": 134,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354087819,
+        "type": "fire",
+        "clientShotId": "f06a8d9c-6e6c-470f-91aa-90b00c4cf851",
+        "stateSequence": 456,
+        "aimSample": {
+          "from": 136,
+          "to": 136,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354088093,
+        "type": "fire",
+        "clientShotId": "bce01758-ca96-4de7-82b7-19f1c9f568ea",
+        "stateSequence": 460,
+        "aimSample": {
+          "from": 138,
+          "to": 138,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354088350,
+        "type": "fire",
+        "clientShotId": "3edc343a-cac5-4b1c-9c08-0d1173843714",
+        "stateSequence": 463,
+        "aimSample": {
+          "from": 139,
+          "to": 140,
+          "blend": 0.6620000001788139
+        }
+      },
+      {
+        "at": 1793354088610,
+        "type": "fire",
+        "clientShotId": "2119dc46-a80e-476f-9e7b-570c7765f5d8",
+        "stateSequence": 467,
+        "aimSample": {
+          "from": 142,
+          "to": 142,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354090521,
+        "type": "fire",
+        "clientShotId": "d5484c5b-204f-4005-8a1b-9836c8f945d1",
+        "stateSequence": 487,
+        "aimSample": {
+          "from": 158,
+          "to": 159,
+          "blend": 0.9539999997615815
+        }
+      },
+      {
+        "at": 1793354090732,
+        "type": "fire",
+        "clientShotId": "e24fc8f4-4bdd-407a-ac3f-c80d854fbba8",
+        "stateSequence": 490,
+        "aimSample": {
+          "from": 160,
+          "to": 161,
+          "blend": 0.5890000000596046
+        }
+      },
+      {
+        "at": 1793354091030,
+        "type": "fire",
+        "clientShotId": "41b5f73b-ef1b-4a8b-a097-2c6b4cc9cfef",
+        "stateSequence": 494,
+        "aimSample": {
+          "from": 163,
+          "to": 163,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354091233,
+        "type": "fire",
+        "clientShotId": "daf444ac-f868-492f-be4a-55956c753c7b",
+        "stateSequence": 497,
+        "aimSample": {
+          "from": 164,
+          "to": 165,
+          "blend": 0.5240000000596047
+        }
+      },
+      {
+        "at": 1793354091492,
+        "type": "fire",
+        "clientShotId": "16faa7f7-78dd-4a75-bfad-dbb412b5b7b9",
+        "stateSequence": 501,
+        "aimSample": {
+          "from": 166,
+          "to": 167,
+          "blend": 0.6090000000596046
+        }
+      },
+      {
+        "at": 1793354091764,
+        "type": "fire",
+        "clientShotId": "3eafc01c-2b04-409e-bb59-b8f2c9bcff31",
+        "stateSequence": 504,
+        "aimSample": {
+          "from": 168,
+          "to": 169,
+          "blend": 0.6240000000596047
+        }
+      },
+      {
+        "at": 1793354092027,
+        "type": "fire",
+        "clientShotId": "c7d848d6-9c53-4c0c-b8d4-93b52ca3feb3",
+        "stateSequence": 508,
+        "aimSample": {
+          "from": 170,
+          "to": 171,
+          "blend": 0.5829999998211861
+        }
+      },
+      {
+        "at": 1793354092293,
+        "type": "fire",
+        "clientShotId": "2d27f11a-6ca4-4754-9c47-ff71e8cdd919",
+        "stateSequence": 512,
+        "aimSample": {
+          "from": 172,
+          "to": 173,
+          "blend": 0.6059999999403953
+        }
+      },
+      {
+        "at": 1793354098417,
+        "type": "fire",
+        "clientShotId": "6e5032df-6262-459e-a200-6567bc389ec1",
+        "stateSequence": 574,
+        "aimSample": {
+          "from": 178,
+          "to": 178,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354099568,
+        "type": "fire",
+        "clientShotId": "69a63e95-2920-4c32-9c93-8869bae4b9db",
+        "stateSequence": 586,
+        "aimSample": {
+          "from": 181,
+          "to": 181,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354101147,
+        "type": "fire",
+        "clientShotId": "9b975a31-85e8-47c9-b8e0-0dc8d5f9e820",
+        "stateSequence": 603,
+        "aimSample": {
+          "from": 183,
+          "to": 183,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354107085,
+        "type": "fire",
+        "clientShotId": "d0bba8ca-6758-45cf-8695-d1b2bb9a3d9e",
+        "stateSequence": 664,
+        "aimSample": {
+          "from": 187,
+          "to": 187,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354108521,
+        "type": "fire",
+        "clientShotId": "8ff4415a-f511-403b-a3b2-a02ff6282da6",
+        "stateSequence": 679
+      },
+      {
+        "at": 1793354110110,
+        "type": "fire",
+        "clientShotId": "12b15f2f-ff5b-4c06-90e6-cadfaefa42d2",
+        "stateSequence": 696,
+        "aimSample": {
+          "from": 193,
+          "to": 193,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354112099,
+        "type": "fire",
+        "clientShotId": "3ee80466-1674-474c-a23e-6f9eed3be6d3",
+        "stateSequence": 705,
+        "aimSample": {
+          "from": 196,
+          "to": 196,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354122519,
+        "type": "fire",
+        "clientShotId": "c6ff4bc7-03ab-4401-8a6c-881d491fa148",
+        "stateSequence": 811,
+        "aimSample": {
+          "from": 206,
+          "to": 207,
+          "blend": 0.49700000017881396
+        }
+      },
+      {
+        "at": 1793354122728,
+        "type": "fire",
+        "clientShotId": "9f158e7c-2e28-4582-a94a-ad1f210a26e7",
+        "stateSequence": 814,
+        "aimSample": {
+          "from": 208,
+          "to": 209,
+          "blend": 0.4040000000596046
+        }
+      },
+      {
+        "at": 1793354123004,
+        "type": "fire",
+        "clientShotId": "5deb898a-2463-4aa1-8996-db077282be5e",
+        "stateSequence": 818,
+        "aimSample": {
+          "from": 211,
+          "to": 211,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354123309,
+        "type": "fire",
+        "clientShotId": "f21759bb-d9f5-481c-863f-dd04c01b8095",
+        "stateSequence": 822,
+        "aimSample": {
+          "from": 214,
+          "to": 214,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354123622,
+        "type": "fire",
+        "clientShotId": "7d66b4fa-5c2a-4852-96fb-8da1d06dc3f2",
+        "stateSequence": 826,
+        "aimSample": {
+          "from": 216,
+          "to": 216,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793354123978,
+        "type": "fire",
+        "clientShotId": "2be09744-ea72-4c91-ac6d-0df84dbc7fdb",
+        "stateSequence": 830,
+        "aimSample": {
+          "from": 219,
+          "to": 219,
+          "blend": 1
+        }
+      }
+    ],
+    "damages": [
+      {
+        "at": 1793354092366,
+        "type": "damage",
+        "playerId": "bot:dallas:15",
+        "shooterId": "ad70b739-e474-4e8b-9928-13766b615a20",
+        "health": 35,
+        "maxHealth": 75,
+        "damage": 40,
+        "impactId": "9a7c21a4-a1aa-42ad-9fb7-3554bc0eb5e3",
+        "impactPosition": {
+          "x": -24615.911426115286,
+          "y": 933.4083723106884,
+          "z": -14508.394293934243
+        }
+      },
+      {
+        "at": 1793354112288,
+        "type": "damage",
+        "playerId": "ad70b739-e474-4e8b-9928-13766b615a20",
+        "shooterId": "bot:dallas:15",
+        "health": 190,
+        "maxHealth": 200,
+        "damage": 10,
+        "impactId": "d3b3160d-c174-4548-9c79-1d89f0518fd4",
+        "impactPosition": {
+          "x": -23184.827006926374,
+          "y": 996.4264104755839,
+          "z": -14325.841476821664
+        }
+      },
+      {
+        "at": 1793354122607,
+        "type": "damage",
+        "playerId": "bot:dallas:16",
+        "shooterId": "ad70b739-e474-4e8b-9928-13766b615a20",
+        "health": 85,
+        "maxHealth": 125,
+        "damage": 40,
+        "impactId": "0b4adaef-60d1-422b-8873-c61e80da4d29",
+        "impactPosition": {
+          "x": -22427.521920252373,
+          "y": 981.5042601262537,
+          "z": -13694.025550784108
+        }
+      },
+      {
+        "at": 1793354122762,
+        "type": "damage",
+        "playerId": "bot:dallas:16",
+        "shooterId": "ad70b739-e474-4e8b-9928-13766b615a20",
+        "health": 45,
+        "maxHealth": 125,
+        "damage": 40,
+        "impactId": "ab339d95-6fbf-41e1-8304-93050a2cee69",
+        "impactPosition": {
+          "x": -22494.808628680068,
+          "y": 982.3623350424741,
+          "z": -13686.21731148214
+        }
+      },
+      {
+        "at": 1793354123020,
+        "type": "damage",
+        "playerId": "bot:dallas:16",
+        "shooterId": "ad70b739-e474-4e8b-9928-13766b615a20",
+        "health": 5,
+        "maxHealth": 125,
+        "damage": 40,
+        "impactId": "a5cc5cda-cbe0-42f8-b862-e9cdef22d365",
+        "impactPosition": {
+          "x": -22609.000218537774,
+          "y": 984.213217086931,
+          "z": -13686.551536055153
+        }
+      },
+      {
+        "at": 1793354123329,
+        "type": "damage",
+        "playerId": "bot:dallas:16",
+        "shooterId": "ad70b739-e474-4e8b-9928-13766b615a20",
+        "health": 0,
+        "maxHealth": 125,
+        "damage": 5,
+        "impactId": "d69af250-39be-4c80-a6fb-6cc2ac67b6f3",
+        "impactPosition": {
+          "x": -22743.482113946524,
+          "y": 986.9270868706377,
+          "z": -13683.872742005477
+        }
+      }
+    ],
+    "controls": [
+      {
+        "at": 1793354058864,
+        "distance": 2182.8848155909973,
+        "speed": 439.4403199910425,
+        "yawError": 1.0185360512297865,
+        "pitchError": 0.07361258379295477,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.2999999999999997,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354061925,
+        "distance": 820.2102113877429,
+        "speed": 221.73183999548024,
+        "yawError": 0.44319384103958703,
+        "pitchError": 0.30894078135871733,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.27996501422078496,
+          "y": 1.1293558730079656,
+          "z": 0.8385072450777945
+        }
+      },
+      {
+        "at": 1793354064976,
+        "distance": 813.8838928769983,
+        "speed": 116.23039999763077,
+        "yawError": 1.1863568595684264,
+        "pitchError": 0.035531562367657754,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.27509913835277405,
+          "y": 2.728350238093841,
+          "z": 0.4314789078006634
+        }
+      },
+      {
+        "at": 1793354069893,
+        "distance": 2423.402520034209,
+        "speed": 232.46079999526154,
+        "yawError": 0.5910554680237913,
+        "pitchError": -0.012790496411186819,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.0903600810262377,
+          "y": 3.6120453656138003,
+          "z": 0.8388529979851455
+        }
+      },
+      {
+        "at": 1793354072950,
+        "distance": 4069.3232768411444,
+        "speed": 295.49343999397666,
+        "yawError": 0.25226715333519795,
+        "pitchError": -0.0014834561742763513,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.0472251185701488,
+          "y": 4.118691373587685,
+          "z": 0.8369288887487063
+        }
+      },
+      {
+        "at": 1793354076006,
+        "distance": 2570.9837637893615,
+        "speed": 410.3827199916348,
+        "yawError": -0.1870665856103428,
+        "pitchError": 0.0292565968049317,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.25749351365820344,
+          "y": 4.821794012340383,
+          "z": 0.25438842837050646
+        }
+      },
+      {
+        "at": 1793354079056,
+        "distance": 1081.1704949516213,
+        "speed": 557.9059199886277,
+        "yawError": 0.37500885555100116,
+        "pitchError": 0.04543591350552745,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.31684005197891824,
+          "y": 4.758759114536905,
+          "z": 0.4595242435553395
+        }
+      },
+      {
+        "at": 1793354082104,
+        "distance": 743.0281925166281,
+        "speed": 614.6799999874704,
+        "yawError": 1.6159483568008821,
+        "pitchError": -0.21447174823934984,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.3242859692379714,
+          "y": 5.58837722973989,
+          "z": 0.835164274828286
+        }
+      },
+      {
+        "at": 1793354085158,
+        "distance": 2607.3628041908237,
+        "speed": 412.1708799915983,
+        "yawError": 1.0593213880770131,
+        "pitchError": 0.04373929979917705,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.07729633023594366,
+          "y": 6.505731290849418,
+          "z": 0.8371167432267415
+        }
+      },
+      {
+        "at": 1793354088224,
+        "distance": 3641.4222991751717,
+        "speed": 709.4524799855386,
+        "yawError": 0.08398087001273094,
+        "pitchError": 0.18454306219587652,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.25734963909344666,
+          "y": 7.540837215969956,
+          "z": -0.770727602645999
+        }
+      },
+      {
+        "at": 1793354091284,
+        "distance": 1313.932228800562,
+        "speed": 199.37983999593587,
+        "yawError": -0.07221585194381384,
+        "pitchError": 0.054888439660292124,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.15028380154097065,
+          "y": 7.327003357000695,
+          "z": -0.7571790535945133
+        }
+      },
+      {
+        "at": 1793354094346,
+        "distance": 661.2255845922205,
+        "speed": 126.95935999741208,
+        "yawError": -1.8983197980900977,
+        "pitchError": -0.0759252941152438,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.09271122959000022,
+          "y": 6.429449609664807,
+          "z": -0.8398015811086522
+        }
+      },
+      {
+        "at": 1793354097402,
+        "distance": 2332.9212719274065,
+        "speed": 245.87199999498816,
+        "yawError": -0.4757397415233402,
+        "pitchError": -0.03880393946154813,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.05962045333790201,
+          "y": 4.762390797552176,
+          "z": -0.8382628258155704
+        }
+      },
+      {
+        "at": 1793354100453,
+        "distance": 3950.602564302498,
+        "speed": 346.90303999292877,
+        "yawError": 0.00011564582537306813,
+        "pitchError": 0.01598048549862396,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.0033106152527762503,
+          "y": 4.2907918998893235,
+          "z": -0.38975083010306133
+        }
+      },
+      {
+        "at": 1793354103505,
+        "distance": 5232.603841776735,
+        "speed": 519.0134399894205,
+        "yawError": 0.03423371177643488,
+        "pitchError": 0.04851135398409019,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.038792000681612746,
+          "y": 4.379359756593222,
+          "z": 0.0570866458114814
+        }
+      },
+      {
+        "at": 1793354106576,
+        "distance": 4376.742243791124,
+        "speed": 732.2515199850739,
+        "yawError": -0.060292699422224344,
+        "pitchError": -0.023623092427440692,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.0244845033633033,
+          "y": 4.612363318168545,
+          "z": 0.20769250249672672
+        }
+      },
+      {
+        "at": 1793354109629,
+        "distance": 2489.095022917699,
+        "speed": 890.9507199818389,
+        "yawError": 0.019987684463920873,
+        "pitchError": -0.031139293522369993,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.02851533987300308,
+          "y": 4.454604724382645,
+          "z": 0.09186931506661748
+        }
+      },
+      {
+        "at": 1793354113876,
+        "distance": 232.0456783483565,
+        "speed": 1091.2246399777566,
+        "yawError": -2.6268823904296665,
+        "pitchError": -0.013774416508659043,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.02288814692933089,
+          "y": 4.440709615739353,
+          "z": -0.32800867969588554
+        }
+      },
+      {
+        "at": 1793354116931,
+        "distance": 2236.6180007046155,
+        "speed": 892.7388799818025,
+        "yawError": -2.0580677779022425,
+        "pitchError": 0.032079054024590443,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.030249620951325107,
+          "y": 3.496774696942983,
+          "z": -0.8376025338872741
+        }
+      },
+      {
+        "at": 1793354119977,
+        "distance": 4273.235802746985,
+        "speed": 512.754879989548,
+        "yawError": -0.7637702498905632,
+        "pitchError": -0.0023552800677698778,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.004069084507082479,
+          "y": 2.166586690671781,
+          "z": -0.8377657592931063
+        }
+      },
+      {
+        "at": 1793354123028,
+        "distance": 3504.2718997434254,
+        "speed": 620.4915199873519,
+        "yawError": -0.11182892055392468,
+        "pitchError": -0.011323029341932508,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.05245744504929259,
+          "y": 1.6252924630665522,
+          "z": 0.7496241642005564
+        }
+      },
+      {
+        "at": 1793354126533,
+        "distance": 9727.406883024258,
+        "speed": 317.8454399935211,
+        "yawError": 0.8501192538916842,
+        "pitchError": -0.012839106063661034,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.0041196614965623,
+          "y": 3.6502601580053473,
+          "z": 0.8376254019225972
+        }
+      },
+      {
+        "at": 1793354129582,
+        "distance": 10286.943568946897,
+        "speed": 208.32063999575362,
+        "yawError": 0.16668481281343464,
+        "pitchError": -0.007645995451397747,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -9.848882998042557e-8,
+          "y": 4.346235239148536,
+          "z": 0.8377580409572657
+        }
+      },
+      {
+        "at": 1793354132633,
+        "distance": 10771.572671016194,
+        "speed": 209.66175999572627,
+        "yawError": -0.00022766350362133302,
+        "pitchError": 0.04636815225203293,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.05316829989409963,
+          "y": 4.520546090041128,
+          "z": 0.48135246293832584
+        }
+      },
+      {
+        "at": 1793354135686,
+        "distance": 11175.17038872174,
+        "speed": 329.02143999329326,
+        "yawError": 0.012844487624952517,
+        "pitchError": 0.020411393398731284,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.02644808176993922,
+          "y": 4.512830737494395,
+          "z": 0.09933717313294708
+        }
+      },
+      {
+        "at": 1793354138736,
+        "distance": 11528.646537588695,
+        "speed": 533.3187199891289,
+        "yawError": 0.01965195894041141,
+        "pitchError": -0.014800113921780343,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.009463199296284459,
+          "y": 4.510102609698907,
+          "z": -8.674005764878935e-19
+        }
+      },
+      {
+        "at": 1793354141781,
+        "distance": 11800.40351414162,
+        "speed": 692.017919985894,
+        "yawError": 0.024012809773930742,
+        "pitchError": -0.047252815325295,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.04254046255406401,
+          "y": 4.50891969031473,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354144829,
+        "distance": 12024.767719516749,
+        "speed": 904.3619199815656,
+        "yawError": 0.026834670547168284,
+        "pitchError": -0.01664350482671834,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.012504991145392795,
+          "y": 4.508759383471786,
+          "z": 1.734859118336111e-18
+        }
+      },
+      {
+        "at": 1793354147877,
+        "distance": 12164.807439560263,
+        "speed": 1062.1670399783488,
+        "yawError": 0.029151802092754833,
+        "pitchError": 0.018795512571776616,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.02240871168080765,
+          "y": 4.5087378181717295,
+          "z": 3.470318226265391e-18
+        }
+      },
+      {
+        "at": 1793354150938,
+        "distance": 12258.164341056356,
+        "speed": 1268.6995199741389,
+        "yawError": 0.0013314621011402356,
+        "pitchError": 0.05082768438469243,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.05393690472741912,
+          "y": 4.5386318611508845,
+          "z": 3.474499716200148e-18
+        }
+      },
+      {
+        "at": 1793354153993,
+        "distance": 12307.273619193851,
+        "speed": 1306.6979199733644,
+        "yawError": 0.015534398998599454,
+        "pitchError": 0.021323864301107068,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.023963193070503375,
+          "y": 4.526016199787433,
+          "z": -1.7352216643147366e-18
+        }
+      },
+      {
+        "at": 1793354157041,
+        "distance": 12363.981972258698,
+        "speed": 1167.6684799761983,
+        "yawError": 0.018460739746632336,
+        "pitchError": -0.013220473804631776,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.010983615381948118,
+          "y": 4.524437687549782,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354160091,
+        "distance": 12477.553249351446,
+        "speed": 1104.635839977483,
+        "yawError": 0.019902950785910777,
+        "pitchError": -0.046006773757327625,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.04411547444175924,
+          "y": 4.524244879381831,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354163145,
+        "distance": 12637.706335444487,
+        "speed": 1107.7651199774193,
+        "yawError": 0.021009540525742023,
+        "pitchError": -0.04573579815247437,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.044115474378976054,
+          "y": 4.524221957546334,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354166198,
+        "distance": 12715.806992875974,
+        "speed": 1306.6979199733644,
+        "yawError": 0.022241886577280455,
+        "pitchError": -0.015410504585967287,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.014086129516200245,
+          "y": 4.524217745252349,
+          "z": 1.734895591293846e-18
+        }
+      },
+      {
+        "at": 1793354169245,
+        "distance": 12769.091597757713,
+        "speed": 1273.6169599740388,
+        "yawError": 0.02349649543850443,
+        "pitchError": 0.01981804857008051,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.020860682664724486,
+          "y": 4.524217194443068,
+          "z": -3.4702019851421816e-18
+        }
+      },
+      {
+        "at": 1793354172288,
+        "distance": 12892.105911388013,
+        "speed": 1194.4908799756515,
+        "yawError": 0.024563924499731795,
+        "pitchError": 0.0200464742586259,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.020860682665033138,
+          "y": 4.524217129407826,
+          "z": -1.735100992571102e-18
+        }
+      },
+      {
+        "at": 1793354175346,
+        "distance": 13047.760465578453,
+        "speed": 1160.962879976335,
+        "yawError": 0.025594221949950112,
+        "pitchError": 0.020268789141318203,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.02087226083091703,
+          "y": 4.524217118540517,
+          "z": 1.7351014118245455e-18
+        }
+      },
+      {
+        "at": 1793354178432,
+        "distance": 13129.551994900823,
+        "speed": 1294.1807999736195,
+        "yawError": 0.026744006379185305,
+        "pitchError": 0.05356488497053211,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.05393693005465167,
+          "y": 4.524217116587666,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354181487,
+        "distance": 13232.824514345153,
+        "speed": 1264.2291199742301,
+        "yawError": 0.02779367588264694,
+        "pitchError": 0.05377128287308344,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.053936930054653144,
+          "y": 4.5242171163455005,
+          "z": 3.474499720951176e-18
+        }
+      },
+      {
+        "at": 1793354184547,
+        "distance": 13374.781635165476,
+        "speed": 1186.4441599758156,
+        "yawError": 0.028796291017970675,
+        "pitchError": 0.05395914396529324,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.05393693005465342,
+          "y": 4.524217116304936,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354187601,
+        "distance": 13532.377932011674,
+        "speed": 1153.36319997649,
+        "yawError": 0.02974118514914916,
+        "pitchError": 0.054212860884501536,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.054017707511750356,
+          "y": 4.524217116298165,
+          "z": -3.474514885056113e-18
+        }
+      },
+      {
+        "at": 1793354190668,
+        "distance": 13669.722500638252,
+        "speed": 1237.8537599747676,
+        "yawError": 0.0012701001937565298,
+        "pitchError": 0.05366917087393625,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.05330636419044713,
+          "y": 4.553502164814238,
+          "z": -0.24264328615656308
+        }
+      },
+      {
+        "at": 1793354193720,
+        "distance": 13727.002224067062,
+        "speed": 1282.1107199738656,
+        "yawError": 0.06844493465724646,
+        "pitchError": 0.02304115026731893,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.022465680395382683,
+          "y": 4.486863822197871,
+          "z": -0.03954493351923882
+        }
+      },
+      {
+        "at": 1793354196790,
+        "distance": 13862.641813633933,
+        "speed": 1204.772799975442,
+        "yawError": 0.05332722733586539,
+        "pitchError": 0.023536064731275314,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.022799681050433944,
+          "y": 4.5022951337504225,
+          "z": -0.43899247210175313
+        }
+      },
+      {
+        "at": 1793354199860,
+        "distance": 13945.387681378907,
+        "speed": 1142.6342399767086,
+        "yawError": -0.16542213996511876,
+        "pitchError": -0.010055925775369226,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.010973768562130453,
+          "y": 4.721628444385371,
+          "z": 0.16050316911870344
+        }
+      },
+      {
+        "at": 1793354202916,
+        "distance": 14040.9360899135,
+        "speed": 1227.1247999749864,
+        "yawError": 0.06940118454678881,
+        "pitchError": -0.04669060226988123,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.047782565560470246,
+          "y": 4.486576934300274,
+          "z": 0.20919402435808063
+        }
+      },
+      {
+        "at": 1793354205964,
+        "distance": 14163.711073724571,
+        "speed": 1275.4051199740022,
+        "yawError": 0.052183499768813556,
+        "pitchError": -0.04922957114166543,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.050442048308852794,
+          "y": 4.50385341019094,
+          "z": -0.43873310445467256
+        }
+      },
+      {
+        "at": 1793354209024,
+        "distance": 14223.857115486018,
+        "speed": 1187.7852799757884,
+        "yawError": -0.11859463563738414,
+        "pitchError": -0.017400535357001302,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.018718466302008928,
+          "y": 4.674797638029575,
+          "z": -0.08523135059463768
+        }
+      },
+      {
+        "at": 1793354212085,
+        "distance": 14318.0705600439,
+        "speed": 1169.456639976162,
+        "yawError": 0.027214184561739324,
+        "pitchError": 0.01688879681144579,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.015493919146591423,
+          "y": 4.528877582444312,
+          "z": 0.11462137422083218
+        }
+      },
+      {
+        "at": 1793354215144,
+        "distance": 14441.584626761149,
+        "speed": 1317.4268799731458,
+        "yawError": -0.031838333288480604,
+        "pitchError": 0.016947967009111314,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.015495979209017657,
+          "y": 4.588112536186035,
+          "z": 1.7349317723769642e-18
+        }
+      },
+      {
+        "at": 1793354218207,
+        "distance": 14479.049481595199,
+        "speed": 1247.2415999745763,
+        "yawError": -0.00284963244758416,
+        "pitchError": 0.05066470844714236,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04914756934808321,
+          "y": 4.5592218433245515,
+          "z": 3.473641369388923e-18
+        }
+      },
+      {
+        "at": 1793354221267,
+        "distance": 14573.026948206192,
+        "speed": 1136.822719976827,
+        "yawError": 0.0018493793564895672,
+        "pitchError": 0.021096317512724012,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.019523968122791703,
+          "y": 4.554788731736576,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354224335,
+        "distance": 14801.024034197655,
+        "speed": 1094.3539199776928,
+        "yawError": -0.006520679676682772,
+        "pitchError": 0.051166323861509114,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04957847824214656,
+          "y": 4.563347335982097,
+          "z": 3.4737153179574304e-18
+        }
+      },
+      {
+        "at": 1793354227385,
+        "distance": 14858.597708162986,
+        "speed": 1202.5375999754876,
+        "yawError": -0.008726671918229487,
+        "pitchError": -0.01375177847139661,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.015409256952346727,
+          "y": 4.565638466458772,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354230550,
+        "distance": 15054.706932352898,
+        "speed": 1304.909759973401,
+        "yawError": -0.008921968000341816,
+        "pitchError": 0.02121049783653062,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.019537555226254416,
+          "y": 4.5658304230190465,
+          "z": 1.7350546145525324e-18
+        }
+      },
+      {
+        "at": 1793354233608,
+        "distance": 15220.761932031946,
+        "speed": 1274.5110399740206,
+        "yawError": -0.009014305207265072,
+        "pitchError": 0.051207606228929226,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.0495112878885123,
+          "y": 4.56587489702763,
+          "z": 1.042111123416565e-17
+        }
+      },
+      {
+        "at": 1793354236656,
+        "distance": 15357.312677292395,
+        "speed": 1194.9379199756424,
+        "yawError": -0.009114539332871738,
+        "pitchError": 0.05124130024705701,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.049511287888512355,
+          "y": 4.565885667691506,
+          "z": -3.473703744721883e-18
+        }
+      },
+      {
+        "at": 1793354239704,
+        "distance": 15496.177757269274,
+        "speed": 1161.8569599763168,
+        "yawError": -0.009215833595763922,
+        "pitchError": 0.05133924855807149,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04957847824214652,
+          "y": 4.5658874646956935,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354242758,
+        "distance": 15645.365233793349,
+        "speed": 1243.6652799746491,
+        "yawError": -0.00932371577262423,
+        "pitchError": 0.05139241253801267,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04960364351143509,
+          "y": 4.56588776945714,
+          "z": -6.947439313236437e-18
+        }
+      },
+      {
+        "at": 1793354245805,
+        "distance": 15830.776820327357,
+        "speed": 1295.0748799736014,
+        "yawError": -0.009415831239239591,
+        "pitchError": 0.018271873851349943,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.016460205768252672,
+          "y": 4.565887819169184,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354248886,
+        "distance": 16136.425005156441,
+        "speed": 1265.123199974212,
+        "yawError": -0.009437586351155968,
+        "pitchError": -0.01351118826722116,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.015316901329423977,
+          "y": 4.56588782783125,
+          "z": -1.734926985410186e-18
+        }
+      },
+      {
+        "at": 1793354251951,
+        "distance": 16394.868777974272,
+        "speed": 1210.1372799753326,
+        "yawError": -0.009488348981063521,
+        "pitchError": 0.05140534198633834,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04960364351143502,
+          "y": 4.565887831999679,
+          "z": -3.4737196566182185e-18
+        }
+      },
+      {
+        "at": 1793354255014,
+        "distance": 16660.94564189392,
+        "speed": 1170.3507199761436,
+        "yawError": -0.009533281777859703,
+        "pitchError": -0.016598053463880973,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.018405828953251508,
+          "y": 4.565887833260797,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354258070,
+        "distance": 16916.710023585798,
+        "speed": 1154.2572799764716,
+        "yawError": -0.009577097472933647,
+        "pitchError": -0.013517561838903106,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.015328479495249766,
+          "y": 4.565887833644029,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354261131,
+        "distance": 17192.94443304043,
+        "speed": 1189.126399975761,
+        "yawError": -0.009616503511828722,
+        "pitchError": 0.05146119393267952,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04965925569924347,
+          "y": 4.565887833761483,
+          "z": -3.4737292523722775e-18
+        }
+      },
+      {
+        "at": 1793354264255,
+        "distance": 17368.68970808638,
+        "speed": 1289.7103999737108,
+        "yawError": -0.009701805939444452,
+        "pitchError": 0.01833794176301515,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.016515817956061045,
+          "y": 4.5658878338025835,
+          "z": 3.46992019015251e-18
+        }
+      },
+      {
+        "at": 1793354267329,
+        "distance": 17629.442998052116,
+        "speed": 1281.2166399738837,
+        "yawError": -0.009750524401024061,
+        "pitchError": -0.0465737695391604,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.048404726884797966,
+          "y": 4.565887833811144,
+          "z": -3.473515411332788e-18
+        }
+      },
+      {
+        "at": 1793354270386,
+        "distance": 17827.72453898502,
+        "speed": 1206.1139199754148,
+        "yawError": -0.009827862842814315,
+        "pitchError": -0.013417406467971857,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.01526128914161557,
+          "y": 4.565887833814034,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354273442,
+        "distance": 18038.732240848472,
+        "speed": 1166.3273599762258,
+        "yawError": -0.00989603185505914,
+        "pitchError": 0.021446713898392884,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.019593167414062772,
+          "y": 4.565887833814679,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354276493,
+        "distance": 18301.812108070386,
+        "speed": 1150.2339199765538,
+        "yawError": -0.009930883498778553,
+        "pitchError": 0.018368473590097467,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.016515817956061087,
+          "y": 4.565887833814808,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354279543,
+        "distance": 18511.313799464846,
+        "speed": 1235.6185599748133,
+        "yawError": -0.009996637662771347,
+        "pitchError": -0.016639876237110503,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.018509762742000058,
+          "y": 4.565887833814852,
+          "z": -1.735020686352008e-18
+        }
+      },
+      {
+        "at": 1793354282597,
+        "distance": 18679.71577200618,
+        "speed": 1289.7103999737108,
+        "yawError": -0.010076915169837195,
+        "pitchError": -0.046593356431487064,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.04848349540425788,
+          "y": 4.565887833814852,
+          "z": 3.4735286762229674e-18
+        }
+      },
+      {
+        "at": 1793354285634,
+        "distance": 18868.297874854343,
+        "speed": 1232.936319974868,
+        "yawError": -0.010150751048175732,
+        "pitchError": -0.013438079159802493,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.015340057661075514,
+          "y": 4.56588783381485,
+          "z": -8.674638006366077e-19
+        }
+      },
+      {
+        "at": 1793354288716,
+        "distance": 19072.879646737056,
+        "speed": 1181.9737599759067,
+        "yawError": -0.0102148672432125,
+        "pitchError": 0.021517408122790193,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.019606754517525603,
+          "y": 4.56588783381485,
+          "z": -1.7350569647761922e-18
+        }
+      },
+      {
+        "at": 1793354291762,
+        "distance": 19271.388499157452,
+        "speed": 1149.786879976563,
+        "yawError": -0.01027535331864524,
+        "pitchError": 0.05158072852412277,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04966126463688039,
+          "y": 4.5658878338148465,
+          "z": 3.4737295992118564e-18
+        }
+      },
+      {
+        "at": 1793354294823,
+        "distance": 19544.687813999593,
+        "speed": 1185.1030399758429,
+        "yawError": -0.010301455056527443,
+        "pitchError": -0.016480761170813672,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.018403820015614577,
+          "y": 4.565887833814845,
+          "z": -1.7350172933751318e-18
+        }
+      },
+      {
+        "at": 1793354297875,
+        "distance": 19739.980312450996,
+        "speed": 1286.1340799737836,
+        "yawError": -0.010367529846297718,
+        "pitchError": -0.046437872809243136,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.048377552677872505,
+          "y": 4.565887833814841,
+          "z": -3.473510840126132e-18
+        }
+      },
+      {
+        "at": 1793354300927,
+        "distance": 19987.572285886374,
+        "speed": 1279.8755199739112,
+        "yawError": -0.010404801996107804,
+        "pitchError": 0.021647191964138078,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.019712697243910955,
+          "y": 4.565887833814839,
+          "z": -1.735060579030866e-18
+        }
+      },
+      {
+        "at": 1793354303991,
+        "distance": 20165.197736644986,
+        "speed": 1205.219839975433,
+        "yawError": -0.010471059404936622,
+        "pitchError": 0.051633736202593976,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.04968642990616884,
+          "y": 4.565887833814838,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354307053,
+        "distance": 20440.627479037783,
+        "speed": 1165.433279976244,
+        "yawError": -0.010494750038899636,
+        "pitchError": -0.01637304919817676,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.01832304255851769,
+          "y": 4.565887833814834,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354310106,
+        "distance": 20641.717256915654,
+        "speed": 1149.339839976572,
+        "yawError": -0.010547872389075261,
+        "pitchError": -0.04641376565569551,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.048377552677872554,
+          "y": 4.565887833814831,
+          "z": -3.473510840126132e-18
+        }
+      },
+      {
+        "at": 1793354313161,
+        "distance": 20854.081964509634,
+        "speed": 1234.7244799748314,
+        "yawError": -0.010599810944330133,
+        "pitchError": -0.01320557409024806,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.01517850274688176,
+          "y": 4.56588783381483,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354316212,
+        "distance": 21040.235386168635,
+        "speed": 1288.816319973729,
+        "yawError": -0.010663241015888869,
+        "pitchError": 0.021749636298476146,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.019768309431719325,
+          "y": 4.56588783381483,
+          "z": -3.470124968101403e-18
+        }
+      },
+      {
+        "at": 1793354319794,
+        "distance": 21300.30767969544,
+        "speed": 1226.2307199750046,
+        "yawError": -0.010710324168133422,
+        "pitchError": 0.07573946430275555,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.07375166413307573,
+          "y": 4.56588783381483,
+          "z": 6.95780815886327e-18
+        }
+      },
+      {
+        "at": 1793354322840,
+        "distance": 21566.45635795937,
+        "speed": 1174.3740799760617,
+        "yawError": -0.010732415555356065,
+        "pitchError": -0.05938139781303303,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.06139961544903235,
+          "y": 4.565887833814827,
+          "z": 6.951993993106341e-18
+        }
+      },
+      {
+        "at": 1793354325886,
+        "distance": 21773.510836245874,
+        "speed": 1150.2339199765538,
+        "yawError": -0.010779854963432567,
+        "pitchError": -0.0014780587074126623,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.003517332888585304,
+          "y": 4.565887833814825,
+          "z": -4.33683551677796e-19
+        }
+      },
+      {
+        "at": 1793354328958,
+        "distance": 22041.874043013955,
+        "speed": 1147.1046399766176,
+        "yawError": -0.010797440850331274,
+        "pitchError": 0.02469497567229522,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.022657785115014883,
+          "y": 4.565887833814825,
+          "z": 1.735168853273887e-18
+        }
+      },
+      {
+        "at": 1793354332010,
+        "distance": 22303.598018793233,
+        "speed": 1244.559359974631,
+        "yawError": -0.010819991202731782,
+        "pitchError": 0.018067111465380554,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.016017572234140274,
+          "y": 4.565887833814825,
+          "z": 1.7349460323684927e-18
+        }
+      },
+      {
+        "at": 1793354335073,
+        "distance": 22469.593330710955,
+        "speed": 1286.5811199737745,
+        "yawError": -0.010882435613806618,
+        "pitchError": 0.009310462294945789,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.007197159139639026,
+          "y": 4.565887833814825,
+          "z": -8.673842027518223e-19
+        }
+      },
+      {
+        "at": 1793354338120,
+        "distance": 22721.23075889918,
+        "speed": 1239.1948799747404,
+        "yawError": -0.010907979327382944,
+        "pitchError": 0.005952350507587339,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.003795007488963847,
+          "y": 4.565887833814825,
+          "z": 4.336839919666265e-19
+        }
+      },
+      {
+        "at": 1793354341179,
+        "distance": 22926.884108601767,
+        "speed": 1188.232319975779,
+        "yawError": -0.010955183162596893,
+        "pitchError": 0.003921888288351756,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.0017052067838332252,
+          "y": 4.565887833814825,
+          "z": -2.1684074975422015e-19
+        }
+      },
+      {
+        "at": 1793354344227,
+        "distance": 23182.688669333424,
+        "speed": 1161.409919976326,
+        "yawError": -0.0109732364455428,
+        "pitchError": 0.003148457941623598,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.0008991426185420707,
+          "y": 4.565887833814825,
+          "z": -5.421013053756565e-20
+        }
+      },
+      {
+        "at": 1793354347276,
+        "distance": 23457.19164863115,
+        "speed": 1153.810239976481,
+        "yawError": -0.010986878983664216,
+        "pitchError": 0.0027485561075554035,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.00047411109089146166,
+          "y": 4.565887833814825,
+          "z": -2.7105057358492924e-20
+        }
+      },
+      {
+        "at": 1793354350329,
+        "distance": 23656.40959844494,
+        "speed": 1289.7103999737108,
+        "yawError": -0.01103464417059261,
+        "pitchError": 0.0025278382733035752,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.00021303184534674643,
+          "y": 4.565887833814825,
+          "z": -4.065758239077914e-20
+        }
+      },
+      {
+        "at": 1793354353374,
+        "distance": 23885.928073990697,
+        "speed": 1281.2166399738837,
+        "yawError": -0.01106275439286517,
+        "pitchError": 0.002448575118664076,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.00011233007813124994,
+          "y": 4.565887833814825,
+          "z": -6.776263620786008e-21
+        }
+      },
+      {
+        "at": 1793354356452,
+        "distance": 24075.502413588783,
+        "speed": 1233.8303999748498,
+        "yawError": -0.011112508434295098,
+        "pitchError": 0.002416468707887003,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.00005047315764592114,
+          "y": 4.565887833814825,
+          "z": -3.388131793332902e-21
+        }
+      },
+      {
+        "at": 1793354359519,
+        "distance": 24284.52764518471,
+        "speed": 1167.2214399762074,
+        "yawError": -0.01115374034664349,
+        "pitchError": 0.00241077253234104,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.000022679051640766984,
+          "y": 4.565887833814823,
+          "z": -3.388131789888527e-21
+        }
+      },
+      {
+        "at": 1793354362570,
+        "distance": 24501.962537972362,
+        "speed": 1151.5750399765263,
+        "yawError": -0.011190515397750045,
+        "pitchError": 0.0024148113803841866,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.000010190354780906785,
+          "y": 4.5658878338148225,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354365622,
+        "distance": 24755.053839734275,
+        "speed": 1186.8911999758066,
+        "yawError": -0.011205748304636144,
+        "pitchError": 0.0024130018522781896,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.0000053732968742830015,
+          "y": 4.5658878338148225,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793354368708,
+        "distance": 24943.885371590903,
+        "speed": 1291.9455999736651,
+        "yawError": -0.011253872101028439,
+        "pitchError": 0.002424641526636465,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.0000024143779184158896,
+          "y": 4.5658878338148225,
+          "z": -4.235164736283845e-22
+        }
+      }
+    ],
+    "transportHealth": 2000,
+    "minTransportHealth": 2000,
+    "body": "☰\n191\n190\n2,640\nMPH\n2,129\nFT\n♥ FULL REPAIR · 100%\nBOOST READY\nBOOST\nFAST\nMED\nSLOW\nIDLE\nFIRE\nDALLAS\nMETRO CENTRAL AIRPORT · 6.4 km\nMISSION FAILED\nREINFORCEMENTS\nTransport escaped\nNO CREDITS LOST\nRETRY MISSION\nEXIT TO JOURNEY\nMETRO CENTRAL AIRPORT\nOwned by Orbit-83",
+    "phase": "FAILED",
+    "ownProjectileCount": 33,
+    "finalStatus": "FAILED",
+    "exit": {
+      "via": "normal result button",
+      "gameHidden": true,
+      "newEvents": [],
+      "url": "http://127.0.0.1:8091/"
+    }
+  }
+]

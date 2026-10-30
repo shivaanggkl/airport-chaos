@@ -1,0 +1,112 @@
+const fs=require('fs'),path=require('path');
+const {chromium}=require('/Users/shiva/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const esbuild=require(process.cwd()+'/node_modules/esbuild');
+const root=process.cwd(),out=root+'/docs/combat-aim-evidence/final';
+const before=process.argv.includes('--before');
+const harness=`
+window.__combatQa = {
+ scene(options={}) {
+  flightLaunchState='complete';missionStartCountdownPending=false;missionStartCountdownStartedAt=null;missionClearStartedAt=null;
+  document.body.classList.remove('launch-cinematic-pending','launch-cinematic-active');flightGameRoot.classList.remove('launch-cinematic-pending','launch-cinematic-active');
+  for(const e of document.body.children) if(e!==flightGameRoot && !e.contains(flightGameRoot) && e.tagName!=='SCRIPT' && e.tagName!=='STYLE')e.style.display='none';
+  document.querySelector('#home-hangar').style.display='none';document.querySelector('#city-selector').style.display='none';
+  contextualHints.setEnabled(false);flightGameRoot.hidden=false;crashed=false;runStarted=true;onGround=false;journeyPaused=false;trainingPaused=false;localLifeState='alive';
+  airplane.visible=true;airplane.position.set(-22000,1100,-12000);airplane.rotation.set(options.pitch||0,options.yaw||0,options.roll||0,'YXZ');
+  velocity.set(0,0,-120);currentSpeed=120;flightLaunchState='complete';setFlightState('FLYING');
+  for(const id of [...remotePlayers.keys()])removeRemotePlayer(id);
+  const offsets=options.count===0?[]:Array.from({length:options.count||3},(_,i)=>new THREE.Vector3((i-1)*100,30,-750-i*120));
+  for(let i=0;i<offsets.length;i++){
+    const pos=offsets[i].applyQuaternion(airplane.quaternion).add(airplane.position);
+    updateRemotePlayer({playerId:'qa-'+i,cityId,entityType:'player',position:pos,rotation:{x:0,y:options.yaw||0,z:0},aircraftType:'trainer',displayName:'ESCORT '+(i+1),lifeState:'alive',isBot:true,health:1000,maxHealth:1000,rearGuardEscort:true});
+    const r=remotePlayers.get('qa-'+i);r.timeSinceUpdate=0;r.plane.position.copy(pos);r.plane.visible=true;r.velocity.set(70,0,-80);
+  }
+  if(options.mission){
+    journeyAttempt={attemptId:'visual-qa',missionId:options.mission===8?journeyDallas08.id:journeyDallas09.id,status:'RACING',deadlineAt:Date.now()+280000,targetHealth:2000,monsterHealth:2000,targetId:'qa-0',secondaryTargetId:'qa-1',gateIndex:0,serverNow:Date.now()};
+    transportView?.dispose();transportView=new GiantIncomingView(scene,getTerrainHeight,false,false);
+    const p=new THREE.Vector3(0,30,-1000).applyQuaternion(airplane.quaternion).add(airplane.position);
+    transportView.setState({type:'transportState',attemptId:'visual-qa',pose:{x:p.x,y:p.y,z:p.z,yaw:options.yaw||0,velocity:{x:0,y:0,z:-80}},gunYaw:0,gunPitch:0,warningUntil:0,hitSequence:0,health:2000,shots:[],serverNow:Date.now()});transportView.update(.016);
+  }else{journeyAttempt=null;transportView?.dispose();transportView=undefined;}
+  clearCombatTarget();
+  serverAimTargetId=offsets.length?'qa-1':null;serverLockedTargetId=serverAimTargetId;serverAimReceivedAt=performance.now();
+  previousServerAim.x=serverAim.x=visualAim.x=.025;previousServerAim.y=serverAim.y=visualAim.y=.01;previousAimId=serverAimId=1;
+  updateRemotePlayers(0);updateCombatTarget(0);updateCamera(1);camera.updateMatrixWorld(true);updateRemotePlayers(0);
+  if(options.edge){camera.position.copy(airplane.position).add(new THREE.Vector3(0,20,-100));camera.lookAt(airplane.position);camera.updateMatrixWorld(true);}
+  if(typeof hasServerLeadPoint!=='undefined'){hasServerLeadPoint=offsets.length>0;if(hasServerLeadPoint)serverLeadPoint.copy(remotePlayers.get('qa-1').plane.position).add(new THREE.Vector3(40,0,-30));}
+  updateFlightHud();updateJourneyHud();updateLockCircle();
+  if(options.firing){getCurrentMuzzleTransform(projectileOrigin,projectileDirection);projectileDirection.set(visualAim.x,visualAim.y,-1).normalize().applyQuaternion(muzzleQuaternion);spawnMuzzleFeedback(projectileOrigin,projectileDirection,'qa-shot');updateProjectiles(.25);}
+  renderer.render(scene,camera);
+  const e=acquisitionCircleElement.getBoundingClientRect();
+  return {reticle:{x:e.x,y:e.y,width:e.width,height:e.height,visibility:getComputedStyle(acquisitionCircleElement).visibility,display:getComputedStyle(acquisitionCircleElement).display,edge:acquisitionCircleElement.classList.contains('aim-edge')},drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};
+ },
+ renderFrames(count=30){const timings=[];for(let i=0;i<count;i++){const t=performance.now();updateCombatTarget(.016);updateLockCircle();updateProjectiles(.016);renderer.render(scene,camera);timings.push(performance.now()-t);}return timings;},
+ async frameTiming(){const timings=[];let previous=performance.now();for(let frame=0;frame<150;frame++){await new Promise(resolve=>requestAnimationFrame(resolve));const now=performance.now();if(frame>=30)timings.push(now-previous);previous=now;if(frame%10===0){getCurrentMuzzleTransform(projectileOrigin,projectileDirection);spawnMuzzleFeedback(projectileOrigin,projectileDirection,'perf-'+frame);}updateCombatTarget(1/60);updateLockCircle();updateProjectiles(1/60);renderer.render(scene,camera);}return {timings,projectiles:clientProjectiles.size+predictedProjectiles.size,pool:projectilePool.length};},
+ reconcile(){
+  const origin={x:airplane.position.x,y:airplane.position.y,z:airplane.position.z-10};
+  const shot={type:'projectileSpawn',projectileId:'reconcile-qa',ownerId:localPlayerId,position:origin,direction:{x:0,y:0,z:-1},speed:520,mode:'ballistic',serverNow:1};
+  addProjectile(shot);addProjectile(shot);
+  const one=clientProjectiles.has(shot.projectileId);
+  updateClientProjectiles({type:'projectileStates',serverNow:100,projectiles:[{...shot,position:{...origin,z:origin.z-100}}]});
+  updateClientProjectiles({type:'projectileStates',serverNow:90,projectiles:[{...shot,position:origin,direction:{x:1,y:0,z:0}}]});
+  const p=clientProjectiles.get(shot.projectileId);const ordered=p.serverStateAt===100&&p.authoritativePosition.z===origin.z-100&&p.direction.z===-1;
+  removeClientProjectile(shot.projectileId,true);addProjectile(shot);const tombstone=!clientProjectiles.has(shot.projectileId);
+  for(let i=0;i<300;i++)addProjectile({...shot,projectileId:'bounded-'+i});
+  const bounded=clientProjectiles.size<=256;clearProjectileVisuals();
+  return {one,ordered,tombstone,bounded,active:clientProjectiles.size+predictedProjectiles.size,pool:projectilePool.length};
+ },
+
+ async matched(){
+  if(typeof welcomeTimeout!=='undefined')window.clearTimeout(welcomeTimeout);if(typeof stateSendTimer!=='undefined')window.clearInterval(stateSendTimer);if(typeof accountStatusTimer!=='undefined')window.clearInterval(accountStatusTimer);window.__combatQa.scene({count:5});
+  for(const id of [...clientProjectiles.keys()])removeClientProjectile(id);for(const p of predictedProjectiles.values())releaseProjectile(p);predictedProjectiles.clear();
+  scene.clear();
+  const renderPlanes=Array.from({length:6},(_,i)=>{const plane=airplane.clone(true);plane.visible=true;plane.position.copy(i===0?airplane.position:[...remotePlayers.values()][i-1].plane.position);plane.scale.setScalar(1);scene.add(plane);return plane;});
+  scene.add(new THREE.HemisphereLight(0xffffff,0x405060,2));const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(100,200,50);scene.add(light);
+  const timings=[],cpu=[],counts=[];let previous=performance.now();let shots=0;const gl=renderer.getContext();
+  for(let frame=0;frame<1860;frame++){
+   await new Promise(r=>requestAnimationFrame(r));const now=performance.now();
+   if(frame>=60)timings.push(now-previous);previous=now;
+   const start=performance.now();serverAimReceivedAt=start;serverAimTargetId='qa-1';serverLockedTargetId='qa-1';for(const remote of remotePlayers.values())remote.timeSinceUpdate=0;
+   if(frame%6===0){getCurrentMuzzleTransform(projectileOrigin,projectileDirection);spawnMuzzleFeedback(projectileOrigin,projectileDirection,'matched-'+shots++);}
+   updateCombatTarget(1/60);updateLockCircle();updateProjectiles(1/60);
+   updateFlashEffects(muzzleFlashes,muzzleFlashPool,1/60);updateFlashEffects(impactFlashes,impactFlashPool,1/60);
+   renderer.render(scene,camera);gl.finish();
+   if(frame>=60){cpu.push(performance.now()-start);counts.push(clientProjectiles.size+predictedProjectiles.size);}
+  }
+  const end={remoteCount:remotePlayers.size,active:clientProjectiles.size+predictedProjectiles.size,pool:projectilePool.length,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};
+  for(const id of [...clientProjectiles.keys()])removeClientProjectile(id);for(const p of predictedProjectiles.values())releaseProjectile(p);predictedProjectiles.clear();return {timings,cpu,counts,shots,end,afterClear:clientProjectiles.size+predictedProjectiles.size};
+ },
+ noncombat(){flightGameRoot.classList.add('noncombat-journey');return getComputedStyle(acquisitionCircleElement).display;}
+};
+`;
+(async()=>{
+ const browser=await chromium.launch({headless:true,channel:'chrome',args:['--enable-webgl','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ const page=await browser.newPage({viewport:{width:1536,height:707}});await page.addInitScript(()=>{window.WebSocket=class extends EventTarget{static OPEN=1;static CLOSED=3;readyState=3;send(){}close(){}};});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/src/bootstrap.ts*',r=>r.fulfill({contentType:'application/javascript',body:''}));
+ await page.route('**/src/main.ts*',async route=>{
+   const response=await route.fetch();let body=await response.text();
+   if(before){let source=fs.readFileSync('/tmp/airport-combat-baseline/client/src/main.ts','utf8');
+    source=source.replace(/(['"])(\.\.?\/[^'"\n]+)\1/g,(whole,q,p)=>{let resolved=path.resolve(root+'/client/src',p);if(!path.extname(resolved))resolved+='.ts';return q+(resolved.startsWith(root+'/client/src/')?'/src/'+resolved.slice((root+'/client/src/').length):'/@fs'+resolved)+q;});
+    source=source.replace(/from 'three'/,"from '/node_modules/.vite/deps/three.js'").replaceAll('import.meta.env','({DEV:true})');
+    body=esbuild.transformSync(source,{loader:'ts',format:'esm',target:'esnext'}).code;
+   }
+   body=body.replace('new THREE.WebGLRenderer({', 'new THREE.WebGLRenderer({ preserveDrawingBuffer: true,');
+   body=body.replace('requestAnimationFrame(animate);','window.__qaFrozenFrame = animate;');
+   await route.fulfill({response,body:body+harness});
+ });
+ if(before){
+  await page.route('**/shared/protocol.mjs*',r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync('/tmp/airport-combat-baseline/shared/protocol.mjs','utf8')}));
+  await page.route('**/src/aiming-reticle.ts*',r=>r.fulfill({contentType:'application/javascript',body:fs.readFileSync('/tmp/airport-combat-baseline/client/src/aiming-reticle.ts','utf8')}));
+  await page.route('**/src/style.css*',r=>r.fulfill({contentType:'application/javascript',body:`import {updateStyle} from '/@vite/client';updateStyle('/src/style.css',${JSON.stringify(fs.readFileSync('/tmp/airport-combat-baseline/client/src/style.css','utf8'))});`}));
+ }
+ await page.goto('http://127.0.0.1:5178/?city=dallas&flighttest=1&launchMode=free-fly',{waitUntil:'domcontentloaded'});await page.waitForTimeout(2500);
+ await page.evaluate(async()=>{await import('/src/main.ts')});await page.waitForTimeout(3000);
+
+ await page.setViewportSize({width:960,height:540});
+ await page.evaluate(()=>window.__combatQa.scene({count:5}));
+ const cdp=await page.context().newCDPSession(page);await cdp.send('HeapProfiler.collectGarbage');
+ const memoryBefore=await cdp.send('Runtime.getHeapUsage');
+ const measured=await page.evaluate(()=>window.__combatQa.matched());
+ await cdp.send('HeapProfiler.collectGarbage');const memoryAfter=await cdp.send('Runtime.getHeapUsage');
+ fs.writeFileSync(`${out}/perf-${process.argv[2]}.json`,JSON.stringify({mode:before?'baseline':'candidate',errors,memoryBefore,memoryAfter,...measured},null,2));
+ console.log(JSON.stringify({mode:before?'baseline':'candidate',errors,frames:measured.timings.length,mean:measured.timings.reduce((a,b)=>a+b,0)/measured.timings.length}));
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

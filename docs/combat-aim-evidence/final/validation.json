@@ -1,0 +1,191 @@
+{
+  "branch": "qa",
+  "commit": "831fa674426b449f90218960831926f8667f9545",
+  "automated": {
+    "focused": {
+      "passed": 111,
+      "failed": 0,
+      "skipped": 0
+    },
+    "remaining": {
+      "passed": 111,
+      "failed": 0,
+      "skipped": 0
+    },
+    "totalPassed": 222,
+    "totalFailed": 0,
+    "files": [
+      "server/src/aim-envelope.test.ts",
+      "server/src/auth-request-security.test.ts",
+      "server/src/combat-aim.test.ts",
+      "server/src/combat-projectiles.integration.test.ts",
+      "server/src/combat-warning.test.ts",
+      "server/src/crossfire-escape.test.mjs",
+      "server/src/crossfire-gunship.test.ts",
+      "server/src/desktop-flight-controls.test.ts",
+      "server/src/flight-guidance-ui.test.ts",
+      "server/src/giant-incoming.test.ts",
+      "server/src/golden-gates-routes.test.mjs",
+      "server/src/journey-attempts.test.ts",
+      "server/src/journey-hunter-airspace.test.ts",
+      "server/src/journey-integration.test.mjs",
+      "server/src/journey-isolation.test.ts",
+      "server/src/journey-reward-receipt.test.mjs",
+      "server/src/journey-wrong-way.test.mjs",
+      "server/src/mission-engine.test.ts",
+      "server/src/mission-focus.test.mjs",
+      "server/src/mission-guidance.test.ts",
+      "server/src/mission-hud.test.ts",
+      "server/src/mission-journey-design.test.mjs",
+      "server/src/mission-menu-ux.test.ts",
+      "server/src/mobile-input.test.ts",
+      "server/src/rear-guard.test.ts",
+      "server/src/remote-aircraft-visual.test.ts",
+      "server/src/runway-combat-protection.test.ts",
+      "server/src/runway-gate-intro.test.mjs",
+      "server/src/sky-duel-matchmaking.test.ts",
+      "server/src/sky-duel-rules.test.ts",
+      "server/src/sky-duel-spawn.test.ts",
+      "server/src/sky-duel-store.test.ts",
+      "server/src/sky-duel.integration.test.ts",
+      "server/src/transport-arrival-preview.test.mjs",
+      "server/src/tutorial-flight.test.ts"
+    ]
+  },
+  "build": "PASS",
+  "browserClientEventChecks": 10,
+  "visualScenarios": 20,
+  "extraTimePresets": [
+    "dusk",
+    "evening"
+  ],
+  "physicalDevicesTested": false,
+  "applicationFilesChanged": [],
+  "productionDeployment": false,
+  "commits": false,
+  "pushes": false,
+  "trackedFilesChangedThisPass": [
+    "docs/combat-aim-report.md"
+  ],
+  "gameplay": {
+    "missions": [
+      {
+        "mission": 8,
+        "phase": "RACING",
+        "errors": [],
+        "sent": {
+          "player": 2,
+          "transportReady": 1,
+          "journeyCountdownComplete": 1,
+          "state": 372,
+          "analyticsEvent": 1,
+          "lock": 82,
+          "profileProgress": 7,
+          "fire": 3
+        },
+        "received": {
+          "playerState": 9,
+          "welcome": 1,
+          "journeyAttempt": 2,
+          "transportState": 388,
+          "cosmeticChanged": 1,
+          "leaderboard": 71,
+          "eventState": 259,
+          "state": 2304,
+          "territoryState": 77,
+          "heatState": 232,
+          "socialState": 1,
+          "territoryNotice": 1,
+          "lockState": 82,
+          "takeoffConfirmed": 1,
+          "profile": 25,
+          "weeklyLeaderboards": 2,
+          "combatThreat": 6,
+          "projectileSpawn": 3,
+          "projectileStates": 105,
+          "projectileRemove": 3
+        }
+      },
+      {
+        "mission": 9,
+        "phase": "RACING",
+        "errors": [],
+        "sent": {
+          "player": 2,
+          "transportReady": 1,
+          "journeyCountdownComplete": 1,
+          "state": 368,
+          "analyticsEvent": 1,
+          "lock": 80,
+          "profileProgress": 6,
+          "fire": 3
+        },
+        "received": {
+          "playerState": 8,
+          "welcome": 1,
+          "journeyAttempt": 2,
+          "transportState": 370,
+          "cosmeticChanged": 1,
+          "leaderboard": 67,
+          "state": 2179,
+          "territoryState": 84,
+          "eventState": 122,
+          "heatState": 235,
+          "socialState": 1,
+          "territoryNotice": 1,
+          "lockState": 80,
+          "takeoffConfirmed": 1,
+          "profile": 20,
+          "projectileSpawn": 1,
+          "projectileStates": 141,
+          "weeklyLeaderboards": 1,
+          "shotRejected": 2
+        }
+      }
+    ],
+    "freeFly": {
+      "errors": [],
+      "sent": {
+        "analyticsEvent": 3,
+        "state": 147,
+        "player": 1,
+        "fire": 2
+      },
+      "received": {
+        "territoryState": 19,
+        "remove": 1,
+        "welcome": 1,
+        "cosmeticChanged": 1,
+        "leaderboard": 20,
+        "playerState": 2,
+        "socialState": 1,
+        "state": 405,
+        "eventState": 32,
+        "territoryNotice": 1,
+        "heatState": 64,
+        "projectileSpawn": 2,
+        "projectileRemove": 2
+      },
+      "ownProjectileSpawns": 2,
+      "fireBox": {
+        "x": 712,
+        "y": 226.640625,
+        "width": 120,
+        "height": 120
+      },
+      "touchFired": true,
+      "stoppedAfterRelease": true
+    }
+  },
+  "status": "PARTIAL",
+  "gitDiffCheck": "PASS",
+  "environment": {
+    "os": "macOS 27.0.1",
+    "cpu": "Apple M1",
+    "ramBytes": 8589934592,
+    "browser": "Chrome 156 headless SwiftShader",
+    "nativeInstallations": 0,
+    "pairedIPhoneTested": false,
+    "androidDevicesAttached": 0
+  }
+}

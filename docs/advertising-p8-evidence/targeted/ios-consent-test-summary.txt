@@ -1,0 +1,11 @@
+Test Case '-[P8ConsentTests.P8ConsentTests testConsentChoices]' started.
+    t =     6.05s Tap "Do not consent" Button
+    t =     7.61s Tap "PRIVACY OPTIONS" Button
+    t =     9.46s Tap "Consent" Button
+    t =     9.88s Tap "PRIVACY OPTIONS" Button
+    t =    11.70s Tap "Do not consent" Button
+Test Case '-[P8ConsentTests.P8ConsentTests testConsentChoices]' passed (17.487 seconds).
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.487 (17.488) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.487 (17.489) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 17.487 (17.491) seconds
+** TEST SUCCEEDED **

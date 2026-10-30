@@ -1,0 +1,688 @@
+TAP version 13
+# Subtest: account mutations accept exact web/native origins and reject cross-site CSRF requests
+ok 1 - account mutations accept exact web/native origins and reject cross-site CSRF requests
+  ---
+  duration_ms: 0.773541
+  type: 'test'
+  ...
+# Subtest: OAuth return destination is restricted to explicit origins
+ok 2 - OAuth return destination is restricted to explicit origins
+  ---
+  duration_ms: 0.127167
+  type: 'test'
+  ...
+# Subtest: only the exact Apple form_post callback bypasses the normal API Origin gate
+ok 3 - only the exact Apple form_post callback bypasses the normal API Origin gate
+  ---
+  duration_ms: 0.297958
+  type: 'test'
+  ...
+# (node:13030) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: five forward gates have matching visible openings and reject reverse crossings
+ok 4 - five forward gates have matching visible openings and reject reverse crossings
+  ---
+  duration_ms: 0.7065
+  type: 'test'
+  ...
+# Subtest: Mission 16 requires Mission 15 and persists two milestone Hunter identities
+ok 5 - Mission 16 requires Mission 15 and persists two milestone Hunter identities
+  ---
+  duration_ms: 39.071333
+  type: 'test'
+  ...
+# Subtest: one active shooter and a safe handoff without changing weapon cooldowns
+ok 6 - one active shooter and a safe handoff without changing weapon cooldowns
+  ---
+  duration_ms: 0.0985
+  type: 'test'
+  ...
+# Subtest: abandon and Retry retire gate progress and assigned Hunter IDs
+ok 7 - abandon and Retry retire gate progress and assigned Hunter IDs
+  ---
+  duration_ms: 22.454167
+  type: 'test'
+  ...
+# Subtest: A/D and left/right arrows map to the same bounded desktop turn actions
+ok 8 - A/D and left/right arrows map to the same bounded desktop turn actions
+  ---
+  duration_ms: 0.487791
+  type: 'test'
+  ...
+# Subtest: a ten-second desktop hold reaches the 48-degree target without inversion or accumulated roll
+ok 9 - a ten-second desktop hold reaches the 48-degree target without inversion or accumulated roll
+  ---
+  duration_ms: 3.924542
+  type: 'test'
+  ...
+# Subtest: desktop turn release auto-levels monotonically without snap or oscillation
+ok 10 - desktop turn release auto-levels monotonically without snap or oscillation
+  ---
+  duration_ms: 2.012459
+  type: 'test'
+  ...
+# Subtest: Firehawk remains quickest, Mammoth heaviest, and Bluejay/Nightowl remain distinct
+ok 11 - Firehawk remains quickest, Mammoth heaviest, and Bluejay/Nightowl remain distinct
+  ---
+  duration_ms: 0.215083
+  type: 'test'
+  ...
+# Subtest: turn combines with pitch, throttle, boost, and fire without action conflicts
+ok 12 - turn combines with pitch, throttle, boost, and fire without action conflicts
+  ---
+  duration_ms: 4.039417
+  type: 'test'
+  ...
+# Subtest: mobile coordinated-turn exports and approved constants remain exact aliases
+ok 13 - mobile coordinated-turn exports and approved constants remain exact aliases
+  ---
+  duration_ms: 0.124125
+  type: 'test'
+  ...
+# Subtest: server angular validation accepts the bounded desktop coordinated turn for every aircraft
+ok 14 - server angular validation accepts the bounded desktop coordinated turn for every aircraft
+  ---
+  duration_ms: 4.256708
+  type: 'test'
+  ...
+# Subtest: obsolete flight guidance prompt is absent from the shared desktop and mobile UI
+ok 15 - obsolete flight guidance prompt is absent from the shared desktop and mobile UI
+  ---
+  duration_ms: 2.085833
+  type: 'test'
+  ...
+# Subtest: flight logic, tutorial guidance, and compact status notifications remain wired
+ok 16 - flight logic, tutorial guidance, and compact status notifications remain wired
+  ---
+  duration_ms: 0.395666
+  type: 'test'
+  ...
+# (node:13033) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the six Golden Gates routes keep their identity and progress through distinct central Dallas scenery
+ok 17 - the six Golden Gates routes keep their identity and progress through distinct central Dallas scenery
+  ---
+  duration_ms: 1.385583
+  type: 'test'
+  ...
+# Subtest: normal Bluejay bank steering reaches every gate in order from the authored spawn
+ok 18 - normal Bluejay bank steering reaches every gate in order from the authored spawn
+  ---
+  duration_ms: 14.983792
+  type: 'test'
+  ...
+# Subtest: the authoritative mission store advances all ten correctly crossed gates on every Golden Gates route
+ok 19 - the authoritative mission store advances all ten correctly crossed gates on every Golden Gates route
+  ---
+  duration_ms: 109.279792
+  type: 'test'
+  ...
+# Subtest: all 60 rendered gates match their authoritative crossing centers and directions
+ok 20 - all 60 rendered gates match their authoritative crossing centers and directions
+  ---
+  duration_ms: 12.768291
+  type: 'test'
+  ...
+# Subtest: all six centerline corridors and full gate openings clear mapped buildings and terrain
+ok 21 - all six centerline corridors and full gate openings clear mapped buildings and terrain
+  ---
+  duration_ms: 3755.345959
+  type: 'test'
+  ...
+# (node:13034) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: timed gate missions start at GO, keep that deadline at gate one, and reject late gates
+ok 22 - timed gate missions start at GO, keep that deadline at gate one, and reject late gates
+  ---
+  duration_ms: 39.268958
+  type: 'test'
+  ...
+# Subtest: Final Intercept enforces both escort and turret orders, one timer, and one first-clear reward
+ok 23 - Final Intercept enforces both escort and turret orders, one timer, and one first-clear reward
+  ---
+  duration_ms: 78.257458
+  type: 'test'
+  ...
+# Subtest: Armored Fortress persists either turret order, gates core damage, and pays only once
+ok 24 - Armored Fortress persists either turret order, gates core damage, and pays only once
+  ---
+  duration_ms: 60.979
+  type: 'test'
+  ...
+# Subtest: pausing a mission preserves its gate and remaining time until resume
+ok 25 - pausing a mission preserves its gate and remaining time until resume
+  ---
+  duration_ms: 32.387291
+  type: 'test'
+  ...
+# Subtest: a paused mission fails after two minutes, including after a server restart
+ok 26 - a paused mission fails after two minutes, including after a server restart
+  ---
+  duration_ms: 36.183209
+  type: 'test'
+  ...
+# Subtest: Downtown Slalom requires Mission 3 and rewards ten ordered race gates once
+ok 27 - Downtown Slalom requires Mission 3 and rewards ten ordered race gates once
+  ---
+  duration_ms: 44.472416
+  type: 'test'
+  ...
+# Subtest: Giant Incoming owns its deadline, damage, first-clear ledger and historical unlocks
+ok 28 - Giant Incoming owns its deadline, damage, first-clear ledger and historical unlocks
+  ---
+  duration_ms: 133.488375
+  type: 'test'
+  ...
+# Subtest: Giant Incoming preserves historical clears and wallet caps
+ok 29 - Giant Incoming preserves historical clears and wallet caps
+  ---
+  duration_ms: 117.134042
+  type: 'test'
+  ...
+# Subtest: Giant Incoming applies the damage captured when each shot was fired
+ok 30 - Giant Incoming applies the damage captured when each shot was fired
+  ---
+  duration_ms: 28.742584
+  type: 'test'
+  ...
+# Subtest: Rookie Rush crossing requires ordered forward travel through the actual opening
+ok 31 - Rookie Rush crossing requires ordered forward travel through the actual opening
+  ---
+  duration_ms: 0.601709
+  type: 'test'
+  ...
+# Subtest: Journey begins at Gate 1, pays first clear once, and keeps replay eligibility
+ok 32 - Journey begins at Gate 1, pays first clear once, and keeps replay eligibility
+  ---
+  duration_ms: 46.376041
+  type: 'test'
+  ...
+# Subtest: timeout and retry never complete or credit a failed attempt
+ok 33 - timeout and retry never complete or credit a failed attempt
+  ---
+  duration_ms: 33.087709
+  type: 'test'
+  ...
+# Subtest: attempts are pilot-bound and a replacement cannot advance the old attempt
+ok 34 - attempts are pilot-bound and a replacement cannot advance the old attempt
+  ---
+  duration_ms: 28.408542
+  type: 'test'
+  ...
+# Subtest: first-clear receipt reports only Credits actually added at the wallet cap
+ok 35 - first-clear receipt reports only Credits actually added at the wallet cap
+  ---
+  duration_ms: 31.936666
+  type: 'test'
+  ...
+# Subtest: Lake Racer is a distinct ten-gate race with protected historical rewards
+ok 36 - Lake Racer is a distinct ten-gate race with protected historical rewards
+  ---
+  duration_ms: 53.778958
+  type: 'test'
+  ...
+# Subtest: historical Hunter Showdown clears retain unlocks but never pay Lake Racer again
+ok 37 - historical Hunter Showdown clears retain unlocks but never pay Lake Racer again
+  ---
+  duration_ms: 30.934167
+  type: 'test'
+  ...
+# Subtest: Golden Ascent is a ten-gate rising forward course with valid swept openings
+ok 38 - Golden Ascent is a ten-gate rising forward course with valid swept openings
+  ---
+  duration_ms: 0.510833
+  type: 'test'
+  ...
+# Subtest: Golden Ascent unlocks after Lake Racer, starts its timer with control, and pays 450 Credits once
+ok 39 - Golden Ascent unlocks after Lake Racer, starts its timer with control, and pays 450 Credits once
+  ---
+  duration_ms: 51.99875
+  type: 'test'
+  ...
+# Subtest: historical White Rock Skimmer completion keeps rewards and unlocks without becoming an Ascent best time
+ok 40 - historical White Rock Skimmer completion keeps rewards and unlocks without becoming an Ascent best time
+  ---
+  duration_ms: 32.342334
+  type: 'test'
+  ...
+# Subtest: Needle Rush has ten progressively smaller golden openings and forward crossings
+ok 41 - Needle Rush has ten progressively smaller golden openings and forward crossings
+  ---
+  duration_ms: 0.786083
+  type: 'test'
+  ...
+# Subtest: Needle Rush requires Mission 4, a running timer and all ten gates; reward is once
+ok 42 - Needle Rush requires Mission 4, a running timer and all ten gates; reward is once
+  ---
+  duration_ms: 73.673542
+  type: 'test'
+  ...
+# Subtest: historical four-gate Mission 5 clears retain progress and Credits without a Needle Rush best time
+ok 43 - historical four-gate Mission 5 clears retain progress and Credits without a Needle Rush best time
+  ---
+  duration_ms: 44.407042
+  type: 'test'
+  ...
+# Subtest: Golden Championship has ten forward-only gates and a safe course entry
+ok 44 - Golden Championship has ten forward-only gates and a safe course entry
+  ---
+  duration_ms: 0.313959
+  type: 'test'
+  ...
+# Subtest: Golden Championship requires Mission 5, starts its timer with control, and awards Gate 10 once
+ok 45 - Golden Championship requires Mission 5, starts its timer with control, and awards Gate 10 once
+  ---
+  duration_ms: 70.8155
+  type: 'test'
+  ...
+# Subtest: historical championship clears preserve rewards while new race records stay separate
+ok 46 - historical championship clears preserve rewards while new race records stay separate
+  ---
+  duration_ms: 52.060375
+  type: 'test'
+  ...
+# Subtest: Downtown Slalom gates accept sequential forward crossings through the solid ring
+ok 47 - Downtown Slalom gates accept sequential forward crossings through the solid ring
+  ---
+  duration_ms: 0.296125
+  type: 'test'
+  ...
+# Subtest: historical Mission 4 territory attempts migrate without reviving active territory progress
+ok 48 - historical Mission 4 territory attempts migrate without reviving active territory progress
+  ---
+  duration_ms: 50.315208
+  type: 'test'
+  ...
+# Subtest: Downtown Slalom timeout, crash, exit, and full retry invalidate old gate progress
+ok 49 - Downtown Slalom timeout, crash, exit, and full retry invalidate old gate progress
+  ---
+  duration_ms: 54.775375
+  type: 'test'
+  ...
+# Subtest: later Journey Hunters retain the established DFW-centered Dallas envelope
+ok 50 - later Journey Hunters retain the established DFW-centered Dallas envelope
+  ---
+  duration_ms: 0.910334
+  type: 'test'
+  ...
+# (node:13049) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: one isolated pilot unlocks the 24 stages in order and keeps completion across sessions
+ok 51 - one isolated pilot unlocks the 24 stages in order and keeps completion across sessions
+  ---
+  duration_ms: 71.51775
+  type: 'test'
+  ...
+# Subtest: staging-era Journey rows and progress survive the additive mission schema upgrade
+ok 52 - staging-era Journey rows and progress survive the additive mission schema upgrade
+  ---
+  duration_ms: 29.039375
+  type: 'test'
+  ...
+# Subtest: Journey pilots interact only with AI assigned to their own attempt
+ok 53 - Journey pilots interact only with AI assigned to their own attempt
+  ---
+  duration_ms: 1.326625
+  type: 'test'
+  ...
+# Subtest: journey credit animation uses the completed pilot attempt once
+ok 54 - journey credit animation uses the completed pilot attempt once
+  ---
+  duration_ms: 0.559125
+  type: 'test'
+  ...
+# Subtest: wrong-way feedback uses the real opening and direction for every early Dallas gate
+ok 55 - wrong-way feedback uses the real opening and direction for every early Dallas gate
+  ---
+  duration_ms: 1.296958
+  type: 'test'
+  ...
+# (node:13055) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Dallas catalog remains complete and city-scoped starter missions exist in Milwaukee
+ok 56 - Dallas catalog remains complete and city-scoped starter missions exist in Milwaukee
+  ---
+  duration_ms: 1.008542
+  type: 'test'
+  ...
+# Subtest: airborne acceptance starts city flight missions immediately and landing needs no post-acceptance takeoff
+ok 57 - airborne acceptance starts city flight missions immediately and landing needs no post-acceptance takeoff
+  ---
+  duration_ms: 0.423375
+  type: 'test'
+  ...
+# Subtest: mission attempts persist, switch resets, reward is once-only, and replay cools down
+ok 58 - mission attempts persist, switch resets, reward is once-only, and replay cools down
+  ---
+  duration_ms: 84.696875
+  type: 'test'
+  ...
+# Subtest: removed Speed Course mission is unavailable and legacy saved attempts are ignored
+ok 59 - removed Speed Course mission is unavailable and legacy saved attempts are ignored
+  ---
+  duration_ms: 41.207333
+  type: 'test'
+  ...
+# Subtest: territory hold resets on ownership loss and cannot advance offline
+ok 60 - territory hold resets on ownership loss and cannot advance offline
+  ---
+  duration_ms: 0.531709
+  type: 'test'
+  ...
+# Subtest: Wanted start and controlled-kill requirements stay attempt-scoped
+ok 61 - Wanted start and controlled-kill requirements stay attempt-scoped
+  ---
+  duration_ms: 0.184
+  type: 'test'
+  ...
+# Subtest: Dallas Grand Tour is ordered and resets only its continuous flight steps
+ok 62 - Dallas Grand Tour is ordered and resets only its continuous flight steps
+  ---
+  duration_ms: 0.501709
+  type: 'test'
+  ...
+# Subtest: Dallas Grand Tour abandon, reward, and replay cooldown use the shared mission store
+ok 63 - Dallas Grand Tour abandon, reward, and replay cooldown use the shared mission store
+  ---
+  duration_ms: 48.461333
+  type: 'test'
+  ...
+# Subtest: \#1 Pilot requires five continuous minutes with two total connected humans
+ok 64 - \#1 Pilot requires five continuous minutes with two total connected humans
+  ---
+  duration_ms: 0.525583
+  type: 'test'
+  ...
+# Subtest: current ownership initializes immediately and three-territory hold resets on loss
+ok 65 - current ownership initializes immediately and three-territory hold resets on loss
+  ---
+  duration_ms: 0.465625
+  type: 'test'
+  ...
+# Subtest: hold attempt persists, but disconnect cannot accrue offline time
+ok 66 - hold attempt persists, but disconnect cannot accrue offline time
+  ---
+  duration_ms: 43.041334
+  type: 'test'
+  ...
+# Subtest: airport empire requires controlled landings and conquest needs every configured territory
+ok 67 - airport empire requires controlled landings and conquest needs every configured territory
+  ---
+  duration_ms: 0.434417
+  type: 'test'
+  ...
+# Subtest: only active Missions 1–24 attempts have focus rules
+ok 68 - only active Missions 1–24 attempts have focus rules
+  ---
+  duration_ms: 0.914583
+  type: 'test'
+  ...
+# Subtest: focused Mission 4 race never assigns a territory defender
+ok 69 - focused Mission 4 race never assigns a territory defender
+  ---
+  duration_ms: 5.581042
+  type: 'test'
+  ...
+# Subtest: focused-bot exclusion is reciprocal; Journey pilot isolation is applied separately
+ok 70 - focused-bot exclusion is reciprocal; Journey pilot isolation is applied separately
+  ---
+  duration_ms: 0.175916
+  type: 'test'
+  ...
+# Subtest: only the server-owned attempt and bot owner authorize the Hunter exception across combat paths
+ok 71 - only the server-owned attempt and bot owner authorize the Hunter exception across combat paths
+  ---
+  duration_ms: 2.483208
+  type: 'test'
+  ...
+# Subtest: mission acceptance exposes authoritative availability and retirement reasons
+ok 72 - mission acceptance exposes authoritative availability and retirement reasons
+  ---
+  duration_ms: 5.682875
+  type: 'test'
+  ...
+# Subtest: mission targets reuse world, radar, and map guidance paths
+ok 73 - mission targets reuse world, radar, and map guidance paths
+  ---
+  duration_ms: 6.231583
+  type: 'test'
+  ...
+# Subtest: Wanted and precision landing guidance reflect authoritative mechanics
+ok 74 - Wanted and precision landing guidance reflect authoritative mechanics
+  ---
+  duration_ms: 6.410459
+  type: 'test'
+  ...
+# Subtest: Grand Tour, Central Air Supremacy, and \#1 Pilot expose compact live progress
+ok 75 - Grand Tour, Central Air Supremacy, and \#1 Pilot expose compact live progress
+  ---
+  duration_ms: 0.721292
+  type: 'test'
+  ...
+# Subtest: every current mission gets a concise useful HUD objective
+ok 76 - every current mission gets a concise useful HUD objective
+  ---
+  duration_ms: 1.118959
+  type: 'test'
+  ...
+# Subtest: timers, counts, territories, kills, checkpoints, landing quality, distance, and tour steps expose real progress
+ok 77 - timers, counts, territories, kills, checkpoints, landing quality, distance, and tour steps expose real progress
+  ---
+  duration_ms: 0.309333
+  type: 'test'
+  ...
+# Subtest: binary missions show IN PROGRESS without a fake progress bar
+ok 78 - binary missions show IN PROGRESS without a fake progress bar
+  ---
+  duration_ms: 0.385583
+  type: 'test'
+  ...
+# Subtest: territory sequence remains supported even when absent from the current live catalog
+ok 79 - territory sequence remains supported even when absent from the current live catalog
+  ---
+  duration_ms: 0.061666
+  type: 'test'
+  ...
+# Subtest: all 24 unique missions occupy four ordered, balanced chapters
+ok 80 - all 24 unique missions occupy four ordered, balanced chapters
+  ---
+  duration_ms: 1.053334
+  type: 'test'
+  ...
+# Subtest: mission state follows progression, including chapter boundaries and full completion
+ok 81 - mission state follows progression, including chapter boundaries and full completion
+  ---
+  duration_ms: 0.241834
+  type: 'test'
+  ...
+# Subtest: locked missions show details while only their Play action stays disabled
+ok 82 - locked missions show details while only their Play action stays disabled
+  ---
+  duration_ms: 0.24125
+  type: 'test'
+  ...
+# Subtest: locked Dallas remains viewable while its missions cannot launch
+ok 83 - locked Dallas remains viewable while its missions cannot launch
+  ---
+  duration_ms: 0.296792
+  type: 'test'
+  ...
+# Subtest: mission selection supports pointer, keyboard and compact landscape layout
+ok 84 - mission selection supports pointer, keyboard and compact landscape layout
+  ---
+  duration_ms: 0.239
+  type: 'test'
+  ...
+# Subtest: all 24 mission details use live titles, rewards and clocks with distinct accurate copy
+ok 85 - all 24 mission details use live titles, rewards and clocks with distinct accurate copy
+  ---
+  duration_ms: 0.473709
+  type: 'test'
+  ...
+# Subtest: the active mission is rendered once and excluded from available mission cards
+ok 86 - the active mission is rendered once and excluded from available mission cards
+  ---
+  duration_ms: 0.666333
+  type: 'test'
+  ...
+# Subtest: mission profile changes rebuild the active and available sections after accept, abandon, or completion
+ok 87 - mission profile changes rebuild the active and available sections after accept, abandon, or completion
+  ---
+  duration_ms: 1.217958
+  type: 'test'
+  ...
+# Subtest: mission accept controls are compact, right-aligned, and touch sized
+ok 88 - mission accept controls are compact, right-aligned, and touch sized
+  ---
+  duration_ms: 0.639417
+  type: 'test'
+  ...
+# Subtest: mission authority, rewards, and cooldowns remain server-owned
+ok 89 - mission authority, rewards, and cooldowns remain server-owned
+  ---
+  duration_ms: 0.436875
+  type: 'test'
+  ...
+# Subtest: Mission 2 reuses the Mission 1 runway view and previews every real gate
+ok 90 - Mission 2 reuses the Mission 1 runway view and previews every real gate
+  ---
+  duration_ms: 4.096417
+  type: 'test'
+  ...
+# Subtest: Mission 3 reuses the Mission 1 runway view and previews every real gate
+ok 91 - Mission 3 reuses the Mission 1 runway view and previews every real gate
+  ---
+  duration_ms: 4.86725
+  type: 'test'
+  ...
+# Subtest: Mission 4 reuses the Mission 1 runway view and previews every real gate
+ok 92 - Mission 4 reuses the Mission 1 runway view and previews every real gate
+  ---
+  duration_ms: 1.843084
+  type: 'test'
+  ...
+# Subtest: Mission 5 reuses the Mission 1 runway view and previews every real gate
+ok 93 - Mission 5 reuses the Mission 1 runway view and previews every real gate
+  ---
+  duration_ms: 1.288
+  type: 'test'
+  ...
+# Subtest: Mission 6 reuses the Mission 1 runway view and previews every real gate
+ok 94 - Mission 6 reuses the Mission 1 runway view and previews every real gate
+  ---
+  duration_ms: 1.1985
+  type: 'test'
+  ...
+# Subtest: ROOKIE RUSH shows all gates during the shared cinematic
+ok 95 - ROOKIE RUSH shows all gates during the shared cinematic
+  ---
+  duration_ms: 2.340958
+  type: 'test'
+  ...
+# Subtest: LAKE RACER shows all gates during the shared cinematic
+ok 96 - LAKE RACER shows all gates during the shared cinematic
+  ---
+  duration_ms: 0.449542
+  type: 'test'
+  ...
+# Subtest: GOLDEN ASCENT shows all gates during the shared cinematic
+ok 97 - GOLDEN ASCENT shows all gates during the shared cinematic
+  ---
+  duration_ms: 0.328292
+  type: 'test'
+  ...
+# Subtest: DOWNTOWN SLALOM shows all gates during the shared cinematic
+ok 98 - DOWNTOWN SLALOM shows all gates during the shared cinematic
+  ---
+  duration_ms: 0.465542
+  type: 'test'
+  ...
+# Subtest: NEEDLE RUSH shows all gates during the shared cinematic
+ok 99 - NEEDLE RUSH shows all gates during the shared cinematic
+  ---
+  duration_ms: 0.602625
+  type: 'test'
+  ...
+# Subtest: GOLDEN CHAMPIONSHIP shows all gates during the shared cinematic
+ok 100 - GOLDEN CHAMPIONSHIP shows all gates during the shared cinematic
+  ---
+  duration_ms: 0.331292
+  type: 'test'
+  ...
+# Subtest: match search widens at 15 and 30 seconds without accepting extreme odds
+ok 101 - match search widens at 15 and 30 seconds without accepting extreme odds
+  ---
+  duration_ms: 0.853583
+  type: 'test'
+  ...
+# Subtest: provisional pilots prefer comparable provisional opponents, regardless of experience level
+ok 102 - provisional pilots prefer comparable provisional opponents, regardless of experience level
+  ---
+  duration_ms: 0.096209
+  type: 'test'
+  ...
+# Subtest: recent opponent and same account are excluded
+ok 103 - recent opponent and same account are excluded
+  ---
+  duration_ms: 0.055667
+  type: 'test'
+  ...
+# Subtest: Sky Duel pilots start on the DFW and Love Field runway centerlines inside the arena
+ok 104 - Sky Duel pilots start on the DFW and Love Field runway centerlines inside the arena
+  ---
+  duration_ms: 1.369833
+  type: 'test'
+  ...
+# (node:13074) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Sky Duel reserves both stakes atomically, pays once, and updates both ratings
+ok 105 - Sky Duel reserves both stakes atomically, pays once, and updates both ratings
+  ---
+  duration_ms: 111.262
+  type: 'test'
+  ...
+# Subtest: draw refunds; interrupted match refunds after reopen; failures never debit either player
+ok 106 - draw refunds; interrupted match refunds after reopen; failures never debit either player
+  ---
+  duration_ms: 81.998417
+  type: 'test'
+  ...
+# Subtest: wallet cap rejects stake before either debit and Elo applies provisional and floor rules
+ok 107 - wallet cap rejects stake before either debit and Elo applies provisional and floor rules
+  ---
+  duration_ms: 44.904958
+  type: 'test'
+  ...
+# Subtest: a concurrent wallet action cannot spend held entry Credits
+ok 108 - a concurrent wallet action cannot spend held entry Credits
+  ---
+  duration_ms: 40.888959
+  type: 'test'
+  ...
+# Subtest: AI contributes its own reserved stake; a human win pays 1,000 once and cancellation refunds both
+ok 109 - AI contributes its own reserved stake; a human win pays 1,000 once and cancellation refunds both
+  ---
+  duration_ms: 52.683584
+  type: 'test'
+  ...
+# Subtest: an absent human loses the reserved entry without paying the AI wallet
+ok 110 - an absent human loses the reserved entry without paying the AI wallet
+  ---
+  duration_ms: 47.826959
+  type: 'test'
+  ...
+# Subtest: Mission 8 arrival frames both temporary escorts and removes them on handoff
+ok 111 - Mission 8 arrival frames both temporary escorts and removes them on handoff
+  ---
+  duration_ms: 2.452583
+  type: 'test'
+  ...
+1..111
+# tests 111
+# suites 0
+# pass 111
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5332.551458

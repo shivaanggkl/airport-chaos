@@ -1,0 +1,31 @@
+import XCTest
+final class P8ConsentTests:XCTestCase {
+ func testConsentChoices() {
+  let app=XCUIApplication(bundleIdentifier:"com.vadensoftware.airportchaos.p8control");app.launchArguments=["--eea","--consent-only"];app.launch()
+  let refuse=app.buttons["Do not consent"].firstMatch
+  XCTAssertTrue(refuse.waitForExistence(timeout:25),"Real UMP debug EEA refusal choice must appear")
+  let shot=XCTAttachment(screenshot:app.screenshot());shot.name="eea-form";shot.lifetime = .keepAlways;add(shot)
+  print("P8CONSENT FORM \(app.debugDescription)")
+  guard refuse.exists else{return};refuse.tap();XCTAssertTrue(app.staticTexts["Consent ready"].waitForExistence(timeout:10))
+  app.buttons["PRIVACY OPTIONS"].tap()
+  let allow=app.buttons["Consent"].firstMatch
+  XCTAssertTrue(allow.waitForExistence(timeout:15));if allow.exists{allow.tap()}
+  app.buttons["PRIVACY OPTIONS"].tap()
+  XCTAssertTrue(refuse.waitForExistence(timeout:15));if refuse.exists{refuse.tap()}
+  app.terminate();app.launchArguments=["--restart","--eea","--consent-only"];app.launch()
+  XCTAssertTrue(app.staticTexts["Consent ready"].waitForExistence(timeout:20))
+  print("P8CONSENT END \(app.debugDescription)")
+ }
+ func testInterruptedConsent() {
+  let app=XCUIApplication(bundleIdentifier:"com.vadensoftware.airportchaos.p8control")
+  app.launchArguments=["--eea","--consent-only"];app.launch()
+  XCTAssertTrue(app.buttons["Do not consent"].firstMatch.waitForExistence(timeout:20))
+  app.terminate()
+  app.launchArguments=["--restart","--eea","--consent-only"];app.launch()
+  let refuse=app.buttons["Do not consent"].firstMatch
+  XCTAssertTrue(refuse.waitForExistence(timeout:20),"An interrupted first-choice form must still require a choice after restart")
+  if refuse.exists{refuse.tap()}
+  XCTAssertTrue(app.staticTexts["Consent ready"].waitForExistence(timeout:10))
+ }
+
+}

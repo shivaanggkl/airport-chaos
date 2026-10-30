@@ -1,0 +1,45 @@
+[
+  {
+    "event": "app-consent-start",
+    "uptime": 145169.15266029167
+  },
+  {
+    "canRequestAds": true,
+    "event": "app-consent-return",
+    "mainThread": true,
+    "uptime": 145169.15348783333
+  },
+  {
+    "event": "app-sdk-init-start",
+    "uptime": 145169.15473100002
+  },
+  {
+    "event": "app-sdk-init-complete",
+    "uptime": 145180.17256008333
+  },
+  {
+    "canRequestAds": true,
+    "event": "app-load-start",
+    "mainThread": true,
+    "presenterActive": true,
+    "uptime": 145180.17473058336
+  },
+  {
+    "durationSeconds": 10.66916779166786,
+    "event": "app-load-end",
+    "uptime": 145190.845852125
+  },
+  {
+    "code": 5,
+    "domain": "com.google.admob",
+    "event": "app-load-error",
+    "message": "Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.",
+    "responseInfo": {
+      "adapterCount": 0,
+      "adapters": [],
+      "loadedAdapterPresent": false
+    },
+    "underlying": null,
+    "uptime": 145190.84951795836
+  }
+]

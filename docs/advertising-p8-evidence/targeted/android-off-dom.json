@@ -1,0 +1,36 @@
+{
+  "title": "Airport Chaos",
+  "url": "https://localhost/",
+  "ready": "complete",
+  "text": "Pilot\nADVERTISE\nFRIENDS\nAIRCRAFT\nSTORE\nREWARDS\nCREDITS\n0\nSKY TOKENS\n0\n+\nSTORE\nSPONSORSHIP AVAILABLE\nYOUR BRAND HERE",
+  "native": true,
+  "privacy": {
+    "required": false,
+    "canRequestAds": false
+  },
+  "nav": [
+    {
+      "domContentLoaded": 3535.7999999999884,
+      "load": 3653.2999999999884
+    }
+  ],
+  "visible": [
+    "",
+    "Pilot",
+    "ADVERTISE",
+    "FRIENDS",
+    "AIRCRAFT",
+    "STORE",
+    "REWARDS",
+    "SKY TOKENS0+",
+    "\n          \n        ",
+    "\n          \n        ",
+    "\n        \n        STORE\n      ",
+    "\n        \n        SPONSORSHIP AVAILABLEYOUR BRAND HERE\n      ",
+    "\n        \n          \n          \n          \n        \n      "
+  ],
+  "networkOrigins": [
+    "https://localhost",
+    "https://p8.invalid"
+  ]
+}

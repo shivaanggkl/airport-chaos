@@ -1,0 +1,97 @@
+[
+  {
+    "mission": 8,
+    "errors": [],
+    "sent": {
+      "player": 2,
+      "transportReady": 1,
+      "journeyCountdownComplete": 1,
+      "state": 372,
+      "analyticsEvent": 1,
+      "lock": 82,
+      "profileProgress": 7,
+      "fire": 3
+    },
+    "received": {
+      "playerState": 9,
+      "welcome": 1,
+      "journeyAttempt": 2,
+      "transportState": 388,
+      "cosmeticChanged": 1,
+      "leaderboard": 71,
+      "eventState": 259,
+      "state": 2304,
+      "territoryState": 77,
+      "heatState": 232,
+      "socialState": 1,
+      "territoryNotice": 1,
+      "lockState": 82,
+      "takeoffConfirmed": 1,
+      "profile": 25,
+      "weeklyLeaderboards": 2,
+      "combatThreat": 6,
+      "projectileSpawn": 3,
+      "projectileStates": 105,
+      "projectileRemove": 3
+    },
+    "lockKinds": [],
+    "actions": [
+      "normal throttle and climb keyboard input",
+      "bank/turn while firing",
+      "dive input"
+    ],
+    "snapshots": [
+      "☰\nⅡ\n0\n200\n0\nMPH\n0\nFT\n♥ FULL REPAIR · 100%\nM8: Rear Guard\n4:56\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n100%\nBLUEJAY 1\n100%\nBLUEJAY 2\n100%\n↖\nTRANSPORT · 4.5 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS",
+      "☰\nⅡ\n100\n200\n2,366\nMPH\n1,761\nFT\n♥ FULL REPAIR · 100%\nM8: Rear Guard\n4:26\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n100%\nBLUEJAY 1\n100%\nBLUEJAY 2\n100%\n↗\nTRANSPORT · 2.1 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS"
+    ],
+    "phase": "RACING",
+    "url": "http://127.0.0.1:8091/?city=dallas&time=day&launchMode=missions&journeyAttempt=REDACTED"
+  },
+  {
+    "mission": 9,
+    "errors": [],
+    "sent": {
+      "player": 2,
+      "transportReady": 1,
+      "journeyCountdownComplete": 1,
+      "state": 368,
+      "analyticsEvent": 1,
+      "lock": 80,
+      "profileProgress": 6,
+      "fire": 3
+    },
+    "received": {
+      "playerState": 8,
+      "welcome": 1,
+      "journeyAttempt": 2,
+      "transportState": 370,
+      "cosmeticChanged": 1,
+      "leaderboard": 67,
+      "state": 2179,
+      "territoryState": 84,
+      "eventState": 122,
+      "heatState": 235,
+      "socialState": 1,
+      "territoryNotice": 1,
+      "lockState": 80,
+      "takeoffConfirmed": 1,
+      "profile": 20,
+      "projectileSpawn": 1,
+      "projectileStates": 141,
+      "weeklyLeaderboards": 1,
+      "shotRejected": 2
+    },
+    "lockKinds": [],
+    "actions": [
+      "normal throttle and climb keyboard input",
+      "bank/turn while firing",
+      "dive input"
+    ],
+    "snapshots": [
+      "☰\nⅡ\n100\n200\n0\nMPH\n0\nFT\n♥ FULL REPAIR · 100%\nM9: Reinforcements\n5:26\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n100%\nBLUEJAY\n100%\nMAMMOTH\n100%\nNIGHTOWL 3\n—\nNIGHTOWL 4\n—\n↖\nTRANSPORT · 4.5 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS",
+      "☰\nⅡ\n100\n200\n2,434\nMPH\n1,652\nFT\n♥ FULL REPAIR · 100%\nM9: Reinforcements\n4:58\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n100%\nBLUEJAY\n100%\nMAMMOTH\n100%\nNIGHTOWL 3\n—\nNIGHTOWL 4\n—\n↗\nTRANSPORT · 1.9 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS"
+    ],
+    "phase": "RACING",
+    "url": "http://127.0.0.1:8091/?city=dallas&time=day&launchMode=missions&journeyAttempt=REDACTED"
+  }
+]

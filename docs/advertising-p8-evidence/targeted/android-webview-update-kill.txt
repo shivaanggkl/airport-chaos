@@ -1,0 +1,13 @@
+10-29 20:46:05.956   626   655 I ActivityManager: Start proc 6788:com.vadensoftware.airportchaos.p8targeted/u0a217 for next-top-activity {com.vadensoftware.airportchaos.p8targeted/com.vadensoftware.airportchaos.MainActivity}
+10-29 20:46:11.692   626   655 I ActivityManager: Start proc 6834:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i3 for  {com.vadensoftware.airportchaos.p8targeted/org.chromium.content.app.SandboxedProcessService0:0}
+10-29 20:46:24.546   626   654 I ActivityManager: Force stopping com.google.android.apps.maps appid=10157 user=-1: installPackageLI
+10-29 20:46:42.842   626   654 I ActivityManager: Force stopping com.google.android.webview appid=10167 user=-1: installPackageLI
+10-29 20:46:42.915   626   654 I ActivityManager: Killing 3824:com.google.android.webview:webview_apk/u0a167 (adj 955): stop com.google.android.webview due to installPackageLI
+10-29 20:46:42.931   626   654 I ActivityManager: Killing 3604:com.google.android.webview:webview_service/u0a167 (adj 905): stop com.google.android.webview due to installPackageLI
+10-29 20:46:42.938   626   654 I ActivityManager: Killing 6788:com.vadensoftware.airportchaos.p8targeted/u0a217 (adj 0): stop com.google.android.webview due to installPackageLI
+10-29 20:46:57.531   626   654 I ActivityManager: Force stopping com.google.android.as.oss appid=10134 user=-1: installPackageLI
+10-29 20:46:57.572   626   654 I ActivityManager: Killing 1920:com.google.android.as.oss/u0a134 (adj 965): stop com.google.android.as.oss due to installPackageLI
+10-29 20:47:28.449   626   654 I ActivityManager: Force stopping com.google.android.apps.photos appid=10170 user=-1: installPackageLI
+10-29 20:47:28.506   626   654 I ActivityManager: Killing 1538:com.google.android.apps.photos/u0a170 (adj 905): stop com.google.android.apps.photos due to installPackageLI
+10-29 20:47:42.204   626   654 I ActivityManager: Force stopping com.google.android.apps.restore appid=10140 user=-1: installPackageLI
+10-29 20:47:42.297   626   654 I ActivityManager: Killing 3404:com.google.android.apps.restore/u0a140 (adj 100): stop com.google.android.apps.restore due to installPackageLI

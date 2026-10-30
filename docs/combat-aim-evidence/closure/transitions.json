@@ -1,0 +1,53 @@
+{
+  "method": "Authenticated normal abandon endpoint after real browser gameplay; not an injected failure",
+  "before": [
+    {
+      "mission_id": "journey-dallas-09",
+      "status": "ABANDONED",
+      "failure_reason": "REPLACED",
+      "monster_health": 2000,
+      "created_at": 1793334438315
+    },
+    {
+      "mission_id": "journey-dallas-09",
+      "status": "ABANDONED",
+      "failure_reason": "REPLACED",
+      "monster_health": 2000,
+      "created_at": 1793334609031
+    },
+    {
+      "mission_id": "journey-dallas-09",
+      "status": "ABANDONED",
+      "failure_reason": "REPLACED",
+      "monster_health": 2000,
+      "created_at": 1793334756229
+    },
+    {
+      "mission_id": "journey-dallas-08",
+      "status": "ABANDONED",
+      "failure_reason": "REPLACED",
+      "monster_health": 1880,
+      "created_at": 1793334988555
+    },
+    {
+      "mission_id": "journey-dallas-08",
+      "status": "ABANDONED",
+      "failure_reason": "REPLACED",
+      "monster_health": 1880,
+      "created_at": 1793335240968
+    },
+    {
+      "mission_id": "journey-dallas-09",
+      "status": "RACING",
+      "failure_reason": null,
+      "monster_health": 2000,
+      "created_at": 1793335501091
+    }
+  ],
+  "responseStatus": 200,
+  "after": {
+    "status": "ABANDONED",
+    "failureReason": "ABANDONED",
+    "missionId": "journey-dallas-09"
+  }
+}

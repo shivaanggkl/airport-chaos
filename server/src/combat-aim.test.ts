@@ -2,10 +2,32 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { performance } from 'node:perf_hooks';
-import { selectCombatTarget, combatIntercept, assistedInterceptAim, combatAimProjection, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { selectCombatTarget, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { ballisticShotSpeed, COMBAT_RANGE } from '../../shared/protocol.mjs';
+import { ballisticShotSpeed, COMBAT_RANGE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
+test('delayed aim updates cannot restart interpolation through an expired previous sample', () => {
+    assert.equal(combatAimBlend(0, 1146, 1195), 1);
+    assert.deepEqual(combatShotAimSample(128, 129, combatAimBlend(0, 1146, 1195)), { from: 129, to: 129, blend: 1 });
+    assert.equal(combatAimBlend(0, 475, 499), .24);
+    assert.equal(combatAimBlend(0, 475, 500), 1);
+    assert.equal(combatAimBlend(100, 200, 225), .25);
+    assert.equal(combatAimBlend(100, 200, 300), 1);
+    assert.equal(combatAimBlend(-Infinity, 200, 225), 1);
+});
+test('fully blended shots reference only the contributing aim sample; partial blends retain both references', () => {
+    assert.deepEqual(combatShotAimSample(72, 73, 1), { from: 73, to: 73, blend: 1 });
+    for (const blend of [0, .25, .999])
+        assert.deepEqual(combatShotAimSample(72, 73, blend), { from: 72, to: 73, blend });
+    const samples = new Map([[72, { x: .02, y: -.03 }], [73, { x: -.04, y: .01 }]]);
+    for (const blend of [0, .25, .999, 1]) {
+        const reference = combatShotAimSample(72, 73, blend);
+        const expected = interpolateAim(samples.get(72)!, samples.get(73)!, blend, { x: 0, y: 0 });
+        const actual = interpolateAim(samples.get(reference.from)!, samples.get(reference.to)!, reference.blend, { x: 0, y: 0 });
+        assert.ok(Math.abs(actual.x - expected.x) < 1e-12 && Math.abs(actual.y - expected.y) < 1e-12,
+            'reference canonicalization preserves the displayed firing vector');
+    }
+});
 test('one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; clear steering switches after dwell', () => {
     for (const count of [2, 3, 5, 12]) {
         const state: CombatSelection = { challengerSince: 0, lastAlignedAt: 0 };

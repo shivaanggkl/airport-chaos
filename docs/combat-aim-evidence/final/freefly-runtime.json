@@ -1,0 +1,35 @@
+{
+  "errors": [],
+  "sent": {
+    "analyticsEvent": 3,
+    "state": 147,
+    "player": 1,
+    "fire": 2
+  },
+  "received": {
+    "territoryState": 19,
+    "remove": 1,
+    "welcome": 1,
+    "cosmeticChanged": 1,
+    "leaderboard": 20,
+    "playerState": 2,
+    "socialState": 1,
+    "state": 405,
+    "eventState": 32,
+    "territoryNotice": 1,
+    "heatState": 64,
+    "projectileSpawn": 2,
+    "projectileRemove": 2
+  },
+  "ownProjectileSpawns": 2,
+  "fireBox": {
+    "x": 712,
+    "y": 226.640625,
+    "width": 120,
+    "height": 120
+  },
+  "touchFired": true,
+  "stoppedAfterRelease": true,
+  "body": "☰\n100\n200\n0\nMPH\n0\nFT\n♥ FULL REPAIR · 100%\nPLAYERS 1\nTERRITORIES 1\n✈\nYOU\nON GROUND\n0 FT\n0 PTS\nMETROPLEX INTERNATIONAL · CAPTURING 8%\nBOOST READY\nBOOST\nFAST\nMED\nSLOW\nIDLE\nFIRE\nDALLAS\nMETRO ARENA · 21.3 km",
+  "portrait": "☰\n100\n200\n0\nMPH\n0\nFT\n♥ FULL REPAIR · 100%\nPLAYERS 1\nTERRITORIES 1\n✈\nYOU\nON GROUND\n0 FT\n0 PTS\nMETROPLEX INTERNATIONAL · CAPTURING 14%\nROTATE DEVICE FOR FLIGHT\nDALLAS\nMETRO ARENA · 21.3 km"
+}

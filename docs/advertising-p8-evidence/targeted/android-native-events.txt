@@ -1,0 +1,17 @@
+--------- beginning of main
+10-29 20:46:18.696  6788  6788 I P8TARGET: prepareConsent invoked main=true
+10-29 20:49:14.528  8044  8044 I P8TARGET: prepareConsent invoked main=true
+10-29 20:49:16.184  8044  8044 I P8TARGET: prepareConsent invoked main=true
+10-29 20:49:16.341  8044  8044 I P8TARGET: prepareConsent invoked main=true
+10-29 20:50:01.451  8044  8044 I P8TARGET: prepareConsent invoked main=true
+10-29 20:50:03.771  8044  8044 I P8TARGET: prepareConsent invoked main=true
+10-29 20:50:03.774  8044  8044 I P8TARGET: sdk_initialize_once
+10-29 20:50:16.920  8044  8044 I P8TARGET: rewarded_load_start canRequestAds=true
+10-29 20:51:02.013  8044  8044 I P8TARGET: rewarded_loaded
+10-29 20:53:51.731  8044  8044 I P8TARGET: reward_qualified
+10-29 20:56:13.471  8044  8044 I P8TARGET: show_finished state=qualified
+10-29 20:57:00.428  8044  8044 I P8TARGET: prepareConsent invoked main=true
+10-29 20:57:00.440  8044  8044 I P8TARGET: rewarded_load_start canRequestAds=true
+10-29 20:57:05.845  8044  8044 I P8TARGET: rewarded_loaded
+10-29 20:57:20.586  8044  8044 I P8TARGET: reward_qualified
+10-29 20:59:13.773  8044  8044 I P8TARGET: show_finished state=qualified

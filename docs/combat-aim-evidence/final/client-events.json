@@ -1,0 +1,15 @@
+{
+  "errors": [],
+  "results": {
+    "prediction adopted once without launch teleport": true,
+    "aircraft movement cannot steer emitted projectile": true,
+    "older state cannot rewind or change direction": true,
+    "late duplicate spawn and state cannot resurrect removal": true,
+    "remove-before-spawn tombstone": true,
+    "rejection releases prediction and shot metadata": true,
+    "duplicate impact cannot repeat health or feedback": true,
+    "out-of-order lock sample ignored": true,
+    "projectile cap remains bounded": true,
+    "lifecycle cleanup removes all active tracers": true
+  }
+}

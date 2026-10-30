@@ -1,0 +1,140 @@
+{
+  "final-baseline-1": {
+    "measuredFrames": 300,
+    "elapsedSeconds": 4.9989000000059605,
+    "meanMs": 16.663000000019867,
+    "p95Ms": 18.100000023841858,
+    "p99Ms": 18.599999994039536,
+    "meanDispatchMs": 0.4796666653951009,
+    "heapBeforeBytes": 17279968,
+    "heapAfterGcBytes": 20480228,
+    "heapDeltaBytes": 3200260,
+    "maxActiveProjectiles": 4,
+    "shots": 60,
+    "end": {
+      "remoteCount": 5,
+      "active": 3,
+      "pool": 1,
+      "geometries": 215,
+      "textures": 25,
+      "drawCalls": 58,
+      "triangles": 22716
+    },
+    "afterClear": 0
+  },
+  "final-candidate-1": {
+    "measuredFrames": 300,
+    "elapsedSeconds": 4.9997000000178815,
+    "meanMs": 16.66566666672627,
+    "p95Ms": 17.5,
+    "p99Ms": 18.19999998807907,
+    "meanDispatchMs": 0.5263333318630854,
+    "heapBeforeBytes": 18627172,
+    "heapAfterGcBytes": 21850264,
+    "heapDeltaBytes": 3223092,
+    "maxActiveProjectiles": 4,
+    "shots": 60,
+    "end": {
+      "remoteCount": 5,
+      "active": 3,
+      "pool": 1,
+      "geometries": 215,
+      "textures": 25,
+      "drawCalls": 58,
+      "triangles": 22716
+    },
+    "afterClear": 0
+  },
+  "final-candidate-2": {
+    "measuredFrames": 300,
+    "elapsedSeconds": 4.9997000000178815,
+    "meanMs": 16.66566666672627,
+    "p95Ms": 18.099999994039536,
+    "p99Ms": 18.19999998807907,
+    "meanDispatchMs": 0.4826666680971781,
+    "heapBeforeBytes": 18627872,
+    "heapAfterGcBytes": 21843748,
+    "heapDeltaBytes": 3215876,
+    "maxActiveProjectiles": 4,
+    "shots": 60,
+    "end": {
+      "remoteCount": 5,
+      "active": 3,
+      "pool": 1,
+      "geometries": 216,
+      "textures": 25,
+      "drawCalls": 58,
+      "triangles": 22716
+    },
+    "afterClear": 0
+  },
+  "final-baseline-2": {
+    "measuredFrames": 300,
+    "elapsedSeconds": 4.9995999999940395,
+    "meanMs": 16.665333333313466,
+    "p95Ms": 18.100000023841858,
+    "p99Ms": 18.400000005960464,
+    "meanDispatchMs": 0.4596666689713796,
+    "heapBeforeBytes": 17281024,
+    "heapAfterGcBytes": 20479716,
+    "heapDeltaBytes": 3198692,
+    "maxActiveProjectiles": 4,
+    "shots": 60,
+    "end": {
+      "remoteCount": 5,
+      "active": 3,
+      "pool": 1,
+      "geometries": 215,
+      "textures": 25,
+      "drawCalls": 58,
+      "triangles": 22716
+    },
+    "afterClear": 0
+  },
+  "sustained-baseline": {
+    "measuredFrames": 1800,
+    "elapsedSeconds": 36.07120000001788,
+    "meanMs": 20.03955555556549,
+    "p95Ms": 18.400000005960464,
+    "p99Ms": 75.80000001192093,
+    "meanDispatchMs": 0.4775555549727546,
+    "heapBeforeBytes": 17279500,
+    "heapAfterGcBytes": 20602152,
+    "heapDeltaBytes": 3322652,
+    "maxActiveProjectiles": 4,
+    "shots": 310,
+    "end": {
+      "remoteCount": 5,
+      "active": 3,
+      "pool": 1,
+      "geometries": 215,
+      "textures": 25,
+      "drawCalls": 57,
+      "triangles": 22704
+    },
+    "afterClear": 0
+  },
+  "sustained-candidate": {
+    "measuredFrames": 1800,
+    "elapsedSeconds": 30.332,
+    "meanMs": 16.851111111111113,
+    "p95Ms": 18,
+    "p99Ms": 18.69999998807907,
+    "meanDispatchMs": 0.4861111111773385,
+    "heapBeforeBytes": 18624656,
+    "heapAfterGcBytes": 21962400,
+    "heapDeltaBytes": 3337744,
+    "maxActiveProjectiles": 4,
+    "shots": 310,
+    "end": {
+      "remoteCount": 5,
+      "active": 3,
+      "pool": 1,
+      "geometries": 215,
+      "textures": 25,
+      "drawCalls": 58,
+      "triangles": 22716
+    },
+    "afterClear": 0
+  }
+}

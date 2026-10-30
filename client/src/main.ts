@@ -91,7 +91,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { aimingReticleMarkup } from './aiming-reticle';
-import { combatAimProjection } from '../../shared/combat-aim.mjs';
+import { combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -5672,6 +5672,7 @@ let visualAimBlend = 1;
 const neutralAim = { x: 0, y: 0 };
 let serverAimTargetId: string | null = null;
 let serverAimReceivedAt = -Infinity;
+let previousServerAimReceivedAt = -Infinity;
 const lockBoresightPoint = new THREE.Vector3();
 const aimClipPoint = new THREE.Vector4();
 const aimScreenPoint = { x: 0, y: 0, edge: false, angle: 0 };
@@ -8581,6 +8582,7 @@ function clearCombatTarget(): void {
   previousServerAim.x = previousServerAim.y = visualAim.x = visualAim.y = 0;
   previousAimId = serverAimId = 0;
   serverAimReceivedAt = -Infinity;
+  previousServerAimReceivedAt = -Infinity;
   hasServerLeadPoint = false;
   leadIndicatorElement.hidden = true;
   combatLockState = 'SEARCHING';
@@ -8722,7 +8724,7 @@ function updateCombatTarget(delta = 0): void {
   if (targetId !== lockedTargetId) lockedTargetId = targetId;
   validateServerLock(targetId, delta);
   const assisted = Boolean(serverCandidate && freshAim);
-  visualAimBlend = Math.min(1, Math.max(0, (performance.now() - serverAimReceivedAt) / 100));
+  visualAimBlend = combatAimBlend(previousServerAimReceivedAt, serverAimReceivedAt, performance.now());
   if (freshAim) interpolateAim(previousServerAim, serverAim, visualAimBlend, visualAim);
   else visualAim.x = visualAim.y = 0;
 
@@ -10776,7 +10778,7 @@ function sendFireIntent(): boolean {
     socket.send(JSON.stringify({
       type: 'fire', targetId, clientShotId, stateSequence: clientStateSequence,
       aimSample: performance.now() - serverAimReceivedAt <= 500
-        ? { from: previousAimId, to: serverAimId, blend: visualAimBlend } : undefined,
+        ? combatShotAimSample(previousAimId, serverAimId, visualAimBlend) : undefined,
 
     }));
   } catch {
@@ -11604,6 +11606,7 @@ boundSocket.addEventListener('message', (event) => {
     serverAimTargetId = message.candidateId ?? null;
     hasServerLeadPoint = Boolean(message.leadPoint && [message.leadPoint.x, message.leadPoint.y, message.leadPoint.z].every(Number.isFinite));
     if (hasServerLeadPoint) serverLeadPoint.copy(message.leadPoint!);
+    previousServerAimReceivedAt = serverAimReceivedAt;
     serverAimReceivedAt = performance.now();
     serverLockedTargetId = message.targetId ?? null;
   } else if (message.type === 'combatThreat') {

@@ -219,7 +219,12 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
         client.messages[countdownIndex].phase !== 'countdown')) countdownIndex -= 1;
       assert.ok(countdownIndex >= 0 && client.messages.slice(countdownIndex + 1, launchIndex).some(message =>
         message.type === 'playerState' && message.playerId === peerId && message.lifeState === 'respawning'),
-      'each pilot receives the opponent runway pose before the split view begins');
+      `each pilot receives the opponent runway pose before the split view begins: ${JSON.stringify({
+        peerId, firstIsA, countdownIndex, launchIndex,
+        sequence: client.messages.slice(Math.max(0, countdownIndex - 2), launchIndex + 1)
+          .map(message => ({ type: message.type, phase: message.phase, playerId: message.playerId,
+            lifeState: message.lifeState, position: message.type === 'playerState' ? message.position : undefined })),
+      })}`);
     }
     assert.equal(Number(launchA.launchCountdownAt) - Number(launchA.launchStartedAt), 5_000);
     assert.equal(Number(launchA.launchEndsAt) - Number(launchA.launchCountdownAt), 3_000);

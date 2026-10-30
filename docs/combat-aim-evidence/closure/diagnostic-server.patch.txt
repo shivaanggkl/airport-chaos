@@ -1,0 +1,49 @@
+--- current/server/src/index.ts
++++ temporary-diagnostic/server/src/index.ts
+@@ -8919,7 +8919,20 @@
+ 
+       if (message.type === 'fire') {
+         const now = Date.now();
+-        if (playerJourneyRunwayPrep.has(playerId)) return;
++        const diagnostic = (outcome: string) => {
++          const ref = message.aimSample as {from?:number;to?:number;blend?:number}|undefined;
++          const from = player.aimSamples?.find(s=>s.id===ref?.from), to = player.aimSamples?.find(s=>s.id===ref?.to);
++          console.log('COMBAT_CLOSURE '+JSON.stringify({at:now,shot:message.clientShotId,outcome,
++            requestedSequence:message.stateSequence,acceptedSequence:player.acceptedStateSequence,
++            transformAge:now-player.lastAcceptedTransformAt,fireAge:now-player.lastFireAt,
++            fireInterval:fireIntervalMs(player.aircraftType),life:player.lifeState,
++            position:player.position,rotation:player.rotation,velocity:player.velocity,
++            aim:ref,from:from&&{id:from.id,x:from.x,y:from.y,age:now-from.at},
++            to:to&&{id:to.id,x:to.x,y:to.y,age:now-to.at},samples:player.aimSamples?.map(s=>({id:s.id,age:now-s.at})),
++            projectiles:projectiles.size}));
++        };
++
++        if (playerJourneyRunwayPrep.has(playerId)) {diagnostic('runway_preparation');return;}
+         const firingAttemptId = playerJourneyAttempts.get(playerId);
+         const firingAttempt = firingAttemptId ? journeyStore.get(player.pilotId, firingAttemptId) : undefined;
+         if ((firingAttempt?.missionId === journeyDallas19.id || firingAttempt?.missionId === journeyDallas07.id || firingAttempt?.missionId === journeyDallas08.id || firingAttempt?.missionId === journeyDallas09.id || firingAttempt?.missionId === journeyDallas10.id || firingAttempt?.missionId === journeyDallas11.id || firingAttempt?.missionId === journeyDallas12.id) &&
+@@ -8927,7 +8940,7 @@
+         if((firingAttempt?.missionId===journeyDallas07.id || firingAttempt?.missionId===journeyDallas08.id || firingAttempt?.missionId===journeyDallas09.id || firingAttempt?.missionId===journeyDallas10.id || firingAttempt?.missionId===journeyDallas11.id || firingAttempt?.missionId===journeyDallas12.id) && (firingAttempt.deadlineAt===null||now>=firingAttempt.deadlineAt))return;
+         const blocked = fireBlockReason(player, now);
+         if (blocked) {
+-          logFireBlocked(playerId, blocked, now);
++          diagnostic('blocked_'+blocked);logFireBlocked(playerId, blocked, now);
+           if (typeof message.clientShotId === 'string' && message.clientShotId.length <= 80) sendToPlayer(playerId, { type: 'shotRejected', clientShotId: message.clientShotId });
+           return;
+         }
+@@ -8941,9 +8954,12 @@
+           if (ids.size > 128) ids.delete(ids.values().next().value!);
+         }
+         const shotAim = validatedShotAim(player, message.aimSample, now);
+-        if (!shotAim || message.stateSequence !== undefined && message.stateSequence !== player.acceptedStateSequence ||
+-          now - player.lastAcceptedTransformAt > combatTransformFreshMs ||
+-          !createProjectile(playerId, player, clientShotId, undefined, shotAim)) {
++        const rejection = !shotAim ? 'invalid_aim_sample'
++          : message.stateSequence !== undefined && message.stateSequence !== player.acceptedStateSequence ? 'state_sequence_mismatch'
++          : now - player.lastAcceptedTransformAt > combatTransformFreshMs ? 'stale_transform'
++          : !createProjectile(playerId, player, clientShotId, undefined, shotAim) ? 'create_projectile_denied' : undefined;
++        diagnostic(rejection ?? 'accepted');
++        if (rejection) {
+           if (clientShotId) sendToPlayer(playerId, { type: 'shotRejected', clientShotId });
+         } else if (currentLockedTarget(playerId, player, player.lockedTargetId, now)) {
+           sendIncomingFire(player.lockedTargetId!, playerId);

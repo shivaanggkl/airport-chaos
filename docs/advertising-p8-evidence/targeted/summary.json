@@ -1,0 +1,98 @@
+{
+  "status": "BLOCKED",
+  "branch": "qa",
+  "commit": "831fa674426b449f90218960831926f8667f9545",
+  "sourceChangesBeforeReport": [],
+  "missingSourceFiles": [],
+  "integratedBuild": "PASS",
+  "emptyOutputServerBuild": "PASS",
+  "ios": {
+    "mobileAds": "13.9.0",
+    "ump": "3.1.0",
+    "simulator": "iPhone 15 Pro / iOS 17.5",
+    "xcode": "27.0 (27A266a)",
+    "sdk": "iPhoneSimulator27.0",
+    "controlWithoutAppBound": {
+      "loaded": true,
+      "qualified": true,
+      "loadSeconds": 1.7490195
+    },
+    "appWithAppBound": {
+      "loaded": false,
+      "domain": "com.google.admob",
+      "code": 5,
+      "durationSeconds": 10.6691678,
+      "underlyingError": null,
+      "adapters": 0
+    },
+    "controlWithAppBound": {
+      "loaded": false,
+      "domain": "com.google.admob",
+      "code": 11,
+      "durationSeconds": 0.51121875
+    },
+    "consentFinalTests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "supersededHarnessRuntime": {
+      "tests": 1,
+      "failed": 1,
+      "assertionFailures": 2,
+      "cause": "Updated consent fixture app had not been installed; corrected in the disposable project only."
+    }
+  },
+  "android": {
+    "mobileAds": "25.5.0",
+    "ump": "4.0.0",
+    "api": 36,
+    "emulator": "37.1.11.0",
+    "gms": "26.34.36",
+    "startupHealth": "PASS",
+    "currentBootAnr": false,
+    "sdkInitializeCount": 1,
+    "validLoads": 2,
+    "qualifiedCallbacks": 2,
+    "earlyUnqualifiedDismissal": "UNVERIFIED",
+    "initialOnProcessKill": "System WebView package update, not an app ANR",
+    "startupComparisonTiming": "Not controlled: System WebView updated between initial OFF and ON runs.",
+    "backgroundForeground": "Same process 8044 restored landscape Hub and emitted visibility transitions.",
+    "audio": "Unverified; emulator launched with no audio and authenticated Rewards wrapper was not exercised.",
+    "sdkLoadSeconds": [
+      45.093,
+      5.405
+    ],
+    "bridgeFirstLoadIncludingInitSeconds": 60.8398,
+    "adIdPermissionPresent": false,
+    "permissionAnalysisSucceeded": true,
+    "permissionAnalysisSource": "Exact successful-build merged manifest"
+  },
+  "regressionsReused": {
+    "commit": "831fa67",
+    "tests": 749,
+    "passed": 749,
+    "failed": 0,
+    "rerunThisPass": false
+  },
+  "rewardsAndGameplaySourceUnchanged": true,
+  "productionAdsEnabled": false,
+  "webAdsEnabled": false,
+  "realGoogleSSVVerified": false,
+  "physicalDevicesTested": false,
+  "committed": false,
+  "pushed": false,
+  "deployed": false,
+  "cleanup": {
+    "ownedIOSSimulatorDeleted": true,
+    "androidReadOnlyEmulatorStopped": true,
+    "isolatedAndroidPackageUninstalled": true,
+    "devtoolsForwardRemoved": true,
+    "originalAVDPreserved": true
+  },
+  "consentLimits": [
+    "Control SDK UI only for EEA matrix; not full game Settings UX.",
+    "Withdrawal tap and persistence observed; second privacy-options return callback not recorded before termination.",
+    "Consent service unavailable/network failure not runtime-tested.",
+    "Android required/granted/refused/privacy-options combinations unverified."
+  ]
+}

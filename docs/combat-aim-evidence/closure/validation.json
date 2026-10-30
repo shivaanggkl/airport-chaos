@@ -1,0 +1,68 @@
+{
+  "status": "PARTIAL",
+  "branch": "qa",
+  "commit": "831fa674426b449f90218960831926f8667f9545",
+  "currentBroadSuite": {
+    "tests": 224,
+    "passed": 223,
+    "failed": 1,
+    "skipped": 0,
+    "failure": "Sky Duel reconnect opponent runway pose assertion"
+  },
+  "isolatedSkyDuel": {
+    "passed": 1,
+    "failed": 0,
+    "diagnosticOnlyTestCopy": true
+  },
+  "currentFocused": {
+    "passed": 17,
+    "failed": 0
+  },
+  "currentBuild": "PASS",
+  "finalM9Replay": {
+    "fireIntents": 5,
+    "ownedProjectileSpawns": 5,
+    "rejections": 0,
+    "pageErrors": 0
+  },
+  "verifiedGameplay": {
+    "M9EscortHealth": [
+      75,
+      35,
+      0
+    ],
+    "ownedBrowserImpactDelayMs": [
+      1335,
+      705
+    ],
+    "M8TransportHealth": [
+      2000,
+      1880
+    ],
+    "missionVictoryVerified": false,
+    "crashFailureScreenVerified": false,
+    "abandonEndpoint": {
+      "httpStatus": 200,
+      "status": "ABANDONED"
+    }
+  },
+  "changedFilesThisPass": [
+    "client/src/main.ts",
+    "docs/combat-aim-report.md",
+    "server/src/aim-envelope.test.ts",
+    "server/src/combat-aim.test.ts",
+    "server/src/combat-projectiles.integration.test.ts",
+    "shared/combat-aim.d.mts",
+    "shared/combat-aim.mjs"
+  ],
+  "serverValidationUnchanged": true,
+  "skyDuelApplicationAndTestUnchanged": true,
+  "p8WorkPreserved": true,
+  "physicalDeviceQaPerformed": false,
+  "commits": 0,
+  "pushes": 0,
+  "merges": 0,
+  "installs": 0,
+  "deployments": 0,
+  "gitDiffCheck": "PASS"
+}

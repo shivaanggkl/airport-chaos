@@ -1,0 +1,75 @@
+{
+  "branch": "qa",
+  "commit": "831fa674426b449f90218960831926f8667f9545",
+  "regression": {
+    "tests": 224,
+    "passed": 224,
+    "failed": 0,
+    "skipped": 0
+  },
+  "additionalCompleteDuelRuns": 4,
+  "additionalDuelPass": 4,
+  "build": "client and server PASS",
+  "gameplay": [
+    {
+      "mission": 8,
+      "terminalStatus": "FAILED",
+      "terminalReason": "timeout",
+      "fireIntents": 27,
+      "ownedProjectiles": 26,
+      "rejectedShots": [
+        {
+          "at": 1793353791597,
+          "type": "shotRejected",
+          "clientShotId": "c142ee52-8fc8-43d3-a8a5-7064693c110e"
+        }
+      ],
+      "minimumTransportHealth": 1640,
+      "ownedDestructions": 0,
+      "browserErrors": [],
+      "exit": {
+        "via": "normal result button",
+        "gameHidden": true,
+        "newEvents": [],
+        "url": "http://127.0.0.1:8091/"
+      },
+      "browserSpawnToImpactDeliveryGapMs": [
+        3
+      ]
+    },
+    {
+      "mission": 9,
+      "terminalStatus": "FAILED",
+      "terminalReason": "timeout",
+      "fireIntents": 34,
+      "ownedProjectiles": 33,
+      "rejectedShots": [
+        {
+          "at": 1793354112114,
+          "type": "shotRejected",
+          "clientShotId": "3ee80466-1674-474c-a23e-6f9eed3be6d3"
+        }
+      ],
+      "minimumTransportHealth": 2000,
+      "ownedDestructions": 1,
+      "browserErrors": [],
+      "exit": {
+        "via": "normal result button",
+        "gameHidden": true,
+        "newEvents": [],
+        "url": "http://127.0.0.1:8091/"
+      },
+      "browserSpawnToImpactDeliveryGapMs": [
+        1132,
+        78,
+        34,
+        16,
+        20
+      ]
+    }
+  ],
+  "status": "PARTIAL",
+  "skyDuelFailureCause": "Not reproduced; original failing packet sequence unavailable; no substantiated root cause",
+  "changes": "Failure diagnostic only; no gameplay/security/economy changes",
+  "timingCaution": "Browser receive timestamps can be coalesced by software rendering; delivery gaps are not authoritative flight times or device performance measurements."
+}

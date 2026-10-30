@@ -1,0 +1,7 @@
+Test Case '-[P8ConsentTests.P8ConsentTests testInterruptedConsent]' started.
+    t =    10.07s Tap "Do not consent" Button
+Test Case '-[P8ConsentTests.P8ConsentTests testInterruptedConsent]' passed (11.992 seconds).
+	 Executed 1 test, with 0 failures (0 unexpected) in 11.992 (11.994) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 11.992 (11.995) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 11.992 (11.998) seconds
+** TEST SUCCEEDED **

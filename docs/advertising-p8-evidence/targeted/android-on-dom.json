@@ -1,0 +1,21 @@
+{
+  "title": "Airport Chaos",
+  "url": "https://localhost/",
+  "ready": "complete",
+  "text": "LOADING FLIGHT SYSTEMS...\n28%\nV\nVaden Software",
+  "native": true,
+  "privacy": {
+    "required": false,
+    "canRequestAds": true
+  },
+  "nav": [
+    {
+      "domContentLoaded": 8752.199999999953,
+      "load": 9594.599999999977
+    }
+  ],
+  "visible": [],
+  "networkOrigins": [
+    "https://localhost"
+  ]
+}

@@ -5,6 +5,19 @@ export const TARGET_TURN_GRACE_MS = 300;
 export const TARGET_SWITCH_MARGIN = 0.025;
 export const SMART_ASSIST_CONE = 0.10;
 
+// Once interpolation reaches the current sample, the previous sample no
+// longer contributes to the firing vector and must not extend its lifetime.
+export function combatShotAimSample(from, to, blend) {
+  return { from: blend === 1 ? to : from, to, blend };
+}
+
+export function combatAimBlend(previousReceivedAt, currentReceivedAt, now) {
+  // A delayed update must not restart interpolation through an old sample.
+  // Keep a margin inside the server's 600ms contributing-sample lifetime.
+  if (now - previousReceivedAt >= 500) return 1;
+  return Math.min(1, Math.max(0, (now - currentReceivedAt) / 100));
+}
+
 // Inputs are server-filtered candidates. A brief turn may retain selection,
 // but never grants firing assistance to an unaligned or ineligible target.
 export function selectCombatTarget(state, candidates, now) {

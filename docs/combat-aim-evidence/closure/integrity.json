@@ -1,0 +1,20 @@
+{
+  "branch": "qa",
+  "commit": "831fa674426b449f90218960831926f8667f9545",
+  "changedApplicationAndTestFiles": [
+    "client/src/main.ts",
+    "server/src/aim-envelope.test.ts",
+    "server/src/combat-aim.test.ts",
+    "server/src/combat-projectiles.integration.test.ts",
+    "shared/combat-aim.d.mts",
+    "shared/combat-aim.mjs"
+  ],
+  "serverValidationUnchanged": true,
+  "p8ReportUnchanged": true,
+  "installs": 0,
+  "commits": 0,
+  "pushes": 0,
+  "merges": 0,
+  "deployments": 0,
+  "skyDuelSourceAndTestUnchanged": true
+}

@@ -2,6 +2,8 @@
 
 **P8 ENGINEERING STATUS: BLOCKED. Commercial launch / deployment: NOT AUTHORIZED.** Source and automated checks are complete; successful native video presentation/dismissal and full game restoration are not established. No native platform receives a PASS from compilation or a fixture-survival assertion.
 
+Latest findings: [Targeted bounded closure](#targeted-bounded-closure--october-29-2026-latest) supersedes the earlier Android startup and server-build blockers.
+
 ## Baseline and changes
 
 `feature/advertising` at `95a6787e9b37de3f7a50922660f3004ee71ec957`; P0–P7 remain uncommitted. Separate `qa` and `feature/bugfixes` worktrees were identified and not edited. Current source, not an archive, was used. Native builds ran in temporary project copies; no Capacitor sync overwrote existing project assets/configuration.
@@ -157,3 +159,73 @@ The fresh Google Play AVD used its own empty data directory, 720×1280, 2 cores,
 **Build provenance:** The initial closure client/server production build passed. Both isolated native Debug application builds passed; Android diagnostic test APK compiled. The iOS runtime test executed **0 passed / 1 failed**, and Android's fresh runtime test was **unrun**. The final current-checkout build passed the client but failed server type-checking at `server/src/combat-aim.test.ts:48` (TS2345: plain coordinate object supplied where `Vector3` is required). That file was created by concurrent, unrelated work after this task's source snapshot; it was not edited by P8. The failing final build is retained, not replaced with the earlier successful result. [Final build log](advertising-p8-evidence/closure/web-server-build-final.log), [earlier successful build](advertising-p8-evidence/closure/web-server-build.log), [103-test regression log](advertising-p8-evidence/closure/regression.log) and native build/test logs preserve the exact verification boundary. `git diff --check` passes.
 
 **Final outcome:** P8 native engineering remains **BLOCKED** by successful iOS and Android test-video playback, a healthy Android startup baseline, supported secure iOS compatibility, complete consent/lifecycle restoration and matched native performance. The latest unrelated server type error also blocks a passing current-checkout production build. Physical-device QA is separately NOT TESTED on both platforms; commercial/provider/store readiness is separately BLOCKED. No real units, production consent approval, external SSV delivery or publisher/store verification were invented. Production and web rewarded serving remain disabled. All disposable native copies, owned device data and the temporary publisher probe were removed; the developer's original AVD and QA/bugfix worktrees were preserved. Nothing was committed, pushed, deployed, published or activated.
+
+## Targeted bounded closure — October 29, 2026 (latest)
+
+**P8 STATUS: BLOCKED.** This section supersedes the earlier Android-startup and current-server-build conclusions. No application defect with an established, security-preserving correction was demonstrated; application source was left unchanged. The pass produced new native evidence, including successful Android test-video playback and a narrower iOS compatibility boundary.
+
+### Source preservation and build ownership
+
+The reported `feature/advertising` / `95a6787` state is historical. At entry, the sole worktree was clean `qa` at **`831fa674426b449f90218960831926f8667f9545`**, following the user's earlier integration and worktree cleanup. The P0–P8 and gameplay changes are committed in that history. No deleted worktree was reconstructed. A tracked-file SHA256 inventory taken before diagnostics showed **zero changed or missing tracked files before report writing**.
+
+`npm run build` passed client and server. A second server type-check/emit into an empty temporary output directory also passed:
+
+```sh
+./node_modules/.bin/tsc -p server/tsconfig.json --outDir <isolated-copy>/server-clean
+```
+
+The old `combat-aim.test.ts` TS2345 is no longer reproducible. The integrated gameplay owner had already corrected the test before this pass; P8 did not edit it or combat logic. The complete **749/749** regression result at this same source commit is retained in [QA repair evidence](qa-test-repair-validation.json); that suite was reused, not rerun or relabeled as a new P8 security audit.
+
+### iOS: controlled isolation
+
+Environment: disposable iPhone 15 Pro / iOS 17.5 (21F79), Xcode 27.0 (27A266a), Simulator SDK 27.0; Mobile Ads **13.9.0**, UMP **3.1.0**, Capacitor **8.5.2**. Exact existing packages were reused without upgrades. All requests used Google's official rewarded test unit and sample application identifier, NPA requests, disabled publisher first-party ID and a visible main-thread presenter. Consent was controlled using official simulator debug geography; these choices are test signals, not legal consent or audience approval.
+
+| Controlled case | Actual result |
+|---|---|
+| Standalone native UIKit SDK control, with no game WebView or App-Bound key | Loaded in **1.749s**, presented the test creative, delivered the qualified callback. [Screenshot](advertising-p8-evidence/targeted/ios-control-video.png), [events](advertising-p8-evidence/targeted/ios-control-result.json). Dismissal/full game recovery not established by this control. |
+| Isolated Airport Chaos native bridge; original App-Bound configuration retained | UMP permitted the request, presenter active and main-thread handling observed, SDK initialized once. Failed after **10.669s** with `com.google.admob:5`: “Request Error: The Google ad request was unable to be fulfilled before a timeout occurred.” No underlying error, zero adapter responses and no loaded adapter. [Events](advertising-p8-evidence/targeted/ios-app-result.json), [screen](advertising-p8-evidence/targeted/ios-app-timeout.png). |
+| Standalone native control with the game’s App-Bound key added | Failed after **0.511s** with `com.google.admob:11`, “Request Error: Internal error.” No underlying error or adapter response. [Events](advertising-p8-evidence/targeted/ios-bounded-control-result.json). |
+
+A broad simulator/network outage does not explain the successful unrestricted native control. The restriction-associated control failure supports a **global App-Bound/SDK compatibility issue independent of the Capacitor bridge**. The different error codes do not prove that every code-5 failure has exactly this cause. Google defines [code 5 as timeout](https://developers.google.com/admob/ios/api/reference/Enums/GADErrorCode) and explicitly warns that [WKAppBoundDomains may prevent ad loading](https://developers.google.com/admob/ios/privacy/strategies). Neither no-fill nor account rejection was established.
+
+The standalone control is an isolated native-only sample with no game/session WebView. The actual game copy retained its original `WKAppBoundDomains` and `limitsNavigationsToAppBoundDomains`. No ATS exception, arbitrary advertising-domain allowlist, session change, SDK WebView swizzling or security bypass was applied. No alternative network was needed after the control demonstrated connectivity. A supported SDK/vendor compatibility path, or a separately authorized security/architecture decision, is still required. This is not classified as a purely external provider outage.
+
+### Android: health, startup and playback
+
+Environment: existing Google Play API 36 AVD in **read-only/no-snapshot-save** mode, 2 cores/2 GiB, host graphics, no simultaneous iOS simulator; Emulator **37.1.11.0**, GMS **26.34.36**, Java 21, Mobile Ads **25.5.0**, UMP **4.0.0**. A separate non-Play image was unavailable locally; no image was downloaded or equivalent failed boot repeated.
+
+- Boot completed at the **20.8s probe**. Activity Manager and GMS were responsive; Settings launched successfully. No ANR was reported during this boot or after the application checks. Historical phone/System UI ANRs remain environmental observations, not attributed to the game. [Health evidence](advertising-p8-evidence/targeted/android-health.json).
+- An isolated Debug package with the actual game bundle reached the Hub with the plugin disabled. It used `https://p8.invalid` for its backend, preventing access to real accounts/wallets. Ads-enabled startup also reached the Hub with UMP `canRequestAds=true`. HTTPS and production application security were preserved.
+- The first enabled process was killed by a **System WebView package installation** (`stop com.google.android.webview due to installPackageLI`), invalidating the OFF/ON timing comparison. One post-update relaunch was used. This is an identified system-update kill, not an application ANR. [Process evidence](advertising-p8-evidence/targeted/android-webview-update-kill.txt).
+- An early diagnostic call during pending startup consent was rejected before an SDK request. After Hub readiness, the first genuine load succeeded: approximately **60.840s bridge duration including initialization**, with about **45.093s from SDK load start to load callback**. A second load took **5.773s at the bridge**. SDK initialization was logged **once** across both loads.
+- Actual native test creative/video presentation, qualified callback, dismissal result `{state:"qualified"}`, landscape Hub return and same-process background/foreground recovery were observed. [Video](advertising-p8-evidence/targeted/android-video-current.png), [playing creative](advertising-p8-evidence/targeted/android-early.png), [returned Hub](advertising-p8-evidence/targeted/android-resumed.png), [lifecycle](advertising-p8-evidence/targeted/android-lifecycle-final.json), [native events](advertising-p8-evidence/targeted/android-native-events.txt).
+- Early Back did **not** establish an unqualified dismissal; the second creative subsequently qualified. Therefore early cancellation remains **UNVERIFIED**, not a passing closed-without-reward test. Empty-show and invalid-unit guards rejected requests, but actual SDK load-failure and presentation-failure callback recovery were not established.
+- The exact merged manifest for the successful diagnostic build retained the official sample application ID and excluded `AD_ID`. The standalone APK analyzer was unavailable; this check used the successful build's merged manifest. [Manifest result](advertising-p8-evidence/targeted/android-manifest.json).
+
+These are real emulator/native SDK and bridge observations. The ad actions were injected through the owned debug WebView for diagnosis; they were **not an authenticated Watch & Earn transaction**. SDK qualification/end-card “Reward granted” is not proof of server Credits or actual Google SSV delivery. The isolated backend was intentionally unreachable; no real player account or balance was changed.
+
+### Consent matrix and native UX boundary
+
+Final native SDK-control UI tests: **2 passed / 0 failed**. Official debug geography OTHER produced not-required/allowed SDK state. EEA exercised the actual required form, refusal, a Consent choice through reopened Privacy Options, another refusal/withdrawal action and restart. The interruption test terminated the initial form, then verified that relaunch still required a choice and `canRequestAds` remained false before that choice. [EEA form](advertising-p8-evidence/targeted/ios-eea-form.png), [choice test](advertising-p8-evidence/targeted/ios-consent-test-summary.txt), [interruption test](advertising-p8-evidence/targeted/ios-interrupted-test-summary.txt), [SDK events](advertising-p8-evidence/targeted/ios-consent-events.json).
+
+Limits: EEA checks used the native SDK control, not full game Settings. The second Privacy Options return callback was not recorded before termination, so complete withdrawal-callback recovery is not certified. Android verified OTHER/not-required and allowed state; required/granted/refused/options variants remain unverified there. Consent-service/network-unavailable behavior was not runtime-injected. Debug choices do not authorize real tracking, audience classification or commercial consent. No ATT prompt, age gate or new consent framework was added.
+
+The first UI-harness run failed **1 test / 2 assertions** because the updated fixture app had not been installed. Correcting only that disposable setup yielded the two final passes above. Temporary Swift instrumentation/type and generated XCTest configuration issues were also corrected in the disposable project; none were application defects or source fixes.
+
+Full authenticated Rewards usability, early close, actual presentation-error recovery, qualified-to-SSV reconciliation and game audio/control restoration remain acceptance blockers. Android used `-no-audio`, and direct bridge diagnostics bypassed the game's authenticated reward/audio wrapper. iOS game playback remained unavailable.
+
+### Performance, rewards and commercial safety
+
+No sustained gameplay/device no-regression claim is made. Initial native launch timings are incomparable because System WebView updated between runs. Six-second offline Android Hub RAF samples contained 18 intervals before presentation (mean **321.58ms**) and 48 after return (mean **129.24ms**). These slow emulator/WebView samples are not game FPS, a matched ads-OFF/ON benchmark, memory-leak proof or physical-device performance acceptance. iOS post-ad game performance is unavailable because the protected game could not load an ad.
+
+Reward policy/source is unchanged: **50/75/100/150 Credits**, four verified rewards, one-hour eligibility, 30-minute attempts, signed AdMob SSV, atomic/idempotent server wallet transactions and restart/concurrency protection. No client-side Credits, Sky Tokens or purchase changes. Existing signed-callback tests remain engineering evidence, not live Google callback delivery. A production-configuration probe with forced enable flags still returned **false for global/iOS/Android/web rewarded serving**. Commercial serving, public inquiry/measurement and publisher activation were not enabled.
+
+External/mobile-release requirements remain: AdMob publisher and registered app configuration; approved production units; actual reachable Google SSV delivery; verified seller snippet and store-associated developer-domain `app-ads.txt`; physical iPhone/Android QA; audience classification; privacy/consent approval; App Store/Play compliance; hosting/operations and explicit activation approval. Nothing was published or submitted.
+
+### Closure, reproducibility and P9
+
+[Structured summary](advertising-p8-evidence/targeted/summary.json) and [build provenance](advertising-p8-evidence/targeted/builds.json) record this pass. Final integrated client/server, empty-output server, iOS diagnostic applications and Android Debug builds passed. Native test targets and SDK instrumentation existed only in temporary copies. Source-form harness evidence is isolated as `.swift.txt` files, not compiled into the application. Response identifiers, custom attempt references and production identifiers were not retained in diagnostics.
+
+The owned simulator was deleted; the read-only emulator stopped; the isolated Android package and DevTools forward removed. The original AVD was preserved. Disposable native project/build copies were removed after exporting evidence. No fixture backend or real reward callback was created. **Tracked changes are limited to this report and its isolated evidence; normal ignored web/server build output was regenerated by validation. No commit, push, deployment, real-ad activation, store submission or P9 work occurred.**
+
+P8 remains BLOCKED by protected iOS SDK compatibility and incomplete native consent/reward/audio/performance acceptance. No architectural dependency has been established between these native rewarded-ad gates and independent future-city sponsorship work. P9 is not started.

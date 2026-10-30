@@ -1,0 +1,2202 @@
+[
+  {
+    "mission": 9,
+    "errors": [],
+    "events": [
+      {
+        "at": 1793334762149,
+        "type": "journeyAttempt",
+        "status": "APPROACH",
+        "health": 2000
+      },
+      {
+        "at": 1793334767618,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793334785529,
+        "type": "takeoffConfirmed"
+      },
+      {
+        "at": 1793334789848,
+        "type": "projectileSpawn",
+        "id": "e4f82e7b-4ddb-483e-8a93-ce21dc14ae15",
+        "direction": {
+          "x": -0.9650778914683344,
+          "y": 0.2221214071821319,
+          "z": -0.1388767218451793
+        },
+        "position": {
+          "x": -22846.717310450196,
+          "y": 313.1702618964571,
+          "z": -13199.3279019691
+        }
+      },
+      {
+        "at": 1793334790617,
+        "type": "projectileSpawn",
+        "id": "e6d37ff1-ff82-413f-b8a5-da0e6646e8f4",
+        "direction": {
+          "x": -0.9632035806106274,
+          "y": 0.2620673671750684,
+          "z": -0.05966202612042819
+        },
+        "position": {
+          "x": -22866.228336357406,
+          "y": 330.0270864312569,
+          "z": -13248.028611538826
+        }
+      },
+      {
+        "at": 1793334791161,
+        "type": "projectileSpawn",
+        "id": "b712a891-033e-461a-940a-6154245ec20c",
+        "direction": {
+          "x": -0.9012987518334765,
+          "y": 0.3492121851599632,
+          "z": -0.25634236809240263
+        },
+        "position": {
+          "x": -22883.167265150227,
+          "y": 343.2901915921371,
+          "z": -13280.675559947791
+        }
+      },
+      {
+        "at": 1793334791703,
+        "type": "projectileSpawn",
+        "id": "26436160-6487-4e42-8bcc-fdffc11d57f8",
+        "direction": {
+          "x": -0.8840887000602738,
+          "y": 0.26963411090899003,
+          "z": -0.38168654241413
+        },
+        "position": {
+          "x": -22910.16757335936,
+          "y": 360.2621010254405,
+          "z": -13319.325912314232
+        }
+      },
+      {
+        "at": 1793334791984,
+        "type": "projectileSpawn",
+        "id": "baf26387-c7f9-40cf-9852-19329e89b070",
+        "direction": {
+          "x": -0.942600685385153,
+          "y": 0.2635821529615911,
+          "z": -0.20500828410474592
+        },
+        "position": {
+          "x": -22936.79423098308,
+          "y": 375.1214405572588,
+          "z": -13347.802950288622
+        }
+      },
+      {
+        "at": 1793334792721,
+        "type": "projectileSpawn",
+        "id": "5e40c2a8-24cc-419b-8a07-2844dcd49310",
+        "direction": {
+          "x": -0.7904195757646966,
+          "y": 0.41734382577585927,
+          "z": -0.4483982887285882
+        },
+        "position": {
+          "x": -22992.05387415284,
+          "y": 403.2243967398663,
+          "z": -13392.722067384797
+        }
+      },
+      {
+        "at": 1793334797894,
+        "type": "projectileRemove",
+        "id": "26436160-6487-4e42-8bcc-fdffc11d57f8"
+      },
+      {
+        "at": 1793334798464,
+        "type": "projectileRemove",
+        "id": "e4f82e7b-4ddb-483e-8a93-ce21dc14ae15"
+      },
+      {
+        "at": 1793334798516,
+        "type": "projectileRemove",
+        "id": "baf26387-c7f9-40cf-9852-19329e89b070"
+      },
+      {
+        "at": 1793334798932,
+        "type": "projectileRemove",
+        "id": "5e40c2a8-24cc-419b-8a07-2844dcd49310"
+      },
+      {
+        "at": 1793334799099,
+        "type": "projectileRemove",
+        "id": "b712a891-033e-461a-940a-6154245ec20c"
+      },
+      {
+        "at": 1793334799238,
+        "type": "projectileRemove",
+        "id": "e6d37ff1-ff82-413f-b8a5-da0e6646e8f4"
+      },
+      {
+        "at": 1793334803596,
+        "type": "projectileSpawn",
+        "id": "2fd87ff0-bc7d-468a-9753-0920da000d70",
+        "direction": {
+          "x": 0.9575160274623324,
+          "y": 0.04100182230529486,
+          "z": 0.2854503594679793
+        },
+        "position": {
+          "x": -23444.0809595385,
+          "y": 689.2558509746037,
+          "z": -13743.986446227353
+        }
+      },
+      {
+        "at": 1793334809792,
+        "type": "projectileSpawn",
+        "id": "06517794-2c2a-4f60-87e7-b427cfb76a96",
+        "direction": {
+          "x": 0.9465948107757962,
+          "y": 0.2597700896988341,
+          "z": 0.1909915304671759
+        },
+        "position": {
+          "x": -23255.667419718495,
+          "y": 745.4988717554511,
+          "z": -13749.246285066114
+        }
+      },
+      {
+        "at": 1793334812209,
+        "type": "projectileRemove",
+        "id": "2fd87ff0-bc7d-468a-9753-0920da000d70"
+      },
+      {
+        "at": 1793334818436,
+        "type": "projectileRemove",
+        "id": "06517794-2c2a-4f60-87e7-b427cfb76a96"
+      },
+      {
+        "at": 1793334819461,
+        "type": "projectileSpawn",
+        "id": "63d3e61a-7ffc-4851-9b0b-bd3a5ab3aefd",
+        "direction": {
+          "x": -0.7450810776476874,
+          "y": 0.05995352803071522,
+          "z": -0.6642738608495982
+        },
+        "position": {
+          "x": -22937.791968770558,
+          "y": 882.7906583424466,
+          "z": -13935.162887946295
+        }
+      },
+      {
+        "at": 1793334819756,
+        "type": "projectileSpawn",
+        "id": "ee18b835-e117-45f8-b756-f4f5c2f56b88",
+        "direction": {
+          "x": -0.5951310089184507,
+          "y": -0.08366290622820689,
+          "z": -0.7992619097299442
+        },
+        "position": {
+          "x": -22984.712040772065,
+          "y": 891.6268315794424,
+          "z": -13998.125583083622
+        }
+      },
+      {
+        "at": 1793334820481,
+        "type": "projectileSpawn",
+        "id": "d518bc1d-9aac-49d1-9f1b-b299374026d5",
+        "direction": {
+          "x": -0.7495763476232258,
+          "y": 0.0488839412485511,
+          "z": -0.6601103387857465
+        },
+        "position": {
+          "x": -23080.049796136344,
+          "y": 906.1783935478255,
+          "z": -14122.198667728004
+        }
+      },
+      {
+        "at": 1793334820759,
+        "type": "projectileSpawn",
+        "id": "be253097-4997-41fd-985c-6786236d5280",
+        "direction": {
+          "x": -0.9044588624789912,
+          "y": -0.03507006349047927,
+          "z": -0.4251167565857447
+        },
+        "position": {
+          "x": -23129.45466027677,
+          "y": 911.9827005419952,
+          "z": -14179.803524767836
+        }
+      },
+      {
+        "at": 1793334821510,
+        "type": "projectileSpawn",
+        "id": "3f168125-29f5-4e35-a018-62d673f4e827",
+        "direction": {
+          "x": -0.8946350089388747,
+          "y": 0.15144341191607122,
+          "z": -0.4203487763371729
+        },
+        "position": {
+          "x": -23201.07469747336,
+          "y": 920.5352583175147,
+          "z": -14250.152265472421
+        }
+      },
+      {
+        "at": 1793334821758,
+        "type": "projectileSpawn",
+        "id": "95f90382-890f-48c2-9039-572a6cfbb430",
+        "direction": {
+          "x": -0.8055686742811802,
+          "y": 0.02370130172643975,
+          "z": -0.5920281744252839
+        },
+        "position": {
+          "x": -23239.53222360365,
+          "y": 924.0033664166497,
+          "z": -14283.380971068766
+        }
+      },
+      {
+        "at": 1793334822058,
+        "type": "projectileSpawn",
+        "id": "b1c8c881-357c-4737-847d-ca23f0702d1c",
+        "direction": {
+          "x": -0.7952088457030602,
+          "y": -0.08139596022571635,
+          "z": -0.6008473927500562
+        },
+        "position": {
+          "x": -23276.215234895746,
+          "y": 926.6818575580206,
+          "z": -14313.54965978019
+        }
+      },
+      {
+        "at": 1793334822373,
+        "type": "projectileSpawn",
+        "id": "d1637d4d-d865-491c-8f7a-43fe33407442",
+        "direction": {
+          "x": -0.8117861936689282,
+          "y": 0.16800882563959052,
+          "z": -0.5592639897899013
+        },
+        "position": {
+          "x": -23310.018951262235,
+          "y": 930.3845601392052,
+          "z": -14339.965465151625
+        }
+      },
+      {
+        "at": 1793334822691,
+        "type": "projectileSpawn",
+        "id": "b8c738be-1a68-4451-b180-05ebbd978945",
+        "direction": {
+          "x": -0.7428612356025671,
+          "y": 0.11771587515364208,
+          "z": -0.6590145350262311
+        },
+        "position": {
+          "x": -23340.56616235687,
+          "y": 932.5834776592494,
+          "z": -14364.521985065949
+        }
+      },
+      {
+        "at": 1793334823005,
+        "type": "projectileSpawn",
+        "id": "da25b0a7-cd2e-4382-86cc-e7987082e048",
+        "direction": {
+          "x": -0.7938309070842007,
+          "y": 0.006600791309896438,
+          "z": -0.6081027220067001
+        },
+        "position": {
+          "x": -23368.971932254357,
+          "y": 933.7243079187213,
+          "z": -14387.196255683657
+        }
+      },
+      {
+        "at": 1793334823085,
+        "type": "projectileRemove",
+        "id": "95f90382-890f-48c2-9039-572a6cfbb430"
+      },
+      {
+        "at": 1793334823093,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793334823336,
+        "type": "projectileSpawn",
+        "id": "b05fc0bb-24a1-48ee-9c9f-4e2dd06b31e1",
+        "direction": {
+          "x": -0.9171922536742422,
+          "y": 0.20595671668441629,
+          "z": -0.341086793430264
+        },
+        "position": {
+          "x": -23399.41407036054,
+          "y": 936.735905876312,
+          "z": -14408.706640869497
+        }
+      },
+      {
+        "at": 1793334823709,
+        "type": "projectileRemove",
+        "id": "da25b0a7-cd2e-4382-86cc-e7987082e048"
+      },
+      {
+        "at": 1793334823711,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793334824585,
+        "type": "projectileRemove",
+        "id": "ee18b835-e117-45f8-b756-f4f5c2f56b88"
+      },
+      {
+        "at": 1793334825771,
+        "type": "projectileRemove",
+        "id": "63d3e61a-7ffc-4851-9b0b-bd3a5ab3aefd"
+      },
+      {
+        "at": 1793334826131,
+        "type": "projectileRemove",
+        "id": "be253097-4997-41fd-985c-6786236d5280"
+      },
+      {
+        "at": 1793334828086,
+        "type": "projectileRemove",
+        "id": "b1c8c881-357c-4737-847d-ca23f0702d1c"
+      },
+      {
+        "at": 1793334828608,
+        "type": "projectileRemove",
+        "id": "d1637d4d-d865-491c-8f7a-43fe33407442"
+      },
+      {
+        "at": 1793334829072,
+        "type": "projectileRemove",
+        "id": "d518bc1d-9aac-49d1-9f1b-b299374026d5"
+      },
+      {
+        "at": 1793334829242,
+        "type": "projectileRemove",
+        "id": "b8c738be-1a68-4451-b180-05ebbd978945"
+      },
+      {
+        "at": 1793334829659,
+        "type": "projectileRemove",
+        "id": "b05fc0bb-24a1-48ee-9c9f-4e2dd06b31e1"
+      },
+      {
+        "at": 1793334830123,
+        "type": "projectileRemove",
+        "id": "3f168125-29f5-4e35-a018-62d673f4e827"
+      }
+    ],
+    "checks": [
+      "normal keyboard takeoff",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "owned projectile destroyed an enemy",
+      "closed-loop keyboard bank/turn and fire; no injected poses or aim"
+    ],
+    "shots": [
+      {
+        "at": 1793334789797,
+        "type": "fire",
+        "clientShotId": "4f3f57ec-5b85-45d8-98d9-9000d5c8a555",
+        "stateSequence": 224,
+        "aimSample": {
+          "from": 59,
+          "to": 59,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334790565,
+        "type": "fire",
+        "clientShotId": "6345d2aa-521b-4997-b25d-b9a2c0a426f3",
+        "stateSequence": 233,
+        "aimSample": {
+          "from": 61,
+          "to": 61,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334791139,
+        "type": "fire",
+        "clientShotId": "51976d5c-9be3-4663-8c44-1e6bd2e371f1",
+        "stateSequence": 236,
+        "aimSample": {
+          "from": 62,
+          "to": 62,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334791651,
+        "type": "fire",
+        "clientShotId": "139c7c3d-e644-48af-b192-ffbddb672568",
+        "stateSequence": 243,
+        "aimSample": {
+          "from": 64,
+          "to": 65,
+          "blend": 0.8609999999403953
+        }
+      },
+      {
+        "at": 1793334791984,
+        "type": "fire",
+        "clientShotId": "13ea68fb-38da-4e09-8f29-7b1c634fb2fc",
+        "stateSequence": 247,
+        "aimSample": {
+          "from": 66,
+          "to": 67,
+          "blend": 0.777000000178814
+        }
+      },
+      {
+        "at": 1793334792669,
+        "type": "fire",
+        "clientShotId": "db8fad74-0225-4ae6-a5bf-951c23c2cb31",
+        "stateSequence": 255,
+        "aimSample": {
+          "from": 70,
+          "to": 71,
+          "blend": 0.8860000002384186
+        }
+      },
+      {
+        "at": 1793334803545,
+        "type": "fire",
+        "clientShotId": "f18a379b-3d86-4466-b1c2-204eae75687b",
+        "stateSequence": 350,
+        "aimSample": {
+          "from": 108,
+          "to": 109,
+          "blend": 0.6440000000596047
+        }
+      },
+      {
+        "at": 1793334809739,
+        "type": "fire",
+        "clientShotId": "ce70dd62-bf30-425b-ba6b-cb6e89dcf021",
+        "stateSequence": 401,
+        "aimSample": {
+          "from": 116,
+          "to": 116,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334819410,
+        "type": "fire",
+        "clientShotId": "31c5e159-ca69-47d4-9400-36d05fea9fc7",
+        "stateSequence": 498,
+        "aimSample": {
+          "from": 136,
+          "to": 137,
+          "blend": 0.9330000001192092
+        }
+      },
+      {
+        "at": 1793334819756,
+        "type": "fire",
+        "clientShotId": "24b1629f-1a3f-448e-986d-263d882af37d",
+        "stateSequence": 503,
+        "aimSample": {
+          "from": 139,
+          "to": 140,
+          "blend": 0.8419999998807907
+        }
+      },
+      {
+        "at": 1793334820430,
+        "type": "fire",
+        "clientShotId": "80f3e568-41b1-4888-b5ad-71f3561a28e3",
+        "stateSequence": 511,
+        "aimSample": {
+          "from": 144,
+          "to": 145,
+          "blend": 0.24200000017881393
+        }
+      },
+      {
+        "at": 1793334820759,
+        "type": "fire",
+        "clientShotId": "47417d3d-d3b8-42cf-998b-f64251b15300",
+        "stateSequence": 515,
+        "aimSample": {
+          "from": 146,
+          "to": 146,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334821459,
+        "type": "fire",
+        "clientShotId": "b352b3df-daf6-44ee-96ab-5219204c54b3",
+        "stateSequence": 523,
+        "aimSample": {
+          "from": 150,
+          "to": 151,
+          "blend": 0.25299999982118604
+        }
+      },
+      {
+        "at": 1793334821758,
+        "type": "fire",
+        "clientShotId": "f2261720-093c-40f7-98c0-58514d254564",
+        "stateSequence": 526,
+        "aimSample": {
+          "from": 152,
+          "to": 152,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793334822058,
+        "type": "fire",
+        "clientShotId": "1f3293aa-584b-4a63-9d4a-cc8dccf04403",
+        "stateSequence": 531,
+        "aimSample": {
+          "from": 154,
+          "to": 155,
+          "blend": 0.7419999998807907
+        }
+      },
+      {
+        "at": 1793334822373,
+        "type": "fire",
+        "targetId": "bot:dallas:20",
+        "clientShotId": "8abbfa9b-bd0f-44aa-a04f-ac30ee38cff6",
+        "stateSequence": 535,
+        "aimSample": {
+          "from": 156,
+          "to": 157,
+          "blend": 0.7829999998211861
+        }
+      },
+      {
+        "at": 1793334822691,
+        "type": "fire",
+        "clientShotId": "d05383a4-9a94-4b93-b6f1-a045552e916f",
+        "stateSequence": 539,
+        "aimSample": {
+          "from": 159,
+          "to": 160,
+          "blend": 0.7609999999403954
+        }
+      },
+      {
+        "at": 1793334823004,
+        "type": "fire",
+        "clientShotId": "8018e9ca-3e53-416a-90ab-2ee476e7f5f2",
+        "stateSequence": 543,
+        "aimSample": {
+          "from": 161,
+          "to": 162,
+          "blend": 0.7769999998807907
+        }
+      },
+      {
+        "at": 1793334823336,
+        "type": "fire",
+        "clientShotId": "25f15969-7b3c-4be6-8749-060e127164f4",
+        "stateSequence": 548,
+        "aimSample": {
+          "from": 163,
+          "to": 164,
+          "blend": 0.7829999998211861
+        }
+      }
+    ],
+    "damages": [
+      {
+        "at": 1793334823093,
+        "type": "damage",
+        "playerId": "bot:dallas:20",
+        "shooterId": "bf78f097-1151-48ff-9d35-99d0252fb81f",
+        "health": 35,
+        "maxHealth": 75,
+        "damage": 40,
+        "impactId": "95f90382-890f-48c2-9039-572a6cfbb430",
+        "impactPosition": {
+          "x": -23984.844174102684,
+          "y": 945.9318052736616,
+          "z": -14831.125300656824
+        }
+      },
+      {
+        "at": 1793334823710,
+        "type": "damage",
+        "playerId": "bot:dallas:20",
+        "shooterId": "bf78f097-1151-48ff-9d35-99d0252fb81f",
+        "health": 0,
+        "maxHealth": 75,
+        "damage": 35,
+        "impactId": "da25b0a7-cd2e-4382-86cc-e7987082e048",
+        "impactPosition": {
+          "x": -23710.92037650111,
+          "y": 936.5676468452777,
+          "z": -14649.140931655256
+        }
+      }
+    ],
+    "controls": [
+      {
+        "at": 1793334787222,
+        "distance": 3060.959724708274,
+        "speed": 391.6070399920175,
+        "yawError": 1.0485077317817342,
+        "pitchError": -0.034866470209793,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.2999999999999999,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793334790309,
+        "distance": 1893.0630231965124,
+        "speed": 267.77695999454164,
+        "yawError": -0.16229845979782673,
+        "pitchError": 0.18318961653648783,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.23413656327145535,
+          "y": 1.5316032167928215,
+          "z": 0.4434892566820948
+        }
+      },
+      {
+        "at": 1793334793689,
+        "distance": 667.3549178821944,
+        "speed": 266.435839994569,
+        "yawError": -0.2859343201228594,
+        "pitchError": 0.45003505342463257,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.2461144394113284,
+          "y": 1.5501358143117747,
+          "z": 0.20121289323541264
+        }
+      },
+      {
+        "at": 1793334796742,
+        "distance": 773.6914563976718,
+        "speed": 162.7225599966831,
+        "yawError": -1.4781451033674213,
+        "pitchError": -0.025244695950319,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.26289481978526963,
+          "y": -0.3642949398787685,
+          "z": -0.8333988950105402
+        }
+      },
+      {
+        "at": 1793334800997,
+        "distance": 1608.7743329340014,
+        "speed": 244.08383999502462,
+        "yawError": -0.5345699937880266,
+        "pitchError": 0.02908185538997117,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.05103045857325024,
+          "y": -1.5130528854932248,
+          "z": -0.8372289288645447
+        }
+      },
+      {
+        "at": 1793334805149,
+        "distance": 2650.780114229879,
+        "speed": 283.87039999421364,
+        "yawError": -0.11078518177236907,
+        "pitchError": 0.013061311333966416,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.041013319370197095,
+          "y": -1.8605233173067965,
+          "z": -0.8380619270636579
+        }
+      },
+      {
+        "at": 1793334808216,
+        "distance": 1332.8551414874516,
+        "speed": 366.5727999925278,
+        "yawError": 0.41633983102917865,
+        "pitchError": 0.0328478710465451,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.14914808814259994,
+          "y": -2.19173535082948,
+          "z": 0.1583820913145701
+        }
+      },
+      {
+        "at": 1793334811265,
+        "distance": 234.31637439481162,
+        "speed": 437.20511999108805,
+        "yawError": 1.6404520591725216,
+        "pitchError": 0.15096864045323044,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.3903077639953988,
+          "y": -1.3108115839481749,
+          "z": 0.8428770188637618
+        }
+      },
+      {
+        "at": 1793334814312,
+        "distance": 1875.062042109433,
+        "speed": 304.8812799937853,
+        "yawError": 1.929576352456875,
+        "pitchError": -0.1328623158967591,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.13585892039465128,
+          "y": -0.7726107615902963,
+          "z": 0.8353040815605205
+        }
+      },
+      {
+        "at": 1793334817362,
+        "distance": 3583.69502049434,
+        "speed": 209.21471999573538,
+        "yawError": 1.0832261618778194,
+        "pitchError": 0.006477442298399078,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": -0.01758319524760818,
+          "y": 0.1088583835412847,
+          "z": 0.8379084949567915
+        }
+      },
+      {
+        "at": 1793334820430,
+        "distance": 2602.83762135272,
+        "speed": 440.78143999101513,
+        "yawError": 0.12154868842277977,
+        "pitchError": 0.016377051765058555,
+        "target": "escort",
+        "health": 75,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.048903431382193586,
+          "y": 0.8487783323757779,
+          "z": 0.7573296392340172
+        }
+      },
+      {
+        "at": 1793334823509,
+        "distance": 465.9112861907095,
+        "speed": 200.72095999590852,
+        "yawError": -0.31348151736793817,
+        "pitchError": -0.06636458728062934,
+        "target": "escort",
+        "health": 35,
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.18150833153926413,
+          "y": 1.2175928822518602,
+          "z": 0.17716841630695876
+        }
+      },
+      {
+        "at": 1793334843909,
+        "distance": 8493.507209092468,
+        "speed": 539.5772799890013,
+        "yawError": -0.27351249902789276,
+        "pitchError": 0.003501462409982882,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.0006660821287051663,
+          "y": -1.6500269063595097,
+          "z": 0.8377580211214439
+        }
+      },
+      {
+        "at": 1793334870681,
+        "distance": 11791.768550215402,
+        "speed": 348.2441599929014,
+        "yawError": -0.1961954623423645,
+        "pitchError": 0.005893812974050558,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 4.5760717215515014e-8,
+          "y": -1.6611079211397368,
+          "z": 0.8377580409572781
+        }
+      },
+      {
+        "at": 1793334898580,
+        "distance": 15379.112536038405,
+        "speed": 291.4700799940587,
+        "yawError": -0.15245272542060895,
+        "pitchError": 0.0058056198216870315,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 3.0993541066948183e-12,
+          "y": -1.6652315728918277,
+          "z": 0.8377580409572782
+        }
+      },
+      {
+        "at": 1793334928183,
+        "distance": 19227.435130692775,
+        "speed": 284.76447999419537,
+        "yawError": -0.1255519796666662,
+        "pitchError": 0.005642200974191029,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 2.220446049250313e-16,
+          "y": -1.6660838708805807,
+          "z": 0.8377580409572779
+        }
+      }
+    ],
+    "transportHealth": 2000,
+    "minTransportHealth": 2000,
+    "body": "☰\nⅡ\n160\n200\n639\nMPH\n1,997\nFT\n♥ FULL REPAIR · 100%\nM9: Reinforcements\n2:24\nDestroy the transport; escorts are optional\nESCORTS: 1 ACTIVE\nTRANSPORT\n100%\nBLUEJAY\n0%\nMAMMOTH\n100%\nNIGHTOWL 3\n—\nNIGHTOWL 4\n—\n↑\nTRANSPORT · 22.7 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS",
+    "phase": "RACING",
+    "ownProjectileCount": 19,
+    "afterFailurePhase": "RACING",
+    "afterFailureBody": "☰\nⅡ\n160\n200\n53\nMPH\n1,924\nFT\n♥ FULL REPAIR · 100%\nM9: Reinforcements\n1:59\nDestroy the transport; escorts are optional\nESCORTS: 1 ACTIVE\nTRANSPORT\n100%\nBLUEJAY\n0%\nMAMMOTH\n100%\nNIGHTOWL 3\n—\nNIGHTOWL 4\n—\n←\nTRANSPORT · 26.5 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS"
+  },
+  {
+    "mission": 8,
+    "errors": [],
+    "events": [
+      {
+        "at": 1793334994087,
+        "type": "journeyAttempt",
+        "status": "APPROACH",
+        "health": 2000
+      },
+      {
+        "at": 1793335002302,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 2000
+      },
+      {
+        "at": 1793335019482,
+        "type": "takeoffConfirmed"
+      },
+      {
+        "at": 1793335025237,
+        "type": "projectileSpawn",
+        "id": "2b76a5a2-d2fa-4a0e-8b52-a0c7cdc2ced5",
+        "direction": {
+          "x": -0.6782958390800584,
+          "y": 0.4323403314954967,
+          "z": 0.5941351634510817
+        },
+        "position": {
+          "x": -22959.203250621285,
+          "y": 426.4529505119023,
+          "z": -13371.001164557963
+        }
+      },
+      {
+        "at": 1793335033884,
+        "type": "projectileRemove",
+        "id": "2b76a5a2-d2fa-4a0e-8b52-a0c7cdc2ced5"
+      },
+      {
+        "at": 1793335034176,
+        "type": "projectileSpawn",
+        "id": "ba434dbd-cda2-4ef4-b300-ce625b875144",
+        "direction": {
+          "x": 0.8287171859122263,
+          "y": 0.3080200385169047,
+          "z": 0.46728094509167084
+        },
+        "position": {
+          "x": -23250.5796059993,
+          "y": 650.6549885383885,
+          "z": -13156.664760476328
+        }
+      },
+      {
+        "at": 1793335035475,
+        "type": "projectileSpawn",
+        "id": "2fcd0f83-bc25-4524-b233-8891b3f51656",
+        "direction": {
+          "x": 0.9282909802004342,
+          "y": 0.13421266002433208,
+          "z": 0.3467892990963103
+        },
+        "position": {
+          "x": -23248.90745302051,
+          "y": 669.2288662959121,
+          "z": -13132.225473116392
+        }
+      },
+      {
+        "at": 1793335037146,
+        "type": "projectileSpawn",
+        "id": "40ca0f2a-27ff-4e73-8d84-5922d5289e7e",
+        "direction": {
+          "x": 0.985767396809194,
+          "y": 0.09779306438716297,
+          "z": 0.1367448571091179
+        },
+        "position": {
+          "x": -23234.133444817933,
+          "y": 688.6280416787293,
+          "z": -13107.728481148917
+        }
+      },
+      {
+        "at": 1793335038860,
+        "type": "projectileSpawn",
+        "id": "6d25a85f-a1da-4039-9f73-30d5f79921eb",
+        "direction": {
+          "x": 0.974236786080109,
+          "y": 0.0852905359355668,
+          "z": 0.20877789425157925
+        },
+        "position": {
+          "x": -23203.2397146188,
+          "y": 709.055435043491,
+          "z": -13083.154813259205
+        }
+      },
+      {
+        "at": 1793335040577,
+        "type": "projectileSpawn",
+        "id": "341c1849-4994-4abf-bb47-7a54be3b4c2b",
+        "direction": {
+          "x": 0.9711395912833795,
+          "y": 0.05953537975974337,
+          "z": 0.2309619726249625
+        },
+        "position": {
+          "x": -23153.617941077355,
+          "y": 729.6278316365112,
+          "z": -13056.495920682577
+        }
+      },
+      {
+        "at": 1793335040725,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1960
+      },
+      {
+        "at": 1793335040728,
+        "type": "projectileRemove",
+        "id": "40ca0f2a-27ff-4e73-8d84-5922d5289e7e"
+      },
+      {
+        "at": 1793335042215,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1920
+      },
+      {
+        "at": 1793335042217,
+        "type": "projectileRemove",
+        "id": "6d25a85f-a1da-4039-9f73-30d5f79921eb"
+      },
+      {
+        "at": 1793335042423,
+        "type": "projectileSpawn",
+        "id": "c78886cb-1f1e-4c84-93ed-7f8a0a988d9b",
+        "direction": {
+          "x": 0.9851489079886918,
+          "y": 0.018493061154724506,
+          "z": 0.17070335608246082
+        },
+        "position": {
+          "x": -23083.461251265424,
+          "y": 750.2225847801182,
+          "z": -13028.791824234037
+        }
+      },
+      {
+        "at": 1793335042780,
+        "type": "projectileRemove",
+        "id": "ba434dbd-cda2-4ef4-b300-ce625b875144"
+      },
+      {
+        "at": 1793335043393,
+        "type": "projectileRemove",
+        "id": "2fcd0f83-bc25-4524-b233-8891b3f51656"
+      },
+      {
+        "at": 1793335044014,
+        "type": "journeyAttempt",
+        "status": "RACING",
+        "health": 1880
+      },
+      {
+        "at": 1793335044016,
+        "type": "projectileRemove",
+        "id": "341c1849-4994-4abf-bb47-7a54be3b4c2b"
+      },
+      {
+        "at": 1793335044165,
+        "type": "projectileSpawn",
+        "id": "5c9c5f62-6752-4df4-a8fe-62f43e8e0396",
+        "direction": {
+          "x": 0.9706829710177236,
+          "y": 0.10271870152019458,
+          "z": 0.21730954450785234
+        },
+        "position": {
+          "x": -22999.252430375735,
+          "y": 770.726333349449,
+          "z": -12999.950096045979
+        }
+      },
+      {
+        "at": 1793335045897,
+        "type": "projectileSpawn",
+        "id": "a5e74adf-a6ab-4b58-8425-d0c653b9e06c",
+        "direction": {
+          "x": 0.9942726331270825,
+          "y": -0.011710310580451955,
+          "z": 0.1062299375912818
+        },
+        "position": {
+          "x": -22914.77928599386,
+          "y": 788.3764225021409,
+          "z": -12974.498561831038
+        }
+      },
+      {
+        "at": 1793335047259,
+        "type": "projectileRemove",
+        "id": "c78886cb-1f1e-4c84-93ed-7f8a0a988d9b"
+      },
+      {
+        "at": 1793335047729,
+        "type": "projectileSpawn",
+        "id": "610888ed-5c7b-487b-a43b-6844ca475b8d",
+        "direction": {
+          "x": 0.9782658886645393,
+          "y": 0,
+          "z": 0.20735440934636284
+        },
+        "position": {
+          "x": -22842.27629732051,
+          "y": 802.7393255960195,
+          "z": -12953.87150938741
+        }
+      },
+      {
+        "at": 1793335049403,
+        "type": "projectileSpawn",
+        "id": "0cbf9348-6760-4c94-a7a2-455a69d2128a",
+        "direction": {
+          "x": 0.9811148216658935,
+          "y": 0,
+          "z": 0.19342623066043071
+        },
+        "position": {
+          "x": -22783.603618247173,
+          "y": 813.5132357493696,
+          "z": -12938.170957006214
+        }
+      },
+      {
+        "at": 1793335049574,
+        "type": "projectileRemove",
+        "id": "5c9c5f62-6752-4df4-a8fe-62f43e8e0396"
+      },
+      {
+        "at": 1793335050710,
+        "type": "projectileRemove",
+        "id": "a5e74adf-a6ab-4b58-8425-d0c653b9e06c"
+      },
+      {
+        "at": 1793335051056,
+        "type": "projectileSpawn",
+        "id": "7087da4c-77ec-4504-a45d-6002a6f8d00b",
+        "direction": {
+          "x": 0.9871082428848414,
+          "y": 0.012633090528912429,
+          "z": 0.15955476129683266
+        },
+        "position": {
+          "x": -22730.350047890668,
+          "y": 822.3829272550997,
+          "z": -12924.963803298137
+        }
+      },
+      {
+        "at": 1793335052739,
+        "type": "projectileSpawn",
+        "id": "6ffc8ffc-e16a-4540-8440-b7b214b512db",
+        "direction": {
+          "x": 0.9885556702863997,
+          "y": 0.0066614608586447206,
+          "z": 0.1507093616330305
+        },
+        "position": {
+          "x": -22676.107846939758,
+          "y": 830.0181673642898,
+          "z": -12912.520150169354
+        }
+      },
+      {
+        "at": 1793335052875,
+        "type": "projectileRemove",
+        "id": "610888ed-5c7b-487b-a43b-6844ca475b8d"
+      },
+      {
+        "at": 1793335054362,
+        "type": "projectileSpawn",
+        "id": "5e712d92-0d89-4336-9e41-0025b91a589f",
+        "direction": {
+          "x": 0.9889882958835954,
+          "y": 0.00351255659946262,
+          "z": 0.14795206166660085
+        },
+        "position": {
+          "x": -22613.296516007555,
+          "y": 837.2256484830095,
+          "z": -12899.467166210472
+        }
+      },
+      {
+        "at": 1793335055031,
+        "type": "projectileRemove",
+        "id": "0cbf9348-6760-4c94-a7a2-455a69d2128a"
+      },
+      {
+        "at": 1793335057321,
+        "type": "projectileRemove",
+        "id": "7087da4c-77ec-4504-a45d-6002a6f8d00b"
+      },
+      {
+        "at": 1793335058344,
+        "type": "projectileRemove",
+        "id": "6ffc8ffc-e16a-4540-8440-b7b214b512db"
+      },
+      {
+        "at": 1793335060364,
+        "type": "projectileRemove",
+        "id": "5e712d92-0d89-4336-9e41-0025b91a589f"
+      }
+    ],
+    "checks": [
+      "normal keyboard takeoff",
+      "closed-loop keyboard bank/turn and fire; no injected poses or aim"
+    ],
+    "shots": [
+      {
+        "at": 1793335025193,
+        "type": "fire",
+        "clientShotId": "01552741-1751-4a4e-9cd3-3dc35964ac86",
+        "stateSequence": 234,
+        "aimSample": {
+          "from": 72,
+          "to": 73,
+          "blend": 0.28
+        }
+      },
+      {
+        "at": 1793335034123,
+        "type": "fire",
+        "clientShotId": "e389d32c-e14e-46c6-84f8-ea460309eb1a",
+        "stateSequence": 306
+      },
+      {
+        "at": 1793335035475,
+        "type": "fire",
+        "clientShotId": "eeb4f67c-720b-4d8d-b7f2-b531fea8230d",
+        "stateSequence": 320,
+        "aimSample": {
+          "from": 94,
+          "to": 94,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793335037146,
+        "type": "fire",
+        "clientShotId": "c9ebdfc7-1020-4714-b738-e6c307c74aa6",
+        "stateSequence": 338,
+        "aimSample": {
+          "from": 98,
+          "to": 98,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793335038860,
+        "type": "fire",
+        "clientShotId": "eb0d8445-8ad7-4aec-bc9f-ff322bb18f33",
+        "stateSequence": 356
+      },
+      {
+        "at": 1793335040577,
+        "type": "fire",
+        "clientShotId": "5c551319-e66c-401d-93c6-506b65b87032",
+        "stateSequence": 374,
+        "aimSample": {
+          "from": 104,
+          "to": 104,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793335042422,
+        "type": "fire",
+        "clientShotId": "6bd303a7-f53e-4964-84fc-2489c544f1de",
+        "stateSequence": 394
+      },
+      {
+        "at": 1793335044165,
+        "type": "fire",
+        "clientShotId": "8a4bae2f-e2fc-45f5-8d19-93d25e6410cf",
+        "stateSequence": 412,
+        "aimSample": {
+          "from": 112,
+          "to": 112,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793335045897,
+        "type": "fire",
+        "clientShotId": "2a3303bc-0326-4a15-810e-cc41845e6cf5",
+        "stateSequence": 431,
+        "aimSample": {
+          "from": 116,
+          "to": 116,
+          "blend": 1
+        }
+      },
+      {
+        "at": 1793335047729,
+        "type": "fire",
+        "clientShotId": "54e5a1e1-4893-4428-90f9-1b557ee4a965",
+        "stateSequence": 450
+      },
+      {
+        "at": 1793335049403,
+        "type": "fire",
+        "clientShotId": "b0cda03c-e3b0-4ba3-8ff9-65e6e051be8c",
+        "stateSequence": 468
+      },
+      {
+        "at": 1793335051056,
+        "type": "fire",
+        "clientShotId": "dae00f31-fd5c-4568-9335-cc506d3587e6",
+        "stateSequence": 485
+      },
+      {
+        "at": 1793335052739,
+        "type": "fire",
+        "clientShotId": "e3b0de2d-3cd4-41a5-a708-cfe1838d3419",
+        "stateSequence": 503
+      },
+      {
+        "at": 1793335054362,
+        "type": "fire",
+        "clientShotId": "68e2b50c-470d-427b-bc7a-3d36c9dd1b09",
+        "stateSequence": 520
+      }
+    ],
+    "damages": [
+      {
+        "at": 1793335077550,
+        "type": "damage",
+        "playerId": "6cf26035-5b33-4e09-96ef-89478f5a21be",
+        "shooterId": "bot:dallas:26",
+        "health": 190,
+        "maxHealth": 200,
+        "damage": 10,
+        "impactId": "bac528e0-14cb-432a-a18c-51158486a157",
+        "impactPosition": {
+          "x": -21815.14755438014,
+          "y": 871.4714614154753,
+          "z": -12771.847573510635
+        }
+      },
+      {
+        "at": 1793335108343,
+        "type": "damage",
+        "playerId": "6cf26035-5b33-4e09-96ef-89478f5a21be",
+        "shooterId": "bot:dallas:27",
+        "health": 180,
+        "maxHealth": 200,
+        "damage": 10,
+        "impactId": "822b128a-8f07-4201-a9b5-dbace007c486",
+        "impactPosition": {
+          "x": -20786.317191832637,
+          "y": 864.4148105653143,
+          "z": -12611.974423787922
+        }
+      }
+    ],
+    "controls": [
+      {
+        "at": 1793335021118,
+        "distance": 1853.4299007760922,
+        "speed": 391.6070399920175,
+        "yawError": 1.4496903865910855,
+        "pitchError": 0.1627285790682954,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.2999999999999999,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335024175,
+        "distance": 1235.302252480516,
+        "speed": 182.83935999627303,
+        "yawError": -0.05375639797876541,
+        "pitchError": 0.4971335109701019,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.07305486221742123,
+          "y": 2.048576987897551,
+          "z": 0.4216070261042628
+        }
+      },
+      {
+        "at": 1793335027227,
+        "distance": 576.6045472944078,
+        "speed": 299.51679999389467,
+        "yawError": 0.26219529932891383,
+        "pitchError": 0.4762036534337277,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.216226432277434,
+          "y": 2.5079621959905203,
+          "z": 0.4004113172214541
+        }
+      },
+      {
+        "at": 1793335032083,
+        "distance": 831.4118401918004,
+        "speed": 167.19295999659195,
+        "yawError": 0.2802806782965048,
+        "pitchError": -0.1669510320400594,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.43133976934583107,
+          "y": 3.981629618627413,
+          "z": 0.8437271310267888
+        }
+      },
+      {
+        "at": 1793335035141,
+        "distance": 1332.1201111553175,
+        "speed": 160.93439999671952,
+        "yawError": 0.09268707987709426,
+        "pitchError": -0.039777686258665956,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.18120557037908733,
+          "y": 4.31716899078578,
+          "z": 0.83279810211716
+        }
+      },
+      {
+        "at": 1793335038196,
+        "distance": 1830.2031330477553,
+        "speed": 204.29727999583562,
+        "yawError": -0.11354129302723569,
+        "pitchError": -0.06486883229159168,
+        "target": "transport",
+        "transportHealth": 2000,
+        "rotation": {
+          "x": 0.15323112296063676,
+          "y": 4.5813656247383605,
+          "z": 0.18121561613888323
+        }
+      },
+      {
+        "at": 1793335041257,
+        "distance": 2286.7816658746738,
+        "speed": 367.9139199925005,
+        "yawError": -0.022116212799755817,
+        "pitchError": -0.039932459760073445,
+        "target": "transport",
+        "transportHealth": 1960,
+        "rotation": {
+          "x": 0.10001792388241758,
+          "y": 4.5175027800634915,
+          "z": 0.4691089708704917
+        }
+      },
+      {
+        "at": 1793335044312,
+        "distance": 2674.030343920272,
+        "speed": 469.39199999043194,
+        "yawError": 0.038995011442156696,
+        "pitchError": -0.03719126914101918,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.07809389238279543,
+          "y": 4.47360843841484,
+          "z": 0.2603977557323274
+        }
+      },
+      {
+        "at": 1793335047360,
+        "distance": 3100.8962499179156,
+        "speed": 365.23167999255514,
+        "yawError": -0.00951953630490785,
+        "pitchError": 0.028416456682112082,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.533199449109605,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335050408,
+        "distance": 3531.554380061794,
+        "speed": 282.52927999424094,
+        "yawError": -0.00955439891437113,
+        "pitchError": 0.019992980009693632,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 6.938893903907228e-18,
+          "y": 4.5403109336647995,
+          "z": 0.07503644757769146
+        }
+      },
+      {
+        "at": 1793335053453,
+        "distance": 3972.321070046417,
+        "speed": 308.9046399937033,
+        "yawError": -0.02693600735259569,
+        "pitchError": 0.009321461028515022,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.00567656447964578,
+          "y": 4.562124275376881,
+          "z": 4.336878564206685e-19
+        }
+      },
+      {
+        "at": 1793335056502,
+        "distance": 4392.127491218885,
+        "speed": 346.008959992947,
+        "yawError": -0.026488057717442646,
+        "pitchError": 0.010981606795928666,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.564858797194616,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335060723,
+        "distance": 5014.809057439675,
+        "speed": 270.90623999447786,
+        "yawError": -0.023883774294242356,
+        "pitchError": 0.008098563006335827,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565115664752192,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335063772,
+        "distance": 5469.787137457007,
+        "speed": 323.6569599934026,
+        "yawError": -0.022333373989425562,
+        "pitchError": 0.006425712498934159,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.00014054693410372538,
+          "y": 4.565137836570635,
+          "z": -1.3552527289923326e-20
+        }
+      },
+      {
+        "at": 1793335066821,
+        "distance": 5882.941372413673,
+        "speed": 332.1507199932295,
+        "yawError": -0.02118754332077419,
+        "pitchError": 0.005351613000308772,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565140820431064,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335069873,
+        "distance": 6316.104915841924,
+        "speed": 283.4233599942227,
+        "yawError": -0.02020618610286704,
+        "pitchError": 0.004627300473795364,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.56514108815586,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335072924,
+        "distance": 6788.619179641486,
+        "speed": 308.9046399937033,
+        "yawError": -0.019295420281089302,
+        "pitchError": 0.004128231913110368,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.000004881934149982013,
+          "y": 4.5651411199519405,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335075968,
+        "distance": 7225.601503912534,
+        "speed": 359.42015999267363,
+        "yawError": -0.01858888215601848,
+        "pitchError": 0.003732452997792682,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0.0000015928764718193347,
+          "y": 4.565141125742368,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335079021,
+        "distance": 7649.870149898381,
+        "speed": 295.0463999939858,
+        "yawError": -0.01798664067550135,
+        "pitchError": 0.0034644679363476033,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126480037,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335082070,
+        "distance": 8123.395737834344,
+        "speed": 270.90623999447786,
+        "yawError": -0.017367007899444543,
+        "pitchError": 0.003276001101339952,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 1.9899839563051896e-7,
+          "y": 4.5651411265668145,
+          "z": -1.3234889800848704e-23
+        }
+      },
+      {
+        "at": 1793335085122,
+        "distance": 8569.05707669879,
+        "speed": 354.9497599927647,
+        "yawError": -0.016867020070744344,
+        "pitchError": 0.003136308723098406,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 6.492915565664009e-8,
+          "y": 4.565141126582462,
+          "z": 6.617444900424236e-24
+        }
+      },
+      {
+        "at": 1793335088169,
+        "distance": 9001.611079923121,
+        "speed": 316.9513599935393,
+        "yawError": -0.016427166810408986,
+        "pitchError": 0.0030278869874052483,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.5651411265843835,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335091211,
+        "distance": 9459.026625075885,
+        "speed": 274.0355199944141,
+        "yawError": -0.015997717467099305,
+        "pitchError": 0.0029701891667459793,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 8.111613194058847e-9,
+          "y": 4.565141126584719,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335094255,
+        "distance": 9894.240335826124,
+        "speed": 331.2566399932477,
+        "yawError": -0.015629738877857877,
+        "pitchError": 0.0029313595923990098,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 2.6466554870190603e-9,
+          "y": 4.565141126584762,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335097302,
+        "distance": 10328.569744698156,
+        "speed": 345.1148799929652,
+        "yawError": -0.015303216836206812,
+        "pitchError": 0.0029016492863921327,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335100347,
+        "distance": 10777.746373480331,
+        "speed": 281.63519999425915,
+        "yawError": -0.014973315688684185,
+        "pitchError": 0.002878049063528424,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335103394,
+        "distance": 11233.382279427658,
+        "speed": 307.11647999373974,
+        "yawError": -0.014668672257565274,
+        "pitchError": 0.0028719505614742433,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 1.0788351082233325e-10,
+          "y": 4.565141126584765,
+          "z": 1.2924697071141057e-26
+        }
+      },
+      {
+        "at": 1793335106440,
+        "distance": 11677.751694061926,
+        "speed": 357.63199999271006,
+        "yawError": -0.014396878234327313,
+        "pitchError": 0.002854562724901446,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 4.1307828807890435e-11,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335109491,
+        "distance": 12136.137329127167,
+        "speed": 293.25823999402223,
+        "yawError": -0.014133142357545234,
+        "pitchError": 0.0028393339747751624,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335112545,
+        "distance": 12578.209876062834,
+        "speed": 269.5651199945052,
+        "yawError": -0.01389728462598836,
+        "pitchError": 0.002853917237470575,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 5.160595818432473e-12,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335115593,
+        "distance": 13041.472464359636,
+        "speed": 330.8095999932568,
+        "yawError": -0.013662906886185522,
+        "pitchError": 0.002843830626759751,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 1.9759554262707067e-12,
+          "y": 4.565141126584765,
+          "z": 2.0194839173657902e-28
+        }
+      },
+      {
+        "at": 1793335118649,
+        "distance": 13465.455910295896,
+        "speed": 328.5743999933024,
+        "yawError": -0.013477501288178685,
+        "pitchError": 0.0028562459745345788,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335121696,
+        "distance": 13916.521367497011,
+        "speed": 286.9996799941498,
+        "yawError": -0.013282619894871426,
+        "pitchError": 0.0028815785981605004,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335124743,
+        "distance": 14376.151766517683,
+        "speed": 264.6476799946054,
+        "yawError": -0.01308559737970658,
+        "pitchError": 0.0028932782761490958,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 8.054429813780622e-14,
+          "y": 4.565141126584765,
+          "z": -6.310887241768095e-30
+        }
+      },
+      {
+        "at": 1793335127785,
+        "distance": 14804.572310520301,
+        "speed": 351.82047999282855,
+        "yawError": -0.012925568790992803,
+        "pitchError": 0.002920084294293919,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 2.6279977054460294e-14,
+          "y": 4.565141126584765,
+          "z": 1.5777218104420236e-30
+        }
+      },
+      {
+        "at": 1793335130834,
+        "distance": 15258.81285001447,
+        "speed": 327.2332799933297,
+        "yawError": -0.012760835830924331,
+        "pitchError": 0.002923051169228407,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335133881,
+        "distance": 15723.137052532775,
+        "speed": 287.4467199941407,
+        "yawError": -0.012596656215031676,
+        "pitchError": 0.0029343463861291985,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335136930,
+        "distance": 16161.68627479909,
+        "speed": 290.128959994086,
+        "yawError": -0.012454357085476464,
+        "pitchError": 0.0029625757593675565,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 1.2570997983101794e-15,
+          "y": 4.565141126584765,
+          "z": -9.860761315262648e-32
+        }
+      },
+      {
+        "at": 1793335139973,
+        "distance": 16617.820938027384,
+        "speed": 359.42015999267363,
+        "yawError": -0.012313534150523364,
+        "pitchError": 0.0029677424068578714,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 4.813345697337162e-16,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335143022,
+        "distance": 17052.872311737057,
+        "speed": 320.97471999345726,
+        "yawError": -0.01218807145697529,
+        "pitchError": 0.0029737705197997164,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335146068,
+        "distance": 17524.353269063686,
+        "speed": 277.1647999943503,
+        "yawError": -0.01205062830523016,
+        "pitchError": 0.002978200544008296,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 7.05669990369794e-17,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335149122,
+        "distance": 17972.518092749822,
+        "speed": 310.6927999936669,
+        "yawError": -0.011928414938373355,
+        "pitchError": 0.00298008530304731,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 2.7019601915872015e-17,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335152169,
+        "distance": 18405.023492583332,
+        "speed": 348.2441599929014,
+        "yawError": -0.011827809182513005,
+        "pitchError": 0.0029944193261808795,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335155224,
+        "distance": 18870.005142909955,
+        "speed": 283.87039999421364,
+        "yawError": -0.01171266177475403,
+        "pitchError": 0.0029946878833916695,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335158268,
+        "distance": 19335.246815758375,
+        "speed": 286.55263999415894,
+        "yawError": -0.011600045452627694,
+        "pitchError": 0.0029941236017222385,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 1.2924796718229711e-18,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335161317,
+        "distance": 19758.308796885005,
+        "speed": 356.2908799927374,
+        "yawError": -0.011513503644212197,
+        "pitchError": 0.0030078597865180116,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 4.217100018768527e-19,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335164371,
+        "distance": 20217.7176485906,
+        "speed": 317.8454399935211,
+        "yawError": -0.011417031012720824,
+        "pitchError": 0.003004033061903814,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335167425,
+        "distance": 20670.89434098352,
+        "speed": 274.482559994405,
+        "yawError": -0.011321702200955496,
+        "pitchError": 0.003006391392935,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 6.182562227514971e-20,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335170474,
+        "distance": 21140.107102347967,
+        "speed": 332.1507199932295,
+        "yawError": -0.011226917084065955,
+        "pitchError": 0.0030018618975207055,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 2.3672590940139256e-20,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335173518,
+        "distance": 21555.77679496595,
+        "speed": 346.008959992947,
+        "yawError": -0.011158268442787755,
+        "pitchError": 0.0030133680012476424,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335176571,
+        "distance": 22020.969656813555,
+        "speed": 282.0822399942501,
+        "yawError": -0.011072805278821573,
+        "pitchError": 0.003011514830415009,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335179617,
+        "distance": 22479.47501277596,
+        "speed": 285.2115199941863,
+        "yawError": -0.010993622476965758,
+        "pitchError": 0.0030197271890052453,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 9.649469805983819e-22,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      },
+      {
+        "at": 1793335182666,
+        "distance": 22918.04807537791,
+        "speed": 354.50271999277385,
+        "yawError": -0.010922494865800414,
+        "pitchError": 0.003018677912779272,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 3.694713342142849e-22,
+          "y": 4.565141126584765,
+          "z": 4.70197740328915e-38
+        }
+      },
+      {
+        "at": 1793335185720,
+        "distance": 23371.76359950305,
+        "speed": 316.5043199935484,
+        "yawError": -0.010851204509457734,
+        "pitchError": 0.003015018132114499,
+        "target": "transport",
+        "transportHealth": 1880,
+        "rotation": {
+          "x": 0,
+          "y": 4.565141126584765,
+          "z": 0
+        }
+      }
+    ],
+    "transportHealth": 1880,
+    "minTransportHealth": 1880,
+    "body": "☰\nⅡ\n160\n180\n568\nMPH\n2,203\nFT\n♥ FULL REPAIR · 100%\nM8: Rear Guard\n1:54\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n94%\nBLUEJAY 1\n100%\nBLUEJAY 2\n100%\n↑\nTRANSPORT · 23.8 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS",
+    "phase": "RACING",
+    "ownProjectileCount": 14,
+    "afterFailurePhase": "RACING",
+    "afterFailureBody": "☰\nⅡ\n160\n180\n43\nMPH\n2,138\nFT\n♥ FULL REPAIR · 100%\n⚠ ↑\nLOCKED\nM8: Rear Guard\n1:29\nDestroy the transport; escorts are optional\nESCORTS: 2 ACTIVE\nTRANSPORT\n94%\nBLUEJAY 1\n100%\nBLUEJAY 2\n100%\n↑\nTRANSPORT · 28.1 KM\n◀\nW/S Speed\nA/D or ←/→ Turn\n↑/↓ Pitch\nSPACE Fire\nSHIFT Boost\nMouse Drag Camera\nMouse Wheel Zoom\nH Controls\nDALLAS"
+  }
+]

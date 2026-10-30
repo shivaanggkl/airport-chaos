@@ -1,0 +1,20 @@
+TAP version 13
+# (node:52126) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# SKY_DUEL_CLOSURE {"peerId":"755c24dd-1741-4c64-a448-8b234717cfcf","firstIsA":true,"ownId":"4ef2a1e2-8d90-47f8-b96f-8935e5744f5b","countdownIndex":14,"launchIndex":23,"window":[{"type":"skyDuelOpponentReconnected"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"playerState","playerId":"755c24dd-1741-4c64-a448-8b234717cfcf","lifeState":"respawning"}]}
+# SKY_DUEL_CLOSURE {"peerId":"4ef2a1e2-8d90-47f8-b96f-8935e5744f5b","firstIsA":true,"ownId":"755c24dd-1741-4c64-a448-8b234717cfcf","countdownIndex":3,"launchIndex":11,"window":[{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"leaderboard"},{"type":"playerState","playerId":"4ef2a1e2-8d90-47f8-b96f-8935e5744f5b","lifeState":"respawning"}]}
+# Subtest: real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+ok 1 - real two-player combat, reconnect, surrender, payouts, and isolated AI fallback
+  ---
+  duration_ms: 158959.577041
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 159190.964625

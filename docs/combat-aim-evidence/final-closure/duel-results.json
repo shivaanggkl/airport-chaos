@@ -1,0 +1,26 @@
+[
+  {
+    "case": "duel-immediate",
+    "reconnectDelay": 0,
+    "inboundDelay": 0,
+    "exitCode": 0
+  },
+  {
+    "case": "duel-late",
+    "reconnectDelay": 3100,
+    "inboundDelay": 0,
+    "exitCode": 0
+  },
+  {
+    "case": "duel-latency",
+    "reconnectDelay": 1400,
+    "inboundDelay": 180,
+    "exitCode": 0
+  },
+  {
+    "case": "duel-reversed-queue",
+    "reconnectDelay": 2200,
+    "inboundDelay": 180,
+    "exitCode": 0
+  }
+]
