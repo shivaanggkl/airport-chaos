@@ -18,7 +18,7 @@ const paintOrder = [
   'bluejay-classic', 'bluejay-skybolt', 'bluejay-aurora',
   'mammoth-sand', 'mammoth-desert-sand', 'mammoth-arctic-rescue',
   'nightowl-sky-blue', 'nightowl-sunset-red', 'nightowl-forest-green', 'nightowl-premium-gold',
-  'firehawk-inferno',
+  'firehawk-inferno', 'firehawk-midnight-black', 'firehawk-stealth-gray',
 ];
 
 export const storeAircraft = aircraftDisplayOrder.map((type): StoreItem => {
@@ -36,7 +36,9 @@ export const storePaints = paintOrder.map((id): StoreItem => {
   const aircraftType = paint.aircraftRestriction as AircraftType;
   return {
     id, kind: 'paint', aircraftType, name: paint.displayName,
-    subtitle: aircraftType === 'trainer' ? 'BLUEJAY PAINT' : `${aircraftDefinitions[aircraftType].callsign} + APPEARANCE`,
+    subtitle: aircraftType === 'trainer' ? 'BLUEJAY PAINT'
+      : aircraftType === 'fighter' ? 'FIREHAWK + ALL APPEARANCES'
+        : `${aircraftDefinitions[aircraftType].callsign} + APPEARANCE`,
     colors: [paint.visualConfig.base, paint.visualConfig.primary, paint.visualConfig.accent],
     included: paint.unlockType === 'included',
   };

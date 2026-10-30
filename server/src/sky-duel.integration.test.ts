@@ -233,11 +233,20 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     await b.waitFor('skyDuelState', message => message.phase === 'active');
     assert.equal(profiles.getOrCreate(second.pilotId, 'Second').credits, 4500,
       'reconnect never reserves a second stake');
+    b.sendState();
+    await b.waitFor('playerState', message => message.playerId === loadingB.playerBId && message.lifeState === 'alive');
+    b.send('skyDuelGroundCrash');
+    await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) === 1);
+    b.send('skyDuelGroundCrash');
+    await b.waitFor('skyDuelSpawn', message => message.active === true);
+    assert.equal(Math.max(...a.messages.filter(message => message.type === 'skyDuelState')
+      .map(message => Number(firstIsA ? message.scoreA : message.scoreB))), 1,
+    'one crash gives the opponent one point even if the client repeats the report');
     positionForCombat(a, b, spawnA, spawnB);
     const keepState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const fire = setInterval(() => a?.send('fire'), 350);
     try {
-      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 1, 40_000);
+      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 2, 40_000);
     } finally { clearInterval(fire); clearInterval(keepState); }
     a.send('skyDuelSurrender');
     const [resultA, resultB] = await Promise.all([a.waitFor('skyDuelResult'), b.waitFor('skyDuelResult')]);
@@ -289,14 +298,18 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const combatState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const combatFire = setInterval(() => a?.send('fire'), 350);
     try {
-      const win = await a.waitFor('skyDuelResult', message => message.outcome === (thirdIsA ? 'WIN_A' : 'WIN_B'), 85_000);
-      assert.equal(thirdIsA ? win.scoreA : win.scoreB, 3);
-      assert.equal(thirdIsA ? win.scoreB : win.scoreA, 0);
+      const score = await a.waitFor('skyDuelState', message => Number(thirdIsA ? message.scoreA : message.scoreB) >= 3, 85_000);
+      assert.equal(thirdIsA ? score.scoreB : score.scoreA, 0);
+      assert.equal(a.messages.some(message => message.type === 'skyDuelResult' && message.matchId === secondFound.matchId), false,
+        'three points do not end the match before the timer');
     } finally { clearInterval(combatFire); clearInterval(combatState); }
+    b.send('skyDuelSurrender');
+    const win = await a.waitFor('skyDuelResult', message => message.matchId === secondFound.matchId);
+    assert.equal(win.outcome, thirdIsA ? 'WIN_A' : 'WIN_B');
     assert.equal(profiles.getOrCreate(third.pilotId, 'Third').credits, 5500);
     assert.equal(profiles.getOrCreate(fourth.pilotId, 'Fourth').credits, 4500);
-    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').pilotProgress.xp, 40,
-      'the guest winner receives the same server-verified XP');
+    assert.equal(profiles.getOrCreate(third.pilotId, 'Third').pilotProgress.xp, 0,
+      'a forfeit does not grant natural match XP');
     assert.equal(profiles.getOrCreate(fourth.pilotId, 'Fourth').pilotProgress.xp, 0,
       'an inactive guest loser receives no XP');
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sky_duel_receipts').get()?.count, 3);

@@ -44,12 +44,12 @@ export const aircraftVisualConfig = Object.freeze({
   fighter: Object.freeze({
     // Primitive fallback only; the loaded REDSPEAR uses ExhaustSocket_Main.
     effectAnchors: Object.freeze([
-      Object.freeze({ x: 0, y: -0.333, z: 4.259, radius: 0.38 }),
+      Object.freeze({ x: 0, y: -0.386, z: 4.259, radius: 0.38 }),
     ]),
     groundContacts: Object.freeze([
-      Object.freeze({ x: -0.795, y: -1.471, z: 1.142 }),
-      Object.freeze({ x: 0.795, y: -1.471, z: 1.142 }),
-      Object.freeze({ x: 0, y: -1.471, z: -2.086 }),
+      Object.freeze({ x: -0.795, y: -1.524, z: 1.142 }),
+      Object.freeze({ x: 0.795, y: -1.524, z: 1.142 }),
+      Object.freeze({ x: 0, y: -1.524, z: -2.086 }),
     ]),
   }),
 });

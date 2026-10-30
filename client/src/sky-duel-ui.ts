@@ -13,7 +13,7 @@ type DuelMessage = {
   countdownEndsAt?: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number;
   phase?: string; scoreA?: number; scoreB?: number; endsAt?: number; recovered?: boolean;
   outcome?: string; balanceA?: number; balanceB?: number; entry?: number; prize?: number;
-  secondsLeft?: number; reconnectSeconds?: number; boundaryMeters?: number;
+  reconnectSeconds?: number;
   protectedUntil?: number; practice?: boolean; aiOpponent?: boolean;
   opponentDisconnected?: boolean; pilotNameA?: string; pilotNameB?: string;
   rematchAvailable?: boolean; available?: boolean; readyA?: boolean; readyB?: boolean;
@@ -313,7 +313,7 @@ export class SkyDuelUi {
     this.headerElement.querySelector<HTMLElement>('.app-shell-wallet')!.hidden = false;
     if (this.pendingResultAckMatchId && !document.hidden && this.send('skyDuelResultSeen', this.pendingResultAckMatchId))
       this.pendingResultAckMatchId = '';
-    if (this.matchId || this.phase === 'active' || this.phase === 'overtime') return;
+    if (this.matchId || this.phase === 'active') return;
     if (document.hidden) this.leaveBackgroundedSearch();
     if (this.abandonedSearch) { this.send('skyDuelCancel'); this.showEntry(); return; }
     if (!paidEnabled) { this.autoQueue = false; this.showEntry(); return; }
@@ -393,7 +393,7 @@ export class SkyDuelUi {
         this.phase === 'result' && message.matchId === this.resultMatchId) return;
       if (message.type === 'skyDuelLoading' && this.seenMatches.has(message.matchId) && !message.recovered) return;
       if (message.type === 'skyDuelFound' && !message.recovered &&
-        (this.phase === 'countdown' || this.phase === 'launch' || this.phase === 'active' || this.phase === 'overtime')) return;
+        (this.phase === 'countdown' || this.phase === 'launch' || this.phase === 'active')) return;
       this.queuedAt = 0;
       this.autoQueue = false;
       this.matchId = message.matchId;
@@ -472,9 +472,6 @@ export class SkyDuelUi {
       if (this.phase === 'countdown') this.enterCountdown(message.countdownEndsAt ?? this.countdownEndsAt);
       else if (this.phase === 'launch') this.enterLaunch(message);
       else this.clearPresentationTimers();
-    } else if (message.type === 'skyDuelBoundary') {
-      if (message.secondsLeft) this.notify(`RETURN TO BATTLE AREA · ${message.secondsLeft} SEC`);
-      else if (message.boundaryMeters !== undefined) this.notify(`BATTLE EDGE · ${message.boundaryMeters} M`);
     } else if (message.type === 'skyDuelOpponentDisconnected') {
       this.notify(`OPPONENT RECONNECTING · ${message.reconnectSeconds ?? 15} SEC`);
       this.opponentDisconnected = true;
@@ -947,7 +944,7 @@ export class SkyDuelUi {
 
   private enterCountdown(endsAt: number, serverPhase?: string): void {
     this.clearPresentationTimers();
-    if (serverPhase === 'active' || serverPhase === 'overtime') {
+    if (serverPhase === 'active') {
       this.phase = serverPhase;
       this.panel.hidden = true;
       this.headerElement.hidden = true;
@@ -1021,7 +1018,7 @@ export class SkyDuelUi {
 
   private tick(): void {
     if (this.phase === 'countdown') this.renderCountdown();
-    else if (this.phase === 'active' || this.phase === 'overtime') {
+    else if (this.phase === 'active') {
       this.clock.textContent = this.endsAt > 0 ? formatTime(Math.max(0, Math.ceil((this.endsAt - Date.now()) / 1_000))) : '—';
     }
   }

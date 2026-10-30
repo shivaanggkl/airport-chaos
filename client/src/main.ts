@@ -4899,12 +4899,11 @@ type ServerMessage =
   | { type: 'skyDuelError'; reason: string }
   | { type: 'skyDuelLoading'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; entry?: number; prize?: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
   | { type: 'skyDuelFound'; matchId: string; pilotA: string; pilotB: string; pilotAId: string; pilotBId: string; playerAId?: string; playerBId?: string; levelA: number; levelB: number; aircraftA?: string; aircraftB?: string; avatarA?: string; avatarB?: string; countdownEndsAt: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number; entry?: number; prize?: number; protectedUntil: number; practice?: boolean; phase?: string; recovered?: boolean; opponentDisconnected?: boolean }
-  | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'launch' | 'active' | 'overtime'; scoreA: number; scoreB: number; endsAt?: number; countdownEndsAt?: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number }
+  | { type: 'skyDuelState'; matchId: string; phase: 'countdown' | 'launch' | 'active'; scoreA: number; scoreB: number; endsAt?: number; countdownEndsAt?: number; launchStartedAt?: number; launchCountdownAt?: number; launchEndsAt?: number }
   | { type: 'skyDuelResult'; matchId: string; outcome: 'WIN_A' | 'WIN_B' | 'DRAW' | 'CANCELLED'; pilotA: string; pilotB: string; pilotNameA?: string; pilotNameB?: string; levelA?: number; levelB?: number; aiOpponent?: boolean; balanceA?: number; balanceB?: number; scoreA: number; scoreB: number; entry?: number; prize?: number; practice?: boolean; rematchAvailable?: boolean }
   | { type: 'skyDuelRematchState'; matchId: string; available: boolean; readyA: boolean; readyB: boolean; reason?: string }
   | { type: 'skyDuelSpawn'; position: NetworkVector; heading: number; speed: number; health: number; protectedUntil: number; active: boolean }
   | { type: 'skyDuelPractice' }
-  | { type: 'skyDuelBoundary'; secondsLeft?: number; boundaryMeters?: number }
   | { type: 'skyDuelOpponentDisconnected'; reconnectSeconds: number }
   | { type: 'skyDuelOpponentReconnected' }
   | ({ type: 'state' } & NetworkPlayer)
@@ -11629,11 +11628,11 @@ boundSocket.addEventListener('message', (event) => {
   } else if (message.type === 'skyDuelWaiting' || message.type === 'skyDuelCancelled' ||
     message.type === 'skyDuelError' || message.type === 'skyDuelLoading' || message.type === 'skyDuelFound' ||
     message.type === 'skyDuelState' || message.type === 'skyDuelResult' || message.type === 'skyDuelRematchState' ||
-    message.type === 'skyDuelPractice' || message.type === 'skyDuelBoundary' ||
+    message.type === 'skyDuelPractice' ||
     message.type === 'skyDuelOpponentDisconnected' || message.type === 'skyDuelOpponentReconnected') {
     skyDuelUi?.handle(message);
     if (!skyDuelUi?.hasAbandonedSearch() && message.type === 'skyDuelState' &&
-      (message.phase === 'active' || message.phase === 'overtime')) runStarted = true;
+      message.phase === 'active') runStarted = true;
     if (message.type === 'skyDuelState' && message.phase === 'launch') {
       runStarted = false;
       resetFlightLaunchInput();

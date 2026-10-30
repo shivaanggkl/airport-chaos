@@ -33,7 +33,7 @@ import { CrossfireFireCoordinator } from './journey-crossfire.js';
 import { createRearGuardFireState, finalInterceptEscortsCleared, rearGuardTakeoff, rearGuardShooter, rearGuardShotResolved, rearGuardReinforcementsJoined, shouldBeginReinforcements, type RearGuardFireState } from './rear-guard-fire.js';
 import { escapeInterval } from './journey-escape.js';
 import { JOURNEY_PAUSE_LIMIT_MS, JourneyAttemptStore, type JourneyAttempt } from './journey-attempts.js';
-import { localJourneyQaUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
+import { localJourneyQaUnlockEnabled, stagingJourneyQaPilotUnlockEnabled, stagingJourneyQaUnlockEnabled } from './staging-journey-qa.js';
 import { SpeedGateTracker } from './speed-gate-validation.js';
 import { observedChampionshipTouchdown } from './championship-landing.js';
 import { aircraftGroundOffset, airportForCity, cityAirports } from '../../shared/city-airports.mjs';
@@ -69,7 +69,7 @@ import { AdMobSsvVerifier, RewardedAdStore, type RewardedAdClientEvent } from '.
 import { ReferralFlightTracker } from './referral-flight.js';
 import { SkyDuelStore, type DuelOutcome } from './sky-duel-store.js';
 import { closestDuelOpponent, type DuelQueueEntry } from './sky-duel-matchmaking.js';
-import { duelTakedownWinner, duelTimeoutWinner } from './sky-duel-rules.js';
+import { duelTimeoutWinner } from './sky-duel-rules.js';
 import { competitiveModes } from '../../shared/competitive-modes.mjs';
 import { skyDuelAirportIds, skyDuelArenaCenter, skyDuelRunwaySpawn } from './sky-duel-spawn.js';
 
@@ -284,17 +284,16 @@ const flightRecordCandidates = new Map<string, { topSpeed: number; highestAltitu
 type PvpChallenge = { id: string; mode: 'dogfight' | 'airportSprint'; challengerId: string; opponentId: string; cityId: CityId; destinationAirportId?: string; status: 'pending' | 'countdown' | 'active'; expiresAt: number; startsAt?: number };
 const pvpChallenges = new Map<string, PvpChallenge>();
 type SkyDuelSession = {
-  id: string; playerA: string; playerB: string; phase: 'loading' | 'countdown' | 'launch' | 'active' | 'overtime';
+  id: string; playerA: string; playerB: string; phase: 'loading' | 'countdown' | 'launch' | 'active';
   practice?: boolean; aiOpponent?: boolean;
   loadingEndsAt: number; readyA: boolean; readyB: boolean;
   presentationReadyAt: number; presentationReadyA: boolean; presentationReadyB: boolean;
   countdownEndsAt: number; launchStartedAt: number; launchCountdownAt: number; launchEndsAt: number;
-  startedAt: number; overtimeEndsAt: number;
+  startedAt: number;
   scoreA: number; scoreB: number; respawnA: number; respawnB: number;
   disconnectedA: number; disconnectedB: number;
   activeMsA: number; activeMsB: number;
-  outsideA: number; outsideB: number;
-  lastStateAt: number; lastBoundaryAtA: number; lastBoundaryAtB: number;
+  lastStateAt: number;
 };
 const skyDuelQueue = new Map<string, DuelQueueEntry>();
 const skyDuelSessions = new Map<string, SkyDuelSession>();
@@ -308,7 +307,6 @@ const SKY_DUEL_RUNWAY_INTRO_MS = 5_000;
 const SKY_DUEL_RUNWAY_COUNTDOWN_MS = 3_000;
 const skyDuelCenter = skyDuelArenaCenter;
 const skyDuelRunwayElevations = skyDuelAirportIds.map(id => dallasAirportElevations.get(id)!);
-const skyDuelBoundaryRadius = 12_000;
 const skyDuelHealth = 100;
 const skyDuelAiTuning = Object.freeze({
   aircraft: 'fighter' as AircraftType,
@@ -332,7 +330,7 @@ function sameCombatContext(a: PlayerState, b: PlayerState): boolean {
   if (!a.skyDuelMode && !b.skyDuelMode) return true;
   if (!a.skyDuelMatchId || a.skyDuelMatchId !== b.skyDuelMatchId) return false;
   const phase = skyDuelSessions.get(a.skyDuelMatchId)?.phase;
-  return phase === 'active' || phase === 'overtime';
+  return phase === 'active';
 }
 
 function sendSkyDuel(session: SkyDuelSession, message: object): void {
@@ -416,8 +414,7 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
   removePlayerProjectiles(playerId);
   setServerLock(playerId, player);
   sendToPlayer(playerId, { type: 'skyDuelSpawn', position, heading, speed: 0, health: skyDuelHealth,
-    protectedUntil: player.spawnProtectedUntil, active: session.phase === 'active' || session.phase === 'overtime' });
-  sendToPlayer(playerId, { type: 'skyDuelBoundary', secondsLeft: 0 });
+    protectedUntil: player.spawnProtectedUntil, active: session.phase === 'active' });
   sendSkyDuelPeerState(playerId);
 }
 
@@ -469,10 +466,10 @@ function startSkyDuelAiMatch(playerId: string, now: number, paid: boolean): bool
     phase: 'loading', loadingEndsAt: now + 20_000, readyA: false, readyB: true,
     presentationReadyAt: now + (paid ? 1_500 : 0), presentationReadyA: false, presentationReadyB: true,
     countdownEndsAt: 0, launchStartedAt: 0, launchCountdownAt: 0, launchEndsAt: 0,
-    startedAt: 0, overtimeEndsAt: 0,
+    startedAt: 0,
     scoreA: 0, scoreB: 0, respawnA: 0, respawnB: 0,
-    disconnectedA: 0, disconnectedB: 0, activeMsA: 0, activeMsB: 0, outsideA: 0, outsideB: 0,
-    lastStateAt: 0, lastBoundaryAtA: 0, lastBoundaryAtB: 0,
+    disconnectedA: 0, disconnectedB: 0, activeMsA: 0, activeMsB: 0,
+    lastStateAt: 0,
   };
   skyDuelSessions.set(session.id, session);
   player.skyDuelMatchId = session.id;
@@ -506,9 +503,9 @@ function startSkyDuelHumanMatch(playerId: string, opponentId: string, now: numbe
     phase: 'loading', loadingEndsAt: now + 20_000, readyA: false, readyB: false,
     presentationReadyAt: now + 1_500, presentationReadyA: false, presentationReadyB: false,
     countdownEndsAt: 0, launchStartedAt: 0, launchCountdownAt: 0, launchEndsAt: 0,
-    startedAt: 0, overtimeEndsAt: 0,
+    startedAt: 0,
     scoreA: 0, scoreB: 0, respawnA: 0, respawnB: 0, disconnectedA: 0, disconnectedB: 0, activeMsA: 0, activeMsB: 0,
-    outsideA: 0, outsideB: 0, lastStateAt: 0, lastBoundaryAtA: 0, lastBoundaryAtB: 0,
+    lastStateAt: 0,
   };
   skyDuelSessions.set(session.id, session);
   player.skyDuelMatchId = session.id; other.skyDuelMatchId = session.id;
@@ -655,19 +652,21 @@ function skyDuelFinish(session: SkyDuelSession, outcome: DuelOutcome, now: numbe
   console.info('[sky-duel] settled', { matchId: session.id, outcome, scoreA: session.scoreA, scoreB: session.scoreB });
 }
 
-function skyDuelTakedown(victimId: string, killerId: string, now: number): void {
-  const id = players.get(victimId)?.skyDuelMatchId;
-  const session = id && skyDuelSessions.get(id);
-  if (!session || (session.phase !== 'active' && session.phase !== 'overtime') || skyDuelPeer(killerId) !== victimId) return;
-  if (killerId === session.playerA) session.scoreA += 1;
-  else session.scoreB += 1;
-  if (victimId === session.playerA) session.respawnA = now + competitiveModes.skyDuel.respawnMs;
-  else session.respawnB = now + competitiveModes.skyDuel.respawnMs;
-  sendSkyDuel(session, { type: 'skyDuelState', matchId: id, phase: session.phase,
+function skyDuelScoreDestruction(session: SkyDuelSession, victimId: string, now: number): void {
+  if (session.phase !== 'active' || now >= session.startedAt + competitiveModes.skyDuel.durationMs) return;
+  if (victimId === session.playerA) {
+    session.scoreB += 1;
+    session.respawnA = now + competitiveModes.skyDuel.respawnMs;
+  } else if (victimId === session.playerB) {
+    session.scoreA += 1;
+    session.respawnB = now + competitiveModes.skyDuel.respawnMs;
+  }
+}
+
+function sendSkyDuelScore(session: SkyDuelSession): void {
+  sendSkyDuel(session, { type: 'skyDuelState', matchId: session.id, phase: session.phase,
     scoreA: session.scoreA, scoreB: session.scoreB,
-    endsAt: session.phase === 'overtime' ? session.overtimeEndsAt : session.startedAt + competitiveModes.skyDuel.durationMs });
-  const winner = duelTakedownWinner(session.scoreA, session.scoreB, session.phase === 'overtime');
-  if (winner) skyDuelFinish(session, winner, now);
+    endsAt: session.startedAt + competitiveModes.skyDuel.durationMs });
 }
 
 function skyDuelTick(now: number): void {
@@ -778,14 +777,8 @@ function skyDuelTick(now: number): void {
       if (!session.practice) skyDuelStore.start(session.id, now);
     }
     if (session.phase === 'active' && now >= session.startedAt + competitiveModes.skyDuel.durationMs) {
-      const winner = duelTimeoutWinner(session.scoreA, session.scoreB);
-      if (winner) { skyDuelFinish(session, winner, now); continue; }
-      session.phase = 'overtime';
-      session.overtimeEndsAt = now + competitiveModes.skyDuel.overtimeMs;
-      session.lastStateAt = 0;
-    }
-    if (session.phase === 'overtime' && now >= session.overtimeEndsAt) {
-      skyDuelFinish(session, 'DRAW', now); continue;
+      skyDuelFinish(session, duelTimeoutWinner(session.scoreA, session.scoreB), now);
+      continue;
     }
     for (const [playerId, isA] of [[session.playerA, true], [session.playerB, false]] as const) {
       const player = players.get(playerId);
@@ -795,27 +788,6 @@ function skyDuelTick(now: number): void {
         if (isA) session.respawnA = 0; else session.respawnB = 0;
         skyDuelSpawn(playerId, session, now);
       }
-      const outside = Math.hypot(player.position.x - skyDuelCenter.x, player.position.z - skyDuelCenter.z) > skyDuelBoundaryRadius;
-      const boundaryDistance = skyDuelBoundaryRadius - Math.hypot(player.position.x - skyDuelCenter.x, player.position.z - skyDuelCenter.z);
-      const outsideAt = isA ? session.outsideA : session.outsideB;
-      const lastBoundaryAt = isA ? session.lastBoundaryAtA : session.lastBoundaryAtB;
-      if (outside && !outsideAt) {
-        if (isA) session.outsideA = now; else session.outsideB = now;
-        if (isA) session.lastBoundaryAtA = now; else session.lastBoundaryAtB = now;
-        sendToPlayer(playerId, { type: 'skyDuelBoundary', secondsLeft: 10 });
-      } else if (outside && now - outsideAt >= 10_000) {
-        if (isA) session.outsideA = 0; else session.outsideB = 0;
-        skyDuelSpawn(playerId, session, now);
-      } else if (outside && now - lastBoundaryAt >= 1_000) {
-        if (isA) session.lastBoundaryAtA = now; else session.lastBoundaryAtB = now;
-        sendToPlayer(playerId, { type: 'skyDuelBoundary', secondsLeft: Math.ceil((10_000 - (now - outsideAt)) / 1_000) });
-      } else if (!outside && outsideAt) {
-        if (isA) session.outsideA = 0; else session.outsideB = 0;
-        sendToPlayer(playerId, { type: 'skyDuelBoundary', secondsLeft: 0 });
-      } else if (!outside && boundaryDistance < 1_000 && now - lastBoundaryAt >= 1_000) {
-        if (isA) session.lastBoundaryAtA = now; else session.lastBoundaryAtB = now;
-        sendToPlayer(playerId, { type: 'skyDuelBoundary', boundaryMeters: Math.ceil(boundaryDistance) });
-      }
     }
     if (now - session.lastStateAt >= 1_000) {
       session.lastStateAt = now;
@@ -824,7 +796,7 @@ function skyDuelTick(now: number): void {
         launchStartedAt: session.phase === 'launch' ? session.launchStartedAt : undefined,
         launchCountdownAt: session.phase === 'launch' ? session.launchCountdownAt : undefined,
         launchEndsAt: session.phase === 'launch' ? session.launchEndsAt : undefined,
-        endsAt: session.phase === 'overtime' ? session.overtimeEndsAt : session.phase === 'active'
+        endsAt: session.phase === 'active'
           ? session.startedAt + competitiveModes.skyDuel.durationMs : undefined });
     }
   }
@@ -940,7 +912,7 @@ const skyDuelStore = new SkyDuelStore(profileDatabasePath);
 const recoveredSkyDuelMatches = skyDuelStore.refundInterrupted();
 skyDuelStore.reconcileXp();
 if (recoveredSkyDuelMatches.length) console.warn('[sky-duel] refunded interrupted matches', { count: recoveredSkyDuelMatches.length });
-const journeyStore = new JourneyAttemptStore(profileDatabasePath, stagingJourneyQaUnlockAll);
+const journeyStore = new JourneyAttemptStore(profileDatabasePath, stagingJourneyQaUnlockAll, stagingJourneyQaPilotUnlockEnabled());
 const pilotProfileSummaryStore = new PilotProfileSummaryStore(profileDatabasePath);
 const siegeJourneyTerritory = territoriesForCity('dallas').find(territory => territory.id === journeyDallas18.territoryId)!;
 const twoFrontAlpha = territoriesForCity('dallas').find(territory => territory.id === journeyDallas21.alphaTerritoryId)!;
@@ -2033,76 +2005,77 @@ const httpServer = createServer(async (request, response) => {
     const journeyProfile = profileStore.getOrCreate(identity.pilotId, identity.pilotName);
     const dallasUnlocked = journeyProfile.tutorial.dallasUnlocked;
     if (requestUrl.pathname === '/api/journey/dallas' && request.method === 'GET') {
+      const qaMissionAccess = journeyStore.qaMissionAccess(identity.pilotId);
       jsonResponse(response, 200, { missionId: journeyDallas01.id,
         eligible: dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
         ...journeyStore.progress(identity.pilotId), mission02: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas02.id),
         }, mission03: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas02.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas02.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas03.id),
         }, mission04: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas03.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas03.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas04.id),
         }, mission05: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas04.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas04.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas05.id),
         }, mission06: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas05.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas05.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas06.id),
         }, mission07: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas06.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas06.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas07.id),
         }, mission08: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas07.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas07.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas08.id),
         }, mission09: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas08.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas08.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas09.id),
         }, mission10: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas09.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas09.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas10.id),
         }, mission11: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas10.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas10.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas11.id),
         }, mission12: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas11.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas11.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas12.id),
         }, mission13: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas12.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas12.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas13.id),
         }, mission14: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas13.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas13.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas14.id),
         }, mission15: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas14.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas14.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas15.id),
         }, mission16: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas15.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas15.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas16.id),
         }, mission17: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas16.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas16.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas17.id),
         }, mission18: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas17.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas17.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas18.id),
         }, mission19: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas18.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas18.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas19.id),
         }, mission20: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas19.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas19.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas20.id),
         }, mission21: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas20.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas20.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas21.id),
         }, mission22: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas21.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas21.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas22.id),
         }, mission23: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas22.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas22.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas23.id),
         }, mission24: {
-          eligible: (stagingJourneyQaUnlockAll || journeyStore.progress(identity.pilotId, journeyDallas23.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
+          eligible: (qaMissionAccess || journeyStore.progress(identity.pilotId, journeyDallas23.id).completed) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas24.id),
         } }); return;
     }
@@ -5169,7 +5142,7 @@ function canFire(player: PlayerState, now: number): boolean {
 function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
   if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
   if (player.skyDuelMode && !player.skyDuelPractice &&
-    (!player.skyDuelMatchId || !['active', 'overtime'].includes(skyDuelSessions.get(player.skyDuelMatchId)?.phase ?? ''))) return 'lifecycle';
+    (!player.skyDuelMatchId || skyDuelSessions.get(player.skyDuelMatchId)?.phase !== 'active')) return 'lifecycle';
   const interval = player.bot?.journeyEscortMissionId === journeyDallas08.id || player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
     ? journeyDallas08.escortShotSpacingMs : fireIntervalMs(player.aircraftType);
   if (now - player.lastFireAt < interval) return 'cooldown';
@@ -5338,7 +5311,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
         position: victim.position, aircraftType: victim.aircraftType, killerId: ownerId,
         killerDisplayName: owner.displayName, victimDisplayName: victim.displayName,
         killerScore: 0, killerReward: 0 });
-      skyDuelTakedown(victimId, ownerId, now);
+      skyDuelScoreDestruction(session, victimId, now);
+      sendSkyDuelScore(session);
     }
     return true;
   }
@@ -5627,14 +5601,15 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
     if (!session) return false;
     markPlayerDestroyed(firstId, first, now);
     markPlayerDestroyed(secondId, second, now);
-    session.respawnA = now + competitiveModes.skyDuel.respawnMs;
-    session.respawnB = now + competitiveModes.skyDuel.respawnMs;
+    skyDuelScoreDestruction(session, firstId, now);
+    skyDuelScoreDestruction(session, secondId, now);
     for (const [victimId, killerId, victim, killer] of [
       [firstId, secondId, first, second], [secondId, firstId, second, first],
     ] as const) sendSkyDuel(session, { type: 'destroyed', cause: 'collision', playerId: victimId,
       position: victim.position, aircraftType: victim.aircraftType, killerId,
       killerDisplayName: killer.displayName, victimDisplayName: victim.displayName,
       killerScore: 0, killerReward: 0 });
+    sendSkyDuelScore(session);
     return true;
   }
   markPlayerDestroyed(firstId, first, now);
@@ -8215,7 +8190,7 @@ server.on('connection', (socket, request) => {
         launchStartedAt: session.phase === 'launch' ? session.launchStartedAt : undefined,
         launchCountdownAt: session.phase === 'launch' ? session.launchCountdownAt : undefined,
         launchEndsAt: session.phase === 'launch' ? session.launchEndsAt : undefined,
-        endsAt: session.phase === 'overtime' ? session.overtimeEndsAt : session.phase === 'active'
+        endsAt: session.phase === 'active'
           ? session.startedAt + competitiveModes.skyDuel.durationMs : undefined });
     }
   }
@@ -8399,17 +8374,21 @@ server.on('connection', (socket, request) => {
           const session = player.skyDuelMatchId && skyDuelSessions.get(player.skyDuelMatchId);
           if (player.lifeState !== 'alive' || !player.hasRespawnTransform ||
             !session && !player.skyDuelPractice) return;
-          markPlayerDestroyed(playerId, player, Date.now());
+          const now = Date.now();
+          markPlayerDestroyed(playerId, player, now);
           const destroyed = { type: 'destroyed', cause: 'collision', playerId, position: player.position,
             aircraftType: player.aircraftType, killerId: '', killerDisplayName: '',
             victimDisplayName: player.displayName, killerScore: 0, killerReward: 0 };
           if (session) {
             sendSkyDuel(session, destroyed);
-            if (session.playerA === playerId) session.respawnA = Date.now() + competitiveModes.skyDuel.respawnMs;
-            else session.respawnB = Date.now() + competitiveModes.skyDuel.respawnMs;
+            if (session.phase === 'active') {
+              skyDuelScoreDestruction(session, playerId, now);
+              sendSkyDuelScore(session);
+            } else if (session.playerA === playerId) session.respawnA = now + competitiveModes.skyDuel.respawnMs;
+            else session.respawnB = now + competitiveModes.skyDuel.respawnMs;
           } else if (player.skyDuelPractice) {
             sendToPlayer(playerId, destroyed);
-            player.skyDuelPracticeRespawnAt = Date.now() + competitiveModes.skyDuel.respawnMs;
+            player.skyDuelPracticeRespawnAt = now + competitiveModes.skyDuel.respawnMs;
           }
           return;
         }
@@ -8985,7 +8964,7 @@ server.on('connection', (socket, request) => {
       player.hasRespawnTransform = true;
       if (player.skyDuelMatchId && velocityLength >= 10 && player.lifeState === 'alive') {
         const session = skyDuelSessions.get(player.skyDuelMatchId);
-        if (session && (session.phase === 'active' || session.phase === 'overtime')) {
+        if (session?.phase === 'active') {
           const elapsed = Math.min(2_000, Math.max(0, stateSeconds * 1_000));
           if (session.playerA === playerId) session.activeMsA += elapsed;
           else if (session.playerB === playerId) session.activeMsB += elapsed;

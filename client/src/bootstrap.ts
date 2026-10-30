@@ -1859,7 +1859,7 @@ async function unlockStoreItem(item: StoreItem, currency: 'CREDITS' | 'SKY_TOKEN
     gameStore.update(garageProfile, hubAccount.state === 'account');
     audioManager.playPurchaseSuccess();
     hapticsManager.emit('rewardSuccess', `store:${item.id}`);
-    const unlockedName = item.aircraftType === 'fighter' ? 'FIREHAWK + INFERNO'
+    const unlockedName = item.aircraftType === 'fighter' ? 'FIREHAWK + ALL APPEARANCES'
       : item.kind === 'paint' && item.aircraftType !== 'trainer'
         ? `${aircraftDefinitions[item.aircraftType].callsign} + ${item.name}` : item.name;
     return { ok: true, message: `${unlockedName} UNLOCKED` };

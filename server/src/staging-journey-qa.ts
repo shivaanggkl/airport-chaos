@@ -2,7 +2,11 @@
 // marks missions complete or changes the reward and achievement ledgers.
 export function stagingJourneyQaUnlockEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.JOURNEY_STAGING_UNLOCK_ALL === 'true'
-    && env.RENDER_SERVICE_ID === 'srv-db246fflot8c73dp2p40'
+    && stagingJourneyQaPilotUnlockEnabled(env);
+}
+
+export function stagingJourneyQaPilotUnlockEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.RENDER_SERVICE_ID === 'srv-db246fflot8c73dp2p40'
     && env.RENDER_GIT_BRANCH === 'staging';
 }
 

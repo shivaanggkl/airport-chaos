@@ -530,7 +530,7 @@ export class AircraftGarage {
     const missing = Math.max(0, price - (this.profile.skyTokens ?? 0));
     if (missing) { this.onGetTokens?.(missing); return; }
     const aircraft = this.selected;
-    confirmCatalogPurchase('FIREHAWK + INFERNO', 'SKY_TOKENS', price, this.profile.skyTokens ?? 0, () => {
+    confirmCatalogPurchase('FIREHAWK + ALL APPEARANCES', 'SKY_TOKENS', price, this.profile.skyTokens ?? 0, () => {
       if (this.actionPending || this.isPermanentlyOwned(aircraft)) return;
       this.actionPending = true; this.actionMessage = 'UNLOCKING AIRCRAFT…'; this.renderDetails();
       this.onTokenPurchase?.(aircraft);
@@ -621,7 +621,8 @@ export class AircraftGarage {
     tokenBuy.textContent = tokenMissing ? `GET SKY TOKENS · ${tokenPrice?.toLocaleString()} TO UNLOCK` : `UNLOCK — ${tokenPrice?.toLocaleString()} SKY TOKENS`;
     tokenBuy.disabled = this.loadingProfile || this.actionPending || this.tokenCommercePreview;
     tokenBuy.onclick = () => this.requestTokenUnlock();
-    this.element.querySelector<HTMLElement>('[data-garage-action-note]')!.textContent = '';
+    this.element.querySelector<HTMLElement>('[data-garage-action-note]')!.textContent = this.selected === 'fighter' && !owned
+      ? 'ALL FIREHAWK APPEARANCES INCLUDED' : '';
     this.element.querySelector('[data-garage-message]')!.textContent = this.actionMessage;
     const tester = this.element.querySelector<HTMLElement>('[data-garage-tester]')!;
     const premium = this.element.querySelector<HTMLElement>('[data-garage-premium]')!;
@@ -691,7 +692,7 @@ export class AircraftGarage {
       if (!item || price === undefined) return;
       if (balance < price) { if (currency === 'SKY_TOKENS' && this.tokenCommerceEnabled) this.onGetTokens?.(price - balance); return; }
       const name = item.aircraftRestriction === 'trainer' ? item.displayName
-        : item.aircraftRestriction === 'fighter' ? 'FIREHAWK + INFERNO'
+        : item.aircraftRestriction === 'fighter' ? 'FIREHAWK + ALL APPEARANCES'
           : `${aircraftDefinitions[item.aircraftRestriction as AircraftType].callsign} + ${item.displayName}`;
       confirmCatalogPurchase(name, currency, price, balance, () => this.submitCosmeticAction(id, currency));
       return;
