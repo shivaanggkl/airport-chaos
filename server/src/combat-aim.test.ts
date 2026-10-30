@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { performance } from 'node:perf_hooks';
-import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, SMART_ASSIST_CONE, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
@@ -39,7 +39,7 @@ test('one primary target stays stable with 2, 3, 5 and 12 fluctuating enemies; c
             assert.equal(selectCombatTarget(state, enemies, t)?.id, '0');
         }
         enemies[1]!.angle = 0;
-        enemies[0]!.angle = .12;
+        enemies[0]!.angle = .08;
         assert.equal(selectCombatTarget(state, enemies, 1300)?.id, '0');
         assert.equal(selectCombatTarget(state, enemies, 1300 + TARGET_SWITCH_DWELL_MS)?.id, '1');
         enemies[1]!.aligned = false;
@@ -165,7 +165,7 @@ test('red lock requires angular acquisition, feasible travel range and forward a
 });
 
 test('automatic acquisition converges on the nearby off-centre target without a second manual aiming action', () => {
-    const point = {x:200,y:35,z:-730};
+    const point = {x:55,y:8,z:-730};
     const goal = {x:0,y:0}, aim = {x:0,y:0};
     assert.equal(assistedInterceptAim(point,goal),true);
     assert.equal(combatLockReady(point,aim),false);
@@ -207,4 +207,18 @@ test('automatic aim keeps its world direction through player bank, pitch and tur
     assert.deepEqual(rebaseCombatAim(manual,undefined,{x:1,y:1,z:1},{x:0,y:0}),manual,'manual/no-target samples remain aircraft-relative');
     const clamped=rebaseCombatAim({x:0,y:0},{x:0,y:0,z:0},{x:0,y:1,z:0},{x:0,y:0});
     assert.ok(Math.atan(Math.hypot(clamped.x,clamped.y))<=AIM_ENVELOPE+1e-12);
+});
+
+ test('automatic selection cannot acquire or retain targets outside the small forward area', () => {
+    const state: CombatSelection = {challengerSince:0,lastAlignedAt:0};
+    const target = {id:'enemy',angle:SMART_ASSIST_CONE-.0001,distance:800,aligned:true};
+    assert.equal(selectCombatTarget(state,[target],0)?.id,'enemy');
+    target.angle=SMART_ASSIST_CONE+.0001;
+    assert.equal(selectCombatTarget(state,[target],10),undefined,'leaving the area releases immediately, even during turn grace');
+    assert.equal(state.targetId,undefined);
+    assert.equal(selectCombatTarget(state,[target],20),undefined,'being in range cannot acquire a wide target');
+    target.angle=SMART_ASSIST_CONE;
+    assert.equal(selectCombatTarget(state,[target],30)?.id,'enemy','steering back into the boundary reacquires');
+    target.angle=Number.NaN;
+    assert.equal(selectCombatTarget(state,[target],40),undefined);
 });

@@ -3,7 +3,9 @@ import { AIM_ENVELOPE, COMBAT_RANGE, insideDynamicLock, ballisticIntercept } fro
 export const TARGET_SWITCH_DWELL_MS = 120;
 export const TARGET_TURN_GRACE_MS = 300;
 export const TARGET_SWITCH_MARGIN = 0.01;
-export const SMART_ASSIST_CONE = AIM_ENVELOPE;
+// Small automatic acquisition area around the aircraft forward firing guide.
+// About 47px at the standard 590px-high, 58-degree chase view.
+export const SMART_ASSIST_CONE = 5 * Math.PI / 180;
 
 // Once interpolation reaches the current sample, the previous sample no
 // longer contributes to the firing vector and must not extend its lifetime.
@@ -21,8 +23,8 @@ export function combatAimBlend(previousReceivedAt, currentReceivedAt, now) {
 // Inputs are server-filtered candidates. A brief turn may retain selection,
 // but never grants firing assistance to an unaligned or ineligible target.
 export function selectCombatTarget(state, candidates, now) {
-  const current = candidates.find(candidate => candidate.id === state.targetId);
-  const aligned = candidates.filter(candidate => candidate.aligned);
+  const current = candidates.find(candidate => candidate.id === state.targetId && Number.isFinite(candidate.angle) && candidate.angle <= SMART_ASSIST_CONE);
+  const aligned = candidates.filter(candidate => candidate.aligned && Number.isFinite(candidate.angle) && candidate.angle <= SMART_ASSIST_CONE);
   let best;
   for (const candidate of aligned) {
     if (!best || candidate.angle < best.angle || candidate.angle === best.angle &&
@@ -58,14 +60,14 @@ const finiteVector = value => value && [value.x, value.y, value.z].every(Number.
 // does not approximate inherited speed using an unrelated camera vector.
 export const combatIntercept = ballisticIntercept;
 
-// Camera-independent aim goal within the same bounded acquisition area.
+// Predictive bullet lead stays independent of the smaller target-acquisition area.
 // Callers filter the actual target through acquisition first. A moving target
 // can need lead beyond the gun travel; clamp at the edge instead of snapping home.
 export function assistedInterceptAim(localDirection, out) {
   out.x = out.y = 0;
   if (!finiteVector(localDirection) || localDirection.z >= -0.000001) return false;
   const x = localDirection.x / -localDirection.z, y = localDirection.y / -localDirection.z;
-  const radius = Math.hypot(x, y), limit = Math.tan(Math.min(AIM_ENVELOPE, SMART_ASSIST_CONE));
+  const radius = Math.hypot(x, y), limit = Math.tan(AIM_ENVELOPE);
   const scale = radius > limit ? limit / radius : 1;
   out.x = x * scale;
   out.y = y * scale;

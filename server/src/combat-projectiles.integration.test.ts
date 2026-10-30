@@ -168,16 +168,20 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         target.goal = { x: shooter.pose!.x + 200, y: shooter.pose!.y + 35, z: shooter.pose!.z - 730 };
         await wait(() => Math.hypot(target.pose!.x-target.goal!.x, target.pose!.y-target.goal!.y, target.pose!.z-target.goal!.z) < .01 && Math.abs(shooter.yaw) < .001, 'off-centre airborne setup', 10000);
         await delay(300);
+        shooter.send({type:'lock',targetId:target.id});await delay(200);
+        assert.notEqual(shooter.messages.filter(m=>m.type==='lockState').at(-1)?.candidateId,target.id,'wide target cannot acquire just because it is in range');
+        shooter.goalYaw=Math.atan2(shooter.pose!.x-target.pose!.x,shooter.pose!.z-target.pose!.z);
+        await wait(()=>Math.abs(shooter.yaw-shooter.goalYaw)<.001,'pilot steers toward the opponent');
         const acquireStart = shooter.messages.length;
         for (let i=0;i<30;i++) {
             shooter.send({type:'lock', targetId:target.id});
             await delay(100);
             const latest=shooter.messages.filter(m=>m.type==='lockState').at(-1);
-            if(latest?.targetId===target.id && latest.aimX>.2) break;
+            if(latest?.targetId===target.id) break;
         }
         const nearby=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
         assert.equal(nearby.targetId,target.id,'nearby target receives an accurate automatic firing solution');
-        assert.ok(nearby.aimX>.2,'assistance reaches the existing detection area beyond the old 0.10 rad limit');
+        assert.ok(Math.abs(nearby.aimX)<.10,'steering brings the target into the small acquisition area');
         for(const lock of shooter.messages.slice(acquireStart).filter(m=>m.type==='lockState'&&m.targetId===target.id)) {
             const rotation=lock.aimRotation;
             assert.ok(rotation&&lock.leadPoint,'a confirmed lock publishes its authoritative aim frame and intercept');
@@ -190,11 +194,12 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre'),'nearby shot accepted');
         const nearbyShot=shooter.messages.find(m=>m.type==='projectileSpawn' && m.clientShotId==='nearby-offcentre')!;
         await wait(()=>shooter.messages.some(m=>m.type==='damage' && m.impactId===nearbyShot.projectileId),'off-centre target hit by actual travelling bullet');
+        shooter.goalYaw=0;
         target.goal = {x:shooter.pose!.x,y:shooter.pose!.y,z:shooter.pose!.z-1600};
         await wait(()=>Math.hypot(target.pose!.x-target.goal!.x,target.pose!.y-target.goal!.y,target.pose!.z-target.goal!.z)<.01,'moving-contact setup',10000);
         const curveStart=shooter.messages.length;
         for(let segment=0;segment<6;segment++) {
-            target.goal={x:shooter.pose!.x+Math.sin(segment*.4)*180,y:shooter.pose!.y,z:shooter.pose!.z-1600+Math.cos(segment*.4)*80};
+            target.goal={x:shooter.pose!.x+Math.sin(segment*.4)*100,y:shooter.pose!.y,z:shooter.pose!.z-1600+Math.cos(segment*.4)*80};
             target.goalYaw=Math.sin(segment*.4)*.2;target.goalRoll=Math.sin(segment*.4)*.4;
             for(let sample=0;sample<4;sample++) {
                 shooter.send({type:'lock',targetId:target.id});await delay(100);
@@ -208,6 +213,7 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         target.goal.x += 600;
         let movingLocked = false;
         for(let i=0;i<25;i++) {
+            shooter.goalYaw=Math.atan2(shooter.pose!.x-target.pose!.x,shooter.pose!.z-target.pose!.z);
             shooter.send({type:'lock',targetId:target.id});
             await delay(100);
             const sample=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
@@ -219,6 +225,7 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         await wait(()=>shooter.messages.some(m=>m.type==='projectileSpawn' && m.clientShotId==='moving-contact'),'moving shot accepted');
         const movingShot=shooter.messages.find(m=>m.type==='projectileSpawn' && m.clientShotId==='moving-contact')!;
         await wait(()=>shooter.messages.some(m=>m.type==='damage' && m.impactId===movingShot.projectileId),'moving target hit by a travelling round');
+        shooter.goalYaw=0;
         target.goal = {x:shooter.pose!.x,y:shooter.pose!.y,z:shooter.pose!.z-80};
         // Keep sending the real client's 10 Hz aim requests during the approach;
         // movement packets alone are not requests to update assisted firing aim.
@@ -238,7 +245,7 @@ test('real server shots travel before damage, ignore forged geometry, resolve on
         const bankSample=shooter.messages.filter(m=>m.type==='lockState').at(-1)!;
         assert.ok(bankSample.aimRotation,'automatic samples carry their authoritative orientation');
         const bankStart=shooter.messages.length;
-        shooter.goalYaw=.12;shooter.goalPitch=.06;shooter.goalRoll=.5;
+        shooter.goalYaw=.04;shooter.goalPitch=.025;shooter.goalRoll=.5;
         await delay(320);
         assert.equal(shooter.messages.slice(bankStart).some(m=>m.type==='lockState'&&!m.targetId),false,'accepted bank/turn cannot invalidate a stationary world target');
         shooter.send({type:'fire',clientShotId:'banked-saved-aim',aimSample:{from:bankSample.aimId,to:bankSample.aimId,blend:1}});

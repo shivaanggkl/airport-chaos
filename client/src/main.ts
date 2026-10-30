@@ -91,7 +91,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { aimingReticleMarkup } from './aiming-reticle';
-import { rebaseCombatAim, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
+import { SMART_ASSIST_CONE, rebaseCombatAim, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -8549,8 +8549,18 @@ function updateLockCircle(): void {
   const depth = targetPosition
     ? Math.max(1, transportReticleDirection.copy(targetPosition).sub(origin).dot(combatAimForward))
     : COMBAT_RANGE;
-  const confirmedTargetPosition = selectedCombatTarget?.remote.plane.position ??
+  let confirmedTargetPosition = selectedCombatTarget?.remote.plane.position ??
     (serverAimTargetId?.startsWith('transport:') && performance.now() - serverAimReceivedAt <= 500 ? targetPosition : undefined);
+  // Do not let a delayed server sample pull the marker beyond acquisition.
+  if (confirmedTargetPosition) {
+    combatOffset.copy(confirmedTargetPosition).sub(origin);
+    transportReticleDirection.set(0,0,-1).applyQuaternion(muzzleQuaternion);
+    const distance = combatOffset.length();
+    if (distance < .001 || transportReticleDirection.dot(combatOffset) / distance < Math.cos(SMART_ASSIST_CONE)) {
+      confirmedTargetPosition = undefined;
+      combatAimForward.copy(transportReticleDirection);
+    }
+  }
   if (confirmedTargetPosition) lockBoresightPoint.copy(confirmedTargetPosition);
   else lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
   aimClipPoint.set(lockBoresightPoint.x, lockBoresightPoint.y, lockBoresightPoint.z, 1)
@@ -8681,7 +8691,7 @@ function updateCombatTarget(delta = 0): void {
     updateLockCircle();
     return;
   }
-  const minimumForwardDot = Math.cos(AIM_ENVELOPE);
+  const minimumForwardDot = Math.cos(SMART_ASSIST_CONE);
   // This is the same physics-root forward vector and origin used by the
   // server lock predicate. Muzzle sockets are only for projectile visuals.
   combatForward.set(0, 0, -1).applyQuaternion(airplane.quaternion).normalize();

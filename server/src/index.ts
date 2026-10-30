@@ -5217,9 +5217,8 @@ function combatAimCandidates(ownerId: string, owner: PlayerState, now: number): 
     const distance = Math.hypot(offset.x, offset.y, offset.z);
     if (distance < .001 || distance > COMBAT_RANGE) return;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot(forward, normalize(offset)))));
-    const retained = id === owner.assistedAim?.selection.targetId;
-    if (angle > AIM_ENVELOPE + (retained ? .10 : 0) || combatLineBlocked(owner, origin, position)) return;
-    candidates.push({ id, position, velocity, distance, angle, aligned: angle <= AIM_ENVELOPE });
+    if (angle > SMART_ASSIST_CONE || combatLineBlocked(owner, origin, position)) return;
+    candidates.push({ id, position, velocity, distance, angle, aligned: true });
   };
   for (const [id, target] of players) {
     if (id === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
