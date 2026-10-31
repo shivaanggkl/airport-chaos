@@ -509,10 +509,6 @@ export class AircraftGarage {
     const type = this.profile.selectedAircraft;
     this.selected = type;
     renderAircraftDetailPanel(this.equippedPanel, type);
-    const title = this.equippedPanel.querySelector<HTMLElement>('.store-detail-title')!;
-    const callsign = document.createElement('span'); callsign.className = 'garage-aircraft-callsign';
-    callsign.textContent = `"${aircraftDefinitions[type].callsign}"`;
-    title.replaceChildren(document.createTextNode(aircraftDefinitions[type].name), callsign);
     const preview = this.equippedPanel.querySelector<HTMLElement>('.store-detail-preview')!;
     const equippedPaint = this.profile.cosmetics?.equipped?.[`livery:${type}`];
     preview.prepend(this.renderer.domElement);
