@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 
 const html = readFileSync(new URL('../../client/index.html', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
@@ -68,4 +70,24 @@ test('short landscape restores two-column progress and Garage presentation', () 
   assert.match(css, /@media \(max-width: 950px\) and \(orientation: landscape\),\s*\(any-pointer: coarse\) and \(orientation: landscape\) and \(max-height: 520px\) \{[\s\S]*\.pilot-progress-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(css, /\.garage-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\.48fr\) minmax\(270px,\.52fr\);/);
   assert.match(css, /\.garage-preview,[\s\S]*\.garage-preview canvas\s*\{[^}]*height:\s*100%;/);
+});
+
+test('canceling completed training leaves Dallas available to launch', () => {
+  const activate=bootstrap.slice(bootstrap.indexOf('function activateCityJourneyCard('),bootstrap.indexOf('function createMenuCarouselCard('));
+  const training=bootstrap.slice(bootstrap.indexOf('async function startTrainingFromHub('),bootstrap.indexOf('async function enterCity('));
+  const code=ts.transpileModule(activate+training,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  let promptCount=0, dallasLaunches=0;
+  const context={cityJourneyLaunching:false,pendingDallasUnlock:false,cityJourneyMode:'missions',cityJourneyClickBlockedUntil:0,
+    cityJourneyIndex:0,cityJourneyEntries:[{id:'milwaukee'},{id:'dallas'}],authoritativeHomeProfile:{tutorial:{completedAt:1}},
+    performance:{now:()=>1000},HTMLElement:class {},document:{activeElement:null,body:{}},hapticsManager:{emit:()=>{}},
+    cityJourneyState:(entry:{id:string})=>({city:entry,training:entry.id==='milwaukee'}),
+    hubInfoDialog:{openTrainingReplay:()=>{promptCount++;}},chooseCity:()=>{dallasLaunches++;}};
+  runInNewContext(code+"\nactivateCityJourneyCard(0);",context);
+  assert.equal(promptCount,1);
+  assert.equal(context.cityJourneyLaunching,false,'confirmation alone must not latch a launch');
+  // Dismissing the dialog invokes no replay action. Select Dallas next.
+  context.cityJourneyIndex=1;
+  runInNewContext(code+"\nactivateCityJourneyCard(1);",context);
+  assert.equal(dallasLaunches,1,'Dallas accepts the next click after cancellation');
+  assert.equal(context.cityJourneyLaunching,true,'the actual launch still prevents duplicate clicks');
 });

@@ -1721,7 +1721,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-marker { padding: 5px 8px; }
 .mission-objective-arrow { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 174px; min-height: 42px; padding: 5px 9px; }
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
-.mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #flight-reference, #target-feedback, #combat-threat-warning, #combat-message, #leader-message) { display: none !important; }
+.mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #target-feedback, #combat-threat-warning, #combat-message, #leader-message) { display: none !important; }
 .monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle) { display: none !important; }
 .monster-arrival-focus .sky-challenge.journey-hud { background: var(--gameplay-info-card-fill); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 .monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-weight: 800; }
@@ -2569,35 +2569,6 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
   box-shadow: 0 0 7px rgb(255 179 107 / 50%);
 }
 
-#flight-reference {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 128px;
-  height: 22px;
-  opacity: 0.58;
-  transform: translate(-50%, -50%);
-}
-
-#flight-reference span {
-  display: block;
-  flex: 1;
-  height: 1px;
-  background: #e4f7fb;
-  box-shadow: 0 0 5px rgb(188 238 250 / 38%);
-}
-
-#flight-reference i {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border: 1px solid #e4f7fb;
-  border-radius: 50%;
-}
-
 #acquisition-circle, .acquisition-circle {
   position: fixed;
   z-index: 3;
@@ -2712,7 +2683,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 }
 .target-feedback.out-of-range b { color: #ffc36b; }
 .target-feedback.in-range b { color: #9de0ad; }
-.target-feedback span { color: #eef8fa; font-size: 10px; font-weight: 600; }
+.target-feedback span { color: var(--ui-gold); font-size: 10px; font-weight: 600; }
 .target-feedback.hidden { display: none; }
 
 .combat-threat-warning {
@@ -6523,7 +6494,7 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 #game-root .gameplay-info-card.is-multiplayer.has-tutorial .guided-tutorial-panel > :not([data-tutorial-title]):not([data-tutorial-navigation-next]) { display: none !important; }
 #game-root .gameplay-info-card.is-multiplayer.has-tutorial .guided-tutorial-panel > [data-tutorial-title] { margin: 0 0 2px; font-size: 11px; }
 #game-root .gameplay-info-card.is-multiplayer.has-tutorial .tutorial-navigation-next { min-height: 44px; margin: 0; padding: 3px; font-size: 10px; }
-#game-root.noncombat-journey :is(#acquisition-circle, #flight-reference, #target-feedback, [data-touch-control="fire"], [data-desktop-control="fire"]) { display: none !important; }
+#game-root.noncombat-journey :is(#acquisition-circle, #target-feedback, [data-touch-control="fire"], [data-desktop-control="fire"]) { display: none !important; }
 
 @media (orientation: landscape) {
   body.tutorial-flight-active:not([data-tutorial-control="radar"]) .guided-tutorial-panel {

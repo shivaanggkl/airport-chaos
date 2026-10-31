@@ -16,18 +16,18 @@ type Options = {
   onFinished: () => void;
 };
 
-const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail: string; control: string; motion: string }> = {
-  throttle: { title: 'BUILD SPEED', detail: 'Slide the speed lever UP.', control: 'throttle', motion: 'up' },
-  takeoff: { title: 'TAKE OFF', detail: 'Push the joystick UP.', control: 'stick', motion: 'up' },
-  turnLeft: { title: 'TURN LEFT', detail: 'Push the joystick LEFT.', control: 'stick', motion: 'left' },
-  turnRight: { title: 'TURN RIGHT', detail: 'Push the joystick RIGHT.', control: 'stick', motion: 'right' },
-  climb: { title: 'CLIMB', detail: 'Push the joystick UP.', control: 'stick', motion: 'up' },
-  descend: { title: 'DESCEND', detail: 'Pull the joystick DOWN.', control: 'stick', motion: 'down' },
-  cameraLook: { title: 'LOOK AROUND', detail: 'Drag the view.', control: 'view', motion: 'right' },
-  cameraZoom: { title: 'ZOOM', detail: 'Pinch the view.', control: 'view', motion: 'pinch' },
-  approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar, then close the map.', control: 'radar', motion: 'tap' },
-  fire: { title: 'FIRE', detail: 'Hold FIRE. Hit the target six times.', control: 'fire', motion: 'tap' },
-  landing: { title: 'LAND SAFELY', detail: 'Line up with the runway. Lower speed, then descend gently with wings level.', control: 'landing', motion: 'down' },
+const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail: string; after?: string; control: string; motion: string }> = {
+  throttle: { title: 'BUILD SPEED', detail: 'Slide the speed lever up to ', control: 'throttle', motion: 'up' },
+  takeoff: { title: 'TAKE OFF', detail: 'Push the joystick up to ', control: 'stick', motion: 'up' },
+  turnLeft: { title: 'TURN LEFT', detail: 'Push the joystick to ', control: 'stick', motion: 'left' },
+  turnRight: { title: 'TURN RIGHT', detail: 'Push the joystick to ', control: 'stick', motion: 'right' },
+  climb: { title: 'CLIMB', detail: 'Push the joystick up to ', control: 'stick', motion: 'up' },
+  descend: { title: 'DESCEND', detail: 'Pull the joystick down to ', control: 'stick', motion: 'down' },
+  cameraLook: { title: 'LOOK AROUND', detail: 'Drag the view to ', control: 'view', motion: 'right' },
+  cameraZoom: { title: 'ZOOM', detail: 'Pinch the view to ', control: 'view', motion: 'pinch' },
+  approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar to ', after: ', then close the map.', control: 'radar', motion: 'tap' },
+  fire: { title: 'HIT THE TARGET', detail: 'Hold FIRE to ', after: ' six times.', control: 'fire', motion: 'tap' },
+  landing: { title: 'LAND SAFELY', detail: 'Line up, slow down and descend gently to ', control: 'landing', motion: 'down' },
 };
 
 function needsHeldControl(step: TutorialLessonStep): boolean {
@@ -42,6 +42,8 @@ export class TrainingSlides {
   private readonly skip = document.createElement('button');
   private readonly title: HTMLElement;
   private readonly detail: HTMLElement;
+  private readonly tail: HTMLElement;
+  private guidance = '';
   private readonly count: HTMLElement;
   private readonly progress: HTMLElement;
   private readonly timeProgress: HTMLElement;
@@ -65,9 +67,10 @@ export class TrainingSlides {
     this.root.hidden = true;
     this.root.setAttribute('role', 'status');
     this.root.setAttribute('aria-live', 'polite');
-    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2 data-scene-title></h2><p data-scene-detail></p><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
+    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2><span data-scene-detail></span><strong data-scene-title></strong><span data-scene-tail></span></h2><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
     this.title = this.root.querySelector('[data-scene-title]')!;
     this.detail = this.root.querySelector('[data-scene-detail]')!;
+    this.tail = this.root.querySelector('[data-scene-tail]')!;
     this.count = this.root.querySelector('[data-scene-count]')!;
     this.progress = this.root.querySelector('[data-scene-progress]')!;
     this.timeProgress = this.root.querySelector('[data-scene-time]')!;
@@ -151,7 +154,11 @@ export class TrainingSlides {
   }
 
   setGuidance(detail: string): void {
-    if (this.active && !this.completing && this.detail.textContent !== detail) this.detail.textContent = detail;
+    if (!this.active || this.completing || this.guidance === detail) return;
+    this.guidance = detail;
+    this.detail.textContent = '';
+    this.title.textContent = detail;
+    this.tail.textContent = '';
   }
 
   recordAction(step: TutorialLessonStep): void {
@@ -238,6 +245,8 @@ export class TrainingSlides {
     this.saveRetries = 0;
     this.title.textContent = scene.title;
     this.detail.textContent = scene.detail;
+    this.tail.textContent = scene.after ?? '.';
+    this.guidance = '';
     this.count.textContent = String(this.index + 1) + ' / ' + String(trainingSlideIds.length);
     this.status.textContent = '';
     this.status.classList.remove('is-complete');

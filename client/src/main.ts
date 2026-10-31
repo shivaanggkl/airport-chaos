@@ -1,3 +1,4 @@
+import { missionTimePreset } from './mission-time-presets';
 import { transportTuning } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
 import { CrashSequence, type CrashSurface } from './crash-sequence';
@@ -11062,6 +11063,10 @@ boundSocket.addEventListener('message', (event) => {
     const previousHealth = journeyAttempt?.targetHealth;
     if (previousAttempt?.attemptId !== message.attempt.attemptId || ['FAILED','COMPLETED','ABANDONED'].includes(message.attempt.status)) { clearProjectileVisuals(); clearCombatTarget(); }
     journeyAttempt = message.attempt;
+    if (previousAttempt?.missionId !== message.attempt.missionId) {
+      const missionNumber = Number(/^journey-dallas-(\d+)$/.exec(message.attempt.missionId)?.[1]);
+      setLocalTimePreset(missionTimePreset(missionNumber));
+    }
     if (escortHudAttemptId !== message.attempt.attemptId) {
       escortHudAttemptId = message.attempt.attemptId;
       escortHudHealth.fill(null);

@@ -39,7 +39,8 @@ body:has(#game-root.training-screenplay-active) #tutorial-help{display:none!impo
 .training-screenplay header{gap:5px}
 .training-screenplay header small{font-size:10px}
 .training-screenplay [data-scene-count]{color:var(--ui-gold);font:900 11px var(--font-display);white-space:nowrap}
-.training-screenplay h2{margin:0;color:var(--ui-gold);font:900 18px/1.1 var(--font-display);letter-spacing:.05em}
+.training-screenplay h2{margin:0;color:var(--ui-text);font:700 15px/1.35 var(--font-body)}
+.training-screenplay h2 strong{color:var(--ui-gold);font:900 18px/1.1 var(--font-display);letter-spacing:.05em}
 .training-screenplay p{margin:0;color:var(--ui-text);font:700 15px/1.25 var(--font-body)}
 .training-screenplay [data-scene-status]{color:#70e1ff;font:900 11px/1.15 var(--font-display);letter-spacing:.08em}
 .training-screenplay [data-scene-status].is-complete{animation:training-step-complete 650ms ease-out both}
@@ -76,4 +77,4 @@ body:has(#game-root.training-screenplay-active) #tutorial-help{display:none!impo
 @keyframes training-hand-hold{0%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(-15%,-20%) scale(.92)}}
 @keyframes training-hand-tap{0%,100%{transform:translate(-15%,-20%) scale(1)}16%,35%{transform:translate(-15%,-20%) scale(.78)}}
 body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="stick"] [data-touch-control="stick"],body[data-training-slide-control="landing"] [data-touch-control="throttle"],body[data-training-slide-control="landing"] [data-touch-control="stick"],body[data-training-slide-control="fire"] [data-touch-control="fire"],body[data-training-slide-control="aim"] #acquisition-circle{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px}
-@media(max-width:950px) and (orientation:landscape){.training-screenplay{width:min(260px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));gap:5px;padding:8px}.training-screenplay h2{font-size:16px}.training-screenplay p{font-size:13px}.training-screenplay-hand{font-size:40px}}
+@media(max-width:950px) and (orientation:landscape){.training-screenplay{width:min(260px,calc(100vw - var(--safe-area-left) - var(--safe-area-right) - 16px));gap:5px;padding:8px}.training-screenplay h2{font-size:13px}.training-screenplay h2 strong{font-size:16px}.training-screenplay p{font-size:13px}.training-screenplay-hand{font-size:40px}}

@@ -1,3 +1,4 @@
+import { missionTimePreset } from './mission-time-presets';
 import './style.css';
 import { CITY_QUERY_PARAM, activeCityFromUrl, cities, resolveCityTimePreset, type CityDefinition } from './cities';
 import type { CityTimeOfDay } from './city-visuals';
@@ -226,6 +227,7 @@ async function playJourneyMission(): Promise<void> {
   if (journeyLaunchPending) return;
   if (!dallasUnlocked()) return;
   cityJourneyMode = 'missions';
+  const missionNumber = missionJourney.selectedMissionNumber;
   const mission = missionJourney.selectedMissionNumber === 24 ? 'mission-24' : missionJourney.selectedMissionNumber === 23 ? 'mission-23' : missionJourney.selectedMissionNumber === 22 ? 'mission-22' : missionJourney.selectedMissionNumber === 21 ? 'mission-21' : missionJourney.selectedMissionNumber === 20 ? 'mission-20' : missionJourney.selectedMissionNumber === 19 ? 'mission-19' : missionJourney.selectedMissionNumber === 18 ? 'mission-18' : missionJourney.selectedMissionNumber === 17 ? 'mission-17' : missionJourney.selectedMissionNumber === 16 ? 'mission-16' : missionJourney.selectedMissionNumber === 15 ? 'mission-15' : missionJourney.selectedMissionNumber === 14 ? 'mission-14' : missionJourney.selectedMissionNumber === 13 ? 'mission-13' : missionJourney.selectedMissionNumber === 12 ? 'mission-12' : missionJourney.selectedMissionNumber === 11 ? 'mission-11' : missionJourney.selectedMissionNumber === 10 ? 'mission-10' : missionJourney.selectedMissionNumber === 9 ? 'mission-09' : missionJourney.selectedMissionNumber === 8 ? 'mission-08' : missionJourney.selectedMissionNumber === 7 ? 'mission-07' : missionJourney.selectedMissionNumber === 6 ? 'mission-06' : missionJourney.selectedMissionNumber === 5 ? 'mission-05' : missionJourney.selectedMissionNumber === 4 ? 'mission-04' : missionJourney.selectedMissionNumber === 3 ? 'mission-03' : missionJourney.selectedMissionNumber === 2 ? 'mission-02' : 'mission-01';
   journeyLaunchPending = true;
   try {
@@ -242,7 +244,7 @@ async function playJourneyMission(): Promise<void> {
     if (!dallas) throw new Error('Dallas is unavailable');
     missionJourney.hide();
     citySelector.hidden = false;
-    showTimeSelection(dallas, 'MISSION_JOURNEY');
+    await enterCity(dallas, missionTimePreset(missionNumber));
   } catch (error) {
     console.error('[journey] Mission launch failed', error);
     await refreshJourneyProgress();
@@ -2251,6 +2253,7 @@ registerUiBackLayer({
 
 async function startTrainingFromHub(replayConfirmed = false): Promise<void> {
   if (authoritativeHomeProfile?.tutorial?.completedAt && !replayConfirmed) {
+    cityJourneyLaunching = false;
     hubInfoDialog.openTrainingReplay(document.activeElement instanceof HTMLElement ? document.activeElement : document.body,
       () => { void startTrainingFromHub(true); });
     return;
@@ -2259,6 +2262,7 @@ async function startTrainingFromHub(replayConfirmed = false): Promise<void> {
   const city = cities.find((candidate) => candidate.id === 'milwaukee' && candidate.status === 'available');
   if (!city || !cityCapabilities(city.id)?.tutorialEnabled) return;
   recordProductIntent('city_selected', { cityId: city.id });
+  cityJourneyLaunching = true;
   entryState = 'TUTORIAL';
   if (hubPilotMenu.isOpen()) hubPilotMenu.close(false);
   if (garage.isOpen()) garage.close();
@@ -2290,7 +2294,7 @@ async function startTrainingFromHub(replayConfirmed = false): Promise<void> {
 async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false, modeOverride?: LaunchMode): Promise<void> {
   if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
   if (city.status !== 'available' || !city.loadWorld) return;
-  const timePreset = modeOverride === 'sky-duel' ? 'day' : resolveCityTimePreset(city, requestedTimePreset);
+  const timePreset = modeOverride === 'sky-duel' ? 'evening' : resolveCityTimePreset(city, requestedTimePreset);
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && !dallasUnlocked()) { showSelector('Complete Milwaukee training to unlock Dallas.'); return; }
   const launchProgress = authoritativeHomeProfile?.pilotProgress;
   setFlightLaunchAircraft(authoritativeHomeProfile ? {
@@ -2463,7 +2467,7 @@ function showDallasMultiplayerCards(city: CityDefinition, pushHistory = true): v
     enteringSkyDuel = true;
     cards[0]?.setAttribute('aria-disabled', 'true');
     hapticsManager.emit('selection');
-    void enterCity(city, 'day', false, 'sky-duel').catch((error: unknown) => {
+    void enterCity(city, 'evening', false, 'sky-duel').catch((error: unknown) => {
       console.error('[sky-duel] Unable to initialize gameplay.', error);
       enteringSkyDuel = false;
       showDallasMultiplayerCards(city, false);
