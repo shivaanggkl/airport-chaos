@@ -1,12 +1,13 @@
 export type CombatVector = { x: number; y: number; z: number };
 export type CombatCandidate = { id: string; angle: number; distance: number; aligned: boolean };
 export type CombatSelection = { targetId?: string; challengerId?: string; challengerSince: number; lastAlignedAt: number };
+export const COMBAT_DETECTION_RANGE: number;
 export const TARGET_SWITCH_DWELL_MS: number;
 export const TARGET_TURN_GRACE_MS: number;
 export const TARGET_SWITCH_MARGIN: number;
 export const SMART_ASSIST_CONE: number;
 export function combatShotAimSample(from: number, to: number, blend: number): { from: number; to: number; blend: number };
-export function combatAimBlend(previousReceivedAt: number, currentReceivedAt: number, now: number): number;
+export function combatAimBlend(previousReceivedAt: number, currentReceivedAt: number, now: number, locked?: boolean): number;
 export function selectCombatTarget<T extends CombatCandidate>(state: CombatSelection, candidates: T[], now: number): T | undefined;
 export function combatIntercept(origin: CombatVector, shooterVelocity: CombatVector, targetPosition: CombatVector, targetVelocity: CombatVector): { direction: CombatVector; point: CombatVector; speed: number; seconds: number } | null;
 export function assistedInterceptAim(localDirection: CombatVector, out: { x: number; y: number }): boolean;

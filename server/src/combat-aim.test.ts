@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { performance } from 'node:perf_hooks';
-import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, SMART_ASSIST_CONE, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { selectCombatTarget, rebaseCombatAim, combatLockReady, combatIntercept, assistedInterceptAim, combatAimProjection, combatShotAimSample, combatAimBlend, TARGET_SWITCH_DWELL_MS, TARGET_TURN_GRACE_MS, SMART_ASSIST_CONE, COMBAT_DETECTION_RANGE, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
 import { ballisticShotSpeed, COMBAT_RANGE, stepAim, AIM_ENVELOPE, interpolateAim } from '../../shared/protocol.mjs';
 const zero = { x: 0, y: 0, z: 0 };
@@ -221,4 +221,17 @@ test('automatic aim keeps its world direction through player bank, pitch and tur
     assert.equal(selectCombatTarget(state,[target],30)?.id,'enemy','steering back into the boundary reacquires');
     target.angle=Number.NaN;
     assert.equal(selectCombatTarget(state,[target],40),undefined);
+});
+
+test('red-lock shots use the newest issued aim without lagging behind moving targets', () => {
+  assert.equal(combatAimBlend(100,200,210,true),1);
+  assert.deepEqual(combatShotAimSample(10,11,combatAimBlend(100,200,210,true)),{from:11,to:11,blend:1});
+  assert.equal(combatAimBlend(100,200,210,false),.1,'unlocked acquisition keeps its smooth transition');
+});
+test('blue detection beyond firing range never implies a reachable red lock', () => {
+  const state:CombatSelection={challengerSince:0,lastAlignedAt:0};
+  assert.equal(COMBAT_DETECTION_RANGE,COMBAT_RANGE*2);
+  assert.equal(selectCombatTarget(state,[{id:'far',angle:.02,distance:6000,aligned:true}],0)?.id,'far');
+  assert.equal(combatIntercept(zero,zero,{x:0,y:0,z:-6000},zero),null);
+  assert.equal(combatLockReady({x:0,y:0,z:-6000},{x:0,y:0}),false);
 });

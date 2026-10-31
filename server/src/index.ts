@@ -48,7 +48,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { combatIntercept, combatLockReady, rebaseCombatAim, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
+import { COMBAT_DETECTION_RANGE, combatIntercept, combatLockReady, rebaseCombatAim, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
 import { AIM_ENVELOPE, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
@@ -5215,7 +5215,7 @@ function combatAimCandidates(ownerId: string, owner: PlayerState, now: number): 
   const add = (id: string, position: Vector3, velocity: Vector3) => {
     const offset = { x: position.x - origin.x, y: position.y - origin.y, z: position.z - origin.z };
     const distance = Math.hypot(offset.x, offset.y, offset.z);
-    if (distance < .001 || distance > COMBAT_RANGE) return;
+    if (distance < .001 || distance > COMBAT_DETECTION_RANGE) return;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot(forward, normalize(offset)))));
     if (angle > SMART_ASSIST_CONE || combatLineBlocked(owner, origin, position)) return;
     candidates.push({ id, position, velocity, distance, angle, aligned: true });
@@ -5280,10 +5280,12 @@ function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, man
   if (automatic && aim.trackingTargetId === candidate!.id) { aim.x=goal.x; aim.y=goal.y; }
   else stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
   aim.rotation = automatic ? {...owner.rotation} : undefined;
-  if (!automatic || aim.trackingTargetId !== candidate?.id) aim.trackingTargetId = undefined;
+  // Tracking follows an eligible intercept even while red confirmation settles.
+  // Losing red for one update must not restart acquisition on a moving contact.
+  aim.trackingTargetId = automatic ? candidate!.id : undefined;
   aim.updatedAt = now;
-  const targetId = candidate && validDynamicTarget(ownerId, owner, candidate.id, now) ? candidate.id : undefined;
-  if (targetId && automatic) aim.trackingTargetId = targetId;
+  const converged = !automatic || Math.hypot(aim.x-goal.x, aim.y-goal.y) < 1e-6;
+  const targetId = candidate && converged && validDynamicTarget(ownerId, owner, candidate.id, now) ? candidate.id : undefined;
   setServerLock(ownerId, owner, targetId, true);
 }
 

@@ -91,7 +91,7 @@ import {
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
 import { aimingReticleMarkup } from './aiming-reticle';
-import { SMART_ASSIST_CONE, rebaseCombatAim, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
+import { COMBAT_DETECTION_RANGE, SMART_ASSIST_CONE, rebaseCombatAim, combatAimProjection, combatShotAimSample, combatAimBlend } from '../../shared/combat-aim.mjs';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -5665,7 +5665,6 @@ function reconcileRemotePlayers(snapshot: readonly NetworkPlayer[]): void {
 
 const combatForward = new THREE.Vector3();
 const combatOffset = new THREE.Vector3();
-const combatAimForward = new THREE.Vector3();
 const combatInverseQuaternion = new THREE.Quaternion();
 const visualAim = { x: 0, y: 0 };
 const serverAim = { x: 0, y: 0 };
@@ -8543,12 +8542,8 @@ function updateLockCircle(): void {
     ? transportView : undefined;
   getCurrentMuzzleTransform(transportReticleOrigin, transportReticleDirection);
   const origin = transportReticleOrigin;
-  combatAimForward.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
   const targetPosition = selectedCombatTarget?.remote.plane.position ?? (journeyAttempt?.missionId===journeyDallas11.id || journeyAttempt?.missionId===journeyDallas12.id && journeyAttempt.finalPhase !== 'ESCORTS'
     ? transportTarget?.fortressTargetPosition : transportTarget?.position);
-  const depth = targetPosition
-    ? Math.max(1, transportReticleDirection.copy(targetPosition).sub(origin).dot(combatAimForward))
-    : COMBAT_RANGE;
   let confirmedTargetPosition = selectedCombatTarget?.remote.plane.position ??
     (serverAimTargetId?.startsWith('transport:') && performance.now() - serverAimReceivedAt <= 500 ? targetPosition : undefined);
   // Do not let a delayed server sample pull the marker beyond acquisition.
@@ -8558,11 +8553,14 @@ function updateLockCircle(): void {
     const distance = combatOffset.length();
     if (distance < .001 || transportReticleDirection.dot(combatOffset) / distance < Math.cos(SMART_ASSIST_CONE)) {
       confirmedTargetPosition = undefined;
-      combatAimForward.copy(transportReticleDirection);
     }
   }
   if (confirmedTargetPosition) lockBoresightPoint.copy(confirmedTargetPosition);
-  else lockBoresightPoint.copy(origin).addScaledVector(combatAimForward, depth);
+  else {
+    // No target: use the neutral forward guide, never stale target depth/lead.
+    transportReticleDirection.set(0,0,-1).applyQuaternion(muzzleQuaternion);
+    lockBoresightPoint.copy(origin).addScaledVector(transportReticleDirection, COMBAT_RANGE);
+  }
   aimClipPoint.set(lockBoresightPoint.x, lockBoresightPoint.y, lockBoresightPoint.z, 1)
     .applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
   combatAimProjection(aimClipPoint.x, aimClipPoint.y, aimClipPoint.w, window.innerWidth, window.innerHeight, aimScreenPoint);
@@ -8584,7 +8582,8 @@ function updateLockCircle(): void {
   combatMarkerLast.x = aimScreenPoint.x;
   combatMarkerLast.y = aimScreenPoint.y;
   combatMarkerInitialized = true;
-  const enabled = runStarted && !crashed && localLifeState === 'alive' && !journeyPaused && !trainingPaused &&
+  const enabled = markerId !== null && now - serverAimReceivedAt <= 500 &&
+    runStarted && !crashed && localLifeState === 'alive' && !journeyPaused && !trainingPaused &&
     !journeyPreflightActive() && !launchCinematicBlocksInput() && !transportView?.defeatActive && !transportView?.arrivalActive &&
     (!journeyMode || Boolean(journeyAttempt && journeyCombatMissionIds.has(journeyAttempt.missionId)));
   acquisitionCircleElement.style.visibility = enabled ? 'visible' : 'hidden';
@@ -8594,7 +8593,7 @@ function updateLockCircle(): void {
   acquisitionCircleElement.classList.toggle('firing', performance.now() < combatShotPulseUntil);
   acquisitionCircleElement.classList.toggle('confirmed-hit', performance.now() < combatHitFlashUntil);
   acquisitionCircleElement.style.setProperty('--aim-edge-angle', `${aimScreenPoint.angle}rad`);
-  // This is a stable firing guide, not the server's angular eligibility boundary.
+  // Keep the detected-target marker size stable at every distance.
   const radius = 24;
   acquisitionCircleElement.style.left = `${aimScreenPoint.x.toFixed(1)}px`;
   acquisitionCircleElement.style.top = `${aimScreenPoint.y.toFixed(1)}px`;
@@ -8713,14 +8712,13 @@ function updateCombatTarget(delta = 0): void {
     const distance = combatOffset.length();
     if (distance < 0.000001) continue;
     if (distance > COMBAT_RANGE) {
-      if (distance > COMBAT_RANGE * 2) continue;
+      if (distance > COMBAT_DETECTION_RANGE) continue;
       outOfRangeLocalOffset.copy(combatOffset).applyQuaternion(combatInverseQuaternion);
-      if (!insideDynamicLock(outOfRangeLocalOffset.x, outOfRangeLocalOffset.y, outOfRangeLocalOffset.z, visualAim)) continue;
+      if (Math.atan2(Math.hypot(outOfRangeLocalOffset.x, outOfRangeLocalOffset.y), -outOfRangeLocalOffset.z) > SMART_ASSIST_CONE) continue;
       const aimCosine = THREE.MathUtils.clamp((outOfRangeLocalOffset.x * visualAim.x + outOfRangeLocalOffset.y * visualAim.y - outOfRangeLocalOffset.z) /
         (distance * Math.hypot(visualAim.x, visualAim.y, 1)), -1, 1);
       const score = aimTargetScore(Math.acos(aimCosine), distance) - (remote.playerId === rangeFeedbackTargetId ? AIM_SWITCH_MARGIN : 0);
       if (score < outOfRangeScore) { outOfRangeCandidate = remote; outOfRangeDistance = distance; outOfRangeScore = score; }
-      continue;
     }
     combatOffset.multiplyScalar(1 / distance);
     const forwardDot = THREE.MathUtils.clamp(combatForward.dot(combatOffset), -1, 1);
@@ -8758,7 +8756,8 @@ function updateCombatTarget(delta = 0): void {
   if (targetId !== lockedTargetId) lockedTargetId = targetId;
   validateServerLock(targetId, delta);
   const assisted = Boolean(serverCandidate && freshAim);
-  visualAimBlend = combatAimBlend(previousServerAimReceivedAt, serverAimReceivedAt, performance.now());
+  visualAimBlend = combatAimBlend(previousServerAimReceivedAt, serverAimReceivedAt, performance.now(),
+    freshAim && serverLockedTargetId !== null && serverLockedTargetId === serverAimTargetId);
   if (freshAim) {
     rebaseCombatAim(previousServerAim, previousServerAimRotation, airplane.rotation, rebasedPreviousAim);
     rebaseCombatAim(serverAim, serverAimRotation, airplane.rotation, rebasedCurrentAim);
@@ -8790,7 +8789,7 @@ function updateCombatTarget(delta = 0): void {
   updateLockCircle();
   combatLockState = locked ? 'LOCKED' : 'SEARCHING';
   acquisitionCircleElement.classList.toggle('target-near', assisted);
-  showTargetRangeFeedback(candidate, candidateDistance, true, locked);
+  showTargetRangeFeedback(candidate, candidateDistance, candidateDistance <= COMBAT_RANGE, locked);
   for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
   if (combatQaElement) {
     lockTargetProjected.copy(candidate.plane.position).project(camera);

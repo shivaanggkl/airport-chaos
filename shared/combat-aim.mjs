@@ -1,5 +1,6 @@
 import { AIM_ENVELOPE, COMBAT_RANGE, insideDynamicLock, ballisticIntercept } from './protocol.mjs';
 
+export const COMBAT_DETECTION_RANGE = COMBAT_RANGE * 2;
 export const TARGET_SWITCH_DWELL_MS = 120;
 export const TARGET_TURN_GRACE_MS = 300;
 export const TARGET_SWITCH_MARGIN = 0.01;
@@ -13,7 +14,9 @@ export function combatShotAimSample(from, to, blend) {
   return { from: blend === 1 ? to : from, to, blend };
 }
 
-export function combatAimBlend(previousReceivedAt, currentReceivedAt, now) {
+export function combatAimBlend(previousReceivedAt, currentReceivedAt, now, locked = false) {
+  // A red lock and its next shot must use the same current server solution.
+  if (locked) return 1;
   // A delayed update must not restart interpolation through an old sample.
   // Keep a margin inside the server's 600ms contributing-sample lifetime.
   if (now - previousReceivedAt >= 500) return 1;
