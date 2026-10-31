@@ -1,8 +1,8 @@
 // This number is intentionally shared by the browser and the Node server.
 // Increment it whenever a websocket payload changes incompatibly.
-export const PROTOCOL_VERSION = 30;
-// One authoritative range drives acquisition, projectile travel,
-// intercept feasibility, and Hunter firing eligibility.
+export const PROTOCOL_VERSION = 31;
+// One authoritative range drives client acquisition, server assisted-hit
+// validation, unlocked projectile travel, and Hunter firing eligibility.
 export const COMBAT_RANGE = 4500;
 export const BASE_PROJECTILE_SPEED = 520;
 export const FIRE_RATE_PER_SECOND = Object.freeze({
@@ -63,8 +63,39 @@ export function ballisticIntercept(origin, shooterVelocity, targetPosition, targ
 }
 
 // Retain the existing direction-only API for callers that do not need lead time.
+
+// A locked moving escort still takes a real ballistic shot. Lead its current
+// velocity at launch; subsequent turns and world geometry can make it miss.
 export function ballisticInterceptDirection(origin, shooterVelocity, targetPosition, targetVelocity) {
-  return ballisticIntercept(origin, shooterVelocity, targetPosition, targetVelocity)?.direction ?? null;
+  const offset = { x: targetPosition.x - origin.x, y: targetPosition.y - origin.y, z: targetPosition.z - origin.z };
+  const initialDistance = Math.hypot(offset.x, offset.y, offset.z);
+  if (initialDistance < 0.000001 || initialDistance > COMBAT_RANGE) return null;
+  let direction = { x: offset.x / initialDistance, y: offset.y / initialDistance, z: offset.z / initialDistance };
+  let speed = ballisticShotSpeed(shooterVelocity, direction);
+  let travelTime = 0;
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    const a = targetVelocity.x ** 2 + targetVelocity.y ** 2 + targetVelocity.z ** 2 - speed ** 2;
+    const b = 2 * (offset.x * targetVelocity.x + offset.y * targetVelocity.y + offset.z * targetVelocity.z);
+    const c = initialDistance ** 2;
+    const discriminant = b * b - 4 * a * c;
+    if (Math.abs(a) < 0.000001) {
+      if (b >= 0) return null;
+      travelTime = -c / b;
+    } else if (discriminant >= 0) {
+      const root = Math.sqrt(discriminant);
+      const first = (-b - root) / (2 * a);
+      const second = (-b + root) / (2 * a);
+      travelTime = Math.min(first > 0 ? first : Infinity, second > 0 ? second : Infinity);
+    } else return null;
+    if (!Number.isFinite(travelTime) || travelTime <= 0) return null;
+    const x = offset.x + targetVelocity.x * travelTime;
+    const y = offset.y + targetVelocity.y * travelTime;
+    const z = offset.z + targetVelocity.z * travelTime;
+    const distance = Math.hypot(x, y, z);
+    direction = { x: x / distance, y: y / distance, z: z / distance };
+    speed = ballisticShotSpeed(shooterVelocity, direction);
+  }
+  return speed * travelTime <= COMBAT_RANGE ? direction : null;
 }
 // The client renders this angular lock circle; the server validates the same cone.
 // At a 590px-tall, 58° chase view it projects to about a 32px radius.

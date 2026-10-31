@@ -104,14 +104,12 @@ test('client prediction and server projectiles both derive direction from the sh
   const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
   const server = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
   assert.match(client, /projectileDirection\.set\(visualAim\.x, visualAim\.y, -1\)\.normalize\(\)/);
-  assert.match(client, /aimSample:[\s\S]*?combatShotAimSample\(previousAimId, serverAimId, visualAimBlend\)/);
+  assert.match(client, /aimSample: \{ from: previousAimId, to: serverAimId, blend: visualAimBlend \}/);
   assert.match(server, /const shotAim = validatedShotAim\(player, message\.aimSample, now\)/);
   assert.match(server, /rotateLocalYxz\(\{ x: aim\.x, y: aim\.y, z: -1 \}, transform\.rotation\)/);
   assert.match(client, /if \(distance > COMBAT_RANGE\)/);
   assert.match(client, /maxAuthoritativeProjectileAgeMs = \(COMBAT_RANGE \/ BASE_PROJECTILE_SPEED \+ 1\) \* 1_000/);
-  assert.match(server, /if \(!combatLockReady\(local, aim\)\) return undefined/);
-  const sharedAim = readFileSync(new URL('../../shared/combat-aim.mjs', import.meta.url), 'utf8');
-  assert.match(sharedAim, /Math\.hypot\(localPoint\.x, localPoint\.y, localPoint\.z\) <= COMBAT_RANGE/);
+  assert.match(server, /Math\.hypot\(local\.x, local\.y, local\.z\) > COMBAT_RANGE/);
   assert.match(server, /COMBAT_RANGE - projectile\.traveled/);
   assert.match(server, /projectile\.traveled >= COMBAT_RANGE/);
 });

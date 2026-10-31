@@ -48,8 +48,7 @@ import { repairsForCity } from '../../shared/city-repairs.mjs';
 import { cargoCreditReward, challengeCreditReward, economyRewards } from '../../shared/reward-economy.mjs';
 import { creditReceipt } from '../../shared/credit-receipts.mjs';
 import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
-import { COMBAT_DETECTION_RANGE, combatIntercept, combatLockReady, rebaseCombatAim, assistedInterceptAim, selectCombatTarget, SMART_ASSIST_CONE, type CombatCandidate, type CombatSelection } from '../../shared/combat-aim.mjs';
-import { AIM_ENVELOPE, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { AIM_ENVELOPE, AIM_SWITCH_MARGIN, COMBAT_RANGE, fireIntervalMs, projectileDamageForAircraft, aimTargetScore, aimGoal, biasAim, stepAim, interpolateAim, insideDynamicLock, ballisticShotSpeed, PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import { AnalyticsStore, analyticsHost, validAdminPassword, type AnalyticsContext, type AnalyticsEventName } from './analytics.js';
 import { parseClientIntent } from './analytics-catalog.js';
 import { FirehawkPayments } from './firehawk-payments.js';
@@ -111,7 +110,7 @@ type PlayerState = Transform & {
   lastFireAt: number;
   spawnProtectedUntil: number;
   lockedTargetId?: string;
-  assistedAim?: { x: number; y: number; updatedAt: number; targetId?: string; selection: CombatSelection; leadPoint?: Vector3; rotation?: Vector3; trackingTargetId?: string };
+  assistedAim?: { x: number; y: number; updatedAt: number; targetId?: string };
   recentShotIds?: Set<string>;
   acceptedStateSequence?: number;
   aimSamples?: Array<{ id: number; x: number; y: number; at: number; targetId?: string; rotation?: Vector3 }>;
@@ -2647,11 +2646,11 @@ function sendLockState(playerId: string, targetId?: string): void {
   const aim = player.assistedAim;
   for (const [socket, socketPlayerId] of playerSockets) {
     if (socketPlayerId === playerId && socket.readyState === WebSocket.OPEN) {
-      const sample = { id: player.aimSequence = (player.aimSequence ?? 0) + 1, x: aim?.x ?? 0, y: aim?.y ?? 0, at: Date.now(), targetId: aim?.targetId, rotation: aim?.rotation };
+      const sample = { id: player.aimSequence = (player.aimSequence ?? 0) + 1, x: aim?.x ?? 0, y: aim?.y ?? 0, at: Date.now() };
       const samples = player.aimSamples ??= [];
       samples.push(sample);
       if (samples.length > 8) samples.shift();
-      sendSocketMessage(socket, { type: 'lockState', targetId, candidateId: aim?.targetId, aimX: sample.x, aimY: sample.y, aimId: sample.id, aimRotation: sample.rotation, leadPoint: aim?.leadPoint });
+      sendSocketMessage(socket, { type: 'lockState', targetId, candidateId: aim?.targetId, aimX: sample.x, aimY: sample.y, aimId: sample.id });
       return;
     }
   }
@@ -2692,12 +2691,7 @@ function clearLocksForTarget(targetId: string): void {
 
 // Locks are state, not a one-off client request. Re-evaluate every affected
 // city transform so a target leaving the shared cone is cleared immediately.
-const cityLockRefreshAt = new Map<CityId, number>();
 function refreshCityLocks(cityId: CityId, now: number): void {
-  // Movement packets may arrive thousands of times per second. UI lock refresh
-  // is 10 Hz per city; trigger-time eligibility is still checked independently.
-  if (now - (cityLockRefreshAt.get(cityId) ?? -Infinity) < 100) return;
-  cityLockRefreshAt.set(cityId, now);
   for (const [playerId, player] of players) {
     // Bot locks are refreshed by updateBots from botFireSolution; only human
     // assisted locks use currentLockedTarget and assistedAim samples.
@@ -5193,57 +5187,76 @@ function muzzleTransform(transform: Transform): { position: Vector3; direction: 
   };
 }
 
-function dot(left: Vector3, right: Vector3): number {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
-type AimCandidate = CombatCandidate & { position: Vector3; velocity: Vector3 };
-
 function combatLineBlocked(owner: PlayerState, origin: Vector3, end: Vector3): boolean {
   if (owner.skyDuelMode || owner.cityId !== 'dallas') return false;
   const buildings = transportBuildings;
   return segmentBlockedByBuildings(origin, end, buildings) || end.y <= dallasTerrain.elevationAt(end.x, end.z);
 }
 
-function combatAimCandidates(ownerId: string, owner: PlayerState, now: number): AimCandidate[] {
-  const candidates: AimCandidate[] = [];
-  const attemptId = playerJourneyAttempts.get(ownerId);
-  const attempt = attemptId ? journeyStore.get(owner.pilotId, attemptId) : undefined;
-  const transport = attemptId ? transportEncounters.get(attemptId) : undefined;
-  const origin = muzzleTransform(owner).position;
-  const forward = forwardDirection(owner);
-  const add = (id: string, position: Vector3, velocity: Vector3) => {
-    const offset = { x: position.x - origin.x, y: position.y - origin.y, z: position.z - origin.z };
+function validFireTransform(player: PlayerState, candidate: unknown): Transform | undefined {
+  if (!candidate || typeof candidate !== 'object') return undefined;
+  const value = candidate as Partial<Transform>;
+  if (!value.position || !value.rotation || value.aircraftType !== player.aircraftType) return undefined;
+  const values = [value.position.x, value.position.y, value.position.z, value.rotation.x, value.rotation.y, value.rotation.z];
+  if (!values.every(Number.isFinite)) return undefined;
+  const speed = Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z);
+  const envelope = aircraftFlightEnvelope[player.aircraftType];
+  const tolerance = 20 + Math.min(speed, envelope.maxSpeed * envelope.boostMaxSpeed) * 0.35;
+  const positionDelta = Math.hypot(
+    value.position.x - player.position.x,
+    value.position.y - player.position.y,
+    value.position.z - player.position.z,
+  );
+  if (positionDelta > tolerance) return undefined;
+  const proposed = forwardDirection(value as Transform);
+  if (dot(proposed, forwardDirection(player)) < 0.65) return undefined;
+  return value as Transform;
+}
+
+function dot(left: Vector3, right: Vector3): number {
+  return left.x * right.x + left.y * right.y + left.z * right.z;
+}
+
+function closestLockTarget(
+  ownerId: string,
+  player: PlayerState,
+  direction: Vector3,
+  now: number,
+  origin: Vector3 = player.position,
+): [string, PlayerState] | undefined {
+  let closest: [string, PlayerState] | undefined;
+  let closestScore = Number.POSITIVE_INFINITY;
+  let retained: [string, PlayerState] | undefined;
+  let retainedScore = Number.POSITIVE_INFINITY;
+  for (const [targetId, target] of players) {
+    if (
+      targetId === ownerId ||
+      target.entityType !== 'player' ||
+      target.cityId !== player.cityId ||
+      !tutorialCombatPairAllowed(ownerId, player, targetId, target) ||
+      !sameCombatContext(player, target) ||
+      target.lifeState !== 'alive' ||
+      now < target.spawnProtectedUntil ||
+      now - target.lastStateAt > combatTransformFreshMs ||
+      focusedBotInteractionExcluded(ownerId, player, targetId, target)
+    ) continue;
+    const offset = {
+      x: target.position.x - origin.x,
+      y: target.position.y - origin.y,
+      z: target.position.z - origin.z,
+    };
     const distance = Math.hypot(offset.x, offset.y, offset.z);
-    if (distance < .001 || distance > COMBAT_DETECTION_RANGE) return;
-    const angle = Math.acos(Math.max(-1, Math.min(1, dot(forward, normalize(offset)))));
-    if (angle > SMART_ASSIST_CONE || combatLineBlocked(owner, origin, position)) return;
-    candidates.push({ id, position, velocity, distance, angle, aligned: true });
-  };
-  for (const [id, target] of players) {
-    if (id === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
-      target.lifeState !== 'alive' || now < target.spawnProtectedUntil || now - target.lastStateAt > combatTransformFreshMs ||
-      !sameCombatContext(owner, target) || !tutorialCombatPairAllowed(ownerId, owner, id, target) ||
-      focusedBotInteractionExcluded(ownerId, owner, id, target) || playerJourneyRunwayPrep.has(id)) continue;
-    if (transport && (!target.bot?.journeyRearGuardEscort || target.bot.journeyAttemptId !== attemptId)) continue;
-    // Mission phases may protect enemies, but never change how eligible targets are aimed at.
-    if (target.bot?.journeyRearGuardEscort && attempt?.missionId === journeyDallas12.id && attempt.finalPhase !== 'ESCORTS') continue;
-    add(id, target.position, target.velocity);
-  }
-  if (transport && attempt?.status === 'RACING' && attempt.deadlineAt !== null && now < attempt.deadlineAt &&
-    transport.playerId === ownerId && !(attempt.missionId === journeyDallas12.id && attempt.finalPhase === 'ESCORTS')) {
-    const pose = transportPose(now - transport.startedAt, transport.altitude, transport.durationMs);
-    let position: Vector3 = { x: pose.x, y: pose.y + 12, z: pose.z };
-    if (transport.fortressTurrets) {
-      const parts: ('left' | 'right' | 'core')[] = transport.fortressTurrets.every(health => health <= 0)
-        ? ['core'] : transport.fortressTurrets.flatMap((health, index) => health > 0 ? [index === 0 ? 'left' as const : 'right' as const] : []);
-      const points = parts.map(part => transportFortressTarget(pose, part));
-      position = points.sort((a, b) => dot(normalize({ x: b.x-origin.x, y:b.y-origin.y,z:b.z-origin.z }), forward) -
-        dot(normalize({x:a.x-origin.x,y:a.y-origin.y,z:a.z-origin.z}),forward))[0]!;
+    if (distance > COMBAT_RANGE) continue;
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot(direction, normalize(offset)))));
+    if (distance < 0.000001 || angle > AIM_ENVELOPE) continue;
+    const score = aimTargetScore(angle, distance);
+    if (targetId === player.assistedAim?.targetId) { retained = [targetId, target]; retainedScore = score; }
+    if (score < closestScore) {
+      closest = [targetId, target];
+      closestScore = score;
     }
-    add(`transport:${attemptId}`, position, pose.velocity);
   }
-  return candidates;
+  return retained && retainedScore <= closestScore + AIM_SWITCH_MARGIN ? retained : closest;
 }
 
 function targetInAircraftSpace(transform: Transform, target: Pick<PlayerState,'position'>): Vector3 {
@@ -5256,51 +5269,58 @@ function targetInAircraftSpace(transform: Transform, target: Pick<PlayerState,'p
 }
 
 function updateAssistedAim(ownerId: string, owner: PlayerState, now: number, manualHorizontal: unknown, manualVertical: unknown): void {
-  if (owner.assistedAim && now - owner.assistedAim.updatedAt < 50) return;
-  const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now,
-    selection: { challengerSince: now, lastAlignedAt: now } };
-  if (aim.rotation) rebaseCombatAim(aim, aim.rotation, owner.rotation, aim);
-  const candidates = owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
-    ? combatAimCandidates(ownerId, owner, now) : [];
-  const candidate = selectCombatTarget(aim.selection, candidates, now);
-  aim.targetId = candidate?.id;
-  aim.leadPoint = undefined;
+  const aim = owner.assistedAim ??= { x: 0, y: 0, updatedAt: now };
+  const transportId = playerJourneyAttempts.get(ownerId), transport = transportId ? transportEncounters.get(transportId) : undefined;
+  const candidate = (!transport || transport.durationMs === journeyDallas08.timeLimitMs || transport.durationMs === journeyDallas09.timeLimitMs || transport.durationMs === journeyDallas12.timeLimitMs && transport.fortressGunsEnabled === false) && owner.lifeState === 'alive' && now - owner.lastStateAt <= combatTransformFreshMs
+    ? closestLockTarget(ownerId, owner, forwardDirection(owner), now) : undefined;
   const goal = { x: 0, y: 0 };
-  if (candidate?.aligned) {
-    const muzzle = muzzleTransform(owner).position;
-    const intercept = combatIntercept(muzzle, owner.velocity, candidate.position, candidate.velocity);
-    if (intercept && !combatLineBlocked(owner, muzzle, intercept.point)) {
-      aim.leadPoint = intercept.point;
-      const local = targetInAircraftSpace({ ...owner, position: muzzle }, { position: intercept.point });
-      if (candidate.angle <= SMART_ASSIST_CONE) assistedInterceptAim(local, goal);
+  aim.targetId = candidate?.[0];
+  if (candidate) {
+    const local = targetInAircraftSpace(owner, candidate[1]);
+    aimGoal(local.x, local.y, local.z, goal);
+  }
+  if(transport && !candidate && transport.fortressGunsEnabled !== false && transport.playerId===ownerId && owner.lifeState==='alive' && now-transport.startedAt<transport.durationMs){
+    const pose=transportPose(now-transport.startedAt,transport.altitude,transport.durationMs);
+    const fortress=transport.fortressTurrets;
+    const possible:('left'|'right'|'core')[]=fortress
+      ? fortress[0]<=0 && fortress[1]<=0 ? ['core'] : [fortress[0]>0?'left':null,fortress[1]>0?'right':null].filter((side):side is 'left'|'right'=>side!==null)
+      : [];
+    const forward=forwardDirection(owner);
+    const point=possible.length ? possible.map(side=>transportFortressTarget(pose,side)).sort((a,b)=>
+      dot({x:b.x-owner.position.x,y:b.y-owner.position.y,z:b.z-owner.position.z},forward)/Math.hypot(b.x-owner.position.x,b.y-owner.position.y,b.z-owner.position.z)
+      -dot({x:a.x-owner.position.x,y:a.y-owner.position.y,z:a.z-owner.position.z},forward)/Math.hypot(a.x-owner.position.x,a.y-owner.position.y,a.z-owner.position.z))[0]!
+      : {x:pose.x,y:pose.y+12,z:pose.z};
+    const offset={x:point.x-owner.position.x,y:point.y-owner.position.y,z:point.z-owner.position.z};
+    const distance=Math.hypot(offset.x,offset.y,offset.z);
+    if(distance>0 && distance<=COMBAT_RANGE){
+      const direction={x:offset.x/distance,y:offset.y/distance,z:offset.z/distance},speed=ballisticShotSpeed(owner.velocity,direction),v=pose.velocity;
+      const qa=v.x*v.x+v.y*v.y+v.z*v.z-speed*speed,qb=2*(offset.x*v.x+offset.y*v.y+offset.z*v.z),qc=distance*distance,disc=qb*qb-4*qa*qc;
+      const lead=disc>=0 && qa<0?Math.min(COMBAT_RANGE/speed,Math.max(0,(-qb-Math.sqrt(disc))/(2*qa))):0;
+      const local=targetInAircraftSpace(owner,{position:{x:point.x+v.x*lead,y:point.y,z:point.z+v.z*lead}});
+      if(aimGoal(local.x,local.y,local.z,goal))aim.targetId=`transport:${transport.attemptId}`;
     }
   }
-  const automatic = Boolean(candidate?.aligned && aim.leadPoint && !manualHorizontal && !manualVertical);
   if (owner.lifeState === 'alive') biasAim(goal, manualHorizontal, manualVertical);
-  if (automatic && aim.trackingTargetId === candidate!.id) { aim.x=goal.x; aim.y=goal.y; }
-  else stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
-  aim.rotation = automatic ? {...owner.rotation} : undefined;
-  // Tracking follows an eligible intercept even while red confirmation settles.
-  // Losing red for one update must not restart acquisition on a moving contact.
-  aim.trackingTargetId = automatic ? candidate!.id : undefined;
+  stepAim(aim, goal, (now - aim.updatedAt) / 1000, AIM_ENVELOPE);
   aim.updatedAt = now;
-  const converged = !automatic || Math.hypot(aim.x-goal.x, aim.y-goal.y) < 1e-6;
-  const targetId = candidate && converged && validDynamicTarget(ownerId, owner, candidate.id, now) ? candidate.id : undefined;
+  const targetId = candidate && validDynamicTarget(ownerId, owner, candidate[0], now) ? candidate[0] : undefined;
   setServerLock(ownerId, owner, targetId, true);
 }
 
-function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: string, now: number, transform: Transform = owner): Pick<PlayerState, 'position'> | undefined {
+function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: string, now: number, transform: Transform = owner): PlayerState | undefined {
   const aim = owner.assistedAim;
-  if (!aim || aim.targetId !== targetId || !aim.leadPoint || now - aim.updatedAt > 500 ||
-    owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs) return undefined;
-  const candidate = combatAimCandidates(ownerId, owner, now).find(item => item.id === targetId && item.aligned);
-  if (!candidate) return undefined;
-  const muzzle = muzzleTransform(transform).position;
-  const intercept = combatIntercept(muzzle, owner.velocity, candidate.position, candidate.velocity);
-  if (!intercept || combatLineBlocked(owner, muzzle, intercept.point)) return undefined;
-  const local = targetInAircraftSpace({ ...transform, position: muzzle }, { position: intercept.point });
-  if (!combatLockReady(local, aim)) return undefined;
-  return candidate;
+  const target = players.get(targetId);
+  if (!aim || aim.targetId !== targetId || now - aim.updatedAt > 500 ||
+      owner.lifeState !== 'alive' || now - owner.lastStateAt > combatTransformFreshMs ||
+      !target || targetId === ownerId || target.entityType !== 'player' || target.cityId !== owner.cityId ||
+      !sameCombatContext(owner, target) ||
+      focusedBotInteractionExcluded(ownerId, owner, targetId, target) ||
+      !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
+      target.lifeState !== 'alive' || now < target.spawnProtectedUntil ||
+      now - target.lastStateAt > combatTransformFreshMs) return undefined;
+  const local = targetInAircraftSpace(transform, target);
+  if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
+  return target;
 }
 
 // The lock displayed to the shooter and the eligibility check at trigger time
@@ -5311,7 +5331,7 @@ function currentLockedTarget(
   targetId: string | undefined,
   now: number,
   fireTransform?: Transform,
-): Pick<PlayerState, 'position'> | undefined {
+): PlayerState | undefined {
   if (!targetId || owner.lockedTargetId !== targetId) return undefined;
   const transform = fireTransform ?? owner;
   return validDynamicTarget(ownerId, owner, targetId, now, transform);
@@ -5339,18 +5359,43 @@ function logFireBlocked(playerId: string, reason: string, now = Date.now()): voi
   console.info(`[combat] FIRE_BLOCKED ${reason} player=${playerId.slice(0, 8)}`);
 }
 
+function logLockShotReject(
+  ownerId: string,
+  owner: PlayerState,
+  targetId: string | undefined,
+  fireTransform: Transform | undefined,
+  reason: string,
+  now = Date.now(),
+): void {
+  if (!stabilityDiagnosticsEnabled) return;
+  const key = `${ownerId}:lock-shot:${reason}`;
+  if (now - (fireBlockedDebugAt.get(key) ?? 0) < 1_000) return;
+  fireBlockedDebugAt.set(key, now);
+  const transform = fireTransform ?? owner;
+  const target = targetId ? players.get(targetId) : undefined;
+  const offset = target ? {
+    x: target.position.x - transform.position.x,
+    y: target.position.y - transform.position.y,
+    z: target.position.z - transform.position.z,
+  } : undefined;
+  const distance = offset ? Math.hypot(offset.x, offset.y, offset.z) : Number.NaN;
+  const angle = offset && distance > 0
+    ? Math.acos(Math.max(-1, Math.min(1, dot(forwardDirection(transform), normalize(offset)))))
+    : Number.NaN;
+  console.info(`[combat] LOCK_SHOT_REJECT ${reason} distance=${Number.isFinite(distance) ? distance.toFixed(1) : 'n/a'}m angle=${Number.isFinite(angle) ? (angle * 180 / Math.PI).toFixed(2) : 'n/a'}deg player=${ownerId.slice(0, 8)}`);
+}
+
 function validatedShotAim(player: PlayerState, reference: unknown, now: number): { x: number; y: number } | undefined {
   const neutral = { x: 0, y: 0 };
   if (reference === undefined) return neutral;
   if (!reference || typeof reference !== 'object') return undefined;
   const ref = reference as { from?: number; to?: number; blend?: number };
   if (!Number.isFinite(ref.blend) || ref.blend! < 0 || ref.blend! > 1) return undefined;
+  if (ref.from === 0 && ref.to === 0 && !player.aimSamples?.length) return neutral;
   const from = player.aimSamples?.find(sample => sample.id === ref.from);
   const to = player.aimSamples?.find(sample => sample.id === ref.to);
   if (!from || !to || from.id > to.id || now - from.at > 600 || now - to.at > 500) return undefined;
-  const rebasedFrom = rebaseCombatAim(from, from.rotation, player.rotation, {x:0,y:0});
-  const rebasedTo = rebaseCombatAim(to, to.rotation, player.rotation, {x:0,y:0});
-  return interpolateAim(rebasedFrom, rebasedTo, ref.blend!, neutral);
+  return interpolateAim(from, to, ref.blend!, neutral);
 }
 
 function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }, damageOverride?: number): boolean {
@@ -5795,6 +5840,45 @@ function applyAircraftCollision(firstId: string, secondId: string, now: number):
   updateKing(first.cityId);
   handleWantedDestruction(secondId, firstId, now);
   handleWantedDestruction(firstId, secondId, now);
+  return true;
+}
+
+function createAssistedShot(
+  playerId: string,
+  player: PlayerState,
+  targetId: string,
+  clientShotId: string | undefined,
+  fireTransform: Transform | undefined,
+  shotAim: { x: number; y: number },
+): boolean {
+  const now = Date.now();
+  const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
+  if (!target || !canFire(player, now)) return false;
+  const local = targetInAircraftSpace(fireTransform ?? player, target);
+  if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
+  player.lastFireAt = now;
+  sendIncomingFire(targetId, playerId);
+  const muzzle = muzzleTransform(fireTransform ?? player);
+  const assistedShot = {
+    type: 'assistedShot',
+    shotId: randomUUID(),
+    ownerId: playerId,
+    targetId,
+    origin: muzzle.position,
+    targetPosition: target.position,
+    clientShotId,
+  };
+  if (player.skyDuelMatchId) {
+    const session = skyDuelSessions.get(player.skyDuelMatchId);
+    if (session) sendSkyDuel(session, assistedShot);
+  } else if (target.bot?.journeyRearGuardEscort) sendToPlayer(playerId, assistedShot);
+  else broadcastToCity(player.cityId, assistedShot);
+  // A server-valid lock is an assisted hit.  Damage can only fail here if a
+  // concurrent lifecycle transition made the target invalid after validation;
+  // do not turn that already-emitted assisted shot into a second ballistic one.
+  if (!applyCombatHit(playerId, targetId, player.cityId, now, projectileDamageForAircraft(player.aircraftType), Math.hypot(local.x, local.y, local.z))) {
+    logLockShotReject(playerId, player, targetId, fireTransform, 'damage_state_changed', now);
+  }
   return true;
 }
 
@@ -7775,8 +7859,6 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
     player.lastFireAt = shift(player.lastFireAt);
     if (player.assistedAim) {
       player.assistedAim.updatedAt = shift(player.assistedAim.updatedAt);
-      player.assistedAim.selection.lastAlignedAt = shift(player.assistedAim.selection.lastAlignedAt);
-      player.assistedAim.selection.challengerSince = shift(player.assistedAim.selection.challengerSince);
     }
     for (const sample of player.aimSamples ?? []) sample.at = shift(sample.at);
     if (player.missionLastFlightAt !== undefined) player.missionLastFlightAt = shift(player.missionLastFlightAt);
@@ -8990,25 +9072,45 @@ server.on('connection', (socket, request) => {
         const blocked = fireBlockReason(player, now);
         if (blocked) {
           logFireBlocked(playerId, blocked, now);
-          if (typeof message.clientShotId === 'string' && message.clientShotId.length <= 80) sendToPlayer(playerId, { type: 'shotRejected', clientShotId: message.clientShotId });
           return;
         }
         const clientShotId = typeof message.clientShotId === 'string' && message.clientShotId.length <= 80
           ? message.clientShotId
           : undefined;
+        // Preserve current replay protection around the restored assisted-hit path.
         if (clientShotId && player.recentShotIds?.has(clientShotId)) return;
         if (clientShotId) {
           const ids = player.recentShotIds ??= new Set<string>();
           ids.add(clientShotId);
           if (ids.size > 128) ids.delete(ids.values().next().value!);
         }
+        const requestedTargetId = typeof message.targetId === 'string' ? message.targetId : undefined;
+        const fireTransform = validFireTransform(player, message.transform);
         const shotAim = validatedShotAim(player, message.aimSample, now);
-        if (!shotAim || message.stateSequence !== undefined && message.stateSequence !== player.acceptedStateSequence ||
-          now - player.lastAcceptedTransformAt > combatTransformFreshMs ||
-          !createProjectile(playerId, player, clientShotId, undefined, shotAim)) {
-          if (clientShotId) sendToPlayer(playerId, { type: 'shotRejected', clientShotId });
-        } else if (currentLockedTarget(playerId, player, player.lockedTargetId, now)) {
-          sendIncomingFire(player.lockedTargetId!, playerId);
+        if (!shotAim || now-player.lastAcceptedTransformAt > combatTransformFreshMs) {
+          if (clientShotId) sendToPlayer(playerId,{type:'shotRejected',clientShotId});
+          return;
+        }
+        const assisted = requestedTargetId && requestedTargetId === player.lockedTargetId
+          ? createAssistedShot(playerId, player, requestedTargetId, clientShotId, fireTransform, shotAim)
+          : false;
+        if (requestedTargetId && !assisted && !players.get(requestedTargetId)?.bot?.journeyRearGuardEscort) {
+          logLockShotReject(
+            playerId,
+            player,
+            requestedTargetId,
+            fireTransform,
+            requestedTargetId === player.lockedTargetId ? 'lock_geometry' : 'stale_lock',
+            now,
+          );
+        }
+        if (!assisted) {
+          if (!createProjectile(playerId, player, clientShotId, fireTransform, shotAim)) {
+            logFireBlocked(playerId, 'invalid_state_or_projectile_cap', now);
+          } else {
+            const lockedTarget = currentLockedTarget(playerId, player, player.lockedTargetId, now, fireTransform);
+            if (lockedTarget && player.lockedTargetId) sendIncomingFire(player.lockedTargetId, playerId);
+          }
         }
         return;
       }
@@ -9121,10 +9223,6 @@ server.on('connection', (socket, request) => {
       player.lastAcceptedTransformAt = stateNow;
       if (typeof message.stateSequence === 'number') player.acceptedStateSequence = message.stateSequence;
       player.rotation = message.rotation;
-      if (player.assistedAim?.rotation) {
-        rebaseCombatAim(player.assistedAim, player.assistedAim.rotation, player.rotation, player.assistedAim);
-        player.assistedAim.rotation = {...player.rotation};
-      }
       player.boostActive = message.boostActive === true;
       // Transform packets never equip aircraft. Explicit equipAircraft above
       // is the only selection path accepted by the server profile.
