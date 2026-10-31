@@ -1153,7 +1153,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .garage-equipped-page { display: none; }
 .garage-overlay.is-equipped-page { flex-direction: column; gap: 12px; }
 .garage-overlay.is-equipped-page .garage-card { display: none; }
-.garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: auto minmax(0, 1fr); gap: 12px; width: min(1130px, 100%); max-height: 100%; }
+.garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: auto minmax(0, 1fr); gap: 12px; width: min(1130px, 100%); min-height: 0; max-height: 100%; }
 .garage-equipped-page .garage-equipped-heading { min-height: 58px; justify-content: center; }
 .garage-equipped-page .store-detail-panel {
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
@@ -1190,14 +1190,15 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 .garage-equipped-page .garage-equipped-status { grid-column: 1 / -1; margin: 0; color: #b0f8ff; font: 700 12px/1.3 var(--font-display); }
 .garage-equipped-page .garage-equipped-status:empty { display: none; }
 @media (max-height: 520px) and (orientation: landscape) {
+  .garage-overlay.is-equipped-page { overflow: clip; }
   .garage-equipped-page .store-detail-panel { gap: 7px; padding: 9px; border-radius: 15px; }
-  .garage-equipped-page .store-detail-specs { padding: 10px 12px; }
-  .garage-equipped-page .store-detail-title { font-size: clamp(18px, 2.5vw, 26px); }
-  .garage-equipped-page .store-detail-role { margin: 4px 0 6px; font-size: 15px; }
-  .garage-equipped-page .store-detail-speed { margin-bottom: 6px; font-size: 11px; }
-  .garage-equipped-page .store-detail-stats { gap: 5px; padding-top: 8px; }
-  .garage-equipped-page .store-detail-stats > div { font-size: 11px; }
-  .garage-equipped-page .store-detail-stats i { height: 14px; }
+  .garage-equipped-page .store-detail-specs { container-type: size; padding: 8px 10px; overflow: clip; }
+  .garage-equipped-page .store-detail-title { font-size: clamp(14px, 11cqh, 26px); }
+  .garage-equipped-page .store-detail-role { margin: 3px 0 5px; font-size: clamp(11px, 7cqh, 15px); }
+  .garage-equipped-page .store-detail-speed { margin-bottom: 5px; font-size: clamp(9px, 5cqh, 11px); }
+  .garage-equipped-page .store-detail-stats { gap: clamp(2px, 2cqh, 5px); padding-top: 5px; }
+  .garage-equipped-page .store-detail-stats > div { font-size: clamp(9px, 5cqh, 11px); }
+  .garage-equipped-page .store-detail-stats i { height: clamp(8px, 5cqh, 14px); }
   .garage-equipped-page .garage-equipped-footer { padding: 4px 6px 4px 10px; gap: 5px 10px; }
   .garage-equipped-page .garage-equipped-note { padding-left: 28px; font-size: 10px; }
   .garage-equipped-page .garage-equipped-note::before { width: 19px; height: 19px; font-size: 14px; }
