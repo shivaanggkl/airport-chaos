@@ -285,6 +285,7 @@ export class PilotMenu {
   private profileNameEditing = false;
   private profileFeedback?: PilotMenuAccountResult;
   private profileStatsTab: 'single' | 'multiplayer' = 'single';
+  private profileMoreOpen = false;
   private advertisingOpen = false;
   private inviteOpen = false;
   private inviteNotice = '';
@@ -901,11 +902,16 @@ export class PilotMenu {
         statistics.append(statisticsHeading);
         const statsContent = document.createElement('div'); statsContent.id = 'pilot-profile-stat-content';
         statsContent.setAttribute('role', 'tabpanel'); statsContent.setAttribute('aria-labelledby', `pilot-profile-${this.profileStatsTab}-tab`);
+        const more = document.createElement('details'); more.className = 'pilot-profile-more';
+        more.open = this.profileMoreOpen;
+        more.addEventListener('toggle', () => { this.profileMoreOpen = more.open; });
+        more.append(textElement('summary', 'MORE STATISTICS'));
         if (this.profileStatsTab === 'multiplayer') {
           statsContent.append(textElement('p', 'Multiplayer battles are not available yet.', 'pilot-profile-multiplayer-empty'));
         } else if (summary) {
           const values = summary.singlePlayer;
           const stats = document.createElement('div'); stats.className = 'pilot-profile-stat-grid';
+          const additionalStats = document.createElement('div'); additionalStats.className = 'pilot-profile-stat-grid';
           for (const [kind, label, value] of [
             ['progress', 'OVERALL PROGRESS', `${values.overallProgress}%`],
             ['missions', 'MISSIONS COMPLETED', `${values.missionsCompleted} / ${values.missionsTotal}`],
@@ -917,9 +923,11 @@ export class PilotMenu {
             const stat = document.createElement('div'); stat.className = 'pilot-profile-stat-tile';
             const copy = document.createElement('div'); copy.className = 'pilot-profile-stat-copy';
             copy.append(textElement('strong', value), textElement('span', label));
-            stat.append(profileArt(kind), copy); stats.append(stat);
+            stat.append(profileArt(kind), copy);
+            (kind === 'score' || kind === 'aircraft' ? additionalStats : stats).append(stat);
           }
           statsContent.append(stats);
+          more.append(additionalStats);
         } else statsContent.append(textElement('p', 'Loading player statistics…'));
         statistics.append(statsContent);
         profile.append(statistics);
@@ -943,7 +951,8 @@ export class PilotMenu {
             achievements.append(list);
           }
         } else achievements.append(textElement('p', 'Loading achievements…'));
-        profile.append(achievements);
+        more.append(achievements);
+        profile.append(more);
       }
       content.append(profile);
     }
