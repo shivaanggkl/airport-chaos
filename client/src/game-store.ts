@@ -9,6 +9,7 @@ import { confirmCatalogPurchase } from './purchase-confirmation';
 import { StoreAircraftPreviews } from './store-aircraft-previews';
 import { createAircraftDetailPanel, renderAircraftDetailPanel } from './aircraft-detail-panel';
 import { aircraftRoles } from './visual-language';
+import { aircraftDefinitions } from './aircraft';
 import type { PublicStoreCatalogItem } from '../../shared/store-catalog.mjs';
 import { storeAircraft, storeFeatured, storeItemById, storeItemState, storePaints, storePurchaseTarget, type StoreCategory, type StoreItem } from './store-catalog';
 
@@ -44,7 +45,10 @@ function artwork(item: StoreItem): HTMLElement {
     for (const value of item.colors) { const dot = document.createElement('i'); dot.style.backgroundColor = color(value); swatches.append(dot); }
     art.append(swatches);
   }
-  const role = document.createElement('span'); role.className = 'store-art-role'; role.textContent = aircraftRoles[item.aircraftType];
+  const role = document.createElement('span'); role.className = 'store-art-role';
+  for (const highlight of aircraftRoles[item.aircraftType].split(' • ')) {
+    const label = document.createElement('span'); label.textContent = highlight; role.append(label);
+  }
   art.append(role);
   return art;
 }
@@ -245,13 +249,14 @@ export class GameStore {
       event.preventDefault(); this.openDetail(item, art);
     });
     const subtitle = document.createElement('small'); subtitle.className = 'store-art-subtitle'; subtitle.textContent = item.subtitle;
+    subtitle.textContent = item.aircraftType === 'fighter' && this.category === 'FEATURED' ? '★ FEATURED' : item.subtitle;
     art.append(subtitle);
     if (owned) art.append(this.statusBadge('OWNED'));
     card.append(art);
     const copy = document.createElement('div'); copy.className = 'store-card-copy';
     const aircraft = storeAircraft.find(candidate => candidate.aircraftType === item.aircraftType);
     const aircraftDetail = document.createElement('div'); aircraftDetail.className = 'store-card-detail';
-    const aircraftLabel = document.createElement('span'); aircraftLabel.textContent = 'AIRCRAFT:';
+    const aircraftLabel = document.createElement('span'); aircraftLabel.textContent = aircraftDefinitions[item.aircraftType].name;
     const name = document.createElement('strong'); name.textContent = item.kind === 'aircraft' ? item.name : aircraft?.name ?? item.name;
     aircraftDetail.append(aircraftLabel, name); copy.append(aircraftDetail);
     const appearance = item.kind === 'paint' ? item
@@ -282,7 +287,8 @@ export class GameStore {
         && (item.kind === 'aircraft' || this.profile.cosmetics?.equipped?.[`livery:${item.aircraftType}`] === item.id);
       const actionLabel = equipped ? 'EQUIPPED'
         : item.kind === 'paint' && this.profile?.selectedAircraft === item.aircraftType ? 'USE APPEARANCE' : 'EQUIP AIRCRAFT';
-      const equip = this.button(actionLabel, () => void this.performEquip(item), 'context-action store-card-action store-card-owned');
+      const equip = this.button(actionLabel, () => void this.performEquip(item), equipped ? 'context-action store-card-action store-card-owned'
+        : 'context-action context-action--gold store-card-action');
       equip.disabled = this.busy || equipped;
       equip.setAttribute('aria-label', equipped ? `${item.name} equipped` : `Equip ${item.name}`);
       footer.append(equip);
@@ -342,7 +348,8 @@ export class GameStore {
     const buy = this.button(getTokens ? 'GET TOKENS' : 'BUY',
       () => void this.performUnlock(purchaseItem, currency), 'context-action context-action--gold store-buy');
     buy.classList.toggle('is-unavailable', tokenUnavailable);
-    buy.replaceChildren(this.priceLine(price, currency));
+    const action = document.createElement('span'); action.className = 'store-buy-label'; action.textContent = getTokens ? 'GET TOKENS' : 'BUY';
+    buy.replaceChildren(action, this.priceLine(price, currency));
     buy.setAttribute('aria-label', getTokens ? `Get Sky Tokens to buy ${item.name}`
       : `Buy ${item.name}${purchaseItem !== item ? ` with ${purchaseItem.name}` : ''} for ${price.toLocaleString()} ${currency === 'CREDITS' ? 'Credits' : 'Sky Tokens'}`);
     buy.disabled = !this.purchaseAvailable || this.busy || (currency === 'CREDITS' && !!missing);
