@@ -2,6 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { PlayerWallet } from './player-wallet.js';
 import { airAssaultRules as rules, airAssaultTiers as tiers, airAssaultManifest, airAssaultAirports, airAssaultQueuePosition, airAssaultInside, airAssaultHearts, type AssaultTier, type AssaultVector as V, type AssaultEnemy, type AssaultSnapshot } from '../../shared/air-assault.mjs';
+import { ballisticIntercept, ballisticShotSpeed, COMBAT_RANGE, BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 export class AirAssaultRewards {
   private db: DatabaseSync;
@@ -50,6 +51,10 @@ type Enemy = AssaultEnemy & {
   bestRange: number;
   progressAt: number;
   recoveryUntil: number;
+  passUntil: number;
+  passWaypoint?: V;
+  nextPassAt: number;
+  burstShots: number;
 };
 export type AssaultPilot = {
   position: V;
@@ -73,6 +78,8 @@ type Hooks = {
   remove: (id: string) => void;
   fire: (enemy: AssaultEnemy, spread: number) => boolean;
   bullets: () => Iterable<AssaultBullet>;
+  enemyShotOwners?: () => ReadonlySet<string>;
+  warn?: (id: string) => void;
   heal: (id: string) => void;
   finish: (result: NonNullable<AssaultSnapshot['result']>, startedAt: number | null, now: number) => {
     reward: number;
@@ -80,6 +87,7 @@ type Hooks = {
   };
 };
 const envelope = aircraftFlightEnvelope.fighter;
+const tactics = { medium: { turn: .5, passMs: 8000 }, hard: { turn: .75, passMs: 7000 }, legendary: { turn: 1, passMs: 6500 } } as const;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const distance = (a: V, b: V) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const angleDelta = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -129,6 +137,56 @@ export function chooseAssaultDodge(enemy: AssaultEnemy, speed: number, bullets: 
   }
   return best;
 }
+// Use the existing exact ballistic solver; a capped lead can miss a steady crossing target.
+export function assaultObservedTurn(previous: V, current: V, seconds: number, limit: number): number {
+  if (seconds <= 0 || Math.hypot(previous.x, previous.z) < 10 || Math.hypot(current.x, current.z) < 10) return 0;
+  return clamp(angleDelta(Math.atan2(-current.x, -current.z), Math.atan2(-previous.x, -previous.z)) / seconds, -limit, limit);
+}
+
+export function assaultShotDirection(origin: V, velocity: V, target: V, targetVelocity: V, forward: V, maxAngle: number, turnRate = 0): V | null {
+  if (!Number.isFinite(turnRate) || distance(origin, target) > COMBAT_RANGE) return null;
+  let direction: V;
+  if (Math.abs(turnRate) < .02) {
+    const solution = ballisticIntercept(origin, velocity, target, targetVelocity);
+    if (!solution) return null;
+    direction = solution.direction;
+  } else {
+    // Forecast the observed bank only. A new turn/dodge after launch can still evade this fixed shot.
+    const sample = (seconds: number) => {
+      const sine = Math.sin(turnRate * seconds), cosine = Math.cos(turnRate * seconds);
+      const x = target.x + (targetVelocity.x * sine + targetVelocity.z * (1 - cosine)) / turnRate - origin.x;
+      const y = target.y + targetVelocity.y * seconds - origin.y;
+      const z = target.z + (targetVelocity.z * sine - targetVelocity.x * (1 - cosine)) / turnRate - origin.z;
+      const distance = Math.hypot(x, y, z);
+      const aim = distance > .000001 ? { x: x / distance, y: y / distance, z: z / distance } : { x: 0, y: 0, z: -1 };
+      return { direction: aim, distance, error: distance - ballisticShotSpeed(velocity, aim) * seconds };
+    };
+    let low = 0, high = 0;
+    const lifetime = COMBAT_RANGE / BASE_PROJECTILE_SPEED;
+    for (let step = 1; step <= 64; step++) {
+      high = lifetime * step / 64;
+      if (sample(high).error <= 0) break;
+      low = high;
+    }
+    if (sample(high).error > 0) return null;
+    for (let step = 0; step < 26; step++) {
+      const middle = (low + high) / 2;
+      if (sample(middle).error > 0) low = middle; else high = middle;
+    }
+    const solution = sample(high);
+    if (solution.distance > COMBAT_RANGE || Math.abs(solution.error) > .01) return null;
+    direction = solution.direction;
+  }
+  const cosine = direction.x * forward.x + direction.y * forward.y + direction.z * forward.z;
+  return cosine >= Math.cos(maxAngle) ? direction : null;
+}
+
+// Cruise independently of a slow player's throttle, then brake within actual aircraft limits.
+export function assaultApproachSpeed(playerSpeed: number, range: number): number {
+  const combatSpeed = clamp(playerSpeed * .9 + 40, 110, envelope.maxSpeed * .72);
+  return Math.min(envelope.maxSpeed * .72, Math.sqrt(combatSpeed ** 2 + 2 * envelope.airbrakeDrag * Math.max(0, range - 1800)));
+}
+
 export class AirAssaultEncounter {
   readonly id = randomUUID();
   readonly enemies: Enemy[];
@@ -145,6 +203,7 @@ export class AirAssaultEncounter {
   private nextLaunchAt = 0;
   private shooterIds: string[] = [];
   private shooterLeaseUntil = 0;
+  private burstStartedAt = 0;
   private heartCooldowns = new Map<string, number>();
   private heartPrevious?: V;
   private introReady = false;
@@ -155,7 +214,7 @@ export class AirAssaultEncounter {
     this.enemies = airAssaultManifest().map((row, index) => {
       const airport = airAssaultAirports.find(a => a.id === row.airportId)!;
       const position = airAssaultQueuePosition(row.airportId, row.ordinal, hooks.elevation(airport.x, airport.z));
-      return { ...row, id: randomUUID(), phase: 'queued', position, rotation: { x: 0, y: airport.heading, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, health: tiers[row.tier].health, maxHealth: tiers[row.tier].health, speed: 0, roll: 0, trackingAt: 0, fireAt: 0, readyAt: 0, dodgeAt: -Infinity, dodgeUntil: 0, waypoint: { ...position }, previous: { ...position }, movedAt: now, targetSide: index % 2 ? 1 : -1, bestRange: Infinity, progressAt: now, recoveryUntil: 0 };
+      return { ...row, id: randomUUID(), phase: 'queued', position, rotation: { x: 0, y: airport.heading, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, health: tiers[row.tier].health, maxHealth: tiers[row.tier].health, speed: 0, roll: 0, trackingAt: 0, fireAt: 0, readyAt: 0, dodgeAt: -Infinity, dodgeUntil: 0, waypoint: { ...position }, previous: { ...position }, movedAt: now, targetSide: index % 2 ? 1 : -1, bestRange: Infinity, progressAt: now, recoveryUntil: 0, passUntil: 0, nextPassAt: 0, burstShots: 0 };
     });
   }
   ready(now: number): void { if (this.phase === 'intro' && !this.introReady) {
@@ -270,15 +329,28 @@ export class AirAssaultEncounter {
     const candidates = this.active().filter(e => e.phase === 'combat' && now >= e.readyAt && distance(e.position, pilot.position) < 4500)
       .sort((a, b) => distance(a.position, pilot.position) - distance(b.position, pilot.position)).slice(0, 2);
     if (now >= this.shooterLeaseUntil) {
-      this.shooterIds = candidates.map(e => e.id);
+      // A previous attacker's airborne rounds still occupy its firing slot.
+      const airborneOwners = [...(this.hooks.enemyShotOwners?.() ?? [])];
+      this.shooterIds = [...airborneOwners, ...candidates.map(e => e.id).filter(id => !airborneOwners.includes(id))].slice(0, 2);
       this.shooterLeaseUntil = now + 5000;
+      this.burstStartedAt = now;
+      for (const [slot, id] of this.shooterIds.entries()) {
+        const enemy = this.enemies.find(e => e.id === id);
+        if (!enemy) continue;
+        enemy.burstShots = 0;
+        enemy.fireAt = Math.max(enemy.fireAt, now + tiers[enemy.tier].reactionMs + slot * 700);
+        this.hooks.warn?.(id);
+      }
     }
     const shooters = this.active().filter(e => this.shooterIds.includes(e.id));
     for (const enemy of this.active()) {
       this.move(enemy, pilot, dt, now);
-      if (shooters.includes(enemy) && now >= enemy.fireAt && now % 5000 < 1400) {
-        if (this.hooks.fire(enemy, tiers[enemy.tier].dispersion))
+      const burstLimit = enemy.tier === 'medium' ? 1 : enemy.tier === 'hard' ? 2 : 3;
+      if (shooters.includes(enemy) && now >= enemy.fireAt && now - this.burstStartedAt < 1800 && enemy.burstShots < burstLimit) {
+        if (this.hooks.fire(enemy, tiers[enemy.tier].dispersion)) {
+          enemy.burstShots++;
           enemy.fireAt = now + tiers[enemy.tier].fireMs;
+        }
       }
       this.hooks.move(enemy);
     }
@@ -314,17 +386,19 @@ export class AirAssaultEncounter {
       }
     }
     else {
-      if (now >= e.readyAt && now >= e.trackingAt && now >= e.dodgeUntil) {
+      if (now >= e.readyAt && now >= e.trackingAt && now >= e.dodgeUntil && now >= e.passUntil) {
         const lead = e.tier === 'medium' ? .5 : e.tier === 'hard' ? 1 : 1.4;
         e.waypoint = { x: p.position.x + p.velocity.x * lead, y: p.position.y + p.velocity.y * lead, z: p.position.z + p.velocity.z * lead };
         e.waypoint = this.hooks.safeWaypoint?.(e.position, e.waypoint) ?? e.waypoint;
         e.trackingAt = now + tiers[e.tier].trackingMs;
       }
-      if (e.tier === 'legendary' && now >= e.readyAt && now - e.dodgeAt >= 1200) {
+      // Evade, recover the flight line, then counterattack rather than chain permanent turns.
+      if (e.tier === 'legendary' && now >= e.readyAt && now - e.dodgeAt >= 3600) {
         const bullets = [...this.hooks.bullets()];
         if (incomingAssaultThreat(e, bullets)) {
           e.dodgeAt = now;
           e.dodgeUntil = now + 1200;
+          e.trackingAt = e.dodgeUntil;
           e.waypoint = chooseAssaultDodge(e, e.speed, bullets);
           e.waypoint = this.hooks.safeWaypoint?.(e.position, e.waypoint) ?? e.waypoint;
         }
@@ -344,12 +418,23 @@ export class AirAssaultEncounter {
         e.previous = { ...e.position };
         e.movedAt = now;
       }
+      const range = distance(e.position, p.position);
+      if (e.passUntil > now && now >= e.dodgeUntil && e.passWaypoint) e.waypoint = { ...e.passWaypoint };
+      // Complete a close attack pass instead of perpetually orbiting the player's tail.
+      if (range < 900 && now >= e.nextPassAt && now >= e.dodgeUntil) {
+        e.passUntil = now + tactics[e.tier].passMs;
+        e.nextPassAt = e.passUntil + 3500;
+        const runLength = Math.max(2200, Math.max(e.speed, Math.hypot(p.velocity.x, p.velocity.z) + 200) * (tactics[e.tier].passMs / 1000 + 2));
+        e.passWaypoint = { x: e.position.x - Math.sin(e.rotation.y) * runLength,
+          y: Math.max(e.position.y, p.position.y), z: e.position.z - Math.cos(e.rotation.y) * runLength };
+        e.waypoint = { ...e.passWaypoint };
+        e.trackingAt = e.passUntil;
+      }
       // Recovery changes a physically reachable steering destination, never pose or health.
       if (now - e.movedAt > 8000 || !airAssaultInside(e.position)) {
         e.waypoint = { ...p.position };
         e.trackingAt = now + 500;
       }
-      const range = distance(e.position, p.position);
       if (range < e.bestRange - 100) {
         e.bestRange = range;
         e.progressAt = now;
@@ -359,7 +444,7 @@ export class AirAssaultEncounter {
         e.progressAt = now;
         e.bestRange = range;
       }
-      if (e.recoveryUntil > now)
+      if (e.recoveryUntil > now && now >= e.passUntil && now >= e.dodgeUntil)
         e.waypoint = { x: p.position.x + p.velocity.x * .35, y: p.position.y, z: p.position.z + p.velocity.z * .35 };
       e.waypoint.x = clamp(e.waypoint.x, -31400, 4400);
       e.waypoint.z = clamp(e.waypoint.z, -27400, 16400);
@@ -368,12 +453,14 @@ export class AirAssaultEncounter {
       const yaw = Math.atan2(-dx, -dz), turn = angleDelta(yaw, e.rotation.y);
       const desiredRoll = clamp(-turn, -.85, .85);
       e.rotation.z += clamp(desiredRoll - e.rotation.z, -envelope.rollRate * dt, envelope.rollRate * dt);
-      e.rotation.y += clamp(turn, -envelope.yawRate * dt, envelope.yawRate * dt);
+      e.rotation.y += clamp(turn, -envelope.yawRate * tactics[e.tier].turn * dt, envelope.yawRate * tactics[e.tier].turn * dt);
       const floor = this.hooks.elevation(e.position.x, e.position.z) + 170;
       const pitch = Math.atan2(Math.max(floor, e.waypoint.y) - e.position.y, Math.max(100, Math.hypot(dx, dz)));
       e.rotation.x += clamp(clamp(pitch, -envelope.maxDivePitch, envelope.maxClimbPitch) - e.rotation.x, -envelope.pitchRate * dt, envelope.pitchRate * dt);
-      let targetSpeed = clamp(Math.hypot(p.velocity.x, p.velocity.z) * .9 + 40, 110, envelope.maxSpeed * .72);
-      if (e.recoveryUntil > now)
+      let targetSpeed = assaultApproachSpeed(Math.hypot(p.velocity.x, p.velocity.z), range);
+      // Approach acceleration must not accelerate an outbound pass away from the fight.
+      if (e.passUntil > now) targetSpeed = clamp(Math.hypot(p.velocity.x, p.velocity.z) + 80, 110, envelope.maxSpeed * .72);
+      if (e.recoveryUntil > now && now >= e.passUntil)
         targetSpeed = Math.min(targetSpeed, Math.max(110, Math.hypot(p.velocity.x, p.velocity.z) * .72));
       e.speed += clamp(targetSpeed - e.speed, -envelope.airbrakeDrag * dt, envelope.acceleration / envelope.inertia * dt);
     }

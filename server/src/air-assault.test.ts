@@ -3,7 +3,9 @@ import test from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AirAssaultEncounter, AirAssaultRewards, incomingAssaultThreat, type AssaultPilot } from './air-assault.js';
+import { AirAssaultEncounter, AirAssaultRewards, incomingAssaultThreat, assaultShotDirection, assaultApproachSpeed, assaultObservedTurn, type AssaultPilot } from './air-assault.js';
+import { ballisticIntercept, ballisticShotSpeed } from '../../shared/protocol.mjs';
+import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { airAssaultManifest, airAssaultTiers, airAssaultRules, airAssaultAirports, airAssaultQueuePosition, airAssaultHearts } from '../../shared/air-assault.mjs';
 const now = Date.UTC(2026, 10, 1, 12);
@@ -239,6 +241,9 @@ test('Legendary dodge decisions change physical trajectory, respect 1.2-second c
   }
   assert.ok(Math.abs(legend.position.x - origin.x) > 20, 'dodge physically moves laterally');
   assert.ok(peakBank > .1, 'dodge banks during its turn rather than moving sideways instantly');
+  e.tick(pilot, decision + 1300);
+  assert.equal(legend.dodgeAt, decision, 'counterattack window does not chain another dodge');
+  assert.ok(Math.abs(legend.waypoint.x - (pilot.position.x + pilot.velocity.x * 1.4)) < .01, 'after evasion it intercepts the player rather than orbiting the dodge endpoint');
 });
 test('Encounter termination removes every active actor and leaves no active wave',()=>{
   const removed:string[]=[];
@@ -248,4 +253,63 @@ test('Encounter termination removes every active actor and leaves no active wave
   e.ready(now);e.skip(now+1000);e.tick(r.pilot,now+4000);e.takeoff(now+4100,'dfw');e.tick(r.pilot,now+4200);
   const active=e.active().map(n=>n.id);e.end('exit',now+4300);assert.deepEqual(removed,active);assert.equal(e.active().length,0);
   e.tick(r.pilot,now+5000);assert.equal(e.active().length,0);
+});
+
+test('Air Assault leads steady crossing shots for their full flight and rejects backward or unreachable shots', () => {
+  const origin={x:0,y:600,z:0},velocity={x:0,y:0,z:-200},target={x:0,y:600,z:-2500},crossing={x:100,y:0,z:0},forward={x:0,y:0,z:-1};
+  const direction=assaultShotDirection(origin,velocity,target,crossing,forward,.36)!;
+  const hit=ballisticIntercept(origin,velocity,target,crossing)!;
+  assert.ok(direction);assert.ok(hit.seconds>1.75);
+  assert.ok(Math.hypot(direction.x*hit.speed*hit.seconds-(target.x+crossing.x*hit.seconds),direction.z*hit.speed*hit.seconds-target.z)<.01);
+  assert.equal(assaultShotDirection(origin,velocity,{...target,z:2500},crossing,forward,.36),null);
+  assert.equal(assaultShotDirection(origin,velocity,target,{x:0,y:0,z:-1600},forward,.36),null);
+});
+test('Distant arrivals use cruise and a physical braking distance instead of the slow player speed',()=>{
+  const envelope=aircraftFlightEnvelope.fighter;
+  assert.ok(assaultApproachSpeed(170,18000)>800);
+  assert.equal(assaultApproachSpeed(170,1000),193);
+  const range=7000,speed=assaultApproachSpeed(170,range);
+  assert.ok((speed**2-193**2)/(2*envelope.airbrakeDrag)<=range-1800+.001);
+  assert.ok(speed<=envelope.maxSpeed*.72);
+});
+test('An attack pass commits forward and respects the tier turn limit',()=>{
+  const r=rig();r.start();r.tick(now+4200);const e=r.encounter.active()[0]!;
+  Object.assign(e,{phase:'combat',position:{x:0,y:600,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},speed:200,readyAt:now,trackingAt:now,nextPassAt:0});
+  r.pilot.position={x:0,y:600,z:-300};r.tick(now+4250);
+  assert.ok(e.passUntil>now+4250);assert.ok(e.waypoint.z<-1500);
+  assert.ok(Math.abs(e.waypoint.z)>=(200+200)*(8+2),'pass endpoint stays beyond its committed travel');
+  const end=e.passUntil;r.pilot.position={x:500,y:600,z:0};r.tick(now+4300);
+  assert.equal(e.passUntil,end);assert.ok(Math.abs(e.rotation.y)<=aircraftFlightEnvelope.fighter.yawRate*.5*.05+.001);
+  e.speed=400;
+  r.pilot.position={x:0,y:600,z:5000};r.tick(now+4350);
+  assert.equal(e.passUntil,end,'separation must not cancel the committed pass and start another tail chase');
+  assert.deepEqual(e.waypoint,e.passWaypoint);
+  assert.ok(e.speed<400,'outbound separation must brake to combat speed rather than trigger approach acceleration');
+});
+test('In-flight enemy bullets retain a firing slot across leases and attacks are warned',()=>{
+  const owners=new Set<string>(),fired:string[]=[],warned:string[]=[];
+  const pilot:AssaultPilot={position:{x:0,y:600,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-170},health:100,maxHealth:100,airborne:true,fresh:true};
+  const e=new AirAssaultEncounter('dallas','coordination',{elevation:()=>100,activate(){},move(){},remove(){},bullets:()=>[],enemyShotOwners:()=>owners,warn:id=>warned.push(id),fire:n=>{fired.push(n.id);owners.add(n.id);return true},heal(){},finish:()=>({reward:0,dailyClaimed:false})},now);
+  e.ready(now);e.skip(now+1000);e.tick(pilot,now+4000);e.takeoff(now+4100,'dfw');
+  const enemies=e.enemies.slice(0,4);for(const [i,n] of enemies.entries())Object.assign(n,{phase:'combat',position:{x:i*100,y:600,z:-1000},speed:170,readyAt:now});
+  for(let t=now+4150;t<now+16000;t+=50){e.tick(pilot,t);assert.ok(owners.size<=2);}
+  assert.ok(fired.length>0);assert.ok(warned.length>0);assert.equal(new Set(fired).size,2);
+});
+test('All three airports reach a slow airborne Bluejay without spending the battle in transit',()=>{
+  const r=rig();r.pilot.velocity={x:0,y:0,z:-180};r.start();const arrivals=new Map<string,number>();
+  for(let time=now+4150;time<now+60000;time+=50){r.tick(time);for(const e of r.encounter.active())if(e.phase==='combat'&&Math.hypot(e.position.x-r.pilot.position.x,e.position.z-r.pilot.position.z)<4500&&!arrivals.has(e.airportId))arrivals.set(e.airportId,time-now);}
+  assert.equal(arrivals.size,3);assert.ok(Math.max(...arrivals.values())<55000);
+});
+
+test('Observed-bank prediction hits a sustained turn with one straight shot, but a changed bank evades it',()=>{
+ const origin={x:0,y:600,z:0},velocity={x:0,y:0,z:-200},target={x:0,y:600,z:-1000},v={x:100,y:0,z:-50},forward={x:0,y:0,z:-1},rate=.6;
+ const curved=assaultShotDirection(origin,velocity,target,v,forward,.36,rate)!;
+ const linear=assaultShotDirection(origin,velocity,target,v,forward,.36)!;
+ assert.ok(curved);assert.ok(linear);
+ const miss=(direction:typeof curved,bank:number)=>{let best=Infinity;const speed=ballisticShotSpeed(velocity,direction);for(let t=0;t<3;t+=.001){const sine=Math.sin(bank*t),cosine=Math.cos(bank*t),x=target.x+(v.x*sine+v.z*(1-cosine))/bank,z=target.z+(v.z*sine-v.x*(1-cosine))/bank;best=Math.min(best,Math.hypot(direction.x*speed*t-x,direction.z*speed*t-z));}return best;};
+ assert.ok(miss(curved,rate)<1,'launch-time forecast intersects the observed turn');
+ assert.ok(miss(linear,rate)>20,'constant velocity was inaccurate for this bank');
+ assert.ok(miss(curved,-rate)>30,'the bullet does not home when the target reverses its bank');
+ assert.equal(assaultObservedTurn({x:0,y:0,z:-100},{x:-100,y:0,z:0},.1,1.5),1.5);
+ assert.equal(assaultObservedTurn({x:0,y:0,z:0},v,.1,1.5),0);
 });

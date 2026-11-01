@@ -1,4 +1,4 @@
-import { AirAssaultEncounter, AirAssaultRewards } from './air-assault.js';
+import { assaultObservedTurn, assaultShotDirection, AirAssaultEncounter, AirAssaultRewards } from './air-assault.js';
 import { type AssaultEnemy, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { CombatSpatialIndex } from './combat-spatial-index.js';
 import { CombatProjectileBudget } from './combat-projectile-budget.js';
@@ -127,6 +127,7 @@ type PlayerState = Transform & {
   skyDuelMode?: boolean;
   airAssaultId?: string;
   airAssaultOwnerId?: string;
+  airAssaultTurnRate?: number;
   skyDuelMatchId?: string;
   skyDuelPractice?: boolean;
   skyDuelPracticeRespawnAt?: number;
@@ -960,9 +961,11 @@ function startAirAssault(ownerId: string, owner: PlayerState, now: number): void
       players.set(enemy.id, bot);
     },
     move: enemy => { const bot = players.get(enemy.id); if (!bot)
-      return; bot.position = { ...enemy.position }; bot.rotation = { ...enemy.rotation }; bot.velocity = { ...enemy.velocity }; bot.lastStateAt = Date.now(); },
+      return; bot.airAssaultTurnRate = assaultObservedTurn(bot.velocity, enemy.velocity, Math.max(.02, (Date.now() - bot.lastStateAt) / 1000), aircraftFlightEnvelope.fighter.yawRate); bot.position = { ...enemy.position }; bot.rotation = { ...enemy.rotation }; bot.velocity = { ...enemy.velocity }; bot.lastStateAt = Date.now(); },
     remove: id => { removePlayerProjectiles(id); clearLocksForTarget(id); players.delete(id); sendToPlayer(ownerId, { type: 'remove', playerId: id }); },
     bullets: () => [...projectiles.values()].filter(p => p.ownerId === ownerId && p.airAssaultId === encounter.id),
+    enemyShotOwners: () => new Set([...projectiles.values()].filter(p => p.ownerId !== ownerId && p.airAssaultId === encounter.id).map(p => p.ownerId)),
+    warn: id => sendIncomingFire(ownerId, id),
     fire: (enemy, spread) => {
       const bot = players.get(enemy.id);
       if (!bot)
@@ -5979,7 +5982,11 @@ function createAssistedShot(
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
   if (!target || !canFire(player, now)) return false;
   const local = targetInAircraftSpace(fireTransform ?? player, target);
-  if(player.airAssaultId){const solution=botFireSolution(player,target,false);return !solution.reason&&createProjectile(playerId,player,clientShotId,fireTransform,{x:solution.aimX,y:solution.aimY});}
+  if (player.airAssaultId) {
+    const shootingPose = fireTransform ? { ...player, position: fireTransform.position, rotation: fireTransform.rotation } : player;
+    const solution = botFireSolution(shootingPose, target, false);
+    return !solution.reason && createProjectile(playerId, player, clientShotId, fireTransform, { x: solution.aimX, y: solution.aimY });
+  }
   if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
   player.lastFireAt = now;
   sendIncomingFire(targetId, playerId);
@@ -6800,6 +6807,19 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
   const targetCap = envelope.maxSpeed * (target.boostActive ? envelope.boostMaxSpeed : 1);
   const targetSpeed = Math.hypot(target.velocity.x, target.velocity.y, target.velocity.z);
   const scale = targetSpeed > targetCap ? targetCap / targetSpeed : 1;
+  if (shooter.airAssaultId) {
+    const forward = hunterForward(shooter);
+    const direction = assaultShotDirection(muzzle, shooter.velocity, target.position,
+      { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
+      forward, shooter.isBot ? hunterFireCone : AIM_ENVELOPE, target.airAssaultTurnRate ?? 0);
+    if (!direction) return { distance: actualDistance, vertical: target.position.y - shooter.position.y,
+      angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_FORWARD_SOLUTION' };
+    const depth = dot(direction, forward);
+    return { distance: actualDistance, vertical: target.position.y - shooter.position.y,
+      angle: Math.acos(Math.max(-1, Math.min(1, depth))),
+      aimX: dot(direction, rotateLocalYxz({ x: 1, y: 0, z: 0 }, shooter.rotation)) / depth,
+      aimY: dot(direction, rotateLocalYxz({ x: 0, y: 1, z: 0 }, shooter.rotation)) / depth };
+  }
   let leadTime = 0;
   let aimPoint = target.position;
   {
@@ -8659,7 +8679,7 @@ server.on('connection', (socket, request) => {
         if(message.type?.startsWith('airAssault')&&!securityLimiter.attempt('air-assault-controls',playerId,{limit:12,windowMs:10000}).allowed)return;
         if(message.type==='airAssaultReady'){encounter.ready(Date.now());return;}
         if(message.type==='airAssaultSkip'){encounter.skip(Date.now());return;}
-        if(message.type==='airAssaultCrash'){if(encounter.canFight()&&Date.now()-player.lastStateAt<1500&&(player.position.y<=dallasTerrain.elevationAt(player.position.x,player.position.z)+20||segmentBlockedByBuildings({x:player.position.x-1,y:player.position.y,z:player.position.z},{x:player.position.x+1,y:player.position.y,z:player.position.z},transportBuildings)))markPlayerDestroyed(playerId,player,Date.now());return;}
+        if(message.type==='airAssaultCrash'){if((encounter.phase==='takeoff'||encounter.canFight())&&Date.now()-player.lastStateAt<1500&&(player.position.y<=dallasTerrain.elevationAt(player.position.x,player.position.z)+20||segmentBlockedByBuildings({x:player.position.x-1,y:player.position.y,z:player.position.z},{x:player.position.x+1,y:player.position.y,z:player.position.z},transportBuildings)))markPlayerDestroyed(playerId,player,Date.now());return;}
         if(message.type==='airAssaultExit'){encounter.end('exit',Date.now());return;}
         if((typeof message.type!=='string'||!['state','lock','fire'].includes(message.type))||encounter.phase==='finished')return;
         if(message.type==='state'&&player.hasRespawnTransform&&(encounter.phase==='intro'||encounter.phase==='countdown'))return;
@@ -9361,6 +9381,7 @@ server.on('connection', (socket, request) => {
       const stateSeconds = validation.accepted ? validation.elapsedSeconds : Math.max(0.05, (stateNow - player.lastAcceptedTransformAt) / 1000);
       const nextVelocity = firstValidTransform || !validation.accepted ? { x: 0, y: 0, z: 0 } : validation.velocity;
       const velocityLength = Math.hypot(nextVelocity.x, nextVelocity.y, nextVelocity.z);
+      if (player.airAssaultId) player.airAssaultTurnRate = assaultObservedTurn(player.velocity, nextVelocity, stateSeconds, envelope.yawRate);
       player.velocity = velocityLength > velocityCap
         ? { x: nextVelocity.x / velocityLength * velocityCap, y: nextVelocity.y / velocityLength * velocityCap, z: nextVelocity.z / velocityLength * velocityCap }
         : nextVelocity;

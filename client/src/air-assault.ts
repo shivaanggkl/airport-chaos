@@ -7,6 +7,7 @@ type Options = {
   template: () => THREE.Group;
   send: (type: string) => void;
   back: () => void;
+  replay: () => void;
   tone: () => void;
 };
 export class AirAssaultUi {
@@ -51,7 +52,7 @@ export class AirAssaultUi {
     replay.type = 'button';
     replay.textContent = 'REPLAY';
     replay.className = 'context-action context-action--gold';
-    replay.addEventListener('click', () => window.location.reload());
+    replay.addEventListener('click', () => options.replay());
     const back = document.createElement('button');
     back.type = 'button';
     back.textContent = 'BACK';
@@ -66,6 +67,17 @@ export class AirAssaultUi {
   handle(state: AssaultSnapshot): void {
     if (this.disposed)
       return;
+    if (this.state && this.state.id !== state.id) {
+      this.staging.clear();
+      this.queued.clear();
+      this.roster = [];
+      this.readyId = this.loadingId = undefined;
+      this.goUntil = 0;
+      this.lastCountdown = '';
+      this.results.hidden = true;
+      this.title.textContent = 'AIR ASSAULT';
+      this.detail.textContent = '30 ENEMY AIRCRAFT · DESTROY ALL OR SURVIVE 8:00';
+    }
     if (this.state?.phase === 'countdown' && state.phase === 'takeoff') {
       this.goUntil = performance.now() + 650;
       this.title.textContent = 'GO';
@@ -89,6 +101,9 @@ export class AirAssaultUi {
           plane.position.set(enemy.position.x, enemy.position.y, enemy.position.z);
           plane.rotation.set(0, enemy.rotation.y, 0, 'YXZ');
           this.staging.add(plane);
+          // Cinematic/runway staging is stationary; live departures use the normal renderer.
+          plane.updateMatrixWorld(true);
+          plane.traverse(node => { node.matrixAutoUpdate = false; node.matrixWorldAutoUpdate = false; });
           this.queued.set(enemy.id, plane);
         }
         this.template!.userData = runtime;
@@ -180,11 +195,14 @@ export class AirAssaultUi {
       if (s.phase === 'takeoff')
         this.overlay.hidden = performance.now() >= this.goUntil;
       const seconds = s.deadlineAt === null ? 480 : Math.max(0, Math.ceil((s.deadlineAt - now) / 1000));
-      this.clock.textContent = s.phase === 'takeoff' ? 'TAKE OFF' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-      this.tally.textContent = `DESTROYED ${s.destroyed}/30`;
-      this.hull.textContent = `HEALTH ${Math.ceil(s.health)}/${s.maxHealth}`;
+      const clock = s.phase === 'takeoff' ? 'TAKE OFF' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+      const tally = `DESTROYED ${s.destroyed}/30`, hull = `HEALTH ${Math.ceil(s.health)}/${s.maxHealth}`;
+      if (this.clock.textContent !== clock) this.clock.textContent = clock;
+      if (this.tally.textContent !== tally) this.tally.textContent = tally;
+      if (this.hull.textContent !== hull) this.hull.textContent = hull;
       const legendary = s.enemies.some(e => e.tier === 'legendary' && e.phase === 'combat');
-      this.warning.textContent = s.outsideAt !== null ? `RETURN TO COMBAT · ${Math.max(0, 10 - Math.floor((now - s.outsideAt) / 1000))}s` : legendary ? '★ LEGENDARY INBOUND' : s.enemies.some(e => e.phase === 'takeoff') ? 'ENEMY DEPARTING' : '';
+      const warning = s.outsideAt !== null ? `RETURN TO COMBAT · ${Math.max(0, 10 - Math.floor((now - s.outsideAt) / 1000))}s` : legendary ? '★ LEGENDARY INBOUND' : s.enemies.some(e => e.phase === 'takeoff') ? 'ENEMY DEPARTING' : '';
+      if (this.warning.textContent !== warning) this.warning.textContent = warning;
     }
   }
   activeEnemies(): AssaultEnemy[] { return this.state?.phase === 'active' ? this.state.enemies.filter(e => e.phase === 'combat' || e.phase === 'takeoff') : []; }

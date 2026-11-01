@@ -106,6 +106,17 @@ test('Real authenticated server isolates encounters, validates takeoff, freezes 
     resumed.send({ type: 'airAssaultExit' });
     await resumed.wait('airAssault', m => m.phase === 'finished' && m.result === 'exit');
     assert.equal(profiles.getOrCreate(identity.pilotId, 'Assault').credits, welcome.profile.credits);
+    // A real, accepted ground pose can lose before takeoff; no timer or reward is invented.
+    const ground = new Client(p, identity.cookie, 'air-assault'); clients.push(ground);
+    await ground.wait('welcome');
+    ground.send({type:'state',position:{x:-22800,y:runwayY,z:-13600+4100*.32},rotation:{x:0,y:0,z:0},stateSequence:1,aircraftType:'trainer'});
+    ground.send({type:'airAssaultReady'});await sleep(1100);ground.send({type:'airAssaultSkip'});
+    await ground.wait('airAssault',m=>m.phase==='takeoff');
+    ground.send({type:'state',position:{x:-22800,y:runwayY,z:-13600+4100*.32},rotation:{x:0,y:0,z:0},stateSequence:2,aircraftType:'trainer'});
+    ground.send({type:'airAssaultCrash'});
+    const crashed=await ground.wait('airAssault',m=>m.phase==='finished');
+    assert.equal(crashed.result,'destroyed');assert.equal(crashed.startedAt,null);assert.equal(crashed.reward,0);
+
   }
   finally {
     for (const client of clients)

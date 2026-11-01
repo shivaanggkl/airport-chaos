@@ -3286,6 +3286,7 @@ function showTrainingResult(): void {
 }
 
 function showFlightEndResult(title: string): void {
+  if (airAssaultMode) return;
   clearHeldActions();
   flightEndResultActive = true;
   trainingResultActive = false;
@@ -8696,7 +8697,8 @@ function updateRemotePlayers(delta: number): void {
   }
 }
 
-function updateLockCircle(): void {
+function updateLockCircle(afterCamera = false): void {
+  if (airAssaultMode && !afterCamera) return;
   // Projection must use this frame's chase/orbit transform, not the matrix
   // cached by the previous renderer.render call.
   camera.updateMatrixWorld(true);
@@ -9930,7 +9932,7 @@ function animate(): void {
     }
   }
   giantTransportAssetPreview?.update(delta, airplane, !journeyMode, camera);
-  updateLockCircle();
+  updateLockCircle(true);
   syncAceObjective();
   syncLegendaryObjective();
   syncDoubleObjective();
@@ -10200,7 +10202,7 @@ async function realtimeSocketUrl(): Promise<URL> {
 let socket!: WebSocket;
 const airAssaultUi = airAssaultMode ? new AirAssaultUi({root:flightGameRoot,scene,
   template:()=>{const plane=createAirplane('fighter',true);(plane.userData.airframeRoot as THREE.Group).scale.setScalar(aircraftPresentationScale.fighter);Promise.resolve(plane.userData.assetReady).then(()=>applyEquippedLivery(plane,'fighter',{'livery:fighter':'firehawk-inferno'}));return plane;},
-  send:type=>{if(connectionReady())socket.send(JSON.stringify({type}));},back:()=>{void exitFlightToHub();},tone:()=>audioManager.playTone(700,.15,'triangle',.08,300,0,'weapons'),
+  send:type=>{if(connectionReady())socket.send(JSON.stringify({type}));},back:()=>{void exitFlightToHub();},replay:()=>{void replaceRealtimeSocket('Air Assault replay');},tone:()=>audioManager.playTone(700,.15,'triangle',.08,300,0,'weapons'),
 }) : undefined;
 const assaultRemoteIds=new Set<string>();
 const skyDuelUi = skyDuelMode ? new SkyDuelUi(flightGameRoot,
@@ -11003,6 +11005,13 @@ boundSocket.addEventListener('message', (event) => {
   }
   if(message.type==='airAssault'){
     if(!airAssaultMode)return;
+    if (airAssaultUi?.state?.id !== message.id) {
+      for (const heart of message.hearts) {
+        setHeartCooldown(heart.id, 0);
+        repairHeartCooldownUntil.delete(heart.id);
+      }
+      repairBeaconGroup.visible = true;
+    }
     airAssaultUi?.handle(message);
     const active=message.phase==='active'?message.enemies.filter(e=>e.phase==='takeoff'||e.phase==='combat'):[];
     const ids=new Set(active.map(e=>e.id));for(const id of assaultRemoteIds)if(!ids.has(id)){removeRemotePlayer(id);assaultRemoteIds.delete(id);}
@@ -11490,6 +11499,12 @@ boundSocket.addEventListener('message', (event) => {
       // Replacing the temporary model here must not request a respawn: that
       // would fail a fresh Journey attempt before its intro starts.
       applyServerProfile(message.profile, undefined, message.selectionRevision, undefined, undefined, false, true);
+    }
+    if (airAssaultMode && !message.resumeFlight) {
+      // A new server encounter starts from the runway, even after a server restart.
+      restartGame(false);
+      localLifeState = networkLifeState(message.lifeState);
+      applyLocalHull(message.health, message.maxHealth, message.activeAircraftType);
     }
     if (journeyMode && message.airborneSpawn) {
       runStarted = !missionStartCountdownPending && !airborneIntroAwaiting && !(flightLaunchState === 'active' && (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath));
