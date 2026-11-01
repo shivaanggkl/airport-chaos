@@ -6990,3 +6990,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-mode-previous { left: 0; }
 .home-mode-next { right: 0; }
 .home-mode-previous[hidden], .home-mode-next[hidden] { display: none; }
+/* The supplied Mission artwork includes a white margin; crop it within the same shared card frame. */
+.home-hangar .home-mode-track .home-hangar-card-image[src='/media/hub/missions-card.jpg'] {
+  clip-path: inset(8.3333% round 12px); transform: scale(1.2);
+}
