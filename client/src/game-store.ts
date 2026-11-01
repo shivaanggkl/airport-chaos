@@ -248,9 +248,10 @@ export class GameStore {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault(); this.openDetail(item, art);
     });
-    const subtitle = document.createElement('small'); subtitle.className = 'store-art-subtitle'; subtitle.textContent = item.subtitle;
-    subtitle.textContent = item.aircraftType === 'fighter' && this.category === 'FEATURED' ? '★ FEATURED' : item.subtitle;
-    art.append(subtitle);
+    if (item.aircraftType === 'fighter') {
+      const subtitle = document.createElement('small'); subtitle.className = 'store-art-subtitle'; subtitle.textContent = 'FEATURED';
+      art.append(subtitle);
+    }
     if (owned) art.append(this.statusBadge('OWNED'));
     card.append(art);
     const copy = document.createElement('div'); copy.className = 'store-card-copy';
