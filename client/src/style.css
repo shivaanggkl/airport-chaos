@@ -6982,7 +6982,10 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-mode-track { display: flex; align-items: center; gap: var(--menu-selection-gap); width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x; }
 .home-mode-track::-webkit-scrollbar { display: none; }
 .home-mode-track > .home-hangar-mode { flex: 0 0 var(--menu-selection-width); height: var(--menu-selection-height); min-width: 0; scroll-snap-align: start; }
-.home-hangar .home-mode-track .home-hangar-card-image { object-fit: contain; }
+.home-hangar .home-mode-track .home-hangar-card-image {
+  width: min(100%, calc(var(--menu-selection-height) * 1246 / 922)); height: 100%;
+  margin-inline: auto; border-radius: 14px; object-fit: cover;
+}
 .home-mode-previous, .home-mode-next { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; }
 .home-mode-previous { left: 0; }
 .home-mode-next { right: 0; }
