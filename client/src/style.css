@@ -6973,3 +6973,17 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
   .pilot-profile-avatar { width: 65px; height: 65px; }
 }
 @media (prefers-reduced-motion: reduce) { .rank-helmet-unlock { animation: none; } }
+
+/* Direct mode selection on the Pilot Hub, using the shared horizontal rail. */
+.home-hangar .home-hangar-contextual {
+  display: block; width: min(1200px, calc(100% - max(24px, var(--safe-area-left)) - max(24px, var(--safe-area-right))));
+  grid-template-columns: none; overflow: visible;
+}
+.home-mode-track { display: flex; align-items: center; gap: var(--menu-selection-gap); width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x; }
+.home-mode-track::-webkit-scrollbar { display: none; }
+.home-mode-track > .home-hangar-mode { flex: 0 0 var(--menu-selection-width); height: var(--menu-selection-height); min-width: 0; scroll-snap-align: start; }
+.home-hangar .home-mode-track .home-hangar-card-image { object-fit: contain; }
+.home-mode-previous, .home-mode-next { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; }
+.home-mode-previous { left: 0; }
+.home-mode-next { right: 0; }
+.home-mode-previous[hidden], .home-mode-next[hidden] { display: none; }

@@ -199,8 +199,8 @@ test('Pilot Hub presents live Missions and Free Fly cards with integrated naviga
   const shell = read('client/src/app-shell.ts');
   const journey = read('client/src/mission-journey.ts');
   assert.equal((html.match(/id="app-shell-header"/g) ?? []).length, 1);
-  assert.match(html, /data-home-missions aria-label="Missions, Single Player">\s*<img class="home-hangar-card-image" src="\/media\/hub\/missions-card\.jpg"/);
-  assert.match(html, /data-home-free-fly aria-label="Multiplayer, Free Fly">\s*<img class="home-hangar-card-image" src="\/media\/hub\/multiplayer-card\.jpg"/);
+  assert.match(html, /data-home-modes/);
+  assert.doesNotMatch(html, /data-home-free-fly|multiplayer-card\.jpg/);
   assert.doesNotMatch(html, /data-home-fly/);
   assert.doesNotMatch(journey, /data-mission-free|mission-journey-free-dock/);
   assert.match(shell, /utilities\.append\(this\.garage, this\.store, this\.rewards\)/);

@@ -1,3 +1,4 @@
+import { HorizontalRail } from './horizontal-rail';
 import { sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { flushSponsorMeasurements, recordSponsorMeasurement, SponsorExposureEpisode } from './sponsorship-measurement';
 
@@ -9,9 +10,17 @@ export type HomeHangarData = {
   rewardsAvailableInMs?: number;
 };
 
+export const homeMultiplayerModes = [
+  { id: 'sky', title: 'SKY DUEL', artwork: 'sky-duel', playable: true },
+  { id: 'squad', title: 'SQUAD BATTLE', artwork: 'squad-battle', playable: false },
+  { id: 'fleet', title: 'FLEET WAR', artwork: 'fleet-war', playable: false },
+  { id: 'city', title: 'CITY CONTROL', artwork: 'city-control', playable: false },
+] as const;
+export type HomeMultiplayerMode = typeof homeMultiplayerModes[number]['id'];
+
 type HomeHangarHandlers = {
   missions: () => void;
-  freeFly: () => void;
+  multiplayer: (mode: HomeMultiplayerMode) => void;
   store: () => void;
   sponsor: (trigger: HTMLButtonElement) => void;
   settings: () => void;
@@ -19,6 +28,7 @@ type HomeHangarHandlers = {
 
 export class HomeHangar {
   readonly stage: HTMLElement;
+  private readonly modeRail: HorizontalRail;
   private readonly aircraft: HTMLElement;
   private readonly sponsor: HTMLButtonElement;
   private readonly houseSponsor: Node[];
@@ -35,8 +45,25 @@ export class HomeHangar {
     this.data = initialData;
     this.stage = element.querySelector<HTMLElement>('[data-home-hangar-stage]')!;
     this.aircraft = element.querySelector<HTMLElement>('[data-home-aircraft-name]')!;
-    element.querySelector('[data-home-missions]')!.addEventListener('click', handlers.missions);
-    element.querySelector('[data-home-free-fly]')!.addEventListener('click', handlers.freeFly);
+    const modes = element.querySelector<HTMLElement>('[data-home-modes]')!;
+    const addMode = (label: string, image: string, run: () => void): void => {
+      const card = document.createElement('button'); card.type = 'button';
+      card.className = 'game-card-frame menu-selection-card home-hangar-mode';
+      card.setAttribute('aria-label', label);
+      const artwork = document.createElement('img'); artwork.className = 'home-hangar-card-image';
+      artwork.src = image; artwork.alt = ''; artwork.setAttribute('aria-hidden', 'true');
+      card.append(artwork); card.addEventListener('click', run); modes.append(card);
+    };
+    addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
+    for (const mode of homeMultiplayerModes) addMode(
+      `${mode.title}${mode.playable ? ', 1 versus 1' : ', coming soon'}`,
+      `/media/multiplayer/${mode.artwork}-card.png`, () => handlers.multiplayer(mode.id),
+    );
+    this.modeRail = new HorizontalRail(element.querySelector<HTMLElement>('.home-hangar-contextual')!, modes, {
+      itemSelector: '.home-hangar-mode',
+      previous: element.querySelector<HTMLButtonElement>('[data-home-mode-previous]')!,
+      next: element.querySelector<HTMLButtonElement>('[data-home-mode-next]')!, wheel: true, keyboard: true,
+    });
     element.querySelector('[data-home-store]')!.addEventListener('click', handlers.store);
     this.sponsor = element.querySelector<HTMLButtonElement>('[data-home-sponsor]')!;
     this.houseSponsor = Array.from(this.sponsor.childNodes, node => node.cloneNode(true));
@@ -59,6 +86,7 @@ export class HomeHangar {
     this.data = data;
     this.renderIdentity();
     this.element.hidden = false;
+    this.modeRail.refresh();
     this.measureSponsor();
   }
 

@@ -4,7 +4,7 @@ import { CITY_QUERY_PARAM, activeCityFromUrl, cities, resolveCityTimePreset, typ
 import type { CityTimeOfDay } from './city-visuals';
 import { AircraftGarage, type GarageProfile } from './garage';
 import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
-import { HomeHangar, type HomeHangarData } from './home-hangar';
+import { HomeHangar, homeMultiplayerModes, type HomeMultiplayerMode, type HomeHangarData } from './home-hangar';
 import { getSponsorCatalog, type PublicSponsor } from './sponsorship-catalog';
 import { setSponsorMeasurementCatalog, flushSponsorMeasurements } from './sponsorship-measurement';
 import type { BusinessRoute } from './advertise-page';
@@ -677,6 +677,7 @@ type CityJourneyEntry = Readonly<{
 }>;
 const CITY_JOURNEY_SELECTION_KEY = 'airport-chaos-city-journey-selection-v1';
 const CITY_JOURNEY_MODE_KEY = 'airport-chaos-city-journey-mode-v1';
+let selectedHomeMultiplayerMode: HomeMultiplayerMode = 'sky';
 type CityJourneyMode = 'missions' | 'free-fly' | 'multiplayer';
 let cityJourneyMode: CityJourneyMode = (() => {
   try { const stored = sessionStorage.getItem(CITY_JOURNEY_MODE_KEY); return stored === 'free-fly' || stored === 'multiplayer' ? stored : 'missions'; }
@@ -709,6 +710,11 @@ function dallasUnlocked(): boolean {
 function cityJourneyState(entry: CityJourneyEntry): { detail: string; status: string; cta: string; city?: CityDefinition; training?: boolean; locked?: boolean; disabled?: boolean } {
   const city = journeyCity(entry);
   if (!city) return { detail: 'COMING SOON', status: 'CITY LOCKED', cta: 'LOCKED', disabled: true };
+  if (cityJourneyMode === 'multiplayer') {
+    const mode = homeMultiplayerModes.find(mode => mode.id === selectedHomeMultiplayerMode)!;
+    if (!mode.playable) return { city, detail: mode.title, status: 'COMING SOON', cta: 'COMING SOON', disabled: true };
+    if (city.id !== 'dallas') return { city, detail: mode.title, status: 'UNAVAILABLE IN THIS CITY', cta: 'UNAVAILABLE', disabled: true };
+  }
   if (entry.id === 'milwaukee') {
     const completed = Boolean(authoritativeHomeProfile?.tutorial?.completedAt);
     if (cityJourneyMode === 'missions') return { city, detail: 'TRAINING', status: completed ? 'TRAINING COMPLETED' : 'TRAINING AVAILABLE', cta: completed ? 'PRACTICE AGAIN' : 'START TRAINING', training: true };
@@ -1046,7 +1052,7 @@ let hubSponsorTimer: ReturnType<typeof setTimeout> | undefined;
 let hubSponsorRequest = 0;
 const homeHangar = new HomeHangar(homeHangarElement, {
   missions: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); void requestHubFly('missions'); },
-  freeFly: () => { hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); showSelector('', { mode: 'multiplayer', preferDallas: true }); },
+  multiplayer: mode => { selectedHomeMultiplayerMode = mode; hapticsManager.emit('selection'); recordProductIntent('fly_clicked'); showSelector('', { mode: 'multiplayer', preferDallas: true }); },
   store: () => { hapticsManager.emit('selection'); void openGameStore(); },
   sponsor: trigger => { hapticsManager.emit('selection'); void openAdvertisePage(trigger,
     currentHubSponsor && performance.now() < hubSponsorExpiresAt && trigger.classList.contains('is-sponsored') ? 'details' : undefined,
@@ -1876,7 +1882,7 @@ window.addEventListener('popstate', () => {
   if (entryState === 'CITY_SELECTION' && citySelector.dataset.view === 'time') {
     if (window.history.state?.airportChaosEntryView === 'MULTIPLAYER_MODES') {
       const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
-      if (dallas) showDallasMultiplayerCards(dallas, false);
+      if (dallas) showSelector('', { mode: 'multiplayer', preferDallas: true });
     } else if (window.history.state?.airportChaosEntryView === 'MISSION_JOURNEY') showMissionJourney(false);
     else showSelector();
     return;
@@ -2140,7 +2146,7 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   cityHelp.setAttribute('aria-label', `${cityJourneyMode === 'missions' ? 'Missions' : cityJourneyMode === 'multiplayer' ? 'Multiplayer' : 'Free Fly'} help`);
   cityHelpCopy.textContent = cityJourneyMode === 'missions'
     ? 'Use the arrows, swipe, or tap a nearby city. View Dallas’s journey at any time. Complete Milwaukee training to unlock its missions.'
-    : cityJourneyMode === 'multiplayer' ? 'Choose Dallas for Sky Duel. Free Fly remains available in Dallas and Milwaukee.'
+    : cityJourneyMode === 'multiplayer' ? 'Choose Dallas for Sky Duel. Other battle modes are coming soon.'
       : 'Use the arrows, swipe, or tap a nearby city. Choose Continue, pick a time, and fly freely. Milwaukee is a training city; Dallas supports multiplayer. Locked cities cannot launch.';
   cityJourneyIndex = pendingDallasUnlock && cityJourneyMode === 'missions'
     ? Math.max(0, cityJourneyEntries.findIndex(entry => entry.id === 'milwaukee'))
@@ -2353,14 +2359,12 @@ function chooseCity(city: CityDefinition): void {
   if (city.status !== 'available') return;
   recordProductIntent('city_selected', { cityId: city.id });
   if (cityJourneyMode === 'multiplayer') {
-    if (city.id === 'dallas') showDallasMultiplayerCards(city);
-    else if (city.id === 'milwaukee') {
-      void enterCity(city, 'day', false, 'free-fly').catch((error: unknown) => {
-        console.error('[city-entry] Unable to initialize gameplay.', error);
-        showSelector('Unable to load this city.');
-      });
-    }
-    else showTimeSelection(city);
+    if (selectedHomeMultiplayerMode !== 'sky' || city.id !== 'dallas') return;
+    cityJourneyLaunching = true;
+    void enterCity(city, 'evening', false, 'sky-duel').catch((error: unknown) => {
+      console.error('[sky-duel] Unable to initialize gameplay.', error);
+      showSelector('Unable to load Sky Duel.', { mode: 'multiplayer', preferDallas: true });
+    });
     return;
   }
   if (cityJourneyMode === 'free-fly') {
@@ -2382,129 +2386,6 @@ function chooseCity(city: CityDefinition): void {
     return;
   }
   showTimeSelection(city, 'CITY_SELECTION');
-}
-
-function showDallasMultiplayerCards(city: CityDefinition, pushHistory = true): void {
-  closeCityHelp();
-  if (pushHistory && window.history.state?.airportChaosEntryView !== 'MULTIPLAYER_MODES')
-    window.history.pushState({ airportChaosEntryView: 'MULTIPLAYER_MODES' }, '', window.location.href);
-  citySelector.dataset.view = 'multiplayer';
-  cityOptions.hidden = true;
-  timeOptions.hidden = false;
-  // Existing Free Fly entry is exposed only for local P1 world inspection.
-  // The server still validates all authenticated actions and rewards.
-  multiplayerFreeFly.hidden = !(['localhost', '127.0.0.1'].includes(window.location.hostname) &&
-    new URLSearchParams(window.location.search).get('p1qa') === '1');
-  cityBack.textContent = 'BACK TO CITIES';
-  citySelectTitle.textContent = 'DALLAS MULTIPLAYER';
-  citySelectDescription.textContent = '';
-  showAppHeader(undefined);
-  timeOptions.replaceChildren();
-  timeOptions.classList.remove('time-selection-cards');
-  timeOptions.classList.add('menu-card-carousel', 'multiplayer-mode-cards');
-  timeOptions.removeAttribute('role');
-  timeOptions.onwheel = null;
-  const modes = [
-    { id: 'sky', title: 'SKY DUEL', subtitle: '1 VS 1', playable: true },
-    { id: 'squad', title: 'SQUAD BATTLE', subtitle: '3 VS 3', playable: false },
-    { id: 'fleet', title: 'FLEET WAR', subtitle: '', playable: false },
-    { id: 'city', title: 'CITY CONTROL', subtitle: 'CAPTURE & HOLD', playable: false },
-  ] as const;
-  const fullCardArtwork = {
-    sky: 'sky-duel',
-    squad: 'squad-battle',
-    fleet: 'fleet-war',
-    city: 'city-control',
-  } as const;
-  const track = document.createElement('div');
-  track.className = 'menu-card-carousel-track multiplayer-mode-track';
-  const cards: HTMLElement[] = [];
-  let enteringSkyDuel = false;
-  let ignoreCardClickUntil = 0;
-  let selectedIndex = 0;
-  for (const mode of modes) {
-    const { card } = createMenuCarouselCard(`city-time-option multiplayer-mode-card multiplayer-mode-${mode.id}${mode.playable ? ' is-playable' : ' is-coming-soon'}`, 'multiplayer-mode-art', 'multiplayer-mode-copy');
-    card.classList.add('is-full-artwork');
-    card.setAttribute('aria-label', mode.id === 'sky' ? 'Sky Duel, 1 versus 1, entry 500 Credits, prize 1,000 Credits, first to 3'
-      : mode.id === 'squad' ? 'Squad Battle, 3 versus 3, coming soon'
-      : mode.id === 'city' ? 'City Control, capture and hold, coming soon' : 'Fleet War, coming soon');
-    if (mode.playable) card.setAttribute('role', 'button');
-    const fullCard = document.createElement('img');
-    fullCard.className = 'multiplayer-mode-full-card-image';
-    fullCard.src = `/media/multiplayer/${fullCardArtwork[mode.id]}-card.png`;
-    fullCard.alt = '';
-    fullCard.setAttribute('aria-hidden', 'true');
-    card.replaceChildren(fullCard);
-    track.append(card);
-    cards.push(card);
-  }
-  const previous = document.createElement('button');
-  previous.type = 'button';
-  previous.className = 'city-journey-arrow city-journey-arrow-previous';
-  previous.setAttribute('aria-label', 'Previous multiplayer mode');
-  previous.textContent = '‹';
-  const next = document.createElement('button');
-  next.type = 'button';
-  next.className = 'city-journey-arrow city-journey-arrow-next';
-  next.setAttribute('aria-label', 'Next multiplayer mode');
-  next.textContent = '›';
-  const selectMode = (index: number): void => {
-    selectedIndex = Math.max(0, Math.min(index, modes.length - 1));
-    cards.forEach((card, cardIndex) => {
-      const distance = cardIndex - selectedIndex;
-      positionMenuCarouselCard(card, distance);
-      card.setAttribute('aria-current', cardIndex === selectedIndex ? 'true' : 'false');
-      if (modes[cardIndex]?.playable) {
-        card.tabIndex = cardIndex === selectedIndex ? 0 : -1;
-        card.setAttribute('aria-disabled', enteringSkyDuel ? 'true' : 'false');
-      }
-    });
-    previous.hidden = previous.disabled = selectedIndex === 0;
-    next.hidden = next.disabled = selectedIndex === modes.length - 1;
-  };
-  const startSkyDuel = (): void => {
-    if (selectedIndex !== 0 || enteringSkyDuel || performance.now() < ignoreCardClickUntil) return;
-    enteringSkyDuel = true;
-    cards[0]?.setAttribute('aria-disabled', 'true');
-    hapticsManager.emit('selection');
-    void enterCity(city, 'evening', false, 'sky-duel').catch((error: unknown) => {
-      console.error('[sky-duel] Unable to initialize gameplay.', error);
-      enteringSkyDuel = false;
-      showDallasMultiplayerCards(city, false);
-      citySelectionError.textContent = 'Unable to load Sky Duel.';
-      citySelectionError.hidden = false;
-    });
-  };
-  cards.forEach((card, index) => card.addEventListener('click', () => {
-    if (performance.now() < ignoreCardClickUntil) return;
-    if (index !== selectedIndex) selectMode(index);
-    else if (modes[index]?.playable) startSkyDuel();
-  }));
-  cards[0]?.addEventListener('keydown', (event) => {
-    if (event.target === cards[0] && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      startSkyDuel();
-    }
-  });
-  previous.addEventListener('click', () => selectMode(selectedIndex - 1));
-  next.addEventListener('click', () => selectMode(selectedIndex + 1));
-  track.append(previous, next);
-  timeOptions.append(track);
-  timeOptions.tabIndex = 0;
-  timeOptions.setAttribute('aria-label', 'Dallas multiplayer modes');
-  timeOptions.onkeydown = (event) => {
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      selectMode(selectedIndex + (event.key === 'ArrowRight' ? 1 : -1));
-    }
-  };
-  installMenuCarouselSwipe(timeOptions, direction => {
-    ignoreCardClickUntil = performance.now() + 350;
-    if (direction) selectMode(selectedIndex + direction);
-  });
-  selectMode(selectedIndex);
-  citySelectionError.hidden = true;
-  playMenuEntrance(citySelector);
 }
 
 multiplayerFreeFly.addEventListener('click', () => {
@@ -2633,7 +2514,7 @@ function returnFromTimeSelection(): void {
   else if (timeSelectionReturnState === 'MISSION_JOURNEY') showMissionJourney(false);
   else if (timeSelectionReturnState === 'MULTIPLAYER_MODES') {
     const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
-    if (dallas) showDallasMultiplayerCards(dallas, false);
+    if (dallas) showSelector('', { mode: 'multiplayer', preferDallas: true });
   }
   else showSelector();
 }
@@ -2732,7 +2613,7 @@ async function start(): Promise<void> {
     await showHome();
     showSelector('', { preferDallas: true, mode: 'multiplayer' });
     const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
-    if (dallas) showDallasMultiplayerCards(dallas);
+    if (dallas) showSelector('', { mode: 'multiplayer', preferDallas: true });
   } else if (directCityEntry) {
     await showHome();
     if (pendingDallasUnlock) showSelector('', { mode: 'missions' });
