@@ -6994,3 +6994,23 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-hangar .home-mode-track .home-hangar-card-image[src='/media/hub/missions-card.jpg'] {
   clip-path: inset(8.3333% round 12px); transform: scale(1.2);
 }
+
+/* Shared folded corner flag for every Pilot Hub mode card. */
+.home-mode-track > .home-hangar-mode { position: relative; overflow: visible; }
+.home-mode-flag {
+  position: absolute; z-index: 2; isolation: isolate; pointer-events: none;
+  top: 14px; left: calc((100% - min(100%, var(--menu-selection-height) * 1246 / 922)) / 2 - 4px);
+  padding: 7px 19px 7px 11px; color: #142540;
+  font: 900 clamp(10px, 1.15vw, 14px)/1.1 var(--font-display); letter-spacing: .025em;
+  white-space: nowrap; text-shadow: 0 1px rgb(255 255 255 / 35%);
+  filter: drop-shadow(0 2px 2px rgb(0 13 35 / 28%));
+}
+.home-mode-flag::before {
+  content: ''; position: absolute; z-index: -1; inset: 0;
+  background: var(--menu-gold-fill); border-top: 1px solid #fff0b0;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+}
+.home-mode-flag::after {
+  content: ''; position: absolute; left: 0; bottom: -5px;
+  border-top: 5px solid #946214; border-left: 4px solid transparent;
+}

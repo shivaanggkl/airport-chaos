@@ -46,18 +46,20 @@ export class HomeHangar {
     this.stage = element.querySelector<HTMLElement>('[data-home-hangar-stage]')!;
     this.aircraft = element.querySelector<HTMLElement>('[data-home-aircraft-name]')!;
     const modes = element.querySelector<HTMLElement>('[data-home-modes]')!;
-    const addMode = (label: string, image: string, run: () => void): void => {
+    const addMode = (label: string, image: string, run: () => void, multiplayer = false): void => {
       const card = document.createElement('button'); card.type = 'button';
       card.className = 'game-card-frame menu-selection-card home-hangar-mode';
-      card.setAttribute('aria-label', label);
+      card.setAttribute('aria-label', multiplayer ? `${label}, Multiplayer` : label);
       const artwork = document.createElement('img'); artwork.className = 'home-hangar-card-image';
       artwork.src = image; artwork.alt = ''; artwork.setAttribute('aria-hidden', 'true');
-      card.append(artwork); card.addEventListener('click', run); modes.append(card);
+      const flag = document.createElement('span'); flag.className = 'home-mode-flag';
+      flag.textContent = multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'; flag.setAttribute('aria-hidden', 'true');
+      card.append(artwork, flag); card.addEventListener('click', run); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
     for (const mode of homeMultiplayerModes) addMode(
       `${mode.title}${mode.playable ? ', 1 versus 1' : ', coming soon'}`,
-      `/media/multiplayer/${mode.artwork}-card.png`, () => handlers.multiplayer(mode.id),
+      `/media/multiplayer/${mode.artwork}-card.png`, () => handlers.multiplayer(mode.id), true,
     );
     this.modeRail = new HorizontalRail(element.querySelector<HTMLElement>('.home-hangar-contextual')!, modes, {
       itemSelector: '.home-hangar-mode',
