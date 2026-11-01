@@ -7014,3 +7014,8 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
   content: ''; position: absolute; left: 0; bottom: -5px;
   border-top: 5px solid #946214; border-left: 4px solid transparent;
 }
+
+/* Air Assault's supplied image already contains its Multiplayer flag and outer white margin. */
+.home-hangar .home-mode-track .home-hangar-card-image[src='/media/multiplayer/air-assault-card.jpg'] {
+  object-fit: fill; clip-path: inset(6.5217% 15.5172% round 12px); transform: scale(1.45, 1.15);
+}

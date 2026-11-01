@@ -15,6 +15,7 @@ export const homeMultiplayerModes = [
   { id: 'squad', title: 'SQUAD BATTLE', artwork: 'squad-battle', playable: false },
   { id: 'fleet', title: 'FLEET WAR', artwork: 'fleet-war', playable: false },
   { id: 'city', title: 'CITY CONTROL', artwork: 'city-control', playable: false },
+  { id: 'assault', title: 'AIR ASSAULT', artwork: 'air-assault', playable: false, embeddedFlag: true },
 ] as const;
 export type HomeMultiplayerMode = typeof homeMultiplayerModes[number]['id'];
 
@@ -46,7 +47,7 @@ export class HomeHangar {
     this.stage = element.querySelector<HTMLElement>('[data-home-hangar-stage]')!;
     this.aircraft = element.querySelector<HTMLElement>('[data-home-aircraft-name]')!;
     const modes = element.querySelector<HTMLElement>('[data-home-modes]')!;
-    const addMode = (label: string, image: string, run: () => void, multiplayer = false): void => {
+    const addMode = (label: string, image: string, run: () => void, multiplayer = false, embeddedFlag = false): void => {
       const card = document.createElement('button'); card.type = 'button';
       card.className = 'game-card-frame menu-selection-card home-hangar-mode';
       card.setAttribute('aria-label', multiplayer ? `${label}, Multiplayer` : label);
@@ -54,12 +55,15 @@ export class HomeHangar {
       artwork.src = image; artwork.alt = ''; artwork.setAttribute('aria-hidden', 'true');
       const flag = document.createElement('span'); flag.className = 'home-mode-flag';
       flag.textContent = multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'; flag.setAttribute('aria-hidden', 'true');
-      card.append(artwork, flag); card.addEventListener('click', run); modes.append(card);
+      card.append(artwork);
+      if (!embeddedFlag) card.append(flag);
+      card.addEventListener('click', run); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
     for (const mode of homeMultiplayerModes) addMode(
       `${mode.title}${mode.playable ? ', 1 versus 1' : ', coming soon'}`,
-      `/media/multiplayer/${mode.artwork}-card.png`, () => handlers.multiplayer(mode.id), true,
+      `/media/multiplayer/${mode.artwork}-card.${'embeddedFlag' in mode ? 'jpg' : 'png'}`,
+      () => handlers.multiplayer(mode.id), true, 'embeddedFlag' in mode && mode.embeddedFlag,
     );
     this.modeRail = new HorizontalRail(element.querySelector<HTMLElement>('.home-hangar-contextual')!, modes, {
       itemSelector: '.home-hangar-mode',
