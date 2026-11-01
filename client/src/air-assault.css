@@ -1,0 +1,12 @@
+.air-assault-hud { position:fixed; z-index:35; top:calc(var(--safe-area-top) + 82px); left:max(12px,var(--safe-area-left)); display:grid; gap:4px; padding:10px 14px; border:1px solid var(--ui-gold); border-radius:10px; background:#0b2c50; color:#fff; font:800 13px/1.2 var(--font-display); pointer-events:none; }
+.air-assault-hud strong { color:#ffd66a; font-size:22px; }
+.air-assault-hud > span:last-child { color:#ffe78c; }
+.air-assault-overlay { position:fixed; z-index:70; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:10px; padding:24px 16px max(24px,var(--safe-area-bottom)); color:#fff; background:linear-gradient(transparent 50%,rgb(4 20 42 / 80%)); text-align:center; pointer-events:none; }
+.air-assault-overlay h2 { margin:0; color:#ffdb70; text-shadow:0 2px 5px #071d3d; font:900 clamp(26px,4vw,48px)/1.1 var(--font-display); }
+.air-assault-overlay p { margin:0; font:800 clamp(12px,1.5vw,18px)/1.3 var(--font-display); text-shadow:0 2px 3px #071d3d; }
+.air-assault-overlay button { pointer-events:auto; min-height:44px; }
+.air-assault-overlay > button { position:absolute; top:max(12px,var(--safe-area-top)); right:max(12px,var(--safe-area-right)); }
+.air-assault-results { display:flex; gap:12px; }
+.air-assault-hud[hidden],.air-assault-overlay[hidden],.air-assault-results[hidden],.air-assault-overlay button[hidden] { display:none; }
+.air-assault-flight .gameplay-info-card,.air-assault-flight .mission-status-layer,.air-assault-flight .daily-objective-hud { display:none !important; }
+@media (max-height:430px) { .air-assault-hud { top:calc(var(--safe-area-top) + 66px); padding:7px 10px; font-size:11px; } .air-assault-hud strong { font-size:18px; } }

@@ -18,7 +18,7 @@ test('Sky Duel continues from city selection even when its existing launch guard
 });
 
 test('Coming-soon modes and unsupported cities cannot start a different game mode', () => {
-  for (const mode of ['squad', 'fleet', 'city', 'assault', 'sky']) {
+  for (const mode of ['squad', 'fleet', 'city', 'sky']) {
     let calls = 0;
     const context = { cityJourneyMode: 'multiplayer', selectedHomeMultiplayerMode: mode,
       cityJourneyLaunching: true, recordProductIntent() {}, enterCity() { calls++; return Promise.resolve(); }, console };
@@ -42,9 +42,11 @@ test('Single Player retains the mission journey and homepage reuses all existing
   assert.doesNotMatch(source, /function showDallasMultiplayerCards/);
 });
 
-test('Air Assault is coming soon and reuses supplied artwork without a duplicate Multiplayer flag', () => {
-  const home = readFileSync('client/src/home-hangar.ts', 'utf8');
-  assert.match(home, /id: 'assault'.*playable: false, embeddedFlag: true/);
-  assert.match(home, /if \(!embeddedFlag\) card.append\(flag\)/);
-  assert.ok(existsSync('client/public/media/multiplayer/air-assault-card.jpg'));
+test('Air Assault launches directly in Day mode without stakes or Mission Journey', () => {
+  const calls:unknown[][]=[];
+  runInNewContext(`${code}; chooseCity({id:'dallas',status:'available'});`,{cityJourneyMode:'multiplayer',selectedHomeMultiplayerMode:'assault',cityJourneyLaunching:true,recordProductIntent(){},enterCity:(...args:unknown[])=>{calls.push(args);return Promise.resolve();},console});
+  assert.deepEqual(calls[0]?.slice(1),['day',false,'air-assault']);
+  const home=readFileSync('client/src/home-hangar.ts','utf8');
+  assert.match(home,/id: 'assault'.*playable: true/);
+  assert.match(home,/mode.id !== 'assault'/);
 });

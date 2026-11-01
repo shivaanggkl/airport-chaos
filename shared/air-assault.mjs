@@ -1,0 +1,33 @@
+import { cityAirports } from './city-airports.mjs';
+export const airAssaultRules = Object.freeze({ cityId: 'dallas', fullCredits: 600, survivalCredits: 250, durationMs: 480000, introMs: 15000, countdownMs: 3000, returnMs: 10000, reconnectMs: 30000, maxActive: 4, heartCooldownMs: 60000 });
+export const airAssaultTiers = Object.freeze({
+  medium: Object.freeze({ health: 100, reactionMs: 600, trackingMs: 1200, fireMs: 600, dispersion: .030 }),
+  hard: Object.freeze({ health: 150, reactionMs: 400, trackingMs: 800, fireMs: 400, dispersion: .016 }),
+  legendary: Object.freeze({ health: 200, reactionMs: 200, trackingMs: 400, fireMs: 200, dispersion: .008 }),
+});
+export const airAssaultAirports = ['love', 'addison', 'executive'].map(id => cityAirports.dallas.find(a => a.id === id));
+export const airAssaultHearts = [
+  { id: 'assault-heart-love', kind: 'heart', x: -15000, y: 650, z: -10500, radius: 140 },
+  { id: 'assault-heart-addison', kind: 'heart', x: -15500, y: 750, z: -18000, radius: 140 },
+  { id: 'assault-heart-executive', kind: 'heart', x: -16000, y: 650, z: -2000, radius: 140 },
+];
+export function airAssaultManifest() {
+  const quota = { medium: [5, 5, 5], hard: [3, 4, 3], legendary: [2, 1, 2] };
+  const counts = [0, 0, 0], result = [];
+  for (const tier of ['medium', 'hard', 'legendary']) {
+    const remaining = [...quota[tier]];
+    while (remaining.some(n => n > 0))
+      for (let a = 0; a < 3; a++)
+        if (remaining[a] > 0) {
+          remaining[a]--;
+          result.push({ tier, airportId: airAssaultAirports[a].id, ordinal: counts[a]++ });
+        }
+  }
+  return result;
+}
+export function airAssaultQueuePosition(airportId, ordinal, elevation) {
+  const a = airAssaultAirports.find(a => a.id === airportId);
+  const along = a.runwayLength * .05 + ordinal * 65;
+  return { x: a.x + Math.sin(a.heading) * along, y: elevation + 1.2, z: a.z + Math.cos(a.heading) * along };
+}
+export function airAssaultInside(p) { return p.x >= -32000 && p.x <= 5000 && p.z >= -28000 && p.z <= 17000 && p.y < 9000; }

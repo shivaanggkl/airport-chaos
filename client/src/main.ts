@@ -1,3 +1,5 @@
+import { AirAssaultUi } from './air-assault';
+import { airAssaultHearts, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { missionTimePreset } from './mission-time-presets';
 import { transportTuning } from '../../shared/giant-incoming.mjs';
 import {GiantIncomingView,type TransportStateMessage} from './giant-incoming';
@@ -142,6 +144,7 @@ const trainingRequested = new URLSearchParams(window.location.search).get('train
 let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
 const launchMode = launchModeFromUrl(window.location.search);
 const skyDuelMode = launchMode === 'sky-duel' && cityId === 'dallas';
+const airAssaultMode = launchMode === 'air-assault' && cityId === 'dallas';
 const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
   attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean;
@@ -188,6 +191,7 @@ const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
 flightGameRoot.classList.toggle('training-start-pending', trainingRequested);
 flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' && !trainingRequested);
 flightGameRoot.classList.toggle('sky-duel-flight', skyDuelMode);
+flightGameRoot.classList.toggle('air-assault-flight', airAssaultMode);
 const journeyCombatMissionIds = new Set<string>([journeyDallas07.id, journeyDallas08.id, journeyDallas09.id, journeyDallas10.id, journeyDallas11.id, journeyDallas12.id, journeyDallas15.id, journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
 flightGameRoot.classList.toggle('noncombat-journey', journeyMode);
 const missionStartCountdownElement = document.createElement('div');
@@ -223,7 +227,7 @@ missionIntroSkip.addEventListener('click', () => {
   else requestFlightLaunchSkip();
 });
 flightGameRoot.append(missionIntroSkip);
-let flightLaunchState: FlightLaunchState = trainingRequested ? 'disabled' : 'pending';
+let flightLaunchState: FlightLaunchState = trainingRequested || airAssaultMode ? 'disabled' : 'pending';
 let flightLaunchStartedAt = 0;
 let flightLaunchSkipStartedAt: number | undefined;
 let flightLaunchWelcomeHandled = false;
@@ -232,7 +236,7 @@ let runwayJourneyIntroAwaiting = false;
 let cinematicDirector: CinematicDirector;
 let missionClearStartedAt: number | null = null;
 let missionClearAttemptId: string | null = null;
-const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || flightDialogOpen();
+const launchCinematicBlocksInput = (): boolean => flightLaunchState === 'pending' || flightLaunchState === 'active' || missionStartCountdownPending || missionStartCountdownStartedAt !== null || missionClearStartedAt !== null || skyDuelUi?.blocksFlightInput() === true || airAssaultUi?.blocked() === true || flightDialogOpen();
 const journeyPreflightActive = (): boolean => journeyMode &&
   (flightLaunchState === 'pending' || flightLaunchState === 'active' ||
     missionStartCountdownPending || missionStartCountdownStartedAt !== null);
@@ -263,7 +267,7 @@ const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER
 const METERS_PER_SECOND_TO_MPH = MPH_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
 const isDallas = cityId === 'dallas';
-let worldTimeOfDay: CityTimeOfDay = skyDuelMode ? 'evening' : resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
+let worldTimeOfDay: CityTimeOfDay = airAssaultMode ? 'day' : skyDuelMode ? 'evening' : resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
 const timeVisuals = createTimeVisuals(isDallas);
 let visualConfig = timeVisuals[worldTimeOfDay];
 let graphicsQualityMode:GraphicsQualityMode=preferredGraphicsQuality();
@@ -438,7 +442,7 @@ let skyMoon: THREE.Mesh | undefined;
 
 function setLocalTimePreset(requestedPreset: unknown): void {
   const preset = resolveCityTimePreset(activeCity!, requestedPreset);
-  if (!isDallas || skyDuelMode || preset === worldTimeOfDay) return;
+  if (!isDallas || skyDuelMode || airAssaultMode || preset === worldTimeOfDay) return;
   worldTimeOfDay = preset;
   visualConfig = timeVisuals[preset];
   SKY_COLOR = visualConfig.background;
@@ -492,7 +496,8 @@ const repairHeartMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasText
 const repairHeartSprites = new Map<string, THREE.Sprite>();
 const repairHeartTimers = new Map<string, number>();
 const repairHeartCooldownUntil = new Map<string, number>();
-const repairMapMarkers = repairsForCity(cityId).map((beacon) => ({ ...beacon, cooldownUntil: 0 }));
+const airAssaultRepairBeacons=airAssaultHearts.map(heart=>({...heart,altitudeAgl:heart.y-groundPlaneY(heart.x,heart.z)}));
+const repairMapMarkers = (airAssaultMode?airAssaultRepairBeacons:repairsForCity(cityId)).map((beacon) => ({ ...beacon, cooldownUntil: 0 }));
 const repairMapMarkerById = new Map(repairMapMarkers.map((beacon) => [beacon.id, beacon]));
 function setHeartCooldown(id: string, remainingMs: number): void {
   const heart = repairHeartSprites.get(id);
@@ -516,7 +521,7 @@ function setHeartCooldown(id: string, remainingMs: number): void {
   }, remainingMs));
   else repairHeartTimers.delete(id);
 }
-for (const beacon of cityId === 'dallas' ? [...repairsForCity(cityId), journeyDallas17.heart, { id: journeyDallas23.heartId, kind: 'heart' as const, x: 0, z: 0, altitudeAgl: 0, radius: journeyDallas23.heartRadius }] : repairsForCity(cityId)) {
+for (const beacon of airAssaultMode ? airAssaultRepairBeacons : cityId === 'dallas' ? [...repairsForCity(cityId), journeyDallas17.heart, { id: journeyDallas23.heartId, kind: 'heart' as const, x: 0, z: 0, altitudeAgl: 0, radius: journeyDallas23.heartRadius }] : repairsForCity(cityId)) {
   if (beacon.kind === 'heart') {
     const heart = new THREE.Sprite(repairHeartMaterial);
     heart.position.set(beacon.x, groundPlaneY(beacon.x, beacon.z) + beacon.altitudeAgl, beacon.z);
@@ -574,7 +579,7 @@ window.addEventListener('pageshow', event => {
   if (event.persisted) { worldSponsorActive = true; void refreshWorldSponsorship(); }
 });
 void refreshWorldSponsorship();
-const ambientTraffic = cityWorld.ambientTrafficConfig
+const ambientTraffic = !airAssaultMode && cityWorld.ambientTrafficConfig
   ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight, worldVisualQuality === 'high' && !skyDuelMode)
   : undefined;
 ambientTraffic?.setTimeOfDay(worldTimeOfDay);
@@ -1591,7 +1596,7 @@ contextualHintDismissElement.addEventListener('click', closeTopUiLayer);
 // Returning pilots receive the compact runway reminder; first-time pilots see
 // the visual guide first, then enter the same contextual hint sequence.
 if (!journeyMode) {
-  if (launchMode !== 'free-fly') contextualHints.trigger('missionBoard');
+  if (launchMode !== 'free-fly' && !airAssaultMode) contextualHints.trigger('missionBoard');
   contextualHints.trigger('runwayControls');
 }
 
@@ -1876,6 +1881,7 @@ function drawRadarMarker(
   ownershipAccent?: string,
   threatened = false,
   relativeAltitude = '',
+  team?: 'red',
 ): void {
   const center = radarCanvas.width / 2;
   const radarRadius = center - 13;
@@ -1900,7 +1906,7 @@ function drawRadarMarker(
   const x = center + radarX;
   const y = center + radarY;
   if (kind === 'player') {
-    radarContext.fillStyle = visualLanguage.player.color;
+    radarContext.fillStyle = team==='red'?'#ff4141':visualLanguage.player.color;
     radarContext.beginPath();
     radarContext.arc(x, y, 5, 0, Math.PI * 2);
     radarContext.fill();
@@ -2104,10 +2110,12 @@ function updateRadar(direction: THREE.Vector3): void {
   if (missionFocus?.showUnrelatedAirportLabels !== false) for (const airport of airports) {
     drawRadarMarker(direction, airport.x, airport.z, 'airport', radarAirportLabels[airport.id]);
   }
-  if (!skyDuelMode) for (const beacon of repairsForCity(cityId)) {
+  if (!skyDuelMode) for (const beacon of airAssaultMode?airAssaultRepairBeacons:repairsForCity(cityId)) {
     if (beacon.kind === 'heart') drawRadarMarker(direction, beacon.x, beacon.z, 'repairHeart');
   }
-  if (skyDuelMode) {
+  if(airAssaultMode){
+    for(const enemy of airAssaultUi?.activeEnemies()??[])drawRadarMarker(direction,enemy.position.x,enemy.position.z,'player','',false,false,false,false,enemy.tier==='legendary'?'#ffd66a':undefined,false,'','red');
+  } else if (skyDuelMode) {
     const opponent = remotePlayers.get(skyDuelUi?.opponentEntityId() ?? '');
     if (opponent && opponent.lifeState !== 'destroyed') {
       drawRadarMarker(direction, opponent.plane.position.x, opponent.plane.position.z, 'player', '', false, false,
@@ -2169,7 +2177,7 @@ function updateRadar(direction: THREE.Vector3): void {
   }
   if (waypoint && !missionFocus) drawRadarMarker(direction, waypoint.x, waypoint.z, 'waypoint');
 
-  radarContext.fillStyle = '#f8fbff';
+  radarContext.fillStyle = airAssaultMode ? '#4abfff' : '#f8fbff';
   radarContext.beginPath();
   radarContext.moveTo(center, center - 6);
   radarContext.lineTo(center - 5, center + 5);
@@ -3966,6 +3974,7 @@ function endRun(message: EndReason, title: string = message, reportCrash = true)
   clearCombatTarget();
   if (crashed) return;
   if (journeyPreflightActive()) return;
+  if(airAssaultMode){if(reportCrash&&connectionReady()){sendLocalState();socket.send(JSON.stringify({type:'airAssaultCrash'}));}crashed=true;runStarted=false;return;}
   if (skyDuelMode) {
     if (reportCrash && connectionReady()) {
       sendLocalState();
@@ -4871,6 +4880,7 @@ type NetworkProfile = {
 };
 
 type ServerMessage =
+  | AssaultSnapshot
   | {
       type: 'welcome';
       protocolVersion: number;
@@ -4885,7 +4895,7 @@ type ServerMessage =
       trainingSlideIndex?: number;
       trainingPausedAt?: number;
       serverNow?: number;
-      journeyPauseSupported?: boolean;
+      journeyPauseSupported?: boolean; airAssaultSupported?: boolean;
       skyDuelStakesEnabled?: boolean;
       skyDuelAiPracticeEnabled?: boolean;
       health: number;
@@ -5340,7 +5350,7 @@ function paintPlayerIdentityTag(label: THREE.Sprite, name: string, type: Aircraf
   label.userData.signature = signature;
   const context = canvas.getContext('2d')!;
   context.clearRect(0, 0, canvas.width, canvas.height);
-  const identityColor = visualLanguage[isBot ? 'ai' : 'player'].color;
+  const identityColor = airAssaultMode&&isBot?'#ff4141':visualLanguage[isBot ? 'ai' : 'player'].color;
   context.fillStyle = 'rgba(6, 20, 30, 0.84)';
   context.fillRect(2, 2, 316, 76);
   context.strokeStyle = missionTarget ? visualLanguage.mission.color : identityColor;
@@ -5448,7 +5458,7 @@ function createTargetBrackets(isBot: boolean, type: AircraftType, visualScale: n
   canvas.width = 128;
   canvas.height = 128;
   const context = canvas.getContext('2d')!;
-  context.strokeStyle = visualLanguage[isBot ? 'ai' : 'player'].color;
+  context.strokeStyle = airAssaultMode&&isBot?'#ff4141':visualLanguage[isBot ? 'ai' : 'player'].color;
   context.lineWidth = 5;
   context.stroke(new Path2D(targetBracketPath));
   const texture = new THREE.CanvasTexture(canvas);
@@ -5497,7 +5507,7 @@ function createRemotePlayerProxy(isBot: boolean): THREE.Sprite {
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({
     map: texture,
-    color: visualLanguage[isBot ? 'ai' : 'player'].color,
+    color: airAssaultMode&&isBot?'#ff4141':visualLanguage[isBot ? 'ai' : 'player'].color,
     transparent: true,
     depthWrite: false,
     depthTest: true,
@@ -6844,7 +6854,7 @@ function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttemp
 let completedMissionUntil = 0;
 
 function updateMissionHud(): void {
-  const active = launchMode === 'free-fly' ? undefined : serverProfile.missions[cityId]?.active;
+  const active = launchMode === 'free-fly' || airAssaultMode ? undefined : serverProfile.missions[cityId]?.active;
   const definition = active && missionForCity(cityId, active.missionId);
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
@@ -8462,7 +8472,7 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   if (typeof player.isBot === 'boolean' && remote.isBot !== player.isBot) {
     remote.isBot = Boolean(player.isBot);
     refreshPlayerIdentityTag(remote);
-    (remote.playerProxy.material as THREE.SpriteMaterial).color.set(visualLanguage[remote.isBot ? 'ai' : 'player'].color);
+    (remote.playerProxy.material as THREE.SpriteMaterial).color.set(airAssaultMode&&remote.isBot?'#ff4141':visualLanguage[remote.isBot ? 'ai' : 'player'].color);
     remote.plane.remove(remote.targetBrackets);
     disposeTargetBrackets(remote.targetBrackets);
     remote.targetBrackets = createTargetBrackets(remote.isBot, player.aircraftType,
@@ -9838,7 +9848,7 @@ function animate(): void {
   // Mission 19's airborne aircraft becomes controllable with the server clock.
   // Keep the spawn fixed while the authenticated attempt is still preparing.
   if (!crashed && runStarted && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive() &&
-    !skyDuelUi?.blocksFlightInput() &&
+    !skyDuelUi?.blocksFlightInput() && !airAssaultUi?.blocked() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId === journeyDallas19.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
@@ -9876,8 +9886,8 @@ function animate(): void {
 
   updateTerritoryBorderVisibility(performance.now());
   ambientTraffic?.update(delta, airplane.position, camera);
-  if (!guidedTutorialActive && !crashed && runStarted && !visualQaInspectionActive) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
-  if (!crashed && runStarted && !visualQaInspectionActive) {
+  if (!airAssaultMode && !guidedTutorialActive && !crashed && runStarted && !visualQaInspectionActive) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
+  if (!airAssaultMode && !crashed && runStarted && !visualQaInspectionActive) {
     stuntFrame.delta = delta;
     stuntFrame.airborne = !onGround;
     stuntFrame.position = airplane.position;
@@ -9899,6 +9909,7 @@ function animate(): void {
   updateEventVisual();
   cinematicDirector.update(performance.now());
   updateCamera(delta);
+  airAssaultUi?.update(camera,airplane);
   updateLockCircle();
   transportView?.updateDefeatCamera(camera,delta,airplane,chaseCameraPosition,chaseLookTarget);
   if (crashSequence) {
@@ -10178,7 +10189,7 @@ async function realtimeSocketUrl(): Promise<URL> {
   url.searchParams.set('analyticsSession', productAnalyticsSessionId());
   url.searchParams.set('time', worldTimeOfDay);
   if (journeyMode) url.searchParams.set('journeyAttempt', journeyAttemptId);
-  if ((launchMode === 'free-fly' || skyDuelMode) && !trainingRequested) url.searchParams.set(LAUNCH_MODE_PARAM, launchMode);
+  if ((launchMode === 'free-fly' || skyDuelMode || airAssaultMode) && !trainingRequested) url.searchParams.set(LAUNCH_MODE_PARAM, launchMode);
   if (chaosQaMode) url.searchParams.set('chaosqa', '1');
   return url;
 }
@@ -10187,6 +10198,11 @@ async function realtimeSocketUrl(): Promise<URL> {
 // transient failure there is recovered by the normal reconnect path instead
 // of rejecting this module and leaving the game root hidden.
 let socket!: WebSocket;
+const airAssaultUi = airAssaultMode ? new AirAssaultUi({root:flightGameRoot,scene,
+  template:()=>{const plane=createAirplane('fighter',true);(plane.userData.airframeRoot as THREE.Group).scale.setScalar(aircraftPresentationScale.fighter);Promise.resolve(plane.userData.assetReady).then(()=>applyEquippedLivery(plane,'fighter',{'livery:fighter':'firehawk-inferno'}));return plane;},
+  send:type=>{if(connectionReady())socket.send(JSON.stringify({type}));},back:()=>{void exitFlightToHub();},tone:()=>audioManager.playTone(700,.15,'triangle',.08,300,0,'weapons'),
+}) : undefined;
+const assaultRemoteIds=new Set<string>();
 const skyDuelUi = skyDuelMode ? new SkyDuelUi(flightGameRoot,
   (type, matchId) => { if (!connectionReady()) return false; socket.send(JSON.stringify({ type, ...(matchId ? { matchId } : {}) })); return true; },
   () => { void exitFlightToHub(); },
@@ -10790,6 +10806,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   } else if (skyDuelMode) url.searchParams.set('entry', 'multiplayer');
   missionObjectiveGuidance?.dispose();
   skyDuelUi?.dispose();
+  airAssaultUi?.dispose();
   monsterView?.dispose(); monsterView = undefined;
   transportView?.dispose();transportView=undefined;transportViewAttemptId='';
   missionIntroSkip.hidden = true;
@@ -10952,6 +10969,7 @@ function sendFireIntent(): boolean {
 }
 
 function sendRespawn(): void {
+  if(airAssaultMode)return;
   if (!localPlayerId || !connectionReady()) return;
   socket.send(JSON.stringify({ type: 'respawn' }));
 }
@@ -10981,6 +10999,17 @@ boundSocket.addEventListener('message', (event) => {
     message = JSON.parse(event.data) as ServerMessage;
   } catch {
     blockProtocolConnection('Server sent invalid data — restart server and reload');
+    return;
+  }
+  if(message.type==='airAssault'){
+    if(!airAssaultMode)return;
+    airAssaultUi?.handle(message);
+    const active=message.phase==='active'?message.enemies.filter(e=>e.phase==='takeoff'||e.phase==='combat'):[];
+    const ids=new Set(active.map(e=>e.id));for(const id of assaultRemoteIds)if(!ids.has(id)){removeRemotePlayer(id);assaultRemoteIds.delete(id);}
+    for(const enemy of active){updateRemotePlayer({playerId:enemy.id,position:enemy.position,rotation:enemy.rotation,aircraftType:'fighter',cityId,isBot:true,lifeState:'alive',displayName:`${enemy.tier.toUpperCase()} ENEMY`,health:enemy.health,maxHealth:enemy.maxHealth,equippedCosmetics:{'livery:fighter':'firehawk-inferno'}});assaultRemoteIds.add(enemy.id);}
+    applyLocalHull(message.health,message.maxHealth);updateHealthDisplay();
+    for(const heart of message.hearts){const remaining=Math.max(0,heart.cooldownUntil-message.serverNow);if(remaining>0&&!repairHeartCooldownUntil.has(heart.id))setHeartCooldown(heart.id,remaining);}
+    if(message.phase==='finished'){clearProjectileVisuals();clearCombatTarget();repairBeaconGroup.visible=false;}
     return;
   }
   if (message.type === 'protocolMismatch') {
@@ -11362,6 +11391,7 @@ boundSocket.addEventListener('message', (event) => {
     return;
   }
   if (message.type === 'welcome') {
+    if(airAssaultMode&&message.airAssaultSupported!==true){blockProtocolConnection('Air Assault requires the matching server update.');return;}
     if (message.protocolVersion !== PROTOCOL_VERSION) {
       blockProtocolConnection('Version mismatch — reload page and restart server');
       return;
@@ -11372,7 +11402,7 @@ boundSocket.addEventListener('message', (event) => {
     }
     journeyPauseSupported = message.journeyPauseSupported === true;
     if (!journeyPauseSupported) setJourneyPaused(false);
-    const shouldBeginFlightLaunch = !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode && !message.resumeFlight && !skyDuelMode;
+    const shouldBeginFlightLaunch = !airAssaultMode && !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode && !message.resumeFlight && !skyDuelMode;
     // A backgrounded transport intro is still in APPROACH. Its pending
     // countdown must survive reconnect so the arrival can hand off to flight.
     if (message.resumeFlight && !(journeyAttempt?.status === 'APPROACH' && missionStartCountdownPending))
@@ -11498,7 +11528,7 @@ boundSocket.addEventListener('message', (event) => {
       }
     }
     if(trainingSlidesOpen&&!trainingPaused)trainingSlides.retryPendingSave();
-    if ((journeyMode||message.tutorialMode) && message.resumeFlight) {
+    if ((journeyMode||message.tutorialMode||airAssaultMode) && message.resumeFlight) {
       const flight = message.resumeFlight;
       runStarted = true;
       crashed = false;
@@ -11534,7 +11564,7 @@ boundSocket.addEventListener('message', (event) => {
     return;
   } else if (message.type === 'takeoffConfirmed') {
     if(!guidedTutorialActive&&!trainingRequested) {
-      cinematicDirector.requestTakeoff(`${message.airportId ?? 'runway'}:${message.confirmedAt}`);
+      if(!airAssaultMode)cinematicDirector.requestTakeoff(`${message.airportId ?? 'runway'}:${message.confirmedAt}`);
     }
   } else if(message.type==='tutorialStepResult'){
     if(guidedTutorialActive)applyTutorialStepResult(message);
@@ -11998,7 +12028,8 @@ boundSocket.addEventListener('message', (event) => {
         hapticsManager.emit('destruction', message.playerId);
       }
       audioManager.playDestroyConfirm();
-      if (!skyDuelMode) {
+      if(airAssaultMode)showCombatMessage('ENEMY DESTROYED',true);
+      if (!skyDuelMode && !airAssaultMode) {
         flightRecap.kills += 1;
         gameplayFeedback.push({ type: 'combat', primaryText: killNotice(message, localPlayerId), intensity: 'medium' });
         score = Math.max(score, message.killerScore);

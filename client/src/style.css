@@ -7019,3 +7019,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-hangar .home-mode-track .home-hangar-card-image[src='/media/multiplayer/air-assault-card.jpg'] {
   object-fit: fill; clip-path: inset(6.5217% 15.5172% round 12px); transform: scale(1.45, 1.15);
 }
+
+/* Authoritative Air Assault terms replace the obsolete figures baked into the supplied card. */
+.assault-card-terms { position:absolute; z-index:3; bottom:10px; left:calc((100% - min(100%, var(--menu-selection-height) * 1246 / 922)) / 2 + 8px); width:calc(min(100%, var(--menu-selection-height) * 1246 / 922) - 16px); height:20%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:center; border-radius:8px; border-top:1px solid #b79538; background:#111b20; color:#ffe28a; font:900 clamp(10px,1.1vw,14px)/1.2 var(--font-display); }
+.assault-card-terms > span { text-align:center; }
