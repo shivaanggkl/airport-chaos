@@ -56,7 +56,7 @@ test('Intro/countdown freeze combat and timer; skip has one-second gate; only DF
   e.skip(now + 6000);
   assert.equal(e.phase, 'active');
 });
-test('All waves launch from ground, never exceed four active or one Legendary, and count each kill once', () => {
+test('All waves launch from ground, never exceed four active, and count each kill once', () => {
   const { encounter: e, start, tick } = rig();
   start();
   let time = now + 4100, seen = 0;
@@ -64,7 +64,7 @@ test('All waves launch from ground, never exceed four active or one Legendary, a
     time += 50;
     tick(time);
     assert.ok(e.active().length <= 4);
-    assert.ok(e.active().filter(n => n.tier === 'legendary').length <= 1);
+    assert.ok(e.active().filter(n => n.tier === 'legendary').length <= 4);
     for (const enemy of e.active())
       if (enemy.phase === 'combat') {
         const prior = e.destroyed;
@@ -312,4 +312,75 @@ test('Observed-bank prediction hits a sustained turn with one straight shot, but
  assert.ok(miss(curved,-rate)>30,'the bullet does not home when the target reverses its bank');
  assert.equal(assaultObservedTurn({x:0,y:0,z:-100},{x:-100,y:0,z:0},.1,1.5),1.5);
  assert.equal(assaultObservedTurn({x:0,y:0,z:0},v,.1,1.5),0);
+});
+
+test('Legendary runway travel overlaps while only one attacks; the fifth arrives before the deadline', () => {
+  const r = rig(); r.start();
+  r.pilot.position = { x: -15000, y: 650, z: -10500 };
+  r.pilot.velocity = { x: 0, y: 0, z: 0 };
+  const launches = new Map<string, number>(), arrivals = new Map<string, number>();
+  const legendIds = new Set(r.encounter.enemies.filter(e => e.tier === 'legendary').map(e => e.id));
+  let firstAttacker: string | undefined, relieved = false;
+  for (let elapsed = 50; elapsed <= 320000; elapsed += 50) {
+    const time = now + 4100 + elapsed; r.tick(time);
+    const active = r.encounter.active();
+    assert.ok(active.length <= 4);
+    for (const airport of airAssaultAirports)
+      assert.ok(active.filter(e => e.airportId === airport.id && e.phase === 'takeoff').length <= 1);
+    for (const e of active) {
+      if (!launches.has(e.id)) {
+        launches.set(e.id, elapsed);
+        assert.equal(e.phase, 'takeoff');
+        assert.ok(e.position.y < 110, 'all aircraft still depart from their actual runway');
+      }
+      if (e.phase === 'combat' && Math.hypot(e.position.x-r.pilot.position.x,e.position.y-r.pilot.position.y,e.position.z-r.pilot.position.z)<4500)
+        if (!arrivals.has(e.id)) arrivals.set(e.id, elapsed);
+      // Controlled damage/outcome fixture; movement and departure clocks remain fully integrated.
+      if (e.tier !== 'legendary' && elapsed - (arrivals.get(e.id) ?? Infinity) >= 6000)
+        r.encounter.defeated(e.id, time);
+    }
+    const legendShots = r.shots.filter(shot => legendIds.has(shot.id));
+    if (!relieved && elapsed >= 265000) {
+      assert.equal(r.encounter.destroyed, 25);
+      assert.equal(active.filter(e => e.tier === 'legendary').length, 4, 'free slots prefetch real Legendary departures');
+      const shooters = new Set(legendShots.map(shot => shot.id));
+      assert.equal(shooters.size, 1, 'holding pilots do not join the attack');
+      firstAttacker = [...shooters][0]!;
+      r.encounter.defeated(firstAttacker, time); relieved = true;
+    }
+  }
+  assert.equal(launches.size, 30);
+  assert.equal(arrivals.size, 30, 'every aircraft physically reaches firing range before eight minutes');
+  const fifth = r.encounter.enemies[29]!;
+  assert.ok(launches.get(fifth.id)! < 267000, 'fifth departure no longer waits until 7:45');
+  assert.ok(arrivals.get(fifth.id)! < 320000);
+  const successors = new Set(r.shots.filter(s => s.at > now+4100+265000 && legendIds.has(s.id)).map(s => s.id));
+  assert.equal(successors.size, 1); assert.ok(!successors.has(firstAttacker!));
+  for (const e of r.encounter.active()) r.encounter.defeated(e.id, now+4100+320001);
+  assert.equal(r.encounter.destroyed, 30); assert.equal(r.encounter.result, 'full');
+});
+
+test('Holding Legendary aircraft still evade real incoming trajectories without joining the attack', () => {
+  const fired: string[] = [];
+  const bullets = [{position:{x:2000,y:800,z:900},direction:{x:0,y:0,z:-1},speed:1500}];
+  const e = new AirAssaultEncounter('dallas','holding',{elevation:()=>100,activate(){},move(){},remove(){},bullets:()=>bullets,fire:n=>{fired.push(n.id);return true;},heal(){},finish:()=>({reward:0,dailyClaimed:false})},now);
+  const pilot: AssaultPilot = {position:{x:0,y:600,z:-2000},velocity:{x:0,y:0,z:-150},rotation:{x:0,y:0,z:0},health:100,maxHealth:100,airborne:true,fresh:true};
+  e.ready(now);e.skip(now+1000);e.tick(pilot,now+4000);e.takeoff(now+4100,'dfw');
+  for(const n of e.enemies)n.phase='destroyed';
+  const [attacker,holding]=e.enemies.filter(n=>n.tier==='legendary');
+  for(const [index,n] of [attacker!,holding!].entries())Object.assign(n,{phase:'combat',health:200,position:{x:index*2000,y:index?800:600,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-150},speed:150,readyAt:now,movedAt:now+4100,previous:{x:index*2000,y:index?800:600,z:0}});
+  const incoming=bullets.pop()!;
+  holding!.passUntil=holding!.trackingAt=now+10000;
+  e.tick(pilot,now+4150);
+  assert.equal(holding!.passUntil,0,'handoff cancels the old attack pass immediately');
+  assert.ok(Math.hypot(holding!.waypoint.x-pilot.position.x,holding!.waypoint.z-pilot.position.z)>2000);
+  bullets.push(incoming);
+  e.tick(pilot,now+4200);
+  assert.equal(holding!.dodgeAt,now+4200);
+  const origin={...holding!.position};
+  for(let time=now+4250;time<=now+5050;time+=50)e.tick(pilot,time);
+  assert.ok(Math.hypot(holding!.position.x-origin.x,holding!.position.z-origin.z)>20);
+  assert.ok(Math.abs(holding!.rotation.z)>.1);
+  assert.equal(holding!.health,200);
+  assert.deepEqual([...new Set(fired)],[attacker!.id]);
 });

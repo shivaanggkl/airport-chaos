@@ -202,6 +202,7 @@ export class AirAssaultEncounter {
   private lastTick: number;
   private nextLaunchAt = 0;
   private shooterIds: string[] = [];
+  private legendaryAttackerId?: string;
   private shooterLeaseUntil = 0;
   private burstStartedAt = 0;
   private heartCooldowns = new Map<string, number>();
@@ -317,8 +318,7 @@ export class AirAssaultEncounter {
     this.collectHearts(pilot, now);
     if (now >= this.nextLaunchAt && this.active().length < rules.maxActive) {
       const next = this.enemies.find(e => e.phase === 'queued');
-      if (next && !this.active().some(e => e.airportId === next.airportId && e.phase === 'takeoff') &&
-        (next.tier !== 'legendary' || !this.active().some(e => e.tier === 'legendary'))) {
+      if (next && !this.active().some(e => e.airportId === next.airportId && e.phase === 'takeoff')) {
         next.phase = 'takeoff';
         next.readyAt = now + tiers[next.tier].reactionMs;
         next.movedAt = now;
@@ -326,7 +326,14 @@ export class AirAssaultEncounter {
         this.nextLaunchAt = now + 1000;
       }
     }
-    const candidates = this.active().filter(e => e.phase === 'combat' && now >= e.readyAt && distance(e.position, pilot.position) < 4500)
+    // Prefetch departures, not attacks: one Legendary pursues/fires while the others hold nearby.
+    const legends = this.active().filter(e => e.tier === 'legendary' && e.phase === 'combat');
+    const attacker = legends.find(e => e.id === this.legendaryAttackerId);
+    if (!attacker || distance(attacker.position, pilot.position) > 6000 && !this.hooks.enemyShotOwners?.().has(attacker.id)) {
+      this.legendaryAttackerId = legends.sort((a, b) => distance(a.position, pilot.position) - distance(b.position, pilot.position))[0]?.id;
+    }
+    const mayAttack = (e: Enemy) => e.tier !== 'legendary' || e.id === this.legendaryAttackerId;
+    const candidates = this.active().filter(e => mayAttack(e) && e.phase === 'combat' && now >= e.readyAt && distance(e.position, pilot.position) < 4500)
       .sort((a, b) => distance(a.position, pilot.position) - distance(b.position, pilot.position)).slice(0, 2);
     if (now >= this.shooterLeaseUntil) {
       // A previous attacker's airborne rounds still occupy its firing slot.
@@ -344,9 +351,9 @@ export class AirAssaultEncounter {
     }
     const shooters = this.active().filter(e => this.shooterIds.includes(e.id));
     for (const enemy of this.active()) {
-      this.move(enemy, pilot, dt, now);
+      this.move(enemy, pilot, dt, now, !mayAttack(enemy));
       const burstLimit = enemy.tier === 'medium' ? 1 : enemy.tier === 'hard' ? 2 : 3;
-      if (shooters.includes(enemy) && now >= enemy.fireAt && now - this.burstStartedAt < 1800 && enemy.burstShots < burstLimit) {
+      if (mayAttack(enemy) && shooters.includes(enemy) && now >= enemy.fireAt && now - this.burstStartedAt < 1800 && enemy.burstShots < burstLimit) {
         if (this.hooks.fire(enemy, tiers[enemy.tier].dispersion)) {
           enemy.burstShots++;
           enemy.fireAt = now + tiers[enemy.tier].fireMs;
@@ -372,7 +379,7 @@ export class AirAssaultEncounter {
       }
     }
   }
-  private move(e: Enemy, p: AssaultPilot, dt: number, now: number): void {
+  private move(e: Enemy, p: AssaultPilot, dt: number, now: number, holding = false): void {
     if (e.phase === 'takeoff') {
       e.speed = Math.min(envelope.groundMaxSpeed, e.speed + envelope.groundAcceleration * dt);
       e.roll += e.speed * dt;
@@ -386,9 +393,18 @@ export class AirAssaultEncounter {
       }
     }
     else {
+      if (holding) {
+        if (e.passUntil > now) e.trackingAt = now;
+        e.passUntil = 0;
+      }
       if (now >= e.readyAt && now >= e.trackingAt && now >= e.dodgeUntil && now >= e.passUntil) {
         const lead = e.tier === 'medium' ? .5 : e.tier === 'hard' ? 1 : 1.4;
-        e.waypoint = { x: p.position.x + p.velocity.x * lead, y: p.position.y + p.velocity.y * lead, z: p.position.z + p.velocity.z * lead };
+        if (holding) {
+          const lane = this.enemies.indexOf(e) - 25;
+          const angle = (now - this.startedAt!) * .00006 + lane * 2.4;
+          const radius = 2200 + lane * 200;
+          e.waypoint = { x: p.position.x + Math.cos(angle) * radius, y: p.position.y + 200 + lane * 100, z: p.position.z + Math.sin(angle) * radius };
+        } else e.waypoint = { x: p.position.x + p.velocity.x * lead, y: p.position.y + p.velocity.y * lead, z: p.position.z + p.velocity.z * lead };
         e.waypoint = this.hooks.safeWaypoint?.(e.position, e.waypoint) ?? e.waypoint;
         e.trackingAt = now + tiers[e.tier].trackingMs;
       }
@@ -421,7 +437,7 @@ export class AirAssaultEncounter {
       const range = distance(e.position, p.position);
       if (e.passUntil > now && now >= e.dodgeUntil && e.passWaypoint) e.waypoint = { ...e.passWaypoint };
       // Complete a close attack pass instead of perpetually orbiting the player's tail.
-      if (range < 900 && now >= e.nextPassAt && now >= e.dodgeUntil) {
+      if (!holding && range < 900 && now >= e.nextPassAt && now >= e.dodgeUntil) {
         e.passUntil = now + tactics[e.tier].passMs;
         e.nextPassAt = e.passUntil + 3500;
         const runLength = Math.max(2200, Math.max(e.speed, Math.hypot(p.velocity.x, p.velocity.z) + 200) * (tactics[e.tier].passMs / 1000 + 2));
@@ -431,7 +447,7 @@ export class AirAssaultEncounter {
         e.trackingAt = e.passUntil;
       }
       // Recovery changes a physically reachable steering destination, never pose or health.
-      if (now - e.movedAt > 8000 || !airAssaultInside(e.position)) {
+      if (!holding && (now - e.movedAt > 8000 || !airAssaultInside(e.position))) {
         e.waypoint = { ...p.position };
         e.trackingAt = now + 500;
       }
@@ -444,7 +460,7 @@ export class AirAssaultEncounter {
         e.progressAt = now;
         e.bestRange = range;
       }
-      if (e.recoveryUntil > now && now >= e.passUntil && now >= e.dodgeUntil)
+      if (!holding && e.recoveryUntil > now && now >= e.passUntil && now >= e.dodgeUntil)
         e.waypoint = { x: p.position.x + p.velocity.x * .35, y: p.position.y, z: p.position.z + p.velocity.z * .35 };
       e.waypoint.x = clamp(e.waypoint.x, -31400, 4400);
       e.waypoint.z = clamp(e.waypoint.z, -27400, 16400);
@@ -457,10 +473,11 @@ export class AirAssaultEncounter {
       const floor = this.hooks.elevation(e.position.x, e.position.z) + 170;
       const pitch = Math.atan2(Math.max(floor, e.waypoint.y) - e.position.y, Math.max(100, Math.hypot(dx, dz)));
       e.rotation.x += clamp(clamp(pitch, -envelope.maxDivePitch, envelope.maxClimbPitch) - e.rotation.x, -envelope.pitchRate * dt, envelope.pitchRate * dt);
-      let targetSpeed = assaultApproachSpeed(Math.hypot(p.velocity.x, p.velocity.z), range);
+      let targetSpeed = assaultApproachSpeed(Math.hypot(p.velocity.x, p.velocity.z), holding ? distance(e.position, e.waypoint) : range);
+      if (holding) targetSpeed = Math.max(230, targetSpeed);
       // Approach acceleration must not accelerate an outbound pass away from the fight.
       if (e.passUntil > now) targetSpeed = clamp(Math.hypot(p.velocity.x, p.velocity.z) + 80, 110, envelope.maxSpeed * .72);
-      if (e.recoveryUntil > now && now >= e.passUntil)
+      if (!holding && e.recoveryUntil > now && now >= e.passUntil)
         targetSpeed = Math.min(targetSpeed, Math.max(110, Math.hypot(p.velocity.x, p.velocity.z) * .72));
       e.speed += clamp(targetSpeed - e.speed, -envelope.airbrakeDrag * dt, envelope.acceleration / envelope.inertia * dt);
     }
