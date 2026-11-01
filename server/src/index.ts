@@ -2908,7 +2908,7 @@ function isSocialPairEligible(first: PlayerState, second: PlayerState): boolean 
 
 function updateFormations(now: number): void {
   for (const cityId of cityIds) {
-    const cityPlayers = [...players.entries()].filter(([, player]) => player.cityId === cityId && player.entityType === 'player' && !player.isBot);
+    const cityPlayers = [...players.entries()].filter(([, player]) => player.cityId === cityId && player.entityType === 'player' && !player.isBot && !player.airAssaultId);
     const candidates: Array<{ firstId: string; secondId: string; distance: number }> = [];
     for (let firstIndex = 0; firstIndex < cityPlayers.length; firstIndex += 1) {
       for (let secondIndex = firstIndex + 1; secondIndex < cityPlayers.length; secondIndex += 1) {
@@ -4560,9 +4560,9 @@ function updateTerritoryDefense(territory: TerritoryRuntime, attackerId: string 
       defender = candidate;
     }
     if (!defender) {
-      const cityBots = [...players.values()].filter((pilot) => pilot.isBot && pilot.cityId === cityId && !pilot.bot?.journeyLeader);
+      const cityBots = [...players.values()].filter((pilot) => pilot.isBot && !pilot.airAssaultId && pilot.cityId === cityId && !pilot.bot?.journeyLeader);
       if (cityBots.length >= maxBotsIncludingTemporaryDefenders) {
-        const humans = [...players.values()].filter((pilot) => !pilot.isBot && pilot.cityId === cityId);
+        const humans = [...players.values()].filter((pilot) => !pilot.isBot && !pilot.airAssaultId && pilot.cityId === cityId);
         const replaceable = cityBots
           .filter((pilot) => pilot.bot && !pilot.bot.journeyAttemptId && !pilot.bot.defenseTerritoryId && !isHunterCombatPhase(pilot.bot.phase) &&
             !territoryStates(cityId).some((state) => state.controllerId === pilot.pilotId))
@@ -4573,7 +4573,7 @@ function updateTerritoryDefense(territory: TerritoryRuntime, attackerId: string 
           })[0];
         if (replaceable) removeBot(replaceable.pilotId);
       }
-      if ([...players.values()].filter((pilot) => pilot.isBot && pilot.cityId === cityId && !pilot.bot?.journeyLeader).length < maxBotsIncludingTemporaryDefenders) {
+      if ([...players.values()].filter((pilot) => pilot.isBot && !pilot.airAssaultId && pilot.cityId === cityId && !pilot.bot?.journeyLeader).length < maxBotsIncludingTemporaryDefenders) {
         const id = createBot(cityId, { territory: territory.definition, attacker: activeAttacker });
         defender = players.get(id);
       }

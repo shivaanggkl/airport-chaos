@@ -1457,7 +1457,7 @@ function dismissDallasPracticeSuggestion(): void {
   try { localStorage.setItem(dallasPracticeSuggestionKey, 'dismissed'); } catch { /* session dismissal still applies */ }
 }
 function offerDallasPracticeSuggestion(profile: NetworkProfile): void {
-  if (journeyMode || cityId !== 'dallas' || profile.tutorial.status !== 'new' || profile.totalDistance > 500 || profile.successfulLandings > 0 || profile.kills > 0 || profile.deaths > 0 || dallasPracticeSuggestionDismissed) return;
+  if (journeyMode || airAssaultMode || cityId !== 'dallas' || profile.tutorial.status !== 'new' || profile.totalDistance > 500 || profile.successfulLandings > 0 || profile.kills > 0 || profile.deaths > 0 || dallasPracticeSuggestionDismissed) return;
   try { if (localStorage.getItem(dallasPracticeSuggestionKey) === 'dismissed') return; } catch { /* show once this session */ }
   dallasPracticeSuggestionElement.hidden = false;
 }
@@ -1576,7 +1576,7 @@ window.addEventListener('pagehide', () => savePlayerProgress(true));
 
 let contextualHintDismissed: readonly ContextualHintId[] = persistedPlayer.dismissedHints;
 function renderContextualHint(id: ContextualHintId | null): void {
-  if (journeyMode || launchMode === 'free-fly' && id === 'missionBoard') id = null;
+  if (journeyMode || airAssaultMode || launchMode === 'free-fly' && id === 'missionBoard') id = null;
   contextualHintElement.classList.toggle('hidden', id === null);
   if (!id) return;
   const definition = contextualHintDefinitions[id];

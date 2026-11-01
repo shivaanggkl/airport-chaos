@@ -132,6 +132,8 @@ export class AirAssaultUi {
         return;
       const t = Math.min(15, (performance.now() - this.readyStartedAt) / 1000);
       const dfw = player.position;
+      const chasePosition = camera.position.clone();
+      const chaseQuaternion = camera.quaternion.clone();
       let focus = new THREE.Vector3().copy(dfw), from = new THREE.Vector3(), to = new THREE.Vector3(), u = 0;
       if (t < 2) {
         from.copy(dfw).add(new THREE.Vector3(500, 400, 700));
@@ -155,13 +157,14 @@ export class AirAssaultUi {
       }
       else {
         from.copy(dfw).add(new THREE.Vector3(200, 90, 300));
-        to.copy(dfw).add(new THREE.Vector3(0, 20, 85));
+        to.copy(chasePosition);
         focus.copy(dfw).add(new THREE.Vector3(0, 4, -40));
         u = (t - 13) / 2;
       }
       u = u * u * (3 - 2 * u);
       camera.position.lerpVectors(from, to, u);
       camera.lookAt(focus);
+      if (t >= 13) camera.quaternion.slerp(chaseQuaternion, u);
     }
     else if (s.phase === 'countdown') {
       this.skip.hidden = true;
