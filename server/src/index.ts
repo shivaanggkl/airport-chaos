@@ -5982,11 +5982,6 @@ function createAssistedShot(
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
   if (!target || !canFire(player, now)) return false;
   const local = targetInAircraftSpace(fireTransform ?? player, target);
-  if (player.airAssaultId) {
-    const shootingPose = fireTransform ? { ...player, position: fireTransform.position, rotation: fireTransform.rotation } : player;
-    const solution = botFireSolution(shootingPose, target, false);
-    return !solution.reason && createProjectile(playerId, player, clientShotId, fireTransform, { x: solution.aimX, y: solution.aimY });
-  }
   if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
   player.lastFireAt = now;
   sendIncomingFire(targetId, playerId);
@@ -6003,7 +5998,8 @@ function createAssistedShot(
   if (player.skyDuelMatchId) {
     const session = skyDuelSessions.get(player.skyDuelMatchId);
     if (session) sendSkyDuel(session, assistedShot);
-  } else if (target.bot?.journeyRearGuardEscort) sendToPlayer(playerId, assistedShot);
+  } else if (player.airAssaultId) sendToPlayer(player.airAssaultOwnerId ?? playerId, assistedShot);
+  else if (target.bot?.journeyRearGuardEscort) sendToPlayer(playerId, assistedShot);
   else broadcastToCity(player.cityId, assistedShot);
   // A server-valid lock is an assisted hit.  Damage can only fail here if a
   // concurrent lifecycle transition made the target invalid after validation;

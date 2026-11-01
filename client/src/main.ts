@@ -12,7 +12,7 @@ import { flightLaunchAircraft } from './flight-launch-aircraft';
 import * as THREE from 'three';
 import { actionKeyLabel, cameraControlLabels, keyboardActionBindings, menuBindings, type FlightAction } from './flight-input';
 import { isEditableControl, shouldIgnoreGameplayKeyboardEvent, shouldToggleDesktopControlsHelp } from './controls-help';
-import { visualLanguage, identityText, targetBracketPath, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
+import { visualLanguage, identityText, playerFacingText, territoryOwnershipColors, type TerritoryAppearance } from './visual-language';
 import { flightTutorial } from './tutorial';
 import './style.css';
 import { AdPlacementManager, attachAircraftLivery, createRingSponsor, eventSponsorFor, getAircraftLivery, resolveAdPlacement, sponsorCreative } from './ad-placement';
@@ -93,7 +93,6 @@ import {
   smoothstep01,
 } from '../../shared/flight-launch-rules.mjs';
 import { CinematicDirector } from './cinematic-director';
-import { aimingReticleMarkup } from './aiming-reticle';
 import { MissionOneIntroPath, MISSION_ONE_INTRO_DURATION_MS, MISSION_ONE_INTRO_SWEEP_MS } from './mission-one-intro';
 import { MissionTwoIntroPath } from './mission-two-intro';
 import { MissionThreeIntroPath } from './mission-three-intro';
@@ -1483,7 +1482,6 @@ document.getElementById('radar-legend')!.innerHTML = (['airport', 'ai', 'player'
 document.getElementById('map-legend')!.innerHTML = (['you', 'player', 'ai', 'mission', 'airport', 'territory', 'event', 'waypoint'] as const)
   .map(kind => `<span style="color:${visualLanguage[kind].color}">${identityText(kind)}</span>`).join('');
 const acquisitionCircleElement = document.querySelector<HTMLDivElement>('#acquisition-circle')!;
-acquisitionCircleElement.innerHTML = aimingReticleMarkup;
 const targetFeedbackElement = document.querySelector<HTMLDivElement>('#target-feedback')!;
 const targetNameDistanceElement = document.querySelector<HTMLSpanElement>('#target-name-distance')!;
 const targetRangeElement = document.querySelector<HTMLElement>('#target-range')!;
@@ -5282,7 +5280,6 @@ type RemotePlayer = {
   ownershipSignature?: string;
   identityTag: THREE.Sprite;
   hullTag: THREE.Sprite;
-  targetBrackets: THREE.Sprite;
   playerProxy: THREE.Sprite;
   plane: THREE.Group;
   previousPosition: THREE.Vector3;
@@ -5311,7 +5308,6 @@ type ClientProjectile = {
   bank: number;
   authoritativePosition: THREE.Vector3;
   predictedTargetId?: string;
-  predictedOrigin: THREE.Vector3;
   pendingAge: number;
   speed: number;
   local: boolean;
@@ -5452,31 +5448,6 @@ function refreshPlayerIdentityTag(remote: RemotePlayer): void {
 
 function refreshAllPlayerIdentityTags(): void {
   for (const remote of remotePlayers.values()) refreshPlayerIdentityTag(remote);
-}
-
-function createTargetBrackets(isBot: boolean, type: AircraftType, visualScale: number): THREE.Sprite {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const context = canvas.getContext('2d')!;
-  context.strokeStyle = airAssaultMode&&isBot?'#ff4141':visualLanguage[isBot ? 'ai' : 'player'].color;
-  context.lineWidth = 5;
-  context.stroke(new Path2D(targetBracketPath));
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const brackets = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-  const size = aircraftDefinitions[type].wingSpan * visualScale * 1.2;
-  brackets.scale.set(size, size, 1);
-  brackets.position.set(0, 3, 0);
-  brackets.visible = false;
-  brackets.renderOrder = 5;
-  return brackets;
-}
-
-function disposeTargetBrackets(brackets: THREE.Sprite): void {
-  const material = brackets.material as THREE.SpriteMaterial;
-  material.map?.dispose();
-  material.dispose();
 }
 
 // Restore the existing colored aircraft contact icon. It is a billboard HUD
@@ -5668,8 +5639,6 @@ function updateMarkerQa(): void {
 function removeRemotePlayer(playerId: string): void {
   const remote = remotePlayers.get(playerId);
   if (!remote) return;
-  remote.plane.remove(remote.targetBrackets);
-  disposeTargetBrackets(remote.targetBrackets);
   scene.remove(remote.plane);
   disposeAirplaneMaterials(remote.plane);
   scene.remove(remote.identityTag);
@@ -7755,7 +7724,6 @@ function createProjectileVisual(): ClientProjectile {
     direction: new THREE.Vector3(),
     bank: 0,
     authoritativePosition: new THREE.Vector3(),
-    predictedOrigin: new THREE.Vector3(),
     pendingAge: 0,
     speed: 520,
     local: false,
@@ -7891,7 +7859,6 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.visualAircraftType = aircraftType;
   predicted.visualStartedAt = performance.now();
   const target = targetId ? remotePlayers.get(targetId)?.plane : undefined;
-  predicted.predictedOrigin.copy(projectileOrigin);
   if (target?.visible) {
     predicted.direction.subVectors(target.position, projectileOrigin).normalize();
   } else predicted.direction.copy(projectileDirection);
@@ -7905,8 +7872,8 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.mesh.position.copy(projectileOrigin);
   predicted.mesh.quaternion.setFromUnitVectors(projectileForward, predicted.direction);
   predicted.mesh.rotateZ(predicted.bank);
-  // A local lock is provisional until the server accepts it. Keep the muzzle
-  // flash immediate, but do not draw a hit-bound tracer that may be rejected.
+  // A locked shot waits for the classic server-confirmed assisted hit.
+  // Unlocked rounds leave the muzzle immediately and travel independently.
   predicted.mesh.visible = !predicted.predictedTargetId;
   scene.add(predicted.mesh);
   if (predicted.visualAircraftType === 'trainer')
@@ -7963,13 +7930,12 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   if (message.ownerId === localPlayerId && message.clientShotId) localShotAircraftTypes.delete(message.clientShotId);
   const mesh = predictedProjectile?.mesh ?? assistedShotPool.pop() ?? createAssistedShotMesh();
   styleMissionProjectile(mesh, false, shooterType);
-  const bank = predictedProjectile?.bank ?? (message.ownerId === localPlayerId
-    ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0);
+  const bank = message.ownerId === localPlayerId
+    ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0;
   const origin = new THREE.Vector3(message.origin.x, message.origin.y, message.origin.z);
-  // Keep the confirmed tracer attached to the muzzle position captured when
-  // FIRE was pressed, even if the firing aircraft has moved since then.
-  if (predictedProjectile) origin.copy(predictedProjectile.predictedOrigin);
-  else if (message.ownerId === localPlayerId) getCurrentMuzzleTransform(origin, assistedShotDirection);
+  // Start a newly visible local tracer at the aircraft actually rendered now.
+  // A historical fire pose can be far offscreen after network delay and banking.
+  if (message.ownerId === localPlayerId) getCurrentMuzzleTransform(origin, assistedShotDirection);
   if (shooterType === 'trainer' && !predictedProjectile && !localShotType)
     spawnFlash(muzzleFlashes, muzzleFlashPool, origin, 0.09, 0.2, false, false);
   const targetPosition = new THREE.Vector3(message.targetPosition.x, message.targetPosition.y, message.targetPosition.z);
@@ -7983,9 +7949,6 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   const duration = message.ownerId === localPlayerId
     ? THREE.MathUtils.clamp(distance / visualSpeed, 0.12, 0.35)
     : Math.max(0.001, Math.min(0.08 + THREE.MathUtils.clamp(distance / COMBAT_RANGE, 0, 1) * 0.07, distance / visualSpeed));
-  const targetVelocity = message.targetId === localPlayerId ? velocity : remotePlayers.get(message.targetId)?.velocity;
-  if (liveTarget && targetVelocity) targetPosition.addScaledVector(targetVelocity, duration);
-  assistedShotDirection.subVectors(targetPosition, origin).normalize();
   if (message.ownerId === localPlayerId) showAimQaRay(origin, assistedShotDirection);
   mesh.position.copy(origin);
   mesh.quaternion.setFromUnitVectors(projectileForward, assistedShotDirection);
@@ -8353,12 +8316,9 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     const ownershipAccent = ownershipColors[0];
     const identityTag = createPlayerIdentityTag(player.displayName ?? 'PLAYER', player.aircraftType, player.playerId === kingPlayerId, Boolean(player.isBot), ownershipColors);
     const hullTag = createRemoteHullTag();
-    const targetBrackets = createTargetBrackets(Boolean(player.isBot), player.aircraftType,
-      (plane.userData.airframeRoot as THREE.Group).scale.x);
     const playerProxy = createRemotePlayerProxy(Boolean(player.isBot));
     plane.position.copy(targetPosition);
     plane.quaternion.copy(targetQuaternion);
-    plane.add(targetBrackets);
     identityTag.position.copy(targetPosition).add(new THREE.Vector3(0, 5.2, 0));
     hullTag.position.copy(targetPosition).add(new THREE.Vector3(0, 6.8, 0));
     paintRemoteHullTag(hullTag, player.health ?? maxHealthForAircraft(player.aircraftType), player.maxHealth ?? maxHealthForAircraft(player.aircraftType));
@@ -8376,7 +8336,6 @@ function updateRemotePlayer(player: NetworkPlayer): void {
       ownershipSignature: ownershipColors.join('|'),
       identityTag,
       hullTag,
-      targetBrackets,
       playerProxy,
       plane,
       previousPosition: targetPosition.clone(),
@@ -8405,16 +8364,11 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   }
 
   if (remote.aircraftType !== player.aircraftType) {
-    remote.plane.remove(remote.targetBrackets);
-    disposeTargetBrackets(remote.targetBrackets);
     scene.remove(remote.plane);
     disposeAirplaneMaterials(remote.plane);
     const replacement = createAirplane(player.aircraftType, true);
     replacement.position.copy(remote.plane.position);
     replacement.quaternion.copy(remote.plane.quaternion);
-    remote.targetBrackets = createTargetBrackets(remote.isBot, player.aircraftType,
-      (replacement.userData.airframeRoot as THREE.Group).scale.x);
-    replacement.add(remote.targetBrackets);
     scene.add(replacement);
     remote.plane = replacement;
     remote.aircraftType = player.aircraftType;
@@ -8474,17 +8428,12 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     remote.isBot = Boolean(player.isBot);
     refreshPlayerIdentityTag(remote);
     (remote.playerProxy.material as THREE.SpriteMaterial).color.set(airAssaultMode&&remote.isBot?'#ff4141':visualLanguage[remote.isBot ? 'ai' : 'player'].color);
-    remote.plane.remove(remote.targetBrackets);
-    disposeTargetBrackets(remote.targetBrackets);
-    remote.targetBrackets = createTargetBrackets(remote.isBot, player.aircraftType,
-      (remote.plane.userData.airframeRoot as THREE.Group).scale.x);
-    remote.plane.add(remote.targetBrackets);
   }
   if (player.botPersonality) remote.botPersonality = player.botPersonality;
   if (lifeStateChanged) remote.nearMissActive = false;
   remote.plane.visible = lifeState === 'alive';
   remote.playerProxy.visible = false;
-  if (lifeState !== 'alive') remote.identityTag.visible = remote.hullTag.visible = remote.targetBrackets.visible = false;
+  if (lifeState !== 'alive') remote.identityTag.visible = remote.hullTag.visible = false;
 }
 
 const identityLabelProjection = new THREE.Vector3();
@@ -8633,7 +8582,6 @@ function updateRemotePlayers(delta: number): void {
       remote.identityTag.visible = false;
       remote.hullTag.visible = false;
       remote.playerProxy.visible = false;
-      remote.targetBrackets.visible = false;
       continue;
     }
     const identityVisible = remoteIdentityVisible(remote);
@@ -8641,8 +8589,6 @@ function updateRemotePlayers(delta: number): void {
     const visualScale = remote.plane.userData.rearGuardEscort ? journeyAttempt?.missionId === journeyDallas12.id ? journeyDallas12.escortScale : journeyAttempt?.missionId === journeyDallas10.id ? journeyDallas10.escortScale : journeyAttempt?.missionId === journeyDallas09.id ? journeyDallas09.escortScale : journeyDallas08.escortScale : remoteAircraftVisualScale(distance);
     const renderedScale = visualScale * (remote.plane.userData.rearGuardEscort ? 1 : aircraftPresentationScale[remote.aircraftType]);
     (remote.plane.userData.airframeRoot as THREE.Group).scale.setScalar(renderedScale);
-    const bracketSize = aircraftDefinitions[remote.aircraftType].wingSpan * renderedScale * 1.2;
-    remote.targetBrackets.scale.set(bracketSize, bracketSize, 1);
     const targeted = selectedCombatTarget?.remote === remote;
     const missionTarget = (journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas12.id && journeyAttempt.finalPhase === 'ESCORTS') && remote.plane.userData.rearGuardEscort || serverProfile.missions[cityId]?.active?.targetId === remote.playerId ||
       (journeyAttempt?.missionId === journeyDallas02.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas23.id || journeyAttempt?.missionId === journeyDallas24.id) && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId);
@@ -8747,11 +8693,11 @@ function updateLockCircle(afterCamera = false): void {
   acquisitionCircleElement.style.left = `${Math.round(centerX)}px`;
   acquisitionCircleElement.style.top = `${Math.round(centerY)}px`;
   acquisitionCircleElement.style.visibility = lockProjectedCenter.z >= -1 && lockProjectedCenter.z <= 1 ? '' : 'hidden';
-  const feedbackBelow = centerY + radius * 1.28 + 28;
+  const feedbackBelow = centerY + radius + 28;
   const feedbackAbove = feedbackBelow + 42 > window.innerHeight;
   targetFeedbackElement.classList.toggle('above', feedbackAbove);
   targetFeedbackElement.style.left = `${Math.round(THREE.MathUtils.clamp(centerX, 82, Math.max(82, window.innerWidth - 82)))}px`;
-  targetFeedbackElement.style.top = `${Math.round(feedbackAbove ? centerY - radius * 1.28 - 28 : feedbackBelow)}px`;
+  targetFeedbackElement.style.top = `${Math.round(feedbackAbove ? centerY - radius - 28 : feedbackBelow)}px`;
   targetFeedbackElement.style.visibility = lockProjectedCenter.z >= -1 && lockProjectedCenter.z <= 1 ? '' : 'hidden';
 }
 
@@ -8772,7 +8718,6 @@ function clearCombatTarget(): void {
   targetFeedbackElement.classList.remove('locked', 'out-of-range', 'in-range');
   rangeFeedbackTargetId = null;
   rangeFeedbackTransition = null;
-  for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
 }
 
 function showTargetRangeFeedback(remote: RemotePlayer | null, distance: number, inRange: boolean, locked: boolean): void {
@@ -8909,7 +8854,6 @@ function updateCombatTarget(delta = 0): void {
     combatLockState = 'SEARCHING';
     acquisitionCircleElement.classList.remove('target-near', 'locked');
     showTargetRangeFeedback(candidate ? null : outOfRangeCandidate, outOfRangeDistance, false, false);
-    for (const remote of remotePlayers.values()) remote.targetBrackets.visible = false;
     if (combatQaElement) combatQaElement.textContent = `COMBAT QA\ntarget: none\nlock: ${serverLockedTargetId ?? 'none'}\n${combatQaDetail}`;
     return;
   }
@@ -8929,10 +8873,6 @@ function updateCombatTarget(delta = 0): void {
   acquisitionCircleElement.classList.toggle('target-near', assisted);
   acquisitionCircleElement.classList.toggle('locked', locked);
   showTargetRangeFeedback(nearReticle ? candidate : null, candidateDistance, true, locked);
-  for (const remote of remotePlayers.values()) {
-    remote.targetBrackets.visible = remote === candidate && remote.plane.visible;
-    if (remote.targetBrackets.visible) (remote.targetBrackets.material as THREE.SpriteMaterial).opacity = locked ? 1 : 0.58;
-  }
   if (combatQaElement) {
     lockTargetProjected.copy(candidate.plane.position).project(camera);
     const targetScreenX = (lockTargetProjected.x * 0.5 + 0.5) * window.innerWidth;
@@ -12031,7 +11971,6 @@ boundSocket.addEventListener('message', (event) => {
         remote.plane.visible = false;
         remote.identityTag.visible = false;
         remote.hullTag.visible = false;
-        remote.targetBrackets.visible = false;
         remote.playerProxy.visible = false;
         if (selectedCombatTarget?.remote === remote) clearCombatTarget();
       }
@@ -12079,7 +12018,6 @@ boundSocket.addEventListener('message', (event) => {
         remote.plane.visible = lifeState === 'alive';
         remote.identityTag.visible = lifeState === 'alive';
         remote.hullTag.visible = false;
-        remote.targetBrackets.visible = false;
         remote.playerProxy.visible = lifeState === 'alive';
       }
     }

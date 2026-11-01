@@ -1,4 +1,3 @@
-import { airAssaultRules } from '../../shared/air-assault.mjs';
 import { HorizontalRail } from './horizontal-rail';
 import { sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { flushSponsorMeasurements, recordSponsorMeasurement, SponsorExposureEpisode } from './sponsorship-measurement';
@@ -58,11 +57,6 @@ export class HomeHangar {
       flag.textContent = multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'; flag.setAttribute('aria-hidden', 'true');
       card.append(artwork);
       card.append(flag);
-      if(image.includes('air-assault-card')){
-        const terms=document.createElement('span');terms.className='assault-card-terms';
-        for(const text of ['FREE ENTRY',`${airAssaultRules.fullCredits} CREDITS`,`${airAssaultRules.durationMs/60000} MIN`]){const part=document.createElement('span');part.textContent=text;terms.append(part);}
-        card.append(terms);
-      }
       card.addEventListener('click', run); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);

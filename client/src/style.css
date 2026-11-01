@@ -2576,25 +2576,34 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
   left: 50%;
   width: var(--acquisition-size, 180px);
   aspect-ratio: 1;
+  border: 1px solid rgb(8 21 29 / 72%);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgb(190 225 231 / 42%),
+    inset 0 0 10px rgb(145 211 220 / 3%);
+  opacity: 0.4;
   pointer-events: none;
   transform: translate(-50%, -50%);
+  transition: opacity 1.35s ease, border-color 220ms ease, border-width 220ms ease, box-shadow 220ms ease;
 }
-.aiming-reticle-svg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 160%;
-  height: 112%;
-  overflow: visible;
-  fill: none;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  transform: translate(-50%, -50%);
+
+#acquisition-circle.target-near, .acquisition-circle.target-near {
+  border-color: rgb(7 23 32 / 82%);
+  box-shadow:
+    inset 0 0 0 1px rgb(198 238 245 / 74%),
+    inset 0 0 12px rgb(123 207 222 / 10%);
+  opacity: 0.72;
+  transition-duration: 220ms;
 }
-.aiming-reticle-svg circle, .aiming-reticle-svg path { vector-effect: non-scaling-stroke; }
-.aiming-reticle-outline { stroke: #10243b; stroke-width: 2.6; stroke-opacity: .2; }
-.aiming-reticle-ring, .aiming-reticle-brackets { stroke: #f4f7f5; stroke-width: 1.5; stroke-opacity: .45; }
-#acquisition-circle.locked .aiming-reticle-ring, .acquisition-circle.locked .aiming-reticle-ring { stroke: #ff4545; }
+
+#acquisition-circle.locked, .acquisition-circle.locked {
+  border-width: 2px;
+  border-color: rgb(38 10 10 / 84%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 111 91 / 94%),
+    inset 0 0 14px rgb(255 91 74 / 12%);
+  opacity: 0.94;
+}
 
 .hull-meter {
   width: 104px;
@@ -7019,7 +7028,3 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-hangar .home-mode-track .home-hangar-card-image[src='/media/multiplayer/air-assault-card.jpg'] {
   object-fit: fill; clip-path: inset(6.5217% 15.5172% round 12px); transform: scale(1.45, 1.15);
 }
-
-/* Authoritative Air Assault terms replace the obsolete figures baked into the supplied card. */
-.assault-card-terms { position:absolute; z-index:3; bottom:10px; left:calc((100% - min(100%, var(--menu-selection-height) * 1246 / 922)) / 2 + 8px); width:calc(min(100%, var(--menu-selection-height) * 1246 / 922) - 16px); height:20%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:center; border-radius:8px; border-top:1px solid #b79538; background:#111b20; color:#ffe28a; font:900 clamp(10px,1.1vw,14px)/1.2 var(--font-display); }
-.assault-card-terms > span { text-align:center; }

@@ -1,7 +1,6 @@
 import { shouldOfferTutorial } from '../../shared/tutorial-flight-rules.mjs';
 import { actionKeyLabel, desktopTurnKeyLabel, menuKeyLabel } from './flight-input';
 import { identityMarkup, visualLanguage, type VisualIdentity } from './visual-language';
-import { aimingReticleMarkup } from './aiming-reticle';
 import { dallasDisplayNames as place } from '../../shared/dallas-display-names.mjs';
 import runwayImage from './help-assets/runway.avif';
 import { mountAirportChaosLogo } from './brand';
@@ -41,7 +40,7 @@ const pages: Array<{ nav: string; icon: VisualIdentity; title: string; visual: s
   },
   {
     nav: 'Fight', icon: 'player', title: 'FIGHT',
-    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Target inside a red locked aiming circle between white brackets')}<div class="help-combat-example"><div class="acquisition-circle locked">${aimingReticleMarkup}</div><strong class="help-locked">LOCKED</strong></div></div>` + legend(['player', 'ai']),
+    visual: `<div class="help-combat-scene">${shot(runwayImage, 'Target inside a red locked aiming circle')}<div class="help-combat-example"><div class="acquisition-circle locked"></div><strong class="help-locked">LOCKED</strong></div></div>` + legend(['player', 'ai']),
     instructions: steps('Keep the target inside the circle', 'Red circle and LOCKED mean ready to fire', 'GET CLOSER means it is out of range', `Press <kbd>${actionKeyLabel('fire')}</kbd> to shoot`),
   },
   {
