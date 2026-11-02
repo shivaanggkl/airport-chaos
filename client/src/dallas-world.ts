@@ -1438,6 +1438,7 @@ export function getWorldStreamingVisualDebug(position: THREE.Vector3, camera: TH
   return dallasStreamer?.getVisualDebug(position, camera);
 }
 export function disposeWorldStreaming(): void {
+  cityVisualLayer?.dispose(); cityVisualLayer = undefined;
   dallasStreamer?.dispose(); dallasStreamer = undefined;
   disposeStreamedMaterials();
   streamedRoofMaterial = undefined;

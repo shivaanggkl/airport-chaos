@@ -70,7 +70,7 @@ test('Solo Free Fly uses Dallas day exploration without missions, matchmaking or
 test('solo exploration omits territory-only geometry and the server gates territory and battle packets',()=>{
  const client=readFileSync('client/src/main.ts','utf8'),server=readFileSync('server/src/index.ts','utf8');
  assert.match(client,/const siegeDefenseBoundary = cityId === 'dallas' && !skyDuelMode && !soloExploreMode/);
- assert.match(server,/function updateTerritories\(now: number\)[\s\S]*?player\.airAssaultId \|\| player\.soloExploreMode\) continue/);
+ assert.match(server,/function updateTerritories\(now: number\)[\s\S]*?player\.airAssaultId \|\| player\.soloExploreMode \|\| player\.portalTransit\) continue/);
  assert.match(server,/player\.soloExploreMode\)\{[\s\S]*?!soloExploreMessages\.has\(message.type\)/);
  const allowed=server.match(/const soloExploreMessages=new Set\(\[([^\]]+)\]\)/)![1];
  for(const action of ['fire','lock','missionAccept','eventJoin','skyDuelQueue','intercityRouteStart'])assert.ok(!allowed.includes(`'${action}'`));

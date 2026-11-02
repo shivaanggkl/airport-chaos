@@ -104,8 +104,8 @@ export class WorldMap {
     private readonly element: HTMLElement,
     private readonly canvas: HTMLCanvasElement,
     private readonly recenterButton: HTMLButtonElement,
-    private readonly layer: WorldMapLayer,
-    private readonly airports: readonly MapAirport[],
+    private layer: WorldMapLayer,
+    private airports: readonly MapAirport[],
     private readonly onWaypoint: (position: MapTarget | null) => void,
     private readonly onChallenge?: (challengeId: string) => void,
   ) {
@@ -135,6 +135,13 @@ export class WorldMap {
     this.drawStatic();
   }
 
+  setCity(layer:WorldMapLayer,airports:readonly MapAirport[]):void {
+    this.layer=layer;this.airports=airports;this.staticData={};this.roadPaths.clear();
+    this.staticLoading=false;this.staticLoaded=false;this.openedBefore=false;
+    this.geographyCanvas.width=this.geographyCanvas.height=0;
+    this.centerX=(layer.bounds.minX+layer.bounds.maxX)/2;this.centerZ=(layer.bounds.minZ+layer.bounds.maxZ)/2;
+    this.scale=this.defaultScale();this.state=undefined;this.intelligenceSignature='';this.drawStatic();
+  }
   isOpen(): boolean {
     return this.openState;
   }
@@ -218,7 +225,9 @@ export class WorldMap {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Map layer failed: ${response.status}`);
-      this.staticData = await response.json() as StaticMapData;
+      const data=await response.json() as StaticMapData;
+      if(this.layer.staticUrl!==url)return;
+      this.staticData=data;
     } catch {
       this.staticData = {};
     }

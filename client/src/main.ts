@@ -1,3 +1,5 @@
+import { IntercityVisuals, disposeCityScene, prepareCityGpu, cityPreparationStep } from './intercity-visuals';
+import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, type PortalGate, type PortalPose } from '../../shared/intercity-portals.mjs';
 import { AirAssaultUi } from './air-assault';
 import { airAssaultHearts, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { missionTimePreset } from './mission-time-presets';
@@ -135,15 +137,15 @@ let stabilityQaSocketCloses = 0;
 let stabilityQaReconnectsScheduled = 0;
 let stabilityQaSocketState: number = WebSocket.CONNECTING;
 const combatQaMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('combatqa') === '1';
-const activeCity = activeCityFromUrl();
+let activeCity = activeCityFromUrl();
 if (!activeCity || activeCity.status !== 'available') throw new Error('A playable city is required before starting the game.');
-const cityId = activeCity.id;
-const baseCityRules = cityCapabilities(cityId)!;
+let cityId = activeCity.id;
+let baseCityRules = cityCapabilities(cityId)!;
 const trainingRequested = new URLSearchParams(window.location.search).get('training') === '1';
 let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
 const launchMode = launchModeFromUrl(window.location.search);
 const soloExploreMode = launchMode === 'solo-free-fly';
-const cityRules = soloExploreMode ? {...baseCityRules,competitiveEnabled:false,territoriesEnabled:false,tutorialEnabled:false} : baseCityRules;
+let cityRules = soloExploreMode ? {...baseCityRules,practiceMode:false,progressionEnabled:false,competitiveEnabled:false,territoriesEnabled:false,tutorialEnabled:false} : baseCityRules;
 const skyDuelMode = launchMode === 'sky-duel' && cityId === 'dallas';
 const airAssaultMode = launchMode === 'air-assault' && cityId === 'dallas';
 const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
@@ -246,10 +248,11 @@ const journeyPreflightActive = (): boolean => journeyMode &&
 flightGameRoot.classList.toggle('launch-cinematic-pending', flightLaunchState === 'pending');
 document.body.classList.toggle('launch-cinematic-pending', flightLaunchState === 'pending');
 document.body.classList.toggle('practice-mode', cityRules.practiceMode);
-const cityWorld = await activeCity.loadWorld!();
-const { airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = cityWorld;
-const spawnBrand = activeCity.spawnBrandPlacement;
-const spawnAirport = airports.find((airport) => airport.id === activeCity.spawn.airportId) ?? centralAirport;
+let cityWorld = await activeCity.loadWorld!();
+let { airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = cityWorld;
+function resolveActiveCityAds(){
+const spawnBrand = activeCity!.spawnBrandPlacement;
+const spawnAirport = airports.find((airport) => airport.id === activeCity!.spawn.airportId) ?? centralAirport;
 const brandX = spawnBrand ? spawnAirport.x + Math.sin(spawnAirport.heading) * (spawnAirport.spawnOffset - spawnBrand.forwardDistance) : 0;
 const brandZ = spawnBrand ? spawnAirport.z + Math.cos(spawnAirport.heading) * (spawnAirport.spawnOffset - spawnBrand.forwardDistance) : 0;
 const adPlacements = spawnBrand ? [...(cityWorld.adPlacements ?? []), resolveAdPlacement({
@@ -259,6 +262,9 @@ const adPlacements = spawnBrand ? [...(cityWorld.adPlacements ?? []), resolveAdP
   size: { x: spawnBrand.width, y: spawnBrand.height, z: 0.5 },
   campaignId: spawnBrand.campaignId,
 })] : cityWorld.adPlacements ?? [];
+return {spawnAirport,adPlacements};
+}
+let {spawnAirport,adPlacements}=resolveActiveCityAds();
 const visualQaMode = localQaEnabled && cityId === 'dallas' && new URLSearchParams(window.location.search).get('visualqa') === '1' && Boolean(cityWorld.visualQaPresets?.length);
 let visualQaHold = false;
 let visualQaInspectionActive = false;
@@ -269,9 +275,10 @@ const METERS_TO_FEET = 3.28084 * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_KNOTS = KNOTS_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const METERS_PER_SECOND_TO_MPH = MPH_PER_METER_PER_SECOND * WORLD_METERS_PER_UNIT;
 const MIN_REWARDED_FLIGHT_DISTANCE = 40;
-const isDallas = cityId === 'dallas';
+let isDallas = cityId === 'dallas';
 let worldTimeOfDay: CityTimeOfDay = airAssaultMode ? 'day' : skyDuelMode ? 'evening' : resolveCityTimePreset(activeCity, new URLSearchParams(window.location.search).get('time'));
-const timeVisuals = createTimeVisuals(isDallas);
+let portalDallasTimeOfDay:CityTimeOfDay=isDallas?worldTimeOfDay:'day';
+let timeVisuals = createTimeVisuals(isDallas);
 let visualConfig = timeVisuals[worldTimeOfDay];
 let graphicsQualityMode:GraphicsQualityMode=preferredGraphicsQuality();
 const resolvedQuality=resolvedGraphicsQuality(graphicsQualityMode,matchMedia('(pointer: coarse)').matches,innerWidth<=900);
@@ -279,13 +286,16 @@ const worldVisualQuality = new URLSearchParams(window.location.search).get('visu
 cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
 let SKY_COLOR: number = visualConfig.background;
 const CAMERA_NEAR = 2;
-const CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
-const CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
+let CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
+let CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
 const CAMERA_CHASE_FOV = 58;
 const CAMERA_TARGET_WIDTH_FRACTION = 0.305;
 const SKY_DOME_RADIUS = 18_000;
 
+let portalInTransit = false;
+let portalTransitGround=0;
 function groundPlaneY(x: number, z: number): number {
+  if(portalInTransit)return portalTransitGround;
   return getTerrainHeight(x, z) + PLANE_GROUND_Y;
 }
 
@@ -445,7 +455,7 @@ let skyMoon: THREE.Mesh | undefined;
 
 function setLocalTimePreset(requestedPreset: unknown): void {
   const preset = resolveCityTimePreset(activeCity!, requestedPreset);
-  if (!isDallas || skyDuelMode || airAssaultMode || preset === worldTimeOfDay) return;
+  if (skyDuelMode || airAssaultMode) return;
   worldTimeOfDay = preset;
   visualConfig = timeVisuals[preset];
   SKY_COLOR = visualConfig.background;
@@ -456,7 +466,7 @@ function setLocalTimePreset(requestedPreset: unknown): void {
   sun.color.setHex(visualConfig.sunColor);
   sun.intensity = visualConfig.sunIntensity;
   sun.position.set(visualConfig.sunPosition[0], visualConfig.sunPosition[1], visualConfig.sunPosition[2]);
-  renderer.toneMappingExposure = preset === 'evening' ? 0.82 : 1.23;
+  renderer.toneMappingExposure = isDallas ? preset === 'evening' ? 0.82 : 1.23 : 1.16;
   const uniforms = (skyDome.material as THREE.ShaderMaterial).uniforms;
   (uniforms.horizonColor.value as THREE.Color).setHex(visualConfig.horizon);
   (uniforms.middleColor.value as THREE.Color).setHex(visualConfig.middle);
@@ -475,7 +485,9 @@ function setLocalTimePreset(requestedPreset: unknown): void {
 window.addEventListener('airport-chaos-time-change', (event) => setLocalTimePreset((event as CustomEvent<unknown>).detail));
 
 const depthOffsetDirection = renderer.capabilities.reversedDepthBuffer ? 1 : -1;
-const { obstacleBounds, mountainBounds, waterBounds } = createWorld(scene, depthOffsetDirection);
+let cityScene = new THREE.Scene();
+scene.add(cityScene);
+let { obstacleBounds, mountainBounds, waterBounds } = createWorld(cityScene, depthOffsetDirection);
 if (skyDuelMode) scene.getObjectByName('dallas-scenic-balloons-and-boats')?.removeFromParent();
 // City gameplay configuration owns repair placement; these are intentionally
 // tiny shared meshes, not streamed world detail or collectables.
@@ -500,8 +512,8 @@ const repairHeartSprites = new Map<string, THREE.Sprite>();
 const repairHeartTimers = new Map<string, number>();
 const repairHeartCooldownUntil = new Map<string, number>();
 const airAssaultRepairBeacons=airAssaultHearts.map(heart=>({...heart,altitudeAgl:heart.y-groundPlaneY(heart.x,heart.z)}));
-const repairMapMarkers = (airAssaultMode?airAssaultRepairBeacons:repairsForCity(cityId)).map((beacon) => ({ ...beacon, cooldownUntil: 0 }));
-const repairMapMarkerById = new Map(repairMapMarkers.map((beacon) => [beacon.id, beacon]));
+let repairMapMarkers = (airAssaultMode?airAssaultRepairBeacons:repairsForCity(cityId)).map((beacon) => ({ ...beacon, cooldownUntil: 0 }));
+let repairMapMarkerById = new Map(repairMapMarkers.map((beacon) => [beacon.id, beacon]));
 function setHeartCooldown(id: string, remainingMs: number): void {
   const heart = repairHeartSprites.get(id);
   const marker = repairMapMarkerById.get(id);
@@ -524,6 +536,7 @@ function setHeartCooldown(id: string, remainingMs: number): void {
   }, remainingMs));
   else repairHeartTimers.delete(id);
 }
+function rebuildRepairBeacons():void {
 for (const beacon of airAssaultMode ? airAssaultRepairBeacons : cityId === 'dallas' ? [...repairsForCity(cityId), journeyDallas17.heart, { id: journeyDallas23.heartId, kind: 'heart' as const, x: 0, z: 0, altitudeAgl: 0, radius: journeyDallas23.heartRadius }] : repairsForCity(cityId)) {
   if (beacon.kind === 'heart') {
     const heart = new THREE.Sprite(repairHeartMaterial);
@@ -540,18 +553,20 @@ for (const beacon of airAssaultMode ? airAssaultRepairBeacons : cityId === 'dall
   ring.position.set(beacon.x, groundPlaneY(beacon.x, beacon.z) + 2.5, beacon.z);
   repairBeaconGroup.add(ring);
 }
+}
+rebuildRepairBeacons();
 scene.add(repairBeaconGroup);
 repairBeaconGroup.visible = !skyDuelMode;
-const adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight, cityWorld.hasWorldBuildingDetailAt, worldVisualQuality);
+let adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight, cityWorld.hasWorldBuildingDetailAt, worldVisualQuality);
 adPlacementManager.setEnabled(!skyDuelMode);
 const requestedLaunchMode = new URLSearchParams(window.location.search).get(LAUNCH_MODE_PARAM);
-const worldSponsorshipAllowed = cityId === 'dallas' && (launchMode === 'free-fly' || soloExploreMode) &&
+const worldSponsorshipAllowed = (launchMode === 'free-fly' || soloExploreMode) &&
   (requestedLaunchMode === null || requestedLaunchMode === 'free-fly') && !trainingRequested;
 let worldSponsorRequest = 0;
 let worldSponsorTimer: ReturnType<typeof setTimeout> | undefined;
 let worldSponsorActive = true;
 async function refreshWorldSponsorship(): Promise<void> {
-  if (!worldSponsorshipAllowed || !worldSponsorActive) return;
+  if (cityId!=='dallas'||!worldSponsorshipAllowed || !worldSponsorActive) return;
   const request = ++worldSponsorRequest;
   if (worldSponsorTimer) clearTimeout(worldSponsorTimer);
   worldSponsorTimer = undefined;
@@ -582,11 +597,11 @@ window.addEventListener('pageshow', event => {
   if (event.persisted) { worldSponsorActive = true; void refreshWorldSponsorship(); }
 });
 void refreshWorldSponsorship();
-const ambientTraffic = !airAssaultMode && !soloExploreMode && cityWorld.ambientTrafficConfig
+let ambientTraffic = !airAssaultMode && !soloExploreMode && cityWorld.ambientTrafficConfig
   ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight, worldVisualQuality === 'high' && !skyDuelMode)
   : undefined;
 ambientTraffic?.setTimeOfDay(worldTimeOfDay);
-const configuredWeatherZones = weatherZonesForCity(cityId);
+let configuredWeatherZones = weatherZonesForCity(cityId);
 let activeWeatherZone: WeatherZone | undefined;
 let weatherZoneCheckAt = 0;
 let weatherToastAt = 0;
@@ -725,14 +740,14 @@ function buildCollisionGrid<T>(
   return grid;
 }
 
-const obstacleGrid = buildCollisionGrid(
+let obstacleGrid = buildCollisionGrid(
   obstacleBounds,
   (obstacle) => obstacle.x,
   (obstacle) => obstacle.z,
   (obstacle) => obstacle.halfX,
   (obstacle) => obstacle.halfZ,
 );
-const mountainGrid = buildCollisionGrid(
+let mountainGrid = buildCollisionGrid(
   mountainBounds,
   (mountain) => mountain.x,
   (mountain) => mountain.z,
@@ -896,7 +911,7 @@ const fallbackNavigationDestinations: readonly NavigationDestination[] = airport
   z: airport.z,
   kind: 'airport',
 }));
-const navigationBeacons = new NavigationBeaconSystem(
+let navigationBeacons = new NavigationBeaconSystem(
   scene,
   cityWorld.navigationDestinations ?? fallbackNavigationDestinations,
   getTerrainHeight,
@@ -2209,8 +2224,8 @@ function updateNavigationHud(): void {
   updateTerritoryLabels();
   updateCaptureHud();
   updateSocialHud();
-  const outsideCity =
-    Math.abs(airplane.position.x) > WORLD_SIZE / 2 || Math.abs(airplane.position.z) > WORLD_SIZE / 2;
+  const outsideCity = !portalInTransit && (
+    Math.abs(airplane.position.x) > WORLD_SIZE / 2 || Math.abs(airplane.position.z) > WORLD_SIZE / 2);
   worldStatusElement.classList.toggle('hidden', !outsideCity);
   updateContextualHints();
   refreshPilotMenu();
@@ -2380,7 +2395,7 @@ let joinedEventId: string | null = null;
 let skippedEventId: string | null = null;
 let kingPlayerId: string | undefined;
 const formationMembers = new Set<string>();
-const territoryDefinitions = skyDuelMode || soloExploreMode ? [] : territoriesForCity(cityId);
+let territoryDefinitions = skyDuelMode || soloExploreMode ? [] : territoriesForCity(cityId);
 const territoryState = new Map<string, NetworkTerritoryState>();
 const neutralTerritoryColor: string = territoryOwnershipColors.neutral;
 function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; color: string }> {
@@ -2529,7 +2544,7 @@ function createTerritoryWallGeometry(definition: CityTerritory): THREE.BufferGeo
   return geometry;
 }
 
-const territoryBorders = territoryDefinitions.map((definition) => {
+function createCityTerritoryBorders(){return territoryDefinitions.map((definition) => {
   const wall = new THREE.Mesh(createTerritoryWallGeometry(definition), territoryWallMaterial);
   wall.name = `territory-wall-${definition.id}`;
   wall.renderOrder = 9;
@@ -2543,7 +2558,8 @@ const territoryBorders = territoryDefinitions.map((definition) => {
   territoryLabelLayer.append(label);
   scene.add(wall);
   return { definition, wall, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, pulseUntil: 0, styleSignature: '' };
-});
+});}
+let territoryBorders = createCityTerritoryBorders();
 // One lightweight ground outline matches the server's horizontal defense radius.
 const siegeDefenseBoundary = cityId === 'dallas' && !skyDuelMode && !soloExploreMode ? (() => {
   const definition = territoryDefinition(journeyDallas18.territoryId)!;
@@ -3521,6 +3537,7 @@ dynamicEventSkipElement.addEventListener('click', () => {
   updateDynamicEventHud();
 });
 
+function rebuildCityActivities():void {
 if (cityWorld.skyChallenges?.length && !journeyMode && !skyDuelMode && !soloExploreMode) {
   skyChallenges = new SkyChallengeSystem(scene, cityWorld.skyChallenges, getTerrainHeight, {
     onScore: (points) => {
@@ -3584,6 +3601,9 @@ if (cityWorld.discoveries?.length) {
     },
   });
 }
+
+}
+rebuildCityActivities();
 
 const contractTypes: ReadonlyArray<ContractType> = ['sightseeing', 'passenger', 'cargo', 'intercept'];
 const contractAircraft: Record<ContractType, AircraftType> = {
@@ -4882,7 +4902,10 @@ type NetworkProfile = {
     weeklyEvent?:{weeklyEventId:string;title:string;description:string;progress:number;target:number;completed:boolean;rewarded:boolean;weekEnd:number} };
 };
 
+type PortalNavigation={gate:PortalGate;claimed:boolean};
+type PortalMessage={type:'portalTransition';id:string;phase:string;recovered?:boolean;from:CityId;to:CityId;cityId:CityId;destinationTimePreset?:CityTimeOfDay;startedAt:number;pose:PortalPose;health:number;reward:number;navigation?:PortalNavigation;territories:NetworkTerritoryState[];social?:NetworkSocialState;event?:NetworkCityEvent;players:NetworkPlayer[]};
 type ServerMessage =
+  | PortalMessage
   | AssaultSnapshot
   | {
       type: 'welcome';
@@ -4894,6 +4917,8 @@ type ServerMessage =
       spawnPosition: { x: number; y: number; z: number };
       spawnAirportId?: string;
       airborneSpawn?: { position: NetworkVector; heading: number; speed: number };
+      portalNavigation?: PortalNavigation;
+      portalDallasTimePreset?:CityTimeOfDay;
       resumeFlight?: { position: NetworkVector; rotation: NetworkVector; velocity: NetworkVector; onGround: boolean };
       trainingSlideIndex?: number;
       trainingPausedAt?: number;
@@ -7030,7 +7055,7 @@ function pilotMenuData(): PilotMenuData {
       providerAuth: providerAccountRequest,
     },
     city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: openWorldSelector },
-    intercity:{routes:(soloExploreMode?[]:routesFromCity(cityId)).map(route=>({routeId:route.routeId,destination:route.toCityId==='dallas'?'Dallas':'Milwaukee',distanceLabel:route.distanceLabel,recommendedAircraft:route.recommendedAircraft.toUpperCase(),estimatedFlightTime:route.estimatedFlightTime,available:onGround&&!crashed&&!profileActiveMissionAttempt(serverProfile),reason:!onGround?'Land and stop first.':profileActiveMissionAttempt(serverProfile)?'Finish or leave your active mission.':undefined,start:()=>socket.send(JSON.stringify({type:'intercityRouteStart',routeId:route.routeId}))}))},
+    intercity:{routes:portalNavigationState?[{routeId:portalNavigationState.gate.routeId,destination:portalNavigationState.gate.destination.toUpperCase(),distanceLabel:portalNavigationState.claimed?'250-Credit exploration reward already claimed':'First arrival: 250 Credits',available:!portalInTransit,start:setPortalWaypoint}]:[]},
     missions: {
       practice: cityRules.practiceMode,
       activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
@@ -7556,7 +7581,7 @@ function reportFireBlocked(reason: FireBlockedReason): void {
 }
 
 function localFireBlockReason(): FireBlockedReason | undefined {
-  if (launchCinematicBlocksInput()) return 'cinematic';
+  if (portalInTransit || launchCinematicBlocksInput()) return 'cinematic';
   if (flightTutorial.isOpen()) return 'menu';
   if (crashed || !runStarted || !localPlayerId) return 'invalid_state';
   if (localLifeState !== 'alive') return localLifeState === 'respawning' ? 'protection' : 'lifecycle';
@@ -7635,7 +7660,7 @@ function applyVisualQaPreset(preset: NonNullable<typeof cityWorld.visualQaPreset
   updateHealthDisplay();
   updateFlightHud();
   updateNavigationHud();
-  if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
+  if (!portalInTransit && cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(airplane.position, velocity);
   else updateOsmCityChunks(airplane.position);
   updateCamera(1);
   if (!visualQaInspectionActive) sendLocalState();
@@ -8972,6 +8997,7 @@ function pointInWorldPolygon(x: number, z: number, polygon: ReadonlyArray<readon
 }
 
 function hitsWorldObstacle(): boolean {
+  if(portalInTransit)return false;
   const planeBottom = airplane.position.y - 0.8;
   const cellKey = collisionCellKey(
     Math.floor(airplane.position.x / COLLISION_CELL_SIZE),
@@ -9014,7 +9040,7 @@ function hitsWorldObstacle(): boolean {
 }
 
 function updateFlight(delta: number): void {
-  updateLocalWeather(performance.now());
+  if(!portalInTransit)updateLocalWeather(performance.now());
   const throttleUp = heldActions.has('throttleUp');
   const throttleDown = heldActions.has('throttleDown');
   const mobileThrottleTarget = !throttleUp && !throttleDown ? mobileInput.getThrottleTarget() : undefined;
@@ -9041,7 +9067,7 @@ function updateFlight(delta: number): void {
   const landingAssistAirport = onGround ? null : getLandingAssistAirport(airplane.position);
   const approachHeight = airplane.position.y - groundPlaneY(airplane.position.x, airplane.position.z);
   const approachEmergency = cityEvent?.lifecycle === 'active' && cityEvent.eventType === 'cityEmergency';
-  landingAssistActive = landingAssistAirport !== null &&
+  landingAssistActive = !portalInTransit && landingAssistAirport !== null &&
     approachHeight <= 160 &&
     velocity.y <= 2 &&
     combatLockState !== 'LOCKED' &&
@@ -9323,7 +9349,8 @@ function updateFlight(delta: number): void {
   airplane.position.addScaledVector(velocity, delta);
   currentSpeed = velocity.length();
   verticalSpeed = velocity.y;
-  updateAirborneProgress(delta);
+  if(!portalInTransit)updateAirborneProgress(delta);
+  if(portalInTransit)return;
 
   if (hitsWorldObstacle()) {
     beginCrashPresentation('obstacle');
@@ -9584,7 +9611,7 @@ function updateCamera(delta: number): void {
   skyDome.position.copy(camera.position);
   const altitudeFactor = THREE.MathUtils.clamp(altitudeAboveTerrain() / 6000, 0, 1);
   const targetFar = THREE.MathUtils.lerp(CAMERA_BASE_FAR, CAMERA_HIGH_FAR, altitudeFactor);
-  if (scene.fog instanceof THREE.Fog) {
+  if ((!portalInTransit || portalTransition?.revealingAt !== undefined) && scene.fog instanceof THREE.Fog) {
     const targetFogNear = WORLD_SIZE > 20_000
       ? THREE.MathUtils.lerp(worldTimeOfDay === 'evening' ? 3500 : 7000, worldTimeOfDay === 'evening' ? 7500 : 11_000, altitudeFactor)
       : THREE.MathUtils.lerp(4500, 9000, altitudeFactor);
@@ -9663,6 +9690,367 @@ function fireWeaponOnce(): boolean {
   return true;
 }
 
+const portalEligible = portalModeAllowed(launchMode, trainingRequested, journeyMode) && !airAssaultMode && !skyDuelMode;
+const portalVisuals = portalEligible ? new IntercityVisuals(scene, flightGameRoot) : undefined;
+let portalNavigationState: PortalNavigation | undefined;
+let portalGate = portalEligible ? portalForCity(cityId, getTerrainHeight) : undefined;
+let portalRequestAt = 0;
+let portalPendingUntil = 0;
+let portalRetryAt = 0;
+let portalPreviousPosition = airplane.position.clone();
+let portalPreload: Promise<unknown> | undefined;
+let portalTransition: {
+    id: string;
+    from: CityId;
+    to: CityId;
+    startedAt: number;
+    ready: boolean;
+    revealingAt?: number;
+} | undefined;
+let portalWindStop: (() => void) | undefined;
+let portalWorldReady = false;
+let portalWorldSwap: Promise<void> | undefined;
+let portalSavedFog: THREE.Scene['fog'] = scene.fog;
+let portalSavedBackground: THREE.Scene['background'] = scene.background;
+const portalTunnelFog = new THREE.Fog(0x030a19,30,300);
+const portalTunnelBackground = new THREE.Color(0x030a19);
+const portalMapRoute = document.createElement('aside');
+portalMapRoute.className = 'intercity-map-route';
+portalMapRoute.hidden = true;
+const portalMapLabel = document.createElement('span'), portalMapButton = document.createElement('button');
+portalMapButton.type = 'button';
+portalMapButton.textContent = 'SET WAYPOINT TO GATE';
+portalMapButton.addEventListener('click', setPortalWaypoint);
+portalMapRoute.append(portalMapLabel, portalMapButton);
+worldMapOverlayElement.querySelector('.world-map-view')!.append(portalMapRoute);
+portalVisuals?.setGate(portalGate,getTerrainHeight);
+function refreshPortalGate(): void {
+    portalGate = portalEligible ? (portalNavigationState?.gate ?? portalForCity(cityId, getTerrainHeight)) : undefined;
+    portalVisuals?.setGate(portalGate,getTerrainHeight);
+    portalMapRoute.hidden = !portalNavigationState;
+    if (portalNavigationState) {
+        const status = portalNavigationState.claimed ? '250 Credits already claimed' : 'First arrival: 250 Credits';
+        portalMapLabel.textContent = `${cityId.toUpperCase()} → ${portalNavigationState.gate.destination.toUpperCase()} · ${status}`;
+        portalMapButton.disabled = portalInTransit;
+    }
+}
+function setPortalWaypoint(): void {
+    if (!portalGate)
+        return;
+    waypoint = { x: portalGate.x, z: portalGate.z, label: `${portalGate.destination.toUpperCase()} GATE` };
+    updateNavigationHud();
+    worldMap.setOpen(false);
+    pilotMenu.close();
+}
+function rebuildCollisionGrids(): void {
+    if (portalGate)
+        obstacleBounds.push(...(portalVisuals?.obstacles ?? []));
+    obstacleGrid = buildCollisionGrid(obstacleBounds, o => o.x, o => o.z, o => o.halfX, o => o.halfZ);
+    mountainGrid = buildCollisionGrid(mountainBounds, o => o.x, o => o.z, o => o.radius, o => o.radius);
+}
+rebuildCollisionGrids();
+let cityLifecycle = Promise.resolve();
+let worldPreparationAbort:AbortController|undefined;
+function replaceCityWorld(destination: CityId): Promise<void> {
+    worldPreparationAbort?.abort();
+    const controller=new AbortController();worldPreparationAbort=controller;
+    const task = cityLifecycle.catch(() => { }).then(() => performCityWorldReplacement(destination,controller.signal));
+    cityLifecycle = task;
+    return task;
+}
+async function performCityWorldReplacement(destination: CityId,signal:AbortSignal): Promise<void> {
+    const deadline = performance.now() + 30000;
+    const definition = getCity(destination);
+    if (!definition?.loadWorld)
+        throw new Error('Destination is unavailable');
+    // Only the lightweight module/data are prefetched. Geometry is created after source disposal.
+    if(signal.aborted)throw new DOMException('City preparation cancelled','AbortError');
+    const module=await cityPreparationStep(definition.loadWorld(),signal,20000);
+    stopWorldSponsorship();
+    disposeCityScene(cityScene);
+    cityWorld.disposeWorldStreaming?.();
+    adPlacementManager.dispose(scene);
+    ambientTraffic?.dispose();
+    ambientTraffic = undefined;
+    navigationBeacons.dispose(scene);
+    skyChallenges?.dispose();
+    skyChallenges = undefined;
+    discoverySystem = undefined;
+    stuntCombo = undefined;
+    for (const timer of repairHeartTimers.values())
+        window.clearTimeout(timer);
+    repairHeartTimers.clear();
+    repairHeartSprites.clear();
+    repairHeartCooldownUntil.clear();
+    repairBeaconGroup.clear();
+    for (const border of territoryBorders) {
+        border.wall.removeFromParent();
+        border.wall.geometry.dispose();
+        border.label.remove();
+    }
+    territoryState.clear();
+    territoryBorders = [];
+    if (isDallas)
+        portalDallasTimeOfDay = worldTimeOfDay;
+    activeCity = definition;
+    cityId = destination;
+    cityWorld = module;
+    isDallas = cityId === 'dallas';
+    ({ airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = module);
+    document.querySelector<HTMLElement>('#practice-mode-label')!.hidden = soloExploreMode || !cityCapabilities(cityId)!.practiceMode;
+    CAMERA_BASE_FAR = WORLD_SIZE > 20000 ? 30000 : 22000;
+    CAMERA_HIGH_FAR = WORLD_SIZE > 20000 ? 44000 : 32000;
+    ({ spawnAirport, adPlacements } = resolveActiveCityAds());
+    baseCityRules = cityCapabilities(cityId)!;
+    cityRules = soloExploreMode ? { ...baseCityRules, practiceMode: false, progressionEnabled: false, competitiveEnabled: false, territoriesEnabled: false, tutorialEnabled: false } : baseCityRules;
+    document.body.classList.toggle('practice-mode',cityRules.practiceMode);
+    timeVisuals = createTimeVisuals(isDallas);
+    worldTimeOfDay = resolveCityTimePreset(definition, isDallas ? portalDallasTimeOfDay : 'day');
+    module.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
+    cityScene = new THREE.Scene();
+    cityScene.visible = !portalInTransit;
+    scene.add(cityScene);
+    ({ obstacleBounds, mountainBounds, waterBounds } = createWorld(cityScene, depthOffsetDirection));
+    setLocalTimePreset(worldTimeOfDay);
+    portalSavedBackground=new THREE.Color(SKY_COLOR);
+    configuredWeatherZones = weatherZonesForCity(cityId);
+    activeWeatherZone = undefined;
+    weatherZoneCheckAt = 0;
+    repairMapMarkers = repairsForCity(cityId).map(beacon => ({ ...beacon, cooldownUntil: 0 }));
+    repairMapMarkerById = new Map(repairMapMarkers.map(beacon => [beacon.id, beacon]));
+    rebuildRepairBeacons();
+    adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight, module.hasWorldBuildingDetailAt, worldVisualQuality);
+    if (!soloExploreMode && module.ambientTrafficConfig)
+        ambientTraffic = new AmbientTrafficSystem(scene, module.ambientTrafficConfig, getTerrainHeight, worldVisualQuality === 'high');
+    navigationBeacons = new NavigationBeaconSystem(scene, module.navigationDestinations ?? airports.map(a => ({ id: a.id, label: a.name, x: a.x, z: a.z, kind: 'airport' as const })), getTerrainHeight);
+    navigationBeacons.setEnabled(navigationMarkersEnabled && !portalInTransit);
+    discoveredLocationIds.clear();
+    for (const id of discoveredLocationsByCity[cityId] ?? [])
+        discoveredLocationIds.add(id);
+    if (!soloExploreMode)
+        rebuildCityActivities();
+    territoryDefinitions = soloExploreMode ? [] : territoriesForCity(cityId);
+    territoryBorders = createCityTerritoryBorders();
+    portalNavigationState = undefined;
+    refreshPortalGate();
+    rebuildCollisionGrids();
+    worldMap.setCity(module.mapLayer ?? { bounds: definition.bounds }, airports);
+    document.querySelector<HTMLElement>('#world-map-title')!.textContent = `${definition.displayName.toUpperCase()} MAP`;
+    waypoint = null;
+    cityEvent = null;
+    joinedEventId = null;
+    const url = new URL(location.href);
+    url.searchParams.set('city', cityId);
+    url.searchParams.set('time', worldTimeOfDay);
+    history.replaceState(null, '', url);
+    flightLaunchTitle.textContent = definition.displayName.toUpperCase();
+    // Do not reveal empty streamed terrain: prime the destination's actual exit corridor first.
+    if (portalGate)
+        module.updateWorldStreaming?.(new THREE.Vector3(portalGate.x - portalGate.normal.x * portalRules.arrivalClearance, portalGate.y, portalGate.z - portalGate.normal.z * portalRules.arrivalClearance));
+    adPlacementManager.setEnabled(!portalInTransit);
+    if (portalInTransit)
+        for (const border of territoryBorders)
+            border.wall.visible = false;
+    if (portalGate && module.updateWorldStreaming) {
+        const position = new THREE.Vector3(portalGate.x - portalGate.normal.x * portalRules.arrivalClearance, portalGate.y, portalGate.z - portalGate.normal.z * portalRules.arrivalClearance);
+        for (;;) {
+            if(signal.aborted)throw new DOMException('City preparation cancelled','AbortError');
+            module.updateWorldStreaming(position,velocity);
+            const stats = module.getWorldStreamingStats?.();
+            if (stats && stats.missingImmediateCells === 0 && stats.loadedChunks > 0 && stats.pending===0 && stats.activeFetches===0 && stats.queuedBuilds===0 && stats.queued===0)
+                break;
+            if (performance.now() > deadline)
+                throw new Error('Destination scenery could not be prepared');
+            await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        }
+    }
+    const warmCamera = camera.clone();
+    if (portalGate) {
+        const exitX = portalGate.x - portalGate.normal.x * portalRules.arrivalClearance, exitZ = portalGate.z - portalGate.normal.z * portalRules.arrivalClearance;
+        const exitY = getTerrainHeight(exitX, exitZ) + Math.max(60, airplane.position.y - portalTransitGround);
+        warmCamera.position.sub(airplane.position).add(new THREE.Vector3(exitX, exitY, exitZ));
+    }
+    await prepareCityGpu(renderer, cityScene, warmCamera, scene, deadline, portalSavedFog,signal,adPlacementManager.prepareViewResources(warmCamera));
+    worldSponsorActive = true;
+    void refreshWorldSponsorship();
+}
+function applyIntercityPose(pose: PortalPose): void {
+    const old = airplane.position.clone(), yawDelta = pose.rotation.y - heading;
+    const offset = camera.position.clone().sub(old).applyAxisAngle(cameraWorldUp, yawDelta);
+    airplane.position.set(pose.position.x, pose.position.y, pose.position.z);
+    portalTransitGround = getTerrainHeight(pose.position.x, pose.position.z);
+    heading = pose.rotation.y;
+    pitch = pose.rotation.x;
+    roll = pose.rotation.z;
+    airplane.rotation.set(pitch, heading, roll, 'YXZ');
+    velocity.set(pose.velocity.x, pose.velocity.y, pose.velocity.z);
+    currentSpeed = velocity.length();
+    verticalSpeed = velocity.y;
+    onGround = false;
+    crashed = false;
+    runStarted = true;
+    camera.position.copy(airplane.position).add(offset);
+    for (const point of [lookTarget, targetCameraPosition, lastValidCameraPosition, chaseCameraPosition, chaseLookTarget, orbitCameraPosition, orbitLookTarget, gameplayCinematicStartPosition, gameplayCinematicStartTarget, gameplayCinematicOrbitPosition, gameplayCinematicOrbitTarget])
+        point.sub(old).applyAxisAngle(cameraWorldUp, yawDelta).add(airplane.position);
+    const cameraRotation = new THREE.Quaternion().setFromAxisAngle(cameraWorldUp, yawDelta);
+    camera.quaternion.premultiply(cameraRotation);
+    lastValidCameraQuaternion.premultiply(cameraRotation);
+    forward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
+    portalPreviousPosition.copy(airplane.position);
+    setFlightState('FLYING');
+}
+async function handlePortalTransition(message: PortalMessage): Promise<void> {
+    if (!portalEligible)
+        return;
+    if (message.phase === 'APPROVED') {
+        if (portalTransition?.id === message.id)
+            return;
+        if (message.to === 'dallas')
+            portalDallasTimeOfDay = resolveCityTimePreset(getCity('dallas')!, message.destinationTimePreset);
+        portalTransition = { id: message.id, from: message.from, to: message.to, startedAt: performance.now(), ready: false };
+        portalTransitGround = getTerrainHeight(airplane.position.x, airplane.position.z);
+        portalInTransit = true;
+        portalWorldReady = false;
+        portalSavedFog = scene.fog;
+        portalSavedBackground = scene.background;
+        worldMap.setOpen(false);
+        pilotMenu.close();
+        clearProjectileVisuals();
+        clearCombatTarget();
+        for (const id of [...remotePlayers.keys()])
+            removeRemotePlayer(id);
+        cityHumanRoster.clear();humanRadarTracks.clear();
+        socket.send(JSON.stringify({ type: 'portalTransit', transitionId: message.id }));
+        portalVisuals?.setTransit(true, message.to);
+        portalWindStop?.();
+        portalWindStop = audioManager.startIntercityWind();
+        return;
+    }
+    if (message.phase === 'COMMITTED') {
+        if (!portalTransition || portalTransition.id !== message.id || !portalWorldReady)
+            return;
+        if (portalTransition.revealingAt !== undefined)
+            return;
+        applyIntercityPose(message.pose);
+        health = message.health;
+        portalNavigationState = message.navigation;
+        refreshPortalGate();
+        portalTransition.revealingAt = performance.now();
+
+        for (const player of message.players)
+            updateRemotePlayer(player);
+        applyTerritoryState(message.territories);
+        if (message.social)
+            applySocialState(message.social);
+        applyCityEvent(message.event);
+    }
+    else if (message.phase === 'CANCELLED') {
+        if(message.recovered){portalNavigationState=message.navigation;refreshPortalGate();return;}
+        worldPreparationAbort?.abort();
+        applyIntercityPose(message.pose);
+        await portalWorldSwap?.catch(() => { });
+        if (cityId !== message.from)
+            await replaceCityWorld(message.from);
+        portalNavigationState = message.navigation;
+        refreshPortalGate();
+        finishPortal();
+        if(connectionReady())socket.send(JSON.stringify({type:'portalRecovered',transitionId:message.id}));
+        showProgressMessage('GATE TRAVEL INTERRUPTED · RETURNED SAFELY');
+    }
+}
+function finishPortal(): void {
+    worldPreparationAbort?.abort();
+    const arrived=portalTransition?.revealingAt!==undefined?portalTransition.id:undefined;
+    if(arrived&&connectionReady())socket.send(JSON.stringify({type:'portalArrived',transitionId:arrived}));
+    portalWindStop?.();
+    portalWindStop = undefined;
+    adPlacementManager.setEnabled(true);
+    portalInTransit = false;
+    refreshPortalGate();
+    portalPendingUntil = 0;
+    portalTransition = undefined;
+    portalWorldSwap = undefined;
+    portalPreload = undefined;
+    portalRequestAt = 0;
+    skyDome.visible = true;
+    duskSky.visible = worldTimeOfDay === 'dusk';
+    cityScene.visible = true;
+    scene.fog = portalSavedFog;
+    scene.background = portalSavedBackground;
+    portalVisuals?.setTransit(false);
+    portalVisuals?.setDarkness(0);
+    setLocalTimePreset(worldTimeOfDay);
+    repairBeaconGroup.visible = true;
+    navigationBeacons.setEnabled(navigationMarkersEnabled && !portalInTransit);
+}
+function updateIntercity(delta: number): void {
+    if (!portalEligible)
+        return;
+    const now = performance.now();
+    if (portalTransition) {
+        const elapsed = now - portalTransition.startedAt;
+        if (portalTransition.revealingAt !== undefined) {
+            const reveal = Math.min(1, (now - portalTransition.revealingAt) / 1300);
+            cityScene.visible = true;
+            skyDome.visible = true;
+            scene.fog = portalSavedFog;
+            scene.background = portalSavedBackground;
+            portalVisuals?.setDarkness((1 - reveal) * .65);
+            if (reveal >= 1) {
+                finishPortal();
+                portalVisuals?.showArrival(activeCity!.displayName);
+            }
+        }
+        else {
+            const amount = Math.min(1, elapsed / 800);
+            portalVisuals?.setDarkness(amount * .65);
+            if (elapsed >= 800) {
+                cityScene.visible = false;
+                skyDome.visible = false;
+                duskSky.visible = false;
+                repairBeaconGroup.visible = false;
+                navigationBeacons.setEnabled(false);
+                scene.fog = portalTunnelFog;
+                portalTunnelBackground.setHex(0x030a19);
+                scene.background = portalTunnelBackground;
+                if (!portalWorldSwap) {
+                    const transition = portalTransition;
+                    portalWorldSwap = replaceCityWorld(transition.to).then(() => {
+                        if (portalTransition !== transition)
+                            return;
+                        portalWorldReady = true;
+                        cityScene.visible = false;
+                        socket.send(JSON.stringify({ type: 'portalReady', transitionId: transition.id }));
+                    }).catch(error => {
+                        if(error instanceof DOMException&&error.name==='AbortError')return;
+                        console.warn('Intercity destination preparation failed',error);
+                        if(portalTransition===transition&&connectionReady())socket.send(JSON.stringify({type:'portalCancel',transitionId:transition.id}));
+                    });
+                }
+            }
+            if (elapsed > portalRules.timeoutMs + 3000 && connectionReady())
+                socket.send(JSON.stringify({ type: 'portalCancel', transitionId: portalTransition.id }));
+        }
+    }
+    else if (portalGate && !onGround && !crashed && connectionReady()) {
+        const distance = Math.hypot(airplane.position.x - portalGate.x, airplane.position.z - portalGate.z);
+        if (distance < 4500 && !portalPreload)
+            portalPreload = getCity(portalGate.destination)?.loadWorld?.().catch(() => { });
+        if (now - portalRequestAt > 3000 && sweptPortalCrossing(portalGate, portalPreviousPosition, airplane.position)) {
+            sendLocalState();
+            socket.send(JSON.stringify({ type: 'portalEnter' }));
+            portalRequestAt = now;
+            portalPendingUntil = now + 1800;
+            portalRetryAt = now + 250;
+        }
+    }
+    if (!portalTransition && now < portalPendingUntil && now >= portalRetryAt && connectionReady()) {
+        socket.send(JSON.stringify({ type: 'portalEnter' }));
+        portalRetryAt = now + 250;
+    }
+    portalPreviousPosition.copy(airplane.position);
+}
+
 function animate(): void {
   requestAnimationFrame(animate);
   const qaFrameStartedAt = stabilityQaTiming ? performance.now() : 0;
@@ -9700,15 +10088,16 @@ function animate(): void {
     const travelSpeed = velocity.length() + currentAircraft.acceleration * (currentAircraft.boostThrust ?? 1) / currentAircraft.inertia * delta;
     const flightSteps = Math.min(32, Math.max(1, Math.ceil(travelSpeed * delta / 8)));
     for (let step = 0; step < flightSteps && !crashed; step += 1) updateFlight(delta / flightSteps);
-    if (!guidedTutorialActive && !crashed && challengeModeEnabled) {
+    if (!portalInTransit && !guidedTutorialActive && !crashed && challengeModeEnabled) {
       checkCheckpoint();
       updateRunTimer(delta);
     }
   }
+  updateIntercity(delta);
   updateRemotePlayers(realDelta);
   updateCombatThreatWarning();
   updateGuidedTutorial();
-  updateCombatTarget(delta);
+  if(!portalInTransit)updateCombatTarget(delta);
   updateTrainingScreenplay(delta);
   updateAircraftVisuals(delta);
   updateProjectiles(delta);
@@ -9716,9 +10105,9 @@ function animate(): void {
   updateFlashEffects(impactFlashes, impactFlashPool, delta);
   updateDestructionEffects(delta);
   const streamingPosition=(transportView?.defeatActive || transportView?.arrivalActive) ? transportView.position : airplane.position;
-  if (cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(streamingPosition, velocity);
-  else updateOsmCityChunks(streamingPosition);
-  cityWorld.updateWorldVisuals?.(delta, airplane.position);
+  if (!portalInTransit && cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(streamingPosition, velocity);
+  else if(!portalInTransit)updateOsmCityChunks(streamingPosition);
+  if(!portalInTransit)cityWorld.updateWorldVisuals?.(delta, airplane.position);
   journeyGates?.update(delta);
   monsterView?.update(delta);
   transportView?.update(delta,camera);
@@ -9729,9 +10118,9 @@ function animate(): void {
   }else if(transportHidPlayer){airplane.visible=transportPlayerWasVisible;transportHidPlayer=false;}
 
   updateTerritoryBorderVisibility(performance.now());
-  ambientTraffic?.update(delta, airplane.position, camera);
-  if (!airAssaultMode && !guidedTutorialActive && !crashed && runStarted && !visualQaInspectionActive) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
-  if (!airAssaultMode && !crashed && runStarted && !visualQaInspectionActive) {
+  if(!portalInTransit)ambientTraffic?.update(delta, airplane.position, camera);
+  if (!portalInTransit && !airAssaultMode && !guidedTutorialActive && !crashed && runStarted && !visualQaInspectionActive) skyChallenges?.update(delta, airplane.position, roll, altitudeAboveTerrain(), verticalSpeed);
+  if (!portalInTransit && !airAssaultMode && !crashed && runStarted && !visualQaInspectionActive) {
     stuntFrame.delta = delta;
     stuntFrame.airborne = !onGround;
     stuntFrame.position = airplane.position;
@@ -9748,14 +10137,15 @@ function animate(): void {
     flightRecap.maxAltitude = Math.max(flightRecap.maxAltitude, altitudeAboveTerrain());
   }
   updateWeapons(delta);
-  if (!crashed && runStarted) updatePlayerInteractions();
-  if (challengeModeEnabled) updateCheckpointFeedback(delta);
+  if (!portalInTransit && !crashed && runStarted) updatePlayerInteractions();
+  if (!portalInTransit && challengeModeEnabled) updateCheckpointFeedback(delta);
   updateEventVisual();
   cinematicDirector.update(performance.now());
   updateCamera(delta);
   airAssaultUi?.update(camera,airplane);
   updateLockCircle();
   transportView?.updateDefeatCamera(camera,delta,airplane,chaseCameraPosition,chaseLookTarget);
+  portalVisuals?.update(delta,camera,airplane.position,portalInTransit);
   if (crashSequence) {
     const sequence = crashSequence;
     const crash = sequence.update(delta);
@@ -10031,6 +10421,7 @@ async function realtimeSocketUrl(): Promise<URL> {
   url.searchParams.set('pilotName', displayName);
   url.searchParams.set('protocol', String(PROTOCOL_VERSION));
   url.searchParams.set('analyticsSession', productAnalyticsSessionId());
+  if(new URLSearchParams(location.search).get('newFreeFly')==='1')url.searchParams.set('newFreeFly','1');
   url.searchParams.set('time', worldTimeOfDay);
   if (journeyMode) url.searchParams.set('journeyAttempt', journeyAttemptId);
   if ((launchMode === 'free-fly' || soloExploreMode || skyDuelMode || airAssaultMode) && !trainingRequested) url.searchParams.set(LAUNCH_MODE_PARAM, launchMode);
@@ -10712,7 +11103,7 @@ async function retryJourneyMission(): Promise<void> {
   }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
-  if(soloExploreMode){showProgressMessage('Free Fly is available in Dallas.');return;}
+  if(soloExploreMode){showProgressMessage('Use an intercity gate to change cities in Free Fly.');return;}
   clearProjectileVisuals();
   clearCombatTarget();
   const destination = (event as CustomEvent<{ cityId: CityId; timePreset: CityTimeOfDay;intercity?:boolean;practiceSuggestion?:boolean }>).detail;
@@ -10734,7 +11125,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
   stopWorldSponsorship();
   adPlacementManager.dispose(scene);
   cityWorld.disposeWorldStreaming?.();
-  socket?.close();
+  socket?.close(1000,'Change city');
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, destination.cityId);
   url.searchParams.set('time', resolveCityTimePreset(getCity(destination.cityId)!, destination.timePreset));
@@ -10839,7 +11230,9 @@ boundSocket.addEventListener('open', () => {
   /* Welcome packet completes protocol verification. */
 });
 
-boundSocket.addEventListener('message', (event) => {
+let messageChain=Promise.resolve();
+boundSocket.addEventListener('message', (event) => {messageChain=messageChain.then(()=>handleServerMessage(event)).catch(error=>{console.error('Flight message failed',error);});});
+async function handleServerMessage(event:MessageEvent):Promise<void> {
   if (boundSocket !== socket) return;
   let message: ServerMessage;
   try {
@@ -11245,7 +11638,13 @@ boundSocket.addEventListener('message', (event) => {
     }
     return;
   }
+  if(message.type==='portalTransition'){await handlePortalTransition(message);return;}
   if (message.type === 'welcome') {
+    if(portalEligible){worldPreparationAbort?.abort();await cityLifecycle.catch(()=>{});if(boundSocket!==socket)return;}
+    if(message.portalDallasTimePreset)portalDallasTimeOfDay=resolveCityTimePreset(getCity('dallas')!,message.portalDallasTimePreset);
+    if(message.cityId&&message.cityId!==cityId&&portalEligible){portalInTransit=true;await replaceCityWorld(message.cityId);if(boundSocket!==socket)return;finishPortal();}
+    if(portalTransition)finishPortal();
+    portalNavigationState=message.portalNavigation;refreshPortalGate();
     if(soloExploreMode&&message.soloExploreSupported!==true){blockProtocolConnection('Free Fly requires the matching server update.');return;}
     if(airAssaultMode&&message.airAssaultSupported!==true){blockProtocolConnection('Air Assault requires the matching server update.');return;}
     if (message.protocolVersion !== PROTOCOL_VERSION) {
@@ -11256,6 +11655,7 @@ boundSocket.addEventListener('message', (event) => {
       blockProtocolConnection('Server profile is incompatible — restart server and reload');
       return;
     }
+    if(portalEligible){const url=new URL(location.href);url.searchParams.delete('newFreeFly');history.replaceState(null,'',url);if(isDallas&&message.portalDallasTimePreset)setLocalTimePreset(portalDallasTimeOfDay);}
     journeyPauseSupported = message.journeyPauseSupported === true;
     if (!journeyPauseSupported) setJourneyPaused(false);
     const shouldBeginFlightLaunch = !airAssaultMode && !flightLaunchWelcomeHandled && !trainingRequested && !message.tutorialMode && !message.resumeFlight && !skyDuelMode;
@@ -11390,8 +11790,15 @@ boundSocket.addEventListener('message', (event) => {
       }
     }
     if(trainingSlidesOpen&&!trainingPaused)trainingSlides.retryPendingSave();
-    if ((journeyMode||message.tutorialMode||airAssaultMode) && message.resumeFlight) {
+    if ((journeyMode||message.tutorialMode||airAssaultMode||portalEligible) && message.resumeFlight) {
       const flight = message.resumeFlight;
+      if(portalEligible){
+        applyIntercityPose(flight);onGround=flight.onGround;setFlightState(onGround?'TAXI':'FLYING');
+        if(!previousPlayerId){
+          updateCamera(1);camera.position.copy(targetCameraPosition);lookTarget.copy(chaseLookTarget);camera.lookAt(lookTarget);
+          smoothedCameraRelativeOffset.copy(camera.position).sub(airplane.position);lastValidCameraPosition.copy(camera.position);lastValidCameraQuaternion.copy(camera.quaternion);
+        }
+      }else{
       runStarted = true;
       crashed = false;
       onGround = flight.onGround;
@@ -11403,9 +11810,10 @@ boundSocket.addEventListener('message', (event) => {
       velocity.set(flight.velocity.x, flight.velocity.y, flight.velocity.z);
       currentSpeed = Math.hypot(flight.velocity.x, flight.velocity.z);
       verticalSpeed = flight.velocity.y;
-      boostActive = false;
+      if(!portalEligible)boostActive = false;
       setFlightState(onGround ? 'TAXI' : 'FLYING');
       updateCamera(1);
+      }
       if(journeyMode)setJourneyPaused(true);
     }
     applySocialState(message.social);
@@ -11758,8 +12166,7 @@ boundSocket.addEventListener('message', (event) => {
     const remote = remotePlayers.get(message.playerId);
     if (remote) applyEquippedLivery(remote.plane, remote.aircraftType, message.equipped);
   } else if(message.type==='intercityRouteResult'){
-    if(!message.ok||!message.routeId||!message.toCityId){showProgressMessage(message.reason??'INTERCITY ROUTE UNAVAILABLE');}
-    else{const route=routeDefinition(message.routeId);showProgressMessage(`DEPARTING ${cityId==='dallas'?'DALLAS':'MILWAUKEE'} · ARRIVING ${message.toCityId==='dallas'?'DALLAS':'MILWAUKEE'}`);window.setTimeout(()=>window.dispatchEvent(new CustomEvent('airport-chaos-city-exit',{detail:{cityId:message.toCityId,timePreset:'day',intercity:true}})),900);if(route)flightRecap.eventResults.push(`INTERCITY · ${route.distanceLabel}`);}
+    showProgressMessage('FLY THROUGH THE INTERCITY GATE');
   } else if (message.type === 'challengeComplete') {
     score += message.score;
     queueRewardFeedback(0, message.score);
@@ -11940,7 +12347,7 @@ boundSocket.addEventListener('message', (event) => {
       updateRemotePlayer(message);
     }
   }
-});
+}
 
 boundSocket.addEventListener('close', (event) => {
   if (stabilityQaMode) {

@@ -1,6 +1,6 @@
 export type RegistryCityId='dallas'|'milwaukee';
 export type CityCapabilities={tutorialEnabled:boolean;practiceMode:boolean;progressionEnabled:boolean;territoriesEnabled:boolean;competitiveEnabled:boolean};
-export type IntercityRoute={routeId:string;fromCityId:RegistryCityId;toCityId:RegistryCityId;fromAirportId:string;toAirportId:string;distanceLabel:string;recommendedAircraft:string;estimatedFlightTime:number;rewardProfile?:{credits:number};sponsorSlotId?:string;enabled:boolean};
+export type IntercityRoute={routeId:string;fromCityId:RegistryCityId;toCityId:RegistryCityId;distanceLabel:string;rewardProfile?:{credits:number};sponsorSlotId?:string;enabled:boolean};
 export declare const cityRegistry:Readonly<Record<RegistryCityId,Readonly<Record<string,unknown>>>>;
 export declare const cityAliases:Readonly<Record<string,RegistryCityId>>;
 export declare function normalizeCityId(value:string):RegistryCityId|undefined;

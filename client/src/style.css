@@ -7103,3 +7103,10 @@ html.custom-control-layout #game-root #radar-panel {
 .menu-card-artwork { position: absolute; inset: 0; overflow: hidden; border-radius: 8% / 10%; }
 .menu-card-artwork > img { position: absolute; display: block; max-width: none; max-height: none; margin: 0; pointer-events: none; }
 .city-journey-card:not(.is-full-card-display) > .menu-card-visual { display: none; }
+
+.intercity-curtain { position:absolute;inset:0;pointer-events:none;background:#020713;z-index:8;mix-blend-mode:multiply; }
+.intercity-title { position:absolute;top:20%;left:50%;transform:translateX(-50%);max-width:80%;padding:.4em .9em;border:1px solid #ffdc79;border-radius:.5em;background:#092544dd;color:#fff4cb;font-weight:bold;text-align:center;pointer-events:none;z-index:10; }
+.intercity-title[hidden] { display:none; }
+
+.intercity-map-route { position:absolute;bottom:28px;right:10px;z-index:3;max-width:min(90%,380px);display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #f6cf69;border-radius:8px;background:#092544ef;color:#fff4cb;font-size:12px; }
+.intercity-map-route[hidden] { display:none; }
