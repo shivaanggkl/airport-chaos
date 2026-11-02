@@ -57,7 +57,7 @@ test('Solo Free Fly uses Dallas day exploration without missions, matchmaking or
  runInNewContext(`${code}; chooseCity({id:'milwaukee',status:'available'}); chooseCity({id:'dallas',status:'available'});`,context);
  assert.equal(calls.length,1);assert.equal(abandoned,1);assert.deepEqual(calls[0]?.slice(1),['day',false,'solo-free-fly']);
  const home=readFileSync('client/src/home-hangar.ts','utf8');
- assert.match(home,/free-fly-card.jpg', handlers.explore, false, true/);
+ assert.match(home,/free-fly-card.jpg', handlers.explore/);
  assert.ok(existsSync('client/public/media/hub/free-fly-card.jpg'));
  const client=readFileSync('client/src/main.ts','utf8');
  assert.match(client,/!airAssaultMode && !soloExploreMode && cityWorld.ambientTrafficConfig/);

@@ -60,3 +60,37 @@ export function installMenuCarouselSwipe(container: HTMLElement, onGestureEnd: (
   container.onpointercancel = event => finish(event, true);
 }
 
+
+
+type ArtworkBounds = readonly [x: number, y: number, width: number, height: number, sourceWidth: number, sourceHeight: number];
+// Source artwork bounds only. Frame dimensions and layout are shared by all cards.
+const artworkBounds: Readonly<Record<string, ArtworkBounds>> = {
+  '/media/hub/missions-card.jpg': [18, 70, 1244, 711, 1280, 853],
+  '/media/hub/free-fly-card.jpg': [21, 32, 1212, 1190, 1254, 1254],
+  '/media/multiplayer/air-assault-card.jpg': [0, 0, 1280, 952, 1280, 960],
+};
+
+export function setMenuCarouselArtwork(image: HTMLImageElement, src: string): void {
+  const [x, y, width, height, sourceWidth, sourceHeight] = artworkBounds[src] ?? [0, 0, 1, 1, 1, 1];
+  image.src = src;
+  Object.assign(image.style, {
+    left: `${-x / width * 100}%`, top: `${-y / height * 100}%`,
+    width: `${sourceWidth / width * 100}%`, height: `${sourceHeight / height * 100}%`,
+    objectFit: 'fill', borderRadius: '0', transform: 'none', clipPath: 'none',
+  });
+}
+
+/** One full-art renderer for Hub modes and city selections, with no extra canvas. */
+export function createMenuCarouselArtwork(src: string, imageClass: string, ribbon?: 'SINGLE PLAYER' | 'MULTIPLAYER'): HTMLElement {
+  const visual = document.createElement('div'); visual.className = 'menu-card-visual';
+  const frame = document.createElement('div'); frame.className = 'menu-card-artwork';
+  const image = document.createElement('img'); image.className = imageClass; image.alt = '';
+  image.setAttribute('aria-hidden', 'true'); image.draggable = false;
+  setMenuCarouselArtwork(image, src);
+  frame.append(image); visual.append(frame);
+  if (ribbon) {
+    const flag = document.createElement('span'); flag.className = 'home-mode-flag';
+    flag.textContent = ribbon; flag.setAttribute('aria-hidden', 'true'); visual.append(flag);
+  }
+  return visual;
+}

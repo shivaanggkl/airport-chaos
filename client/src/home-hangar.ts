@@ -1,4 +1,4 @@
-import { createMenuCarouselCard, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
+import { createMenuCarouselCard, createMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { flushSponsorMeasurements, recordSponsorMeasurement, SponsorExposureEpisode } from './sponsorship-measurement';
 
@@ -55,18 +55,13 @@ export class HomeHangar {
     carousel.tabIndex = 0;
     modes.classList.add('menu-card-carousel-track');
     const cards: HTMLElement[] = [];
-    const addMode = (label: string, image: string, run: () => void, multiplayer = false, embeddedFlag = false): void => {
+    const addMode = (label: string, image: string, run: () => void, multiplayer = false): void => {
       const {card,art,copy} = createMenuCarouselCard('home-hangar-mode', '', '', 'button');
       (card as HTMLButtonElement).type = 'button';
       art.remove();copy.remove();
       const index=cards.length;cards.push(card);
       card.setAttribute('aria-label', multiplayer ? `${label}, Multiplayer` : label);
-      const artwork = document.createElement('img'); artwork.className = 'home-hangar-card-image';
-      artwork.src = image; artwork.alt = ''; artwork.setAttribute('aria-hidden', 'true');
-      const flag = document.createElement('span'); flag.className = 'home-mode-flag';
-      flag.textContent = multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'; flag.setAttribute('aria-hidden', 'true');
-      card.append(artwork);
-      if(!embeddedFlag) card.append(flag);
+      card.append(createMenuCarouselArtwork(image, 'home-hangar-card-image', multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'));
       card.addEventListener('click', () => {
         if(performance.now()<this.modeClickBlockedUntil)return;
         if(index!==this.modeIndex){this.modeIndex=index;this.refreshModes();return;}
@@ -74,7 +69,7 @@ export class HomeHangar {
       }); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
-    addMode('Free Fly, Single Player, Explore Dallas', '/media/hub/free-fly-card.jpg', handlers.explore, false, true);
+    addMode('Free Fly, Single Player, Explore Dallas', '/media/hub/free-fly-card.jpg', handlers.explore);
     for (const mode of homeMultiplayerModes) addMode(
       `${mode.title}${mode.id === 'assault' ? ', Single Player, 30 AI' : mode.playable ? ', 1 versus 1' : ', coming soon'}`,
       `/media/multiplayer/${mode.artwork}-card.${mode.id === 'assault' ? 'jpg' : 'png'}`,

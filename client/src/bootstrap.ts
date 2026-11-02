@@ -1,4 +1,4 @@
-import { createMenuCarouselCard, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
+import { createMenuCarouselCard, createMenuCarouselArtwork, setMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
 import './style.css';
 import { CITY_QUERY_PARAM, activeCityFromUrl, cities, resolveCityTimePreset, type CityDefinition } from './cities';
@@ -777,12 +777,7 @@ function createCityJourneyCards(): void {
     card.style.setProperty('--journey-art-image', `url("${entry.artImage}")`);
     card.style.setProperty('--journey-art-position', entry.artPosition);
     if (entry.id === 'dallas' || entry.id === 'milwaukee' || entry.id === 'california' || entry.id === 'new-york') {
-      const fullCard = document.createElement('img');
-      fullCard.className = 'city-journey-full-card-image';
-      fullCard.src = cityJourneyFullCardSrc(entry);
-      fullCard.alt = '';
-      fullCard.setAttribute('aria-hidden', 'true');
-      card.append(fullCard);
+      card.append(createMenuCarouselArtwork(cityJourneyFullCardSrc(entry), 'city-journey-full-card-image'));
     }
     const subtitle = document.createElement('small');
     subtitle.textContent = entry.subtitle;
@@ -831,8 +826,8 @@ function renderCityJourney(): void {
     const offset = index - cityJourneyIndex;
     const entry = cityJourneyEntries[index]!;
     const state = cityJourneyState(entry);
-    const dallasFullCard = entry.id === 'dallas' && cityJourneyMode !== 'free-fly';
-    const newYorkFullCard = entry.id === 'new-york' && cityJourneyMode !== 'free-fly';
+    const dallasFullCard = entry.id === 'dallas';
+    const newYorkFullCard = entry.id === 'new-york';
     const fullCardDisplay = entry.id === 'milwaukee' || entry.id === 'california' || dallasFullCard || newYorkFullCard;
     const unlocking = pendingDallasUnlock && cityJourneyMode === 'missions' && entry.id === 'dallas';
     view.card.setAttribute('aria-selected', offset === 0 ? 'true' : 'false');
@@ -842,7 +837,7 @@ function renderCityJourney(): void {
     if (dallasFullCard || entry.id === 'california' || newYorkFullCard) {
       const image = view.card.querySelector<HTMLImageElement>('.city-journey-full-card-image');
       const src = cityJourneyFullCardSrc(entry);
-      if (image && image.getAttribute('src') !== src) image.src = src;
+      if (image && image.getAttribute('src') !== src) setMenuCarouselArtwork(image, src);
     }
     view.card.tabIndex = fullCardDisplay && offset === 0 && !state.disabled ? 0 : -1;
     if (dallasFullCard) view.card.setAttribute('aria-label', cityJourneyMode === 'missions' || cityJourneyMode === 'solo-free-fly' || selectedHomeMultiplayerMode==='assault' ? 'Dallas, Single Player' : 'Dallas, Multiplayer');

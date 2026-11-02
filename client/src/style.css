@@ -6560,11 +6560,13 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .gara
 #game-root.sky-duel-flight .flight-game-hud #flight-map-button { top: calc(var(--safe-area-top) + 84px); }
 #game-root.sky-duel-flight .territory-world-labels { clip-path: inset(calc(var(--safe-area-top) + clamp(44px, 5vw, 60px) + 8px) 0 0); }
 .menu-card-carousel {
-  --menu-carousel-top-gap: clamp(8px, 2dvh, 14px);
+  --menu-carousel-base-top-gap: clamp(8px, 2dvh, 14px);
   --menu-carousel-bottom-reserve: clamp(54px, 15dvh, 90px);
-  --menu-carousel-card-width: clamp(300px, 34vw, 430px);
-  --menu-carousel-card-height: min(380px, calc(100dvh - var(--menu-page-header-height) - var(--menu-carousel-top-gap) - var(--menu-carousel-bottom-reserve)));
-  --menu-carousel-side-offset: clamp(260px, 30vw, 390px);
+  --menu-carousel-base-height: min(380px, calc(100dvh - var(--menu-page-header-height) - var(--menu-carousel-base-top-gap) - var(--menu-carousel-bottom-reserve)));
+  --menu-carousel-top-gap: calc(var(--menu-carousel-base-top-gap) + var(--menu-carousel-base-height) * .05);
+  --menu-carousel-card-width: calc(clamp(300px, 34vw, 430px) * .9);
+  --menu-carousel-card-height: calc(var(--menu-carousel-base-height) * .9);
+  --menu-carousel-side-offset: calc(clamp(260px, 30vw, 390px) * .9);
   --menu-carousel-side-scale: .67;
   --menu-carousel-side-angle: 52deg;
   --menu-carousel-side-y: 10px;
@@ -6580,7 +6582,7 @@ body:has(.app-shell-header:not([hidden])) .garage-overlay.is-equipped-page .gara
   touch-action: pan-y;
 }
 .menu-card-carousel.multiplayer-mode-cards {
-  --menu-carousel-side-offset: clamp(260px, 30.6vw, 400px);
+  --menu-carousel-side-offset: calc(clamp(260px, 30.6vw, 400px) * .9);
   --menu-carousel-side-scale: .5;
   --menu-carousel-side-angle: 45deg;
   --menu-carousel-side-y: -30px;
@@ -7005,33 +7007,16 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 }
 @media (prefers-reduced-motion: reduce) { .rank-helmet-unlock { animation: none; } }
 
-/* Direct mode selection on the Pilot Hub, using the shared horizontal rail. */
-.home-hangar .home-hangar-contextual {
-  display: block; width: min(1200px, calc(100% - max(24px, var(--safe-area-left)) - max(24px, var(--safe-area-right))));
-  grid-template-columns: none; overflow: visible;
-}
-.home-mode-track { display: flex; align-items: center; gap: var(--menu-selection-gap); width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x; }
-.home-mode-track::-webkit-scrollbar { display: none; }
-.home-mode-track > .home-hangar-mode { flex: 0 0 var(--menu-selection-width); height: var(--menu-selection-height); min-width: 0; scroll-snap-align: start; }
-.home-hangar .home-mode-track .home-hangar-card-image {
-  width: min(100%, calc(var(--menu-selection-height) * 1246 / 922)); height: 100%;
-  margin-inline: auto; border-radius: 14px; object-fit: cover;
-}
 .home-mode-previous, .home-mode-next { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; }
 .home-mode-previous { left: 0; }
 .home-mode-next { right: 0; }
 .home-mode-previous[hidden], .home-mode-next[hidden] { display: none; }
-/* The supplied Mission artwork includes a white margin; crop it within the same shared card frame. */
-.home-hangar .home-mode-track .home-hangar-card-image[src='/media/hub/missions-card.jpg'] {
-  clip-path: inset(8.3333% round 12px); transform: scale(1.2);
-}
-
 /* Shared folded corner flag for every Pilot Hub mode card. */
-.home-mode-track > .home-hangar-mode { position: relative; overflow: visible; }
+.home-mode-track > .home-hangar-mode { overflow: visible; }
 .home-mode-flag {
   position: absolute; z-index: 2; isolation: isolate; pointer-events: none;
-  top: 14px; left: -4px;
-  padding: 7px 19px 7px 11px; color: #142540;
+  top: 3.2%; left: -4px; width: 44%; height: 12%; box-sizing: border-box;
+  display: flex; align-items: center; padding: 0 18px 0 11px; color: #142540;
   font: 900 clamp(10px, 1.15vw, 14px)/1.1 var(--font-display); letter-spacing: .025em;
   white-space: nowrap; text-shadow: 0 1px rgb(255 255 255 / 35%);
   filter: drop-shadow(0 2px 2px rgb(0 13 35 / 28%));
@@ -7097,10 +7082,7 @@ html.custom-control-layout #game-root #radar-panel {
 }
 .home-hangar .menu-card-carousel .home-hangar-mode.menu-selection-card {
   display: block; padding: 0; border: 0; background: transparent; box-shadow: none;
-  width: var(--menu-carousel-card-width); height: 100%; min-width: 0;
-}
-.home-hangar .menu-card-carousel .home-hangar-card-image {
-  display: block; width: 100%; height: 100%; max-width: none; object-fit: fill;
+  min-width: 0;
 }
 .home-hangar .menu-card-carousel .home-mode-previous,
 .home-hangar .menu-card-carousel .home-mode-next { top: calc(var(--menu-carousel-top-gap) + var(--menu-carousel-card-height) / 2); }
@@ -7114,8 +7096,10 @@ html.custom-control-layout #game-root #radar-panel {
 /* Solo exploration keeps navigation and flight controls, without combat or battle HUD. */
 #game-root.solo-explore-flight :is(.touch-fire, #acquisition-circle, #target-feedback, #hit-marker, #social-panel, .territory-hud, .territory-world-labels, .territory-capture, .territory-defense-alert, .dynamic-event-hud, .daily-objective-hud, #mission-status-layer, #players-panel) { display: none !important; }
 
-/* Trim the supplied Free Fly artwork's black export margin inside the shared card. */
-.home-hangar .home-mode-track .home-hangar-card-image[src='/media/hub/free-fly-card.jpg'] {
-  clip-path: inset(2.55% 1.75% round clamp(18px, 2.8vw, 36px));
-  transform: scale(1.03627, 1.05374);
-}
+
+/* Full-art cards share exactly one frame, crop viewport and corner geometry. */
+.menu-card-carousel .menu-card-carousel-card.menu-selection-card { box-sizing: border-box; }
+.menu-card-visual { position: absolute; inset: 0; pointer-events: none; }
+.menu-card-artwork { position: absolute; inset: 0; overflow: hidden; border-radius: 8% / 10%; }
+.menu-card-artwork > img { position: absolute; display: block; max-width: none; max-height: none; margin: 0; pointer-events: none; }
+.city-journey-card:not(.is-full-card-display) > .menu-card-visual { display: none; }
