@@ -138,10 +138,12 @@ const combatQaMode = import.meta.env.DEV && new URLSearchParams(window.location.
 const activeCity = activeCityFromUrl();
 if (!activeCity || activeCity.status !== 'available') throw new Error('A playable city is required before starting the game.');
 const cityId = activeCity.id;
-const cityRules = cityCapabilities(cityId)!;
+const baseCityRules = cityCapabilities(cityId)!;
 const trainingRequested = new URLSearchParams(window.location.search).get('training') === '1';
 let journeyAttemptId = new URLSearchParams(window.location.search).get('journeyAttempt') ?? '';
 const launchMode = launchModeFromUrl(window.location.search);
+const soloExploreMode = launchMode === 'solo-free-fly';
+const cityRules = soloExploreMode ? {...baseCityRules,competitiveEnabled:false,territoriesEnabled:false,tutorialEnabled:false} : baseCityRules;
 const skyDuelMode = launchMode === 'sky-duel' && cityId === 'dallas';
 const airAssaultMode = launchMode === 'air-assault' && cityId === 'dallas';
 const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
@@ -192,6 +194,7 @@ flightGameRoot.classList.toggle('journey-flight', journeyMode);
 flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' && !trainingRequested);
 flightGameRoot.classList.toggle('sky-duel-flight', skyDuelMode);
 flightGameRoot.classList.toggle('air-assault-flight', airAssaultMode);
+flightGameRoot.classList.toggle('solo-explore-flight', soloExploreMode);
 const journeyCombatMissionIds = new Set<string>([journeyDallas07.id, journeyDallas08.id, journeyDallas09.id, journeyDallas10.id, journeyDallas11.id, journeyDallas12.id, journeyDallas15.id, journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
 flightGameRoot.classList.toggle('noncombat-journey', journeyMode);
 const missionStartCountdownElement = document.createElement('div');
@@ -542,7 +545,7 @@ repairBeaconGroup.visible = !skyDuelMode;
 const adPlacementManager = new AdPlacementManager(scene, cityId, adPlacements, adDebugMode, getTerrainHeight, cityWorld.hasWorldBuildingDetailAt, worldVisualQuality);
 adPlacementManager.setEnabled(!skyDuelMode);
 const requestedLaunchMode = new URLSearchParams(window.location.search).get(LAUNCH_MODE_PARAM);
-const worldSponsorshipAllowed = cityId === 'dallas' && launchMode === 'free-fly' &&
+const worldSponsorshipAllowed = cityId === 'dallas' && (launchMode === 'free-fly' || soloExploreMode) &&
   (requestedLaunchMode === null || requestedLaunchMode === 'free-fly') && !trainingRequested;
 let worldSponsorRequest = 0;
 let worldSponsorTimer: ReturnType<typeof setTimeout> | undefined;
@@ -579,7 +582,7 @@ window.addEventListener('pageshow', event => {
   if (event.persisted) { worldSponsorActive = true; void refreshWorldSponsorship(); }
 });
 void refreshWorldSponsorship();
-const ambientTraffic = !airAssaultMode && cityWorld.ambientTrafficConfig
+const ambientTraffic = !airAssaultMode && !soloExploreMode && cityWorld.ambientTrafficConfig
   ? new AmbientTrafficSystem(scene, cityWorld.ambientTrafficConfig, getTerrainHeight, worldVisualQuality === 'high' && !skyDuelMode)
   : undefined;
 ambientTraffic?.setTimeOfDay(worldTimeOfDay);
@@ -1199,8 +1202,8 @@ function disposeAirplaneMaterials(plane: THREE.Group): void {
   for (const material of materials) material.dispose();
 }
 
-const launchAircraft = launchMode === 'free-fly' && !trainingRequested ? flightLaunchAircraft(persistedPlayer.pilotId) : null;
-let waitingForAuthoritativeAircraft = launchMode === 'free-fly' && !trainingRequested && !flightTestMode && !launchAircraft;
+const launchAircraft = (launchMode === 'free-fly' || soloExploreMode) && !trainingRequested ? flightLaunchAircraft(persistedPlayer.pilotId) : null;
+let waitingForAuthoritativeAircraft = (launchMode === 'free-fly' || soloExploreMode) && !trainingRequested && !flightTestMode && !launchAircraft;
 let aircraftType: AircraftType = flightTestMode ? persistedPlayer.selectedAircraft : launchAircraft?.type ?? 'trainer';
 let currentAircraft = aircraftDefinitions[aircraftType];
 let airplane = createAirplane(aircraftType);
@@ -1575,7 +1578,7 @@ window.addEventListener('pagehide', () => savePlayerProgress(true));
 
 let contextualHintDismissed: readonly ContextualHintId[] = persistedPlayer.dismissedHints;
 function renderContextualHint(id: ContextualHintId | null): void {
-  if (journeyMode || airAssaultMode || launchMode === 'free-fly' && id === 'missionBoard') id = null;
+  if (journeyMode || airAssaultMode || soloExploreMode && id === 'missionBoard' || launchMode === 'free-fly' && id === 'missionBoard') id = null;
   contextualHintElement.classList.toggle('hidden', id === null);
   if (!id) return;
   const definition = contextualHintDefinitions[id];
@@ -1595,7 +1598,7 @@ contextualHintDismissElement.addEventListener('click', closeTopUiLayer);
 // Returning pilots receive the compact runway reminder; first-time pilots see
 // the visual guide first, then enter the same contextual hint sequence.
 if (!journeyMode) {
-  if (launchMode !== 'free-fly' && !airAssaultMode) contextualHints.trigger('missionBoard');
+  if (launchMode !== 'free-fly' && !airAssaultMode && !soloExploreMode) contextualHints.trigger('missionBoard');
   contextualHints.trigger('runwayControls');
 }
 
@@ -2377,7 +2380,7 @@ let joinedEventId: string | null = null;
 let skippedEventId: string | null = null;
 let kingPlayerId: string | undefined;
 const formationMembers = new Set<string>();
-const territoryDefinitions = skyDuelMode ? [] : territoriesForCity(cityId);
+const territoryDefinitions = skyDuelMode || soloExploreMode ? [] : territoriesForCity(cityId);
 const territoryState = new Map<string, NetworkTerritoryState>();
 const neutralTerritoryColor: string = territoryOwnershipColors.neutral;
 function ownedTerritoriesForPlayer(playerId: string): Array<{ name: string; color: string }> {
@@ -2542,7 +2545,7 @@ const territoryBorders = territoryDefinitions.map((definition) => {
   return { definition, wall, label, owner, displayColor: neutralTerritoryColor, appearance: 'neutral' as TerritoryAppearance, missionTarget: false, pulseUntil: 0, styleSignature: '' };
 });
 // One lightweight ground outline matches the server's horizontal defense radius.
-const siegeDefenseBoundary = cityId === 'dallas' && !skyDuelMode ? (() => {
+const siegeDefenseBoundary = cityId === 'dallas' && !skyDuelMode && !soloExploreMode ? (() => {
   const definition = territoryDefinition(journeyDallas18.territoryId)!;
   const points: THREE.Vector3[] = [];
   for (let i = 0; i < 64; i += 1) {
@@ -3518,7 +3521,7 @@ dynamicEventSkipElement.addEventListener('click', () => {
   updateDynamicEventHud();
 });
 
-if (cityWorld.skyChallenges?.length && !journeyMode && !skyDuelMode) {
+if (cityWorld.skyChallenges?.length && !journeyMode && !skyDuelMode && !soloExploreMode) {
   skyChallenges = new SkyChallengeSystem(scene, cityWorld.skyChallenges, getTerrainHeight, {
     onScore: (points) => {
       if (!cityRules.progressionEnabled) return;
@@ -4895,7 +4898,7 @@ type ServerMessage =
       trainingSlideIndex?: number;
       trainingPausedAt?: number;
       serverNow?: number;
-      journeyPauseSupported?: boolean; airAssaultSupported?: boolean;
+      journeyPauseSupported?: boolean; airAssaultSupported?: boolean; soloExploreSupported?: boolean;
       skyDuelStakesEnabled?: boolean;
       skyDuelAiPracticeEnabled?: boolean;
       health: number;
@@ -5838,7 +5841,7 @@ function updateWorldMap(direction: THREE.Vector3): void {
   });
 }
 
-const flightMenuMode = journeyMode ? 'single' : trainingRequested ? 'training' : 'multiplayer';
+const flightMenuMode = journeyMode ? 'single' : trainingRequested ? 'training' : soloExploreMode ? 'explore' : 'multiplayer';
 const defaultFlightMenuSection: PilotMenuSection = flightMenuMode === 'single' ? 'MISSION' : 'CONTROLS';
 const pilotMenu = new PilotMenu(pilotMenuOverlayElement, (section) => {
   if (section === 'PROGRESS' && connectionReady()) socket.send(JSON.stringify({ type: 'analyticsEvent', event: 'daily_flight_plan_viewed' }));
@@ -6818,7 +6821,7 @@ function missionWaypoint(definition: CityMission, attempt?: NetworkMissionAttemp
 let completedMissionUntil = 0;
 
 function updateMissionHud(): void {
-  const active = launchMode === 'free-fly' || airAssaultMode ? undefined : serverProfile.missions[cityId]?.active;
+  const active = launchMode === 'free-fly' || soloExploreMode || airAssaultMode ? undefined : serverProfile.missions[cityId]?.active;
   const definition = active && missionForCity(cityId, active.missionId);
   if (definition && active) {
     const mobileProgress = missionProgress(definition, active);
@@ -7027,7 +7030,7 @@ function pilotMenuData(): PilotMenuData {
       providerAuth: providerAccountRequest,
     },
     city: { name: cityId === 'dallas' ? 'Dallas' : 'Milwaukee', timePreset: worldTimeOfDay.toUpperCase(), changeCity: openWorldSelector },
-    intercity:{routes:routesFromCity(cityId).map(route=>({routeId:route.routeId,destination:route.toCityId==='dallas'?'Dallas':'Milwaukee',distanceLabel:route.distanceLabel,recommendedAircraft:route.recommendedAircraft.toUpperCase(),estimatedFlightTime:route.estimatedFlightTime,available:onGround&&!crashed&&!profileActiveMissionAttempt(serverProfile),reason:!onGround?'Land and stop first.':profileActiveMissionAttempt(serverProfile)?'Finish or leave your active mission.':undefined,start:()=>socket.send(JSON.stringify({type:'intercityRouteStart',routeId:route.routeId}))}))},
+    intercity:{routes:(soloExploreMode?[]:routesFromCity(cityId)).map(route=>({routeId:route.routeId,destination:route.toCityId==='dallas'?'Dallas':'Milwaukee',distanceLabel:route.distanceLabel,recommendedAircraft:route.recommendedAircraft.toUpperCase(),estimatedFlightTime:route.estimatedFlightTime,available:onGround&&!crashed&&!profileActiveMissionAttempt(serverProfile),reason:!onGround?'Land and stop first.':profileActiveMissionAttempt(serverProfile)?'Finish or leave your active mission.':undefined,start:()=>socket.send(JSON.stringify({type:'intercityRouteStart',routeId:route.routeId}))}))},
     missions: {
       practice: cityRules.practiceMode,
       activeId: profileActiveMissionAttempt(serverProfile)?.missionId,
@@ -8675,7 +8678,7 @@ function validateServerLock(targetId: string | null, delta: number): void {
 }
 
 function updateCombatTarget(delta = 0): void {
-  if (crashed || localLifeState !== 'alive') {
+  if (soloExploreMode || crashed || localLifeState !== 'alive') {
     clearCombatTarget();
     stepAim(visualAim, neutralAim, delta, AIM_ENVELOPE);
     updateLockCircle();
@@ -9644,6 +9647,7 @@ function updateWeapons(delta: number): void {
 }
 
 function fireWeaponOnce(): boolean {
+  if(soloExploreMode)return false;
   const blocked = localFireBlockReason();
   if (blocked) {
     reportFireBlocked(blocked);
@@ -10029,7 +10033,7 @@ async function realtimeSocketUrl(): Promise<URL> {
   url.searchParams.set('analyticsSession', productAnalyticsSessionId());
   url.searchParams.set('time', worldTimeOfDay);
   if (journeyMode) url.searchParams.set('journeyAttempt', journeyAttemptId);
-  if ((launchMode === 'free-fly' || skyDuelMode || airAssaultMode) && !trainingRequested) url.searchParams.set(LAUNCH_MODE_PARAM, launchMode);
+  if ((launchMode === 'free-fly' || soloExploreMode || skyDuelMode || airAssaultMode) && !trainingRequested) url.searchParams.set(LAUNCH_MODE_PARAM, launchMode);
   if (chaosQaMode) url.searchParams.set('chaosqa', '1');
   return url;
 }
@@ -10708,6 +10712,7 @@ async function retryJourneyMission(): Promise<void> {
   }
 }
 window.addEventListener('airport-chaos-city-exit', (event) => {
+  if(soloExploreMode){showProgressMessage('Free Fly is available in Dallas.');return;}
   clearProjectileVisuals();
   clearCombatTarget();
   const destination = (event as CustomEvent<{ cityId: CityId; timePreset: CityTimeOfDay;intercity?:boolean;practiceSuggestion?:boolean }>).detail;
@@ -10783,6 +10788,7 @@ function createClientShotId(): string {
 }
 
 function sendFireIntent(): boolean {
+  if(soloExploreMode)return false;
   if (!localPlayerId || localLifeState !== 'alive' || !connectionReady() || transportView?.defeatActive || transportView?.arrivalActive) return false;
   updateCombatTarget(0);
   getCurrentMuzzleTransform(projectileOrigin, projectileDirection);
@@ -11240,6 +11246,7 @@ boundSocket.addEventListener('message', (event) => {
     return;
   }
   if (message.type === 'welcome') {
+    if(soloExploreMode&&message.soloExploreSupported!==true){blockProtocolConnection('Free Fly requires the matching server update.');return;}
     if(airAssaultMode&&message.airAssaultSupported!==true){blockProtocolConnection('Air Assault requires the matching server update.');return;}
     if (message.protocolVersion !== PROTOCOL_VERSION) {
       blockProtocolConnection('Version mismatch — reload page and restart server');

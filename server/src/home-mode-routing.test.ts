@@ -50,3 +50,28 @@ test('Air Assault launches directly in Day mode without stakes or Mission Journe
   assert.match(home,/id: 'assault'.*playable: true/);
   assert.match(home,/mode.id !== 'assault'/);
 });
+
+test('Solo Free Fly uses Dallas day exploration without missions, matchmaking or time selection',()=>{
+ const calls:unknown[][]=[];let abandoned=0;
+ const context={cityJourneyMode:'solo-free-fly',recordProductIntent(){},abandonPendingJourneyLaunch(){abandoned++;},enterCity:(...args:unknown[])=>{calls.push(args);return Promise.resolve();},showSelector(){throw new Error('unexpected error');}};
+ runInNewContext(`${code}; chooseCity({id:'milwaukee',status:'available'}); chooseCity({id:'dallas',status:'available'});`,context);
+ assert.equal(calls.length,1);assert.equal(abandoned,1);assert.deepEqual(calls[0]?.slice(1),['day',false,'solo-free-fly']);
+ const home=readFileSync('client/src/home-hangar.ts','utf8');
+ assert.match(home,/free-fly-card.jpg', handlers.explore, false, true/);
+ assert.ok(existsSync('client/public/media/hub/free-fly-card.jpg'));
+ const client=readFileSync('client/src/main.ts','utf8');
+ assert.match(client,/!airAssaultMode && !soloExploreMode && cityWorld.ambientTrafficConfig/);
+ assert.match(client,/skyDuelMode \|\| soloExploreMode \? \[\] : territoriesForCity/);
+ assert.match(client,/soloExploreMode&&message.soloExploreSupported!==true/);
+ assert.match(client,/function sendFireIntent\(\): boolean \{\s*if\(soloExploreMode\)return false/);
+});
+
+
+test('solo exploration omits territory-only geometry and the server gates territory and battle packets',()=>{
+ const client=readFileSync('client/src/main.ts','utf8'),server=readFileSync('server/src/index.ts','utf8');
+ assert.match(client,/const siegeDefenseBoundary = cityId === 'dallas' && !skyDuelMode && !soloExploreMode/);
+ assert.match(server,/function updateTerritories\(now: number\)[\s\S]*?player\.airAssaultId \|\| player\.soloExploreMode\) continue/);
+ assert.match(server,/player\.soloExploreMode\)\{[\s\S]*?!soloExploreMessages\.has\(message.type\)/);
+ const allowed=server.match(/const soloExploreMessages=new Set\(\[([^\]]+)\]\)/)![1];
+ for(const action of ['fire','lock','missionAccept','eventJoin','skyDuelQueue','intercityRouteStart'])assert.ok(!allowed.includes(`'${action}'`));
+});

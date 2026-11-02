@@ -21,6 +21,7 @@ export type HomeMultiplayerMode = typeof homeMultiplayerModes[number]['id'];
 
 type HomeHangarHandlers = {
   missions: () => void;
+  explore: () => void;
   multiplayer: (mode: HomeMultiplayerMode) => void;
   store: () => void;
   sponsor: (trigger: HTMLButtonElement) => void;
@@ -54,7 +55,7 @@ export class HomeHangar {
     carousel.tabIndex = 0;
     modes.classList.add('menu-card-carousel-track');
     const cards: HTMLElement[] = [];
-    const addMode = (label: string, image: string, run: () => void, multiplayer = false): void => {
+    const addMode = (label: string, image: string, run: () => void, multiplayer = false, embeddedFlag = false): void => {
       const {card,art,copy} = createMenuCarouselCard('home-hangar-mode', '', '', 'button');
       (card as HTMLButtonElement).type = 'button';
       art.remove();copy.remove();
@@ -65,7 +66,7 @@ export class HomeHangar {
       const flag = document.createElement('span'); flag.className = 'home-mode-flag';
       flag.textContent = multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'; flag.setAttribute('aria-hidden', 'true');
       card.append(artwork);
-      card.append(flag);
+      if(!embeddedFlag) card.append(flag);
       card.addEventListener('click', () => {
         if(performance.now()<this.modeClickBlockedUntil)return;
         if(index!==this.modeIndex){this.modeIndex=index;this.refreshModes();return;}
@@ -73,6 +74,7 @@ export class HomeHangar {
       }); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
+    addMode('Free Fly, Single Player, Explore Dallas', '/media/hub/free-fly-card.jpg', handlers.explore, false, true);
     for (const mode of homeMultiplayerModes) addMode(
       `${mode.title}${mode.id === 'assault' ? ', Single Player, 30 AI' : mode.playable ? ', 1 versus 1' : ', coming soon'}`,
       `/media/multiplayer/${mode.artwork}-card.${mode.id === 'assault' ? 'jpg' : 'png'}`,

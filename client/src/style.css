@@ -7111,3 +7111,11 @@ html.custom-control-layout #game-root #radar-panel {
   height: clamp(38px, calc(100% - var(--menu-carousel-top-gap) - var(--menu-carousel-card-height) - 16px), 80px);
 }
 .home-hangar .menu-card-carousel .home-hangar-sponsor img { max-height: 100%; }
+/* Solo exploration keeps navigation and flight controls, without combat or battle HUD. */
+#game-root.solo-explore-flight :is(.touch-fire, #acquisition-circle, #target-feedback, #hit-marker, #social-panel, .territory-hud, .territory-world-labels, .territory-capture, .territory-defense-alert, .dynamic-event-hud, .daily-objective-hud, #mission-status-layer, #players-panel) { display: none !important; }
+
+/* Trim the supplied Free Fly artwork's black export margin inside the shared card. */
+.home-hangar .home-mode-track .home-hangar-card-image[src='/media/hub/free-fly-card.jpg'] {
+  clip-path: inset(2.55% 1.75% round clamp(18px, 2.8vw, 36px));
+  transform: scale(1.03627, 1.05374);
+}

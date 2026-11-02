@@ -24,7 +24,7 @@ export type PilotMenuOptions = {
   showFlightActions?: boolean;
   forfeitMatch?: () => void;
   appShell?: boolean;
-  flightMode?: 'single' | 'training' | 'multiplayer';
+  flightMode?: 'single' | 'training' | 'multiplayer' | 'explore';
   showContextStatus?: boolean;
   beforeClose?: () => boolean;
   onClose?: () => void;
@@ -645,7 +645,7 @@ export class PilotMenu {
       actions.append(actionButton({ label: 'RESTART MISSION', run: () => data.restartFlight?.() }));
     }
     actions.append(actionButton({
-      label: this.options.forfeitMatch ? 'FORFEIT MATCH' : this.options.flightMode === 'single' ? 'EXIT TO JOURNEY' : this.options.flightMode === 'training' ? 'EXIT TRAINING' : 'LEAVE SESSION',
+      label: this.options.forfeitMatch ? 'FORFEIT MATCH' : this.options.flightMode === 'single' ? 'EXIT TO JOURNEY' : this.options.flightMode === 'training' ? 'EXIT TRAINING' : this.options.flightMode === 'explore' ? 'BACK TO HUB' : 'LEAVE SESSION',
       run: () => this.options.forfeitMatch ? this.options.forfeitMatch() : data.exitFlight?.(), intent: 'danger',
     }));
     if (this.options.flightMode === 'single') actions.append(textElement('small', 'Progress from this attempt will be lost.', 'pilot-flight-exit-note'));
@@ -690,7 +690,7 @@ export class PilotMenu {
         : this.activeSection === 'PROGRESS' ? 'PILOT PROGRESS' : this.activeSection === 'GARAGE' ? 'AIRCRAFTS' : this.activeSection;
     const scrollTop = switched ? 0 : content.scrollTop;
     content.replaceChildren();
-    if (this.options.flightMode === 'multiplayer' || this.options.flightMode === 'training') content.append(textElement('p', this.options.flightMode === 'training' ? '⚠ TRAINING CONTINUES WHILE THIS MENU IS OPEN' : '⚠ FLIGHT CONTINUES WHILE THIS MENU IS OPEN', 'pilot-flight-live-warning'));
+    if (this.options.flightMode === 'multiplayer' || this.options.flightMode === 'training' || this.options.flightMode === 'explore') content.append(textElement('p', this.options.flightMode === 'training' ? '⚠ TRAINING CONTINUES WHILE THIS MENU IS OPEN' : '⚠ FLIGHT CONTINUES WHILE THIS MENU IS OPEN', 'pilot-flight-live-warning'));
     content.classList.toggle('pilot-menu-content-map', this.activeSection === 'MAP');
     const authenticationScreen = this.activeSection === 'PROFILE' && data.account.state === 'guest';
     content.classList.toggle('pilot-menu-content-authentication', authenticationScreen);
@@ -1533,7 +1533,8 @@ export class PilotMenu {
 
     if (this.activeSection === 'HELP') {
       const help = section(this.options.appShell || flightMenu ? 'FLIGHT GUIDE' : 'HELP');
-      if (flightMenu) help.append(textElement('p', data.preferences.touchLayout
+      if (flightMenu && this.options.flightMode === 'explore') help.append(textElement('p',data.preferences.touchLayout ? 'Use the stick to turn and climb. Use the speed lever for throttle and Boost. Open the map to explore Dallas.' : 'Use Controls for keyboard and mouse flight input. Open the map to explore Dallas.','pilot-menu-muted'));
+      else if (flightMenu) help.append(textElement('p', data.preferences.touchLayout
         ? 'Left stick turns and changes altitude. The right lever controls throttle and Boost. Fire and aim are separate.'
         : 'Open Controls for keyboard and mouse flight input.', 'pilot-menu-muted'));
       else {
