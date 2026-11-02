@@ -1,3 +1,4 @@
+import {portalRules} from '../../shared/intercity-portals.mjs';
 import { mkdirSync, statSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'node:path';
@@ -813,20 +814,36 @@ export class PlayerProfileStore {
     const route=row&&routeDefinition(row.route_id);return route&&route.fromCityId===row.from_city_id&&route.toCityId===row.to_city_id?{routeId:row.route_id,fromCityId:row.from_city_id,toCityId:row.to_city_id,startedAt:row.started_at}:undefined;
   }
 
-  startIntercityRoute(pilotId:string,routeId:string,currentCityId:CityId,now=Date.now()):{ok:boolean;reason?:string;profile?:PlayerProfile}{
-    const row=this.getRow(pilotId);const route=routeDefinition(routeId);if(!row||!route||route.fromCityId!==currentCityId)return{ok:false,reason:'ROUTE UNAVAILABLE',profile:row?this.toProfile(row):undefined};
-    if([...cityIds].some(cityId=>parseMissionStates(row.missions)[cityId]?.active))return{ok:false,reason:'FINISH OR LEAVE YOUR ACTIVE MISSION',profile:this.toProfile(row)};
-    const active=this.activeIntercityRoute(pilotId);if(active)return active.routeId===routeId?{ok:true,profile:this.toProfile(row)}:{ok:false,reason:'FINISH CURRENT INTERCITY FLIGHT',profile:this.toProfile(row)};
-    const recent=this.database.prepare('SELECT completed_at FROM pilot_intercity_completions WHERE pilot_id=? AND route_id=? ORDER BY completed_at DESC LIMIT 1').get(pilotId,routeId) as {completed_at:number}|undefined;
-    if(recent&&now-recent.completed_at<30*60_000)return{ok:false,reason:'ROUTE REWARD COOLDOWN',profile:this.toProfile(row)};
-    this.database.prepare('INSERT INTO pilot_intercity_routes (pilot_id,route_id,from_city_id,to_city_id,started_at,updated_at) VALUES (?,?,?,?,?,?)').run(pilotId,route.routeId,route.fromCityId,route.toCityId,now,now);
-    return{ok:true,profile:this.toProfile(row)};
+  intercityRewardClaimed(pilotId:string,routeId:string):boolean {
+    return Boolean(this.database.prepare('SELECT 1 FROM pilot_intercity_completions WHERE pilot_id=? AND route_id=? AND credits>0 LIMIT 1').get(pilotId,routeId)) ||
+      Boolean(this.database.prepare("SELECT 1 FROM wallet_transactions WHERE pilot_id=? AND reason='INTERCITY_REWARD' AND reference_id=? AND direction='CREDIT' LIMIT 1").get(pilotId,routeId))||
+      Boolean(this.database.prepare('SELECT 1 FROM wallet_idempotency_receipts WHERE pilot_id=? AND idempotency_key=?').get(pilotId,`portal-route:${routeId}`));
   }
 
-  completeIntercityArrival(pilotId:string,currentCityId:CityId,now=Date.now()):{completed:boolean;credits:number;routeId?:string;profile?:PlayerProfile}{
-    const row=this.getRow(pilotId);const active=this.activeIntercityRoute(pilotId);if(!row||!active||active.toCityId!==currentCityId)return{completed:false,credits:0,profile:row?this.toProfile(row):undefined};
-    const route=routeDefinition(active.routeId)!;const credits=Math.max(0,Math.min(10_000,route.rewardProfile?.credits??0));
-    return this.wallet.transaction((wallet)=>{const receipt=this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions (pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES (?,?,?,?,?)').run(pilotId,active.routeId,active.startedAt,now,credits);if(receipt.changes&&credits>0)wallet.credit({pilotId,currency:'CREDITS',amount:credits,reason:'INTERCITY_REWARD',idempotencyKey:`intercity:${active.routeId}:${active.startedAt}`,referenceId:active.routeId,createdAt:now});this.database.prepare('DELETE FROM pilot_intercity_routes WHERE pilot_id=? AND route_id=? AND started_at=?').run(pilotId,active.routeId,active.startedAt);return{completed:receipt.changes>0,credits:receipt.changes?credits:0,routeId:active.routeId,profile:this.toProfile(this.getRow(pilotId)!)};});
+  // Legacy URL/airport travel can neither begin nor settle a paid route.
+  startIntercityRoute(pilotId:string,_routeId:string,_cityId:CityId,_now=Date.now()){return {ok:false,reason:'FLY THROUGH THE INTERCITY GATE',profile:this.getOrCreate(pilotId,'Pilot')};}
+  completeIntercityArrival(pilotId:string,_cityId:CityId,_now=Date.now()){return {completed:false,credits:0,routeId:undefined as string|undefined,profile:this.getOrCreate(pilotId,'Pilot')};}
+
+  commitPortalArrival(pilotId:string,routeId:string,transitionId:string,stateJson:string,now=Date.now()):number {
+    return this.wallet.transaction(wallet=>{
+      const pilot=this.getRow(pilotId);if(!pilot)throw new Error('Unknown pilot');
+      const saved=this.database.prepare('SELECT state FROM pilot_portal_flights WHERE pilot_id=?').get(pilotId) as {state:string}|undefined;
+      const prior=saved?JSON.parse(saved.state):undefined;
+      const state=JSON.parse(stateJson),route=routeDefinition(routeId);
+      if(!prior||prior.id!==transitionId||state.id!==transitionId||state.pilotId!==pilotId||!route||
+        route.fromCityId!==prior.from||route.toCityId!==prior.to||prior.routeId!==routeId||state.session!==prior.session||state.from!==prior.from||state.to!==prior.to||state.routeId!==prior.routeId||state.phase!=='COMMITTED')throw new Error('Invalid portal settlement');
+      if(prior.phase==='COMMITTED'||prior.phase==='ARRIVED')return prior.reward;
+      if(prior.phase!=='DESTINATION_READY'||!prior.ready||now-prior.startedAt<portalRules.tunnelMinMs||now-prior.startedAt>portalRules.timeoutMs)throw new Error('Portal is not ready');
+      let credited=0;
+      if(!this.intercityRewardClaimed(pilotId,routeId)){
+        const result=wallet.credit({pilotId,currency:'CREDITS',amount:route.rewardProfile!.credits,reason:'INTERCITY_REWARD',idempotencyKey:`portal-route:${routeId}`,referenceId:routeId,createdAt:now});
+        credited=result.applied?Math.max(0,(result.balance??pilot.credits)-pilot.credits):0;
+        this.database.prepare('INSERT OR IGNORE INTO pilot_intercity_completions(pilot_id,route_id,attempt_started_at,completed_at,credits) VALUES(?,?,?,?,?)').run(pilotId,routeId,now,now,credited);
+      }
+      this.database.prepare('UPDATE pilot_portal_flights SET state=? WHERE pilot_id=?').run(JSON.stringify({...state,reward:credited}),pilotId);
+      this.database.prepare('DELETE FROM pilot_intercity_routes WHERE pilot_id=?').run(pilotId);
+      return credited;
+    });
   }
 
   seasonProgress(pilotId: string, cityId: CityId, now = Date.now()): SeasonProgress | undefined {

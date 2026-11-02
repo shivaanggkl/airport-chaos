@@ -828,6 +828,12 @@ export class AdPlacementManager {
     }
   }
 
+  // Prepare the existing presentation LODs without recording an ad exposure.
+  prepareViewResources(camera:THREE.Camera):readonly THREE.Group[] {
+    for(const rendered of this.rendered){rendered.group.updateWorldMatrix(true,true);rendered.group.traverse(object=>{if(object instanceof THREE.LOD)object.update(camera);});}
+    return this.rendered.map(rendered=>rendered.group);
+  }
+
   getSponsorResourceCount(): { textures: number; materials: number; pending: number } {
     return { textures: this.sponsored.size, materials: this.sponsored.size, pending: this.pendingSponsor.size };
   }

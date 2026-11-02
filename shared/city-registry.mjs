@@ -21,8 +21,8 @@ export function cityCapabilities(value){return cityDefinition(value)?.capabiliti
 export function airportsForCity(value){return cityDefinition(value)?.airports??[];}
 
 export const intercityRoutes=Object.freeze([
-  Object.freeze({routeId:'dallas-milwaukee',fromCityId:'dallas',toCityId:'milwaukee',fromAirportId:'dfw',toAirportId:'central',distanceLabel:'Northbound Intercity Corridor',recommendedAircraft:'nightowl',estimatedFlightTime:90,rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
-  Object.freeze({routeId:'milwaukee-dallas',fromCityId:'milwaukee',toCityId:'dallas',fromAirportId:'central',toAirportId:'dfw',distanceLabel:'Southbound Intercity Corridor',recommendedAircraft:'nightowl',estimatedFlightTime:90,rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
+  Object.freeze({routeId:'dallas-milwaukee',fromCityId:'dallas',toCityId:'milwaukee',distanceLabel:'Northbound Intercity Corridor',rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
+  Object.freeze({routeId:'milwaukee-dallas',fromCityId:'milwaukee',toCityId:'dallas',distanceLabel:'Southbound Intercity Corridor',rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
 ]);
 export function routeDefinition(routeId){return intercityRoutes.find(route=>route.routeId===routeId&&route.enabled);}
 export function routesFromCity(cityId){return intercityRoutes.filter(route=>route.enabled&&route.fromCityId===normalizeCityId(cityId));}

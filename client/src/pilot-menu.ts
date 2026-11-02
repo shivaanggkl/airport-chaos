@@ -106,7 +106,7 @@ export type PilotMenuData = {
     providerAuth: (provider: 'google' | 'apple', action: 'login') => Promise<PilotMenuAccountResult>;
   };
   city: { name: string; timePreset: string; changeCity: () => void };
-  intercity: { routes: readonly {routeId:string;destination:string;distanceLabel:string;recommendedAircraft:string;estimatedFlightTime:number;available:boolean;reason?:string;start:()=>void}[] };
+  intercity: { routes: readonly {routeId:string;destination:string;distanceLabel:string;available:boolean;reason?:string;start:()=>void}[] };
   progression: { enabled: boolean; credits: number; score: number; aircraft: readonly PilotMenuAircraftProgress[];
     pilotProgress: { xp: number; level: number; title: string; nextLevelXp: number };
     dailyStreak: { current: number; longest: number; cycleDay: number; nextReward: number };
@@ -1382,7 +1382,7 @@ export class PilotMenu {
     if (!data.garage.available) garageSection.append(actionButton({ label: 'Set Airport Waypoint', run: data.garage.setAirportWaypoint }));
     if (!data.garage.available && data.garage.reason) garageSection.append(textElement('small', data.garage.reason, 'pilot-menu-muted'));
     content.append(garageSection);
-    if(data.intercity.routes.length){const routes=section('INTERCITY FLIGHTS');routes.append(textElement('p','Land and stop at the departure airport, then begin a city-to-city flight.','pilot-menu-muted'));for(const route of data.intercity.routes)routes.append(this.createCard({name:`FLY TO ${route.destination.toUpperCase()}`,detail:route.distanceLabel,meta:`Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,actions:[{label:'START ROUTE',run:route.start,disabled:!route.available,title:route.reason}]}));content.append(routes);}
+    if(data.intercity.routes.length){const routes=section('INTERCITY FLIGHTS');routes.append(textElement('p','Fly through the glowing gate to explore the connected city. Travel is free and unlimited.','pilot-menu-muted'));for(const route of data.intercity.routes)routes.append(this.createCard({name:`FLY TO ${route.destination.toUpperCase()}`,detail:route.distanceLabel,meta:'ANY OWNED AIRCRAFT · FREE TRAVEL',actions:[{label:'SET WAYPOINT TO GATE',run:route.start,disabled:!route.available,title:route.reason}]}));content.append(routes);}
     }
 
     if (this.activeSection === 'CONTROLS' && (this.options.appShell || flightMenu)) {
@@ -1533,7 +1533,7 @@ export class PilotMenu {
 
     if (this.activeSection === 'HELP') {
       const help = section(this.options.appShell || flightMenu ? 'FLIGHT GUIDE' : 'HELP');
-      if (flightMenu && this.options.flightMode === 'explore') help.append(textElement('p',data.preferences.touchLayout ? 'Use the stick to turn and climb. Use the speed lever for throttle and Boost. Open the map to explore Dallas.' : 'Use Controls for keyboard and mouse flight input. Open the map to explore Dallas.','pilot-menu-muted'));
+      if (flightMenu && this.options.flightMode === 'explore') help.append(textElement('p',data.preferences.touchLayout ? 'Use the stick to turn and climb. Use the speed lever for throttle and Boost. Open the map to explore the city.' : 'Use Controls for keyboard and mouse flight input. Open the map to explore the city.','pilot-menu-muted'));
       else if (flightMenu) help.append(textElement('p', data.preferences.touchLayout
         ? 'Left stick turns and changes altitude. The right lever controls throttle and Boost. Fire and aim are separate.'
         : 'Open Controls for keyboard and mouse flight input.', 'pilot-menu-muted'));
@@ -1573,8 +1573,8 @@ export class PilotMenu {
         for (const route of data.intercity.routes) world.append(this.createCard({
           name: route.destination,
           detail: route.distanceLabel,
-          meta: `Recommended: ${route.recommendedAircraft} · About ${route.estimatedFlightTime} sec`,
-          actions: [{ label: 'START ROUTE', run: route.start, disabled: !route.available, title: route.reason }],
+          meta: 'ANY OWNED AIRCRAFT · FREE TRAVEL',
+          actions: [{ label: 'SET WAYPOINT TO GATE', run: route.start, disabled: !route.available, title: route.reason }],
         }));
       }
       content.append(world);

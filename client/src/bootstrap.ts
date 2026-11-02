@@ -1,7 +1,7 @@
 import { createMenuCarouselCard, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
 import './style.css';
-import { CITY_QUERY_PARAM, activeCityFromUrl, cities, resolveCityTimePreset, type CityDefinition } from './cities';
+import { CITY_QUERY_PARAM, getCity, activeCityFromUrl, cities, resolveCityTimePreset, type CityDefinition } from './cities';
 import type { CityTimeOfDay } from './city-visuals';
 import { AircraftGarage, type GarageProfile } from './garage';
 import { aircraftDefinitions, aircraftDisplayName, type AircraftType } from './aircraft';
@@ -2239,7 +2239,7 @@ async function startTrainingFromHub(replayConfirmed = false): Promise<void> {
   }
 }
 
-async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false, modeOverride?: LaunchMode): Promise<void> {
+async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDay = 'day', trainingSession = false, modeOverride?: LaunchMode, resumeExistingFlight=false): Promise<void> {
   if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
   if (city.status !== 'available' || !city.loadWorld) return;
   const timePreset = modeOverride === 'air-assault' ? 'day' : modeOverride === 'sky-duel' ? 'evening' : resolveCityTimePreset(city, requestedTimePreset);
@@ -2283,7 +2283,10 @@ async function enterCity(city: CityDefinition, requestedTimePreset: CityTimeOfDa
   const url = new URL(window.location.href);
   url.searchParams.set(CITY_QUERY_PARAM, city.id);
   url.searchParams.set('time', timePreset);
-  url.searchParams.set(LAUNCH_MODE_PARAM, modeOverride ?? cityJourneyMode);
+  const resolvedLaunchMode=modeOverride??cityJourneyMode;
+  url.searchParams.set(LAUNCH_MODE_PARAM,resolvedLaunchMode);
+  if(resolvedLaunchMode==='solo-free-fly'||resolvedLaunchMode==='free-fly'){if(!resumeExistingFlight)url.searchParams.set('newFreeFly','1');}
+  else url.searchParams.delete('newFreeFly');
   if (trainingSession) url.searchParams.set('training', '1');
   else url.searchParams.delete('training');
   if (cityJourneyMode === 'missions' && city.id === 'dallas' && journeyAttemptId) url.searchParams.set('journeyAttempt', journeyAttemptId);
@@ -2562,6 +2565,9 @@ async function start(): Promise<void> {
     showSelector('', { preferDallas: true, mode: 'multiplayer' });
     const dallas = cities.find(city => city.id === 'dallas' && city.status === 'available');
     if (dallas) showSelector('', { mode: 'multiplayer', preferDallas: true });
+  } else if ((url.searchParams.get('launchMode')==='solo-free-fly'||url.searchParams.get('launchMode')==='free-fly')&&getCity(url.searchParams.get('city'))){
+    const mode=url.searchParams.get('launchMode') as 'solo-free-fly'|'free-fly';
+    cityJourneyMode=mode;await enterCity(getCity(url.searchParams.get('city'))!,resolveCityTimePreset(getCity(url.searchParams.get('city'))!,url.searchParams.get('time')),false,mode,true);
   } else if (directCityEntry) {
     await showHome();
     if (pendingDallasUnlock) showSelector('', { mode: 'missions' });

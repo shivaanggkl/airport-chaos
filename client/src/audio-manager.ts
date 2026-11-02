@@ -220,6 +220,17 @@ class AudioManager {
     this.applyEnginePresentation(context, output, this.enginePresentation);
   }
 
+  startIntercityWind():()=>void {
+    const context=this.ensureContext(),output=this.categoryGains.get('engine');
+    if(!context||!output)return ()=>{};
+    const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain();
+    source.buffer=this.getNoiseBuffer();source.loop=true;filter.type='lowpass';filter.frequency.value=780;
+    gain.gain.setValueAtTime(.0001,context.currentTime);gain.gain.linearRampToValueAtTime(.08,context.currentTime+.8);
+    source.connect(filter);filter.connect(gain);gain.connect(output);source.start();
+    let stopped=false;
+    return ()=>{if(stopped)return;stopped=true;source.stop();source.disconnect();filter.disconnect();gain.disconnect();};
+  }
+
   playUiClick() {
     const context = this.context;
     if (!context || context.state !== 'running' || this.muted) return;
