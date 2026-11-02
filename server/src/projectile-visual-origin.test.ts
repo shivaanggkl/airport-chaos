@@ -101,3 +101,30 @@ test('Classic Air Assault locked shots validate the circle, apply one weapon hit
   assert.equal(runInNewContext(`${fn}; createAssistedShot('self',owner,'enemy','outside-circle',undefined,aim);`,context),false);
   assert.deepEqual(hits,[25]);assert.equal(sent.length,1);
 });
+
+test('Original light-streak geometry is shared by local and remote shots and restored after pooled mission effects', () => {
+  const start=source.indexOf('const projectileGeometry =');
+  const end=source.indexOf('const projectileForward =',start);
+  const setup=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  const context={THREE,journeyAttempt:undefined as {missionId:string;status:string}|undefined,journeyDallas19:{id:'mission19'},camera:{position:new THREE.Vector3(0,0,300)}};
+  const mesh=runInNewContext(`${setup}; ${code('createProjectileMesh')}; globalThis.mesh=createProjectileMesh(); styleMissionProjectile(mesh,true); mesh;`,context) as THREE.Group;
+  const glow=mesh.children[0] as THREE.Mesh,core=mesh.children[1] as THREE.Mesh;
+  const checkOriginal=()=>{
+    assert.equal(mesh.children.length,2,'one shared tracer and glow, without aircraft-specific bullet objects');
+    assert.equal(core.geometry.type,'BoxGeometry');
+    assert.deepEqual((core.geometry as THREE.BoxGeometry).parameters,{width:.3,height:.3,depth:9,widthSegments:1,heightSegments:1,depthSegments:1});
+    assert.equal((core.material as THREE.Material).type,'MeshBasicMaterial');
+    assert.equal((core.material as THREE.MeshBasicMaterial).color.getHex(),0xfff5be);
+    assert.equal(glow.geometry.type,'BoxGeometry');
+    assert.equal((glow.geometry as THREE.BoxGeometry).parameters.depth,11.5);
+    assert.equal(glow.visible,true);
+  };
+  checkOriginal();
+  runInNewContext('styleMissionProjectile(mesh,false);',context);checkOriginal();
+  context.journeyAttempt={missionId:'mission19',status:'RACING'};
+  runInNewContext('styleMissionProjectile(mesh,true);',context);
+  assert.equal(core.geometry.type,'CylinderGeometry','existing Mission 19 presentation is preserved');
+  context.journeyAttempt=undefined;
+  runInNewContext('styleMissionProjectile(mesh,true);',context);checkOriginal();
+  assert.doesNotMatch(source,/bluejayBulletGeometry|updateBluejayTracer|recentlyRemovedShotTypes/);
+});

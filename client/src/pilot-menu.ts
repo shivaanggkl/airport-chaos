@@ -1,9 +1,10 @@
+import { openControlLayoutEditor } from './control-layout-editor';
 import { rewardedAdPrivacy } from './rewarded-ads';
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
 import { actionKeyLabel, cameraControlLabels, controlGroups, controlKeyLabel, menuKeyLabel } from './flight-input';
 import { mountAirportChaosLogo } from './brand';
 import { companyContact, contactLinks, sponsorLocations } from './company-contact';
-import { mobileControlPlacementLimits, type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
+import { type MobileControlId, type MobileControlLayout, type MobileControlPlacement } from './mobile-input';
 import { closeTopUiLayer, registerUiBackLayer, uiBackPriority } from './ui-back-navigation';
 import { createContextBackButton, createContextPageTitle } from './context-page-shell';
 import { formatPilotAltitude } from '../../shared/multiplayer-altitude.mjs';
@@ -151,7 +152,7 @@ export type PilotMenuData = {
   garage: { available: boolean; reason?: string; open: () => void; setAirportWaypoint: () => void };
   hints: { enabled: boolean; toggle: () => void };
   navigation: { enabled: boolean; toggle: () => void };
-  preferences:{touchMode:'auto'|'on'|'off';touchLayout:boolean;setTouchMode:(mode:'auto'|'on'|'off')=>void;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void;mobileLayout:MobileControlLayout;setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>void;resetMobileLayout:()=>MobileControlLayout};
+  preferences:{touchLayout:boolean;graphicsQuality:'auto'|'high'|'balanced'|'low';setGraphicsQuality:(mode:'auto'|'high'|'balanced'|'low')=>void;mobileLayout:MobileControlLayout;setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>void;resetMobileLayout:()=>MobileControlLayout};
   flightPitch: { inverted: boolean; touch: boolean; setInverted: (inverted: boolean) => void };
   restart: () => void;
   exitFlight?: () => void;
@@ -292,7 +293,6 @@ export class PilotMenu {
   private rewardCountdownTimer?: number;
   private rewardsReturnFocus?: HTMLElement;
   private rewardsBackground: HTMLElement[] = [];
-  private selectedMobileControl: MobileControlId = 'stick';
   private settingsMoreOpen = false;
   private territoryLegendOpen = this.readLegendPreference();
 
@@ -362,28 +362,12 @@ export class PilotMenu {
     return card;
   }
 
-  private mobileControlEditor(data: PilotMenuData, control: MobileControlId): HTMLFieldSetElement {
-    const labels: Record<MobileControlId, string> = { stick: 'DIRECTION STICK', throttle: 'THROTTLE LEVER', fire: 'FIRE' };
-    const editor = document.createElement('fieldset'); editor.className = 'pilot-mobile-control-editor';
-    const legend = document.createElement('legend'); legend.textContent = labels[control]; editor.append(legend);
-    for (const [property, label] of [['x', 'Horizontal'], ['y', 'Vertical'], ['scale', 'Size']] as const) {
-      const { min, max, step } = mobileControlPlacementLimits[control][property];
-      const row = document.createElement('label');
-      const value = textElement('output', property === 'scale' ? `${Math.round(data.preferences.mobileLayout[control][property] * 100)}%` : `${Math.round(data.preferences.mobileLayout[control][property])}%`);
-      const slider = document.createElement('input'); slider.type = 'range';
-      slider.min = String(min); slider.max = String(max); slider.step = String(step);
-      slider.value = String(data.preferences.mobileLayout[control][property]);
-      slider.setAttribute('aria-label', `${labels[control]} ${label.toLowerCase()}`);
-      slider.addEventListener('input', () => {
-        const next = Number(slider.value);
-        value.textContent = property === 'scale' ? `${Math.round(next * 100)}%` : `${Math.round(next)}%`;
-        data.preferences.mobileLayout[control][property] = next;
-        data.preferences.setMobileControl(control, { [property]: next });
-      });
-      slider.addEventListener('change', () => hapticsManager.emit('selection'));
-      row.append(textElement('span', label), slider, value); editor.append(row);
-    }
-    return editor;
+  private customizeControls(data: PilotMenuData): HTMLButtonElement {
+    return actionButton({label:'CUSTOMIZE',run:()=>openControlLayoutEditor(data.preferences.mobileLayout,layout=>{
+      for(const control of Object.keys(layout) as MobileControlId[]) data.preferences.setMobileControl(control,layout[control]);
+      data.preferences.mobileLayout=layout;
+      this.render(data,true);
+    })});
   }
 
   private legalSupportSections(): HTMLElement[] {
@@ -522,7 +506,7 @@ export class PilotMenu {
         data.missions.entries.map(({ id, completions }) => [id, completions]),
         data.territories.entries.map(({ id, ownedByYou }) => [id, ownedByYou]), data.leaderboards]);
       case 'GARAGE': return JSON.stringify([this.activeSection, data.garage.available, data.garage.reason]);
-      case 'CONTROLS': return JSON.stringify([this.activeSection, data.flightPitch.inverted, data.flightPitch.touch, data.preferences.touchMode, data.preferences.touchLayout, data.preferences.mobileLayout, data.navigation.enabled, data.preferences.graphicsQuality]);
+      case 'CONTROLS': return JSON.stringify([this.activeSection, data.flightPitch.inverted, data.flightPitch.touch, data.preferences.touchLayout, data.preferences.mobileLayout, data.navigation.enabled, data.preferences.graphicsQuality]);
       case 'AUDIO': return JSON.stringify([this.activeSection, data.audio.muted, data.audio.levels, data.haptics.available, data.haptics.enabled]);
       case 'HELP': return JSON.stringify([this.activeSection, data.hints.enabled]);
       case 'WORLD / CITIES': return JSON.stringify([this.activeSection, data.city.name, data.intercity.routes]);
@@ -1412,39 +1396,13 @@ export class PilotMenu {
         textElement('p', data.flightPitch.touch
           ? 'Normal: stick up climbs. Inverted: stick down climbs.'
           : 'Normal: Up climbs. Inverted: Down climbs.', 'pilot-menu-muted'),
-        settingsChoice('TOUCH CONTROLS', data.preferences.touchMode, [
-          { label: 'AUTO', value: 'auto' }, { label: 'MANUAL', value: 'on' },
-        ], value => { data.preferences.setTouchMode(value as 'auto' | 'on'); hapticsManager.emit('selection'); }),
-        textElement('p', data.preferences.touchMode === 'off'
-          ? 'Touch controls are off. Choose Auto or Manual to turn them on.'
-          : data.preferences.touchMode === 'auto' ? 'Auto uses the best layout for the current device.'
-            : 'Manual keeps touch controls visible with your saved positions.', 'pilot-menu-muted'),
       );
       const position = section('CONTROL POSITION'); position.classList.add('pilot-settings-position');
-      const select = document.createElement('select'); select.setAttribute('aria-label', 'Control to position');
-      for (const [value, label] of [['stick', 'DIRECTION STICK'], ['throttle', 'THROTTLE LEVER'], ['fire', 'FIRE']] as const) {
-        const option = document.createElement('option'); option.value = value; option.textContent = label;
-        select.append(option);
-      }
-      select.value = this.selectedMobileControl;
-      const editorHost = document.createElement('div'); editorHost.className = 'pilot-settings-position-editor';
-      const renderEditor = () => editorHost.replaceChildren(this.mobileControlEditor(data, this.selectedMobileControl));
-      select.addEventListener('change', () => { this.selectedMobileControl = select.value as MobileControlId; renderEditor(); hapticsManager.emit('selection'); });
-      renderEditor();
-      const reset = actionButton({ label: 'RESET POSITION', run: () => {
-        data.preferences.mobileLayout = data.preferences.resetMobileLayout();
-        renderEditor(); hapticsManager.emit('selection');
-      } });
-      reset.classList.add('context-action');
-      position.append(select, editorHost, reset);
+      position.append(textElement('p','Drag the joystick, speed lever, Fire and radar to your preferred positions.','pilot-menu-muted'),this.customizeControls(data));
       columns.append(flight, position);
-      const note = textElement('p', 'Changes apply immediately.', 'pilot-settings-note');
+      const note = textElement('p', 'Save your layout in Customize.', 'pilot-settings-note');
       const other = document.createElement('div'); other.className = 'pilot-settings-more-content';
       const touchOptions = section('TOUCH CONTROLS');
-      touchOptions.append(actionButton({ label: data.preferences.touchMode === 'off' ? 'TOUCH CONTROLS OFF' : 'TURN TOUCH CONTROLS OFF', run: () => {
-        data.preferences.setTouchMode(data.preferences.touchMode === 'off' ? 'auto' : 'off');
-        hapticsManager.emit('selection');
-      } }));
       if (data.preferences.touchLayout) touchOptions.append(textElement('p',
         'The left stick controls turning and altitude. The right throttle lever holds power; drag into its Boost Zone to use Boost.', 'pilot-menu-muted'));
       else {
@@ -1508,12 +1466,8 @@ export class PilotMenu {
       const touchDescription=textElement('p','', 'pilot-menu-muted');touchDescription.textContent='The left stick controls turning and altitude. The right throttle lever holds your selected power; drag into its Boost Zone to use Boost.';
       controls.append(
         touchDescription,
-        selectRow('TOUCH CONTROLS',data.preferences.touchMode,['auto','on','off'],value=>data.preferences.setTouchMode(value as 'auto'|'on'|'off')),
       );
-      for(const control of ['stick','throttle','fire'] as const){
-        controls.append(this.mobileControlEditor(data,control));
-      }
-      controls.append(actionButton({label:'RESET MOBILE CONTROLS',run:()=>{data.preferences.mobileLayout=data.preferences.resetMobileLayout();hapticsManager.emit('selection');this.render(data,true);}}));
+      controls.append(this.customizeControls(data));
     }else{
       controls.append(textElement('p','Keyboard and mouse reference for desktop flight.','pilot-menu-muted'));
       for(const group of controlGroups){

@@ -1,4 +1,4 @@
-import { HorizontalRail } from './horizontal-rail';
+import { createMenuCarouselCard, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
 import { flushSponsorMeasurements, recordSponsorMeasurement, SponsorExposureEpisode } from './sponsorship-measurement';
 
@@ -29,7 +29,9 @@ type HomeHangarHandlers = {
 
 export class HomeHangar {
   readonly stage: HTMLElement;
-  private readonly modeRail: HorizontalRail;
+  private modeIndex = 0;
+  private modeClickBlockedUntil = 0;
+  private readonly refreshModes: () => void;
   private readonly aircraft: HTMLElement;
   private readonly sponsor: HTMLButtonElement;
   private readonly houseSponsor: Node[];
@@ -47,9 +49,16 @@ export class HomeHangar {
     this.stage = element.querySelector<HTMLElement>('[data-home-hangar-stage]')!;
     this.aircraft = element.querySelector<HTMLElement>('[data-home-aircraft-name]')!;
     const modes = element.querySelector<HTMLElement>('[data-home-modes]')!;
+    const carousel = element.querySelector<HTMLElement>('.home-hangar-contextual')!;
+    carousel.classList.add('menu-card-carousel');
+    carousel.tabIndex = 0;
+    modes.classList.add('menu-card-carousel-track');
+    const cards: HTMLElement[] = [];
     const addMode = (label: string, image: string, run: () => void, multiplayer = false): void => {
-      const card = document.createElement('button'); card.type = 'button';
-      card.className = 'game-card-frame menu-selection-card home-hangar-mode';
+      const {card,art,copy} = createMenuCarouselCard('home-hangar-mode', '', '', 'button');
+      (card as HTMLButtonElement).type = 'button';
+      art.remove();copy.remove();
+      const index=cards.length;cards.push(card);
       card.setAttribute('aria-label', multiplayer ? `${label}, Multiplayer` : label);
       const artwork = document.createElement('img'); artwork.className = 'home-hangar-card-image';
       artwork.src = image; artwork.alt = ''; artwork.setAttribute('aria-hidden', 'true');
@@ -57,7 +66,11 @@ export class HomeHangar {
       flag.textContent = multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'; flag.setAttribute('aria-hidden', 'true');
       card.append(artwork);
       card.append(flag);
-      card.addEventListener('click', run); modes.append(card);
+      card.addEventListener('click', () => {
+        if(performance.now()<this.modeClickBlockedUntil)return;
+        if(index!==this.modeIndex){this.modeIndex=index;this.refreshModes();return;}
+        run();
+      }); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
     for (const mode of homeMultiplayerModes) addMode(
@@ -65,13 +78,21 @@ export class HomeHangar {
       `/media/multiplayer/${mode.artwork}-card.${mode.id === 'assault' ? 'jpg' : 'png'}`,
       () => handlers.multiplayer(mode.id), mode.id !== 'assault',
     );
-    this.modeRail = new HorizontalRail(element.querySelector<HTMLElement>('.home-hangar-contextual')!, modes, {
-      itemSelector: '.home-hangar-mode',
-      previous: element.querySelector<HTMLButtonElement>('[data-home-mode-previous]')!,
-      next: element.querySelector<HTMLButtonElement>('[data-home-mode-next]')!, wheel: true, keyboard: true,
-    });
+    const previous=element.querySelector<HTMLButtonElement>('[data-home-mode-previous]')!;
+    const next=element.querySelector<HTMLButtonElement>('[data-home-mode-next]')!;
+    this.refreshModes=()=>{
+      cards.forEach((card,index)=>{positionMenuCarouselCard(card,index-this.modeIndex);card.tabIndex=Math.abs(index-this.modeIndex)<=1?0:-1;});
+      previous.hidden=this.modeIndex===0;next.hidden=this.modeIndex===cards.length-1;
+    };
+    const move=(direction:number)=>{this.modeIndex=Math.max(0,Math.min(cards.length-1,this.modeIndex+direction));this.refreshModes();};
+    previous.addEventListener('click',()=>move(-1));next.addEventListener('click',()=>move(1));
+    installMenuCarouselSwipe(carousel,direction=>{this.modeClickBlockedUntil=performance.now()+250;move(direction);});
+    carousel.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();move(event.key==='ArrowLeft'?-1:1);}});
+    carousel.addEventListener('wheel',event=>{if(Math.abs(event.deltaX)<15&&Math.abs(event.deltaY)<15)return;event.preventDefault();if(performance.now()<this.modeClickBlockedUntil)return;this.modeClickBlockedUntil=performance.now()+250;move((Math.abs(event.deltaX)>Math.abs(event.deltaY)?event.deltaX:event.deltaY)>0?1:-1);},{passive:false});
+    this.refreshModes();
     element.querySelector('[data-home-store]')!.addEventListener('click', handlers.store);
     this.sponsor = element.querySelector<HTMLButtonElement>('[data-home-sponsor]')!;
+    carousel.append(this.sponsor);
     this.houseSponsor = Array.from(this.sponsor.childNodes, node => node.cloneNode(true));
     this.sponsor.addEventListener('click', () => handlers.sponsor(this.sponsor));
     element.querySelector('[data-home-settings]')!.addEventListener('click', handlers.settings);
@@ -92,7 +113,7 @@ export class HomeHangar {
     this.data = data;
     this.renderIdentity();
     this.element.hidden = false;
-    this.modeRail.refresh();
+    this.refreshModes();
     this.measureSponsor();
   }
 

@@ -526,14 +526,12 @@ function addSkyboard(group: THREE.Group, placement: AdPlacement): void {
 }
 
 function addSkyGate(group: THREE.Group, placement: AdPlacement): void {
-  const { x: width, y: height } = placement.size;
+  const { y: height } = placement.size;
   const { width: bannerWidth, height: bannerHeight } = skyCreativeSize(placement);
   const banner = addSkyCreative(placement, bannerWidth, bannerHeight);
   banner.position.y = height * 0.37;
   group.add(banner);
-  const pylonHeight = height * 0.76;
-  for (const side of [-1, 1]) addFrameBar(group, 3.2, pylonHeight, 3.2, side * width * 0.5, -height * 0.12);
-  addFrameBar(group, bannerWidth + 3.2, 2.4, 1.2, 0, height * 0.48);
+  // Airborne advertising is a banner, without floating posts or a gantry.
 }
 
 function addSponsorBlimp(group: THREE.Group, placement: AdPlacement): THREE.PlaneGeometry {

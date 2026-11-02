@@ -1,3 +1,4 @@
+import { createMenuCarouselCard, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { missionTimePreset } from './mission-time-presets';
 import './style.css';
 import { CITY_QUERY_PARAM, activeCityFromUrl, cities, resolveCityTimePreset, type CityDefinition } from './cities';
@@ -41,7 +42,7 @@ import { rewardedAdProvider, type RewardedAdAttempt } from './rewarded-ads';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { recordProductIntent } from './product-analytics';
-import { persistMobileControlPlacement, persistPitchInverted, persistTouchMode, preferredGraphicsQuality, preferredMobileControlLayout, preferredPitchInverted, preferredTouchMode, resetPreferredMobileControlLayout } from './mobile-input';
+import { persistMobileControlPlacement, persistPitchInverted, preferredGraphicsQuality, preferredMobileControlLayout, preferredPitchInverted, resetPreferredMobileControlLayout } from './mobile-input';
 import milwaukeeJourneyImage from './help-assets/runway.avif';
 
 audioManager.install();
@@ -754,67 +755,6 @@ function activateCityJourneyCard(index: number): void {
   else chooseCity(state.city);
 }
 
-function createMenuCarouselCard(cardClass: string, artClass: string, copyClass: string): { card: HTMLElement; art: HTMLElement; copy: HTMLElement } {
-  const card = document.createElement('article');
-  card.className = `game-card-frame menu-selection-card menu-card-carousel-card ${cardClass}`;
-  const art = document.createElement('div');
-  art.className = `menu-selection-card-art menu-card-carousel-art ${artClass}`;
-  art.setAttribute('aria-hidden', 'true');
-  const copy = document.createElement('div');
-  copy.className = `menu-selection-card-copy menu-card-carousel-copy ${copyClass}`;
-  card.append(art, copy);
-  return { card, art, copy };
-}
-
-function positionMenuCarouselCard(card: HTMLElement, offset: number): void {
-  card.classList.toggle('is-selected', offset === 0);
-  card.classList.toggle('is-previous', offset === -1);
-  card.classList.toggle('is-next', offset === 1);
-  card.classList.toggle('is-before', offset < -1);
-  card.classList.toggle('is-after', offset > 1);
-  card.classList.toggle('is-hidden', Math.abs(offset) > 1);
-  card.setAttribute('aria-hidden', Math.abs(offset) > 1 ? 'true' : 'false');
-}
-
-function installMenuCarouselSwipe(container: HTMLElement, onGestureEnd: (direction: -1 | 0 | 1) => void): void {
-  let pointer: { id: number; x: number; y: number; dragging: boolean } | undefined;
-  container.onpointerdown = event => {
-    if (event.button !== 0 || (event.target as HTMLElement).closest('.city-journey-arrow')) return;
-    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
-  };
-  container.onpointermove = event => {
-    if (!pointer || pointer.id !== event.pointerId) return;
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
-    if (!pointer.dragging && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { pointer = undefined; return; }
-    if (!pointer.dragging && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
-      pointer.dragging = true;
-      container.classList.add('is-dragging');
-      container.setPointerCapture(event.pointerId);
-    }
-    if (!pointer.dragging) return;
-    event.preventDefault();
-    const limit = Math.max(70, container.clientWidth * .28);
-    const bounded = Math.max(-limit, Math.min(limit, dx));
-    container.style.setProperty('--journey-drag-x', `${bounded}px`);
-    container.style.setProperty('--journey-side-drag-x', `${bounded * .55}px`);
-  };
-  const finish = (event: PointerEvent, cancelled: boolean): void => {
-    if (!pointer || pointer.id !== event.pointerId) return;
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
-    const wasDragging = pointer.dragging;
-    pointer = undefined;
-    if (!wasDragging) return;
-    container.classList.remove('is-dragging');
-    void container.offsetWidth;
-    container.style.removeProperty('--journey-drag-x');
-    container.style.removeProperty('--journey-side-drag-x');
-    onGestureEnd(!cancelled && Math.abs(dx) >= 42 && Math.abs(dx) > Math.abs(dy) ? dx < 0 ? 1 : -1 : 0);
-  };
-  container.onpointerup = event => finish(event, false);
-  container.onpointercancel = event => finish(event, true);
-}
 
 function cityJourneyFullCardSrc(entry: CityJourneyEntry): string {
   return (entry.id === 'dallas' || entry.id === 'california' || entry.id === 'new-york') && cityJourneyMode === 'missions'
@@ -1089,7 +1029,6 @@ let hubAudioMuted = typeof hubStoredPreferences.muted === 'boolean' ? hubStoredP
 audioManager.setMuted(hubAudioMuted);
 let hubGraphicsQuality: PilotMenuData['preferences']['graphicsQuality'] = preferredGraphicsQuality();
 let hubPitchInverted=preferredPitchInverted();
-let hubTouchMode=preferredTouchMode();
 let hubAudioLevels: AudioLevels = audioManager.getLevels();
 let hubMobileLayout = preferredMobileControlLayout();
 function saveHubPlayerPreferences(): void {
@@ -1110,7 +1049,6 @@ function syncHubMenuPreferences(): void {
   hubAudioLevels = audioManager.getLevels();
   hubGraphicsQuality = preferredGraphicsQuality();
   hubPitchInverted = preferredPitchInverted();
-  hubTouchMode = preferredTouchMode();
   hubMobileLayout = preferredMobileControlLayout();
 }
 
@@ -1297,8 +1235,7 @@ function hubPilotMenuData(): PilotMenuData {
     hints: { enabled: hubHintsEnabled, toggle: () => { hubHintsEnabled = !hubHintsEnabled; saveHubPlayerPreferences(); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); } },
     navigation: { enabled: hubNavigationEnabled, toggle: () => { hubNavigationEnabled = !hubNavigationEnabled; saveHubPlayerPreferences(); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); } },
     preferences: {
-      touchMode: hubTouchMode, touchLayout: matchMedia('(pointer: coarse)').matches || innerWidth <= 900,
-      setTouchMode: (mode) => { hubTouchMode = persistTouchMode(mode); notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); },
+      touchLayout: matchMedia('(pointer: coarse)').matches || innerWidth <= 900,
       graphicsQuality: hubGraphicsQuality,
       setGraphicsQuality: (quality) => { hubGraphicsQuality = quality; try { localStorage.setItem('airport-chaos-graphics-quality-v1', quality); } catch { /* optional */ } notifySharedMenuPreferences(); hubPilotMenu.refresh(hubPilotMenuData(), true); },
       mobileLayout: hubMobileLayout,

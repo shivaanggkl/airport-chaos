@@ -196,6 +196,28 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
   content: 'PREPARING TRAINING...';
 }
 
+/* Wait for the authoritative mission pose and aircraft before revealing its intro. */
+#game-root.journey-flight.launch-cinematic-pending {
+  background: #1b407c url('/media/menu/airport-runway.jpg') center / cover no-repeat;
+}
+#game-root.journey-flight.launch-cinematic-pending > * {
+  visibility: hidden;
+}
+#game-root.journey-flight.launch-cinematic-pending::after {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(8 25 53 / 80%);
+  color: #f8d675;
+  font: 800 clamp(14px, 2vw, 22px)/1.2 var(--font-display);
+  letter-spacing: .1em;
+  content: 'PREPARING MISSION…';
+}
+body.launch-cinematic-pending:has(#game-root.journey-flight) #tutorial-help {
+  visibility: hidden;
+}
+
 /* Flight chrome is never editable. Keep Profile/Login outside this selector
    so form fields and ordinary menu accessibility retain native behavior. */
 #game-root > :not(#pilot-menu-overlay),
@@ -224,7 +246,7 @@ body[data-weather='dusk_signal']::before { opacity: .12; background: radial-grad
 /* The world canvas stays live while the normal-flight launch camera hands off.
    Every gameplay layer shares one fade and remains non-interactive until the
    exact chase-camera pose is restored. */
-#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip) {
+#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
   opacity: var(--launch-hud-opacity, 0) !important;
   pointer-events: none !important;
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
@@ -7008,7 +7030,7 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
 .home-mode-track > .home-hangar-mode { position: relative; overflow: visible; }
 .home-mode-flag {
   position: absolute; z-index: 2; isolation: isolate; pointer-events: none;
-  top: 14px; left: calc((100% - min(100%, var(--menu-selection-height) * 1246 / 922)) / 2 - 4px);
+  top: 14px; left: -4px;
   padding: 7px 19px 7px 11px; color: #142540;
   font: 900 clamp(10px, 1.15vw, 14px)/1.1 var(--font-display); letter-spacing: .025em;
   white-space: nowrap; text-shadow: 0 1px rgb(255 255 255 / 35%);
@@ -7024,7 +7046,68 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub :is(.app-shel
   border-top: 5px solid #946214; border-left: 4px solid transparent;
 }
 
-/* Air Assault's supplied image already contains its Multiplayer flag and outer white margin. */
-.home-hangar .home-mode-track .home-hangar-card-image[src='/media/multiplayer/air-assault-card.jpg'] {
-  object-fit: fill; clip-path: inset(6.5217% 15.5172% round 12px); transform: scale(1.45, 1.15);
+
+/* Saved custom positions override mode-specific default placement rules. */
+html.custom-control-layout #game-root [data-touch-control],
+html.custom-control-layout #game-root #radar-panel {
+  position: fixed !important;
+  left: var(--touch-left) !important; top: var(--touch-top) !important;
+  right: auto !important; bottom: auto !important;
+  transform: translate(-50%, -50%) scale(var(--touch-scale, 1)) !important;
+  transform-origin: center !important; margin: 0 !important;
 }
+.control-layout-editor {
+  position: fixed; inset: 0; z-index: 100000; overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: #1b407c url('/media/menu/airport-runway.jpg') center / cover no-repeat;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.control-layout-toolbar {
+  position: relative; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  height: 52px; padding: 4px 12px; background: #0b294b; color: #ffe18a;
+  font: 700 clamp(11px,1.5vw,18px)/1.2 var(--font-display); box-sizing: border-box;
+}
+.control-layout-toolbar strong { margin-right: auto; }
+.control-layout-toolbar button { min-height: 38px; padding: 5px 12px; border: 1px solid #e8c463; border-radius: 8px; background: #fff5cf; color: #102e4d; font: inherit; }
+.control-layout-toolbar button:last-child { background: #ffcd4b; }
+.control-layout-toolbar label { display: flex; align-items: center; gap: 6px; }
+.control-layout-toolbar input { width: clamp(55px,10vw,120px); }
+.control-layout-status { position: absolute; left: 50%; top: calc(env(safe-area-inset-top) + 57px); transform: translateX(-50%); background: #0b294be6; color: white; border-radius: 6px; padding: 3px 10px; font: 700 12px var(--font-display); pointer-events: none; }
+.control-layout-handle { position: absolute; transform: translate(-50%,-50%); box-sizing: border-box; border: 2px dashed #64e5ef; border-radius: 14px; cursor: grab; touch-action: none; outline-offset: 3px; }
+.control-layout-handle.selected { border-color: #ffda61; box-shadow: 0 0 0 2px #142e48; }
+.control-layout-handle > * { pointer-events: none !important; }
+@media(max-width:700px) { .control-layout-toolbar { gap: 5px; padding-inline: 6px; } .control-layout-toolbar button { padding-inline: 7px; } }
+
+.touch-controls { box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+html.custom-control-layout #game-root #radar-panel {
+  width: var(--gameplay-radar-size) !important;
+  height: var(--gameplay-radar-size) !important;
+}
+
+/* Hub modes share the city's centered carousel geometry and card rendering. */
+.home-hangar .home-hangar-contextual.menu-card-carousel {
+  position: fixed; inset: var(--menu-page-header-height) 0 0;
+  width: 100%; height: calc(100dvh - var(--menu-page-header-height));
+  margin: 0; display: flex; align-items: flex-start; justify-content: center;
+  transform: none; overflow: hidden;
+}
+.home-hangar .home-mode-track.menu-card-carousel-track {
+  position: relative; display: block; width: 100%; height: var(--menu-carousel-card-height);
+  margin-top: var(--menu-carousel-top-gap); overflow: visible; scroll-snap-type: none; touch-action: pan-y;
+}
+.home-hangar .menu-card-carousel .home-hangar-mode.menu-selection-card {
+  display: block; padding: 0; border: 0; background: transparent; box-shadow: none;
+  width: var(--menu-carousel-card-width); height: 100%; min-width: 0;
+}
+.home-hangar .menu-card-carousel .home-hangar-card-image {
+  display: block; width: 100%; height: 100%; max-width: none; object-fit: fill;
+}
+.home-hangar .menu-card-carousel .home-mode-previous,
+.home-hangar .menu-card-carousel .home-mode-next { top: calc(var(--menu-carousel-top-gap) + var(--menu-carousel-card-height) / 2); }
+.home-hangar .menu-card-carousel .home-mode-previous { left: max(18px, var(--safe-area-left)); }
+.home-hangar .menu-card-carousel .home-mode-next { right: max(18px, var(--safe-area-right)); }
+.home-hangar .menu-card-carousel .home-hangar-sponsor {
+  bottom: 8px;
+  height: clamp(38px, calc(100% - var(--menu-carousel-top-gap) - var(--menu-carousel-card-height) - 16px), 80px);
+}
+.home-hangar .menu-card-carousel .home-hangar-sponsor img { max-height: 100%; }

@@ -1,3 +1,4 @@
+import { arrangeControls, fitControl, type LayoutBox } from './control-layout-geometry';
 import type { FlightAction } from './flight-input';
 import {
   joystickInput,
@@ -7,12 +8,10 @@ import {
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
-  normalizeTouchMode,
   mobileControlStyle,
   resolvedGraphicsQuality,
   touchControlsEnabled,
   type GraphicsQualityMode,
-  type TouchControlsMode,
 } from '../../shared/mobile-input-rules.mjs';
 
 export {
@@ -23,15 +22,12 @@ export {
   pinchZoomFactor,
   throttleLeverState,
   normalizeGraphicsQuality,
-  normalizeTouchMode,
   mobileControlStyle,
   resolvedGraphicsQuality,
   touchControlsEnabled,
   type GraphicsQualityMode,
-  type TouchControlsMode,
 };
 
-const TOUCH_KEY = 'airport-chaos-touch-controls-v1';
 const QUALITY_KEY = 'airport-chaos-graphics-quality-v1';
 const LAYOUT_KEY = 'airport-chaos-mobile-layout-v1';
 const PITCH_KEY = 'airport-chaos-flight-pitch-inverted-v1';
@@ -44,33 +40,37 @@ export function persistPitchInverted(inverted:boolean):void {
   try { localStorage.setItem(PITCH_KEY,String(inverted)); } catch { /* optional storage */ }
 }
 
-export type MobileControlId = 'stick' | 'throttle' | 'fire';
+export type MobileControlId = 'stick' | 'throttle' | 'fire' | 'radar';
 export type MobileControlPlacement = { x: number; y: number; scale: number };
 export type MobileControlLayout = Record<MobileControlId, MobileControlPlacement>;
 export type MobileControlPlacementLimits = Record<keyof MobileControlPlacement, { min: number; max: number; step: number }>;
 
-const defaultLayout: MobileControlLayout = {
+export const defaultLayout: MobileControlLayout = {
+  radar: { x: 90, y: 20, scale: 1 },
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 75, y: 40, scale: 0.95 },
   fire: { x: 75, y: 78, scale: 1 },
 };
 
 const legacyDefaultLayout: MobileControlLayout = {
+  radar: { x: 90, y: 20, scale: 1 },
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 87, y: 45, scale: 0.95 },
   fire: { x: 87, y: 80, scale: 1 },
 };
 
 const previousDefaultLayout: MobileControlLayout = {
+  radar: { x: 90, y: 20, scale: 1 },
   stick: { x: 14, y: 72, scale: 1 },
   throttle: { x: 75, y: 40, scale: 0.95 },
   fire: { x: 72, y: 82, scale: 1 },
 };
 
 export const mobileControlPlacementLimits: Record<MobileControlId, MobileControlPlacementLimits> = {
-  stick: { x: { min: 10, max: 40, step: 1 }, y: { min: 45, max: 82, step: 1 }, scale: { min: 0.75, max: 1.25, step: 0.05 } },
-  throttle: { x: { min: 62, max: 90, step: 1 }, y: { min: 30, max: 66, step: 1 }, scale: { min: 0.75, max: 1.25, step: 0.05 } },
-  fire: { x: { min: 60, max: 90, step: 1 }, y: { min: 62, max: 88, step: 1 }, scale: { min: 0.8, max: 1.3, step: 0.05 } },
+  radar: { x: { min: 0, max: 100, step: 1 }, y: { min: 0, max: 100, step: 1 }, scale: { min: .75, max: 1.25, step: .05 } },
+  stick: { x: { min: 0, max: 100, step: 1 }, y: { min: 0, max: 100, step: 1 }, scale: { min: 0.75, max: 1.25, step: 0.05 } },
+  throttle: { x: { min: 0, max: 100, step: 1 }, y: { min: 0, max: 100, step: 1 }, scale: { min: 0.75, max: 1.25, step: 0.05 } },
+  fire: { x: { min: 0, max: 100, step: 1 }, y: { min: 0, max: 100, step: 1 }, scale: { min: 0.8, max: 1.3, step: 0.05 } },
 };
 
 const controlActions: Record<'throttle' | 'aim', FlightAction[]> = {
@@ -81,7 +81,7 @@ const controlActions: Record<'throttle' | 'aim', FlightAction[]> = {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const cloneLayout = (layout: MobileControlLayout): MobileControlLayout => structuredClone(layout);
 
-function safePlacement(control: MobileControlId, value: unknown, fallback: MobileControlPlacement): MobileControlPlacement {
+export function safePlacement(control: MobileControlId, value: unknown, fallback: MobileControlPlacement): MobileControlPlacement {
   const stored = value && typeof value === 'object' ? value as Partial<MobileControlPlacement> : {};
   const limits = mobileControlPlacementLimits[control];
   return {
@@ -104,6 +104,7 @@ export function preferredMobileControlLayout(): MobileControlLayout {
         : placement;
     };
     return {
+      radar: safePlacement('radar', stored?.radar, defaultLayout.radar),
       stick: safePlacement('stick', migrated('stick'), defaultLayout.stick),
       throttle: safePlacement('throttle', migrated('throttle'), defaultLayout.throttle),
       fire: safePlacement('fire', migrated('fire'), defaultLayout.fire),
@@ -116,24 +117,15 @@ export function preferredMobileControlLayout(): MobileControlLayout {
 export function persistMobileControlPlacement(control: MobileControlId, current: MobileControlLayout, next: Partial<MobileControlPlacement>): MobileControlLayout {
   const layout = cloneLayout(current);
   layout[control] = safePlacement(control, { ...layout[control], ...next }, defaultLayout[control]);
-  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* persistence is optional */ }
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); localStorage.setItem('airport-chaos-custom-controls-v1', 'true'); } catch { /* persistence is optional */ }
   return layout;
 }
 
 export function resetPreferredMobileControlLayout(): MobileControlLayout {
+  try { localStorage.removeItem('airport-chaos-custom-controls-v1'); } catch { /* optional */ }
   const layout = cloneLayout(defaultLayout);
   try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* persistence is optional */ }
   return layout;
-}
-
-export function preferredTouchMode(): TouchControlsMode {
-  try { return normalizeTouchMode(localStorage.getItem(TOUCH_KEY)); } catch { return 'auto'; }
-}
-
-export function persistTouchMode(mode: TouchControlsMode): TouchControlsMode {
-  const normalized = normalizeTouchMode(mode);
-  try { localStorage.setItem(TOUCH_KEY, normalized); } catch { /* persistence is optional */ }
-  return normalized;
 }
 
 export function preferredGraphicsQuality(): GraphicsQualityMode {
@@ -142,7 +134,6 @@ export function preferredGraphicsQuality(): GraphicsQualityMode {
 
 export class MobileInputControls {
   private pitchInverted = preferredPitchInverted();
-  private mode = preferredTouchMode();
   private layout = preferredMobileControlLayout();
   private active = new Set<FlightAction>();
   private joystickPointer: number | undefined;
@@ -198,7 +189,6 @@ export class MobileInputControls {
     this.refresh();
   }
 
-  getMode() { return this.mode; }
   getPitchInverted(): boolean {
     return this.pitchInverted;
   }
@@ -265,29 +255,23 @@ export class MobileInputControls {
     }
   }
 
-  setMode(mode: TouchControlsMode) {
-    this.mode = persistTouchMode(mode);
-    this.reset();
-    this.refresh();
-  }
-
   getLayout() { return cloneLayout(this.layout); }
 
   setPlacement(control: MobileControlId, next: Partial<MobileControlPlacement>) {
+    try { localStorage.setItem('airport-chaos-custom-controls-v1', 'true'); } catch { /* optional */ }
     this.layout[control] = safePlacement(control, { ...this.layout[control], ...next }, defaultLayout[control]);
     this.persistLayout();
     this.applyLayout();
   }
 
   resetLayout() {
-    this.layout = cloneLayout(defaultLayout);
+    this.layout = resetPreferredMobileControlLayout();
     this.persistLayout();
     this.applyLayout();
     return this.getLayout();
   }
 
   syncPreferences() {
-    this.mode = preferredTouchMode();
     this.pitchInverted = preferredPitchInverted();
     this.layout = preferredMobileControlLayout();
     this.applyLayout();
@@ -333,7 +317,7 @@ export class MobileInputControls {
   }
 
   private deviceEnabled() {
-    return touchControlsEnabled(this.mode, matchMedia('(pointer: coarse)').matches, innerWidth <= 900);
+    return touchControlsEnabled('auto', matchMedia('(pointer: coarse)').matches, innerWidth <= 900);
   }
 
   private refresh() {
@@ -344,6 +328,7 @@ export class MobileInputControls {
     document.documentElement.classList.toggle('touch-controls-active', enabled && landscape);
     this.aimTarget.classList.toggle('touch-aim-enabled', enabled && landscape);
     if (this.root.hidden) this.reset();
+    this.applyLayout();
     this.scheduleNoticeClearance();
   }
 
@@ -352,15 +337,27 @@ export class MobileInputControls {
   }
 
   private applyLayout() {
-    for (const control of Object.keys(this.layout) as MobileControlId[]) {
-      const element = this.root.querySelector<HTMLElement>(`[data-touch-control="${control}"]`);
+    let custom = false;
+    try { custom = localStorage.getItem('airport-chaos-custom-controls-v1') === 'true'; } catch { /* optional */ }
+    document.documentElement.classList.toggle('custom-control-layout', custom);
+    const ids=Object.keys(this.layout) as MobileControlId[];
+    const elements=Object.fromEntries(ids.map(control=>[control,control==='radar'?document.querySelector<HTMLElement>('#radar-panel'):this.root.querySelector<HTMLElement>(`[data-touch-control="${control}"]`)])) as Record<MobileControlId,HTMLElement|null>;
+    const boxes=Object.fromEntries(ids.map(control=>{const element=elements[control];return [control,{width:element?.offsetWidth||parseFloat(element?getComputedStyle(element).width:'')||(control==='throttle'?76:116),height:element?.offsetHeight||parseFloat(element?getComputedStyle(element).height:'')||(control==='throttle'?150:116)}];})) as Record<MobileControlId,LayoutBox>;
+    const rootStyle=getComputedStyle(this.root);
+    const safe=(side:string)=>parseFloat(rootStyle.getPropertyValue(`padding-${side}`))||0;
+    const area={width:innerWidth,height:innerHeight,left:safe('left')+8,right:safe('right')+8,top:safe('top')+60,bottom:safe('bottom')+8};
+    const arranged=custom?arrangeControls(ids,this.layout,boxes,area):null;
+    for (const control of ids) {
+      const element=elements[control];
+      if(!element)continue;
       const placement = this.layout[control];
       const defaults = defaultLayout[control];
-      const style = mobileControlStyle(placement.x, placement.y, placement.scale);
-      element?.classList.toggle('uses-default-placement', placement.x === defaults.x && placement.y === defaults.y && placement.scale === defaults.scale);
-      element?.style.setProperty('--touch-left', style.left);
-      element?.style.setProperty('--touch-top', style.top);
-      element?.style.setProperty('--touch-scale', style.scale);
+      const fitted=custom?(arranged?.[control]??fitControl(placement,boxes[control],area)):placement;
+      const style = mobileControlStyle(fitted.x, fitted.y, fitted.scale);
+      element.classList.toggle('uses-default-placement', !custom && placement.x === defaults.x && placement.y === defaults.y && placement.scale === defaults.scale);
+      element.style.setProperty('--touch-left', style.left);
+      element.style.setProperty('--touch-top', style.top);
+      element.style.setProperty('--touch-scale', style.scale);
     }
     this.scheduleNoticeClearance();
   }

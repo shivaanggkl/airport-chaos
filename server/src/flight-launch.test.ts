@@ -82,3 +82,24 @@ test('Journey timers wait for GO after the mission start countdown', () => {
   assert.match(server, /journeyCountdownComplete\.add\(id!\);[\s\S]*?startRookieRush\(player\.pilotId, id!, now\)[\s\S]*?startTimedGateClock\(player\.pilotId, id!, now\)/);
   assert.match(server, /active && journeyCountdownComplete\.has\(journeyAttemptId\) && \(active\.missionId === journeyDallas01\.id/);
 });
+
+
+test('mission startup conceals the placeholder world until the authoritative intro is ready', () => {
+  const main = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  assert.match(main, /classList.toggle\('journey-flight', journeyMode\)/);
+  assert.match(css, /#game-root\.journey-flight\.launch-cinematic-pending > \*\s*\{\s*visibility: hidden/);
+  assert.match(css, /content: 'PREPARING MISSION…'/);
+  assert.match(main, /function beginFlightLaunchCinematic\(\)[\s\S]*?classList.remove\('launch-cinematic-pending'\)/);
+  assert.match(main, /message.type === 'journeyUnavailable'\) \{\s*cancelPendingFlightLaunch\(\)/);
+  assert.match(main, /function blockProtocolConnection\(message: string\): void \{\s*if \(protocolBlocked\) return;\s*cancelPendingFlightLaunch\(\)/);
+});
+
+
+test('intro HUD reveal excludes inactive hit, damage and crash feedback', () => {
+  const css = readFileSync(new URL('../../client/src/style.css', import.meta.url), 'utf8');
+  const reveal = css.split('\n').find(line => line.startsWith('#game-root.launch-cinematic-active >'));
+  assert.ok(reveal);
+  for (const selector of ['#hit-marker', '#damage-flash', '.transport-crash-flash'])
+    assert.ok(reveal.includes(`:not(${selector})`), `${selector} must retain its own visibility`);
+});

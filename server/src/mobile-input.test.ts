@@ -30,15 +30,12 @@ test('every mobile Controls preference changes its supported behavior',()=>{
   assert.deepEqual(mobileControlStyle(25,61,.85),{left:'25%',top:'61%',scale:'0.85'});
   const input=readFileSync(new URL('../../client/src/mobile-input.ts',import.meta.url),'utf8');
   const menu=readFileSync(new URL('../../client/src/pilot-menu.ts',import.meta.url),'utf8');
-  assert.match(input,/persistTouchMode\(mode: TouchControlsMode\)[\s\S]*localStorage\.setItem\(TOUCH_KEY, normalized\)/);
-  assert.match(input,/setMode\(mode: TouchControlsMode\)\s*\{\s*this\.mode = persistTouchMode\(mode\);\s*this\.reset\(\);\s*this\.refresh\(\)/);
   assert.match(input,/supportsTouchControls\(\) \{ return matchMedia\('\(pointer: coarse\)'\)\.matches \|\| innerWidth <= 900; \}/);
   assert.match(input,/localStorage\.setItem\(LAYOUT_KEY, JSON\.stringify\(this\.layout\)\)/);
-  assert.match(input,/mobileControlStyle\(placement\.x, placement\.y, placement\.scale\)[\s\S]*--touch-left[\s\S]*--touch-top[\s\S]*--touch-scale/);
-  assert.match(menu,/\[\['x',\s*'Horizontal'\],\s*\['y',\s*'Vertical'\],\s*\['scale',\s*'Size'\]\]/);
+  assert.match(input,/mobileControlStyle\(fitted\.x, fitted\.y, fitted\.scale\)[\s\S]*--touch-left[\s\S]*--touch-top[\s\S]*--touch-scale/);
+  assert.match(menu,/openControlLayoutEditor\(data.preferences.mobileLayout/);
   assert.doesNotMatch(menu,/JOYSTICK SENSITIVITY|JOYSTICK DEAD.?ZONE|INVERT (?:X|Y|PITCH|TURN)/i);
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
-  assert.match(main,/touchLayout:mobileInput\.supportsTouchControls\(\)[\s\S]*setTouchMode:[\s\S]*mobileInput\.setMode\(mode\)[\s\S]*renderPilotMenu\(\)/);
 });
 test('auto quality is balanced on coarse or narrow screens and high on desktop',()=>{assert.equal(resolvedGraphicsQuality('auto',false,false),'high');assert.equal(resolvedGraphicsQuality('auto',true,false),'balanced');assert.equal(resolvedGraphicsQuality('auto',false,true),'balanced');assert.equal(resolvedGraphicsQuality('low',false,false),'low');});
 
@@ -115,4 +112,15 @@ test('mobile pilot menu protects active taps and uses a vertical content layout'
   assert.match(menu,/!this\.openState \|\| \(!force && \(this\.pointerActive \|\| this\.isActivelyScrolling\(\)\)\)/);
   assert.match(main,/message\.ok && pilotMenu\.isOpen\(\)\) pilotMenu\.close\(\)/);
   assert.match(css,/\.pilot-menu-navigation\{grid-area:navigation;display:flex;flex-direction:column;/);
+});
+
+test('all menus use automatic touch detection without a user mode override',()=>{
+ const input=readFileSync(new URL('../../client/src/mobile-input.ts',import.meta.url),'utf8');
+ const menu=readFileSync(new URL('../../client/src/pilot-menu.ts',import.meta.url),'utf8');
+ const hub=readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
+ assert.match(input,/touchControlsEnabled\('auto', matchMedia/);
+ assert.doesNotMatch(input,/TOUCH_KEY|preferredTouchMode|persistTouchMode|this\.mode/);
+ assert.doesNotMatch(menu,/setTouchMode|touchMode|TURN TOUCH CONTROLS OFF|settingsChoice\('TOUCH CONTROLS'|selectRow\('TOUCH CONTROLS'/);
+ assert.doesNotMatch(hub,/setTouchMode|hubTouchMode/);
+ assert.match(menu,/CUSTOMIZE/);
 });

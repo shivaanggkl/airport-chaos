@@ -25,7 +25,7 @@ test('Pilot Hub routes Missions and Free Fly through separate city selection mod
   const bootstrap = read('client/src/bootstrap.ts');
   const main = read('client/src/main.ts');
   assert.match(bootstrap, /missions: \(\) => [^\n]*requestHubFly\('missions'\)/);
-  assert.match(bootstrap, /freeFly: \(\) => [^\n]*showSelector\('', \{ mode: 'multiplayer', preferDallas: true \}\)/);
+  assert.match(bootstrap, /multiplayer: mode => [^\n]*showSelector\('', \{ mode: 'multiplayer', preferDallas: true \}\)/);
   assert.match(bootstrap, /async function requestHubFly\(mode: CityJourneyMode = cityJourneyMode\)[\s\S]*refreshHubPilotData\(\)[\s\S]*showSelector\('', \{ mode,[\s\S]*rememberPendingHubFly\(mode\)/);
   assert.match(bootstrap, /if \(options\.mode\) cityJourneyMode = options\.mode/);
   assert.match(bootstrap, /if \(city\.id === 'dallas'\) \{\s*showMissionJourney\(\)/);
@@ -164,7 +164,7 @@ test('Hub and gameplay menu settings use shared persistence and live synchroniza
   const mobile = read('client/src/mobile-input.ts');
   assert.match(bootstrap, /syncHubMenuPreferences\(\)[\s\S]*audioManager\.getLevels\(\)[\s\S]*preferredPitchInverted\(\)[\s\S]*preferredMobileControlLayout\(\)/);
   assert.match(bootstrap, /notifySharedMenuPreferences\(\)[\s\S]*airport-chaos-menu-preferences-changed/);
-  assert.match(mobile, /syncPreferences\(\)[\s\S]*preferredTouchMode\(\)[\s\S]*preferredPitchInverted\(\)[\s\S]*preferredMobileControlLayout\(\)/);
+  assert.match(mobile, /syncPreferences\(\)[\s\S]*preferredPitchInverted\(\)[\s\S]*preferredMobileControlLayout\(\)/);
   assert.match(main, /addEventListener\('airport-chaos-menu-preferences-changed'[\s\S]*contextualHints\.setEnabled[\s\S]*navigationBeacons\.setEnabled[\s\S]*mobileInput\.syncPreferences\(\)/);
   assert.match(main, /pilotMenu\.refresh\(data, force\)/);
 });
@@ -174,7 +174,7 @@ test('Tutorial is an active optional training route', () => {
   const bootstrap = read('client/src/bootstrap.ts');
   assert.match(html, /id="app-shell-header"/);
   assert.match(bootstrap, /if \(state\.training\) void startTrainingFromHub\(\)/);
-  assert.match(bootstrap, /async function startTrainingFromHub\(\)/);
+  assert.match(bootstrap, /async function startTrainingFromHub\(replayConfirmed = false\)/);
 });
 
 test('Hub renderer and ambient motion pause offscreen or in the background', () => {

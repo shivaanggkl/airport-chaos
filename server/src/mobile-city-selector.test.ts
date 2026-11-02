@@ -73,7 +73,7 @@ test('short landscape restores two-column progress and Garage presentation', () 
 });
 
 test('canceling completed training leaves Dallas available to launch', () => {
-  const activate=bootstrap.slice(bootstrap.indexOf('function activateCityJourneyCard('),bootstrap.indexOf('function createMenuCarouselCard('));
+  const activate=bootstrap.slice(bootstrap.indexOf('function activateCityJourneyCard('),bootstrap.indexOf('function cityJourneyFullCardSrc('));
   const training=bootstrap.slice(bootstrap.indexOf('async function startTrainingFromHub('),bootstrap.indexOf('async function enterCity('));
   const code=ts.transpileModule(activate+training,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
   let promptCount=0, dallasLaunches=0;

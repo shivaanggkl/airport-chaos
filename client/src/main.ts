@@ -43,7 +43,7 @@ import { PilotMenu, type PilotMenuAction, type PilotMenuData, type PilotMenuSect
 import { HubInfoDialog } from './hub-info-dialog';
 import { productAnalyticsSessionId } from './product-analytics';
 import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
-import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement, type TouchControlsMode } from './mobile-input';
+import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tutorialLockPreviewInstruction,tutorialDetectedInstruction,tutorialLandingCoachStage,tutorialLandingCoachInstruction,tutorialTakeoffRecoveryInstruction,tutorialTurnProgress,type TutorialBindings,type TutorialLandingCoachStage,type TutorialLessonStep,type TutorialStepStatus}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
 import { GameplayInfoCard } from './gameplay-info-card';
@@ -188,6 +188,7 @@ let journeyServerTimeOffset = 0;
 type FlightLaunchState = 'disabled' | 'pending' | 'active' | 'complete';
 const flightGameRoot = document.querySelector<HTMLElement>('#game-root')!;
 flightGameRoot.classList.toggle('training-start-pending', trainingRequested);
+flightGameRoot.classList.toggle('journey-flight', journeyMode);
 flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' && !trainingRequested);
 flightGameRoot.classList.toggle('sky-duel-flight', skyDuelMode);
 flightGameRoot.classList.toggle('air-assault-flight', airAssaultMode);
@@ -5302,8 +5303,6 @@ type RemotePlayer = {
 
 type ClientProjectile = {
   mesh: THREE.Group;
-  visualAircraftType?: AircraftType;
-  visualStartedAt: number;
   direction: THREE.Vector3;
   bank: number;
   authoritativePosition: THREE.Vector3;
@@ -5329,8 +5328,6 @@ type AssistedShotVisual = {
   bank: number;
   elapsed: number;
   duration: number;
-  bluejayShot: boolean;
-  visualStartedAt: number;
   confirmedDamage?: number;
 };
 
@@ -5499,11 +5496,8 @@ function disposeRemotePlayerProxy(proxy: THREE.Sprite): void {
 
 type FlashEffect = {
   mesh: THREE.Group;
-  core: THREE.Mesh;
-  spark: THREE.Group;
   coreMaterial: THREE.MeshBasicMaterial;
   glowMaterial: THREE.MeshBasicMaterial;
-  followLocalMuzzle: boolean;
   elapsed: number;
   duration: number;
 };
@@ -6278,7 +6272,7 @@ const tutorialBindings:TutorialBindings={
   aimUp:actionKeyLabel('aimUp'),aimDown:actionKeyLabel('aimDown'),fire:actionKeyLabel('fire'),
   cameraLook:cameraControlLabels.look,cameraZoom:cameraControlLabels.zoom,
 };
-function tutorialInputMode():'keyboard'|'touch'{return mobileInput.isTouchLayout()&&(matchMedia('(pointer: coarse)').matches||mobileInput.getMode()==='on')?'touch':'keyboard';}
+function tutorialInputMode():'keyboard'|'touch'{return mobileInput.isTouchLayout()?'touch':'keyboard';}
 function acknowledgeTutorialInput():void{
   if(!guidedTutorialActive||tutorialIntroPending||tutorialCompletionPending||tutorialStepCompleting||guidedTutorialStep==='freePractice'||guidedTutorialStep==='landing'||tutorialLockPreview)return;
   const feedback=tutorialDetectedInstruction(tutorialTakeoffRecovery?'takeoff':tutorialVisibleStep,tutorialInputMode(),mobileInput.getPitchInverted(),tutorialBindings);
@@ -7116,7 +7110,7 @@ function pilotMenuData(): PilotMenuData {
         renderPilotMenu(true);
       },
     },
-    preferences:{touchMode:mobileInput.getMode(),touchLayout:mobileInput.supportsTouchControls(),setTouchMode:(mode:TouchControlsMode)=>{mobileInput.setMode(mode);syncDesktopControlsHelp();if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'touch_controls_enabled',mode}));renderPilotMenu();},graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
+    preferences:{touchLayout:mobileInput.supportsTouchControls(),graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
     restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     exitFlight: requestFlightExit,
     exitFlightLabel: journeyMode ? 'EXIT TO JOURNEY' : 'EXIT TO HUB',
@@ -7434,39 +7428,24 @@ renderer.domElement.addEventListener('wheel', (event) => {
   const zoomFactor = Math.exp(event.deltaY * 0.0012);
   applyCameraZoom(zoomFactor);
 }, { passive: false });
-// A short, opaque pellet starts at the muzzle without the light streak of a tracer.
-const projectileGeometry = new THREE.SphereGeometry(0.85, 8, 6).scale(1, 1, 2.4).translate(0, 0, -2);
-const projectileMaterial = new THREE.MeshStandardMaterial({
-  color: 0xcac1af,
-  roughness: 0.88,
-  metalness: 0,
-  flatShading: true,
-  emissive: 0x302a22,
-  emissiveIntensity: 0.2,
+const projectileGeometry = new THREE.BoxGeometry(0.3, 0.3, 9).translate(0, 0, -4.5);
+const projectileGlowGeometry = new THREE.BoxGeometry(0.78, 0.78, 11.5).translate(0, 0, -5.75);
+const projectileMaterial = new THREE.MeshBasicMaterial({
+  color: 0xfff5be,
+  transparent: true,
+  opacity: 1,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  toneMapped: false,
 });
-const bluejayBulletGeometry = new THREE.LatheGeometry([
-  new THREE.Vector2(0, -1.5), new THREE.Vector2(0.3, -1.35),
-  new THREE.Vector2(0.41, -1.1), new THREE.Vector2(0.43, -0.8),
-  new THREE.Vector2(0.41, 0.55), new THREE.Vector2(0.28, 1.05),
-  new THREE.Vector2(0.07, 1.45), new THREE.Vector2(0, 1.55),
-], 8).rotateX(-Math.PI / 2).translate(0, 0, -1.7);
-const bluejayBulletColors: number[] = [];
-const bluejayBrass = new THREE.Color('#E8B44C');
-const bluejayIvory = new THREE.Color('#FFF4D6');
-const bluejayBulletPositions = bluejayBulletGeometry.getAttribute('position');
-for (let index = 0; index < bluejayBulletPositions.count; index += 1) {
-  const z = bluejayBulletPositions.getZ(index);
-  const color = z < -0.9 && z > -2.25 ? bluejayIvory : bluejayBrass;
-  bluejayBulletColors.push(color.r, color.g, color.b);
-}
-bluejayBulletGeometry.setAttribute('color', new THREE.Float32BufferAttribute(bluejayBulletColors, 3));
-const bluejayBulletMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
-const bluejayTracerGeometry = new THREE.ConeGeometry(0.18, 2, 6)
-  .rotateX(Math.PI / 2).translate(0, 0, 0.8);
-const bluejayTracerMaterials = [0.36, 0.25, 0.15, 0.06].map(opacity => new THREE.MeshBasicMaterial({
-  color: '#E8B44C', transparent: true, opacity, depthWrite: false, toneMapped: false,
-}));
-const bluejayTracerLifetimeMs = 150;
+const projectileGlowMaterial = new THREE.MeshBasicMaterial({
+  color: 0xff8c38,
+  transparent: true,
+  opacity: 0.25,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  toneMapped: false,
+});
 // Mission 19 presentation only; pooled tracers restore their normal styling on reuse.
 const monsterTracerCoreMaterial = new THREE.MeshBasicMaterial({
   color: 0xfff2a6, transparent: true, opacity: 1, blending: THREE.AdditiveBlending,
@@ -7487,31 +7466,18 @@ function updateMonsterTracerSize(mesh: THREE.Group): void {
   mesh.children[0]!.scale.set(width, width, length);
   mesh.children[1]!.scale.copy(mesh.children[0]!.scale);
 }
-function styleMissionProjectile(mesh: THREE.Group, local: boolean, shooterType?: AircraftType): void {
-  const bluejayShot = shooterType === 'trainer';
-  const monsterShot = !bluejayShot && local && journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.status === 'RACING';
+function styleMissionProjectile(mesh: THREE.Group, local: boolean): void {
+  const monsterShot = local && journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.status === 'RACING';
   const glow = mesh.children[0] as THREE.Mesh;
   const core = mesh.children[1] as THREE.Mesh;
-  const tracer = mesh.children[2] as THREE.Mesh;
-  mesh.userData.bluejayShot = bluejayShot;
   mesh.userData.monsterTracer = monsterShot;
-  glow.visible = monsterShot;
-  core.geometry = monsterShot ? monsterTracerCoreGeometry : bluejayShot ? bluejayBulletGeometry : projectileGeometry;
-  core.material = monsterShot ? monsterTracerCoreMaterial : bluejayShot ? bluejayBulletMaterial : projectileMaterial;
-  tracer.visible = bluejayShot;
-  tracer.material = bluejayTracerMaterials[0]!;
-  tracer.scale.setScalar(1);
+  glow.geometry = monsterShot ? monsterTracerGlowGeometry : projectileGlowGeometry;
+  core.geometry = monsterShot ? monsterTracerCoreGeometry : projectileGeometry;
+  glow.material = monsterShot ? monsterTracerGlowMaterial : projectileGlowMaterial;
+  core.material = monsterShot ? monsterTracerCoreMaterial : projectileMaterial;
   glow.scale.set(monsterShot ? 6 : 1, monsterShot ? 6 : 1, monsterShot ? 3 : 1);
   core.scale.copy(glow.scale);
   updateMonsterTracerSize(mesh);
-}
-function updateBluejayTracer(mesh: THREE.Group, startedAt: number, now: number, lifetimeMs = bluejayTracerLifetimeMs): void {
-  if (!mesh.userData.bluejayShot) return;
-  const tracer = mesh.children[2] as THREE.Mesh;
-  const fade = Math.max(0, 1 - (now - startedAt) / lifetimeMs);
-  tracer.visible = fade > 0;
-  if (tracer.visible) tracer.material = bluejayTracerMaterials[Math.min(3, Math.floor((1 - fade) * 4))]!;
-  tracer.scale.setScalar(fade);
 }
 const projectileForward = new THREE.Vector3(0, 0, -1);
 const clientProjectiles = new Map<string, ClientProjectile>();
@@ -7519,15 +7485,12 @@ function clearProjectileVisuals(): void {
   for (const id of clientProjectiles.keys()) removeClientProjectile(id);
   for (const projectile of predictedProjectiles.values()) releaseProjectile(projectile);
   predictedProjectiles.clear();
-  localShotAircraftTypes.clear();
   for (const shot of assistedShotVisuals) releaseAssistedShot(shot);
   assistedShotVisuals.length = 0;
   recentAssistedShotIds.clear();
 }
 const projectilePool: ClientProjectile[] = [];
 const predictedProjectiles = new Map<string, ClientProjectile>();
-const localShotAircraftTypes = new Map<string, AircraftType>();
-const recentlyRemovedShotTypes = new Map<string, { type?: AircraftType; at: number }>();
 const maxClientProjectiles = 256;
 const pendingTracerLifetime = 0.35;
 const maxAuthoritativeProjectileAgeMs = (COMBAT_RANGE / BASE_PROJECTILE_SPEED + 1) * 1_000;
@@ -7539,7 +7502,6 @@ const assistedShotDirection = new THREE.Vector3();
 const assistedShotPoint = new THREE.Vector3();
 const muzzleFlashGeometry = new THREE.SphereGeometry(1, 8, 6);
 const impactFlashGeometry = new THREE.SphereGeometry(1, 9, 7);
-const bluejaySparkGeometry = new THREE.ConeGeometry(0.11, 1.5, 3);
 const muzzleFlashes: FlashEffect[] = [];
 const muzzleFlashPool: FlashEffect[] = [];
 const impactFlashes: FlashEffect[] = [];
@@ -7704,23 +7666,17 @@ if (visualQaMode && cityWorld.visualQaPresets) {
 
 function createProjectileMesh(): THREE.Group {
   const mesh = new THREE.Group();
-  const glow = new THREE.Mesh(monsterTracerGlowGeometry, monsterTracerGlowMaterial);
-  glow.visible = false;
+  const glow = new THREE.Mesh(projectileGlowGeometry, projectileGlowMaterial);
   const core = new THREE.Mesh(projectileGeometry, projectileMaterial);
-  const tracer = new THREE.Mesh(bluejayTracerGeometry, bluejayTracerMaterials[0]!);
-  tracer.visible = false;
   glow.renderOrder = 2;
   core.renderOrder = 3;
-  tracer.renderOrder = 2;
-  mesh.add(glow, core, tracer);
+  mesh.add(glow, core);
   return mesh;
 }
-
 function createProjectileVisual(): ClientProjectile {
   const mesh = createProjectileMesh();
   return {
     mesh,
-    visualStartedAt: 0,
     direction: new THREE.Vector3(),
     bank: 0,
     authoritativePosition: new THREE.Vector3(),
@@ -7762,17 +7718,8 @@ function createFlashEffect(color: number): FlashEffect {
   });
   const glow = new THREE.Mesh(impactFlashGeometry, glowMaterial);
   const core = new THREE.Mesh(muzzleFlashGeometry, coreMaterial);
-  const spark = new THREE.Group();
-  for (let index = 0; index < 4; index += 1) {
-    const angle = index * Math.PI / 2;
-    const ray = new THREE.Mesh(bluejaySparkGeometry, coreMaterial);
-    ray.rotation.z = angle;
-    ray.position.set(-Math.sin(angle) * 0.6, Math.cos(angle) * 0.6, 0);
-    spark.add(ray);
-  }
-  spark.visible = false;
-  mesh.add(glow, core, spark);
-  return { mesh, core, spark, coreMaterial, glowMaterial, followLocalMuzzle: false, elapsed: 0, duration: 0.2 };
+  mesh.add(glow, core);
+  return { mesh, coreMaterial, glowMaterial, elapsed: 0, duration: 0.2 };
 }
 
 function spawnFlash(
@@ -7781,8 +7728,6 @@ function spawnFlash(
   position: THREE.Vector3,
   duration: number,
   startScale: number,
-  spark = false,
-  followLocalMuzzle = false,
 ): void {
   if (effects.length >= maxFlashEffects) {
     const oldest = effects.shift();
@@ -7794,16 +7739,10 @@ function spawnFlash(
   const flash = pool.pop() ?? createFlashEffect(0xffa33c);
   flash.elapsed = 0;
   flash.duration = duration;
-  flash.followLocalMuzzle = followLocalMuzzle;
   flash.mesh.position.copy(position);
-  flash.mesh.quaternion.identity();
   flash.mesh.scale.setScalar(startScale);
-  flash.core.visible = !spark;
-  flash.spark.visible = spark;
-  flash.coreMaterial.color.setHex(spark ? 0xfff4d6 : 0xffa33c);
-  flash.glowMaterial.color.setHex(spark ? 0xe8b44c : 0xffa33c);
   flash.coreMaterial.opacity = 1;
-  flash.glowMaterial.opacity = spark ? 0.28 : 0.44;
+  flash.glowMaterial.opacity = 0.44;
   flash.mesh.visible = true;
   scene.add(flash.mesh);
   effects.push(flash);
@@ -7815,13 +7754,12 @@ function updateFlashEffects(effects: FlashEffect[], pool: FlashEffect[], delta: 
     flash.mesh.visible = true;
     // The muzzle flash is attached light, not a world-space puff left behind
     // for 110 ms (120 m at Fighter Boost speed).
-    if (flash.followLocalMuzzle) getCurrentMuzzleTransform(flash.mesh.position, projectileDirection);
-    if (flash.spark.visible) flash.mesh.quaternion.copy(camera.quaternion);
+    if (effects === muzzleFlashes) getCurrentMuzzleTransform(flash.mesh.position, projectileDirection);
     flash.elapsed += delta;
     const progress = flash.elapsed / flash.duration;
     flash.mesh.scale.multiplyScalar(1 + delta * 13);
     flash.coreMaterial.opacity = Math.max(0, 1 - progress);
-    flash.glowMaterial.opacity = Math.max(0, (flash.spark.visible ? 0.28 : 0.44) * (1 - progress));
+    flash.glowMaterial.opacity = Math.max(0, 0.44 * (1 - progress));
     if (flash.elapsed < flash.duration) continue;
     scene.remove(flash.mesh);
     flash.mesh.visible = false;
@@ -7845,19 +7783,12 @@ function getCurrentMuzzleTransform(origin: THREE.Vector3, direction: THREE.Vecto
   origin.set(socket.position.x, socket.position.y, socket.position.z).applyMatrix4(airplane.matrixWorld);
 }
 
-function shooterAircraftType(ownerId: string): AircraftType | undefined {
-  return ownerId === localPlayerId ? aircraftType : remotePlayers.get(ownerId)?.aircraftType;
-}
-
 function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, clientShotId: string, targetId?: string): void {
   projectileOrigin.copy(origin);
   projectileDirection.copy(direction);
-  if (aircraftType !== 'trainer') cameraShakeTime = Math.max(cameraShakeTime, 0.08);
-  if (localShotAircraftTypes.size >= 64) localShotAircraftTypes.delete(localShotAircraftTypes.keys().next().value!);
-  localShotAircraftTypes.set(clientShotId, aircraftType);
+  spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.11, 0.45);
+  cameraShakeTime = Math.max(cameraShakeTime, 0.08);
   const predicted = projectilePool.pop() ?? createProjectileVisual();
-  predicted.visualAircraftType = aircraftType;
-  predicted.visualStartedAt = performance.now();
   const target = targetId ? remotePlayers.get(targetId)?.plane : undefined;
   if (target?.visible) {
     predicted.direction.subVectors(target.position, projectileOrigin).normalize();
@@ -7866,7 +7797,7 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   predicted.bank = airplane.rotation.z;
   predicted.predictedTargetId = target?.visible ? targetId : undefined;
   predicted.local = true;
-  styleMissionProjectile(predicted.mesh, true, predicted.visualAircraftType);
+  styleMissionProjectile(predicted.mesh, true);
   predicted.ownerId = localPlayerId ?? '';
   predicted.pendingAge = 0;
   predicted.mesh.position.copy(projectileOrigin);
@@ -7876,8 +7807,6 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   // Unlocked rounds leave the muzzle immediately and travel independently.
   predicted.mesh.visible = !predicted.predictedTargetId;
   scene.add(predicted.mesh);
-  if (predicted.visualAircraftType === 'trainer')
-    spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.09, 0.2, false, true);
   if (predictedProjectiles.size >= 8) {
     const oldestShotId = predictedProjectiles.keys().next().value as string | undefined;
     const oldest = oldestShotId ? predictedProjectiles.get(oldestShotId) : undefined;
@@ -7923,21 +7852,14 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
   const predictedProjectile = message.ownerId === localPlayerId && message.clientShotId
     ? predictedProjectiles.get(message.clientShotId) : undefined;
   if (predictedProjectile && message.clientShotId) predictedProjectiles.delete(message.clientShotId);
-  const localShotType = message.ownerId === localPlayerId && message.clientShotId
-    ? localShotAircraftTypes.get(message.clientShotId) : undefined;
-  const shooterType = predictedProjectile?.visualAircraftType ??
-    localShotType ?? shooterAircraftType(message.ownerId);
-  if (message.ownerId === localPlayerId && message.clientShotId) localShotAircraftTypes.delete(message.clientShotId);
   const mesh = predictedProjectile?.mesh ?? assistedShotPool.pop() ?? createAssistedShotMesh();
-  styleMissionProjectile(mesh, false, shooterType);
+  styleMissionProjectile(mesh, false);
   const bank = message.ownerId === localPlayerId
     ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0;
   const origin = new THREE.Vector3(message.origin.x, message.origin.y, message.origin.z);
   // Start a newly visible local tracer at the aircraft actually rendered now.
   // A historical fire pose can be far offscreen after network delay and banking.
   if (message.ownerId === localPlayerId) getCurrentMuzzleTransform(origin, assistedShotDirection);
-  if (shooterType === 'trainer' && !predictedProjectile && !localShotType)
-    spawnFlash(muzzleFlashes, muzzleFlashPool, origin, 0.09, 0.2, false, false);
   const targetPosition = new THREE.Vector3(message.targetPosition.x, message.targetPosition.y, message.targetPosition.z);
   const liveTarget = visibleCombatTargetPosition(message.targetId);
   if (liveTarget) targetPosition.copy(liveTarget);
@@ -7968,21 +7890,13 @@ function addAssistedShot(message: Extract<ServerMessage, { type: 'assistedShot' 
     bank,
     elapsed: 0,
     duration,
-    bluejayShot: shooterType === 'trainer',
-    visualStartedAt: now,
   });
 }
 
-function spawnImpactFeedback(playerId: string, shooterId: string): void {
+function spawnImpactFeedback(playerId: string): void {
   const target = playerId === localPlayerId ? airplane.position : remotePlayers.get(playerId)?.plane.position;
   if (!target) return;
-  const removedShot = recentlyRemovedShotTypes.get(shooterId);
-  const shooterType = removedShot && performance.now() - removedShot.at < 250
-    ? removedShot.type : shooterAircraftType(shooterId);
-  recentlyRemovedShotTypes.delete(shooterId);
-  const bluejayShot = shooterType === 'trainer';
-  spawnFlash(impactFlashes, impactFlashPool, target, bluejayShot ? 0.12 : 0.28,
-    bluejayShot ? 0.55 : 0.7, bluejayShot);
+  spawnFlash(impactFlashes, impactFlashPool, target, 0.28, 0.7);
 }
 
 function pendingLocalAssistedHit(targetId: string): AssistedShotVisual | undefined {
@@ -8009,18 +7923,12 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
     : undefined;
   if (message.clientShotId) predictedProjectiles.delete(message.clientShotId);
   const projectile = predicted ?? projectilePool.pop() ?? createProjectileVisual();
-  const localShotType = message.ownerId === localPlayerId && message.clientShotId
-    ? localShotAircraftTypes.get(message.clientShotId) : undefined;
-  projectile.visualAircraftType = predicted?.visualAircraftType ??
-    localShotType ?? shooterAircraftType(message.ownerId);
-  if (message.ownerId === localPlayerId && message.clientShotId) localShotAircraftTypes.delete(message.clientShotId);
-  projectile.visualStartedAt = predicted?.visualStartedAt ?? performance.now();
   projectile.direction.set(message.direction.x, message.direction.y, message.direction.z).normalize();
   if (!predicted) projectile.bank = message.ownerId === localPlayerId
     ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0;
   projectile.speed = message.speed;
   projectile.local = message.ownerId === localPlayerId;
-  styleMissionProjectile(projectile.mesh, projectile.local, projectile.visualAircraftType);
+  styleMissionProjectile(projectile.mesh, projectile.local);
   projectile.ownerIsBot = ownerIsBot;
   projectile.ownerId = message.ownerId;
   projectile.authoritativePosition.set(message.position.x, message.position.y, message.position.z);
@@ -8045,8 +7953,6 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
   if (projectile.local) showAimQaRay(projectile.mesh.position, projectile.direction);
   projectile.mesh.visible = true;
   scene.add(projectile.mesh);
-  if (projectile.visualAircraftType === 'trainer' && !predicted && !localShotType)
-    spawnFlash(muzzleFlashes, muzzleFlashPool, projectile.mesh.position, 0.09, 0.2, false, false);
   clientProjectiles.set(message.projectileId, projectile);
 }
 
@@ -8061,13 +7967,9 @@ function updateClientProjectiles(message: Extract<ServerMessage, { type: 'projec
   }
 }
 
-function removeClientProjectile(projectileId: string, serverRemoved = false): void {
+function removeClientProjectile(projectileId: string): void {
   const projectile = clientProjectiles.get(projectileId);
   if (!projectile) return;
-  if (serverRemoved) {
-    if (recentlyRemovedShotTypes.size >= 32) recentlyRemovedShotTypes.delete(recentlyRemovedShotTypes.keys().next().value!);
-    recentlyRemovedShotTypes.set(projectile.ownerId, { type: projectile.visualAircraftType, at: performance.now() });
-  }
   releaseProjectile(projectile);
   clientProjectiles.delete(projectileId);
 }
@@ -8100,7 +8002,6 @@ function updateProjectiles(delta: number): void {
     projectile.mesh.quaternion.setFromUnitVectors(projectileForward, projectile.direction);
     projectile.mesh.rotateZ(projectile.bank);
     updateMonsterTracerSize(projectile.mesh);
-    updateBluejayTracer(projectile.mesh, projectile.visualStartedAt, now);
   }
   for (const [clientShotId, projectile] of predictedProjectiles) {
     projectile.pendingAge += delta;
@@ -8111,7 +8012,6 @@ function updateProjectiles(delta: number): void {
       continue;
     }
     updateMonsterTracerSize(projectile.mesh);
-    updateBluejayTracer(projectile.mesh, projectile.visualStartedAt, now);
     const step = delta * projectile.speed;
     projectile.mesh.position.addScaledVector(projectile.direction, step);
     if (projectile.pendingAge < pendingTracerLifetime) continue;
@@ -8131,11 +8031,9 @@ function updateProjectiles(delta: number): void {
     shot.mesh.quaternion.setFromUnitVectors(projectileForward, assistedShotDirection);
     shot.mesh.rotateZ(shot.bank);
     shot.mesh.scale.z = Math.min(1, assistedShotPoint.distanceTo(shot.targetPosition) / 11.5);
-    updateBluejayTracer(shot.mesh, shot.visualStartedAt, now, Math.max(bluejayTracerLifetimeMs, shot.duration * 1_000));
     if (progress < 1) continue;
     if (shot.confirmedDamage !== undefined) {
-      spawnFlash(impactFlashes, impactFlashPool, shot.targetPosition, shot.bluejayShot ? 0.12 : 0.28,
-        shot.bluejayShot ? 0.55 : 0.7, shot.bluejayShot);
+      spawnFlash(impactFlashes, impactFlashPool, shot.targetPosition, 0.28, 0.7);
       showCombatMessage(`HIT +${shot.confirmedDamage}`, true);
       showHitMarker();
       audioManager.playHitConfirm();
@@ -10432,6 +10330,7 @@ function reconnectRealtimeSession(): void {
 
 function blockProtocolConnection(message: string): void {
   if (protocolBlocked) return;
+  cancelPendingFlightLaunch();
   protocolBlocked = true;
   protocolReady = false;
   showProgressMessage(message);
@@ -10966,6 +10865,7 @@ boundSocket.addEventListener('message', (event) => {
     return;
   }
   if (message.type === 'journeyUnavailable') {
+    cancelPendingFlightLaunch();
     applyMissionFocus(null);
     journeyGates?.setProgress(0, false);
     missionObjective = null;
@@ -11859,7 +11759,7 @@ boundSocket.addEventListener('message', (event) => {
     recordBestScore(score);
     showProgressMessage('SKY CHALLENGE COMPLETE');
   } else if (message.type === 'projectileRemove') {
-    removeClientProjectile(message.projectileId, true);
+    removeClientProjectile(message.projectileId);
   } else if (message.type === 'damage') {
     const assistedVisual = message.shooterId === localPlayerId && message.playerId !== localPlayerId
       ? pendingLocalAssistedHit(message.playerId)
@@ -11874,7 +11774,7 @@ boundSocket.addEventListener('message', (event) => {
         assistedVisual.duration = Math.min(assistedVisual.duration, assistedVisual.elapsed + 0.05);
       }
     }
-    else spawnImpactFeedback(message.playerId, message.shooterId);
+    else spawnImpactFeedback(message.playerId);
     if (message.shooterId === localPlayerId && message.playerId !== localPlayerId) {
       if (combatQaElement) combatQaDetail = `shot: ${message.shooterId === localPlayerId ? 'assisted/ballistic' : 'remote'} · HIT`;
       if (!assistedVisual) {
