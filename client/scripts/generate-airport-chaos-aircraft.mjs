@@ -194,7 +194,7 @@ function indexedGeometry(vertices, indices) {
 function scoutFuselage(sections) {
   const vertices = [];
   const indices = [];
-  const radial = 20;
+  const radial = 32;
   for (const section of sections) {
     for (let j = 0; j < radial; j += 1) {
       const angle = j * Math.PI * 2 / radial;
@@ -215,6 +215,156 @@ function scoutFuselage(sections) {
       const c = (i + 1) * radial + j;
       const d = (i + 1) * radial + (j + 1) % radial;
       indices.push(a, b, c, b, d, c);
+    }
+  }
+  return indexedGeometry(vertices, indices);
+}
+
+function scoutNoseCowling(sections) {
+  const vertices = [];
+  const indices = [];
+  const steps = 32;
+  for (const section of sections) {
+    for (let j = 0; j <= steps; j += 1) {
+      const angle = THREE.MathUtils.lerp(section.startAngle, Math.PI - section.startAngle, j / steps);
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      vertices.push(
+        (section.width + 0.018) * Math.sign(c) * Math.abs(c) ** 0.82,
+        section.centerY + (section.height + 0.018) * Math.sign(s) * Math.abs(s) ** 0.82,
+        section.z,
+      );
+    }
+  }
+  for (let i = 0; i < sections.length - 1; i += 1) {
+    for (let j = 0; j < steps; j += 1) {
+      const a = i * (steps + 1) + j;
+      const c = a + steps + 1;
+      indices.push(a, a + 1, c, a + 1, c + 1, c);
+    }
+  }
+  return indexedGeometry(vertices, indices);
+}
+
+function scoutSurfacePatch(side, sideSurfaceX, stations, offset) {
+  const vertices = [];
+  const indices = [];
+  for (const [z, lower, upper] of stations) {
+    for (let j = 0; j < 5; j += 1) {
+      const y = THREE.MathUtils.lerp(lower, upper, j / 4);
+      vertices.push(side * sideSurfaceX(z, y, offset), y, z);
+    }
+  }
+  for (let i = 0; i < stations.length - 1; i += 1) {
+    for (let j = 0; j < 4; j += 1) {
+      const a = i * 5 + j;
+      const c = a + 5;
+      if (side > 0) indices.push(a, a + 1, c, a + 1, c + 1, c);
+      else indices.push(a, c, a + 1, a + 1, c, c + 1);
+    }
+  }
+  return indexedGeometry(vertices, indices);
+}
+
+const scoutCabinStations = [
+  { z: -1.45, width: 0.55, roofY: 0.94 },
+  { z: -1.10, width: 0.59, roofY: 0.99 },
+  { z: -0.25, width: 0.60, roofY: 1.00 },
+  { z: 0.35, width: 0.57, roofY: 0.96 },
+  { z: 0.55, width: 0.52, roofY: 0.83 },
+  { z: 0.76, width: 0.45, roofY: 0.55 },
+];
+const scoutCabinProfile = [
+  [0, 1], [0.32, 1.05], [0.62, 1.03], [0.78, 0.96],
+  [0.90, 0.80], [0.97, 0.55], [1, 0],
+];
+
+function scoutCabinSidePoint(side, z, height, offset = 0) {
+  const index = Math.max(0, scoutCabinStations.findIndex(station => station.z >= z) - 1);
+  const a = scoutCabinStations[index];
+  const b = scoutCabinStations[Math.min(index + 1, scoutCabinStations.length - 1)];
+  const t = b.z === a.z ? 0 : (z - a.z) / (b.z - a.z);
+  const width = THREE.MathUtils.lerp(a.width, b.width, t);
+  const roofY = THREE.MathUtils.lerp(a.roofY, b.roofY, t);
+  const profileIndex = Math.max(0, scoutCabinProfile.findIndex(point => point[0] >= height) - 1);
+  const [lowHeight, lowWidth] = scoutCabinProfile[profileIndex];
+  const [highHeight, highWidth] = scoutCabinProfile[Math.min(profileIndex + 1, scoutCabinProfile.length - 1)];
+  const fraction = highHeight === lowHeight ? 0 : (height - lowHeight) / (highHeight - lowHeight);
+  return [side * (width * THREE.MathUtils.lerp(lowWidth, highWidth, fraction) + offset),
+    THREE.MathUtils.lerp(0.15, roofY, height), z];
+}
+
+function scoutCabinShell() {
+  const vertices = [];
+  const indices = [];
+  const heights = [0, 0.16, 0.32, 0.47, 0.62, 0.70, 0.78, 0.84, 0.90, 0.95, 0.97, 1];
+  const perimeter = heights.length * 2 - 1;
+  for (const station of scoutCabinStations) {
+    for (const height of heights) vertices.push(...scoutCabinSidePoint(-1, station.z, height));
+    for (const height of heights.slice(0, -1).reverse())
+      vertices.push(...scoutCabinSidePoint(1, station.z, height));
+  }
+  for (let i = 0; i < scoutCabinStations.length - 1; i += 1) {
+    for (let j = 0; j < perimeter - 1; j += 1) {
+      const a = i * perimeter + j;
+      const c = a + perimeter;
+      indices.push(a, c, a + 1, a + 1, c, c + 1);
+    }
+  }
+  const rearCenter = vertices.length / 3;
+  vertices.push(0, 0.15, scoutCabinStations.at(-1).z);
+  const last = (scoutCabinStations.length - 1) * perimeter;
+  for (let j = 0; j < perimeter - 1; j += 1) indices.push(rearCenter, last + j, last + j + 1);
+  return indexedGeometry(vertices, indices);
+}
+
+function scoutWindshieldPoint(horizontal, height, offset = 0) {
+  const side = Math.abs(horizontal);
+  const roofY = 0.94 - 0.08 * side * side;
+  const roofHeight = (roofY - 0.15) / (0.94 - 0.15);
+  const roofX = side === 0 ? 0 : scoutCabinSidePoint(Math.sign(horizontal), -1.45, roofHeight)[0];
+  return [THREE.MathUtils.lerp(horizontal * 0.54, roofX, height),
+    THREE.MathUtils.lerp(0.46 - 0.04 * side, roofY, height),
+    THREE.MathUtils.lerp(-2.04 + 0.03 * side, -1.45, height) - offset];
+}
+
+function scoutSurfaceGrid(surface, uSteps, vSteps, reverse) {
+  const vertices = [];
+  const indices = [];
+  for (let row = 0; row <= vSteps; row += 1) {
+    for (let column = 0; column <= uSteps; column += 1)
+      vertices.push(...surface(column / uSteps, row / vSteps));
+  }
+  for (let row = 0; row < vSteps; row += 1) {
+    for (let column = 0; column < uSteps; column += 1) {
+      const a = row * (uSteps + 1) + column;
+      const c = a + uSteps + 1;
+      if (reverse) indices.push(a, c, a + 1, a + 1, c, c + 1);
+      else indices.push(a, a + 1, c, a + 1, c + 1, c);
+    }
+  }
+  return indexedGeometry(vertices, indices);
+}
+
+function scoutRoundedWindow(surface, uStart, uEnd, vStart, vEnd, cornerU, cornerV, reverse) {
+  const vertices = [];
+  const indices = [];
+  const rows = [0, 0.5, 1, -1, -0.5, 0];
+  for (let row = 0; row < rows.length; row += 1) {
+    const lower = row < 3;
+    const v = lower ? vStart + cornerV * rows[row] : vEnd + cornerV * rows[row];
+    const inset = row === 0 || row === 5 ? cornerU : row === 1 || row === 4 ? cornerU * 0.35 : 0;
+    for (let column = 0; column <= 8; column += 1) {
+      const u = THREE.MathUtils.lerp(uStart + inset, uEnd - inset, column / 8);
+      vertices.push(...surface(u, v));
+    }
+  }
+  for (let row = 0; row < rows.length - 1; row += 1) {
+    for (let column = 0; column < 8; column += 1) {
+      const a = row * 9 + column;
+      const c = a + 9;
+      if (reverse) indices.push(a, c, a + 1, a + 1, c, c + 1);
+      else indices.push(a, a + 1, c, a + 1, c + 1, c);
     }
   }
   return indexedGeometry(vertices, indices);
@@ -355,7 +505,7 @@ function scoutFin() {
 function scoutPropeller(builder) {
   const pivot = new THREE.Group();
   pivot.name = 'Propeller_Main';
-  pivot.position.set(0, 0.04, -3.12);
+  pivot.position.set(0, 0.04, -3.03);
   const vertices = [];
   const indices = [];
   const stations = [[0.10, 0.065, 0], [0.27, 0.125, -0.025], [0.57, 0.09, 0.012], [0.84, 0.025, 0.06]];
@@ -393,8 +543,8 @@ function buildScout() {
   const b = new AirframeBuilder('Skyrift_Scout', { base: 0xf4f5f1, primary: 0x1769b8,
     accent: 0x79c9e8, glass: 0x102a42, dark: 0x202a31, metal: 0x87959c });
   const sections = [
-    { z: -2.96, width: 0.33, height: 0.30, centerY: 0.02 },
-    { z: -2.82, width: 0.42, height: 0.37, centerY: 0.02 },
+    { z: -2.90, width: 0.34, height: 0.32, centerY: 0.04 },
+    { z: -2.72, width: 0.43, height: 0.38, centerY: 0.04 },
     { z: -2.34, width: 0.52, height: 0.44, centerY: 0.04 },
     { z: -1.76, width: 0.56, height: 0.46, centerY: 0.02 },
     { z: -1.43, width: 0.61, height: 0.47, centerY: 0.03 },
@@ -405,15 +555,24 @@ function buildScout() {
     { z: 2.50, width: 0.25, height: 0.21, centerY: 0.08 },
     { z: 3.16, width: 0.015, height: 0.015, centerY: 0.27 },
   ];
-  b.add('primary', scoutFuselage(sections.slice(0, 3)));
-  b.add('base', scoutFuselage(sections.slice(2)));
+  b.add('base', scoutFuselage(sections));
+  b.add('primary', scoutNoseCowling([
+    { ...sections[0], startAngle: -0.28 },
+    { ...sections[1], startAngle: -0.22 },
+    { ...sections[2], startAngle: -0.16 },
+    { z: -2.14, width: 0.54, height: 0.45, centerY: 0.03, startAngle: -0.02 },
+    { z: -1.99, width: 0.56, height: 0.46, centerY: 0.03, startAngle: 0.22 },
+  ]));
   // Seal the aft ring so rear views cannot see through the fuselage.
   b.add('base', new THREE.CircleGeometry(1, 16), vector(0, 0.27, 3.162),
     euler(), vector(0.018, 0.018, 1));
-  // Close the nose ring behind the spinner so the propeller has a solid cowl.
-  b.sphere('primary', vector(0.34, 0.31, 0.08), vector(0, 0.02, -2.98));
-  b.sphere('primary', vector(0.18, 0.18, 0.27), vector(0, 0.04, -3.08));
-  b.materials.glass = new THREE.MeshBasicMaterial({ color: 0x10283e, side: THREE.DoubleSide });
+  // The front face, dark propeller recess and pointed spinner form one cowl.
+  b.cylinder('primary', 0.33, 0.33, 0.06, vector(0, 0.04, -2.91));
+  b.cylinder('dark', 0.215, 0.215, 0.012, vector(0, 0.04, -2.95));
+  b.add('dark', new THREE.TorusGeometry(0.23, 0.025, 5, 16), vector(0, 0.04, -2.965));
+  b.cone('primary', 0.19, 0.39, vector(0, 0.04, -3.14));
+  b.materials.glass = new THREE.MeshStandardMaterial({ color: 0x10283e, roughness: 0.16,
+    metalness: 0.24, side: THREE.DoubleSide });
   b.materials.glass.name = materialSlots.glass;
 
   const sideSurfaceX = (z, y, offset = 0.035) => {
@@ -427,84 +586,101 @@ function buildScout() {
     const sine = Math.min(1, Math.abs((y - centerY) / height) ** (1 / 0.82));
     return width * Math.sqrt(1 - sine * sine) ** 0.82 + offset;
   };
+  const frontCabinSidePoint = (side, z, height, offset = 0) => {
+    const progress = THREE.MathUtils.clamp((z + 2.01) / 0.56, 0, 1);
+    const upper = scoutWindshieldPoint(side, progress);
+    const y = THREE.MathUtils.lerp(0.15, upper[1], height);
+    const lowerX = side * sideSurfaceX(z, 0.15, 0.018);
+    const flatX = THREE.MathUtils.lerp(lowerX, upper[0], height);
+    const cabinHeight = (y - 0.15) / (0.94 - 0.15);
+    const cabinX = scoutCabinSidePoint(side, -1.45, cabinHeight)[0];
+    // Keep the outer edge exactly on the windshield; the side wall bulges
+    // smoothly into the wider cabin below it.
+    return [flatX + progress * (cabinX - flatX) * (1 - height ** 32) + side * offset, y, z];
+  };
+  const sideWindowPoint = (side, z, height) => {
+    if (z >= -1.45) return scoutCabinSidePoint(side, z, height, 0.04);
+    const targetY = THREE.MathUtils.lerp(0.15, 0.94, height);
+    const progress = (z + 2.01) / 0.56;
+    const edgeY = scoutWindshieldPoint(side, progress)[1];
+    return frontCabinSidePoint(side, z, (targetY - 0.15) / (edgeY - 0.15), 0.04);
+  };
 
-  // The cabin rises above the lower fuselage. Window panels sit outside its
-  // sidewalls, with actual structural pillars between separate panes.
   for (const side of [-1, 1]) {
-    b.add('glass', scoutPanel([
-      [side * 0.045, 0.51, -1.99], [side * 0.045, 0.83, -1.43],
-      [side * 0.51, 0.83, -1.43], [side * 0.55, 0.51, -1.99],
-    ], side));
-    b.add('glass', scoutPanel([
-      [side * 0.615, 0.47, -1.39], [side * 0.545, 0.79, -1.35],
-      [side * 0.545, 0.79, -0.32], [side * 0.65, 0.47, -0.34],
-    ], side));
-    b.add('glass', scoutPanel([
-      [side * 0.65, 0.47, -0.22], [side * 0.545, 0.79, -0.20],
-      [side * 0.51, 0.77, 0.47], [side * 0.59, 0.45, 0.49],
-    ], side));
-    // The windows sit above the rounded fuselage. Close the lower cabin wall
-    // and sink its bottom edge into the body so the glazing is not floating.
-    b.add('base', scoutPanel([
-      [side * 0.48, 0.14, -1.99], [side * 0.55, 0.51, -1.99],
-      [side * 0.615, 0.47, -1.39], [side * 0.56, 0.14, -1.39],
-    ], side));
-    b.add('base', scoutPanel([
-      [side * 0.56, 0.14, -1.39], [side * 0.615, 0.47, -1.39],
-      [side * 0.65, 0.47, -0.34], [side * 0.60, 0.14, -0.34],
-    ], side));
-    b.add('base', scoutPanel([
-      [side * 0.60, 0.14, -0.22], [side * 0.65, 0.47, -0.22],
-      [side * 0.59, 0.45, 0.49], [side * 0.52, 0.14, 0.49],
-    ], side));
-    // The windshield's lower edge needs the same continuous connection to
-    // the nose, including the center beside the existing windshield pillar.
-    b.add('base', scoutPanel([
-      [side * 0.045, 0.51, -1.99], [side * 0.55, 0.51, -1.99],
-      [side * 0.40, 0.30, -2.20], [0, 0.30, -2.20],
-    ], side));
-    // The windshield and side glass meet at a solid A-pillar.
-    b.add('base', scoutPanel([
-      [side * 0.55, 0.51, -1.99], [side * 0.51, 0.83, -1.43],
-      [side * 0.545, 0.79, -1.35], [side * 0.615, 0.47, -1.39],
-    ], side));
-    scoutBeam(b, 'base', vector(side * 0.56, 0.51, -2.0), vector(side * 0.55, 0.87, -1.42), 0.04);
-    b.box('base', vector(0.075, 0.43, 0.095), vector(side * 0.60, 0.64, -0.27));
-    b.box('base', vector(0.075, 0.40, 0.095), vector(side * 0.54, 0.63, 0.53));
-    b.box('metal', vector(0.018, 0.026, 0.11), vector(side * 0.656, 0.13, -0.31));
-    const sideX = (z, y) => side * sideSurfaceX(z, y, 0.045);
+    // The intake is set into the visible side of the blue nose immediately
+    // behind the propeller, with a second opening under the white chin.
+    b.add('primary', scoutSurfacePatch(side, sideSurfaceX, [
+      [-2.88, 0.09, 0.19], [-2.82, 0.01, 0.27],
+      [-2.62, 0.01, 0.28], [-2.55, 0.09, 0.21],
+    ], 0.04));
+    b.add('dark', scoutSurfacePatch(side, sideSurfaceX, [
+      [-2.84, 0.10, 0.18], [-2.79, 0.05, 0.23],
+      [-2.65, 0.05, 0.24], [-2.59, 0.10, 0.19],
+    ], 0.055));
+    b.add('dark', scoutSurfacePatch(side, sideSurfaceX, [
+      [-2.74, -0.25, -0.18], [-2.70, -0.29, -0.17],
+      [-2.55, -0.30, -0.18], [-2.52, -0.25, -0.20],
+    ], 0.045));
+  }
+  b.add('dark', scoutPanel([
+    [-0.17, -0.17, -2.948], [-0.12, -0.26, -2.948],
+    [0.12, -0.26, -2.948], [0.17, -0.17, -2.948],
+  ], -1));
+
+  // A continuous arched cabin replaces the flat roof and separate window rods.
+  // Narrow exposed areas of this shell form the A/B pillars and window seals.
+  b.add('base', scoutCabinShell());
+  b.add('base', scoutSurfaceGrid((u, v) => scoutWindshieldPoint(u * 2 - 1, v), 16, 8, true));
+  // Close the lower windshield against the round cowling. The cowling narrows
+  // near its sides, leaving a visible opening without this curved white sill.
+  b.add('base', scoutSurfaceGrid((u, v) => {
+    const edge = scoutWindshieldPoint(u * 2 - 1, 0);
+    const cosine = Math.min(1, Math.abs(edge[0]) / 0.578) ** (1 / 0.82);
+    const cowlY = 0.03 + 0.478 * Math.sqrt(1 - cosine * cosine) ** 0.82;
+    const lowerY = Math.min(edge[1] - 0.015, cowlY + 0.012);
+    return [edge[0], THREE.MathUtils.lerp(lowerY, edge[1], v),
+      THREE.MathUtils.lerp(-2.00, edge[2], v)];
+  }, 16, 5, true));
+  for (const [start, end] of [[-0.95, -0.018], [0.018, 0.95]]) {
+    b.add('glass', scoutRoundedWindow((u, v) => scoutWindshieldPoint(u, v, 0.018),
+      start, end, 0.055, 0.90, 0.05, 0.045, true));
+  }
+  for (const side of [-1, 1]) {
+    b.add('base', scoutSurfaceGrid((u, v) => frontCabinSidePoint(side, -2.01 + u * 0.56, v),
+      8, 8, side > 0));
+    b.add('glass', scoutRoundedWindow((u, v) => {
+      const frontZ = THREE.MathUtils.lerp(-1.86, -1.39, (v - 0.35) / (0.80 - 0.35));
+      return sideWindowPoint(side, THREE.MathUtils.lerp(frontZ, -0.30, u), v);
+    }, 0, 1, 0.35, 0.80, 0.045, 0.05, side > 0));
+    b.add('glass', scoutRoundedWindow((z, v) => sideWindowPoint(side, z, v),
+      -0.19, 0.46, 0.35, 0.76, 0.055, 0.05, side > 0));
+    b.box('metal', vector(0.018, 0.026, 0.11), vector(side * 0.65, 0.13, -0.31));
     const stripes = [
       [-2.32, -0.02, -0.13], [-1.75, -0.04, -0.16],
       [-0.55, -0.04, -0.15], [0.75, 0.03, -0.08],
       [1.65, 0.13, 0.07], [2.68, 0.16, 0.13],
     ];
+    const stripeStations = [];
     for (let i = 0; i < stripes.length - 1; i += 1) {
       const [z0, upper0, lower0] = stripes[i];
       const [z1, upper1, lower1] = stripes[i + 1];
-      b.add('primary', scoutPanel([
-        [sideX(z0, lower0), lower0, z0], [sideX(z0, upper0), upper0, z0],
-        [sideX(z1, upper1), upper1, z1], [sideX(z1, lower1), lower1, z1],
-      ], side));
+      const steps = Math.ceil((z1 - z0) / 0.18);
+      for (let step = i === 0 ? 0 : 1; step <= steps; step += 1) {
+        const t = step / steps;
+        stripeStations.push([THREE.MathUtils.lerp(z0, z1, t),
+          THREE.MathUtils.lerp(lower0, lower1, t), THREE.MathUtils.lerp(upper0, upper1, t)]);
+      }
     }
-    b.add('accent', scoutPanel([
-      [sideX(-1.75, -0.20), -0.20, -1.75], [sideX(-1.75, -0.175), -0.175, -1.75],
-      [sideX(1.72, 0.03), 0.03, 1.72], [sideX(1.72, 0.005), 0.005, 1.72],
-    ], side));
+    b.add('primary', scoutSurfacePatch(side, sideSurfaceX, stripeStations, 0.045));
+    const lowerStripeStations = [];
+    for (let step = 0; step <= 26; step += 1) {
+      const t = step / 26;
+      lowerStripeStations.push([THREE.MathUtils.lerp(-2.32, 1.72, t),
+        THREE.MathUtils.lerp(-0.22, 0.005, t), THREE.MathUtils.lerp(-0.195, 0.03, t)]);
+    }
+    b.add('primary', scoutSurfacePatch(side, sideSurfaceX, lowerStripeStations, 0.047));
   }
 
-  scoutBeam(b, 'base', vector(0, 0.51, -2.0), vector(0, 0.87, -1.42), 0.033);
-  b.box('base', vector(1.12, 0.12, 2.25), vector(0, 0.85, -0.35));
-  b.box('base', vector(1.15, 0.25, 1.25), vector(0, 0.91, -0.10));
-  // Close the cabin behind the aft windows. The lower edge sinks into the
-  // fuselage, while the upper corners meet the roof and rear window posts.
-  b.add('base', scoutPanel([
-    [-0.54, 0.85, 0.55], [-0.59, 0.44, 0.55],
-    [0.59, 0.44, 0.55], [0.54, 0.85, 0.55],
-  ]));
-  b.add('base', scoutPanel([
-    [-0.59, 0.44, 0.55], [-0.30, 0.24, 0.55],
-    [0.30, 0.24, 0.55], [0.59, 0.44, 0.55],
-  ]));
   for (const side of [-1, 1]) {
     b.add('base', scoutAirfoil(side, 4.20, 0, 0.86, -0.78, -0.48, 1.42, 0.73, 1.03, 1.18));
     b.add('primary', scoutAirfoil(side, 4.20, 0.86, 1, -0.78, -0.48, 1.42, 0.73, 1.03, 1.18));
