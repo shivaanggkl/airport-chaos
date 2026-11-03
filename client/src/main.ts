@@ -10956,6 +10956,10 @@ function openWorldSelector(): void {
 let flightExitPending = false;
 function requestFlightExit(openFirehawkGarage = false): void {
   if (flightExitPending) return;
+  if (soloExploreMode) {
+    void exitFlightToHub(openFirehawkGarage);
+    return;
+  }
   if (skyDuelMode) {
     if (skyDuelUi?.hasReservedMatch() || skyDuelUi?.hasPracticeMatch()) {
       showFlightDialog('Forfeit match?', skyDuelUi.hasReservedMatch()

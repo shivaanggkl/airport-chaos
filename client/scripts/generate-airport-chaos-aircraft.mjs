@@ -191,183 +191,182 @@ function indexedGeometry(vertices, indices) {
   return geometry;
 }
 
+function scoutBodySection(sections, z) {
+  const index = Math.max(0, sections.findIndex(section => section.z >= z) - 1);
+  const a = sections[index], b = sections[Math.min(index + 1, sections.length - 1)];
+  const t = b.z === a.z ? 0 : (z - a.z) / (b.z - a.z);
+  return { width: THREE.MathUtils.lerp(a.width, b.width, t),
+    height: THREE.MathUtils.lerp(a.height, b.height, t),
+    centerY: THREE.MathUtils.lerp(a.centerY, b.centerY, t) };
+}
+
 function scoutFuselage(sections) {
-  const vertices = [];
-  const indices = [];
-  const radial = 32;
-  for (const section of sections) {
-    for (let j = 0; j < radial; j += 1) {
-      const angle = j * Math.PI * 2 / radial;
-      const c = Math.cos(angle);
-      const s = Math.sin(angle);
-      // A gently squared ellipse makes the cabin readable without hard edges.
-      vertices.push(
-        section.width * Math.sign(c) * Math.abs(c) ** 0.82,
-        section.centerY + section.height * Math.sign(s) * Math.abs(s) ** 0.82,
-        section.z,
-      );
+  const vertices = [], indices = [], parameters = [];
+  const heights = [0, 0.16, 0.32, 0.47, 0.62, 0.70, 0.78, 0.84, 0.90, 0.95, 0.97, 1];
+  const stations = [...new Set([...sections.map(section => section.z),
+    ...scoutCabinStations.map(section => section.z),
+    ...Array.from({ length: 47 }, (_, i) => -2.04 + i * (3.59 / 46))])].sort((a, b) => a - b);
+  const lowerSteps = 24, perimeter = lowerSteps + heights.length * 2 - 2;
+  for (const z of stations) {
+    const section = scoutBodySection(sections, z);
+    const joinY = z < -2.04 || z > 1.55 ? section.centerY : 0.15;
+    const sine = THREE.MathUtils.clamp((joinY - section.centerY) / section.height, -0.99, 0.99);
+    const joinAngle = Math.asin(Math.sign(sine) * Math.abs(sine) ** (1 / 0.82));
+    // Lower fuselage and upper cabin share the very same edge vertices.
+    for (let j = 0; j <= lowerSteps; j++) {
+      const angle = THREE.MathUtils.lerp(Math.PI - joinAngle, 2 * Math.PI + joinAngle, j / lowerSteps);
+      vertices.push(section.width * Math.sign(Math.cos(angle)) * Math.abs(Math.cos(angle)) ** 0.82,
+        section.centerY + section.height * Math.sign(Math.sin(angle)) * Math.abs(Math.sin(angle)) ** 0.82, z);
+      parameters.push([z, j === 0 || j === lowerSteps ? 0 : -1]);
     }
+    for (const height of heights.slice(1)) { vertices.push(...scoutCabinSidePoint(1, z, height, 0, sections)); parameters.push([z, height]); }
+    for (const height of heights.slice(1, -1).reverse()) { vertices.push(...scoutCabinSidePoint(-1, z, height, 0, sections)); parameters.push([z, height]); }
   }
-  for (let i = 0; i < sections.length - 1; i += 1) {
-    for (let j = 0; j < radial; j += 1) {
-      const a = i * radial + j;
-      const b = i * radial + (j + 1) % radial;
-      const c = (i + 1) * radial + j;
-      const d = (i + 1) * radial + (j + 1) % radial;
-      indices.push(a, b, c, b, d, c);
-    }
+  for (let i = 0; i < stations.length - 1; i++) for (let j = 0; j < perimeter; j++) {
+    const a = i * perimeter + j, b = i * perimeter + (j + 1) % perimeter;
+    const c = a + perimeter, d = b + perimeter;
+    indices.push(a, b, c, b, d, c);
   }
-  return indexedGeometry(vertices, indices);
-}
-
-function scoutNoseCowling(sections) {
-  const vertices = [];
-  const indices = [];
-  const steps = 32;
-  for (const section of sections) {
-    for (let j = 0; j <= steps; j += 1) {
-      const angle = THREE.MathUtils.lerp(section.startAngle, Math.PI - section.startAngle, j / steps);
-      const c = Math.cos(angle);
-      const s = Math.sin(angle);
-      vertices.push(
-        (section.width + 0.018) * Math.sign(c) * Math.abs(c) ** 0.82,
-        section.centerY + (section.height + 0.018) * Math.sign(s) * Math.abs(s) ** 0.82,
-        section.z,
-      );
-    }
-  }
-  for (let i = 0; i < sections.length - 1; i += 1) {
-    for (let j = 0; j < steps; j += 1) {
-      const a = i * (steps + 1) + j;
-      const c = a + steps + 1;
-      indices.push(a, a + 1, c, a + 1, c + 1, c);
-    }
-  }
-  return indexedGeometry(vertices, indices);
-}
-
-function scoutSurfacePatch(side, sideSurfaceX, stations, offset) {
-  const vertices = [];
-  const indices = [];
-  for (const [z, lower, upper] of stations) {
-    for (let j = 0; j < 5; j += 1) {
-      const y = THREE.MathUtils.lerp(lower, upper, j / 4);
-      vertices.push(side * sideSurfaceX(z, y, offset), y, z);
-    }
-  }
-  for (let i = 0; i < stations.length - 1; i += 1) {
-    for (let j = 0; j < 4; j += 1) {
-      const a = i * 5 + j;
-      const c = a + 5;
-      if (side > 0) indices.push(a, a + 1, c, a + 1, c + 1, c);
-      else indices.push(a, c, a + 1, a + 1, c, c + 1);
-    }
-  }
-  return indexedGeometry(vertices, indices);
+  return scoutBodyMaterials(indexedGeometry(vertices, indices), parameters);
 }
 
 const scoutCabinStations = [
-  { z: -1.45, width: 0.55, roofY: 0.94 },
-  { z: -1.10, width: 0.59, roofY: 0.99 },
-  { z: -0.25, width: 0.60, roofY: 1.00 },
-  { z: 0.35, width: 0.57, roofY: 0.96 },
-  { z: 0.55, width: 0.52, roofY: 0.83 },
-  { z: 0.76, width: 0.45, roofY: 0.55 },
+  { z: -2.04, roofY: 0.48 }, { z: -1.76, roofY: 0.70 },
+  { z: -1.45, roofY: 0.94 }, { z: -1.10, roofY: 0.99 },
+  { z: -0.25, roofY: 1.00 }, { z: 0.35, roofY: 0.95 },
+  { z: 0.70, roofY: 0.77 }, { z: 1.10, roofY: 0.55 },
+  { z: 1.55, roofY: 0.39 },
 ];
 const scoutCabinProfile = [
-  [0, 1], [0.32, 1.05], [0.62, 1.03], [0.78, 0.96],
-  [0.90, 0.80], [0.97, 0.55], [1, 0],
+  [0, 1], [0.16, 0.985], [0.32, 0.97], [0.62, 0.94],
+  [0.78, 0.90], [0.90, 0.76], [0.97, 0.49], [1, 0],
 ];
 
-function scoutCabinSidePoint(side, z, height, offset = 0) {
-  const index = Math.max(0, scoutCabinStations.findIndex(station => station.z >= z) - 1);
-  const a = scoutCabinStations[index];
-  const b = scoutCabinStations[Math.min(index + 1, scoutCabinStations.length - 1)];
-  const t = b.z === a.z ? 0 : (z - a.z) / (b.z - a.z);
-  const width = THREE.MathUtils.lerp(a.width, b.width, t);
-  const roofY = THREE.MathUtils.lerp(a.roofY, b.roofY, t);
-  const profileIndex = Math.max(0, scoutCabinProfile.findIndex(point => point[0] >= height) - 1);
-  const [lowHeight, lowWidth] = scoutCabinProfile[profileIndex];
-  const [highHeight, highWidth] = scoutCabinProfile[Math.min(profileIndex + 1, scoutCabinProfile.length - 1)];
-  const fraction = highHeight === lowHeight ? 0 : (height - lowHeight) / (highHeight - lowHeight);
-  return [side * (width * THREE.MathUtils.lerp(lowWidth, highWidth, fraction) + offset),
-    THREE.MathUtils.lerp(0.15, roofY, height), z];
+function scoutCabinSidePoint(side, z, height, offset = 0, sections) {
+  const body = scoutBodySection(sections, z);
+  const roofIndex = Math.max(0, scoutCabinStations.findIndex(station => station.z >= z) - 1);
+  const a = scoutCabinStations[roofIndex], b = scoutCabinStations[Math.min(roofIndex + 1, scoutCabinStations.length - 1)];
+  const blend = z < -2.04 || z > 1.55 ? 0 : 1;
+  const roofY = blend ? THREE.MathUtils.lerp(a.roofY, b.roofY, (z - a.z) / (b.z - a.z)) : body.centerY + body.height;
+  const joinY = blend ? 0.15 : body.centerY;
+  const y = THREE.MathUtils.lerp(joinY, roofY, height);
+  const sine = THREE.MathUtils.clamp(Math.abs((joinY - body.centerY) / body.height) ** (1 / 0.82), 0, 1);
+  const width = body.width * Math.sqrt(1 - sine * sine) ** 0.82;
+  const index = Math.max(0, scoutCabinProfile.findIndex(point => point[0] >= height) - 1);
+  const [h0, w0] = scoutCabinProfile[index], [h1, w1] = scoutCabinProfile[Math.min(index + 1, scoutCabinProfile.length - 1)];
+  const cabinX = width * THREE.MathUtils.lerp(w0, w1, (height - h0) / (h1 - h0));
+  const bodySine = THREE.MathUtils.clamp(Math.abs((y - body.centerY) / body.height) ** (1 / 0.82), 0, 1);
+  const bodyX = body.width * Math.sqrt(1 - bodySine * bodySine) ** 0.82;
+  // Fade the cabin's cross-section back into the ordinary nose/tail ellipse.
+  const cabinBlend = Math.min(THREE.MathUtils.clamp((z + 2.04) / 0.3, 0, 1),
+    THREE.MathUtils.clamp((1.55 - z) / 0.45, 0, 1));
+  return [side * (THREE.MathUtils.lerp(bodyX, cabinX, cabinBlend) + offset), y, z];
 }
 
-function scoutCabinShell() {
-  const vertices = [];
-  const indices = [];
-  const heights = [0, 0.16, 0.32, 0.47, 0.62, 0.70, 0.78, 0.84, 0.90, 0.95, 0.97, 1];
-  const perimeter = heights.length * 2 - 1;
-  for (const station of scoutCabinStations) {
-    for (const height of heights) vertices.push(...scoutCabinSidePoint(-1, station.z, height));
-    for (const height of heights.slice(0, -1).reverse())
-      vertices.push(...scoutCabinSidePoint(1, station.z, height));
-  }
-  for (let i = 0; i < scoutCabinStations.length - 1; i += 1) {
-    for (let j = 0; j < perimeter - 1; j += 1) {
-      const a = i * perimeter + j;
-      const c = a + perimeter;
-      indices.push(a, c, a + 1, a + 1, c, c + 1);
+// Split the existing skin by glazing and livery outlines. Every material
+// shares boundary vertices and interpolated normals: no raised overlays.
+function scoutBodyMaterials(skin, parameters) {
+  const windows = [
+    // The windshield wraps down to the sill and back beneath the wing.
+    // Its outer edge follows the door glass across a narrow, constant A-pillar.
+    [[-1.80, 0.49], [-1.16, 0.82], [-0.82, 0.9988], [-1.98, 0.9988], [-1.98, 0.96]],
+    [[-1.74, 0.49], [-1.70, 0.46], [-0.29, 0.33], [-0.25, 0.37],
+      [-0.25, 0.78], [-0.29, 0.82], [-1.10, 0.82]],
+    [[-0.14, 0.36], [-0.10, 0.33], [1.04, 0.76], [1.08, 0.80],
+      [-0.10, 0.80], [-0.14, 0.77]],
+  ];
+  // One flush paint mask joins the rounded cowling to the two tapering stripes.
+  // Triangulating the concave outlines keeps all paint on the original skin.
+  const paintOutlines = [
+    [[-2.92, -.20], [-2.65, -.28], [-2.45, -.25], [-2.28, -.18],
+      [-2.12, -.08], [-1.92, -.035], [-1.84, .10], [-1.89, .15],
+      [-1.92, .27], [-1.92, .38], [-1.97, .49], [-2.04, .55], [-2.92, .55]],
+    [[-2.12, -.035], [-1.70, -.035], [-.55, -.02], [.75, .045],
+      [1.65, .15], [2.68, .27], [2.76, .285], [2.60, .29],
+      [1.65, .25], [.75, .17], [-.55, .10], [-1.70, .10], [-2.12, .10]],
+    [[-2.24, -.14], [-1.65, -.155], [-.55, -.12], [.75, -.045],
+      [1.65, .075], [2.52, .185], [1.65, .12], [.75, .005],
+      [-.55, -.075], [-1.65, -.11], [-2.24, -.12]],
+  ];
+  const paint = paintOutlines.flatMap(outline => {
+    const points = outline.map(([x, y]) => new THREE.Vector2(x, y));
+    return THREE.ShapeUtils.triangulateShape(points, []).map(indices => {
+      const triangle = indices.map(index => outline[index]);
+      const [a,b,c] = triangle;
+      return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]) < 0 ? triangle.reverse() : triangle;
+    });
+  });
+  const output = { base: { positions: [], normals: [] }, glass: { positions: [], normals: [] }, primary: { positions: [], normals: [] } };
+  const position = skin.getAttribute('position'), normal = skin.getAttribute('normal');
+  const interpolate = (a, b, t) => ({ uv: a.uv.map((v, i) => THREE.MathUtils.lerp(v, b.uv[i], t)),
+    p: a.p.map((v, i) => THREE.MathUtils.lerp(v, b.p[i], t)),
+    n: a.n.map((v, i) => THREE.MathUtils.lerp(v, b.n[i], t)) });
+  const clip = (polygon, a, b, inside) => {
+    const result = [];
+    const distance = vertex => (b[0] - a[0]) * (vertex.uv[1] - a[1]) - (b[1] - a[1]) * (vertex.uv[0] - a[0]);
+    for (let i = 0; i < polygon.length; i++) {
+      const previous = polygon[(i + polygon.length - 1) % polygon.length], current = polygon[i];
+      const d0 = distance(previous), d1 = distance(current);
+      const keep0 = inside ? d0 >= 0 : d0 <= 0, keep1 = inside ? d1 >= 0 : d1 <= 0;
+      if (keep0 !== keep1) result.push(interpolate(previous, current, d0 / (d0 - d1)));
+      if (keep1) result.push(current);
     }
-  }
-  const rearCenter = vertices.length / 3;
-  vertices.push(0, 0.15, scoutCabinStations.at(-1).z);
-  const last = (scoutCabinStations.length - 1) * perimeter;
-  for (let j = 0; j < perimeter - 1; j += 1) indices.push(rearCenter, last + j, last + j + 1);
-  return indexedGeometry(vertices, indices);
-}
-
-function scoutWindshieldPoint(horizontal, height, offset = 0) {
-  const side = Math.abs(horizontal);
-  const roofY = 0.94 - 0.08 * side * side;
-  const roofHeight = (roofY - 0.15) / (0.94 - 0.15);
-  const roofX = side === 0 ? 0 : scoutCabinSidePoint(Math.sign(horizontal), -1.45, roofHeight)[0];
-  return [THREE.MathUtils.lerp(horizontal * 0.54, roofX, height),
-    THREE.MathUtils.lerp(0.46 - 0.04 * side, roofY, height),
-    THREE.MathUtils.lerp(-2.04 + 0.03 * side, -1.45, height) - offset];
-}
-
-function scoutSurfaceGrid(surface, uSteps, vSteps, reverse) {
-  const vertices = [];
-  const indices = [];
-  for (let row = 0; row <= vSteps; row += 1) {
-    for (let column = 0; column <= uSteps; column += 1)
-      vertices.push(...surface(column / uSteps, row / vSteps));
-  }
-  for (let row = 0; row < vSteps; row += 1) {
-    for (let column = 0; column < uSteps; column += 1) {
-      const a = row * (uSteps + 1) + column;
-      const c = a + uSteps + 1;
-      if (reverse) indices.push(a, c, a + 1, a + 1, c, c + 1);
-      else indices.push(a, a + 1, c, a + 1, c + 1, c);
+    return result;
+  };
+  const emit = (slot, polygon) => {
+    for (let i = 1; i < polygon.length - 1; i++) {
+      const triangle = [polygon[0], polygon[i], polygon[i + 1]];
+      const a = new THREE.Vector3(...triangle[1].p).sub(new THREE.Vector3(...triangle[0].p));
+      const b = new THREE.Vector3(...triangle[2].p).sub(new THREE.Vector3(...triangle[0].p));
+      if (a.cross(b).lengthSq() < 1e-18) continue;
+      for (const vertex of triangle) {
+        output[slot].positions.push(...vertex.p); output[slot].normals.push(...vertex.n);
+      }
     }
-  }
-  return indexedGeometry(vertices, indices);
-}
-
-function scoutRoundedWindow(surface, uStart, uEnd, vStart, vEnd, cornerU, cornerV, reverse) {
-  const vertices = [];
-  const indices = [];
-  const rows = [0, 0.5, 1, -1, -0.5, 0];
-  for (let row = 0; row < rows.length; row += 1) {
-    const lower = row < 3;
-    const v = lower ? vStart + cornerV * rows[row] : vEnd + cornerV * rows[row];
-    const inset = row === 0 || row === 5 ? cornerU : row === 1 || row === 4 ? cornerU * 0.35 : 0;
-    for (let column = 0; column <= 8; column += 1) {
-      const u = THREE.MathUtils.lerp(uStart + inset, uEnd - inset, column / 8);
-      vertices.push(...surface(u, v));
+  };
+  const partition = (polygons, outlines, slot) => {
+    let remaining = polygons;
+    for (const outline of outlines) {
+      const bounds = [Math.min(...outline.map(p => p[0])), Math.max(...outline.map(p => p[0])),
+        Math.min(...outline.map(p => p[1])), Math.max(...outline.map(p => p[1]))];
+      const outside = [];
+      for (const polygon of remaining) {
+        // Avoid splitting triangles that cannot touch this outline.
+        if (polygon.every(v => v.uv[0] < bounds[0]) || polygon.every(v => v.uv[0] > bounds[1]) ||
+          polygon.every(v => v.uv[1] < bounds[2]) || polygon.every(v => v.uv[1] > bounds[3])) {
+          outside.push(polygon); continue;
+        }
+        let inner = polygon;
+        for (let edge = 0; edge < outline.length && inner.length >= 3; edge++) {
+          const a = outline[edge], b = outline[(edge + 1) % outline.length];
+          const piece = clip(inner, a, b, false);
+          if (piece.length >= 3) outside.push(piece);
+          inner = clip(inner, a, b, true);
+        }
+        if (inner.length >= 3) emit(slot, inner);
+      }
+      remaining = outside;
     }
+    return remaining;
+  };
+  for (let i = 0; i < skin.index.count; i += 3) {
+    const triangle = [0, 1, 2].map(corner => {
+      const index = skin.index.getX(i + corner);
+      return { uv: parameters[index], p: [position.getX(index), position.getY(index), position.getZ(index)],
+        n: [normal.getX(index), normal.getY(index), normal.getZ(index)] };
+    });
+    const remaining = triangle.every(vertex => vertex.uv[1] >= 0) ? partition([triangle], windows, 'glass') : [triangle];
+    const paintSurface = remaining.map(polygon => polygon.map(vertex => ({ ...vertex, uv: [vertex.p[2], vertex.p[1]] })));
+    for (const polygon of partition(paintSurface, paint, 'primary')) emit('base', polygon);
   }
-  for (let row = 0; row < rows.length - 1; row += 1) {
-    for (let column = 0; column < 8; column += 1) {
-      const a = row * 9 + column;
-      const c = a + 9;
-      if (reverse) indices.push(a, c, a + 1, a + 1, c, c + 1);
-      else indices.push(a, a + 1, c, a + 1, c + 1, c);
-    }
-  }
-  return indexedGeometry(vertices, indices);
+  skin.dispose();
+  return Object.fromEntries(Object.entries(output).map(([slot, data]) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(data.normals, 3));
+    geometry.normalizeNormals();
+    return [slot, geometry];
+  }));
 }
 
 const scoutAirfoilProfile = [
@@ -555,14 +554,10 @@ function buildScout() {
     { z: 2.50, width: 0.25, height: 0.21, centerY: 0.08 },
     { z: 3.16, width: 0.015, height: 0.015, centerY: 0.27 },
   ];
-  b.add('base', scoutFuselage(sections));
-  b.add('primary', scoutNoseCowling([
-    { ...sections[0], startAngle: -0.28 },
-    { ...sections[1], startAngle: -0.22 },
-    { ...sections[2], startAngle: -0.16 },
-    { z: -2.14, width: 0.54, height: 0.45, centerY: 0.03, startAngle: -0.02 },
-    { z: -1.99, width: 0.56, height: 0.46, centerY: 0.03, startAngle: 0.22 },
-  ]));
+  const fuselage = scoutFuselage(sections);
+  b.add('base', fuselage.base);
+  b.add('glass', fuselage.glass);
+  b.add('primary', fuselage.primary);
   // Seal the aft ring so rear views cannot see through the fuselage.
   b.add('base', new THREE.CircleGeometry(1, 16), vector(0, 0.27, 3.162),
     euler(), vector(0.018, 0.018, 1));
@@ -571,114 +566,18 @@ function buildScout() {
   b.cylinder('dark', 0.215, 0.215, 0.012, vector(0, 0.04, -2.95));
   b.add('dark', new THREE.TorusGeometry(0.23, 0.025, 5, 16), vector(0, 0.04, -2.965));
   b.cone('primary', 0.19, 0.39, vector(0, 0.04, -3.14));
-  b.materials.glass = new THREE.MeshStandardMaterial({ color: 0x10283e, roughness: 0.16,
-    metalness: 0.24, side: THREE.DoubleSide });
+  b.materials.glass = new THREE.MeshStandardMaterial({ color: 0x10283e, roughness: 0.26,
+    metalness: 0.08, side: THREE.DoubleSide });
   b.materials.glass.name = materialSlots.glass;
 
-  const sideSurfaceX = (z, y, offset = 0.035) => {
-    const index = Math.max(0, sections.findIndex(section => section.z >= z) - 1);
-    const a = sections[index];
-    const c = sections[Math.min(index + 1, sections.length - 1)];
-    const t = c.z === a.z ? 0 : (z - a.z) / (c.z - a.z);
-    const width = THREE.MathUtils.lerp(a.width, c.width, t);
-    const height = THREE.MathUtils.lerp(a.height, c.height, t);
-    const centerY = THREE.MathUtils.lerp(a.centerY, c.centerY, t);
-    const sine = Math.min(1, Math.abs((y - centerY) / height) ** (1 / 0.82));
-    return width * Math.sqrt(1 - sine * sine) ** 0.82 + offset;
-  };
-  const frontCabinSidePoint = (side, z, height, offset = 0) => {
-    const progress = THREE.MathUtils.clamp((z + 2.01) / 0.56, 0, 1);
-    const upper = scoutWindshieldPoint(side, progress);
-    const y = THREE.MathUtils.lerp(0.15, upper[1], height);
-    const lowerX = side * sideSurfaceX(z, 0.15, 0.018);
-    const flatX = THREE.MathUtils.lerp(lowerX, upper[0], height);
-    const cabinHeight = (y - 0.15) / (0.94 - 0.15);
-    const cabinX = scoutCabinSidePoint(side, -1.45, cabinHeight)[0];
-    // Keep the outer edge exactly on the windshield; the side wall bulges
-    // smoothly into the wider cabin below it.
-    return [flatX + progress * (cabinX - flatX) * (1 - height ** 32) + side * offset, y, z];
-  };
-  const sideWindowPoint = (side, z, height) => {
-    if (z >= -1.45) return scoutCabinSidePoint(side, z, height, 0.04);
-    const targetY = THREE.MathUtils.lerp(0.15, 0.94, height);
-    const progress = (z + 2.01) / 0.56;
-    const edgeY = scoutWindshieldPoint(side, progress)[1];
-    return frontCabinSidePoint(side, z, (targetY - 0.15) / (edgeY - 0.15), 0.04);
-  };
-
-  for (const side of [-1, 1]) {
-    // The intake is set into the visible side of the blue nose immediately
-    // behind the propeller, with a second opening under the white chin.
-    b.add('primary', scoutSurfacePatch(side, sideSurfaceX, [
-      [-2.88, 0.09, 0.19], [-2.82, 0.01, 0.27],
-      [-2.62, 0.01, 0.28], [-2.55, 0.09, 0.21],
-    ], 0.04));
-    b.add('dark', scoutSurfacePatch(side, sideSurfaceX, [
-      [-2.84, 0.10, 0.18], [-2.79, 0.05, 0.23],
-      [-2.65, 0.05, 0.24], [-2.59, 0.10, 0.19],
-    ], 0.055));
-    b.add('dark', scoutSurfacePatch(side, sideSurfaceX, [
-      [-2.74, -0.25, -0.18], [-2.70, -0.29, -0.17],
-      [-2.55, -0.30, -0.18], [-2.52, -0.25, -0.20],
-    ], 0.045));
-  }
+  // Keep the forward chin intake; the cowling sides are uninterrupted skin.
   b.add('dark', scoutPanel([
     [-0.17, -0.17, -2.948], [-0.12, -0.26, -2.948],
     [0.12, -0.26, -2.948], [0.17, -0.17, -2.948],
   ], -1));
 
-  // A continuous arched cabin replaces the flat roof and separate window rods.
-  // Narrow exposed areas of this shell form the A/B pillars and window seals.
-  b.add('base', scoutCabinShell());
-  b.add('base', scoutSurfaceGrid((u, v) => scoutWindshieldPoint(u * 2 - 1, v), 16, 8, true));
-  // Close the lower windshield against the round cowling. The cowling narrows
-  // near its sides, leaving a visible opening without this curved white sill.
-  b.add('base', scoutSurfaceGrid((u, v) => {
-    const edge = scoutWindshieldPoint(u * 2 - 1, 0);
-    const cosine = Math.min(1, Math.abs(edge[0]) / 0.578) ** (1 / 0.82);
-    const cowlY = 0.03 + 0.478 * Math.sqrt(1 - cosine * cosine) ** 0.82;
-    const lowerY = Math.min(edge[1] - 0.015, cowlY + 0.012);
-    return [edge[0], THREE.MathUtils.lerp(lowerY, edge[1], v),
-      THREE.MathUtils.lerp(-2.00, edge[2], v)];
-  }, 16, 5, true));
-  for (const [start, end] of [[-0.95, -0.018], [0.018, 0.95]]) {
-    b.add('glass', scoutRoundedWindow((u, v) => scoutWindshieldPoint(u, v, 0.018),
-      start, end, 0.055, 0.90, 0.05, 0.045, true));
-  }
   for (const side of [-1, 1]) {
-    b.add('base', scoutSurfaceGrid((u, v) => frontCabinSidePoint(side, -2.01 + u * 0.56, v),
-      8, 8, side > 0));
-    b.add('glass', scoutRoundedWindow((u, v) => {
-      const frontZ = THREE.MathUtils.lerp(-1.86, -1.39, (v - 0.35) / (0.80 - 0.35));
-      return sideWindowPoint(side, THREE.MathUtils.lerp(frontZ, -0.30, u), v);
-    }, 0, 1, 0.35, 0.80, 0.045, 0.05, side > 0));
-    b.add('glass', scoutRoundedWindow((z, v) => sideWindowPoint(side, z, v),
-      -0.19, 0.46, 0.35, 0.76, 0.055, 0.05, side > 0));
     b.box('metal', vector(0.018, 0.026, 0.11), vector(side * 0.65, 0.13, -0.31));
-    const stripes = [
-      [-2.32, -0.02, -0.13], [-1.75, -0.04, -0.16],
-      [-0.55, -0.04, -0.15], [0.75, 0.03, -0.08],
-      [1.65, 0.13, 0.07], [2.68, 0.16, 0.13],
-    ];
-    const stripeStations = [];
-    for (let i = 0; i < stripes.length - 1; i += 1) {
-      const [z0, upper0, lower0] = stripes[i];
-      const [z1, upper1, lower1] = stripes[i + 1];
-      const steps = Math.ceil((z1 - z0) / 0.18);
-      for (let step = i === 0 ? 0 : 1; step <= steps; step += 1) {
-        const t = step / steps;
-        stripeStations.push([THREE.MathUtils.lerp(z0, z1, t),
-          THREE.MathUtils.lerp(lower0, lower1, t), THREE.MathUtils.lerp(upper0, upper1, t)]);
-      }
-    }
-    b.add('primary', scoutSurfacePatch(side, sideSurfaceX, stripeStations, 0.045));
-    const lowerStripeStations = [];
-    for (let step = 0; step <= 26; step += 1) {
-      const t = step / 26;
-      lowerStripeStations.push([THREE.MathUtils.lerp(-2.32, 1.72, t),
-        THREE.MathUtils.lerp(-0.22, 0.005, t), THREE.MathUtils.lerp(-0.195, 0.03, t)]);
-    }
-    b.add('primary', scoutSurfacePatch(side, sideSurfaceX, lowerStripeStations, 0.047));
   }
 
   for (const side of [-1, 1]) {
