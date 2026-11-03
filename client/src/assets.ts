@@ -49,7 +49,7 @@ const urls: Record<AssetKey, string> = {
 
 const loader = new GLTFLoader();
 const cache = new Map<AssetKey, Promise<THREE.Group>>();
-const aircraftAssetVersion = 'bluejay-premium-v3';
+const aircraftAssetVersion = 'bluejay-premium-v5';
 const fighterAssetVersion = 'firehawk-integrated-fin-tip-v20';
 const nightowlAssetVersion = 'nightowl-airliner-v1';
 const bounds = new THREE.Box3();
