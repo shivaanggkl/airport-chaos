@@ -152,3 +152,20 @@ for(const baseline of [true,false]){
  assert.ok(results[1]!.exposed<results[0]!.exposed/4,'developing firing-lane exposure is substantially reduced');
  assert.ok(results[1]!.opportunities>0,'defense must produce an offensive opening rather than only running away');
 });
+
+test('Legendary tracks a sustained fast Bluejay turn within its real envelope and closes to a useful firing distance',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',-1800);
+ const speed=aircraftFlightEnvelope.trainer.maxSpeed;
+ target.velocity={x:0,y:0,z:-speed};
+ const input={enemy,target,targetId:'pilot',speed:600,now:0,cruise:aircraftFlightEnvelope.fighter.maxSpeed,firingSolution:true,floorAt:floor};
+ planOpponentTactics(runtime,input);planOpponentTactics(runtime,{...input,now:500});
+ target.rotation.y=.18;target.velocity={x:-Math.sin(.18)*speed,y:0,z:-Math.cos(.18)*speed};
+ planOpponentTactics(runtime,{...input,now:600});
+ assert.ok(runtime.tactics!.targetTurnRate>aircraftFlightEnvelope.trainer.yawRate,'prediction must not truncate a physically valid banked turn to the raw yaw setting');
+ assert.ok(runtime.tactics!.targetTurnRate<2.4);
+ const fresh=opponent('LEGENDARY','fighter');target.position={...enemy.position,z:enemy.position.z-900};target.rotation.y=0;target.velocity={x:0,y:0,z:-speed};
+ planOpponentTactics(fresh,input);const attack=planOpponentTactics(fresh,{...input,now:500});
+ assert.equal(attack.tactic,'attackPass');
+ assert.ok(attack.cruise>speed,'close a rear firing gap rather than matching speed too far away');
+ assert.ok(attack.cruise<=aircraftFlightEnvelope.fighter.maxSpeed);
+});

@@ -46,12 +46,8 @@ test('aircraft damage produces the approved regular-combat hit counts', () => {
   assert.match(server, /applyCombatHit\(projectile\.ownerId, hitPlayerId, projectile\.cityId, now, projectile\.damage/);
 });
 
-test('grounded runway aircraft can fire, be targeted, and take projectile damage', () => {
-  assert.doesNotMatch(client, /if \(onGround\) return 'protection'/);
-  assert.doesNotMatch(server, /runwayCombatProtected|runwayCombatProtectionActive|runway_protected/);
-  assert.match(server, /function fireBlockReason[\s\S]*player\.lifeState !== 'alive'[\s\S]*fireIntervalMs\(player\.aircraftType\)[\s\S]*now - player\.lastFireAt < interval/);
-  assert.match(server, /function applyCombatHit[\s\S]*victim\.lifeState !== 'alive' \|\| now < victim\.spawnProtectedUntil/);
-  assert.match(server, /function updateProjectiles[\s\S]*now < player\.spawnProtectedUntil[\s\S]*projectileImpactFraction/);
+test('runway protection is checked for locks, projectile collision and the authoritative damage boundary', () => {
+  for(const pattern of [/runwayCombatProtected\(targetId, target\)/,/runwayCombatProtected\(victimId, victim\)/,/runwayCombatProtected\(ownerId, owner\)/,/runwayCombatProtected\(playerId, player\)/])assert.match(server,pattern);
 });
 
 test('temporary spawn protection remains independent of runway state', () => {
@@ -59,4 +55,49 @@ test('temporary spawn protection remains independent of runway state', () => {
   assert.match(server, /now < victim\.spawnProtectedUntil/);
   assert.match(server, /now < player\.spawnProtectedUntil/);
   assert.match(server, /player\.spawnProtectedUntil = now \+ spawnProtectionMs/);
+});
+
+import vm from 'node:vm';
+import ts from 'typescript';
+import { cityAirports } from '../../shared/city-airports.mjs';
+import { journeyDallas08, journeyDallas09, journeyDallas10 } from '../../shared/journey-mission.mjs';
+const tree=ts.createSourceFile('index.ts',server,ts.ScriptTarget.Latest,true);
+function runtime() {
+ const names=['runwayCombatProtected','runwayOrTaxiSpawnArea','applyCombatHit','fireBlockReason','canFire'];
+ const code=tree.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text??'')).map(n=>n.getText(tree)).join('\n');
+ const packets:unknown[]=[];let scores=0;
+ const ctx=vm.createContext({cityAirports,journeyDallas08,journeyDallas09,journeyDallas10,dallasAirportElevations:new Map(cityAirports.dallas.map(a=>[a.id,100])),
+  landingFlightState:new Map(),players:new Map(),playerJourneyRunwayPrep:new Set(),
+  focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,
+  skyDuelSessions:new Map([['match',{id:'match',phase:'active'}]]),skyDuelHealth:100,sendSkyDuel:(_s:unknown,p:unknown)=>packets.push(p),
+  markPlayerDestroyed:()=>{},skyDuelScoreDestruction:()=>scores++,sendSkyDuelScore:()=>{},fireIntervalMs,
+ });
+ vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);
+ return {ctx,packets,scores:()=>scores};
+}
+function plane(isBot=false) {
+ const a=cityAirports.dallas.find(a=>a.id==='dfw')!;
+ return {entityType:'player',cityId:'dallas',aircraftType:'trainer',isBot,lifeState:'alive',health:100,
+  spawnProtectedUntil:0,lastFireAt:0,skyDuelMode:true,skyDuelMatchId:'match',position:{x:a.x,y:101.2,z:a.z},velocity:{x:0,y:0,z:-100}};
+}
+test('both human and AI remain protected while parked or accelerating; airborne combat resumes normally',()=>{
+ const {ctx,packets,scores}=runtime(),human=plane(),enemy=plane(true);
+ ctx.players.set('human',human);ctx.players.set('enemy',enemy);
+ ctx.landingFlightState.set('human',{baselineY:101.2,airborne:false});
+ assert.equal(ctx.runwayCombatProtected('enemy',enemy),true);
+ assert.equal(ctx.canFire(human,10000,'human'),false);
+ enemy.position.y=800;
+ assert.equal(ctx.applyCombatHit('enemy','human','dallas',10000,100),false);
+ assert.equal(human.health,100);assert.equal(scores(),0);assert.equal(packets.length,0);
+ assert.equal(ctx.applyCombatHit('human','enemy','dallas',10000,100),false,'ground protection cannot become an invulnerable firing position');
+ human.position.y=121.2;
+ assert.equal(ctx.runwayCombatProtected('human',human),true,'client altitude alone does not bypass the accepted takeoff state');
+ ctx.landingFlightState.get('human').airborne=true;
+ assert.equal(ctx.canFire(human,10000,'human'),true);
+ assert.equal(ctx.applyCombatHit('enemy','human','dallas',10000,40),true);assert.equal(human.health,60);
+ assert.equal(ctx.applyCombatHit('human','enemy','dallas',10000,25),true);assert.equal(enemy.health,75);
+ enemy.position.y=101.2;
+ assert.equal(ctx.applyCombatHit('human','enemy','dallas',10000,100),false);assert.equal(enemy.health,75);assert.equal(scores(),0);
+ human.position.y=101.2;
+ assert.equal(ctx.runwayCombatProtected('human',human),true,'landing or respawning on the runway restores geometry protection even if takeoff was previously recorded');
 });

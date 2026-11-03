@@ -93,7 +93,9 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   if(!emergency && now<m.observedAt+profile.trackingMs)return m.plan;
   const seconds=Math.max(.05,(now-m.observedAt)/1000), weight=1-Math.exp(-seconds/5), decay=Math.exp(-seconds/18);
   const turn=wrap(target.rotation.y-m.heading)/seconds;
-  m.targetTurnRate=clamp(turn,-aircraftFlightEnvelope[target.aircraftType].yawRate,aircraftFlightEnvelope[target.aircraftType].yawRate);
+  const targetEnvelope=aircraftFlightEnvelope[target.aircraftType],targetRatio=clamp(targetSpeed/targetEnvelope.maxSpeed,0,1);
+  const observedTurnLimit=expert?(.42+targetRatio*.5)*targetEnvelope.yawRate/targetEnvelope.inertia+targetRatio*targetEnvelope.bankTurn:targetEnvelope.yawRate;
+  m.targetTurnRate=clamp(turn,-observedTurnLimit,observedTurnLimit);
   m.turnBias=m.turnBias*decay+clamp(turn,-1,1)*(1-decay);
   m.turning+=(Math.abs(turn)-m.turning)*weight;
   m.climbing+=(Math.abs(target.position.y-m.altitude)/seconds-m.climbing)*weight;
@@ -173,7 +175,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   }
   if(expert && !['extendAway','disengage','defensiveBreak','energyRecovery'].includes(choice) && nose>0) {
     const e=aircraftFlightEnvelope[enemy.aircraftType];
-    const ideal=COMBAT_RANGE*BASE_PROJECTILE_SPEED/(BASE_PROJECTILE_SPEED+targetSpeed)*.55;
+    const ideal=COMBAT_RANGE*BASE_PROJECTILE_SPEED/(BASE_PROJECTILE_SPEED+targetSpeed)*.30;
     const brake=Math.max(e.drag*(input.speed/e.maxSpeed)**2/e.inertia,e.airbrakeDrag/e.inertia*.35);
     const matching=Math.max(space.minSpeed*2,targetSpeed+(range-ideal)*.12-Math.max(0,closing)*.2);
     const brakingCap=Math.sqrt(Math.max(space.minSpeed**2,targetSpeed**2+2*brake*Math.max(0,range-ideal)));

@@ -108,7 +108,7 @@ const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const tree = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true);
 function production(names: string[], dependencies: Record<string, unknown>) {
   const code = tree.statements.filter(n => ts.isFunctionDeclaration(n) && names.includes(n.name?.text ?? '')).map(n => n.getText(tree)).join('\n');
-  const context = vm.createContext(dependencies);
+  const context = vm.createContext({runwayCombatProtected:()=>false,...dependencies});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   return context;
 }

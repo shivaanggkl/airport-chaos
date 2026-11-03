@@ -5248,7 +5248,7 @@ function closestLockTarget(
       !tutorialCombatPairAllowed(ownerId, player, targetId, target) ||
       !sameCombatContext(player, target) ||
       target.lifeState !== 'alive' ||
-      now < target.spawnProtectedUntil ||
+      now < target.spawnProtectedUntil || runwayCombatProtected(targetId, target) ||
       now - target.lastStateAt > combatTransformFreshMs ||
       focusedBotInteractionExcluded(ownerId, player, targetId, target)
     ) continue;
@@ -5328,7 +5328,7 @@ function validDynamicTarget(ownerId: string, owner: PlayerState, targetId: strin
       !sameCombatContext(owner, target) ||
       focusedBotInteractionExcluded(ownerId, owner, targetId, target) ||
       !tutorialCombatPairAllowed(ownerId, owner, targetId, target) ||
-      target.lifeState !== 'alive' || now < target.spawnProtectedUntil ||
+      target.lifeState !== 'alive' || now < target.spawnProtectedUntil || runwayCombatProtected(ownerId, owner) || runwayCombatProtected(targetId, target) ||
       now - target.lastStateAt > combatTransformFreshMs) return undefined;
   const local = targetInAircraftSpace(transform, target);
   if (Math.hypot(local.x, local.y, local.z) > COMBAT_RANGE || !insideDynamicLock(local.x, local.y, local.z, aim)) return undefined;
@@ -5349,13 +5349,19 @@ function currentLockedTarget(
   return validDynamicTarget(ownerId, owner, targetId, now, transform);
 }
 
-function canFire(player: PlayerState, now: number): boolean {
-  return fireBlockReason(player, now) === undefined;
+/** Ground safety comes from accepted flight state and runway geometry, never client claims. */
+function runwayCombatProtected(playerId: string | undefined, player: PlayerState): boolean {
+  return (!player.isBot && playerId !== undefined && landingFlightState.get(playerId)?.airborne === false) ||
+    Boolean(runwayOrTaxiSpawnArea(player));
 }
 
-function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'cooldown' | undefined {
+function canFire(player: PlayerState, now: number, playerId?: string): boolean {
+  return fireBlockReason(player, now, playerId) === undefined;
+}
+
+function fireBlockReason(player: PlayerState, now: number, playerId?: string): 'lifecycle' | 'cooldown' | undefined {
   if(player.soloExploreMode||player.portalTransit)return 'lifecycle';
-  if (player.entityType !== 'player' || player.lifeState !== 'alive') return 'lifecycle';
+  if (player.entityType !== 'player' || player.lifeState !== 'alive' || runwayCombatProtected(playerId, player)) return 'lifecycle';
   if(player.airAssaultId&&!airAssaultEncounters.get(player.airAssaultOwnerId!)?.canFight())return 'lifecycle';
   if (player.skyDuelMode && !player.skyDuelPractice &&
     (!player.skyDuelMatchId || skyDuelSessions.get(player.skyDuelMatchId)?.phase !== 'active')) return 'lifecycle';
@@ -5415,7 +5421,7 @@ function validatedShotAim(player: PlayerState, reference: unknown, now: number):
 function createProjectile(playerId: string, player: PlayerState, clientShotId?: string, fireTransform?: Transform, aim = { x: 0, y: 0 }, damageOverride?: number): boolean {
   const now = Date.now();
   if (
-    !canFire(player, now) ||
+    !canFire(player, now, playerId) ||
     !projectileBudget.reserve(playerId, player.cityId)
   ) {
     return false;
@@ -5529,6 +5535,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if (
     !owner || !victim || victimId === ownerId || victim.entityType !== 'player' ||
     victim.cityId !== cityId || victim.lifeState !== 'alive' || now < victim.spawnProtectedUntil || playerJourneyRunwayPrep.has(victimId) ||
+    runwayCombatProtected(ownerId, owner) || runwayCombatProtected(victimId, victim) ||
     focusedBotInteractionExcluded(ownerId, owner, victimId, victim) ||
     !tutorialCombatPairAllowed(ownerId, owner, victimId, victim) || !sameCombatContext(owner, victim)
   ) return false;
@@ -5910,7 +5917,7 @@ function createAssistedShot(
 ): boolean {
   const now = Date.now();
   const target = currentLockedTarget(playerId, player, targetId, now, fireTransform);
-  if (!target || !canFire(player, now)) return false;
+  if (!target || !canFire(player, now, playerId)) return false;
   const local = targetInAircraftSpace(fireTransform ?? player, target);
   if (!insideDynamicLock(local.x, local.y, local.z, shotAim)) return false;
   player.lastFireAt = now;
@@ -6247,7 +6254,7 @@ function updateProjectiles(deltaSeconds: number): void {
         player.lifeState !== 'alive' ||
         playerJourneyRunwayPrep.has(playerId) ||
         focusedBotInteractionExcluded(projectile.ownerId, owner, playerId, player) ||
-        now < player.spawnProtectedUntil
+        now < player.spawnProtectedUntil || runwayCombatProtected(playerId, player)
       ) {
         continue;
       }
@@ -6686,7 +6693,7 @@ function botCombatTarget(botId: string, bot: PlayerState, now: number): [string,
     // never form a self-sustaining bot-vs-bot combat loop.
     .filter(([id, target]) => id !== botId && !target.isBot && !target.tutorialMode && !playerJourneyRunwayPrep.has(id) &&
       (bot.skyDuelPracticeOwnerId ? id === bot.skyDuelPracticeOwnerId && target.skyDuelMatchId === bot.skyDuelMatchId : !target.skyDuelMode && !target.airAssaultId && !target.soloExploreMode && !target.portalTransit) &&
-      (!missionFocusedPlayers.has(id) || allowedFocusedBot(botId, id)) && target.cityId === bot.cityId &&
+      (!missionFocusedPlayers.has(id) || allowedFocusedBot(botId, id)) && target.cityId === bot.cityId && !runwayCombatProtected(id, target) &&
       (!bot.bot?.journeyTargetPlayerId || id === bot.bot.journeyTargetPlayerId) &&
       (bot.cityId !== 'milwaukee' || target.milwaukeeBotsProvoked) && target.lifeState === 'alive' && target.hasRespawnTransform && now >= target.spawnProtectedUntil && now - target.lastStateAt < 1_500)
     .map(([id, target]) => ({ id, target, distance: Math.hypot(target.position.x - bot.position.x, target.position.y - bot.position.y, target.position.z - bot.position.z) }))
@@ -6716,7 +6723,7 @@ function hunterTarget(botId: string, player: PlayerState, bot: BotRuntime, now: 
   if (!targetId || !target || targetId === botId || target.isBot || target.tutorialMode || target.airAssaultId || target.soloExploreMode || target.portalTransit || playerJourneyRunwayPrep.has(targetId) ||
     (player.skyDuelPracticeOwnerId ? targetId !== player.skyDuelPracticeOwnerId || target.skyDuelMatchId !== player.skyDuelMatchId : target.skyDuelMode) ||
     (missionFocusedPlayers.has(targetId) && !allowedFocusedBot(botId, targetId)) ||
-    target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil) return undefined;
+    target.cityId !== player.cityId || target.lifeState !== 'alive' || !target.hasRespawnTransform || now - target.lastStateAt >= 1_500 || now < target.spawnProtectedUntil || runwayCombatProtected(targetId, target)) return undefined;
   return [targetId, target];
 }
 
@@ -6752,6 +6759,7 @@ function hunterInterceptWaypoint(player: PlayerState, bot: BotRuntime, target: P
 }
 
 function botFireSolution(shooter: PlayerState, target: PlayerState, defender: boolean): { distance: number; vertical: number; angle: number; aimX: number; aimY: number; reason?: string } {
+  if (runwayCombatProtected(undefined, target)) return {distance:0,vertical:0,angle:Infinity,aimX:0,aimY:0,reason:'RUNWAY_PROTECTED'};
   const muzzle = muzzleTransform(shooter).position;
   const actualDistance = Math.hypot(target.position.x - muzzle.x, target.position.y - muzzle.y, target.position.z - muzzle.z);
   const envelope = aircraftFlightEnvelope[target.aircraftType];
@@ -7094,7 +7102,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     firingSolution: !botFireSolution(player, targetPlayer, Boolean(bot.defenseTerritoryId)).reason,
     lockedByTarget: targetPlayer.lockedTargetId === botId, bullets,
     cruise: bot.journeySurpriseAttack ? ambushCruiseSpeed(targetPlayer.velocity)
-      : bot.journeyFirstContact ? journeyDallas13.cruiseSpeed : aircraftFlightEnvelope[player.aircraftType].maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality)),
+      : bot.journeyFirstContact ? journeyDallas13.cruiseSpeed : aircraftFlightEnvelope[player.aircraftType].maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : bot.opponent.profile.tactics.expert ? 1 : botCruiseFactor(bot.personality)),
     floorAt: (x,z) => botSafeFloor(player.cityId,x,z,hunterClearance(bot)),
     safeWaypoint: (from,to) => safeBotWaypoint(player.cityId,from,to,hunterClearance(bot)),
     inside: bot.journeyAttemptId ? insideJourneyHunterArena : undefined,
