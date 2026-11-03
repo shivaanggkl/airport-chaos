@@ -151,7 +151,7 @@ const skyDuelMode = launchMode === 'sky-duel' && cityId === 'dallas';
 const airAssaultMode = launchMode === 'air-assault' && cityId === 'dallas';
 const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
-  attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean;
+  attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean;
   aiIsolated?: boolean;
   legendaryPhase?: 'GATES' | 'ACE' | 'LANDING' | null;
   doublePhase?: 'TAKEOFF' | 'FIRST_FIGHT' | 'REPAIR' | 'FINAL_FIGHT' | null;
@@ -2952,11 +2952,11 @@ function updateJourneyHud(): void {
     const distance = enemy?.lifeState === 'alive' ? airplane.position.distanceTo(enemy.plane.position) : null;
     const hp = Math.max(0, Math.min(journeyDallas13.enemyHealth, journeyAttempt.targetHealth));
     if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt.startedAt === null
-      ? 'TAKE OFF — FIND THE RED NIGHTOWL' : journeyAttempt.targetEngaged
-        ? 'SHOOT DOWN THE RED NIGHTOWL' : 'FOLLOW THE ARROW TO THE RED NIGHTOWL';
-    if (journeyHudProgress) journeyHudProgress.textContent = `NIGHTOWL — ${hp} / ${journeyDallas13.enemyHealth} HP`;
+      ? 'TAKE OFF · FOLLOW THE RED RADAR MARKER' : journeyAttempt.targetEngaged
+        ? 'AIM AT THE RED PLANE · HOLD FIRE' : 'FLY TO THE RED RADAR MARKER';
+    if (journeyHudProgress) journeyHudProgress.textContent = enemy ? `ENEMY HEALTH: ${hp} / ${journeyDallas13.enemyHealth}` : 'FINDING ENEMY…';
     if (journeyHudTarget) journeyHudTarget.textContent = `DISTANCE: ${distance === null ? 'LOCATING' : formatObjectiveDistance(distance * WORLD_METERS_PER_UNIT)}`;
-    if (journeyHudTimer) journeyHudTimer.textContent = `PLAYER HEALTH: ${Math.round(health / maxHealth * 100)}%`;
+    if (journeyHudTimer) journeyHudTimer.hidden = true;
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / journeyDallas13.enemyHealth * 100}%`);
     return;
   }
@@ -11344,6 +11344,10 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   }
   if (message.type === 'journeyAttempt') {
     if (!journeyMode || message.attempt.attemptId !== journeyAttemptId) return;
+    if (message.attempt.missionId === journeyDallas13.id && message.attempt.firstContactSupported !== true) {
+      blockProtocolConnection('Mission 7 needs a server update. Return to Journey.');
+      return;
+    }
     const previousAttempt = journeyAttempt;
     const previousGate = journeyAttempt?.gateIndex ?? 0;
     const previousTargetId = journeyAttempt?.targetId;

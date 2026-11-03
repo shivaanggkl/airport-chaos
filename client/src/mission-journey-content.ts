@@ -21,7 +21,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-10': 'Destroy the gunship while avoiding its guns and escorts.',
   'journey-dallas-11': 'Destroy both turrets, then the exposed core.',
   'journey-dallas-12': 'Destroy both guards, both turrets, then the exposed core.',
-  'journey-dallas-13': 'Take off, find the red Nightowl, and shoot it down.',
+  'journey-dallas-13': 'Take off. Follow the red radar marker. Shoot down Nightowl.',
   'journey-dallas-14': 'Stay 450 meters from the Hunter for 10 seconds.',
   'journey-dallas-15': 'Shoot down the powerful Ace fighter.',
   'journey-dallas-16': 'Fly through five gates while escaping two Hunters.',

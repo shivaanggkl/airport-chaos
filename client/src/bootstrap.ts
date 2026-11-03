@@ -234,6 +234,11 @@ async function playJourneyMission(): Promise<void> {
   journeyLaunchPending = true;
   try {
     if (pendingAircraftSelection && !await pendingAircraftSelection) throw new Error('Aircraft change was not confirmed');
+    if (mission === 'mission-13') {
+      const readiness = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
+      const progress = readiness.ok ? await readiness.json() as { mission13?: { definitionVersion?: number } } : undefined;
+      if (progress?.mission13?.definitionVersion !== 1) throw new Error('Mission 7 needs a server update. Please try again later.');
+    }
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
@@ -250,6 +255,8 @@ async function playJourneyMission(): Promise<void> {
   } catch (error) {
     console.error('[journey] Mission launch failed', error);
     await refreshJourneyProgress();
+    if (mission === 'mission-13') missionJourneyElement.querySelector<HTMLElement>('[data-mission-objective]')!.textContent =
+      error instanceof Error ? error.message : 'Mission 7 is unavailable. Please try again.';
   } finally {
     journeyLaunchPending = false;
   }

@@ -185,3 +185,41 @@ test('actual Nightowl factory and flight integrator keep the airborne patrol ins
   assert.ok(maxRadius <= 2_100, `patrol wandered ${maxRadius}m`);
   assert.ok(minSpeed > 300, `patrol stopped: ${minSpeed}m/s`);
 });
+
+test('M7 launch refuses an old backend before creating an attempt and explains the missing update', async () => {
+  const bootstrap = readFileSync(new URL('../../client/src/bootstrap.ts', import.meta.url), 'utf8');
+  const tree = ts.createSourceFile('bootstrap.ts', bootstrap, ts.ScriptTarget.Latest, true);
+  const launch = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'playJourneyMission');
+  for (const supported of [false, true]) {
+    const objective = { textContent: '' }, calls = [];
+    const context = vm.createContext({
+      journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: '',
+      missionJourney: { selectedMissionNumber: 7, hide: () => {} },
+      journeyMissionOrder: Array(6).fill('').concat(mission.id), pendingAircraftSelection: undefined,
+      apiUrl: path => path, apiFetch: async path => {
+        calls.push(path);
+        return { ok: true, json: async () => path.endsWith('/launch') ? { attempt: { attemptId: 'new-attempt' } }
+          : { mission13: supported ? { definitionVersion: 1 } : {} } };
+      },
+      journeyAttemptId: '', journeyAttemptMission: '', cities: [{ id: 'dallas', status: 'available' }],
+      citySelector: { hidden: true }, enterCity: async () => {}, missionTimePreset: () => 'day',
+      refreshJourneyProgress: async () => {}, missionJourneyElement: { querySelector: () => objective },
+      console: { error: () => {} },
+    });
+    vm.runInContext(ts.transpileModule(launch.getText(tree), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+    await context.playJourneyMission();
+    assert.equal(calls.some(path => path.endsWith('/launch')), supported);
+    if (!supported) assert.match(objective.textContent, /Mission 7 needs a server update/);
+    assert.equal(context.journeyLaunchPending, false);
+  }
+});
+
+test('M7 rejects incompatible resumed attempts and uses short, explicit mission instructions', () => {
+  const client = readFileSync(new URL('../../client/src/main.ts', import.meta.url), 'utf8');
+  const content = readFileSync(new URL('../../client/src/mission-journey-content.ts', import.meta.url), 'utf8');
+  const receive = client.slice(client.indexOf("if (message.type === 'journeyAttempt')"));
+  assert.ok(receive.indexOf('firstContactSupported !== true') < receive.indexOf('journeyAttempt = message.attempt'));
+  assert.match(content, /Take off\. Follow the red radar marker\. Shoot down Nightowl\./);
+  assert.match(client, /TAKE OFF · FOLLOW THE RED RADAR MARKER/);
+  assert.match(client, /AIM AT THE RED PLANE · HOLD FIRE/);
+});

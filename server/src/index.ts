@@ -2320,6 +2320,7 @@ const httpServer = createServer(async (request, response) => {
           eligible: journeyStore.canAccessMission(identity.pilotId, journeyDallas12.id) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas12.id),
         }, mission13: {
+          definitionVersion: 1,
           eligible: journeyStore.canAccessMission(identity.pilotId, journeyDallas13.id) && dallasUnlocked && journeyProfile.unlockedAircraft.includes(journeyProfile.selectedAircraft),
           ...journeyStore.progress(identity.pilotId, journeyDallas13.id),
         }, mission14: {
@@ -3199,6 +3200,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
   const target = focusedTargetId ? players.get(focusedTargetId) : undefined;
   sendToPlayer(playerId, { type: 'journeyAttempt', attempt: {
     ...attempt, aiIsolated: missionFocusedPlayers.has(playerId),
+    firstContactSupported: attempt.missionId === journeyDallas13.id ? true : undefined,
     chapterOneComplete: attempt.missionId === journeyDallas06.id && attempt.status === 'COMPLETED'
       && journeyStore.chapterOneComplete(attempt.pilotId),
     bestTimeMs: (attempt.status === 'COMPLETED' || attempt.status === 'FAILED') ? attempt.missionId === journeyDallas01.id
