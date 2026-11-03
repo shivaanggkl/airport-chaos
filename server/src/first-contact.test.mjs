@@ -1,3 +1,4 @@
+import { advanceHunterFlight } from './hunter-flight.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
@@ -110,7 +111,7 @@ test('old active Redline attempts are invalidated once; historical clears surviv
 test('M7 reuses physical Hunter flight, restricted ballistics, private visibility and cleanup', () => {
   assert.match(source, /const cruiseSpeed = bot\.journeyFirstContact \? journeyDallas13\.cruiseSpeed/);
   assert.match(source, /!bot\.journeyFirstContact \|\| solution\.distance <= 2_500/);
-  assert.match(source, /bot\.journeyFirstContact && target && now >= \(bot\.nextContactEvasionAt/);
+  assert.ok(source.includes("bot.journeyFirstContact && target && (bot.phase === 'approach' || bot.phase === 'attackPass')"));
   assert.match(source, /privateAttemptId: privateAttempt\?\.missionId===journeyDallas13\.id/);
   assert.match(source, /if \(victim\.bot\?\.journeyFirstContact \|\| owner\.bot\?\.journeyFirstContact\)/);
   assert.match(source, /if \(victim\.bot\?\.journeyAttemptId\) removeBot\(victimId\)/);
@@ -155,7 +156,8 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
 
 test('actual Nightowl factory and flight integrator keep the airborne patrol inside its safe two-kilometre area', () => {
   const players = new Map(), sent = [];
-  const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius'], {
+  const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
+    advanceHunterFlight,
     journeyDallas13: mission, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
     botAirports: () => cityAirports.dallas, airportRoute: () => [], boundJourneyHunterPoint,
     botTerrainHeight: () => 120, botRunwayHeight: () => 120, safeBotWaypoint: (_city, _from, p) => p,

@@ -1,3 +1,4 @@
+import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
 import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { IntercityVisuals, disposeCityScene, prepareCityGpu, cityPreparationStep } from './intercity-visuals';
 import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, type PortalGate, type PortalPose } from '../../shared/intercity-portals.mjs';
@@ -2952,7 +2953,7 @@ function updateJourneyHud(): void {
     const distance = enemy?.lifeState === 'alive' ? airplane.position.distanceTo(enemy.plane.position) : null;
     const hp = Math.max(0, Math.min(journeyDallas13.enemyHealth, journeyAttempt.targetHealth));
     if (journeyHudObjective) journeyHudObjective.textContent = journeyAttempt.startedAt === null
-      ? 'TAKE OFF · FOLLOW THE RED RADAR MARKER' : journeyAttempt.targetEngaged
+      ? 'TAKE OFF · FOLLOW THE RED RADAR MARKER' : journeyAttempt.targetEngaged && distance !== null && distance <= COMBAT_RANGE
         ? 'AIM AT THE RED PLANE · HOLD FIRE' : 'FLY TO THE RED RADAR MARKER';
     if (journeyHudProgress) journeyHudProgress.textContent = enemy ? `ENEMY HEALTH: ${hp} / ${journeyDallas13.enemyHealth}` : 'FINDING ENEMY…';
     if (journeyHudTarget) journeyHudTarget.textContent = `DISTANCE: ${distance === null ? 'LOCATING' : formatObjectiveDistance(distance * WORLD_METERS_PER_UNIT)}`;
@@ -4800,6 +4801,9 @@ type NetworkTransform = {
   maxHealth?: number;
   equippedCosmetics?: Record<string, string>;
   rearGuardEscort?: boolean;
+  hunterFlight?: boolean;
+  velocity?: NetworkVector;
+  serverNow?: number;
 };
 
 type NetworkPlayer = NetworkTransform & { playerId: string };
@@ -5308,6 +5312,7 @@ let authoritativeSelectionApplied = false;
 let legacyImportSent = false;
 
 type RemotePlayer = {
+  hunterMotion?: HunterMotionBuffer;
   playerId: string;
   cityId: CityId;
   entityType: EntityType;
@@ -8294,6 +8299,10 @@ function updateRemotePlayer(player: NetworkPlayer): void {
     identityTag.visible = false;
     playerProxy.visible = false;
     hullTag.visible = false;
+    if (player.hunterFlight && player.velocity && player.serverNow !== undefined) {
+      remote.hunterMotion = new HunterMotionBuffer();
+      remote.hunterMotion.push(player.position, player.rotation, player.velocity, player.serverNow, performance.now());
+    }
     remotePlayers.set(player.playerId, remote);
     return;
   }
@@ -8327,6 +8336,11 @@ function updateRemotePlayer(player: NetworkPlayer): void {
   }
   if (Number.isFinite(player.altitudeMeters) && player.altitudeMeters! >= 0) remote.altitudeMeters = player.altitudeMeters;
 
+  if (player.hunterFlight && player.velocity && player.serverNow !== undefined) {
+    if (lifeState !== remote.lifeState || remote.timeSinceUpdate > remoteStateStaleSeconds) remote.hunterMotion = undefined;
+    remote.hunterMotion ??= new HunterMotionBuffer();
+    remote.hunterMotion.push(player.position, player.rotation, player.velocity, player.serverNow, performance.now());
+  }
   remote.previousPosition.copy(remote.plane.position);
   remote.previousQuaternion.copy(remote.plane.quaternion);
   const stateInterval = Math.max(remote.timeSinceUpdate, 0.08);
@@ -8511,6 +8525,11 @@ function updateRemotePlayers(delta: number): void {
         remotePredictionSeconds(remote.timeSinceUpdate, remote.interpolationDuration, remote.isBot));
     }
     remote.plane.quaternion.slerpQuaternions(remote.previousQuaternion, remote.targetQuaternion, interpolation);
+    const hunterPose = remote.lifeState === 'alive' ? remote.hunterMotion?.sample(performance.now()) : null;
+    if (hunterPose) {
+      remote.plane.position.set(hunterPose.position.x, hunterPose.position.y, hunterPose.position.z);
+      remote.plane.rotation.set(hunterPose.rotation.x, hunterPose.rotation.y, hunterPose.rotation.z, 'YXZ');
+    }
     const hiddenBot = remote.isBot && missionFocus?.showAmbientAIAircraft === false && unrelatedFocusedBot(remote.playerId);
     remote.plane.visible = remote.lifeState === 'alive' && !hiddenBot;
     if (hiddenBot) {
