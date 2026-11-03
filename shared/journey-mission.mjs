@@ -211,20 +211,19 @@ export const journeyDallas12 = Object.freeze({
 
 // Northbound open-air corridor from Love Field. The wider rings and slight
 // lateral bends reward sustained speed rather than precision steering.
+// Keep the historical mission ID: this is displayed Journey slot 7.
+const firstContactDfw = { x: -22_800, z: -13_600 };
+const firstContactBearing = Math.hypot(firstContactDfw.x, firstContactDfw.z);
 export const journeyDallas13 = Object.freeze({
-  id: 'journey-dallas-13', cityId: 'dallas', name: 'REDLINE RUSH',
-  chapter: 'HIGH STAKES', timeLimitMs: 90_000, firstClearCredits: 1_650,
-  startAirportId: 'love',
-  // Explicitly tuned world-units/s thresholds; each is attainable at the
-  // current mobile FAST stop. Keep these independent of envelope retuning.
-  speedThresholds: Object.freeze({ trainer: 640, privateJet: 830, cargo: 660, fighter: 960 }),
-  gates: Object.freeze([
-    { x: -5_140, z: -10_500, altitude: 480, radius: 135 },
-    { x: -5_300, z: -12_000, altitude: 480, radius: 135 },
-    { x: -5_120, z: -13_100, altitude: 485, radius: 135 },
-    { x: -5_320, z: -14_200, altitude: 480, radius: 135 },
-    { x: -5_140, z: -15_300, altitude: 480, radius: 135 },
-  ]),
+  id: 'journey-dallas-13', cityId: 'dallas', name: 'FIRST CONTACT',
+  chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_650,
+  startAirportId: 'dfw', enemyAircraft: 'privateJet', enemyLivery: 'nightowl-sunset-red',
+  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
+  patrolRadius: 1_500, cruiseSpeed: 400,
+  enemySpawn: Object.freeze({
+    x: firstContactDfw.x - firstContactDfw.x / firstContactBearing * 20_000,
+    z: firstContactDfw.z - firstContactDfw.z / firstContactBearing * 20_000,
+  }),
 });
 
 export const journeyDallas14 = Object.freeze({

@@ -94,10 +94,11 @@ export const journeyDallas12: Readonly<{
   gunBurstIntervalMs: 3000; gunWarningMs: 1000; gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas13: Readonly<{
-  id: 'journey-dallas-13'; cityId: 'dallas'; name: 'REDLINE RUSH'; chapter: 'HIGH STAKES';
-  timeLimitMs: 90000; firstClearCredits: 1650; startAirportId: 'love';
-  speedThresholds: Readonly<Record<'trainer' | 'privateJet' | 'cargo' | 'fighter', number>>;
-  gates: readonly { x: number; z: number; altitude: number; radius: number }[];
+  id: 'journey-dallas-13'; cityId: 'dallas'; name: 'FIRST CONTACT'; chapter: 'SKY HUNTERS';
+  timeLimitMs: 240000; firstClearCredits: 1650; startAirportId: 'dfw';
+  enemyAircraft: 'privateJet'; enemyLivery: 'nightowl-sunset-red'; enemyHealth: 150;
+  enemyAltitude: 800; aggressionDistance: 10000; patrolRadius: 1500; cruiseSpeed: 400;
+  enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas14: Readonly<{
   id: 'journey-dallas-14'; cityId: 'dallas'; name: 'ESCAPE VECTOR'; chapter: 'HIGH STAKES';
@@ -162,7 +163,7 @@ export const journeyDallas24: Readonly<{
 export function journeyGatePlane(mission: Readonly<{ gates: readonly { x: number; z: number }[] }>, gateIndex: number):
   { normalX: number; normalZ: number } | null;
 export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
-  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas13 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
+  mission?: typeof journeyDallas01 | typeof journeyDallas02 | typeof journeyDallas03 | typeof journeyDallas04 | typeof journeyDallas05 | typeof journeyDallas06 | typeof journeyDallas07 | typeof journeyDallas10 | typeof journeyDallas11 | typeof journeyDallas16 | typeof journeyDallas20 | typeof journeyDallas22 | typeof journeyDallas24): false | 'VALID' | 'TOO_HIGH';
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
 export function crossesJourneyGateWrongWay(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
   mission?: Parameters<typeof journeyGateCrossing>[4]): boolean;

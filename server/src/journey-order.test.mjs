@@ -16,7 +16,7 @@ test('journey swaps both groups without changing mission identities or duplicati
  assert.deepEqual(journeyMissionOrder,numbers.map(n=>`journey-dallas-${String(n).padStart(2,'0')}`));
  assert.deepEqual(missionJourneyStages.map(s=>s.id),journeyMissionOrder);
  assert.deepEqual(missionJourneyDetails.map(s=>s.id),journeyMissionOrder);
- assert.equal(missionJourneyDetails[6].title,'REDLINE RUSH');assert.equal(missionJourneyDetails[12].title,'GIANT INCOMING');
+ assert.equal(missionJourneyDetails[6].title,'FIRST CONTACT');assert.equal(missionJourneyDetails[12].title,'GIANT INCOMING');
  const bootstrap=readFileSync('client/src/bootstrap.ts','utf8');
  assert.match(bootstrap,/setStageSevenProgress\(progress\.mission13/);assert.match(bootstrap,/setStageThirteenProgress\(progress\.mission07/);
 });
