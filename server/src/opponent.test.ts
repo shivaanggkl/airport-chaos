@@ -14,7 +14,7 @@ const levels=Object.keys(enemyAiLevels) as EnemyAiLevel[];
 
 test('exactly five immutable canonical levels, future chapter defaults and no hull/aircraft entitlements',()=>{
  assert.deepEqual(levels,['EASY','MEDIUM','HARD','VERY_HARD','LEGENDARY']);
- assert.deepEqual(Object.values(enemyAiLevels).map(p=>[p.reactionMs,p.trackingMs,p.shotIntervalMs,p.aimError,p.dodgeCooldownMs]),[[900,1400,900,.014,9000],[600,1050,650,.009,6500],[400,750,450,.006,4500],[280,550,325,.004,3300],[180,400,220,.0025,2400]]);
+ assert.deepEqual(Object.values(enemyAiLevels).map(p=>[p.reactionMs,p.trackingMs,p.shotIntervalMs,p.aimError,p.dodgeCooldownMs]),[[900,1400,900,.014,9000],[600,1050,650,.009,6500],[400,750,450,.006,4500],[280,550,325,.004,3300],[45,100,165,.000625,1200]]);
  for(const level of levels) {assert.equal(enemyAiProfile(level),enemyAiLevels[level]);assert.ok(Object.isFrozen(enemyAiLevels[level]));}
  assert.ok(Object.isFrozen(enemyAiLevels));assert.equal(skyHuntersDifficulty[7],'EASY');assert.equal(skyHuntersDifficulty[8],'MEDIUM');assert.equal(skyHuntersDifficulty[12],'LEGENDARY');
  for(const [tier,level] of [['medium','MEDIUM'],['hard','HARD'],['legendary','LEGENDARY']] as const) assert.equal(airAssaultTiers[tier].ai,enemyAiLevels[level]);

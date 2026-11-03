@@ -196,3 +196,15 @@ test('production gun solution, muzzle, dispersed launch and swept collision genu
   assert.ok(straightHits>0);assert.ok(evasiveHits<straightHits);
  }
 });
+
+test('fast combat updates select Legendary combat only; runway, patrol and other levels retain their original cadence',()=>{
+ const visits:string[]=[];let trainingTicks=0;
+ const actor=(id:string,phase:string,expert:boolean)=>({isBot:true,skyDuelPracticeOwnerId:'pilot',skyDuelMatchId:id,bot:{phase,opponent:{profile:{tactics:{expert}}}}});
+ const ctx=production(['updateBots','isHunterCombatPhase'],{
+  players:new Map([['expert',actor('expert','attackPass',true)],['runway',actor('runway','takeoff',true)],['medium',actor('medium','attackPass',false)]]),
+  playerJourneyAttempts:new Map(),updateTrainingTargets:()=>trainingTicks++,botTickMs:200,
+  skyDuelSessions:{get:(id:string)=>{visits.push(id);return{phase:'loading'};}},
+ });
+ ctx.updateBots(1000);assert.deepEqual(visits,['runway','medium']);assert.equal(trainingTicks,1);
+ visits.length=0;ctx.updateBots(1050,true);assert.deepEqual(visits,['expert']);assert.equal(trainingTicks,1);
+});

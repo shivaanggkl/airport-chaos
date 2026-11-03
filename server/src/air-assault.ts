@@ -1,6 +1,6 @@
 import { planOpponentTactics, recordOpponentShot } from './opponent-tactics.js';
 import { createOpponent, opponentIntercept, incomingOpponentThreat, opponentDodge, chooseOpponentEvasion, type OpponentRuntime, type OpponentDefinition } from './opponent.js';
-import { advanceHunterFlight } from './hunter-flight.js';
+import { advanceHunterFlight, hunterBallisticSolution } from './hunter-flight.js';
 import { randomUUID, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { PlayerWallet } from './player-wallet.js';
@@ -40,7 +40,7 @@ export class AirAssaultRewards {
   close(): void { this.db.close(); }
 }
 type Enemy = AssaultEnemy & {
-  opponent: OpponentRuntime; bankControl: number; combatTurnSign: number; flightAltitude?: number; terrainAltitude?: number;
+  opponent: OpponentRuntime; expertControl?: boolean; bankControl: number; combatTurnSign: number; flightAltitude?: number; terrainAltitude?: number;
   speed: number;
   roll: number;
   trackingAt: number;
@@ -99,39 +99,9 @@ export function assaultObservedTurn(previous: V, current: V, seconds: number, li
 }
 
 export function assaultShotDirection(origin: V, velocity: V, target: V, targetVelocity: V, forward: V, maxAngle: number, turnRate = 0): V | null {
-  if (!Number.isFinite(turnRate) || distance(origin, target) > COMBAT_RANGE) return null;
-  let direction: V;
-  if (Math.abs(turnRate) < .02) {
-    const solution = ballisticIntercept(origin, velocity, target, targetVelocity);
-    if (!solution) return null;
-    direction = solution.direction;
-  } else {
-    // Forecast the observed bank only. A new turn/dodge after launch can still evade this fixed shot.
-    const sample = (seconds: number) => {
-      const sine = Math.sin(turnRate * seconds), cosine = Math.cos(turnRate * seconds);
-      const x = target.x + (targetVelocity.x * sine + targetVelocity.z * (1 - cosine)) / turnRate - origin.x;
-      const y = target.y + targetVelocity.y * seconds - origin.y;
-      const z = target.z + (targetVelocity.z * sine - targetVelocity.x * (1 - cosine)) / turnRate - origin.z;
-      const distance = Math.hypot(x, y, z);
-      const aim = distance > .000001 ? { x: x / distance, y: y / distance, z: z / distance } : { x: 0, y: 0, z: -1 };
-      return { direction: aim, distance, error: distance - ballisticShotSpeed(velocity, aim) * seconds };
-    };
-    let low = 0, high = 0;
-    const lifetime = COMBAT_RANGE / BASE_PROJECTILE_SPEED;
-    for (let step = 1; step <= 64; step++) {
-      high = lifetime * step / 64;
-      if (sample(high).error <= 0) break;
-      low = high;
-    }
-    if (sample(high).error > 0) return null;
-    for (let step = 0; step < 26; step++) {
-      const middle = (low + high) / 2;
-      if (sample(middle).error > 0) low = middle; else high = middle;
-    }
-    const solution = sample(high);
-    if (solution.distance > COMBAT_RANGE || Math.abs(solution.error) > .01) return null;
-    direction = solution.direction;
-  }
+  const solution=hunterBallisticSolution(origin,velocity,target,targetVelocity,turnRate);
+  if(!solution)return null;
+  const direction=solution.direction;
   const cosine = direction.x * forward.x + direction.y * forward.y + direction.z * forward.z;
   return cosine >= Math.cos(maxAngle) ? direction : null;
 }
@@ -367,7 +337,7 @@ export class AirAssaultEncounter {
         e.opponent.tactics=undefined;
         if (now >= e.readyAt && now >= e.dodgeUntil) {
           const dodge=chooseOpponentEvasion(e.opponent,e,e.speed,[...this.hooks.bullets()],now,
-            (x,z)=>this.hooks.elevation(x,z)+170,airAssaultInside);
+            (x,z)=>this.hooks.elevation(x,z)+170,airAssaultInside,e.opponent.profile.tactics.expert?p:undefined);
           if(dodge) {e.waypoint=this.hooks.safeWaypoint?.(e.position,dodge)??dodge;e.dodgeAt=e.opponent.dodgeAt;e.dodgeUntil=e.opponent.dodgeUntil;e.trackingAt=e.dodgeUntil;}
         }
       } else if (now >= e.readyAt) {
@@ -388,6 +358,7 @@ export class AirAssaultEncounter {
       e.waypoint.x=clamp(e.waypoint.x,-31400,4400);
       e.waypoint.z=clamp(e.waypoint.z,-27400,16400);
       e.waypoint.y=Math.min(8500,e.waypoint.y);
+      e.expertControl=e.opponent.profile.tactics.expert;
       advanceHunterFlight({aircraftType:e.opponent.definition.aircraft,position:e.position,rotation:e.rotation,velocity:e.velocity},
         e,e.waypoint,targetSpeed,dt,(x,z)=>this.hooks.elevation(x,z)+170);
       return;

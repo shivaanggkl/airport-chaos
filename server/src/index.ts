@@ -164,6 +164,8 @@ type BotPhase = 'spawn' | 'taxi' | 'takeoff' | 'cruise' | 'activity' | 'land' | 
 type BotRuntime = {
   personality: BotPersonality;
   opponent?: OpponentRuntime;
+  lastCombatBroadcastAt?: number;
+  expertControl?: boolean;
   journeyAttemptId?: string;
   journeyTargetPlayerId?: string;
   journeyProvoked?: boolean;
@@ -6773,7 +6775,9 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
   let aimPoint = target.position;
   if (smoothHunter(shooter)) {
     const solution = hunterBallisticSolution(muzzle, shooter.velocity, target.position,
-      { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale });
+      { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
+      (shooter.bot?.opponent ?? shooter.npcOpponent)?.profile.tactics.expert
+        ? (shooter.bot?.opponent ?? shooter.npcOpponent)?.tactics?.targetTurnRate ?? 0 : 0);
     if (!solution) return { distance: actualDistance, vertical: target.position.y - shooter.position.y,
       angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_BALLISTIC_INTERCEPT' };
     aimPoint = solution.point;
@@ -6874,6 +6878,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
     const ambushTarget = bot.journeySurpriseAttack && bot.journeyProvoked && bot.journeyTargetPlayerId ? players.get(bot.journeyTargetPlayerId) : undefined;
     const cruise = ambushTarget ? ambushCruiseSpeed(ambushTarget.velocity) : bot.journeyFirstContact ? (bot.journeySurpriseAttack ? journeyDallas14 : journeyDallas13).cruiseSpeed
       : envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
+    bot.expertControl = bot.opponent?.profile.tactics.expert;
     advanceHunterFlight(player, bot, target, bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
       (x, z) => botSafeFloor(player.cityId, x, z, hunterClearance(bot)));
     return;
@@ -7102,23 +7107,27 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
   return {waypoint:plan.waypoint,target};
 }
 
-function updateBots(now: number): void {
-  updateTrainingTargets(now);
-  for (const [playerId, attemptId] of playerJourneyAttempts) {
-    if (pausedJourneyAttempts.has(attemptId)) continue;
-    const pilot = players.get(playerId);
-    const active = pilot && journeyStore.get(pilot.pilotId, attemptId);
-    if (pilot && (active?.missionId === journeyDallas13.id || active?.missionId === journeyDallas14.id)) ensureFirstContact(playerId, pilot, active, now);
-    if (pilot && active?.missionId === journeyDallas15.id) ensureJourneyAce(playerId, pilot, active, now);
-    if (pilot && active?.missionId === journeyDallas16.id) ensureJourneyCrossfire(playerId, pilot, active, now);
-    if (pilot && active?.missionId === journeyDallas18.id) ensureJourneySiegeHunter(playerId, pilot, active, now);
-    if (pilot && active?.missionId === journeyDallas23.id) ensureJourneyDouble(playerId, pilot, active, now);
-    if (pilot && active?.missionId === journeyDallas24.id) ensureJourneyLegendary(playerId, pilot, active, now);
+function updateBots(now: number, expertOnly = false): void {
+  if (!expertOnly) {
+    updateTrainingTargets(now);
+    for (const [playerId, attemptId] of playerJourneyAttempts) {
+      if (pausedJourneyAttempts.has(attemptId)) continue;
+      const pilot = players.get(playerId);
+      const active = pilot && journeyStore.get(pilot.pilotId, attemptId);
+      if (pilot && (active?.missionId === journeyDallas13.id || active?.missionId === journeyDallas14.id)) ensureFirstContact(playerId, pilot, active, now);
+      if (pilot && active?.missionId === journeyDallas15.id) ensureJourneyAce(playerId, pilot, active, now);
+      if (pilot && active?.missionId === journeyDallas16.id) ensureJourneyCrossfire(playerId, pilot, active, now);
+      if (pilot && active?.missionId === journeyDallas18.id) ensureJourneySiegeHunter(playerId, pilot, active, now);
+      if (pilot && active?.missionId === journeyDallas23.id) ensureJourneyDouble(playerId, pilot, active, now);
+      if (pilot && active?.missionId === journeyDallas24.id) ensureJourneyLegendary(playerId, pilot, active, now);
+    }
   }
-  const delta = botTickMs / 1000;
+  const delta = (expertOnly ? botTickMs / 4 : botTickMs) / 1000;
   for (const [botId, player] of players) {
     const bot = player.bot;
     if (!player.isBot || !bot) continue;
+    const fastCombat = Boolean(bot.opponent?.profile.tactics.expert && isHunterCombatPhase(bot.phase));
+    if (fastCombat !== expertOnly) continue;
     if (player.skyDuelPracticeOwnerId) {
       const session = player.skyDuelMatchId ? skyDuelSessions.get(player.skyDuelMatchId) : undefined;
       if (!session || session.phase === 'loading' || session.phase === 'countdown' || session.phase === 'launch') continue;
@@ -7310,6 +7319,8 @@ function updateBots(now: number): void {
     }
     player.lastStateAt = now;
     player.hasRespawnTransform = true;
+    if (expertOnly && now - (bot.lastCombatBroadcastAt ?? 0) < botTickMs) continue;
+    bot.lastCombatBroadcastAt = now;
     if (player.skyDuelPracticeOwnerId) sendToPlayer(player.skyDuelPracticeOwnerId, botStateMessage(botId, player));
     else if (bot.journeyAttemptId && bot.journeyTargetPlayerId) sendToPlayer(bot.journeyTargetPlayerId, botStateMessage(botId, player));
     else broadcastToCity(player.cityId, botStateMessage(botId, player));
@@ -7710,7 +7721,9 @@ setInterval(() => {
 }, 250);
 setInterval(() => expirePvpChallenges(Date.now()), 1_000);
 setInterval(() => updateFighterTrialExpiries(Date.now()), 500);
+// Keep patrol/runway handling and snapshot traffic at 5 Hz; only active expert combat uses 20 Hz.
 setInterval(() => updateBots(Date.now()), botTickMs);
+setInterval(() => updateBots(Date.now(), true), botTickMs / 4);
 setInterval(() => { for (const cityId of cityIds) reconcileBots(cityId); }, botPopulationTickMs);
 setInterval(() => updateRepairStations(Date.now()), repairCheckMs);
 setInterval(() => {

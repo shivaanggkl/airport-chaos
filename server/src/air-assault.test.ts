@@ -35,7 +35,7 @@ test('30-enemy manifest has exact tiers, airport quotas, sequence and nonoverlap
         assert.ok(Math.hypot(queue[i]!.x - queue[j]!.x, queue[i]!.z - queue[j]!.z) >= 65);
     }
   }
-  assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.ai.reactionMs, t.ai.trackingMs, t.ai.shotIntervalMs, t.ai.aimError]), [[100, 600, 1050, 650, .009], [150, 400, 750, 450, .006], [200, 180, 400, 220, .0025]]);
+  assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.ai.reactionMs, t.ai.trackingMs, t.ai.shotIntervalMs, t.ai.aimError]), [[100, 600, 1050, 650, .009], [150, 400, 750, 450, .006], [200, 45, 100, 165, .000625]]);
 });
 test('Intro/countdown freeze combat and timer; skip has one-second gate; only DFW takeoff starts eight minutes', () => {
   const { encounter: e, pilot, tick } = rig();
@@ -340,8 +340,9 @@ test('Legendary runway travel overlaps while only one attacks; the fifth arrives
       assert.equal(r.encounter.destroyed, 25);
       assert.equal(active.filter(e => e.tier === 'legendary').length, 4, 'free slots prefetch real Legendary departures');
       const shooters = new Set(legendShots.map(shot => shot.id));
-      assert.equal(shooters.size, 1, 'holding pilots do not join the attack');
-      firstAttacker = [...shooters][0]!;
+      assert.ok(shooters.size >= 1);
+      for(const shot of legendShots)assert.equal(new Set(legendShots.filter(s=>s.at===shot.at).map(s=>s.id)).size,1,'only one Legendary fires per authoritative tick');
+      firstAttacker = legendShots.at(-1)!.id;
       r.encounter.defeated(firstAttacker, time); relieved = true;
     }
   }

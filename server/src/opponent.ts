@@ -75,23 +75,31 @@ export function incomingOpponentThreat(enemy: { position: V; velocity: V }, bull
 
 /** Predict candidates with the same bank/acceleration integrator used for real flight. */
 export function opponentDodge(aircraftType: OpponentAircraft, enemy: {position: V; rotation: V; velocity: V}, speed: number,
-  bullets: readonly OpponentBullet[], floorAt: (x:number,z:number)=>number, inside: (p:V)=>boolean = ()=>true): V | undefined {
+  bullets: readonly OpponentBullet[], floorAt: (x:number,z:number)=>number, inside: (p:V)=>boolean = ()=>true, observer?: {position:V;rotation:V;velocity:V}): V | undefined {
   let bestScore=-Infinity, best: V | undefined;
-  for (const side of [-1,1]) {
+  for (const side of [-1,1]) for (const vertical of observer ? [-1,1] : [1]) {
     const p={ aircraftType, position:{...enemy.position}, rotation:{...enemy.rotation}, velocity:{...enemy.velocity} };
-    const motion={ speed, bankControl:0, combatTurnSign:side };
+    const motion={ speed, bankControl:0, combatTurnSign:side, expertControl:Boolean(observer) };
     const f={x:-Math.sin(p.rotation.y),z:-Math.cos(p.rotation.y)};
     const e=aircraftFlightEnvelope[aircraftType],ratio=Math.min(1,speed/e.maxSpeed);
     const turn=(.42+ratio*.5)*e.yawRate/e.inertia+Math.sin(.65)*ratio*e.bankTurn;
     const radius=Math.max(speed,e.takeoffSpeed)/Math.max(.05,turn);
     const reach=Math.max(speed*2,radius*1.6);
-    const target={x:p.position.x+f.x*reach+f.z*side*radius*1.4,y:p.position.y+speed*Math.sin(e.maxClimbPitch)*1.2,z:p.position.z+f.z*reach-f.x*side*radius*1.4};
-    let score=Infinity;
+    const turnReach=observer?reach*1.4:radius*1.4,forwardReach=observer?radius*.35:reach;
+    const target={x:p.position.x+f.x*forwardReach+f.z*side*turnReach,y:p.position.y+vertical*speed*Math.sin(vertical>0?e.maxClimbPitch:e.maxDivePitch)*1.2,z:p.position.z+f.z*forwardReach-f.x*side*turnReach};
+    let score=bullets.length?Infinity:0, exposure=0;
     for(let step=1;step<=12;step++) {
       advanceHunterFlight(p,motion,target,speed,.1,floorAt);
       if(!inside(p.position)||p.position.y<=floorAt(p.position.x,p.position.z)) {score=-Infinity;break;}
+      if(observer) {
+        const t=step*.1,dx=p.position.x-observer.position.x-observer.velocity.x*t,dy=p.position.y-observer.position.y-observer.velocity.y*t,dz=p.position.z-observer.position.z-observer.velocity.z*t;
+        const length=Math.max(1,Math.hypot(dx,dy,dz)),cp=Math.cos(observer.rotation.x);
+        const alignment=(-Math.sin(observer.rotation.y)*cp*dx+Math.sin(observer.rotation.x)*dy-Math.cos(observer.rotation.y)*cp*dz)/length;
+        exposure+=Math.max(0,alignment)*80;
+      }
       for(const b of bullets) {const t=step*.1;score=Math.min(score,Math.hypot(p.position.x-b.position.x-b.direction.x*b.speed*t,p.position.y-b.position.y-b.direction.y*b.speed*t,p.position.z-b.position.z-b.direction.z*b.speed*t));}
     }
+    score-=exposure;
     if(score>bestScore) {bestScore=score;best=target;}
   }
   return best;
@@ -99,13 +107,13 @@ export function opponentDodge(aircraftType: OpponentAircraft, enemy: {position: 
 
 /** Threat detection/reaction and maneuver cooldown are independent of flight rate. */
 export function chooseOpponentEvasion(runtime: OpponentRuntime, enemy: { position:V;rotation:V;velocity:V }, speed:number,
-  bullets:readonly OpponentBullet[], now:number, floorAt:(x:number,z:number)=>number, inside?:(p:V)=>boolean): V | undefined {
+  bullets:readonly OpponentBullet[], now:number, floorAt:(x:number,z:number)=>number, inside?:(p:V)=>boolean, observer?: {position:V;rotation:V;velocity:V}): V | undefined {
   if (now-runtime.dodgeAt < runtime.profile.dodgeCooldownMs) return undefined;
   const threat=incomingOpponentThreat(enemy,bullets);
   if (!threat) {runtime.threatAt=undefined;runtime.threatOwner=undefined;return undefined;}
   if(runtime.threatAt===undefined || runtime.threatOwner!==threat.ownerId) {runtime.threatAt=now;runtime.threatOwner=threat.ownerId;}
   if(now-runtime.threatAt<runtime.profile.reactionMs) return undefined;
-  const waypoint=opponentDodge(runtime.definition.aircraft,enemy,speed,bullets,floorAt,inside);
+  const waypoint=opponentDodge(runtime.definition.aircraft,enemy,speed,bullets,floorAt,inside,observer);
   if(waypoint) {runtime.dodgeAt=now;runtime.dodgeUntil=now+1200;runtime.threatAt=undefined;}
   return waypoint;
 }

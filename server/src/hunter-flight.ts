@@ -1,9 +1,9 @@
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
-import { ballisticIntercept } from '../../shared/protocol.mjs';
+import { ballisticIntercept, ballisticShotSpeed, COMBAT_RANGE, BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
 
 type V = { x: number; y: number; z: number };
 type Aircraft = keyof typeof aircraftFlightEnvelope;
-export type HunterMotion = { speed: number; bankControl: number; flightAltitude?: number; terrainAltitude?: number; combatTurnSign: number };
+export type HunterMotion = { expertControl?: boolean; speed: number; bankControl: number; flightAltitude?: number; terrainAltitude?: number; combatTurnSign: number };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const angle = (v: number) => Math.atan2(Math.sin(v), Math.cos(v));
 const toward = (a: number, b: number, step: number) => a + clamp(b - a, -step, step);
@@ -25,8 +25,26 @@ export function hunterFlightIntercept(position: V, speed: number, target: V, vel
 }
 
 /** Same launch-speed and range solver used by the existing server projectile system. */
-export function hunterBallisticSolution(origin: V, velocity: V, target: V, targetVelocity: V) {
-  return ballisticIntercept(origin, velocity, target, targetVelocity);
+export function hunterBallisticSolution(origin: V, velocity: V, target: V, targetVelocity: V, turnRate = 0) {
+  if (!Number.isFinite(turnRate) || Math.hypot(target.x-origin.x,target.y-origin.y,target.z-origin.z)>COMBAT_RANGE) return null;
+  if (Math.abs(turnRate)<.02) return ballisticIntercept(origin,velocity,target,targetVelocity);
+  // Launch-time forecast of an observed bank. The projectile remains straight and can be dodged.
+  const sample=(seconds:number)=>{
+    const sine=Math.sin(turnRate*seconds),cosine=Math.cos(turnRate*seconds);
+    const point={x:target.x+(targetVelocity.x*sine+targetVelocity.z*(1-cosine))/turnRate,
+      y:target.y+targetVelocity.y*seconds,z:target.z+(targetVelocity.z*sine-targetVelocity.x*(1-cosine))/turnRate};
+    const x=point.x-origin.x,y=point.y-origin.y,z=point.z-origin.z,distance=Math.hypot(x,y,z);
+    const direction=distance>.000001?{x:x/distance,y:y/distance,z:z/distance}:{x:0,y:0,z:-1};
+    const speed=ballisticShotSpeed(velocity,direction);
+    return {direction,distance,speed,point,error:distance-speed*seconds};
+  };
+  let low=0,high=0;
+  for(let step=1;step<=64;step++){high=COMBAT_RANGE/BASE_PROJECTILE_SPEED*step/64;if(sample(high).error<=0)break;low=high;}
+  if(sample(high).error>0)return null;
+  for(let step=0;step<26;step++){const middle=(low+high)/2;if(sample(middle).error>0)low=middle;else high=middle;}
+  const solution=sample(high);
+  return solution.distance<=COMBAT_RANGE&&Math.abs(solution.error)<=.01
+    ? {direction:solution.direction,distance:solution.distance,speed:solution.speed,point:solution.point,seconds:high}:null;
 }
 
 /** Bank, yaw, acceleration and pitch all remain bounded by the authored aircraft envelope. */
@@ -63,7 +81,7 @@ export function advanceHunterFlight(player: { position: V; rotation: V; velocity
     const ratio = clamp(motion.speed / e.maxSpeed, 0, 1);
     const authority = (0.42 + ratio * .5) * e.yawRate / e.inertia;
     const turnLimit = authority + Math.abs(Math.sin(player.rotation.z)) * ratio * e.bankTurn;
-    const yawRate = Math.sign(player.rotation.z) * Math.min(Math.abs(error) * .85, turnLimit) * Math.min(1, Math.abs(player.rotation.z) / .35);
+    const yawRate = Math.sign(player.rotation.z) * Math.min(Math.abs(error) * (motion.expertControl ? e.alignmentRate / e.inertia : .85), turnLimit) * Math.min(1, Math.abs(player.rotation.z) / .35);
     player.rotation.y = angle(player.rotation.y + yawRate * dt);
     const desiredSpeed = clamp(cruise * (1 - Math.abs(Math.sin(player.rotation.z)) * .16), e.stallSpeed * 1.2, e.maxSpeed);
     const drag = e.drag * (motion.speed / e.maxSpeed) ** 2 / e.inertia;
