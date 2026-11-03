@@ -1,4 +1,5 @@
-import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactionReady, chooseOpponentEvasion, type OpponentRuntime } from './opponent.js';
+import { planOpponentTactics, recordOpponentShot, recordOpponentHit, recordOpponentDamage, shiftOpponentTactics } from './opponent-tactics.js';
+import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactionReady, type OpponentRuntime } from './opponent.js';
 import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed, type AmbushState } from './surprise-attack.js';
 import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution } from './hunter-flight.js';
@@ -163,7 +164,6 @@ type BotPhase = 'spawn' | 'taxi' | 'takeoff' | 'cruise' | 'activity' | 'land' | 
 type BotRuntime = {
   personality: BotPersonality;
   opponent?: OpponentRuntime;
-  nextThreatCheckAt?: number;
   journeyAttemptId?: string;
   journeyTargetPlayerId?: string;
   journeyProvoked?: boolean;
@@ -442,7 +442,7 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
     player.bot.phase = 'taxi';
     player.bot.speed = 0;
     player.bot.combatTargetId = undefined;
-    if(player.bot.opponent) {player.bot.opponent.detectedTarget=undefined;player.bot.opponent.dodgeAt=-Infinity;player.bot.opponent.dodgeUntil=0;player.bot.opponent.threatAt=undefined;}
+    if(player.bot.opponent) {player.bot.opponent.tactics=undefined;player.bot.opponent.detectedTarget=undefined;player.bot.opponent.dodgeAt=-Infinity;player.bot.opponent.dodgeUntil=0;player.bot.opponent.threatAt=undefined;}
     player.bot.route = skyDuelBotRoute(position, heading);
     player.bot.routeIndex = 0;
   }
@@ -887,9 +887,6 @@ const hunterFireCone = 0.20;
 // A defender at the mandatory 2,000-ft floor needs a modest downward gun
 // depression to threaten low intruders. Horizontal authority stays unchanged.
 const defenderDownwardFireAngle = 0.45;
-const hunterMinimumHorizontalSeparation = 1_100;
-const hunterVerticalBlindHorizontal = 500;
-const hunterVerticalBlindMinimum = 60;
 const hunterBlindZoneEscapeMs = 3_600;
 // Acquire the target shortly after a safe takeoff. DFW's southbound runway
 // reaches the visible Dallas edge before a normal Bluejay climb to 1,500 ft.
@@ -958,7 +955,7 @@ const airAssaultLastSnapshot = new Map<string, number>();
 function initialAssaultPosition(player: PlayerState): Vector3 { return expectedInitialTransform(player.cityId, 0, { x: 0, y: 0, z: 0 }, 'dfw'); }
 function assaultPilot(playerId: string) {
   const player = players.get(playerId)!;
-  return { position: player.position, rotation: player.rotation, velocity: player.velocity, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType), airborne: landingFlightState.get(playerId)?.airborne === true && player.position.y > botRunwayHeight(player.cityId, player.position.x, player.position.z) + 8 && Math.hypot(player.velocity.x, player.velocity.z) > aircraftFlightEnvelope[player.aircraftType].stallSpeed * .5,
+  return { aircraftType: player.aircraftType, lockedTargetId: player.lockedTargetId, position: player.position, rotation: player.rotation, velocity: player.velocity, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType), airborne: landingFlightState.get(playerId)?.airborne === true && player.position.y > botRunwayHeight(player.cityId, player.position.x, player.position.z) + 8 && Math.hypot(player.velocity.x, player.velocity.z) > aircraftFlightEnvelope[player.aircraftType].stallSpeed * .5,
     fresh: Date.now() - player.lastStateAt < 1500 };
 }
 function sendAirAssault(playerId: string, now: number, force = false): void {
@@ -5635,6 +5632,8 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   if (cityId === 'milwaukee' && !owner.isBot && victim.bot) owner.milwaukeeBotsProvoked = true;
   const damageDealt = Math.min(victim.health, victim.trainingOwnerId ? 1 : damage);
   victim.health -= damageDealt;
+  recordOpponentHit(owner.bot?.opponent ?? owner.npcOpponent);
+  recordOpponentDamage(victim.bot?.opponent ?? victim.npcOpponent);
   if (victim.health > 0 && !owner.isBot) provokeJourneyHunter(ownerId, owner, victimId, now);
   if (stabilityDiagnosticsEnabled && players.get(ownerId)?.bot?.defenseTerritoryId) {
     console.info(`DEFENDER_HIT target=${victimId} health=${victim.health} territory=${players.get(ownerId)!.bot!.defenseTerritoryId}`);
@@ -6719,18 +6718,6 @@ function hunterTarget(botId: string, player: PlayerState, bot: BotRuntime, now: 
   return [targetId, target];
 }
 
-function hunterHorizontalSeparation(player: PlayerState, target: PlayerState): number {
-  return Math.hypot(target.position.x - player.position.x, target.position.z - player.position.z);
-}
-
-function hunterInVerticalBlindZone(player: PlayerState, target: PlayerState): boolean {
-  const horizontal = hunterHorizontalSeparation(player, target);
-  const vertical = Math.abs(target.position.y - player.position.y);
-  return horizontal < hunterVerticalBlindHorizontal &&
-    vertical >= hunterVerticalBlindMinimum &&
-    vertical > horizontal * 0.6;
-}
-
 function hunterClearance(bot: BotRuntime): number {
   return bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceClearance : bot.journeySiege || bot.journeyBreakout ? journeyEscapeHunterClearance : botCombatClearance;
 }
@@ -6887,7 +6874,7 @@ function advanceBotFlight(player: PlayerState, bot: BotRuntime, target: Vector3,
     const ambushTarget = bot.journeySurpriseAttack && bot.journeyProvoked && bot.journeyTargetPlayerId ? players.get(bot.journeyTargetPlayerId) : undefined;
     const cruise = ambushTarget ? ambushCruiseSpeed(ambushTarget.velocity) : bot.journeyFirstContact ? (bot.journeySurpriseAttack ? journeyDallas14 : journeyDallas13).cruiseSpeed
       : envelope.maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality));
-    advanceHunterFlight(player, bot, target, cruise, delta,
+    advanceHunterFlight(player, bot, target, bot.opponent?.tactics?.plan.cruise ?? cruise, delta,
       (x, z) => botSafeFloor(player.cityId, x, z, hunterClearance(bot)));
     return;
   }
@@ -7018,115 +7005,9 @@ function beginHunterApproach(player: PlayerState, bot: BotRuntime, targetId: str
   bot.phase = 'approach';
 }
 
-function beginHunterAttackPass(player: PlayerState, bot: BotRuntime, target: PlayerState, now: number): void {
-  const forward = hunterForward(player);
-  const beyond = bot.journeyAttemptId ? 3_000 : 1_000;
-  const lead = smoothHunter(player) ? hunterBallisticSolution(muzzleTransform(player).position, player.velocity, target.position, target.velocity)?.point ?? target.position : target.position;
-  // Freeze a point beyond the target. The pilot commits through the merge,
-  // rather than steering back as soon as the target crosses the nose.
-  bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
-    x: lead.x + forward.x * beyond,
-    y: smoothHunter(player) ? player.position.y : target.position.y,
-    z: lead.z + forward.z * beyond,
-  }, hunterClearance(bot));
-  const passDistance = Math.hypot(target.position.x - player.position.x, target.position.z - player.position.z) + beyond;
-  bot.combatPhaseUntil = now + Math.max(2_800, Math.min(13_000, passDistance / Math.max(90, bot.speed) * 1_250));
-  // A Hunter needs a beat to recognize the opening; this prevents instant,
-  // perfect fire exactly when it transitions into a pass.
-  bot.attackShots = 0;
-  bot.noFireReason = undefined;
-  bot.nextFireAt = Math.max(now, bot.attackFireAfter);
-  bot.phase = 'attackPass';
-}
-
-function beginHunterExtend(player: PlayerState, bot: BotRuntime, now: number): void {
-  if (stabilityDiagnosticsEnabled && bot.phase === 'attackPass' && !bot.attackShots) {
-    console.log(`HUNTER_NO_FIRE ${bot.noFireReason ?? 'window_closed'} target=${bot.combatTargetId ?? 'none'}`);
-  }
-  const forward = hunterForward(player);
-  const separation = bot.journeyAttemptId ? 3_000 : Math.max(1_800, Math.min(3_000,
-    botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 2.2));
-  bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
-    x: player.position.x + forward.x * separation,
-    y: player.position.y,
-    z: player.position.z + forward.z * separation,
-  }, hunterClearance(bot));
-  bot.combatPhaseUntil = now + Math.max(3_600, separation / Math.max(1, bot.speed) * 1_000);
-  bot.phase = 'extend';
-}
-
-function beginHunterBlindZoneExtend(
-  player: PlayerState,
-  bot: BotRuntime,
-  target: PlayerState,
-  now: number,
-  reason: 'vertical_blind_zone' | 'insufficient_horizontal' = 'vertical_blind_zone',
-): void {
-  const horizontal = hunterHorizontalSeparation(player, target);
-  const vertical = Math.abs(target.position.y - player.position.y);
-  const forward = hunterForward(player);
-  const side = { x: -forward.z * bot.combatTurnSign, z: forward.x * bot.combatTurnSign };
-  let escapeX = player.position.x - target.position.x;
-  let escapeZ = player.position.z - target.position.z;
-  const escapeLength = Math.hypot(escapeX, escapeZ);
-  if (escapeLength >= 40) {
-    escapeX /= escapeLength;
-    escapeZ /= escapeLength;
-  } else {
-    // With no useful horizontal bearing, commit forward and sideways. This
-    // creates separation without an impossible pivot or vertical-only orbit.
-    escapeX = forward.x * 0.75 + side.x * 0.66;
-    escapeZ = forward.z * 0.75 + side.z * 0.66;
-    const length = Math.hypot(escapeX, escapeZ);
-    escapeX /= length;
-    escapeZ /= length;
-  }
-  const separation = Math.max(
-    bot.journeyFirstContact ? 1_200 : bot.journeyAttemptId ? 3_000 : hunterMinimumHorizontalSeparation * 1.2,
-    botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 2,
-  );
-  bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
-    x: target.position.x + escapeX * separation,
-    y: target.position.y + Math.max(-90, Math.min(90, player.position.y - target.position.y)),
-    z: target.position.z + escapeZ * separation,
-  }, hunterClearance(bot));
-  bot.combatPhaseUntil = now + Math.max(hunterBlindZoneEscapeMs, separation / Math.max(1, bot.speed) * 1_200);
-  bot.blindZoneEscapeUntil = bot.combatPhaseUntil;
-  bot.phase = 'extend';
-  if (stabilityDiagnosticsEnabled) {
-    console.log(`HUNTER_REPOSITION reason=${reason} horiz=${Math.round(horizontal)}m vertical=${Math.round(vertical)}m target=${bot.combatTargetId ?? 'none'}`);
-  }
-}
-
-function beginHunterReposition(player: PlayerState, bot: BotRuntime, target: PlayerState | undefined, now: number): void {
-  if (bot.journeyDoubleOrdinal === 2 && !smoothHunter(player)) bot.combatTurnSign = bot.combatTurnSign === 1 ? -1 : 1;
-  const forward = target && !smoothHunter(player) ? hunterForward(target) : hunterForward(player);
-  const sign = smoothHunter(player) ? -bot.combatTurnSign : bot.combatTurnSign;
-  const side = { x: -forward.z * sign, z: forward.x * sign };
-  // A broad offset forces real separation and a flyable turn radius before
-  // another approach is considered. Anchor it around the target so a vertical
-  // stack cannot satisfy repositioning through altitude difference alone.
-  const radius = Math.max(
-    bot.journeyFirstContact ? 1_200 : bot.journeyAttemptId ? 3_000 : hunterMinimumHorizontalSeparation,
-    botMinimumTurnRadius(player.aircraftType, Math.max(bot.speed, aircraftFlightEnvelope[player.aircraftType].stallSpeed * 1.2)) * 1.35,
-  );
-  const origin = target?.position ?? player.position;
-  bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, {
-    x: origin.x - forward.x * radius * 0.7 + side.x * radius,
-    y: origin.y + (bot.combatTurnSign > 0 ? 70 : -70),
-    z: origin.z - forward.z * radius * 0.7 + side.z * radius,
-  }, hunterClearance(bot));
-  const waypointDistance = Math.hypot(
-    bot.combatWaypoint.x - player.position.x,
-    bot.combatWaypoint.y - player.position.y,
-    bot.combatWaypoint.z - player.position.z,
-  );
-  bot.combatPhaseUntil = now + Math.max(5_200, waypointDistance / Math.max(1, bot.speed) * 1_500);
-  bot.phase = 'reposition';
-}
-
 function clearHunterCombat(player: PlayerState, bot: BotRuntime): void {
   bot.combatTargetId = undefined;
+  if (bot.opponent) bot.opponent.tactics = undefined;
   bot.combatWaypoint = undefined;
   bot.combatPhaseUntil = 0;
   bot.combatWaypointRefreshAt = 0;
@@ -7196,91 +7077,29 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     target = candidate;
   }
 
-  if (smoothHunter(player) && target && (bot.phase === 'approach' || bot.phase === 'attackPass')) {
-    const forward = hunterForward(player), offset = { x: target[1].position.x - player.position.x, z: target[1].position.z - player.position.z };
-    if (offset.x * forward.x + offset.z * forward.z < -Math.max(250, bot.speed * .6) && Math.hypot(offset.x, offset.z) < 2_500)
-      beginHunterExtend(player, bot, now);
+  if (!target || !bot.opponent) {
+    clearHunterCombat(player, bot);
+    return undefined;
   }
-  if (bot.phase === 'approach') {
-    if (!target) {
-      clearHunterCombat(player, bot);
-      return undefined;
-    }
-    if (hunterInVerticalBlindZone(player, target[1])) {
-      beginHunterBlindZoneExtend(player, bot, target[1], now);
-      target = undefined;
-    } else {
-      if (!botFireSolution(player, target[1], Boolean(bot.defenseTerritoryId)).reason) {
-        beginHunterAttackPass(player, bot, target[1], now);
-      } else if (now >= bot.combatPhaseUntil) {
-        // A timeout is not a firing solution. Make a wide reposition instead.
-        beginHunterReposition(player, bot, target[1], now);
-      } else if (now >= bot.combatWaypointRefreshAt) {
-        // Intercept updates are deliberately sparse and retain the same target.
-        const intercept = hunterInterceptWaypoint(player, bot, target[1]);
-        if (smoothHunter(player) && bot.combatWaypoint) {
-          bot.combatWaypoint.x += (intercept.x - bot.combatWaypoint.x) * .55;
-          bot.combatWaypoint.y += (intercept.y - bot.combatWaypoint.y) * .35;
-          bot.combatWaypoint.z += (intercept.z - bot.combatWaypoint.z) * .55;
-        } else bot.combatWaypoint = intercept;
-        bot.combatWaypointRefreshAt = now + (bot.opponent?.profile.trackingMs ?? enemyAiLevels.MEDIUM.trackingMs);
-      }
-    }
-  } else if (bot.phase === 'attackPass') {
-    if (now >= bot.combatPhaseUntil || (bot.combatWaypoint && Math.hypot(bot.combatWaypoint.x - player.position.x, bot.combatWaypoint.y - player.position.y, bot.combatWaypoint.z - player.position.z) < 100)) {
-      beginHunterExtend(player, bot, now);
-      if (bot.journeyRearGuardEscort) bot.escortReturnUntil = now + 4_000;
-      target = undefined;
-    }
-  } else if (bot.phase === 'extend') {
-    if (now >= bot.combatPhaseUntil || (bot.combatWaypoint && Math.hypot(bot.combatWaypoint.x - player.position.x, bot.combatWaypoint.y - player.position.y, bot.combatWaypoint.z - player.position.z) < 130)) {
-      beginHunterReposition(player, bot, target?.[1], now);
-      target = undefined;
-    }
-  } else if (bot.phase === 'reposition' && (now >= bot.combatPhaseUntil || (bot.combatWaypoint && Math.hypot(bot.combatWaypoint.x - player.position.x, bot.combatWaypoint.y - player.position.y, bot.combatWaypoint.z - player.position.z) < 140))) {
-    if (target && (bot.journeyTargetPlayerId === target[0] ||
-      Math.hypot(target[1].position.x - player.position.x, target[1].position.z - player.position.z) < hunterPursuitRange)) {
-      const horizontal = hunterHorizontalSeparation(player, target[1]);
-      if (horizontal < (bot.journeyFirstContact ? 1_200 : bot.journeyAttemptId ? 3_000 : hunterMinimumHorizontalSeparation) || now < bot.blindZoneEscapeUntil) {
-        beginHunterBlindZoneExtend(
-          player,
-          bot,
-          target[1],
-          now,
-          hunterInVerticalBlindZone(player, target[1]) || now < bot.blindZoneEscapeUntil
-            ? 'vertical_blind_zone'
-            : 'insufficient_horizontal',
-        );
-      } else {
-        bot.blindZoneEscapeUntil = 0;
-        beginHunterApproach(player, bot, target[0], target[1], now);
-      }
-    } else {
-      clearHunterCombat(player, bot);
-      return undefined;
-    }
-  }
-
-  // Beginner reaction to a genuinely approaching shot. The waypoint goes through
-  // normal bank/turn/acceleration integration; no transform or hitbox changes.
-  if (bot.opponent && target && now >= (bot.nextThreatCheckAt ?? 0) && now >= bot.opponent.dodgeUntil) {
-    bot.nextThreatCheckAt = now + 200;
-    const bullets = [...projectiles.values()].filter(shot => shot.ownerId === target![0] && shot.cityId === player.cityId);
-    const dodge = chooseOpponentEvasion(bot.opponent,player,bot.speed,bullets,now,
-      (x,z)=>botSafeFloor(player.cityId,x,z,hunterClearance(bot)),
-      bot.journeyAttemptId ? insideJourneyHunterArena : undefined);
-    if(dodge) {
-      bot.combatWaypoint = safeBotWaypoint(player.cityId,player.position,dodge,hunterClearance(bot));
-      bot.combatWaypointRefreshAt = bot.opponent.dodgeUntil;
-      bot.combatPhaseUntil = bot.opponent.dodgeUntil;
-      bot.phase = 'extend';
-    }
-  }
-
-  // The same forward-cone and cooldown validation applies throughout a
-  // committed maneuver: a defender may take a legal shot during approach or
-  // a wide turn, but cannot fire backward while extending away.
-  return bot.combatWaypoint ? { waypoint: bot.combatWaypoint, target } : undefined;
+  const targetPlayer = target[1];
+  const bullets = now >= (bot.opponent.tactics?.nextDecision ?? 0)
+    ? [...projectiles.values()].filter(shot => shot.ownerId === target![0] && shot.cityId === player.cityId) : [];
+  const plan = planOpponentTactics(bot.opponent, {
+    enemy: player, target: targetPlayer, targetId: target[0], speed: bot.speed, now,
+    firingSolution: !botFireSolution(player, targetPlayer, Boolean(bot.defenseTerritoryId)).reason,
+    lockedByTarget: targetPlayer.lockedTargetId === botId, bullets,
+    cruise: bot.journeySurpriseAttack ? ambushCruiseSpeed(targetPlayer.velocity)
+      : bot.journeyFirstContact ? journeyDallas13.cruiseSpeed : aircraftFlightEnvelope[player.aircraftType].maxSpeed * (bot.journeyAce || bot.journeyDoubleOrdinal ? journeyAceCruiseFactor : botCruiseFactor(bot.personality)),
+    floorAt: (x,z) => botSafeFloor(player.cityId,x,z,hunterClearance(bot)),
+    safeWaypoint: (from,to) => safeBotWaypoint(player.cityId,from,to,hunterClearance(bot)),
+    inside: bot.journeyAttemptId ? insideJourneyHunterArena : undefined,
+  });
+  bot.combatTurnSign = plan.turnSign < 0 ? -1 : 1;
+  bot.combatWaypoint = plan.waypoint;
+  bot.phase = plan.tactic === 'attackPass' ? 'attackPass'
+    : ['extendAway','defensiveBreak','energyRecovery','disengage'].includes(plan.tactic) ? 'extend'
+    : ['wideReposition','lagPursuit'].includes(plan.tactic) ? 'reposition' : 'approach';
+  return {waypoint:plan.waypoint,target};
 }
 
 function updateBots(now: number): void {
@@ -7345,7 +7164,7 @@ function updateBots(now: number): void {
       bot.attackFireAfter = 0;
       bot.blindZoneEscapeUntil = 0;
       bot.bankControl = 0;
-      if(bot.opponent) {bot.opponent.detectedTarget=undefined;bot.opponent.dodgeAt=-Infinity;bot.opponent.dodgeUntil=0;bot.opponent.threatAt=undefined;}
+      if(bot.opponent) {bot.opponent.tactics=undefined;bot.opponent.detectedTarget=undefined;bot.opponent.dodgeAt=-Infinity;bot.opponent.dodgeUntil=0;bot.opponent.threatAt=undefined;}
       bot.route = airportRoute(player.cityId, bot.homeAirportIndex, bot.personality);
       bot.routeIndex = 0;
       broadcastToCity(player.cityId, botStateMessage(botId, player, 'playerState'));
@@ -7422,6 +7241,7 @@ function updateBots(now: number): void {
         if (createProjectile(botId, player, undefined, undefined, aim,
           bot.journeyRearGuardEscort ? journeyDallas08.escortShotDamage : undefined)) {
           if (escortFire) rearGuardShotResolved(escortFire, now);
+          recordOpponentShot(bot.opponent);
           bot.attackShots = (bot.attackShots ?? 0) + 1;
           bot.noFireReason = undefined;
           if (player.lockedTargetId === targetId) sendIncomingFire(targetId, botId);
@@ -8057,6 +7877,7 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
     bot.combatWaypointRefreshAt = shift(bot.combatWaypointRefreshAt);
     bot.attackFireAfter = shift(bot.attackFireAfter);
     if(bot.opponent) {bot.opponent.detectedAt=shift(bot.opponent.detectedAt);bot.opponent.dodgeAt=shift(bot.opponent.dodgeAt);bot.opponent.dodgeUntil=shift(bot.opponent.dodgeUntil);if(bot.opponent.threatAt!==undefined)bot.opponent.threatAt=shift(bot.opponent.threatAt);}
+    shiftOpponentTactics(bot.opponent, pausedMs);
     if (bot.ambush) {
       bot.ambush.activatedAt = shift(bot.ambush.activatedAt);
       if (bot.ambush.warningAt !== undefined) bot.ambush.warningAt = shift(bot.ambush.warningAt);

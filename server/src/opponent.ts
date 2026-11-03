@@ -1,3 +1,4 @@
+import type { TacticalMemory } from './opponent-tactics.js';
 import { enemyAiProfile, type EnemyAiLevel, type EnemyAiProfile } from '../../shared/enemy-ai.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { cosmeticCatalog } from '../../shared/cosmetics.mjs';
@@ -11,13 +12,14 @@ export type OpponentDefinition = Readonly<{
   aircraft: OpponentAircraft; livery?: string; level: EnemyAiLevel; cityId: keyof typeof cityAirports;
   position: V; rotation: V; speed: number; health: number;
   airportId?: string; encounterId?: string; ownerId?: string;
+  personality?: 'balanced'|'aggressive'|'patient'|'defensive'|'energy';
   behavior: 'patrol'|'pursuit'|'ambush'|'escort'|'defend'|'attack'|'objective';
 }>;
 export type OpponentRuntime = {
   readonly definition: OpponentDefinition; readonly profile: EnemyAiProfile;
   readonly cosmetics: Readonly<Record<string, string>>;
   detectedTarget?: string; detectedAt: number; dodgeAt: number; dodgeUntil: number;
-  threatAt?: number; threatOwner?: string;
+  threatAt?: number; threatOwner?: string; tactics?: TacticalMemory;
 };
 const liveries = new Map(cosmeticCatalog.map(item => [item.id, item]));
 const finiteVector = (p: V) => p && [p.x,p.y,p.z].every(Number.isFinite);
@@ -25,6 +27,7 @@ const finiteVector = (p: V) => p && [p.x,p.y,p.z].every(Number.isFinite);
 /** Server-authored only: no player entitlement or wallet operation occurs here. */
 export function createOpponent(definition: OpponentDefinition): OpponentRuntime {
   if (!Object.hasOwn(aircraftFlightEnvelope, definition.aircraft)) throw new Error('Invalid opponent aircraft');
+  if (definition.personality !== undefined && !['balanced','aggressive','patient','defensive','energy'].includes(definition.personality)) throw new Error('Invalid opponent personality');
   const profile = enemyAiProfile(definition.level);
   if (!Object.hasOwn(cityRegistry, definition.cityId)) throw new Error('Invalid opponent city');
   const city=cityRegistry[definition.cityId] as {worldSize:number};
@@ -78,7 +81,11 @@ export function opponentDodge(aircraftType: OpponentAircraft, enemy: {position: 
     const p={ aircraftType, position:{...enemy.position}, rotation:{...enemy.rotation}, velocity:{...enemy.velocity} };
     const motion={ speed, bankControl:0, combatTurnSign:side };
     const f={x:-Math.sin(p.rotation.y),z:-Math.cos(p.rotation.y)};
-    const target={x:p.position.x+f.x*2000+f.z*side*1400,y:p.position.y+100,z:p.position.z+f.z*2000-f.x*side*1400};
+    const e=aircraftFlightEnvelope[aircraftType],ratio=Math.min(1,speed/e.maxSpeed);
+    const turn=(.42+ratio*.5)*e.yawRate/e.inertia+Math.sin(.65)*ratio*e.bankTurn;
+    const radius=Math.max(speed,e.takeoffSpeed)/Math.max(.05,turn);
+    const reach=Math.max(speed*2,radius*1.6);
+    const target={x:p.position.x+f.x*reach+f.z*side*radius*1.4,y:p.position.y+speed*Math.sin(e.maxClimbPitch)*1.2,z:p.position.z+f.z*reach-f.x*side*radius*1.4};
     let score=Infinity;
     for(let step=1;step<=12;step++) {
       advanceHunterFlight(p,motion,target,speed,.1,floorAt);

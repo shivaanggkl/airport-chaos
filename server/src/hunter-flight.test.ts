@@ -1,3 +1,5 @@
+import { planOpponentTactics } from './opponent-tactics.js';
+import { createOpponent } from './opponent.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { advanceHunterFlight, hunterBallisticSolution, hunterFlightIntercept } from './hunter-flight.js';
@@ -126,19 +128,19 @@ test('production firing solution respects the forward cone and uses intercepts b
   target.position = { x: 0, y: 900, z: 500 }; assert.equal(ctx.botFireSolution(shooter, target, false).reason, 'NO_FORWARD_SOLUTION');
 });
 
-test('production overshoot commits forward, then sets a wide return course instead of chasing behind its tail', () => {
+test('production navigation delegates overshoot spacing to the same universal planner', () => {
   const p = { ...pilot(), cityId: 'dallas', lifeState: 'alive' }, target = { ...pilot(), position: { x: 0, y: 900, z: 600 } };
-  const bot = { ...motion(), personality: 'hunter', phase: 'attackPass', combatTargetId: 'pilot', combatPhaseUntil: 10_000, blindZoneEscapeUntil: 0, combatWaypoint: { x: 0, y: 900, z: -2000 } };
-  const ctx = production(['hunterNavigationTarget', 'beginHunterExtend', 'beginHunterReposition', 'botMinimumTurnRadius', 'isHunterCombatPhase'], {
-    players: new Map(), smoothHunter: () => true, hunterTarget: () => ['pilot', target], hunterForward: () => ({ x: 0, y: 0, z: -1 }),
-    safeBotWaypoint: (_city: unknown, _from: unknown, p: unknown) => p, hunterClearance: () => 600,
-    aircraftFlightEnvelope, hunterMinimumHorizontalSeparation: 1100, stabilityDiagnosticsEnabled: false,
+  const opponent=createOpponent({aircraft:'privateJet',level:'HARD',cityId:'dallas',position:p.position,rotation:p.rotation,speed:400,health:150,behavior:'pursuit'});
+  const bot = { ...motion(), opponent, personality: 'hunter', phase: 'attackPass', combatTargetId: 'pilot', combatWaypoint: { x: 0, y: 900, z: -2000 } };
+  const ctx = production(['hunterNavigationTarget','isHunterCombatPhase'], {
+    players:new Map(),hunterTarget:()=>['pilot',target],planOpponentTactics,opponentReactionReady:()=>true,
+    projectiles:new Map(),botFireSolution:()=>({reason:'NO_FORWARD_SOLUTION'}),botCruiseFactor:()=>.7,
+    safeBotWaypoint:(_city:unknown,_from:unknown,p:unknown)=>p,botSafeFloor:()=>100,hunterClearance:()=>600,aircraftFlightEnvelope,
   });
-  ctx.hunterNavigationTarget('hunter', p, bot, 0);
-  assert.equal(bot.phase, 'extend'); assert.ok(bot.combatWaypoint.z <= -1800); assert.equal(bot.combatWaypoint.y, 900);
-  const until = bot.combatPhaseUntil;
-  ctx.hunterNavigationTarget('hunter', p, bot, until + 1);
-  assert.equal(bot.phase, 'reposition'); assert.ok(Math.abs(bot.combatWaypoint.x) >= 1100);
+  ctx.hunterNavigationTarget('hunter',p,bot,0);
+  ctx.hunterNavigationTarget('hunter',p,bot,500);
+  assert.equal(bot.phase,'extend');assert.ok(bot.combatWaypoint.z<0);
+  assert.equal(opponent.tactics?.plan.tactic,'extendAway');
 });
 
 test('common Hunter controller covers combat modes but leaves noncombat leaders and peaceful NPCs unchanged', () => {
@@ -150,4 +152,47 @@ test('common Hunter controller covers combat modes but leaves noncombat leaders 
     {bot:{opponent:{},journeyRearGuardEscort:1}},
   ]) assert.equal(ctx.smoothHunter(p),true);
   for(const p of [{bot:{personality:'casual'}},{bot:{opponent:{},journeyLeader:true}}]) assert.equal(ctx.smoothHunter(p),false);
+});
+
+import { opponentAim } from './opponent.js';
+import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
+import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
+import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
+import { projectileImpactFraction } from '../../shared/projectile-collision.mjs';
+import { aircraftHitRadii } from '../../shared/remote-aircraft-visual-rules.mjs';
+
+test('production gun solution, muzzle, dispersed launch and swept collision genuinely hit a moving Bluejay; banking evades',t=>{
+ const projectiles=new Map<string,any>();let ordinal=0;
+ const normalize=(v:{x:number;y:number;z:number})=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};};
+ const ctx=production(['botFireSolution','createProjectile','muzzleTransform','rotateLocalYxz','forwardDirection','hunterForward'],{
+  smoothHunter:()=>true,hunterBallisticSolution,aircraftFlightEnvelope,normalize,
+  dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,hunterFireRange:COMBAT_RANGE,hunterFireCone:.2,defenderDownwardFireAngle:.3,
+  aircraftPresentationMuzzleSockets,canFire:()=>true,projectileBudget:{reserve:()=>true},playerJourneyAttempts:new Map(),
+  randomUUID:()=>String(++ordinal),projectileDamageForAircraft,ballisticShotSpeed,projectiles,broadcastToCity:()=>{},
+ });
+ for(const level of ['MEDIUM','HARD','VERY_HARD','LEGENDARY'] as const) {
+  let straightHits=0,evasiveHits=0,seed=0x1783ad9;
+  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+  for(let attempt=0;attempt<40;attempt++) {
+   const shooter={...pilot(),aircraftType:'trainer',cityId:'dallas',rotation:{x:0,y:0,z:.3}};
+   const target={...pilot(),aircraftType:'trainer',position:{x:0,y:950,z:-1200},velocity:{x:60,y:0,z:-400}};
+   const solution=ctx.botFireSolution(shooter,target,false);assert.equal(solution.reason,undefined);
+   const aim=opponentAim(enemyAiLevels[level],solution.aimX,solution.aimY,random);
+   projectiles.clear();assert.equal(ctx.createProjectile('enemy',shooter,undefined,undefined,aim),true);
+   const shot=[...projectiles.values()][0]!;
+   assert.equal(shot.damage,25);assert.equal(shot.mode,'ballistic');
+   for(const evasive of [false,true]) {
+    const targetPosition={...target.position},velocity={...target.velocity};let previous={...shot.position};
+    for(let time=.01;time<COMBAT_RANGE/shot.speed;time+=.01) {
+     if(evasive&&time>.2){const yaw=.006,x=velocity.x*Math.cos(yaw)-velocity.z*Math.sin(yaw);velocity.z=velocity.x*Math.sin(yaw)+velocity.z*Math.cos(yaw);velocity.x=x;}
+     targetPosition.x+=velocity.x*.01;targetPosition.z+=velocity.z*.01;
+     const end={x:shot.position.x+shot.direction.x*shot.speed*time,y:shot.position.y+shot.direction.y*shot.speed*time,z:shot.position.z+shot.direction.z*shot.speed*time};
+     if(projectileImpactFraction(previous,end,targetPosition,velocity,.01,aircraftHitRadii.trainer*1.6+.65)!==null){if(evasive)evasiveHits++;else straightHits++;break;}
+     previous=end;
+    }
+   }
+  }
+  t.diagnostic(`${level}: production shots hit straight ${straightHits}/40, evasive ${evasiveHits}/40`);
+  assert.ok(straightHits>0);assert.ok(evasiveHits<straightHits);
+ }
 });

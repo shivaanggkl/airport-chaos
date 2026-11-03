@@ -225,8 +225,6 @@ test('Legendary dodge decisions change physical trajectory, respect canonical re
   legend.speed = 150;
   legend.readyAt = now;
   legend.rotation = { x: 0, y: 0, z: 0 };
-  legend.previous = { ...legend.position };
-  legend.movedAt = now + 4100;
   bullets = [{ position: { x: 0, y: 600, z: 900 }, direction: { x: 0, y: 0, z: -1 }, speed: 1500 }];
   e.tick(pilot, now + 4150);
   e.tick(pilot, now + 4350);
@@ -244,7 +242,7 @@ test('Legendary dodge decisions change physical trajectory, respect canonical re
   assert.ok(peakBank > .1, 'dodge banks during its turn rather than moving sideways instantly');
   e.tick(pilot, decision + 1300);
   assert.equal(legend.dodgeAt, decision, 'counterattack window does not chain another dodge');
-  assert.ok(Math.abs(legend.waypoint.x - (pilot.position.x + pilot.velocity.x * 1.4)) < .01, 'after evasion it intercepts the player rather than orbiting the dodge endpoint');
+  assert.ok(legend.opponent.tactics?.plan.until! > decision, 'evasion uses a bounded tactical commitment, then reevaluates geometry');
 });
 test('Encounter termination removes every active actor and leaves no active wave',()=>{
   const removed:string[]=[];
@@ -273,19 +271,16 @@ test('Distant arrivals use cruise and a physical braking distance instead of the
   assert.ok((speed**2-193**2)/(2*envelope.airbrakeDrag)<=range-1800+.001);
   assert.ok(speed<=envelope.maxSpeed*.72);
 });
-test('An attack pass commits forward and respects the tier turn limit',()=>{
+test('Air Assault delegates a close pass to the shared committed, physical planner',()=>{
   const r=rig();r.start();r.tick(now+4200);const e=r.encounter.active()[0]!;
-  Object.assign(e,{phase:'combat',position:{x:0,y:600,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},speed:200,readyAt:now,trackingAt:now,nextPassAt:0});
-  r.pilot.position={x:0,y:600,z:-300};r.tick(now+4250);
-  assert.ok(e.passUntil>now+4250);assert.ok(e.waypoint.z<-1500);
-  assert.ok(Math.abs(e.waypoint.z)>=(200+200)*(8+2),'pass endpoint stays beyond its committed travel');
-  const end=e.passUntil;r.pilot.position={x:500,y:600,z:0};r.tick(now+4300);
-  assert.equal(e.passUntil,end);assert.ok(Math.abs(e.rotation.y)<=aircraftFlightEnvelope.fighter.yawRate*.5*.05+.001);
-  e.speed=400;
-  r.pilot.position={x:0,y:600,z:5000};r.tick(now+4350);
-  assert.equal(e.passUntil,end,'separation must not cancel the committed pass and start another tail chase');
-  assert.deepEqual(e.waypoint,e.passWaypoint);
-  assert.ok(e.speed<400,'outbound separation must brake to combat speed rather than trigger approach acceleration');
+  Object.assign(e,{phase:'combat',position:{x:0,y:600,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-200},speed:200,readyAt:now,trackingAt:now});
+  e.opponent.tactics=undefined;
+  r.pilot.position={x:0,y:600,z:-300};r.tick(now+4250);r.tick(now+4500);
+  const plan=e.opponent.tactics!.plan;
+  assert.ok(['attackPass','extendAway'].includes(plan.tactic));assert.ok(plan.waypoint.z<0);
+  const before={...e.position},until=plan.until;r.pilot.position={x:500,y:600,z:0};r.tick(now+4550);
+  assert.equal(e.opponent.tactics!.plan.until,until);
+  assert.ok(Math.hypot(e.position.x-before.x,e.position.z-before.z)<30);
 });
 test('In-flight enemy bullets retain a firing slot across leases and attacks are warned',()=>{
   const owners=new Set<string>(),fired:string[]=[],warned:string[]=[];
@@ -371,9 +366,9 @@ test('Holding Legendary aircraft still evade real incoming trajectories without 
   const [attacker,holding]=e.enemies.filter(n=>n.tier==='legendary');
   for(const [index,n] of [attacker!,holding!].entries())Object.assign(n,{phase:'combat',health:200,position:{x:index*2000,y:index?800:600,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-150},speed:150,readyAt:now,movedAt:now+4100,previous:{x:index*2000,y:index?800:600,z:0}});
   const incoming=bullets.pop()!;
-  holding!.passUntil=holding!.trackingAt=now+10000;
+  holding!.trackingAt=now;
   e.tick(pilot,now+4150);
-  assert.equal(holding!.passUntil,0,'handoff cancels the old attack pass immediately');
+  assert.equal(holding!.opponent.tactics,undefined,'holding pilot does not retain an attacking plan');
   assert.ok(Math.hypot(holding!.waypoint.x-pilot.position.x,holding!.waypoint.z-pilot.position.z)>2000);
   bullets.push(incoming);
   e.tick(pilot,now+4200);

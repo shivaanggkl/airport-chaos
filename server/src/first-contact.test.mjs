@@ -1,3 +1,4 @@
+import { recordOpponentHit, recordOpponentDamage } from './opponent-tactics.js';
 import { createOpponent } from './opponent.js';
 import { advanceHunterFlight } from './hunter-flight.js';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext(context);
+  const sandbox = vm.createContext({recordOpponentHit,recordOpponentDamage,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }
@@ -112,7 +113,7 @@ test('old active Redline attempts are invalidated once; historical clears surviv
 test('M7 reuses physical Hunter flight, restricted ballistics, private visibility and cleanup', () => {
   assert.match(source, /const cruiseSpeed = bot\.journeyFirstContact \? \(bot\.journeySurpriseAttack \? journeyDallas14 : journeyDallas13\)\.cruiseSpeed/);
   assert.match(source, /!bot\.journeyFirstContact \|\| solution\.distance <= 2_500/);
-  assert.ok(source.includes("chooseOpponentEvasion(bot.opponent,player,bot.speed"));
+  assert.ok(source.includes("planOpponentTactics(bot.opponent"));
   assert.match(source, /privateAttemptId: privateId \?\? player\.bot\?\.journeyAttemptId/);
   assert.match(source, /if \(victim\.bot\?\.journeyFirstContact \|\| owner\.bot\?\.journeyFirstContact\)/);
   assert.match(source, /if \(victim\.bot\?\.journeyAttemptId\) removeBot\(victimId\)/);
