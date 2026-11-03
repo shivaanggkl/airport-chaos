@@ -101,8 +101,11 @@ export const journeyDallas13: Readonly<{
   enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas14: Readonly<{
-  id: 'journey-dallas-14'; cityId: 'dallas'; name: 'ESCAPE VECTOR'; chapter: 'HIGH STAKES';
-  firstClearCredits: 1800; startAirportId: 'love'; escapeDistance: 450; escapeMs: 10000;
+  id: 'journey-dallas-14'; cityId: 'dallas'; name: 'SURPRISE ATTACK'; chapter: 'SKY HUNTERS';
+  timeLimitMs: 240000; firstClearCredits: 1800; startAirportId: 'love';
+  enemyAircraft: 'trainer'; enemyLivery: 'bluejay-aurora'; enemyHealth: 150;
+  enemyAltitude: 800; aggressionDistance: 10000; patrolRadius: 1500; cruiseSpeed: 460;
+  warningMs: 3000; rearApproachMs: 18000; enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas15: Readonly<{
   id: 'journey-dallas-15'; cityId: 'dallas'; name: 'ACE INTERCEPT'; chapter: 'HIGH STAKES';

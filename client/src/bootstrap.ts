@@ -239,6 +239,11 @@ async function playJourneyMission(): Promise<void> {
       const progress = readiness.ok ? await readiness.json() as { mission13?: { definitionVersion?: number } } : undefined;
       if (progress?.mission13?.definitionVersion !== 1) throw new Error('Mission 7 needs a server update. Please try again later.');
     }
+    if (mission === 'mission-14') {
+      const readiness = await apiFetch(apiUrl('/api/journey/dallas'), { cache: 'no-store' });
+      const progress = readiness.ok ? await readiness.json() as { mission14?: { definitionVersion?: number } } : undefined;
+      if (progress?.mission14?.definitionVersion !== 1) throw new Error('Mission 8 needs a server update. Please try again later.');
+    }
     const response = await apiFetch(apiUrl(`/api/journey/dallas/${mission}/launch`), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
@@ -255,7 +260,7 @@ async function playJourneyMission(): Promise<void> {
   } catch (error) {
     console.error('[journey] Mission launch failed', error);
     await refreshJourneyProgress();
-    if (mission === 'mission-13') missionJourneyElement.querySelector<HTMLElement>('[data-mission-objective]')!.textContent =
+    if (mission === 'mission-13' || mission === 'mission-14') missionJourneyElement.querySelector<HTMLElement>('[data-mission-objective]')!.textContent =
       error instanceof Error ? error.message : 'Mission 7 is unavailable. Please try again.';
   } finally {
     journeyLaunchPending = false;

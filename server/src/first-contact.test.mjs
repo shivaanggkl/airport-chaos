@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 import vm from 'node:vm';
-import { journeyDallas13 as mission, journeyDallas06, journeyDallas07, journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { journeyDallas13 as mission, journeyDallas14, journeyDallas06, journeyDallas07, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
@@ -48,7 +48,7 @@ test('one server-owned Nightowl, duplicate prevention, horizontal aggression bou
   const pilot = { pilotId: 'pilot', lifeState: 'alive', position: { x: 0, y: 100, z: 0 } };
   const active = { missionId: mission.id, attemptId: 'attempt', status: 'APPROACH', targetId: null };
   const players = new Map(); let created = 0, engaged = 0;
-  const ctx = runtime(['ensureFirstContact'], { journeyDallas13: mission, players,
+  const ctx = runtime(['ensureFirstContact'], { journeyDallas13: mission, journeyDallas14, players,
     createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 150, position: { x: 10_001, y: 900, z: 0 } }); return 'enemy'; },
     journeyStore: { assignFirstContact: (_pilot, _attempt, id) => { active.targetId = id; return active; } },
     removeBot: () => assert.fail('unexpected removal'), sendJourneyState: () => {}, failPlayerJourney: () => assert.fail('unexpected failure'),
@@ -109,13 +109,13 @@ test('old active Redline attempts are invalidated once; historical clears surviv
 });
 
 test('M7 reuses physical Hunter flight, restricted ballistics, private visibility and cleanup', () => {
-  assert.match(source, /const cruiseSpeed = bot\.journeyFirstContact \? journeyDallas13\.cruiseSpeed/);
+  assert.match(source, /const cruiseSpeed = bot\.journeyFirstContact \? \(bot\.journeySurpriseAttack \? journeyDallas14 : journeyDallas13\)\.cruiseSpeed/);
   assert.match(source, /!bot\.journeyFirstContact \|\| solution\.distance <= 2_500/);
   assert.ok(source.includes("bot.journeyFirstContact && target && (bot.phase === 'approach' || bot.phase === 'attackPass')"));
   assert.match(source, /privateAttemptId: privateAttempt\?\.missionId===journeyDallas13\.id/);
   assert.match(source, /if \(victim\.bot\?\.journeyFirstContact \|\| owner\.bot\?\.journeyFirstContact\)/);
   assert.match(source, /if \(victim\.bot\?\.journeyAttemptId\) removeBot\(victimId\)/);
-  assert.match(source, /active\?\.missionId === journeyDallas13\.id && active\.status === 'APPROACH' && journeyCountdownComplete\.has/);
+  assert.match(source, /\(active\?\.missionId === journeyDallas13\.id \|\| active\?\.missionId === journeyDallas14\.id\) && active\.status === 'APPROACH' && journeyCountdownComplete\.has/);
 });
 
 test('six accepted Bluejay combat hits destroy only the owned target and complete the real reward transaction', () => {
@@ -129,7 +129,7 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
       bot: { journeyFirstContact: true, journeyAttemptId: a.attemptId, journeyTargetPlayerId: 'owner', journeyProvoked: true } };
     const players = new Map([['owner', pilot], ['enemy', enemy], ['outsider', { ...pilot, pilotId: 'other' }]]);
     const packets = [];
-    const ctx = runtime(['applyCombatHit', 'transportEscortHealth'], { journeyDallas13: mission, journeyDallas15: { id: 'journey-dallas-15' }, players, journeyStore: f.store,
+    const ctx = runtime(['applyCombatHit', 'transportEscortHealth'], { journeyDallas13: mission, journeyDallas14, journeyDallas15: { id: 'journey-dallas-15' }, players, journeyStore: f.store,
       playerJourneyAttempts: new Map([['owner', a.attemptId]]), playerJourneyRunwayPrep: new Set(),
       focusedBotInteractionExcluded: () => false, tutorialCombatPairAllowed: () => true, sameCombatContext: () => true,
       insideJourneyHunterArena: () => true, stabilityDiagnosticsEnabled: false, airportRepairStays: new Map(),
@@ -158,7 +158,7 @@ test('actual Nightowl factory and flight integrator keep the airborne patrol ins
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
     advanceHunterFlight,
-    journeyDallas13: mission, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
+    journeyDallas13: mission, journeyDallas14, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
     botAirports: () => cityAirports.dallas, airportRoute: () => [], boundJourneyHunterPoint,
     botTerrainHeight: () => 120, botRunwayHeight: () => 120, safeBotWaypoint: (_city, _from, p) => p,
     sendToPlayer: (_owner, p) => sent.push(p), broadcastToCity: () => assert.fail('private spawn leaked'),

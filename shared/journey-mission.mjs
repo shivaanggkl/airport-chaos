@@ -227,9 +227,13 @@ export const journeyDallas13 = Object.freeze({
 });
 
 export const journeyDallas14 = Object.freeze({
-  id: 'journey-dallas-14', cityId: 'dallas', name: 'ESCAPE VECTOR',
-  chapter: 'HIGH STAKES', firstClearCredits: 1_800,
-  startAirportId: 'love', escapeDistance: 450, escapeMs: 10_000,
+  id: 'journey-dallas-14', cityId: 'dallas', name: 'SURPRISE ATTACK',
+  chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_800,
+  startAirportId: 'love', enemyAircraft: 'trainer', enemyLivery: 'bluejay-aurora',
+  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
+  patrolRadius: 1_500, cruiseSpeed: 460, warningMs: 3_000, rearApproachMs: 18_000,
+  // Northbound from Love Field with a 4 km lateral offset; exactly 20 km horizontal.
+  enemySpawn: Object.freeze({ x: -5_140 - 4_000, z: -7_780 - Math.sqrt(20_000 ** 2 - 4_000 ** 2) }),
 });
 
 export const journeyDallas15 = Object.freeze({
