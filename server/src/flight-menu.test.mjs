@@ -10,14 +10,14 @@ const html = read('client/index.html');
 const server = read('server/src/index.ts');
 
 test('one flight menu shell exposes only mode-appropriate tabs and actions', () => {
-  assert.match(main, /const flightMenuMode = journeyMode \? 'single' : trainingRequested \? 'training' : 'multiplayer'/);
+  assert.match(main, /const flightMenuMode = journeyMode \? 'single' : trainingRequested \? 'training' : soloExploreMode \? 'explore' : 'multiplayer'/);
   assert.match(main, /const pilotMenu = new PilotMenu[\s\S]*flightMode: flightMenuMode[\s\S]*sections: flightMenuMode === 'single' \? \['MISSION', 'CONTROLS', 'AUDIO', 'HELP'\] : \['CONTROLS', 'AUDIO', 'HELP'\]/);
   assert.match(menu, /flightMode\?: 'single' \| 'training' \| 'multiplayer'/);
   assert.match(menu, /const settingsLayout = this\.options\.appShell === true \|\| this\.options\.flightMode !== undefined/);
   assert.match(menu, /this\.options\.flightMode === 'single' \? 'MISSION PAUSED' : this\.options\.flightMode === 'training' \? 'TRAINING MENU' : 'FLIGHT MENU'/);
   assert.match(menu, /this\.options\.appShell \|\| this\.options\.flightMode\) \{ this\.close\(\); return; \}/);
   assert.match(menu, /label: this\.options\.flightMode === 'single' \? 'RESUME MISSION' : this\.options\.flightMode === 'training' \? 'RETURN TO TRAINING' : 'RETURN TO FLIGHT'/);
-  assert.match(menu, /label: this\.options\.forfeitMatch \? 'FORFEIT MATCH' : this\.options\.flightMode === 'single' \? 'EXIT TO JOURNEY' : this\.options\.flightMode === 'training' \? 'EXIT TRAINING' : 'LEAVE SESSION'/);
+  assert.match(menu, /label: this\.options\.forfeitMatch \? 'FORFEIT MATCH' : this\.options\.flightMode === 'single' \? 'EXIT TO JOURNEY' : this\.options\.flightMode === 'training' \? 'EXIT TRAINING' : this\.options\.flightMode === 'explore' \? 'BACK TO HUB' : 'LEAVE SESSION'/);
   assert.match(main, /forfeitMatch: skyDuelMode \? \(\) => requestFlightExit\(\) : undefined/);
 });
 
@@ -55,7 +55,7 @@ test('restart and leave are confirmed, while normal close resumes without resett
 test('flight tabs reuse persisted Settings controls, audio and compact landscape layout', () => {
   assert.match(menu, /this\.activeSection === 'CONTROLS' && \(this\.options\.appShell \|\| flightMenu\)/);
   assert.match(menu, /this\.activeSection === 'AUDIO'[\s\S]*this\.options\.appShell \|\| flightMenu/);
-  assert.match(menu, /data\.preferences\.setMobileControl\(control, \{ \[property\]: next \}\)/);
+  assert.match(menu, /data\.preferences\.setMobileControl\(control,layout\[control\]\)/);
   assert.match(menu, /data\.audio\.setLevel\(category, level\)/);
   assert.match(main, /setMobileControl:\(control:MobileControlId,placement:Partial<MobileControlPlacement>\)=>mobileInput\.setPlacement\(control,placement\)/);
   assert.match(main, /audio: \{ muted: audioManager\.isMuted\(\), toggle: toggleAudio, levels: audioManager\.getLevels\(\), setLevel: setAudioLevel \}/);

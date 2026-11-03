@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import test from 'node:test';
+import ts from 'typescript';
+const source=readFileSync('client/src/main.ts','utf8');
+const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
+const fn=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='exitFlightToHub')!;
+const code=ts.transpileModule(fn.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+for(const failClose of [false,true])test(`solo exit reaches Hub without a socket close event${failClose?' even if close throws':''}`,async()=>{
+ let navigated='',closed=0,aborted=0,stoppedWind=0;
+ const context={flightExitPending:false,soloExploreMode:true,journeyMode:false,skyDuelMode:false,
+  resetCrashPresentation(){},pendingTransportResultId:null,flightGameRoot:{classList:{remove(){}}},championshipLandingIntentPending:undefined,
+  closeFlightDialog(){},serverProfile:{},profileActiveMissionAttempt(){throw new Error('solo exit must not abandon another mode\'s mission');},
+  worldPreparationAbort:{abort(){aborted++;}},portalWindStop(){stoppedWind++;},
+  clearHeldActions(){},mobileInput:{reset(){}},resetCameraPointers(){},boostActive:false,activeContract:null,cinematicDirector:{dispose(){}},
+  pilotMenu:{isOpen:()=>true,close(){}},realtimeStopped:false,clearReconnectTimer(){},WebSocket:{CLOSED:3},
+  socket:{readyState:1,close(){closed++;if(failClose)throw new Error('suspended socket');},addEventListener(){throw new Error('must not wait for close');}},
+  savePlayerProgress(){},window:{location:{href:'https://example.test/?city=milwaukee&time=day&launchMode=solo-free-fly&newFreeFly=1&entry=journey&journeyReceipt=old',assign(url:string){navigated=url;}},setTimeout(){throw new Error('must not wait for timeout');}},URL,
+  missionObjectiveGuidance:undefined,skyDuelUi:undefined,airAssaultUi:undefined,monsterView:undefined,transportView:undefined,transportViewAttemptId:'',missionIntroSkip:{hidden:false},
+  CITY_QUERY_PARAM:'city',LAUNCH_MODE_PARAM:'launchMode',task:undefined as Promise<void>|undefined};
+ runInNewContext(code+'\ntask=exitFlightToHub();',context);await context.task;
+ assert.equal(navigated,'/');assert.equal(closed,1);assert.equal(aborted,1);assert.equal(stoppedWind,1);assert.equal(context.realtimeStopped,true);
+});

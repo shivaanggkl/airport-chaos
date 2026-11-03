@@ -1,3 +1,4 @@
+import { journeyMissionOrder } from '../../shared/journey-mission.mjs';
 export type ChapterNumber = 1 | 2 | 3 | 4;
 export type MissionJourneyStage = Readonly<{
   id: string;
@@ -13,10 +14,10 @@ export type MissionJourneyStatus = 'completed' | 'current' | 'available' | 'lock
 // moves right and slightly upward, including the chapter transitions.
 const missionXs = Array.from({ length: 24 }, (_, index) => 2.5 + index * 95 / 23);
 const missionYs = Array.from({ length: 24 }, (_, index) => 74 - index * 40 / 23);
-export const chapterNames = ['TAKE OFF', 'CITY SKIES', 'HIGHER GROUND', 'FINAL APPROACH'] as const;
+export const chapterNames = ['TAKE OFF', 'HIGHER GROUND', 'CITY SKIES', 'FINAL APPROACH'] as const;
 
 export const missionJourneyStages: readonly MissionJourneyStage[] = missionXs.map((x, index) => ({
-  id: `journey-dallas-${String(index + 1).padStart(2, '0')}`,
+  id: journeyMissionOrder[index]!,
   number: index + 1,
   chapter: (Math.floor(index / 6) + 1) as ChapterNumber,
   implementation: 'playable' as const,

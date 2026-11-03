@@ -643,6 +643,8 @@ export class PilotMenu {
     actions.append(resume);
     if (this.options.flightMode === 'single') {
       actions.append(actionButton({ label: 'RESTART MISSION', run: () => data.restartFlight?.() }));
+    } else if (this.options.flightMode === 'explore') {
+      actions.append(actionButton({ label: 'RESTART FLIGHT', run: () => data.restart() }));
     }
     actions.append(actionButton({
       label: this.options.forfeitMatch ? 'FORFEIT MATCH' : this.options.flightMode === 'single' ? 'EXIT TO JOURNEY' : this.options.flightMode === 'training' ? 'EXIT TRAINING' : this.options.flightMode === 'explore' ? 'BACK TO HUB' : 'LEAVE SESSION',
@@ -1553,7 +1555,7 @@ export class PilotMenu {
         else help.append(textElement('p','Open Controls for the full keyboard and mouse reference.','pilot-menu-controls'));
       }
       const hints = section('HINTS');
-      hints.append(textElement('p', 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'));
+      hints.append(textElement('p', this.options.flightMode === 'explore' ? 'Optional one-time flight and navigation reminders.' : 'Short one-time reminders appear when a system first becomes relevant. They never pause multiplayer flight.', 'pilot-menu-muted'));
       if (this.options.appShell || flightMenu) hints.append(settingsChoice('GAMEPLAY HINTS', data.hints.enabled ? 'on' : 'off', [
         { label: 'ON', value: 'on' }, { label: 'OFF', value: 'off' },
       ], value => { if ((value === 'on') !== data.hints.enabled) { data.hints.toggle(); hapticsManager.emit('selection'); } }));

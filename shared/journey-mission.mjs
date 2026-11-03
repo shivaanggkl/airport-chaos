@@ -393,3 +393,7 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 export function crossesJourneyGateWrongWay(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   return journeyGateCrossing(to, from, gateIndex, terrainHeight, mission) === 'VALID';
 }
+
+// Journey slots can change without renaming persisted mission identities or reward receipts.
+export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,19,20,21,22,23,24].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
+export function journeyMissionSlot(missionId) { return journeyMissionOrder.indexOf(missionId) + 1; }

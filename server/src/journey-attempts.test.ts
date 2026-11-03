@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas20, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas18, journeyDallas20, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
 import { addisonClimbGates } from '../../shared/city-challenges.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
 import { JourneyAttemptStore, JOURNEY_PAUSE_LIMIT_MS } from './journey-attempts.js';
@@ -252,7 +252,7 @@ test('Giant Incoming owns its deadline, damage, first-clear ledger and historica
   const directory=mkdtempSync(join(tmpdir(),'giant-journey-')),path=join(directory,'profiles.sqlite');
   const db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0),('other',0,0)");db.close();
   try{const store=new JourneyAttemptStore(path);assert.throws(()=>store.launch('pilot','trainer',1000,journeyDallas07.id),/locked/);
-    const fixture=new DatabaseSync(path);fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('pilot',journeyDallas06.id,'prior',0,90000);fixture.close();
+    const fixture=new DatabaseSync(path);fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('pilot',journeyDallas18.id,'prior',0,90000);fixture.close();
     const a=store.launch('pilot','trainer',1000,journeyDallas07.id);store.approach('pilot',a.attemptId,1100);assert.equal(store.get('pilot',a.attemptId)?.monsterHealth,2000);
     assert.equal(store.hitTransport('pilot',a.attemptId,1200),undefined);assert.equal(store.startGiantIncoming('other',a.attemptId,1200),undefined);
     assert.equal(store.acceptGate('pilot',a.attemptId,0,1200),undefined);
@@ -270,7 +270,7 @@ test('Giant Incoming owns its deadline, damage, first-clear ledger and historica
 test('Giant Incoming preserves historical clears and wallet caps',()=>{
   const directory=mkdtempSync(join(tmpdir(),'giant-legacy-')),path=join(directory,'profiles.sqlite');const db=new DatabaseSync(path);
   db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('legacy',850,0),('capped',999950,0)");db.close();
-  try{const store=new JourneyAttemptStore(path);const fixture=new DatabaseSync(path);for(const id of ['legacy','capped'])fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(id,journeyDallas06.id,'prior-six',500,90000);fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('legacy',journeyDallas07.id,'historical-elevator',500,52000);fixture.close();
+  try{const store=new JourneyAttemptStore(path);const fixture=new DatabaseSync(path);for(const id of ['legacy','capped'])fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run(id,journeyDallas18.id,'prior-six',500,90000);fixture.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)').run('legacy',journeyDallas07.id,'historical-elevator',500,52000);fixture.close();
     for(const id of ['legacy','capped']){const a=store.launch(id,'trainer',1000,journeyDallas07.id);store.approach(id,a.attemptId,1100);store.startGiantIncoming(id,a.attemptId,2000);for(let i=0;i<80;i++)store.hitTransport(id,a.attemptId,3000+i*1000);assert.equal(store.get(id,a.attemptId)?.firstClearCredits,id==='legacy'?0:50);}
     assert.equal(store.launch('legacy','trainer',100000,'journey-dallas-08').missionId,'journey-dallas-08');
     const check=new DatabaseSync(path);const history=check.prepare("SELECT first_attempt_id,best_time_ms FROM journey_completions WHERE pilot_id='legacy' AND mission_id='journey-dallas-07'").get() as {first_attempt_id:string;best_time_ms:number};assert.equal(history.first_attempt_id,'historical-elevator');assert.equal(history.best_time_ms,52000);assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id='capped'").get() as {credits:number}).credits,1000000);check.close();
@@ -287,7 +287,7 @@ test('Giant Incoming applies the damage captured when each shot was fired', () =
     const store = new JourneyAttemptStore(path);
     const setup = new DatabaseSync(path);
     setup.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,?)')
-      .run('pilot', journeyDallas06.id, 'prior-six', 500, 90000);
+      .run('pilot', journeyDallas18.id, 'prior-six', 500, 90000);
     setup.close();
     const launched = store.launch('pilot', 'fighter', 1_000, journeyDallas07.id);
     store.approach('pilot', launched.attemptId, 1_100);
@@ -864,7 +864,7 @@ test('Golden Championship requires Mission 5, starts its timer with control, and
     assert.equal(store.chapterOneComplete('champion'), false, 'a Mission 6 clear alone is not chapter completion');
     assert.equal(store.acceptGate('champion', first.attemptId, 9, 104_000), undefined);
     assert.equal(store.progress('champion', journeyDallas06.id).completed, true);
-    assert.equal(store.launch('champion', 'trainer', 110_000, journeyDallas07.id).missionId, journeyDallas07.id);
+    assert.equal(store.launch('champion', 'trainer', 110_000, journeyDallas13.id).missionId, journeyDallas13.id);
     const replay = store.launch('champion', 'trainer', 200_000, journeyDallas06.id);
     store.approach('champion', replay.attemptId);
     store.startRookieRush('champion', replay.attemptId, 201_000);

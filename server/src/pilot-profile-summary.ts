@@ -1,3 +1,4 @@
+import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { aircraftDisplayOrder } from '../../shared/aircraft-economy.mjs';
@@ -166,8 +167,10 @@ export class PilotProfileSummaryStore {
       latestAchievements: achievements.flatMap(({ achievement_key, earned_at }) => {
         const chapter = /^chapter:([^:]+):(\d+)$/.exec(achievement_key);
         const city = /^city:([^:]+)$/.exec(achievement_key);
+        const chapterMissions = chapter ? releasedJourneys.find(city => city.cityId === chapter[1])?.chapters[Number(chapter[2]) - 1] : undefined;
+        const chapterSlot = chapterMissions ? Math.ceil(journeyMissionSlot(chapterMissions[0]!.id) / 6) : chapter?.[2];
         const copy = chapter
-          ? { title: `CHAPTER ${chapter[2]} COMPLETE`, description: `Finished ${chapter[1]} Chapter ${chapter[2]}.` }
+          ? { title: `CHAPTER ${chapterSlot} COMPLETE`, description: `Finished ${chapter[1]} Chapter ${chapterSlot}.` }
           : city ? { title: 'CITY COMPLETE', description: `Finished every ${city[1]} mission.` }
             : achievementCopy[achievement_key];
         return copy ? [{ key: achievement_key, ...copy, category: 'MISSION' as const, earnedAt: earned_at }] : [];

@@ -52,7 +52,7 @@ export class DallasScenery {
       const group = new THREE.Group();
       group.name = `dallas-balloon-${index + 1}`;
       group.position.set(x, heightAt(x, z) + altitude, z);
-      if (altitude >= 7_000) group.scale.setScalar(1.6);
+      group.scale.setScalar(altitude >= 7_000 ? 3.2 : 2);
       const envelope = new THREE.Mesh(this.balloonGeometry, this.envelopeMaterials[index % this.envelopeMaterials.length]);
       envelope.scale.set(29, 34, 29);
       group.add(envelope);

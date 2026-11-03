@@ -65,9 +65,10 @@ export function installMenuCarouselSwipe(container: HTMLElement, onGestureEnd: (
 type ArtworkBounds = readonly [x: number, y: number, width: number, height: number, sourceWidth: number, sourceHeight: number];
 // Source artwork bounds only. Frame dimensions and layout are shared by all cards.
 const artworkBounds: Readonly<Record<string, ArtworkBounds>> = {
-  '/media/hub/missions-card.jpg': [18, 70, 1244, 711, 1280, 853],
+  '/media/city-journey/california-single-player-card.png': [8, 8, 1264, 1059, 1280, 1075],
+  '/media/hub/missions-card.jpg': [102, 24, 1076, 804, 1280, 853],
   '/media/hub/free-fly-card.jpg': [21, 32, 1212, 1190, 1254, 1254],
-  '/media/multiplayer/air-assault-card.jpg': [0, 0, 1280, 952, 1280, 960],
+  '/media/multiplayer/air-assault-card.jpg': [102, 22, 1076, 806, 1280, 853],
 };
 
 export function setMenuCarouselArtwork(image: HTMLImageElement, src: string): void {

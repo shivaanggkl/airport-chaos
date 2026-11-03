@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {cityAirports} from '../../shared/city-airports.mjs';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -35,7 +36,7 @@ function dallasHeight(x: number, z: number) { const d = elevation, xx = Math.max
 test('authenticated solo and public portal handoffs, rejection, reward and reconnect', { timeout: 70000 }, async () => {
     const directory = mkdtempSync(join(tmpdir(), 'portal-integration-')), path = join(directory, 'profiles.sqlite');
     const profiles = new PlayerProfileStore(path), sessions = new PilotSessionStore(path), transitions = new PortalTransitionStore(path);
-    const identities = [0, 1, 2].map(() => sessions.issue(undefined, false));
+    const identities = [0, 1, 2, 3].map(() => sessions.issue(undefined, false));
     identities.forEach((id, i) => profiles.getOrCreate(id.pilotId, `Pilot${i}`));
     const gate = portalForCity('dallas', dallasHeight)!;
     for (const [i, mode] of ['solo-free-fly', 'free-fly'].entries()) {
@@ -44,6 +45,13 @@ test('authenticated solo and public portal handoffs, rejection, reward and recon
         state.phase = 'ARRIVED';
         state.updatedAt = Date.now() - 15000;
         transitions.save(state);
+    }
+    for (const [i, city, airportId] of [[2,'milwaukee','central'],[3,'dallas','love']] as const) {
+        const airport=cityAirports[city].find(a=>a.id===airportId)!;
+        const pose={position:{x:airport.x+250,y:city==='dallas'?dallasHeight(airport.x,airport.z)+200:200,z:airport.z+250},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-100}};
+        const from=city==='dallas'?'milwaukee':'dallas';
+        const flight=transitions.approve(identities[i].pilotId,identities[i].tokenHash,'solo-free-fly',from,city,`${from}-${city}`,pose,75,Date.now()-15000)!;
+        flight.phase='ARRIVED';transitions.save(flight);
     }
     const port = await freePort(), server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], { env: { ...process.env, PORT: String(port), AIRPORT_CHAOS_PROFILE_DB: path, NODE_ENV: 'test', AIRPORT_CHAOS_DEV_QA: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
     let logs = '';
@@ -134,6 +142,24 @@ test('authenticated solo and public portal handoffs, rejection, reward and recon
             assert.equal(restarted.cityId, 'dallas');
             assert.equal(restarted.resumeFlight, undefined);
             assert.equal(restarted.spawnAirportId, mode === 'solo-free-fly' ? 'dfw' : undefined);
+        }
+        for (const [i, city, airportId] of [[2,'milwaukee','central'],[3,'dallas','love']] as const) {
+            const pilot=identities[i],c=new Client(port,pilot.cookie,'solo-free-fly','dallas');clients.push(c);
+            const welcome=await c.wait('welcome');assert.equal(welcome.cityId,city);
+            const credits=profiles.getOrCreate(pilot.pilotId,'Pilot').credits;
+            c.send({type:'respawn',cityId:'dallas',airportId:'dfw'});
+            const recovery=await c.wait('respawn');
+            const airport=cityAirports[city].find(a=>a.id===airportId)!;
+            assert.ok(Math.hypot(recovery.spawnPosition.x-airport.x,recovery.spawnPosition.z-airport.z)<airport.runwayLength/2);
+            assert.equal(recovery.health,recovery.maxHealth);
+            assert.equal(transitions.get(pilot.pilotId)?.to,city);
+            assert.deepEqual(transitions.get(pilot.pilotId)?.pose.position,recovery.spawnPosition);
+            assert.equal(profiles.getOrCreate(pilot.pilotId,'Pilot').credits,credits);
+            c.socket.close();await sleep(150);
+            const reconnect=new Client(port,pilot.cookie,'solo-free-fly','dallas');clients.push(reconnect);
+            const restored=await reconnect.wait('welcome');assert.equal(restored.cityId,city);
+            assert.equal(restored.resumeFlight.onGround,true);
+            assert.deepEqual(restored.resumeFlight.position,recovery.spawnPosition);
         }
     }
     catch (error) {

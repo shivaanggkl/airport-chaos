@@ -1,3 +1,4 @@
+import { journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
@@ -275,6 +276,12 @@ export class JourneyAttemptStore {
     return Boolean(this.database.prepare('SELECT 1 FROM journey_qa_unlocked_pilots WHERE pilot_id = ?').get(pilotId));
   }
 
+  canAccessMission(pilotId: string, missionId: string): boolean {
+    const slot = journeyMissionSlot(missionId);
+    return slot > 0 && (this.qaMissionAccess(pilotId) || slot === 1 || this.progress(pilotId, missionId).completed ||
+      this.progress(pilotId, journeyMissionOrder[slot - 2]!).completed);
+  }
+
   chapterOneComplete(pilotId: string): boolean {
     return [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06]
       .every(mission => this.progress(pilotId, mission.id).completed);
@@ -339,31 +346,7 @@ export class JourneyAttemptStore {
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
     if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && missionId !== journeyDallas19.id && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
-    if (!this.qaMissionAccess(pilotId)) {
-      if (missionId === journeyDallas02.id && !this.progress(pilotId).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas03.id && !this.progress(pilotId, journeyDallas02.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas04.id && !this.progress(pilotId, journeyDallas03.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas05.id && !this.progress(pilotId, journeyDallas04.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas06.id && !this.progress(pilotId, journeyDallas05.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas07.id && !this.progress(pilotId, journeyDallas06.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas08.id && !this.progress(pilotId, journeyDallas07.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas09.id && !this.progress(pilotId, journeyDallas08.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas10.id && !this.progress(pilotId, journeyDallas09.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas11.id && !this.progress(pilotId, journeyDallas10.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas12.id && !this.progress(pilotId, journeyDallas11.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas13.id && !this.progress(pilotId, journeyDallas12.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas14.id && !this.progress(pilotId, journeyDallas13.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas15.id && !this.progress(pilotId, journeyDallas14.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas16.id && !this.progress(pilotId, journeyDallas15.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas17.id && !this.progress(pilotId, journeyDallas16.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas18.id && !this.progress(pilotId, journeyDallas17.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas19.id && !this.progress(pilotId, journeyDallas18.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas20.id && !this.progress(pilotId, journeyDallas19.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas21.id && !this.progress(pilotId, journeyDallas20.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas22.id && !this.progress(pilotId, journeyDallas21.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas23.id && !this.progress(pilotId, journeyDallas22.id).completed) throw new Error('Journey mission is locked');
-      if (missionId === journeyDallas24.id && !this.progress(pilotId, journeyDallas23.id).completed) throw new Error('Journey mission is locked');
-    }
+    if (!this.canAccessMission(pilotId, missionId)) throw new Error('Journey mission is locked');
     return this.wallet.transaction(() => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
         .run(now, pilotId);

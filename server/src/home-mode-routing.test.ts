@@ -63,7 +63,7 @@ test('Solo Free Fly uses Dallas day exploration without missions, matchmaking or
  assert.match(client,/!airAssaultMode && !soloExploreMode && cityWorld.ambientTrafficConfig/);
  assert.match(client,/skyDuelMode \|\| soloExploreMode \? \[\] : territoriesForCity/);
  assert.match(client,/soloExploreMode&&message.soloExploreSupported!==true/);
- assert.match(client,/function sendFireIntent\(\): boolean \{\s*if\(soloExploreMode\)return false/);
+ assert.match(client,/if \(soloExploreMode\) \{[\s\S]*?spawnMuzzleFeedback[\s\S]*?return true;/);
 });
 
 

@@ -166,3 +166,6 @@ export function journeyGateCrossing(from: JourneyPoint, to: JourneyPoint, gateIn
 export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number): boolean;
 export function crossesJourneyGateWrongWay(from: JourneyPoint, to: JourneyPoint, gateIndex: number, terrainHeight: number,
   mission?: Parameters<typeof journeyGateCrossing>[4]): boolean;
+
+export declare const journeyMissionOrder: readonly string[];
+export declare function journeyMissionSlot(missionId:string):number;

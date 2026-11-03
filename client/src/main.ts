@@ -1,3 +1,4 @@
+import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { IntercityVisuals, disposeCityScene, prepareCityGpu, cityPreparationStep } from './intercity-visuals';
 import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, type PortalGate, type PortalPose } from '../../shared/intercity-portals.mjs';
 import { AirAssaultUi } from './air-assault';
@@ -44,7 +45,7 @@ import { GameplayFeedbackSystem } from './gameplay-feedback';
 import { PilotMenu, type PilotMenuAction, type PilotMenuData, type PilotMenuSection } from './pilot-menu';
 import { HubInfoDialog } from './hub-info-dialog';
 import { productAnalyticsSessionId } from './product-analytics';
-import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition } from '../../shared/city-registry.mjs';
+import { cityCapabilities, cityDefinition, routesFromCity, routeDefinition, nearestCityAirport } from '../../shared/city-registry.mjs';
 import { MobileInputControls, mobileIdleBrakeRequested, pinchZoomFactor, preferredGraphicsQuality, resolvedGraphicsQuality, type GraphicsQualityMode, type MobileControlId, type MobileControlPlacement } from './mobile-input';
 import {TUTORIAL_VERSION,tutorialSteps,nextTutorialStep,tutorialInstruction,tutorialLockPreviewInstruction,tutorialDetectedInstruction,tutorialLandingCoachStage,tutorialLandingCoachInstruction,tutorialTakeoffRecoveryInstruction,tutorialTurnProgress,type TutorialBindings,type TutorialLandingCoachStage,type TutorialLessonStep,type TutorialStepStatus}from'../../shared/tutorial-flight-rules.mjs';
 import { PlayersPanel, CityTerritoriesPanel, type CityTerritoryEntry, type HumanRosterEntry } from './players-panel';
@@ -1354,8 +1355,8 @@ const journeyHudHeading = skyChallengeElement.querySelector<HTMLElement>('[data-
 const journeyHudHeaderTimer = skyChallengeElement.querySelector<HTMLElement>('[data-journey-header-timer]');
 const journeyMissionDefinitions = [
   journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
-  journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
   journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
+  journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
   journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24,
 ] as const;
 const journeyMissionHeadings = journeyMissionDefinitions.map((mission, index) =>
@@ -2806,7 +2807,7 @@ function updateJourneyHud(): void {
     if (journeyHudEnemy) journeyHudEnemy.hidden = true;
     return;
   }
-  const missionNumber = /^journey-dallas-(\d+)$/.exec(journeyAttempt.missionId)?.[1];
+  const missionNumber = journeyMissionSlot(journeyAttempt.missionId);
   if (journeyHudHeading) journeyHudHeading.textContent = missionNumber
     ? journeyMissionHeadings[Number(missionNumber) - 1] ?? 'MISSION' : 'MISSION';
   const missionDefinition = missionNumber ? journeyMissionDefinitions[Number(missionNumber) - 1] : undefined;
@@ -3217,7 +3218,9 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   journeyResultElement.classList.toggle('is-failure', !success);
   journeyResultCard.classList.add('game-card-frame');
   journeyResultElement.querySelector<HTMLElement>('.journey-result-status-mark')!.textContent = success ? '✓' : '';
-  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = dfwMission ? 'MISSION 01 · GOLDEN GATES' : lakeMission ? 'MISSION 02 · GOLDEN GATES' : ascentMission ? 'MISSION 03 · GOLDEN GATES' : downtownMission ? 'MISSION 04 · GOLDEN GATES' : precisionMission ? 'MISSION 05 · GOLDEN GATES' : legendaryMission ? 'MISSION 24 · CHAPTER 4 FINALE' : doubleMission ? 'MISSION 23 · CHAPTER 4' : perfectMission ? 'MISSION 22 · CHAPTER 4' : twoFrontsMission ? 'MISSION 21 · CHAPTER 4' : switchbackMission ? 'MISSION 20 · CHAPTER 4' : breakoutMission ? (success ? 'CITY DEFENDERS' : '') : siegeMission ? 'MISSION 18 · CHAPTER 3 FINALE' : criticalMission ? 'MISSION 17 · CHAPTER 3' : crossfireMission ? 'MISSION 16 · CHAPTER 3' : aceMission ? 'MISSION 15 · CHAPTER 3' : escapeMission ? 'MISSION 14 · CHAPTER 3' : redlineMission ? 'MISSION 13 · CHAPTER 3' : finaleMission ? 'MISSION 12 · CHAPTER 2 FINALE' : gravityMission ? 'MISSION 11 · CHAPTER 2' : gunshipMission ? 'MISSION 10 · CHAPTER 2' : attempt.missionId === journeyDallas09.id ? 'MISSION 09 · CHAPTER 2' : formationMission ? 'MISSION 08 · CHAPTER 2' : elevatorMission ? 'MISSION 07 · CHAPTER 2' : championshipMission ? 'MISSION 06 · CHAPTER 1 FINALE' : 'ROOKIE LEAGUE';
+  const resultSlot = journeyMissionSlot(attempt.missionId);
+  journeyResultElement.querySelector<HTMLElement>('[data-journey-result-heading]')!.textContent = breakoutMission ? (success ? 'CITY DEFENDERS' : '')
+    : `MISSION ${String(resultSlot).padStart(2,'0')} · ${resultSlot <= 5 ? 'GOLDEN GATES' : `CHAPTER ${Math.ceil(resultSlot / 6)}${resultSlot % 6 === 0 ? ' FINALE' : ''}`}`;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = success
     ? journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION'
     : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? '' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'ACE INTERCEPT' : escapeMission ? 'ESCAPE VECTOR' : redlineMission ? 'REDLINE RUSH' : finaleMission ? 'FINAL INTERCEPT' : gravityMission ? 'ARMORED FORTRESS' : gunshipMission ? 'CROSSFIRE' : attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : formationMission ? 'REAR GUARD' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
@@ -3950,7 +3953,7 @@ function setRestartAirport(airport: AirportDefinition): void {
   lastSuccessfulAirportId = airport.id;
   spawnPosition.set(
     airport.x + Math.sin(airport.heading) * airport.spawnOffset,
-    groundPlaneY(airport.x, airport.z),
+    getTerrainHeight(airport.x, airport.z) + PLANE_GROUND_Y,
     airport.z + Math.cos(airport.heading) * airport.spawnOffset,
   );
   spawnHeading = airport.heading;
@@ -4050,8 +4053,20 @@ function endRun(message: EndReason, title: string = message, reportCrash = true)
   if (!crashSequence) playEndSound(message);
 }
 
+let freeFlyRespawnPending = false;
 function restartGame(notifyServer = true): void {
+  if (notifyServer && portalEligible) {
+    if (portalInTransit) { showProgressMessage('Finish gate travel before restarting.'); return; }
+    if (freeFlyRespawnPending) return;
+    if (!connectionReady()) { showProgressMessage('Reconnecting before restarting flight…'); return; }
+    clearHeldActions();
+    freeFlyRespawnPending = true;
+    sendRespawn();
+    return;
+  }
+  freeFlyRespawnPending = false;
   resetCrashPresentation();
+  airplane.visible = true;
   cinematicDirector.resetFlight();
   clearHeldActions();
   fireCooldown = 0;
@@ -7139,7 +7154,7 @@ function pilotMenuData(): PilotMenuData {
       },
     },
     preferences:{touchLayout:mobileInput.supportsTouchControls(),graphicsQuality:graphicsQualityMode,setGraphicsQuality:(mode:GraphicsQualityMode)=>{graphicsQualityMode=mode;try{localStorage.setItem('airport-chaos-graphics-quality-v1',mode);}catch{/* optional */}if(connectionReady())socket.send(JSON.stringify({type:'analyticsEvent',event:'graphics_quality_changed',mode}));renderPilotMenu(true);},mobileLayout:mobileInput.getLayout(),setMobileControl:(control:MobileControlId,placement:Partial<MobileControlPlacement>)=>mobileInput.setPlacement(control,placement),resetMobileLayout:()=>mobileInput.resetLayout()},
-    restart:()=>{if(window.confirm('Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
+    restart:()=>{if(window.confirm(portalEligible ? `Restart at the nearest runway in ${activeCity!.displayName}?` : 'Restart and respawn at the airport?')){pilotMenu.close();restartGame();}},
     exitFlight: requestFlightExit,
     exitFlightLabel: journeyMode ? 'EXIT TO JOURNEY' : 'EXIT TO HUB',
     cityGuide: openCityGuide,
@@ -7815,7 +7830,6 @@ function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, cl
   projectileOrigin.copy(origin);
   projectileDirection.copy(direction);
   spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.11, 0.45);
-  cameraShakeTime = Math.max(cameraShakeTime, 0.08);
   const predicted = projectilePool.pop() ?? createProjectileVisual();
   const target = targetId ? remotePlayers.get(targetId)?.plane : undefined;
   if (target?.visible) {
@@ -9674,7 +9688,6 @@ function updateWeapons(delta: number): void {
 }
 
 function fireWeaponOnce(): boolean {
-  if(soloExploreMode)return false;
   const blocked = localFireBlockReason();
   if (blocked) {
     reportFireBlocked(blocked);
@@ -9691,7 +9704,7 @@ function fireWeaponOnce(): boolean {
 }
 
 const portalEligible = portalModeAllowed(launchMode, trainingRequested, journeyMode) && !airAssaultMode && !skyDuelMode;
-const portalVisuals = portalEligible ? new IntercityVisuals(scene, flightGameRoot) : undefined;
+const portalVisuals = portalEligible ? new IntercityVisuals(scene, flightGameRoot, () => airplane) : undefined;
 let portalNavigationState: PortalNavigation | undefined;
 let portalGate = portalEligible ? portalForCity(cityId, getTerrainHeight) : undefined;
 let portalRequestAt = 0;
@@ -9898,6 +9911,9 @@ function applyIntercityPose(pose: PortalPose): void {
     forward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
     portalPreviousPosition.copy(airplane.position);
     setFlightState('FLYING');
+    const nearest = nearestCityAirport(cityId, airplane.position);
+    const airport = airports.find(airport => airport.id === nearest?.id);
+    if (airport) setRestartAirport(airport);
 }
 async function handlePortalTransition(message: PortalMessage): Promise<void> {
     if (!portalEligible)
@@ -10951,7 +10967,7 @@ function requestFlightExit(openFirehawkGarage = false): void {
     ]);
     return;
   }
-  const activeMission = profileActiveMissionAttempt(serverProfile);
+  const activeMission = soloExploreMode ? undefined : profileActiveMissionAttempt(serverProfile);
   const hasActiveProgress = Boolean(activeMission || activeContract);
   showFlightDialog('Exit flight?', hasActiveProgress ? 'Current mission progress will be abandoned.' : 'Return to the Pilot Hub?', [
     { label: 'STAY', secondary: true, run: () => undefined },
@@ -10974,7 +10990,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
       });
     } catch { /* Closing the socket also interrupts an unfinished attempt. */ }
   }
-  const activeMission = profileActiveMissionAttempt(serverProfile);
+  const activeMission = soloExploreMode ? undefined : profileActiveMissionAttempt(serverProfile);
   if (activeMission && !flightTestMode) {
     const missionCityId = profileActiveMissionCity(serverProfile);
     try {
@@ -10998,6 +11014,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
       return;
     }
   }
+  if (soloExploreMode) { worldPreparationAbort?.abort(); portalWindStop?.(); }
   clearHeldActions();
   mobileInput.reset();
   resetCameraPointers();
@@ -11009,13 +11026,14 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   clearReconnectTimer();
   if (socket && socket.readyState !== WebSocket.CLOSED) {
     const closingSocket = socket;
-    const closed = completedJourneyExit ? undefined : new Promise<boolean>((resolve) => {
+    const closed = completedJourneyExit || soloExploreMode ? undefined : new Promise<boolean>((resolve) => {
       const timeout = window.setTimeout(() => resolve(false), 3_000);
       closingSocket.addEventListener('close', () => { window.clearTimeout(timeout); resolve(true); }, { once: true });
     });
     try { closingSocket.close(1000, 'Exit flight'); } catch { /* close result is checked below */ }
-    // The server has already committed a completed Journey result. A suspended
-    // iOS WebSocket may never deliver its close event after backgrounding.
+    // Solo exploration has no match/mission settlement to await. Suspended iOS
+    // sockets may never deliver close; initiate cleanup without trapping the pilot.
+    // Completed Journey results are already committed by the server.
     if (closed && !await closed) {
       realtimeStopped = false;
       flightExitPending = false;
@@ -11033,6 +11051,8 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   url.searchParams.delete('training');
   url.searchParams.delete('journeyAttempt');
   url.searchParams.delete(LAUNCH_MODE_PARAM);
+  url.searchParams.delete('newFreeFly');
+  if (soloExploreMode) { url.searchParams.delete('entry'); url.searchParams.delete('journeyReceipt'); }
   if (returnToJourney) {
     url.searchParams.set('entry', 'journey');
     if (journeyAttempt?.status === 'COMPLETED') {
@@ -11135,7 +11155,7 @@ window.addEventListener('airport-chaos-city-exit', (event) => {
 function sendLocalState(introHandshake = false): void {
   // Local-only inspection presets are camera routes, not authoritative movement.
   if (visualQaInspectionActive) return;
-  if (journeyPaused || trainingPaused || !localPlayerId || !connectionReady()) return;
+  if (freeFlyRespawnPending || journeyPaused || trainingPaused || !localPlayerId || !connectionReady()) return;
   if (missionStartCountdownPending || missionStartCountdownStartedAt !== null) return;
   if (!introHandshake && (airborneIntroAwaiting || runwayJourneyIntroAwaiting || (missionOneIntroPath || missionTwoIntroPath || missionThreeIntroPath || missionFourIntroPath || missionFiveIntroPath || missionSixIntroPath) && flightLaunchState === 'active')) return;
   flushProfileRewards();
@@ -11179,10 +11199,15 @@ function createClientShotId(): string {
 }
 
 function sendFireIntent(): boolean {
-  if(soloExploreMode)return false;
   if (!localPlayerId || localLifeState !== 'alive' || !connectionReady() || transportView?.defeatActive || transportView?.arrivalActive) return false;
-  updateCombatTarget(0);
+  if (!soloExploreMode) updateCombatTarget(0);
   getCurrentMuzzleTransform(projectileOrigin, projectileDirection);
+  if (soloExploreMode) {
+    // Cosmetic local ballistics only: no network fire intent, collisions, damage or rewards.
+    spawnMuzzleFeedback(projectileOrigin, projectileDirection, createClientShotId());
+    playFireSound();
+    return true;
+  }
   projectileDirection.set(visualAim.x, visualAim.y, -1).normalize().applyQuaternion(muzzleQuaternion);
   const targetId = selectedCombatTarget?.locked ? selectedCombatTarget.remote.playerId : undefined;
   const clientShotId = createClientShotId();
@@ -11341,7 +11366,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if (previousAttempt?.attemptId !== message.attempt.attemptId || ['FAILED','COMPLETED','ABANDONED'].includes(message.attempt.status)) { clearProjectileVisuals(); clearCombatTarget(); }
     journeyAttempt = message.attempt;
     if (previousAttempt?.missionId !== message.attempt.missionId) {
-      const missionNumber = Number(/^journey-dallas-(\d+)$/.exec(message.attempt.missionId)?.[1]);
+      const missionNumber = journeyMissionSlot(message.attempt.missionId);
       setLocalTimePreset(missionTimePreset(missionNumber));
     }
     if (escortHudAttemptId !== message.attempt.attemptId) {
@@ -11640,6 +11665,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   }
   if(message.type==='portalTransition'){await handlePortalTransition(message);return;}
   if (message.type === 'welcome') {
+    freeFlyRespawnPending = false;
     if(portalEligible){worldPreparationAbort?.abort();await cityLifecycle.catch(()=>{});if(boundSocket!==socket)return;}
     if(message.portalDallasTimePreset)portalDallasTimeOfDay=resolveCityTimePreset(getCity('dallas')!,message.portalDallasTimePreset);
     if(message.cityId&&message.cityId!==cityId&&portalEligible){portalInTransit=true;await replaceCityWorld(message.cityId);if(boundSocket!==socket)return;finishPortal();}
@@ -12318,7 +12344,11 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         airplane.position.copy(spawnPosition);
         airplane.rotation.set(0, spawnHeading, 0, 'YXZ');
         heading = spawnHeading;
-        sendLocalState();
+        if (portalEligible) {
+          restartGame(false);
+          cameraRelativeOffsetInitialized = false;
+          updateCamera(1);
+        } else sendLocalState();
       }
       localLifeState = lifeState;
       fireCooldown = 0;

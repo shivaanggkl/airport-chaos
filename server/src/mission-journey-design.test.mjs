@@ -85,7 +85,7 @@ test('all 24 mission details use live titles, rewards and clocks with distinct a
   assert.equal(new Set(missionJourneyDetails.map(detail => detail.description)).size, 24);
   for (let index = 0; index < 24; index++) {
     const detail = missionJourneyDetails[index];
-    const definition = journeyMissions[`journeyDallas${String(index + 1).padStart(2, '0')}`];
+    const definition = journeyMissions[`journeyDallas${detail.id.slice(-2)}`];
     assert.equal(detail.id, missionJourneyStages[index].id);
     assert.equal(detail.title, definition.name);
     assert.equal(detail.rewardCredits, definition.firstClearCredits);
@@ -96,10 +96,10 @@ test('all 24 mission details use live titles, rewards and clocks with distinct a
     assert.ok(detail.description.split(/\s+/).length <= 13, `Mission ${index + 1} copy is too long`);
     assert.match(detail.timeLimit, /^(?:\d+:\d{2}|NO LIMIT)$/);
   }
-  assert.match(missionJourneyDetails[7].description, /behind the transport for 15 seconds/);
-  assert.match(missionJourneyDetails[11].description, /guards, both turrets, then the exposed core/);
-  assert.match(missionJourneyDetails[15].description, /five gates while escaping two Hunters/);
-  assert.equal(missionJourneyDetails[15].timeLimit, 'NO LIMIT');
+  assert.match(missionJourneyDetails[13].description, /behind the transport for 15 seconds/);
+  assert.match(missionJourneyDetails[17].description, /guards, both turrets, then the exposed core/);
+  assert.match(missionJourneyDetails[9].description, /five gates while escaping two Hunters/);
+  assert.equal(missionJourneyDetails[9].timeLimit, 'NO LIMIT');
   assert.equal(missionJourneyDetails[19].title, 'SKYLINE SWITCHBACK');
   assert.equal(missionJourneyDetails[23].title, 'LEGENDARY CHAMPIONSHIP');
   assert.doesNotMatch(view, /mission-journey-detail-image|>OBJECTIVE</);

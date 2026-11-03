@@ -6062,7 +6062,8 @@ body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-rewards
 .pilot-menu-card.is-flight-menu .pilot-settings-audio > .pilot-menu-audio-row input { min-height: 32px; }
 .pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) auto; }
 .pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-flight-live-warning { grid-column: 1 / -1; }
-.pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-menu-section { min-width: 0; padding: 4px 10px; border: 0; }
+.pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-menu-section { min-width: 0; min-height: 0; overflow-y: auto; padding: 4px 10px; border: 0; }
+.pilot-menu-overlay.is-flight-menu-overlay:has(.pilot-flight-live-warning) .pilot-menu-card.is-flight-help > .pilot-menu-content { max-height: none; }
 .pilot-menu-card.is-flight-menu.is-flight-help .pilot-menu-controls { color: #0b2345; }
 .pilot-menu-card.is-flight-menu.is-flight-help > .pilot-menu-content > .pilot-flight-actions { grid-column: 1 / -1; }
 @media (orientation: landscape) and (max-height: 620px) {
@@ -7094,7 +7095,7 @@ html.custom-control-layout #game-root #radar-panel {
 }
 .home-hangar .menu-card-carousel .home-hangar-sponsor img { max-height: 100%; }
 /* Solo exploration keeps navigation and flight controls, without combat or battle HUD. */
-#game-root.solo-explore-flight :is(.touch-fire, #acquisition-circle, #target-feedback, #hit-marker, #social-panel, .territory-hud, .territory-world-labels, .territory-capture, .territory-defense-alert, .dynamic-event-hud, .daily-objective-hud, #mission-status-layer, #players-panel) { display: none !important; }
+#game-root.solo-explore-flight :is(#acquisition-circle, #target-feedback, #hit-marker, #social-panel, .territory-hud, .territory-world-labels, .territory-capture, .territory-defense-alert, .dynamic-event-hud, .daily-objective-hud, #mission-status-layer, #players-panel) { display: none !important; }
 
 
 /* Full-art cards share exactly one frame, crop viewport and corner geometry. */

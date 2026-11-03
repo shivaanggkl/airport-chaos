@@ -741,9 +741,10 @@ const airportGroundAd = (airportId: AirportId, lateral: number, longitudinal: nu
 };
 const groundAdRotation = { x: -Math.PI / 2, y: 0, z: 0 };
 const highwayAdSize = { x: 68, y: 21, z: 1 };
-const skyboardSize = { x: 380, y: 115, z: 0.4 };
-const skyGateSize = { x: 230, y: 150, z: 1 };
-const sponsorBlimpSize = { x: 310, y: 88, z: 82 };
+// Dallas-only 2× enlargement; positions and the separate DFW spawn-brand stay unchanged.
+const skyboardSize = { x: 760, y: 230, z: 0.8 };
+const skyGateSize = { x: 460, y: 300, z: 2 };
+const sponsorBlimpSize = { x: 620, y: 176, z: 164 };
 // A sparse 4×4 map grid at three heights gives every Dallas region a nearby
 // sky banner from roughly 5k–45k ft. Existing ad LOD and impression rules apply.
 const upperDallasSkyboards: AdPlacementSpec[] = [1_650, 7_700, 13_716].flatMap((altitude, band) =>

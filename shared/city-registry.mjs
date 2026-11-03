@@ -20,6 +20,12 @@ export function cityDefinition(value){const id=normalizeCityId(value);return id?
 export function cityCapabilities(value){return cityDefinition(value)?.capabilities;}
 export function airportsForCity(value){return cityDefinition(value)?.airports??[];}
 
+export function nearestCityAirport(cityId, position) {
+  if (!Number.isFinite(position?.x) || !Number.isFinite(position?.z)) return;
+  return airportsForCity(cityId).reduce((nearest, airport) => !nearest ||
+    Math.hypot(airport.x-position.x, airport.z-position.z) < Math.hypot(nearest.x-position.x, nearest.z-position.z) ? airport : nearest, undefined);
+}
+
 export const intercityRoutes=Object.freeze([
   Object.freeze({routeId:'dallas-milwaukee',fromCityId:'dallas',toCityId:'milwaukee',distanceLabel:'Northbound Intercity Corridor',rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),
   Object.freeze({routeId:'milwaukee-dallas',fromCityId:'milwaukee',toCityId:'dallas',distanceLabel:'Southbound Intercity Corridor',rewardProfile:{credits:250},sponsorSlotId:undefined,enabled:true}),

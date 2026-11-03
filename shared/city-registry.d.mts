@@ -10,3 +10,5 @@ export declare function airportsForCity(value:string):readonly {id:string;x:numb
 export declare const intercityRoutes:readonly IntercityRoute[];
 export declare function routeDefinition(routeId:string):IntercityRoute|undefined;
 export declare function routesFromCity(cityId:string):IntercityRoute[];
+
+export declare function nearestCityAirport(cityId:string,position:{x:number;z:number}):ReturnType<typeof airportsForCity>[number]|undefined;

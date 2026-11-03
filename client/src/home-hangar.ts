@@ -11,11 +11,11 @@ export type HomeHangarData = {
 };
 
 export const homeMultiplayerModes = [
+  { id: 'assault', title: 'AIR ASSAULT', artwork: 'air-assault', playable: true },
   { id: 'sky', title: 'SKY DUEL', artwork: 'sky-duel', playable: true },
   { id: 'squad', title: 'SQUAD BATTLE', artwork: 'squad-battle', playable: false },
   { id: 'fleet', title: 'FLEET WAR', artwork: 'fleet-war', playable: false },
   { id: 'city', title: 'CITY CONTROL', artwork: 'city-control', playable: false },
-  { id: 'assault', title: 'AIR ASSAULT', artwork: 'air-assault', playable: true },
 ] as const;
 export type HomeMultiplayerMode = typeof homeMultiplayerModes[number]['id'];
 

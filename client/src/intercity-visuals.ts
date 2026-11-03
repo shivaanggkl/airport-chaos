@@ -19,6 +19,7 @@ export class IntercityVisuals {
     private readonly towers:Array<{tower:THREE.Mesh;spine:THREE.Mesh;side:number}>=[];
     private readonly transitParticles: THREE.Points;
     private readonly cloudMaterial: THREE.SpriteMaterial;
+    private readonly aircraftFill = new Map<THREE.MeshStandardMaterial | THREE.MeshPhongMaterial, { color: THREE.Color; intensity: number }>();
     private readonly title = document.createElement('div');
     private readonly curtain = document.createElement('div');
     private readonly geometries = new Set<THREE.BufferGeometry>();
@@ -29,7 +30,7 @@ export class IntercityVisuals {
     private inTransit = false;
     private gate?: PortalGate;
     private opacity = 0;
-    constructor(private readonly scene: THREE.Scene, root: HTMLElement) {
+    constructor(private readonly scene: THREE.Scene, root: HTMLElement, private readonly aircraft: () => THREE.Object3D) {
         const gold = new THREE.MeshStandardMaterial({ color: 0xffce4f, metalness: .72, roughness: .22, emissive: 0xb98010, emissiveIntensity: .35 });
         const white = new THREE.MeshBasicMaterial({ color: 0xfff7d0, toneMapped: false });
         const cyan = new THREE.MeshBasicMaterial({ color: 0x65ecff, transparent: true, opacity: .7, depthWrite: false, toneMapped: false });
@@ -135,6 +136,23 @@ export class IntercityVisuals {
         }
     }
     setTransit(active: boolean, destination = ''): void {
+        if (active && !this.inTransit) {
+            // Reuse the aircraft's existing material shader; extra scene lights would recompile city shaders.
+            this.aircraft().traverse(object => {
+                if (!(object instanceof THREE.Mesh)) return;
+                for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+                    if (!(material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhongMaterial) || this.aircraftFill.has(material)) continue;
+                    this.aircraftFill.set(material, { color: material.emissive.clone(), intensity: material.emissiveIntensity });
+                    material.emissive.multiplyScalar(material.emissiveIntensity).add(material.color.clone().multiplyScalar(.3));
+                    material.emissiveIntensity = 1;
+                }
+            });
+        } else if (!active) {
+            for (const [material, saved] of this.aircraftFill) {
+                material.emissive.copy(saved.color); material.emissiveIntensity = saved.intensity;
+            }
+            this.aircraftFill.clear();
+        }
         this.inTransit = active;
         this.tunnel.visible = active;
         this.gateway.visible = !active && Boolean(this.gate);
@@ -177,6 +195,7 @@ export class IntercityVisuals {
         }
     }
     dispose(): void {
+        this.setTransit(false);
         this.gateway.removeFromParent();
         this.tunnel.removeFromParent();
         for (const item of this.geometries)
@@ -273,7 +292,8 @@ export async function prepareCityGpu(renderer: THREE.WebGLRenderer, world: THREE
                     renderer.render(stage,camera);
                 }finally{
                     for(const mask of masks){mask.material.colorWrite=mask.color;mask.material.depthWrite=mask.depth;mask.material.depthTest=mask.test;mask.material.stencilWrite=mask.stencil;}
-                    renderer.autoClear=autoClear;renderer.resetState();renderer.setRenderTarget(previousTarget);renderer.setViewport(viewport);renderer.setScissor(scissor);renderer.setScissorTest(scissorTest);
+                    // All drawing uses renderer APIs; resetting WebGL state here would disable reversed depth.
+                    renderer.autoClear=autoClear;renderer.setRenderTarget(previousTarget);renderer.setViewport(viewport);renderer.setScissor(scissor);renderer.setScissorTest(scissorTest);
                 }
             }
             finally {

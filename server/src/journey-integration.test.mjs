@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as catalog from '../../shared/journey-mission.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
 
-const missions = Array.from({ length: 24 }, (_, index) => catalog[`journeyDallas${String(index + 1).padStart(2, '0')}`]);
+const missions = catalog.journeyMissionOrder.map(id => catalog[`journeyDallas${id.slice(-2)}`]);
 
 test('one isolated pilot unlocks the 24 stages in order and keeps completion across sessions', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-journey-chain-'));
@@ -19,8 +19,8 @@ test('one isolated pilot unlocks the 24 stages in order and keeps completion acr
     const store = new JourneyAttemptStore(path);
     assert.equal(missions.length, 24);
     assert.equal(new Set(missions.map(mission => mission.id)).size, 24);
-    assert.deepEqual(missions.slice(13).map(mission => mission.firstClearCredits),
-      [1800, 1950, 2100, 2250, 2400, 2550, 2700, 2850, 3000, 3150, 4000]);
+    assert.deepEqual(missions.slice(18).map(mission => mission.firstClearCredits),
+      [2550, 2700, 2850, 3000, 3150, 4000]);
     for (const [index, mission] of missions.entries()) {
       if (index > 0) assert.throws(() => store.launch('qa-pilot', 'trainer', index * 1000, mission.id), /locked/);
       if (index > 0) {
@@ -85,17 +85,17 @@ test('staging-era Journey rows and progress survive the additive mission schema 
     `);
     legacy.close();
     const store = new JourneyAttemptStore(path);
-    assert.equal(store.progress('existing-pilot', missions[12].id).completed, true);
-    assert.equal(store.get('existing-pilot', 'old-attempt')?.missionId, missions[12].id);
+    assert.equal(store.progress('existing-pilot', catalog.journeyDallas13.id).completed, true);
+    assert.equal(store.get('existing-pilot', 'old-attempt')?.missionId, catalog.journeyDallas13.id);
     assert.equal(store.get('existing-pilot', 'old-rookie')?.gateIndex, 4);
     assert.equal(store.progress('existing-pilot', missions[0].id).bestTimeMs, 49000);
     assert.equal(store.progress('existing-pilot', missions[5].id).completed, true);
     assert.equal(store.progress('existing-pilot', missions[5].id).bestTimeMs, undefined);
     assert.equal(store.get('existing-pilot', 'old-championship-flight')?.status, 'ABANDONED');
     assert.equal(store.rookieRushBestTime('existing-pilot'), undefined, 'four-gate history is not a ten-gate best');
-    assert.equal(store.launch('existing-pilot', 'trainer', 300, missions[13].id).missionId, missions[13].id);
+    assert.equal(store.launch('existing-pilot', 'trainer', 300, catalog.journeyDallas14.id).missionId, catalog.journeyDallas14.id);
     const reopened = new JourneyAttemptStore(path);
-    assert.equal(reopened.progress('existing-pilot', missions[12].id).firstAttemptId, 'old-attempt');
+    assert.equal(reopened.progress('existing-pilot', catalog.journeyDallas13.id).firstAttemptId, 'old-attempt');
     const check = new DatabaseSync(path);
     assert.equal(check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'existing-pilot'").get().credits, 700);
     const columns = new Set(check.prepare('PRAGMA table_info(journey_attempts)').all().map(column => column.name));
