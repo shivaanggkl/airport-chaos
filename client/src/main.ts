@@ -11088,7 +11088,8 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
   monsterView?.dispose(); monsterView = undefined;
   transportView?.dispose();transportView=undefined;transportViewAttemptId='';
   missionIntroSkip.hidden = true;
-  window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+  // Capacitor's root has no pathname: a relative empty URL reloads the flight.
+  window.location.assign(url.href);
 }
 
 async function retryJourneyMission(): Promise<void> {
