@@ -35,7 +35,7 @@ test('30-enemy manifest has exact tiers, airport quotas, sequence and nonoverlap
         assert.ok(Math.hypot(queue[i]!.x - queue[j]!.x, queue[i]!.z - queue[j]!.z) >= 65);
     }
   }
-  assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.reactionMs, t.trackingMs, t.fireMs, t.dispersion]), [[100, 600, 1200, 600, .030], [150, 400, 800, 400, .016], [200, 200, 400, 200, .008]]);
+  assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.ai.reactionMs, t.ai.trackingMs, t.ai.shotIntervalMs, t.ai.aimError]), [[100, 600, 1050, 650, .009], [150, 400, 750, 450, .006], [200, 180, 400, 220, .0025]]);
 });
 test('Intro/countdown freeze combat and timer; skip has one-second gate; only DFW takeoff starts eight minutes', () => {
   const { encounter: e, pilot, tick } = rig();
@@ -193,7 +193,7 @@ test('Daily victory ledger is durable, atomic, cross-result idempotent and UTC-d
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test('Legendary dodge decisions change physical trajectory, respect 1.2-second cooldown and never teleport', () => {
+test('Legendary dodge decisions change physical trajectory, respect canonical reaction/cooldown and never teleport', () => {
   let at = now;
   let bullets: Array<{
     position: {
@@ -229,10 +229,11 @@ test('Legendary dodge decisions change physical trajectory, respect 1.2-second c
   legend.movedAt = now + 4100;
   bullets = [{ position: { x: 0, y: 600, z: 900 }, direction: { x: 0, y: 0, z: -1 }, speed: 1500 }];
   e.tick(pilot, now + 4150);
+  e.tick(pilot, now + 4350);
   const decision = legend.dodgeAt, origin = { ...legend.position };
   let peakBank = Math.abs(legend.rotation.z);
-  assert.equal(decision, now + 4150);
-  for (at = now + 4200; at < now + 5300; at += 50) {
+  assert.equal(decision, now + 4350);
+  for (at = now + 4400; at < now + 5500; at += 50) {
     const before = { ...legend.position };
     e.tick(pilot, at);
     peakBank = Math.max(peakBank, Math.abs(legend.rotation.z));
@@ -376,9 +377,10 @@ test('Holding Legendary aircraft still evade real incoming trajectories without 
   assert.ok(Math.hypot(holding!.waypoint.x-pilot.position.x,holding!.waypoint.z-pilot.position.z)>2000);
   bullets.push(incoming);
   e.tick(pilot,now+4200);
-  assert.equal(holding!.dodgeAt,now+4200);
+  e.tick(pilot,now+4400);
+  assert.equal(holding!.dodgeAt,now+4400);
   const origin={...holding!.position};
-  for(let time=now+4250;time<=now+5050;time+=50)e.tick(pilot,time);
+  for(let time=now+4450;time<=now+5250;time+=50)e.tick(pilot,time);
   assert.ok(Math.hypot(holding!.position.x-origin.x,holding!.position.z-origin.z)>20);
   assert.ok(Math.abs(holding!.rotation.z)>.1);
   assert.equal(holding!.health,200);

@@ -1,3 +1,4 @@
+import type { EnemyAiLevel, EnemyAiProfile } from './enemy-ai.mjs';
 export type AssaultTier = 'medium' | 'hard' | 'legendary';
 export type AssaultVector = {
   x: number;
@@ -7,6 +8,8 @@ export type AssaultVector = {
 export type AssaultEnemy = {
   id: string;
   tier: AssaultTier;
+  aircraftType?: 'trainer'|'cargo'|'privateJet'|'fighter';
+  equippedCosmetics?: Record<string,string>;
   airportId: string;
   ordinal: number;
   phase: 'queued' | 'takeoff' | 'combat' | 'destroyed' | 'retired';
@@ -52,10 +55,8 @@ export const airAssaultRules: Readonly<{
 }>;
 export const airAssaultTiers: Readonly<Record<AssaultTier, Readonly<{
   health: number;
-  reactionMs: number;
-  trackingMs: number;
-  fireMs: number;
-  dispersion: number;
+  level: EnemyAiLevel;
+  ai: EnemyAiProfile;
 }>>>;
 export const airAssaultAirports: Array<{
   id: string;

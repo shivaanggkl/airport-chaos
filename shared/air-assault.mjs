@@ -1,9 +1,11 @@
+import { enemyAiLevels } from './enemy-ai.mjs';
 import { cityAirports } from './city-airports.mjs';
 export const airAssaultRules = Object.freeze({ cityId: 'dallas', fullCredits: 600, survivalCredits: 250, durationMs: 480000, introMs: 15000, countdownMs: 3000, returnMs: 10000, reconnectMs: 30000, maxActive: 4, heartCooldownMs: 60000 });
+// Hull values belong to this encounter; intelligence is the canonical shared object.
 export const airAssaultTiers = Object.freeze({
-  medium: Object.freeze({ health: 100, reactionMs: 600, trackingMs: 1200, fireMs: 600, dispersion: .030 }),
-  hard: Object.freeze({ health: 150, reactionMs: 400, trackingMs: 800, fireMs: 400, dispersion: .016 }),
-  legendary: Object.freeze({ health: 200, reactionMs: 200, trackingMs: 400, fireMs: 200, dispersion: .008 }),
+  medium: Object.freeze({ health: 100, level: 'MEDIUM', ai: enemyAiLevels.MEDIUM }),
+  hard: Object.freeze({ health: 150, level: 'HARD', ai: enemyAiLevels.HARD }),
+  legendary: Object.freeze({ health: 200, level: 'LEGENDARY', ai: enemyAiLevels.LEGENDARY }),
 });
 export const airAssaultAirports = ['love', 'addison', 'executive'].map(id => cityAirports.dallas.find(a => a.id === id));
 export const airAssaultHearts = [

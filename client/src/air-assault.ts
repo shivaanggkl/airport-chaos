@@ -4,7 +4,8 @@ import './air-assault.css';
 type Options = {
   root: HTMLElement;
   scene: THREE.Scene;
-  template: () => THREE.Group;
+  template: (enemy: AssaultEnemy) => THREE.Group;
+  disposeTemplate: (plane: THREE.Group) => void;
   send: (type: string) => void;
   back: () => void;
   replay: () => void;
@@ -25,7 +26,8 @@ export class AirAssaultUi {
   private staging = new THREE.Group();
   private queued = new Map<string, THREE.Group>();
   private roster: AssaultEnemy[] = [];
-  private template?: THREE.Group;
+  private templates = new Map<string,THREE.Group>();
+  private templateKey(enemy: AssaultEnemy): string {return `${enemy.aircraftType ?? 'fighter'}:${JSON.stringify(enemy.equippedCosmetics ?? {'livery:fighter':'firehawk-inferno'})}`;}
   private readyId?: string;
   private loadingId?: string;
   private readyStartedAt = 0;
@@ -90,14 +92,19 @@ export class AirAssaultUi {
     this.offset = state.serverNow - Date.now();
     if (state.phase === 'intro' && this.readyId !== state.id && this.loadingId !== state.id) {
       this.loadingId = state.id;
-      this.template ??= this.options.template();
-      Promise.resolve(this.template.userData.assetReady).then(() => {
+      for(const enemy of this.roster) {
+        const key=this.templateKey(enemy);
+        if(!this.templates.has(key)) this.templates.set(key,this.options.template(enemy));
+      }
+      Promise.all([...this.templates.values()].map(plane=>Promise.resolve(plane.userData.assetReady))).then(() => {
         if (this.disposed || this.state?.id !== state.id || this.state.phase !== 'intro')
           return;
-        const runtime = this.template!.userData;
-        this.template!.userData = {};
         for (const enemy of this.roster) {
-          const plane = this.template!.clone(true);
+          const template=this.templates.get(this.templateKey(enemy))!;
+          const runtime=template.userData;
+          template.userData={};
+          const plane = template.clone(true);
+          template.userData=runtime;
           plane.position.set(enemy.position.x, enemy.position.y, enemy.position.z);
           plane.rotation.set(0, enemy.rotation.y, 0, 'YXZ');
           this.staging.add(plane);
@@ -106,7 +113,6 @@ export class AirAssaultUi {
           plane.traverse(node => { node.matrixAutoUpdate = false; node.matrixWorldAutoUpdate = false; });
           this.queued.set(enemy.id, plane);
         }
-        this.template!.userData = runtime;
         this.readyId = state.id;
         this.readyStartedAt = performance.now();
         this.options.send('airAssaultReady');
@@ -206,5 +212,5 @@ export class AirAssaultUi {
     }
   }
   activeEnemies(): AssaultEnemy[] { return this.state?.phase === 'active' ? this.state.enemies.filter(e => e.phase === 'combat' || e.phase === 'takeoff') : []; }
-  dispose(): void { this.disposed = true; this.staging.clear(); this.staging.removeFromParent(); this.queued.clear(); this.panel.remove(); this.overlay.remove(); }
+  dispose(): void { this.disposed = true; for(const template of this.templates.values()) void Promise.resolve(template.userData.assetReady).then(()=>this.options.disposeTemplate(template)); this.templates.clear(); this.staging.clear(); this.staging.removeFromParent(); this.queued.clear(); this.panel.remove(); this.overlay.remove(); }
 }

@@ -1,3 +1,4 @@
+import { createOpponent } from './opponent.js';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed } from './surprise-attack.js';
 import { advanceHunterFlight } from './hunter-flight.js';
 import assert from 'node:assert/strict';
@@ -136,7 +137,7 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
 test('actual Bluejay factory and flight integrator keep the airborne patrol inside its safe two-kilometre area', () => {
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
-    advanceHunterFlight,
+    advanceHunterFlight, createOpponent,
     journeyDallas13, journeyDallas14: mission, ambushCanFire, players, nextBotSerial: 1, botNames: ['Hunter'], botPersonalities: ['hunter'],
     botAirports: () => cityAirports.dallas, airportRoute: () => [], boundJourneyHunterPoint,
     botTerrainHeight: () => 120, botRunwayHeight: () => 120, safeBotWaypoint: (_city, _from, p) => p,

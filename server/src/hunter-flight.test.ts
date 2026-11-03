@@ -141,13 +141,13 @@ test('production overshoot commits forward, then sets a wide return course inste
   assert.equal(bot.phase, 'reposition'); assert.ok(Math.abs(bot.combatWaypoint.x) >= 1100);
 });
 
-test('new Hunter control leaves Sky Duel, Air Assault and scripted escorts on their established controllers', () => {
+test('common Hunter controller covers combat modes but leaves noncombat leaders and peaceful NPCs unchanged', () => {
   const ctx = production(['smoothHunter'], {});
-  assert.equal(ctx.smoothHunter({ bot: { personality: 'hunter' } }), true);
-  for (const p of [
-    { bot: { personality: 'hunter' }, skyDuelPracticeOwnerId: 'owner' },
-    { bot: { personality: 'hunter' }, airAssaultId: 'encounter' },
-    { bot: { personality: 'hunter', journeyRearGuardEscort: 1 } },
-    { bot: { personality: 'casual', journeyLeader: true } },
-  ]) assert.equal(ctx.smoothHunter(p), false);
+  for(const p of [
+    {bot:{personality:'hunter',opponent:{}}},
+    {bot:{opponent:{}},skyDuelPracticeOwnerId:'owner'},
+    {npcOpponent:{},airAssaultId:'encounter'},
+    {bot:{opponent:{},journeyRearGuardEscort:1}},
+  ]) assert.equal(ctx.smoothHunter(p),true);
+  for(const p of [{bot:{personality:'casual'}},{bot:{opponent:{},journeyLeader:true}}]) assert.equal(ctx.smoothHunter(p),false);
 });

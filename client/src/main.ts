@@ -10467,7 +10467,8 @@ async function realtimeSocketUrl(): Promise<URL> {
 // of rejecting this module and leaving the game root hidden.
 let socket!: WebSocket;
 const airAssaultUi = airAssaultMode ? new AirAssaultUi({root:flightGameRoot,scene,
-  template:()=>{const plane=createAirplane('fighter',true);(plane.userData.airframeRoot as THREE.Group).scale.setScalar(aircraftPresentationScale.fighter);Promise.resolve(plane.userData.assetReady).then(()=>applyEquippedLivery(plane,'fighter',{'livery:fighter':'firehawk-inferno'}));return plane;},
+  template:enemy=>{const type=enemy.aircraftType ?? 'fighter';const plane=createAirplane(type,true);(plane.userData.airframeRoot as THREE.Group).scale.setScalar(aircraftPresentationScale[type]);Promise.resolve(plane.userData.assetReady).then(()=>applyEquippedLivery(plane,type,enemy.equippedCosmetics ?? {'livery:fighter':'firehawk-inferno'}));return plane;},
+  disposeTemplate:disposeAirplaneMaterials,
   send:type=>{if(connectionReady())socket.send(JSON.stringify({type}));},back:()=>{void exitFlightToHub();},replay:()=>{void replaceRealtimeSocket('Air Assault replay');},tone:()=>audioManager.playTone(700,.15,'triangle',.08,300,0,'weapons'),
 }) : undefined;
 const assaultRemoteIds=new Set<string>();
@@ -11297,7 +11298,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     airAssaultUi?.handle(message);
     const active=message.phase==='active'?message.enemies.filter(e=>e.phase==='takeoff'||e.phase==='combat'):[];
     const ids=new Set(active.map(e=>e.id));for(const id of assaultRemoteIds)if(!ids.has(id)){removeRemotePlayer(id);assaultRemoteIds.delete(id);}
-    for(const enemy of active){updateRemotePlayer({playerId:enemy.id,position:enemy.position,rotation:enemy.rotation,aircraftType:'fighter',cityId,isBot:true,lifeState:'alive',displayName:`${enemy.tier.toUpperCase()} ENEMY`,health:enemy.health,maxHealth:enemy.maxHealth,equippedCosmetics:{'livery:fighter':'firehawk-inferno'}});assaultRemoteIds.add(enemy.id);}
+    for(const enemy of active){updateRemotePlayer({playerId:enemy.id,position:enemy.position,rotation:enemy.rotation,aircraftType:enemy.aircraftType ?? 'fighter',hunterFlight:enemy.phase==='combat',velocity:enemy.velocity,serverNow:message.serverNow,cityId,isBot:true,lifeState:'alive',displayName:`${enemy.tier.toUpperCase()} ENEMY`,health:enemy.health,maxHealth:enemy.maxHealth,equippedCosmetics:enemy.equippedCosmetics ?? {'livery:fighter':'firehawk-inferno'}});assaultRemoteIds.add(enemy.id);}
     applyLocalHull(message.health,message.maxHealth);updateHealthDisplay();
     for(const heart of message.hearts){const remaining=Math.max(0,heart.cooldownUntil-message.serverNow);if(remaining>0&&!repairHeartCooldownUntil.has(heart.id))setHeartCooldown(heart.id,remaining);}
     if(message.phase==='finished'){clearProjectileVisuals();clearCombatTarget();repairBeaconGroup.visible=false;}

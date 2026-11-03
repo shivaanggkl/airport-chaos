@@ -1,3 +1,5 @@
+import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactionReady, chooseOpponentEvasion, type OpponentRuntime } from './opponent.js';
+import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed, type AmbushState } from './surprise-attack.js';
 import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution } from './hunter-flight.js';
 import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
@@ -98,6 +100,7 @@ type Transform = {
 };
 
 type PlayerState = Transform & {
+  npcOpponent?: OpponentRuntime;
   pilotId: string;
   accountId?: string;
   sessionTokenHash?: string;
@@ -159,6 +162,8 @@ type BotPersonality = 'explorer' | 'racer' | 'hunter' | 'casual';
 type BotPhase = 'spawn' | 'taxi' | 'takeoff' | 'cruise' | 'activity' | 'land' | 'approach' | 'attackPass' | 'extend' | 'reposition' | 'respawn';
 type BotRuntime = {
   personality: BotPersonality;
+  opponent?: OpponentRuntime;
+  nextThreatCheckAt?: number;
   journeyAttemptId?: string;
   journeyTargetPlayerId?: string;
   journeyProvoked?: boolean;
@@ -167,7 +172,6 @@ type BotRuntime = {
   journeyFirstContact?: boolean; // Isolated airborne single-opponent combat (M7/M8).
   journeySurpriseAttack?: boolean;
   ambush?: AmbushState;
-  nextContactEvasionAt?: number;
   flightAltitude?: number;
   terrainAltitude?: number;
   journeyCrossfire?: boolean;
@@ -342,10 +346,7 @@ const skyDuelHealth = 100;
 const skyDuelAiTuning = Object.freeze({
   aircraft: 'fighter' as AircraftType,
   detectionRange: 6_500,
-  reactionDelayMs: 120,
-  waypointRefreshMs: 600,
-  shotIntervalMs: 200,
-  aimSpread: 0.008,
+
 });
 
 function skyDuelPilotLevel(player: PlayerState | undefined, aiOpponent: boolean): number {
@@ -441,6 +442,7 @@ function skyDuelSpawn(playerId: string, session: SkyDuelSession, now: number): v
     player.bot.phase = 'taxi';
     player.bot.speed = 0;
     player.bot.combatTargetId = undefined;
+    if(player.bot.opponent) {player.bot.opponent.detectedTarget=undefined;player.bot.opponent.dodgeAt=-Infinity;player.bot.opponent.dodgeUntil=0;player.bot.opponent.threatAt=undefined;}
     player.bot.route = skyDuelBotRoute(position, heading);
     player.bot.routeIndex = 0;
   }
@@ -457,6 +459,7 @@ function createSkyDuelPracticeBot(ownerId: string, now: number): string | undefi
   const id = `sky-duel-ai:${ownerId}`;
   const { position, heading } = skyDuelRunwaySpawn(1, skyDuelRunwayElevations[1]);
   const bot: BotRuntime = {
+    opponent: createOpponent({ aircraft:skyDuelAiTuning.aircraft,level:'LEGENDARY',cityId:'dallas',position,rotation:{x:0,y:heading,z:0},speed:0,health:skyDuelHealth,encounterId:id,ownerId,behavior:'attack' }),
     personality: 'hunter', phase: 'taxi', journeyTargetPlayerId: ownerId,
     route: skyDuelBotRoute(position, heading), routeIndex: 0, speed: 0, desiredSpeed: 0, nextDecisionAt: now + 5_000,
     nextFireAt: now + 2_000, respawnAt: 0, homeAirportIndex: 0,
@@ -884,9 +887,6 @@ const hunterFireCone = 0.20;
 // A defender at the mandatory 2,000-ft floor needs a modest downward gun
 // depression to threaten low intruders. Horizontal authority stays unchanged.
 const defenderDownwardFireAngle = 0.45;
-const hunterReactionDelayMs = 360;
-const hunterShotIntervalMinMs = 430;
-const hunterShotIntervalJitterMs = 240;
 const hunterMinimumHorizontalSeparation = 1_100;
 const hunterVerticalBlindHorizontal = 500;
 const hunterVerticalBlindMinimum = 60;
@@ -975,11 +975,11 @@ function startAirAssault(ownerId: string, owner: PlayerState, now: number): void
     elevation: (x, z) => botRunwayHeight(owner.cityId, x, z),
     safeWaypoint: (from, to) => safeBotWaypoint(owner.cityId, from, to, 170),
     activate: enemy => {
-      const bot: PlayerState = { ...owner, profile: { ...owner.profile, cosmetics: { ...owner.profile.cosmetics, equipped: { ...owner.profile.cosmetics.equipped, 'livery:fighter': 'firehawk-inferno' } } }, pilotId: `assault:${enemy.id}`, accountId: undefined, sessionTokenHash: undefined, isBot: true, aircraftType: 'fighter', displayName: `${enemy.tier.toUpperCase()} ${enemy.ordinal + 1}`, score: 0, health: enemy.health, lifeState: 'alive', position: { ...enemy.position }, rotation: { ...enemy.rotation }, velocity: { ...enemy.velocity }, hasRespawnTransform: true, spawnProtectedUntil: 0, lastStateAt: Date.now(), lastFireAt: 0, lockedTargetId: undefined, assistedAim: undefined, recentShotIds: new Set(), territoryIds: new Set(), airAssaultId: encounter.id, airAssaultOwnerId: ownerId };
+      const bot: PlayerState = { ...owner, profile: { ...owner.profile, cosmetics: { ...owner.profile.cosmetics, equipped: { ...owner.profile.cosmetics.equipped, ...enemy.equippedCosmetics } } }, pilotId: `assault:${enemy.id}`, accountId: undefined, sessionTokenHash: undefined, isBot: true, npcOpponent:enemy.opponent, aircraftType: enemy.aircraftType ?? 'fighter', displayName: `${enemy.tier.toUpperCase()} ${enemy.ordinal + 1}`, score: 0, health: enemy.health, lifeState: 'alive', position: { ...enemy.position }, rotation: { ...enemy.rotation }, velocity: { ...enemy.velocity }, hasRespawnTransform: true, spawnProtectedUntil: 0, lastStateAt: Date.now(), lastFireAt: 0, lockedTargetId: undefined, assistedAim: undefined, recentShotIds: new Set(), territoryIds: new Set(), airAssaultId: encounter.id, airAssaultOwnerId: ownerId };
       players.set(enemy.id, bot);
     },
     move: enemy => { const bot = players.get(enemy.id); if (!bot)
-      return; bot.airAssaultTurnRate = assaultObservedTurn(bot.velocity, enemy.velocity, Math.max(.02, (Date.now() - bot.lastStateAt) / 1000), aircraftFlightEnvelope.fighter.yawRate); bot.position = { ...enemy.position }; bot.rotation = { ...enemy.rotation }; bot.velocity = { ...enemy.velocity }; bot.lastStateAt = Date.now(); },
+      return; bot.airAssaultTurnRate = assaultObservedTurn(bot.velocity, enemy.velocity, Math.max(.02, (Date.now() - bot.lastStateAt) / 1000), aircraftFlightEnvelope[bot.aircraftType].yawRate); bot.position = { ...enemy.position }; bot.rotation = { ...enemy.rotation }; bot.velocity = { ...enemy.velocity }; bot.lastStateAt = Date.now(); },
     remove: id => { removePlayerProjectiles(id); clearLocksForTarget(id); players.delete(id); sendToPlayer(ownerId, { type: 'remove', playerId: id }); },
     bullets: () => [...projectiles.values()].filter(p => p.ownerId === ownerId && p.airAssaultId === encounter.id),
     enemyShotOwners: () => new Set([...projectiles.values()].filter(p => p.ownerId !== ownerId && p.airAssaultId === encounter.id).map(p => p.ownerId)),
@@ -991,8 +991,7 @@ function startAirAssault(ownerId: string, owner: PlayerState, now: number): void
       const solution = botFireSolution(bot, owner, false);
       if (solution.reason)
         return false;
-      const variance = (Math.random() * 2 - 1) * spread;
-      return createProjectile(enemy.id, bot, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + (Math.random() * 2 - 1) * spread });
+      return createProjectile(enemy.id, bot, undefined, undefined, opponentAim(enemy.opponent.profile,solution.aimX,solution.aimY));
     },
     heal: id => { owner.health = maxHealthForAircraft(owner.aircraftType); sendToPlayer(ownerId, { type: 'repair', playerId: ownerId, sourceId: id, health: owner.health, maxHealth: owner.health, full: true, cooldownMs: 60000 }); },
     finish: (result, startedAt, at) => {
@@ -2642,10 +2641,14 @@ httpServer.listen(port, '0.0.0.0', () => {
 function broadcastToCity(cityId: CityId, message: object, except?: WebSocket): void {
   const actorId=(message as {playerId?:string}).playerId;
   if(actorId && (players.get(actorId)?.soloExploreMode||players.get(actorId)?.portalTransit)){sendToPlayer(actorId,message);return;}
+  const actor=actorId ? players.get(actorId) : undefined;
+  if(actor?.bot?.journeyAttemptId && actor.bot.journeyTargetPlayerId) {sendToPlayer(actor.bot.journeyTargetPlayerId,message);return;}
+  if(actorId && playerJourneyAttempts.has(actorId)) {sendToPlayer(actorId,message);return;}
   const encoded = encodeSocketMessage(message);
   for (const client of server.clients) {
     const playerId = playerSockets.get(client);
     const player = playerId ? players.get(playerId) : undefined;
+    if(actorId && playerId && missionFocusedPlayers.has(playerId) && actorId!==playerId && !allowedFocusedBot(actorId,playerId)) continue;
     if (client !== except && player?.cityId === cityId && !player.skyDuelMode && !player.airAssaultId && !player.soloExploreMode && !player.portalTransit) sendEncodedSocketMessage(client, encoded);
   }
 }
@@ -4390,6 +4393,7 @@ function releaseTerritoryDefender(territory: TerritoryRuntime): void {
     defender.bot.defenseSpawned = false;
     clearHunterCombat(defender, defender.bot);
     if (wasTemporary) removeBot(defender.pilotId);
+    else if(defender.bot.opponent) defender.bot.opponent=createOpponent({...defender.bot.opponent.definition,level:'MEDIUM',behavior:'pursuit'});
   }
 }
 
@@ -4445,6 +4449,7 @@ function updateTerritoryDefense(territory: TerritoryRuntime, attackerId: string 
       defender.bot.defenseSpawned = false;
       territory.defenderBotId = undefined;
       if (wasTemporary) removeBot(defender.pilotId);
+    else if(defender.bot.opponent) defender.bot.opponent=createOpponent({...defender.bot.opponent.definition,level:'MEDIUM',behavior:'pursuit'});
     }
     territory.defenderBotId = undefined;
     defender = undefined;
@@ -4501,6 +4506,7 @@ function updateTerritoryDefense(territory: TerritoryRuntime, attackerId: string 
     territory.defenderBotId = defender.pilotId;
     territory.defenseLastMoveAt = now;
     territory.defenseLastPosition = { x: defender.position.x, z: defender.position.z };
+    defender.bot.opponent = createOpponent({ aircraft:defender.aircraftType,level:'HARD',cityId:defender.cityId,position:defender.position,rotation:defender.rotation,speed:Math.min(defender.bot.speed,aircraftFlightEnvelope[defender.aircraftType].maxSpeed),health:defender.health,behavior:'defend' });
     defender.bot.defenseTerritoryId = territory.definition.id;
     defender.bot.defenseTargetId = attackerId;
     beginHunterApproach(defender, defender.bot, attackerId!, activeAttacker, now);
@@ -5355,7 +5361,7 @@ function fireBlockReason(player: PlayerState, now: number): 'lifecycle' | 'coold
   if (player.skyDuelMode && !player.skyDuelPractice &&
     (!player.skyDuelMatchId || skyDuelSessions.get(player.skyDuelMatchId)?.phase !== 'active')) return 'lifecycle';
   const interval = player.bot?.journeyEscortMissionId === journeyDallas08.id || player.bot?.journeyEscortMissionId === journeyDallas09.id || player.bot?.journeyEscortMissionId === journeyDallas10.id
-    ? journeyDallas08.escortShotSpacingMs : fireIntervalMs(player.aircraftType);
+    ? Math.max(journeyDallas08.escortShotSpacingMs, fireIntervalMs(player.aircraftType)) : fireIntervalMs(player.aircraftType);
   if (now - player.lastFireAt < interval) return 'cooldown';
   return undefined;
 }
@@ -5420,7 +5426,6 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
   const transform = fireTransform ?? player;
   const muzzle = muzzleTransform(transform);
   const privateId=playerJourneyAttempts.get(playerId);
-  const privateAttempt=privateId?journeyStore.get(player.pilotId,privateId):undefined;
   const direction = normalize(rotateLocalYxz({ x: aim.x, y: aim.y, z: -1 }, transform.rotation));
   const projectile: ProjectileState = {
     projectileId: randomUUID(),
@@ -5433,9 +5438,8 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
     traveled: 0,
     speed: ballisticShotSpeed(player.velocity, direction),
     mode: 'ballistic',
-    privateAttemptId: privateAttempt?.missionId===journeyDallas13.id || privateAttempt?.missionId===journeyDallas14.id || privateAttempt?.missionId===journeyDallas07.id || privateAttempt?.missionId===journeyDallas08.id || privateAttempt?.missionId===journeyDallas09.id || privateAttempt?.missionId===journeyDallas10.id || privateAttempt?.missionId===journeyDallas11.id || privateAttempt?.missionId===journeyDallas12.id ? privateId
-      : player.bot?.journeyRearGuardEscort || player.bot?.journeyFirstContact ? player.bot.journeyAttemptId : undefined,
-    privateRecipientId: player.airAssaultOwnerId ?? (player.bot?.journeyRearGuardEscort || player.bot?.journeyFirstContact ? player.bot.journeyTargetPlayerId : playerId),
+    privateAttemptId: privateId ?? player.bot?.journeyAttemptId,
+    privateRecipientId: player.airAssaultOwnerId ?? player.bot?.journeyTargetPlayerId ?? playerId,
     skyDuelMatchId: player.skyDuelMatchId,
     skyDuelPractice: player.skyDuelPractice,
     clientShotId,
@@ -6185,10 +6189,10 @@ function updateProjectiles(deltaSeconds: number): void {
     }
     if(projectile.airAssaultId&&!airAssaultEncounters.get(owner.airAssaultOwnerId!)?.canFight()){removeProjectile(projectile.projectileId);continue;}
     if(projectile.privateAttemptId){
-      const missionPilotId=owner.bot?.journeyRearGuardEscort || owner.bot?.journeyFirstContact ? owner.bot.journeyTargetPlayerId : projectile.ownerId;
+      const missionPilotId=owner.bot?.journeyAttemptId ? owner.bot.journeyTargetPlayerId : projectile.ownerId;
       const missionPilot=missionPilotId ? players.get(missionPilotId) : undefined;
       const a=missionPilot ? journeyStore.get(missionPilot.pilotId,projectile.privateAttemptId) : undefined;
-      if(!missionPilotId || playerJourneyAttempts.get(missionPilotId)!==projectile.privateAttemptId||a?.status!=='RACING'||a.deadlineAt===null||now>=a.deadlineAt){removeProjectile(projectile.projectileId);continue;}
+      if(!missionPilotId || playerJourneyAttempts.get(missionPilotId)!==projectile.privateAttemptId||a?.status!=='RACING'||a.deadlineAt!==null&&now>=a.deadlineAt){removeProjectile(projectile.projectileId);continue;}
     }
     const previousX = projectile.position.x;
     const previousY = projectile.position.y;
@@ -6314,7 +6318,7 @@ function botStateMessage(playerId: string, player: PlayerState, type: 'state' | 
     maxHealth: player.trainingOwnerId ? 6 : transportEscortHealth(player.bot) ?? (player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)), isBot: true,
     botPersonality: player.bot?.personality, boostActive: false,
     ...(player.bot?.journeyRearGuardEscort ? { rearGuardEscort: true } : {}),
-    ...(transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
+    ...(player.npcOpponent ? { equippedCosmetics: player.npcOpponent.cosmetics } : player.bot?.opponent ? { equippedCosmetics: player.bot.opponent.cosmetics } : transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
   };
 }
 
@@ -6550,9 +6554,17 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     lastStateAt: Date.now(), lastAcceptedPosition: { x: spawnX, y: spawnY, z: spawnZ }, lastAcceptedTransformAt: Date.now(),
     chaosQaEnabled: false, tutorialMode:false, territoryIds: new Set(), bot,
   };
+  if (!leaderSpawn && (defenseSpawn || personality === 'hunter' || journeySpawn?.rearGuardOrdinal)) {
+    const livery = transportEscortCosmetics(bot)?.[`livery:${botAircraftType}`];
+    bot.opponent = createOpponent({ aircraft:botAircraftType,livery,
+      level:journeySpawn?.legendary ? 'LEGENDARY' : defenseSpawn || journeySpawn?.ace || journeySpawn?.doubleOrdinal || journeySpawn?.siege ? 'HARD' : journeySpawn?.firstContact && !journeySpawn.surpriseAttack ? 'EASY' : 'MEDIUM',
+      cityId,position:player.position,rotation:player.rotation,speed:bot.speed,health:player.health,
+      encounterId:journeySpawn?.attemptId,ownerId:journeySpawn?.targetPlayerId,
+      behavior:journeySpawn?.surpriseAttack ? 'ambush' : defenseSpawn || journeySpawn?.siege ? 'defend' : journeySpawn?.rearGuardOrdinal ? 'escort' : journeySpawn ? 'patrol' : 'pursuit' });
+  }
   if (journeySpawn?.firstContact) player.velocity = { x: -Math.sin(spawnHeading) * bot.speed, y: 0, z: -Math.cos(spawnHeading) * bot.speed };
   players.set(id, player);
-  if (journeySpawn?.rearGuardOrdinal || journeySpawn?.firstContact) sendToPlayer(journeySpawn.targetPlayerId, botStateMessage(id, player, 'playerState'));
+  if (journeySpawn) sendToPlayer(journeySpawn.targetPlayerId, botStateMessage(id, player, 'playerState'));
   else broadcastToCity(cityId, botStateMessage(id, player, 'playerState'));
   return id;
 }
@@ -6640,7 +6652,7 @@ function removeBot(playerId: string): void {
   players.delete(playerId);
   if (player.skyDuelPracticeOwnerId)
     sendToPlayer(player.skyDuelPracticeOwnerId, { type: 'remove', playerId });
-  else if ((player.bot?.journeyRearGuardEscort || player.bot?.journeyFirstContact) && player.bot.journeyTargetPlayerId)
+  else if (player.bot?.journeyAttemptId && player.bot.journeyTargetPlayerId)
     sendToPlayer(player.bot.journeyTargetPlayerId, { type: 'remove', playerId });
   else broadcastToCity(player.cityId, { type: 'remove', playerId });
 }
@@ -6724,8 +6736,7 @@ function hunterClearance(bot: BotRuntime): number {
 }
 
 function smoothHunter(player: PlayerState): boolean {
-  return Boolean(player.bot?.personality === 'hunter' && !player.skyDuelPracticeOwnerId && !player.airAssaultId &&
-    !player.bot.journeyRearGuardEscort && !player.bot.journeyLeader);
+  return Boolean(player.npcOpponent || player.bot?.opponent && !player.bot.journeyLeader);
 }
 
 function hunterInterceptWaypoint(player: PlayerState, bot: BotRuntime, target: PlayerState): Vector3 {
@@ -6996,13 +7007,14 @@ function beginHunterApproach(player: PlayerState, bot: BotRuntime, targetId: str
   const offsetZ = target.position.z - player.position.z;
   const cross = forward.x * offsetZ - forward.z * offsetX;
   bot.combatTargetId = targetId;
+  const reacted = !bot.opponent || opponentReactionReady(bot.opponent,targetId,now);
   bot.combatTurnSign = smoothHunter(player) ? cross <= 0 ? 1 : -1 : cross >= 0 ? 1 : -1;
-  bot.combatWaypoint = hunterInterceptWaypoint(player, bot, target);
-  bot.combatWaypointRefreshAt = now + (player.skyDuelPracticeOwnerId ? skyDuelAiTuning.waypointRefreshMs : 1_100);
+  bot.combatWaypoint = reacted ? hunterInterceptWaypoint(player, bot, target) : {x:player.position.x+forward.x*Math.max(1000,bot.speed*2),y:player.position.y,z:player.position.z+forward.z*Math.max(1000,bot.speed*2)};
+  bot.combatWaypointRefreshAt = now + (bot.opponent?.profile.trackingMs ?? enemyAiLevels.MEDIUM.trackingMs);
   bot.blindZoneEscapeUntil = 0;
   const distance = Math.hypot(target.position.x - player.position.x, target.position.y - player.position.y, target.position.z - player.position.z);
   bot.combatPhaseUntil = now + Math.min(25_000, Math.max(8_000, distance / Math.max(70, bot.speed) * 1_400));
-  bot.attackFireAfter = now + (player.skyDuelPracticeOwnerId ? skyDuelAiTuning.reactionDelayMs : hunterReactionDelayMs + Math.random() * 320);
+  bot.attackFireAfter = Math.max(now, bot.opponent ? bot.opponent.detectedAt + bot.opponent.profile.reactionMs : now + enemyAiLevels.MEDIUM.reactionMs);
   bot.phase = 'approach';
 }
 
@@ -7146,6 +7158,9 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     bot.journeyReturnGraceUntil = now + 30_000;
     clearHunterCombat(player, bot);
   }
+  if (bot.opponent?.detectedTarget && !opponentReactionReady(bot.opponent,bot.opponent.detectedTarget,now)) {
+    return bot.combatWaypoint ? {waypoint:bot.combatWaypoint} : undefined;
+  }
   if (bot.journeySurpriseAttack && bot.ambush && missionPilot && missionPilot.lifeState === 'alive') {
     const previousWarning = bot.ambush.warningAt;
     const rearPoint = ambushApproach(bot.ambush, player.position, bot.speed, missionPilot, now);
@@ -7158,7 +7173,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
       bot.phase = 'approach';
       if (!bot.combatWaypoint || now >= bot.combatWaypointRefreshAt) {
         bot.combatWaypoint = safeBotWaypoint(player.cityId, player.position, rearPoint, hunterClearance(bot));
-        bot.combatWaypointRefreshAt = now + 1_100;
+        bot.combatWaypointRefreshAt = now + (bot.opponent?.profile.trackingMs ?? enemyAiLevels.MEDIUM.trackingMs);
       }
       return { waypoint: bot.combatWaypoint,
         target: [bot.journeyTargetPlayerId!, missionPilot] };
@@ -7208,7 +7223,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
           bot.combatWaypoint.y += (intercept.y - bot.combatWaypoint.y) * .35;
           bot.combatWaypoint.z += (intercept.z - bot.combatWaypoint.z) * .55;
         } else bot.combatWaypoint = intercept;
-        bot.combatWaypointRefreshAt = now + (player.skyDuelPracticeOwnerId ? skyDuelAiTuning.waypointRefreshMs : 1_100);
+        bot.combatWaypointRefreshAt = now + (bot.opponent?.profile.trackingMs ?? enemyAiLevels.MEDIUM.trackingMs);
       }
     }
   } else if (bot.phase === 'attackPass') {
@@ -7248,15 +7263,17 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
 
   // Beginner reaction to a genuinely approaching shot. The waypoint goes through
   // normal bank/turn/acceleration integration; no transform or hitbox changes.
-  if (bot.journeyFirstContact && target && (bot.phase === 'approach' || bot.phase === 'attackPass') && now >= (bot.nextContactEvasionAt ?? 0)) {
-    bot.nextContactEvasionAt = now + 1_200;
-    for (const shot of projectiles.values()) {
-      if (shot.ownerId !== bot.journeyTargetPlayerId) continue;
-      const dx = player.position.x - shot.position.x, dy = player.position.y - shot.position.y, dz = player.position.z - shot.position.z;
-      const along = dx * shot.direction.x + dy * shot.direction.y + dz * shot.direction.z;
-      if (along <= 0 || along > 900 || dx * dx + dy * dy + dz * dz - along * along > 90 * 90) continue;
-      beginHunterExtend(player, bot, now);
-      break;
+  if (bot.opponent && target && now >= (bot.nextThreatCheckAt ?? 0) && now >= bot.opponent.dodgeUntil) {
+    bot.nextThreatCheckAt = now + 200;
+    const bullets = [...projectiles.values()].filter(shot => shot.ownerId === target![0] && shot.cityId === player.cityId);
+    const dodge = chooseOpponentEvasion(bot.opponent,player,bot.speed,bullets,now,
+      (x,z)=>botSafeFloor(player.cityId,x,z,hunterClearance(bot)),
+      bot.journeyAttemptId ? insideJourneyHunterArena : undefined);
+    if(dodge) {
+      bot.combatWaypoint = safeBotWaypoint(player.cityId,player.position,dodge,hunterClearance(bot));
+      bot.combatWaypointRefreshAt = bot.opponent.dodgeUntil;
+      bot.combatPhaseUntil = bot.opponent.dodgeUntil;
+      bot.phase = 'extend';
     }
   }
 
@@ -7328,6 +7345,7 @@ function updateBots(now: number): void {
       bot.attackFireAfter = 0;
       bot.blindZoneEscapeUntil = 0;
       bot.bankControl = 0;
+      if(bot.opponent) {bot.opponent.detectedTarget=undefined;bot.opponent.dodgeAt=-Infinity;bot.opponent.dodgeUntil=0;bot.opponent.threatAt=undefined;}
       bot.route = airportRoute(player.cityId, bot.homeAirportIndex, bot.personality);
       bot.routeIndex = 0;
       broadcastToCity(player.cityId, botStateMessage(botId, player, 'playerState'));
@@ -7369,6 +7387,7 @@ function updateBots(now: number): void {
     const combatTarget = combatNavigation?.target;
     const combatSolution = combatTarget ? botFireSolution(player, combatTarget[1], Boolean(bot.defenseTerritoryId)) : undefined;
     const canAttack = (!bot.journeyAttemptId || bot.journeyProvoked === true) &&
+      (!bot.opponent || Boolean(combatTarget && opponentReactionReady(bot.opponent,combatTarget[0],now))) &&
       (!bot.journeySurpriseAttack || ambushCanFire(bot.ambush, now));
     if (bot.journeyCrossfire && bot.journeyAttemptId && (!canAttack || !combatTarget || !combatSolution || combatSolution.reason))
       crossfireFireCoordinators.get(bot.journeyAttemptId)?.revoke(botId, now);
@@ -7379,7 +7398,7 @@ function updateBots(now: number): void {
     // Bot warning state reuses the active combat target and the exact firing
     // solution below. Proximity and radar presence never create a lock.
     setServerLock(botId, player, botLockTargetId);
-    if (canAttack && combatTarget && combatSolution && (bot.journeyRearGuardEscort || now >= Math.max(bot.nextFireAt, bot.attackFireAfter))) {
+    if (canAttack && combatTarget && combatSolution && (now >= Math.max(bot.nextFireAt, bot.attackFireAfter, player.lastFireAt + (bot.opponent?.profile.shotIntervalMs ?? enemyAiLevels.MEDIUM.shotIntervalMs)))) {
       const [targetId, target] = combatTarget;
       const solution = combatSolution;
       // Attack-pass shots use the normal ballistic projectile pipeline. The
@@ -7399,9 +7418,8 @@ function updateBots(now: number): void {
       if (canShoot && crossfireAllowed && escortAllowed && (smoothHunter(player) || player.skyDuelPracticeOwnerId || bot.journeyRearGuardEscort || Math.random() < (bot.defenseTerritoryId ? 0.92 : 0.84))) {
         // Hunters use restrained independent aim error. Dedicated modes retain
         // their authored spread; every shot remains a server-owned ballistic.
-        const spread = smoothHunter(player) ? bot.journeyFirstContact ? 0.004 : 0.006 : player.skyDuelPracticeOwnerId ? skyDuelAiTuning.aimSpread : bot.defenseTerritoryId ? 0.01 : bot.journeyFirstContact ? 0.04 : bot.journeyAttemptId ? 0.014 : 0.028;
-        const variance = (Math.random() - 0.5) * spread;
-        if (createProjectile(botId, player, undefined, undefined, { x: solution.aimX + variance, y: solution.aimY + (smoothHunter(player) ? (Math.random() - .5) * spread : variance * 0.45) },
+        const aim = opponentAim(bot.opponent?.profile ?? enemyAiLevels.MEDIUM,solution.aimX,solution.aimY);
+        if (createProjectile(botId, player, undefined, undefined, aim,
           bot.journeyRearGuardEscort ? journeyDallas08.escortShotDamage : undefined)) {
           if (escortFire) rearGuardShotResolved(escortFire, now);
           bot.attackShots = (bot.attackShots ?? 0) + 1;
@@ -7419,11 +7437,8 @@ function updateBots(now: number): void {
         if (bot.defenseTerritoryId) console.log(`DEFENDER_NO_FIRE dist=${Math.round(solution.distance)} vertical=${Math.round(solution.vertical)} angle=${Math.round(solution.angle * 180 / Math.PI)} reason=${bot.noFireReason}`);
         else console.log(`HUNTER_NO_FIRE ${bot.noFireReason} target=${bot.combatTargetId}`);
       }
-      if (!bot.journeyRearGuardEscort) {
-        const nextShotDelay = !canShoot ? 260 : bot.journeySurpriseAttack ? 850 + Math.random() * 250 : bot.journeyFirstContact ? 1_000 + Math.random() * 300 : player.skyDuelPracticeOwnerId
-          ? skyDuelAiTuning.shotIntervalMs : hunterShotIntervalMinMs + Math.random() * hunterShotIntervalJitterMs;
-        bot.nextFireAt = now + nextShotDelay;
-      }
+      bot.nextFireAt = now + (canShoot ? bot.opponent?.profile.shotIntervalMs ?? enemyAiLevels.MEDIUM.shotIntervalMs : 200);
+
     }
 
     const followingCombatWaypoint = Boolean(combatNavigation);
@@ -7476,7 +7491,7 @@ function updateBots(now: number): void {
     player.lastStateAt = now;
     player.hasRespawnTransform = true;
     if (player.skyDuelPracticeOwnerId) sendToPlayer(player.skyDuelPracticeOwnerId, botStateMessage(botId, player));
-    else if ((bot.journeyRearGuardEscort || bot.journeyFirstContact) && bot.journeyTargetPlayerId) sendToPlayer(bot.journeyTargetPlayerId, botStateMessage(botId, player));
+    else if (bot.journeyAttemptId && bot.journeyTargetPlayerId) sendToPlayer(bot.journeyTargetPlayerId, botStateMessage(botId, player));
     else broadcastToCity(player.cityId, botStateMessage(botId, player));
   }
 }
@@ -8041,6 +8056,7 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
     bot.combatPhaseUntil = shift(bot.combatPhaseUntil);
     bot.combatWaypointRefreshAt = shift(bot.combatWaypointRefreshAt);
     bot.attackFireAfter = shift(bot.attackFireAfter);
+    if(bot.opponent) {bot.opponent.detectedAt=shift(bot.opponent.detectedAt);bot.opponent.dodgeAt=shift(bot.opponent.dodgeAt);bot.opponent.dodgeUntil=shift(bot.opponent.dodgeUntil);if(bot.opponent.threatAt!==undefined)bot.opponent.threatAt=shift(bot.opponent.threatAt);}
     if (bot.ambush) {
       bot.ambush.activatedAt = shift(bot.ambush.activatedAt);
       if (bot.ambush.warningAt !== undefined) bot.ambush.warningAt = shift(bot.ambush.warningAt);
@@ -8546,7 +8562,7 @@ server.on('connection', (socket, request) => {
           health: player.health,
           maxHealth: player.trainingOwnerId ? 6 : transportEscortHealth(player.bot) ?? (player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)),
           ...(player.bot?.journeyRearGuardEscort ? { rearGuardEscort: true } : {}),
-          ...(transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
+          ...(player.npcOpponent ? { equippedCosmetics: player.npcOpponent.cosmetics } : player.bot?.opponent ? { equippedCosmetics: player.bot.opponent.cosmetics } : transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
         })),
     },
   );
@@ -8662,6 +8678,7 @@ server.on('connection', (socket, request) => {
         weeklyEventId?: unknown;
         routeId?: unknown; transitionId?:unknown;
       } & Partial<Transform>;
+      if (hasClientOpponentOverride(message)) { socket.close(1008, 'Opponent configuration is server-owned'); return; }
       const player = players.get(playerId);
       if (!player) return;
       if(message.type?.startsWith('portal')){handlePortalMessage(playerId,player,message);return;}
