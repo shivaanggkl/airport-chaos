@@ -20,7 +20,7 @@ export type TacticalAircraft = { lastStateAt?:number; position:V; rotation:V; ve
 export type TacticalInput = {
   targetId:string; target:TacticalAircraft; enemy:TacticalAircraft; speed:number; now:number;
   firingSolution:boolean; lockedByTarget?:boolean; bullets?:readonly OpponentBullet[];
-  roaming?:boolean; cruise:number; floorAt:(x:number,z:number)=>number;
+  objective?:V; roaming?:boolean; cruise:number; floorAt:(x:number,z:number)=>number;
   safeWaypoint?:(from:V,to:V)=>V; inside?:(p:V)=>boolean;
 };
 const clamp=(x:number,a:number,b:number)=>Math.max(a,Math.min(b,x));
@@ -114,7 +114,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   const committedCounter=expert&&m.plan.tactic==='counterattack'&&now<m.plan.until&&m.threatDamage<1;
   const emergency=dodge!==undefined || !committedCounter&&danger && intelligence.awareness>=.5 && m.plan.tactic!=='defensiveBreak' && now-runtime.dodgeAt>=profile.dodgeCooldownMs;
   const separationComplete=['extendAway','disengage'].includes(m.plan.tactic) && range>=space.separation;
-  const committed=now<m.plan.until && !separationComplete;
+  const committed=now<m.plan.until && !separationComplete && (!input.objective || ['disengage','defensiveBreak','energyRecovery'].includes(m.plan.tactic));
   if(!emergency && committed && ['extendAway','disengage','defensiveBreak','energyRecovery',...(!expert?['attackPass']:[])].includes(m.plan.tactic))return m.plan;
   if(!emergency && now<m.observedAt+profile.trackingMs)return m.plan;
   const seconds=Math.max(.05,(now-m.observedAt)/1000), weight=1-Math.exp(-seconds/5), decay=Math.exp(-seconds/18);
@@ -159,6 +159,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
     counterattack:expert&&now-runtime.dodgeAt<5000&&range<COMBAT_RANGE&&targetGunAlignment<.94?1.5:crossing&&targetNose<.1&&nose>.2?.5+intelligence.awareness*.65:-.5,
     disengage:resetNeeded?(dodge?2.2:3):danger&&nose<0?1.1+intelligence.awareness*.5+m.threatDamage*.15:-.5,
   };
+  if(input.objective){scores.disengage=1;scores.defensiveBreak=dodge?3:danger?2:-1;}
   const personality=runtime.definition.personality ?? (runtime.definition.behavior==='ambush'?'patient':runtime.definition.behavior==='defend'?'defensive':'balanced');
   if(personality==='aggressive'){scores.attackPass+=.12;scores.counterattack+=.15;}
   if(personality==='patient'){scores.rearIntercept+=.18;scores.highAttack+=.12;}
@@ -168,6 +169,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   let choice:CombatTactic=m.plan.tactic, best=-Infinity;
   for(let i=0;i<combatTactics.length;i++) {
     const tactic=combatTactics[i]!;
+    if(input.objective&&!['disengage','defensiveBreak','energyRecovery'].includes(tactic))continue;
     if(intelligence.awareness<.4&&!basicTactics.has(tactic))continue;
     let score=scores[tactic]+m.usefulness[i]!*intelligence.memory*.3;
     if(tactic===m.plan.tactic)score+=intelligence.hysteresis-(recentMisses?intelligence.memory*.6:0);
@@ -238,6 +240,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
       }
     }
   }
+  if(input.objective&&choice!=='defensiveBreak'){waypoint=input.objective;cruise=input.cruise;}
   waypoint.y=Math.max(waypoint.y,input.floorAt(waypoint.x,waypoint.z)+35);
   waypoint=input.safeWaypoint?.(enemy.position,waypoint)??waypoint;
   // A bounded arena may reject an outbound route; steer inward using the same integrator.

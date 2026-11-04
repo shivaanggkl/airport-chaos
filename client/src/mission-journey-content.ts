@@ -23,7 +23,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-12': 'Destroy both guards, both turrets, then the exposed core.',
   'journey-dallas-13': 'Take off. Follow the red radar marker. Shoot down Nightowl.',
   'journey-dallas-14': 'Take off. Watch your back. Defeat the attacking Bluejay.',
-  'journey-dallas-15': 'Shoot down the powerful Ace fighter.',
+  'journey-dallas-15': 'Take off. Chase the escaping Mammoth. Destroy it before it escapes.',
   'journey-dallas-16': 'Fly through five gates while escaping two Hunters.',
   'journey-dallas-17': 'Repair your plane, then score 780 or more on landing.',
   'journey-dallas-18': 'Capture the zone, then defend against a Hunter for 40 seconds.',

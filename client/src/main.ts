@@ -168,7 +168,7 @@ type JourneyAttemptState = {
   followStatus?: FormationStatus;
 
   hunterDistance?: number | null;
-  firstClearCredits: number; failureReason: string | null;
+  escapeRemaining?:number; firstClearCredits: number; failureReason: string | null;
   fighterEscortsAlive?: number;
   fortressLeftHealth?: number | null; fortressRightHealth?: number | null; monsterHealth?: number | null;
   finalPhase?: 'ESCORTS' | 'TURRETS' | 'CORE' | null;
@@ -2157,11 +2157,11 @@ function updateRadar(direction: THREE.Vector3): void {
     }
     for (const remote of remotePlayers.values()) {
       if (!remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
-      drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas13.id && journeyAttempt.targetId === remote.playerId ? 'RED NIGHTOWL' : journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'ATTACKING BLUEJAY' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ACE HUNTER' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : journeyAttempt?.missionId === journeyDallas23.id && (journeyAttempt.doublePhase === 'FIRST_FIGHT' && journeyAttempt.targetId === remote.playerId || journeyAttempt.doublePhase === 'FINAL_FIGHT' && journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : '', false, remote.heatLevel >= 4,
+      drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas13.id && journeyAttempt.targetId === remote.playerId ? 'RED NIGHTOWL' : journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'ATTACKING BLUEJAY' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ESCAPING MAMMOTH' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : journeyAttempt?.missionId === journeyDallas23.id && (journeyAttempt.doublePhase === 'FIRST_FIGHT' && journeyAttempt.targetId === remote.playerId || journeyAttempt.doublePhase === 'FINAL_FIGHT' && journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : '', false, remote.heatLevel >= 4,
         selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
         primaryTerritoryColorForPlayer(remote.playerId), lockingThreatIds.has(remote.playerId),
         remote.altitudeMeters === undefined ? '' : formatRelativeAltitude(remote.altitudeMeters - altitudeAboveTerrain()),
-        (journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id) && journeyAttempt.targetId === remote.playerId ? 'red' : undefined);
+        (journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas15.id) && journeyAttempt.targetId === remote.playerId ? 'red' : undefined);
     }
   }
   if (activeMissionDefinition?.type === 'assignedHunter' && activeMission?.targetId) {
@@ -2965,16 +2965,10 @@ function updateJourneyHud(): void {
     const ace = journeyAttempt.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
     const distance = ace?.lifeState === 'alive' ? airplane.position.distanceTo(ace.plane.position) : null;
     const hp = Math.max(0, Math.min(journeyDallas15.bossHealth, journeyAttempt.targetHealth));
-    const aligned = ace && selectedCombatTarget?.remote.playerId === ace.playerId && selectedCombatTarget.locked &&
-      selectedCombatTarget.distance <= COMBAT_RANGE;
-    if (journeyHudObjective) journeyHudObjective.textContent = onGround ? 'TAKE OFF — FIND THE ACE'
-      : !ace || distance === null || distance > COMBAT_RANGE ? 'FOLLOW THE GOLD ARROW'
-        : performance.now() < aceMilestoneNoticeUntil ? hp <= 100 ? 'FINISH THE ACE!' : 'ACE DAMAGED — KEEP FIRING!'
-          : performance.now() < aceHitNoticeUntil ? 'DIRECT HIT!'
-            : aligned ? 'AIM AND FIRE!' : hp <= 100 ? 'FINISH THE ACE!' : 'GET BEHIND THE ACE';
-    if (journeyHudProgress) journeyHudProgress.textContent = `ACE HUNTER — ${hp} / ${journeyDallas15.bossHealth} HP`;
-    if (journeyHudTarget) journeyHudTarget.textContent = `DISTANCE: ${distance === null ? 'LOCATING' : formatObjectiveDistance(distance * WORLD_METERS_PER_UNIT)}`;
-    if (journeyHudTimer) journeyHudTimer.textContent = `PLAYER HEALTH: ${Math.round(health / maxHealth * 100)}%`;
+    if (journeyHudObjective) journeyHudObjective.textContent = onGround ? 'TAKE OFF — CHASE THE MAMMOTH' : 'DESTROY THE ESCAPING MAMMOTH';
+    if (journeyHudProgress) journeyHudProgress.textContent = `MAMMOTH: ${hp} / ${journeyDallas15.bossHealth} HP`;
+    if (journeyHudTarget) journeyHudTarget.textContent = `TARGET: ${distance===null?'LOCATING':formatObjectiveDistance(distance*WORLD_METERS_PER_UNIT)}`;
+    if (journeyHudTimer) journeyHudTimer.textContent = journeyAttempt.status==='APPROACH' ? 'ESCAPE STARTS AFTER TAKEOFF' : `ESCAPE: ${formatObjectiveDistance((journeyAttempt.escapeRemaining??0)*WORLD_METERS_PER_UNIT)} LEFT`;
     if (journeyHudEnemy) journeyHudEnemy.style.setProperty('--enemy-health', `${hp / journeyDallas15.bossHealth * 100}%`);
     return;
   }
@@ -3221,7 +3215,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
     : `MISSION ${String(resultSlot).padStart(2,'0')} · ${resultSlot <= 5 ? 'GOLDEN GATES' : `CHAPTER ${Math.ceil(resultSlot / 6)}${resultSlot % 6 === 0 ? ' FINALE' : ''}`}`;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = success
     ? journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION'
-    : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? '' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'ACE INTERCEPT' : surpriseMission ? 'SURPRISE ATTACK' : firstContactMission ? 'FIRST CONTACT' : finaleMission ? 'FINAL INTERCEPT' : gravityMission ? 'ARMORED FORTRESS' : gunshipMission ? 'CROSSFIRE' : attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : formationMission ? 'REAR GUARD' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
+    : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? '' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'HOT PURSUIT' : surpriseMission ? 'SURPRISE ATTACK' : firstContactMission ? 'FIRST CONTACT' : finaleMission ? 'FINAL INTERCEPT' : gravityMission ? 'ARMORED FORTRESS' : gunshipMission ? 'CROSSFIRE' : attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : formationMission ? 'REAR GUARD' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? 'MISSION PASSED' : 'MISSION FAILED';
   const finishSeconds = Math.max(0, (attempt.finishTimeMs ?? 0) / 1000);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
@@ -3237,11 +3231,11 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : criticalMission ? `AIRCRAFT REPAIRED · LANDING SCORE: ${attempt.landingScore ?? 0}/1000`
       : crossfireMission ? 'YOU ESCAPED THE CROSSFIRE! · 5/5 GATES CLEARED'
       : firstContactMission ? 'RED NIGHTOWL DESTROYED'
-      : aceMission ? 'ACE HUNTER DEFEATED · 12 STANDARD HITS'
+      : aceMission ? 'MAMMOTH DESTROYED'
       : surpriseMission ? 'ATTACKING BLUEJAY DESTROYED'
       : formationMission ? `Transport destroyed. Time: ${finishSeconds.toFixed(1)} seconds`
       : `${dfwMission ? '10/10 GOLDEN' : gravityMission || slalomMission ? '5/5' : '4/4'} GATES CLEARED · FINISH TIME: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
-    : attempt.failureReason === 'PAUSE_EXPIRED' ? 'PAUSE LIMIT REACHED · RETURN WITHIN 2 MINUTES'
+    : aceMission && attempt.failureReason==='ENEMY_ESCAPED' ? 'MAMMOTH ESCAPED' : attempt.failureReason === 'PAUSE_EXPIRED' ? 'PAUSE LIMIT REACHED · RETURN WITHIN 2 MINUTES'
       : elevatorMission && attempt.failureReason==='TIME_UP' ? `${gunshipMission ? 'Gunship' : 'Transport'} escaped`
       : elevatorMission && (attempt.failureReason==='CRASHED'||attempt.failureReason==='MONSTER_KILLED') ? 'Aircraft destroyed'
       : attempt.failureReason === 'LANDING_TOO_ROUGH' ? 'SMOOTH LANDING REQUIRED'
@@ -3258,7 +3252,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
   const resultMission = journeyMissionDefinitions.find(mission => mission.id === attempt.missionId);
   const gateCount = resultMission && 'gates' in resultMission ? resultMission.gates.length : 0;
   resultDetail.classList.toggle('has-metrics', gateCount > 0);
-  resultDetail.hidden = !success && gateCount === 0;
+  resultDetail.hidden = !success && gateCount === 0 && !aceMission;
   if (gateCount > 0) {
     const elapsedMs = attempt.finishTimeMs ?? (attempt.startedAt !== null && attempt.finishedAt !== null
       ? Math.max(0, attempt.finishedAt - attempt.startedAt) : null);
@@ -11512,6 +11506,9 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         hapticsManager.emit('confirmation', `${message.attempt.attemptId}:ace-${message.attempt.targetHealth <= 100 ? 100 : 200}`);
       }
     }
+    if(message.attempt.missionId===journeyDallas15.id&&message.attempt.status==='RACING'&&message.attempt.escapeRemaining!==undefined&&
+      message.attempt.escapeRemaining<5000&&(previousAttempt?.escapeRemaining===undefined||previousAttempt.escapeRemaining>=5000))
+      showProgressMessage('MAMMOTH IS NEAR THE EXIT!',3000);
     if (message.attempt.missionId === journeyDallas14.id && message.attempt.ambushWarningAt !== undefined &&
       message.attempt.ambushWarningAt !== previousAttempt?.ambushWarningAt) {
       showProgressMessage(message.attempt.ambushRearWarning ? 'WARNING — ENEMY BEHIND!' : 'WARNING — ENEMY ATTACKING!', journeyDallas14.warningMs);

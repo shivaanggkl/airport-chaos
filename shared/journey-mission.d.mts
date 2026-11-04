@@ -108,8 +108,11 @@ export const journeyDallas14: Readonly<{
   warningMs: 3000; rearApproachMs: 18000; enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas15: Readonly<{
-  id: 'journey-dallas-15'; cityId: 'dallas'; name: 'ACE INTERCEPT'; chapter: 'HIGH STAKES';
-  firstClearCredits: 1950; startAirportId: 'love'; bossName: 'ACE HUNTER'; bossHealth: 300;
+  id: 'journey-dallas-15'; cityId: 'dallas'; name: 'HOT PURSUIT'; chapter: 'SKY HUNTERS';
+  firstClearCredits: 1950; startAirportId: 'addison'; bossName: 'ESCAPING MAMMOTH'; bossHealth: 200;
+  timeLimitMs:300000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:800;
+  enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:10000; arrivalRadius:650;
+  escapeRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
 export const journeyDallas16: Readonly<{
   id: 'journey-dallas-16'; cityId: 'dallas'; name: 'CROSSFIRE ESCAPE'; chapter: 'HIGH STAKES';

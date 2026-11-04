@@ -237,9 +237,13 @@ export const journeyDallas14 = Object.freeze({
 });
 
 export const journeyDallas15 = Object.freeze({
-  id: 'journey-dallas-15', cityId: 'dallas', name: 'ACE INTERCEPT',
-  chapter: 'HIGH STAKES', firstClearCredits: 1_950,
-  startAirportId: 'love', bossName: 'ACE HUNTER', bossHealth: 300,
+  id: 'journey-dallas-15', cityId: 'dallas', name: 'HOT PURSUIT',
+  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 300_000,
+  startAirportId: 'addison', bossName: 'ESCAPING MAMMOTH', bossHealth: 200,
+  enemyAircraft: 'cargo', enemyLivery: 'mammoth-sand', enemyAltitude: 800,
+  enemySpawn: Object.freeze({x:-16_500,z:-13_200}), cruiseSpeed: 420, threatDistance: 10_000, arrivalRadius: 650,
+  // Keep the final leg inside the established Hunter airspace turning margin.
+  escapeRoute: Object.freeze([Object.freeze({x:-21_500,z:8_000}),Object.freeze({x:-3_000,z:8_000})]),
 });
 
 // Broad northbound turns through open airspace west of Addison. No race clock:

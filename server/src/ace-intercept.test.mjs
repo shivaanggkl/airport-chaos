@@ -19,10 +19,10 @@ function fixture() {
   return { directory, path, store: new JourneyAttemptStore(path) };
 }
 
-test('Mission 15 requires Mission 14, assigns one target, and credits first clear once', () => {
+test('Displayed M9 preserves its prerequisite, assigns one target, and credits first clear once', () => {
   const { directory, path, store } = fixture();
   try {
-    assert.equal(journeyDallas15.bossHealth, 300);
+    assert.equal(journeyDallas15.bossHealth, 200);
     assert.equal(journeyDallas15.firstClearCredits, 1_950);
     assert.throws(() => store.launch('pilot', 'trainer', 1_000, journeyDallas15.id), /locked/);
     const database = new DatabaseSync(path);
@@ -35,6 +35,8 @@ test('Mission 15 requires Mission 14, assigns one target, and credits first clea
     assert.equal(store.assignHunter('pilot', first.attemptId, 'other-ace', null, 2_300), undefined);
     assert.equal(store.completeHunter('other', first.attemptId, 'ace', 2_400), undefined);
     assert.equal(store.completeHunter('pilot', first.attemptId, 'wrong-ace', 2_400), undefined);
+    assert.equal(store.get('pilot',first.attemptId).startedAt,null);
+    assert.equal(store.startPursuit('pilot',first.attemptId,2400).deadlineAt,302400);
     const result = store.completeHunter('pilot', first.attemptId, 'ace', 2_500);
     assert.equal(result?.status, 'COMPLETED');
     assert.equal(result.firstClearCredits, 1_950);
@@ -43,11 +45,13 @@ test('Mission 15 requires Mission 14, assigns one target, and credits first clea
     const replay = store.launch('pilot', 'trainer', 3_000, journeyDallas15.id);
     store.approach('pilot', replay.attemptId);
     store.assignHunter('pilot', replay.attemptId, 'replay-ace', null, 3_100);
+    store.startPursuit('pilot',replay.attemptId,3150);
     assert.equal(store.completeHunter('pilot', replay.attemptId, 'ace', 3_200), undefined);
     assert.equal(store.completeHunter('pilot', replay.attemptId, 'replay-ace', 3_200)?.firstClearCredits, 0);
     const capped = store.launch('capped', 'trainer', 4_000, journeyDallas15.id);
     store.approach('capped', capped.attemptId);
     store.assignHunter('capped', capped.attemptId, 'capped-ace', null, 4_100);
+    store.startPursuit('capped',capped.attemptId,4150);
     assert.equal(store.completeHunter('capped', capped.attemptId, 'capped-ace', 4_200)?.firstClearCredits, 50);
     assert.equal(database.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get().credits, 1_950);
     assert.equal(database.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'capped'").get().credits, 1_000_000);
@@ -69,7 +73,7 @@ test('boss damage requires the assigned active flight and cannot be forged by an
 
 test('Ace uses the shooter aircraft damage and suppresses ordinary kill Credits', () => {
   const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  assert.equal(journeyDallas15.bossHealth / projectileDamageForAircraft('trainer'), 12);
+  assert.equal(journeyDallas15.bossHealth / projectileDamageForAircraft('trainer'), 8);
   assert.match(source, /victim\.health -= damageDealt/);
   assert.match(source, /victim\.bot\?\.journeyAce[\s\S]*?aceDamageAuthorized/);
   assert.match(source, /linkedAttempt\.missionId === journeyDallas15\.id[\s\S]*?journeyStore\.completeHunter/);
