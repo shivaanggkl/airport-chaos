@@ -25,7 +25,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-14': 'Take off. Watch your back. Defeat the attacking Bluejay.',
   'journey-dallas-15': 'Take off. Chase the escaping Mammoth. Destroy it before it escapes.',
   'journey-dallas-16': 'Take off. Fight two enemy aircraft. Destroy both to win.',
-  'journey-dallas-17': 'Repair your plane, then score 780 or more on landing.',
+  'journey-dallas-17': 'Take off. Find the armored Mammoth. Shoot it down.',
   'journey-dallas-18': 'Capture the zone, then defend against a Hunter for 40 seconds.',
   'journey-dallas-19': 'Destroy the giant monster before time runs out.',
   'journey-dallas-20': 'Fly through six alternating high and low gates.',

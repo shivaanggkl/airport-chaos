@@ -1,3 +1,4 @@
+import {journeyDallas17} from '../../shared/journey-mission.mjs';
 import { recordOpponentHit, recordOpponentDamage } from './opponent-tactics.js';
 import { createOpponent } from './opponent.js';
 import { advanceHunterFlight } from './hunter-flight.js';
@@ -21,7 +22,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext({recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
+  const sandbox = vm.createContext({journeyDallas17,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }
@@ -111,13 +112,13 @@ test('old active Redline attempts are invalidated once; historical clears surviv
 });
 
 test('M7 reuses physical Hunter flight, restricted ballistics, private visibility and cleanup', () => {
-  assert.match(source, /const cruiseSpeed = bot\.journeyFirstContact \? \(bot\.journeySurpriseAttack \? journeyDallas14 : journeyDallas13\)\.cruiseSpeed/);
-  assert.match(source, /!bot\.journeyFirstContact \|\| solution\.distance <= 2_500/);
+  assert.match(source, /const cruiseSpeed = bot\.journeyFirstContact \? \(bot\.journeyIronHunter \? journeyDallas17 : bot\.journeySurpriseAttack \? journeyDallas14 : journeyDallas13\)\.cruiseSpeed/);
+  assert.match(source, /!bot\.journeyFirstContact \|\| bot\.journeyIronHunter \|\| solution\.distance <= 2_500/);
   assert.ok(source.includes("planOpponentTactics(bot.opponent"));
   assert.match(source, /privateAttemptId: privateId \?\? player\.bot\?\.journeyAttemptId/);
   assert.match(source, /if \(victim\.bot\?\.journeyFirstContact \|\| owner\.bot\?\.journeyFirstContact\)/);
   assert.match(source, /if \(victim\.bot\?\.journeyAttemptId\) removeBot\(victimId\)/);
-  assert.match(source, /\(active\?\.missionId === journeyDallas13\.id \|\| active\?\.missionId === journeyDallas14\.id\) && active\.status === 'APPROACH' && journeyCountdownComplete\.has/);
+  assert.match(source, /\(active\?\.missionId === journeyDallas13\.id \|\| active\?\.missionId === journeyDallas14\.id \|\| active\?\.missionId === journeyDallas17\.id\) && active\.status === 'APPROACH' && journeyCountdownComplete\.has/);
 });
 
 test('six accepted Bluejay combat hits destroy only the owned target and complete the real reward transaction', () => {
@@ -196,7 +197,7 @@ test('M7 launch refuses an old backend before creating an attempt and explains t
   const launch = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'playJourneyMission');
   for (const supported of [false, true]) {
     const objective = { textContent: '' }, calls = [];
-    const context = vm.createContext({
+    const context = vm.createContext({journeyDallas17,
       journeyLaunchPending: false, dallasUnlocked: () => true, cityJourneyMode: '',
       missionJourney: { selectedMissionNumber: 7, hide: () => {} },
       journeyMissionOrder: Array(6).fill('').concat(mission.id), pendingAircraftSelection: undefined,

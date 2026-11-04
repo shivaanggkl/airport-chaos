@@ -1,3 +1,4 @@
+import {journeyDallas17} from '../../shared/journey-mission.mjs';
 import { recordOpponentHit, recordOpponentDamage } from './opponent-tactics.js';
 import { createOpponent } from './opponent.js';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed } from './surprise-attack.js';
@@ -22,7 +23,7 @@ const ast = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true
 function runtime(names, context) {
   const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.includes(node.name?.text))
     .map(node => node.getText(ast)).join('\n');
-  const sandbox = vm.createContext({recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
+  const sandbox = vm.createContext({journeyDallas17,recordOpponentHit,recordOpponentDamage,runwayCombatProtected:()=>false,...context});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, sandbox);
   return sandbox;
 }

@@ -120,12 +120,10 @@ export const journeyDallas16: Readonly<{
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
-export const journeyDallas17: Readonly<{
-  id: 'journey-dallas-17'; cityId: 'dallas'; name: 'CRITICAL APPROACH'; chapter: 'HIGH STAKES';
-  firstClearCredits: 2250; startHealthFraction: 0.45; finishAirportId: 'dfw'; requiredLandingScore: 780;
-  airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
-  heartId: 'mission-17-dfw-heart';
-  heart: Readonly<{ id: string; kind: 'heart'; x: number; z: number; radius: number; altitudeAgl: number }>;
+export const journeyDallas17:Readonly<{
+  id:'journey-dallas-17';cityId:'dallas';name:'IRON HUNTER';chapter:'SKY HUNTERS';firstClearCredits:2250;
+  startAirportId:'executive';timeLimitMs:360000;enemyAircraft:'cargo';enemyLivery:'mammoth-desert-sand';enemyHealth:250;
+  enemyAltitude:800;aggressionDistance:10000;patrolRadius:2000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
 }>;
 export const journeyDallas18: Readonly<{
   id: 'journey-dallas-18'; cityId: 'dallas'; name: 'SKY SIEGE'; chapter: 'HIGH STAKES';

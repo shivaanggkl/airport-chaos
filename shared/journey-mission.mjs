@@ -257,15 +257,12 @@ export const journeyDallas16 = Object.freeze({
   gates:Object.freeze([]),
 });
 
-// North-to-south DFW recovery corridor; the Heart is mission-owned and does
-// not become a Free Flight pickup. Runway approach follows DFW's real axis.
+// A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
 export const journeyDallas17 = Object.freeze({
-  id: 'journey-dallas-17', cityId: 'dallas', name: 'CRITICAL APPROACH',
-  chapter: 'HIGH STAKES', firstClearCredits: 2_250,
-  startHealthFraction: 0.45, finishAirportId: 'dfw', requiredLandingScore: 780,
-  airborneSpawn: Object.freeze({ x: -22_800, z: -22_500, altitude: 470, heading: Math.PI, speed: 120 }),
-  heartId: 'mission-17-dfw-heart',
-  heart: Object.freeze({ id: 'mission-17-dfw-heart', kind: 'heart', x: -22_800, z: -19_500, radius: 115, altitudeAgl: 380 }),
+  id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
+  startAirportId: 'executive', timeLimitMs: 360_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
+  enemyAltitude: 800, aggressionDistance: 10_000, patrolRadius: 2_000, cruiseSpeed: 400,
+  enemySpawn: Object.freeze({ x: -15_100, z: 0 }),
 });
 
 // The capture uses the existing Las Colinas territory rectangle. The smaller
