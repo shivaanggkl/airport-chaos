@@ -14,7 +14,7 @@ const levels=Object.keys(enemyAiLevels) as EnemyAiLevel[];
 
 test('exactly five immutable canonical levels, future chapter defaults and no hull/aircraft entitlements',()=>{
  assert.deepEqual(levels,['EASY','MEDIUM','HARD','VERY_HARD','LEGENDARY']);
- assert.deepEqual(Object.values(enemyAiLevels).map(p=>[p.reactionMs,p.trackingMs,p.shotIntervalMs,p.aimError,p.dodgeCooldownMs]),[[900,1400,900,.014,9000],[600,1050,650,.009,6500],[400,750,450,.006,4500],[280,550,325,.004,3300],[45,100,165,.000625,1200]]);
+ assert.deepEqual(Object.values(enemyAiLevels).map(p=>[p.reactionMs,p.trackingMs,p.shotIntervalMs,p.aimError,p.dodgeCooldownMs]),[[900,1400,900,.014,9000],[450,750,600,.0065,5500],[250,400,400,.003,3300],[120,200,250,.0014,2000],[45,100,165,.000625,1200]]);
  for(const level of levels) {assert.equal(enemyAiProfile(level),enemyAiLevels[level]);assert.ok(Object.isFrozen(enemyAiLevels[level]));}
  assert.ok(Object.isFrozen(enemyAiLevels));assert.equal(skyHuntersDifficulty[7],'EASY');assert.equal(skyHuntersDifficulty[8],'MEDIUM');assert.equal(skyHuntersDifficulty[12],'LEGENDARY');
  for(const [tier,level] of [['medium','MEDIUM'],['hard','HARD'],['legendary','LEGENDARY']] as const) assert.equal(airAssaultTiers[tier].ai,enemyAiLevels[level]);
@@ -47,7 +47,7 @@ test('invalid aircraft, city, level, cosmetic, hull, runway and client override 
 });
 
 test('reaction, independent bounded angular dispersion, tracking and legal shot opportunity improve monotonically',()=>{
- let previousReaction=Infinity,previousShots=0,previousTrack=Infinity;
+ let previousReaction=Infinity,previousShots=0,previousTrack=Infinity,previousError=Infinity,previousDodge=Infinity;
  for(const level of levels) {
   const r=createOpponent({...definition,level});
   assert.equal(opponentReactionReady(r,'target',1000),false);
@@ -59,7 +59,8 @@ test('reaction, independent bounded angular dispersion, tracking and legal shot 
   assert.ok(Math.abs(Math.atan(aim.y)-Math.atan(-.2)-r.profile.aimError)<1e-10);
   const shots=Math.floor((20000-r.profile.reactionMs)/Math.max(fireIntervalMs('trainer'),r.profile.shotIntervalMs));
   assert.ok(r.profile.reactionMs<previousReaction);assert.ok(r.profile.trackingMs<previousTrack);assert.ok(shots>=previousShots);
-  previousReaction=r.profile.reactionMs;previousShots=shots;previousTrack=r.profile.trackingMs;
+  assert.ok(r.profile.aimError<previousError);assert.ok(r.profile.dodgeCooldownMs<previousDodge);
+  previousReaction=r.profile.reactionMs;previousShots=shots;previousTrack=r.profile.trackingMs;previousError=r.profile.aimError;previousDodge=r.profile.dodgeCooldownMs;
  }
 });
 

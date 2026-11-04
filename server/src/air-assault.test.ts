@@ -35,7 +35,7 @@ test('30-enemy manifest has exact tiers, airport quotas, sequence and nonoverlap
         assert.ok(Math.hypot(queue[i]!.x - queue[j]!.x, queue[i]!.z - queue[j]!.z) >= 65);
     }
   }
-  assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.ai.reactionMs, t.ai.trackingMs, t.ai.shotIntervalMs, t.ai.aimError]), [[100, 600, 1050, 650, .009], [150, 400, 750, 450, .006], [200, 45, 100, 165, .000625]]);
+  assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.ai.reactionMs, t.ai.trackingMs, t.ai.shotIntervalMs, t.ai.aimError]), [[100, 450, 750, 600, .0065], [150, 250, 400, 400, .003], [200, 45, 100, 165, .000625]]);
 });
 test('Intro/countdown freeze combat and timer; skip has one-second gate; only DFW takeoff starts eight minutes', () => {
   const { encounter: e, pilot, tick } = rig();

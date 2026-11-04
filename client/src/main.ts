@@ -9473,7 +9473,10 @@ function refreshCameraFraming(): void {
   const viewRange = visualSpan / (2 * CAMERA_TARGET_WIDTH_FRACTION * Math.tan(horizontalHalfFov));
   cameraFocusAhead = THREE.MathUtils.clamp(cameraFrameSize.z * 0.22, 1, 2.7);
   defaultChaseDistance = Math.max(cameraFrameSize.z * 0.75, viewRange - cameraFocusAhead) * currentAircraft.cameraFrameScale;
-  defaultChaseHeight = Math.max(currentAircraft.cameraHeight * 0.74, cameraFrameSize.y * 0.65);
+  // Scale elevation and look-ahead with the fitted airframe, rather than viewing
+  // large aircraft almost horizontally through their tail and engine pods.
+  defaultChaseHeight = Math.max(currentAircraft.cameraHeight, defaultChaseDistance * 0.36, cameraFrameSize.y * 0.85);
+  cameraFocusAhead = Math.max(cameraFocusAhead, defaultChaseDistance * 0.45);
   if (!cameraFramingKey) smoothedChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
   cameraFramingKey = framingKey;
 }
@@ -9524,11 +9527,13 @@ function updateCamera(delta: number): void {
   else cameraAircraftForward.normalize();
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
-  cameraChaseQuaternion.copy(airplane.quaternion);
+  // Follow heading with a level horizon. Aircraft bank/pitch must not swing
+  // the chase position sideways or underneath the aircraft during a climb.
+  cameraChaseQuaternion.copy(cameraOrbitYawQuaternion);
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
-      defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18) + cameraSpeedOffset * 0.05,
+      Math.max(defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18), smoothedChaseDistance * 0.32) + cameraSpeedOffset * 0.05,
       smoothedChaseDistance,
     )
     .applyQuaternion(cameraChaseQuaternion))
@@ -9538,7 +9543,7 @@ function updateCamera(delta: number): void {
     groundPlaneY(chaseCameraPosition.x, chaseCameraPosition.z) + 2.2,
   );
   chaseLookTarget
-    .set(0, 0.7 + cameraSpeedOffset * 0.03, -cameraFocusAhead)
+    .set(0, 0.7 + cameraSpeedOffset * 0.03 + Math.sin(airplane.rotation.x) * cameraFocusAhead * 0.35, -cameraFocusAhead)
     .applyQuaternion(cameraChaseQuaternion)
     .add(airplane.position);
 
