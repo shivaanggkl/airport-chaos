@@ -1,3 +1,4 @@
+// Fitted geometry compatibility helpers. Live M19 decisions run only in titan/engine via m19-titan.
 import { readFileSync } from 'node:fs';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
@@ -176,131 +177,6 @@ export function monsterShotSolution(encounter: MonsterEncounter, groundY: number
   return {position,direction,speed,lifeMs:Math.ceil((distance/speed+.65)*1000)};
 }
 
-export function stepMonsterEncounter(encounter: MonsterEncounter, target: Point3, velocity: Point3,
-  groundAt: (x:number,z:number)=>number, buildings: readonly Building[], now: number): void {
-  const delta=Math.max(0,Math.min(.1,(now-encounter.lastTickAt)/1000));encounter.lastTickAt=now;
-  if (encounter.handSwipe && now - encounter.handSwipe.startedAt >= monsterHandSwipe.durationMs)
-    encounter.handSwipe = null;
-  if (!encounter.handSwipe && now >= encounter.nextHandSwipeAt && encounter.jumpProgress === null &&
-    !encounter.windupUntil && !encounter.pendingFan.length) {
-    const groundY = groundAt(encounter.x, encounter.z);
-    const hands = monsterHandPositions(encounter, groundY, now);
-    const leftDistance = Math.hypot(target.x - hands.left.x, target.y - hands.left.y, target.z - hands.left.z);
-    const rightDistance = Math.hypot(target.x - hands.right.x, target.y - hands.right.y, target.z - hands.right.z);
-    const side = leftDistance < rightDistance ? 'left' : 'right';
-    if (Math.min(leftDistance, rightDistance) <= monsterHandSwipe.activationRadius &&
-      !segmentBlockedByBuildings(side === 'left' ? hands.left : hands.right, target, buildings)) {
-      const shoulder = handAnchor(encounter, groundY, side, monsterHandSwipe.armOrigin);
-      const reach = journeyDallas19.monster.height * monsterHandSwipe.maxReachRatio;
-      const distance = Math.hypot(target.x - shoulder.x, target.y - shoulder.y, target.z - shoulder.z);
-      const scale = Math.min(1, reach / Math.max(distance, .001));
-      encounter.handSwipe = { side, target: {
-        x: shoulder.x + (target.x - shoulder.x) * scale,
-        y: shoulder.y + (target.y - shoulder.y) * scale,
-        z: shoulder.z + (target.z - shoulder.z) * scale,
-      }, startedAt: now };
-      encounter.nextHandSwipeAt = now + monsterHandSwipe.durationMs + monsterHandSwipe.cooldownMs;
-    }
-  }
-  const before={x:encounter.x,z:encounter.z};
-  const targetYaw=Math.atan2(encounter.x-target.x,encounter.z-target.z);
-  const candidates=nearbyMotionBuildings(encounter,buildings);
-  let goal=monsterRoamRoute[encounter.roamIndex]!;
-  if(Math.hypot(encounter.x-goal.x,encounter.z-goal.z)<100){
-    if(encounter.roamIndex===0)encounter.roamDirection=1;
-    if(encounter.roamIndex===monsterRoamRoute.length-1)encounter.roamDirection=-1;
-    encounter.roamIndex+=encounter.roamDirection;goal=monsterRoamRoute[encounter.roamIndex]!;
-  }
-  // Follow the pilot along the corridor when they relocate; reaching their
-  // nearest point does not make the creature a stationary statue.
-  if(target.x>monsterRoamRoute[0]!.x+200 && target.x<monsterRoamRoute[monsterRoamRoute.length-1]!.x-200 && Math.abs(target.x-encounter.x)>1_400){
-    const direction=target.x<encounter.x?-1:1;
-    if(direction!==encounter.roamDirection && encounter.roamIndex>0 && encounter.roamIndex<monsterRoamRoute.length-1){
-      encounter.roamDirection=direction;encounter.roamIndex+=direction;goal=monsterRoamRoute[encounter.roamIndex]!;
-    }
-  }
-  const readyToAttack=encounter.travelSinceAttack>=200 || encounter.blockedSeconds>=4;
-  const attackMouth=monsterMouth(encounter,groundAt(encounter.x,encounter.z));
-  const preparingAttack=readyToAttack && now>=encounter.nextAttackAt-2_000 &&
-    Math.hypot(target.x-attackMouth.x,target.y-attackMouth.y,target.z-attackMouth.z)<=monsterAttackRange &&
-    !segmentBlockedByBuildings(attackMouth,target,buildings);
-  const steering:Point3=preparingAttack||encounter.windupUntil||encounter.pendingFan.length?target:{...goal,y:target.y};
-  const previousAim=encounter.aimYaw;
-  if(encounter.jumpProgress===null && (!preparingAttack || encounter.moveSpeed<.1))turnMonster(encounter,steering,delta);
-  else encounter.yawVelocity=0;
-  encounter.aimYaw=previousAim;
-  // Head keeps following the pilot while the body takes a safe turning step.
-  const aim=Math.max(-Math.PI/10,Math.min(Math.PI/10,wrap(targetYaw-encounter.yaw)));
-  encounter.aimYaw+=Math.max(-Math.PI/4*delta,Math.min(Math.PI/4*delta,aim-encounter.aimYaw));
-  const alignment=Math.max(0,Math.cos(wrap(Math.atan2(encounter.x-steering.x,encounter.z-steering.z)-encounter.yaw)));
-  const dx=-Math.sin(encounter.yaw),dz=-Math.cos(encounter.yaw);
-  const paused=preparingAttack||encounter.windupUntil||encounter.pendingFan.length||encounter.handSwipe;
-  if(encounter.jumpProgress===null && !paused && alignment>.995 && now>=encounter.nextJumpAt){
-    encounter.nextJumpAt=now+1_000; // Bounded terrain checks, never per render tick.
-    const end={x:encounter.x+dx*monsterAttack.jumpDistance,y:0,z:encounter.z+dz*monsterAttack.jumpDistance};
-    if(Math.hypot(end.x-goal.x,end.z-goal.z)<Math.hypot(encounter.x-goal.x,encounter.z-goal.z) &&
-       Math.hypot(end.x-journeyDallas19.monster.x,end.z-journeyDallas19.monster.z)<monsterAttack.pursuitLeash &&
-       monsterJumpClear(encounter,end,groundAt,candidates)){
-      encounter.jumpFrom={x:encounter.x,y:0,z:encounter.z};encounter.jumpTo=end;
-      encounter.jumpStartedAt=now;encounter.jumpProgress=0;encounter.moveSpeed=0;
-      encounter.nextJumpAt=now+monsterAttack.jumpIntervalMs;
-    }
-  }
-  if(encounter.jumpProgress!==null){
-    const phase=Math.min(1,(now-encounter.jumpStartedAt)/monsterAttack.jumpDurationMs);
-    const flight=Math.max(0,Math.min(1,(phase-monsterJumpMotion.anticipationEnd)/(monsterJumpMotion.landingStart-monsterJumpMotion.anticipationEnd)));
-    encounter.jumpProgress=phase;
-    encounter.jumpHeight=monsterJumpLift(phase);
-    encounter.x=encounter.jumpFrom.x+(encounter.jumpTo.x-encounter.jumpFrom.x)*flight;
-    encounter.z=encounter.jumpFrom.z+(encounter.jumpTo.z-encounter.jumpFrom.z)*flight;
-    if(phase>=1){encounter.jumpProgress=null;encounter.jumpHeight=0;}
-  }else{
-    const wanted=paused||alignment<.995?0:monsterAttack.walkSpeed;
-    encounter.moveSpeed+=Math.max(-monsterAttack.walkAcceleration*delta,Math.min(monsterAttack.walkAcceleration*delta,wanted-encounter.moveSpeed));
-    const step=encounter.moveSpeed*delta,x=encounter.x+dx*step,z=encounter.z+dz*step;
-    if(Math.hypot(x-journeyDallas19.monster.x,z-journeyDallas19.monster.z)<=monsterAttack.pursuitLeash &&
-      monsterMotionClear(x,z,encounter.yaw,groundAt,candidates)){encounter.x=x;encounter.z=z;}
-    else {encounter.moveSpeed=Math.max(0,encounter.moveSpeed-monsterAttack.walkAcceleration*delta*2);encounter.blockedSeconds+=delta;}
-  }
-  const traveled=Math.hypot(encounter.x-before.x,encounter.z-before.z);
-  encounter.travelSinceAttack+=traveled;
-  if(traveled>.001)encounter.blockedSeconds=0;
-  encounter.velocity={x:delta?(encounter.x-before.x)/delta:0,y:0,z:delta?(encounter.z-before.z)/delta:0};
-  if(encounter.jumpProgress===null)encounter.gaitPhase+=delta*Math.max(Math.hypot(encounter.velocity.x,encounter.velocity.z)/14/(journeyDallas19.monster.height/480),
-    Math.abs(encounter.yawVelocity)/monsterAttack.turnRate*1.6)/4.8;
-  const groundY=groundAt(encounter.x,encounter.z),mouth=monsterMouth(encounter,groundY);
-  const pitch=Math.max(-.42,Math.min(.42,Math.atan2(target.y-mouth.y,Math.hypot(target.x-mouth.x,target.z-mouth.z))));
-  encounter.aimPitch+=Math.max(-.7*delta,Math.min(.7*delta,pitch-encounter.aimPitch));
-  const line=!segmentBlockedByBuildings(mouth,target,buildings);
-  if (encounter.sustainedPosition && (!line || now-encounter.lastPlayerHitAt>2_000 ||
-    Math.hypot(target.x-encounter.sustainedPosition.x,target.y-encounter.sustainedPosition.y,target.z-encounter.sustainedPosition.z)>monsterAttack.relocation)) {
-    encounter.sustainedPosition=undefined;encounter.sustainedSince=0;
-  }
-  const eligible=encounter.jumpProgress===null && line && monsterAttackEligible(encounter,target,groundY);
-  if (!encounter.handSwipe && !encounter.windupUntil && readyToAttack && now>=encounter.nextAttackAt && eligible && encounter.shots.length<monsterAttack.maxLive && !encounter.pendingFan.length) {
-    encounter.attackKind=encounter.sustainedSince && now-encounter.sustainedSince>=monsterAttack.sustainedMs ? 'fan':'single';
-    encounter.windupUntil=now+monsterAttack.windupMs;
-  }
-  if (encounter.windupUntil && now>=encounter.windupUntil) {
-    encounter.windupUntil=0;encounter.nextAttackAt=now+monsterAttack.intervalMs;encounter.travelSinceAttack=0;
-    if (eligible) {
-      const count=Math.min(encounter.attackKind==='fan'?3:1,monsterAttack.maxLive-encounter.shots.length);
-      for(let i=0;i<count;i++) encounter.pendingFan.push({at:now+i*monsterAttack.fanSpacingMs,
-        spread:count===3?(i-1)*monsterAttack.fanSpread:0});
-    }
-  }
-  // A player flying behind the body cancels remaining fan releases as well.
-  if (!eligible) encounter.pendingFan.length=0;
-  while (encounter.pendingFan[0] && encounter.pendingFan[0].at<=now && encounter.shots.length<monsterAttack.maxLive) {
-    const pending=encounter.pendingFan.shift()!;
-    const solution=monsterShotSolution(encounter,groundY,target,velocity);
-    const c=Math.cos(pending.spread),s=Math.sin(pending.spread),d=solution.direction;
-    encounter.shots.push({...solution,direction:{x:c*d.x+s*d.z,y:d.y,z:-s*d.x+c*d.z},
-      id:++encounter.attackSequence,bornAt:now});
-  }
-}
-
-/** Relative swept motion detects both stationary pilots and fast crossing dodges. */
 export function monsterProjectileHits(shot: MonsterShot, before: Point3, pilot: Point3, pilotVelocity: Point3,
   pilotRadius: number, delta: number): boolean {
   const relativeEnd={x:shot.position.x-pilot.x,y:shot.position.y-pilot.y,z:shot.position.z-pilot.z};
@@ -355,7 +231,7 @@ const buildingIndexes = new WeakMap<readonly Building[], {cells:Map<string,numbe
 const occlusionCellSize=256;
 
 /** Existing spatial index also bounds pursuit queries; no full district scan per tick. */
-function nearbyMotionBuildings(e:MonsterEncounter,buildings:readonly Building[]):readonly Building[] {
+export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCell'|'motionSource'|'motionBuildings'>,buildings:readonly Building[]):readonly Building[] {
   const cell=`${Math.floor(e.x/128)},${Math.floor(e.z/128)}`;
   if(e.motionCell===cell && e.motionSource===buildings)return e.motionBuildings!;
   const index=buildingIndexes.get(buildings),near:Building[]=[];
@@ -365,11 +241,11 @@ function nearbyMotionBuildings(e:MonsterEncounter,buildings:readonly Building[])
       for(let z=Math.floor((e.z-900)/occlusionCellSize);z<=Math.floor((e.z+900)/occlusionCellSize);z++)
         for(const id of index.cells.get(`${x},${z}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;near.push(buildings[id]!);}
   }else for(const b of buildings)if(b.maxX>=e.x-900 && b.minX<=e.x+900 && b.maxZ>=e.z-900 && b.minZ<=e.z+900)near.push(b);
-  e.motionCell=cell;e.motionSource=buildings;e.motionBuildings=near;return near;
+  indexBuildingsForOcclusion(near);e.motionCell=cell;e.motionSource=buildings;e.motionBuildings=near;return near;
 }
 
 /** Keep low anatomy and planted feet clear of the real mapped building tops. */
-export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0):boolean {
+export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24):boolean {
   const ground=groundAt(x,z),h=journeyDallas19.monster.height,c=Math.cos(yaw),s=Math.sin(yaw);
   for(const side of [-1,1]){
     const fx=x+h*(c*monsterGeometry.footX*side+s*monsterGeometry.footZ);
@@ -378,17 +254,26 @@ export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:numb
   }
   for(const v of monsterGeometry.spheres){
     const cy=ground+lift+h*v.y,ry=h*v.radii.y,cx=x+h*(c*v.x+s*v.z),cz=z+h*(-s*v.x+c*v.z);
-    for(const b of buildings){
-      if(b.top<cy-ry)continue;
+    const intersects=(b:Building):boolean=>{
+      if(b.top<cy-ry)return false;
       const slice=Math.sqrt(Math.max(0,1-(Math.max(0,cy-b.top)/ry)**2));
-      const rx=h*v.radii.x*slice+24,rz=h*v.radii.z*slice+24;
+      const rx=h*v.radii.x*slice+margin,rz=h*v.radii.z*slice+margin;
       const bx=(b.minX+b.maxX)/2,bz=(b.minZ+b.maxZ)/2,bw=(b.maxX-b.minX)/2,bd=(b.maxZ-b.minZ)/2;
       const dx=bx-cx,dz=bz-cz,ac=Math.abs(c),as=Math.abs(s);
       // Conservative oriented surface bounds: the old largest-radius circle
       // rejected clear paths beside long, narrow feet and the tail.
       if(Math.abs(dx)>bw+ac*rx+as*rz || Math.abs(dz)>bd+as*rx+ac*rz ||
-        Math.abs(c*dx-s*dz)>rx+ac*bw+as*bd || Math.abs(s*dx+c*dz)>rz+as*bw+ac*bd)continue;
-      return false;
+        Math.abs(c*dx-s*dz)>rx+ac*bw+as*bd || Math.abs(s*dx+c*dz)>rz+as*bw+ac*bd)return false;
+      return true;
+    };
+    const index=buildingIndexes.get(buildings);
+    if(!index){if(buildings.some(intersects))return false;}
+    else{
+      index.stamp=(index.stamp+1)>>>0;if(!index.stamp){index.marks.fill(0);index.stamp=1;}
+      const reach=h*Math.max(v.radii.x,v.radii.z)+margin;
+      for(let bx=Math.floor((cx-reach)/occlusionCellSize);bx<=Math.floor((cx+reach)/occlusionCellSize);bx++)
+        for(let bz=Math.floor((cz-reach)/occlusionCellSize);bz<=Math.floor((cz+reach)/occlusionCellSize);bz++)
+          for(const id of index.cells.get(`${bx},${bz}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;if(intersects(buildings[id]!))return false;}
     }
   }
   return true;
@@ -443,17 +328,17 @@ export function indexBuildingsForOcclusion(buildings:readonly Building[]):void {
   buildingIndexes.set(buildings,index);
 }
 
-export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: readonly Building[]): boolean {
-  const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x),minZ=Math.min(a.z,b.z),maxZ=Math.max(a.z,b.z),minY=Math.min(a.y,b.y);
+export function segmentBlockedByBuildings(a: Point3, b: Point3, buildings: readonly Building[],padding=0): boolean {
+  const minX=Math.min(a.x,b.x)-padding,maxX=Math.max(a.x,b.x)+padding,minZ=Math.min(a.z,b.z)-padding,maxZ=Math.max(a.z,b.z)+padding,minY=Math.min(a.y,b.y)-padding;
   const intersects=(building:Building):boolean => {
     if(building.maxX<minX || building.minX>maxX || building.maxZ<minZ || building.minZ>maxZ || minY>building.top+1)return false;
     let enter=0,leave=1;const dx=b.x-a.x,dz=b.z-a.z;
-    for(const [p,q] of [[-dx,a.x-building.minX],[dx,building.maxX-a.x],[-dz,a.z-building.minZ],[dz,building.maxZ-a.z]]) {
+    for(const [p,q] of [[-dx,a.x-building.minX+padding],[dx,building.maxX-a.x+padding],[-dz,a.z-building.minZ+padding],[dz,building.maxZ-a.z+padding]]) {
       if(p===0){if(q<0)return false;continue;}
       const t=q/p;if(p<0)enter=Math.max(enter,t);else leave=Math.min(leave,t);
     }
     if(enter>leave)return false;
-    return Math.min(a.y+(b.y-a.y)*enter,a.y+(b.y-a.y)*leave)<=building.top+1;
+    return Math.min(a.y+(b.y-a.y)*enter,a.y+(b.y-a.y)*leave)<=building.top+1+padding;
   };
   const index=buildingIndexes.get(buildings);
   if(!index)return buildings.some(intersects);

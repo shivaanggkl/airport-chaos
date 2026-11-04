@@ -36,7 +36,8 @@ import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mj
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, crossesJourneyGateWrongWay, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
-import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterBodyContact, monsterHandContact, monsterHandPositions, monsterImpact, stepMonsterEncounter, monsterProjectileHits, recordMonsterFiringPosition, segmentBlockedByBuildings, type MonsterEncounter } from './monster-arrival.js';
+import {loadMonsterDistrictBuildings,segmentBlockedByBuildings} from './monster-arrival.js';
+import {createM19Encounter,stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
@@ -316,7 +317,7 @@ const dallasTerrain = (() => {
 })();
 const dallasAirportElevations = dallasTerrain.airportElevations;
 const monsterDistrictBuildings = loadMonsterDistrictBuildings();
-const monsterEncounters = new Map<string, MonsterEncounter>();
+const monsterEncounters = new Map<string, M19Encounter>();
 const transportBuildings = loadTransportBuildings();
 const transportFlightAltitude = transportAltitude(transportBuildings,dallasTerrain.elevationAt);
 const transportEncounters = new Map<string,TransportEncounter>();
@@ -3190,8 +3191,9 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     monsterFocusedPlayers.add(playerId);
   else monsterFocusedPlayers.delete(playerId);
   if (attempt.missionId === journeyDallas19.id && attempt.status === 'RACING' && attempt.startedAt !== null) {
-    const encounter = monsterEncounters.get(attempt.attemptId) ?? createMonsterEncounter(attempt.attemptId, playerId, attempt.startedAt);
+    const encounter = monsterEncounters.get(attempt.attemptId) ?? createM19Encounter(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??2500);
     encounter.playerId = playerId;
+    encounter.pilotId=players.get(playerId)?.pilotId??encounter.pilotId;
     monsterEncounters.set(attempt.attemptId, encounter);
   }
   if (missionFocusForAttempt(attempt)) missionFocusedPlayers.add(playerId);
@@ -3263,7 +3265,7 @@ function removeJourneyHunter(attempt: JourneyAttempt): void {
     reinforcementWaves.delete(attempt.attemptId);
     for (const id of wave?.ids ?? []) if (id) removeBot(id);
   }
-  if (attempt.missionId === journeyDallas19.id) monsterEncounters.delete(attempt.attemptId);
+  if(attempt.missionId===journeyDallas19.id){const e=monsterEncounters.get(attempt.attemptId);if(e)disposeM19(e);monsterEncounters.delete(attempt.attemptId);}
   for (const id of [attempt.targetId, attempt.secondaryTargetId]) {
     const target = id ? players.get(id) : undefined;
     if (target?.bot?.journeyAttemptId === attempt.attemptId) removeBot(id!);
@@ -4972,6 +4974,7 @@ function handleWantedDestruction(killerId: string, victimId: string, now: number
 function removeProjectile(projectileId: string): void {
   const projectile = projectiles.get(projectileId);
   if (!projectile || !projectiles.delete(projectileId)) return;
+  if(projectile.privateAttemptId)monsterEncounters.get(projectile.privateAttemptId)?.projectileIds.delete(projectileId);
   projectileBudget.release(projectile.ownerId, projectile.cityId);
   const removed={type:'projectileRemove',projectileId};
   if (projectile.skyDuelPractice) sendToPlayer(projectile.ownerId, removed);
@@ -5381,6 +5384,7 @@ function createProjectile(playerId: string, player: PlayerState, clientShotId?: 
     clientShotId,
   };
   projectiles.set(projectile.projectileId, projectile);
+  if(projectile.privateAttemptId){const e=monsterEncounters.get(projectile.privateAttemptId);if(e&&e.projectileIds.size<32)e.projectileIds.add(projectile.projectileId);}
   const spawned = {
     type: 'projectileSpawn',
     projectileId: projectile.projectileId,
@@ -5901,7 +5905,7 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   return true;
 }
 
-function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number): boolean {
+function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number,delta:number): boolean {
   const owner = players.get(ownerId);
   const attemptId = playerJourneyAttempts.get(ownerId);
   if (!owner || owner.isBot || owner.cityId !== 'dallas' || cityId !== 'dallas' || !attemptId) return false;
@@ -5910,14 +5914,11 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   const attempt = journeyStore.get(owner.pilotId, attemptId);
   if (attempt?.missionId !== journeyDallas19.id || attempt.status !== 'RACING' ||
     attempt.deadlineAt === null || now >= attempt.deadlineAt) return false;
-  const groundY = dallasTerrain.elevationAt(encounter.x, encounter.z);
-  const impact = monsterImpact(encounter, groundY, start, end);
-  if (!impact || segmentBlockedByBuildings(start, impact, monsterDistrictBuildings)) return false;
-  const hit = journeyStore.hitMonster(owner.pilotId, attemptId, now, damage);
-  if (!hit) return false;
-  encounter.hitSequence++;
-  recordMonsterFiringPosition(encounter, owner.position, now);
-  encounter.hitPosition = impact;
+  const amount=encounter.engine.damage({encounterId:attemptId,source:owner.pilotId,sequence:++encounter.damageSequence,from:start,to:end,amount:damage,radius:1,delta});
+  if(!amount)return false;
+  const hit=journeyStore.hitMonster(owner.pilotId,attemptId,now,amount);
+  if(!hit){disposeM19(encounter);monsterEncounters.delete(attemptId);return false;}
+  encounter.hitSequence++;encounter.hitPosition={...end};
   sendJourneyState(ownerId, hit);
   if (hit.status === 'COMPLETED') {
     sendToPlayer(ownerId, { type: 'monsterFinal', attemptId, kind: 'defeat', at: now });
@@ -5927,7 +5928,7 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   return true;
 }
 
-function damageMonsterPilot(encounter: MonsterEncounter, pilot: PlayerState, amount: number, now: number): void {
+function damageMonsterPilot(encounter: M19Encounter, pilot: PlayerState, amount: number, now: number): void {
   if (pilot.lifeState !== 'alive' || now < pilot.spawnProtectedUntil) return;
   pilot.health = Math.max(0, pilot.health - amount);
   airportRepairStays.delete(encounter.playerId);
@@ -5939,60 +5940,23 @@ function damageMonsterPilot(encounter: MonsterEncounter, pilot: PlayerState, amo
   }
 }
 
-function updateMonsterEncounters(now: number): void {
-  for (const encounter of monsterEncounters.values()) {
-    if (pausedJourneyAttempts.has(encounter.attemptId)) continue;
-    const pilot = players.get(encounter.playerId);
-    const attempt = pilot && journeyStore.get(pilot.pilotId, encounter.attemptId);
-    if (!pilot || attempt?.missionId !== journeyDallas19.id || attempt.status !== 'RACING' ||
-      attempt.deadlineAt === null || now >= attempt.deadlineAt) continue;
-    const delta = Math.max(0, Math.min(0.1, (now - encounter.lastTickAt) / 1000));
-    const beforeHands = encounter.handSwipe && monsterHandPositions(encounter,
-      dallasTerrain.elevationAt(encounter.x, encounter.z), encounter.lastTickAt);
-    stepMonsterEncounter(encounter, pilot.position, pilot.velocity,
-      (x,z) => dallasTerrain.elevationAt(x,z), monsterDistrictBuildings, now);
-    const groundY = dallasTerrain.elevationAt(encounter.x, encounter.z);
-    for (let i = encounter.shots.length - 1; i >= 0; i--) {
-      const shot = encounter.shots[i]!;
-      const before = { ...shot.position };
-      shot.position.x += shot.direction.x * shot.speed * delta;
-      shot.position.y += shot.direction.y * shot.speed * delta;
-      shot.position.z += shot.direction.z * shot.speed * delta;
-      if (now - shot.bornAt >= shot.lifeMs ||
-        segmentBlockedByBuildings(before, shot.position, monsterDistrictBuildings) ||
-        shot.position.y <= dallasTerrain.elevationAt(shot.position.x, shot.position.z) + monsterAttack.radius) {
-        encounter.shots.splice(i, 1); continue;
-      }
-      if (monsterProjectileHits(shot, before, pilot.position, pilot.velocity, aircraftHitRadii[pilot.aircraftType], delta)) {
-        encounter.shots.splice(i, 1);
-        damageMonsterPilot(encounter, pilot, monsterAttack.damage, now);
-      }
-    }
-    const swipe = encounter.handSwipe;
-    const afterHands = swipe && monsterHandPositions(encounter, groundY, now);
-    const handHit = swipe && afterHands && monsterHandContact(
-      beforeHands?.[swipe.side] ?? afterHands[swipe.side], afterHands[swipe.side], pilot.position,
-      pilot.velocity, aircraftHitRadii[pilot.aircraftType], delta);
-    if (now - encounter.contactAt >= 1_000 && pilot.lifeState === 'alive' &&
-      (handHit || monsterBodyContact(encounter, groundY, pilot.position, aircraftHitRadii[pilot.aircraftType]))) {
-      encounter.contactAt = now;
-      damageMonsterPilot(encounter, pilot, monsterHandSwipe.damage, now);
-    }
-    if (now - encounter.lastBroadcastAt >= 100 && pilot.lifeState === 'alive') {
-      encounter.lastBroadcastAt = now;
-      sendToPlayer(encounter.playerId, { type: 'monsterState', attemptId: encounter.attemptId,
-        x: encounter.x, y: groundY+encounter.jumpHeight, z: encounter.z, yaw: encounter.yaw,
-        jumpProgress: encounter.jumpProgress,
-        phase: encounter.windupUntil ? 'windup' : 'walk', hitSequence: encounter.hitSequence,
-        velocity: encounter.velocity, yawVelocity: encounter.yawVelocity, gaitPhase: encounter.gaitPhase,
-        aimYaw: encounter.aimYaw, aimPitch: encounter.aimPitch, attackKind: encounter.attackKind,
-        handSwipe: encounter.handSwipe,
-        hitPosition: encounter.hitPosition,
-        shots: encounter.shots.map(shot => ({ id: shot.id, x: shot.position.x, y: shot.position.y, z: shot.position.z,
-          dx: shot.direction.x, dy: shot.direction.y, dz: shot.direction.z, speed: shot.speed, bornAt: shot.bornAt })),
-        serverNow: now });
-    }
+function updateMonsterEncounters(now:number):void {
+ for(const encounter of monsterEncounters.values()){
+  if(pausedJourneyAttempts.has(encounter.attemptId))continue;
+  const pilot=players.get(encounter.playerId),attempt=pilot&&journeyStore.get(pilot.pilotId,encounter.attemptId);
+  if(!pilot||attempt?.missionId!==journeyDallas19.id||attempt.status!=='RACING'||attempt.deadlineAt===null||now>=attempt.deadlineAt)continue;
+  const threats=[];
+  for(const id of encounter.projectileIds){const shot=projectiles.get(id);if(shot&&threats.length<32)threats.push({id:shot.projectileId,encounterId:encounter.attemptId,position:shot.position,velocity:{x:shot.direction.x*shot.speed,y:shot.direction.y*shot.speed,z:shot.direction.z*shot.speed},radius:1});}
+  stepM19(encounter,pilot.position,pilot.velocity,aircraftHitRadii[pilot.aircraftType],now,threats);
+  for(const event of encounter.events){const amount=permittedM19Damage(encounter,event,now);if(amount>0)damageMonsterPilot(encounter,pilot,amount,now);}
+  if(now-encounter.lastBroadcastAt>=100&&pilot.lifeState==='alive'){
+   encounter.lastBroadcastAt=now;const f=encounter.frame,a=f.ability;
+   sendToPlayer(encounter.playerId,{type:'monsterState',attemptId:encounter.attemptId,x:f.position.x,y:f.position.y,z:f.position.z,yaw:f.yaw,
+    phase:a&&['WARNING','WINDUP'].includes(a.stage)?'windup':'walk',hitSequence:encounter.hitSequence,hitPosition:encounter.hitPosition,
+    velocity:f.velocity,yawVelocity:f.yawVelocity,gaitPhase:f.gait,aimYaw:f.headYaw,aimPitch:f.headPitch,jumpProgress:null,
+    titan:{...f,destroyedSites:[...encounter.destroyedSites],claimedDebris:[...encounter.debris]},shots:[],serverNow:now});
   }
+ }
 }
 
 function applyTransportHit(ownerId: string, start: Vector3, end: Vector3, now: number, delta: number, damage: number): boolean {
@@ -6155,7 +6119,7 @@ function updateProjectiles(deltaSeconds: number): void {
       const disposition = transportProjectileDisposition(transportMissionId, projectile.traveled, blocked);
       if (disposition === 'remove') {removeProjectile(projectile.projectileId);continue;}
       if (disposition === 'continue') continue;
-    } else if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice && (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage) ||
+    } else if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice && (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage,deltaSeconds) ||
       applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage))) {
       removeProjectile(projectile.projectileId);
       continue;
@@ -7875,14 +7839,9 @@ function shiftJourneyRuntime(playerId: string, attemptId: string, pausedMs: numb
   }
   const wave = reinforcementWaves.get(attemptId);
   if (wave && !wave.spawned) wave.arriveAt = shift(wave.arriveAt);
-  const monster = monsterEncounters.get(attemptId);
-  if (monster) {
-    for (const key of ['startedAt', 'nextAttackAt', 'windupUntil', 'nextJumpAt', 'jumpStartedAt', 'lastPlayerHitAt', 'sustainedSince', 'contactAt', 'lastTickAt', 'lastBroadcastAt', 'nextHandSwipeAt'] as const)
-      monster[key] = shift(monster[key]);
-    if (monster.handSwipe) monster.handSwipe.startedAt = shift(monster.handSwipe.startedAt);
-    for (const shot of monster.shots) shot.bornAt = shift(shot.bornAt);
-    for (const shot of monster.pendingFan) shot.at = shift(shot.at);
-  }
+  const monster=monsterEncounters.get(attemptId);
+  if(monster){monster.startedAt=shift(monster.startedAt);monster.lastTickAt=shift(monster.lastTickAt);monster.lastBroadcastAt=shift(monster.lastBroadcastAt);monster.contactAt=shift(monster.contactAt);monster.lastDamageAt=shift(monster.lastDamageAt);}
+
 }
 
 function resumePlayerJourney(playerId: string, now = Date.now()): boolean {
