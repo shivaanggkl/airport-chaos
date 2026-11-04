@@ -11,7 +11,7 @@ import { cargoCreditReward, economyRewards } from '../../shared/reward-economy.m
 import { isValidPilotNumber, pilotNumberForId } from '../../shared/pilot-number.mjs';
 import { earnedRankIdForLevel, pilotLevelForXp, pilotTitleForLevel, pilotXpForLevel, utcDayId, weeklyRewardForRank } from '../../shared/pilot-progression.mjs';
 import { DAILY_REWARD_COOLDOWN_MS, dailyRewardCredits, dailyRewardForDay } from '../../shared/daily-rewards.mjs';
-import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds } from '../../shared/cosmetics.mjs';
+import { cosmeticCatalog, cosmeticUnlockPrice, defaultCosmeticIds, fallbackLiveryIds, newPilotLiveryIds } from '../../shared/cosmetics.mjs';
 import { defaultAvatarFrameId, premiumBadgeIds, premiumFrameIds } from '../../shared/profile-cosmetics.mjs';
 import { activeSeasonAt, activeWeeklyEventAt, seasonPointsByActivity, seasonRewardStates, type SeasonActivity } from '../../shared/seasons.mjs';
 import { routeDefinition } from '../../shared/city-registry.mjs';
@@ -1002,6 +1002,13 @@ export class PlayerProfileStore {
       this.wallet.transaction((wallet) => {
         this.database.prepare('INSERT INTO player_profiles (pilot_id, pilot_name, credits, sky_tokens, economy_version) VALUES (?, ?, 0, 0, ?)')
           .run(pilotId, assignedPilotName(pilotName, pilotId), ECONOMY_VERSION);
+        // Seed only newly created profiles; never replace an existing selection.
+        for (const [aircraft, cosmeticId] of Object.entries(newPilotLiveryIds)) {
+          this.database.prepare('INSERT INTO pilot_cosmetics (pilot_id,cosmetic_id,acquired_at) VALUES (?,?,?)')
+            .run(pilotId, cosmeticId, Date.now());
+          this.database.prepare('INSERT INTO pilot_equipped_cosmetics (pilot_id,category,cosmetic_id) VALUES (?,?,?)')
+            .run(pilotId, `livery:${aircraft}`, cosmeticId);
+        }
         this.database.prepare("INSERT INTO pilot_tutorial_state (pilot_id, version, status, updated_at, required) VALUES (?, 'tutorial_v1', 'new', ?, 1)")
           .run(pilotId, Date.now());
         if (newPilotCredits > 0) wallet.credit({

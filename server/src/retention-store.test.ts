@@ -77,11 +77,11 @@ test('aircraft and selected paint unlock together, persist, and cannot be charge
   assert.equal(db.equipCosmetic('cosmetic-pilot', 'unknown').ok, false);
 });
 
-test('new pilots receive only the Bluejay default; verified Firehawk grants include Inferno', () => {
+test('new pilots start in Legacy White; verified Firehawk grants include Inferno', () => {
   const db = store();
   const initial = db.getOrCreate('cosmetic-defaults', 'Pilot');
-  assert.deepEqual(initial.cosmetics.ownedIds.sort(), ['bluejay-skybolt']);
-  assert.equal(initial.cosmetics.equipped['livery:trainer'], 'bluejay-skybolt');
+  assert.deepEqual(initial.cosmetics.ownedIds.sort(), ['bluejay-classic', 'bluejay-skybolt']);
+  assert.equal(initial.cosmetics.equipped['livery:trainer'], 'bluejay-classic');
   assert.equal(db.equipCosmetic('cosmetic-defaults', 'bluejay-aurora').ok, false);
   db.awardServerReward('cosmetic-defaults', 100_000);
   assert.equal(db.purchaseCosmetic('cosmetic-defaults', 'mammoth-sand').profile?.cosmetics.equipped['livery:cargo'], 'mammoth-sand');

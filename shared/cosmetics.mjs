@@ -20,7 +20,9 @@ export const cosmeticCatalog = [
   id, category, displayName, description: displayName, aircraftRestriction, unlockType, creditPrice, skyTokenPrice, requiredLevel: 0, visualConfig, retired: retired === true,
 }));
 
+// Keep historical included ownership/fallbacks intact for existing pilots.
 export const defaultCosmeticIds = ['bluejay-skybolt'];
+export const newPilotLiveryIds = Object.freeze({ trainer: 'bluejay-classic' });
 export const fallbackLiveryIds = Object.freeze({
   trainer: 'bluejay-skybolt',
   cargo: undefined,

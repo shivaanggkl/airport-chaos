@@ -14,11 +14,12 @@ export type StoreItem = {
   included?: boolean;
 };
 
+// Store visibility only: all cosmetics and existing entitlements remain registered.
 const paintOrder = [
-  'bluejay-classic', 'bluejay-skybolt', 'bluejay-aurora',
-  'mammoth-sand', 'mammoth-desert-sand', 'mammoth-arctic-rescue',
-  'nightowl-sky-blue', 'nightowl-sunset-red', 'nightowl-forest-green', 'nightowl-premium-gold',
-  'firehawk-inferno', 'firehawk-midnight-black', 'firehawk-stealth-gray',
+  'bluejay-classic',
+  'mammoth-sand',
+  'nightowl-sunset-red',
+  'firehawk-inferno', 'firehawk-stealth-gray',
 ];
 
 export const storeAircraft = aircraftDisplayOrder.map((type): StoreItem => {
@@ -53,7 +54,7 @@ export const storeItems = [...storeAircraft, ...storePaints];
 export function storePurchaseTarget(item: StoreItem): StoreItem {
   if (item.kind !== 'aircraft') return item;
   const includedPaintId = item.aircraftType === 'cargo' ? 'mammoth-sand'
-    : item.aircraftType === 'privateJet' ? 'nightowl-sky-blue' : undefined;
+    : item.aircraftType === 'privateJet' ? 'nightowl-sunset-red' : undefined;
   return includedPaintId ? storePaints.find(paint => paint.id === includedPaintId)! : item;
 }
 

@@ -91,10 +91,11 @@ test('Bluejay paints are separate; one Firehawk unlock includes every Firehawk a
   const { store, wallet, path, cleanup } = fixture();
   try {
     const firehawkPaintIds = cosmeticCatalog.filter(item => item.aircraftRestriction === 'fighter').map(item => item.id);
-    assert.deepEqual(store.getOrCreate('bluejay', 'Pilot').cosmetics.ownedIds, ['bluejay-skybolt']);
+    assert.deepEqual(store.getOrCreate('bluejay', 'Pilot').cosmetics.ownedIds.sort(), ['bluejay-classic', 'bluejay-skybolt']);
     assert.equal(store.purchaseCosmetic('bluejay', 'bluejay-classic').ok, false);
     store.awardServerReward('bluejay', 750);
-    assert.equal(store.purchaseCosmetic('bluejay', 'bluejay-classic').ok, true);
+    assert.equal(store.purchaseCosmetic('bluejay', 'bluejay-classic').ok, false);
+    assert.equal(store.getOrCreate('bluejay', 'Pilot').cosmetics.equipped['livery:trainer'], 'bluejay-classic');
     assert.equal(store.getOrCreate('bluejay', 'Pilot').cosmetics.ownedIds.includes('bluejay-aurora'), false);
     store.getOrCreate('firehawk', 'Pilot');
     wallet.credit({ pilotId: 'firehawk', currency: 'SKY_TOKENS', amount: 2_400, reason: 'ADMIN_ADJUSTMENT' });

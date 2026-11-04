@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { aircraftDefinitions, aircraftPresentationDimensions } from './aircraft';
 import { attachAircraftAsset } from './assets';
 import type { StoreItem } from './store-catalog';
+import { newPilotLiveryIds } from '../../shared/cosmetics.mjs';
 import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
 
 type Preview = { scene: THREE.Scene; aircraft: THREE.Group; size: THREE.Vector3 };
@@ -10,6 +11,8 @@ type Card = { art: HTMLElement; item: StoreItem };
 const cameraPitch = 0.3;
 const detailCameraPitch = 0.18;
 const heroYaw = 0.75;
+const clockwiseRadiansPerSecond = 0.22;
+const manualRotationPauseMs = 2_000;
 // The models use gameplay dimensions. Blend each card's framing with the
 // largest aircraft so compact planes stay legible without looking equally big.
 const frameRadius = Math.max(...Object.values(aircraftPresentationDimensions).map(size => Math.hypot(size.span, size.length) * 0.5));
@@ -18,7 +21,7 @@ function appearanceId(item: StoreItem): string {
   if (item.kind === 'paint') return item.id;
   return item.aircraftType === 'fighter' ? 'firehawk-inferno'
     : item.aircraftType === 'cargo' ? 'mammoth-sand'
-      : item.aircraftType === 'privateJet' ? 'nightowl-sky-blue' : 'bluejay-skybolt';
+      : item.aircraftType === 'privateJet' ? 'nightowl-sunset-red' : newPilotLiveryIds.trainer;
 }
 
 export class StoreAircraftPreviews {
@@ -28,6 +31,9 @@ export class StoreAircraftPreviews {
   private cards: Card[] = [];
   private detail?: Card;
   private detailYaw = heroYaw;
+  private listingYaw = heroYaw;
+  private lastFrameAt?: number;
+  private detailResumeAt = 0;
   private drag?: { pointerId: number; x: number };
   private frameId = 0;
   private width = 0;
@@ -65,6 +71,7 @@ export class StoreAircraftPreviews {
   showDetail(art: HTMLElement, item: StoreItem): void {
     this.detail = { art, item };
     this.detailYaw = heroYaw;
+    this.detailResumeAt = 0;
     art.addEventListener('pointerdown', this.onDetailPointerDown);
     art.addEventListener('pointermove', this.onDetailPointerMove);
     art.addEventListener('pointerup', this.onDetailPointerEnd);
@@ -96,10 +103,11 @@ export class StoreAircraftPreviews {
   stop(): void {
     cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    this.lastFrameAt = undefined;
   }
 
   private readonly onDetailPointerDown = (event: PointerEvent): void => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (this.drag || event.pointerType === 'mouse' && event.button !== 0) return;
     this.drag = { pointerId: event.pointerId, x: event.clientX };
     this.detail?.art.setPointerCapture(event.pointerId);
   };
@@ -117,6 +125,7 @@ export class StoreAircraftPreviews {
     if (event.pointerId !== this.drag?.pointerId) return;
     if (this.detail?.art.hasPointerCapture(event.pointerId)) this.detail.art.releasePointerCapture(event.pointerId);
     this.drag = undefined;
+    this.detailResumeAt = performance.now() + manualRotationPauseMs;
   };
 
   private getPreview(item: StoreItem): Preview {
@@ -164,10 +173,17 @@ export class StoreAircraftPreviews {
     this.frameId = requestAnimationFrame(this.draw);
   }
 
-  private readonly draw = (): void => {
+  private readonly draw = (now: number): void => {
     this.frameId = 0;
     const host = this.detail?.art ?? this.rail;
-    if (document.hidden || !host.getClientRects().length) return;
+    if (document.hidden || !host.getClientRects().length) { this.stop(); return; }
+    const delta = this.lastFrameAt === undefined ? 0 : Math.min(0.05, Math.max(0, now - this.lastFrameAt) / 1_000);
+    this.lastFrameAt = now;
+    // Negative Y follows the Hangar's clockwise showcase direction. Dragging
+    // owns the detail angle until release and a brief inspection pause.
+    if (this.detail) {
+      if (!this.drag && now >= this.detailResumeAt) this.detailYaw -= delta * clockwiseRadiansPerSecond;
+    } else this.listingYaw -= delta * clockwiseRadiansPerSecond;
     const railRect = host.getBoundingClientRect();
     const gridRect = (this.detail?.art ?? this.grid).getBoundingClientRect();
     const width = Math.round(railRect.width);
@@ -201,9 +217,10 @@ export class StoreAircraftPreviews {
       this.camera.top = halfHeight;
       this.camera.bottom = -halfHeight;
       this.camera.updateProjectionMatrix();
-      preview.aircraft.rotation.y = this.detail ? this.detailYaw : heroYaw;
+      preview.aircraft.rotation.y = this.detail ? this.detailYaw : this.listingYaw;
       this.renderer.render(preview.scene, this.camera);
     }
     this.renderer.setScissorTest(false);
+    this.start();
   };
 }
