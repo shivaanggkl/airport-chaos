@@ -1,3 +1,4 @@
+import {journeyDallas18} from '../../shared/journey-mission.mjs';
 import {journeyDallas17} from '../../shared/journey-mission.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -20,7 +21,7 @@ import {insideJourneyHunterArena,journeyHunterSteeringTarget} from './journey-hu
 import {JourneyAttemptStore} from './journey-attempts.js';
 import {aceDamageAuthorized} from './journey-ace.js';
 const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas17,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas18,journeyDallas17,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'hot-pursuit-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallas14.id,'old-m8',1);return{dir,db,store,path};}
 
 test('M9 identity, eight hits, Addison distance and 40km route remain inside authored mission airspace',()=>{

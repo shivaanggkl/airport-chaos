@@ -126,9 +126,10 @@ export const journeyDallas17:Readonly<{
   enemyAltitude:800;aggressionDistance:10000;patrolRadius:2000;cruiseSpeed:400;enemySpawn:Readonly<{x:number;z:number}>;
 }>;
 export const journeyDallas18: Readonly<{
-  id: 'journey-dallas-18'; cityId: 'dallas'; name: 'SKY SIEGE'; chapter: 'HIGH STAKES';
-  firstClearCredits: 2400; startAirportId: 'love'; territoryId: 'las-colinas';
-  captureMs: 24000; defenseMs: 40000; defenseRadius: 2800; hunterDelayMs: 2500;
+  id: 'journey-dallas-18'; cityId: 'dallas'; name: 'FINAL SHOWDOWN'; chapter: 'SKY HUNTERS'; firstClearCredits: 2400;
+  startAirportId: 'dfw'; timeLimitMs: 420000; enemyAircraft: 'fighter'; enemyLivery: 'firehawk-inferno'; enemyHealth: 300;
+  enemyAltitude: 900; aggressionDistance: 10000; patrolRadius: 2500; cruiseSpeed: 600;
+  enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;
 export const journeyDallas19: Readonly<{
   id: 'journey-dallas-19'; cityId: 'dallas'; name: 'MONSTER ARRIVAL'; chapter: 'CITY DEFENDERS';

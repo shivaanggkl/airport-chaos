@@ -265,17 +265,15 @@ export const journeyDallas17 = Object.freeze({
   enemySpawn: Object.freeze({ x: -15_100, z: 0 }),
 });
 
-// The capture uses the existing Las Colinas territory rectangle. The smaller
-// mission-only defense circle gives the pilot a readable aerial area to hold.
+// Chapter 2 finale; weapon pacing and damage are private to this encounter.
 export const journeyDallas18 = Object.freeze({
-  id: 'journey-dallas-18', cityId: 'dallas', name: 'SKY SIEGE',
-  chapter: 'HIGH STAKES', firstClearCredits: 2_400,
-  startAirportId: 'love', territoryId: 'las-colinas',
-  captureMs: 24_000, defenseMs: 40_000, defenseRadius: 2_800,
-  hunterDelayMs: 2_500,
+  id: 'journey-dallas-18', cityId: 'dallas', name: 'FINAL SHOWDOWN', chapter: 'SKY HUNTERS', firstClearCredits: 2_400,
+  startAirportId: 'dfw', timeLimitMs: 420_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
+  enemyAltitude: 900, aggressionDistance: 10_000, patrolRadius: 2_500, cruiseSpeed: 600,
+  enemySpawn: Object.freeze({ x: -4_800, z: -13_600 }),
+  enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 
-// An open mapped parcel west of Downtown keeps the creature clear of buildings.
 export const journeyDallas19 = Object.freeze({
   id: 'journey-dallas-19', cityId: 'dallas', name: 'MONSTER ARRIVAL',
   chapter: 'CITY DEFENDERS', firstClearCredits: 2_550,

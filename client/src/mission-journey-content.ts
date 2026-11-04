@@ -26,7 +26,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-15': 'Take off. Chase the escaping Mammoth. Destroy it before it escapes.',
   'journey-dallas-16': 'Take off. Fight two enemy aircraft. Destroy both to win.',
   'journey-dallas-17': 'Take off. Find the armored Mammoth. Shoot it down.',
-  'journey-dallas-18': 'Capture the zone, then defend against a Hunter for 40 seconds.',
+  'journey-dallas-18': 'Take off. Face the Legendary Firehawk. Defeat it to finish Chapter 2.',
   'journey-dallas-19': 'Destroy the giant monster before time runs out.',
   'journey-dallas-20': 'Fly through six alternating high and low gates.',
   'journey-dallas-21': 'Capture the first area, then the second within two minutes.',
