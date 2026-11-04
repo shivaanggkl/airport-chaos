@@ -9,7 +9,7 @@ const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url)
 const framing = source.slice(source.indexOf('function refreshCameraFraming()'), source.indexOf('function updateCamera('));
 const chase = source.slice(source.indexOf('function updateCamera('), source.indexOf('  if (cameraOrbitBlend > 0) {', source.indexOf('function updateCamera('))) + '\n}';
 for (const [type, definition] of Object.entries(aircraftDefinitions))
-    test(`${type}: elevated, lower-screen chase framing stays stable through pitch and bank`, () => {
+    test(`${type}: shallow, lower-screen chase framing stays stable through pitch and bank`, () => {
         for (const aspect of [844 / 390, 1280 / 720]) {
             const airplane = new THREE.Group();
             airplane.add(new THREE.Mesh(new THREE.BoxGeometry(definition.wingSpan, definition.bodyRadius * 3, definition.bodyLength + definition.noseLength)));
@@ -26,12 +26,20 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
                 state[name] = new THREE.Quaternion();
             vm.createContext(state);
             vm.runInContext(ts.transpileModule(framing + chase, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, state);
-            let baseline;
+            for (const boosted of [false, true]) {
+            state.currentSpeed = definition.maxSpeed * (boosted ? definition.boostMaxSpeed : 1);
+            state.boostActive = boosted;
+            state.boostVisualStrength = boosted ? 1 : 0;
+            let baseline, baselineLook;
             for (const [pitch, bank] of [[0, 0], [.3, .65], [-.28, -.65]]) {
                 airplane.rotation.set(pitch, .5, bank, 'YXZ');
                 state.updateCamera(1);
                 const offset = state.chaseCameraPosition.clone().sub(airplane.position);
-                assert.ok(offset.y / Math.hypot(offset.x, offset.z) >= .32, 'camera sees the upper airframe');
+                const elevation = offset.y / Math.hypot(offset.x, offset.z);
+                assert.ok(elevation >= .24 && elevation <= .30, 'camera sees the upper airframe without an overhead angle');
+                const lookOffset = state.chaseLookTarget.clone().sub(airplane.position);
+                if (baselineLook) assert.ok(lookOffset.distanceTo(baselineLook) < .00001, 'takeoff pitch and bank must not tilt the camera aim');
+                else baselineLook = lookOffset;
                 if (baseline)
                     assert.ok(offset.distanceTo(baseline) < .00001, 'bank and pitch cannot swing the camera around the tail');
                 else
@@ -43,6 +51,7 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
                 assert.ok(Math.abs(center.x) < .001);
                 assert.ok(center.y < -.08 && center.y > -.65, `airframe sits below center without clipping: ${center.y}`);
                 assert.ok(Number.isFinite(center.z) && center.z < 1);
+            }
             }
         }
     });

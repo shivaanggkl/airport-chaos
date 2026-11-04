@@ -225,7 +225,7 @@ test('M7 rejects incompatible resumed attempts and uses short, explicit mission 
   const content = readFileSync(new URL('../../client/src/mission-journey-content.ts', import.meta.url), 'utf8');
   const receive = client.slice(client.indexOf("if (message.type === 'journeyAttempt')"));
   assert.ok(receive.indexOf('firstContactSupported !== true') < receive.indexOf('journeyAttempt = message.attempt'));
-  assert.match(content, /Take off\. Follow the red radar marker\. Shoot down Nightowl\./);
-  assert.match(client, /TAKE OFF · FOLLOW THE RED RADAR MARKER/);
-  assert.match(client, /AIM AT THE RED PLANE · HOLD FIRE/);
+  assert.match(content, /Find and shoot down Nightowl\./);
+  assert.match(client, /TAKE OFF · FIND NIGHTOWL/);
+  assert.match(client, /SHOOT DOWN NIGHTOWL/);
 });
