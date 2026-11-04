@@ -1,109 +1,94 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { test } from 'node:test';
-import { journeyDallas15, journeyDallas16, journeyGateCrossing } from '../../shared/journey-mission.mjs';
-import { missionFocusForAttempt } from '../../shared/mission-focus.mjs';
-import { CrossfireFireCoordinator } from './journey-crossfire.js';
-import { JourneyAttemptStore } from './journey-attempts.js';
+import test from 'node:test';
+import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import ts from 'typescript';
+import vm from 'node:vm';
+import {journeyDallas16 as mission,journeyDallas15,journeyDallas13,journeyDallas14,journeyDallas23,journeyMissionSlot} from '../../shared/journey-mission.mjs';
+import {cityAirports} from '../../shared/city-airports.mjs';
+import {enemyAiLevels} from '../../shared/enemy-ai.mjs';
+import {projectileDamageForAircraft,ballisticShotSpeed,COMBAT_RANGE,AIM_ENVELOPE} from '../../shared/protocol.mjs';
+import {CrossfireFireCoordinator} from './journey-crossfire.js';
+import {JourneyAttemptStore} from './journey-attempts.js';
+import {hunterBallisticSolution} from './hunter-flight.js';
+import {aircraftPresentationMuzzleSockets} from '../../shared/aircraft-presentation-scale.mjs';
+import {projectileImpactFraction} from '../../shared/projectile-collision.mjs';
+import {createOpponent,opponentAim} from './opponent.js';
+import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
+import {recordOpponentHit,recordOpponentDamage} from './opponent-tactics.js';
+const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({recordOpponentHit,recordOpponentDamage,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
+function fixture(){const dir=mkdtempSync(join(tmpdir(),'double-threat-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallas15.id,'m9',1);return{dir,path,db,store};}
+function assigned(f,at=1000){const a=f.store.launch('pilot','trainer',at,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignCrossfireHunter('pilot',a.attemptId,'one',1);f.store.assignCrossfireHunter('pilot',a.attemptId,'two',2);return a;}
 
-function fixture() {
-  const directory = mkdtempSync(join(tmpdir(), 'airport-crossfire-test-'));
-  const path = join(directory, 'profiles.sqlite');
-  const database = new DatabaseSync(path);
-  database.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL); INSERT INTO player_profiles VALUES ('pilot', 0, 0), ('capped', 999950, 0)");
-  database.close();
-  return { directory, path, store: new JourneyAttemptStore(path) };
-}
-
-test('five forward gates have matching visible openings and reject reverse crossings', () => {
-  assert.equal(journeyDallas16.gates.length, 5);
-  assert.equal(journeyDallas16.firstClearCredits, 2_100);
-  for (let i = 0; i < 5; i++) {
-    const gate = journeyDallas16.gates[i];
-    const previous = journeyDallas16.gates[Math.max(0, i - 1)];
-    const next = journeyDallas16.gates[Math.min(4, i + 1)];
-    const dx = next.x - previous.x; const dz = next.z - previous.z;
-    const length = Math.hypot(dx, dz);
-    const from = { x: gate.x - dx / length * 20, y: gate.altitude, z: gate.z - dz / length * 20 };
-    const to = { x: gate.x + dx / length * 20, y: gate.altitude, z: gate.z + dz / length * 20 };
-    assert.equal(journeyGateCrossing(from, to, i, 0, journeyDallas16), 'VALID');
-    assert.equal(journeyGateCrossing(to, from, i, 0, journeyDallas16), false);
-  }
-  assert.equal(missionFocusForAttempt({ missionId: journeyDallas16.id, status: 'RACING' })?.showAmbientAIAircraft, false);
+test('displayed M10 preserves identity, DFW entry, two appearances, health and distinct 10–12km bearings',()=>{
+ assert.equal(journeyMissionSlot(mission.id),10);assert.equal(mission.startAirportId,'dfw');assert.equal(mission.name,'DOUBLE THREAT');assert.equal(mission.enemyHealth/projectileDamageForAircraft('trainer'),4);assert.equal(mission.gates.length,0);
+ const dfw=cityAirports.dallas.find(a=>a.id==='dfw');assert.deepEqual(mission.enemies.map(e=>[e.aircraft,e.livery]),[['privateJet','nightowl-sunset-red'],['trainer','bluejay-skybolt']]);
+ for(const e of mission.enemies){assert.ok(Math.hypot(e.x-dfw.x,e.z-dfw.z)>=10000&&Math.hypot(e.x-dfw.x,e.z-dfw.z)<=12000);assert.ok(e.altitude>=600&&e.altitude<=900);}
 });
 
-test('Mission 16 requires Mission 15 and persists two milestone Hunter identities', () => {
-  const { directory, path, store } = fixture();
-  try {
-    assert.throws(() => store.launch('pilot', 'trainer', 1_000, journeyDallas16.id), /locked/);
-    const database = new DatabaseSync(path);
-    for (const pilot of ['pilot', 'capped']) database.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,0)')
-      .run(pilot, journeyDallas15.id, `${pilot}-m15`, 500);
-    const first = store.launch('pilot', 'trainer', 2_000, journeyDallas16.id);
-    store.approach('pilot', first.attemptId);
-    assert.equal(store.assignCrossfireHunter('pilot', first.attemptId, 'hunter1', 1), undefined);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 1, 2_100), undefined);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 0, 2_100)?.gateIndex, 1);
-    assert.equal(store.assignCrossfireHunter('pilot', first.attemptId, 'hunter1', 1)?.targetId, 'hunter1');
-    assert.equal(store.assignCrossfireHunter('pilot', first.attemptId, 'duplicate', 1), undefined);
-    assert.equal(store.assignCrossfireHunter('pilot', first.attemptId, 'hunter2', 2), undefined);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 1, 2_200), undefined);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 1, 2_500)?.gateIndex, 2);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 2, 2_900)?.gateIndex, 3);
-    assert.equal(store.assignCrossfireHunter('pilot', first.attemptId, 'hunter2', 2)?.secondaryTargetId, 'hunter2');
-    assert.equal(store.acceptGate('pilot', first.attemptId, 3, 3_300)?.gateIndex, 4);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 4, 3_700)?.status, 'COMPLETED');
-    assert.equal(store.get('pilot', first.attemptId)?.firstClearCredits, 2_100);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 4, 4_100), undefined);
-    assert.equal(store.progress('pilot', journeyDallas16.id).completed, true);
-    const replay = store.launch('pilot', 'trainer', 5_000, journeyDallas16.id);
-    store.approach('pilot', replay.attemptId);
-    for (let i = 0; i < 5; i++) store.acceptGate('pilot', replay.attemptId, i, 5_000 + i * 400);
-    assert.equal(store.get('pilot', replay.attemptId)?.firstClearCredits, 0);
-    const capped = store.launch('capped', 'trainer', 8_000, journeyDallas16.id);
-    store.approach('capped', capped.attemptId);
-    for (let i = 0; i < 5; i++) store.acceptGate('capped', capped.attemptId, i, 8_000 + i * 400);
-    assert.equal(store.get('capped', capped.attemptId)?.firstClearCredits, 50);
-    assert.equal(database.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get().credits, 2_100);
-    database.close();
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+test('manual takeoff clock, no gate completion, two distinct kills, deadline and once-only reward',()=>{
+ const f=fixture();try{const a=assigned(f);assert.equal(f.store.get('pilot',a.attemptId).startedAt,null);assert.equal(f.store.assignCrossfireHunter('pilot',a.attemptId,'duplicate',1),undefined);assert.equal(f.store.acceptGate('pilot',a.attemptId,0,1500),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',1500),undefined);
+ const start=f.store.startDoubleThreat('pilot',a.attemptId,2000);assert.equal(start.deadlineAt,302000);assert.equal(f.store.startDoubleThreat('pilot',a.attemptId,2100),undefined);assert.equal(f.store.completeHunter('outsider',a.attemptId,'one',2200),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'wrong',2200),undefined);
+ assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',2500).status,'RACING');assert.equal(f.store.get('pilot',a.attemptId).crossfireKills,1);assert.equal(f.store.completeHunter('pilot',a.attemptId,'one',2600),undefined);assert.equal(f.store.progress('pilot',mission.id).completed,false);
+ assert.equal(f.store.completeHunter('pilot',a.attemptId,'two',3000).firstClearCredits,2100);assert.equal(f.store.completeHunter('pilot',a.attemptId,'two',3100),undefined);
+ const replay=assigned(f,4000);f.store.startDoubleThreat('pilot',replay.attemptId,4500);f.store.completeHunter('pilot',replay.attemptId,'two',4600);assert.equal(f.store.completeHunter('pilot',replay.attemptId,'one',4700).firstClearCredits,0);assert.equal(f.db.prepare('SELECT credits FROM player_profiles').get().credits,2100);
+ const late=assigned(f,5000);f.store.startDoubleThreat('pilot',late.attemptId,6000);assert.equal(f.store.completeHunter('pilot',late.attemptId,'one',306000),undefined);
+ }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
 
-test('one active shooter and a safe handoff without changing weapon cooldowns', () => {
-  const coordinator = new CrossfireFireCoordinator();
-  assert.equal(coordinator.canInitiate('hunter1', false, 1_000), false);
-  assert.equal(coordinator.canInitiate('hunter1', true, 1_000), true);
-  assert.equal(coordinator.canInitiate('hunter2', true, 1_000), false);
-  coordinator.revoke('hunter1', 1_100);
-  assert.equal(coordinator.canInitiate('hunter2', true, 1_500), false);
-  assert.equal(coordinator.canInitiate('hunter2', true, 2_000), true);
-  assert.equal(coordinator.canInitiate('hunter1', true, 2_000), false);
-  assert.equal(coordinator.canInitiate('hunter2', false, 2_100), false);
-  assert.equal(coordinator.canInitiate('hunter1', true, 2_500), false);
-  assert.equal(coordinator.canInitiate('hunter1', true, 3_000), true);
+test('dynamic firing permission follows useful geometry with hysteresis and safe handoffs, not alternating time',()=>{
+ const c=new CrossfireFireCoordinator();c.select([{id:'one',score:1.8},{id:'two',score:1}],1000);assert.equal(c.activeShooterId,'one');assert.equal(c.canInitiate('one',true,1000),true);assert.equal(c.canInitiate('two',true,1000),false);assert.equal(c.canInitiate('one',false,1100),false);assert.equal(c.activeShooterId,'one','lining up does not revoke attack priority');
+ c.select([{id:'one',score:1.8},{id:'two',score:1.7}],10000);assert.equal(c.activeShooterId,'one','time alone cannot alternate priority');
+ c.select([{id:'two',score:1.9}],10100);assert.equal(c.activeShooterId,null);assert.equal(c.canInitiate('two',true,10500),false);c.select([{id:'two',score:1.9}],11000);assert.equal(c.activeShooterId,'two');assert.equal(c.canInitiate('one',true,11000),false);
+ c.revoke('two',11100);assert.equal(c.canInitiate('one',true,12000),true);assert.equal(c.canInitiate('two',true,12000),false);
 });
 
-test('abandon and Retry retire gate progress and assigned Hunter IDs', () => {
-  const { directory, path, store } = fixture();
-  try {
-    const database = new DatabaseSync(path);
-    database.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,0)')
-      .run('pilot', journeyDallas15.id, 'prior-ace', 500);
-    database.close();
-    const old = store.launch('pilot', 'trainer', 1_000, journeyDallas16.id);
-    store.approach('pilot', old.attemptId);
-    store.acceptGate('pilot', old.attemptId, 0, 1_100);
-    store.assignCrossfireHunter('pilot', old.attemptId, 'old-hunter', 1);
-    assert.equal(store.abandon('pilot', old.attemptId, 1_200)?.status, 'ABANDONED');
-    assert.equal(store.acceptGate('pilot', old.attemptId, 1, 1_500), undefined);
-    const retry = store.launch('pilot', 'trainer', 2_000, journeyDallas16.id);
-    assert.notEqual(retry.attemptId, old.attemptId);
-    assert.equal(retry.gateIndex, 0);
-    assert.equal(retry.targetId, null);
-    assert.equal(retry.secondaryTargetId, null);
-    assert.equal(retry.deadlineAt, null);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+test('outdated active Crossfire attempts retire safely, while completion receipts and fresh retries survive',()=>{
+ const f=fixture();try{const old=assigned(f);f.db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(old.attemptId);new JourneyAttemptStore(f.path);assert.equal(f.store.get('pilot',old.attemptId).failureReason,'MISSION_UPDATED');assert.equal(f.store.progress('pilot',journeyDallas15.id).completed,true);
+ const retry=f.store.launch('pilot','trainer',5000,mission.id);assert.equal(retry.targetId,null);assert.equal(retry.secondaryTargetId,null);assert.equal(retry.crossfireKills,0);assert.equal(retry.deadlineAt,null);f.store.fail('pilot',retry.attemptId,'CRASHED',6000);assert.equal(f.store.completeHunter('pilot',retry.attemptId,'one',6500),undefined);
+ }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
+});
+
+test('production damage requires four Bluejay hits per enemy and settles only after the second destruction',()=>{
+ const f=fixture();try{const a=assigned(f);f.store.startDoubleThreat('pilot',a.attemptId,2000);const pilot={pilotId:'pilot',entityType:'player',cityId:'dallas',lifeState:'alive',isBot:false,score:0,aircraftType:'trainer'};
+ const make=type=>({entityType:'player',cityId:'dallas',lifeState:'alive',isBot:true,score:0,health:100,spawnProtectedUntil:0,aircraftType:type,position:{x:-13000,y:1000,z:-18000},bot:{journeyCrossfire:true,journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyProvoked:true}});
+ const enemies=[make('privateJet'),make('trainer')],players=new Map([['owner',pilot],['one',enemies[0]],['two',enemies[1]]]),packets=[],updates=[];
+ const ctx=runtime(['applyCombatHit','transportEscortHealth'],{journeyDallas13,journeyDallas14,journeyDallas15,journeyDallas23,journeyDallas16:mission,players,journeyStore:f.store,playerJourneyAttempts:new Map([['owner',a.attemptId]]),playerJourneyDfwTakeoff:new Set(['owner']),playerJourneyRunwayPrep:new Set(),crossfireDefeatedHunters:new Map(),crossfireFireCoordinators:new Map([[a.attemptId,new CrossfireFireCoordinator()]]),crossfireHunterMotion:new Map(),runwayCombatProtected:()=>false,focusedBotInteractionExcluded:()=>false,tutorialCombatPairAllowed:()=>true,sameCombatContext:()=>true,insideJourneyHunterArena:()=>true,stabilityDiagnosticsEnabled:false,airportRepairStays:new Map(),sendToPlayer:(_id,p)=>packets.push(p),sendJourneyState:(_id,a)=>updates.push(a.crossfireKills),provokeJourneyHunter:()=>{},markPlayerDestroyed:(_id,p)=>p.lifeState='destroyed',isHumanPilot:()=>false,botKillRewardMultiplier:.1,persistScore:()=>{},broadcastToCity:()=>assert.fail('private actor leaked'),broadcastLeaderboard:()=>{},removeBot:id=>players.delete(id),updateKing:()=>{},cityKings:new Map(),handleWantedDestruction:()=>{},challengeForPlayer:()=>undefined});
+ for(const [index,id] of ['one','two'].entries())for(let hit=1;hit<=4;hit++){assert.equal(ctx.applyCombatHit('owner',id,'dallas',3000+index*3000+hit*500,25),true);assert.equal(enemies[index].health,100-hit*25);assert.equal(f.store.get('pilot',a.attemptId).status,index===1&&hit===4?'COMPLETED':'RACING');}
+ assert.equal(f.store.get('pilot',a.attemptId).firstClearCredits,2100);assert.equal(players.has('one')||players.has('two'),false);assert.equal(packets.filter(p=>p.type==='damage').length,8);assert.equal(updates.length,8,'both targets must refresh authoritative HUD health after every hit');
+ }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
+});
+
+test('production factory creates two correctly painted HARD aircraft, and aggression latches only after takeoff within 10km',()=>{
+ const players=new Map(),sent=[];
+ const ctx=runtime(['createBot','botStateMessage','transportEscortHealth','transportEscortCosmetics'],{
+  smoothHunter:()=>true,createOpponent:(definition)=>{assert.equal(definition.level,'HARD');return createOpponent(definition);},journeyDallas16:mission,journeyDallas13,journeyDallas14,players,nextBotSerial:1,botNames:['Enemy'],botPersonalities:['hunter'],botAirports:()=>cityAirports.dallas,airportRoute:()=>[],boundJourneyHunterPoint:p=>p,botTerrainHeight:()=>120,botRunwayHeight:()=>120,safeBotWaypoint:(_c,_f,p)=>p,sendToPlayer:(_id,p)=>sent.push(p),broadcastToCity:()=>assert.fail('private enemy leaked'),aircraftFlightEnvelope,
+ });
+ for(const ordinal of [1,2]){const id=ctx.createBot('dallas',undefined,{attemptId:'attempt',targetPlayerId:'owner',target:{position:{x:0,y:0,z:0},rotation:{y:0}},crossfireOrdinal:ordinal});const enemy=players.get(id),config=mission.enemies[ordinal-1];assert.equal(enemy.aircraftType,config.aircraft);assert.equal(enemy.health,100);assert.equal(enemy.position.y,120+config.altitude);assert.equal(enemy.bot.opponent.profile,enemyAiLevels.HARD);assert.equal(sent.at(-1).equippedCosmetics[`livery:${config.aircraft}`],config.livery);assert.ok(Math.hypot(enemy.velocity.x,enemy.velocity.z)>0);}
+ const pilot={pilotId:'pilot',lifeState:'alive',position:{x:-22800,y:120,z:-13600}},ids=[...players.keys()],a={missionId:mission.id,attemptId:'attempt',status:'APPROACH',targetId:ids[0],secondaryTargetId:ids[1],crossfireKills:0};let activations=0;
+ const logic=runtime(['ensureJourneyCrossfire'],{journeyDallas16:mission,players,crossfireFireCoordinators:new Map(),CrossfireFireCoordinator,COMBAT_RANGE:4500,hunterForward:p=>({x:-Math.sin(p.rotation.y),y:0,z:-Math.cos(p.rotation.y)}),botFireSolution:()=>({reason:'NO_FORWARD_SOLUTION'}),provokeJourneyHunter:(_id,_pilot,id)=>{players.get(id).bot.journeyProvoked=true;activations++;},failPlayerJourney:()=>assert.fail('unexpected failure')});
+ logic.ensureJourneyCrossfire('owner',pilot,a,1000);assert.equal(activations,0);a.status='RACING';logic.ensureJourneyCrossfire('owner',pilot,a,2000);assert.equal(activations,0);
+ pilot.position={...players.get(ids[0]).position,x:players.get(ids[0]).position.x-9999};logic.ensureJourneyCrossfire('owner',pilot,a,3000);assert.ok(activations>=1);const first=activations;pilot.position.x-=20000;logic.ensureJourneyCrossfire('owner',pilot,a,4000);assert.equal(activations,first);assert.equal(players.get(ids[0]).bot.journeyProvoked,true);
+});
+
+test('exit cleanup removes both owned aircraft, shooter permissions and projectiles without touching unrelated actors',()=>{
+ const attempt={missionId:mission.id,attemptId:'attempt',targetId:'one',secondaryTargetId:'two'},owner={assistedAim:{},aimSamples:[]},players=new Map([['owner',owner],['one',{bot:{journeyAttemptId:'attempt'}}],['two',{bot:{journeyAttemptId:'attempt'}}],['other',{bot:{journeyAttemptId:'unrelated'}}]]),coordinators=new Map([['attempt',new CrossfireFireCoordinator()]]),removedShots=[];
+ const ctx=runtime(['removeJourneyHunter'],{players,playerJourneyAttempts:new Map([['owner','attempt']]),setServerLock:()=>{},removePlayerProjectiles:id=>removedShots.push(id),journeyDallas07:{},journeyDallas08:{},journeyDallas09:{},journeyDallas10:{},journeyDallas11:{},journeyDallas12:{},journeyDallas19:{},journeyDallas18:{},journeyDallas23:{},journeyDallas24:{},doubleHunterMotion:new Map(),crossfireFireCoordinators:coordinators,crossfireDefeatedHunters:new Map(),crossfireHunterMotion:new Map(),removeBot:id=>players.delete(id)});
+ ctx.removeJourneyHunter(attempt);assert.equal(players.has('one')||players.has('two'),false);assert.equal(players.has('other'),true);assert.equal(coordinators.has('attempt'),false);assert.deepEqual(removedShots,['owner']);
+});
+
+test('both HARD aircraft produce real forward ballistic hits against a moving Bluejay; evading after launch can miss',()=>{
+ const normalize=v=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};},dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+ const ctx=runtime(['botFireSolution','muzzleTransform','rotateLocalYxz','forwardDirection','hunterForward'],{aircraftPresentationMuzzleSockets,aircraftFlightEnvelope,AIM_ENVELOPE,hunterBallisticSolution,smoothHunter:()=>true,runwayCombatProtected:()=>false,hunterFireCone:.2,hunterFireRange:COMBAT_RANGE,defenderDownwardFireAngle:.3,normalize,dot});
+ for(const config of mission.enemies){
+  const shooter={aircraftType:config.aircraft,position:{x:0,y:1000,z:0},rotation:{x:0,y:0,z:0},velocity:{x:0,y:0,z:-500},bot:{opponent:{profile:enemyAiLevels.HARD}}};
+  const target={aircraftType:'trainer',position:{x:0,y:1000,z:-1200},rotation:{x:0,y:0,z:0},velocity:{x:100,y:0,z:-300}};
+  const solution=ctx.botFireSolution(shooter,target,false);assert.equal(solution.reason,undefined);
+  const aim=opponentAim(enemyAiLevels.HARD,solution.aimX,solution.aimY,()=>.6),direction=normalize(ctx.rotateLocalYxz({x:aim.x,y:aim.y,z:-1},shooter.rotation)),origin=ctx.muzzleTransform(shooter).position,speed=ballisticShotSpeed(shooter.velocity,direction);
+  const hit=evasive=>{let previous={...origin},p={...target.position},v={...target.velocity};for(let t=.01;t<COMBAT_RANGE/speed;t+=.01){if(evasive&&t>.15){const x=v.x*Math.cos(.008)-v.z*Math.sin(.008);v.z=v.x*Math.sin(.008)+v.z*Math.cos(.008);v.x=x;}p={x:p.x+v.x*.01,y:p.y,z:p.z+v.z*.01};const end={x:origin.x+direction.x*speed*t,y:origin.y+direction.y*speed*t,z:origin.z+direction.z*speed*t};if(projectileImpactFraction(previous,end,p,v,.01,4.49)!==null)return true;previous=end;}return false;};
+  assert.equal(hit(false),true,`${config.aircraft} can hit a genuinely moving target`);assert.equal(hit(true),false,'post-launch evasion does not redirect bullets');
+ }
 });

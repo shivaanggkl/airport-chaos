@@ -246,18 +246,15 @@ export const journeyDallas15 = Object.freeze({
   escapeRoute: Object.freeze([Object.freeze({x:-21_500,z:8_000}),Object.freeze({x:-3_000,z:8_000})]),
 });
 
-// Broad northbound turns through open airspace west of Addison. No race clock:
-// the Hunters, introduced at confirmed gates 1 and 3, supply the pressure.
+// Two independently flying opponents share permission to initiate shots.
 export const journeyDallas16 = Object.freeze({
-  id: 'journey-dallas-16', cityId: 'dallas', name: 'CROSSFIRE ESCAPE',
-  chapter: 'HIGH STAKES', firstClearCredits: 2_100, startAirportId: 'love',
-  gates: Object.freeze([
-    { x: -5_140, z: -10_700, altitude: 470, radius: 145 },
-    { x: -6_050, z: -13_300, altitude: 485, radius: 145 },
-    { x: -4_700, z: -15_900, altitude: 500, radius: 145 },
-    { x: -6_050, z: -18_500, altitude: 485, radius: 145 },
-    { x: -5_000, z: -21_100, altitude: 470, radius: 145 },
+  id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
+  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:300_000,enemyHealth:100,aggressionDistance:10_000,
+  enemies:Object.freeze([
+    Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-13_000,z:-18_000,altitude:750}),
+    Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-13_000,z:-8_000,altitude:900}),
   ]),
+  gates:Object.freeze([]),
 });
 
 // North-to-south DFW recovery corridor; the Heart is mission-owned and does

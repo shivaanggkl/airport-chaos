@@ -20,7 +20,7 @@ export type TacticalAircraft = { lastStateAt?:number; position:V; rotation:V; ve
 export type TacticalInput = {
   targetId:string; target:TacticalAircraft; enemy:TacticalAircraft; speed:number; now:number;
   firingSolution:boolean; lockedByTarget?:boolean; bullets?:readonly OpponentBullet[];
-  objective?:V; roaming?:boolean; cruise:number; floorAt:(x:number,z:number)=>number;
+  supportSide?:-1|1; objective?:V; roaming?:boolean; cruise:number; floorAt:(x:number,z:number)=>number;
   safeWaypoint?:(from:V,to:V)=>V; inside?:(p:V)=>boolean;
 };
 const clamp=(x:number,a:number,b:number)=>Math.max(a,Math.min(b,x));
@@ -159,6 +159,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
     counterattack:expert&&now-runtime.dodgeAt<5000&&range<COMBAT_RANGE&&targetGunAlignment<.94?1.5:crossing&&targetNose<.1&&nose>.2?.5+intelligence.awareness*.65:-.5,
     disengage:resetNeeded?(dodge?2.2:3):danger&&nose<0?1.1+intelligence.awareness*.5+m.threatDamage*.15:-.5,
   };
+  if(input.supportSide){scores.lagPursuit+=.5;scores.wideReposition+=.5;}
   if(input.objective){scores.disengage=1;scores.defensiveBreak=dodge?3:danger?2:-1;}
   const personality=runtime.definition.personality ?? (runtime.definition.behavior==='ambush'?'patient':runtime.definition.behavior==='defend'?'defensive':'balanced');
   if(personality==='aggressive'){scores.attackPass+=.12;scores.counterattack+=.15;}
@@ -239,6 +240,11 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
         if(breakPoint){waypoint=input.safeWaypoint?.(enemy.position,breakPoint)??breakPoint;runtime.dodgeAt=now;runtime.dodgeUntil=now+1200;}
       }
     }
+  }
+  if(input.supportSide&&!danger&&['directIntercept','rearIntercept','leadPursuit','highAttack','lowAttack','attackPass'].includes(choice)){
+    const spacing=Math.min(1800,space.separation*.65)*input.supportSide;
+    waypoint.x+=tf.z*spacing;waypoint.z-=tf.x*spacing;
+    waypoint.y+=Math.min(180,space.climb*1.5);
   }
   if(input.objective&&choice!=='defensiveBreak'){waypoint=input.objective;cruise=input.cruise;}
   waypoint.y=Math.max(waypoint.y,input.floorAt(waypoint.x,waypoint.z)+35);

@@ -115,8 +115,9 @@ export const journeyDallas15: Readonly<{
   escapeRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
 export const journeyDallas16: Readonly<{
-  id: 'journey-dallas-16'; cityId: 'dallas'; name: 'CROSSFIRE ESCAPE'; chapter: 'HIGH STAKES';
-  firstClearCredits: 2100; startAirportId: 'love';
+  id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
+  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs:300000;enemyHealth:100;aggressionDistance:10000;
+  enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas17: Readonly<{

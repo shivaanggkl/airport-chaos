@@ -152,6 +152,7 @@ const skyDuelMode = launchMode === 'sky-duel' && cityId === 'dallas';
 const airAssaultMode = launchMode === 'air-assault' && cityId === 'dallas';
 const journeyMode = launchMode === 'missions' && cityId === 'dallas' && /^[0-9a-f-]{36}$/i.test(journeyAttemptId);
 type JourneyAttemptState = {
+  crossfireKills?:number; enemyHealths?:number[];
   attemptId: string; missionId: string; targetId: string | null; secondaryTargetId?: string | null; crossfireHuntersAlive?: number; targetHealth: number; targetEngaged?: boolean; firstContactSupported?: boolean; surpriseAttackSupported?: boolean; ambushWarningAt?: number; ambushRearWarning?: boolean;
   aiIsolated?: boolean;
   legendaryPhase?: 'GATES' | 'ACE' | 'LANDING' | null;
@@ -183,8 +184,6 @@ let botIsolationActive = false;
 let focusedHunterId: string | null = null;
 let aceHitNoticeUntil = 0;
 let aceMilestoneNoticeUntil = 0;
-let crossfireWarningUntil = 0;
-let crossfireWarning = "";
 const focusedBotsAreSafe = () => botIsolationActive;
 const assignedFormationLeader = (_id: string) => false;
 const unrelatedFocusedBot = (id: string) => focusedBotsAreSafe() &&
@@ -199,7 +198,7 @@ flightGameRoot.classList.toggle('multiplayer-flight', launchMode === 'free-fly' 
 flightGameRoot.classList.toggle('sky-duel-flight', skyDuelMode);
 flightGameRoot.classList.toggle('air-assault-flight', airAssaultMode);
 flightGameRoot.classList.toggle('solo-explore-flight', soloExploreMode);
-const journeyCombatMissionIds = new Set<string>([journeyDallas13.id, journeyDallas14.id, journeyDallas07.id, journeyDallas08.id, journeyDallas09.id, journeyDallas10.id, journeyDallas11.id, journeyDallas12.id, journeyDallas15.id, journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
+const journeyCombatMissionIds = new Set<string>([journeyDallas13.id, journeyDallas14.id, journeyDallas07.id, journeyDallas08.id, journeyDallas09.id, journeyDallas10.id, journeyDallas11.id, journeyDallas12.id, journeyDallas15.id, journeyDallas16.id, journeyDallas19.id, journeyDallas23.id, journeyDallas24.id]);
 flightGameRoot.classList.toggle('noncombat-journey', journeyMode);
 const missionStartCountdownElement = document.createElement('div');
 missionStartCountdownElement.className = 'mission-start-countdown';
@@ -2157,11 +2156,11 @@ function updateRadar(direction: THREE.Vector3): void {
     }
     for (const remote of remotePlayers.values()) {
       if (!remote.isBot || (missionFocus?.showAmbientAIMarkers === false && unrelatedFocusedBot(remote.playerId)) || !remoteIdentityVisible(remote)) continue;
-      drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas13.id && journeyAttempt.targetId === remote.playerId ? 'RED NIGHTOWL' : journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'ATTACKING BLUEJAY' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ESCAPING MAMMOTH' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : journeyAttempt?.missionId === journeyDallas23.id && (journeyAttempt.doublePhase === 'FIRST_FIGHT' && journeyAttempt.targetId === remote.playerId || journeyAttempt.doublePhase === 'FINAL_FIGHT' && journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : '', false, remote.heatLevel >= 4,
+      drawRadarMarker(direction, remote.plane.position.x, remote.plane.position.z, 'ai', journeyAttempt?.missionId === journeyDallas13.id && journeyAttempt.targetId === remote.playerId ? 'RED NIGHTOWL' : journeyAttempt?.missionId === journeyDallas14.id && journeyAttempt.targetId === remote.playerId ? 'ATTACKING BLUEJAY' : journeyAttempt?.missionId === journeyDallas15.id && journeyAttempt.targetId === remote.playerId ? 'ESCAPING MAMMOTH' : journeyAttempt?.missionId === journeyDallas16.id && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? remote.aircraftType==='privateJet'?'RED NIGHTOWL':'BLUEJAY WINGMAN' : journeyAttempt?.missionId === journeyDallas24.id && journeyAttempt.legendaryPhase === 'ACE' && journeyAttempt.targetId === remote.playerId ? 'LEGENDARY ACE' : journeyAttempt?.missionId === journeyDallas23.id && (journeyAttempt.doublePhase === 'FIRST_FIGHT' && journeyAttempt.targetId === remote.playerId || journeyAttempt.doublePhase === 'FINAL_FIGHT' && journeyAttempt.secondaryTargetId === remote.playerId) ? 'HUNTER' : '', false, remote.heatLevel >= 4,
         selectedCombatTarget?.remote === remote, selectedCombatTarget?.remote === remote && selectedCombatTarget.locked,
         primaryTerritoryColorForPlayer(remote.playerId), lockingThreatIds.has(remote.playerId),
         remote.altitudeMeters === undefined ? '' : formatRelativeAltitude(remote.altitudeMeters - altitudeAboveTerrain()),
-        (journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas15.id) && journeyAttempt.targetId === remote.playerId ? 'red' : undefined);
+        (journeyAttempt?.missionId === journeyDallas13.id || journeyAttempt?.missionId === journeyDallas14.id || journeyAttempt?.missionId === journeyDallas15.id || journeyAttempt?.missionId === journeyDallas16.id) && (journeyAttempt.targetId === remote.playerId || journeyAttempt.secondaryTargetId === remote.playerId) ? 'red' : undefined);
     }
   }
   if (activeMissionDefinition?.type === 'assignedHunter' && activeMission?.targetId) {
@@ -2820,8 +2819,8 @@ function updateJourneyHud(): void {
     if (countdown !== null) journeyHudHeaderTimer.textContent = `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`;
   }
   const segments = skyChallengeElement.querySelector<HTMLElement>('.journey-hud-segments');
-  if (segments) segments.hidden = elevatorMission || formationMission || firstContactMission || surpriseMission || aceMission || criticalMission || siegeMission || breakoutMission || twoFrontsMission || doubleMission || legendaryMission;
-  if (journeyHudEnemy) journeyHudEnemy.hidden = !formationMission && !firstContactMission && !surpriseMission && !aceMission && !siegeMission && !twoFrontsMission && !(doubleMission && journeyAttempt.doublePhase !== 'REPAIR') && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
+  if (segments) segments.hidden = crossfireMission || elevatorMission || formationMission || firstContactMission || surpriseMission || aceMission || criticalMission || siegeMission || breakoutMission || twoFrontsMission || doubleMission || legendaryMission;
+  if (journeyHudEnemy) journeyHudEnemy.hidden = !crossfireMission && !formationMission && !firstContactMission && !surpriseMission && !aceMission && !siegeMission && !twoFrontsMission && !(doubleMission && journeyAttempt.doublePhase !== 'REPAIR') && !(legendaryMission && journeyAttempt.legendaryPhase === 'ACE');
   const activeMissionId = journeyAttempt.missionId;
   const escortMission = escortHudMissions.find(item => item.id === activeMissionId);
   const activeEscortPhase = escortMission && (journeyAttempt.missionId !== journeyDallas12.id || journeyAttempt.finalPhase === 'ESCORTS');
@@ -3101,19 +3100,19 @@ function updateJourneyHud(): void {
     journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
     return;
   }
-  if (crossfireMission && target) {
-    const distanceMeters = distance * WORLD_METERS_PER_UNIT;
-    const instruction = onGround ? 'TAKE OFF — FOLLOW THE GOLD ARROW'
-      : performance.now() < crossfireWarningUntil ? crossfireWarning
-        : gateIndex === 0 ? 'FLY THROUGH GATE 1'
-          : gateIndex === 3 ? 'REACH GATE 4 — KEEP MOVING!'
-            : gateIndex === 4 ? 'FINAL GATE — ESCAPE NOW!'
-              : `FOLLOW THE ARROW TO GATE ${gateIndex + 1}`;
-    if (journeyHudObjective) journeyHudObjective.textContent = instruction;
-    if (journeyHudProgress) journeyHudProgress.textContent = `GATES: ${gateIndex}/5 · HUNTERS: ${journeyAttempt.crossfireHuntersAlive ?? 0}`;
-    if (journeyHudTarget) journeyHudTarget.textContent = `NEXT: GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
-    if (journeyHudTimer) journeyHudTimer.textContent = `HEALTH: ${Math.round(health / maxHealth * 100)}%`;
-    journeyHudSegments.forEach((segment, index) => segment.classList.toggle('is-cleared', index < gateIndex));
+  if(crossfireMission){
+    const ids=[journeyAttempt.targetId,journeyAttempt.secondaryTargetId];
+    const selected=selectedCombatTarget?.remote;
+    const enemy=selected&&ids.includes(selected.playerId)&&selected.lifeState==='alive' ? selected : ids.map(id=>id?remotePlayers.get(id):undefined).find(remote=>remote?.lifeState==='alive');
+    const index=enemy?ids.indexOf(enemy.playerId):-1;
+    const hp=index<0?0:journeyAttempt.enemyHealths?.[index]??enemy?.health??journeyDallas16.enemyHealth;
+    const killed=(journeyAttempt.crossfireKills??0),remaining=2-Number(Boolean(killed&1))-Number(Boolean(killed&2));
+    if(journeyHudObjective)journeyHudObjective.textContent=onGround?'TAKE OFF — FIND BOTH ENEMIES':'DESTROY BOTH ENEMIES';
+    if(journeyHudProgress)journeyHudProgress.textContent=`ENEMIES REMAINING: ${remaining}/2`;
+    if(journeyHudTarget)journeyHudTarget.textContent=enemy?`${enemy.aircraftType==='privateJet'?'NIGHTOWL':'BLUEJAY'}: ${Math.max(0,hp)} / 100 HP`:'LOCATING ENEMIES';
+    if(journeyHudTimer)journeyHudTimer.textContent=enemy?`DISTANCE: ${formatObjectiveDistance(airplane.position.distanceTo(enemy.plane.position)*WORLD_METERS_PER_UNIT)}`:'';
+    if(journeyHudEnemy)journeyHudEnemy.style.setProperty('--enemy-health',`${Math.max(0,hp)}%`);
+    if(enemy&&missionObjective?.id!==`${journeyAttempt.attemptId}:${enemy.playerId}`)syncAceObjective();
     return;
   }
   if (dfwMission || lakeMission || ascentMission || downtownMission || precisionMission || championshipMission) {
@@ -3215,7 +3214,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
     : `MISSION ${String(resultSlot).padStart(2,'0')} · ${resultSlot <= 5 ? 'GOLDEN GATES' : `CHAPTER ${Math.ceil(resultSlot / 6)}${resultSlot % 6 === 0 ? ' FINALE' : ''}`}`;
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-name]')!.textContent = success
     ? journeyMissionDefinitions.find(mission => mission.id === attempt.missionId)?.name ?? 'MISSION'
-    : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? '' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'CROSSFIRE ESCAPE' : aceMission ? 'HOT PURSUIT' : surpriseMission ? 'SURPRISE ATTACK' : firstContactMission ? 'FIRST CONTACT' : finaleMission ? 'FINAL INTERCEPT' : gravityMission ? 'ARMORED FORTRESS' : gunshipMission ? 'CROSSFIRE' : attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : formationMission ? 'REAR GUARD' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
+    : legendaryMission ? 'LEGENDARY CHAMPIONSHIP' : doubleMission ? 'DOUBLE TROUBLE' : perfectMission ? 'PERFECT APPROACH' : twoFrontsMission ? 'TWO FRONTS' : switchbackMission ? 'SKYLINE SWITCHBACK' : breakoutMission ? '' : siegeMission ? 'SKY SIEGE' : criticalMission ? 'CRITICAL APPROACH' : crossfireMission ? 'DOUBLE THREAT' : aceMission ? 'HOT PURSUIT' : surpriseMission ? 'SURPRISE ATTACK' : firstContactMission ? 'FIRST CONTACT' : finaleMission ? 'FINAL INTERCEPT' : gravityMission ? 'ARMORED FORTRESS' : gunshipMission ? 'CROSSFIRE' : attempt.missionId === journeyDallas09.id ? 'REINFORCEMENTS' : formationMission ? 'REAR GUARD' : elevatorMission ? 'GIANT INCOMING' : championshipMission ? 'GOLDEN CHAMPIONSHIP' : precisionMission ? 'NEEDLE RUSH' : downtownMission ? 'DOWNTOWN SLALOM' : ascentMission ? 'GOLDEN ASCENT' : lakeMission ? 'LAKE RACER' : 'ROOKIE RUSH';
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-title]')!.textContent = success ? 'MISSION PASSED' : 'MISSION FAILED';
   const finishSeconds = Math.max(0, (attempt.finishTimeMs ?? 0) / 1000);
   journeyResultElement.querySelector<HTMLElement>('[data-journey-result-detail]')!.textContent = success
@@ -3229,7 +3228,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : breakoutMission ? `Monster defeated. Downtown saved. Time: ${Math.floor(finishSeconds / 60)}:${String(Math.floor(finishSeconds % 60)).padStart(2, '0')}.${Math.floor(finishSeconds % 1 * 10)}`
       : siegeMission ? 'HIGH STAKES · TERRITORY SUCCESSFULLY DEFENDED'
       : criticalMission ? `AIRCRAFT REPAIRED · LANDING SCORE: ${attempt.landingScore ?? 0}/1000`
-      : crossfireMission ? 'YOU ESCAPED THE CROSSFIRE! · 5/5 GATES CLEARED'
+      : crossfireMission ? 'BOTH ENEMIES DESTROYED'
       : firstContactMission ? 'RED NIGHTOWL DESTROYED'
       : aceMission ? 'MAMMOTH DESTROYED'
       : surpriseMission ? 'ATTACKING BLUEJAY DESTROYED'
@@ -3243,7 +3242,7 @@ function showJourneyResult(attempt: JourneyAttemptState): void {
       : attempt.failureReason === 'PURSUIT_INTERRUPTED' ? 'PURSUIT INTERRUPTED'
       : attempt.failureReason === 'DOUBLE_INTERRUPTED' ? 'ENCOUNTER INTERRUPTED'
       : attempt.failureReason === 'ACE_INTERRUPTED' ? 'ACE ENCOUNTER INTERRUPTED'
-      : attempt.failureReason === 'CROSSFIRE_INTERRUPTED' ? 'CROSSFIRE ENCOUNTER INTERRUPTED'
+      : attempt.failureReason === 'CROSSFIRE_INTERRUPTED' ? 'ENCOUNTER INTERRUPTED'
       : attempt.failureReason === 'DEFENSE_INTERRUPTED' ? 'DEFENSE INTERRUPTED'
       : attempt.failureReason === 'TIME_UP' ? breakoutMission ? 'The monster destroyed Downtown' : twoFrontsMission ? 'TIME EXPIRED' : "TIME'S UP" : attempt.failureReason === 'MONSTER_KILLED' ? 'Your aircraft was destroyed' : attempt.failureReason === 'CRASHED' ? breakoutMission ? 'Your aircraft crashed' : firstContactMission || surpriseMission || aceMission || breakoutMission ? 'AIRCRAFT DESTROYED' : 'AIRCRAFT CRASHED'
       : 'FLIGHT INTERRUPTED';
@@ -8425,11 +8424,15 @@ function syncLegendaryObjective(): void {
   missionObjectiveGuidance?.setObjective(next);
 }
 function syncAceObjective(): void {
-  if (!missionFocus || (journeyAttempt?.missionId !== journeyDallas15.id && journeyAttempt?.missionId !== journeyDallas13.id && journeyAttempt?.missionId !== journeyDallas14.id)) return;
-  const ace = journeyAttempt.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
+  if (!missionFocus || (journeyAttempt?.missionId !== journeyDallas15.id && journeyAttempt?.missionId !== journeyDallas13.id && journeyAttempt?.missionId !== journeyDallas14.id && journeyAttempt?.missionId !== journeyDallas16.id)) return;
+  const ids=[journeyAttempt.targetId,journeyAttempt.secondaryTargetId];
+  const selected=selectedCombatTarget?.remote;
+  const ace=journeyAttempt.missionId===journeyDallas16.id
+    ? selected&&ids.includes(selected.playerId)&&selected.lifeState==='alive'?selected:ids.map(id=>id?remotePlayers.get(id):undefined).find(remote=>remote?.lifeState==='alive')
+    : journeyAttempt.targetId ? remotePlayers.get(journeyAttempt.targetId) : undefined;
   const next: MissionObjective | null = ace?.isBot && ace.lifeState === 'alive' &&
     ace.timeSinceUpdate <= remoteStateStaleSeconds
-    ? { id: `${journeyAttempt.attemptId}:${ace.playerId}`, label: journeyAttempt.missionId === journeyDallas13.id ? 'RED NIGHTOWL' : journeyAttempt.missionId === journeyDallas14.id ? 'ATTACKING BLUEJAY' : journeyDallas15.bossName,
+    ? { id: `${journeyAttempt.attemptId}:${ace.playerId}`, label: journeyAttempt.missionId === journeyDallas13.id ? 'RED NIGHTOWL' : journeyAttempt.missionId === journeyDallas14.id ? 'ATTACKING BLUEJAY' : journeyAttempt.missionId===journeyDallas16.id ? ace.aircraftType==='privateJet'?'RED NIGHTOWL':'BLUEJAY WINGMAN' : journeyDallas15.bossName,
       position: ace.plane.position, radius: 9, onscreenMarker: false } : null;
   if (missionObjective?.id === next?.id && missionObjective?.position === next?.position) return;
   missionObjective = next;
@@ -11110,7 +11113,7 @@ async function retryJourneyMission(): Promise<void> {
     const url = new URL(window.location.href);
     url.searchParams.set('journeyAttempt', journeyAttemptId);
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    journeyGates?.setProgress(0, journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas16.id || journeyAttempt.missionId === journeyDallas20.id || journeyAttempt.missionId === journeyDallas22.id || journeyAttempt.missionId === journeyDallas24.id);
+    journeyGates?.setProgress(0, journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas20.id || journeyAttempt.missionId === journeyDallas22.id || journeyAttempt.missionId === journeyDallas24.id);
     missionObjective = null;
     missionObjectiveGuidance?.setObjective(null);
     journeyGateClearedUntil = 0;
@@ -11528,11 +11531,11 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       playIncomingWarningSound();
       hapticsManager.emit('checkpoint', `${message.attempt.attemptId}:reinforcements`);
     }
-    if (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) {
+    if (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas20.id) {
       if (journeyGateMissionId !== message.attempt.missionId) {
         journeyGates?.dispose();
         journeyGates = new JourneyGateSystem(scene, getTerrainHeight,
-          message.attempt.missionId === journeyDallas24.id ? journeyDallas24 : message.attempt.missionId === journeyDallas22.id ? journeyDallas22 : message.attempt.missionId === journeyDallas20.id ? journeyDallas20 : message.attempt.missionId === journeyDallas16.id ? journeyDallas16 : message.attempt.missionId === journeyDallas06.id ? journeyDallas06 : message.attempt.missionId === journeyDallas05.id ? journeyDallas05 : message.attempt.missionId === journeyDallas04.id ? journeyDallas04 : message.attempt.missionId === journeyDallas03.id ? journeyDallas03 : message.attempt.missionId === journeyDallas02.id ? journeyDallas02 : journeyDallas01);
+          message.attempt.missionId === journeyDallas24.id ? journeyDallas24 : message.attempt.missionId === journeyDallas22.id ? journeyDallas22 : message.attempt.missionId === journeyDallas20.id ? journeyDallas20 : message.attempt.missionId === journeyDallas06.id ? journeyDallas06 : message.attempt.missionId === journeyDallas05.id ? journeyDallas05 : message.attempt.missionId === journeyDallas04.id ? journeyDallas04 : message.attempt.missionId === journeyDallas03.id ? journeyDallas03 : message.attempt.missionId === journeyDallas02.id ? journeyDallas02 : journeyDallas01);
         journeyGateMissionId = message.attempt.missionId;
       }
     } else if (journeyGates) {
@@ -11542,7 +11545,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     }
     emitConfirmedJourneyFeedback(hapticsManager, previousAttempt, message.attempt);
     journeyServerTimeOffset = message.serverNow - Date.now();
-    journeyGates?.setProgress(message.attempt.gateIndex, (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) &&
+    journeyGates?.setProgress(message.attempt.gateIndex, (message.attempt.missionId === journeyDallas24.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas20.id) &&
       (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING') && message.attempt.phase !== 'LANDING' && (message.attempt.missionId !== journeyDallas24.id || message.attempt.legendaryPhase === 'GATES'));
     missionObjective = (message.attempt.missionId === journeyDallas07.id || message.attempt.missionId === journeyDallas08.id || message.attempt.missionId === journeyDallas09.id || message.attempt.missionId === journeyDallas10.id || message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas12.id && message.attempt.finalPhase !== 'ESCORTS') && transportView?.hasState && (message.attempt.status==='APPROACH'||message.attempt.status==='RACING')
       ? (()=>{const side=message.attempt.missionId===journeyDallas11.id || message.attempt.missionId===journeyDallas12.id && message.attempt.finalPhase !== 'ESCORTS'
@@ -11572,8 +11575,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
             position: new THREE.Vector3(journeyDallas19.monster.x,
               getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z) + journeyDallas19.monster.height * .6,
               journeyDallas19.monster.z), radius: 180 }
-      : message.attempt.missionId === journeyDallas16.id
-        ? confirmedGateObjective(message.attempt, journeyDallas16.gates, getTerrainHeight)
       : message.attempt.missionId === journeyDallas04.id
         ? (() => { const gate = confirmedGateObjective(message.attempt, journeyDallas04.gates, getTerrainHeight);
           return gate ? { ...gate, fixedTop: true } : null; })()
@@ -11591,27 +11592,24 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     missionObjectiveGuidance?.setObjective(missionObjective);
     if (message.attempt.missionId === journeyDallas18.id) syncSiegeObjective();
     if (message.attempt.missionId === journeyDallas21.id) syncTwoFrontsObjective();
-    if (message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id) syncAceObjective();
+    if (message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId===journeyDallas16.id) syncAceObjective();
     if (message.attempt.missionId === journeyDallas23.id) syncDoubleObjective();
     if (message.attempt.missionId === journeyDallas24.id) {
       syncLegendaryObjective();
       if (previousAttempt?.attemptId === message.attempt.attemptId && previousAttempt.legendaryPhase !== message.attempt.legendaryPhase)
         showProgressMessage(message.attempt.legendaryPhase === 'ACE' ? 'FLIGHT CHALLENGE COMPLETE! · FINAL ACE INCOMING!' : 'ACE DEFEATED — HEAD TO DFW!');
     }
-    if ((message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas24.id) &&
+    if ((message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas20.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas24.id) &&
       previousAttempt?.attemptId === message.attempt.attemptId &&
-      message.attempt.gateIndex > previousGate && message.attempt.gateIndex < (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas20.id ? 6 : message.attempt.missionId === journeyDallas16.id ? 5 : 4)) journeyGateClearedUntil = performance.now() + 1_400;
+      message.attempt.gateIndex > previousGate && message.attempt.gateIndex < (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas20.id ? 6 : 4)) journeyGateClearedUntil = performance.now() + 1_400;
     if (previousAttempt?.attemptId !== message.attempt.attemptId || message.attempt.gateIndex !== previousGate) {
       wrongWayGateUntil = 0;
       switchbackAltitudeCue = 'ALIGNED';
     }
-    if (message.attempt.missionId === journeyDallas16.id && previousAttempt?.attemptId === message.attempt.attemptId && message.attempt.gateIndex > previousGate) {
-      if (message.attempt.gateIndex === 1) { crossfireWarning = 'HUNTER INCOMING — KEEP MOVING!'; crossfireWarningUntil = performance.now() + 2_400; }
-      if (message.attempt.gateIndex === 3) { crossfireWarning = 'TWO HUNTERS — STAY ALERT!'; crossfireWarningUntil = performance.now() + 2_400; }
-    }
-    if (message.attempt.gateIndex > previousGate && !((message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas20.id) && message.attempt.status === 'COMPLETED')) {
+
+    if (message.attempt.gateIndex > previousGate && !((message.attempt.missionId === journeyDallas11.id || message.attempt.missionId === journeyDallas20.id) && message.attempt.status === 'COMPLETED')) {
       playCheckpointSound();
-      showProgressMessage(`GATE ${message.attempt.gateIndex}/${message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas24.id ? 3 : message.attempt.missionId === journeyDallas20.id ? 6 : message.attempt.missionId === journeyDallas16.id ? 5 : 4} CLEARED`);
+      showProgressMessage(`GATE ${message.attempt.gateIndex}/${message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas24.id ? 3 : message.attempt.missionId === journeyDallas20.id ? 6 : 4} CLEARED`);
     }
     updateJourneyHud();
     if (airborneIntroAwaiting || runwayJourneyIntroAwaiting) {

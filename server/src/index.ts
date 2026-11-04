@@ -179,6 +179,7 @@ type BotRuntime = {
   flightAltitude?: number;
   terrainAltitude?: number;
   journeyCrossfire?: boolean;
+  journeyCrossfireSide?:-1|1;
   journeyRearGuardEscort?: 1 | 2 | 3 | 4;
   journeyEscortMissionId?: string;
   escortReturnUntil?: number;
@@ -3220,6 +3221,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
       ? journeyStore.goldenChampionshipBestTime(attempt.pilotId) : attempt.missionId === journeyDallas19.id
       ? journeyStore.monsterArrivalBestTime(attempt.pilotId) : attempt.missionId===journeyDallas07.id
       ? journeyStore.giantIncomingBestTime(attempt.pilotId) : undefined : undefined,
+    enemyHealths:attempt.missionId===journeyDallas16.id ? [attempt.targetId,attempt.secondaryTargetId].map(id=>id?players.get(id)?.health??0:0) : undefined,
     escapeRemaining: attempt.missionId===journeyDallas15.id ? target?.bot?.journeyPursuit?.remaining : undefined,
     surpriseAttackSupported: attempt.missionId === journeyDallas14.id ? true : undefined,
     ambushWarningAt: target?.bot?.ambush?.warningAt,
@@ -3392,37 +3394,39 @@ function ensureJourneyLegendary(playerId: string, pilot: PlayerState, active: Jo
   provokeJourneyHunter(playerId, pilot, id, now);
   sendJourneyState(playerId, assigned);
 }
-function ensureJourneyCrossfire(playerId: string, pilot: PlayerState, active: JourneyAttempt, now: number): void {
-  if (active.missionId !== journeyDallas16.id || active.status !== 'RACING' || pilot.lifeState !== 'alive') return;
-  for (const ordinal of [1, 2] as const) {
-    if (active.gateIndex < (ordinal === 1 ? 1 : 3)) continue;
-    const assignedId = ordinal === 1 ? active.targetId : active.secondaryTargetId;
-    if (assignedId) {
-      if (crossfireDefeatedHunters.get(active.attemptId)?.has(assignedId)) continue;
-      const hunter = players.get(assignedId);
-      if (!hunter?.bot?.journeyCrossfire || hunter.bot.journeyAttemptId !== active.attemptId ||
-        hunter.bot.journeyTargetPlayerId !== playerId || hunter.lifeState !== 'alive') {
-        failPlayerJourney(playerId, 'CROSSFIRE_INTERRUPTED', now);
-        return;
+function ensureJourneyCrossfire(playerId:string,pilot:PlayerState,active:JourneyAttempt,now:number):void {
+  if(active.missionId!==journeyDallas16.id||!['APPROACH','RACING'].includes(active.status)||pilot.lifeState!=='alive')return;
+  if(active.status==='RACING'&&active.deadlineAt!==null&&now>=active.deadlineAt){failPlayerJourney(playerId,'TIME_UP',now);return;}
+  for(const ordinal of [1,2] as const){
+    const id=ordinal===1?active.targetId:active.secondaryTargetId;
+    if(id){
+      if(active.crossfireKills&(ordinal===1?1:2))continue;
+      const enemy=players.get(id);
+      if(!enemy?.bot?.journeyCrossfire||enemy.bot.journeyAttemptId!==active.attemptId||enemy.bot.journeyTargetPlayerId!==playerId||enemy.lifeState!=='alive'){
+        failPlayerJourney(playerId,'CROSSFIRE_INTERRUPTED',now);return;
       }
-      const motion = crossfireHunterMotion.get(assignedId);
-      if (motion) {
-        if (Math.hypot(hunter.position.x - motion.x, hunter.position.z - motion.z) >= 5)
-          crossfireHunterMotion.set(assignedId, { x: hunter.position.x, z: hunter.position.z, at: now });
-        else if (now - motion.at > 6_000) { failPlayerJourney(playerId, 'CROSSFIRE_INTERRUPTED', now); return; }
-      }
+      if(active.status==='RACING'&&!enemy.bot.journeyProvoked&&Math.hypot(pilot.position.x-enemy.position.x,pilot.position.z-enemy.position.z)<=journeyDallas16.aggressionDistance)
+        provokeJourneyHunter(playerId,pilot,id,now);
       continue;
     }
-    const hunterId = createBot('dallas', undefined,
-      { attemptId: active.attemptId, targetPlayerId: playerId, target: pilot, crossfireOrdinal: ordinal });
-    const hunter = players.get(hunterId)!;
-    hunter.bot!.nextFireAt = now + 3_000;
-    crossfireHunterMotion.set(hunterId, { x: hunter.position.x, z: hunter.position.z, at: now });
-    const assigned = journeyStore.assignCrossfireHunter(pilot.pilotId, active.attemptId, hunterId, ordinal);
-    if (!assigned) { crossfireHunterMotion.delete(hunterId); removeBot(hunterId); continue; }
-    if (!crossfireFireCoordinators.has(active.attemptId)) crossfireFireCoordinators.set(active.attemptId, new CrossfireFireCoordinator());
-    provokeJourneyHunter(playerId, pilot, hunterId, now);
-    sendJourneyState(playerId, assigned);
+    if(active.status!=='APPROACH'){failPlayerJourney(playerId,'CROSSFIRE_INTERRUPTED',now);return;}
+    const created=createBot('dallas',undefined,{attemptId:active.attemptId,targetPlayerId:playerId,target:pilot,crossfireOrdinal:ordinal});
+    const assigned=journeyStore.assignCrossfireHunter(pilot.pilotId,active.attemptId,created,ordinal);
+    if(!assigned){removeBot(created);continue;}sendJourneyState(playerId,assigned);
+  }
+  if(!crossfireFireCoordinators.has(active.attemptId))crossfireFireCoordinators.set(active.attemptId,new CrossfireFireCoordinator());
+  if(active.status==='RACING'){
+    const candidates=[];
+    for(const id of [active.targetId,active.secondaryTargetId]){
+      const enemy=id?players.get(id):undefined;
+      if(!enemy?.bot?.journeyProvoked||enemy.lifeState!=='alive')continue;
+      const solution=botFireSolution(enemy,pilot,false);
+      const dx=pilot.position.x-enemy.position.x,dy=pilot.position.y-enemy.position.y,dz=pilot.position.z-enemy.position.z;
+      const distance=Math.max(1,Math.hypot(dx,dy,dz)),forward=hunterForward(enemy);
+      const alignment=(dx*forward.x+dy*forward.y+dz*forward.z)/distance;
+      candidates.push({id:id!,score:(solution.reason?0:2)+alignment+Math.max(0,1-distance/COMBAT_RANGE)});
+    }
+    crossfireFireCoordinators.get(active.attemptId)!.select(candidates,now);
   }
 }
 function ensureJourneySiegeHunter(playerId: string, pilot: PlayerState, active: JourneyAttempt, now: number): void {
@@ -3453,18 +3457,7 @@ function ensureJourneySiegeHunter(playerId: string, pilot: PlayerState, active: 
   provokeJourneyHunter(playerId, pilot, hunterId, now);
   sendJourneyState(playerId, assigned);
 }
-function crossfireEncounterValid(attempt: JourneyAttempt, playerId: string): boolean {
-  const defeated = crossfireDefeatedHunters.get(attempt.attemptId);
-  const validHunter = (id: string | null): boolean => {
-    if (!id) return false;
-    if (defeated?.has(id)) return true;
-    const hunter = players.get(id);
-    return hunter?.lifeState === 'alive' && hunter.bot?.journeyCrossfire === true &&
-      hunter.bot.journeyAttemptId === attempt.attemptId && hunter.bot.journeyTargetPlayerId === playerId;
-  };
-  return attempt.gateIndex === 0 || validHunter(attempt.targetId) &&
-    (attempt.gateIndex < 3 || validHunter(attempt.secondaryTargetId));
-}
+
 function spawnRearGuardEscorts(playerId: string, pilot: PlayerState, attempt: JourneyAttempt, now: number): void {
   if ((attempt.missionId !== journeyDallas08.id && attempt.missionId !== journeyDallas09.id && attempt.missionId !== journeyDallas10.id && attempt.missionId !== journeyDallas12.id) || attempt.status !== 'RACING' || attempt.targetId || attempt.secondaryTargetId) return;
   const mission = attempt.missionId === journeyDallas12.id ? journeyDallas12 : attempt.missionId === journeyDallas10.id ? journeyDallas10 : attempt.missionId === journeyDallas09.id ? journeyDallas09 : journeyDallas08;
@@ -5607,7 +5600,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     const attemptId = playerJourneyAttempts.get(ownerId);
     const active = attemptId ? journeyStore.get(owner.pilotId, attemptId) : undefined;
     if (victim.bot.journeyTargetPlayerId !== ownerId || active?.missionId !== journeyDallas16.id ||
-      active.attemptId !== victim.bot.journeyAttemptId || active.status !== 'RACING' ||
+      active.attemptId !== victim.bot.journeyAttemptId || active.status !== 'RACING' || active.deadlineAt===null || now>=active.deadlineAt || !playerJourneyDfwTakeoff.has(ownerId) ||
       active.targetId !== victimId && active.secondaryTargetId !== victimId) return false;
   }
   if (victim.bot?.journeyRearGuardEscort) {
@@ -5660,9 +5653,9 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   airportRepairStays.delete(victimId);
   const damageMessage = {
     type: 'damage', playerId: victimId, shooterId: ownerId, health: victim.health,
-    maxHealth: victim.trainingOwnerId ? 6 : transportEscortHealth(victim.bot) ?? (victim.bot?.journeyLegendary ? journeyDallas24.bossHealth : victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType)), damage: damageDealt, ...impact,
+    maxHealth: victim.trainingOwnerId ? 6 : victim.bot?.journeyCrossfire ? journeyDallas16.enemyHealth : transportEscortHealth(victim.bot) ?? (victim.bot?.journeyLegendary ? journeyDallas24.bossHealth : victim.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(victim.aircraftType)), damage: damageDealt, ...impact,
   };
-  if ((victim.bot?.journeyRearGuardEscort || victim.bot?.journeyFirstContact || victim.bot?.journeyPursuit) && victim.bot.journeyTargetPlayerId) sendToPlayer(victim.bot.journeyTargetPlayerId, damageMessage);
+  if ((victim.bot?.journeyRearGuardEscort || victim.bot?.journeyFirstContact || victim.bot?.journeyPursuit || victim.bot?.journeyCrossfire) && victim.bot.journeyTargetPlayerId) sendToPlayer(victim.bot.journeyTargetPlayerId, damageMessage);
   else if (victim.trainingOwnerId) sendToPlayer(victim.trainingOwnerId, damageMessage);
   else broadcastToCity(cityId, damageMessage);
   if (victim.health > 0 && victim.bot?.journeyAttemptId) {
@@ -5670,7 +5663,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
       if (attemptId !== victim.bot.journeyAttemptId) continue;
       const pilot = players.get(playerId);
       const active = pilot && journeyStore.get(pilot.pilotId, attemptId);
-      if (active?.targetId === victimId || active?.missionId === journeyDallas23.id &&
+      if (active?.targetId === victimId || active?.missionId===journeyDallas16.id&&active.secondaryTargetId===victimId || active?.missionId === journeyDallas23.id &&
         active.secondaryTargetId === victimId && active.doublePhase === 'FINAL_FIGHT') sendJourneyState(playerId, active);
     }
   }
@@ -5720,7 +5713,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
     crossfireDefeatedHunters.set(attemptId, defeated);
     crossfireFireCoordinators.get(attemptId)?.revoke(victimId, now);
     crossfireHunterMotion.delete(victimId);
-    const active = journeyStore.get(owner.pilotId, attemptId);
+    const active = journeyStore.completeHunter(owner.pilotId,attemptId,victimId,now);
     if (active) sendJourneyState(ownerId, active);
   }
   if (victim.bot?.journeyBreakout && victim.bot.journeyAttemptId) {
@@ -5803,7 +5796,7 @@ function applyCombatHit(ownerId: string, victimId: string, cityId: CityId, now: 
   const destroyedMessage = {
     type: 'destroyed', cause: 'combat', playerId: victimId, position: victim.position, aircraftType: victim.aircraftType, killerId: ownerId, killerDisplayName: killer.displayName, victimDisplayName: victim.displayName, killerScore: killer.score, killerReward: killReward.score,
   };
-  if (victim.bot?.journeyRearGuardEscort || victim.bot?.journeyFirstContact || victim.bot?.journeyPursuit) sendToPlayer(ownerId, destroyedMessage);
+  if (victim.bot?.journeyRearGuardEscort || victim.bot?.journeyFirstContact || victim.bot?.journeyPursuit || victim.bot?.journeyCrossfire) sendToPlayer(ownerId, destroyedMessage);
   else broadcastToCity(cityId, destroyedMessage);
   broadcastLeaderboard(cityId);
   if (victim.bot?.journeyAttemptId) removeBot(victimId);
@@ -6335,7 +6328,7 @@ function botStateMessage(playerId: string, player: PlayerState, type: 'state' | 
     altitudeMeters: Math.max(0, player.position.y - botTerrainHeight(player.cityId, player.position.x, player.position.z)),
     aircraftType: player.aircraftType, cityId: player.cityId, displayName: player.displayName,
     lifeState: player.lifeState, health: player.health,
-    maxHealth: player.trainingOwnerId ? 6 : transportEscortHealth(player.bot) ?? (player.bot?.journeyLegendary ? journeyDallas24.bossHealth : player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)), isBot: true,
+    maxHealth: player.trainingOwnerId ? 6 : player.bot?.journeyCrossfire ? journeyDallas16.enemyHealth : transportEscortHealth(player.bot) ?? (player.bot?.journeyLegendary ? journeyDallas24.bossHealth : player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)), isBot: true,
     botPersonality: player.bot?.personality, boostActive: false,
     ...(player.bot?.journeyRearGuardEscort ? { rearGuardEscort: true } : {}),
     ...(player.npcOpponent ? { equippedCosmetics: player.npcOpponent.cosmetics } : player.bot?.opponent ? { equippedCosmetics: player.bot.opponent.cosmetics } : transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
@@ -6423,6 +6416,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   journeySpawn?: { attemptId: string; targetPlayerId: string; target: PlayerState; leader?: boolean; recovery?: boolean; firstContact?: boolean; surpriseAttack?: boolean; ace?: boolean; legendary?: boolean; siege?: boolean; breakout?: boolean; crossfireOrdinal?: 1 | 2; doubleOrdinal?: 1 | 2; rearGuardOrdinal?: 1 | 2 | 3 | 4; escortMissionId?: string; escortPose?: ReturnType<typeof transportPose> }): string {
   const leaderSpawn = journeySpawn?.leader === true;
   const pursuitSpawn=journeySpawn?.ace===true&&!journeySpawn.legendary;
+  const crossfireSpawn=journeySpawn?.crossfireOrdinal ? journeyDallas16.enemies[journeySpawn.crossfireOrdinal-1]! : undefined;
   const contactMission = journeySpawn?.surpriseAttack ? journeyDallas14 : journeyDallas13;
   const personality = leaderSpawn ? 'casual' : journeySpawn ? 'hunter' : botPersonalities[(nextBotSerial - 1) % botPersonalities.length];
   const airports = botAirports(cityId);
@@ -6430,7 +6424,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   const home = airports[homeAirportIndex];
   const id = `bot:${cityId}:${nextBotSerial}`;
   const name = `${botNames[(nextBotSerial - 1) % botNames.length]}-${20 + ((nextBotSerial * 7) % 80)}`;
-  const botAircraftType = pursuitSpawn ? journeyDallas15.enemyAircraft : journeySpawn?.firstContact ? contactMission.enemyAircraft : leaderSpawn ? 'trainer' : journeySpawn?.rearGuardOrdinal
+  const botAircraftType = crossfireSpawn ? crossfireSpawn.aircraft : pursuitSpawn ? journeyDallas15.enemyAircraft : journeySpawn?.firstContact ? contactMission.enemyAircraft : leaderSpawn ? 'trainer' : journeySpawn?.rearGuardOrdinal
     ? (journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id ? (journeySpawn.escortMissionId === journeyDallas12.id ? journeyDallas12 : journeyDallas10).escortAircraft[journeySpawn.rearGuardOrdinal - 1]
       : journeySpawn.escortMissionId === journeyDallas09.id ? journeyDallas09.escortAircraft[journeySpawn.rearGuardOrdinal - 1]
       : journeyDallas08.escortAircraft[journeySpawn.rearGuardOrdinal - 1]) as AircraftType : botAircraft(personality);
@@ -6446,7 +6440,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   const escortAlong = 500;
   const crossfireBehind = journeySpawn?.crossfireOrdinal === 2 ? 1_850 : 1_500;
   const crossfireSide = journeySpawn?.crossfireOrdinal === 2 ? 900 : -650;
-  const proposedSpawnX = pursuitSpawn ? journeyDallas15.enemySpawn.x : journeySpawn?.firstContact ? contactMission.enemySpawn.x : reinforcementEntry ? reinforcementEntry.x
+  const proposedSpawnX = crossfireSpawn ? crossfireSpawn.x : pursuitSpawn ? journeyDallas15.enemySpawn.x : journeySpawn?.firstContact ? contactMission.enemySpawn.x : reinforcementEntry ? reinforcementEntry.x
     : escortPose ? escortPose.x + Math.cos(escortPose.yaw) * escortSide * escortLateral + Math.sin(escortPose.yaw) * escortAlong
     : journeySpawn?.crossfireOrdinal ? journeySpawn.target.position.x + Math.sin(journeySpawn.target.rotation.y) * crossfireBehind + Math.cos(journeySpawn.target.rotation.y) * crossfireSide
     : journeySpawn?.legendary ? journeySpawn.target.position.x - Math.sin(journeySpawn.target.rotation.y) * 2_600 + Math.cos(journeySpawn.target.rotation.y) * 850
@@ -6460,7 +6454,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     ? downtown!.center.x : defenseSpawn
     ? defenseSpawn.attacker.position.x >= defenseSpawn.territory.center.x ? defenseSpawn.territory.bounds.minX - 500 : defenseSpawn.territory.bounds.maxX + 500
     : home.x;
-  const proposedSpawnZ = pursuitSpawn ? journeyDallas15.enemySpawn.z : journeySpawn?.firstContact ? contactMission.enemySpawn.z : reinforcementEntry ? reinforcementEntry.z
+  const proposedSpawnZ = crossfireSpawn ? crossfireSpawn.z : pursuitSpawn ? journeyDallas15.enemySpawn.z : journeySpawn?.firstContact ? contactMission.enemySpawn.z : reinforcementEntry ? reinforcementEntry.z
     : escortPose ? escortPose.z - Math.sin(escortPose.yaw) * escortSide * escortLateral + Math.cos(escortPose.yaw) * escortAlong
     : journeySpawn?.crossfireOrdinal ? journeySpawn.target.position.z + Math.cos(journeySpawn.target.rotation.y) * crossfireBehind - Math.sin(journeySpawn.target.rotation.y) * crossfireSide
     : journeySpawn?.legendary ? journeySpawn.target.position.z - Math.cos(journeySpawn.target.rotation.y) * 2_600 - Math.sin(journeySpawn.target.rotation.y) * 850
@@ -6475,7 +6469,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     : defenseSpawn ? defenseSpawn.territory.center.z : home.z + home.runwayLength * 0.34;
   const { x: spawnX, z: spawnZ } = journeySpawn && !leaderSpawn && !journeySpawn.rearGuardOrdinal ? boundJourneyHunterPoint({ x: proposedSpawnX, z: proposedSpawnZ })
     : { x: proposedSpawnX, z: proposedSpawnZ };
-  const spawnY = pursuitSpawn ? botTerrainHeight(cityId,spawnX,spawnZ)+journeyDallas15.enemyAltitude : journeySpawn?.firstContact ? botTerrainHeight(cityId, spawnX, spawnZ) + contactMission.enemyAltitude : escortPose ? Math.max(reinforcementEntry?.y ?? escortPose.y + 150, botSafeFloor(cityId, spawnX, spawnZ, journeyAceClearance) + 50)
+  const spawnY = crossfireSpawn ? botTerrainHeight(cityId,spawnX,spawnZ)+crossfireSpawn.altitude : pursuitSpawn ? botTerrainHeight(cityId,spawnX,spawnZ)+journeyDallas15.enemyAltitude : journeySpawn?.firstContact ? botTerrainHeight(cityId, spawnX, spawnZ) + contactMission.enemyAltitude : escortPose ? Math.max(reinforcementEntry?.y ?? escortPose.y + 150, botSafeFloor(cityId, spawnX, spawnZ, journeyAceClearance) + 50)
     : leaderSpawn ? Math.max(...journeyDallas08.leaderRoute.map((point, index) => {
     const previous = journeyDallas08.leaderRoute[(index + journeyDallas08.leaderRoute.length - 1) % journeyDallas08.leaderRoute.length]!;
     return safeBotWaypoint(cityId, { ...previous, y: 0 }, { ...point, y: 0 }, botCruiseClearance).y;
@@ -6515,12 +6509,13 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     journeySurpriseAttack: journeySpawn?.surpriseAttack === true,
     journeyLegendary: journeySpawn?.legendary === true,
     journeyCrossfire: Boolean(journeySpawn?.crossfireOrdinal),
+    journeyCrossfireSide:journeySpawn?.crossfireOrdinal ? journeySpawn.crossfireOrdinal===1?-1:1 : undefined,
     journeyRearGuardEscort: journeySpawn?.rearGuardOrdinal,
     journeyEscortMissionId: journeySpawn?.escortMissionId,
     journeySiege: journeySpawn?.siege === true,
     journeyBreakout: journeySpawn?.breakout === true,
     journeyDoubleOrdinal: journeySpawn?.doubleOrdinal,
-    speed: pursuitSpawn ? journeyDallas15.cruiseSpeed : journeySpawn?.firstContact ? contactMission.cruiseSpeed : defenseSpawn || journeySpawn ? aircraftFlightEnvelope[botAircraftType].stallSpeed * 1.25 : 0,
+    speed: crossfireSpawn ? Math.min(460,aircraftFlightEnvelope[botAircraftType].maxSpeed*.6) : pursuitSpawn ? journeyDallas15.cruiseSpeed : journeySpawn?.firstContact ? contactMission.cruiseSpeed : defenseSpawn || journeySpawn ? aircraftFlightEnvelope[botAircraftType].stallSpeed * 1.25 : 0,
     desiredSpeed: 0, nextDecisionAt: 0, nextFireAt: Date.now() + 1_200,
     respawnAt: 0, homeAirportIndex, combatPhaseUntil: 0, combatWaypointRefreshAt: 0, attackFireAfter: 0, combatTurnSign: 1, bankControl: 0,
     blindZoneEscapeUntil: 0, defenseSpawned: Boolean(defenseSpawn),
@@ -6564,15 +6559,17 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     { x: spawnX + 900, y: spawnY, z: spawnZ + 900 },
     { x: spawnX - 900, y: spawnY, z: spawnZ + 900 },
   ].map(point => safeBotWaypoint(cityId, { x: spawnX, y: spawnY, z: spawnZ }, point, journeyAceClearance));
+  if(crossfireSpawn)bot.route=[{x:spawnX+1500,y:spawnY,z:spawnZ},{x:spawnX,y:spawnY,z:spawnZ+1500},
+    {x:spawnX-1500,y:spawnY,z:spawnZ},{x:spawnX,y:spawnY,z:spawnZ-1500}];
   if(bot.journeyPursuit)pursuitProgress({x:spawnX,y:spawnY,z:spawnZ},bot.journeyPursuit);
   const player: PlayerState = {
     pilotId: id, profile: undefined as unknown as PlayerProfile, entityType: 'player', isBot: true,
     cityId, position: { x: spawnX, y: spawnY, z: spawnZ },
     rotation: { x: 0, y: spawnHeading, z: 0 }, aircraftType: botAircraftType,
-    displayName: journeySpawn?.firstContact ? journeySpawn.surpriseAttack ? 'ATTACKING BLUEJAY' : 'RED NIGHTOWL' : journeySpawn?.rearGuardOrdinal ? journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id
+    displayName: crossfireSpawn ? (journeySpawn!.crossfireOrdinal===1?'RED NIGHTOWL':'BLUEJAY WINGMAN') : journeySpawn?.firstContact ? journeySpawn.surpriseAttack ? 'ATTACKING BLUEJAY' : 'RED NIGHTOWL' : journeySpawn?.rearGuardOrdinal ? journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id
       ? `${(journeySpawn.escortMissionId === journeyDallas12.id ? ['NIGHTOWL', 'FIREHAWK'] : ['NIGHTOWL', 'MAMMOTH'])[journeySpawn.rearGuardOrdinal - 1]} ESCORT` : journeySpawn.escortMissionId === journeyDallas09.id
       ? `${['BLUEJAY', 'MAMMOTH', 'NIGHTOWL', 'VIOLET NIGHTOWL'][journeySpawn.rearGuardOrdinal - 1]} ESCORT` : `BLUEJAY ESCORT ${journeySpawn.rearGuardOrdinal}` : leaderSpawn ? 'AI LEADER' : journeySpawn?.legendary ? 'LEGENDARY ACE' : journeySpawn?.ace ? journeyDallas15.bossName : journeySpawn?.doubleOrdinal ? `HUNTER ${journeySpawn.doubleOrdinal}` : name,
-    score: 0, health: journeySpawn?.firstContact ? contactMission.enemyHealth : journeySpawn?.rearGuardOrdinal ? journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id
+    score: 0, health: crossfireSpawn ? journeyDallas16.enemyHealth : journeySpawn?.firstContact ? contactMission.enemyHealth : journeySpawn?.rearGuardOrdinal ? journeySpawn.escortMissionId === journeyDallas10.id || journeySpawn.escortMissionId === journeyDallas12.id
       ? (journeySpawn.escortMissionId === journeyDallas12.id ? journeyDallas12 : journeyDallas10).escortHealth[journeySpawn.rearGuardOrdinal - 1]! : journeySpawn.escortMissionId === journeyDallas09.id
       ? journeyDallas09.escortHealth[journeySpawn.rearGuardOrdinal - 1]! : journeyDallas08.escortHealth : journeySpawn?.legendary ? journeyDallas24.bossHealth : journeySpawn?.ace ? journeyDallas15.bossHealth : maxHealthForAircraft(botAircraftType), lifeState: 'alive', hasRespawnTransform: true,
     lastFireAt: 0, spawnProtectedUntil: Date.now() + 1_500, velocity: { x: 0, y: 0, z: 0 }, boostActive: false,
@@ -6580,15 +6577,15 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
     chaosQaEnabled: false, tutorialMode:false, territoryIds: new Set(), bot,
   };
   if (!leaderSpawn && (defenseSpawn || personality === 'hunter' || journeySpawn?.rearGuardOrdinal)) {
-    const livery = pursuitSpawn ? journeyDallas15.enemyLivery : transportEscortCosmetics(bot)?.[`livery:${botAircraftType}`];
+    const livery = crossfireSpawn ? crossfireSpawn.livery : pursuitSpawn ? journeyDallas15.enemyLivery : transportEscortCosmetics(bot)?.[`livery:${botAircraftType}`];
     bot.opponent = createOpponent({ aircraft:botAircraftType,livery,
-      level:pursuitSpawn ? 'MEDIUM' : journeySpawn?.legendary ? 'LEGENDARY' : defenseSpawn || journeySpawn?.ace || journeySpawn?.doubleOrdinal || journeySpawn?.siege ? 'HARD' : journeySpawn?.firstContact && !journeySpawn.surpriseAttack ? 'EASY' : 'MEDIUM',
+      level:crossfireSpawn ? 'HARD' : pursuitSpawn ? 'MEDIUM' : journeySpawn?.legendary ? 'LEGENDARY' : defenseSpawn || journeySpawn?.ace || journeySpawn?.doubleOrdinal || journeySpawn?.siege ? 'HARD' : journeySpawn?.firstContact && !journeySpawn.surpriseAttack ? 'EASY' : 'MEDIUM',
       cityId,position:player.position,rotation:player.rotation,speed:bot.speed,health:player.health,
       encounterId:journeySpawn?.attemptId,ownerId:journeySpawn?.targetPlayerId,
       personality:pursuitSpawn?'defensive':undefined,
       behavior:pursuitSpawn ? 'objective' : journeySpawn?.surpriseAttack ? 'ambush' : defenseSpawn || journeySpawn?.siege ? 'defend' : journeySpawn?.rearGuardOrdinal ? 'escort' : journeySpawn ? 'patrol' : 'pursuit' });
   }
-  if (journeySpawn?.firstContact || pursuitSpawn) player.velocity = { x: -Math.sin(spawnHeading) * bot.speed, y: 0, z: -Math.cos(spawnHeading) * bot.speed };
+  if (journeySpawn?.firstContact || pursuitSpawn || crossfireSpawn) player.velocity = { x: -Math.sin(spawnHeading) * bot.speed, y: 0, z: -Math.cos(spawnHeading) * bot.speed };
   players.set(id, player);
   if (journeySpawn) sendToPlayer(journeySpawn.targetPlayerId, botStateMessage(id, player, 'playerState'));
   else broadcastToCity(cityId, botStateMessage(id, player, 'playerState'));
@@ -7014,6 +7011,7 @@ function provokeJourneyHunter(pilotId: string, pilot: PlayerState, targetId: str
     ? attempt.doublePhase !== 'FIRST_FIGHT' || attempt.targetId !== targetId
     : attempt.doublePhase !== 'FINAL_FIGHT' || attempt.secondaryTargetId !== targetId)) return;
   if ((attempt.missionId === journeyDallas13.id || attempt.missionId === journeyDallas14.id) && Math.hypot(pilot.position.x - hunter.position.x, pilot.position.z - hunter.position.z) > journeyDallas13.aggressionDistance) return;
+  if(attempt.missionId===journeyDallas16.id&&(!playerJourneyDfwTakeoff.has(pilotId)||Math.hypot(pilot.position.x-hunter.position.x,pilot.position.z-hunter.position.z)>journeyDallas16.aggressionDistance))return;
   if (attempt.missionId === journeyDallas15.id &&
     (!playerJourneyAddisonTakeoff.has(pilotId) || playerJourneyRunwayPrep.has(pilotId))) return;
   bot.journeyProvoked = true;
@@ -7137,6 +7135,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     ? [...projectiles.values()].filter(shot => shot.ownerId === target![0] && shot.cityId === player.cityId) : [];
   const plan = planOpponentTactics(bot.opponent, {
     enemy: player, target: targetPlayer, targetId: target[0], speed: bot.speed, now,
+    supportSide:bot.journeyCrossfire&&(crossfireDefeatedHunters.get(bot.journeyAttemptId!)?.size??0)===0&&crossfireFireCoordinators.get(bot.journeyAttemptId!)?.activeShooterId!==botId ? bot.journeyCrossfireSide : undefined,
     roaming: Boolean(player.skyDuelPracticeOwnerId || !bot.journeyAttemptId && !bot.defenseTerritoryId),
     firingSolution: !botFireSolution(player, targetPlayer, Boolean(bot.defenseTerritoryId)).reason,
     lockedByTarget: targetPlayer.lockedTargetId === botId, bullets,
@@ -7264,9 +7263,9 @@ function updateBots(now: number, expertOnly = false): void {
     const canAttack = (!bot.journeyAttemptId || bot.journeyProvoked === true) &&
       (!bot.opponent || Boolean(combatTarget && opponentReactionReady(bot.opponent,combatTarget[0],now))) &&
       (!bot.journeySurpriseAttack || ambushCanFire(bot.ambush, now));
-    if (bot.journeyCrossfire && bot.journeyAttemptId && (!canAttack || !combatTarget || !combatSolution || combatSolution.reason))
+    if (bot.journeyCrossfire && bot.journeyAttemptId && (!canAttack || !combatTarget))
       crossfireFireCoordinators.get(bot.journeyAttemptId)?.revoke(botId, now);
-    const botLockTargetId = canAttack && combatTarget && combatSolution && !combatSolution.reason &&
+    const botLockTargetId = (!bot.journeyCrossfire||crossfireFireCoordinators.get(bot.journeyAttemptId!)?.activeShooterId===botId) && canAttack && combatTarget && combatSolution && !combatSolution.reason &&
       combatTarget[1].lifeState === 'alive' && now >= combatTarget[1].spawnProtectedUntil
       ? combatTarget[0]
       : undefined;
@@ -8441,7 +8440,7 @@ server.on('connection', (socket, request) => {
           botPersonality: player.bot?.personality,
           boostActive: player.boostActive,
           health: player.health,
-          maxHealth: player.trainingOwnerId ? 6 : transportEscortHealth(player.bot) ?? (player.bot?.journeyLegendary ? journeyDallas24.bossHealth : player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)),
+          maxHealth: player.trainingOwnerId ? 6 : player.bot?.journeyCrossfire ? journeyDallas16.enemyHealth : transportEscortHealth(player.bot) ?? (player.bot?.journeyLegendary ? journeyDallas24.bossHealth : player.bot?.journeyAce ? journeyDallas15.bossHealth : maxHealthForAircraft(player.aircraftType)),
           ...(player.bot?.journeyRearGuardEscort ? { rearGuardEscort: true } : {}),
           ...(player.npcOpponent ? { equippedCosmetics: player.npcOpponent.cosmetics } : player.bot?.opponent ? { equippedCosmetics: player.bot.opponent.cosmetics } : transportEscortCosmetics(player.bot) ? { equippedCosmetics: transportEscortCosmetics(player.bot) } : {}),
         })),
@@ -9347,7 +9346,7 @@ server.on('connection', (socket, request) => {
       if (journeyAttemptId && (player.lifeState === 'alive' || (currentJourney?.missionId === journeyDallas01.id || currentJourney?.missionId === journeyDallas02.id || currentJourney?.missionId === journeyDallas03.id || currentJourney?.missionId === journeyDallas04.id || currentJourney?.missionId === journeyDallas05.id || currentJourney?.missionId === journeyDallas06.id) &&
         player.lifeState === 'respawning') && !firstValidTransform && flight?.airborne) {
         const active = journeyStore.get(player.pilotId, journeyAttemptId);
-        const tookOffFromMissionAirport = active?.missionId===journeyDallas15.id ? playerJourneyAddisonTakeoff.has(playerId) : active?.missionId === journeyDallas07.id || active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas09.id || active?.missionId === journeyDallas10.id || active?.missionId === journeyDallas11.id || active?.missionId === journeyDallas12.id ? true
+        const tookOffFromMissionAirport = active?.missionId===journeyDallas16.id ? playerJourneyDfwTakeoff.has(playerId) : active?.missionId===journeyDallas15.id ? playerJourneyAddisonTakeoff.has(playerId) : active?.missionId === journeyDallas07.id || active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas09.id || active?.missionId === journeyDallas10.id || active?.missionId === journeyDallas11.id || active?.missionId === journeyDallas12.id ? true
           : active?.missionId === journeyDallas01.id || active?.missionId === journeyDallas02.id || active?.missionId === journeyDallas03.id || active?.missionId === journeyDallas04.id || active?.missionId === journeyDallas05.id || active?.missionId === journeyDallas06.id || active?.missionId === journeyDallas11.id || active?.missionId === journeyDallas19.id || active?.missionId === journeyDallas22.id ? true
           : active?.missionId === journeyDallas08.id || active?.missionId === journeyDallas12.id || active?.missionId === journeyDallas14.id || active?.missionId === journeyDallas15.id || active?.missionId === journeyDallas16.id || active?.missionId === journeyDallas18.id || active?.missionId === journeyDallas20.id || active?.missionId === journeyDallas21.id || active?.missionId === journeyDallas23.id || active?.missionId === journeyDallas24.id
             ? playerJourneyLoveTakeoff.has(playerId) : playerJourneyDfwTakeoff.has(playerId);
@@ -9355,6 +9354,9 @@ server.on('connection', (socket, request) => {
         else if ((active?.missionId === journeyDallas13.id || active?.missionId === journeyDallas14.id) && active.status === 'APPROACH' && journeyCountdownComplete.has(journeyAttemptId)) {
           const started = journeyStore.startFirstContact(player.pilotId, journeyAttemptId, stateNow);
           if (started) sendJourneyState(playerId, started);
+        }
+        else if(active?.missionId===journeyDallas16.id&&active.status==='APPROACH'&&journeyCountdownComplete.has(journeyAttemptId)){
+          const started=journeyStore.startDoubleThreat(player.pilotId,journeyAttemptId,stateNow);if(started)sendJourneyState(playerId,started);
         }
         else if (active?.missionId === journeyDallas15.id && active.status === 'APPROACH' && active.targetId && journeyCountdownComplete.has(journeyAttemptId)) {
           const started=journeyStore.startPursuit(player.pilotId,journeyAttemptId,stateNow);
@@ -9366,13 +9368,9 @@ server.on('connection', (socket, request) => {
           message.position.z <= journeyDallas22.approachRestartZ) {
           const reset = journeyStore.resetPerfectApproach(player.pilotId, journeyAttemptId, active.approachCycle, null, stateNow);
           if (reset) sendJourneyState(playerId, reset);
-        } else if (active && journeyCountdownComplete.has(journeyAttemptId) && (active.missionId === journeyDallas01.id || active.missionId === journeyDallas02.id || active.missionId === journeyDallas03.id || active.missionId === journeyDallas04.id || active.missionId === journeyDallas05.id || active.missionId === journeyDallas06.id || active.missionId === journeyDallas16.id || active.missionId === journeyDallas20.id || active.missionId === journeyDallas22.id || active.missionId === journeyDallas24.id && active.legendaryPhase === 'GATES') &&
+        } else if (active && journeyCountdownComplete.has(journeyAttemptId) && (active.missionId === journeyDallas01.id || active.missionId === journeyDallas02.id || active.missionId === journeyDallas03.id || active.missionId === journeyDallas04.id || active.missionId === journeyDallas05.id || active.missionId === journeyDallas06.id || active.missionId === journeyDallas20.id || active.missionId === journeyDallas22.id || active.missionId === journeyDallas24.id && active.legendaryPhase === 'GATES') &&
           (active.status === 'APPROACH' || active.status === 'RACING')) {
-          if (active.missionId === journeyDallas16.id && !crossfireEncounterValid(active, playerId)) {
-            failPlayerJourney(playerId, 'CROSSFIRE_INTERRUPTED', stateNow);
-            return;
-          }
-          const mission = active.missionId === journeyDallas24.id ? journeyDallas24 : active.missionId === journeyDallas22.id ? journeyDallas22 : active.missionId === journeyDallas20.id ? journeyDallas20 : active.missionId === journeyDallas16.id ? journeyDallas16 : active.missionId === journeyDallas06.id ? journeyDallas06 : active.missionId === journeyDallas05.id ? journeyDallas05 : active.missionId === journeyDallas04.id ? journeyDallas04 : active.missionId === journeyDallas03.id ? journeyDallas03 : active.missionId === journeyDallas02.id ? journeyDallas02 : journeyDallas01;
+          const mission = active.missionId === journeyDallas24.id ? journeyDallas24 : active.missionId === journeyDallas22.id ? journeyDallas22 : active.missionId === journeyDallas20.id ? journeyDallas20 : active.missionId === journeyDallas06.id ? journeyDallas06 : active.missionId === journeyDallas05.id ? journeyDallas05 : active.missionId === journeyDallas04.id ? journeyDallas04 : active.missionId === journeyDallas03.id ? journeyDallas03 : active.missionId === journeyDallas02.id ? journeyDallas02 : journeyDallas01;
           const gate = mission.gates[active.gateIndex];
           const crossing = gate ? journeyGateCrossing(previousAcceptedPosition, message.position, active.gateIndex,
             dallasTerrain.elevationAt(gate.x, gate.z), mission) : false;
@@ -9396,10 +9394,6 @@ server.on('connection', (socket, request) => {
               : journeyStore.acceptGate(player.pilotId, journeyAttemptId, active.gateIndex, stateNow);
             if (advanced) {
               sendJourneyState(playerId, advanced);
-              if (advanced.missionId === journeyDallas16.id) {
-                if (advanced.status === 'COMPLETED') removeJourneyHunter(advanced);
-                else if (advanced.gateIndex === 1 || advanced.gateIndex === 3) ensureJourneyCrossfire(playerId, player, advanced, stateNow);
-              }
               if (advanced.missionId === journeyDallas24.id && advanced.legendaryPhase === 'ACE')
                 ensureJourneyLegendary(playerId, player, advanced, stateNow);
               if (advanced.status === 'COMPLETED') {
