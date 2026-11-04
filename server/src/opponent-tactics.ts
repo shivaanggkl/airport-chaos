@@ -76,16 +76,6 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   m.nextDecision=now+Math.min(250,profile.trackingMs);
   const dodge=chooseOpponentEvasion(runtime,enemy,input.speed,input.bullets??[],now,input.floorAt,input.inside,expert?target:undefined);
   const f=forward(enemy.rotation.y), tf=forward(target.rotation.y);
-  if(m.travelGoal&&!input.roaming){m.travelGoal=undefined;m.plan.until=now;}
-  if(m.travelGoal) {
-    const separation=horizontal({x:target.position.x-enemy.position.x,y:0,z:target.position.z-enemy.position.z});
-    if(now>=(m.travelUntil??0)||separation>=(m.travelRange??0)) {
-      m.travelGoal=undefined;m.nextExcursionAt=now+8000;m.plan.until=now;
-    } else if(dodge) {
-      return m.plan={tactic:'defensiveBreak',waypoint:input.safeWaypoint?.(enemy.position,dodge)??dodge,cruise:input.cruise,turnSign:m.plan.turnSign,until:runtime.dodgeUntil};
-    } else if(now<runtime.dodgeUntil) return m.plan;
-    else return m.plan={tactic:'disengage',waypoint:m.travelGoal,cruise:input.cruise,turnSign:m.plan.turnSign,until:m.travelUntil!};
-  }
   const delta={x:target.position.x-enemy.position.x,y:target.position.y-enemy.position.y,z:target.position.z-enemy.position.z};
   const range=Math.max(1,horizontal(delta)), direction={x:delta.x/range,y:0,z:delta.z/range};
   const nose=dot(f,direction), targetNose=-dot(tf,direction);
@@ -97,6 +87,26 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   const threatGeometry=Math.hypot(range,delta.y)<COMBAT_RANGE*1.2 && targetGunAlignment>Math.cos(.22+.14*intelligence.awareness);
   if(threatGeometry||input.lockedByTarget) m.threatSince??=now; else m.threatSince=undefined;
   const danger=m.threatSince!==undefined && now-m.threatSince>=profile.reactionMs;
+  if(m.travelGoal&&!input.roaming){m.travelGoal=undefined;m.plan.until=now;}
+  if(m.travelGoal) {
+    const separation=horizontal({x:target.position.x-enemy.position.x,y:0,z:target.position.z-enemy.position.z});
+    if(now>=(m.travelUntil??0)||separation>=(m.travelRange??0)) {
+      m.travelGoal=undefined;m.nextExcursionAt=now+8000;m.plan.until=now;
+    } else if(dodge) {
+      return m.plan={tactic:'defensiveBreak',waypoint:input.safeWaypoint?.(enemy.position,dodge)??dodge,cruise:input.cruise,turnSign:m.plan.turnSign,until:runtime.dodgeUntil};
+    } else if(now<runtime.dodgeUntil) return m.plan;
+    else if(expert && danger && now-runtime.dodgeAt>=profile.dodgeCooldownMs) {
+      // A departure commits to distance, not a straight line through a firing cone.
+      // Keep its original goal/deadline while flying a real, envelope-limited break.
+      const breakPoint=opponentDodge(enemy.aircraftType,enemy,input.speed,[],input.floorAt,input.inside,target);
+      if(breakPoint) {
+        runtime.dodgeAt=now;runtime.dodgeUntil=now+1200;
+        return m.plan={tactic:'defensiveBreak',waypoint:input.safeWaypoint?.(enemy.position,breakPoint)??breakPoint,cruise:input.cruise,turnSign:m.plan.turnSign,until:runtime.dodgeUntil};
+      }
+      return m.plan={tactic:'disengage',waypoint:m.travelGoal,cruise:input.cruise,turnSign:m.plan.turnSign,until:m.travelUntil!};
+    }
+    else return m.plan={tactic:'disengage',waypoint:m.travelGoal,cruise:input.cruise,turnSign:m.plan.turnSign,until:m.travelUntil!};
+  }
   // A committed escape persists until useful separation exists, including against a circling target.
   const closeRange=expert?Math.max(space.radius*.65,input.speed*space.rollSeconds*.65):space.separation;
   const close=range<closeRange, passed=nose<-.2 && range<closeRange;

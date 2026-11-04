@@ -1195,7 +1195,7 @@ body:has(.app-shell-header:not([hidden])) #tutorial-help { display: none; }
 body:has(.app-shell-header.is-page:not([hidden])) .garage-equipped-page .garage-equipped-heading { display: none; }
 body:has(.app-shell-header.is-page:not([hidden])) .garage-overlay.is-equipped-page .garage-equipped-page { grid-template-rows: minmax(0, 1fr); }
 body:has(.app-shell-header.is-page:not([hidden])) .garage-equipped-page .store-detail-panel { height: min(500px, calc(100dvh - var(--hub-header-total) - 30px - var(--safe-area-bottom))); }
-body:has(.app-shell-header:not([hidden])) :is(.garage-overlay, .pilot-menu-overlay) {
+body:has(.app-shell-header:not([hidden])) :is(.garage-overlay, .pilot-menu-overlay:not(.is-flight-menu-overlay)) {
   padding-top: calc(var(--app-shell-header-total) + 16px);
   background: radial-gradient(ellipse at 50% 20%, rgb(53 214 255 / 18%), transparent 53%), radial-gradient(ellipse at 95% 90%, rgb(142 99 255 / 15%), transparent 50%), linear-gradient(165deg, var(--ac-surface), var(--ac-bg-deep));
 }

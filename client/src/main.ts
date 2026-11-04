@@ -7188,7 +7188,7 @@ function refreshPilotMenu(): void {
 }
 
 function openPilotMenu(section: PilotMenuSection = flightMenuMode ? defaultFlightMenuSection : 'MISSIONS'): void {
-  if (aircraftGarage.isOpen() || flightExitPending) return;
+  if (aircraftGarage.isOpen() || flightExitPending || skyDuelMode && !skyDuelUi?.isMatchActive()) return;
   if (flightMenuMode && !['MISSION', 'CONTROLS', 'AUDIO', 'HELP'].includes(section)) section = defaultFlightMenuSection;
   if (flightMenuMode !== 'single' && section === 'MISSION') section = defaultFlightMenuSection;
   if (worldMap.isOpen()) worldMap.setOpen(false);
@@ -12076,7 +12076,16 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       runStarted = false;
       resetFlightLaunchInput();
     }
-    if (message.type === 'skyDuelResult') { runStarted = false; airplane.visible = true; }
+    if (message.type === 'skyDuelResult' && !skyDuelUi?.isMatchActive()) {
+      // The server clock continues while the multiplayer flight menu is open.
+      // Results own the screen; never leave a live-flight action over them.
+      pilotMenu.close(false);
+      closeFlightDialog();
+      clearHeldActions();
+      mobileInput.reset();
+      runStarted = false;
+      airplane.visible = true;
+    }
   } else if (message.type === 'profile') {
     legendaryPilotUnlocked = message.legendaryPilot === true;
     if (!applyServerProfile(message.profile, message.rewardId, message.selectionRevision, message.equipRequestId, message.creditReason, message.preserveActiveAircraft === true, message.serverReset === true, message.creditReceipt)) {

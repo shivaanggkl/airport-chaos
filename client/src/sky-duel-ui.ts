@@ -158,6 +158,8 @@ export class SkyDuelUi {
       now >= this.launchCountdownAt && now < this.launchEndsAt;
   }
 
+  isMatchActive(): boolean { return this.phase === 'active'; }
+
   isRunwayLaunchActive(): boolean { return this.phase === 'launch'; }
   blocksFlightInput(): boolean {
     return Boolean(this.matchId) && (this.phase === 'found' || this.phase === 'collecting' ||

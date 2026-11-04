@@ -227,3 +227,60 @@ test('a faster roaming Legendary aircraft commits a full-speed firing pass while
  const limited=opponent('LEGENDARY','fighter');planOpponentTactics(limited,{...input,roaming:false});
  const mission=planOpponentTactics(limited,{...input,roaming:false,now:500});assert.ok(mission.cruise<input.cruise,'authored encounter pacing stays intact');
 });
+
+test('Legendary reacts to a newly acquired lock during a departure without cancelling or extending the route',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',2000);
+ target.rotation.y=Math.PI;
+ const input={enemy,target,targetId:'pilot',speed:600,now:0,cruise:aircraftFlightEnvelope.fighter.maxSpeed,firingSolution:false,floorAt:floor,roaming:true};
+ planOpponentTactics(runtime,input);planOpponentTactics(runtime,{...input,now:500});
+ for(let i=0;i<5;i++)recordOpponentShot(runtime);
+ planOpponentTactics(runtime,{...input,now:5000});
+ const goal=runtime.tactics!.travelGoal,deadline=runtime.tactics!.travelUntil;
+ assert.ok(goal);assert.equal(planOpponentTactics(runtime,{...input,now:5100}).tactic,'disengage');
+ const detected=planOpponentTactics(runtime,{...input,now:5200,lockedByTarget:true});
+ assert.equal(detected.tactic,'disengage','a lock does not cause an instant reaction');
+ const breakPlan=planOpponentTactics(runtime,{...input,now:5300,lockedByTarget:true});
+ assert.equal(breakPlan.tactic,'defensiveBreak');assert.notDeepEqual(breakPlan.waypoint,goal);
+ assert.equal(breakPlan.cruise,input.cruise);assert.equal(runtime.dodgeAt,5300);
+ assert.equal(runtime.tactics!.travelGoal,goal);assert.equal(runtime.tactics!.travelUntil,deadline);
+ const held=planOpponentTactics(runtime,{...input,now:5500,lockedByTarget:true});
+ assert.equal(held,breakPlan);assert.equal(runtime.dodgeAt,5300,'no per-tick jitter');
+ const motion={speed:600,bankControl:0,combatTurnSign:breakPlan.turnSign,expertControl:true};
+ const before=structuredClone(enemy);
+ for(let i=0;i<24;i++)advanceHunterFlight(enemy,motion,breakPlan.waypoint,breakPlan.cruise,.05,floor);
+ assert.ok(Math.abs(wrap(enemy.rotation.y-before.rotation.y))>.15,'banked break changes the actual flight path');
+ assert.ok(Math.hypot(enemy.position.x-before.position.x,enemy.position.z-before.position.z)>500,'forward motion is preserved');
+ assert.ok(enemy.position.y>floor());
+ const resumed=planOpponentTactics(runtime,{...input,speed:motion.speed,now:6500});
+ assert.equal(resumed.tactic,'disengage');assert.equal(resumed.waypoint,goal);
+ assert.equal(runtime.tactics!.travelUntil,deadline);assert.equal(runtime.tactics!.threatSince,undefined);
+ planOpponentTactics(runtime,{...input,now:deadline!+100,lockedByTarget:true});
+ assert.equal(runtime.tactics!.travelGoal,undefined,'lock evasion cannot make the departure endless');
+});
+
+test('a locked departure breaks the firing line and still creates distance from a moving pursuer',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',2000);
+ target.rotation.y=Math.PI;target.velocity={x:0,y:0,z:-800};
+ const input={enemy,target,targetId:'pilot',speed:600,now:0,cruise:aircraftFlightEnvelope.fighter.maxSpeed,firingSolution:false,floorAt:floor,roaming:true};
+ planOpponentTactics(runtime,input);planOpponentTactics(runtime,{...input,now:500});
+ for(let i=0;i<5;i++)recordOpponentShot(runtime);
+ planOpponentTactics(runtime,{...input,now:5000});
+ const deadline=runtime.tactics!.travelUntil!;target.rotation.y=0;
+ const motion={speed:600,bankControl:0,combatTurnSign:1,expertControl:true};
+ let brokeLine=false,leftRange=false,reacted=false;
+ for(let now=5100;now<deadline;now+=50) {
+  const dx=enemy.position.x-target.position.x,dy=enemy.position.y-target.position.y,dz=enemy.position.z-target.position.z;
+  const range=Math.hypot(dx,dy,dz),aligned=-dz/range>Math.cos(.36);
+  const plan=planOpponentTactics(runtime,{...input,speed:motion.speed,now,lockedByTarget:range<COMBAT_RANGE&&aligned});
+  reacted ||= plan.tactic==='defensiveBreak';
+  brokeLine ||= reacted&&!aligned;leftRange ||= range>COMBAT_RANGE;
+  const yaw=enemy.rotation.y;motion.combatTurnSign=plan.turnSign;
+  advanceHunterFlight(enemy,motion,plan.waypoint,plan.cruise,.05,floor);
+  assert.ok(Math.abs(wrap(enemy.rotation.y-yaw))<.25,'no heading snap');
+  assert.ok(motion.speed<=input.cruise+.001);assert.ok(enemy.position.y>floor());
+  target.position.z+=target.velocity.z*.05;
+ }
+ assert.ok(reacted&&brokeLine,'physical motion must move out of the pursuer firing cone');
+ assert.ok(leftRange,'evasion must retain useful outbound progress');
+ assert.equal(runtime.tactics!.travelUntil,deadline,'no endlessly renewed escape timer');
+});

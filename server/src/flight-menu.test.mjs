@@ -62,3 +62,22 @@ test('flight tabs reuse persisted Settings controls, audio and compact landscape
   assert.match(css, /\.pilot-menu-card\.is-flight-menu > \.pilot-menu-content \{[\s\S]*overflow: hidden/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 450px\)/);
 });
+
+test('Sky Duel results dismiss live-flight overlays without resuming or forfeiting the finished match', async () => {
+  const { runInNewContext } = await import('node:vm');
+  const start = main.lastIndexOf('    skyDuelUi?.handle(message);');
+  const end = main.indexOf("  } else if (message.type === 'profile')", start);
+  const handler = main.slice(start, end);
+  for (const active of [false, true]) {
+    const calls = [];
+    const context = { message: {type:'skyDuelResult'}, runStarted:true, airplane:{visible:false},
+      skyDuelUi:{handle:()=>calls.push('result'),isMatchActive:()=>active,hasAbandonedSearch:()=>false},
+      pilotMenu:{close:notify=>calls.push(['close',notify])},closeFlightDialog:()=>calls.push('dialog'),
+      clearHeldActions:()=>calls.push('keys'),mobileInput:{reset:()=>calls.push('touch')} };
+    runInNewContext(handler,context);
+    assert.equal(context.runStarted,active);
+    assert.deepEqual(calls,active?['result']:['result',['close',false],'dialog','keys','touch']);
+  }
+  assert.match(main,/flightExitPending \|\| skyDuelMode && !skyDuelUi\?\.isMatchActive\(\)/);
+  assert.match(css,/body:has\(\.app-shell-header:not\(\[hidden\]\)\) :is\(\.garage-overlay, \.pilot-menu-overlay:not\(\.is-flight-menu-overlay\)\)/);
+});
