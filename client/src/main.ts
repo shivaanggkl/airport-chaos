@@ -2914,7 +2914,7 @@ function updateJourneyHud(): void {
     if (journeyHudObjective) journeyHudObjective.textContent = 'Destroy the monster';
     if (journeyHudProgress) journeyHudProgress.textContent = '';
     if (journeyHudTarget) journeyHudTarget.hidden = true;
-    if (journeyHudTimer) journeyHudTimer.hidden = true;
+    if(journeyHudTimer){journeyHudTimer.hidden=false;journeyHudTimer.textContent=`MONSTER: ${Math.ceil(journeyAttempt.targetHealth??2500)} / 2500 HP`;}
     const percent = Math.max(0, Math.min(100, (journeyAttempt.targetHealth ?? journeyDallas19.bossHealth) / journeyDallas19.bossHealth * 100));
     monsterBossHud.style.setProperty('--monster-health', `${percent}%`);
     monsterBossHud.querySelector('span')!.textContent = `${Math.round(percent)}%`;
@@ -11323,6 +11323,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   if (message.type === 'monsterState') {
     if (journeyAttempt?.missionId === journeyDallas19.id && journeyAttempt.attemptId === message.attemptId) {
       monsterView?.setState(message);
+      if(message.titan?.ability&&['WARNING','WINDUP'].includes(message.titan.ability.stage)&&journeyHudObjective)journeyHudObjective.textContent=`DODGE · ${message.titan.ability.id.replaceAll('-',' ').toUpperCase()}`;
+      else if(journeyHudObjective)journeyHudObjective.textContent='DESTROY THE MONSTER';
       if (missionObjective?.id === `${message.attemptId}:monster`)
         missionObjective.position.set(message.x, message.y + journeyDallas19.monster.height * .6, message.z);
     }

@@ -1,3 +1,5 @@
+import {monsterDebrisOffsets} from '../../shared/m19-environment.mjs';
+import type {TitanPresentation} from '../../shared/titan-pose.mjs';
 import * as THREE from 'three';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
@@ -14,6 +16,7 @@ export type MonsterStateMessage = {
   handSwipe?: { side: 'left' | 'right'; target: {x:number;y:number;z:number}; startedAt: number } | null;
   hitPosition?: { x: number; y: number; z: number };
   shots: { id: number; x: number; y: number; z: number; dx?:number; dy?:number; dz?:number; speed?:number; bornAt?:number }[];
+  titan?:TitanPresentation&{destroyedSites?:readonly number[];claimedDebris?:readonly string[];events?:readonly {id:string;kind:string;type:string;position:{x:number;y:number;z:number}}[]};
   serverNow: number;
 };
 
@@ -82,7 +85,7 @@ class MonsterParticles {
 }
 
 type Fireball = { group:THREE.Group; material:THREE.ShaderMaterial; target:THREE.Vector3;
-  direction:THREE.Vector3; id:number|null; smokeTime:number; speed:number; spawnPending:boolean };
+  direction:THREE.Vector3; id:number|string|null; smokeTime:number; speed:number; spawnPending:boolean };
 function createFireball(): Fireball {
   const material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
     uniforms:{time:{value:0},nearFade:{value:1}},
@@ -99,13 +102,14 @@ function createFireball(): Fireball {
   const group=new THREE.Group();group.name='monster-flaming-fireball';group.visible=false;
   const core=new THREE.Mesh(coreGeometry,coreMaterial);core.name='monster-fireball-damaging-core';core.scale.setScalar(22);
   const flame=new THREE.Mesh(flameGeometry,material);flame.name='monster-fireball-flame-trail';
-  group.add(core,flame);return {group,material,target:new THREE.Vector3(),direction:new THREE.Vector3(),id:null,smokeTime:0,speed:0,spawnPending:false};
+  const rock=new THREE.Mesh(new THREE.BoxGeometry(32,28,36),new THREE.MeshStandardMaterial({color:0x68635a,roughness:1}));rock.name='mission-owned-thrown-debris';rock.visible=false;
+  group.add(core,flame,rock);return {group,material,target:new THREE.Vector3(),direction:new THREE.Vector3(),id:null,smokeTime:0,speed:0,spawnPending:false};
 }
 
 export class MonsterArrivalView {
   private readonly creature: MonsterArrivalModel;
   readonly ready: Promise<void>;
-  private readonly pool=Array.from({length:4},()=>createFireball());
+  private readonly pool=Array.from({length:8},()=>createFireball());
   private readonly particles=new MonsterParticles();
   private readonly target=new THREE.Vector3();
   private readonly mouthWorld=new THREE.Vector3();
@@ -115,6 +119,17 @@ export class MonsterArrivalView {
   private readonly camera?: THREE.Camera;
   private state:MonsterStateMessage|null=null;
   private elapsed=0;
+  private readonly beamMaterial=new THREE.MeshBasicMaterial({color:0x66ddff,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending});
+  private readonly beamGeometry=new THREE.CylinderGeometry(1,1,1,10);
+  private readonly beam=new THREE.Mesh(this.beamGeometry,this.beamMaterial);
+  private readonly waveGeometry=new THREE.TorusGeometry(1,.025,4,48);
+  private readonly waveMaterial=new THREE.MeshBasicMaterial({color:0xffaa33,transparent:true,opacity:.6,depthWrite:false,side:THREE.DoubleSide});
+  private readonly wave=new THREE.Mesh(this.waveGeometry,this.waveMaterial);
+  private rubble:THREE.Mesh[]=[];
+  private readonly titanEvents=new Set<string>();
+  private readonly roarGeometry=new THREE.RingGeometry(.92,1,48,1,-.9,1.8);
+  private readonly roar=new THREE.Mesh(this.roarGeometry,this.waveMaterial);
+
   private swipeAgeMs=0;
   private lastHitSequence=0;
   private hitPulse=0;
@@ -138,14 +153,18 @@ export class MonsterArrivalView {
       journeyDallas19.monster.z-journeyDallas19.airborneSpawn.z);
     this.creature.onFootContact=(p)=>{this.particles.emit(p.x,p.y,p.z,true,10,65,1.5);this.onFootfall?.();};
     this.creature.onLanding=(p)=>{this.particles.emit(p.x,p.y,p.z,true,14,95,1.5);this.onFootfall?.();};
+    this.beam.name='titan-authoritative-energy-beam';this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;this.roar.visible=false;
     this.mouthFire.name='monster-mouth-warning';this.mouthFire.scale.setScalar(16);this.mouthFire.visible=false;
     // World-space effect: it must never inherit the configured skeletal scale.
-    scene.add(this.creature.root,this.mouthFire,this.particles.points,...this.pool.map(p=>p.group));
+    scene.add(this.creature.root,this.mouthFire,this.particles.points,...this.pool.map(p=>p.group),this.beam,this.wave,this.roar);
     void this.ready.catch((error:unknown)=>console.error('Mission 19 creature failed to load',error));
   }
   setState(state:MonsterStateMessage):void {
     if(this.ending)return;
-    const oldPhase=this.state?.phase;this.state=state;this.target.set(state.x,state.y,state.z);
+    const oldPhase=this.state?.phase,firstTitan=!!state.titan&&!this.state?.titan;
+    if(firstTitan){this.creature.root.position.set(state.x,state.y+(state.titan?.poseOffsetY??0),state.z);this.creature.root.rotation.y=state.yaw;}
+    this.state=state;
+    if(state.titan){this.creature.setTitanPose(state.titan);this.setTitanState(state);}this.target.set(state.x,state.y+(state.titan?.poseOffsetY??0),state.z);
     this.swipeAgeMs=state.handSwipe ? state.serverNow-state.handSwipe.startedAt : 0;
     this.creature.setJumpProgress(state.jumpProgress??null);
     this.creature.setMotion(state.velocity?.x??0,state.velocity?.z??0,state.yawVelocity??0,
@@ -154,31 +173,55 @@ export class MonsterArrivalView {
       this.onHit?.();this.hitPulse=.28;this.lastHitSequence=state.hitSequence;this.creature.hit();
       const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,7);
     }
-    if(state.phase==='windup' && oldPhase!=='windup'){this.onWarning?.();this.creature.windup();}
+    if(state.phase==='windup' && oldPhase!=='windup'){this.onWarning?.();if(!state.titan)this.creature.windup();}
     let released=false;
     for(const visual of this.pool) {
       if(visual.id===null)continue;
-      if(!state.shots.some(shot=>shot.id===visual.id)) {
-        this.particles.emit(visual.group.position.x,visual.group.position.y,visual.group.position.z,false,8,16);
+      if(visual.id!==state.titan?.ability?.heldObject?.id&&!(state.titan?state.titan.projectiles:state.shots).some(shot=>shot.id===visual.id)) {
+        if(!String(visual.id).includes(':debris:'))this.particles.emit(visual.group.position.x,visual.group.position.y,visual.group.position.z,false,8,16);
         visual.id=null;visual.group.visible=false;visual.spawnPending=false;
       }
     }
-    for(const shot of state.shots.slice(0,4)) {
+    for(const shot of (state.titan?state.titan.projectiles.map(p=>({id:p.id,x:p.position.x,y:p.position.y,z:p.position.z,dx:p.velocity?.x??0,dy:p.velocity?.y??0,dz:p.velocity?.z??1,speed:p.velocity?Math.hypot(p.velocity.x,p.velocity.y,p.velocity.z):0})):state.shots).slice(0,32)) {
       let visual=this.pool.find(p=>p.id===shot.id);
       if(!visual) {
         visual=this.pool.find(p=>p.id===null);if(!visual)continue;
         visual.id=shot.id;visual.group.visible=true;visual.group.position.set(shot.x,shot.y,shot.z);
-        visual.spawnPending=true;
-        this.onProjectile?.();this.creature.release();released=true;
+        visual.spawnPending=!state.titan;
+        this.onProjectile?.();if(!state.titan)this.creature.release();released=true;
       }
+      const debris=state.titan?.projectiles.find(p=>p.id===shot.id)?.ability==='debris-throw';
+      visual.group.children[0]!.visible=!debris;visual.group.children[1]!.visible=!debris;if(visual.group.children[2])visual.group.children[2]!.visible=!!debris;
       visual.target.set(shot.x,shot.y,shot.z);
       visual.direction.set(shot.dx??0,shot.dy??0,shot.dz??-1).normalize();visual.speed=shot.speed??0;
       visual.group.quaternion.setFromUnitVectors(forward,visual.direction);
     }
     if(oldPhase==='windup' && state.phase!=='windup' && !released)this.creature.recover();
   }
+  private setTitanState(state:MonsterStateMessage):void {
+    const f=state.titan!,a=f.ability,active=a?.stage==='ACTIVE',warning=a&&['WARNING','WINDUP'].includes(a.stage);
+    if(!this.rubble.length)for(const offset of monsterDebrisOffsets){const source=this.pool[0]!.group.children[2] as THREE.Mesh,rock=new THREE.Mesh(source.geometry,source.material);rock.name='mission-owned-titan-rubble';const x=journeyDallas19.monster.x+offset.x,z=journeyDallas19.monster.z+offset.z;rock.position.set(x,(this.creature.groundAt?.(x,z)??state.y)+22,z);this.rubble.push(rock);this.scene.add(rock);}
+    for(let i=0;i<this.rubble.length;i++)this.rubble[i]!.visible=!(f.claimedDebris??[]).some(id=>id.endsWith(`:debris:${i}`));
+    if(f.destroyedSites?.length&&!this.damagedDowntown){this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();}
+    const held=a?.heldObject;if(held){let v=this.pool.find(p=>p.id===held.id)??this.pool.find(p=>p.id===null);if(v){v.id=held.id;v.group.visible=true;v.group.position.set(held.position.x,held.position.y,held.position.z);v.group.children[0]!.visible=false;v.group.children[1]!.visible=false;v.group.children[2]!.visible=true;v.speed=0;v.target.copy(v.group.position);}}
+    this.beam.visible=Boolean(a?.id==='energy-beam'&&active);
+    if(a?.id==='energy-beam'){
+      const length=a.beamLength??6000;this.beam.position.set(a.origin.x+a.direction.x*length/2,a.origin.y+a.direction.y*length/2,a.origin.z+a.direction.z*length/2);
+      this.beam.scale.set(24,length,24);this.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(a.direction.x,a.direction.y,a.direction.z));
+    }
+    this.roar.visible=Boolean(a?.id==='roaring-shockwave'&&(active||warning));
+    if(a?.id==='roaring-shockwave'){this.roar.position.set(a.origin.x,a.origin.y,a.origin.z);this.roar.scale.setScalar(1000*(active ? .4+.6*a.progress : 1));this.roar.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),f.yaw-Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2));}
+    const area=a&&['ground-smash','giant-leap','charging-rampage'].includes(a.id);
+    this.wave.visible=Boolean(area&&(active||warning));
+    if(area&&a){const radius=a.id==='roaring-shockwave'?1000:a.id==='ground-smash'?450:300;const center=a.id==='ground-smash'?a.origin:f.position;this.wave.position.set(center.x,(this.creature.groundAt?.(center.x,center.z)??f.position.y)+8,center.z);this.wave.rotation.x=Math.PI/2;this.wave.scale.setScalar(radius*(active ? .4+.6*a.progress : 1));this.waveMaterial.opacity=active ? .6*(1-a.progress) : .3;}
+    for(const event of f.events??[]){if(this.titanEvents.has(event.id))continue;this.titanEvents.add(event.id);if(this.titanEvents.size>128)this.titanEvents.delete(this.titanEvents.values().next().value!);
+      if(event.kind==='environment'){if(event.type==='destroy-approved-block'){this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();}const p=event.position;this.particles.emit(p.x,p.y,p.z,true,8,event.type==='landing'?160:65);}
+    }
+  }
+
   finish(kind:'defeat'|'timeout'):void {
     if(this.ending)return;
+    this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;
     this.ending=kind;this.endingElapsed=0;
     if(this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
       this.endingDrop={from:this.creature.root.position.y,ground:this.creature.groundAt?.(this.creature.root.position.x,this.creature.root.position.z)??this.target.y};
@@ -192,6 +235,7 @@ export class MonsterArrivalView {
     const c=this.creature;
     if(this.state && !this.ending) {
       c.root.position.lerp(this.target,1-Math.exp(-delta*12));
+      if(this.state.titan)c.setTitanPose(this.state.titan);
       const error=Math.atan2(Math.sin(this.state.yaw-c.root.rotation.y),Math.cos(this.state.yaw-c.root.rotation.y));
       c.root.rotation.y+=error*(1-Math.exp(-delta*12));
     }
@@ -208,7 +252,8 @@ export class MonsterArrivalView {
     } else c.setHandSwipe(null);
     c.update(delta,this.camera?this.camera.position.distanceTo(c.root.position):0,this.hitPulse);
     const windup=this.state?.phase==='windup'&&!this.ending;
-    this.mouthFire.visible=Boolean(windup||this.ending==='timeout');
+    const power=this.state?.titan?.ability?.id;
+    this.mouthFire.visible=Boolean((windup&&(!this.state?.titan||['energy-beam','fireball-barrage','roaring-shockwave'].includes(power??'')))||this.ending==='timeout');
     const mouthAvailable=c.mouthPosition(this.mouthWorld);
     if(mouthAvailable)this.mouthFire.position.copy(this.mouthWorld);
     this.mouthFire.scale.setScalar((this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
@@ -254,10 +299,12 @@ export class MonsterArrivalView {
     this.particles.update(delta,this.camera,this.pixelHeight());
   }
   dispose():void {
+    this.scene.remove(...this.rubble);this.rubble=[];
+    this.scene.remove(this.beam,this.wave,this.roar);this.roarGeometry.dispose();this.titanEvents.clear();this.beamGeometry.dispose();this.beamMaterial.dispose();this.waveGeometry.dispose();this.waveMaterial.dispose();
     if(this.damagedDowntown)setDowntownMonsterDamage(false);
     this.scene.remove(this.creature.root,this.mouthFire,this.particles.points,...this.pool.map(p=>p.group));
     this.particles.dispose();this.warningMaterial.dispose();
-    for(const visual of this.pool)visual.material.dispose();
+    for(const visual of this.pool){visual.material.dispose();const rock=visual.group.children[2] as THREE.Mesh;rock.geometry.dispose();(rock.material as THREE.Material).dispose();}
     this.creature.dispose();this.state=null;
   }
 }

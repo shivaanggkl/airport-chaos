@@ -1,7 +1,7 @@
-# Titan Combat Engine 2.0 — Phase 1
+# Titan Combat Engine 2.0
 
-This foundation is deliberately **not imported by live gameplay**. Mission 19, its model,
-protocol, animations, collision, rewards and timing remain unchanged.
+Mission 19 now binds this engine through `server/src/m19-titan.ts` and the measured
+`shared/m19-titan-model.mjs` rig adapter. Other gameplay does not import the engine.
 
 ## Modules and host boundary
 
@@ -108,8 +108,8 @@ explicit host admission limit rather than silently adding unbounded receipt stor
 
 The environment adapter supplies indexed `traversable`, terrain, LOS and earliest
 `obstruction` fraction. Traversability must include full monster dimensions, terrain
-and buildings. Local navigation tries at most eight directions at 5 Hz; movement is
-substepped to ≤1/120 s. No full-city searches are performed.
+and buildings. Local navigation tries at most eight directions at 5 Hz; movement follows the server cadence; curved strikes and beams receive bounded
+collision-driven substeps when required. No full-city searches are performed.
 
 `takeDebris` atomically reserves only encounter-owned approved objects within reach.
 Footstep/landing/impact events may drive localized dust, reversible building/debris
@@ -122,7 +122,7 @@ Limits: 100 ms input steps, 16 target observations, 32 threats, 90 observations,
 32 reusable projectile slots, 128 events/tick, 32 configured powers and 16 damage sources.
 Host callbacks must be bounded and deterministic. Snapshot copies cannot mutate runtime.
 
-## Phase 2 integration checklist
+## Binding another encounter (M19 reference)
 
 1. Register the current M19 model/LODs, measured anatomy, regions and actual capabilities.
 2. Bind the existing skeleton/foot planting and effects to shared pose/timing anchors.
@@ -130,5 +130,5 @@ Host callbacks must be bounded and deterministic. Snapshot copies cannot mutate 
 4. Add explicit mission lifecycle/network snapshot integration in that separate task.
 5. Preserve authored mission identity/progression/rewards and validate real visual contact.
 
-Phase 1 validates mechanics headlessly. It does not claim visual polish or human combat
-balance for unbound monster models, and does not activate any power in M19.
+Headless engine tests remain separate from M19’s real-rig and browser integration
+checks. Human combat balance remains a separate acceptance step.

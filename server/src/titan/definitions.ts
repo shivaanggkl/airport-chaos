@@ -32,6 +32,16 @@ export type Ability = TitanTiming & {
     tracking?: number;
     directional?: boolean;
     debris?: boolean;
+    unlockBelow?: number;
+    pivot?: Vec;
+    lift?: number;
+    crouch?: number;
+    impactJoint?: string;
+    limbTargets?: Readonly<Record<string, {
+        warning: Vec;
+        windup: Vec;
+        active: Vec;
+    }>>;
 };
 export type Species = {
     id: string;
@@ -41,11 +51,13 @@ export type Species = {
     height: number;
     radius: number;
     health: number;
+    contactDamage?: number;
     joints: Readonly<Record<string, {
         bone: string;
         position: Vec;
         reach?: number;
         angularSpeed?: number;
+        aimWeight?: number;
         gaitPhase?: number;
         foot?: boolean;
         mirror?: boolean;
@@ -60,6 +72,9 @@ export type Species = {
         turnAcceleration: number;
         stepHeight: number;
         stride: number;
+        reverseStride?: number;
+        lateralStride?: number;
+        turnStrideRadius?: number;
         jumpSpeed: number;
         gravity: number;
         chargeSpeed: number;
@@ -77,6 +92,8 @@ export type Species = {
         id: string;
         joint: string;
         radius: number;
+        radii?: Vec;
+        weakDuring?: string;
         multiplier: number;
         stagger: number;
     }[];
@@ -102,6 +119,8 @@ export class SpeciesRegistry {
             throw Error('Invalid presentation references');
         if (!s.id || this.#entries.has(s.id) || !s.model || !difficulties[s.level] || positive.some(n => !finite(n) || n <= 0) || s.movement.run < s.movement.walk || !finite(s.senses.fov) || s.senses.fov <= 0 || s.senses.fov > Math.PI * 2 || s.regions.length === 0 || s.abilities.length > 32)
             throw Error('Invalid species');
+        if ([s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius].some(n => n !== undefined && (!finite(n) || n <= 0)))
+            throw Error('Invalid gait limits');
         if (!s.joints.body)
             throw Error('Missing root body joint');
         if (!['aggressive', 'defensive', 'balanced'].includes(s.personality) || [s.movement.jumpSpeed, s.movement.chargeSpeed, s.movement.stepHeight, s.arena.maxSlope].some(n => !finite(n) || n < 0))
@@ -109,11 +128,18 @@ export class SpeciesRegistry {
         for (const j of Object.values(s.joints))
             if (!j.bone || Object.values(j.position).some(n => !finite(n)) || (j.gaitPhase !== undefined && (!finite(j.gaitPhase) || j.gaitPhase < 0 || j.gaitPhase >= 1)))
                 throw Error('Invalid joint');
+        if (s.contactDamage !== undefined && (!finite(s.contactDamage) || s.contactDamage <= 0))
+            throw Error('Invalid contact damage');
+        for (const joint of Object.values(s.joints))
+            if (joint.aimWeight !== undefined && (!finite(joint.aimWeight) || joint.aimWeight < 0 || joint.aimWeight > 1))
+                throw Error('Invalid aiming articulation');
         const ids = new Set<string>();
         for (const a of s.abilities) {
             if (!a.id || ids.has(a.id) || !['projectile', 'beam', 'sweep', 'area', 'leap', 'charge'].includes(a.mechanism) || a.requires.length === 0 || a.requires.some(j => !s.joints[j]) || !s.animations.includes(a.animation) || !a.event)
                 throw Error('Unsupported ability anatomy/animation');
             ids.add(a.id);
+            if (a.unlockBelow !== undefined && (!finite(a.unlockBelow) || a.unlockBelow <= 0 || a.unlockBelow > 1))
+                throw Error('Invalid health gate');
             if ([a.warning, a.windup, a.recovery, a.cooldown, a.minRange, a.damage, a.radius].some(n => !finite(n) || n < 0) || !finite(a.active) || a.active <= 0 || a.warning <= 0 || !finite(a.maxRange) || a.maxRange < a.minRange || !finite(a.maxAltitude) || a.maxAltitude < 0 || !finite(a.cone) || a.cone <= 0 || a.cone > Math.PI || a.radius <= 0)
                 throw Error('Invalid ability geometry/timing');
             if (['projectile'].includes(a.mechanism) && (!a.projectileSpeed || a.projectileSpeed <= 0 || !finite(a.projectileSpeed) || (a.count ?? 1) > 8 || (a.count ?? 1) < 1 || !Number.isInteger(a.count ?? 1)))
@@ -136,6 +162,8 @@ export class SpeciesRegistry {
         for (const r of s.regions) {
             if (regions.has(r.id) || !s.joints[r.joint] || ![r.radius, r.multiplier, r.stagger].every(n => finite(n) && n > 0))
                 throw Error('Invalid damage region');
+            if (r.radii && Object.values(r.radii).some(n => !finite(n) || n <= 0))
+                throw Error('Invalid region radii');
             regions.add(r.id);
         }
         const result = freeze(s);

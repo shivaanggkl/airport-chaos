@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterJumpMotion } from '../../shared/monster-motion.mjs';
 import { monsterHandSwipeWeight } from '../../shared/monster-hand-swipe.mjs';
+import {m19Model} from '../../shared/m19-titan-model.mjs';
+import {titanChain} from '../../shared/titan-pose.mjs';
+import type {TitanPresentation} from '../../shared/titan-pose.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -34,6 +37,10 @@ export class MonsterArrivalModel {
   readonly root = new THREE.Group();
   readonly ready: Promise<void>;
   private instance?: THREE.Group;
+  private titan: TitanPresentation|null=null;
+  private readonly titanHeadBind=new THREE.Quaternion();
+  private readonly titanNeckBind=new THREE.Quaternion();
+  private readonly titanRestPositions=new Map<THREE.Object3D,THREE.Vector3>();
   private mixer?: THREE.AnimationMixer;
   private readonly actions = new Map<ClipName, THREE.AnimationAction>();
   private readonly materials: THREE.MeshStandardMaterial[] = [];
@@ -93,7 +100,7 @@ export class MonsterArrivalModel {
       instance.name = 'monster-arrival-supplied-model';
       instance.scale.setScalar(journeyDallas19.monster.height);
       instance.position.y = 0; // Repaired asset has a ground-contact origin and unit height.
-      instance.rotation.y = Math.PI; // Source faces +Z; Mission 19's authoritative forward axis is -Z.
+      instance.rotation.y = this.titan?m19Model.forwardYaw:m19Model.legacyYawOffset; // Source/engine face +Z; the adapter retains legacy preview orientation until handoff.
       this.root.add(instance);
       this.instance = instance;
       this.near = instance.getObjectByName('MonsterNear');
@@ -143,6 +150,7 @@ export class MonsterArrivalModel {
         object.material = Array.isArray(object.material) ? replacements : replacements[0]!;
       });
       this.root.updateMatrixWorld(true);
+      for(const name of ['Head','Neck','LeftUpperArm','RightUpperArm','LeftThigh','RightThigh']){const bone=instance.getObjectByName(name);if(bone)this.titanRestPositions.set(bone,bone.position.clone());}
       for (const side of ['Left','Right']) {
         const hip=instance.getObjectByName(side+'Thigh')!, knee=instance.getObjectByName(side+'Shin')!, ankle=instance.getObjectByName(side+'Foot')!;
         const h=hip.getWorldPosition(new THREE.Vector3()), k=knee.getWorldPosition(new THREE.Vector3()), f=ankle.getWorldPosition(new THREE.Vector3());
@@ -151,6 +159,10 @@ export class MonsterArrivalModel {
         this.feet.push({hip,knee,ankle,animationRotations:[hip.quaternion.clone(),knee.quaternion.clone(),ankle.quaternion.clone()],length1:h.distanceTo(k),length2:k.distanceTo(f),rest,restRotation,
           anchor:f.clone(),swingStart:f.clone(),swingEnd:f.clone(),swinging:false});
       }
+      const rootInverse=this.root.getWorldQuaternion(new THREE.Quaternion()).invert();
+      this.head.getWorldQuaternion(this.titanHeadBind).premultiply(rootInverse);this.neck!.getWorldQuaternion(this.titanNeckBind).premultiply(rootInverse);
+      if(!this.titan){const turn=new THREE.Quaternion().setFromAxisAngle(this.up,m19Model.legacyYawOffset);this.titanHeadBind.premultiply(turn);this.titanNeckBind.premultiply(turn);}
+      for(const name of m19Model.clips)if(!gltf.animations.some(clip=>clip.name===name))throw Error(`Titan model is missing ${name}`);
       this.mixer = new THREE.AnimationMixer(instance);
       for (const clip of gltf.animations) {
         this.actions.set(clip.name as ClipName, this.mixer.clipAction(clip));
@@ -215,6 +227,7 @@ export class MonsterArrivalModel {
   }
 
   finish(kind: 'defeat' | 'timeout'): void {
+    if(this.titan)for(const [bone,position]of this.titanRestPositions)bone.position.copy(position);
     this.ending = kind;
     this.jumpProgress=null;this.landingContact=false;
     this.windupActive = false;
@@ -241,13 +254,40 @@ export class MonsterArrivalModel {
     this.jumpProgress=progress;
   }
 
+  setTitanPose(frame:TitanPresentation):void {
+    if(!this.titan&&this.instance){
+      this.instance.rotation.y=m19Model.forwardYaw;
+      const turn=new THREE.Quaternion().setFromAxisAngle(this.up,m19Model.legacyYawOffset);
+      for(const foot of this.feet){foot.rest.applyQuaternion(turn);foot.restRotation.premultiply(turn);}
+    }
+    this.titan=frame;
+    if(!this.ending){this.windupActive=false;this.transient=undefined;this.play(Math.hypot(frame.velocity.x,frame.velocity.z)>.5?'Walk':Math.abs(frame.yawVelocity??0)>.015?'Turn':'Idle');}
+  }
+
+  private poseTitanLimbs():void {
+    if(!this.titan)return;
+    const previous=this.handSwipe;
+    for(const side of ['left','right'] as const){const shoulder=this.titan.limbs[`shoulder-${side}`],bone=this.secondaryBones.get(side==='left'?'LeftUpperArm':'RightUpperArm')?.bone;if(shoulder&&bone){this.scratch[0]!.set(shoulder.x,shoulder.y,shoulder.z);bone.parent!.worldToLocal(this.scratch[0]!);bone.position.copy(this.scratch[0]!);bone.updateWorldMatrix(false,true);}
+      const p=this.titan.limbs[`hand-${side}`];if(!p)continue;
+      this.handSwipe={side,target:new THREE.Vector3(p.x,p.y,p.z),progress:.35};this.poseHandSwipe();}
+    this.handSwipe=previous;
+    const base=this.secondaryBones.get('TailBase')?.bone,mid=this.secondaryBones.get('TailMid')?.bone,tip=this.secondaryBones.get('TailTip')?.bone,target=this.titan.limbs.tail;
+    if(base&&mid&&tip&&target){
+      const [a,b,c,to,from]=this.scratch;this.root.updateMatrixWorld(true);base.getWorldPosition(a!);mid.getWorldPosition(b!);tip.getWorldPosition(c!);
+      const yaw=this.titan.yaw,pose=titanChain(a!,b!,c!,target,{x:Math.cos(yaw),y:.15,z:-Math.sin(yaw)});
+      from!.subVectors(b!,a!);to!.set(pose.joint.x,pose.joint.y,pose.joint.z).sub(a!);this.rotateBone(base,from!,to!);
+      mid.getWorldPosition(b!);tip.getWorldPosition(c!);from!.subVectors(c!,b!);to!.set(target.x,target.y,target.z).sub(b!);this.rotateBone(mid,from!,to!);
+    }
+  }
+
   setMotion(x: number, z: number, yawRate: number, phase: number, aimYaw: number, aimPitch: number): void {
     this.velocityX=x;this.velocityZ=z;this.yawRate=yawRate;
     this.phaseRate=Math.max(Math.hypot(x,z)/14/(journeyDallas19.monster.height/480),Math.abs(yawRate)/(Math.PI/12)*1.6)/4.8;
+    if(this.titan)this.phaseRate=this.titan.gaitRate??Math.max(Math.hypot(x,z),Math.abs(this.titan.yawVelocity??0)*330)/260;
     const error=((phase-this.phase+.5)%1+1)%1-.5;
     this.phase+=error*.35;
-    this.aimYaw=THREE.MathUtils.clamp(aimYaw,-Math.PI/10,Math.PI/10);
-    this.aimPitch=THREE.MathUtils.clamp(aimPitch,-.42,.42);
+    this.aimYaw=THREE.MathUtils.clamp(aimYaw,this.titan?-.8:-Math.PI/10,this.titan?.8:Math.PI/10);
+    this.aimPitch=THREE.MathUtils.clamp(aimPitch,this.titan?-.6:-.42,this.titan?.6:.42);
     const moving=this.jumpProgress===null && Math.hypot(x,z)>.25;
     this.walking=moving;
     if (!this.ending && !this.windupActive && !this.transient) this.play(moving?'Walk':Math.abs(yawRate)>.015?'Turn':'Idle');
@@ -382,10 +422,14 @@ export class MonsterArrivalModel {
         const contact=this.scratch[0]!;contact.copy(target!);contact.y=ground;
         this.onLanding?.(contact);
       }
+      const authoritative=this.titan?.feet[side===0?'foot-left':'foot-right'];
+      if(authoritative)target!.set(authoritative.x,authoritative.y,authoritative.z);
+      const hipAnchor=this.titan?.limbs[side===0?'hip-left':'hip-right'];
+      if(hipAnchor){this.scratch[0]!.set(hipAnchor.x,hipAnchor.y,hipAnchor.z);foot.hip.parent!.worldToLocal(this.scratch[0]!);foot.hip.position.copy(this.scratch[0]!);foot.hip.updateWorldMatrix(false,true);}
       foot.hip.getWorldPosition(hip!);foot.knee.getWorldPosition(knee!);foot.ankle.getWorldPosition(ankle!);
       axis!.subVectors(target!,hip!);const distance=THREE.MathUtils.clamp(axis!.length(),Math.abs(foot.length1-foot.length2)+.01,foot.length1+foot.length2-.01);axis!.normalize();
       const a=(foot.length1**2-foot.length2**2+distance**2)/(2*distance);
-      pole!.set(-Math.sin(this.root.rotation.y),0,-Math.cos(this.root.rotation.y));pole!.addScaledVector(axis!,-pole!.dot(axis!));pole!.normalize();
+      pole!.set(Math.sin(this.root.rotation.y)*(this.titan?1:-1),0,Math.cos(this.root.rotation.y)*(this.titan?1:-1));pole!.addScaledVector(axis!,-pole!.dot(axis!));pole!.normalize();
       desiredKnee!.copy(hip!).addScaledVector(axis!,a).addScaledVector(pole!,Math.sqrt(Math.max(0,foot.length1**2-a*a)));
       from!.subVectors(knee!,hip!);to!.subVectors(desiredKnee!,hip!);this.rotateBone(foot.hip,from!,to!);
       foot.knee.getWorldPosition(knee!);foot.ankle.getWorldPosition(ankle!);
@@ -399,6 +443,7 @@ export class MonsterArrivalModel {
   }
 
   update(delta: number, distance: number, hitPulse: number): void {
+    if(this.disposed||!this.instance)return;
     this.hitCooldown = Math.max(0, this.hitCooldown - delta);
     // The mixer skips writing unchanged track samples. Restore the authored
     // pose before applying this frame's aim, otherwise the offset compounds.
@@ -440,7 +485,16 @@ export class MonsterArrivalModel {
       }
       this.jumpArmsApplied=true;
     }
-    if (!this.ending) this.poseHandSwipe();
+    if (!this.ending) {
+      if(this.titan){
+        const a=this.titan.ability,p=a?.progress??0,windup=a&&['WARNING','WINDUP'].includes(a.stage),active=a?.stage==='ACTIVE';
+        const jaw=this.secondaryBones.get('Jaw')?.bone,chest=this.secondaryBones.get('Chest')?.bone;
+        const power=a?.id;
+        if(jaw&&['energy-beam','fireball-barrage','roaring-shockwave'].includes(power??''))jaw.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localX,-(power==='roaring-shockwave'?.8:.45)*(windup?Math.sin(p*Math.PI/2):active?1:1-p)));
+        if(chest&&power==='charging-rampage')chest.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localX,(active?.18:.08)*(Math.sin(p*Math.PI))));
+      }
+      this.poseHandSwipe();this.poseTitanLimbs();
+    }
     if (!this.ending && this.head) {
       const [world,aim,parent]=this.rotations;
       this.root.updateMatrixWorld(true);
@@ -448,14 +502,27 @@ export class MonsterArrivalModel {
       this.neckAnimationRotation.copy(this.neck!.quaternion);
       this.headAimApplied = true;
       // A small neck lead connects aiming to the torso; the head completes it.
-      for (let i=0;i<2;i++) {
-        const bone=i===0?this.neck!:this.head,fraction=i===0?.35:.65;
+      for (let i=0;i<(this.titan?0:2);i++) {
+        const bone=i===0?this.neck!:this.head,fraction=this.titan?(i===0?0:1):(i===0?.35:.65);
         bone.getWorldQuaternion(world!);
         aim!.setFromAxisAngle(this.up,this.aimYaw*fraction);world!.premultiply(aim!);
         this.scratch[0]!.set(Math.cos(this.root.rotation.y),0,-Math.sin(this.root.rotation.y));
-        aim!.setFromAxisAngle(this.scratch[0]!,this.aimPitch*fraction);world!.premultiply(aim!);
+        aim!.setFromAxisAngle(this.scratch[0]!,this.aimPitch*fraction*(this.titan?-1:1));world!.premultiply(aim!);
         bone.parent!.getWorldQuaternion(parent!).invert();bone.quaternion.copy(parent!).multiply(world!);
         bone.updateWorldMatrix(false,true);
+      }
+      if(this.titan){
+        const f=this.titan,p=f.limbs.head,neckPoint=f.limbs.neck;
+        if(neckPoint){const world=this.rotations[0]!,parent=this.rotations[2]!;
+          this.scratch[0]!.set(neckPoint.x,neckPoint.y,neckPoint.z);this.neck!.parent!.worldToLocal(this.scratch[0]!);this.neck!.position.copy(this.scratch[0]!);
+          world.setFromAxisAngle(this.up,f.yaw+f.headYaw*m19Model.neckAimWeight).multiply(new THREE.Quaternion().setFromAxisAngle(this.localX,-f.headPitch*m19Model.neckAimWeight)).multiply(this.titanNeckBind);
+          this.neck!.parent!.getWorldQuaternion(parent).invert();this.neck!.quaternion.copy(parent).multiply(world);this.neck!.updateWorldMatrix(false,true);
+        }
+        if(p){this.scratch[0]!.set(p.x,p.y,p.z);this.head.parent!.worldToLocal(this.scratch[0]!);this.head.position.copy(this.scratch[0]!);}
+        const [world,,parent]=this.rotations;
+        world!.setFromAxisAngle(this.up,f.yaw+f.headYaw);
+        world!.multiply(new THREE.Quaternion().setFromAxisAngle(this.localX,-f.headPitch)).multiply(this.titanHeadBind);
+        this.head.parent!.getWorldQuaternion(parent!).invert();this.head.quaternion.copy(parent!).multiply(world!);this.head.updateWorldMatrix(false,true);
       }
       this.plantFeet();
       this.feetApplied = true;
@@ -489,7 +556,7 @@ export class MonsterArrivalModel {
   }
 
   dispose(): void {
-    this.disposed = true;
+    this.disposed = true;this.titanRestPositions.clear();
     this.mixer?.stopAllAction();
     if (this.instance) this.mixer?.uncacheRoot(this.instance);
     // Cloned skeletons own their per-instance GPU bone textures. Cached source

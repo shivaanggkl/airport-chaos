@@ -133,7 +133,7 @@ export const journeyDallas18: Readonly<{
 }>;
 export const journeyDallas19: Readonly<{
   id: 'journey-dallas-19'; cityId: 'dallas'; name: 'MONSTER ARRIVAL'; chapter: 'CITY DEFENDERS';
-  firstClearCredits: 2550; prepareMs: 0; timeLimitMs: 150000; bossHealth: 2500;
+  firstClearCredits: 2550; prepareMs: 0; timeLimitMs: 240000; bossHealth: 2500;
   monster: Readonly<{ x: number; z: number; height: number }>;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;

@@ -9,7 +9,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { journeyDallas18, journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { JourneyAttemptStore } from './journey-attempts.js';
-import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterImpact, sweptMonsterHit, segmentBlockedByBuildings, turnMonster, monsterAttackEligible, monsterShotSolution, stepMonsterEncounter, recordMonsterFiringPosition, monsterProjectileHits, monsterMouth, monsterSpheres, monsterAttackRange, monsterMotionClear, monsterJumpClear, monsterRoamRoute, monsterHandPositions, monsterHandContact } from './monster-arrival.js';
+import { createMonsterEncounter, loadMonsterDistrictBuildings, monsterAttack, monsterImpact, sweptMonsterHit, segmentBlockedByBuildings, turnMonster, monsterAttackEligible, monsterShotSolution, recordMonsterFiringPosition, monsterProjectileHits, monsterMouth, monsterSpheres, monsterAttackRange, monsterMotionClear, monsterJumpClear, monsterRoamRoute, monsterHandPositions, monsterHandContact } from './monster-arrival.js';
 import { setMappedMonsterDamage } from '../../client/src/osm-city.ts';
 import { addOsmCityData, disposeOsmGroups } from '../../client/src/osm-city.ts';
 import { MonsterArrivalView } from '../../client/src/monster-arrival.ts';
@@ -57,7 +57,7 @@ function fixture() {
 test('monster occupies mapped open terrain, with a safe airborne approach', () => {
   assert.equal(journeyDallas19.name, 'MONSTER ARRIVAL');
   assert.equal(journeyDallas19.bossHealth, 2500);
-  assert.equal(journeyDallas19.timeLimitMs, 150000);
+  assert.equal(journeyDallas19.timeLimitMs, 240000);
   const { x, z } = journeyDallas19.monster;
   const buildings = loadMonsterDistrictBuildings();
   const clearance = buildings.reduce((minimum,b) => Math.min(minimum,Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minZ - z, 0, z - b.maxZ))),Infinity);
@@ -111,7 +111,7 @@ test('monster visuals and transient shots release on repeated Retry and Exit', a
     await view.ready;
     let footfalls = 0;
     view.onFootfall = () => { footfalls++; };
-    assert.equal(scene.children.length, 7);
+    assert.equal(scene.children.length, 14);
     view.setState({ type: 'monsterState', attemptId: 'local', x: journeyDallas19.monster.x,
       y: 135, z: journeyDallas19.monster.z, yaw: 0, phase: 'walk', hitSequence: 0,
       velocity: {x:14,y:0,z:0}, gaitPhase: 0, shots: [{ id: cycle, x: 0, y: 200, z: 0 }], serverNow: 1_000 });
@@ -169,7 +169,7 @@ test('server-owned hits require a live owned attempt and grant a first-clear rew
     store.approach('pilot', first.attemptId, 1100);
     assert.equal(store.startMonsterArrival('other', first.attemptId, 1200), undefined);
     const started = store.startMonsterArrival('pilot', first.attemptId, 1200);
-    assert.equal(started.deadlineAt, 151200);
+    assert.equal(started.deadlineAt, 241200);
     assert.equal(store.startMonsterArrival('pilot', first.attemptId, 1300), undefined);
     assert.equal(store.hitMonster('other', first.attemptId, 1400), undefined);
     for (let i = 0; i < 99; i++) assert.equal(store.hitMonster('pilot', first.attemptId, 1500 + i * 250).monsterHealth, 2475 - 25 * i);
@@ -216,12 +216,12 @@ test('deadline is exclusive and historical Wanted Breakout clear preserves eligi
     store.approach('historical', attempt.attemptId, 1100);
     store.startMonsterArrival('historical', attempt.attemptId, 1200);
     for (let i = 0; i < 99; i++) store.hitMonster('historical', attempt.attemptId, 2000 + i * 250);
-    assert.equal(store.hitMonster('historical', attempt.attemptId, 151200), undefined);
-    assert.equal(store.fail('historical', attempt.attemptId, 'TIME_UP', 151200).status, 'FAILED');
-    const retry = store.launch('historical', 'trainer', 160000, journeyDallas19.id);
-    store.approach('historical', retry.attemptId, 160100);
-    store.startMonsterArrival('historical', retry.attemptId, 160200);
-    for (let i = 0; i < 100; i++) store.hitMonster('historical', retry.attemptId, 161000 + i * 250);
+    assert.equal(store.hitMonster('historical', attempt.attemptId, 241200), undefined);
+    assert.equal(store.fail('historical', attempt.attemptId, 'TIME_UP', 241200).status, 'FAILED');
+    const retry = store.launch('historical', 'trainer', 260000, journeyDallas19.id);
+    store.approach('historical', retry.attemptId, 260100);
+    store.startMonsterArrival('historical', retry.attemptId, 260200);
+    for (let i = 0; i < 100; i++) store.hitMonster('historical', retry.attemptId, 261000 + i * 250);
     assert.equal(store.get('historical', retry.attemptId).firstClearCredits, 0);
     assert.equal(store.progress('historical', journeyDallas19.id).completed, true);
     assert.equal(store.monsterArrivalBestTime('historical'), 25550);
@@ -243,34 +243,6 @@ test('repaired asset has a ground origin, 960 m uniform scale and bounded world-
   scene.traverse(o=>{if(o.isMesh){for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.name==='Monster skin')assert.equal(m.side,THREE.FrontSide)}});
   assert.ok(monsterGeometry.repairedThroatVertices>10000);
   view.dispose();assert.equal(scene.children.length,0);
-});
-
-test('960 m pursuit keeps low anatomy clear of mapped buildings using their actual heights', () => {
-  const e=createMonsterEncounter('a','p',0),buildings=loadMonsterDistrictBuildings();
-  const data=JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json',import.meta.url),'utf8'));
-  const bytes=Buffer.from(data.elevations,'base64'),samples=new Uint16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
-  const ground=(wx,wz)=>{
-    const x=Math.max(0,Math.min(1,(wx-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX)))*(data.width-1);
-    const z=Math.max(0,Math.min(1,(wz-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ)))*(data.height-1);
-    const x0=Math.floor(x),z0=Math.floor(z),x1=Math.min(data.width-1,x0+1),z1=Math.min(data.height-1,z0+1);
-    const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
-    return (at(x0,z0)*(1-x+x0)+at(x1,z0)*(x-x0))*(1-z+z0)+(at(x0,z1)*(1-x+x0)+at(x1,z1)*(x-x0))*(z-z0);
-  };
-  let margin=Infinity;
-  for(let i=0;i<300;i++) {
-    stepMonsterEncounter(e,{x:e.x+Math.sin(i*.03)*3000,y:1100,z:e.z+Math.cos(i*.03)*3000},{x:0,y:0,z:0},ground,buildings,i*100);
-    const c=Math.cos(e.yaw),s=Math.sin(e.yaw),h=journeyDallas19.monster.height,y0=ground(e.x,e.z);
-    for(const v of monsterGeometry.spheres){
-      const y=y0+v.y*h,ry=v.radii.y*h,x=e.x+h*(c*v.x+s*v.z),z=e.z+h*(-s*v.x+c*v.z);
-      for(const b of buildings){
-        if(b.top<y-ry)continue;
-        // Bound the visible ellipsoid's horizontal slice at this building's top.
-        const radius=Math.max(v.radii.x,v.radii.z)*h*Math.sqrt(Math.max(0,1-(Math.max(0,y-b.top)/ry)**2));
-        margin=Math.min(margin,Math.hypot(Math.max(b.minX-x,0,x-b.maxX),Math.max(b.minZ-z,0,z-b.maxZ))-radius);
-      }
-    }
-  }
-  assert.ok(margin>0,`mapped building surface clearance ${margin}`);
 });
 
 test('body turn accelerates smoothly, never exceeds 15 degrees per second and exposes its back', () => {
@@ -299,28 +271,6 @@ test('attack solution covers the actual player damage envelope with vertical aim
   }
   assert.ok(monsterAttackRange>4500 && monsterAttackRange<6000);
   assert.equal(monsterAttack.radius,22);assert.equal(monsterAttack.damage,25);
-});
-
-test('stationary firing enables a warned spaced fan after the moving monster faces the pilot', () => {
-  const e=createMonsterEncounter('a','p',1000);e.yaw=0;e.nextAttackAt=10000;
-  const target={x:e.x,y:600,z:e.z-2500},zero={x:0,y:0,z:0};let t=1000;
-  for(;t<=24000;t+=50){
-    if(t%250===0)recordMonsterFiringPosition(e,target,t);
-    stepMonsterEncounter(e,target,zero,()=>135,[],t);
-    if(e.windupUntil)break;
-  }
-  assert.ok(e.windupUntil,'gradual turning must still permit retaliation');
-  assert.equal(e.attackKind,'fan');assert.equal(e.windupUntil,t+1500);assert.equal(e.shots.length,0);
-  const end=t+2200;
-  for(t+=50;t<=end;t+=50){if(t%250===0)recordMonsterFiringPosition(e,target,t);stepMonsterEncounter(e,target,zero,()=>135,[],t)}
-  assert.equal(e.shots.length,3);assert.ok(e.shots[1].bornAt-e.shots[0].bornAt>=280);assert.ok(e.shots[2].bornAt-e.shots[1].bornAt>=280);
-  assert.equal(new Set(e.shots.map(s=>s.direction.x.toFixed(3))).size,3);
-  stepMonsterEncounter(e,{...target,x:target.x+200},zero,()=>135,[],t);assert.equal(e.sustainedSince,0);
-  recordMonsterFiringPosition(e,target,t+50);
-  stepMonsterEncounter(e,target,zero,()=>135,[{minX:e.x-500,maxX:e.x+500,minZ:e.z-1000,maxZ:e.z-900,top:2000}],t+100);
-  assert.equal(e.sustainedSince,0);
-  e.shots.push({...e.shots[0],id:10});e.nextAttackAt=t+150;e.travelSinceAttack=200;
-  stepMonsterEncounter(e,target,zero,()=>135,[],t+150);assert.equal(e.shots.length,4);assert.equal(e.windupUntil,0);
 });
 
 test('swept fireballs hit a stationary pilot while a deliberate lateral dodge escapes', () => {
@@ -378,40 +328,6 @@ test('Mission 19 layers flexible body and arm motion over its authored fight cli
   for (let frame = 0; frame < 10; frame++) model.update(1 / 60, 0, 0);
   assert.ok(hand.quaternion.angleTo(idle.get('LeftHand')) > .02, 'the hand follows the throw');
   model.root.traverse(bone => assert.ok(bone.quaternion.toArray().every(Number.isFinite)));
-  model.dispose();
-});
-
-test('nearby aircraft trigger a bounded hand swipe with swept contact and cooldown', () => {
-  const e=createMonsterEncounter('swipe','pilot',0);e.yaw=0;
-  const hand=monsterHandPositions(e,135,1000).left;
-  const target={x:hand.x+80,y:hand.y+30,z:hand.z-80};
-  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],1000);
-  assert.equal(e.handSwipe?.side,'left');
-  const active=e.handSwipe;
-  assert.ok(active && Math.hypot(active.target.x-target.x,active.target.y-target.y,active.target.z-target.z)<120);
-  const before=monsterHandPositions(e,135,1000).left;
-  const peak=monsterHandPositions(e,135,1245).left;
-  assert.ok(peak.x>before.x+20 || peak.z<before.z-20,'hand reaches toward aircraft');
-  assert.equal(monsterHandContact(before,peak,target,{x:0,y:0,z:0},3,.245),true);
-  assert.equal(monsterHandContact(before,peak,{...target,x:target.x+500},{x:0,y:0,z:0},3,.245),false);
-  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],1750);
-  assert.equal(e.handSwipe,null);
-  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],1800);
-  assert.equal(e.handSwipe,null,'swipe cannot restart inside cooldown');
-});
-
-test('rendered swiping hand reaches the same impact point as server contact', async () => {
-  const e=createMonsterEncounter('swipe','pilot',0);e.yaw=0;
-  const hand=monsterHandPositions(e,135,1000).left;
-  stepMonsterEncounter(e,{x:hand.x+80,y:hand.y+30,z:hand.z-80},{x:0,y:0,z:0},()=>135,[],1000);
-  const model=new MonsterArrivalModel(monsterSource);await model.ready;
-  model.root.position.set(e.x,135,e.z);model.root.rotation.y=e.yaw;
-  model.setHandSwipe({side:'left',target:e.handSwipe.target,progress:.35});
-  model.update(0,0,0);model.root.updateMatrixWorld(true);
-  const actual=new THREE.Vector3();model.root.getObjectByName('LeftHand').getWorldPosition(actual);
-  const expected=monsterHandPositions(e,135,1245).left;
-  assert.ok(actual.distanceTo(new THREE.Vector3(expected.x,expected.y,expected.z))<80,
-    `animated hand ${actual.toArray()} vs server ${JSON.stringify(expected)}`);
   model.dispose();
 });
 
@@ -499,31 +415,6 @@ test('head aim remains bounded across unchanged animation samples instead of acc
 });
 
 
-test('monster traverses its regional route instead of freezing at a pursuit leash or near the pilot',()=>{
- const e=createMonsterEncounter('live','pilot',1000);e.yaw=Math.PI/2;
- const target={x:-7500,y:900,z:-3555};let distance=0,jumps=0,lastJump=0,peak=0;
- for(let i=1;i<=3000;i++){
-  const now=1000+i*50,before={x:e.x,z:e.z};e.shots=e.shots.filter(s=>now-s.bornAt<s.lifeMs);
-  stepMonsterEncounter(e,target,{x:0,y:0,z:0},()=>135,[],now);
-  distance+=Math.hypot(e.x-before.x,e.z-before.z);
-  assert.ok(Math.hypot(e.x-journeyDallas19.monster.x,e.z-journeyDallas19.monster.z)<=monsterAttack.pursuitLeash);
-  if(e.jumpStartedAt!==lastJump){jumps++;lastJump=e.jumpStartedAt;}
-  peak=Math.max(peak,e.jumpHeight);
-  if(e.jumpProgress===null)assert.ok(Math.hypot(e.velocity.x,e.velocity.z)<=monsterAttack.walkSpeed+.001);
- }
- assert.ok(distance>2000,`regional travel: ${distance}`);assert.ok(jumps>=3,`jumps: ${jumps}`);
- assert.ok(peak>monsterAttack.jumpHeight*.98 && peak<=monsterAttack.jumpHeight);
- assert.ok(e.attackSequence>=6,'movement continues to permit regular warned attacks');
- assert.ok(Math.max(...monsterRoamRoute.map(p=>p.x))-Math.min(...monsterRoamRoute.map(p=>p.x))>=2800);
-});
-
-test('a pilot outside the walking region cannot pin the monster at its route endpoint',()=>{
- const e=createMonsterEncounter('edge','pilot',1000);e.x=-8350;e.z=-2400;e.roamIndex=0;e.roamDirection=-1;
- e.yaw=-Math.PI/2;e.nextAttackAt=Infinity;e.nextJumpAt=Infinity;
- for(let i=1;i<=800;i++)stepMonsterEncounter(e,{x:-11000,y:900,z:-2400},{x:0,y:0,z:0},()=>135,[],1000+i*50);
- assert.ok(e.x>-7500,`leaves the endpoint instead of being pinned: ${e.x}`);
-});
-
 test('jumps validate their full swept footprint, landing ground, and lifted authoritative hit geometry',()=>{
  const e=createMonsterEncounter('jump','pilot',1000);e.yaw=Math.PI/2;const end={x:e.x-240,y:0,z:e.z};
  assert.equal(monsterJumpClear(e,end,()=>135,[]),true);
@@ -577,20 +468,6 @@ test('all exported LODs retain visible amber irises and dark pupils after body d
    assert.ok(size.x<size.z,`${name}: iris lies against the side socket, not the front snout`);
   }
  }
-});
-
-
-test('obstacle detours yield to the player for regular warned forward attacks',()=>{
- const e=createMonsterEncounter('stance','pilot',1000);e.yaw=0;
- const target={x:e.x,y:900,z:e.z-2500},zero={x:0,y:0,z:0};
- const obstacles=[{minX:e.x-700,maxX:e.x+700,minZ:e.z-700,maxZ:e.z-400,top:400}];
- let releases=0,last=0;
- for(let i=1;i<=480;i++){
-  const now=1000+i*50;e.shots=e.shots.filter(s=>now-s.bornAt<s.lifeMs);
-  stepMonsterEncounter(e,target,zero,()=>135,obstacles,now);
-  if(e.attackSequence>last){releases+=e.attackSequence-last;last=e.attackSequence;assert.equal(monsterAttackEligible(e,target,135),true);}
- }
- assert.ok(releases>=2,`only ${releases} attacks despite an unobstructed mouth-to-player line`);
 });
 
 
