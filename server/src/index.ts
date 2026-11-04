@@ -2,7 +2,7 @@ import { planOpponentTactics, recordOpponentShot, recordOpponentHit, recordOppon
 import { createOpponent, hasClientOpponentOverride, opponentAim, opponentReactionReady, type OpponentRuntime } from './opponent.js';
 import { enemyAiLevels } from '../../shared/enemy-ai.mjs';
 import { ambushApproach, ambushCanFire, ambushCruiseSpeed, type AmbushState } from './surprise-attack.js';
-import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution } from './hunter-flight.js';
+import { advanceHunterFlight, hunterFlightIntercept, hunterBallisticSolution, hunterObservedPosition } from './hunter-flight.js';
 import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import {milwaukeeTerrainHeight} from '../../shared/milwaukee-terrain.mjs';
 import {PortalTransitionStore,type PortalFlight} from './portal-transitions.js';
@@ -957,7 +957,7 @@ const airAssaultLastSnapshot = new Map<string, number>();
 function initialAssaultPosition(player: PlayerState): Vector3 { return expectedInitialTransform(player.cityId, 0, { x: 0, y: 0, z: 0 }, 'dfw'); }
 function assaultPilot(playerId: string) {
   const player = players.get(playerId)!;
-  return { aircraftType: player.aircraftType, lockedTargetId: player.lockedTargetId, position: player.position, rotation: player.rotation, velocity: player.velocity, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType), airborne: landingFlightState.get(playerId)?.airborne === true && player.position.y > botRunwayHeight(player.cityId, player.position.x, player.position.z) + 8 && Math.hypot(player.velocity.x, player.velocity.z) > aircraftFlightEnvelope[player.aircraftType].stallSpeed * .5,
+  return { lastStateAt: player.lastStateAt, aircraftType: player.aircraftType, lockedTargetId: player.lockedTargetId, position: player.position, rotation: player.rotation, velocity: player.velocity, health: player.health, maxHealth: maxHealthForAircraft(player.aircraftType), airborne: landingFlightState.get(playerId)?.airborne === true && player.position.y > botRunwayHeight(player.cityId, player.position.x, player.position.z) + 8 && Math.hypot(player.velocity.x, player.velocity.z) > aircraftFlightEnvelope[player.aircraftType].stallSpeed * .5,
     fresh: Date.now() - player.lastStateAt < 1500 };
 }
 function sendAirAssault(playerId: string, now: number, force = false): void {
@@ -6242,7 +6242,8 @@ function updateProjectiles(deltaSeconds: number): void {
 
     let hitPlayerId: string | null = null;
     let hitFraction = Infinity;
-    combatSpatialIndex.query(projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, maxCombatHitRadius + (maxTargetSpeed.get(projectile.cityId) ?? 0) * deltaSeconds, combatNearbyPlayers);
+    const expertShot=Boolean((owner.bot?.opponent??owner.npcOpponent)?.profile.tactics.expert);
+    combatSpatialIndex.query(projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, maxCombatHitRadius + (maxTargetSpeed.get(projectile.cityId) ?? 0) * (deltaSeconds+(expertShot ? 0.15 : 0)), combatNearbyPlayers);
     for (const { id: playerId, player } of combatNearbyPlayers) {
       if (
         playerId === projectile.ownerId ||
@@ -6262,8 +6263,9 @@ function updateProjectiles(deltaSeconds: number): void {
       const targetScale = owner.isBot && !player.isBot ? 1
         : player.bot?.journeyRearGuardEscort ? remoteAircraftScale : remoteAircraftVisualScale(distance);
       const radius = aircraftHitRadii[player.aircraftType] * targetScale * projectileHitRadiusMultiplier + projectileVisualRadius;
+      const targetPosition=expertShot&&!player.isBot?hunterObservedPosition(player.position,player.velocity,player.lastStateAt,now):player.position;
       const fraction = projectileImpactFraction({ x: previousX, y: previousY, z: previousZ }, projectile.position,
-        player.position, player.velocity, deltaSeconds, radius);
+        targetPosition, player.velocity, deltaSeconds, radius);
       if (fraction !== null && fraction < hitFraction) { hitPlayerId = playerId; hitFraction = fraction; }
 
     }
@@ -6760,33 +6762,36 @@ function hunterInterceptWaypoint(player: PlayerState, bot: BotRuntime, target: P
 
 function botFireSolution(shooter: PlayerState, target: PlayerState, defender: boolean): { distance: number; vertical: number; angle: number; aimX: number; aimY: number; reason?: string } {
   if (runwayCombatProtected(undefined, target)) return {distance:0,vertical:0,angle:Infinity,aimX:0,aimY:0,reason:'RUNWAY_PROTECTED'};
+  const expert=(shooter.bot?.opponent??shooter.npcOpponent)?.profile.tactics.expert===true;
+  const fireCone=expert?AIM_ENVELOPE:hunterFireCone;
+  const targetPosition=expert&&!target.isBot?hunterObservedPosition(target.position,target.velocity,target.lastStateAt,Date.now()):target.position;
   const muzzle = muzzleTransform(shooter).position;
-  const actualDistance = Math.hypot(target.position.x - muzzle.x, target.position.y - muzzle.y, target.position.z - muzzle.z);
+  const actualDistance = Math.hypot(targetPosition.x - muzzle.x, targetPosition.y - muzzle.y, targetPosition.z - muzzle.z);
   const envelope = aircraftFlightEnvelope[target.aircraftType];
-  const targetCap = envelope.maxSpeed * (target.boostActive ? envelope.boostMaxSpeed : 1);
+  const targetCap = envelope.maxSpeed * (expert || target.boostActive ? envelope.boostMaxSpeed : 1) + (expert ? 10 : 0);
   const targetSpeed = Math.hypot(target.velocity.x, target.velocity.y, target.velocity.z);
   const scale = targetSpeed > targetCap ? targetCap / targetSpeed : 1;
   if (shooter.airAssaultId) {
     const forward = hunterForward(shooter);
-    const direction = assaultShotDirection(muzzle, shooter.velocity, target.position,
+    const direction = assaultShotDirection(muzzle, shooter.velocity, targetPosition,
       { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
-      forward, shooter.isBot ? hunterFireCone : AIM_ENVELOPE, target.airAssaultTurnRate ?? 0);
-    if (!direction) return { distance: actualDistance, vertical: target.position.y - shooter.position.y,
+      forward, shooter.isBot ? fireCone : AIM_ENVELOPE, expert ? (shooter.bot?.opponent??shooter.npcOpponent)?.tactics?.targetTurnRate ?? target.airAssaultTurnRate ?? 0 : target.airAssaultTurnRate ?? 0);
+    if (!direction) return { distance: actualDistance, vertical: targetPosition.y - shooter.position.y,
       angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_FORWARD_SOLUTION' };
     const depth = dot(direction, forward);
-    return { distance: actualDistance, vertical: target.position.y - shooter.position.y,
+    return { distance: actualDistance, vertical: targetPosition.y - shooter.position.y,
       angle: Math.acos(Math.max(-1, Math.min(1, depth))),
       aimX: dot(direction, rotateLocalYxz({ x: 1, y: 0, z: 0 }, shooter.rotation)) / depth,
       aimY: dot(direction, rotateLocalYxz({ x: 0, y: 1, z: 0 }, shooter.rotation)) / depth };
   }
   let leadTime = 0;
-  let aimPoint = target.position;
+  let aimPoint = targetPosition;
   if (smoothHunter(shooter)) {
-    const solution = hunterBallisticSolution(muzzle, shooter.velocity, target.position,
+    const solution = hunterBallisticSolution(muzzle, shooter.velocity, targetPosition,
       { x: target.velocity.x * scale, y: target.velocity.y * scale, z: target.velocity.z * scale },
       (shooter.bot?.opponent ?? shooter.npcOpponent)?.profile.tactics.expert
         ? (shooter.bot?.opponent ?? shooter.npcOpponent)?.tactics?.targetTurnRate ?? 0 : 0);
-    if (!solution) return { distance: actualDistance, vertical: target.position.y - shooter.position.y,
+    if (!solution) return { distance: actualDistance, vertical: targetPosition.y - shooter.position.y,
       angle: Infinity, aimX: 0, aimY: 0, reason: 'NO_BALLISTIC_INTERCEPT' };
     aimPoint = solution.point;
   } else {
@@ -6797,9 +6802,9 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
       const direction = normalize(offset);
       leadTime = Math.min(defender ? 2.5 : 1.75, Math.hypot(offset.x, offset.y, offset.z) / ballisticShotSpeed(shooter.velocity, direction));
       aimPoint = {
-        x: target.position.x + target.velocity.x * scale * leadTime,
-        y: target.position.y + target.velocity.y * scale * leadTime,
-        z: target.position.z + target.velocity.z * scale * leadTime,
+        x: targetPosition.x + target.velocity.x * scale * leadTime,
+        y: targetPosition.y + target.velocity.y * scale * leadTime,
+        z: targetPosition.z + target.velocity.z * scale * leadTime,
       };
     }
   }
@@ -6810,18 +6815,18 @@ function botFireSolution(shooter: PlayerState, target: PlayerState, defender: bo
     z: -dot(offset, hunterForward(shooter)),
   };
   const distance = Math.hypot(local.x, local.y, local.z);
-  const vertical = target.position.y - shooter.position.y;
+  const vertical = targetPosition.y - shooter.position.y;
   const horizontal = Math.hypot(local.x, local.z);
   const angle = Math.acos(Math.max(-1, Math.min(1, dot(hunterForward(shooter), normalize(offset)))));
   const yaw = Math.atan2(local.x, -local.z);
   const pitch = Math.atan2(local.y, horizontal);
-  const downwardLimit = defender && vertical < 0 ? defenderDownwardFireAngle : hunterFireCone;
+  const downwardLimit = defender && vertical < 0 ? defenderDownwardFireAngle : fireCone;
   const reason = local.z >= 0 ? 'NO_FORWARD_SOLUTION'
     : actualDistance > hunterFireRange || distance > hunterFireRange ? 'OUT_OF_RANGE'
-    : !defender && angle > hunterFireCone ? 'NO_FORWARD_SOLUTION'
-    : Math.abs(yaw) > hunterFireCone ? 'NO_FORWARD_SOLUTION'
+    : !defender && angle > fireCone ? 'NO_FORWARD_SOLUTION'
+    : Math.abs(yaw) > fireCone ? 'NO_FORWARD_SOLUTION'
     : pitch < -downwardLimit ? 'TOO_VERTICAL'
-    : pitch > hunterFireCone ? 'TOO_VERTICAL' : undefined;
+    : pitch > fireCone ? 'TOO_VERTICAL' : undefined;
   return { distance: actualDistance, vertical, angle, aimX: local.x / Math.max(1, -local.z), aimY: local.y / Math.max(1, -local.z), reason };
 }
 
@@ -7041,7 +7046,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     clearHunterCombat(player, bot);
     return undefined;
   }
-  if (missionPilot && !bot.journeyRearGuardEscort && !insideJourneyHunterArena(missionPilot.position)) {
+  if (bot.journeyAttemptId && missionPilot && !bot.journeyRearGuardEscort && !insideJourneyHunterArena(missionPilot.position)) {
     bot.journeyPilotOutside = true;
     clearHunterCombat(player, bot);
     return { waypoint: safeBotWaypoint(player.cityId, player.position,
@@ -7099,6 +7104,7 @@ function hunterNavigationTarget(botId: string, player: PlayerState, bot: BotRunt
     ? [...projectiles.values()].filter(shot => shot.ownerId === target![0] && shot.cityId === player.cityId) : [];
   const plan = planOpponentTactics(bot.opponent, {
     enemy: player, target: targetPlayer, targetId: target[0], speed: bot.speed, now,
+    roaming: Boolean(player.skyDuelPracticeOwnerId || !bot.journeyAttemptId && !bot.defenseTerritoryId),
     firingSolution: !botFireSolution(player, targetPlayer, Boolean(bot.defenseTerritoryId)).reason,
     lockedByTarget: targetPlayer.lockedTargetId === botId, bullets,
     cruise: bot.journeySurpriseAttack ? ambushCruiseSpeed(targetPlayer.velocity)

@@ -8,18 +8,19 @@ export const combatTactics = ['directIntercept','rearIntercept','leadPursuit','l
 export type CombatTactic = typeof combatTactics[number];
 export type TacticalPlan = { tactic:CombatTactic; waypoint:V; cruise:number; turnSign:number; until:number };
 export type TacticalMemory = {
-  targetId:string; nextDecision:number; observedAt:number; heading:number; altitude:number;
+  travelGoal?:V; travelUntil?:number; travelRange?:number; nextExcursionAt?:number;
+  targetSampleAt?:number; targetId:string; nextDecision:number; observedAt:number; heading:number; altitude:number;
   targetTurnRate:number; turnBias:number; turning:number; climbing:number; straight:number; threatSince?:number;
   shots:number; hits:number; passShots:number; passHits:number; failures:number; threatDamage:number;
   plan:TacticalPlan; selectedAt:number; range:number; progressAt:number;
   // Bounded encounter-only feedback, exponentially decayed at each observation.
   usefulness:number[]; transitions:{at:number;tactic:CombatTactic}[];
 };
-export type TacticalAircraft = { position:V; rotation:V; velocity:V; aircraftType:OpponentAircraft };
+export type TacticalAircraft = { lastStateAt?:number; position:V; rotation:V; velocity:V; aircraftType:OpponentAircraft };
 export type TacticalInput = {
   targetId:string; target:TacticalAircraft; enemy:TacticalAircraft; speed:number; now:number;
   firingSolution:boolean; lockedByTarget?:boolean; bullets?:readonly OpponentBullet[];
-  cruise:number; floorAt:(x:number,z:number)=>number;
+  roaming?:boolean; cruise:number; floorAt:(x:number,z:number)=>number;
   safeWaypoint?:(from:V,to:V)=>V; inside?:(p:V)=>boolean;
 };
 const clamp=(x:number,a:number,b:number)=>Math.max(a,Math.min(b,x));
@@ -27,6 +28,7 @@ const wrap=(x:number)=>Math.atan2(Math.sin(x),Math.cos(x));
 const horizontal=(v:V)=>Math.hypot(v.x,v.z);
 const dot=(a:V,b:V)=>a.x*b.x+a.z*b.z;
 const basicTactics=new Set<CombatTactic>(['directIntercept','attackPass','extendAway','energyRecovery','defensiveBreak']);
+const flightBearing=(p:TacticalAircraft)=>horizontal(p.velocity)>aircraftFlightEnvelope[p.aircraftType].stallSpeed?Math.atan2(-p.velocity.x,-p.velocity.z):p.rotation.y;
 const forward=(yaw:number):V=>({x:-Math.sin(yaw),y:0,z:-Math.cos(yaw)});
 
 /** Derived from the same bank/yaw equations as advanceHunterFlight; never buffs an airframe. */
@@ -48,6 +50,9 @@ export function recordOpponentDamage(runtime:OpponentRuntime|undefined) {
 }
 export function shiftOpponentTactics(runtime:OpponentRuntime|undefined,delta:number) {
   const m=runtime?.tactics;if(!m)return;
+  if(m.travelUntil!==undefined)m.travelUntil+=delta;
+  if(m.nextExcursionAt!==undefined)m.nextExcursionAt+=delta;
+  if(m.targetSampleAt!==undefined)m.targetSampleAt+=delta;
   m.nextDecision+=delta;m.observedAt+=delta;m.selectedAt+=delta;m.progressAt+=delta;m.plan.until+=delta;
   if(m.threatSince!==undefined)m.threatSince+=delta;
   for(const transition of m.transitions)transition.at+=delta;
@@ -59,7 +64,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   let m=runtime.tactics;
   if(m?.targetId!==input.targetId) {
     const f=forward(enemy.rotation.y);
-    m=runtime.tactics={targetId:input.targetId,nextDecision:0,observedAt:now-profile.trackingMs,heading:target.rotation.y,altitude:target.position.y,
+    m=runtime.tactics={targetSampleAt:target.lastStateAt,targetId:input.targetId,nextDecision:0,observedAt:now-profile.trackingMs,heading:expert?flightBearing(target):target.rotation.y,altitude:target.position.y,
       targetTurnRate:0,turnBias:0,turning:0,climbing:0,straight:1,shots:0,hits:0,passShots:0,passHits:0,failures:0,threatDamage:0,
       selectedAt:now,range:Infinity,progressAt:now,usefulness:combatTactics.map(()=>0),transitions:[],
       plan:{tactic:'directIntercept',waypoint:{x:enemy.position.x+f.x*input.speed*3,y:enemy.position.y,z:enemy.position.z+f.z*input.speed*3},cruise:input.cruise,turnSign:1,until:Math.max(now,runtime.detectedAt+profile.reactionMs)}};
@@ -71,12 +76,23 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   m.nextDecision=now+Math.min(250,profile.trackingMs);
   const dodge=chooseOpponentEvasion(runtime,enemy,input.speed,input.bullets??[],now,input.floorAt,input.inside,expert?target:undefined);
   const f=forward(enemy.rotation.y), tf=forward(target.rotation.y);
+  if(m.travelGoal&&!input.roaming){m.travelGoal=undefined;m.plan.until=now;}
+  if(m.travelGoal) {
+    const separation=horizontal({x:target.position.x-enemy.position.x,y:0,z:target.position.z-enemy.position.z});
+    if(now>=(m.travelUntil??0)||separation>=(m.travelRange??0)) {
+      m.travelGoal=undefined;m.nextExcursionAt=now+8000;m.plan.until=now;
+    } else if(dodge) {
+      return m.plan={tactic:'defensiveBreak',waypoint:input.safeWaypoint?.(enemy.position,dodge)??dodge,cruise:input.cruise,turnSign:m.plan.turnSign,until:runtime.dodgeUntil};
+    } else if(now<runtime.dodgeUntil) return m.plan;
+    else return m.plan={tactic:'disengage',waypoint:m.travelGoal,cruise:input.cruise,turnSign:m.plan.turnSign,until:m.travelUntil!};
+  }
   const delta={x:target.position.x-enemy.position.x,y:target.position.y-enemy.position.y,z:target.position.z-enemy.position.z};
   const range=Math.max(1,horizontal(delta)), direction={x:delta.x/range,y:0,z:delta.z/range};
   const nose=dot(f,direction), targetNose=-dot(tf,direction);
   const closing=dot({x:enemy.velocity.x-target.velocity.x,y:0,z:enemy.velocity.z-target.velocity.z},direction);
   const space=tacticalFlightSpace(enemy.aircraftType,input.speed,closing,expert?1.5:1), targetSpeed=horizontal(target.velocity);
   const targetSpace=tacticalFlightSpace(target.aircraftType,targetSpeed);
+  const fastPass=expert&&input.roaming===true&&input.cruise>targetSpeed*1.15;
   const targetGunAlignment=(targetNose*Math.cos(target.rotation.x)*range-Math.sin(target.rotation.x)*delta.y)/Math.hypot(range,delta.y);
   const threatGeometry=Math.hypot(range,delta.y)<COMBAT_RANGE*1.2 && targetGunAlignment>Math.cos(.22+.14*intelligence.awareness);
   if(threatGeometry||input.lockedByTarget) m.threatSince??=now; else m.threatSince=undefined;
@@ -92,7 +108,11 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   if(!emergency && committed && ['extendAway','disengage','defensiveBreak','energyRecovery',...(!expert?['attackPass']:[])].includes(m.plan.tactic))return m.plan;
   if(!emergency && now<m.observedAt+profile.trackingMs)return m.plan;
   const seconds=Math.max(.05,(now-m.observedAt)/1000), weight=1-Math.exp(-seconds/5), decay=Math.exp(-seconds/18);
-  const turn=wrap(target.rotation.y-m.heading)/seconds;
+  const observedHeading=expert?flightBearing(target):target.rotation.y;
+  const sampleAt=target.lastStateAt??now;
+  const freshSample=!expert||m.targetSampleAt===undefined||sampleAt>m.targetSampleAt;
+  const sampleSeconds=expert?Math.max(.05,(sampleAt-(m.targetSampleAt??m.observedAt))/1000):seconds;
+  const turn=freshSample?wrap(observedHeading-m.heading)/sampleSeconds:m.targetTurnRate;
   const targetEnvelope=aircraftFlightEnvelope[target.aircraftType],targetRatio=clamp(targetSpeed/targetEnvelope.maxSpeed,0,1);
   const observedTurnLimit=expert?(.42+targetRatio*.5)*targetEnvelope.yawRate/targetEnvelope.inertia+targetRatio*targetEnvelope.bankTurn:targetEnvelope.yawRate;
   m.targetTurnRate=clamp(turn,-observedTurnLimit,observedTurnLimit);
@@ -100,7 +120,8 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   m.turning+=(Math.abs(turn)-m.turning)*weight;
   m.climbing+=(Math.abs(target.position.y-m.altitude)/seconds-m.climbing)*weight;
   m.straight+=(Math.abs(turn)<.035?1-m.straight:-m.straight)*weight;
-  m.heading=target.rotation.y;m.altitude=target.position.y;m.observedAt=now;
+  if(freshSample){m.heading=observedHeading;m.targetSampleAt=sampleAt;}
+  m.altitude=target.position.y;m.observedAt=now;
   m.threatDamage*=decay;
   for(let i=0;i<m.usefulness.length;i++)m.usefulness[i]!*=decay;
   if(range<m.range-space.radius*.15){m.range=range;m.progressAt=now;}
@@ -111,6 +132,8 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   const above=(enemy.position.y-target.position.y)/Math.max(100,space.climb*3);
   const behindTarget=targetNose<-.3;
   const crossing=Math.abs(dot(f,tf))<.6;
+  const canExcursion=expert&&input.roaming&&now>=(m.nextExcursionAt??runtime.detectedAt+4000)&&range<COMBAT_RANGE;
+  const resetNeeded=Boolean(canExcursion&&(recentMisses||repeatedCircle||stalled||m.threatDamage>0));
   const scores:Record<CombatTactic,number>={
     directIntercept:.6+clamp(range/COMBAT_RANGE,0,2)*.25+(stalled?.35:0),
     rearIntercept:(expert?.5:.35)+intelligence.awareness*.25+(behindTarget?.4:0)-(close?.8:0),
@@ -124,7 +147,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
     defensiveBreak:emergency?2.8:danger?intelligence.awareness*1.3:-1,
     energyRecovery:lowEnergy?1.5:-.8,
     counterattack:expert&&now-runtime.dodgeAt<5000&&range<COMBAT_RANGE&&targetGunAlignment<.94?1.5:crossing&&targetNose<.1&&nose>.2?.5+intelligence.awareness*.65:-.5,
-    disengage:danger&&nose<0?1.1+intelligence.awareness*.5+m.threatDamage*.15:-.5,
+    disengage:resetNeeded?(dodge?2.2:3):danger&&nose<0?1.1+intelligence.awareness*.5+m.threatDamage*.15:-.5,
   };
   const personality=runtime.definition.personality ?? (runtime.definition.behavior==='ambush'?'patient':runtime.definition.behavior==='defend'?'defensive':'balanced');
   if(personality==='aggressive'){scores.attackPass+=.12;scores.counterattack+=.15;}
@@ -163,8 +186,8 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   if(choice==='lowAttack')waypoint.y-=Math.min(space.climb*2,separation*.2);
   if(choice==='attackPass') {
     // Fly through the solution rather than turn around a point directly over the target.
-    waypoint=expert&&ballistic?ballistic.point:{x:target.position.x+f.x*separation,y:target.position.y,z:target.position.z+f.z*separation};
-    cruise=Math.min(cruise,Math.max(space.minSpeed*2,targetSpeed+Math.max(60,closing*.25)));
+    waypoint=fastPass&&committed?m.plan.waypoint:expert&&ballistic&&!fastPass?ballistic.point:{x:target.position.x+f.x*separation,y:target.position.y,z:target.position.z+f.z*separation};
+    cruise=fastPass?input.cruise:Math.min(cruise,Math.max(space.minSpeed*2,targetSpeed+Math.max(60,closing*.25)));
   }
   if(['extendAway','disengage','energyRecovery','defensiveBreak'].includes(choice)) {
     waypoint={x:enemy.position.x+f.x*separation+lateral.x*separation*(choice==='defensiveBreak'?.8:.15),
@@ -173,13 +196,37 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
     if(choice==='defensiveBreak')waypoint=dodge??(expert&&danger?opponentDodge(enemy.aircraftType,enemy,input.speed,[],input.floorAt,input.inside,target):undefined)??waypoint;
     cruise=choice==='energyRecovery'?input.cruise:Math.min(input.cruise,Math.max(space.minSpeed*2,targetSpeed+80));
   }
-  if(expert && !['extendAway','disengage','defensiveBreak','energyRecovery'].includes(choice) && nose>0) {
+  if(expert && !(fastPass&&choice==='attackPass') && !['extendAway','disengage','defensiveBreak','energyRecovery'].includes(choice) && nose>0) {
     const e=aircraftFlightEnvelope[enemy.aircraftType];
     const ideal=COMBAT_RANGE*BASE_PROJECTILE_SPEED/(BASE_PROJECTILE_SPEED+targetSpeed)*.30;
     const brake=Math.max(e.drag*(input.speed/e.maxSpeed)**2/e.inertia,e.airbrakeDrag/e.inertia*.35);
     const matching=Math.max(space.minSpeed*2,targetSpeed+(range-ideal)*.12-Math.max(0,closing)*.2);
     const brakingCap=Math.sqrt(Math.max(space.minSpeed**2,targetSpeed**2+2*brake*Math.max(0,range-ideal)));
     cruise=Math.min(input.cruise,matching,brakingCap);
+  }
+  if(choice==='disengage'&&canExcursion) {
+    const desiredRange=clamp(space.separation*2.2+input.speed*space.rollSeconds,COMBAT_RANGE*1.1,COMBAT_RANGE*1.6);
+    const travelMs=clamp(desiredRange/Math.max(200,input.cruise-targetSpeed)*1000,4000,12000);
+    const reach=input.cruise*travelMs/1000+space.radius*2;
+    let best=-Infinity,goal:V|undefined;
+    for(const angle of [0,Math.PI/3,-Math.PI/3,Math.PI]) {
+      const yaw=enemy.rotation.y+angle;
+      let candidate={x:enemy.position.x-Math.sin(yaw)*reach,y:enemy.position.y+Math.min(300,space.climb*2),z:enemy.position.z-Math.cos(yaw)*reach};
+      candidate.y=Math.max(candidate.y,input.floorAt(candidate.x,candidate.z)+35);
+      candidate=input.safeWaypoint?.(enemy.position,candidate)??candidate;
+      if(input.inside&&!input.inside(candidate))continue;
+      const distance=horizontal({x:candidate.x-enemy.position.x,y:0,z:candidate.z-enemy.position.z});
+      if(distance<desiredRange)continue;
+      const score=distance+.4*Math.hypot(candidate.x-target.position.x,candidate.z-target.position.z)-space.radius*Math.abs(angle);
+      if(score>best){best=score;goal=candidate;}
+    }
+    if(goal){
+      m.travelGoal=goal;m.travelRange=desiredRange;m.travelUntil=now+travelMs;waypoint=goal;cruise=input.cruise;
+      if(danger&&now-runtime.dodgeAt>=profile.dodgeCooldownMs) {
+        const breakPoint=opponentDodge(enemy.aircraftType,enemy,input.speed,[],input.floorAt,input.inside,target);
+        if(breakPoint){waypoint=input.safeWaypoint?.(enemy.position,breakPoint)??breakPoint;runtime.dodgeAt=now;runtime.dodgeUntil=now+1200;}
+      }
+    }
   }
   waypoint.y=Math.max(waypoint.y,input.floorAt(waypoint.x,waypoint.z)+35);
   waypoint=input.safeWaypoint?.(enemy.position,waypoint)??waypoint;
@@ -194,7 +241,7 @@ export function planOpponentTactics(runtime:OpponentRuntime,input:TacticalInput)
   }
   if(choice==='defensiveBreak'&&emergency){runtime.dodgeAt=now;runtime.dodgeUntil=now+1200;}
   // Duration follows roll-in and needed travel space; no fixed flight distance or attack rotation.
-  const commitment=Math.max(intelligence.commitment,(separating||choice==='extendAway'?separation/Math.max(1,input.speed)*.65:space.rollSeconds)*1000);
-  m.plan={tactic:choice,waypoint,cruise:clamp(cruise,space.minSpeed,space.maxSpeed),turnSign:side,until:committed&&!emergency?m.plan.until:now+Math.min(7000,commitment)};
+  const commitment=fastPass&&choice==='attackPass'?Math.max(intelligence.commitment,Math.min(4500,(range+space.radius*1.5)/Math.max(1,input.cruise)*1000)):Math.max(intelligence.commitment,(separating||choice==='extendAway'?separation/Math.max(1,input.speed)*.65:space.rollSeconds)*1000);
+  m.plan={tactic:choice,waypoint,cruise:clamp(cruise,space.minSpeed,space.maxSpeed),turnSign:side,until:m.travelGoal?m.travelUntil!:committed&&!emergency?m.plan.until:now+Math.min(7000,commitment)};
   return m.plan;
 }

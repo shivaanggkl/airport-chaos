@@ -169,3 +169,61 @@ test('Legendary tracks a sustained fast Bluejay turn within its real envelope an
  assert.ok(attack.cruise>speed,'close a rear firing gap rather than matching speed too far away');
  assert.ok(attack.cruise<=aircraftFlightEnvelope.fighter.maxSpeed);
 });
+
+test('Legendary leads the observed flight path rather than a nose turn that momentum has not followed',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',-1800);
+ const input={enemy,target,targetId:'pilot',speed:400,now:0,cruise:1000,firingSolution:true,floorAt:floor};
+ planOpponentTactics(runtime,input);planOpponentTactics(runtime,{...input,now:500});
+ target.rotation.y=.18;
+ planOpponentTactics(runtime,{...input,now:600});assert.equal(runtime.tactics!.targetTurnRate,0);
+ target.velocity={x:-Math.sin(.12)*400,y:0,z:-Math.cos(.12)*400};
+ planOpponentTactics(runtime,{...input,now:700});assert.ok(runtime.tactics!.targetTurnRate>1.1&&runtime.tactics!.targetTurnRate<1.3);
+});
+
+test('roaming breakaways use normal flight across kilometres, expire and reengage; restricted encounters cannot start them',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',-2000);
+ const input={enemy,target,targetId:'pilot',speed:600,now:0,cruise:aircraftFlightEnvelope.fighter.maxSpeed,firingSolution:false,floorAt:floor,roaming:true};
+ planOpponentTactics(runtime,input);planOpponentTactics(runtime,{...input,now:500});
+ for(let i=0;i<5;i++)recordOpponentShot(runtime);
+ const escape=planOpponentTactics(runtime,{...input,now:5000});assert.equal(escape.tactic,'disengage');assert.ok(runtime.tactics!.travelGoal);
+ const until=runtime.tactics!.travelUntil!;const goal={...escape.waypoint};
+ assert.ok(Math.hypot(goal.x-enemy.position.x,goal.z-enemy.position.z)>=COMBAT_RANGE*.85);
+ const motion={speed:600,bankControl:0,combatTurnSign:escape.turnSign,expertControl:true};
+ let maxRange=0,reengaged=false;
+ for(let now=5050;now<25000;now+=50) {
+  const range=Math.hypot(enemy.position.x-target.position.x,enemy.position.z-target.position.z);
+  const plan=planOpponentTactics(runtime,{...input,speed:motion.speed,now});
+  motion.combatTurnSign=plan.turnSign;advanceHunterFlight(enemy,motion,plan.waypoint,plan.cruise,.05,floor);
+  maxRange=Math.max(maxRange,range);
+  if(now>until&&['directIntercept','rearIntercept','leadPursuit','attackPass','counterattack'].includes(plan.tactic))reengaged=true;
+  assert.ok(motion.speed<=aircraftFlightEnvelope.fighter.maxSpeed);assert.ok(enemy.position.y>100);
+ }
+ assert.ok(maxRange>COMBAT_RANGE,'the retreat actually leaves the immediate firing area');assert.ok(reengaged,'the AI must return to attack rather than fly away indefinitely');
+ const restricted=opponent('LEGENDARY','fighter');planOpponentTactics(restricted,{...input,roaming:false});
+ for(let i=0;i<5;i++)recordOpponentShot(restricted);
+ planOpponentTactics(restricted,{...input,roaming:false,now:5000});assert.equal(restricted.tactics!.travelGoal,undefined);
+});
+
+test('a reused accepted packet does not erase Legendary turn tracking or double the next measured turn',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target={...aircraft('trainer',-1800),lastStateAt:1000};
+ const input={enemy,target,targetId:'pilot',speed:400,now:1000,cruise:1000,firingSolution:true,floorAt:floor};
+ planOpponentTactics(runtime,input);
+ target.lastStateAt=1100;target.velocity={x:-Math.sin(.1)*400,y:0,z:-Math.cos(.1)*400};
+ planOpponentTactics(runtime,{...input,now:1100});const rate=runtime.tactics!.targetTurnRate;assert.ok(rate>.9&&rate<1.1);
+ planOpponentTactics(runtime,{...input,now:1200});assert.equal(runtime.tactics!.targetTurnRate,rate);
+ target.lastStateAt=1300;target.velocity={x:-Math.sin(.3)*400,y:0,z:-Math.cos(.3)*400};
+ planOpponentTactics(runtime,{...input,now:1300});assert.ok(runtime.tactics!.targetTurnRate>.9&&runtime.tactics!.targetTurnRate<1.1);
+});
+
+test('a faster roaming Legendary aircraft commits a full-speed firing pass while continuing to observe the target',()=>{
+ const runtime=opponent('LEGENDARY','fighter'),enemy=aircraft('fighter'),target=aircraft('trainer',-1500);
+ const input={enemy,target,targetId:'pilot',speed:900,now:0,cruise:aircraftFlightEnvelope.fighter.maxSpeed,firingSolution:true,floorAt:floor,roaming:true};
+ planOpponentTactics(runtime,input);const pass=planOpponentTactics(runtime,{...input,now:500});
+ assert.equal(pass.tactic,'attackPass');assert.equal(pass.cruise,input.cruise);assert.ok(pass.waypoint.z<target.position.z);
+ const goal=pass.waypoint;target.velocity={x:-Math.sin(.1)*400,y:0,z:-Math.cos(.1)*400};
+ const next=planOpponentTactics(runtime,{...input,now:600});
+ assert.equal(next.waypoint,goal,'flight intent stays forward through the pass rather than orbiting the target');
+ assert.ok(runtime.tactics!.targetTurnRate>.9,'gun tracking continues during the committed flight pass');
+ const limited=opponent('LEGENDARY','fighter');planOpponentTactics(limited,{...input,roaming:false});
+ const mission=planOpponentTactics(limited,{...input,roaming:false,now:500});assert.ok(mission.cruise<input.cruise,'authored encounter pacing stays intact');
+});

@@ -24,6 +24,12 @@ export function hunterFlightIntercept(position: V, speed: number, target: V, vel
   return { x: target.x + velocity.x * seconds, y: target.y + velocity.y * seconds, z: target.z + velocity.z * seconds };
 }
 
+/** Align an accepted movement sample to the combat tick, with a strict 150 ms ceiling. */
+export function hunterObservedPosition(position:V,velocity:V,lastStateAt:number|undefined,now:number):V {
+  const seconds=Number.isFinite(lastStateAt)?Math.max(0,Math.min(.15,(now-lastStateAt!)/1000)):0;
+  return seconds?{x:position.x+velocity.x*seconds,y:position.y+velocity.y*seconds,z:position.z+velocity.z*seconds}:position;
+}
+
 /** Same launch-speed and range solver used by the existing server projectile system. */
 export function hunterBallisticSolution(origin: V, velocity: V, target: V, targetVelocity: V, turnRate = 0) {
   if (!Number.isFinite(turnRate) || Math.hypot(target.x-origin.x,target.y-origin.y,target.z-origin.z)>COMBAT_RANGE) return null;

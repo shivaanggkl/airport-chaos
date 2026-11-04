@@ -2,7 +2,7 @@ import { planOpponentTactics } from './opponent-tactics.js';
 import { createOpponent } from './opponent.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceHunterFlight, hunterBallisticSolution, hunterFlightIntercept } from './hunter-flight.js';
+import { advanceHunterFlight, hunterBallisticSolution, hunterFlightIntercept, hunterObservedPosition } from './hunter-flight.js';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
@@ -108,7 +108,7 @@ const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const tree = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true);
 function production(names: string[], dependencies: Record<string, unknown>) {
   const code = tree.statements.filter(n => ts.isFunctionDeclaration(n) && names.includes(n.name?.text ?? '')).map(n => n.getText(tree)).join('\n');
-  const context = vm.createContext({runwayCombatProtected:()=>false,...dependencies});
+  const context = vm.createContext({runwayCombatProtected:()=>false,hunterObservedPosition,...dependencies});
   vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   return context;
 }
@@ -207,4 +207,62 @@ test('fast combat updates select Legendary combat only; runway, patrol and other
  });
  ctx.updateBots(1000);assert.deepEqual(visits,['runway','medium']);assert.equal(trainingTicks,1);
  visits.length=0;ctx.updateBots(1050,true);assert.deepEqual(visits,['expert']);assert.equal(trainingTicks,1);
+});
+
+import { AIM_ENVELOPE } from '../../shared/protocol.mjs';
+test('Legendary uses the existing legal weapon cone for predictive shots while lower levels keep their current cone',()=>{
+ const ctx=production(['botFireSolution','rotateLocalYxz','forwardDirection','hunterForward'],{
+  smoothHunter:()=>true,hunterBallisticSolution,aircraftFlightEnvelope,AIM_ENVELOPE,
+  muzzleTransform:(p:ReturnType<typeof pilot>)=>({position:p.position}),
+  normalize:(v:{x:number;y:number;z:number})=>{const n=Math.hypot(v.x,v.y,v.z);return{x:v.x/n,y:v.y/n,z:v.z/n};},
+  dot:(a:any,b:any)=>a.x*b.x+a.y*b.y+a.z*b.z,hunterFireRange:COMBAT_RANGE,hunterFireCone:.2,defenderDownwardFireAngle:.3,
+ });
+ const target={...pilot(),position:{x:600,y:900,z:-1200},velocity:{x:0,y:0,z:-400}};
+ const shooter={...pilot(),bot:{opponent:{profile:enemyAiLevels.LEGENDARY,tactics:{targetTurnRate:0}}}};
+ const expert=ctx.botFireSolution(shooter,target,false);assert.equal(expert.reason,undefined);assert.ok(expert.angle<=AIM_ENVELOPE);
+ assert.equal(ctx.botFireSolution({...shooter,bot:{opponent:{profile:enemyAiLevels.HARD}}},target,false).reason,'NO_FORWARD_SOLUTION');
+ target.position={x:2000,y:900,z:0};assert.equal(ctx.botFireSolution(shooter,target,false).reason,'NO_FORWARD_SOLUTION');
+});
+
+test('Sky Duel can pursue outside Journey airspace; authored Journey opponents retain their arena guard',()=>{
+ const p={...pilot(),cityId:'dallas',lifeState:'alive'},target={...pilot(),position:{x:-30000,y:900,z:5000}};
+ const opponent=createOpponent({aircraft:'privateJet',level:'LEGENDARY',cityId:'dallas',position:p.position,rotation:p.rotation,speed:400,health:100,behavior:'attack'});
+ const bot={...motion(),opponent,personality:'hunter',phase:'approach',combatTargetId:'pilot',journeyTargetPlayerId:'pilot',journeyProvoked:true};
+ let clears=0;
+ const ctx=production(['hunterNavigationTarget','isHunterCombatPhase'],{
+  players:new Map([['pilot',target]]),hunterTarget:()=>['pilot',target],planOpponentTactics,opponentReactionReady:()=>true,
+  projectiles:new Map(),botFireSolution:()=>({reason:'NO_FORWARD_SOLUTION'}),botCruiseFactor:()=>.7,
+  insideJourneyHunterArena:()=>false,boundJourneyHunterPoint:(p:unknown)=>p,clearHunterCombat:()=>clears++,
+  safeBotWaypoint:(_city:unknown,_from:unknown,p:unknown)=>p,botSafeFloor:()=>100,hunterClearance:()=>600,aircraftFlightEnvelope,
+ });
+ const duel=ctx.hunterNavigationTarget('hunter',{...p,skyDuelPracticeOwnerId:'pilot'},bot,500);
+ assert.ok(duel.target);assert.equal(clears,0);
+ const journey=ctx.hunterNavigationTarget('hunter',p,{...bot,journeyAttemptId:'mission'},1000);
+ assert.equal(journey.target,undefined);assert.equal(clears,1);
+});
+
+test('Legendary lead and swept hits share the accepted movement clock without enlarging the hitbox',()=>{
+ const origin={x:0,y:900,z:0},shooterVelocity={x:0,y:0,z:-400},accepted={x:0,y:900,z:-1200},v={x:200,y:0,z:-100};
+ assert.deepEqual(hunterObservedPosition(accepted,v,1000,1200),{x:30,y:900,z:-1215});
+ assert.equal(hunterObservedPosition(accepted,v,1200,1000),accepted);
+ assert.equal(hunterObservedPosition(accepted,v,undefined,1000),accepted);
+ let correctedHits=0,oldAimHits=0;
+ for(const age of [20,40,60,80]) {
+  const current=hunterObservedPosition(accepted,v,1000,1000+age);
+  for(const corrected of [false,true]) {
+   const shot=hunterBallisticSolution(origin,shooterVelocity,corrected?current:accepted,v)!;assert.ok(shot);
+   let previous={...origin};
+   for(let t=.01;t<COMBAT_RANGE/shot.speed;t+=.01) {
+    const end={x:origin.x+shot.direction.x*shot.speed*t,y:origin.y+shot.direction.y*shot.speed*t,z:origin.z+shot.direction.z*shot.speed*t};
+    const now=1000+age+t*1000,sampleAt=1000+Math.floor((now-1000)/100)*100;
+    const sample={x:accepted.x+v.x*(sampleAt-1000)/1000,y:900,z:accepted.z+v.z*(sampleAt-1000)/1000};
+    const observed=hunterObservedPosition(sample,v,sampleAt,now);
+    const actual={x:current.x+v.x*t,y:900,z:current.z+v.z*t};
+    assert.ok(Math.hypot(observed.x-actual.x,observed.z-actual.z)<.00001);
+    if(projectileImpactFraction(previous,end,observed,v,.01,aircraftHitRadii.trainer*1.6+.65)!==null){if(corrected)correctedHits++;else oldAimHits++;break;}
+    previous=end;
+   }
+  }
+ }
+ assert.equal(correctedHits,4);assert.ok(oldAimHits<correctedHits);
 });

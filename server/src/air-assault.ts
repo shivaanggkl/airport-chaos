@@ -52,6 +52,7 @@ type Enemy = AssaultEnemy & {
   burstShots: number;
 };
 export type AssaultPilot = {
+  lastStateAt?: number;
   aircraftType?: OpponentDefinition['aircraft']; lockedTargetId?: string;
   position: V;
   velocity: V;
