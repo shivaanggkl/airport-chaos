@@ -77,3 +77,13 @@ test('camera position and aim ease together, including manual look-around',()=>{
         assert(Math.abs(state.camera.position.x/state.lookTarget.x-2)<1e-9,'aim and position share damping');
     }
 });
+
+test('city handoff rotates the chase damping and manual orbit reference with the flight frame',()=>{
+    const start=source.indexOf('    const cameraRotation = new THREE.Quaternion().setFromAxisAngle(cameraWorldUp, yawDelta);');
+    const block=source.slice(start,source.indexOf('    forward.set',start));
+    const state={THREE,cameraWorldUp:new THREE.Vector3(0,1,0),yawDelta:.8,camera:new THREE.PerspectiveCamera(),lastValidCameraQuaternion:new THREE.Quaternion(),cameraOrbitReferenceQuaternion:new THREE.Quaternion(),smoothedCameraRelativeOffset:new THREE.Vector3(0,3,12),smoothedCameraLookOffset:new THREE.Vector3(0,1,-6)};
+    vm.createContext(state);vm.runInContext(block,state);
+    assert(state.smoothedCameraRelativeOffset.distanceTo(new THREE.Vector3(0,3,12).applyAxisAngle(state.cameraWorldUp,.8))<1e-9);
+    assert(state.smoothedCameraLookOffset.distanceTo(new THREE.Vector3(0,1,-6).applyAxisAngle(state.cameraWorldUp,.8))<1e-9);
+    assert(state.camera.quaternion.angleTo(state.cameraOrbitReferenceQuaternion)<1e-9);
+});

@@ -9920,6 +9920,9 @@ function applyIntercityPose(pose: PortalPose): void {
     const cameraRotation = new THREE.Quaternion().setFromAxisAngle(cameraWorldUp, yawDelta);
     camera.quaternion.premultiply(cameraRotation);
     lastValidCameraQuaternion.premultiply(cameraRotation);
+    cameraOrbitReferenceQuaternion.premultiply(cameraRotation);
+    smoothedCameraRelativeOffset.applyQuaternion(cameraRotation);
+    smoothedCameraLookOffset.applyQuaternion(cameraRotation);
     forward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
     portalPreviousPosition.copy(airplane.position);
     setFlightState('FLYING');
