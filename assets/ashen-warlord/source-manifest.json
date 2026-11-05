@@ -1,0 +1,69 @@
+{
+  "sourceFile": "ashen-warlord-m19.glb",
+  "sourceSha256": "d94e9db6522af91872cdc0c9897380302c12bb2060f1bb2596f3a53906541335",
+  "runtimeSha256": "2f2d4fe8e68edbab5446ec0be29d5e0dc7c0e31905c632f0f551391a69aa87f8",
+  "triangles": 42179,
+  "bones": 65,
+  "clips": {
+    "idle": {
+      "name": "standing_relax.001",
+      "duration": 17.625
+    },
+    "walk": {
+      "name": "walk.001",
+      "duration": 2.375,
+      "stride": 0.7326026782090964
+    },
+    "run": {
+      "name": "run.001",
+      "duration": 1.2916666666666667,
+      "stride": 0.8792704160699302
+    },
+    "turn": {
+      "name": "turn.001",
+      "duration": 3.875
+    },
+    "punch": {
+      "name": "box_01.001",
+      "duration": 2.25
+    },
+    "roar": {
+      "name": "angry_03.001",
+      "duration": 3.625
+    },
+    "jump": {
+      "name": "jump.001",
+      "duration": 2.25
+    },
+    "landing": {
+      "name": "jump_down.001",
+      "duration": 3.75
+    },
+    "clap": {
+      "name": "clap.001",
+      "duration": 13.708333333333334
+    },
+    "charge": {
+      "name": "cast_a_spell.001",
+      "duration": 5.416666666666667
+    },
+    "shoot": {
+      "name": "shoot.001",
+      "duration": 9.083333333333334
+    },
+    "hit": {
+      "name": "hit_to_body_01.001",
+      "duration": 1.3333333333333333
+    },
+    "defeat": {
+      "name": "defeat_02.001",
+      "duration": 8.5
+    }
+  },
+  "changes": [
+    "In-place horizontal root translation",
+    "Removed accumulated hips yaw",
+    "Smooth interpolation of existing keyed samples",
+    "Red-only emissive mask; original texture preserved"
+  ]
+}

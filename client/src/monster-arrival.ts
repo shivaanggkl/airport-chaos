@@ -1,3 +1,4 @@
+import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
 import {monsterDebrisOffsets} from '../../shared/m19-environment.mjs';
 import type {TitanPresentation} from '../../shared/titan-pose.mjs';
 import * as THREE from 'three';
@@ -107,12 +108,13 @@ function createFireball(): Fireball {
 }
 
 export class MonsterArrivalView {
-  private readonly creature: MonsterArrivalModel;
+  private readonly creature: MonsterArrivalModel|AshenWarlordModel;
   private readonly environmentDamage:boolean;
   readonly ready: Promise<void>;
   private readonly pool=Array.from({length:8},()=>createFireball());
   private readonly particles=new MonsterParticles();
   private readonly target=new THREE.Vector3();
+  private readonly crimsonCore:boolean;
   private readonly mouthWorld=new THREE.Vector3();
   private readonly warningMaterial=new THREE.MeshBasicMaterial({color:0xffae3d,transparent:true,opacity:.6,depthWrite:false});
   private readonly mouthFire=new THREE.Mesh(coreGeometry,this.warningMaterial);
@@ -142,13 +144,14 @@ export class MonsterArrivalView {
   private damagedDowntown=false;
   private readonly targetGroundY:number;
   private readonly pixelHeight:()=>number;
-  onFootfall?:()=>void;onWarning?:()=>void;onProjectile?:()=>void;onHit?:()=>void;onDestruction?:()=>void;
+  onRoar?:()=>void;onFootfall?:()=>void;onWarning?:()=>void;onProjectile?:()=>void;onHit?:()=>void;onDestruction?:()=>void;
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
     source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding) {
-    this.creature=new MonsterArrivalModel(source,binding);this.environmentDamage=!binding||!binding.url.includes('armored-apex');this.ready=this.creature.ready;
+    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.creature=this.crimsonCore?new AshenWarlordModel(source):new MonsterArrivalModel(source,binding);this.environmentDamage=!binding||!binding.url.includes('armored-apex');this.ready=this.creature.ready;
     this.scene=scene;this.camera=camera;this.targetGroundY=targetGroundY;this.pixelHeight=pixelHeight;
     this.creature.groundAt=groundAt;
+    if(this.crimsonCore){this.beamMaterial.color.set(0xff2340);this.waveMaterial.color.set(0xff3b35);this.warningMaterial.color.set(0xff1735);this.warningMaterial.opacity=.4;}
     if(!this.environmentDamage){this.roarGeometry.dispose();this.roarGeometry=new THREE.RingGeometry(.92,1,48);this.roar.geometry=this.roarGeometry;this.waveMaterial.color.set(0xff3b18);}
     this.creature.root.position.set(journeyDallas19.monster.x,terrainY,journeyDallas19.monster.z);
     this.target.copy(this.creature.root.position);
@@ -176,7 +179,7 @@ export class MonsterArrivalView {
       this.onHit?.();this.hitPulse=.28;this.lastHitSequence=state.hitSequence;this.creature.hit();
       const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,7);
     }
-    if(state.phase==='windup' && oldPhase!=='windup'){this.onWarning?.();if(!state.titan)this.creature.windup();}
+    if(state.phase==='windup' && oldPhase!=='windup'){if(this.crimsonCore&&state.titan?.ability?.id==='roaring-shockwave')this.onRoar?.();else this.onWarning?.();if(!state.titan)this.creature.windup();}
     let released=false;
     for(const visual of this.pool) {
       if(visual.id===null)continue;
@@ -216,7 +219,7 @@ export class MonsterArrivalView {
     if(a?.id==='roaring-shockwave'){this.roar.position.set(a.origin.x,a.origin.y,a.origin.z);this.roar.scale.setScalar((a.radius??1000)*(active ? .4+.6*a.progress : 1));this.roar.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),f.yaw-Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2));}
     const area=a&&['ground-smash','giant-leap','charging-rampage'].includes(a.id);
     this.wave.visible=Boolean(area&&(active||warning));
-    if(area&&a){const radius=a.radius??(a.id==='roaring-shockwave'?1000:a.id==='ground-smash'?450:300);const center=a.id==='ground-smash'?a.origin:f.position;this.wave.position.set(center.x,(this.creature.groundAt?.(center.x,center.z)??f.position.y)+8,center.z);this.wave.rotation.x=Math.PI/2;this.wave.scale.setScalar(radius*(active ? .4+.6*a.progress : 1));this.waveMaterial.opacity=active ? .6*(1-a.progress) : .3;}
+    if(area&&a){const radius=a.radius??(a.id==='roaring-shockwave'?1000:a.id==='ground-smash'?450:300);const center=a.landing??(a.id==='ground-smash'?a.origin:f.position);const impact=active&&(!a.landing||a.landed);this.wave.position.set(center.x,(this.creature.groundAt?.(center.x,center.z)??f.position.y)+8,center.z);this.wave.rotation.x=Math.PI/2;this.wave.scale.setScalar(radius*(impact ? .4+.6*a.progress : 1));this.waveMaterial.opacity=impact ? .6*(1-a.progress) : .3;}
     for(const event of f.events??[]){if(this.titanEvents.has(event.id))continue;this.titanEvents.add(event.id);if(this.titanEvents.size>128)this.titanEvents.delete(this.titanEvents.values().next().value!);
       if(event.kind==='environment'){if(this.environmentDamage&&event.type==='destroy-approved-block'){this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();}const p=event.position;this.particles.emit(p.x,p.y,p.z,true,8,event.type==='landing'?160:65);}
     }
@@ -226,7 +229,7 @@ export class MonsterArrivalView {
     if(this.ending)return;
     this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;
     this.ending=kind;this.endingElapsed=0;
-    if(this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
+    if(this.state?.titan?.locomotion==='jump'||this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
       this.endingDrop={from:this.creature.root.position.y,ground:this.creature.groundAt?.(this.creature.root.position.x,this.creature.root.position.z)??this.target.y};
     }
     this.creature.finish(kind);
@@ -243,6 +246,7 @@ export class MonsterArrivalView {
         for(const key of ['feet','limbs']as const)for(const [name,p]of Object.entries(to[key])){const q=from[key][name];if(q){q.x+=(p.x-q.x)*w;q.y+=(p.y-q.y)*w;q.z+=(p.z-q.z)*w;}}
         from.position.x=c.root.position.x;from.position.y=c.root.position.y-(to.poseOffsetY??0);from.position.z=c.root.position.z;
         from.yaw=angle(from.yaw,to.yaw);from.headYaw=angle(from.headYaw,to.headYaw);from.headPitch+=(to.headPitch-from.headPitch)*w;
+        if(to.animation){const a=from.animation,b=to.animation;if(a&&a.clip===b.clip&&a.previousClip===b.previousClip){a.time=mixAshenClipTime(a.clip,a.time,b.time,w);a.offsetY+=(b.offsetY-a.offsetY)*w;a.blend+=(b.blend-a.blend)*w;a.previousTime=(a.previousTime??0)+((b.previousTime??0)-(a.previousTime??0))*w;}else from.animation={...b};}
         from.velocity=to.velocity;from.yawVelocity=to.yawVelocity;from.gait=to.gait;from.gaitRate=to.gaitRate;from.locomotion=to.locomotion;from.ability=to.ability;from.time=to.time;
         c.setTitanPose(from);
       }
@@ -265,7 +269,7 @@ export class MonsterArrivalView {
     const power=this.state?.titan?.ability?.id;
     this.mouthFire.visible=Boolean((windup&&(!this.state?.titan||['energy-beam','fireball-barrage','roaring-shockwave'].includes(power??'')))||this.environmentDamage&&this.ending==='timeout');
     const mouthAvailable=c.mouthPosition(this.mouthWorld);
-    if(mouthAvailable)this.mouthFire.position.copy(this.mouthWorld);
+    if(this.crimsonCore&&this.renderedTitan?.ability&&['energy-beam','fireball-barrage'].includes(power??'')){const p=this.renderedTitan.ability.origin;this.mouthFire.position.set(p.x,p.y,p.z);}else if(mouthAvailable)this.mouthFire.position.copy(this.mouthWorld);
     this.mouthFire.scale.setScalar((this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
     if(this.ending) {
       this.endingElapsed+=delta;
@@ -289,7 +293,7 @@ export class MonsterArrivalView {
     for(const visual of this.pool) {
       if(!visual.group.visible)continue;
       if(visual.spawnPending){
-        if(mouthAvailable)visual.group.position.copy(this.mouthWorld);
+        if(!this.state?.titan&&mouthAvailable)visual.group.position.copy(this.mouthWorld);
         visual.spawnPending=false;
       }
       if(visual.id!==null) {

@@ -1,3 +1,4 @@
+import {createAshenWarlordEncounter} from './ashen-warlord.js';
 import { finalShowdownFireReady, recordFinalShowdownShot, type FinalShowdownBurst } from './final-showdown.js';
 import {pursuitProgress,type PursuitProgress} from './hot-pursuit.js';
 import { planOpponentTactics, recordOpponentShot, recordOpponentHit, recordOpponentDamage, shiftOpponentTactics } from './opponent-tactics.js';
@@ -38,7 +39,7 @@ import { journeyGateCrossing, crossesJourneyGateWrongWay, journeyDallas01, journ
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
 import {loadMonsterDistrictBuildings,segmentBlockedByBuildings} from './monster-arrival.js';
 import {createApexEncounter} from './m20-apex.js';
-import {createM19Encounter,stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
+import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 import { journeyFormationStatus, type FormationStatus } from '../../shared/journey-formation.mjs';
@@ -3192,7 +3193,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     monsterFocusedPlayers.add(playerId);
   else monsterFocusedPlayers.delete(playerId);
   if ((attempt.missionId === journeyDallas19.id||attempt.missionId===journeyDallas20.id) && attempt.status === 'RACING' && attempt.startedAt !== null) {
-    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas20.id?createApexEncounter:createM19Encounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas20.id?3000:2500));
+    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas20.id?createApexEncounter:createAshenWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas20.id?3000:2500));
     encounter.playerId = playerId;
     encounter.pilotId=players.get(playerId)?.pilotId??encounter.pilotId;
     monsterEncounters.set(attempt.attemptId, encounter);

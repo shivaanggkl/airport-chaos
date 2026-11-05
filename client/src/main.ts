@@ -1,3 +1,4 @@
+import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import {armoredApexModel} from '../../shared/armored-apex-model.mjs';
 import { CombatMissionIntroPath, MISSION_COMBAT_INTRO_DURATION_MS, MISSION_COMBAT_INTRO_SWEEP_MS } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
@@ -4482,7 +4483,7 @@ function cancelMissionStartCountdown(): void {
 function beginMissionStartCountdown(): void {
   if (!missionStartCountdownPending || !journeyAttempt ||
     !['READY', 'APPROACH', 'RACING'].includes(journeyAttempt.status) || journeyPaused ||
-    missionStartCountdownWaitingForTransport || journeyAttempt.missionId===journeyDallas20.id&&!titanAssetsReady || !connectionReady() ||
+    missionStartCountdownWaitingForTransport || (journeyAttempt.missionId===journeyDallas20.id||journeyAttempt.missionId===journeyDallas19.id)&&!titanAssetsReady || !connectionReady() ||
     (flightLaunchState !== 'complete' && flightLaunchState !== 'disabled')) return;
   missionStartCountdownPending = false;
   missionStartCountdownStartedAt = performance.now();
@@ -11310,7 +11311,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   if (message.type === 'monsterState') {
     if ((journeyAttempt?.missionId === journeyDallas19.id||journeyAttempt?.missionId===journeyDallas20.id) && journeyAttempt.attemptId === message.attemptId) {
       monsterView?.setState(message);
-      if(message.titan?.ability&&['WARNING','WINDUP'].includes(message.titan.ability.stage)&&journeyHudObjective)journeyHudObjective.textContent=`DODGE · ${message.titan.ability.id.replaceAll('-',' ').toUpperCase()}`;
+      if(message.titan?.ability&&['WARNING','WINDUP'].includes(message.titan.ability.stage)&&journeyHudObjective){const names:Record<string,string>={'energy-beam':'CRIMSON CORE BEAM','fireball-barrage':'ENERGY BOLT BARRAGE','hand-strike':'METEOR PUNCH','ground-smash':'GROUND BREAKER','charging-rampage':'TITAN CHARGE','roaring-shockwave':'GORILLA ROAR','two-hand-clap':'TITAN CLAP'};journeyHudObjective.textContent=`DODGE · ${journeyAttempt.missionId===journeyDallas19.id?names[message.titan.ability.id]??message.titan.ability.id.toUpperCase():message.titan.ability.id.replaceAll('-',' ').toUpperCase()}`;}
       else if(journeyHudObjective)journeyHudObjective.textContent=journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':'DESTROY THE MONSTER';
       if (missionObjective?.id === `${message.attemptId}:monster`)
         missionObjective.position.set(message.x, message.y + journeyDallas19.monster.height * .6, message.z);
@@ -11438,8 +11439,9 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if (!monsterView) {
         monsterView = new MonsterArrivalView(scene,
           getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z),
-          getTerrainHeight(-2191, -1201), camera, undefined, getTerrainHeight, () => renderer.domElement.height,message.attempt.missionId===journeyDallas20.id?armoredApexModel:undefined);
-        if(message.attempt.missionId===journeyDallas20.id){titanAssetsReady=false;const id=message.attempt.attemptId;void monsterView.ready.then(()=>{if(journeyAttempt?.attemptId===id){titanAssetsReady=true;beginMissionStartCountdown();}}).catch(()=>showProgressMessage('Character could not load. Exit and retry.'));}
+          getTerrainHeight(-2191, -1201), camera, undefined, getTerrainHeight, () => renderer.domElement.height,message.attempt.missionId===journeyDallas20.id?armoredApexModel:ashenWarlordModel);
+        {titanAssetsReady=false;const id=message.attempt.attemptId;void monsterView.ready.then(()=>{if(journeyAttempt?.attemptId===id){titanAssetsReady=true;beginMissionStartCountdown();}}).catch(()=>showProgressMessage('Character could not load. Exit and retry.'));}
+        monsterView.onRoar=()=>audioManager.playTitanRoar();
         monsterView.onFootfall = () => audioManager.playTone(68, 0.3, 'triangle', 0.13, 28, 0, 'impacts');
         monsterView.onWarning = () => audioManager.playTone(105, 0.55, 'sawtooth', 0.1, 44, 0, 'impacts');
         monsterView.onProjectile = () => audioManager.playTone(290, 0.24, 'sawtooth', 0.07, 105, 0, 'weapons');

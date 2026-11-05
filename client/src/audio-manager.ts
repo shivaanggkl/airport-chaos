@@ -181,6 +181,15 @@ class AudioManager {
     }, 850);
   }
 
+  /** Short synthesized creature growl; reuses the existing noise buffer and impact bus. */
+  playTitanRoar(): void {
+    const context=this.context;
+    if(!context||context.state!=='running'||this.muted)return;
+    this.playNoise('impacts',context.currentTime,.95,.13,'bandpass',290);
+    this.playTone(86,1.05,'sawtooth',.085,32,0,'impacts');
+    this.playTone(137,.65,'triangle',.055,52,.12,'impacts');
+  }
+
   playTone(
     frequency: number,
     duration: number,

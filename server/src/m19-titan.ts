@@ -108,12 +108,13 @@ export type M19Encounter = {
     projectileIds: Set<string>;
     destroyedSites: Set<number>;
 };
-export function createM19Encounter(attemptId: string, playerId: string, startedAt: number, ground: (x: number, z: number) => number, buildings: readonly DistrictBuilding[], health = 2500, species = m19Species,binding?:{geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>;spawn:{x:number;z:number};environmentDamage:boolean}): M19Encounter {
+export function createM19Encounter(attemptId: string, playerId: string, startedAt: number, ground: (x: number, z: number) => number, buildings: readonly DistrictBuilding[], health = 2500, species = m19Species,binding?:{geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>;spawn:{x:number;z:number};environmentDamage:boolean;articulate?:Environment['articulate']}): M19Encounter {
     const geometry=binding?.geometry??monsterGeometry,joints=species.joints,spawn=binding?.spawn??journeyDallas19.monster;
     const probe: Pick<Legacy, 'x' | 'z' | 'motionCell' | 'motionSource' | 'motionBuildings'> = { x: spawn.x, z: spawn.z }, debris = new Set<string>(), poseCache = new Map<string, boolean>();
-    const env: Environment = { navigationProbe: 80, bounds: monsterArena, ground,
+    const env: Environment = { authoredPose:!!binding?.articulate,navigationProbe: 80, bounds: monsterArena, ground,
         traversable: () => true,
-        articulate: (limbs, feet, root, yaw, axes) => {
+        articulate: (limbs, feet, root, yaw, axes,context) => {
+            if(binding?.articulate)return binding.articulate(limbs,feet,root,yaw,axes,context);
             const subtract = (a: Vec, b: Vec) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }), zero = { x: 0, y: 0, z: 0 };
             const basis = { x: { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) }, y: { x: 0, y: 1, z: 0 }, z: { x: Math.sin(yaw), y: 0, z: Math.cos(yaw) } };
             const solve = (startName: string, midName: string, endName: string, pole: Vec, prefix: string, upperPart: string, lowerParts: string[]) => {

@@ -1,3 +1,4 @@
+import type {AuthoredAnimation} from '../../../shared/titan-animation.mjs';
 import { projectileImpactFraction } from '../../../shared/projectile-collision.mjs';
 import type { TitanPresentation } from '../../../shared/titan-pose.mjs';
 import { titanAnchor, titanTimeline, titanAttackPose, titanAimedJoint } from '../../../shared/titan-pose.mjs';
@@ -23,7 +24,9 @@ export type Threat = {
     velocity: Vec;
     radius: number;
 };
+export type AuthoredPoseContext={time:number;health:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
 export type Environment = {
+    authoredPose?:boolean;
     bounds: {
         minX: number;
         maxX: number;
@@ -47,7 +50,7 @@ export type Environment = {
         x: Vec;
         y: Vec;
         z: Vec;
-    }>): void;
+    }>,context:AuthoredPoseContext): AuthoredAnimation|void;
     navigationProbe?: number;
     poseClear?(from: Vec, to: Vec, yaw: number, lift: number): boolean;
 };
@@ -165,6 +168,8 @@ export class TitanEncounter {
         to: Vec;
     }>();
     #limbs: Record<string, Vec> = {};
+    #authoredAnimation?:AuthoredAnimation;
+    #updatingPose=false;
     #volumeAxes: Record<string, {
         x: Vec;
         y: Vec;
@@ -232,6 +237,7 @@ export class TitanEncounter {
         return (a.definition.crouch ?? 0) * (t.stage === 'WARNING' ? eased : t.stage === 'RECOVERY' ? 1 - eased : t.stage === 'COOLDOWN' ? 0 : 1);
     }
     #anchor(joint: string) {
+        if(this.#env.authoredPose&&!this.#updatingPose&&this.#limbs[joint])return this.#limbs[joint];
         const j = this.species.joints[joint], local = j.position, root = { ...this.#position, y: this.#position.y - (j.foot ? 0 : this.#crouch()) }, head = this.species.joints.head?.position, neck = this.species.joints.neck;
         if (!head || !this.species.movement.independentAim)
             return titanAnchor(root, this.#yaw, local);
@@ -264,7 +270,8 @@ export class TitanEncounter {
     #withinCone(origin: Vec, target: Vec, cone: number) { const d = unit(origin, target); return d.x * Math.sin(this.#yaw) + d.z * Math.cos(this.#yaw) >= Math.cos(cone); }
     #eligible(a: Ability, t: Target) {
         const origin = this.#anchor(a.requires[0]), d = distance(origin, t.position), alt = t.position.y - this.#env.ground(t.position.x, t.position.z);
-        if (a.mechanism === 'sweep' && !a.requires.some(name => {
+        if(a.mechanism==='sweep'&&a.contactBounds){const dx=t.position.x-this.#position.x,dz=t.position.z-this.#position.z,c=Math.cos(this.#yaw),s=Math.sin(this.#yaw),p={x:c*dx-s*dz,y:t.position.y-this.#position.y,z:s*dx+c*dz},bounds=a.contactBounds;if((['x','y','z']as const).some(k=>p[k]<bounds.min[k]-t.radius||p[k]>bounds.max[k]+t.radius))return false;}
+        if (a.mechanism === 'sweep' && !a.contactBounds && !a.requires.some(name => {
             const j = this.species.joints[name], pivot = a.pivot ? { ...a.pivot, x: name === 'hand-right' ? -a.pivot.x : a.pivot.x } : j.position, p = titanAnchor(this.#position, this.#yaw, pivot), radius = a.radius + t.radius;
             return distance(p, t.position) <= Math.min(j.reach ?? Infinity, Math.hypot(a.reach ?? 0, a.lift ?? 0)) + radius && t.position.y >= p.y - radius && t.position.y <= p.y + (a.lift ?? 0) + radius;
         }))
@@ -559,6 +566,7 @@ export class TitanEncounter {
         }
     }
     #updatePose(dt = 0) {
+        this.#updatingPose=true;
         const s = this.species, a = this.#active, timeline = a ? titanTimeline(a.definition, this.#time - a.start) : null;
         for (const [name, j] of Object.entries(s.joints)) {
             if (j.foot || name.startsWith('foot')) {
@@ -612,7 +620,8 @@ export class TitanEncounter {
                     this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
             }
         }
-        this.#env.articulate?.(this.#limbs, this.#feet, { ...this.#position, y: this.#position.y - this.#crouch() }, this.#yaw, this.#volumeAxes);
+        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{time:this.#time,health:this.#health,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
+        this.#updatingPose=false;
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
                 const before = this.#previousPose[name];
@@ -727,7 +736,8 @@ export class TitanEncounter {
                 }
             }
             else if (def.mechanism === 'charge') {
-                const start = { x: this.#position.x - this.#velocity.x * dt, y: this.#position.y + this.species.height * .35, z: this.#position.z - this.#velocity.z * dt }, end = { ...this.#position, y: this.#position.y + this.species.height * .35 };
+                const end=def.impactJoint?this.#limbs[def.impactJoint]:{...this.#position,y:this.#position.y+this.species.height*.35};
+                const start={x:end.x-this.#velocity.x*dt,y:end.y,z:end.z-this.#velocity.z*dt};
                 if (projectileImpactFraction(start, end, target.position, target.velocity, dt, def.radius + target.radius) !== null && this.#env.lineOfSight(end, target.position))
                     this.#hit(a, target, end);
             }
@@ -912,7 +922,7 @@ export class TitanEncounter {
     }
     snapshot(): Snapshot {
         const a = this.#active, t = a ? titanTimeline(a.definition, this.#time - a.start) : null;
-        return { encounterId: this.id, time: this.#time, health: this.#health, poseOffsetY: -this.#crouch(), position: { ...this.#position }, velocity: { ...this.#velocity }, yaw: this.#yaw, yawVelocity: this.#yawVelocity, headYaw: this.#headYaw, headPitch: this.#headPitch, gait: this.#gait, gaitRate: this.#gaitRate, feet: structuredClone(this.#feet), limbs: structuredClone(this.#limbs), tactic: this.#tactic, locomotion: this.#health <= 0 ? 'defeat' : this.#airborne ? 'jump' : a?.definition.mechanism === 'charge' && t?.stage === 'ACTIVE' ? 'charge' : this.#tactic === 'recover' ? 'recover' : Math.abs(this.#lateralSpeed) > 1 ? 'sidestep' : Math.abs(this.#speed) > this.species.movement.walk ? 'run' : Math.abs(this.#speed) > .1 ? 'walk' : 'idle', ability: a && t ? { id: a.definition.id, radius:a.definition.radius, eventId: `${this.id}:attack:${a.serial}`, stage: t.stage, progress: t.progress, animation: a.definition.animation, heldObject: a.debris && t && ['WARNING', 'WINDUP'].includes(t.stage) ? { id: a.debris.id, radius: a.debris.radius, position: { x: a.debris.position.x + (this.#anchor(a.definition.requires[0]).x - a.debris.position.x) * Math.min(1, (this.#time - a.start) / a.definition.warning), y: a.debris.position.y + (this.#anchor(a.definition.requires[0]).y - a.debris.position.y) * Math.min(1, (this.#time - a.start) / a.definition.warning), z: a.debris.position.z + (this.#anchor(a.definition.requires[0]).z - a.debris.position.z) * Math.min(1, (this.#time - a.start) / a.definition.warning) } } : undefined, comboDepth: a.combo, origin: this.#anchor(a.definition.requires[0]), direction: { ...a.direction }, beamLength: a.definition.mechanism === 'beam' ? a.definition.maxRange * (this.#env.obstruction(this.#anchor(a.definition.requires[0]), { x: this.#anchor(a.definition.requires[0]).x + a.direction.x * a.definition.maxRange, y: this.#anchor(a.definition.requires[0]).y + a.direction.y * a.definition.maxRange, z: this.#anchor(a.definition.requires[0]).z + a.direction.z * a.definition.maxRange }, a.definition.radius) ?? 1) : undefined } : null, projectiles: this.#shots.filter(v => v.live).map(v => ({ id: v.id, position: { ...v.position }, radius: v.radius, velocity: { ...v.velocity }, ability: v.ability })), events: [...this.#events, ...this.#pendingEvents].map(e => ({ ...e, position: { ...e.position } })) };
+        return { animation:this.#authoredAnimation, encounterId: this.id, time: this.#time, health: this.#health, poseOffsetY: -this.#crouch(), position: { ...this.#position }, velocity: { ...this.#velocity }, yaw: this.#yaw, yawVelocity: this.#yawVelocity, headYaw: this.#headYaw, headPitch: this.#headPitch, gait: this.#gait, gaitRate: this.#gaitRate, feet: structuredClone(this.#feet), limbs: structuredClone(this.#limbs), tactic: this.#tactic, locomotion: this.#health <= 0 ? 'defeat' : this.#airborne ? 'jump' : a?.definition.mechanism === 'charge' && t?.stage === 'ACTIVE' ? 'charge' : this.#tactic === 'recover' ? 'recover' : Math.abs(this.#lateralSpeed) > 1 ? 'sidestep' : Math.abs(this.#speed) > this.species.movement.walk ? 'run' : Math.abs(this.#speed) > .1 ? 'walk' : 'idle', ability: a && t ? { id: a.definition.id, landing:a.definition.mechanism==='leap'?{...a.aim}:undefined,landed:a.landed,radius:a.definition.radius, eventId: `${this.id}:attack:${a.serial}`, stage: t.stage, progress: t.progress, animation: a.definition.animation, heldObject: a.debris && t && ['WARNING', 'WINDUP'].includes(t.stage) ? { id: a.debris.id, radius: a.debris.radius, position: { x: a.debris.position.x + (this.#anchor(a.definition.requires[0]).x - a.debris.position.x) * Math.min(1, (this.#time - a.start) / a.definition.warning), y: a.debris.position.y + (this.#anchor(a.definition.requires[0]).y - a.debris.position.y) * Math.min(1, (this.#time - a.start) / a.definition.warning), z: a.debris.position.z + (this.#anchor(a.definition.requires[0]).z - a.debris.position.z) * Math.min(1, (this.#time - a.start) / a.definition.warning) } } : undefined, comboDepth: a.combo, origin: this.#anchor(a.definition.requires[0]), direction: { ...a.direction }, beamLength: a.definition.mechanism === 'beam' ? a.definition.maxRange * (this.#env.obstruction(this.#anchor(a.definition.requires[0]), { x: this.#anchor(a.definition.requires[0]).x + a.direction.x * a.definition.maxRange, y: this.#anchor(a.definition.requires[0]).y + a.direction.y * a.definition.maxRange, z: this.#anchor(a.definition.requires[0]).z + a.direction.z * a.definition.maxRange }, a.definition.radius) ?? 1) : undefined } : null, projectiles: this.#shots.filter(v => v.live).map(v => ({ id: v.id, position: { ...v.position }, radius: v.radius, velocity: { ...v.velocity }, ability: v.ability })), events: [...this.#events, ...this.#pendingEvents].map(e => ({ ...e, position: { ...e.position } })) };
     }
     reset() {
         this.#env.reset?.(this.id);

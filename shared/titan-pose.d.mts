@@ -33,6 +33,7 @@ export function titanAttackPose(root: TitanVector, yaw: number, joint: TitanVect
 export function titanAimedJoint(root: TitanVector, yaw: number, local: TitanVector, pivot: TitanVector, aimYaw: number, aimPitch: number): TitanVector;
 /** Renderer consumes these authoritative anchors; it never computes damage or chooses a tactic. */
 export type TitanPresentation = {
+    animation?: import('./titan-animation.mjs').AuthoredAnimation;
     encounterId: string;
     time: number;
     health: number;
@@ -63,6 +64,8 @@ export type TitanPresentation = {
         comboDepth: number;
         origin: TitanVector;
         direction: TitanVector;
+        landing?:TitanVector;
+        landed?:boolean;
         beamLength?: number;
     };
     projectiles: readonly {

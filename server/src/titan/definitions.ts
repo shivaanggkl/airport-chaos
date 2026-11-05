@@ -23,6 +23,7 @@ export type Ability = TitanTiming & {
     moving: boolean;
     interruptible: boolean;
     event: string;
+    contactBounds?:{min:Vec;max:Vec};
     reach?: number;
     arcStart?: number;
     arcEnd?: number;
@@ -145,6 +146,7 @@ export class SpeciesRegistry {
                 throw Error('Invalid ability geometry/timing');
             if (['projectile'].includes(a.mechanism) && (!a.projectileSpeed || a.projectileSpeed <= 0 || !finite(a.projectileSpeed) || (a.count ?? 1) > 8 || (a.count ?? 1) < 1 || !Number.isInteger(a.count ?? 1)))
                 throw Error('Invalid projectile');
+            if(a.contactBounds&&(['x','y','z']as const).some(k=>!finite(a.contactBounds!.min[k])||!finite(a.contactBounds!.max[k])||a.contactBounds!.min[k]>a.contactBounds!.max[k]))throw Error('Invalid authored contact bounds');
             if (a.mechanism === 'sweep' && (!(a.reach! > 0) || !finite(a.reach!) || !finite(a.arcStart ?? 0) || !finite(a.arcEnd ?? 0) || Math.abs((a.arcEnd ?? 0) - (a.arcStart ?? 0)) > Math.PI * 2))
                 throw Error('Invalid sweep');
             if (a.mechanism === 'sweep' && a.requires.some(name => {
