@@ -7,7 +7,9 @@ import{applyTitanJointAim,titanLocomotionNode}from '../../shared/titan-animation
 import type { AuthoredAnimation } from '../../shared/titan-animation.mjs';
 let cached: Promise<GLTF> | undefined;
 const load = () => cached ??= new GLTFLoader().loadAsync(model.url).catch(error => { cached = undefined; throw error; });
-const loops=new Map(['idle','walk','run','turn'].map(key=>[model.clips[key]!.name,model.clips[key]!.duration]));
+const motionKeys=['idle','run','turn','punch','shoot','hit'] as const;
+const motionNames=new Set(motionKeys.map(key=>model.clips[key]!.name));
+const loops=new Map(['idle','run','turn'].map(key=>[model.clips[key]!.name,model.clips[key]!.duration]));
 /** Interpolate through the loop seam, never rewind the entire authored gait. */
 export function mixAshenClipTime(clip:string,from:number,to:number,weight:number):number{const duration=loops.get(clip);if(!duration)return from+(to-from)*weight;const delta=((to-from+duration/2)%duration+duration)%duration-duration/2;return((from+delta*weight)%duration+duration)%duration;}
 
@@ -33,7 +35,6 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private flash = 0;
-    private wasAirborne = false;
     private grounded = [true, true];
     private footAt = [-10, -10];
     private temp = new THREE.Vector3();
@@ -45,6 +46,7 @@ export class AshenWarlordModel {
         const clone = (m: THREE.Material) => { const copy = (m as THREE.MeshStandardMaterial).clone(); this.materials.push(copy); return copy; };
         o.material = Array.isArray(o.material) ? o.material.map(clone) : clone(o.material);
     } }); this.mixer = new THREE.AnimationMixer(object); for (const clip of g.animations) {
+        if(!motionNames.has(clip.name))continue;
         const action = this.mixer.clipAction(clip);
         action.play();
         action.enabled = false;
@@ -53,14 +55,13 @@ export class AshenWarlordModel {
         for(const [suffix,tracks]of [['#upper',clip.tracks.filter(t=>!lower(t))],['#lower',clip.tracks.filter(lower)]]as const){const variant=new THREE.AnimationClip(clip.name+suffix,clip.duration,[...tracks]);const a=this.mixer.clipAction(variant);a.play();a.enabled=false;this.actions.set(variant.name,a);}
     }
     for(const key of['neck','head']){const bone=object.getObjectByName(model.bones[key]!);if(bone)this.aimBones.push({node:model.boneNodes[key]!,bone,base:bone.quaternion.clone()});}
-    for (const c of Object.values(model.clips))
+    for (const c of motionKeys.map(key=>model.clips[key]!))
         if (!this.actions.has(c.name))
             throw Error('Missing supplied clip ' + c.name); this.apply({ clip: model.clips.idle!.name, time: 0, blend: 1, offsetY: 0 }); }); }
     setTitanPose(frame: TitanPresentation): void { this.frame = frame; }
     setMotion(x: number, z: number, yaw: number, _phase: number, _aimYaw: number, _aimPitch: number): void { if (!this.frame)
-        this.fallback = Math.hypot(x, z) > .5 ? 'walk' : Math.abs(yaw) > .015 ? 'turn' : 'idle'; }
-    setJumpProgress(progress: number | null): void { if (!this.frame && progress !== null)
-        this.fallback = 'jump'; }
+        this.fallback = Math.hypot(x, z) > .5 ? 'run' : Math.abs(yaw) > .015 ? 'turn' : 'idle'; }
+    setJumpProgress(_progress: number | null): void { /* Ground-only M19; retained model interface. */ }
     setHandSwipe(swipe: {
         side: 'left' | 'right';
         target: {
@@ -72,7 +73,7 @@ export class AshenWarlordModel {
     } | null): void { if (!this.frame && swipe)
         this.fallback = 'punch'; }
     windup(): void { if (!this.frame) {
-        this.fallback = 'charge';
+        this.fallback = 'idle';
         this.clock = 0;
     } }
     release(): void { if (!this.frame) {
@@ -85,7 +86,7 @@ export class AshenWarlordModel {
     } }
     hit(): void { this.flash = .2; }
     finish(kind: 'defeat' | 'timeout'): void { if (this.ending)
-        return; this.ending = kind; this.endingTime = 0; }
+        return; this.ending = kind; this.endingTime = 0; if(kind==='defeat')this.root.visible=false; }
     mouthPosition(out: THREE.Vector3): boolean { const p = this.frame?.limbs.mouth; if (p) {
         out.set(p.x, p.y, p.z);
         return true;
@@ -129,17 +130,8 @@ export class AshenWarlordModel {
         let a = this.frame?.animation;
         if (this.ending) {
             this.endingTime += dt;
-            const clip = model.clips[this.ending === 'defeat' ? 'defeat' : 'roar']!;
-            a = { clip: clip.name, time: Math.min(clip.duration - 1e-5, this.endingTime), blend: 1, offsetY: 0 };
-            this.apply(a);
-            if (this.mesh) {
-                let low = Infinity;
-                for (const v of model.support) {
-                    this.mesh.getVertexPosition(v.index!, this.temp);
-                    low = Math.min(low, this.temp.y);
-                }
-                this.instance.position.y = -low * model.height;
-            }
+            const clip = model.clips.idle!;
+            this.apply({clip:clip.name,time:this.endingTime%clip.duration,blend:1,offsetY:0});
         }
         else if (a)
             this.apply(a);
@@ -148,21 +140,9 @@ export class AshenWarlordModel {
             this.apply({ clip: clip.name, time: this.clock % clip.duration, blend: 1, offsetY: 0 });
         }
         for (const m of this.materials) {
-            if (this.ending === 'defeat') {
-                const duration = model.clips.defeat!.duration;
-                m.transparent = true;
-                m.depthWrite = false;
-                m.opacity = Math.max(0, Math.min(1, (duration - this.endingTime) / .8));
-            }
-            m.emissiveIntensity = 1 + this.flash * .6 + (this.frame?.ability?.id === 'energy-beam' && this.frame.ability.stage === 'WARNING' ? .4 : 0);
+            m.emissiveIntensity = 1 + this.flash * .6;
         }
-        const airborne = this.frame?.locomotion === 'jump';
-        if (this.wasAirborne && !airborne) {
-            this.temp.copy(this.root.position);
-            this.onLanding?.(this.temp);
-        }
-        this.wasAirborne = airborne;
-        if (this.frame && !airborne && Math.hypot(this.frame.velocity.x, this.frame.velocity.z) > 1)
+        if (this.frame && Math.hypot(this.frame.velocity.x, this.frame.velocity.z) > 1)
             for (const [i, key] of ['foot-left', 'foot-right'].entries()) {
                 const p = this.frame.feet[key];
                 if (!p)

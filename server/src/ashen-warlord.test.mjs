@@ -43,8 +43,8 @@ test('authoritative source geometry, 65-bone finger rig, texture and all 13 supp
             assert(Math.abs(tr.values[i + 2] - asset.nodes[hips].position[2]) < 1e-6);
         }
     }
-    assert.equal(ashenWarlordSpecies.abilities.length, 7);
-    assert.equal(ashenWarlordSpecies.abilities.find(a => a.id === 'ground-smash').mechanism, 'leap');
+    assert.deepEqual(ashenWarlordSpecies.abilities.map(a=>a.id).sort(),['charging-rampage','fireball-barrage','hand-strike']);
+    assert.equal(ashenWarlordSpecies.movement.traversalLeap,false);
     assert.equal(ashenWarlordSpecies.health, 2500);
     assert.equal(journeyDallas19.timeLimitMs, 240000);
     assert.equal(journeyDallas19.firstClearCredits, 2550);
@@ -88,7 +88,7 @@ test('authoritative skeletal sampler matches real glTF animation mixer for every
     mixer.stopAllAction();
     mixer.uncacheRoot(root);
 });
-test('all seven real attacks warn, activate, hit, and use the supplied visible hand/core motion; leap actually lifts and lands', async (t) => {
+test('all three retained attacks warn, activate and hit with synchronized visible motion', async (t) => {
     const g = await source;
     for (const ability of ashenWarlordSpecies.abilities) {
         const cfg = structuredClone(ashenWarlordSpecies);
@@ -167,23 +167,6 @@ test('chest bonus and 100 ordinary Bluejay hits remain authoritative; replay and
     assert.equal(body.engine.snapshot().projectiles.length, 0);
     disposeM19(body);
 });
-test('beam bonus is exposed only during server-authorized warning/windup, at the actual animated core', () => {
-    const cfg = structuredClone(ashenWarlordSpecies);
-    cfg.id = 'core-window';
-    cfg.abilities = [{ ...cfg.abilities.find(a => a.id === 'energy-beam'), unlockBelow: 1 }];
-    const e = createM19Encounter('window', 'p', 0, () => 135, [], 2500, new SpeciesRegistry().register(cfg), { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose() }), target = titanAnchor(e.frame.position, e.frame.yaw, { x: 0, y: 1500, z: 2000 });
-    for (let i = 1; i < 40; i++) {
-        stepM19(e, target, { x: 180, y: 0, z: 0 }, 18, i * 50);
-        if (e.frame.ability?.stage === 'WARNING')
-            break;
-    }
-    assert.equal(e.frame.ability?.stage, 'WARNING');
-    const p = e.frame.limbs.gem;
-    assert.deepEqual(e.frame.ability.origin, p);
-    const yaw=e.frame.yaw;
-    assert.equal(e.engine.damage({encounterId:'window',source:'p',sequence:1,from:{x:p.x+Math.sin(yaw)*400,y:p.y,z:p.z+Math.cos(yaw)*400},to:p,radius:1,amount:25,delta:0}),50);
-    disposeM19(e);
-});
 test('Supplied-rig M19 victory, timeout, replay and progression mirror engine health into the transactional first-clear ledger exactly once', async () => {
     const { DatabaseSync } = await import('node:sqlite'), { mkdtempSync, rmSync } = await import('node:fs'), { tmpdir } = await import('node:os'), { join } = await import('node:path'), { JourneyAttemptStore } = await import('./journey-attempts.js'), { titanAnchor } = await import('../../shared/titan-pose.mjs');
     const dir = mkdtempSync(join(tmpdir(), 'm19-combat-')), path = join(dir, 'profile.sqlite'), db = new DatabaseSync(path);
@@ -220,9 +203,9 @@ test('Supplied-rig M19 victory, timeout, replay and progression mirror engine he
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('run, punch, jump, landing and clap keep the complete source mesh grounded and bounded',async(t)=>{
+test('retained running, punching, shooting, turning and hit motions keep the source mesh grounded',async(t)=>{
  const g=await source,visual=new AshenWarlordModel(Promise.resolve(g));await visual.ready;let mesh;visual.root.traverse(o=>{if(o.isSkinnedMesh)mesh=o;});const sampler=new TitanAnimationSampler(asset),point=new THREE.Vector3();let minimum=0,maximum=0;
- for(const[key,time]of[['run',.45],['punch',.7],['jump',.5],['landing',2.6],['clap',.22]]){const animation={clip:model.clips[key].name,time,blend:1,offsetY:0};sampler.evaluate(animation);animation.offsetY=-Math.min(...model.support.map(v=>sampler.point(v).y));visual.setTitanPose({animation,velocity:{x:0,y:0,z:0},locomotion:'idle',feet:{},limbs:{},ability:null});visual.update(0,2000,0);let low=Infinity,high=-Infinity;
+ for(const[key,time]of[['run',.45],['punch',.7],['shoot',1.5],['turn',.5],['hit',.4]]){const animation={clip:model.clips[key].name,time,blend:1,offsetY:0};sampler.evaluate(animation);animation.offsetY=-Math.min(...model.support.map(v=>sampler.point(v).y));visual.setTitanPose({animation,velocity:{x:0,y:0,z:0},locomotion:'idle',feet:{},limbs:{},ability:null});visual.update(0,2000,0);let low=Infinity,high=-Infinity;
  for(let i=0;i<mesh.geometry.attributes.position.count;i++){mesh.getVertexPosition(i,point);mesh.localToWorld(point);low=Math.min(low,point.y);high=Math.max(high,point.length());}minimum=Math.min(minimum,low);maximum=Math.max(maximum,high);t.diagnostic(JSON.stringify({key,groundError:low,bound:high}));
  }
  visual.dispose();assert(minimum>=-5,'ground penetration '+minimum);assert(maximum<3000,'exploding source deformation '+maximum);
@@ -243,47 +226,12 @@ function loadDallasTerrain(){
     return ground;
 }
 
-test('M19 covers city-scale ground instead of parking below the player or repeatedly hopping on clear paths', async t => {
-    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
-    const ground=loadDallasTerrain();
-    const buildings=loadMonsterDistrictBuildings();
-    for(const moving of [false,true]){
-        const e=createAshenWarlordEncounter('travel-'+moving,'p',0,ground,buildings);
-        const origin={...e.frame.position};let previous={...origin},travel=0,extent=0,turning=0;
-        for(let i=1;i<=1200;i++){
-            stepM19(e,{x:-6000+(moving?i*.05*180:0),y:ground(-6000,-3000)+850,z:-3000},{x:moving?180:0,y:0,z:0},18,i*50);
-            const f=e.frame,step=Math.hypot(f.position.x-previous.x,f.position.z-previous.z);
-            assert(step<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'no position snapping or speed bypass');
-            assert(Math.abs(f.position.y-ground(f.position.x,f.position.z))<ashenWarlordSpecies.movement.jumpSpeed**2/(2*ashenWarlordSpecies.movement.gravity)+30,'terrain/ballistic altitude remains bounded');
-            travel+=step;extent=Math.max(extent,Math.hypot(f.position.x-origin.x,f.position.z-origin.z));
-            if(f.animation.clip===model.clips.turn.name)turning++;
-            previous={...f.position};
-        }
-        t.diagnostic(JSON.stringify({moving,travel,extent,turning}));
-        assert(travel>5000,'must traverse meaningful city distance in a minute: '+travel);
-        assert(extent>(moving?2000:1000),'must leave the small spawn area: '+extent);
-        assert(turning<400,'must not spend most of the battle turning in place');
-        t.diagnostic(JSON.stringify({moving,travel,extent,turning}));disposeM19(e);
-    }
-});
-
-test('M19 uses authored gait limits and safe travelling leaps',async()=>{
-    assert(Math.abs(ashenWarlordSpecies.movement.run-model.height*model.clips.run.stride/model.clips.run.duration*.65)<1e-9);
-    assert(ashenWarlordSpecies.movement.run>ashenWarlordSpecies.movement.walk*2);
-    assert(ashenWarlordSpecies.movement.turnRate<1);
-    const leap=ashenWarlordSpecies.abilities.find(a=>a.mechanism==='leap');
-    assert.equal(leap.maxRange,400*10);assert.equal(leap.minRange,800);
-    const cfg=structuredClone(ashenWarlordSpecies);cfg.id+='-jump';cfg.abilities=[cfg.abilities.find(a=>a.mechanism==='leap')];const e=createM19Encounter('long-leap','p',0,()=>0,[],2500,new SpeciesRegistry().register(cfg),{geometry,spawn:journeyDallas19.monster,environmentDamage:true,articulate:createAshenPose()}),origin={...e.frame.position};
-    const target=titanAnchor(origin,e.frame.yaw,{x:0,y:80,z:3800});
-    let launch,land,air=false,maxSpeed=0;
-    for(let i=1;i<=300;i++){
-        stepM19(e,target,{x:0,y:0,z:0},18,i*50);const f=e.frame;
-        if(f.locomotion==='jump'){launch??={...f.position};air=true;maxSpeed=Math.max(maxSpeed,Math.hypot(f.velocity.x,f.velocity.z));}
-        if(air&&f.events.some(v=>v.type==='landing')){land={...f.position};break;}
-    }
-    assert(launch&&land,'must launch and land');
-    assert(Math.hypot(land.x-launch.x,land.z-launch.z)>3500,'actual continuous multi-kilometre jump');
-    assert(maxSpeed<=ashenWarlordSpecies.movement.run+.01);disposeM19(e);
+test('M19 is ground-only and uses the authored running stride',()=>{
+    assert.equal(ashenWarlordSpecies.movement.runOnly,true);
+    assert.equal(ashenWarlordSpecies.movement.walk,ashenWarlordSpecies.movement.run);
+    assert.equal(ashenWarlordSpecies.movement.traversalLeap,false);
+    assert(!ashenWarlordSpecies.abilities.some(a=>['leap','beam','area'].includes(a.mechanism)));
+    assert(!ashenWarlordSpecies.regions.some(r=>r.weakDuring==='energy-beam'));
 });
 
 test('M19 pursues an authorized distant/occluded pilot but remains inside the Dallas boundary',async()=>{
@@ -322,10 +270,10 @@ test('authored contact-calibrated walk/run curves agree with world distance and 
     assert.equal(model.height,1920);assert.equal(ashenWarlordSpecies.height,1920);assert.equal(ashenWarlordSpecies.movement.idleBetweenActions,undefined);
 });
 
-test('walking legs and bounded head aim use the same authored blended pose on server and renderer',async()=>{
+test('running legs and bounded head aim use the same authored blended pose on server and renderer',async()=>{
     const visual=new AshenWarlordModel(Promise.resolve(await source));await visual.ready;
     const pose=createAshenPose(),limbs={},feet={},axes={},root={x:0,y:0,z:0};let error=0;
-    for(let i=1;i<=60;i++){root.z+=ashenWarlordSpecies.movement.walk*.05;const animation=pose(limbs,feet,root,0,axes,{time:i*.05,health:2500,gait:0,headYaw:.5,headPitch:.3,velocity:{x:0,y:0,z:ashenWarlordSpecies.movement.walk},yawVelocity:0,airborne:false,ability:{id:'fireball-barrage',stage:'ACTIVE',progress:(i%20)/20,elapsed:1.3+(i%20)/20,active:1,warning:.9,windup:.4,recovery:.8}});assert.equal(animation.locomotion.clip,model.clips.walk.name);visual.root.position.set(root.x,root.y,root.z);visual.setTitanPose({animation,velocity:{x:0,y:0,z:ashenWarlordSpecies.movement.walk},locomotion:'walk',feet,limbs,ability:null});visual.update(0,2000,0);visual.root.updateMatrixWorld(true);for(const key of['head','foot-left','foot-right']){const p=visual.root.getObjectByName(model.bones[key]).getWorldPosition(new THREE.Vector3());error=Math.max(error,p.distanceTo(new THREE.Vector3(limbs[key].x,limbs[key].y,limbs[key].z)));}}
+    for(let i=1;i<=60;i++){root.z+=ashenWarlordSpecies.movement.walk*.05;const animation=pose(limbs,feet,root,0,axes,{time:i*.05,health:2500,gait:0,headYaw:.5,headPitch:.3,velocity:{x:0,y:0,z:ashenWarlordSpecies.movement.walk},yawVelocity:0,airborne:false,ability:{id:'fireball-barrage',stage:'ACTIVE',progress:(i%20)/20,elapsed:1.3+(i%20)/20,active:1,warning:.9,windup:.4,recovery:.8}});assert.equal(animation.locomotion.clip,model.clips.run.name);visual.root.position.set(root.x,root.y,root.z);visual.setTitanPose({animation,velocity:{x:0,y:0,z:ashenWarlordSpecies.movement.walk},locomotion:'walk',feet,limbs,ability:null});visual.update(0,2000,0);visual.root.updateMatrixWorld(true);for(const key of['head','foot-left','foot-right']){const p=visual.root.getObjectByName(model.bones[key]).getWorldPosition(new THREE.Vector3());error=Math.max(error,p.distanceTo(new THREE.Vector3(limbs[key].x,limbs[key].y,limbs[key].z)));}}
     visual.dispose();assert(error<.02,'shared layering/head tracking mismatch '+error);
 });
 
@@ -346,26 +294,18 @@ test('a real incoming body projectile is recognized with a reaction delay and wi
 });
 
 
-test('M19 closes distant gaps through real Dallas obstacles in every cardinal direction', async t=>{
-    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
-    const ground=loadDallasTerrain(),buildings=loadMonsterDistrictBuildings();
-    for(const [dx,dz]of [[18000,0],[-18000,0],[0,18000],[0,-18000]]){
-        const e=createAshenWarlordEncounter(`dallas-pursuit-${dx}-${dz}`,'p',0,ground,buildings);
-        const origin={...e.frame.position},target={x:origin.x+dx,y:1800,z:origin.z+dz};
-        let previous={...origin},travel=0;const timings=[];
-        for(let i=1;i<=1800;i++){
-            const start=performance.now();stepM19(e,target,{x:0,y:0,z:0},18,i*50);timings.push(performance.now()-start);
-            const f=e.frame,step=Math.hypot(f.position.x-previous.x,f.position.z-previous.z);
-            assert(step<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'collision recovery must never teleport');
-            assert(Math.abs(f.position.x)<=24500&&Math.abs(f.position.z)<=24500,'body remains within Dallas');
-            travel+=step;previous={...f.position};
-        }
-        const remaining=Math.hypot(e.frame.position.x-target.x,e.frame.position.z-target.z);
-        timings.sort((a,b)=>a-b);
-        t.diagnostic(JSON.stringify({dx,dz,remaining,travel,stepP95:timings[Math.floor(timings.length*.95)],stepMax:timings.at(-1)}));
-        assert(remaining<12500,'must pursue the distant pilot instead of orbiting the spawn: '+remaining);
-        disposeM19(e);
+test('M19 uses only retained motions on real Dallas terrain, without airborne traversal',async()=>{
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js'),ground=loadDallasTerrain();
+    const e=createAshenWarlordEncounter('ground-only','p',0,ground,loadMonsterDistrictBuildings());
+    const allowed=new Set(['idle','run','turn','punch','shoot','hit'].map(k=>model.clips[k].name));
+    for(let i=1;i<=600;i++){
+        stepM19(e,{x:-10000,y:1800,z:-2400},{x:-100,y:0,z:0},18,i*50);
+        const f=e.frame;assert(allowed.has(f.animation.clip),f.animation.clip);
+        assert(!['jump','walk'].includes(f.locomotion));
+        assert(Math.abs(f.position.y-ground(f.position.x,f.position.z))<.01);
+        assert(!f.ability||['fireball-barrage','hand-strike','charging-rampage'].includes(f.ability.id));
     }
+    disposeM19(e);
 });
 
 test('navigation feet use actual skinned standing vertices rather than rigid single-bone approximations',()=>{
@@ -394,14 +334,7 @@ test('a receding aircraft triggers running pursuit instead of repeated distant f
 });
 
 
-test('M19 follows a moving pilot through actual Dallas buildings',async t=>{
-    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
-    const e=createAshenWarlordEncounter('moving-dallas','p',0,loadDallasTerrain(),loadMonsterDistrictBuildings()),origin={...e.frame.position};
-    let run=0;const tactics=new Set();
-    for(let i=1;i<=1200;i++){
-        stepM19(e,{x:origin.x-5000-i*.05*200,y:1800,z:origin.z},{x:-200,y:0,z:0},18,i*50);
-        if(e.frame.locomotion==='run')run++;tactics.add(e.frame.tactic);
-    }
-    const progress=origin.x-e.frame.position.x;t.diagnostic(JSON.stringify({progress,runningFrames:run,tactics:[...tactics]}));
-    assert(progress>7000,'must pursue the actual moving aircraft through city obstacles');assert(run>30,'must genuinely run');disposeM19(e);
+
+test('M19 victory removes the model without a defeat or roar animation',async()=>{
+    const v=new AshenWarlordModel(Promise.resolve(await source));await v.ready;v.finish('defeat');v.update(.1,1000,0);assert.equal(v.root.visible,false);v.dispose();
 });

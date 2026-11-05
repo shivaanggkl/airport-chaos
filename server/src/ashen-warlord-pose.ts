@@ -12,7 +12,7 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, gaitPhase = 0, turnTime = 0, lastRoot: {
         x: number;
         z: number;
-    } | undefined, lastHealth = initialHealth, hitAt = -10, landAt = -10, wasAirborne = false;
+    } | undefined, lastHealth = initialHealth, hitAt = -10;
     const select = (c: AuthoredPoseContext, root: {
         x: number;
         z: number;
@@ -23,38 +23,19 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
         if (c.health < lastHealth && c.time - hitAt > 1.2 && (!c.ability || c.ability.stage === 'RECOVERY'))
             hitAt = c.time;
         lastHealth = c.health;
-        if (wasAirborne && !c.airborne)
-            landAt = c.time;
-        wasAirborne = c.airborne;
-        const speed = Math.hypot(c.velocity.x, c.velocity.z), forward = c.velocity.x * Math.sin(yaw) + c.velocity.z * Math.cos(yaw), gait = forward > 0 && speed > H * model.clips.walk!.stride! / model.clips.walk!.duration * 1.1 ? 'run' : 'walk';
+        const speed = Math.hypot(c.velocity.x, c.velocity.z), forward = c.velocity.x * Math.sin(yaw) + c.velocity.z * Math.cos(yaw), gait = 'run';
         if (!c.airborne && speed > .5)
             gaitPhase = (gaitPhase + (forward < 0 ? -1 : 1) * distance / model.clips[gait]!.stride! + 1) % 1;
         const a = c.ability;
         let key = 'idle', time = c.time;
-        if (c.time - landAt < 1.55) {
-            key = 'landing';
-            time = 2.2 + c.time - landAt;
-        }
-        else if (a?.id === 'ground-smash') {
-            key = 'jump';
-            time = c.airborne ? .35 + clamp((a.elapsed - a.warning - a.windup) / 6, 0, 1) * 1.5 : Math.min(.35, a.elapsed / (a.warning + a.windup) * .35);
-            if (!c.airborne && a.stage !== 'WARNING' && a.stage !== 'WINDUP') {
-                key = 'idle';
-                time = c.time;
-            }
-        }
-        else if (a && a.stage !== 'COOLDOWN') {
-            key = ({ 'energy-beam': 'charge', 'fireball-barrage': 'shoot', 'hand-strike': 'punch', 'roaring-shockwave': 'roar', 'two-hand-clap': 'clap', 'charging-rampage': 'run' } as Record<string, string>)[a.id] ?? 'idle';
+        if (a && a.stage !== 'COOLDOWN') {
+            key = ({ 'fireball-barrage': 'shoot', 'hand-strike': 'punch', 'charging-rampage': 'run' } as Record<string, string>)[a.id] ?? 'idle';
             if (key === 'run') {
                 key = speed > .5 ? gait : 'idle';
                 time = key === 'idle' ? c.time : titanGaitTime(model.clips[key]!, gaitPhase);
             }
-            else if (key === 'clap' && a.stage === 'WARNING') {
-                key = 'idle';
-                time = c.time;
-            }
             else {
-                const windows: Record<string, number[]> = { punch: [0, .35, .55, .85, 2.25], clap: [0, 0, .1, .35, .9], charge: [0, 1.5, 2.4, 3.9, 5.4], shoot: [0, .9, 1.3, 2.3, 3.1], roar: [0, 1.2, 1.6, 2.8, 3.625] };
+                const windows: Record<string, number[]> = { punch: [0, .35, .55, .85, 2.25], shoot: [0, .9, 1.3, 2.3, 3.1] };
                 const w = windows[key]!, i = ({ WARNING: 0, WINDUP: 1, ACTIVE: 2, RECOVERY: 3 } as Record<string, number>)[a.stage] ?? 3;
                 time = w[i]! + (w[i + 1]! - w[i]!) * a.progress;
             }
@@ -72,11 +53,10 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
             turnTime -= dt * c.yawVelocity / (3.1997298216058336 / model.clips.turn!.duration);
             time = turnTime;
         }
-        const clip = model.clips[key]!, frame: AuthoredAnimation = { clip: clip.name, time: ['walk', 'run', 'idle', 'turn'].includes(key) ? (time % clip.duration + clip.duration) % clip.duration : clamp(time, 0, clip.duration), blend: 1, offsetY: 0 };
+        const clip = model.clips[key]!, frame: AuthoredAnimation = { clip: clip.name, time: ['run', 'idle', 'turn'].includes(key) ? (time % clip.duration + clip.duration) % clip.duration : clamp(time, 0, clip.duration), blend: 1, offsetY: 0 };
         if (!c.airborne && speed > .5)
             frame.locomotion = { clip: model.clips[gait]!.name, time: titanGaitTime(model.clips[gait]!, gaitPhase) };
-        if (key !== 'defeat')
-            frame.aim = [{ node: model.boneNodes.neck!, yaw: clamp(c.headYaw ?? 0, -.7, .7) * .2, pitch: -clamp(c.headPitch ?? 0, -.6, .6) * .15 }, { node: model.boneNodes.head!, yaw: clamp(c.headYaw ?? 0, -.7, .7) * .3, pitch: -clamp(c.headPitch ?? 0, -.6, .6) * .25 }];
+        frame.aim = [{ node: model.boneNodes.neck!, yaw: clamp(c.headYaw ?? 0, -.7, .7) * .2, pitch: -clamp(c.headPitch ?? 0, -.6, .6) * .15 }, { node: model.boneNodes.head!, yaw: clamp(c.headYaw ?? 0, -.7, .7) * .3, pitch: -clamp(c.headPitch ?? 0, -.6, .6) * .25 }];
         return frame;
     };
     return (limbs, feet, root, yaw, axes, context) => {
