@@ -228,3 +228,34 @@ test('run, punch, jump, landing and clap keep the complete source mesh grounded 
 });
 
 test('authored gait interpolation crosses its loop boundary without reversing the run',()=>{const c=model.clips.run;const result=mixAshenClipTime(c.name,c.duration-.01,.01,.5);assert(Math.min(result,c.duration-result)<.001);assert.equal(mixAshenClipTime(model.clips.punch.name,.1,.7,.5),.4);});
+
+test('M19 covers city-scale ground instead of parking below the player or repeatedly hopping on clear paths', async t => {
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
+    const data=JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json',import.meta.url),'utf8'));
+    const bytes=Buffer.from(data.elevations,'base64'),samples=new Uint16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
+    const ground=(wx,wz)=>{
+        const x=Math.max(0,Math.min(1,(wx-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX)))*(data.width-1);
+        const z=Math.max(0,Math.min(1,(wz-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ)))*(data.height-1);
+        const x0=Math.floor(x),z0=Math.floor(z),x1=Math.min(data.width-1,x0+1),z1=Math.min(data.height-1,z0+1);
+        const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
+        return(at(x0,z0)*(1-x+x0)+at(x1,z0)*(x-x0))*(1-z+z0)+(at(x0,z1)*(1-x+x0)+at(x1,z1)*(x-x0))*(z-z0);
+    };
+    const buildings=loadMonsterDistrictBuildings();
+    for(const moving of [false,true]){
+        const e=createAshenWarlordEncounter('travel-'+moving,'p',0,ground,buildings);
+        const origin={...e.frame.position};let previous={...origin},travel=0,extent=0,turning=0;
+        for(let i=1;i<=1200;i++){
+            stepM19(e,{x:-6000+(moving?i*.05*180:0),y:ground(-6000,-3000)+850,z:-3000},{x:moving?180:0,y:0,z:0},18,i*50);
+            const f=e.frame,step=Math.hypot(f.position.x-previous.x,f.position.z-previous.z);
+            assert(step<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'no position snapping or speed bypass');
+            assert(Math.abs(f.position.y-ground(f.position.x,f.position.z))<200,'terrain/ballistic altitude remains bounded');
+            travel+=step;extent=Math.max(extent,Math.hypot(f.position.x-origin.x,f.position.z-origin.z));
+            if(f.animation.clip===model.clips.turn.name)turning++;
+            previous={...f.position};
+        }
+        assert(travel>5000,'must traverse meaningful city distance in a minute: '+travel);
+        assert(extent>2500,'must leave the small spawn area: '+extent);
+        assert(turning<400,'must not spend most of the battle turning in place');
+        t.diagnostic(JSON.stringify({moving,travel,extent,turning}));disposeM19(e);
+    }
+});

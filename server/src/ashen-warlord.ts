@@ -10,7 +10,7 @@ const regions = geometry.spheres.map((v, i) => { const id = `volume-${i}`; (join
 export const ashenWarlordSpecies = new SpeciesRegistry().register({
     id: 'ashen-warlord', model: model.url, lods: model.lods, scale: height, height, radius: 260, health: 2500, contactDamage: 20, joints,
     animations: ['beam', 'ranged', 'strike', 'smash', 'charge', 'roar', 'clap', 'jump'], personality: 'aggressive', level: 'HARD',
-    movement: { walk: 55, run: 100, chargeSpeed: 135, acceleration: 20, deceleration: 32, turnRate: .38, turnAcceleration: .3, stepHeight: 24, stride: 145, reverseStride: 35, lateralStride: 40, turnStrideRadius: 850, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true },
+    movement: { walk: 120, run: 280, chargeSpeed: 360, acceleration: 45, deceleration: 65, turnRate: .38, turnAcceleration: .3, stepHeight: 24, stride: 145, reverseStride: 35, lateralStride: 40, turnStrideRadius: 850, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true, repositionDistance: 2800, intentDuration: 8, traversalOnlyWhenBlocked: true },
     senses: { range: 9000, fov: Math.PI * 2 }, arena: { minWidth: 2500, maxSlope: .15 },
     regions: [{ id: 'charged-core', joint: 'gem', radius: 24, radii: { x: 24, y: 36, z: 16 }, multiplier: 2, stagger: 60, weakDuring: 'energy-beam' }, { id: 'chest-core', joint: 'gem', radius: 24, radii: { x: 24, y: 36, z: 16 }, multiplier: 1.25, stagger: 100 }, ...regions],
     abilities: standardAbilities.filter(a => ['energy-beam', 'fireball-barrage', 'hand-strike', 'ground-smash', 'charging-rampage', 'roaring-shockwave', 'two-hand-clap'].includes(a.id)).map(a => {

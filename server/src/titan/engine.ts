@@ -354,17 +354,34 @@ export class TitanEncounter {
         const previousGoal = this.#goal;
         if (renewIntent) {
             this.#tactic = winner;
-            this.#commitUntil = this.#time + Math.max(.6, profile.reaction * 2);
+            this.#commitUntil = this.#time + Math.max(this.species.movement.intentDuration ?? .6, profile.reaction * 2);
         }
         const lead = clamp(d / Math.max(100, this.species.movement.run + speed), 0, 3) * profile.prediction;
         this.#goal = { x: t.position.x + t.velocity.x * lead, y: this.#position.y, z: t.position.z + t.velocity.z * lead };
         if (this.#tactic === 'reposition' || this.#tactic === 'defend') {
-            const side = this.#avoidSign * this.species.height;
-            this.#goal = renewIntent ? { x: this.#position.x + Math.cos(this.#yaw) * side, y: this.#position.y, z: this.#position.z - Math.sin(this.#yaw) * side } : previousGoal;
+            const span = this.species.movement.repositionDistance ?? this.species.height;
+            const side = this.#avoidSign * span;
+            // A travel-capable species commits to a forward flanking leg instead of
+            // repeatedly selecting a point directly beside its changing heading.
+            const forward = this.species.movement.repositionDistance ? span * .75 : 0;
+            this.#goal = renewIntent ? { x: this.#position.x + Math.cos(this.#yaw) * side + Math.sin(this.#yaw) * forward, y: this.#position.y, z: this.#position.z - Math.sin(this.#yaw) * side + Math.cos(this.#yaw) * forward } : previousGoal;
         }
         if (this.#tactic === 'control-space') {
             this.#goal.x -= t.velocity.x * 2;
             this.#goal.z -= t.velocity.z * 2;
+        }
+        const travelSpan = this.species.movement.repositionDistance;
+        if (travelSpan && ['attack', 'intercept', 'control-space'].includes(this.#tactic) &&
+            Math.hypot(t.position.x - this.#position.x, t.position.z - this.#position.z) < travelSpan * .8 &&
+            !available.some(a => a.mechanism === 'sweep' || a.mechanism === 'charge')) {
+            // Do not park underneath an airborne target: advance to another usable
+            // firing angle, retaining the leg while the aircraft moves overhead.
+            const reached = Math.hypot(previousGoal.x - this.#position.x, previousGoal.z - this.#position.z) < this.species.radius * 2;
+            this.#goal = renewIntent || reached ? {
+                x: this.#position.x + Math.sin(this.#yaw) * travelSpan + Math.cos(this.#yaw) * travelSpan * .6 * this.#avoidSign,
+                y: this.#position.y,
+                z: this.#position.z + Math.cos(this.#yaw) * travelSpan - Math.sin(this.#yaw) * travelSpan * .6 * this.#avoidSign
+            } : previousGoal;
         }
         if (this.#tactic === 'recover')
             this.#goal = { ...this.#position };
@@ -387,7 +404,7 @@ export class TitanEncounter {
             this.#nextTraversal = this.#time + 5;
             const leap = this.species.abilities.find(a => a.mechanism === 'leap' && this.#time >= (this.#cooldowns.get(a.id) ?? 0));
             const landing = leap && this.#traversalDestination(this.#goal, leap);
-            if (landing) {
+            if (landing && (!this.species.movement.traversalOnlyWhenBlocked || !this.#valid(this.#position, landing))) {
                 this.#leapGoal = landing;
                 this.#leapPrepareUntil = this.#time + this.species.movement.run / this.species.movement.deceleration + 2;
                 return;
