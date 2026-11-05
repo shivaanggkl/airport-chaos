@@ -487,8 +487,14 @@ export class TitanEncounter {
                 this.#active = null;
                 this.#directorUntil = 0;
             }
-            else
+            else {
+                // Mobile ranged attacks must not hold a stale movement destination
+                // while the aircraft flies away during the authored attack.
+                if(active.definition.moving && horizontal>4000){
+                    this.#goal=this.#boundedGoal({x:t.position.x+t.velocity.x*1.5,y:this.#position.y,z:t.position.z+t.velocity.z*1.5});
+                }
                 return;
+            }
         }
         if (this.#leapGoal) {
             if (danger || this.#time > this.#leapPrepareUntil)
@@ -559,7 +565,8 @@ export class TitanEncounter {
         const close = available.filter(a => a.mechanism === 'sweep');
         const ranged = available.filter(a => a.mechanism === 'projectile' || a.mechanism === 'beam');
         const choices = available.map(a => ({ a, score: (a.mechanism === 'sweep' ? 2.1 : a.mechanism === 'projectile' ? (horizontal > 8000 && !this.#directorReentry ? .1 : 1.1) : a.mechanism === 'beam' ? 1.2 : a.mechanism === 'charge' ? .85 : a.mechanism === 'leap' ? .75 : pressured || closing > 100 && horizontal < 1500 ? 1.3 : -1) - (a.id === this.#lastAbility ? .35 + this.#misses * .15 : 0) + (this.#directorReentry && a.mechanism === 'projectile' ? .3 : 0) })).filter(v => v.score > .3).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
-        const shot = choices[0]?.a;
+        // Close a growing gap before selecting another long-range firing animation.
+        const shot = horizontal>4000&&closing < -50 ? undefined : choices[0]?.a;
         if (shot && this.#time >= this.#directorAttackAt && (close.length || ranged.length || horizontal < 2500 || shot.mechanism === 'leap')) {
             this.#tactic = 'attack';
             this.#goal = this.#boundedGoal(predicted);
@@ -637,7 +644,7 @@ export class TitanEncounter {
     #move(dt: number) {
         const m = this.species.movement, a = this.#active, stage = a ? titanTimeline(a.definition, this.#time - a.start).stage : '';
         let goal = this.#goal, speed = this.#leapGoal || this.#tactic === 'recover' ? 0 : this.#tactic === 'hunt' ? m.walk : m.run;
-        if(this.species.director&&a?.definition.moving)speed=m.walk;
+        if(this.species.director&&a?.definition.moving)speed=Math.hypot(this.#goal.x-this.#position.x,this.#goal.z-this.#position.z)>4000?m.run:m.walk;
         if (a && !a.definition.moving && stage !== 'COOLDOWN')
             speed = 0;
         if (a?.definition.mechanism === 'charge' && stage === 'ACTIVE') {

@@ -377,3 +377,31 @@ test('navigation feet use actual skinned standing vertices rather than rigid sin
     }
     assert(Number.isFinite(low));
 });
+
+test('a receding aircraft triggers running pursuit instead of repeated distant firing preparations',async()=>{
+    const e=createAshenWarlordEncounter('receding','p',0,()=>135,[]),origin={...e.frame.position};
+    let running=0,distantShots=0;
+    for(let i=1;i<=160;i++){
+        const target={x:origin.x+9000+i*.05*250,y:1800,z:origin.z};
+        stepM19(e,target,{x:250,y:0,z:0},18,i*50);
+        const f=e.frame,gap=Math.hypot(f.position.x-target.x,f.position.z-target.z);
+        if(f.locomotion==='run')running++;
+        if(gap>4000&&f.ability?.id==='fireball-barrage')distantShots++;
+    }
+    assert(running>20,'must use authored running speed while closing a growing gap');
+    assert.equal(distantShots,0,'must not park in ranged preparations while the aircraft escapes');
+    assert(e.frame.position.x>origin.x+4000,'must move toward the receding aircraft');disposeM19(e);
+});
+
+
+test('M19 follows a moving pilot through actual Dallas buildings',async t=>{
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
+    const e=createAshenWarlordEncounter('moving-dallas','p',0,loadDallasTerrain(),loadMonsterDistrictBuildings()),origin={...e.frame.position};
+    let run=0;const tactics=new Set();
+    for(let i=1;i<=1200;i++){
+        stepM19(e,{x:origin.x-5000-i*.05*200,y:1800,z:origin.z},{x:-200,y:0,z:0},18,i*50);
+        if(e.frame.locomotion==='run')run++;tactics.add(e.frame.tactic);
+    }
+    const progress=origin.x-e.frame.position.x;t.diagnostic(JSON.stringify({progress,runningFrames:run,tactics:[...tactics]}));
+    assert(progress>7000,'must pursue the actual moving aircraft through city obstacles');assert(run>30,'must genuinely run');disposeM19(e);
+});
