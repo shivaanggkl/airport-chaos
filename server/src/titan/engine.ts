@@ -143,6 +143,8 @@ export class TitanEncounter {
     #speed = 0;
     #time = 0;
     #health: number;
+    #damageImpact: Vec | null = null;
+    get damageImpact(): Readonly<Vec> | null { return this.#damageImpact; }
     #gait = 0;
     #gaitRate = 0;
     #headYaw = 0;
@@ -1129,6 +1131,7 @@ export class TitanEncounter {
         radius: number;
         delta: number;
     }): number {
+        this.#damageImpact=null;
         if (this.#disposed || input.encounterId !== this.id || this.#health <= 0 || (!this.#damageReceipts.has(input.source) && this.#damageReceipts.size >= 16) || !input.source || !Number.isSafeInteger(input.sequence) || input.sequence < 1 || input.sequence <= (this.#damageReceipts.get(input.source) ?? 0) || !Number.isFinite(input.delta) || input.delta < 0 || input.delta > .1 || !Number.isFinite(input.amount) || input.amount <= 0 || !Number.isFinite(input.radius) || input.radius < 0 || [...Object.values(input.from), ...Object.values(input.to)].some(v => !Number.isFinite(v)))
             return 0;
         this.#damageReceipts.set(input.source, input.sequence);
@@ -1147,6 +1150,7 @@ export class TitanEncounter {
             return 0;
         const exposed = !selected.weakDuring || this.#active?.definition.id === selected.weakDuring && ['WARNING', 'WINDUP'].includes(titanTimeline(this.#active.definition, this.#time - this.#active.start).stage);
         const amount = Math.min(this.#health, input.amount * (exposed ? selected.multiplier : 1));
+        this.#damageImpact={x:input.from.x+(input.to.x-input.from.x)*first,y:input.from.y+(input.to.y-input.from.y)*first,z:input.from.z+(input.to.z-input.from.z)*first};
         this.#health -= amount;
         if(this.species.director){this.#pressure*=Math.exp(-(this.#time-this.#pressureAt)/3);this.#pressure+=amount;this.#pressureAt=this.#time;}
         this.#stagger += amount;
@@ -1180,6 +1184,7 @@ export class TitanEncounter {
         this.#yawVelocity = 0;
         this.#speed = 0;
         this.#health = this.species.health;
+        this.#damageImpact=null;
         this.#gait = 0;
         this.#headYaw = 0;
         this.#headPitch = 0;

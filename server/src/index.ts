@@ -4973,12 +4973,12 @@ function handleWantedDestruction(killerId: string, victimId: string, now: number
   setEventTerminal(event, 'completed', now);
 }
 
-function removeProjectile(projectileId: string): void {
+function removeProjectile(projectileId: string, monsterImpact?: {attemptId:string;position:Vector3;bodyPosition:Vector3;yaw:number;sequence:number}): void {
   const projectile = projectiles.get(projectileId);
   if (!projectile || !projectiles.delete(projectileId)) return;
   if(projectile.privateAttemptId)monsterEncounters.get(projectile.privateAttemptId)?.projectileIds.delete(projectileId);
   projectileBudget.release(projectile.ownerId, projectile.cityId);
-  const removed={type:'projectileRemove',projectileId};
+  const removed={type:'projectileRemove',projectileId,...(monsterImpact?{monsterImpact}: {})};
   if (projectile.skyDuelPractice) sendToPlayer(projectile.ownerId, removed);
   else if (projectile.skyDuelMatchId) {
     const session = skyDuelSessions.get(projectile.skyDuelMatchId);
@@ -5907,7 +5907,7 @@ function applyEventAircraftHit(ownerId: string, cityId: CityId, start: Vector3, 
   return true;
 }
 
-function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number,delta:number): boolean {
+function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: Vector3, now: number, damage: number,delta:number,onImpact?:(impact:{attemptId:string;position:Vector3;bodyPosition:Vector3;yaw:number;sequence:number})=>void): boolean {
   const owner = players.get(ownerId);
   const attemptId = playerJourneyAttempts.get(ownerId);
   if (!owner || owner.isBot || owner.cityId !== 'dallas' || cityId !== 'dallas' || !attemptId) return false;
@@ -5920,7 +5920,8 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   if(!amount)return false;
   const hit=journeyStore.hitMonster(owner.pilotId,attemptId,now,amount);
   if(!hit){disposeM19(encounter);monsterEncounters.delete(attemptId);return false;}
-  encounter.hitSequence++;encounter.hitPosition={...end};
+  encounter.hitSequence++;encounter.hitPosition={...(encounter.engine.damageImpact??end)};
+  if(attempt.missionId===journeyDallas19.id)onImpact?.({attemptId,position:encounter.hitPosition,bodyPosition:{...encounter.frame.position},yaw:encounter.frame.yaw,sequence:encounter.hitSequence});
   sendJourneyState(ownerId, hit);
   if (hit.status === 'COMPLETED') {
     sendToPlayer(ownerId, { type: 'monsterFinal', attemptId, kind: 'defeat', at: now });
@@ -6121,10 +6122,13 @@ function updateProjectiles(deltaSeconds: number): void {
       const disposition = transportProjectileDisposition(transportMissionId, projectile.traveled, blocked);
       if (disposition === 'remove') {removeProjectile(projectile.projectileId);continue;}
       if (disposition === 'continue') continue;
-    } else if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice && (applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage,deltaSeconds) ||
-      applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage))) {
-      removeProjectile(projectile.projectileId);
-      continue;
+    } else if (!projectile.airAssaultId && !projectile.skyDuelMatchId && !projectile.skyDuelPractice) {
+      let monsterImpact: Parameters<typeof removeProjectile>[1];
+      if(applyMonsterHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage,deltaSeconds,impact=>{monsterImpact=impact;}) ||
+        applyEventAircraftHit(projectile.ownerId, projectile.cityId, { x: previousX, y: previousY, z: previousZ }, projectile.position, now, projectile.damage)) {
+        removeProjectile(projectile.projectileId,monsterImpact);
+        continue;
+      }
     }
 
     let hitPlayerId: string | null = null;

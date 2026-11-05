@@ -132,8 +132,9 @@ export class AshenWarlordModel {
         let a = this.frame?.animation;
         if (this.ending) {
             this.endingTime += dt;
-            const clip = model.clips.idle!;
-            this.apply({clip:clip.name,time:this.endingTime%clip.duration,blend:1,offsetY:0});
+            const strike=this.ending==='timeout'&&this.endingTime>=.35&&this.endingTime<2.6;
+            const clip = strike?model.clips.punch!:model.clips.idle!;
+            this.apply({clip:clip.name,time:strike?this.endingTime-.35:this.endingTime%clip.duration,blend:1,offsetY:0});
         }
         else if (this.introTime !== null && !this.frame) {
             // Two full authored strikes, with a short idle lead-in and recovery.

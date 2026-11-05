@@ -1744,7 +1744,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .mission-objective-arrow { display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 174px; min-height: 42px; padding: 5px 9px; }
 .mission-objective-arrow-icon { display: inline-block; color: #ffd35b; font: 900 26px/1 var(--font-display); text-shadow: 0 0 8px #ffd35b; }
 .mission4-clean-hud :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle, #target-feedback, #combat-threat-warning, #combat-message, #leader-message) { display: none !important; }
-.monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert, #acquisition-circle) { display: none !important; }
+.monster-arrival-focus :is(#real-players, #city-territories, #territory-capture, #territory-defense-alert) { display: none !important; }
 .monster-arrival-focus .sky-challenge.journey-hud { background: var(--gameplay-info-card-fill); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 .monster-arrival-focus .journey-hud [data-journey-timer] { color: #f6fbff; font-weight: 800; }
 .monster-boss-hud { position: absolute; z-index: 24; top: calc(100% + 9px); left: -3px; width: calc(100% + 4px); min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 8px 13px; border: 1px solid rgb(100 223 255 / 22%); border-radius: 10px; background: rgb(8 39 73 / 10%); color: #ffd15b; font: 700 15px/1.1 var(--font-mono, monospace); pointer-events: none; box-shadow: none; }

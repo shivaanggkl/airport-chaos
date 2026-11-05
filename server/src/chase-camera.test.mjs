@@ -36,7 +36,10 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
                 state.updateCamera(1);
                 const offset = state.chaseCameraPosition.clone().sub(airplane.position);
                 const elevation = offset.y / Math.hypot(offset.x, offset.z);
-                assert.ok(elevation >= .08 && elevation <= .46, 'restrained climb/descent framing');
+                assert.ok(Number.isFinite(elevation));
+                const localOffset=offset.clone().applyQuaternion(state.cameraChaseQuaternion.clone().invert());
+                const oldHeight=state.defaultChaseHeight + (7.2+(boosted?2.35:0))*.05;
+                assert(Math.abs(localOffset.y-oldHeight)<1e-5,'only the physical rear viewing height uses the older framing');
                 const lookOffset = state.chaseLookTarget.clone().sub(airplane.position);
                 if(looks.has(pitch))assert(lookOffset.distanceTo(looks.get(pitch))<1e-5,'bank cannot swing the aim');
                 else looks.set(pitch,lookOffset);

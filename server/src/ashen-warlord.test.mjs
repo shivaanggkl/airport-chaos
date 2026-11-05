@@ -383,3 +383,55 @@ test('M19 cinematic plays supplied punches and clears back to idle without autho
     assert(restored.distanceTo(idle)<.01,'skip/handoff must restore idle, not leave a punching pose');
     character.dispose();
 });
+
+test('M19 timeout ending animates the authored strike rather than freezing the boss', async () => {
+    const character=new AshenWarlordModel(source);await character.ready;
+    const before=new THREE.Vector3(),after=new THREE.Vector3();
+    character.update(0,0,0);character.handPosition('right',before);
+    character.finish('timeout');character.update(1.55,0,0);character.handPosition('right',after);
+    assert(after.distanceTo(before)>100);assert(character.root.visible);
+    character.dispose();
+});
+
+test('only a server-confirmed M19 time limit failure gets the extended ending camera',()=>{
+    const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+    assert.match(main,/missionId===journeyDallas19.id&&journeyAttempt.status==='FAILED'&&journeyAttempt.failureReason==='TIME_UP'&&!crashed\)monsterView\?\.updateTimeoutCamera/);
+    assert.match(main,/message.attempt.failureReason === 'TIME_UP' && monsterView && !crashed/);
+    assert.match(main,/failedAttempt.missionId===journeyDallas19.id\?MonsterArrivalView.timeoutCinematicMs:2_100/);
+});
+
+test('boss bullet impact is first body contact, never the projectile step endpoint, and clears on misses/reset',()=>{
+    const e=createAshenWarlordEncounter('surface','p',0,()=>135,[]),p=e.frame.limbs.body,yaw=e.frame.yaw;
+    const from={x:p.x+Math.sin(yaw)*1000,y:p.y,z:p.z+Math.cos(yaw)*1000};
+    const shot={encounterId:'surface',source:'p',sequence:1,from,to:p,radius:1,amount:25,delta:0};
+    assert.equal(e.engine.damage(shot),25);
+    const hit=e.engine.damageImpact;assert(hit);
+    const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+    assert(distance(hit,p)>10,'feedback must not be placed inside the body at the end of a step');
+    assert(distance(from,hit)<distance(from,p));
+    assert(Math.abs(distance(from,hit)+distance(hit,p)-distance(from,p))<.001);
+    assert.equal(e.engine.damage({...shot,sequence:2,from:{x:50000,y:50000,z:50000},to:{x:50001,y:50000,z:50000}}),0);
+    assert.equal(e.engine.damageImpact,null);
+    e.engine.reset();assert.equal(e.engine.damageImpact,null);disposeM19(e);
+});
+
+test('monster HUD keeps the common aim circle and receipt feedback stays isolated to the active M19 attempt',()=>{
+    const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
+    const rule=css.match(/\.monster-arrival-focus :is\([^}]+\}/)?.[0];assert(rule);assert(!rule.includes('#acquisition-circle'));
+    const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+    assert.match(main,/message.monsterImpact.attemptId===journeyAttempt.attemptId/);
+    assert.match(main,/removeClientProjectile\(message.projectileId\);\s+if\(message.monsterImpact/);
+});
+
+test('confirmed M19 surface impacts follow the rendered body, emit bounded sparks/smoke once, and dispose cleanly',async()=>{
+    const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
+    const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);
+    await view.ready;let hits=0;view.onHit=()=>hits++;
+    view.introRoot.position.set(1000,135,2000);view.introRoot.rotation.y=0;
+    const receipt={position:{x:10,y:1135,z:20},bodyPosition:{x:0,y:135,z:0},yaw:0,sequence:1};
+    view.showBulletImpact(receipt);view.showBulletImpact(receipt);view.update(.03);
+    assert.equal(hits,1);
+    const points=scene.getObjectByName('monster-pooled-dust-and-smoke'),sizes=points.geometry.getAttribute('size'),positions=points.geometry.getAttribute('position');
+    let count=0;for(let i=0;i<sizes.count;i++)if(sizes.getX(i)>0){count++;assert(Math.abs(positions.getX(i)-1010)<10);assert(Math.abs(positions.getZ(i)-2020)<10);}
+    assert.equal(count,13);view.dispose();assert.equal(scene.children.length,0);
+});

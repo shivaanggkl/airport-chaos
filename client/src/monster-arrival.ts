@@ -1,4 +1,6 @@
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
+import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
+const ashenWarlordHeight=ashenWarlordModel.height;
 import {monsterDebrisOffsets} from '../../shared/m19-environment.mjs';
 import type {TitanPresentation} from '../../shared/titan-pose.mjs';
 import * as THREE from 'three';
@@ -141,6 +143,20 @@ export class MonsterArrivalView {
   private endingElapsed=0;
   private endingDrop?:{from:number;ground:number};
   private timeoutShot?:Fireball;
+  private readonly endingOrigin=new THREE.Vector3();
+  private readonly endingLook=new THREE.Vector3();
+  private readonly endingCamera=new THREE.Vector3();
+  private readonly endingDestination=new THREE.Vector3();
+  static readonly timeoutCinematicMs=6500;
+  /** Camera-only aftermath of a server-confirmed M19 timeout. */
+  updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
+    if(!this.crimsonCore||this.ending!=='timeout')return;
+    const root=this.creature.root,height=ashenWarlordHeight;
+    const t=THREE.MathUtils.smoothstep(this.endingElapsed,1.5,3.55);
+    this.endingLook.copy(this.endingOrigin).lerp(this.endingDestination,t);
+    this.endingCamera.set(height*.8,height*.3,height*1.1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y).add(this.endingLook);
+    camera.position.copy(this.endingCamera);camera.lookAt(this.endingLook);
+  }
   private damagedDowntown=false;
   private readonly targetGroundY:number;
   private readonly pixelHeight:()=>number;
@@ -179,7 +195,7 @@ export class MonsterArrivalView {
       state.gaitPhase??0,state.aimYaw??0,state.aimPitch??0);
     if(state.hitSequence>this.lastHitSequence) {
       this.onHit?.();this.hitPulse=.28;this.lastHitSequence=state.hitSequence;this.creature.hit();
-      const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,7);
+      const p=state.hitPosition;this.particles.emit(p?.x??state.x,p?.y??state.y+300,p?.z??state.z,false,5,this.crimsonCore?28:7);
     }
     if(state.phase==='windup' && oldPhase!=='windup'){if(this.crimsonCore&&state.titan?.ability?.id==='roaring-shockwave')this.onRoar?.();else this.onWarning?.();if(!state.titan)this.creature.windup();}
     let released=false;
@@ -227,6 +243,16 @@ export class MonsterArrivalView {
     }
   }
 
+  showBulletImpact(hit:{position:{x:number;y:number;z:number};bodyPosition:{x:number;y:number;z:number};yaw:number;sequence:number}):void {
+    if(hit.sequence<=this.lastHitSequence)return;
+    this.lastHitSequence=hit.sequence;this.hitPulse=.28;this.creature.hit();this.onHit?.();
+    // Keep a confirmed surface hit attached to the currently interpolated body.
+    this.mouthWorld.set(hit.position.x-hit.bodyPosition.x,hit.position.y-hit.bodyPosition.y,hit.position.z-hit.bodyPosition.z)
+      .applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.creature.root.rotation.y-hit.yaw).add(this.creature.root.position);
+    const p=this.mouthWorld;
+    this.particles.emit(p.x,p.y,p.z,false,8,28);
+    this.particles.emit(p.x,p.y,p.z,true,5,40,.12);
+  }
   private introOrigin?: {position: THREE.Vector3; yaw: number};
   private introTime: number | null = null;
   private introImpacts = 0;
@@ -260,7 +286,12 @@ export class MonsterArrivalView {
     }
     this.creature.finish(kind);
     for(const visual of this.pool){visual.id=null;visual.group.visible=false;visual.spawnPending=false;}
-    if(kind==='timeout'&&this.environmentDamage){this.timeoutShot=this.pool[0];this.timeoutShot!.group.visible=true;}
+    if(kind==='timeout'&&this.environmentDamage){
+      this.timeoutShot=this.pool[0];this.timeoutShot!.group.visible=!this.crimsonCore;
+      this.endingOrigin.copy(this.creature.root.position).add(new THREE.Vector3(0,this.crimsonCore?ashenWarlordHeight*.6:journeyDallas19.monster.height*.82,0));
+      const site=monsterDamageSites[0]!;this.endingDestination.set(site.x,this.targetGroundY+30,site.z);
+      if(this.crimsonCore)this.creature.root.rotation.y=Math.atan2(site.x-this.creature.root.position.x,site.z-this.creature.root.position.z);
+    }
   }
   update(delta:number):void {
     delta=Math.min(.05,Math.max(0,delta));this.elapsed+=delta;
@@ -312,19 +343,21 @@ export class MonsterArrivalView {
     if(this.ending) {
       this.endingElapsed+=delta;
       if(this.ending==='timeout'&&this.environmentDamage) {
-        if(this.timeoutShot) {
-          const t=Math.min(1,this.endingElapsed/1.15),p=this.timeoutShot.group.position;
+        const release=this.crimsonCore?1.55:0,travel=this.crimsonCore?2:1.15;
+        if(this.timeoutShot&&this.endingElapsed>=release) {
+          this.timeoutShot.group.visible=true;
+          const t=Math.min(1,(this.endingElapsed-release)/travel),p=this.timeoutShot.group.position;
           p.set(THREE.MathUtils.lerp(c.root.position.x,monsterDamageSites[0].x,t),
-            THREE.MathUtils.lerp(c.root.position.y+journeyDallas19.monster.height*.82,this.targetGroundY+30,t),
+            THREE.MathUtils.lerp(this.endingOrigin.y,this.targetGroundY+30,t),
             THREE.MathUtils.lerp(c.root.position.z,monsterDamageSites[0].z,t));
           this.timeoutShot.direction.set(monsterDamageSites[0].x-c.root.position.x,
-            this.targetGroundY+30-c.root.position.y-journeyDallas19.monster.height*.82,monsterDamageSites[0].z-c.root.position.z).normalize();
+            this.targetGroundY+30-this.endingOrigin.y,monsterDamageSites[0].z-c.root.position.z).normalize();
           this.timeoutShot.group.quaternion.setFromUnitVectors(forward,this.timeoutShot.direction);
           if(t===1){this.timeoutShot.group.visible=false;this.timeoutShot=undefined;}
         }
-        if(!this.damagedDowntown&&this.endingElapsed>=1.15) {
+        if(!this.damagedDowntown&&this.endingElapsed>=release+travel) {
           this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();
-          for(const site of monsterDamageSites)this.particles.emit(site.x,site.y,site.z,true,8,35);
+          for(const site of monsterDamageSites)this.particles.emit(site.x,site.y,site.z,true,this.crimsonCore?24:8,this.crimsonCore?160:35);
         }
       }
     }

@@ -5058,7 +5058,7 @@ type ServerMessage =
   | { type: 'objectiveProgress'; label: string; progress: number; target: number }
   | { type: 'masteryLevel'; cityId: CityId; level: number; rewards: string[] }
   | { type: 'challengeComplete'; challengeId: string; score: number; credits: number }
-  | { type: 'projectileRemove'; projectileId: string }
+  | { type: 'projectileRemove'; projectileId: string; monsterImpact?: {attemptId:string;position:{x:number;y:number;z:number};bodyPosition:{x:number;y:number;z:number};yaw:number;sequence:number} }
   | { type: 'shotRejected'; clientShotId: string }
   | { type: 'damage'; playerId: string; shooterId: string; health: number; maxHealth: number; damage: number; impactId?: string; impactPosition?: NetworkVector }
   | { type: 'repair'; playerId: string; sourceId: string; full: boolean; health: number; maxHealth: number; cooldownMs?: number }
@@ -9466,12 +9466,8 @@ function refreshCameraFraming(): void {
   const viewRange = visualSpan / (2 * CAMERA_TARGET_WIDTH_FRACTION * Math.tan(horizontalHalfFov));
   cameraFocusAhead = THREE.MathUtils.clamp(cameraFrameSize.z * 0.22, 1, 2.7);
   defaultChaseDistance = Math.max(cameraFrameSize.z * 0.75, viewRange - cameraFocusAhead) * currentAircraft.cameraFrameScale;
-  // Keep a shallow rear view across airframes. Fixed model heights must not
-  // turn the fitted chase view into a steep overhead angle on landscape screens.
-  defaultChaseHeight = Math.min(
-    Math.max(currentAircraft.cameraHeight, defaultChaseDistance * 0.24, cameraFrameSize.y * 0.65),
-    defaultChaseDistance * 0.28,
-  );
+  // Earlier rear viewing height only; targeting and camera behavior stay current.
+  defaultChaseHeight = Math.max(currentAircraft.cameraHeight * 0.74, cameraFrameSize.y * 0.65);
   cameraFocusAhead = Math.max(cameraFocusAhead, defaultChaseDistance * 0.45);
   if (!cameraFramingKey) smoothedChaseDistance = defaultChaseDistance * cameraDistanceMultiplier;
   cameraFramingKey = framingKey;
@@ -9531,7 +9527,7 @@ function updateCamera(delta: number): void {
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
-      Math.max(defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18), smoothedChaseDistance * 0.24),
+      defaultChaseHeight * (0.82 + cameraDistanceMultiplier * 0.18) + cameraSpeedOffset * 0.05,
       smoothedChaseDistance,
     )
     .applyQuaternion(cameraChaseQuaternion))
@@ -10192,6 +10188,7 @@ function animate(): void {
   airAssaultUi?.update(camera,airplane);
   updateLockCircle();
   transportView?.updateDefeatCamera(camera,delta,airplane,chaseCameraPosition,chaseLookTarget);
+  if(journeyAttempt?.missionId===journeyDallas19.id&&journeyAttempt.status==='FAILED'&&journeyAttempt.failureReason==='TIME_UP'&&!crashed)monsterView?.updateTimeoutCamera(camera);
   portalVisuals?.update(delta,camera,airplane.position,portalInTransit);
   if (crashSequence) {
     const sequence = crashSequence;
@@ -11351,7 +11348,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   }
   if (message.type === 'monsterFinal') {
     if ((journeyAttempt?.missionId === journeyDallas19.id||journeyAttempt?.missionId===journeyDallas20.id) && journeyAttempt.attemptId === message.attemptId) {
-      monsterView?.finish(message.kind);
+      if(message.kind!=='timeout'||!crashed)monsterView?.finish(message.kind);
       if (message.kind === 'timeout') audioManager.playTone(95, 0.5, 'sawtooth', 0.16, 35, 0, 'impacts');
       else audioManager.playTone(145, 0.8, 'sawtooth', 0.13, 38, 0, 'impacts');
     }
@@ -11650,12 +11647,14 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       abortFlightLaunchCinematic();
       missionObjectiveGuidance?.hide();
       if ((message.attempt.missionId===journeyDallas19.id||message.attempt.missionId===journeyDallas20.id) && message.attempt.status === 'FAILED' &&
-        message.attempt.failureReason === 'TIME_UP' && monsterView) {
+        message.attempt.failureReason === 'TIME_UP' && monsterView && !crashed) {
         const failedAttempt = message.attempt;
+        pilotMenu.close();
+        if(failedAttempt.missionId===journeyDallas19.id)showProgressMessage('TIME UP · DALLAS HAS FALLEN');
         window.setTimeout(() => {
           if (journeyAttempt?.attemptId === failedAttempt.attemptId && journeyAttempt.status === 'FAILED')
             showJourneyResult(failedAttempt);
-        }, 2_100);
+        }, failedAttempt.missionId===journeyDallas19.id?MonsterArrivalView.timeoutCinematicMs:2_100);
       } else if (missionClearMissionIds.has(message.attempt.missionId) && message.attempt.status === 'COMPLETED' &&
         previousAttempt?.attemptId === message.attempt.attemptId &&
         (previousAttempt.status === 'APPROACH' || previousAttempt.status === 'RACING')) {
@@ -12217,6 +12216,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     showProgressMessage('SKY CHALLENGE COMPLETE');
   } else if (message.type === 'projectileRemove') {
     removeClientProjectile(message.projectileId);
+    if(message.monsterImpact&&journeyAttempt?.missionId===journeyDallas19.id&&message.monsterImpact.attemptId===journeyAttempt.attemptId)
+      monsterView?.showBulletImpact(message.monsterImpact);
   } else if (message.type === 'damage') {
     const assistedVisual = message.shooterId === localPlayerId && message.playerId !== localPlayerId
       ? pendingLocalAssistedHit(message.playerId)
