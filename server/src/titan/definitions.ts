@@ -90,6 +90,8 @@ export type Species = {
     senses: {
         range: number;
         fov: number;
+        /** Server-authorized encounter opponent remains pursued behind scenery. Shots still require line of sight. */
+        pursueOccluded?: boolean;
     };
     personality: 'aggressive' | 'defensive' | 'balanced';
     level: Level;

@@ -111,7 +111,7 @@ export class MonsterArrivalView {
   private readonly creature: MonsterArrivalModel|AshenWarlordModel;
   private readonly environmentDamage:boolean;
   readonly ready: Promise<void>;
-  private readonly pool=Array.from({length:8},()=>createFireball());
+  private readonly pool:Fireball[];
   private readonly particles=new MonsterParticles();
   private readonly target=new THREE.Vector3();
   private readonly crimsonCore:boolean;
@@ -148,7 +148,7 @@ export class MonsterArrivalView {
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
     source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding) {
-    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.creature=this.crimsonCore?new AshenWarlordModel(source):new MonsterArrivalModel(source,binding);this.environmentDamage=!binding||!binding.url.includes('armored-apex');this.ready=this.creature.ready;
+    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source):new MonsterArrivalModel(source,binding);this.environmentDamage=!binding||!binding.url.includes('armored-apex');this.ready=this.creature.ready;
     this.scene=scene;this.camera=camera;this.targetGroundY=targetGroundY;this.pixelHeight=pixelHeight;
     this.creature.groundAt=groundAt;
     if(this.crimsonCore){this.beamMaterial.color.set(0xff2340);this.waveMaterial.color.set(0xff3b35);this.warningMaterial.color.set(0xff1735);this.warningMaterial.opacity=.4;}

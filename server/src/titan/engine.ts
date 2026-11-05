@@ -260,7 +260,7 @@ export class TitanEncounter {
             if (!t.authorized || !t.alive || t.encounterId !== this.id || t.radius <= 0 || Object.values(t.position).some(v => !Number.isFinite(v)) || Object.values(t.velocity).some(v => !Number.isFinite(v)))
                 continue;
             const d = distance(eye, t.position), angle = Math.abs(wrap(Math.atan2(t.position.x - eye.x, t.position.z - eye.z) - this.#yaw));
-            if (d <= s.senses.range && angle <= s.senses.fov / 2 && d < best && this.#env.lineOfSight(eye, t.position)) {
+            if (d <= s.senses.range && angle <= s.senses.fov / 2 && d < best && (s.senses.pursueOccluded || this.#env.lineOfSight(eye, t.position))) {
                 chosen = t;
                 best = d;
             }
@@ -279,12 +279,14 @@ export class TitanEncounter {
         return (a.unlockBelow === undefined || this.#health / this.species.health <= a.unlockBelow) && this.#time >= (this.#cooldowns.get(a.id) ?? 0) && d >= a.minRange && d <= a.maxRange && alt <= a.maxAltitude && this.#withinCone(origin, t.position, a.cone) && this.#env.lineOfSight(origin, t.position);
     }
     #leapDestination(goal: Vec, a: Ability): Vec | null {
-        const m = this.species.movement, flight = 2 * m.jumpSpeed / m.gravity, d = Math.hypot(goal.x - this.#position.x, goal.z - this.#position.z), travel = Math.min(a.maxRange, m.run * flight, d);
-        if (travel < .001 || a.active < flight)
+        const m = this.species.movement, nominalFlight = 2 * m.jumpSpeed / m.gravity, d = Math.hypot(goal.x - this.#position.x, goal.z - this.#position.z), travel = Math.min(a.maxRange, m.run * nominalFlight, d);
+        if (travel < Math.max(.001, a.minRange))
             return null;
         const end = { x: this.#position.x + (goal.x - this.#position.x) / d * travel, y: this.#position.y, z: this.#position.z + (goal.z - this.#position.z) / d * travel }, b = this.#env.bounds, r = this.species.radius, landing = this.#env.ground(end.x, end.z);
-        if (end.x < b.minX + r || end.x > b.maxX - r || end.z < b.minZ + r || end.z > b.maxZ - r || Math.abs(landing - this.#position.y) > m.stepHeight)
+        if (end.x < b.minX + r || end.x > b.maxX - r || end.z < b.minZ + r || end.z > b.maxZ - r || m.jumpSpeed ** 2 - 2 * m.gravity * (landing - this.#position.y) < 0)
             return null;
+        const flight = (m.jumpSpeed + Math.sqrt(m.jumpSpeed ** 2 - 2 * m.gravity * (landing - this.#position.y))) / m.gravity;
+        if (flight > a.active || travel > m.run * flight) return null;
         for (const [dx, dz] of [[0, 0], [18, 0], [-18, 0], [0, 18], [0, -18]]) {
             const p = { ...end, x: end.x + dx, z: end.z + dz };
             if (!(this.#env.poseClear?.(p, p, this.#yaw, 0) ?? this.#env.traversable(p, p, r, this.species.height)))
@@ -542,8 +544,8 @@ export class TitanEncounter {
         }
         const ground = this.#env.ground(this.#position.x, this.#position.z);
         if (this.#airborne) {
+            this.#position.y += this.#vertical * dt - .5 * m.gravity * dt * dt;
             this.#vertical -= m.gravity * dt;
-            this.#position.y += this.#vertical * dt;
             if (this.#position.y <= ground) {
                 this.#position.y = ground;
                 this.#vertical = 0;
@@ -733,7 +735,7 @@ export class TitanEncounter {
             a.aim = landing;
             a.released++;
             this.#vertical = this.species.movement.jumpSpeed;
-            const flight = 2 * this.#vertical / this.species.movement.gravity, travel = Math.min(def.maxRange, Math.hypot(a.aim.x - this.#position.x, a.aim.z - this.#position.z), this.species.movement.run * flight), dir = unit(this.#position, { ...a.aim, y: this.#position.y });
+            const flight = (this.#vertical + Math.sqrt(this.#vertical ** 2 - 2 * this.species.movement.gravity * (this.#env.ground(a.aim.x,a.aim.z) - this.#position.y))) / this.species.movement.gravity, travel = Math.min(def.maxRange, Math.hypot(a.aim.x - this.#position.x, a.aim.z - this.#position.z), this.species.movement.run * flight), dir = unit(this.#position, { ...a.aim, y: this.#position.y });
             this.#jumpVelocity = { x: dir.x * travel / flight, y: 0, z: dir.z * travel / flight };
             this.#airborne = true;
             this.#emit('animation', 'jump', this.#position, { ability: def.id });

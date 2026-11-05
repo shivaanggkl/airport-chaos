@@ -63,7 +63,7 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
             time = (c.time - hitAt) / .5 * .7;
         }
         else if (Math.hypot(c.velocity.x, c.velocity.z) > .5) {
-            key = Math.hypot(c.velocity.x, c.velocity.z) > 120 ? 'run' : 'walk';
+            key = Math.hypot(c.velocity.x, c.velocity.z) > 360 ? 'run' : 'walk';
             const clip = model.clips[key]!;
             travelTime += distance / (clip.stride ?? .7) * clip.duration;
             time = travelTime;

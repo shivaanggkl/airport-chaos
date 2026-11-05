@@ -1,3 +1,4 @@
+import { cityRegistry } from '../../shared/city-registry.mjs';
 import { createAshenPose } from './ashen-warlord-pose.js';
 import { SpeciesRegistry, standardAbilities, type Species } from './titan/definitions.js';
 import { ashenWarlordModel as model } from '../../shared/ashen-warlord-model.mjs';
@@ -5,13 +6,14 @@ import { ashenWarlordGeometry as geometry } from '../../shared/ashen-warlord-geo
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { createM19Encounter, type DistrictBuilding } from './m19-titan.js';
 const height = 960;
+const cityHalfSize = Number(cityRegistry.dallas.worldSize) / 2;
 const joints: Species['joints'] = Object.fromEntries(Object.entries(model.anchors).map(([id, p]) => [id, { bone: model.bones[id]!, position: { x: p[0]! * height, y: p[1]! * height, z: p[2]! * height }, foot: id.startsWith('foot'), gaitPhase: id.endsWith('right') ? .5 : 0, reach: 365, angularSpeed: 2.2, aimWeight: id === 'neck' ? .25 : undefined }]));
 const regions = geometry.spheres.map((v, i) => { const id = `volume-${i}`; (joints as Record<string, Species['joints'][string]>)[id] = { bone: v.part.replace(/\d+$/, ''), position: { x: -v.x * height, y: v.y * height, z: -v.z * height } }; return { id, joint: id, radius: v.radius * height, radii: { x: v.radii.x * height, y: v.radii.y * height, z: v.radii.z * height }, multiplier: 1, stagger: 100 }; });
 export const ashenWarlordSpecies = new SpeciesRegistry().register({
     id: 'ashen-warlord', model: model.url, lods: model.lods, scale: height, height, radius: 260, health: 2500, contactDamage: 20, joints,
     animations: ['beam', 'ranged', 'strike', 'smash', 'charge', 'roar', 'clap', 'jump'], personality: 'aggressive', level: 'HARD',
-    movement: { walk: 120, run: 280, chargeSpeed: 360, acceleration: 45, deceleration: 65, turnRate: .38, turnAcceleration: .3, stepHeight: 24, stride: 145, reverseStride: 35, lateralStride: 40, turnStrideRadius: 850, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true, repositionDistance: 2800, intentDuration: 8, traversalOnlyWhenBlocked: true },
-    senses: { range: 9000, fov: Math.PI * 2 }, arena: { minWidth: 2500, maxSlope: .15 },
+    movement: { walk: 360, run: 840, chargeSpeed: 1080, acceleration: 135, deceleration: 195, turnRate: 1.14, turnAcceleration: .9, stepHeight: 24, stride: 145, reverseStride: 35, lateralStride: 40, turnStrideRadius: 850, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true, repositionDistance: 8400, intentDuration: 8, traversalOnlyWhenBlocked: false },
+    senses: { range: 160000, fov: Math.PI * 2, pursueOccluded: true }, arena: { minWidth: 2500, maxSlope: .15 },
     regions: [{ id: 'charged-core', joint: 'gem', radius: 24, radii: { x: 24, y: 36, z: 16 }, multiplier: 2, stagger: 60, weakDuring: 'energy-beam' }, { id: 'chest-core', joint: 'gem', radius: 24, radii: { x: 24, y: 36, z: 16 }, multiplier: 1.25, stagger: 100 }, ...regions],
     abilities: standardAbilities.filter(a => ['energy-beam', 'fireball-barrage', 'hand-strike', 'ground-smash', 'charging-rampage', 'roaring-shockwave', 'two-hand-clap'].includes(a.id)).map(a => {
         const b = { ...a, maxRange: 6000, maxAltitude: 5000, unlockBelow: 1 };
@@ -33,6 +35,9 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
             b.cooldown = 4.5;
             b.radius = 20;
             b.projectileSpeed = 1600;
+            b.maxRange = 160000;
+            b.maxAltitude = 40000;
+            b.cone = Math.PI;
         }
         if (a.id === 'hand-strike' || a.id === 'two-hand-clap') {
             b.pivot = joints['shoulder-left']!.position;
@@ -56,13 +61,14 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
             b.animation = 'jump';
             b.requires = ['foot-left', 'foot-right'];
             b.radius = 350;
-            b.maxRange = 400;
+            b.maxRange = 4000;
+            b.minRange = 800;
             b.maxAltitude = 180;
             b.cone = Math.PI;
             b.damage = 20;
             b.warning = 1.1;
             b.windup = .3;
-            b.active = 6.4;
+            b.active = 9;
             b.recovery = 1.3;
             b.cooldown = 12;
             b.moving = false;
@@ -91,5 +97,5 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
     })
 });
 export function createAshenWarlordEncounter(id: string, playerId: string, started: number, ground: (x: number, z: number) => number, buildings: readonly DistrictBuilding[], health = 2500) {
-    return createM19Encounter(id, playerId, started, ground, buildings, health, ashenWarlordSpecies, { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose(health) });
+    return createM19Encounter(id, playerId, started, ground, buildings, health, ashenWarlordSpecies, { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose(health), bounds: {minX:-cityHalfSize,maxX:cityHalfSize,minZ:-cityHalfSize,maxZ:cityHalfSize} });
 }

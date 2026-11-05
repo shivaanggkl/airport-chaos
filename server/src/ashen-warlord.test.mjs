@@ -107,7 +107,7 @@ test('all seven real attacks warn, activate, hit, and use the supplied visible h
         if (ability.id === 'two-hand-clap')
             target = titanAnchor(root, yaw, { x: 18, y: 800, z: 205 });
         if (ability.mechanism === 'leap')
-            target = titanAnchor(root, yaw, { x: 0, y: 80, z: 300 });
+            target = titanAnchor(root, yaw, { x: 0, y: 80, z: 3800 });
         if (ability.mechanism === 'charge')
             target = titanAnchor(root, yaw, { x: 0, y: 600, z: 550 });
         if (ability.id === 'roaring-shockwave')
@@ -258,4 +258,51 @@ test('M19 covers city-scale ground instead of parking below the player or repeat
         assert(turning<400,'must not spend most of the battle turning in place');
         t.diagnostic(JSON.stringify({moving,travel,extent,turning}));disposeM19(e);
     }
+});
+
+test('M19 uses the requested 3x run/turn limits and long travelling leaps, not vertical hops',async()=>{
+    assert.equal(ashenWarlordSpecies.movement.run,280*3);
+    assert(Math.abs(ashenWarlordSpecies.movement.turnRate-.38*3)<1e-12);
+    const leap=ashenWarlordSpecies.abilities.find(a=>a.mechanism==='leap');
+    assert.equal(leap.maxRange,400*10);assert.equal(leap.minRange,800);
+    const e=createAshenWarlordEncounter('long-leap','p',0,()=>0,[]),origin={...e.frame.position};
+    const target=titanAnchor(origin,e.frame.yaw,{x:0,y:80,z:4000});
+    let launch,land,air=false,maxSpeed=0;
+    for(let i=1;i<=300;i++){
+        stepM19(e,target,{x:0,y:0,z:0},18,i*50);const f=e.frame;
+        if(f.locomotion==='jump'){launch??={...f.position};air=true;maxSpeed=Math.max(maxSpeed,Math.hypot(f.velocity.x,f.velocity.z));}
+        if(air&&f.events.some(v=>v.type==='landing')){land={...f.position};break;}
+    }
+    assert(launch&&land,'must launch and land');
+    assert(Math.hypot(land.x-launch.x,land.z-launch.z)>3500,'actual continuous multi-kilometre jump');
+    assert(maxSpeed<=ashenWarlordSpecies.movement.run+.01);disposeM19(e);
+});
+
+test('M19 pursues an authorized distant/occluded pilot but remains inside the Dallas boundary',async()=>{
+    const {TitanEncounter}=await import('./titan/engine.js');
+    const cfg=structuredClone(ashenWarlordSpecies);cfg.id+='-pursuit';cfg.abilities=[];
+    const species=new SpeciesRegistry().register(cfg);
+    const env={bounds:{minX:-25000,maxX:25000,minZ:-25000,maxZ:25000},ground:()=>0,traversable:()=>true,lineOfSight:()=>false,obstruction:()=>null};
+    const e=new TitanEncounter('pursue',species,{x:23000,y:0,z:23000},env,{yaw:Math.PI/4});
+    const target={id:'p',encounterId:'pursue',authorized:true,alive:true,position:{x:40000,y:30000,z:40000},velocity:{x:0,y:0,z:0},radius:18};
+    let max=0;
+    for(let i=0;i<600;i++){
+        const f=e.step(.05,[target],[]);max=Math.max(max,Math.hypot(f.position.x-23000,f.position.z-23000));
+        assert(f.position.x<=25000-species.radius&&f.position.z<=25000-species.radius,'must not leave Dallas');
+    }
+    assert(max>1500,'must follow beyond the former 9 km perception limit, even behind scenery');
+    e.reset();
+});
+
+test('M19 barrage reaches a genuinely high-altitude aircraft through ordinary non-homing projectiles',async()=>{
+    const cfg=structuredClone(ashenWarlordSpecies);cfg.id+='-altitude';cfg.movement.traversalLeap=false;
+    cfg.abilities=[{...cfg.abilities.find(a=>a.id==='fireball-barrage'),spread:0}];
+    const species=new SpeciesRegistry().register(cfg),e=createM19Encounter('high','p',0,()=>0,[],2500,species,{geometry,spawn:journeyDallas19.monster,environmentDamage:true,articulate:createAshenPose()});
+    const target={x:e.frame.position.x,y:12000,z:e.frame.position.z+500};let hits=0,high=0;
+    for(let i=1;i<=400;i++){
+        stepM19(e,target,{x:0,y:0,z:0},18,i*50);const f=e.frame;
+        for(const p of f.projectiles)high=Math.max(high,p.position.y);
+        hits+=f.events.filter(v=>v.kind==='damage'&&v.ability==='fireball-barrage').length;
+    }
+    assert(high>10000,'shots must not expire at the former range/altitude cap');assert(hits>0,'valid high-altitude projectile collision');disposeM19(e);
 });
