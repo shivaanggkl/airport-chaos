@@ -106,3 +106,9 @@ test('server angular validation accepts the bounded desktop coordinated turn for
     }
   }
 });
+
+test('bank settles gently near its target instead of stopping at constant roll speed',()=>{
+  for(const type of types){const e=aircraftFlightEnvelope[type],target=coordinatedBankTarget(.9),from=target-.001,next=stepCoordinatedBank(from,.9,1/60,e);
+    assert(next>from&&next<target);assert(next-from<.0002);
+  }
+});

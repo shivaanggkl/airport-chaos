@@ -42,7 +42,9 @@ export function stepCoordinatedBank(currentBank,turnInput,delta,envelope){
   const responseScale=commanding?clamp(envelope.rollInputResponse/4.5,.5,1.35):1;
   const baseRate=commanding?envelope.rollRate:(envelope.rollLevelRate??envelope.rollRate*.75);
   const authority=commanding ? .55+.45*Math.abs(input) : .55+.45*Math.min(1,Math.abs(currentBank)/COORDINATED_BANK_CAP);
-  return clamp(moveToward(clamp(currentBank,-COORDINATED_BANK_CAP,COORDINATED_BANK_CAP),target,Math.max(0,delta)*baseRate*responseScale*authority),-COORDINATED_BANK_CAP,COORDINATED_BANK_CAP);
+  const bank=clamp(currentBank,-COORDINATED_BANK_CAP,COORDINATED_BANK_CAP);
+  const rate=Math.min(baseRate*responseScale*authority,Math.abs(target-bank)*8);
+  return clamp(moveToward(bank,target,Math.max(0,delta)*rate),-COORDINATED_BANK_CAP,COORDINATED_BANK_CAP);
 }
 
 export const mobileBankTarget=coordinatedBankTarget;

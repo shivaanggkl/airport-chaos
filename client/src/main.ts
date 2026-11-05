@@ -4401,6 +4401,9 @@ const lookTarget = new THREE.Vector3();
 const cameraOrbitOffset = new THREE.Vector3();
 const cameraOrbitYawQuaternion = new THREE.Quaternion();
 const cameraChaseQuaternion = new THREE.Quaternion();
+const cameraChasePitchQuaternion = new THREE.Quaternion();
+const cameraOrbitReferenceQuaternion = new THREE.Quaternion();
+const cameraPitchAxis = new THREE.Vector3(1,0,0);
 const cameraOrbitInverseYawQuaternion = new THREE.Quaternion();
 const cameraAircraftForward = new THREE.Vector3();
 const cameraWorldUp = new THREE.Vector3(0, 1, 0);
@@ -4415,6 +4418,8 @@ const orbitCameraPosition = new THREE.Vector3();
 const orbitLookTarget = new THREE.Vector3();
 const targetCameraRelativeOffset = new THREE.Vector3();
 const smoothedCameraRelativeOffset = new THREE.Vector3();
+const targetCameraLookOffset = new THREE.Vector3();
+const smoothedCameraLookOffset = new THREE.Vector3();
 const cameraOrbitFocusLocal = new THREE.Vector3();
 let cameraOrbitYaw = 0;
 let cameraOrbitPitch = 0;
@@ -7278,7 +7283,8 @@ const beginCameraOrbit = (event: PointerEvent): void => {
   if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1);
   else cameraAircraftForward.normalize();
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
-  cameraOrbitInverseYawQuaternion.setFromAxisAngle(cameraWorldUp, -aircraftYaw);
+  cameraOrbitReferenceQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
+  cameraOrbitInverseYawQuaternion.copy(cameraOrbitReferenceQuaternion).invert();
   cameraOrbitOffset.copy(camera.position).sub(airplane.position).applyQuaternion(cameraOrbitInverseYawQuaternion);
   cameraOrbitRadius = Math.max(0.01, cameraOrbitOffset.length());
   cameraOrbitRadiusTarget = cameraOrbitRadius;
@@ -9498,14 +9504,16 @@ function updateCamera(delta: number): void {
     if (cameraOrbitBlend === 0) cameraOrbitRecenterAt = null;
   }
   cameraAircraftForward.set(0, 0, -1).applyQuaternion(airplane.quaternion);
+  const chasePitch = THREE.MathUtils.clamp(Math.atan2(cameraAircraftForward.y,Math.hypot(cameraAircraftForward.x,cameraAircraftForward.z))*.45,-.18,.18);
   cameraAircraftForward.y = 0;
-  if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1);
+  if (cameraAircraftForward.lengthSq() < 0.0001) cameraAircraftForward.set(0, 0, -1).applyQuaternion(cameraOrbitYawQuaternion);
   else cameraAircraftForward.normalize();
   const aircraftYaw = Math.atan2(-cameraAircraftForward.x, -cameraAircraftForward.z);
   cameraOrbitYawQuaternion.setFromAxisAngle(cameraWorldUp, aircraftYaw);
-  // Follow heading with a level horizon. Aircraft bank/pitch must not swing
-  // the chase position sideways or underneath the aircraft during a climb.
-  cameraChaseQuaternion.copy(cameraOrbitYawQuaternion);
+  // Follow a restrained part of the climb/descent, without inheriting bank.
+  // This keeps the horizon level and the tail view connected to flight attitude.
+  cameraChasePitchQuaternion.setFromAxisAngle(cameraPitchAxis,chasePitch);
+  cameraChaseQuaternion.copy(cameraOrbitYawQuaternion).multiply(cameraChasePitchQuaternion);
   chaseCameraPosition.copy(cameraOrbitOffset
     .set(
       0,
@@ -9524,19 +9532,26 @@ function updateCamera(delta: number): void {
     .add(airplane.position);
 
   if (cameraOrbitBlend > 0) {
+    // Ease the orbit pivot onto the airframe, rather than circling the chase
+    // look-ahead point and pushing the aircraft toward the edge of the screen.
+    const focusWeight=1-Math.exp(-Math.min(delta,.1)*10);
+    cameraOrbitFocusLocal.x*=1-focusWeight;
+    cameraOrbitFocusLocal.z*=1-focusWeight;
+    cameraOrbitFocusLocal.y+=(.7-cameraOrbitFocusLocal.y)*focusWeight;
     const horizontalRadius = cameraOrbitRadius * Math.cos(cameraOrbitPitch);
     orbitCameraPosition.set(
       Math.sin(cameraOrbitYaw) * horizontalRadius,
       Math.sin(cameraOrbitPitch) * cameraOrbitRadius,
       Math.cos(cameraOrbitYaw) * horizontalRadius,
-    ).applyQuaternion(cameraOrbitYawQuaternion).add(airplane.position);
+    ).applyQuaternion(cameraOrbitReferenceQuaternion).add(airplane.position);
     orbitCameraPosition.y = Math.max(
       orbitCameraPosition.y,
       groundPlaneY(orbitCameraPosition.x, orbitCameraPosition.z) + 2.2,
     );
-    orbitLookTarget.copy(cameraOrbitFocusLocal).applyQuaternion(cameraOrbitYawQuaternion).add(airplane.position);
-    targetCameraPosition.lerpVectors(chaseCameraPosition, orbitCameraPosition, cameraOrbitBlend);
-    lookTarget.lerpVectors(chaseLookTarget, orbitLookTarget, cameraOrbitBlend);
+    orbitLookTarget.copy(cameraOrbitFocusLocal).applyQuaternion(cameraOrbitReferenceQuaternion).add(airplane.position);
+    const orbitWeight=cameraOrbitBlend*cameraOrbitBlend*(3-2*cameraOrbitBlend);
+    targetCameraPosition.lerpVectors(chaseCameraPosition, orbitCameraPosition, orbitWeight);
+    lookTarget.lerpVectors(chaseLookTarget, orbitLookTarget, orbitWeight);
   } else {
     targetCameraPosition.copy(chaseCameraPosition);
     lookTarget.copy(chaseLookTarget);
@@ -9592,24 +9607,23 @@ function updateCamera(delta: number): void {
 
   if (launchCameraApplied || gameplayCameraApplied) {
     cameraRelativeOffsetInitialized = false;
-  } else if (cameraOrbitDragging) {
-    // Manual orbit owns the final position and aim for this frame. Chase
-    // smoothing, aircraft pitch/roll, and recentering cannot overwrite it.
-    camera.position.copy(targetCameraPosition);
-    camera.lookAt(lookTarget);
-    cameraRelativeOffsetInitialized = false;
   } else {
     // Keep smoothing in the aircraft's moving frame. A world-space camera
     // lerp trails farther behind as speed rises, shrinking the aircraft even
     // when its configured chase distance never changes.
     targetCameraRelativeOffset.copy(targetCameraPosition).sub(airplane.position);
+    targetCameraLookOffset.copy(lookTarget).sub(airplane.position);
+    const followWeight=1-Math.exp(-Math.min(delta,.1)*(cameraOrbitDragging?14:cameraFollow));
     if (!cameraRelativeOffsetInitialized) {
       smoothedCameraRelativeOffset.copy(targetCameraRelativeOffset);
+      smoothedCameraLookOffset.copy(targetCameraLookOffset);
       cameraRelativeOffsetInitialized = true;
     } else {
-      smoothedCameraRelativeOffset.lerp(targetCameraRelativeOffset, Math.min(1, delta * cameraFollow));
+      smoothedCameraRelativeOffset.lerp(targetCameraRelativeOffset, followWeight);
+      smoothedCameraLookOffset.lerp(targetCameraLookOffset, followWeight);
     }
     camera.position.copy(airplane.position).add(smoothedCameraRelativeOffset);
+    lookTarget.copy(airplane.position).add(smoothedCameraLookOffset);
     camera.position.y = Math.max(
       camera.position.y,
       groundPlaneY(camera.position.x, camera.position.z) + 2.2,

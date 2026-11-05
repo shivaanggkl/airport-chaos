@@ -9,7 +9,7 @@ const source = readFileSync(new URL('../../client/src/main.ts', import.meta.url)
 const framing = source.slice(source.indexOf('function refreshCameraFraming()'), source.indexOf('function updateCamera('));
 const chase = source.slice(source.indexOf('function updateCamera('), source.indexOf('  if (cameraOrbitBlend > 0) {', source.indexOf('function updateCamera('))) + '\n}';
 for (const [type, definition] of Object.entries(aircraftDefinitions))
-    test(`${type}: shallow, lower-screen chase framing stays stable through pitch and bank`, () => {
+    test(`${type}: chase view follows restrained pitch without inheriting bank`, () => {
         for (const aspect of [844 / 390, 1280 / 720]) {
             const airplane = new THREE.Group();
             airplane.add(new THREE.Mesh(new THREE.BoxGeometry(definition.wingSpan, definition.bodyRadius * 3, definition.bodyLength + definition.noseLength)));
@@ -18,11 +18,11 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
             const state = { THREE, airplane, camera, currentAircraft: definition, CAMERA_CHASE_FOV: 58, CAMERA_TARGET_WIDTH_FRACTION: .305,
                 cameraFramingKey: '', defaultChaseDistance: 0, defaultChaseHeight: 0, cameraFocusAhead: 1.5, smoothedChaseDistance: 0, cameraDistanceMultiplier: 1,
                 currentSpeed: 0, boostActive: false, boostVisualStrength: 0, cameraOrbitRadiusTarget: 0, cameraOrbitDragging: false, cameraOrbitRecenterAt: null,
-                cameraWorldUp: new THREE.Vector3(0, 1, 0), cameraFrameLocalBounds: new THREE.Box3(), cameraFrameMeshBounds: new THREE.Box3(),
+                cameraWorldUp: new THREE.Vector3(0, 1, 0),cameraPitchAxis:new THREE.Vector3(1,0,0), cameraFrameLocalBounds: new THREE.Box3(), cameraFrameMeshBounds: new THREE.Box3(),
                 cameraFrameRootInverse: new THREE.Matrix4(), cameraFrameRelativeMatrix: new THREE.Matrix4(), groundPlaneY: () => 0 };
             for (const name of ['cameraFrameSize', 'cameraAircraftForward', 'cameraOrbitOffset', 'chaseCameraPosition', 'chaseLookTarget'])
                 state[name] = new THREE.Vector3();
-            for (const name of ['cameraOrbitYawQuaternion', 'cameraChaseQuaternion'])
+            for (const name of ['cameraOrbitYawQuaternion', 'cameraChaseQuaternion','cameraChasePitchQuaternion'])
                 state[name] = new THREE.Quaternion();
             vm.createContext(state);
             vm.runInContext(ts.transpileModule(framing + chase, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, state);
@@ -30,20 +30,19 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
             state.currentSpeed = definition.maxSpeed * (boosted ? definition.boostMaxSpeed : 1);
             state.boostActive = boosted;
             state.boostVisualStrength = boosted ? 1 : 0;
-            let baseline, baselineLook;
-            for (const [pitch, bank] of [[0, 0], [.3, .65], [-.28, -.65]]) {
+            const offsets=new Map(),looks=new Map();
+            for (const [pitch, bank] of [[0,0],[0,.65],[0,-.65],[.3,0],[.3,.65],[-.28,0],[-.28,-.65]]) {
                 airplane.rotation.set(pitch, .5, bank, 'YXZ');
                 state.updateCamera(1);
                 const offset = state.chaseCameraPosition.clone().sub(airplane.position);
                 const elevation = offset.y / Math.hypot(offset.x, offset.z);
-                assert.ok(elevation >= .24 && elevation <= .30, 'camera sees the upper airframe without an overhead angle');
+                assert.ok(elevation >= .08 && elevation <= .46, 'restrained climb/descent framing');
                 const lookOffset = state.chaseLookTarget.clone().sub(airplane.position);
-                if (baselineLook) assert.ok(lookOffset.distanceTo(baselineLook) < .00001, 'takeoff pitch and bank must not tilt the camera aim');
-                else baselineLook = lookOffset;
-                if (baseline)
-                    assert.ok(offset.distanceTo(baseline) < .00001, 'bank and pitch cannot swing the camera around the tail');
-                else
-                    baseline = offset;
+                if(looks.has(pitch))assert(lookOffset.distanceTo(looks.get(pitch))<1e-5,'bank cannot swing the aim');
+                else looks.set(pitch,lookOffset);
+                if(offsets.has(pitch))assert(offset.distanceTo(offsets.get(pitch))<1e-5,'bank cannot swing the camera');
+                else offsets.set(pitch,offset);
+                if(pitch!==0){assert(Math.sign(lookOffset.y-looks.get(0).y)===Math.sign(pitch),'aim must follow climb/descent');assert(Math.abs(offset.length()-offsets.get(0).length())<1e-5,'pitch cannot change chase distance');}
                 camera.position.copy(state.chaseCameraPosition);
                 camera.lookAt(state.chaseLookTarget);
                 camera.updateMatrixWorld();
@@ -55,3 +54,26 @@ for (const [type, definition] of Object.entries(aircraftDefinitions))
             }
         }
     });
+
+test('manual orbit keeps its captured world heading while the aircraft turns',()=>{
+    const start=source.indexOf('  if (cameraOrbitBlend > 0) {',source.indexOf('function updateCamera('));
+    const block=source.slice(start,source.indexOf('  // Use absolute airspeed',start));
+    const state={delta:1/60,cameraOrbitBlend:1,cameraOrbitRadius:25,cameraOrbitPitch:.2,cameraOrbitYaw:.8,airplane:new THREE.Group(),groundPlaneY:()=>-1000,
+        cameraOrbitReferenceQuaternion:new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),.4),cameraOrbitYawQuaternion:new THREE.Quaternion()};
+    for(const k of ['orbitCameraPosition','orbitLookTarget','cameraOrbitFocusLocal','targetCameraPosition','lookTarget','chaseCameraPosition','chaseLookTarget'])state[k]=new THREE.Vector3();
+    vm.createContext(state);vm.runInContext(block,state);const first=state.targetCameraPosition.clone();
+    state.airplane.rotation.y=1.8;state.cameraOrbitYawQuaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),1.8);
+    vm.runInContext(block,state);assert(first.distanceTo(state.targetCameraPosition)<1e-9);
+});
+
+test('camera position and aim ease together, including manual look-around',()=>{
+    const start=source.indexOf('    targetCameraRelativeOffset.copy(targetCameraPosition).sub(airplane.position);');
+    const block=source.slice(start,source.indexOf('    camera.lookAt(lookTarget);',start)+ '    camera.lookAt(lookTarget);'.length);
+    for(const dragging of [false,true]){
+        const state={THREE,delta:1/60,cameraFollow:4.7,cameraOrbitDragging:dragging,cameraRelativeOffsetInitialized:true,airplane:new THREE.Group(),camera:new THREE.PerspectiveCamera(),targetCameraPosition:new THREE.Vector3(10,20,30),lookTarget:new THREE.Vector3(5,10,15),groundPlaneY:()=>-1000};
+        for(const k of ['targetCameraRelativeOffset','targetCameraLookOffset','smoothedCameraRelativeOffset','smoothedCameraLookOffset'])state[k]=new THREE.Vector3();
+        vm.createContext(state);vm.runInContext(ts.transpileModule(block,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,state);
+        assert(state.camera.position.x>0&&state.camera.position.x<10,'no orbit snap');
+        assert(Math.abs(state.camera.position.x/state.lookTarget.x-2)<1e-9,'aim and position share damping');
+    }
+});
