@@ -54,7 +54,7 @@ function fixture() {
   return { directory, path, store: new JourneyAttemptStore(path, true) };
 }
 
-test('monster occupies mapped open terrain, with a safe airborne approach', () => {
+test('monster keeps its mapped location while M19 uses the DFW runway start', () => {
   assert.equal(journeyDallas19.name, 'MONSTER ARRIVAL');
   assert.equal(journeyDallas19.bossHealth, 2500);
   assert.equal(journeyDallas19.timeLimitMs, 240000);
@@ -63,9 +63,8 @@ test('monster occupies mapped open terrain, with a safe airborne approach', () =
   const clearance = buildings.reduce((minimum,b) => Math.min(minimum,Math.hypot(Math.max(b.minX - x, 0, x - b.maxX), Math.max(b.minZ - z, 0, z - b.maxZ))),Infinity);
   assert.ok(clearance > 160, `building clearance ${clearance}`);
   const spawn = authorizedJourneyAirborneSpawn({ missionId: journeyDallas19.id, status: 'APPROACH' }, journeyDallas19, () => 135);
-  assert.equal(spawn.position.y, 985);
-  assert.ok(Math.hypot(spawn.position.x - x, spawn.position.z - z) > 2200);
-  assert.ok(Math.hypot(spawn.position.x - x, spawn.position.z - z) < 2400);
+  assert.equal(spawn,undefined);
+  assert.equal(journeyDallas19.startAirportId,'dfw');
 });
 
 test('whole-body swept hits and solid-building blocking reject misses', () => {
@@ -167,10 +166,10 @@ test('server-owned hits require a live owned attempt and grant a first-clear rew
     assert.equal(first.monsterHealth, 2500);
     assert.equal(store.hitMonster('pilot', first.attemptId, 1300), undefined);
     store.approach('pilot', first.attemptId, 1100);
-    assert.equal(store.startMonsterArrival('other', first.attemptId, 1200), undefined);
-    const started = store.startMonsterArrival('pilot', first.attemptId, 1200);
+    assert.equal(store.startMonsterArrival('other', first.attemptId, 1200,true), undefined);
+    const started = store.startMonsterArrival('pilot', first.attemptId, 1200,true);
     assert.equal(started.deadlineAt, 241200);
-    assert.equal(store.startMonsterArrival('pilot', first.attemptId, 1300), undefined);
+    assert.equal(store.startMonsterArrival('pilot', first.attemptId, 1300,true), undefined);
     assert.equal(store.hitMonster('other', first.attemptId, 1400), undefined);
     for (let i = 0; i < 99; i++) assert.equal(store.hitMonster('pilot', first.attemptId, 1500 + i * 250).monsterHealth, 2475 - 25 * i);
     assert.equal(store.get('pilot', first.attemptId).status, 'RACING');
@@ -182,12 +181,12 @@ test('server-owned hits require a live owned attempt and grant a first-clear rew
     assert.equal(store.monsterArrivalBestTime('pilot'), 25800);
     const retry = store.launch('pilot', 'trainer', 30000, journeyDallas19.id);
     store.approach('pilot', retry.attemptId, 30100);
-    store.startMonsterArrival('pilot', retry.attemptId, 30200);
+    store.startMonsterArrival('pilot', retry.attemptId, 30200,true);
     for (let i = 0; i < 100; i++) store.hitMonster('pilot', retry.attemptId, 31000 + i * 250);
     assert.equal(store.get('pilot', retry.attemptId).firstClearCredits, 0);
     const other = store.launch('other', 'trainer', 1000, journeyDallas19.id);
     store.approach('other', other.attemptId, 1100);
-    store.startMonsterArrival('other', other.attemptId, 1200);
+    store.startMonsterArrival('other', other.attemptId, 1200,true);
     assert.equal(store.get('other', other.attemptId).monsterHealth, 2500);
     const db = new DatabaseSync(path);
     assert.equal(db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='pilot'").get().credits, 2550);
@@ -200,7 +199,7 @@ test('Monster Arrival uses damage captured on each projectile', () => {
   try {
     const launched = store.launch('pilot', 'fighter', 1_000, journeyDallas19.id);
     store.approach('pilot', launched.attemptId, 1_100);
-    store.startMonsterArrival('pilot', launched.attemptId, 1_200);
+    store.startMonsterArrival('pilot', launched.attemptId, 1_200,true);
     assert.equal(store.hitMonster('pilot', launched.attemptId, 1_500, 25)?.monsterHealth, 2_475);
     assert.equal(store.hitMonster('pilot', launched.attemptId, 1_750)?.monsterHealth, 2_435);
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -214,13 +213,13 @@ test('deadline is exclusive and historical Wanted Breakout clear preserves eligi
       .run('historical', journeyDallas19.id, 'old-escape', 100, 54000);
     const attempt = store.launch('historical', 'trainer', 1000, journeyDallas19.id);
     store.approach('historical', attempt.attemptId, 1100);
-    store.startMonsterArrival('historical', attempt.attemptId, 1200);
+    store.startMonsterArrival('historical', attempt.attemptId, 1200,true);
     for (let i = 0; i < 99; i++) store.hitMonster('historical', attempt.attemptId, 2000 + i * 250);
     assert.equal(store.hitMonster('historical', attempt.attemptId, 241200), undefined);
     assert.equal(store.fail('historical', attempt.attemptId, 'TIME_UP', 241200).status, 'FAILED');
     const retry = store.launch('historical', 'trainer', 260000, journeyDallas19.id);
     store.approach('historical', retry.attemptId, 260100);
-    store.startMonsterArrival('historical', retry.attemptId, 260200);
+    store.startMonsterArrival('historical', retry.attemptId, 260200,true);
     for (let i = 0; i < 100; i++) store.hitMonster('historical', retry.attemptId, 261000 + i * 250);
     assert.equal(store.get('historical', retry.attemptId).firstClearCredits, 0);
     assert.equal(store.progress('historical', journeyDallas19.id).completed, true);
@@ -482,4 +481,24 @@ test('defeat during a jump settles to terrain and releases the encounter scene r
  view.finish('defeat');for(let i=0;i<40;i++)view.update(.05);
  assert.ok(Math.abs(root.position.y-135)<.01,'collapse cannot remain suspended above the terrain');
  view.dispose();assert.equal(scene.children.length,0);
+});
+
+
+test('M19 timer waits on the DFW runway until trusted takeoff confirmation',()=>{
+ const {directory,store}=fixture();try{
+  const a=store.launch('pilot','trainer',1000,journeyDallas19.id);store.approach('pilot',a.attemptId,1100);
+  assert.equal(store.startMonsterArrival('pilot',a.attemptId,60000),undefined);
+  assert.equal(store.get('pilot',a.attemptId).deadlineAt,null);
+  const started=store.startMonsterArrival('pilot',a.attemptId,61000,true);assert.equal(started.startedAt,61000);assert.equal(started.deadlineAt,301000);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+
+test('M19 runway revision invalidates old active airborne attempts without deleting historical clears',()=>{
+ const {directory,path,store}=fixture();try{
+  const a=store.launch('pilot','trainer',1000,journeyDallas19.id);store.approach('pilot',a.attemptId,1100);
+  const db=new DatabaseSync(path);db.prepare('UPDATE journey_attempts SET definition_revision=1 WHERE attempt_id=?').run(a.attemptId);
+  db.prepare('INSERT INTO journey_completions (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)').run('historical',journeyDallas19.id,'completed-before-runway',100,54000);db.close();
+  const upgraded=new JourneyAttemptStore(path,true);assert.equal(upgraded.get('pilot',a.attemptId).failureReason,'MISSION_UPDATED');assert.equal(upgraded.progress('historical',journeyDallas19.id).completed,true);
+ }finally{rmSync(directory,{recursive:true,force:true});}
 });

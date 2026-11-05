@@ -174,7 +174,7 @@ test('Bluejay body projectiles mirror engine health into the transactional first
         const win = (now) => {
             const a = store.launch('pilot', 'trainer', now, 'journey-dallas-19');
             store.approach('pilot', a.attemptId, now + 100);
-            store.startMonsterArrival('pilot', a.attemptId, now + 200);
+            store.startMonsterArrival('pilot', a.attemptId, now + 200,true);
             const e = createM19Encounter(a.attemptId, 'p', now + 200, () => 135, []);
             let result;
             for (let i = 1; i <= 100; i++) {
@@ -191,7 +191,7 @@ test('Bluejay body projectiles mirror engine health into the transactional first
         assert.equal(win(40000).firstClearCredits, 0);
         const a = store.launch('pilot', 'trainer', 80000, 'journey-dallas-19');
         store.approach('pilot', a.attemptId, 80100);
-        const start = store.startMonsterArrival('pilot', a.attemptId, 80200);
+        const start = store.startMonsterArrival('pilot', a.attemptId, 80200,true);
         assert.equal(start.deadlineAt, 320200);
         assert.equal(store.hitMonster('pilot', a.attemptId, start.deadlineAt, 25), undefined);
         assert.equal(store.fail('pilot', a.attemptId, 'TIME_UP', start.deadlineAt).status, 'FAILED');

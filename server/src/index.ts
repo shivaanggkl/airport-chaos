@@ -7625,7 +7625,7 @@ setInterval(() => {
     }
     if ((attempt?.missionId === journeyDallas19.id||attempt?.missionId===journeyDallas20.id) && attempt.status === 'APPROACH' && journeyCountdownComplete.has(attemptId) &&
         player.lifeState === 'alive' && player.hasRespawnTransform && hasOpenPlayerSocket(playerId)) {
-      const started = journeyStore.startMonsterArrival(player.pilotId, attemptId, now);
+      const started = journeyStore.startMonsterArrival(player.pilotId, attemptId, now, playerJourneyDfwTakeoff.has(playerId)&&landingFlightState.get(playerId)?.airborne===true);
       if (started) sendJourneyState(playerId, started);
     }
     const current = journeyStore.get(player.pilotId, attemptId);
@@ -8105,6 +8105,7 @@ server.on('connection', (socket, request) => {
     : journeyAttempt?.missionId === journeyDallas10.id ? journeyDallas10.startAirportId
     : journeyAttempt?.missionId === journeyDallas08.id ? journeyDallas08.startAirportId
     : journeyAttempt?.missionId === journeyDallas07.id ? journeyDallas07.startAirportId
+    : journeyAttempt?.missionId === journeyDallas19.id ? journeyDallas19.startAirportId
     : undefined;
   // Golden Gates missions 1–6 use the normal DFW runway takeoff.
   const airborneSpawn = authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas19, dallasTerrain.elevationAt)

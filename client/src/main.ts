@@ -1,6 +1,6 @@
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import {armoredApexModel} from '../../shared/armored-apex-model.mjs';
-import { CombatMissionIntroPath, MISSION_COMBAT_INTRO_DURATION_MS, MISSION_COMBAT_INTRO_SWEEP_MS } from './mission-combat-intro';
+import { CombatMissionIntroPath } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
 import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { IntercityVisuals, disposeCityScene, prepareCityGpu, cityPreparationStep } from './intercity-visuals';
@@ -2914,7 +2914,7 @@ function updateJourneyHud(): void {
   if (breakoutMission) {
     const boss=journeyAttempt.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     monsterBossHud.querySelector('strong')!.textContent=boss.name;
-    if (journeyHudObjective) journeyHudObjective.textContent =journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':'Destroy the monster';
+    if (journeyHudObjective) journeyHudObjective.textContent =journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':journeyAttempt.status==='APPROACH'?'TAKE OFF FROM DFW':'DESTROY THE WARLORD';
     if (journeyHudProgress) journeyHudProgress.textContent = '';
     if (journeyHudTarget) journeyHudTarget.hidden = true;
     if(journeyHudTimer){journeyHudTimer.hidden=false;journeyHudTimer.textContent=`MONSTER: ${Math.ceil(journeyAttempt.targetHealth??boss.bossHealth)} / ${boss.bossHealth} HP`;}
@@ -4579,6 +4579,16 @@ async function prepareMissionCombatIntro(attemptId: string, missionId: string): 
   beginFlightLaunchCinematic();
 }
 
+async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
+  const view=monsterView;if(!view)return;
+  await Promise.all([view.ready,airplane.userData.assetReady]);
+  if(monsterView!==view||journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending')return;
+  missionCombatIntroPath=new CombatMissionIntroPath(view.introRoot,airplane,19);
+  cityWorld.updateWorldStreaming?.(view.introRoot.position);
+  audioManager.playTone(60,.9,'triangle',.12,30,0,'impacts');
+  beginFlightLaunchCinematic();
+}
+
 function beginFlightLaunchCinematic(): void {
   if (flightLaunchState !== 'pending' || trainingRequested || guidedTutorialActive) return;
   cinematicDirector.clearPresentation();
@@ -4587,7 +4597,8 @@ function beginFlightLaunchCinematic(): void {
     flightLaunchTitle.classList.add('is-golden-gates');
     flightLaunchTitle.classList.add('is-runway-gates');
     flightLaunchTitle.innerHTML = missionCombatIntroPath
-      ? missionCombatIntroPath.missionNumber === 8 ? '<span>SURPRISE ATTACK · WATCH YOUR BACK</span>'
+      ? missionCombatIntroPath.missionNumber === 19 ? '<span>ASHEN WARLORD · DESTROY THE BOSS</span>'
+        : missionCombatIntroPath.missionNumber === 8 ? '<span>SURPRISE ATTACK · WATCH YOUR BACK</span>'
         : missionCombatIntroPath.missionNumber === 9 ? '<span>HOT PURSUIT · STOP THE ESCAPING MAMMOTH</span>'
         : missionCombatIntroPath.missionNumber === 10 ? '<span>DOUBLE THREAT · SHOOT DOWN BOTH ENEMIES</span>'
           : missionCombatIntroPath.missionNumber === 11 ? '<span>IRON HUNTER · ARMORED MAMMOTH</span>'
@@ -4693,8 +4704,8 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
   const now = performance.now();
   const runwayGateIntroPath = missionOneIntroPath ?? missionTwoIntroPath ?? missionThreeIntroPath ?? missionFourIntroPath ?? missionFiveIntroPath ?? missionSixIntroPath ?? missionCombatIntroPath;
   if (runwayGateIntroPath) {
-    const sweepMs = missionCombatIntroPath ? MISSION_COMBAT_INTRO_SWEEP_MS : MISSION_ONE_INTRO_SWEEP_MS;
-    const durationMs = missionCombatIntroPath ? MISSION_COMBAT_INTRO_DURATION_MS : MISSION_ONE_INTRO_DURATION_MS;
+    const sweepMs = missionCombatIntroPath ? missionCombatIntroPath.sweepMs : MISSION_ONE_INTRO_SWEEP_MS;
+    const durationMs = missionCombatIntroPath ? missionCombatIntroPath.durationMs : MISSION_ONE_INTRO_DURATION_MS;
     const elapsed = now - flightLaunchStartedAt;
     const skipped = flightLaunchSkipStartedAt !== undefined;
     const transition = skipped ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS : 0;
@@ -10108,11 +10119,11 @@ function animate(): void {
   // Local inspection routes move only the renderer/streamer. They do not send
   // transforms, trigger gameplay rewards, or alter production flight physics.
   if (visualQaInspectionActive && visualQaRouteSpeed) airplane.position.addScaledVector(forward, visualQaRouteSpeed * delta);
-  // Mission 19's airborne aircraft becomes controllable with the server clock.
-  // Keep the spawn fixed while the authenticated attempt is still preparing.
+  // Airborne encounter spawns wait for their clock; M19 instead permits
+  // manual runway takeoff after the shared intro/countdown releases controls.
   if (!crashed && runStarted && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive() &&
     !skyDuelUi?.blocksFlightInput() && !airAssaultUi?.blocked() &&
-    !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && ((journeyAttempt?.missionId === journeyDallas19.id||journeyAttempt?.missionId===journeyDallas20.id) || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
+    !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId===journeyDallas20.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
     journeyAttempt.status === 'APPROACH')) {
     // Keep high-speed travel between the existing terrain/obstacle checks no
     // larger than 8m, including a thrust allowance. No extra render/network ticks.
@@ -11618,6 +11629,8 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         beginFlightLaunchCinematic();
       } else if ((message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && message.attempt.status === 'APPROACH') {
         void prepareMissionCombatIntro(message.attempt.attemptId, message.attempt.missionId);
+      } else if(message.attempt.missionId===journeyDallas19.id&&message.attempt.status==='APPROACH'){
+        void prepareMonsterMissionIntro(message.attempt.attemptId).catch(()=>showProgressMessage('Boss could not load. Exit and retry.'));
       } else if (runwayIntro) {
         beginFlightLaunchCinematic();
       } else {

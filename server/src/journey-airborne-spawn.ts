@@ -2,6 +2,7 @@ import type { JourneyAttempt } from './journey-attempts.js';
 
 type AirborneMission = Readonly<{
   id: string;
+  runwayStart?: boolean;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;
 
@@ -12,7 +13,7 @@ export function authorizedJourneyAirborneSpawn(
   mission: AirborneMission,
   terrainAt: (x: number, z: number) => number,
 ): { position: { x: number; y: number; z: number }; heading: number; speed: number } | undefined {
-  if (attempt?.missionId !== mission.id || attempt.status !== 'APPROACH') return undefined;
+  if (mission.runwayStart || attempt?.missionId !== mission.id || attempt.status !== 'APPROACH') return undefined;
   const { x, z, altitude, heading, speed } = mission.airborneSpawn;
   const terrain = terrainAt(x, z);
   if (![x, z, altitude, heading, speed, terrain].every(Number.isFinite) || altitude <= 0 || speed <= 0)

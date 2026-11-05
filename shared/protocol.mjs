@@ -1,6 +1,7 @@
 // This number is intentionally shared by the browser and the Node server.
 // Increment it whenever a websocket payload changes incompatibly.
-export const PROTOCOL_VERSION = 35;
+// M19 runway-start handoff requires matching clients; old clients freeze until its former airborne clock starts.
+export const PROTOCOL_VERSION = 36;
 // One authoritative range drives client acquisition, server assisted-hit
 // validation, unlocked projectile travel, and Hunter firing eligibility.
 export const COMBAT_RANGE = 4500;

@@ -28,7 +28,7 @@ test('airfield cuts are hidden and M7 reuses skip/countdown/input locking and cl
  assert.match(source,/prepareMissionCombatIntro\(message\.attempt\.attemptId, message\.attempt\.missionId\)/);
  assert.match(source,/aircraft\.userData\.assetReady/);
  assert.match(source,/missionCombatIntroPath = undefined;\s+clearMissionCombatIntroAircraft\(\)/);
- assert.match(source,/missionCombatIntroPath \? MISSION_COMBAT_INTRO_DURATION_MS/);
+ assert.match(source,/missionCombatIntroPath \? missionCombatIntroPath\.durationMs/);
  assert.match(source,/missionCombatIntroPath \? missionCombatIntroPath\.missionNumber : missionSixIntroPath/);
  assert.match(source,/journeyCountdownComplete/);
 });
@@ -44,4 +44,23 @@ for (const missionNumber of [8,9,10,11,12]) test(`M${missionNumber} stages a rea
  assert.ok(position.distanceTo(stage.position)<200);assert.equal(intro.streamingPosition(2000),stage.position);
  intro.sample(8000,position,target,chase,look);assert.ok(position.equals(chase));assert.ok(target.equals(look));assert.ok(player.position.equals(playerPosition));
  assert.equal(intro.missionNumber,missionNumber);
+});
+
+
+test('M19 reveals the existing full-scale boss then returns to the DFW player without moving either',()=>{
+ const boss=new THREE.Group(),player=new THREE.Group();boss.add(new THREE.Mesh(new THREE.BoxGeometry(900,1920,600)));boss.position.set(-5500,135,-2400);player.position.set(-22800,140,-13600);
+ const origin=boss.position.clone(),pilot=player.position.clone(),intro=new MissionSevenIntroPath(boss,player,19),camera=new THREE.Vector3(),look=new THREE.Vector3(),chase=pilot.clone().add(new THREE.Vector3(0,8,25)),target=pilot.clone();
+ for(const elapsed of [0,2000,5499,6000,6500,9500,11000]){
+  intro.sample(elapsed,camera,look,chase,target);assert(camera.toArray().every(Number.isFinite));assert(camera.distanceTo(look)>5);assert(boss.position.equals(origin));assert(player.position.equals(pilot));
+  if(elapsed<5500){assert(look.y>origin.y+900);assert(camera.distanceTo(boss.position)>1900);assert(camera.z>boss.position.z,'boss reveal must show its front and chest core');}
+ }
+ assert(camera.equals(chase));assert(look.equals(target));assert.equal(intro.durationMs,12000);assert.equal(intro.wipe(6000),1);assert.equal(intro.wipe(12000),0);assert.equal(intro.streamingPosition(2000),boss.position);assert.equal(intro.streamingPosition(7000),player.position);
+ const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');assert.match(source,/new CombatMissionIntroPath\(view.introRoot,airplane,19\)/);assert.match(source,/prepareMonsterMissionIntro\(message.attempt.attemptId\)/);
+});
+
+test('M19 runway flight is not gated on the combat clock starting',()=>{
+ const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const start=source.indexOf('// Airborne encounter spawns wait for their clock');
+ const guard=source.slice(start,source.indexOf('// Keep high-speed travel',start));
+ assert(start>=0);assert.doesNotMatch(guard,/journeyDallas19/);assert.match(guard,/journeyDallas20/);
 });

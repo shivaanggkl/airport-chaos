@@ -155,8 +155,9 @@ export class MonsterArrivalView {
     if(!this.environmentDamage){this.roarGeometry.dispose();this.roarGeometry=new THREE.RingGeometry(.92,1,48);this.roar.geometry=this.roarGeometry;this.waveMaterial.color.set(0xff3b18);}
     this.creature.root.position.set(journeyDallas19.monster.x,terrainY,journeyDallas19.monster.z);
     this.target.copy(this.creature.root.position);
-    this.creature.root.rotation.y=Math.atan2(journeyDallas19.monster.x-journeyDallas19.airborneSpawn.x,
-      journeyDallas19.monster.z-journeyDallas19.airborneSpawn.z);
+    const facing=this.crimsonCore?-1:1;
+    this.creature.root.rotation.y=Math.atan2((journeyDallas19.monster.x-journeyDallas19.airborneSpawn.x)*facing,
+      (journeyDallas19.monster.z-journeyDallas19.airborneSpawn.z)*facing);
     this.creature.onFootContact=(p)=>{this.particles.emit(p.x,p.y,p.z,true,10,65,1.5);this.onFootfall?.();};
     this.creature.onLanding=(p)=>{this.particles.emit(p.x,p.y,p.z,true,14,95,1.5);this.onFootfall?.();};
     this.beam.name='titan-authoritative-energy-beam';this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;this.roar.visible=false;
@@ -224,6 +225,8 @@ export class MonsterArrivalView {
       if(event.kind==='environment'){if(this.environmentDamage&&event.type==='destroy-approved-block'){this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();}const p=event.position;this.particles.emit(p.x,p.y,p.z,true,8,event.type==='landing'?160:65);}
     }
   }
+
+  get introRoot():THREE.Group {return this.creature.root;}
 
   finish(kind:'defeat'|'timeout'):void {
     if(this.ending)return;
