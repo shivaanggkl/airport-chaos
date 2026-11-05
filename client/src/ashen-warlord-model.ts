@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {M19_TIMEOUT} from './monster-timeout';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { ashenWarlordModel as model } from '../../shared/ashen-warlord-model.mjs';
@@ -132,9 +133,11 @@ export class AshenWarlordModel {
         let a = this.frame?.animation;
         if (this.ending) {
             this.endingTime += dt;
-            const strike=this.ending==='timeout'&&this.endingTime>=.35&&this.endingTime<2.6;
-            const clip = strike?model.clips.punch!:model.clips.idle!;
-            this.apply({clip:clip.name,time:strike?this.endingTime-.35:this.endingTime%clip.duration,blend:1,offsetY:0});
+            const firing=this.ending==='timeout'&&this.endingTime>=M19_TIMEOUT.shootAt&&this.endingTime<M19_TIMEOUT.shootAt+3.1;
+            const clip = firing?model.clips.shoot!:model.clips.idle!;
+            const t=this.endingTime-M19_TIMEOUT.shootAt;
+            const blend=firing?Math.min(1,t/.2,(3.1-t)/.25):1;
+            this.apply({clip:clip.name,time:firing?t:this.endingTime%clip.duration,previousClip:firing?model.clips.idle!.name:undefined,previousTime:this.endingTime%model.clips.idle!.duration,blend,offsetY:0});
         }
         else if (this.introTime !== null && !this.frame) {
             // Two full authored strikes, with a short idle lead-in and recovery.

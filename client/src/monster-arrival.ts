@@ -1,3 +1,4 @@
+import {MonsterCityBlast,M19_TIMEOUT} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 const ashenWarlordHeight=ashenWarlordModel.height;
@@ -143,18 +144,24 @@ export class MonsterArrivalView {
   private endingElapsed=0;
   private endingDrop?:{from:number;ground:number};
   private timeoutShot?:Fireball;
+  private timeoutBlast?:MonsterCityBlast;
+  private timeoutImpactPlayed=false;
   private readonly endingOrigin=new THREE.Vector3();
   private readonly endingLook=new THREE.Vector3();
   private readonly endingCamera=new THREE.Vector3();
   private readonly endingDestination=new THREE.Vector3();
-  static readonly timeoutCinematicMs=6500;
+  static readonly timeoutCinematicMs=M19_TIMEOUT.durationMs;
+  get timeoutCinematicActive():boolean{return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
   /** Camera-only aftermath of a server-confirmed M19 timeout. */
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
     if(!this.crimsonCore||this.ending!=='timeout')return;
     const root=this.creature.root,height=ashenWarlordHeight;
-    const t=THREE.MathUtils.smoothstep(this.endingElapsed,1.5,3.55);
+    const t=THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.releaseAt,M19_TIMEOUT.impactAt);
     this.endingLook.copy(this.endingOrigin).lerp(this.endingDestination,t);
     this.endingCamera.set(height*.8,height*.3,height*1.1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y).add(this.endingLook);
+    const wide=THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.releaseAt,M19_TIMEOUT.impactAt+.4);
+    this.mouthWorld.set(this.endingDestination.x+6500,this.endingDestination.y+5500,this.endingDestination.z+9000);
+    this.endingCamera.lerp(this.mouthWorld,wide);
     camera.position.copy(this.endingCamera);camera.lookAt(this.endingLook);
   }
   private damagedDowntown=false;
@@ -288,6 +295,7 @@ export class MonsterArrivalView {
     for(const visual of this.pool){visual.id=null;visual.group.visible=false;visual.spawnPending=false;}
     if(kind==='timeout'&&this.environmentDamage){
       this.timeoutShot=this.pool[0];this.timeoutShot!.group.visible=!this.crimsonCore;
+      if(this.crimsonCore){this.timeoutBlast=new MonsterCityBlast();this.scene.add(this.timeoutBlast.root);}
       this.endingOrigin.copy(this.creature.root.position).add(new THREE.Vector3(0,this.crimsonCore?ashenWarlordHeight*.6:journeyDallas19.monster.height*.82,0));
       const site=monsterDamageSites[0]!;this.endingDestination.set(site.x,this.targetGroundY+30,site.z);
       if(this.crimsonCore)this.creature.root.rotation.y=Math.atan2(site.x-this.creature.root.position.x,site.z-this.creature.root.position.z);
@@ -336,31 +344,38 @@ export class MonsterArrivalView {
     }
     const windup=this.state?.phase==='windup'&&!this.ending;
     const power=this.state?.titan?.ability?.id;
-    this.mouthFire.visible=Boolean((windup&&(!this.state?.titan||['energy-beam','fireball-barrage','roaring-shockwave'].includes(power??'')))||this.environmentDamage&&this.ending==='timeout');
+    this.mouthFire.visible=Boolean((windup&&(!this.state?.titan||['energy-beam','fireball-barrage','roaring-shockwave'].includes(power??'')))||this.environmentDamage&&!this.crimsonCore&&this.ending==='timeout');
     const mouthAvailable=c.mouthPosition(this.mouthWorld);
     if(this.crimsonCore&&this.renderedTitan?.ability&&['energy-beam','fireball-barrage'].includes(power??'')){const p=this.renderedTitan.ability.origin;this.mouthFire.position.set(p.x,p.y,p.z);}else if(mouthAvailable)this.mouthFire.position.copy(this.mouthWorld);
     this.mouthFire.scale.setScalar((this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
     if(this.ending) {
       this.endingElapsed+=delta;
       if(this.ending==='timeout'&&this.environmentDamage) {
-        const release=this.crimsonCore?1.55:0,travel=this.crimsonCore?2:1.15;
+        const release=this.crimsonCore?M19_TIMEOUT.releaseAt:0,travel=this.crimsonCore?M19_TIMEOUT.impactAt-M19_TIMEOUT.releaseAt:1.15;
         if(this.timeoutShot&&this.endingElapsed>=release) {
+          if(this.crimsonCore&&!this.timeoutShot.group.visible){
+            // Capture the actual animated firing hand at the release frame.
+            (c as AshenWarlordModel).handPosition('right',this.endingOrigin);
+            this.onProjectile?.();
+          }
           this.timeoutShot.group.visible=true;
           const t=Math.min(1,(this.endingElapsed-release)/travel),p=this.timeoutShot.group.position;
-          p.set(THREE.MathUtils.lerp(c.root.position.x,monsterDamageSites[0].x,t),
+          p.set(THREE.MathUtils.lerp(this.endingOrigin.x,monsterDamageSites[0].x,t),
             THREE.MathUtils.lerp(this.endingOrigin.y,this.targetGroundY+30,t),
-            THREE.MathUtils.lerp(c.root.position.z,monsterDamageSites[0].z,t));
+            THREE.MathUtils.lerp(this.endingOrigin.z,monsterDamageSites[0].z,t));
           this.timeoutShot.direction.set(monsterDamageSites[0].x-c.root.position.x,
             this.targetGroundY+30-this.endingOrigin.y,monsterDamageSites[0].z-c.root.position.z).normalize();
           this.timeoutShot.group.quaternion.setFromUnitVectors(forward,this.timeoutShot.direction);
           if(t===1){this.timeoutShot.group.visible=false;this.timeoutShot=undefined;}
         }
-        if(!this.damagedDowntown&&this.endingElapsed>=release+travel) {
-          this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();
-          for(const site of monsterDamageSites)this.particles.emit(site.x,site.y,site.z,true,this.crimsonCore?24:8,this.crimsonCore?160:35);
+        if((!this.damagedDowntown||this.crimsonCore&&!this.timeoutImpactPlayed)&&this.endingElapsed>=release+travel) {
+          this.timeoutImpactPlayed=true;this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();
+          for(const site of monsterDamageSites)this.particles.emit(site.x,site.y,site.z,true,this.crimsonCore?24:8,this.crimsonCore?950:35,2);
+
         }
       }
     }
+    this.timeoutBlast?.update(this.endingElapsed-M19_TIMEOUT.impactAt,this.endingDestination);
     for(const visual of this.pool) {
       if(!visual.group.visible)continue;
       if(visual.spawnPending){
@@ -385,6 +400,7 @@ export class MonsterArrivalView {
   }
   dispose():void {
     this.setIntroTime(null);
+    this.timeoutBlast?.dispose();this.timeoutBlast=undefined;
     this.scene.remove(...this.rubble);this.rubble=[];
     this.scene.remove(this.beam,this.wave,this.roar);this.roarGeometry.dispose();this.titanEvents.clear();this.beamGeometry.dispose();this.beamMaterial.dispose();this.waveGeometry.dispose();this.waveMaterial.dispose();
     if(this.damagedDowntown)setDowntownMonsterDamage(false);

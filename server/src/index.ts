@@ -7629,7 +7629,7 @@ setInterval(() => {
     }
     if ((attempt?.missionId === journeyDallas19.id||attempt?.missionId===journeyDallas20.id) && attempt.status === 'APPROACH' && journeyCountdownComplete.has(attemptId) &&
         player.lifeState === 'alive' && player.hasRespawnTransform && hasOpenPlayerSocket(playerId)) {
-      const started = journeyStore.startMonsterArrival(player.pilotId, attemptId, now, playerJourneyDfwTakeoff.has(playerId)&&landingFlightState.get(playerId)?.airborne===true);
+      const started = journeyStore.startMonsterArrival(player.pilotId, attemptId, now);
       if (started) sendJourneyState(playerId, started);
     }
     const current = journeyStore.get(player.pilotId, attemptId);

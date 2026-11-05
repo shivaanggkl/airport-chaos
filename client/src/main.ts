@@ -10154,7 +10154,7 @@ function animate(): void {
   journeyGates?.update(delta);
   monsterView?.update(delta);
   transportView?.update(delta,camera);
-  flightGameRoot.classList.toggle('transport-defeat-cinematic',!!(transportView?.defeatActive || transportView?.arrivalActive));
+  flightGameRoot.classList.toggle('transport-defeat-cinematic',!!(transportView?.defeatActive || transportView?.arrivalActive || monsterView?.timeoutCinematicActive));
   if(transportView?.defeatActive || transportView?.arrivalActive && !transportView.arrivalShowsPlayer){
     if(!transportHidPlayer){transportPlayerWasVisible=airplane.visible;transportHidPlayer=true;}
     airplane.visible=false;

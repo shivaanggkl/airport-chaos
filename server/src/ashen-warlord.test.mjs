@@ -177,7 +177,7 @@ test('Supplied-rig M19 victory, timeout, replay and progression mirror engine he
         const win = (now) => {
             const a = store.launch('pilot', 'trainer', now, 'journey-dallas-19');
             store.approach('pilot', a.attemptId, now + 100);
-            store.startMonsterArrival('pilot', a.attemptId, now + 200,true);
+            store.startMonsterArrival('pilot', a.attemptId, now + 200);
             const e = createAshenWarlordEncounter(a.attemptId, 'p', now + 200, () => 135, []);
             let result;
             for (let i = 1; i <= 100; i++) {
@@ -194,7 +194,7 @@ test('Supplied-rig M19 victory, timeout, replay and progression mirror engine he
         assert.equal(win(40000).firstClearCredits, 0);
         const a = store.launch('pilot', 'trainer', 80000, 'journey-dallas-19');
         store.approach('pilot', a.attemptId, 80100);
-        const start = store.startMonsterArrival('pilot', a.attemptId, 80200,true);
+        const start = store.startMonsterArrival('pilot', a.attemptId, 80200);
         assert.equal(start.deadlineAt, 320200);
         assert.equal(store.hitMonster('pilot', a.attemptId, start.deadlineAt, 25), undefined);
         assert.equal(store.fail('pilot', a.attemptId, 'TIME_UP', start.deadlineAt).status, 'FAILED');
@@ -384,12 +384,14 @@ test('M19 cinematic plays supplied punches and clears back to idle without autho
     character.dispose();
 });
 
-test('M19 timeout ending animates the authored strike rather than freezing the boss', async () => {
+test('M19 timeout ending uses the supplied shooting animation, not punching', async () => {
     const character=new AshenWarlordModel(source);await character.ready;
     const before=new THREE.Vector3(),after=new THREE.Vector3();
     character.update(0,0,0);character.handPosition('right',before);
     character.finish('timeout');character.update(1.55,0,0);character.handPosition('right',after);
-    assert(after.distanceTo(before)>100);assert(character.root.visible);
+    assert(character.actions.get(model.clips.shoot.name).enabled);
+    assert(!character.actions.get(model.clips.punch.name).enabled);
+    assert(after.distanceTo(before)>1);assert(character.root.visible);
     character.dispose();
 });
 
@@ -434,4 +436,25 @@ test('confirmed M19 surface impacts follow the rendered body, emit bounded spark
     const points=scene.getObjectByName('monster-pooled-dust-and-smoke'),sizes=points.geometry.getAttribute('size'),positions=points.geometry.getAttribute('position');
     let count=0;for(let i=0;i<sizes.count;i++)if(sizes.getX(i)>0){count++;assert(Math.abs(positions.getX(i)-1010)<10);assert(Math.abs(positions.getZ(i)-2020)<10);}
     assert.equal(count,13);view.dispose();assert.equal(scene.children.length,0);
+});
+
+test('timeout blast expands across downtown, stays through aftermath, and releases mission-owned resources',async()=>{
+    const {MonsterCityBlast,M19_TIMEOUT}=await import('../../client/src/monster-timeout.ts');
+    const scene=new THREE.Scene(),blast=new MonsterCityBlast(),position=new THREE.Vector3(-2191,152,-1201);scene.add(blast.root);
+    blast.update(-.1,position);assert(!blast.root.visible);
+    blast.update(.15,position);assert(blast.root.visible);
+    blast.update(3.5,position);
+    assert(blast.root.children[0].scale.x>3200,'fireball covers the downtown area');
+    assert(blast.root.children[2].scale.x>=5000,'shockwave reaches surrounding blocks');
+    assert(M19_TIMEOUT.durationMs/1000-M19_TIMEOUT.impactAt>5,'failure results wait for the blast aftermath');
+    blast.update(6,position);assert(!blast.root.visible);blast.dispose();assert.equal(scene.children.length,0);
+});
+
+test('timeout explosion still fires once when downtown was already damaged during combat',async()=>{
+    const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
+    const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);await view.ready;
+    view.damagedDowntown=true;let blasts=0;view.onDestruction=()=>blasts++;
+    view.finish('timeout');for(let i=0;i<100;i++)view.update(.05);
+    assert.equal(blasts,1);assert(scene.getObjectByName('m19-downtown-timeout-blast').visible);
+    view.dispose();assert.equal(scene.children.length,0);
 });

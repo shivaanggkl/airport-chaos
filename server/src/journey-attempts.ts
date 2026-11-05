@@ -420,12 +420,12 @@ export class JourneyAttemptStore {
     return undefined; // M20 no longer has a race clock or gate completion path.
   }
 
-  /** M19 requires trusted runway takeoff; M20 retains its airborne start. */
-  startMonsterArrival(pilotId: string, attemptId: string, now = Date.now(), takeoffConfirmed = false): JourneyAttempt | undefined {
+  /** Start the combat clock after preparation and the authorized countdown handoff. */
+  startMonsterArrival(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
     const mission=current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     if (current?.missionId !== mission.id || current.status !== 'APPROACH' ||
-      (mission.id===journeyDallas19.id&&!takeoffConfirmed) || current.prepareUntil === null || now < current.prepareUntil) return undefined;
+      current.prepareUntil === null || now < current.prepareUntil) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?,
       deadline_at = ? WHERE pilot_id = ? AND attempt_id = ? AND mission_id = ?
       AND status = 'APPROACH' AND prepare_until <= ?`).run(now, now + mission.timeLimitMs,
