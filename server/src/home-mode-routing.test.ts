@@ -42,12 +42,19 @@ test('Single Player retains the mission journey and homepage reuses all existing
   assert.doesNotMatch(source, /function showDallasMultiplayerCards/);
 });
 
-test('Air Assault launches directly in Day mode without stakes or Mission Journey', () => {
+test('Air Assault retains its direct route while unavailable Hub cards remain locked and last', () => {
   const calls:unknown[][]=[];
   runInNewContext(`${code}; chooseCity({id:'dallas',status:'available'});`,{cityJourneyMode:'multiplayer',selectedHomeMultiplayerMode:'assault',cityJourneyLaunching:true,recordProductIntent(){},enterCity:(...args:unknown[])=>{calls.push(args);return Promise.resolve();},console});
   assert.deepEqual(calls[0]?.slice(1),['day',false,'air-assault']);
   const home=readFileSync('client/src/home-hangar.ts','utf8');
-  assert.match(home,/id: 'assault'.*playable: true/);
+  const modeOrder = ['sky', 'assault', 'squad', 'fleet', 'city'];
+  for (let i = 0; i < modeOrder.length; i++) {
+    const mode = modeOrder[i];
+    assert.match(home, new RegExp(`id: '${mode}'.*playable: ${mode === 'sky'}`));
+    if (i > 0) assert.ok(home.indexOf(`id: '${modeOrder[i - 1]}'`) < home.indexOf(`id: '${mode}'`));
+  }
+  assert.match(home,/if \(!locked\) run\(\)/);
+  assert.match(home,/card\.setAttribute\('aria-disabled', 'true'\)/);
   assert.match(home,/mode.id !== 'assault'/);
 });
 

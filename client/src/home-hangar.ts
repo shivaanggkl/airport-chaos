@@ -1,5 +1,6 @@
 import { createMenuCarouselCard, createMenuCarouselArtwork, positionMenuCarouselCard, installMenuCarouselSwipe } from './menu-card-carousel';
 import { sponsorshipApi, type PublicSponsor } from './sponsorship-catalog';
+import { createLockIcon } from './lock-icon';
 import { flushSponsorMeasurements, recordSponsorMeasurement, SponsorExposureEpisode } from './sponsorship-measurement';
 
 export type HomeHangarData = {
@@ -11,8 +12,8 @@ export type HomeHangarData = {
 };
 
 export const homeMultiplayerModes = [
-  { id: 'assault', title: 'AIR ASSAULT', artwork: 'air-assault', playable: true },
   { id: 'sky', title: 'SKY DUEL', artwork: 'sky-duel', playable: true },
+  { id: 'assault', title: 'AIR ASSAULT', artwork: 'air-assault', playable: false },
   { id: 'squad', title: 'SQUAD BATTLE', artwork: 'squad-battle', playable: false },
   { id: 'fleet', title: 'FLEET WAR', artwork: 'fleet-war', playable: false },
   { id: 'city', title: 'CITY CONTROL', artwork: 'city-control', playable: false },
@@ -55,25 +56,35 @@ export class HomeHangar {
     carousel.tabIndex = 0;
     modes.classList.add('menu-card-carousel-track');
     const cards: HTMLElement[] = [];
-    const addMode = (label: string, image: string, run: () => void, multiplayer = false): void => {
+    const addMode = (label: string, image: string, run: () => void, multiplayer = false, locked = false): void => {
       const {card,art,copy} = createMenuCarouselCard('home-hangar-mode', '', '', 'button');
       (card as HTMLButtonElement).type = 'button';
       art.remove();copy.remove();
       const index=cards.length;cards.push(card);
       card.setAttribute('aria-label', multiplayer ? `${label}, Multiplayer` : label);
-      card.append(createMenuCarouselArtwork(image, 'home-hangar-card-image', multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER'));
+      const visual = createMenuCarouselArtwork(image, 'home-hangar-card-image', multiplayer ? 'MULTIPLAYER' : 'SINGLE PLAYER');
+      card.append(visual);
+      if (locked) {
+        card.classList.add('is-locked');
+        card.setAttribute('aria-disabled', 'true');
+        const badge = document.createElement('span');
+        badge.className = 'home-mode-lock';
+        badge.setAttribute('aria-hidden', 'true');
+        badge.append(createLockIcon(), ' COMING SOON');
+        visual.append(badge);
+      }
       card.addEventListener('click', () => {
         if(performance.now()<this.modeClickBlockedUntil)return;
         if(index!==this.modeIndex){this.modeIndex=index;this.refreshModes();return;}
-        run();
+        if (!locked) run();
       }); modes.append(card);
     };
     addMode('Single Player', '/media/hub/missions-card.jpg', handlers.missions);
     addMode('Free Fly, Single Player, Explore Dallas', '/media/hub/free-fly-card.jpg', handlers.explore);
     for (const mode of homeMultiplayerModes) addMode(
-      `${mode.title}${mode.id === 'assault' ? ', Single Player, 30 AI' : mode.playable ? ', 1 versus 1' : ', coming soon'}`,
+      `${mode.title}${mode.playable ? ', 1 versus 1' : ', coming soon'}`,
       `/media/multiplayer/${mode.artwork}-card.${mode.id === 'assault' ? 'jpg' : 'png'}`,
-      () => handlers.multiplayer(mode.id), mode.id !== 'assault',
+      () => handlers.multiplayer(mode.id), mode.id !== 'assault', !mode.playable,
     );
     const previous=element.querySelector<HTMLButtonElement>('[data-home-mode-previous]')!;
     const next=element.querySelector<HTMLButtonElement>('[data-home-mode-next]')!;
