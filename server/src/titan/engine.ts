@@ -24,7 +24,7 @@ export type Threat = {
     velocity: Vec;
     radius: number;
 };
-export type AuthoredPoseContext={time:number;health:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
+export type AuthoredPoseContext={resting?:boolean;time:number;health:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
 export type Environment = {
     authoredPose?:boolean;
     bounds: {
@@ -154,6 +154,10 @@ export class TitanEncounter {
     #lastSeen = 0;
     #previousTargetVelocity: Vec = { x: 0, y: 0, z: 0 };
     #active: Active | null = null;
+    #stopForAction = false;
+    #idleUntil = 0;
+    #idleCompleted = false;
+    #lastTravelAt = -Infinity;
     #cooldowns = new Map<string, number>();
     #shots: Shot[] = [];
     #events: Event[] = [];
@@ -318,6 +322,7 @@ export class TitanEncounter {
     #plan(t: Target | undefined, threats: readonly Threat[]) {
         const profile = difficulties[this.species.level];
         this.#nextDecision = this.#time + .2;
+        if(this.#stopForAction)return;
         if (!t) {
             this.#tactic = this.#memory.length ? 'hunt' : 'recover';
             this.#goal = { ...(this.#memory.at(-1)?.position ?? this.#position) };
@@ -408,6 +413,7 @@ export class TitanEncounter {
             const landing = leap && this.#traversalDestination(this.#goal, leap);
             if (landing && (!this.species.movement.traversalOnlyWhenBlocked || !this.#valid(this.#position, landing))) {
                 this.#leapGoal = landing;
+                if(this.species.movement.idleBetweenActions)this.#stopForAction=true;
                 this.#leapPrepareUntil = this.#time + this.species.movement.run / this.species.movement.deceleration + 2;
                 return;
             }
@@ -419,10 +425,12 @@ export class TitanEncounter {
                 if (this.#start(candidate.a, t))
                     break;
         }
+        if(!this.#active&&!this.#stopForAction)this.#idleCompleted=false;
     }
     #start(a: Ability, t: Target, landing?: Vec) {
         if (this.#active || (!landing && !this.#eligible(a, t)))
             return false;
+        if(this.species.movement.idleBetweenActions&&!this.#idleCompleted&&(Math.hypot(this.#velocity.x,this.#velocity.z)>.5||this.#time-this.#lastTravelAt<this.species.movement.idleBetweenActions)){this.#stopForAction=true;return false;}
         const debris = a.debris ? this.#env.takeDebris?.(this.id, this.#anchor(a.requires[0])) : undefined;
         if (a.debris && (!debris || distance(debris.position, this.#anchor(a.requires[0])) > this.species.radius + a.radius))
             return false;
@@ -434,6 +442,7 @@ export class TitanEncounter {
         const depth = this.#time <= this.#comboUntil ? this.#comboDepth + 1 : 1;
         if (depth > difficulties[this.species.level].combo)
             return false;
+        this.#idleCompleted=false;
         this.#active = { definition: a, start: this.#time, serial: ++this.#serial, targetId: t.id, aim: { ...(landing ?? t.position) }, direction: unit(this.#anchor(a.requires[0]), t.position), released: 0, hit: new Set(), lastStage: 'SELECT', combo: depth, previousLimbs: new Map(), landed: false, debris: debris ?? undefined };
         this.#cooldowns.set(a.id, this.#time + a.warning + a.windup + a.active + a.recovery + a.cooldown);
         this.#emit('animation', a.event, this.#position, { ability: a.id, stage: 'SELECT', progress: 0 });
@@ -452,6 +461,7 @@ export class TitanEncounter {
         const escaping = this.#time < this.#escapeUntil;
         let reverse = false;
         let sidestep = !this.#leapGoal && m.sidestep && this.#tactic === 'defend' && !this.#airborne && (!a || a.definition.moving) && stage !== 'ACTIVE';
+        if(this.#stopForAction||this.#idleCompleted){speed=0;sidestep=false;}
         const d = distance(this.#position, goal);
         speed = Math.min(speed, Math.sqrt(2 * m.deceleration * Math.max(0, d - this.species.radius)));
         let wantedYaw = this.#navYaw;
@@ -484,7 +494,7 @@ export class TitanEncounter {
             speed = 0;
         if (sidestep)
             wantedYaw = this.#yaw;
-        const error = wrap(wantedYaw - this.#yaw), rate = (this.#leapGoal || a?.definition.mechanism === 'leap' && (stage === 'WARNING' || stage === 'WINDUP')) ? 0 : Math.sign(error) * Math.min(m.turnRate, Math.sqrt(2 * m.turnAcceleration * Math.abs(error)));
+        const error = wrap(wantedYaw - this.#yaw), rate = (this.#stopForAction||this.#idleCompleted||this.#leapGoal || a?.definition.mechanism === 'leap' && (stage === 'WARNING' || stage === 'WINDUP')) ? 0 : Math.sign(error) * Math.min(m.turnRate, Math.sqrt(2 * m.turnAcceleration * Math.abs(error)));
         this.#yawVelocity = move(this.#yawVelocity, rate, m.turnAcceleration * dt);
         const step = this.#yawVelocity * dt, previousYaw = this.#yaw;
         this.#yaw = wrap(this.#yaw + (Math.sign(step) === Math.sign(error) && Math.abs(step) > Math.abs(error) ? error : step));
@@ -561,6 +571,11 @@ export class TitanEncounter {
         else
             this.#position.y = ground;
         this.#velocity = { x: (this.#position.x - before.x) / dt, y: (this.#position.y - before.y) / dt, z: (this.#position.z - before.z) / dt };
+        if(Math.hypot(this.#velocity.x,this.#velocity.z)>.5)this.#lastTravelAt=this.#time;
+        if(this.#stopForAction&&!this.#airborne&&Math.hypot(this.#velocity.x,this.#velocity.z)<.5&&Math.abs(this.#yawVelocity)<.015){
+            if(!this.#idleUntil)this.#idleUntil=this.#time+(m.idleBetweenActions??0);
+            if(this.#time>=this.#idleUntil){this.#stopForAction=false;this.#idleCompleted=true;this.#idleUntil=0;}
+        }
         const oldGait = this.#gait;
         const forward = this.#velocity.x * Math.sin(this.#yaw) + this.#velocity.z * Math.cos(this.#yaw), lateral = this.#velocity.x * Math.cos(this.#yaw) - this.#velocity.z * Math.sin(this.#yaw);
         this.#gaitRate = this.#airborne ? 0 : Math.max(Math.abs(forward) / (forward < 0 ? m.reverseStride ?? m.stride : m.stride) + Math.abs(lateral) / (m.lateralStride ?? m.stride), Math.abs(wrap(this.#yaw - previousYaw)) / dt * (m.turnStrideRadius ?? this.species.radius) / m.stride);
@@ -639,7 +654,7 @@ export class TitanEncounter {
                     this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
             }
         }
-        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{time:this.#time,health:this.#health,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
+        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
         this.#updatingPose=false;
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
@@ -676,6 +691,7 @@ export class TitanEncounter {
             this.#comboUntil = this.#time + .8;
             this.#misses = a.hit.size ? 0 : Math.min(8, this.#misses + 1);
             this.#active = null;
+            if(this.species.movement.idleBetweenActions){this.#stopForAction=true;this.#idleUntil=0;}
             return;
         }
         if (t.stage === 'WINDUP' && def.mechanism === 'beam') {
@@ -964,6 +980,7 @@ export class TitanEncounter {
         this.#visibleSince = 0;
         this.#lastSeen = 0;
         this.#active = null;
+        this.#stopForAction=false;this.#idleUntil=0;this.#idleCompleted=false;this.#lastTravelAt=-Infinity;
         this.#cooldowns.clear();
         this.#shots = [];
         this.#events = [];

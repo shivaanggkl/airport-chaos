@@ -85,6 +85,7 @@ export type Species = {
         /** Species-scaled travel intentions; omitted profiles retain existing behavior. */
         repositionDistance?: number;
         intentDuration?: number;
+        idleBetweenActions?: number;
         traversalOnlyWhenBlocked?: boolean;
     };
     senses: {
@@ -127,7 +128,7 @@ export class SpeciesRegistry {
             throw Error('Invalid presentation references');
         if (!s.id || this.#entries.has(s.id) || !s.model || !difficulties[s.level] || positive.some(n => !finite(n) || n <= 0) || s.movement.run < s.movement.walk || !finite(s.senses.fov) || s.senses.fov <= 0 || s.senses.fov > Math.PI * 2 || s.regions.length === 0 || s.abilities.length > 32)
             throw Error('Invalid species');
-        if ([s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration].some(n => n !== undefined && (!finite(n) || n <= 0)))
+        if ([s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration, s.movement.idleBetweenActions].some(n => n !== undefined && (!finite(n) || n <= 0)))
             throw Error('Invalid gait limits');
         if (!s.joints.body)
             throw Error('Missing root body joint');

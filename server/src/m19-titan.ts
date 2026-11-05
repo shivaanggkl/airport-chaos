@@ -157,20 +157,20 @@ export function createM19Encounter(attemptId: string, playerId: string, startedA
         poseClear: (from, to, yaw, lift) => {
             probe.x = to.x;
             probe.z = to.z;
-            const near = nearbyMotionBuildings(probe, buildings);
+            const near = nearbyMotionBuildings(probe, buildings,900*species.height/journeyDallas19.monster.height);
             for (let i = 0; i <= 2; i++) {
                 const t = i / 2, x = from.x + (to.x - from.x) * t, z = from.z + (to.z - from.z) * t, key = `${Math.floor(x / 4)},${Math.floor(z / 4)},${Math.floor(yaw / .01)},${Math.floor(lift / 4)}`;
                 // Existing 24 m conservative surface margin exceeds cell/yaw/lift quantization error.
                 let clear = poseCache.get(key);
                 if (clear === undefined) {
-                    clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift,24,geometry);
+                    clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift,24,geometry,species.height);
                     if (clear) {
                         poseCache.set(key, true);
                         if (poseCache.size > 512)
                             poseCache.delete(poseCache.keys().next().value!);
                     }
                     else
-                        clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift, 0,geometry);
+                        clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift, 0,geometry,species.height);
                 }
                 if (!clear)
                     return false;

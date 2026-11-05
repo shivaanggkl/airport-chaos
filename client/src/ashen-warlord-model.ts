@@ -50,7 +50,7 @@ export class AshenWarlordModel {
             throw Error('Missing supplied clip ' + c.name); this.apply({ clip: model.clips.idle!.name, time: 0, blend: 1, offsetY: 0 }); }); }
     setTitanPose(frame: TitanPresentation): void { this.frame = frame; }
     setMotion(x: number, z: number, yaw: number, _phase: number, _aimYaw: number, _aimPitch: number): void { if (!this.frame)
-        this.fallback = Math.hypot(x, z) > .5 ? 'walk' : Math.abs(yaw) > .015 ? 'turn' : 'idle'; }
+        this.fallback = Math.hypot(x, z) > .5 ? 'run' : Math.abs(yaw) > .015 ? 'turn' : 'idle'; }
     setJumpProgress(progress: number | null): void { if (!this.frame && progress !== null)
         this.fallback = 'jump'; }
     setHandSwipe(swipe: {

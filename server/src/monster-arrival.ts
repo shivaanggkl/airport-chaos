@@ -232,22 +232,22 @@ const buildingIndexes = new WeakMap<readonly Building[], {cells:Map<string,numbe
 const occlusionCellSize=256;
 
 /** Existing spatial index also bounds pursuit queries; no full district scan per tick. */
-export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCell'|'motionSource'|'motionBuildings'>,buildings:readonly Building[]):readonly Building[] {
-  const cell=`${Math.floor(e.x/128)},${Math.floor(e.z/128)}`;
+export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCell'|'motionSource'|'motionBuildings'>,buildings:readonly Building[],reach=900):readonly Building[] {
+  const cell=`${Math.floor(e.x/128)},${Math.floor(e.z/128)},${reach}`;
   if(e.motionCell===cell && e.motionSource===buildings)return e.motionBuildings!;
   const index=buildingIndexes.get(buildings),near:Building[]=[];
   if(index){
     index.stamp=(index.stamp+1)>>>0;if(!index.stamp){index.marks.fill(0);index.stamp=1;}
-    for(let x=Math.floor((e.x-900)/occlusionCellSize);x<=Math.floor((e.x+900)/occlusionCellSize);x++)
-      for(let z=Math.floor((e.z-900)/occlusionCellSize);z<=Math.floor((e.z+900)/occlusionCellSize);z++)
+    for(let x=Math.floor((e.x-reach)/occlusionCellSize);x<=Math.floor((e.x+reach)/occlusionCellSize);x++)
+      for(let z=Math.floor((e.z-reach)/occlusionCellSize);z<=Math.floor((e.z+reach)/occlusionCellSize);z++)
         for(const id of index.cells.get(`${x},${z}`)??[]){if(index.marks[id]===index.stamp)continue;index.marks[id]=index.stamp;near.push(buildings[id]!);}
-  }else for(const b of buildings)if(b.maxX>=e.x-900 && b.minX<=e.x+900 && b.maxZ>=e.z-900 && b.minZ<=e.z+900)near.push(b);
+  }else for(const b of buildings)if(b.maxX>=e.x-reach && b.minX<=e.x+reach && b.maxZ>=e.z-reach && b.minZ<=e.z+reach)near.push(b);
   indexBuildingsForOcclusion(near);e.motionCell=cell;e.motionSource=buildings;e.motionBuildings=near;return near;
 }
 
 /** Keep low anatomy and planted feet clear of the real mapped building tops. */
-export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24,geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>=monsterGeometry):boolean {
-  const ground=groundAt(x,z),h=journeyDallas19.monster.height,c=Math.cos(yaw),s=Math.sin(yaw);
+export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24,geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>=monsterGeometry,height=journeyDallas19.monster.height):boolean {
+  const ground=groundAt(x,z),h=height,c=Math.cos(yaw),s=Math.sin(yaw);
   for(const side of [-1,1]){
     const fx=x+h*(c*geometry.footX*side+s*geometry.footZ);
     const fz=z+h*(-s*geometry.footX*side+c*geometry.footZ);

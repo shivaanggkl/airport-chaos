@@ -11314,7 +11314,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if(message.titan?.ability&&['WARNING','WINDUP'].includes(message.titan.ability.stage)&&journeyHudObjective){const names:Record<string,string>={'energy-beam':'CRIMSON CORE BEAM','fireball-barrage':'ENERGY BOLT BARRAGE','hand-strike':'METEOR PUNCH','ground-smash':'GROUND BREAKER','charging-rampage':'TITAN CHARGE','roaring-shockwave':'GORILLA ROAR','two-hand-clap':'TITAN CLAP'};journeyHudObjective.textContent=`DODGE · ${journeyAttempt.missionId===journeyDallas19.id?names[message.titan.ability.id]??message.titan.ability.id.toUpperCase():message.titan.ability.id.replaceAll('-',' ').toUpperCase()}`;}
       else if(journeyHudObjective)journeyHudObjective.textContent=journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':'DESTROY THE MONSTER';
       if (missionObjective?.id === `${message.attemptId}:monster`)
-        missionObjective.position.set(message.x, message.y + journeyDallas19.monster.height * .6, message.z);
+        missionObjective.position.set(message.x, message.y + (journeyAttempt?.missionId===journeyDallas19.id?ashenWarlordModel.height:journeyDallas19.monster.height) * .6, message.z);
     }
     return;
   }
@@ -11534,7 +11534,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       : (message.attempt.missionId===journeyDallas19.id||message.attempt.missionId===journeyDallas20.id) && (message.attempt.status === 'APPROACH' || message.attempt.status === 'RACING')
         ? { id: `${message.attempt.attemptId}:monster`, label: 'MONSTER', dock: monsterBossHud,
             position: new THREE.Vector3(journeyDallas19.monster.x,
-              getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z) + journeyDallas19.monster.height * .6,
+              getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z) + (journeyAttempt?.missionId===journeyDallas19.id?ashenWarlordModel.height:journeyDallas19.monster.height) * .6,
               journeyDallas19.monster.z), radius: 180 }
       : message.attempt.missionId === journeyDallas04.id
         ? (() => { const gate = confirmedGateObjective(message.attempt, journeyDallas04.gates, getTerrainHeight);

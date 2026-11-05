@@ -5,16 +5,16 @@ import { ashenWarlordModel as model } from '../../shared/ashen-warlord-model.mjs
 import { ashenWarlordGeometry as geometry } from '../../shared/ashen-warlord-geometry.mjs';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { createM19Encounter, type DistrictBuilding } from './m19-titan.js';
-const height = 960;
+const height = model.height;
 const cityHalfSize = Number(cityRegistry.dallas.worldSize) / 2;
-const joints: Species['joints'] = Object.fromEntries(Object.entries(model.anchors).map(([id, p]) => [id, { bone: model.bones[id]!, position: { x: p[0]! * height, y: p[1]! * height, z: p[2]! * height }, foot: id.startsWith('foot'), gaitPhase: id.endsWith('right') ? .5 : 0, reach: 365, angularSpeed: 2.2, aimWeight: id === 'neck' ? .25 : undefined }]));
+const joints: Species['joints'] = Object.fromEntries(Object.entries(model.anchors).map(([id, p]) => [id, { bone: model.bones[id]!, position: { x: p[0]! * height, y: p[1]! * height, z: p[2]! * height }, foot: id.startsWith('foot'), gaitPhase: id.endsWith('right') ? .5 : 0, reach: 730, angularSpeed: 2.2, aimWeight: id === 'neck' ? .25 : undefined }]));
 const regions = geometry.spheres.map((v, i) => { const id = `volume-${i}`; (joints as Record<string, Species['joints'][string]>)[id] = { bone: v.part.replace(/\d+$/, ''), position: { x: -v.x * height, y: v.y * height, z: -v.z * height } }; return { id, joint: id, radius: v.radius * height, radii: { x: v.radii.x * height, y: v.radii.y * height, z: v.radii.z * height }, multiplier: 1, stagger: 100 }; });
 export const ashenWarlordSpecies = new SpeciesRegistry().register({
-    id: 'ashen-warlord', model: model.url, lods: model.lods, scale: height, height, radius: 260, health: 2500, contactDamage: 20, joints,
+    id: 'ashen-warlord', model: model.url, lods: model.lods, scale: height, height, radius: 520, health: 2500, contactDamage: 20, joints,
     animations: ['beam', 'ranged', 'strike', 'smash', 'charge', 'roar', 'clap', 'jump'], personality: 'aggressive', level: 'HARD',
-    movement: { walk: 360, run: 840, chargeSpeed: 1080, acceleration: 135, deceleration: 195, turnRate: 1.14, turnAcceleration: .9, stepHeight: 24, stride: 145, reverseStride: 35, lateralStride: 40, turnStrideRadius: 850, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true, repositionDistance: 8400, intentDuration: 8, traversalOnlyWhenBlocked: false },
+    movement: { walk: 2520, run: 2520, chargeSpeed: 3240, acceleration: 405, deceleration: 585, turnRate: 4.56, turnAcceleration: 3.6, stepHeight: 24, stride: 145, reverseStride: 35, lateralStride: 40, turnStrideRadius: 850, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true, repositionDistance: 8400, intentDuration: 8, traversalOnlyWhenBlocked: false, idleBetweenActions: .4 },
     senses: { range: 160000, fov: Math.PI * 2, pursueOccluded: true }, arena: { minWidth: 2500, maxSlope: .15 },
-    regions: [{ id: 'charged-core', joint: 'gem', radius: 24, radii: { x: 24, y: 36, z: 16 }, multiplier: 2, stagger: 60, weakDuring: 'energy-beam' }, { id: 'chest-core', joint: 'gem', radius: 24, radii: { x: 24, y: 36, z: 16 }, multiplier: 1.25, stagger: 100 }, ...regions],
+    regions: [{ id: 'charged-core', joint: 'gem', radius: 48, radii: { x: 48, y: 72, z: 32 }, multiplier: 2, stagger: 60, weakDuring: 'energy-beam' }, { id: 'chest-core', joint: 'gem', radius: 48, radii: { x: 48, y: 72, z: 32 }, multiplier: 1.25, stagger: 100 }, ...regions],
     abilities: standardAbilities.filter(a => ['energy-beam', 'fireball-barrage', 'hand-strike', 'ground-smash', 'charging-rampage', 'roaring-shockwave', 'two-hand-clap'].includes(a.id)).map(a => {
         const b = { ...a, maxRange: 6000, maxAltitude: 5000, unlockBelow: 1 };
         if (a.id === 'energy-beam') {
@@ -22,7 +22,7 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
             b.damage = 30;
             b.warning = 1.5;
             b.cooldown = 15;
-            b.radius = 24;
+            b.radius = 48;
             b.tracking = .22;
             b.active = 1.5;
             b.unlockBelow = .65;
@@ -42,10 +42,10 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
         if (a.id === 'hand-strike' || a.id === 'two-hand-clap') {
             b.pivot = joints['shoulder-left']!.position;
             b.contactBounds = model.attackBounds[a.id === 'hand-strike' ? 'punch' : 'clap'];
-            b.reach = 275;
-            b.lift = 80;
-            b.radius = 45;
-            b.maxRange = 700;
+            b.reach = 550;
+            b.lift = 160;
+            b.radius = 90;
+            b.maxRange = 1400;
             b.cone = Math.PI;
             b.active = 1.1;
             b.damage = a.id === 'hand-strike' ? 25 : 30;
@@ -60,10 +60,10 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
             b.mechanism = 'leap';
             b.animation = 'jump';
             b.requires = ['foot-left', 'foot-right'];
-            b.radius = 350;
+            b.radius = 700;
             b.maxRange = 4000;
             b.minRange = 800;
-            b.maxAltitude = 180;
+            b.maxAltitude = 360;
             b.cone = Math.PI;
             b.damage = 20;
             b.warning = 1.1;
@@ -78,21 +78,22 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
             b.warning = .9;
             b.cooldown = 10;
             b.active = 7.5;
-            b.radius = 120;
+            b.radius = 240;
             b.impactJoint = 'body';
-            b.maxRange = 1100;
-            b.maxAltitude = 700;
+            b.maxRange = 2200;
+            b.maxAltitude = 1400;
         }
         if (a.id === 'roaring-shockwave') {
             b.damage = 15;
             b.warning = 1.2;
             b.cooldown = 11;
-            b.radius = 1100;
-            b.maxRange = 1100;
+            b.radius = 2200;
+            b.maxRange = 2200;
             b.cone = .9;
             b.directional = true;
             b.limbTargets = Object.fromEntries(['left', 'right'].map(side => { const s = side === 'left' ? -1 : 1; return [`hand-${side}`, { warning: { x: s * 130, y: 650, z: 150 }, windup: { x: s * 180, y: 660, z: 230 }, active: { x: s * 80, y: 650, z: 125 } }]; }));
         }
+        b.moving = false;
         return b;
     })
 });

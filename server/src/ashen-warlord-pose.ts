@@ -4,7 +4,7 @@ import { readTitanAnimationAsset, TitanAnimationSampler, transformTitanPoint, ty
 import { titanAnchor } from '../../shared/titan-pose.mjs';
 import type { Environment, AuthoredPoseContext } from './titan/engine.js';
 const asset = readTitanAnimationAsset(readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb', import.meta.url)));
-const H = 960, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+const H = model.height, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 /** One sampler/transition state per encounter. All bone motion comes from supplied animation tracks. */
 export function createAshenPose(initialHealth = 2500): Environment['articulate'] {
     const sampler = new TitanAnimationSampler(asset);
@@ -12,7 +12,7 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, travelTime = 0, turnTime = 0, lastRoot: {
         x: number;
         z: number;
-    } | undefined, lastHealth = initialHealth, hitAt = -10, landAt = -10, wasAirborne = false;
+    } | undefined, lastHealth = initialHealth, hitAt = -10;
     const select = (c: AuthoredPoseContext, root: {
         x: number;
         z: number;
@@ -23,9 +23,6 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
         if (c.health < lastHealth)
             hitAt = c.time;
         lastHealth = c.health;
-        if (wasAirborne && !c.airborne)
-            landAt = c.time;
-        wasAirborne = c.airborne;
         const a = c.ability, groundJump = a?.id === 'ground-smash';
         let key = 'idle', time = c.time;
         if (groundJump) {
@@ -37,10 +34,6 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
                 key = 'jump';
                 time = .08 + clamp(a.progress, 0, 1) * .80;
             }
-            else if (c.time - landAt < 1.3) {
-                key = 'landing';
-                time = 2.2 + clamp((c.time - landAt) / 1.3, 0, 1) * 1.5;
-            }
             else {
                 key = 'idle';
                 time = c.time;
@@ -48,6 +41,7 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
         }
         else if (a && a.stage !== 'COOLDOWN') {
             key = ({ 'energy-beam': 'charge', 'fireball-barrage': 'shoot', 'hand-strike': 'punch', 'roaring-shockwave': 'roar', 'two-hand-clap': 'clap', 'charging-rampage': 'run' } as Record<string, string>)[a.id] ?? 'idle';
+            if (key === 'run' && Math.hypot(c.velocity.x,c.velocity.z)<.5) key='idle';
             if (key === 'run') {
                 travelTime += distance / (model.clips.run!.stride ?? .8) * model.clips.run!.duration;
                 time = travelTime;
@@ -62,8 +56,9 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
             key = 'hit';
             time = (c.time - hitAt) / .5 * .7;
         }
+        else if (c.resting && Math.hypot(c.velocity.x,c.velocity.z)<.5) { key='idle'; time=c.time; }
         else if (Math.hypot(c.velocity.x, c.velocity.z) > .5) {
-            key = Math.hypot(c.velocity.x, c.velocity.z) > 360 ? 'run' : 'walk';
+            key = 'run';
             const clip = model.clips[key]!;
             travelTime += distance / (clip.stride ?? .7) * clip.duration;
             time = travelTime;

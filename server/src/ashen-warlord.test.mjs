@@ -101,23 +101,25 @@ test('all seven real attacks warn, activate, hit, and use the supplied visible h
         cfg.movement.turnRate = .00001;
         const species = new SpeciesRegistry().register(cfg), e = createM19Encounter(ability.id, 'p', 0, () => 135, [], 2500, species, { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose() });
         const root = e.frame.position, yaw = e.frame.yaw;
-        let target = titanAnchor(root, yaw, { x: 0, y: 730, z: 800 });
+        let target = titanAnchor(root, yaw, { x: 0, y: 1460, z: 1600 });
         if (ability.id === 'hand-strike')
-            target = titanAnchor(root, yaw, { x: 150, y: 535, z: 375 });
+            target = titanAnchor(root, yaw, { x: 300, y: 1070, z: 750 });
         if (ability.id === 'two-hand-clap')
-            target = titanAnchor(root, yaw, { x: 18, y: 800, z: 205 });
+            target = titanAnchor(root, yaw, { x: 36, y: 1600, z: 410 });
         if (ability.mechanism === 'leap')
             target = titanAnchor(root, yaw, { x: 0, y: 80, z: 3800 });
         if (ability.mechanism === 'charge')
-            target = titanAnchor(root, yaw, { x: 0, y: 600, z: 550 });
+            target = titanAnchor(root, yaw, { x: 0, y: 1200, z: 1100 });
         if (ability.id === 'roaring-shockwave')
-            target = titanAnchor(root, yaw, { x: 0, y: 700, z: 700 });
+            target = titanAnchor(root, yaw, { x: 0, y: 1400, z: 1400 });
         const visual = new AshenWarlordModel(Promise.resolve(g));
         await visual.ready;
         let warning = false, active = false, hits = 0, error = 0, lift = 0, landed = false;
         for (let i = 1; i <= 280; i++) {
             stepM19(e, target, { x: 0, y: 0, z: 0 }, 18, i * 50);
             const f = e.frame;
+            assert.notEqual(f.animation.clip,model.clips.walk.name);
+            assert.notEqual(f.animation.clip,model.clips.landing.name);
             warning ||= f.ability?.stage === 'WARNING';
             active ||= f.ability?.stage === 'ACTIVE';
             hits += f.events.filter(v => v.kind === 'damage' && v.ability === ability.id).length;
@@ -170,7 +172,7 @@ test('beam bonus is exposed only during server-authorized warning/windup, at the
     const cfg = structuredClone(ashenWarlordSpecies);
     cfg.id = 'core-window';
     cfg.abilities = [{ ...cfg.abilities.find(a => a.id === 'energy-beam'), unlockBelow: 1 }];
-    const e = createM19Encounter('window', 'p', 0, () => 135, [], 2500, new SpeciesRegistry().register(cfg), { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose() }), target = titanAnchor(e.frame.position, e.frame.yaw, { x: 0, y: 750, z: 1000 });
+    const e = createM19Encounter('window', 'p', 0, () => 135, [], 2500, new SpeciesRegistry().register(cfg), { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose() }), target = titanAnchor(e.frame.position, e.frame.yaw, { x: 0, y: 1500, z: 2000 });
     for (let i = 1; i < 40; i++) {
         stepM19(e, target, { x: 180, y: 0, z: 0 }, 18, i * 50);
         if (e.frame.ability?.stage === 'WARNING')
@@ -224,7 +226,7 @@ test('run, punch, jump, landing and clap keep the complete source mesh grounded 
  for(const[key,time]of[['run',.45],['punch',.7],['jump',.5],['landing',2.6],['clap',.22]]){const animation={clip:model.clips[key].name,time,blend:1,offsetY:0};sampler.evaluate(animation);animation.offsetY=-Math.min(...model.support.map(v=>sampler.point(v).y));visual.setTitanPose({animation,velocity:{x:0,y:0,z:0},locomotion:'idle',feet:{},limbs:{},ability:null});visual.update(0,2000,0);let low=Infinity,high=-Infinity;
  for(let i=0;i<mesh.geometry.attributes.position.count;i++){mesh.getVertexPosition(i,point);mesh.localToWorld(point);low=Math.min(low,point.y);high=Math.max(high,point.length());}minimum=Math.min(minimum,low);maximum=Math.max(maximum,high);t.diagnostic(JSON.stringify({key,groundError:low,bound:high}));
  }
- visual.dispose();assert(minimum>=-5,'ground penetration '+minimum);assert(maximum<1500,'exploding source deformation '+maximum);
+ visual.dispose();assert(minimum>=-5,'ground penetration '+minimum);assert(maximum<3000,'exploding source deformation '+maximum);
 });
 
 test('authored gait interpolation crosses its loop boundary without reversing the run',()=>{const c=model.clips.run;const result=mixAshenClipTime(c.name,c.duration-.01,.01,.5);assert(Math.min(result,c.duration-result)<.001);assert.equal(mixAshenClipTime(model.clips.punch.name,.1,.7,.5),.4);});
@@ -261,8 +263,8 @@ test('M19 covers city-scale ground instead of parking below the player or repeat
 });
 
 test('M19 uses the requested 3x run/turn limits and long travelling leaps, not vertical hops',async()=>{
-    assert.equal(ashenWarlordSpecies.movement.run,280*3);
-    assert(Math.abs(ashenWarlordSpecies.movement.turnRate-.38*3)<1e-12);
+    assert.equal(ashenWarlordSpecies.movement.run,840*3);
+    assert(Math.abs(ashenWarlordSpecies.movement.turnRate-1.14*4)<1e-12);
     const leap=ashenWarlordSpecies.abilities.find(a=>a.mechanism==='leap');
     assert.equal(leap.maxRange,400*10);assert.equal(leap.minRange,800);
     const e=createAshenWarlordEncounter('long-leap','p',0,()=>0,[]),origin={...e.frame.position};
@@ -290,7 +292,7 @@ test('M19 pursues an authorized distant/occluded pilot but remains inside the Da
         const f=e.step(.05,[target],[]);max=Math.max(max,Math.hypot(f.position.x-23000,f.position.z-23000));
         assert(f.position.x<=25000-species.radius&&f.position.z<=25000-species.radius,'must not leave Dallas');
     }
-    assert(max>1500,'must follow beyond the former 9 km perception limit, even behind scenery');
+    assert(max>1000,'must pursue until the doubled body reaches its safe boundary clearance');
     e.reset();
 });
 
@@ -305,4 +307,29 @@ test('M19 barrage reaches a genuinely high-altitude aircraft through ordinary no
         hits+=f.events.filter(v=>v.kind==='damage'&&v.ability==='fireball-barrage').length;
     }
     assert(high>10000,'shots must not expire at the former range/altitude cap');assert(hits>0,'valid high-altitude projectile collision');disposeM19(e);
+});
+
+test('M19 doubles visible and authoritative anatomy and inserts a real stationary idle between running and an attack',async()=>{
+    const {TitanEncounter}=await import('./titan/engine.js');
+    assert.equal(model.height,1920);assert.equal(ashenWarlordSpecies.height,model.height);assert.equal(ashenWarlordSpecies.radius,520);
+    const cfg=structuredClone(ashenWarlordSpecies);cfg.id+='-idle';cfg.movement.traversalLeap=false;
+    cfg.abilities=[cfg.abilities.find(a=>a.id==='fireball-barrage')];
+    let visible=false;const env={authoredPose:true,articulate:createAshenPose(),bounds:{minX:-25000,maxX:25000,minZ:-25000,maxZ:25000},ground:()=>0,traversable:()=>true,lineOfSight:()=>visible,obstruction:()=>null};
+    const e=new TitanEncounter('idle',new SpeciesRegistry().register(cfg),{x:0,y:0,z:0},env,{yaw:Math.PI/2});
+    const target={id:'p',encounterId:'idle',authorized:true,alive:true,position:{x:16000,y:1800,z:0},velocity:{x:0,y:0,z:0},radius:18};
+    let ran=false,attacked=false,ended=false,idleBefore=0,idleAfter=0;
+    for(let i=1;i<=600;i++){
+        if(i>=80)visible=true;
+        const f=e.step(.05,[target],[]),key=f.animation.clip,speed=Math.hypot(f.velocity.x,f.velocity.z);
+        assert.notEqual(key,model.clips.walk.name);assert.notEqual(key,model.clips.landing.name);
+        if(key===model.clips.run.name)ran=true;
+        if(!attacked&&ran&&key===model.clips.idle.name&&speed<.5)idleBefore+=.05;
+        if(f.ability?.stage==='WARNING'){
+            if(!attacked){assert(ran);assert(idleBefore>=.35,'real stop and idle before attack: '+idleBefore);}
+            attacked=true;
+        }
+        if(attacked&&!f.ability)ended=true;
+        if(ended&&key===model.clips.idle.name&&speed<.5)idleAfter+=.05;
+    }
+    assert(attacked&&ended);assert(idleAfter>=.35,'idle after attack');e.reset();assert.equal(e.snapshot().ability,null);
 });
