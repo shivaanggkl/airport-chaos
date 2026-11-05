@@ -230,8 +230,7 @@ test('run, punch, jump, landing and clap keep the complete source mesh grounded 
 
 test('authored gait interpolation crosses its loop boundary without reversing the run',()=>{const c=model.clips.run;const result=mixAshenClipTime(c.name,c.duration-.01,.01,.5);assert(Math.min(result,c.duration-result)<.001);assert.equal(mixAshenClipTime(model.clips.punch.name,.1,.7,.5),.4);});
 
-test('M19 covers city-scale ground instead of parking below the player or repeatedly hopping on clear paths', async t => {
-    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
+function loadDallasTerrain(){
     const data=JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json',import.meta.url),'utf8'));
     const bytes=Buffer.from(data.elevations,'base64'),samples=new Uint16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
     const ground=(wx,wz)=>{
@@ -241,6 +240,12 @@ test('M19 covers city-scale ground instead of parking below the player or repeat
         const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
         return(at(x0,z0)*(1-x+x0)+at(x1,z0)*(x-x0))*(1-z+z0)+(at(x0,z1)*(1-x+x0)+at(x1,z1)*(x-x0))*(z-z0);
     };
+    return ground;
+}
+
+test('M19 covers city-scale ground instead of parking below the player or repeatedly hopping on clear paths', async t => {
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
+    const ground=loadDallasTerrain();
     const buildings=loadMonsterDistrictBuildings();
     for(const moving of [false,true]){
         const e=createAshenWarlordEncounter('travel-'+moving,'p',0,ground,buildings);
@@ -249,7 +254,7 @@ test('M19 covers city-scale ground instead of parking below the player or repeat
             stepM19(e,{x:-6000+(moving?i*.05*180:0),y:ground(-6000,-3000)+850,z:-3000},{x:moving?180:0,y:0,z:0},18,i*50);
             const f=e.frame,step=Math.hypot(f.position.x-previous.x,f.position.z-previous.z);
             assert(step<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'no position snapping or speed bypass');
-            assert(Math.abs(f.position.y-ground(f.position.x,f.position.z))<200,'terrain/ballistic altitude remains bounded');
+            assert(Math.abs(f.position.y-ground(f.position.x,f.position.z))<ashenWarlordSpecies.movement.jumpSpeed**2/(2*ashenWarlordSpecies.movement.gravity)+30,'terrain/ballistic altitude remains bounded');
             travel+=step;extent=Math.max(extent,Math.hypot(f.position.x-origin.x,f.position.z-origin.z));
             if(f.animation.clip===model.clips.turn.name)turning++;
             previous={...f.position};
@@ -338,4 +343,37 @@ test('a real incoming body projectile is recognized with a reaction delay and wi
     const target={id:'p',encounterId:'threat',authorized:true,alive:true,position:{x:0,y:2000,z:6000},velocity:{x:0,y:0,z:0},radius:18};let reaction;
     for(let i=1;i<=40;i++){const f=e.snapshot(),body=f.limbs.body,threat={id:'shot',encounterId:'threat',position:{x:body.x,y:body.y,z:body.z+1800},velocity:{x:0,y:0,z:-1600},radius:2};const next=e.step(.05,[target],[threat]);if(next.tactic==='retreat'){reaction=i*.05;break;}}
     assert(reaction>=.35&&reaction<2,'bounded HARD reaction to a genuine incoming trajectory');e.reset();
+});
+
+
+test('M19 closes distant gaps through real Dallas obstacles in every cardinal direction', async t=>{
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
+    const ground=loadDallasTerrain(),buildings=loadMonsterDistrictBuildings();
+    for(const [dx,dz]of [[18000,0],[-18000,0],[0,18000],[0,-18000]]){
+        const e=createAshenWarlordEncounter(`dallas-pursuit-${dx}-${dz}`,'p',0,ground,buildings);
+        const origin={...e.frame.position},target={x:origin.x+dx,y:1800,z:origin.z+dz};
+        let previous={...origin},travel=0;const timings=[];
+        for(let i=1;i<=1800;i++){
+            const start=performance.now();stepM19(e,target,{x:0,y:0,z:0},18,i*50);timings.push(performance.now()-start);
+            const f=e.frame,step=Math.hypot(f.position.x-previous.x,f.position.z-previous.z);
+            assert(step<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'collision recovery must never teleport');
+            assert(Math.abs(f.position.x)<=24500&&Math.abs(f.position.z)<=24500,'body remains within Dallas');
+            travel+=step;previous={...f.position};
+        }
+        const remaining=Math.hypot(e.frame.position.x-target.x,e.frame.position.z-target.z);
+        timings.sort((a,b)=>a-b);
+        t.diagnostic(JSON.stringify({dx,dz,remaining,travel,stepP95:timings[Math.floor(timings.length*.95)],stepMax:timings.at(-1)}));
+        assert(remaining<12500,'must pursue the distant pilot instead of orbiting the spawn: '+remaining);
+        disposeM19(e);
+    }
+});
+
+test('navigation feet use actual skinned standing vertices rather than rigid single-bone approximations',()=>{
+    const sampler=new TitanAnimationSampler(asset);sampler.evaluate({clip:model.clips.idle.name,time:0,blend:1,offsetY:0});
+    const low=Math.min(...model.support.map(v=>sampler.point(v).y));
+    for(const foot of geometry.spheres.filter(v=>v.part.includes('Foot'))){
+        assert(foot.y-foot.radii.y>=-1e-6,'navigation must not invent a foot below the planted sole');
+        assert(foot.radii.y<.07,'weighted calf vertices must not inflate a rigid foot collider');
+    }
+    assert(Number.isFinite(low));
 });

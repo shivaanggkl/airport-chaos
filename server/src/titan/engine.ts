@@ -266,7 +266,24 @@ export class TitanEncounter {
         }
         return titanAnchor(root, this.#yaw, local);
     }
-    #valid(from: Vec, to: Vec, flightLift?: number) { const b = this.#env.bounds, r = this.species.radius, g = this.#env.ground(to.x, to.z); return Number.isFinite(g) && to.x >= b.minX + r && to.x <= b.maxX - r && to.z >= b.minZ + r && to.z <= b.maxZ - r && (flightLift !== undefined || Math.abs(g - this.#env.ground(from.x, from.z)) <= this.species.movement.stepHeight + Math.hypot(to.x - from.x, to.z - from.z) * this.species.arena.maxSlope) && this.#env.traversable(from, to, r, this.species.height) && (this.#env.poseClear?.(from, to, this.#yaw, flightLift ?? Math.max(0, this.#position.y - this.#env.ground(from.x, from.z))) ?? true); }
+    #valid(from: Vec, to: Vec, flightLift?: number) {
+        const b=this.#env.bounds,r=this.species.radius,g=this.#env.ground(to.x,to.z);
+        if(!Number.isFinite(g)||to.x<b.minX+r||to.x>b.maxX-r||to.z<b.minZ+r||to.z>b.maxZ-r||
+            (flightLift===undefined&&Math.abs(g-this.#env.ground(from.x,from.z))>this.species.movement.stepHeight+Math.hypot(to.x-from.x,to.z-from.z)*this.species.arena.maxSlope)||
+            !this.#env.traversable(from,to,r,this.species.height)) return false;
+        if(!this.#env.poseClear)return true;
+        if(this.species.director&&flightLift!==undefined){
+            // Each point of a ballistic sweep has its own terrain-relative lift.
+            // Reusing the destination lift at the start can falsely block a landing.
+            for(let i=0;i<=2;i++){
+                const t=i/2,p={x:from.x+(to.x-from.x)*t,y:from.y,z:from.z+(to.z-from.z)*t};
+                const height=this.#position.y+(g+flightLift-this.#position.y)*t;
+                if(!this.#env.poseClear(p,p,this.#yaw,Math.max(0,height-this.#env.ground(p.x,p.z))))return false;
+            }
+            return true;
+        }
+        return this.#env.poseClear(from,to,this.#yaw,flightLift??Math.max(0,this.#position.y-this.#env.ground(from.x,from.z)));
+    }
     #target(targets: readonly Target[]): Target | undefined {
         const s = this.species;
         let chosen: Target | undefined, best = Infinity;
@@ -303,14 +320,27 @@ export class TitanEncounter {
             return null;
         const flight = (m.jumpSpeed + Math.sqrt(m.jumpSpeed ** 2 - 2 * m.gravity * (landing - this.#position.y))) / m.gravity;
         if (flight > a.active || travel > m.run * flight) return null;
+        const heading=Math.atan2(end.x-this.#position.x,end.z-this.#position.z);
+        // Forecast the same acceleration-limited body turn used during flight.
+        const turns=[this.#yaw],turnSteps=Math.ceil(flight/.05),turnDt=flight/turnSteps;
+        let yaw=this.#yaw,yawVelocity=this.#yawVelocity;
+        if(this.species.director)for(let i=0;i<turnSteps;i++){
+            const error=wrap(heading-yaw),rate=Math.sign(error)*Math.min(m.turnRate,Math.sqrt(2*m.turnAcceleration*Math.abs(error)));
+            yawVelocity=move(yawVelocity,rate,m.turnAcceleration*turnDt);
+            const step=yawVelocity*turnDt;
+            yaw=wrap(yaw+(Math.sign(step)===Math.sign(error)&&Math.abs(step)>Math.abs(error)?error:step));turns.push(yaw);
+        }
+        const flightYaw=(time:number)=>this.species.director?turns[Math.min(turnSteps,Math.round(time/turnDt))]:this.#yaw;
         for (const [dx, dz] of [[0, 0], [18, 0], [-18, 0], [0, 18], [0, -18]]) {
             const p = { ...end, x: end.x + dx, z: end.z + dz };
-            if (!(this.#env.poseClear?.(p, p, this.#yaw, 0) ?? this.#env.traversable(p, p, r, this.species.height)))
+            if (!(this.#env.poseClear?.(p, p, flightYaw(flight), 0) ?? this.#env.traversable(p, p, r, this.species.height)))
                 return null;
         }
-        for (let i = 0; i <= 24; i++) {
-            const t = i / 24, p = { x: this.#position.x + (end.x - this.#position.x) * t, y: this.#position.y, z: this.#position.z + (end.z - this.#position.z) * t }, lift = Math.max(0, this.#position.y + m.jumpSpeed * (t * flight) - m.gravity * (t * flight) ** 2 / 2 - this.#env.ground(p.x, p.z));
-            if (!(this.#env.poseClear?.(p, p, this.#yaw, lift) ?? this.#env.traversable(p, p, r, this.species.height)))
+        const samples=this.species.director?Math.max(24,Math.ceil(travel/50)):24;
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples, p = { x: this.#position.x + (end.x - this.#position.x) * t, y: this.#position.y, z: this.#position.z + (end.z - this.#position.z) * t }, height=this.#position.y + m.jumpSpeed * (t * flight) - m.gravity * (t * flight) ** 2 / 2, terrain=this.#env.ground(p.x,p.z), lift = Math.max(0,height-terrain);
+            if(this.species.director&&i>0&&i<samples&&height<=terrain)return null;
+            if (!(this.#env.poseClear?.(p, p, flightYaw(t*flight), lift) ?? this.#env.traversable(p, p, r, this.species.height)))
                 return null;
         }
         return end;
@@ -320,16 +350,16 @@ export class TitanEncounter {
         if (direct)
             return direct;
         const heading = Math.atan2(goal.x - this.#position.x, goal.z - this.#position.z);
-        for (const offset of [.6, -.6, 1.1, -1.1])
-            for (const span of [a.maxRange, a.maxRange * .65]) {
+        let best:Vec|null=null,remaining=Math.hypot(goal.x-this.#position.x,goal.z-this.#position.z);
+        for (const offset of this.species.director?[0,.3,-.3,.6,-.6,1,-1,1.5,-1.5]:[.6,-.6,1.1,-1.1])
+            for (const span of this.species.director?[a.maxRange,a.maxRange*.8,a.maxRange*.6,a.maxRange*.4]:[a.maxRange,a.maxRange*.65]) {
                 const angle = heading + offset;
-                if (Math.abs(wrap(angle - this.#yaw)) > Math.PI / 2)
+                if (!this.species.director && Math.abs(wrap(angle - this.#yaw)) > Math.PI / 2)
                     continue;
                 const point = { x: this.#position.x + Math.sin(angle) * span, y: this.#position.y, z: this.#position.z + Math.cos(angle) * span }, landing = this.#leapDestination(point, a);
-                if (landing && Math.hypot(goal.x - landing.x, goal.z - landing.z) < Math.hypot(goal.x - this.#position.x, goal.z - this.#position.z))
-                    return landing;
+                if (landing){const d=Math.hypot(goal.x-landing.x,goal.z-landing.z);if(d<remaining){if(!this.species.director)return landing;best=landing;remaining=d;}}
             }
-        return null;
+        return best;
     }
     #plan(t: Target | undefined, threats: readonly Threat[]) {
         const profile = difficulties[this.species.level];
@@ -650,20 +680,21 @@ export class TitanEncounter {
         }
         if (this.#blocked > 0)
             speed = 0;
+        if (this.#airborne && this.species.director && a?.definition.mechanism==='leap') wantedYaw=Math.hypot(a.aim.x-this.#position.x,a.aim.z-this.#position.z)>1?Math.atan2(a.aim.x-this.#position.x,a.aim.z-this.#position.z):this.#yaw;
         if (sidestep)
             wantedYaw = this.#yaw;
         const error = wrap(wantedYaw - this.#yaw), rate = (this.#stopForAction||this.#idleCompleted||this.#leapGoal || a?.definition.mechanism === 'leap' && (stage === 'WARNING' || stage === 'WINDUP')) ? 0 : Math.sign(error) * Math.min(m.turnRate, Math.sqrt(2 * m.turnAcceleration * Math.abs(error)));
         this.#yawVelocity = move(this.#yawVelocity, rate, m.turnAcceleration * dt);
         const step = this.#yawVelocity * dt, previousYaw = this.#yaw;
         this.#yaw = wrap(this.#yaw + (Math.sign(step) === Math.sign(error) && Math.abs(step) > Math.abs(error) ? error : step));
-        if (this.#airborne) {
+        if (this.#airborne && !this.species.director) {
             this.#yaw = previousYaw;
             this.#yawVelocity = 0;
         }
         if (this.#env.poseClear && !this.#env.poseClear(this.#position, this.#position, this.#yaw, Math.max(0, this.#position.y - this.#env.ground(this.#position.x, this.#position.z)))) {
             this.#yaw = previousYaw;
             this.#yawVelocity = move(this.#yawVelocity, 0, m.turnAcceleration * dt);
-            if(this.species.director&&!escaping){for(const sign of[1,-1]){const to={x:this.#position.x+Math.sin(this.#yaw)*this.species.radius*.5*sign,y:this.#position.y,z:this.#position.z+Math.cos(this.#yaw)*this.species.radius*.5*sign};if(this.#valid(this.#position,to)){this.#escapeDirection={x:Math.sin(this.#yaw)*sign,y:0,z:Math.cos(this.#yaw)*sign};this.#escapeUntil=this.#time+1.5;break;}}}
+            if(this.species.director&&!escaping){for(const sign of[1,-1]){const to={x:this.#position.x+Math.sin(this.#yaw)*Math.min(80,this.species.radius*.15)*sign,y:this.#position.y,z:this.#position.z+Math.cos(this.#yaw)*Math.min(80,this.species.radius*.15)*sign};if(this.#valid(this.#position,to)){this.#escapeDirection={x:Math.sin(this.#yaw)*sign,y:0,z:Math.cos(this.#yaw)*sign};this.#escapeUntil=this.#time+.5;break;}}}
             if (m.sidestep) {
                 let escaped = false;
                 for (const sign of [this.#avoidSign, -this.#avoidSign]) {
@@ -702,6 +733,10 @@ export class TitanEncounter {
             speed = 0;
         this.#speed = move(this.#speed, speed, (speed > this.#speed ? m.acceleration : m.deceleration) * dt);
         const before = { ...this.#position }, next = { x: before.x + (this.#airborne ? this.#jumpVelocity.x : Math.sin(this.#yaw) * this.#speed + Math.cos(this.#yaw) * this.#lateralSpeed) * dt, y: before.y, z: before.z + (this.#airborne ? this.#jumpVelocity.z : Math.cos(this.#yaw) * this.#speed - Math.sin(this.#yaw) * this.#lateralSpeed) * dt };
+        if(this.species.director && this.#airborne && a?.definition.mechanism==='leap') {
+            const remaining=Math.hypot(a.aim.x-before.x,a.aim.z-before.z),stride=Math.hypot(next.x-before.x,next.z-before.z);
+            if(stride>=remaining){next.x=a.aim.x;next.z=a.aim.z;}
+        }
         if (this.#valid(before, next, this.#airborne ? Math.max(0, before.y + (this.#vertical - m.gravity * dt) * dt - this.#env.ground(next.x, next.z)) : undefined)) {
             this.#position.x = next.x;
             this.#position.z = next.z;
@@ -745,6 +780,10 @@ export class TitanEncounter {
             this.#stalled += dt;
         else
             this.#stalled = 0;
+        if(this.#stalled>2&&this.species.director&&!m.sidestep){
+            this.#stalled=0;
+            for(const sign of [-1,1]){const to={x:this.#position.x+Math.sin(this.#yaw)*60*sign,y:this.#position.y,z:this.#position.z+Math.cos(this.#yaw)*60*sign};if(this.#valid(this.#position,to)){this.#escapeDirection={x:Math.sin(this.#yaw)*sign,y:0,z:Math.cos(this.#yaw)*sign};this.#escapeUntil=this.#time+.5;this.#directorRoute=[];this.#directorUntil=0;break;}}
+        }
         if (this.#stalled > 2 && m.sidestep) {
             this.#stalled = 0;
             for (const offset of [Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI * .75, -Math.PI * .75]) {
