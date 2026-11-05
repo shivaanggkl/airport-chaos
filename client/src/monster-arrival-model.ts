@@ -22,21 +22,19 @@ const secondaryMotionScale = 2;
 
 const modelUrl = '/assets/models/monsters/monster-arrival.glb';
 const loader = new GLTFLoader();
-let cached: Promise<GLTF> | undefined;
+const cached = new Map<string,Promise<GLTF>>();
+export type TitanModelBinding=Pick<typeof m19Model,'url'|'forwardYaw'|'legacyYawOffset'|'neckAimWeight'>;
 
-function loadSource(): Promise<GLTF> {
-  cached ??= loader.loadAsync(modelUrl).catch((error: unknown) => {
-    cached = undefined;
-    throw error;
-  });
-  return cached;
+function loadSource(url=modelUrl):Promise<GLTF>{
+ let source=cached.get(url);if(!source){source=loader.loadAsync(url).catch((error:unknown)=>{cached.delete(url);throw error;});cached.set(url,source);}return source;
 }
 
-/** One Mission 19 instance of the supplied, skinned creature. Geometry is cached. */
+/** One instance of a registered skinned Titan. Geometry and textures are cached. */
 export class MonsterArrivalModel {
   readonly root = new THREE.Group();
   readonly ready: Promise<void>;
   private instance?: THREE.Group;
+  private readonly bindPose = new Map<THREE.Object3D,{position:THREE.Vector3;rotation:THREE.Quaternion;scale:THREE.Vector3}>();
   private titan: TitanPresentation|null=null;
   private readonly titanHeadBind=new THREE.Quaternion();
   private readonly titanNeckBind=new THREE.Quaternion();
@@ -93,14 +91,15 @@ export class MonsterArrivalModel {
   onFootContact?: (position: THREE.Vector3) => void;
   onLanding?: (position: THREE.Vector3) => void;
 
-  constructor(source?: Promise<GLTF>) {
-    this.ready = (source ?? loadSource()).then((gltf) => {
+  constructor(source?: Promise<GLTF>,private readonly binding:TitanModelBinding=m19Model) {
+    this.ready = (source ?? loadSource(this.binding.url)).then((gltf) => {
       if (this.disposed) return;
       const instance = cloneSkeleton(gltf.scene) as THREE.Group;
-      instance.name = 'monster-arrival-supplied-model';
+      instance.name = this.binding.url.includes('armored-apex')?'armored-apex-model':'monster-arrival-supplied-model';
       instance.scale.setScalar(journeyDallas19.monster.height);
       instance.position.y = 0; // Repaired asset has a ground-contact origin and unit height.
-      instance.rotation.y = this.titan?m19Model.forwardYaw:m19Model.legacyYawOffset; // Source/engine face +Z; the adapter retains legacy preview orientation until handoff.
+      instance.rotation.y = this.titan?this.binding.forwardYaw:this.binding.legacyYawOffset; // Source/engine face +Z; the adapter retains legacy preview orientation until handoff.
+      instance.traverse(bone=>{if(bone instanceof THREE.Bone)this.bindPose.set(bone,{position:bone.position.clone(),rotation:bone.quaternion.clone(),scale:bone.scale.clone()});});
       this.root.add(instance);
       this.instance = instance;
       this.near = instance.getObjectByName('MonsterNear');
@@ -113,7 +112,7 @@ export class MonsterArrivalModel {
       this.mouth = instance.getObjectByName('Mouth');
       for (const name of secondaryBoneNames) {
         const bone = instance.getObjectByName(name);
-        if (!bone) throw new Error(`Mission 19 creature is missing ${name}`);
+        if (!bone){if(name.startsWith('Tail'))continue;throw new Error(`Titan is missing ${name}`);}
         this.secondaryBones.set(name, { bone, animationRotation: new THREE.Quaternion() });
       }
       for(const side of ['Left','Right'])for(const [part,flex] of [['UpperArm',-.36],['Forearm',.6]] as const){
@@ -130,10 +129,7 @@ export class MonsterArrivalModel {
         if (!(object instanceof THREE.Mesh)) return;
         object.castShadow = false;
         object.receiveShadow = false;
-        if (object instanceof THREE.SkinnedMesh) {
-          object.computeBoundingSphere();
-          if (object.boundingSphere) object.boundingSphere.radius *= 1.4;
-        }
+
         const originals = Array.isArray(object.material) ? object.material : [object.material];
         const replacements = originals.map((material) => {
           let local = cloned.get(material);
@@ -150,6 +146,16 @@ export class MonsterArrivalModel {
         object.material = Array.isArray(object.material) ? replacements : replacements[0]!;
       });
       this.root.updateMatrixWorld(true);
+      // A freshly cloned skeleton has not populated its bone matrices yet.
+      // Computing skinned bounds there produced zero-sized spheres: a close
+      // camera looking at the head could cull the whole creature. Bound every
+      // material batch to the animated actor, including punches and collapse.
+      const actorCenter=this.root.localToWorld(new THREE.Vector3(0,journeyDallas19.monster.height*.45,0));
+      instance.traverse(object=>{
+        if(!(object instanceof THREE.SkinnedMesh))return;
+        object.skeleton.update();const scale=object.getWorldScale(new THREE.Vector3());
+        object.boundingSphere=new THREE.Sphere(object.worldToLocal(actorCenter.clone()),journeyDallas19.monster.height*1.5/Math.max(.001,Math.min(scale.x,scale.y,scale.z)));
+      });
       for(const name of ['Head','Neck','LeftUpperArm','RightUpperArm','LeftThigh','RightThigh']){const bone=instance.getObjectByName(name);if(bone)this.titanRestPositions.set(bone,bone.position.clone());}
       for (const side of ['Left','Right']) {
         const hip=instance.getObjectByName(side+'Thigh')!, knee=instance.getObjectByName(side+'Shin')!, ankle=instance.getObjectByName(side+'Foot')!;
@@ -161,7 +167,7 @@ export class MonsterArrivalModel {
       }
       const rootInverse=this.root.getWorldQuaternion(new THREE.Quaternion()).invert();
       this.head.getWorldQuaternion(this.titanHeadBind).premultiply(rootInverse);this.neck!.getWorldQuaternion(this.titanNeckBind).premultiply(rootInverse);
-      if(!this.titan){const turn=new THREE.Quaternion().setFromAxisAngle(this.up,m19Model.legacyYawOffset);this.titanHeadBind.premultiply(turn);this.titanNeckBind.premultiply(turn);}
+      if(!this.titan){const turn=new THREE.Quaternion().setFromAxisAngle(this.up,this.binding.legacyYawOffset);this.titanHeadBind.premultiply(turn);this.titanNeckBind.premultiply(turn);}
       for(const name of m19Model.clips)if(!gltf.animations.some(clip=>clip.name===name))throw Error(`Titan model is missing ${name}`);
       this.mixer = new THREE.AnimationMixer(instance);
       for (const clip of gltf.animations) {
@@ -228,6 +234,7 @@ export class MonsterArrivalModel {
 
   finish(kind: 'defeat' | 'timeout'): void {
     if(this.titan)for(const [bone,position]of this.titanRestPositions)bone.position.copy(position);
+    for(const [bone,bind]of this.bindPose)bone.scale.copy(bind.scale);
     this.ending = kind;
     this.jumpProgress=null;this.landingContact=false;
     this.windupActive = false;
@@ -256,8 +263,8 @@ export class MonsterArrivalModel {
 
   setTitanPose(frame:TitanPresentation):void {
     if(!this.titan&&this.instance){
-      this.instance.rotation.y=m19Model.forwardYaw;
-      const turn=new THREE.Quaternion().setFromAxisAngle(this.up,m19Model.legacyYawOffset);
+      this.instance.rotation.y=this.binding.forwardYaw;
+      const turn=new THREE.Quaternion().setFromAxisAngle(this.up,this.binding.legacyYawOffset);
       for(const foot of this.feet){foot.rest.applyQuaternion(turn);foot.restRotation.premultiply(turn);}
     }
     this.titan=frame;
@@ -341,7 +348,8 @@ export class MonsterArrivalModel {
   }
 
   private poseBone(name: string, x = 0, y = 0, z = 0): void {
-    const joint = this.secondaryBones.get(name)!;
+    const joint = this.secondaryBones.get(name);
+    if(!joint)return;
     joint.animationRotation.copy(joint.bone.quaternion);
     if (x) joint.bone.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localX, x * secondaryMotionScale));
     if (y) joint.bone.quaternion.multiply(this.poseRotation.setFromAxisAngle(this.localY, y * secondaryMotionScale));
@@ -467,13 +475,17 @@ export class MonsterArrivalModel {
     const walk = this.actions.get('Walk');
     if (walk) walk.setEffectiveTimeScale(this.jumpProgress===null?this.phaseRate*walk.getClip().duration:0);
     this.mixer?.update(delta);
+    // Titan anchors are authored from the bind skeleton. Combining them with
+    // the old FK clips translated shoulders/hips and twisted the same limb twice.
+    if(this.titan&&!this.ending)for(const [bone,bind]of this.bindPose){bone.position.copy(bind.position);bone.quaternion.copy(bind.rotation);bone.scale.copy(bind.scale);}
     if(this.jumpProgress===null)this.phase+=delta*this.phaseRate;
     this.secondaryTime += delta;
+    if(this.titan&&!this.ending&&this.binding.url.includes('armored-apex')){const chest=this.secondaryBones.get('Chest')?.bone;if(chest){const breath=Math.sin(this.secondaryTime*1.7)*.004;chest.scale.x*=1+breath;chest.scale.z*=1+breath;}}
     this.releaseTime += delta;
     this.locomotionBlend = THREE.MathUtils.damp(this.locomotionBlend, this.walking && this.jumpProgress === null ? 1 : 0, 5, delta);
     this.attackBlend = THREE.MathUtils.damp(this.attackBlend, this.windupActive ? 1 : 0, 6, delta);
-    if (!this.ending) this.poseUpperBody(hitPulse);
-    if(this.jumpProgress!==null && !this.ending){
+    if (!this.ending&&!this.titan) this.poseUpperBody(hitPulse);
+    if(this.jumpProgress!==null && !this.ending&&!this.titan){
       const tuck=Math.sin(Math.PI*this.jumpProgress);
       this.scratch[0]!.set(Math.cos(this.root.rotation.y),0,-Math.sin(this.root.rotation.y));
       for(const arm of this.jumpArms){
@@ -515,7 +527,7 @@ export class MonsterArrivalModel {
         const f=this.titan,p=f.limbs.head,neckPoint=f.limbs.neck;
         if(neckPoint){const world=this.rotations[0]!,parent=this.rotations[2]!;
           this.scratch[0]!.set(neckPoint.x,neckPoint.y,neckPoint.z);this.neck!.parent!.worldToLocal(this.scratch[0]!);this.neck!.position.copy(this.scratch[0]!);
-          world.setFromAxisAngle(this.up,f.yaw+f.headYaw*m19Model.neckAimWeight).multiply(new THREE.Quaternion().setFromAxisAngle(this.localX,-f.headPitch*m19Model.neckAimWeight)).multiply(this.titanNeckBind);
+          world.setFromAxisAngle(this.up,f.yaw+f.headYaw*this.binding.neckAimWeight).multiply(new THREE.Quaternion().setFromAxisAngle(this.localX,-f.headPitch*this.binding.neckAimWeight)).multiply(this.titanNeckBind);
           this.neck!.parent!.getWorldQuaternion(parent).invert();this.neck!.quaternion.copy(parent).multiply(world);this.neck!.updateWorldMatrix(false,true);
         }
         if(p){this.scratch[0]!.set(p.x,p.y,p.z);this.head.parent!.worldToLocal(this.scratch[0]!);this.head.position.copy(this.scratch[0]!);}

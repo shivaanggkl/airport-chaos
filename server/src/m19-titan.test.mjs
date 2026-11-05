@@ -63,7 +63,7 @@ test('ten M19 powers produce real timed attacks with compatible model poses', as
         if (ability.id === 'two-hand-clap')
             point = titanAnchor(root, yaw, { x: 0, y: 640, z: 250 });
         if (ability.id === 'roaring-shockwave')
-            point = titanAnchor(root, yaw, { x: 0, y: 700, z: 800 });
+            point = titanAnchor(root, yaw, { x: 0, y: 700, z: 1200 });
         if (ability.mechanism === 'charge')
             point = titanAnchor(root, yaw, { x: 0, y: 330, z: 500 });
         const events = [], stages = new Set();
@@ -101,7 +101,14 @@ test('real Dallas navigation remains clear and can reposition across the encount
         const a = i * .003, position = { x: -6800 + Math.sin(a) * 1100, y: 1050, z: -2400 + Math.cos(a) * 1000 };
         stepM19(e, position, { x: 66 * Math.cos(a), y: 0, z: -60 * Math.sin(a) }, 18, i * 50);
         const f = e.frame;
-        for (const key of ['foot-left', 'foot-right']) { const p = f.feet[key]; if (p) maxFootLift = Math.max(maxFootLift, p.y - ground(p.x, p.z) - 960 * .07024747); }
+        for (const key of ['foot-left', 'foot-right']) {
+            const p = f.feet[key];
+            if (p && f.locomotion !== 'jump') {
+                const lift = p.y - ground(p.x, p.z) - 960 * .07024747;
+                if (lift > maxFootLift)
+                    maxFootLift = lift;
+            }
+        }
         const moved = Math.hypot(f.position.x - previous.x, f.position.z - previous.z);
         travel += moved;
         if (i > 1000)
@@ -250,21 +257,29 @@ test('all ten warned powers can be avoided by sustained, ordinary 400 m/s flight
             p = titanAttackPose(root, yaw, s.joints[ability.requires[0]].position, ability, 'ACTIVE', .5);
         if (['area', 'leap'].includes(ability.mechanism))
             p = titanAnchor(root, yaw, { x: 0, y: 40, z: 150 });
+        if (ability.id === 'energy-beam')
+            p = titanAnchor(root, yaw, { x: 0, y: 850, z: 900 });
         if (ability.id === 'roaring-shockwave')
-            p = titanAnchor(root, yaw, { x: 0, y: 700, z: 800 });
+            p = titanAnchor(root, yaw, { x: 0, y: 700, z: 1200 });
         if (ability.id === 'two-hand-clap')
             p = titanAnchor(root, yaw, { x: 0, y: 640, z: 350 });
         if (ability.mechanism === 'charge')
             p = titanAnchor(root, yaw, { x: 0, y: 330, z: 500 });
-        const distance = Math.hypot(p.x - root.x, p.z - root.z), v = { x: (p.x - root.x) / distance * 400, y: 0, z: (p.z - root.z) / distance * 400 };
-        let active = false, hits = 0;
+        const distance = Math.hypot(p.x - root.x, p.z - root.z), lateral = ability.id === 'energy-beam', v = lateral ? { x: Math.cos(yaw) * 400, y: 0, z: -Math.sin(yaw) * 400 } : { x: (p.x - root.x) / distance * 400, y: 0, z: (p.z - root.z) / distance * 400 };
+        let active = false, warned = false, hits = 0;
+        const impacts = [];
         for (let i = 1; i <= 200; i++) {
-            p = { x: p.x + v.x * .05, y: p.y, z: p.z + v.z * .05 };
+            if (warned)
+                p = { x: p.x + v.x * .05, y: p.y, z: p.z + v.z * .05 };
             stepM19(e, p, v, 18, i * 50);
+            warned ||= e.frame.ability?.stage === 'WARNING';
             active ||= e.frame.ability?.stage === 'ACTIVE';
-            hits += e.events.filter(event => event.kind === 'damage' && event.ability === ability.id).length;
+            const hitEvents = e.events.filter(event => event.kind === 'damage' && event.ability === ability.id);
+            hits += hitEvents.length;
+            for (const event of hitEvents)
+                impacts.push({ type: event.type, time: i * .05, position: { ...p } });
         }
-        results.push({ power: ability.id, active, hits });
+        results.push({ power: ability.id, active, hits, impacts });
     }
     t.diagnostic(JSON.stringify(results));
     assert(results.every(r => r.active), 'avoidance must follow a real activated attack');
@@ -288,8 +303,98 @@ test('live view preserves the initial forward axis and muzzle with a rotated wor
     view.dispose();
     assert.equal(scene.children.length, 0);
 });
-test('reconnecting sessions retain a stable pilot target and cannot repeat one beam impact',async()=>{
- const{SpeciesRegistry}=await import('./titan/definitions.js'),{titanAnchor}=await import('../../shared/titan-pose.mjs');const config=structuredClone(m19Species);config.id+='-reconnect';config.abilities=config.abilities.filter(a=>a.id==='energy-beam');const e=createM19Encounter('reconnect','session-a',0,()=>135,[],1500,new SpeciesRegistry().register(config));e.pilotId='same-pilot';const target=titanAnchor(e.frame.position,e.frame.yaw,{x:0,y:850,z:1200});let hits=0,reconnected=false;
- for(let i=1;i<=100;i++){stepM19(e,target,{x:0,y:0,z:0},18,i*50);const damage=e.events.filter(event=>event.kind==='damage'&&event.ability==='energy-beam');hits+=damage.length;if(damage.length){assert.equal(damage[0].targetId,'same-pilot');e.playerId='session-b';reconnected=true;}}
- assert(reconnected);assert.equal(hits,1);
+test('reconnecting sessions retain a stable pilot target and cannot repeat one beam impact', async () => {
+    const { SpeciesRegistry } = await import('./titan/definitions.js'), { titanAnchor } = await import('../../shared/titan-pose.mjs');
+    const config = structuredClone(m19Species);
+    config.id += '-reconnect';
+    config.abilities = config.abilities.filter(a => a.id === 'energy-beam');
+    const e = createM19Encounter('reconnect', 'session-a', 0, () => 135, [], 1500, new SpeciesRegistry().register(config));
+    e.pilotId = 'same-pilot';
+    const target = titanAnchor(e.frame.position, e.frame.yaw, { x: 0, y: 850, z: 1200 });
+    let hits = 0, reconnected = false;
+    for (let i = 1; i <= 100; i++) {
+        stepM19(e, target, { x: 0, y: 0, z: 0 }, 18, i * 50);
+        const damage = e.events.filter(event => event.kind === 'damage' && event.ability === 'energy-beam');
+        hits += damage.length;
+        if (damage.length) {
+            assert.equal(damage[0].targetId, 'same-pilot');
+            e.playerId = 'session-b';
+            reconnected = true;
+        }
+    }
+    assert(reconnected);
+    assert.equal(hits, 1);
+});
+test('M19 pursues across Dallas beyond the old pen and uses real traversal jumps', t => {
+    const e = createM19Encounter('city-travel', 'p', 0, ground, buildings);
+    let travel = 0, jumps = 0, previous = e.frame.position, wasJump = false, minX = previous.x, minZ = previous.z, maxStep = 0;
+    for (let i = 1; i <= 2400; i++) {
+        const seconds = i * .05, position = { x: -7500 - seconds * 85, y: ground(-7500 - seconds * 85, -3555 - seconds * 20) + 850, z: -3555 - seconds * 20 };
+        stepM19(e, position, { x: -85, y: 0, z: -20 }, 18, i * 50);
+        const f = e.frame, d = Math.hypot(f.position.x - previous.x, f.position.z - previous.z);
+        travel += d;
+        maxStep = Math.max(maxStep, d);
+        minX = Math.min(minX, f.position.x);
+        minZ = Math.min(minZ, f.position.z);
+        const jumping = f.locomotion === 'jump';
+        if (jumping && !wasJump)
+            jumps++;
+        wasJump = jumping;
+        previous = f.position;
+    }
+    t.diagnostic(JSON.stringify({ travel, jumps, minX, minZ, maxStep }));
+    assert(travel > 3000, 'must make sustained city-scale progress');
+    assert(minX < -9400 || minZ < -4300, 'must leave the former small encounter pen');
+    assert(jumps > 0, 'must use a real safe traversal jump against airborne aircraft');
+    assert(maxStep <= 7.01, 'no positional jumps or teleporting');
+});
+test('repaired hand skin cannot follow a leg and stays continuous through live poses', async (t) => {
+    const bytes = readFileSync(new URL('../../client/public/assets/models/monsters/monster-arrival.glb', import.meta.url)), source = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+    const model = new MonsterArrivalModel(Promise.resolve(source));
+    await model.ready;
+    for (const name of ['MonsterNear', 'MonsterMid', 'MonsterFar']) {
+        const mesh = model.root.getObjectByName(name), indices = mesh.geometry.attributes.skinIndex, weights = mesh.geometry.attributes.skinWeight;
+        for (let i = 0; i < weights.count; i++) {
+            let arm = false, leg = false, total = 0;
+            for (let k = 0; k < 4; k++) {
+                const amount = weights.getComponent(i, k);
+                total += amount;
+                if (amount < .001)
+                    continue;
+                const n = mesh.skeleton.bones[indices.getComponent(i, k)].name;
+                arm ||= /UpperArm|Forearm|Hand/.test(n);
+                leg ||= /Thigh|Shin|Foot/.test(n);
+            }
+            assert(!(arm && leg), `${name}: one surface vertex cannot be attached to separate limbs`);
+            assert(Math.abs(total - 1) < 1e-5);
+        }
+    }
+    const mesh = model.root.getObjectByName('MonsterNear'), p = mesh.geometry.attributes.position, ix = mesh.geometry.index, rest = Array.from({ length: p.count }, (_, i) => new THREE.Vector3().fromBufferAttribute(p, i)), pairs = [];
+    for (let i = 0; i < ix.count; i += 3)
+        for (let k = 0; k < 3; k++) {
+            const a = ix.getX(i + k), b = ix.getX(i + (k + 1) % 3), u = rest[a], v = rest[b], length = u.distanceTo(v);
+            if (length > .001 && Math.abs(u.x) > .34 && u.y > .14 && u.y < .4 && Math.abs(v.x) > .34 && v.y > .14 && v.y < .4)
+                pairs.push({ a, b, length });
+        }
+    const e = createM19Encounter('skin-quality', 'p', 0, () => 135, []);
+    let worst = 0;
+    for (let i = 1; i <= 160; i++) {
+        stepM19(e, { x: -7000, y: 985, z: -3555 }, { x: 0, y: 0, z: 110 }, 18, i * 50);
+        const f = e.frame;
+        model.root.position.set(f.position.x, f.position.y, f.position.z);
+        model.root.rotation.y = f.yaw;
+        model.setTitanPose(f);
+        model.setMotion(f.velocity.x, f.velocity.z, f.yawVelocity, f.gait, f.headYaw, f.headPitch);
+        model.update(.05, 1800, 0);
+        if (i % 20)
+            continue;
+        mesh.updateMatrixWorld(true);
+        mesh.skeleton.update();
+        const posed = rest.map((p, i) => mesh.applyBoneTransform(i, p.clone()));
+        for (const { a, b, length } of pairs)
+            worst = Math.max(worst, posed[a].distanceTo(posed[b]) / length);
+    }
+    model.dispose();
+    t.diagnostic(JSON.stringify({ worstHandEdgeStretch: worst }));
+    assert(worst < 2, 'no hand spikes or stretched ribbons during real motion');
 });

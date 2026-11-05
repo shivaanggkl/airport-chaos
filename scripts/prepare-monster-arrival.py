@@ -273,3 +273,7 @@ for obj in lods:obj.select_set(True)
 bpy.context.view_layer.objects.active=rig
 bpy.ops.export_scene.gltf(filepath=str(RUNTIME),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='ACTIONS',export_merge_animation='NONE',export_cameras=False,export_lights=False)
 print('REPAIR_RESULT',json.dumps({'sourceHeight':h,'throatVertices':repaired,'bounds':metadata['bounds'],'triangles':{m.name:sum(len(f.vertices)-2 for f in m.data.polygons) for m in lods},'spheres':len(spheres)}))
+
+# Keep non-adjacent limbs separated in the final GLB and re-bake ending contact.
+import subprocess
+subprocess.run(['node', str(ROOT/'scripts/repair-monster-limb-weights.mjs')], check=True)

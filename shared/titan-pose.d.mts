@@ -50,6 +50,7 @@ export type TitanPresentation = {
     limbs: Readonly<Record<string, TitanVector>>;
     ability: null | {
         id: string;
+        radius?: number;
         eventId: string;
         stage: string;
         progress: number;

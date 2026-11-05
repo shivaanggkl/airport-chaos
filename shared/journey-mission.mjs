@@ -282,20 +282,12 @@ export const journeyDallas19 = Object.freeze({
   airborneSpawn: Object.freeze({ x: -7_500, z: -3_555, altitude: 850, heading: -2.094, speed: 110 }),
 });
 
-// Love Field to the open west side of the skyline. Each forward leg has room
-// for a 170 m pitch reversal; normals follow the measured 3D approach slopes.
+// M20 retains its historical identity and reward, now a Titan boss encounter.
 export const journeyDallas20 = Object.freeze({
-  id: 'journey-dallas-20', cityId: 'dallas', name: 'SKYLINE SWITCHBACK',
-  chapter: 'LEGENDARY SKIES', firstClearCredits: 2_700,
-  startAirportId: 'love', timeLimitMs: 110_000,
-  gates: Object.freeze([
-    { x: -4_400, z: -3_300, altitude: 560, radius: 90, normalX: .16180, normalY: .11984, normalZ: .97952 },
-    { x: -3_900, z: -1_900, altitude: 390, radius: 90, normalX: .33405, normalY: -.11630, normalZ: .93535 },
-    { x: -3_400, z: -500, altitude: 560, radius: 90, normalX: .33412, normalY: .11451, normalZ: .93555 },
-    { x: -3_000, z: 900, altitude: 390, radius: 90, normalX: .27302, normalY: -.11097, normalZ: .95558 },
-    { x: -2_600, z: 2_300, altitude: 560, radius: 90, normalX: .27239, normalY: .12996, normalZ: .95337 },
-    { x: -2_200, z: 3_700, altitude: 390, radius: 90, normalX: .27271, normalY: -.12070, normalZ: .95449 },
-  ]),
+  id:'journey-dallas-20',cityId:'dallas',name:'ARMORED APEX',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
+  prepareMs:0,timeLimitMs:240000,bossHealth:3000,monster:journeyDallas19.monster,airborneSpawn:journeyDallas19.airborneSpawn,
+  // Empty compatibility field: no gate can complete this boss mission.
+  gates:Object.freeze([]),startAirportId:'love',
 });
 
 export const journeyDallas21 = Object.freeze({
@@ -340,6 +332,7 @@ export const journeyDallas24 = Object.freeze({
 
 // The plane used by authoritative gate crossings.
 export function journeyGatePlane(mission, gateIndex) {
+  if(mission.id===journeyDallas20.id)return false;
   const gate = mission.gates[gateIndex];
   if (!gate) return null;
   const previous = mission.gates[Math.max(0, gateIndex - 1)];
@@ -354,6 +347,7 @@ export function journeyGatePlane(mission, gateIndex) {
 // Cross the face of the next ring within its accepted collision region.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
+  if(mission.id===journeyDallas20.id)return false;
   const gate = mission.gates[gateIndex];
   if (!gate || !Number.isFinite(terrainHeight)) return false;
   if (mission.id === journeyDallas20.id || mission.id === journeyDallas22.id || mission.id === journeyDallas24.id) {

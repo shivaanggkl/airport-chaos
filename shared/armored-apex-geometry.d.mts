@@ -1,0 +1,1 @@
+export const armoredApexGeometry:Readonly<{sourceHeight:number;bounds:{min:number[];max:number[]};mouth:{x:number;y:number;z:number};headPivot:{x:number;y:number;z:number};neckPivot:{x:number;y:number;z:number};footHeight:number;footX:number;footZ:number;spheres:readonly{part:string;x:number;y:number;z:number;radius:number;radii:{x:number;y:number;z:number}}[]}>;

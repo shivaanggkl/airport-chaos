@@ -28,7 +28,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-17': 'Shoot down the armored Mammoth.',
   'journey-dallas-18': 'Shoot down the Legendary Firehawk.',
   'journey-dallas-19': 'Destroy the giant monster before time runs out.',
-  'journey-dallas-20': 'Fly through six alternating high and low gates.',
+  'journey-dallas-20': 'Defeat the armored giant before time runs out.',
   'journey-dallas-21': 'Capture the first area, then the second within two minutes.',
   'journey-dallas-22': 'Fly through three gates, then land perfectly at DFW.',
   'journey-dallas-23': 'Defeat two Hunters, repairing your plane between fights.',

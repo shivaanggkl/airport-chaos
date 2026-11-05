@@ -1,5 +1,6 @@
 // Fitted geometry compatibility helpers. Live M19 decisions run only in titan/engine via m19-titan.
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { monsterArena } from '../../shared/m19-environment.mjs';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
 import { monsterJumpMotion, monsterJumpLift } from '../../shared/monster-motion.mjs';
@@ -245,14 +246,14 @@ export function nearbyMotionBuildings(e:Pick<MonsterEncounter,'x'|'z'|'motionCel
 }
 
 /** Keep low anatomy and planted feet clear of the real mapped building tops. */
-export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24):boolean {
+export function monsterMotionClear(x:number,z:number,yaw:number,groundAt:(x:number,z:number)=>number,buildings:readonly Building[],lift=0,margin=24,geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>=monsterGeometry):boolean {
   const ground=groundAt(x,z),h=journeyDallas19.monster.height,c=Math.cos(yaw),s=Math.sin(yaw);
   for(const side of [-1,1]){
-    const fx=x+h*(c*monsterGeometry.footX*side+s*monsterGeometry.footZ);
-    const fz=z+h*(-s*monsterGeometry.footX*side+c*monsterGeometry.footZ);
+    const fx=x+h*(c*geometry.footX*side+s*geometry.footZ);
+    const fz=z+h*(-s*geometry.footX*side+c*geometry.footZ);
     if(lift<=0 && Math.abs(groundAt(fx,fz)-ground)>24)return false;
   }
-  for(const v of monsterGeometry.spheres){
+  for(const v of geometry.spheres){
     const cy=ground+lift+h*v.y,ry=h*v.radii.y,cx=x+h*(c*v.x+s*v.z),cz=z+h*(-s*v.x+c*v.z);
     const intersects=(b:Building):boolean=>{
       if(b.top<cy-ry)return false;
@@ -295,12 +296,14 @@ export function loadMonsterDistrictBuildings(): Building[] {
   // Cover every permitted firing origin, including long-range western and
   // northern approaches; the old 16-cell cache stopped short of that envelope.
   const reach=monsterAttackRange+journeyDallas19.monster.height*Math.hypot(monsterGeometry.mouth.x,monsterGeometry.mouth.z)+300;
-  const coverageMinX=Math.min(...monsterRoamRoute.map(p=>p.x))-reach,coverageMaxX=Math.max(...monsterRoamRoute.map(p=>p.x))+reach;
-  const coverageMinZ=Math.min(...monsterRoamRoute.map(p=>p.z))-reach,coverageMaxZ=Math.max(...monsterRoamRoute.map(p=>p.z))+reach;
+  const coverageMinX=monsterArena.minX-reach,coverageMaxX=monsterArena.maxX+reach;
+  const coverageMinZ=monsterArena.minZ-reach,coverageMaxZ=monsterArena.maxZ+reach;
   const minCellX=Math.floor(coverageMinX/2000),maxCellX=Math.floor(coverageMaxX/2000);
   const minCellZ=Math.floor(coverageMinZ/2000),maxCellZ=Math.floor(coverageMaxZ/2000);
   for (let x = minCellX; x <= maxCellX; x++) for (let z = minCellZ; z <= maxCellZ; z++) {
-    const chunk = JSON.parse(readFileSync(new URL(`../../client/public/data/dallas/near/${x}_${z}.json`, import.meta.url), 'utf8')) as { b: number[][] };
+    const url=new URL(`../../client/public/data/dallas/near/${x}_${z}.json`, import.meta.url);
+    if(!existsSync(url))continue;
+    const chunk = JSON.parse(readFileSync(url, 'utf8')) as { b: number[][] };
     for (const building of chunk.b) {
       const xs: number[] = [], zs: number[] = [];
       for (let i = 4; i + 1 < building.length; i += 2) { xs.push(building[i]!); zs.push(building[i + 1]!); }

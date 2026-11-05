@@ -80,6 +80,7 @@ export type Species = {
         chargeSpeed: number;
         sidestep: boolean;
         independentAim: boolean;
+        traversalLeap?: boolean;
     };
     senses: {
         range: number;

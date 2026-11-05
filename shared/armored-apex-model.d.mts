@@ -1,0 +1,1 @@
+export const armoredApexModel:Readonly<{url:string;forwardYaw:number;legacyYawOffset:number;neckAimWeight:number;anchors:Record<string,readonly number[]>;bones:Record<string,string>;lods:readonly string[];clips:readonly string[];height:number;sourceHeight:number}>;

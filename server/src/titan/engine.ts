@@ -188,6 +188,9 @@ export class TitanEncounter {
     #lateralSpeed = 0;
     #misses = 0;
     #lastAbility = '';
+    #nextTraversal = 0;
+    #leapGoal: Vec | null = null;
+    #leapPrepareUntil = 0;
     #comboUntil = 0;
     #comboDepth = 0;
     #disposed = false;
@@ -242,7 +245,7 @@ export class TitanEncounter {
         }
         return titanAnchor(root, this.#yaw, local);
     }
-    #valid(from: Vec, to: Vec) { const b = this.#env.bounds, r = this.species.radius, g = this.#env.ground(to.x, to.z); return Number.isFinite(g) && to.x >= b.minX + r && to.x <= b.maxX - r && to.z >= b.minZ + r && to.z <= b.maxZ - r && Math.abs(g - this.#env.ground(from.x, from.z)) <= this.species.movement.stepHeight + Math.hypot(to.x - from.x, to.z - from.z) * this.species.arena.maxSlope && this.#env.traversable(from, to, r, this.species.height) && (this.#env.poseClear?.(from, to, this.#yaw, Math.max(0, this.#position.y - this.#env.ground(from.x, from.z))) ?? true); }
+    #valid(from: Vec, to: Vec, flightLift?: number) { const b = this.#env.bounds, r = this.species.radius, g = this.#env.ground(to.x, to.z); return Number.isFinite(g) && to.x >= b.minX + r && to.x <= b.maxX - r && to.z >= b.minZ + r && to.z <= b.maxZ - r && (flightLift !== undefined || Math.abs(g - this.#env.ground(from.x, from.z)) <= this.species.movement.stepHeight + Math.hypot(to.x - from.x, to.z - from.z) * this.species.arena.maxSlope) && this.#env.traversable(from, to, r, this.species.height) && (this.#env.poseClear?.(from, to, this.#yaw, flightLift ?? Math.max(0, this.#position.y - this.#env.ground(from.x, from.z))) ?? true); }
     #target(targets: readonly Target[]): Target | undefined {
         const s = this.species;
         let chosen: Target | undefined, best = Infinity;
@@ -259,7 +262,50 @@ export class TitanEncounter {
         return chosen;
     }
     #withinCone(origin: Vec, target: Vec, cone: number) { const d = unit(origin, target); return d.x * Math.sin(this.#yaw) + d.z * Math.cos(this.#yaw) >= Math.cos(cone); }
-    #eligible(a: Ability, t: Target) { const origin = this.#anchor(a.requires[0]), d = distance(origin, t.position), alt = t.position.y - this.#env.ground(t.position.x, t.position.z); return (a.unlockBelow === undefined || this.#health / this.species.health <= a.unlockBelow) && this.#time >= (this.#cooldowns.get(a.id) ?? 0) && d >= a.minRange && d <= a.maxRange && alt <= a.maxAltitude && this.#withinCone(origin, t.position, a.cone) && this.#env.lineOfSight(origin, t.position); }
+    #eligible(a: Ability, t: Target) {
+        const origin = this.#anchor(a.requires[0]), d = distance(origin, t.position), alt = t.position.y - this.#env.ground(t.position.x, t.position.z);
+        if (a.mechanism === 'sweep' && !a.requires.some(name => {
+            const j = this.species.joints[name], pivot = a.pivot ? { ...a.pivot, x: name === 'hand-right' ? -a.pivot.x : a.pivot.x } : j.position, p = titanAnchor(this.#position, this.#yaw, pivot), radius = a.radius + t.radius;
+            return distance(p, t.position) <= Math.min(j.reach ?? Infinity, Math.hypot(a.reach ?? 0, a.lift ?? 0)) + radius && t.position.y >= p.y - radius && t.position.y <= p.y + (a.lift ?? 0) + radius;
+        }))
+            return false;
+        return (a.unlockBelow === undefined || this.#health / this.species.health <= a.unlockBelow) && this.#time >= (this.#cooldowns.get(a.id) ?? 0) && d >= a.minRange && d <= a.maxRange && alt <= a.maxAltitude && this.#withinCone(origin, t.position, a.cone) && this.#env.lineOfSight(origin, t.position);
+    }
+    #leapDestination(goal: Vec, a: Ability): Vec | null {
+        const m = this.species.movement, flight = 2 * m.jumpSpeed / m.gravity, d = Math.hypot(goal.x - this.#position.x, goal.z - this.#position.z), travel = Math.min(a.maxRange, m.run * flight, d);
+        if (travel < .001 || a.active < flight)
+            return null;
+        const end = { x: this.#position.x + (goal.x - this.#position.x) / d * travel, y: this.#position.y, z: this.#position.z + (goal.z - this.#position.z) / d * travel }, b = this.#env.bounds, r = this.species.radius, landing = this.#env.ground(end.x, end.z);
+        if (end.x < b.minX + r || end.x > b.maxX - r || end.z < b.minZ + r || end.z > b.maxZ - r || Math.abs(landing - this.#position.y) > m.stepHeight)
+            return null;
+        for (const [dx, dz] of [[0, 0], [18, 0], [-18, 0], [0, 18], [0, -18]]) {
+            const p = { ...end, x: end.x + dx, z: end.z + dz };
+            if (!(this.#env.poseClear?.(p, p, this.#yaw, 0) ?? this.#env.traversable(p, p, r, this.species.height)))
+                return null;
+        }
+        for (let i = 0; i <= 24; i++) {
+            const t = i / 24, p = { x: this.#position.x + (end.x - this.#position.x) * t, y: this.#position.y, z: this.#position.z + (end.z - this.#position.z) * t }, lift = Math.max(0, this.#position.y + m.jumpSpeed * (t * flight) - m.gravity * (t * flight) ** 2 / 2 - this.#env.ground(p.x, p.z));
+            if (!(this.#env.poseClear?.(p, p, this.#yaw, lift) ?? this.#env.traversable(p, p, r, this.species.height)))
+                return null;
+        }
+        return end;
+    }
+    #traversalDestination(goal: Vec, a: Ability): Vec | null {
+        const direct = this.#leapDestination(goal, a);
+        if (direct)
+            return direct;
+        const heading = Math.atan2(goal.x - this.#position.x, goal.z - this.#position.z);
+        for (const offset of [.6, -.6, 1.1, -1.1])
+            for (const span of [a.maxRange, a.maxRange * .65]) {
+                const angle = heading + offset;
+                if (Math.abs(wrap(angle - this.#yaw)) > Math.PI / 2)
+                    continue;
+                const point = { x: this.#position.x + Math.sin(angle) * span, y: this.#position.y, z: this.#position.z + Math.cos(angle) * span }, landing = this.#leapDestination(point, a);
+                if (landing && Math.hypot(goal.x - landing.x, goal.z - landing.z) < Math.hypot(goal.x - this.#position.x, goal.z - this.#position.z))
+                    return landing;
+            }
+        return null;
+    }
     #plan(t: Target | undefined, threats: readonly Threat[]) {
         const profile = difficulties[this.species.level];
         this.#nextDecision = this.#time + .2;
@@ -315,6 +361,31 @@ export class TitanEncounter {
         }
         if (this.#tactic === 'recover')
             this.#goal = { ...this.#position };
+        const bounds = this.#env.bounds, margin = this.species.radius + 100;
+        this.#goal.x = clamp(this.#goal.x, bounds.minX + margin, bounds.maxX - margin);
+        this.#goal.z = clamp(this.#goal.z, bounds.minZ + margin, bounds.maxZ - margin);
+        if (this.#leapGoal && !this.#active) {
+            if (danger || this.#time > this.#leapPrepareUntil)
+                this.#leapGoal = null;
+            else if (Math.hypot(this.#velocity.x, this.#velocity.z) > 1)
+                return;
+            else {
+                const leap = this.species.abilities.find(a => a.mechanism === 'leap'), landing = leap && this.#leapDestination(this.#leapGoal, leap);
+                this.#leapGoal = null;
+                if (leap && landing && this.#start(leap, t, landing))
+                    return;
+            }
+        }
+        if (this.species.movement.traversalLeap && !this.#active && this.#time >= this.#nextTraversal && this.#tactic !== 'recover' && !danger && Math.hypot(this.#goal.x - this.#position.x, this.#goal.z - this.#position.z) > this.species.height) {
+            this.#nextTraversal = this.#time + 5;
+            const leap = this.species.abilities.find(a => a.mechanism === 'leap' && this.#time >= (this.#cooldowns.get(a.id) ?? 0));
+            const landing = leap && this.#traversalDestination(this.#goal, leap);
+            if (landing) {
+                this.#leapGoal = landing;
+                this.#leapPrepareUntil = this.#time + this.species.movement.run / this.species.movement.deceleration + 2;
+                return;
+            }
+        }
         if (!this.#active && available.length && (this.#tactic === 'attack' || this.#tactic === 'defend')) {
             // Rank practical geometry, adaptation and continuity; never force a scripted power rotation.
             const scored = available.filter(a => this.#tactic !== 'defend' || a.moving && ['projectile', 'beam'].includes(a.mechanism)).map(a => ({ a, score: (a.mechanism === 'projectile' || a.mechanism === 'beam' ? (high ? .8 : .4) : .5) + (stationary && a.mechanism === 'area' ? .5 : 0) + (circling && a.directional ? .3 : 0) - (a.id === this.#lastAbility ? this.#misses * .15 : 0) + (a.moving && this.#speed > 1 ? .15 : 0) })).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
@@ -323,21 +394,21 @@ export class TitanEncounter {
                     break;
         }
     }
-    #start(a: Ability, t: Target) {
-        if (this.#active || !this.#eligible(a, t))
+    #start(a: Ability, t: Target, landing?: Vec) {
+        if (this.#active || (!landing && !this.#eligible(a, t)))
             return false;
         const debris = a.debris ? this.#env.takeDebris?.(this.id, this.#anchor(a.requires[0])) : undefined;
         if (a.debris && (!debris || distance(debris.position, this.#anchor(a.requires[0])) > this.species.radius + a.radius))
             return false;
         if (a.mechanism === 'leap') {
-            const flight = 2 * this.species.movement.jumpSpeed / this.species.movement.gravity, dir = unit(this.#position, t.position), travel = Math.min(a.maxRange, this.species.movement.run * flight), end = { x: this.#position.x + dir.x * travel, y: this.#position.y, z: this.#position.z + dir.z * travel };
-            if (!this.#valid(this.#position, end) || a.active < flight)
+            landing ??= this.#leapDestination(t.position, a) ?? undefined;
+            if (!landing)
                 return false;
         }
         const depth = this.#time <= this.#comboUntil ? this.#comboDepth + 1 : 1;
         if (depth > difficulties[this.species.level].combo)
             return false;
-        this.#active = { definition: a, start: this.#time, serial: ++this.#serial, targetId: t.id, aim: { ...t.position }, direction: unit(this.#anchor(a.requires[0]), t.position), released: 0, hit: new Set(), lastStage: 'SELECT', combo: depth, previousLimbs: new Map(), landed: false, debris: debris ?? undefined };
+        this.#active = { definition: a, start: this.#time, serial: ++this.#serial, targetId: t.id, aim: { ...(landing ?? t.position) }, direction: unit(this.#anchor(a.requires[0]), t.position), released: 0, hit: new Set(), lastStage: 'SELECT', combo: depth, previousLimbs: new Map(), landed: false, debris: debris ?? undefined };
         this.#cooldowns.set(a.id, this.#time + a.warning + a.windup + a.active + a.recovery + a.cooldown);
         this.#emit('animation', a.event, this.#position, { ability: a.id, stage: 'SELECT', progress: 0 });
         this.#lastAbility = a.id;
@@ -345,7 +416,7 @@ export class TitanEncounter {
     }
     #move(dt: number) {
         const m = this.species.movement, a = this.#active, stage = a ? titanTimeline(a.definition, this.#time - a.start).stage : '';
-        let goal = this.#goal, speed = this.#tactic === 'recover' ? 0 : this.#tactic === 'hunt' ? m.walk : m.run;
+        let goal = this.#goal, speed = this.#leapGoal || this.#tactic === 'recover' ? 0 : this.#tactic === 'hunt' ? m.walk : m.run;
         if (a && !a.definition.moving && stage !== 'COOLDOWN')
             speed = 0;
         if (a?.definition.mechanism === 'charge' && stage === 'ACTIVE') {
@@ -354,7 +425,7 @@ export class TitanEncounter {
         }
         const escaping = this.#time < this.#escapeUntil;
         let reverse = false;
-        let sidestep = m.sidestep && this.#tactic === 'defend' && !this.#airborne && (!a || a.definition.moving) && stage !== 'ACTIVE';
+        let sidestep = !this.#leapGoal && m.sidestep && this.#tactic === 'defend' && !this.#airborne && (!a || a.definition.moving) && stage !== 'ACTIVE';
         const d = distance(this.#position, goal);
         speed = Math.min(speed, Math.sqrt(2 * m.deceleration * Math.max(0, d - this.species.radius)));
         let wantedYaw = this.#navYaw;
@@ -387,10 +458,14 @@ export class TitanEncounter {
             speed = 0;
         if (sidestep)
             wantedYaw = this.#yaw;
-        const error = wrap(wantedYaw - this.#yaw), rate = Math.sign(error) * Math.min(m.turnRate, Math.sqrt(2 * m.turnAcceleration * Math.abs(error)));
+        const error = wrap(wantedYaw - this.#yaw), rate = (this.#leapGoal || a?.definition.mechanism === 'leap' && (stage === 'WARNING' || stage === 'WINDUP')) ? 0 : Math.sign(error) * Math.min(m.turnRate, Math.sqrt(2 * m.turnAcceleration * Math.abs(error)));
         this.#yawVelocity = move(this.#yawVelocity, rate, m.turnAcceleration * dt);
         const step = this.#yawVelocity * dt, previousYaw = this.#yaw;
         this.#yaw = wrap(this.#yaw + (Math.sign(step) === Math.sign(error) && Math.abs(step) > Math.abs(error) ? error : step));
+        if (this.#airborne) {
+            this.#yaw = previousYaw;
+            this.#yawVelocity = 0;
+        }
         if (this.#env.poseClear && !this.#env.poseClear(this.#position, this.#position, this.#yaw, Math.max(0, this.#position.y - this.#env.ground(this.#position.x, this.#position.z)))) {
             this.#yaw = previousYaw;
             this.#yawVelocity = move(this.#yawVelocity, 0, m.turnAcceleration * dt);
@@ -422,15 +497,17 @@ export class TitanEncounter {
         }
         if (sidestep)
             speed = 0;
-        this.#lateralSpeed = move(this.#lateralSpeed, escaping ? (this.#escapeDirection.x * Math.cos(this.#yaw) - this.#escapeDirection.z * Math.sin(this.#yaw)) * m.walk * .6 : sidestep ? m.walk * this.#avoidSign : 0, m.acceleration * dt);
+        this.#lateralSpeed = move(this.#lateralSpeed, this.#leapGoal ? 0 : escaping ? (this.#escapeDirection.x * Math.cos(this.#yaw) - this.#escapeDirection.z * Math.sin(this.#yaw)) * m.walk * .6 : sidestep ? m.walk * this.#avoidSign : 0, m.acceleration * dt);
         speed *= Math.max(0, Math.cos(error));
         if (reverse)
             speed = -m.walk * .5;
         if (escaping)
             speed = (this.#escapeDirection.x * Math.sin(this.#yaw) + this.#escapeDirection.z * Math.cos(this.#yaw)) * m.walk * .6;
+        if (this.#leapGoal)
+            speed = 0;
         this.#speed = move(this.#speed, speed, (speed > this.#speed ? m.acceleration : m.deceleration) * dt);
         const before = { ...this.#position }, next = { x: before.x + (this.#airborne ? this.#jumpVelocity.x : Math.sin(this.#yaw) * this.#speed + Math.cos(this.#yaw) * this.#lateralSpeed) * dt, y: before.y, z: before.z + (this.#airborne ? this.#jumpVelocity.z : Math.cos(this.#yaw) * this.#speed - Math.sin(this.#yaw) * this.#lateralSpeed) * dt };
-        if (this.#valid(before, next)) {
+        if (this.#valid(before, next, this.#airborne ? Math.max(0, before.y + (this.#vertical - m.gravity * dt) * dt - this.#env.ground(next.x, next.z)) : undefined)) {
             this.#position.x = next.x;
             this.#position.z = next.z;
         }
@@ -447,6 +524,8 @@ export class TitanEncounter {
                 this.#position.y = ground;
                 this.#vertical = 0;
                 this.#airborne = false;
+                this.#feet = {};
+                this.#footSwings.clear();
                 this.#jumpVelocity = { x: 0, y: 0, z: 0 };
                 if (a)
                     a.landed = true;
@@ -523,6 +602,16 @@ export class TitanEncounter {
                     this.#feet[name] = this.#limbs[name];
             }
         }
+        // One authoritative arm pose: counter-swing follows actual gait, not a
+        // second client animation layered over the collision skeleton.
+        if (!a && s.movement.independentAim) {
+            const weight = Math.min(1, Math.hypot(this.#velocity.x, this.#velocity.z) / s.movement.walk), swing = Math.sin(this.#gait * Math.PI * 2) * s.height * .035 * weight;
+            for (const side of ['left', 'right']) {
+                const name = `hand-${side}`, rest = s.joints[name];
+                if (rest)
+                    this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
+            }
+        }
         this.#env.articulate?.(this.#limbs, this.#feet, { ...this.#position, y: this.#position.y - this.#crouch() }, this.#yaw, this.#volumeAxes);
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
@@ -550,6 +639,8 @@ export class TitanEncounter {
         const def = a.definition, elapsed = this.#time - a.start, t = titanTimeline(def, elapsed);
         if (t.stage !== a.lastStage) {
             a.lastStage = t.stage;
+            if (def.mechanism === 'beam' && t.stage === 'WINDUP')
+                a.direction = { x: Math.sin(this.#yaw + this.#headYaw) * Math.cos(this.#headPitch), y: Math.sin(this.#headPitch), z: Math.cos(this.#yaw + this.#headYaw) * Math.cos(this.#headPitch) };
             this.#emit('animation', def.event, this.#position, { ability: def.id, stage: t.stage, progress: t.progress });
         }
         if (t.stage === 'COOLDOWN' || t.stage === 'DONE') {
@@ -559,12 +650,16 @@ export class TitanEncounter {
             this.#active = null;
             return;
         }
+        if (t.stage === 'WINDUP' && def.mechanism === 'beam') {
+            this.#headYaw = clamp(wrap(Math.atan2(a.direction.x, a.direction.z) - this.#yaw), -.8, .8);
+            this.#headPitch = clamp(Math.atan2(a.direction.y, Math.hypot(a.direction.x, a.direction.z)), -.6, .6);
+            this.#updatePose(0);
+        }
         if (t.stage !== 'ACTIVE')
             return;
         let origin = this.#anchor(def.requires[0]);
         if (def.mechanism === 'beam' && !a.released) {
             a.released = 1;
-            a.direction = { x: Math.sin(this.#yaw + this.#headYaw) * Math.cos(this.#headPitch), y: Math.sin(this.#headPitch), z: Math.cos(this.#yaw + this.#headYaw) * Math.cos(this.#headPitch) };
         }
         if (visible?.id === a.targetId && def.mechanism === 'beam' && this.#withinCone(origin, visible.position, def.cone)) {
             const desired = unit(origin, visible.position), rate = (def.tracking ?? 0) * dt;
@@ -602,9 +697,17 @@ export class TitanEncounter {
             }
         }
         else if (def.mechanism === 'leap' && !a.released) {
+            // Windup deceleration may have moved the body. Validate the actual
+            // launch pose again instead of jumping along a stale safe corridor.
+            const landing = this.#leapDestination(a.aim, def);
+            if (!landing) {
+                this.#active = null;
+                return;
+            }
+            a.aim = landing;
             a.released++;
             this.#vertical = this.species.movement.jumpSpeed;
-            const flight = 2 * this.#vertical / this.species.movement.gravity, travel = Math.min(def.maxRange, distance(this.#position, a.aim), this.species.movement.run * flight), dir = unit(this.#position, a.aim);
+            const flight = 2 * this.#vertical / this.species.movement.gravity, travel = Math.min(def.maxRange, Math.hypot(a.aim.x - this.#position.x, a.aim.z - this.#position.z), this.species.movement.run * flight), dir = unit(this.#position, { ...a.aim, y: this.#position.y });
             this.#jumpVelocity = { x: dir.x * travel / flight, y: 0, z: dir.z * travel / flight };
             this.#airborne = true;
             this.#emit('animation', 'jump', this.#position, { ability: def.id });
@@ -809,7 +912,7 @@ export class TitanEncounter {
     }
     snapshot(): Snapshot {
         const a = this.#active, t = a ? titanTimeline(a.definition, this.#time - a.start) : null;
-        return { encounterId: this.id, time: this.#time, health: this.#health, poseOffsetY: -this.#crouch(), position: { ...this.#position }, velocity: { ...this.#velocity }, yaw: this.#yaw, yawVelocity: this.#yawVelocity, headYaw: this.#headYaw, headPitch: this.#headPitch, gait: this.#gait, gaitRate: this.#gaitRate, feet: structuredClone(this.#feet), limbs: structuredClone(this.#limbs), tactic: this.#tactic, locomotion: this.#health <= 0 ? 'defeat' : this.#airborne ? 'jump' : a?.definition.mechanism === 'charge' && t?.stage === 'ACTIVE' ? 'charge' : this.#tactic === 'recover' ? 'recover' : Math.abs(this.#lateralSpeed) > 1 ? 'sidestep' : Math.abs(this.#speed) > this.species.movement.walk ? 'run' : Math.abs(this.#speed) > .1 ? 'walk' : 'idle', ability: a && t ? { id: a.definition.id, eventId: `${this.id}:attack:${a.serial}`, stage: t.stage, progress: t.progress, animation: a.definition.animation, heldObject: a.debris && t && ['WARNING', 'WINDUP'].includes(t.stage) ? { id: a.debris.id, radius: a.debris.radius, position: { x: a.debris.position.x + (this.#anchor(a.definition.requires[0]).x - a.debris.position.x) * Math.min(1, (this.#time - a.start) / a.definition.warning), y: a.debris.position.y + (this.#anchor(a.definition.requires[0]).y - a.debris.position.y) * Math.min(1, (this.#time - a.start) / a.definition.warning), z: a.debris.position.z + (this.#anchor(a.definition.requires[0]).z - a.debris.position.z) * Math.min(1, (this.#time - a.start) / a.definition.warning) } } : undefined, comboDepth: a.combo, origin: this.#anchor(a.definition.requires[0]), direction: { ...a.direction }, beamLength: a.definition.mechanism === 'beam' ? a.definition.maxRange * (this.#env.obstruction(this.#anchor(a.definition.requires[0]), { x: this.#anchor(a.definition.requires[0]).x + a.direction.x * a.definition.maxRange, y: this.#anchor(a.definition.requires[0]).y + a.direction.y * a.definition.maxRange, z: this.#anchor(a.definition.requires[0]).z + a.direction.z * a.definition.maxRange }, a.definition.radius) ?? 1) : undefined } : null, projectiles: this.#shots.filter(v => v.live).map(v => ({ id: v.id, position: { ...v.position }, radius: v.radius, velocity: { ...v.velocity }, ability: v.ability })), events: [...this.#events, ...this.#pendingEvents].map(e => ({ ...e, position: { ...e.position } })) };
+        return { encounterId: this.id, time: this.#time, health: this.#health, poseOffsetY: -this.#crouch(), position: { ...this.#position }, velocity: { ...this.#velocity }, yaw: this.#yaw, yawVelocity: this.#yawVelocity, headYaw: this.#headYaw, headPitch: this.#headPitch, gait: this.#gait, gaitRate: this.#gaitRate, feet: structuredClone(this.#feet), limbs: structuredClone(this.#limbs), tactic: this.#tactic, locomotion: this.#health <= 0 ? 'defeat' : this.#airborne ? 'jump' : a?.definition.mechanism === 'charge' && t?.stage === 'ACTIVE' ? 'charge' : this.#tactic === 'recover' ? 'recover' : Math.abs(this.#lateralSpeed) > 1 ? 'sidestep' : Math.abs(this.#speed) > this.species.movement.walk ? 'run' : Math.abs(this.#speed) > .1 ? 'walk' : 'idle', ability: a && t ? { id: a.definition.id, radius:a.definition.radius, eventId: `${this.id}:attack:${a.serial}`, stage: t.stage, progress: t.progress, animation: a.definition.animation, heldObject: a.debris && t && ['WARNING', 'WINDUP'].includes(t.stage) ? { id: a.debris.id, radius: a.debris.radius, position: { x: a.debris.position.x + (this.#anchor(a.definition.requires[0]).x - a.debris.position.x) * Math.min(1, (this.#time - a.start) / a.definition.warning), y: a.debris.position.y + (this.#anchor(a.definition.requires[0]).y - a.debris.position.y) * Math.min(1, (this.#time - a.start) / a.definition.warning), z: a.debris.position.z + (this.#anchor(a.definition.requires[0]).z - a.debris.position.z) * Math.min(1, (this.#time - a.start) / a.definition.warning) } } : undefined, comboDepth: a.combo, origin: this.#anchor(a.definition.requires[0]), direction: { ...a.direction }, beamLength: a.definition.mechanism === 'beam' ? a.definition.maxRange * (this.#env.obstruction(this.#anchor(a.definition.requires[0]), { x: this.#anchor(a.definition.requires[0]).x + a.direction.x * a.definition.maxRange, y: this.#anchor(a.definition.requires[0]).y + a.direction.y * a.definition.maxRange, z: this.#anchor(a.definition.requires[0]).z + a.direction.z * a.definition.maxRange }, a.definition.radius) ?? 1) : undefined } : null, projectiles: this.#shots.filter(v => v.live).map(v => ({ id: v.id, position: { ...v.position }, radius: v.radius, velocity: { ...v.velocity }, ability: v.ability })), events: [...this.#events, ...this.#pendingEvents].map(e => ({ ...e, position: { ...e.position } })) };
     }
     reset() {
         this.#env.reset?.(this.id);
@@ -855,6 +958,9 @@ export class TitanEncounter {
         this.#recoverUntil = 0;
         this.#misses = 0;
         this.#lastAbility = '';
+        this.#nextTraversal = 0;
+        this.#leapGoal = null;
+        this.#leapPrepareUntil = 0;
         this.#comboDepth = 0;
         this.#comboUntil = 0;
         this.#damageReceipts.clear();

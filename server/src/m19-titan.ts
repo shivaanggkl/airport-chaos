@@ -1,4 +1,4 @@
-import { monsterDamageSites, monsterDebrisOffsets } from '../../shared/m19-environment.mjs';
+import { monsterDamageSites, monsterDebrisOffsets, monsterArena } from '../../shared/m19-environment.mjs';
 import { titanAnchor, titanChain, titanRotateOffset } from '../../shared/titan-pose.mjs';
 import { SpeciesRegistry, standardAbilities, type Species, type Vec } from './titan/definitions.js';
 import { TitanEncounter, type Snapshot, type Environment, type Threat } from './titan/engine.js';
@@ -16,7 +16,7 @@ const balance: Record<string, [
 ]> = { 'fireball-barrage': [20, .9, 4.5], 'energy-beam': [30, 1.5, 15], 'hand-strike': [25, .65, 3.5], 'tail-whip': [25, .85, 5], 'ground-smash': [20, 1.1, 9], 'giant-leap': [25, 1.1, 15], 'charging-rampage': [20, .9, 10], 'debris-throw': [20, 1, 7], 'two-hand-clap': [30, .9, 7], 'roaring-shockwave': [15, 1.2, 11] };
 const phase2 = new Set(['energy-beam', 'ground-smash', 'giant-leap', 'two-hand-clap', 'roaring-shockwave']);
 export const m19Species = new SpeciesRegistry().register({ id: 'dallas-original-titan', model: m19Model.url, lods: m19Model.lods, scale: h, height: h, radius: 330, health: 2500, contactDamage: 25, joints,
-    animations: standardAbilities.map(a => a.animation), movement: { walk: 65, run: 110, chargeSpeed: 140, acceleration: 22, deceleration: 32, turnRate: 25 * Math.PI / 180, turnAcceleration: .32, stepHeight: 24, stride: 260, reverseStride: 45, lateralStride: 70, turnStrideRadius: 900, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true },
+    animations: standardAbilities.map(a => a.animation), movement: { walk: 65, run: 110, chargeSpeed: 140, acceleration: 22, deceleration: 32, turnRate: 25 * Math.PI / 180, turnAcceleration: .32, stepHeight: 24, stride: 260, reverseStride: 45, lateralStride: 50, turnStrideRadius: 900, jumpSpeed: 120, gravity: 40, sidestep: true, independentAim: true, traversalLeap: true },
     senses: { range: 9000, fov: Math.PI * 2 }, personality: 'aggressive', level: 'HARD', arena: { minWidth: 2500, maxSlope: .15 },
     regions: [...volumes, { id: 'mouth', joint: 'mouth', radius: 45, radii: { x: 45, y: 24, z: 48 }, multiplier: 2, stagger: 60, weakDuring: 'energy-beam' }],
     abilities: standardAbilities.map(a => {
@@ -87,7 +87,7 @@ export type DistrictBuilding = {
 export type M19Encounter = {
     attemptId: string;
     playerId: string;
-    pilotId:string;
+    pilotId: string;
     startedAt: number;
     lastTickAt: number;
     lastBroadcastAt: number;
@@ -103,13 +103,15 @@ export type M19Encounter = {
     damageEventSequence: number;
     events: Snapshot['events'];
     disposed: boolean;
+    environmentDamage:boolean;
     debris: Set<string>;
     projectileIds: Set<string>;
     destroyedSites: Set<number>;
 };
-export function createM19Encounter(attemptId: string, playerId: string, startedAt: number, ground: (x: number, z: number) => number, buildings: readonly DistrictBuilding[], health = 2500, species = m19Species): M19Encounter {
-    const probe: Pick<Legacy, 'x' | 'z' | 'motionCell' | 'motionSource' | 'motionBuildings'> = { x: journeyDallas19.monster.x, z: journeyDallas19.monster.z }, debris = new Set<string>(), poseCache = new Map<string, boolean>();
-    const env: Environment = { navigationProbe: 80, bounds: { minX: -9400, maxX: -4200, minZ: -4300, maxZ: -500 }, ground,
+export function createM19Encounter(attemptId: string, playerId: string, startedAt: number, ground: (x: number, z: number) => number, buildings: readonly DistrictBuilding[], health = 2500, species = m19Species,binding?:{geometry:Pick<typeof monsterGeometry,'footX'|'footZ'|'spheres'>;spawn:{x:number;z:number};environmentDamage:boolean}): M19Encounter {
+    const geometry=binding?.geometry??monsterGeometry,joints=species.joints,spawn=binding?.spawn??journeyDallas19.monster;
+    const probe: Pick<Legacy, 'x' | 'z' | 'motionCell' | 'motionSource' | 'motionBuildings'> = { x: spawn.x, z: spawn.z }, debris = new Set<string>(), poseCache = new Map<string, boolean>();
+    const env: Environment = { navigationProbe: 80, bounds: monsterArena, ground,
         traversable: () => true,
         articulate: (limbs, feet, root, yaw, axes) => {
             const subtract = (a: Vec, b: Vec) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }), zero = { x: 0, y: 0, z: 0 };
@@ -123,8 +125,8 @@ export function createM19Encounter(attemptId: string, playerId: string, startedA
                     feet[endName] = pose.end;
                 const upperFrom = subtract(mid, start), upperTo = subtract(pose.joint, start), lowerFrom = subtract(end, mid), lowerIntermediate = titanRotateOffset(lowerFrom, zero, upperFrom, upperTo), lowerTo = subtract(pose.end, pose.joint);
                 const upperRotate = (p: Vec) => titanRotateOffset(p, zero, upperFrom, upperTo), lowerRotate = (p: Vec) => titanRotateOffset(upperRotate(p), zero, lowerIntermediate, lowerTo);
-                for (let i = 0; i < monsterGeometry.spheres.length; i++) {
-                    const v = monsterGeometry.spheres[i];
+                for (let i = 0; i < geometry.spheres.length; i++) {
+                    const v = geometry.spheres[i];
                     if (!v.part.startsWith(prefix))
                         continue;
                     const key = `volume-${i}`, point = titanAnchor(root, yaw, joints[key].position), upper = v.part.includes(upperPart), lower = lowerParts.some(p => v.part.includes(p));
@@ -149,7 +151,7 @@ export function createM19Encounter(attemptId: string, playerId: string, startedA
                 solve(`shoulder-${side}`, `elbow-${side}`, `hand-${side}`, { x: Math.cos(yaw) * sign - Math.sin(yaw) * .2, y: .2, z: -Math.sin(yaw) * sign - Math.cos(yaw) * .2 }, prefix, 'UpperArm', ['Forearm', 'Hand']);
                 solve(`hip-${side}`, `knee-${side}`, `foot-${side}`, { x: Math.sin(yaw), y: 0, z: Math.cos(yaw) }, prefix, 'Thigh', ['Shin']);
             }
-            solve('tail-base', 'tail-mid', 'tail', { x: Math.cos(yaw), y: .15, z: -Math.sin(yaw) }, 'Tail', 'Base', ['Mid', 'Tip']);
+            if(joints.tail)solve('tail-base', 'tail-mid', 'tail', { x: Math.cos(yaw), y: .15, z: -Math.sin(yaw) }, 'Tail', 'Base', ['Mid', 'Tip']);
         },
         poseClear: (from, to, yaw, lift) => {
             probe.x = to.x;
@@ -160,14 +162,14 @@ export function createM19Encounter(attemptId: string, playerId: string, startedA
                 // Existing 24 m conservative surface margin exceeds cell/yaw/lift quantization error.
                 let clear = poseCache.get(key);
                 if (clear === undefined) {
-                    clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift);
+                    clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift,24,geometry);
                     if (clear) {
                         poseCache.set(key, true);
                         if (poseCache.size > 512)
                             poseCache.delete(poseCache.keys().next().value!);
                     }
                     else
-                        clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift, 0);
+                        clear = monsterMotionClear(x, z, m19LegacyYaw(yaw), ground, near, lift, 0,geometry);
                 }
                 if (!clear)
                     return false;
@@ -193,7 +195,7 @@ export function createM19Encounter(attemptId: string, playerId: string, startedA
         },
         takeDebris: (id, p) => {
             for (let i = 0; i < 6; i++) {
-                const key = `${id}:debris:${i}`, x = journeyDallas19.monster.x + monsterDebrisOffsets[i].x, z = journeyDallas19.monster.z + monsterDebrisOffsets[i].z, position = { x, y: ground(x, z) + 22, z };
+                const key = `${id}:debris:${i}`, x = spawn.x + monsterDebrisOffsets[i].x, z = spawn.z + monsterDebrisOffsets[i].z, position = { x, y: ground(x, z) + 22, z };
                 if (!debris.has(key) && Math.hypot(p.x - x, p.y - position.y, p.z - z) < 350) {
                     debris.add(key);
                     return { id: key, position, radius: 22 };
@@ -204,7 +206,7 @@ export function createM19Encounter(attemptId: string, playerId: string, startedA
     const pos = { x: probe.x, y: ground(probe.x, probe.z), z: probe.z };
     const yaw = Math.atan2(journeyDallas19.airborneSpawn.x - pos.x, journeyDallas19.airborneSpawn.z - pos.z);
     const engine = new TitanEncounter(attemptId, species, pos, env, { health, yaw });
-    return { attemptId, playerId,pilotId:playerId, startedAt, lastTickAt: startedAt, lastBroadcastAt: 0, contactAt: 0, lastDamageAt: 0, hitSequence: 0, engine, frame: engine.snapshot(), x: pos.x, z: pos.z, damageSequence: 0, damageEventSequence: 0, events: [], disposed: false, debris, projectileIds: new Set(), destroyedSites: new Set() };
+    return { attemptId, playerId, pilotId: playerId, startedAt, lastTickAt: startedAt, lastBroadcastAt: 0, contactAt: 0, lastDamageAt: 0, hitSequence: 0, engine, frame: engine.snapshot(), x: pos.x, z: pos.z, damageSequence: 0, damageEventSequence: 0, events: [], disposed: false, environmentDamage:binding?.environmentDamage??true, debris, projectileIds: new Set(), destroyedSites: new Set() };
 }
 export function stepM19(e: M19Encounter, position: Vec, velocity: Vec, radius: number, now: number, threats: readonly Threat[] = []) {
     const dt = Math.min(.1, Math.max(0, (now - e.lastTickAt) / 1000));
@@ -214,7 +216,7 @@ export function stepM19(e: M19Encounter, position: Vec, velocity: Vec, radius: n
     e.frame = e.engine.step(dt, [{ id: e.pilotId, encounterId: e.attemptId, authorized: true, alive: true, position, velocity, radius }], threats.slice(0, 32));
     const events = [...e.frame.events];
     for (const event of e.frame.events)
-        if (event.kind === 'environment' && ['projectile-impact', 'landing'].includes(event.type))
+        if (e.environmentDamage&&event.kind === 'environment' && ['projectile-impact', 'landing'].includes(event.type))
             for (let i = 0; i < monsterDamageSites.length; i++) {
                 const site = monsterDamageSites[i];
                 if (!e.destroyedSites.has(i) && Math.abs(event.position.x - site.x) <= site.width / 2 + 40 && Math.abs(event.position.z - site.z) <= site.depth / 2 + 40) {

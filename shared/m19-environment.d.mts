@@ -9,3 +9,5 @@ export const monsterDebrisOffsets: readonly {
     x: number;
     z: number;
 }[];
+
+export const monsterArena:Readonly<{minX:number;maxX:number;minZ:number;maxZ:number}>;
