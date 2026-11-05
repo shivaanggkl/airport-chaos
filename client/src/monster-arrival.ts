@@ -168,6 +168,7 @@ export class MonsterArrivalView {
   }
   setState(state:MonsterStateMessage):void {
     if(this.ending)return;
+    this.setIntroTime(null);
     const oldPhase=this.state?.phase,firstTitan=!!state.titan&&!this.state?.titan;
     if(firstTitan){this.creature.root.position.set(state.x,state.y+(state.titan?.poseOffsetY??0),state.z);this.creature.root.rotation.y=state.yaw;}
     this.state=state;
@@ -226,6 +227,28 @@ export class MonsterArrivalView {
     }
   }
 
+  private introOrigin?: {position: THREE.Vector3; yaw: number};
+  private introTime: number | null = null;
+  private introImpacts = 0;
+  private introDamage = false;
+  /** Presentation only: no encounter state, damage, or reward events. */
+  setIntroTime(seconds: number | null): void {
+    if(!this.crimsonCore || this.state)return;
+    if(seconds!==null&&!this.introOrigin){
+      const root=this.creature.root,site=monsterDamageSites[0]!;
+      this.introOrigin={position:root.position.clone(),yaw:root.rotation.y};
+      // Stage beside the existing destructible downtown block, not miles from the impact.
+      root.position.set(site.x-600,this.creature.groundAt?.(site.x-600,site.z-550)??site.y,site.z-550);
+      root.rotation.y=Math.atan2(600,550);
+    }
+    this.introTime=seconds;
+    (this.creature as AshenWarlordModel).setIntroTime(seconds);
+    if(seconds===null){
+      if(this.introDamage)setDowntownMonsterDamage(false);
+      this.introDamage=false;this.introImpacts=0;
+      if(this.introOrigin){this.creature.root.position.copy(this.introOrigin.position);this.creature.root.rotation.y=this.introOrigin.yaw;this.introOrigin=undefined;}
+    }
+  }
   get introRoot():THREE.Group {return this.creature.root;}
 
   finish(kind:'defeat'|'timeout'):void {
@@ -268,6 +291,18 @@ export class MonsterArrivalView {
         progress:this.swipeAgeMs/monsterHandSwipe.durationMs});
     } else c.setHandSwipe(null);
     c.update(delta,this.camera?this.camera.position.distanceTo(c.root.position):0,this.hitPulse);
+    if(this.introTime!==null&&!this.state&&!this.ending){
+      const impacts=this.introTime>=3.8?2:this.introTime>=1.55?1:0;
+      if(impacts>this.introImpacts){
+        this.introImpacts=impacts;
+        // Use the animated fist for contact dust, and existing reversible city debris.
+        if((c as AshenWarlordModel).handPosition('right',this.mouthWorld))
+          this.particles.emit(this.mouthWorld.x,this.mouthWorld.y,this.mouthWorld.z,true,24,170,2);
+        for(const site of monsterDamageSites)
+          this.particles.emit(site.x,site.y+30,site.z,true,10,100,2);
+        this.introDamage=true;setDowntownMonsterDamage(true);this.onDestruction?.();
+      }
+    }
     const windup=this.state?.phase==='windup'&&!this.ending;
     const power=this.state?.titan?.ability?.id;
     this.mouthFire.visible=Boolean((windup&&(!this.state?.titan||['energy-beam','fireball-barrage','roaring-shockwave'].includes(power??'')))||this.environmentDamage&&this.ending==='timeout');
@@ -316,6 +351,7 @@ export class MonsterArrivalView {
     this.particles.update(delta,this.camera,this.pixelHeight());
   }
   dispose():void {
+    this.setIntroTime(null);
     this.scene.remove(...this.rubble);this.rubble=[];
     this.scene.remove(this.beam,this.wave,this.roar);this.roarGeometry.dispose();this.titanEvents.clear();this.beamGeometry.dispose();this.beamMaterial.dispose();this.waveGeometry.dispose();this.waveMaterial.dispose();
     if(this.damagedDowntown)setDowntownMonsterDamage(false);

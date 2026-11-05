@@ -368,3 +368,18 @@ test('M19 city-only movement crosses scenery and steep terrain but never escapes
     }
     assert(e.frame.position.z< -23000,'must cross internal scenery and terrain changes to the city edge');disposeM19(e);
 });
+
+test('M19 cinematic plays supplied punches and clears back to idle without authoritative combat', async () => {
+    const character = new AshenWarlordModel(source);
+    await character.ready;
+    const idle = new THREE.Vector3(), strike = new THREE.Vector3(), restored = new THREE.Vector3();
+    character.setIntroTime(0); character.update(0,0,0);
+    assert(character.handPosition('right',idle));
+    character.setIntroTime(1.55); character.update(0,0,0);
+    assert(character.handPosition('right',strike));
+    assert(strike.distanceTo(idle)>100,'the authored fist must visibly move during the downtown strike');
+    character.setIntroTime(null); character.update(0,0,0);
+    assert(character.handPosition('right',restored));
+    assert(restored.distanceTo(idle)<.01,'skip/handoff must restore idle, not leave a punching pose');
+    character.dispose();
+});

@@ -34,6 +34,8 @@ export class AshenWarlordModel {
     private endingTime = 0;
     private fallback = 'idle';
     private clock = 0;
+    private introTime: number | null = null;
+    setIntroTime(seconds: number | null): void { this.introTime = seconds; }
     private flash = 0;
     private grounded = [true, true];
     private footAt = [-10, -10];
@@ -132,6 +134,14 @@ export class AshenWarlordModel {
             this.endingTime += dt;
             const clip = model.clips.idle!;
             this.apply({clip:clip.name,time:this.endingTime%clip.duration,blend:1,offsetY:0});
+        }
+        else if (this.introTime !== null && !this.frame) {
+            // Two full authored strikes, with a short idle lead-in and recovery.
+            const t=this.introTime, punch=model.clips.punch!, idle=model.clips.idle!;
+            const strike=t>=.45&&t<4.95;
+            const local=(t-.45)%punch.duration;
+            const blend=strike?Math.min(1,local/.2,(punch.duration-local)/.2):0;
+            this.apply(strike?{clip:punch.name,time:Math.max(0,local),previousClip:idle.name,previousTime:t%idle.duration,blend,offsetY:0}:{clip:idle.name,time:t%idle.duration,blend:1,offsetY:0});
         }
         else if (a)
             this.apply(a);

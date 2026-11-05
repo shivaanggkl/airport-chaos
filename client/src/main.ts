@@ -4583,6 +4583,7 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
   const view=monsterView;if(!view)return;
   await Promise.all([view.ready,airplane.userData.assetReady]);
   if(monsterView!==view||journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending')return;
+  view.setIntroTime(0);
   missionCombatIntroPath=new CombatMissionIntroPath(view.introRoot,airplane,19);
   cityWorld.updateWorldStreaming?.(view.introRoot.position);
   audioManager.playTone(60,.9,'triangle',.12,30,0,'impacts');
@@ -4631,6 +4632,7 @@ function beginFlightLaunchCinematic(): void {
 }
 
 function clearFlightLaunchPresentation(): void {
+  monsterView?.setIntroTime(null);
   journeyGates?.setCoursePreview(false);
   missionOneIntroPath = undefined;
   missionTwoIntroPath = undefined;
@@ -4707,6 +4709,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     const sweepMs = missionCombatIntroPath ? missionCombatIntroPath.sweepMs : MISSION_ONE_INTRO_SWEEP_MS;
     const durationMs = missionCombatIntroPath ? missionCombatIntroPath.durationMs : MISSION_ONE_INTRO_DURATION_MS;
     const elapsed = now - flightLaunchStartedAt;
+    if(missionCombatIntroPath?.missionNumber===19)monsterView?.setIntroTime(elapsed<6000?elapsed/1000:null);
     const skipped = flightLaunchSkipStartedAt !== undefined;
     const transition = skipped ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS : 0;
     const cutToChase = skipped ? transition >= .5 : elapsed >= sweepMs + 500;
