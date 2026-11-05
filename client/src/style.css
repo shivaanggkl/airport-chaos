@@ -7085,6 +7085,8 @@ html.custom-control-layout #game-root #radar-panel {
   display: block; padding: 0; border: 0; background: transparent; box-shadow: none;
   min-width: 0;
 }
+.home-hangar .menu-card-carousel .home-hangar-mode.is-locked { filter: grayscale(1) brightness(.65); cursor: default; }
+.home-mode-lock { --lock-icon-size: 1.1em; position: absolute; right: 8%; bottom: 10%; left: 8%; display: flex; align-items: center; justify-content: center; gap: .35em; padding: .45em .6em; border: 1px solid #d4d9dd; border-radius: 8px; color: #fff; background: rgb(17 27 39 / 88%); font: 900 clamp(12px, 1.6vw, 18px)/1 var(--font-display); letter-spacing: .06em; text-shadow: 0 1px 2px #111; }
 .home-hangar .menu-card-carousel .home-mode-previous,
 .home-hangar .menu-card-carousel .home-mode-next { top: calc(var(--menu-carousel-top-gap) + var(--menu-carousel-card-height) / 2); }
 .home-hangar .menu-card-carousel .home-mode-previous { left: max(18px, var(--safe-area-left)); }
