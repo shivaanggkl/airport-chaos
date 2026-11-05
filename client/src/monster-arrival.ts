@@ -246,7 +246,7 @@ export class MonsterArrivalView {
         for(const key of ['feet','limbs']as const)for(const [name,p]of Object.entries(to[key])){const q=from[key][name];if(q){q.x+=(p.x-q.x)*w;q.y+=(p.y-q.y)*w;q.z+=(p.z-q.z)*w;}}
         from.position.x=c.root.position.x;from.position.y=c.root.position.y-(to.poseOffsetY??0);from.position.z=c.root.position.z;
         from.yaw=angle(from.yaw,to.yaw);from.headYaw=angle(from.headYaw,to.headYaw);from.headPitch+=(to.headPitch-from.headPitch)*w;
-        if(to.animation){const a=from.animation,b=to.animation;if(a&&a.clip===b.clip&&a.previousClip===b.previousClip){a.time=mixAshenClipTime(a.clip,a.time,b.time,w);a.offsetY+=(b.offsetY-a.offsetY)*w;a.blend+=(b.blend-a.blend)*w;a.previousTime=(a.previousTime??0)+((b.previousTime??0)-(a.previousTime??0))*w;}else from.animation={...b};}
+        if(to.animation){const a=from.animation,b=to.animation;if(a&&a.clip===b.clip&&a.previousClip===b.previousClip){a.time=mixAshenClipTime(a.clip,a.time,b.time,w);a.offsetY+=(b.offsetY-a.offsetY)*w;a.blend+=(b.blend-a.blend)*w;a.previousTime=mixAshenClipTime(b.previousClip??'',a.previousTime??0,b.previousTime??0,w);a.aim=b.aim;if(a.locomotion&&b.locomotion&&a.locomotion.clip===b.locomotion.clip)a.locomotion.time=mixAshenClipTime(b.locomotion.clip,a.locomotion.time,b.locomotion.time,w);else a.locomotion=b.locomotion?{...b.locomotion}:undefined;}else from.animation={...b};}
         from.velocity=to.velocity;from.yawVelocity=to.yawVelocity;from.gait=to.gait;from.gaitRate=to.gaitRate;from.locomotion=to.locomotion;from.ability=to.ability;from.time=to.time;
         c.setTitanPose(from);
       }

@@ -12,12 +12,12 @@
     "walk": {
       "name": "walk.001",
       "duration": 2.375,
-      "stride": 0.7326026782090964
+      "stride": 1.3244394699859992
     },
     "run": {
       "name": "run.001",
       "duration": 1.2916666666666667,
-      "stride": 0.8792704160699302
+      "stride": 2.006800568221086
     },
     "turn": {
       "name": "turn.001",
@@ -65,5 +65,6 @@
     "Removed accumulated hips yaw",
     "Smooth interpolation of existing keyed samples",
     "Red-only emissive mask; original texture preserved"
-  ]
+  ],
+  "gaitCalibration": "Supporting-foot travel sampled from supplied clips; distance-to-phase curves"
 }

@@ -32,6 +32,7 @@ export type Ability = TitanTiming & {
     spread?: number;
     tracking?: number;
     directional?: boolean;
+    horizontalCone?: boolean;
     debris?: boolean;
     unlockBelow?: number;
     pivot?: Vec;
@@ -63,6 +64,7 @@ export type Species = {
         foot?: boolean;
         mirror?: boolean;
     }>>;
+    director?: { commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
     animations: readonly string[];
     movement: {
         walk: number;
@@ -73,6 +75,7 @@ export type Species = {
         turnAcceleration: number;
         stepHeight: number;
         stride: number;
+        runStride?:number;
         reverseStride?: number;
         lateralStride?: number;
         turnStrideRadius?: number;
@@ -128,8 +131,9 @@ export class SpeciesRegistry {
             throw Error('Invalid presentation references');
         if (!s.id || this.#entries.has(s.id) || !s.model || !difficulties[s.level] || positive.some(n => !finite(n) || n <= 0) || s.movement.run < s.movement.walk || !finite(s.senses.fov) || s.senses.fov <= 0 || s.senses.fov > Math.PI * 2 || s.regions.length === 0 || s.abilities.length > 32)
             throw Error('Invalid species');
-        if ([s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration, s.movement.idleBetweenActions].some(n => n !== undefined && (!finite(n) || n <= 0)))
+        if ([s.movement.runStride, s.movement.reverseStride, s.movement.lateralStride, s.movement.turnStrideRadius, s.movement.repositionDistance, s.movement.intentDuration, s.movement.idleBetweenActions].some(n => n !== undefined && (!finite(n) || n <= 0)))
             throw Error('Invalid gait limits');
+        if(s.director&&(!Object.values(s.director).every(n=>finite(n)&&n>0)||s.director.retreatMax<s.director.retreatMin||s.director.facing>Math.PI))throw Error('Invalid combat director');
         if (!s.joints.body)
             throw Error('Missing root body joint');
         if (!['aggressive', 'defensive', 'balanced'].includes(s.personality) || [s.movement.jumpSpeed, s.movement.chargeSpeed, s.movement.stepHeight, s.arena.maxSlope].some(n => !finite(n) || n < 0))
@@ -158,7 +162,7 @@ export class SpeciesRegistry {
                 throw Error('Invalid sweep');
             if (a.mechanism === 'sweep' && a.requires.some(name => {
                 const joint = s.joints[name];
-                return !joint.reach || !joint.angularSpeed || !finite(joint.reach) || !finite(joint.angularSpeed) || joint.angularSpeed <= 0 || a.reach! > joint.reach || Math.abs((a.arcEnd ?? 0) - (a.arcStart ?? 0)) / a.active > joint.angularSpeed;
+                return !joint.reach || !joint.angularSpeed || !finite(joint.reach) || !finite(joint.angularSpeed) || joint.angularSpeed <= 0 || a.reach! > joint.reach || (!a.contactBounds && Math.abs((a.arcEnd ?? 0) - (a.arcStart ?? 0)) / a.active > joint.angularSpeed);
             }))
                 throw Error('Sweep exceeds registered limb capabilities');
             if (a.mechanism === 'leap' && s.movement.jumpSpeed <= 0 || a.mechanism === 'charge' && s.movement.chargeSpeed <= 0)

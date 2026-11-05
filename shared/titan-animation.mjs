@@ -30,13 +30,19 @@ export function quaternionMix(a, b, t, out) { let dot = 0; for (let i = 0; i < 4
     len += out[i] * out[i];
 } len = Math.sqrt(len) || 1; for (let i = 0; i < 4; i++)
     out[i] /= len; return out; }
+/** Restricted additive head/neck tracking shared by authority and renderer. */
+export function applyTitanJointAim(q,yaw,pitch,out){
+ const sy=Math.sin(yaw/2),cy=Math.cos(yaw/2),sx=Math.sin(pitch/2),cx=Math.cos(pitch/2),b=[cy*sx,sy*cx,-sy*sx,cy*cx];
+ const[x,y,z,w]=q;out[0]=w*b[0]+x*b[3]+y*b[2]-z*b[1];out[1]=w*b[1]-x*b[2]+y*b[3]+z*b[0];out[2]=w*b[2]+x*b[1]-y*b[0]+z*b[3];out[3]=w*b[3]-x*b[0]-y*b[1]-z*b[2];return out;
+}
+export const titanLocomotionNode=name=>/LeftUpLeg|RightUpLeg|LeftLeg|RightLeg|LeftFoot|RightFoot|LeftToe|RightToe/.test(name);
 function matrix(p, q, s, out) { const [x, y, z, w] = q, x2 = x + x, y2 = y + y, z2 = z + z, xx = x * x2, xy = x * y2, xz = x * z2, yy = y * y2, yz = y * z2, zz = z * z2, wx = w * x2, wy = w * y2, wz = w * z2; out.set([(1 - yy - zz) * s[0], (xy + wz) * s[0], (xz - wy) * s[0], 0, (xy - wz) * s[1], (1 - xx - zz) * s[1], (yz + wx) * s[1], 0, (xz + wy) * s[2], (yz - wx) * s[2], (1 - xx - yy) * s[2], 0, p[0], p[1], p[2], 1]); }
 function multiply(a, b, o) { for (let c = 0; c < 4; c++)
     for (let r = 0; r < 4; r++)
         o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; }
 export function transformTitanPoint(matrix, p) { return { x: matrix[0] * p[0] + matrix[4] * p[1] + matrix[8] * p[2] + matrix[12], y: matrix[1] * p[0] + matrix[5] * p[1] + matrix[9] * p[2] + matrix[13], z: matrix[2] * p[0] + matrix[6] * p[1] + matrix[10] * p[2] + matrix[14] }; }
 export class TitanAnimationSampler {
-    constructor(asset) { this.asset = asset; const make = () => asset.nodes.map(n => ({ position: Float64Array.from(n.position), rotation: Float64Array.from(n.rotation), scale: Float64Array.from(n.scale) })); this.a = make(); this.b = make(); this.local = asset.nodes.map(() => new Float64Array(16)); this.world = asset.nodes.map(() => new Float64Array(16)); this.skin = asset.joints.map(() => new Float64Array(16)); this.q = new Float64Array(4); }
+    constructor(asset) { this.asset = asset; const make = () => asset.nodes.map(n => ({ position: Float64Array.from(n.position), rotation: Float64Array.from(n.rotation), scale: Float64Array.from(n.scale) })); this.a = make(); this.b = make();this.c=make(); this.local = asset.nodes.map(() => new Float64Array(16)); this.world = asset.nodes.map(() => new Float64Array(16)); this.skin = asset.joints.map(() => new Float64Array(16)); this.q = new Float64Array(4); }
     sampleClip(name, time, poses) { const a = this.asset, clip = a.clips[name]; if (!clip)
         throw Error('Unknown authored animation ' + name); for (let i = 0; i < a.nodes.length; i++)
         for (const key of ['position', 'rotation', 'scale'])
@@ -57,7 +63,7 @@ export class TitanAnimationSampler {
                 out[j] = v[lo * width + j] * (1 - t) + v[hi * width + j] * t;
     } }
     evaluate(frame) { this.sampleClip(frame.clip, frame.time, this.a); if (frame.previousClip && frame.blend < 1)
-        this.sampleClip(frame.previousClip, frame.previousTime ?? 0, this.b); for (const i of this.asset.order) {
+        this.sampleClip(frame.previousClip, frame.previousTime ?? 0, this.b); if(frame.locomotion)this.sampleClip(frame.locomotion.clip,frame.locomotion.time,this.c); for (const i of this.asset.order) {
         const p = this.a[i];
         if (frame.previousClip && frame.blend < 1) {
             const b = this.b[i], t = frame.blend;
@@ -66,6 +72,8 @@ export class TitanAnimationSampler {
                     p[key][j] = b[key][j] * (1 - t) + p[key][j] * t;
             quaternionMix(b.rotation, p.rotation, t, p.rotation);
         }
+        if(frame.locomotion){if(titanLocomotionNode(this.asset.nodes[i].name)){p.position.set(this.c[i].position);p.rotation.set(this.c[i].rotation);}else if(/Hips$/.test(this.asset.nodes[i].name)){p.position.set(this.c[i].position);p.rotation.set(this.c[i].rotation);}}
+        const aim=frame.aim?.find(a=>a.node===i);if(aim)applyTitanJointAim(p.rotation,aim.yaw,aim.pitch,p.rotation);
         matrix(p.position, p.rotation, p.scale, this.local[i]);
         const parent = this.asset.parents[i];
         if (parent < 0)
@@ -84,3 +92,17 @@ export class TitanAnimationSampler {
         z += w * (m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]);
     } return { x, y, z }; }
 }
+
+/** Offline calibration from the backwards travel of the supporting authored foot.
+ * Imported Mixamo root translation is not assumed to match retargeted leg length. */
+export function calibrateTitanGait(asset,clipName,feet){
+ const sampler=new TitanAnimationSampler(asset),duration=asset.clips[clipName].duration,n=128,poses=[];
+ for(let i=0;i<=n;i++){sampler.evaluate({clip:clipName,time:duration*i/n,blend:1,offsetY:0});poses.push(feet.map(node=>({y:sampler.world[node][13],z:sampler.world[node][14]})));}
+ const rates=[];
+ for(let i=1;i<=n;i++){const a=poses[i-1],b=poses[i],loA=Math.min(...a.map(p=>p.y)),loB=Math.min(...b.map(p=>p.y));const v=b.map((p,k)=>p.y<loB+.015&&a[k].y<loA+.015?Math.max(0,(a[k].z-p.z)*n):0).filter(v=>v>.05);rates.push(v.length?v.reduce((s,x)=>s+x,0)/v.length:0);}
+ const valid=rates.filter(v=>v>0).sort((a,b)=>a-b),fallback=valid[Math.floor(valid.length/2)]??1;
+ const smooth=rates.map((_,i)=>[-2,-1,0,1,2].reduce((sum,k)=>sum+(rates[(i+k+n)%n]||fallback),0)/5);
+ const stride=smooth.reduce((s,x)=>s+x,0)/n,curve=[0];for(const v of smooth)curve.push(curve.at(-1)+v/n/stride);curve[curve.length-1]=1;
+ return{stride,distanceCurve:curve};
+}
+export function titanGaitTime(clip,distancePhase){const p=(distancePhase%1+1)%1,c=clip.distanceCurve;if(!c)return p*clip.duration;let lo=0,hi=c.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(c[m]>p)hi=m;else lo=m;}return(lo+(p-c[lo])/Math.max(1e-9,c[hi]-c[lo]))/(c.length-1)*clip.duration;}

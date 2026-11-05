@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { readTitanAnimationAsset, TitanAnimationSampler } from '../shared/titan-animation.mjs';
+import { readTitanAnimationAsset, TitanAnimationSampler, calibrateTitanGait } from '../shared/titan-animation.mjs';
 const root = new URL('../', import.meta.url), source = process.argv[2] ?? '/Users/shiva/Downloads/ashen-warlord-m19.glb', original = fs.readFileSync(source), jsonLength = original.readUInt32LE(12), json = JSON.parse(original.subarray(20, 20 + jsonLength)), bin = Buffer.from(original.subarray(28 + jsonLength));
 const hips = json.nodes.findIndex(n => n.name === 'mixamorig:Hips'), base = json.nodes[hips], baseYaw = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(...base.rotation), 'YXZ').y;
 function values(i) { const a = json.accessors[i], b = json.bufferViews[a.bufferView]; return new Float32Array(bin.buffer, bin.byteOffset + (b.byteOffset ?? 0) + (a.byteOffset ?? 0), a.count * (a.type === 'VEC3' ? 3 : 4)); }
@@ -116,14 +116,7 @@ for (const [key, vs] of grouped) {
 }
 const map = { idle: 'standing_relax.001', walk: 'walk.001', run: 'run.001', turn: 'turn.001', punch: 'box_01.001', roar: 'angry_03.001', jump: 'jump.001', landing: 'jump_down.001', clap: 'clap.001', charge: 'cast_a_spell.001', shoot: 'shoot.001', hit: 'hit_to_body_01.001', defeat: 'defeat_02.001' };
 const clips = Object.fromEntries(Object.entries(map).map(([k, name]) => [k, { name, duration: asset.clips[name].duration }]));
-for (const key of ['walk', 'run']) {
-    const c = clips[key], zs = [];
-    for (let t = 0; t < c.duration; t += 1 / 60) {
-        sampler.evaluate({ clip: c.name, time: t, blend: 1, offsetY: 0 });
-        zs.push(sampler.world[boneNodes['foot-left']][14]);
-    }
-    c.stride = Math.max(.12, (Math.max(...zs) - Math.min(...zs)) * 2);
-}
+for(const key of ['walk','run'])Object.assign(clips[key],calibrateTitanGait(asset,clips[key].name,[boneNodes['foot-left'],boneNodes['foot-right']]));
 // Offline contact bake: sample the actual skinned surface, not an invented floor/foot pose.
 const supportIds=new Set(supports.map(v=>v.index));for(const clip of Object.values(clips))for(let frame=0;frame<=16;frame++){sampler.evaluate({clip:clip.name,time:clip.duration*frame/16,blend:1,offsetY:0});let low=Infinity,lowest;for(const v of points){const y=sampler.point(v).y;if(y<low){low=y;lowest=v;}}if(lowest&&!supportIds.has(lowest.index)){supports.push(lowest);supportIds.add(lowest.index);}}
 const attackBounds = {};
@@ -148,5 +141,5 @@ fs.writeFileSync(new URL('shared/ashen-warlord-model.mjs', root), '// Supplied M
 sampler.evaluate(reference);
 const geometry = { sourceHeight: 1, footHeight: anchors['foot-left'][1], footX: Math.abs(anchors['foot-left'][0]), footZ: -anchors['foot-left'][2], spheres: regions.map((r, i) => { const m = sampler.world[r.node], p = new THREE.Vector3(...r.offset).applyMatrix4(new THREE.Matrix4().fromArray(m)); return { part: r.part + '0', x: -p.x, y: p.y - lower, z: -p.z, radius: Math.max(...r.radii), radii: { x: Math.hypot(m[0]*r.radii[0],m[4]*r.radii[1],m[8]*r.radii[2]), y: Math.hypot(m[1]*r.radii[0],m[5]*r.radii[1],m[9]*r.radii[2]), z: Math.hypot(m[2]*r.radii[0],m[6]*r.radii[1],m[10]*r.radii[2]) } }; }) };
 fs.writeFileSync(new URL('shared/ashen-warlord-geometry.mjs', root), '// Source-mesh body regions used for conservative navigation; damage follows animated bones.\nexport const ashenWarlordGeometry=Object.freeze(' + JSON.stringify(geometry) + ');\n');
-fs.writeFileSync(new URL('assets/ashen-warlord/source-manifest.json', root), JSON.stringify({ sourceFile: source.split('/').at(-1), sourceSha256: crypto.createHash('sha256').update(original).digest('hex'), runtimeSha256: crypto.createHash('sha256').update(bytes).digest('hex'), triangles: 42179, bones: 65, clips, changes: ['In-place horizontal root translation', 'Removed accumulated hips yaw', 'Smooth interpolation of existing keyed samples', 'Red-only emissive mask; original texture preserved'] }, null, 2) + '\n');
+fs.writeFileSync(new URL('assets/ashen-warlord/source-manifest.json', root), JSON.stringify({ sourceFile: source.split('/').at(-1), sourceSha256: crypto.createHash('sha256').update(original).digest('hex'), runtimeSha256: crypto.createHash('sha256').update(bytes).digest('hex'), triangles: 42179, bones: 65, clips:Object.fromEntries(Object.entries(clips).map(([key,{distanceCurve,...clip}])=>[key,clip])), gaitCalibration:'Supporting-foot travel sampled from supplied clips; distance-to-phase curves', changes: ['In-place horizontal root translation', 'Removed accumulated hips yaw', 'Smooth interpolation of existing keyed samples', 'Red-only emissive mask; original texture preserved'] }, null, 2) + '\n');
 console.log(JSON.stringify({ bytes: bytes.length, corePoints: coreSupport.length, supportPoints: supports.length, regions: regions.length, clips }));

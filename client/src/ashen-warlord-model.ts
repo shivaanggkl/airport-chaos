@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { ashenWarlordModel as model } from '../../shared/ashen-warlord-model.mjs';
 import type { TitanPresentation } from '../../shared/titan-pose.mjs';
+import{applyTitanJointAim,titanLocomotionNode}from '../../shared/titan-animation.mjs';
 import type { AuthoredAnimation } from '../../shared/titan-animation.mjs';
 let cached: Promise<GLTF> | undefined;
 const load = () => cached ??= new GLTFLoader().loadAsync(model.url).catch(error => { cached = undefined; throw error; });
@@ -20,6 +21,9 @@ export class AshenWarlordModel {
     private instance?: THREE.Group;
     private mesh?: THREE.SkinnedMesh;
     private mixer?: THREE.AnimationMixer;
+    private aimBones:{node:number;bone:THREE.Object3D;base:THREE.Quaternion}[]=[];
+    private aimInput=new Float64Array(4);
+    private aimOutput=new Float64Array(4);
     private actions = new Map<string, THREE.AnimationAction>();
     private materials: THREE.MeshStandardMaterial[] = [];
     private frame: TitanPresentation | null = null;
@@ -45,12 +49,16 @@ export class AshenWarlordModel {
         action.play();
         action.enabled = false;
         this.actions.set(clip.name, action);
-    } for (const c of Object.values(model.clips))
+        const lower=(track:THREE.KeyframeTrack)=>titanLocomotionNode(track.name)||/Hips\.(position|quaternion)$/.test(track.name);
+        for(const [suffix,tracks]of [['#upper',clip.tracks.filter(t=>!lower(t))],['#lower',clip.tracks.filter(lower)]]as const){const variant=new THREE.AnimationClip(clip.name+suffix,clip.duration,[...tracks]);const a=this.mixer.clipAction(variant);a.play();a.enabled=false;this.actions.set(variant.name,a);}
+    }
+    for(const key of['neck','head']){const bone=object.getObjectByName(model.bones[key]!);if(bone)this.aimBones.push({node:model.boneNodes[key]!,bone,base:bone.quaternion.clone()});}
+    for (const c of Object.values(model.clips))
         if (!this.actions.has(c.name))
             throw Error('Missing supplied clip ' + c.name); this.apply({ clip: model.clips.idle!.name, time: 0, blend: 1, offsetY: 0 }); }); }
     setTitanPose(frame: TitanPresentation): void { this.frame = frame; }
     setMotion(x: number, z: number, yaw: number, _phase: number, _aimYaw: number, _aimPitch: number): void { if (!this.frame)
-        this.fallback = Math.hypot(x, z) > .5 ? 'run' : Math.abs(yaw) > .015 ? 'turn' : 'idle'; }
+        this.fallback = Math.hypot(x, z) > .5 ? 'walk' : Math.abs(yaw) > .015 ? 'turn' : 'idle'; }
     setJumpProgress(progress: number | null): void { if (!this.frame && progress !== null)
         this.fallback = 'jump'; }
     setHandSwipe(swipe: {
@@ -95,18 +103,24 @@ export class AshenWarlordModel {
         out.addScaledVector(this.temp, 1 / points.length);
     } return true; }
     private apply(a: AuthoredAnimation): void { if (!this.mixer || !this.instance)
-        return; for (const action of this.actions.values()) {
+        return; for(const b of this.aimBones)b.bone.quaternion.copy(b.base);
+        for (const action of this.actions.values()) {
         action.enabled = false;
         action.setEffectiveWeight(0);
-    } const current = this.actions.get(a.clip); if (!current)
+    } const suffix=a.locomotion?'#upper':'';
+        const current = this.actions.get(a.clip+suffix); if (!current)
         throw Error('Unknown authored clip ' + a.clip); current.enabled = true; current.time = a.time; current.setEffectiveWeight(a.previousClip ? Math.max(0, Math.min(1, a.blend)) : 1); if (a.previousClip && a.blend < 1) {
-        const old = this.actions.get(a.previousClip);
+        const old = this.actions.get(a.previousClip+suffix);
         if (old) {
             old.enabled = true;
             old.time = a.previousTime ?? 0;
             old.setEffectiveWeight(1 - a.blend);
         }
-    } this.mixer.update(0); this.instance.position.y = a.offsetY * model.height; this.root.updateMatrixWorld(true); this.mesh?.skeleton.update(); }
+    }
+    if(a.locomotion){const lower=this.actions.get(a.locomotion.clip+'#lower');if(lower){lower.enabled=true;lower.time=a.locomotion.time;lower.setEffectiveWeight(1);}}
+    this.mixer.update(0);
+    for(const b of this.aimBones){b.base.copy(b.bone.quaternion);const aim=a.aim?.find(x=>x.node===b.node);if(aim){b.bone.quaternion.toArray(this.aimInput);applyTitanJointAim(this.aimInput,aim.yaw,aim.pitch,this.aimOutput);b.bone.quaternion.fromArray(this.aimOutput);}}
+    this.instance.position.y = a.offsetY * model.height; this.root.updateMatrixWorld(true); this.mesh?.skeleton.update(); }
     update(dt: number, _distance: number, _hitPulse: number): void {
         if (!this.instance || this.disposed)
             return;
