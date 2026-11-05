@@ -106,7 +106,7 @@ test('Original light-streak geometry is shared by local and remote shots and res
   const start=source.indexOf('const projectileGeometry =');
   const end=source.indexOf('const projectileForward =',start);
   const setup=ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-  const context={THREE,journeyAttempt:undefined as {missionId:string;status:string}|undefined,journeyDallas19:{id:'mission19'},camera:{position:new THREE.Vector3(0,0,300)}};
+  const context={THREE,journeyAttempt:undefined as {missionId:string;status:string}|undefined,journeyDallas19:{id:'mission19'},journeyDallas20:{id:'mission20'},camera:{position:new THREE.Vector3(0,0,300)}};
   const mesh=runInNewContext(`${setup}; ${code('createProjectileMesh')}; globalThis.mesh=createProjectileMesh(); styleMissionProjectile(mesh,true); mesh;`,context) as THREE.Group;
   const glow=mesh.children[0] as THREE.Mesh,core=mesh.children[1] as THREE.Mesh;
   const checkOriginal=()=>{
@@ -127,4 +127,29 @@ test('Original light-streak geometry is shared by local and remote shots and res
   context.journeyAttempt=undefined;
   runInNewContext('styleMissionProjectile(mesh,true);',context);checkOriginal();
   assert.doesNotMatch(source,/bluejayBulletGeometry|updateBluejayTracer|recentlyRemovedShotTypes/);
+});
+
+test('banking aircraft and delayed acknowledgements cannot bend a released local ballistic tracer',()=>{
+  const mesh=new THREE.Group(),direction=new THREE.Vector3(.3,.2,-1).normalize();
+  const projectile={mesh,direction:direction.clone(),speed:1000,local:true,bank:.6,authoritativePosition:new THREE.Vector3(),spawnedAt:0,lastAuthoritativeAt:1000,pendingAge:0};
+  mesh.position.set(10,20,-30);
+  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map([['shot',projectile]]),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[],styleMissionProjectile(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),projectileOrigin:new THREE.Vector3(),showAimQaRay(){},airplane:{rotation:{z:-1.2}},
+    message:{projectileId:'server-shot',ownerId:'self',clientShotId:'shot',position:{x:-200,y:400,z:500},direction:{x:-1,y:0,z:0},speed:1200}};
+  runInNewContext(`${code('addProjectile')};addProjectile(message);`,c);
+  assert(projectile.direction.equals(direction));assert.equal(projectile.speed,1000);
+  assert.deepEqual(mesh.position.toArray(),[10,20,-30],'ack cannot restart the bullet from a new muzzle');
+  const original=mesh.position.clone();
+  Object.assign(c,{aimQaRay:null,aimQaRayUntil:0,maxAuthoritativeProjectileAgeMs:20000,updateMonsterTracerSize(){},assistedShotVisuals:[],pendingTracerLifetime:1});
+  runInNewContext(`${code('updateClientProjectiles')};updateClientProjectiles({projectiles:[{projectileId:'server-shot',position:{x:1000,y:-600,z:-1000},direction:{x:0,y:1,z:0}}]});`,c);
+  assert(projectile.direction.equals(direction));
+  for(let i=0;i<20;i++)runInNewContext(`${code('updateProjectiles')};updateProjectiles(1/60);`,c);
+  const traveled=mesh.position.clone().sub(original);
+  assert(traveled.dot(direction)>0);assert(traveled.clone().cross(direction).length()<1e-6,'all visual corrections stay on the original firing ray');
+});
+
+test('a late ballistic spawn without a prediction keeps its historical server muzzle, never the newly turned aircraft',()=>{
+  const projectile={mesh:new THREE.Group(),direction:new THREE.Vector3(),speed:0,local:false,bank:0,authoritativePosition:new THREE.Vector3(),spawnedAt:0,lastAuthoritativeAt:0,pendingAge:0};
+  const c={THREE,performance:{now:()=>1100},localPlayerId:'self',clientProjectiles:new Map(),predictedProjectiles:new Map(),remotePlayers:new Map(),unrelatedFocusedBot:()=>false,maxClientProjectiles:256,projectilePool:[projectile],styleMissionProjectile(){},scene:new THREE.Scene(),projectileForward:new THREE.Vector3(0,0,-1),showAimQaRay(){},airplane:{rotation:{z:1}},message:{projectileId:'late',ownerId:'self',position:{x:15,y:30,z:45},direction:{x:0,y:0,z:-1},speed:900}};
+  runInNewContext(`${code('addProjectile')};addProjectile(message);`,c);
+  assert.deepEqual(projectile.mesh.position.toArray(),[15,30,45]);
 });

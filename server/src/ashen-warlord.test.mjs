@@ -445,7 +445,7 @@ test('timeout blast expands across downtown, stays through aftermath, and releas
     blast.update(.15,position);assert(blast.root.visible);
     blast.update(3.5,position);
     assert(blast.root.children[0].scale.x>3200,'fireball covers the downtown area');
-    assert(blast.root.children[2].scale.x>=5000,'shockwave reaches surrounding blocks');
+    assert(blast.root.children.at(-1).scale.x>=5000,'shockwave reaches surrounding blocks');
     assert(M19_TIMEOUT.durationMs/1000-M19_TIMEOUT.impactAt>5,'failure results wait for the blast aftermath');
     blast.update(6,position);assert(!blast.root.visible);blast.dispose();assert.equal(scene.children.length,0);
 });
@@ -457,4 +457,35 @@ test('timeout explosion still fires once when downtown was already damaged durin
     view.finish('timeout');for(let i=0;i<100;i++)view.update(.05);
     assert.equal(blasts,1);assert(scene.getObjectByName('m19-downtown-timeout-blast').visible);
     view.dispose();assert.equal(scene.children.length,0);
+});
+
+test('M19 pursues and destroys a stationary DFW runway aircraft using real Dallas obstacles and validated hits',async()=>{
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
+    const {permittedM19Damage}=await import('./m19-titan.js');
+    const ground=loadDallasTerrain(),e=createAshenWarlordEncounter('parked-dfw','pilot',0,ground,loadMonsterDistrictBuildings());
+    const {aircraftHitRadii}=await import('../../shared/remote-aircraft-visual-rules.mjs');
+    const position={x:-22800,y:176.6916544,z:-12300};let damage=0,closest=Infinity,elapsed=0;
+    for(let i=1;i<=1800&&damage<100;i++){
+        elapsed=i*50;stepM19(e,position,{x:0,y:0,z:0},aircraftHitRadii.trainer,elapsed);
+        closest=Math.min(closest,Math.hypot(e.frame.position.x-position.x,e.frame.position.z-position.z));
+        for(const event of e.events)damage+=permittedM19Damage(e,event,elapsed);
+    }
+    assert(closest<500,'boss must close on a grounded target rather than wait outside usable attack range');
+    assert(damage>=100,`parked Bluejay must be vulnerable; received ${damage} HP in ${elapsed} ms`);
+    disposeM19(e);
+});
+
+test('M19 charge warnings do not draw the ground circle',async()=>{
+    const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
+    const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);await view.ready;
+    const e=createAshenWarlordEncounter('circle','pilot',0,()=>135,[]),f=e.frame;
+    view.setState({type:'monsterState',attemptId:e.attemptId,x:f.position.x,y:f.position.y,z:f.position.z,yaw:f.yaw,phase:'windup',hitSequence:0,shots:[],serverNow:0,titan:{...f,ability:{id:'charging-rampage',stage:'WARNING',progress:.2,origin:f.position,direction:{x:0,y:0,z:1},radius:240}}});
+    assert.equal(view.wave.visible,false);view.dispose();disposeM19(e);assert.equal(scene.children.length,0);
+});
+
+test('active M19 runway combat cannot be undone by airport or ground-beacon repairs',()=>{
+    const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+    assert.match(server,/monsterBattleActive=recoveryAttempt\?\.missionId===journeyDallas19.id&&recoveryAttempt.status==='RACING'/);
+    assert.match(server,/if\(monsterBattleActive&&beacon.kind!=='heart'\)continue/);
+    assert.match(server,/if\(monsterBattleActive\)\{airportRepairStays.delete\(playerId\);continue;\}/);
 });

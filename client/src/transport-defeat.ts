@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import {CinematicImpactBlast,cinematicImpactTexture,TRANSPORT_IMPACT_SCALE} from './cinematic-impact';
 
-const IMPACT_SCALE = 3;
+const IMPACT_SCALE = TRANSPORT_IMPACT_SCALE;
 
 type Puff = { sprite: THREE.Sprite; age: number; duration: number; size: number; velocity: THREE.Vector3 };
 
@@ -25,12 +26,10 @@ export class TransportDefeatSequence {
   private readonly inverse = new THREE.Matrix4();
   private readonly corners: THREE.Vector3[] = [];
   private readonly sockets: THREE.Object3D[];
-  private readonly smokeTexture: THREE.CanvasTexture;
-  private readonly fireTexture: THREE.CanvasTexture;
+  private readonly smokeTexture: THREE.DataTexture;
+  private readonly fireTexture: THREE.DataTexture;
   private readonly puffs: Puff[] = [];
-  private readonly flash: THREE.Sprite;
-  private readonly blast: THREE.Sprite[] = [];
-  private readonly ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  private readonly impactBlast:CinematicImpactBlast;
   private readonly contact = new THREE.Vector3();
   onImpact?: () => void;
 
@@ -52,34 +51,18 @@ export class TransportDefeatSequence {
         .applyMatrix4(object.matrixWorld).applyMatrix4(this.inverse));
     });
     this.sockets = [0,1,2,3].map(i=>visibleLevel.getObjectByName(`EngineSmoke_${i}`)).filter((socket):socket is THREE.Object3D=>!!socket);
-    this.smokeTexture=this.texture(false);this.fireTexture=this.texture(true);
+    this.smokeTexture=cinematicImpactTexture(false);this.fireTexture=cinematicImpactTexture(true);
     for(let i=0;i<48;i++){
       const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:this.smokeTexture,color:0x535355,transparent:true,opacity:0,depthWrite:false}));
       sprite.visible=false;this.effects.add(sprite);
       this.puffs.push({sprite,age:0,duration:0,size:0,velocity:new THREE.Vector3()});
     }
-    this.flash=new THREE.Sprite(new THREE.SpriteMaterial({map:this.fireTexture,color:0xffffff,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));
-    this.flash.visible=false;this.effects.add(this.flash);
-    // Fixed billows form a rising stem and rolling cap, sharing the existing textures.
-    for(let i=0;i<18;i++){
-      const billow=new THREE.Sprite(new THREE.SpriteMaterial({map:this.fireTexture,color:0xffcc75,transparent:true,opacity:0,depthWrite:false,toneMapped:false}));
-      billow.visible=false;this.blast.push(billow);this.effects.add(billow);
-    }
-    this.ring=new THREE.Mesh(new THREE.RingGeometry(.8,1,48),new THREE.MeshBasicMaterial({color:0xc5aa7f,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
-    this.ring.rotation.x=-Math.PI/2;this.ring.visible=false;this.effects.add(this.ring);
+    this.impactBlast=new CinematicImpactBlast(IMPACT_SCALE,{fire:this.fireTexture,smoke:this.smokeTexture});
+    this.effects.add(this.impactBlast.root);
     scene.add(this.effects);
   }
   get complete(): boolean { return this.ended; }
   get impacted(): boolean { return this.impactAt>=0; }
-  private texture(fire:boolean): THREE.CanvasTexture {
-    const canvas=document.createElement('canvas');canvas.width=canvas.height=96;
-    const c=canvas.getContext('2d')!;
-    const gradient=c.createRadialGradient(48,48,0,48,48,48);
-    if(fire){gradient.addColorStop(0,'rgba(255,255,225,1)');gradient.addColorStop(.2,'rgba(255,225,90,1)');gradient.addColorStop(.48,'rgba(255,111,15,.85)');gradient.addColorStop(1,'rgba(135,30,0,0)');}
-    else {gradient.addColorStop(0,'rgba(255,255,255,.72)');gradient.addColorStop(.45,'rgba(255,255,255,.5)');gradient.addColorStop(1,'rgba(255,255,255,0)');}
-    c.fillStyle=gradient;c.fillRect(0,0,96,96);
-    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;return texture;
-  }
   private puff(position:THREE.Vector3, dust=false):void{
     const p=this.puffs[this.cursor++%this.puffs.length]!;
     p.sprite.position.copy(position);p.age=0;p.duration=dust?2.2:3.2;p.size=dust?42*IMPACT_SCALE:30;
@@ -108,9 +91,6 @@ export class TransportDefeatSequence {
         this.aircraft.position.y-=clearance;
         this.contact.y=this.terrain(this.contact.x,this.contact.z);
         this.impactAt=this.time;
-        this.flash.position.copy(this.contact).addScaledVector(THREE.Object3D.DEFAULT_UP,45*IMPACT_SCALE);
-        this.ring.position.copy(this.contact);this.ring.position.y+=2*IMPACT_SCALE;
-        this.flash.visible=this.ring.visible=true;
         for(let i=0;i<24;i++)this.puff(this.contact,true);
         this.onImpact?.();
       }
@@ -132,30 +112,7 @@ export class TransportDefeatSequence {
     }
     if(this.impacted){
       const since=this.time-this.impactAt;
-      this.flash.scale.setScalar((160+Math.min(since/.35,1)*740)*IMPACT_SCALE);
-      this.flash.material.opacity=Math.max(0,1-since/1.1);
-      this.flash.visible=since<1.1;
-      this.ring.scale.setScalar((60+since*320)*IMPACT_SCALE);
-      this.ring.material.opacity=Math.max(0,.55-since*.18);
-      this.ring.visible=since<3.1;
-      const rise=1-Math.exp(-since*.8);
-      for(let i=0;i<this.blast.length;i++){
-        const billow=this.blast[i]!;
-        const cap=i>=6, angle=(i-6)*Math.PI/6;
-        const radius=(cap?(90+rise*210):Math.sin(i*2.4)*35)*IMPACT_SCALE;
-        billow.position.copy(this.contact);
-        billow.position.x+=Math.cos(angle)*radius;
-        billow.position.z+=Math.sin(angle)*radius;
-        billow.position.y+=(cap?110+rise*430+Math.sin(angle*3)*35:45+i*(35+rise*35))*IMPACT_SCALE;
-        const size=(cap?100+rise*240:80+rise*95)*IMPACT_SCALE;
-        billow.scale.set(size,size*(cap?.85:1.35),1);
-        const smoke=since>1.25+i*.025;
-        const map=smoke?this.smokeTexture:this.fireTexture;
-        if(billow.material.map!==map){billow.material.map=map;billow.material.needsUpdate=true;}
-        billow.material.color.setHex(smoke?0x665951:0xffbb62);
-        billow.material.opacity=Math.min(1,since*5)*Math.min(1,(5.8-since)/1.6)*.88;
-        billow.visible=since<5.8;
-      }
+      this.impactBlast.update(since,this.contact);
       if(since>=5.8)this.ended=true;
     }
   }
@@ -175,8 +132,7 @@ export class TransportDefeatSequence {
     if(this.disposed)return;this.disposed=true;
     this.ended=true;this.scene.remove(this.effects);
     for(const p of this.puffs)p.sprite.material.dispose();
-    for(const billow of this.blast)billow.material.dispose();
-    this.flash.material.dispose();this.ring.material.dispose();this.ring.geometry.dispose();
+    this.impactBlast.dispose();
     this.smokeTexture.dispose();this.fireTexture.dispose();this.effects.clear();
   }
 }

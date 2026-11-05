@@ -7514,6 +7514,7 @@ function updateRepairStations(now: number): void {
     const maxHealth = maxHealthForAircraft(player.aircraftType);
     const linkedAttemptId = playerJourneyAttempts.get(playerId);
     const recoveryAttempt = linkedAttemptId ? journeyStore.get(player.pilotId, linkedAttemptId) : undefined;
+    const monsterBattleActive=recoveryAttempt?.missionId===journeyDallas19.id&&recoveryAttempt.status==='RACING';
     const doubleActive = recoveryAttempt?.missionId === journeyDallas23.id &&
       (recoveryAttempt.status === 'APPROACH' || recoveryAttempt.status === 'RACING');
     const doubleHeart = doubleActive && recoveryAttempt.doublePhase === 'REPAIR' && recoveryAttempt.heartPosition
@@ -7525,6 +7526,7 @@ function updateRepairStations(now: number): void {
     if (player.health < maxHealth || doubleActive) {
       for (const beacon of doubleActive ? doubleHeart ? [doubleHeart] : []
         : repairsForCity(player.cityId)) {
+        if(monsterBattleActive&&beacon.kind!=='heart')continue;
         if (beacon.kind === 'heart') {
           const heartY = botTerrainHeight(player.cityId, beacon.x, beacon.z) + beacon.altitudeAgl;
           let distance = Math.hypot(player.position.x - beacon.x, player.position.y - heartY, player.position.z - beacon.z);
@@ -7559,6 +7561,7 @@ function updateRepairStations(now: number): void {
         break;
       }
     }
+    if(monsterBattleActive){airportRepairStays.delete(playerId);continue;}
     const airport = groundedAtAirport(player);
     const stay = airportRepairStays.get(playerId);
     if (!airport || player.health >= maxHealth) {

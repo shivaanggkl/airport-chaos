@@ -583,13 +583,15 @@ export class TitanEncounter {
         }
         if (this.#time >= this.#directorUntil || Math.hypot(this.#goal.x - this.#position.x, this.#goal.z - this.#position.z) < this.species.radius * 1.5) {
             const reentry = this.#tactic === 'reengage', angle = Math.atan2(predicted.x - this.#position.x, predicted.z - this.#position.z);
+            const groundApproach=d.groundApproachHeight!==undefined&&t.position.y-this.#env.ground(t.position.x,t.position.z)<=d.groundApproachHeight;
             const flank = reentry ? Math.min(2500, horizontal * .35) * (this.#avoidSign) : 0;
-            const standOff = Math.min(7000, Math.max(1500, Math.abs(t.position.y - this.#anchor('body').y) * 1.2));
+            const standOff = groundApproach?0:Math.min(7000, Math.max(1500, Math.abs(t.position.y - this.#anchor('body').y) * 1.2));
             const goal = this.#boundedGoal(horizontal < standOff && !close.length ? { x: predicted.x - Math.sin(angle) * standOff + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.cos(angle) * standOff - Math.sin(angle) * flank } : { x: predicted.x + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.sin(angle) * flank });
+            if(groundApproach){goal.x+=Math.sin(angle)*this.species.radius*2;goal.z+=Math.cos(angle)*this.species.radius*2;const safe=this.#boundedGoal(goal);goal.x=safe.x;goal.z=safe.z;}
             const route = this.#routeTo(goal);
             this.#directorRoute = route ?? [];
             this.#goal = route?.[0] ?? this.#boundedGoal(predicted);
-            this.#tactic = reentry ? 'reengage' : horizontal < standOff && !close.length ? 'reposition' : horizontal > this.species.height * 2 ? 'intercept' : horizontal > this.species.radius * 2 ? 'hunt' : 'observe';
+            this.#tactic = reentry ? 'reengage' : horizontal < standOff && !close.length ? 'reposition' : horizontal > this.species.height * 2 ? 'intercept' : horizontal > this.species.radius * 2 || groundApproach ? 'hunt' : 'observe';
             this.#directorUntil = this.#time + d.commitment;
         }
         // A traversal jump is useful only when the committed ground leg is blocked.

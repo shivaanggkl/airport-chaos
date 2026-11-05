@@ -2309,7 +2309,6 @@ let transportViewAttemptId="";
 let pendingTransportResultId:string|null=null;
 let transportCollisionAttemptId: string | null = null;
 let crashSequence: CrashSequence | null = null;
-let crashImpactPosition: THREE.Vector3 | null = null;
 let crashPresentationStarted = false;
 let crashPlayerWasVisible = true;
 let crashTrainingResetPending = false;
@@ -2318,7 +2317,6 @@ transportCrashFlash.className = 'transport-crash-flash';
 flightGameRoot.append(transportCrashFlash);
 function resetCrashPresentation(): void {
   crashSequence = null;
-  crashImpactPosition = null;
   crashTrainingResetPending = false;
   transportCrashFlash.style.opacity = '0';
   if (crashPresentationStarted) airplane.visible = crashPlayerWasVisible;
@@ -2326,17 +2324,20 @@ function resetCrashPresentation(): void {
   transportCollisionAttemptId = null;
 }
 function showCrashBlast(sequence: CrashSequence): void {
-  const blast = sequence.surface === 'transport' && crashImpactPosition
-    ? crashImpactPosition : airplane.position.clone().add(new THREE.Vector3(0, 1, 0));
-  createDestructionEffect(blast, aircraftType, 3);
+  // Break up the aircraft the pilot can actually see, not an older remote
+  // contact point that may be buried inside the giant transport.
+  const blast = airplane.position.clone().add(new THREE.Vector3(0, 1, 0));
+  const fragments=createDestructionEffect(blast, aircraftType, 3);
+  if(sequence.surface==='transport')fragments.traverse(object=>{
+    if(object instanceof THREE.Mesh){object.renderOrder=40;const materials=Array.isArray(object.material)?object.material:[object.material];for(const material of materials)material.depthTest=false;}
+  });
   playDestructionSound();
   if (sequence.surface === 'transport') audioManager.playTone(90, 0.55, 'sawtooth', 0.16, 32, 0, 'impacts');
   hapticsManager.emit('failure', `impact-crash:${sequence.attemptId}:${sequence.surface}`);
   airplane.visible = false;
 }
-function beginCrashPresentation(surface: CrashSurface, impactPosition?: THREE.Vector3): void {
-  if (crashed || journeyPreflightActive() || crashSequence) return;
-  crashImpactPosition = impactPosition ?? null;
+function beginCrashPresentation(surface: CrashSurface): void {
+  if ((crashed&&surface!=='transport') || journeyPreflightActive() || crashSequence || crashPresentationStarted) return;
   crashPlayerWasVisible = airplane.visible;
   crashPresentationStarted = true;
   crashSequence = new CrashSequence(journeyAttemptId, surface);
@@ -2914,7 +2915,7 @@ function updateJourneyHud(): void {
   if (breakoutMission) {
     const boss=journeyAttempt.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     monsterBossHud.querySelector('strong')!.textContent=boss.name;
-    if (journeyHudObjective) journeyHudObjective.textContent =journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':journeyAttempt.status==='APPROACH'?'TAKE OFF FROM DFW':'DESTROY THE WARLORD';
+    if (journeyHudObjective) journeyHudObjective.textContent =journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':journeyAttempt.status==='APPROACH'?'TAKE OFF FROM DFW':'DESTROY THE MONSTER';
     if (journeyHudProgress) journeyHudProgress.textContent = '';
     if (journeyHudTarget) journeyHudTarget.hidden = true;
     if(journeyHudTimer){journeyHudTimer.hidden=false;journeyHudTimer.textContent=`MONSTER: ${Math.ceil(journeyAttempt.targetHealth??boss.bossHealth)} / ${boss.bossHealth} HP`;}
@@ -7973,10 +7974,12 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
     : undefined;
   if (message.clientShotId) predictedProjectiles.delete(message.clientShotId);
   const projectile = predicted ?? projectilePool.pop() ?? createProjectileVisual();
-  projectile.direction.set(message.direction.x, message.direction.y, message.direction.z).normalize();
+  // A predicted ballistic tracer already left the firing muzzle. Its ray must not
+  // turn when a delayed acknowledgement arrives after the aircraft has banked.
+  if (!predicted) projectile.direction.set(message.direction.x, message.direction.y, message.direction.z).normalize();
   if (!predicted) projectile.bank = message.ownerId === localPlayerId
     ? airplane.rotation.z : remotePlayers.get(message.ownerId)?.plane.rotation.z ?? 0;
-  projectile.speed = message.speed;
+  if (!predicted) projectile.speed = message.speed;
   projectile.local = message.ownerId === localPlayerId;
   styleMissionProjectile(projectile.mesh, projectile.local);
   projectile.ownerIsBot = ownerIsBot;
@@ -7993,10 +7996,6 @@ function addProjectile(message: Extract<ServerMessage, { type: 'projectileSpawn'
     if (projectileOrigin.dot(projectile.direction) < 0) projectile.authoritativePosition.copy(projectile.mesh.position);
   } else {
     projectile.mesh.position.copy(projectile.authoritativePosition);
-    if (projectile.local) {
-      getCurrentMuzzleTransform(projectile.mesh.position, projectileDirection);
-      projectile.authoritativePosition.copy(projectile.mesh.position);
-    }
   }
   projectile.mesh.quaternion.setFromUnitVectors(projectileForward, projectile.direction);
   projectile.mesh.rotateZ(projectile.bank);
@@ -8012,7 +8011,7 @@ function updateClientProjectiles(message: Extract<ServerMessage, { type: 'projec
     const projectile = clientProjectiles.get(state.projectileId);
     if (!projectile) continue;
     projectile.authoritativePosition.set(state.position.x, state.position.y, state.position.z);
-    projectile.direction.set(state.direction.x, state.direction.y, state.direction.z).normalize();
+    if (!projectile.local) projectile.direction.set(state.direction.x, state.direction.y, state.direction.z).normalize();
     projectile.lastAuthoritativeAt = now;
   }
 }
@@ -8044,11 +8043,12 @@ function updateProjectiles(delta: number): void {
     projectile.mesh.position.addScaledVector(projectile.direction, projectile.speed * delta);
     projectile.authoritativePosition.addScaledVector(projectile.direction, projectile.speed * delta);
     if (projectile.local) {
+      // Reconcile only forward along the original shot ray. A stale server
+      // muzzle/heading must never drag a local tracer sideways or backward.
       projectileOrigin.subVectors(projectile.authoritativePosition, projectile.mesh.position);
-      const backward = projectileOrigin.dot(projectile.direction);
-      if (backward < 0) projectile.authoritativePosition.addScaledVector(projectile.direction, -backward);
-    }
-    projectile.mesh.position.lerp(projectile.authoritativePosition, positionBlend);
+      const forwardCorrection=Math.max(0,projectileOrigin.dot(projectile.direction));
+      projectile.mesh.position.addScaledVector(projectile.direction,forwardCorrection*positionBlend);
+    } else projectile.mesh.position.lerp(projectile.authoritativePosition, positionBlend);
     projectile.mesh.quaternion.setFromUnitVectors(projectileForward, projectile.direction);
     projectile.mesh.rotateZ(projectile.bank);
     updateMonsterTracerSize(projectile.mesh);
@@ -8093,7 +8093,7 @@ function updateProjectiles(delta: number): void {
   }
 }
 
-function createDestructionEffect(position: THREE.Vector3, type: AircraftType, scaleMultiplier = 1): void {
+function createDestructionEffect(position: THREE.Vector3, type: AircraftType, scaleMultiplier = 1): THREE.Group {
   if (destructionEffects.length >= MAX_DESTRUCTION_EFFECTS) {
     const oldest = destructionEffects.shift();
     if (oldest) recycleDestructionEffect(oldest);
@@ -8101,6 +8101,9 @@ function createDestructionEffect(position: THREE.Vector3, type: AircraftType, sc
   let effect = destructionEffectPool.pop();
   if (effect) {
     effect.group.position.copy(position);
+    // Pooled collision effects must not leak foreground rendering to later combat.
+    for(const material of [effect.flashMaterial,effect.fireMaterial,effect.smokeMaterial,effect.debrisMaterial])material.depthTest=true;
+    effect.group.traverse(object=>{if(object instanceof THREE.Mesh)object.renderOrder=0;});
     effect.group.visible = true;
     effect.elapsed = 0;
     effect.scale = (type === 'cargo' ? 1.6 : type === 'fighter' ? 1.12 : type === 'privateJet' ? 1.3 : 0.9) * scaleMultiplier;
@@ -8121,7 +8124,7 @@ function createDestructionEffect(position: THREE.Vector3, type: AircraftType, sc
     }
     scene.add(effect.group);
     destructionEffects.push(effect);
-    return;
+    return effect.group;
   }
   const group = new THREE.Group();
   group.position.copy(position);
@@ -8157,6 +8160,7 @@ function createDestructionEffect(position: THREE.Vector3, type: AircraftType, sc
   }
   scene.add(group);
   destructionEffects.push({ group, flash, flashMaterial, fire, fireMaterial, smoke, smokeMaterial, debrisMaterial, debris, elapsed: 0, scale });
+  return group;
 }
 
 function recycleDestructionEffect(effect: DestructionEffect): void {
@@ -10120,7 +10124,7 @@ function animate(): void {
   if (visualQaInspectionActive && visualQaRouteSpeed) airplane.position.addScaledVector(forward, visualQaRouteSpeed * delta);
   // Airborne encounter spawns wait for their clock; M19 instead permits
   // manual runway takeoff after the shared intro/countdown releases controls.
-  if (!crashed && runStarted && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive() &&
+  if (!crashed && runStarted && !monsterView?.timeoutCinematicActive && !visualQaInspectionActive && !screenplayFlightPaused && !journeyPreflightActive() &&
     !skyDuelUi?.blocksFlightInput() && !airAssaultUi?.blocked() &&
     !transportView?.defeatActive && !transportView?.arrivalActive && !(journeyMode && (journeyAttempt?.missionId===journeyDallas20.id || journeyAttempt?.missionId === journeyDallas07.id || journeyAttempt?.missionId === journeyDallas08.id || journeyAttempt?.missionId === journeyDallas09.id || journeyAttempt?.missionId === journeyDallas10.id || journeyAttempt?.missionId === journeyDallas11.id) &&
     journeyAttempt.status === 'APPROACH')) {
@@ -10147,6 +10151,7 @@ function animate(): void {
   updateDestructionEffects(delta);
   const streamingPosition = missionCombatIntroPath && flightLaunchState === 'active'
     ? missionCombatIntroPath.streamingPosition(performance.now() - flightLaunchStartedAt)
+    : monsterView?.timeoutCinematicActive ? monsterView.timeoutStreamingPosition
     : (transportView?.defeatActive || transportView?.arrivalActive) ? transportView.position : airplane.position;
   if (!portalInTransit && cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(streamingPosition, velocity);
   else if(!portalInTransit)updateOsmCityChunks(streamingPosition);
@@ -10180,7 +10185,7 @@ function animate(): void {
     flightRecap.maxAltitude = Math.max(flightRecap.maxAltitude, altitudeAboveTerrain());
   }
   updateWeapons(delta);
-  if (!portalInTransit && !crashed && runStarted) updatePlayerInteractions();
+  if (!portalInTransit && !crashed && runStarted && !monsterView?.timeoutCinematicActive) updatePlayerInteractions();
   if (!portalInTransit && challengeModeEnabled) updateCheckpointFeedback(delta);
   updateEventVisual();
   cinematicDirector.update(performance.now());
@@ -11370,12 +11375,10 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
   }
   if(message.type==='transportFinal'){if(message.attemptId===journeyAttemptId)transportView?.finish(message.kind);return;}
   if (message.type === 'transportCollision') {
-    if (message.attemptId !== journeyAttemptId || journeyAttempt?.status !== 'RACING' || transportCollisionAttemptId === message.attemptId) return;
+    if (message.attemptId !== journeyAttemptId || !(journeyAttempt?.status==='RACING'||journeyAttempt?.status==='FAILED'&&journeyAttempt.failureReason==='CRASHED') || transportCollisionAttemptId === message.attemptId) return;
     transportCollisionAttemptId = message.attemptId;
-    const impact = new THREE.Vector3(message.position.x, message.position.y, message.position.z);
-    const towardCamera = camera.position.clone().sub(impact);
-    if (towardCamera.lengthSq() > 1) impact.addScaledVector(towardCamera.normalize(), 9);
-    beginCrashPresentation('transport', impact);
+    beginCrashPresentation('transport');
+    if(crashSequence)journeyResultElement.classList.add('hidden');
     localLifeState = 'destroyed';
     health = 0;
     updateHealthDisplay(true);

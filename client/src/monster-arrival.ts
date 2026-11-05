@@ -1,4 +1,4 @@
-import {MonsterCityBlast,M19_TIMEOUT} from './monster-timeout';
+import {MonsterCityBlast,M19_TIMEOUT,M19_CITY_BLAST_SCALE} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 const ashenWarlordHeight=ashenWarlordModel.height;
@@ -152,12 +152,14 @@ export class MonsterArrivalView {
   private readonly endingDestination=new THREE.Vector3();
   static readonly timeoutCinematicMs=M19_TIMEOUT.durationMs;
   get timeoutCinematicActive():boolean{return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
+  get timeoutStreamingPosition():THREE.Vector3{return this.endingElapsed<M19_TIMEOUT.releaseAt?this.creature.root.position:this.endingDestination;}
   /** Camera-only aftermath of a server-confirmed M19 timeout. */
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
     if(!this.crimsonCore||this.ending!=='timeout')return;
     const root=this.creature.root,height=ashenWarlordHeight;
     const t=THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.releaseAt,M19_TIMEOUT.impactAt);
     this.endingLook.copy(this.endingOrigin).lerp(this.endingDestination,t);
+    this.endingLook.y+=THREE.MathUtils.smoothstep(this.endingElapsed-M19_TIMEOUT.impactAt,0,1.5)*210*M19_CITY_BLAST_SCALE;
     this.endingCamera.set(height*.8,height*.3,height*1.1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y).add(this.endingLook);
     const wide=THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.releaseAt,M19_TIMEOUT.impactAt+.4);
     this.mouthWorld.set(this.endingDestination.x+6500,this.endingDestination.y+5500,this.endingDestination.z+9000);
@@ -243,7 +245,7 @@ export class MonsterArrivalView {
     this.roar.visible=Boolean(a?.id==='roaring-shockwave'&&(active||warning));
     if(a?.id==='roaring-shockwave'){this.roar.position.set(a.origin.x,a.origin.y,a.origin.z);this.roar.scale.setScalar((a.radius??1000)*(active ? .4+.6*a.progress : 1));this.roar.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),f.yaw-Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2));}
     const area=a&&['ground-smash','giant-leap','charging-rampage'].includes(a.id);
-    this.wave.visible=Boolean(area&&(active||warning));
+    this.wave.visible=Boolean(!this.crimsonCore&&area&&(active||warning));
     if(area&&a){const radius=a.radius??(a.id==='roaring-shockwave'?1000:a.id==='ground-smash'?450:300);const center=a.landing??(a.id==='ground-smash'?a.origin:f.position);const impact=active&&(!a.landing||a.landed);this.wave.position.set(center.x,(this.creature.groundAt?.(center.x,center.z)??f.position.y)+8,center.z);this.wave.rotation.x=Math.PI/2;this.wave.scale.setScalar(radius*(impact ? .4+.6*a.progress : 1));this.waveMaterial.opacity=impact ? .6*(1-a.progress) : .3;}
     for(const event of f.events??[]){if(this.titanEvents.has(event.id))continue;this.titanEvents.add(event.id);if(this.titanEvents.size>128)this.titanEvents.delete(this.titanEvents.values().next().value!);
       if(event.kind==='environment'){if(this.environmentDamage&&event.type==='destroy-approved-block'){this.damagedDowntown=true;setDowntownMonsterDamage(true);this.onDestruction?.();}const p=event.position;this.particles.emit(p.x,p.y,p.z,true,8,event.type==='landing'?160:65);}

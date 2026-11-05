@@ -545,6 +545,15 @@ function tokenStoreAvailable(): boolean {
     (hubAccount.state !== 'account' || skyTokenCommerceEnabled || stagingTokenStorePreview);
 }
 
+function citySelectionPageTitle(): string {
+  const mode = cityJourneyMode === 'missions' ? 'MISSIONS'
+    : cityJourneyMode === 'multiplayer'
+      ? selectedHomeMultiplayerMode === 'sky' ? 'SKYDUEL'
+        : homeMultiplayerModes.find(mode => mode.id === selectedHomeMultiplayerMode)!.title
+      : 'FREE FLY';
+  return `${mode} · CITY`;
+}
+
 function showAppHeader(active: AppShellActive): void {
   if (entryState === 'PILOT_MENU' && !skyTokenStore.isOpen() && hubPilotMenu.isHubSettingsOpen()) {
     appHeader.hide();
@@ -557,8 +566,8 @@ function showAppHeader(active: AppShellActive): void {
   const pageTitle = skyTokenStore.isOpen() ? 'GET SKY TOKENS'
     : !citySelector.hidden && citySelector.dataset.view === 'multiplayer' ? 'DALLAS MULTIPLAYER'
     : !citySelector.hidden && citySelector.dataset.view === 'time' ? 'CHOOSE TIME'
-    : entryState === 'CITY_SELECTION' ? 'CHOOSE CITY'
-    : entryState === 'MISSION_JOURNEY' ? 'CHOOSE MISSION'
+    : entryState === 'CITY_SELECTION' ? citySelectionPageTitle()
+    : entryState === 'MISSION_JOURNEY' ? `${missionJourneyCity.displayName.toUpperCase()} · MISSIONS`
     : entryState === 'STORE' ? 'STORE'
     : entryState === 'AIRCRAFT' ? 'AIRCRAFT HANGAR'
     : entryState === 'PILOT_MENU' && hubPilotMenu.isSectionOpen('REWARDS') ? 'REWARDS'
@@ -703,6 +712,7 @@ const cityJourneyEntries: readonly CityJourneyEntry[] = Object.freeze([
   { id: 'new-york', title: 'NEW YORK', subtitle: 'COMING SOON', artImage: '/media/cities/new-york-coming-soon.svg', artPosition: 'center' },
 ]);
 let cityJourneyIndex = 0;
+let missionJourneyCity = getCity('dallas')!;
 let cityJourneyLaunching = false;
 let cityJourneyPointer: { id: number; x: number; y: number; dragging: boolean } | undefined;
 let cityJourneyClickBlockedUntil = 0;
@@ -2088,7 +2098,7 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   timeOptions.onwheel = null;
   multiplayerFreeFly.hidden = true;
   cityBack.textContent = 'BACK TO PILOT HUB';
-  citySelectTitle.textContent = 'CHOOSE CITY';
+  citySelectTitle.textContent = citySelectionPageTitle();
   showAppHeader(undefined);
   citySelectDescription.textContent = 'Choose your city.';
   cityOptions.setAttribute('aria-label', cityJourneyMode === 'missions' ? 'Mission cities' : cityJourneyMode === 'multiplayer' ? 'Multiplayer cities' : 'Free Fly cities');
@@ -2108,7 +2118,8 @@ function showSelector(message = '', options: { preferDallas?: boolean; mode?: Ci
   if (menuEntrancesEnabled) celebrateDallasUnlock();
 }
 
-function showMissionJourney(pushHistory = true, refreshProgress = true): void {
+function showMissionJourney(pushHistory = true, refreshProgress = true, city?: CityDefinition): void {
+  if (city) missionJourneyCity = city;
   cityJourneyMode = 'missions';
   try { sessionStorage.setItem(CITY_JOURNEY_MODE_KEY, cityJourneyMode); } catch { /* current mode remains available */ }
   abandonPendingJourneyLaunch();
@@ -2332,7 +2343,7 @@ function chooseCity(city: CityDefinition): void {
     return;
   }
   if (city.id === 'dallas') {
-    showMissionJourney();
+    showMissionJourney(true, true, city);
     return;
   }
   if (cityJourneyMode === 'missions' && city.timePresets.length === 1) {
