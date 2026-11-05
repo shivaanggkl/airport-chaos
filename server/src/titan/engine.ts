@@ -27,6 +27,8 @@ export type Threat = {
 export type AuthoredPoseContext={resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
 export type Environment = {
     authoredPose?:boolean;
+    /** Trusted host policy: scenery cannot confine city-roaming encounters. Combat occlusion remains separate. */
+    navigation?: 'city-bounds';
     bounds: {
         minX: number;
         maxX: number;
@@ -268,9 +270,10 @@ export class TitanEncounter {
     }
     #valid(from: Vec, to: Vec, flightLift?: number) {
         const b=this.#env.bounds,r=this.species.radius,g=this.#env.ground(to.x,to.z);
-        if(!Number.isFinite(g)||to.x<b.minX+r||to.x>b.maxX-r||to.z<b.minZ+r||to.z>b.maxZ-r||
-            (flightLift===undefined&&Math.abs(g-this.#env.ground(from.x,from.z))>this.species.movement.stepHeight+Math.hypot(to.x-from.x,to.z-from.z)*this.species.arena.maxSlope)||
-            !this.#env.traversable(from,to,r,this.species.height)) return false;
+        if(!Number.isFinite(g)||!Number.isFinite(to.x)||!Number.isFinite(to.z)||to.x<b.minX+r||to.x>b.maxX-r||to.z<b.minZ+r||to.z>b.maxZ-r)return false;
+        if(this.#env.navigation==='city-bounds')return true;
+        if((flightLift===undefined&&Math.abs(g-this.#env.ground(from.x,from.z))>this.species.movement.stepHeight+Math.hypot(to.x-from.x,to.z-from.z)*this.species.arena.maxSlope)||
+            !this.#env.traversable(from,to,r,this.species.height))return false;
         if(!this.#env.poseClear)return true;
         if(this.species.director&&flightLift!==undefined){
             // Each point of a ballistic sweep has its own terrain-relative lift.

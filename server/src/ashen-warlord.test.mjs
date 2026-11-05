@@ -338,3 +338,33 @@ test('a receding aircraft triggers running pursuit instead of repeated distant f
 test('M19 victory removes the model without a defeat or roar animation',async()=>{
     const v=new AshenWarlordModel(Promise.resolve(await source));await v.ready;v.finish('defeat');v.update(.1,1000,0);assert.equal(v.root.visible,false);v.dispose();
 });
+
+
+test('M19 can pursue across Dallas in every direction with only the city edge restricting movement',async t=>{
+    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js'),ground=loadDallasTerrain(),buildings=loadMonsterDistrictBuildings();
+    const half=25000,r=ashenWarlordSpecies.radius;
+    for(const [dx,dz]of [[18000,0],[-18000,0],[0,18000],[0,-18000]]){
+        const e=createAshenWarlordEncounter(`city-roam-${dx}-${dz}`,'p',0,ground,buildings),origin={...e.frame.position},target={x:origin.x+dx,y:1800,z:origin.z+dz};
+        let previous=e.frame;
+        for(let i=1;i<=900;i++){
+            stepM19(e,target,{x:0,y:0,z:0},18,i*50);const f=e.frame;
+            assert(Math.abs(f.position.x)<=half-r&&Math.abs(f.position.z)<=half-r);
+            assert(Math.hypot(f.position.x-previous.position.x,f.position.z-previous.position.z)<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'no teleports');
+            assert(Math.abs(f.position.y-ground(f.position.x,f.position.z))<.01,'must remain on terrain');
+            assert.notEqual(f.locomotion,'jump');previous=f;
+        }
+        const remaining=Math.hypot(e.frame.position.x-target.x,e.frame.position.z-target.z);
+        t.diagnostic(JSON.stringify({dx,dz,remaining}));assert(remaining<3500,'must reach the distant player combat area: '+remaining);disposeM19(e);
+    }
+});
+
+test('M19 city-only movement crosses scenery and steep terrain but never escapes Dallas',()=>{
+    const wall=[{minX:-25000,maxX:25000,minZ:-5000,maxZ:-4500,top:6000}];
+    const ground=(x,z)=>z< -7000?800:135;
+    const e=createAshenWarlordEncounter('edge-only','p',0,ground,wall),origin={...e.frame.position};
+    for(let i=1;i<=1600;i++){
+        stepM19(e,{x:origin.x,y:5000,z:-40000},{x:0,y:0,z:0},18,i*50);
+        assert(e.frame.position.z>=-25000+ashenWarlordSpecies.radius);
+    }
+    assert(e.frame.position.z< -23000,'must cross internal scenery and terrain changes to the city edge');disposeM19(e);
+});

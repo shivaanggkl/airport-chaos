@@ -64,5 +64,5 @@ export const ashenWarlordSpecies = new SpeciesRegistry().register({
     })
 });
 export function createAshenWarlordEncounter(id: string, playerId: string, started: number, ground: (x: number, z: number) => number, buildings: readonly DistrictBuilding[], health = 2500) {
-    return createM19Encounter(id, playerId, started, ground, buildings, health, ashenWarlordSpecies, { geometry, spawn: journeyDallas19.monster, environmentDamage: true, articulate: createAshenPose(health), bounds: {minX:-cityHalfSize,maxX:cityHalfSize,minZ:-cityHalfSize,maxZ:cityHalfSize} });
+    return createM19Encounter(id, playerId, started, ground, buildings, health, ashenWarlordSpecies, { geometry, spawn: journeyDallas19.monster, environmentDamage: true, navigation:'city-bounds', articulate: createAshenPose(health), bounds: {minX:-cityHalfSize,maxX:cityHalfSize,minZ:-cityHalfSize,maxZ:cityHalfSize} });
 }
