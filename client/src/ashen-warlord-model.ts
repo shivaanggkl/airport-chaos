@@ -55,7 +55,8 @@ export class AshenWarlordModel {
         const clone = (m: THREE.Material) => { const copy = (m as THREE.MeshStandardMaterial).clone(); this.materials.push(copy); return copy; };
         o.material = Array.isArray(o.material) ? o.material.map(clone) : clone(o.material);
     } }); this.mixer = new THREE.AnimationMixer(object); for (const clip of g.animations) {
-        if(!((this.stationary||this.striking)?(this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
+        // The shoot clip is cinematic-only for M19; combat still uses its four approved motions.
+        if(clip.name!==model.clips.shoot!.name&&!((this.stationary||this.striking)?(this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
         if((this.stationary||this.striking)&&![model.clips.idle!.name,model.clips.turn!.name,...(this.hunting?[model.clips.walk!.name]:[]),...(this.pursuit?[model.clips.run!.name]:[])].includes(clip.name)){const action=this.mixer.clipAction(clip);action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}
         const action = this.mixer.clipAction(clip);
         action.play();
@@ -98,7 +99,7 @@ export class AshenWarlordModel {
     finish(kind: 'defeat' | 'timeout'): void { if (this.ending)
         return; this.endingFrom=this.frame?.animation?{...this.frame.animation}:undefined; this.ending = kind; this.endingTime = 0; if(kind==='defeat'&&!this.stationary&&!this.striking)this.root.visible=false; }
     beginVictory(scene:THREE.Scene):void{
-        if(!this.stationary||this.victory)return;
+        if(this.victory)return;
         this.victory=new MonsterVictory(scene);for(const material of this.materials)this.victory.attach(material);
     }
     mouthPosition(out: THREE.Vector3): boolean { const p = this.frame?.limbs.mouth; if (p) {
@@ -144,8 +145,8 @@ export class AshenWarlordModel {
         let a = this.frame?.animation;
         if (this.ending) {
             this.endingTime += dt;
-            if(this.stationary||this.striking){
-                const key=this.ending==='defeat'?'defeat':'roar',clip=model.clips[key]!;
+            if((this.stationary||this.striking)&&this.ending==='defeat'){
+                const clip=model.clips.defeat!;
                 const t=Math.min(this.endingTime,this.victory?MONSTER_VICTORY.blastSeconds:clip.duration);
                 this.apply({clip:clip.name,time:t,previousClip:this.endingFrom?.clip??model.clips.idle!.name,previousTime:this.endingFrom?.time??this.clock%model.clips.idle!.duration,blend:Math.min(1,this.endingTime/.2),offsetY:0});
                 if(this.mesh){
