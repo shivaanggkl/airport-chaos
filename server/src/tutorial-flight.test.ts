@@ -269,7 +269,9 @@ test('final lesson sends landing intent from valid LANDED transition and clears 
   assert.match(main,/if\(step==='landing'\)\{tutorialLandingIntentPending=undefined;transitionToNextPendingTutorialStep\(\);return true;\}/);
   assert.match(server,/landingReceipts\.delete\(`\$\{playerId\}:\$\{approach\.airportId\}`\)/);
   assert.match(server,/if \(!flight\?\.airborne \|\| telemetry\.speed[\s\S]*landingReceipts\.set\(receiptKey, now\)/);
-  assert.match(server,/player\.tutorialMode && \(telemetry\.speed < aircraft\.stallSpeed \|\| !runwayOrTaxiSpawnArea\(player\)\)/);
+  assert.match(server,/validLandingTelemetry\(telemetryValue, player\.tutorialMode \? 0 : 12\)/);
+  assert.match(server,/!player\.tutorialMode && serverSpeed < 12/);
+  assert.match(server,/player\.tutorialMode && !runwayOrTaxiSpawnArea\(player\)/);
   assert.match(server,/completeServerTutorialStep\(playerId,player,'landing',now\)/);
   const path=join(mkdtempSync(join(tmpdir(),'airport-landing-once-')),'profiles.sqlite');
   const store=new PlayerProfileStore(path);store.getOrCreate('landing-pilot','Pilot');store.setTutorialState('landing-pilot','started');
@@ -367,12 +369,12 @@ test('Dallas missions stay locked for unfinished Milwaukee training, including o
   const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
   assert.match(server,/if \(!dallasUnlocked\) \{ jsonResponse\(response, 403, \{ error: 'Complete Milwaukee training to unlock Dallas\.'/);
   assert.match(server,/requestedJourneyAttemptId && cityId === 'dallas' && !entryProfile\.tutorial\.dallasUnlocked/);
-  assert.match(server,/connectionParams\.get\('launchMode'\) !== 'free-fly' && !skyDuelMode && cityCapabilities\(cityId\)\?\.tutorialEnabled/);
+  assert.match(server,/!portalModeAllowed\(connectionParams\.get\('launchMode'\)\?\?''\) && !skyDuelMode && !airAssaultMode && !soloExploreMode && cityCapabilities\(cityId\)\?\.tutorialEnabled/);
   const entry=readFileSync(new URL('../../client/src/bootstrap.ts',import.meta.url),'utf8');
   assert.match(entry,/const unlocked = cityJourneyMode !== 'missions' \|\| entry\.id !== 'dallas' \|\| dallasUnlocked\(\)/);
   assert.match(entry,/if \(cityJourneyMode === 'missions' && city\.id === 'dallas' && !dallasUnlocked\(\)\)/);
   const flight=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
-  assert.match(flight,/if \(\(launchMode === 'free-fly' \|\| skyDuelMode\) && !trainingRequested\) url\.searchParams\.set\(LAUNCH_MODE_PARAM, launchMode\)/);
+  assert.match(flight,/if \(\(launchMode === 'free-fly' \|\| soloExploreMode \|\| skyDuelMode \|\| airAssaultMode\) && !trainingRequested\) url\.searchParams\.set\(LAUNCH_MODE_PARAM, launchMode\)/);
 });
 
 test('an existing tutorial table migrates without treating unfinished training as complete', () => {

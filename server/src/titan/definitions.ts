@@ -64,7 +64,7 @@ export type Species = {
         foot?: boolean;
         mirror?: boolean;
     }>>;
-    director?: { commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
+    director?: { combatDistance?: number; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
     animations: readonly string[];
     movement: {
         walk: number;

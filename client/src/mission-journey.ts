@@ -1,3 +1,4 @@
+import { observeMissionCopyFit } from './fit-mission-copy';
 import './mission-journey.css';
 import './context-page-shell.css';
 import { hapticsManager } from './haptics-manager';
@@ -100,6 +101,7 @@ export class MissionJourney {
         <button type="button" class="context-action context-action--gold mission-journey-play" data-mission-play disabled>PLAY MISSION ▶</button>
       </div>`;
     this.detail = element.querySelector('.mission-journey-detail')!;
+    observeMissionCopyFit(this.detail.querySelector<HTMLElement>('.mission-journey-detail-copy')!,'[data-mission-title]','[data-mission-objective]');
     const viewport = element.querySelector<HTMLElement>('.mission-journey-viewport')!;
     viewport.addEventListener('pointerdown', event => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;

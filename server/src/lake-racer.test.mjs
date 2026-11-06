@@ -5,7 +5,7 @@ import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 
 const lake = { x: 5_200, z: -8_500 };
 
-test('Lake Racer is a separate forward course near White Rock Lake', () => {
+test('Lake Racer is a separate East Dallas course near White Rock Lake', () => {
   assert.equal(journeyDallas02.gates.length, 10);
   assert.equal(journeyDallas02.timeLimitMs, 150_000);
   assert.equal(journeyDallas02.firstClearCredits, 350);
@@ -17,12 +17,12 @@ test('Lake Racer is a separate forward course near White Rock Lake', () => {
     assert.ok(Math.abs(points[i].x) <= 23_000 && Math.abs(points[i].z) <= 23_000, `world margin at gate ${i}`);
   }
   const spawn = authorizedJourneyAirborneSpawn({ missionId: journeyDallas02.id, status: 'APPROACH' }, journeyDallas02, () => 180);
-  assert.equal(spawn.position.y, 870);
+  assert.equal(spawn.position.y, 180 + journeyDallas02.airborneSpawn.altitude);
   assert.equal(authorizedJourneyAirborneSpawn({ missionId: journeyDallas01.id, status: 'APPROACH' }, journeyDallas02, () => 180), undefined);
   assert.equal(authorizedJourneyAirborneSpawn({ missionId: journeyDallas02.id, status: 'FAILED' }, journeyDallas02, () => 180), undefined);
 });
 
-test('each Lake Racer gate accepts only a forward swept crossing through its opening', () => {
+test('each Lake Racer gate accepts a swept crossing from either side through its opening', () => {
   const gates = journeyDallas02.gates;
   for (let i = 0; i < gates.length; i += 1) {
     const gate = gates[i];
@@ -33,7 +33,7 @@ test('each Lake Racer gate accepts only a forward swept crossing through its ope
     const from = { x: gate.x - nx * 100, y: 180 + gate.altitude, z: gate.z - nz * 100 };
     const to = { x: gate.x + nx * 100, y: 180 + gate.altitude, z: gate.z + nz * 100 };
     assert.equal(journeyGateCrossing(from, to, i, 180, journeyDallas02), 'VALID', `gate ${i + 1}`);
-    assert.equal(journeyGateCrossing(to, from, i, 180, journeyDallas02), false, `reverse gate ${i + 1}`);
+    assert.equal(journeyGateCrossing(to, from, i, 180, journeyDallas02), 'VALID', `reverse gate ${i + 1}`);
     const miss = { ...from, x: from.x - nz * gate.radius * 2, z: from.z + nx * gate.radius * 2 };
     const missTo = { ...to, x: to.x - nz * gate.radius * 2, z: to.z + nx * gate.radius * 2 };
     assert.equal(journeyGateCrossing(miss, missTo, i, 180, journeyDallas02), false, `outside gate ${i + 1}`);

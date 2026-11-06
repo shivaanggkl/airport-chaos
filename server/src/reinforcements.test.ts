@@ -36,17 +36,17 @@ test('Mission 9 reinforcements enter the forward view and converge outside the t
     (left.z - transport.z) * (right.z - transport.z) < 0);
 });
 
-test('Mission 9 preserves its reward and uses a 5:30 transport route with four specified escorts', () => {
-  assert.equal(journeyDallas09.name, 'REINFORCEMENTS');
+test('Mission 9 preserves its reward and uses a 5:30 transport route with three specified escorts', () => {
+  assert.equal(journeyDallas09.name, 'GIANT PLANE & THREE ESCORTS');
   assert.equal(journeyDallas09.firstClearCredits, 1_050);
   assert.equal(journeyDallas09.bossHealth, 2_000);
   assert.equal(journeyDallas09.timeLimitMs, 330_000);
-  assert.equal(journeyDallas09.escortCount, 4);
-  assert.equal(journeyDallas09.initialEscortCount, 2);
-  assert.deepEqual(journeyDallas09.escortHealth, [75, 125, 175, 225]);
-  assert.deepEqual(journeyDallas09.escortAircraft, ['trainer', 'cargo', 'privateJet', 'privateJet']);
-  assert.deepEqual(journeyDallas09.escortLiveries, ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'nightowl-royal-violet']);
-  for (let i = 0; i < 4; i++) {
+  assert.equal(journeyDallas09.escortCount, 3);
+  assert.equal(journeyDallas09.initialEscortCount, 3);
+  assert.deepEqual(journeyDallas09.escortHealth, [75, 125, 175]);
+  assert.deepEqual(journeyDallas09.escortAircraft, ['trainer', 'cargo', 'privateJet']);
+  assert.deepEqual(journeyDallas09.escortLiveries, ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest']);
+  for (let i = 0; i < 3; i++) {
     const cosmetic = cosmeticCatalog.find(item => item.id === journeyDallas09.escortLiveries[i]);
     assert.equal(cosmetic?.aircraftRestriction, journeyDallas09.escortAircraft[i]);
   }
@@ -132,17 +132,29 @@ test('Mission 9 unlock, first clear, replay, timeout and wallet remain server-ow
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'replacement', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'mammoth', 2)?.secondaryTargetId, 'mammoth');
     assert.equal(store.hitTransport('pilot', first.attemptId, 3_000, 1_300)?.monsterHealth, 700);
-    assert.equal(store.hitTransport('pilot', first.attemptId, 3_100, 700)?.status, 'COMPLETED');
+    assert.equal(store.hitTransport('pilot', first.attemptId, 3_100, 700)?.status, 'RACING');
+    store.assignRearGuardEscort('pilot',first.attemptId,'third',3);
+    for(const id of ['bluejay','mammoth'])assert.equal(store.recordRearGuardKill('pilot',first.attemptId,id,3_110)?.status,'RACING');
+    assert.equal(store.recordRearGuardKill('pilot',first.attemptId,'bluejay',3_111),undefined);
+    assert.equal(new JourneyAttemptStore(path).recordRearGuardKill('pilot',first.attemptId,'third',3_112)?.status,'COMPLETED');
     assert.equal(store.hitTransport('pilot', first.attemptId, 3_200, 25), undefined);
     assert.equal(store.progress('pilot', journeyDallas09.id).completed, true);
     const replay = store.launch('pilot', 'trainer', 10_000, journeyDallas09.id);
     store.approach('pilot', replay.attemptId);
     store.startGiantIncoming('pilot', replay.attemptId, 11_000);
+    for(const ordinal of [1,2,3] as const){
+      store.assignRearGuardEscort('pilot',replay.attemptId,`escort-${ordinal}`,ordinal);
+      assert.equal(store.recordRearGuardKill('pilot',replay.attemptId,`escort-${ordinal}`,11010)?.status,'RACING');
+    }
     assert.equal(store.hitTransport('pilot', replay.attemptId, 341_000, 2_000), undefined);
     assert.equal(store.hitTransport('pilot', replay.attemptId, 11_100, 2_000)?.firstClearCredits, 0);
     const capped = store.launch('capped', 'trainer', 20_000, journeyDallas09.id);
     store.approach('capped', capped.attemptId);
     store.startGiantIncoming('capped', capped.attemptId, 21_000);
+    for(const ordinal of [1,2,3] as const){
+      store.assignRearGuardEscort('capped',capped.attemptId,`escort-${ordinal}`,ordinal);
+      assert.equal(store.recordRearGuardKill('capped',capped.attemptId,`escort-${ordinal}`,21010)?.status,'RACING');
+    }
     assert.equal(store.hitTransport('capped', capped.attemptId, 21_100, 2_000)?.firstClearCredits, 50);
     const check = new DatabaseSync(path);
     assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get() as {credits:number}).credits, 1_050);

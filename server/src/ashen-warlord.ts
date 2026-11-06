@@ -6,15 +6,15 @@ import { ashenWarlordGeometry as geometry } from '../../shared/ashen-warlord-geo
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { createM19Encounter, type DistrictBuilding } from './m19-titan.js';
 const height = model.height;
-const runSpeed=height*model.clips.run!.stride!/model.clips.run!.duration*.65;
+const runSpeed=height*model.clips.run!.stride!/model.clips.run!.duration*.42;
 const cityHalfSize = Number(cityRegistry.dallas.worldSize) / 2;
 const joints: Species['joints'] = Object.fromEntries(Object.entries(model.anchors).map(([id, p]) => [id, { bone: model.bones[id]!, position: { x: p[0]! * height, y: p[1]! * height, z: p[2]! * height }, foot: id.startsWith('foot'), gaitPhase: id.endsWith('right') ? .5 : 0, reach: 730, angularSpeed: 2.2, aimWeight: id === 'neck' ? .25 : undefined }]));
 const regions = geometry.spheres.map((v, i) => { const id = `volume-${i}`; (joints as Record<string, Species['joints'][string]>)[id] = { bone: v.part.replace(/\d+$/, ''), position: { x: -v.x * height, y: v.y * height, z: -v.z * height } }; return { id, joint: id, radius: v.radius * height, radii: { x: v.radii.x * height, y: v.radii.y * height, z: v.radii.z * height }, multiplier: 1, stagger: 100 }; });
 export const ashenWarlordSpecies = new SpeciesRegistry().register({
     id: 'ashen-warlord', model: model.url, lods: model.lods, scale: height, height, radius: 520, health: 2500, contactDamage: 20, joints,
     animations: ['ranged', 'strike', 'charge'], personality: 'aggressive', level: 'HARD',
-    director: {commitment:2.5,retreatMin:4000,retreatMax:7000,retreatDuration:8,reengageDuration:6,attackSpacing:.6,pressureThreshold:100,facing:.65},
-    movement: { runOnly:true, walk: runSpeed, run: runSpeed, chargeSpeed: runSpeed*1.15, acceleration: runSpeed/3, deceleration: runSpeed/2.4, turnRate: .5, turnAcceleration: .65, stepHeight:24,stride:height*model.clips.run!.stride!,runStride:height*model.clips.run!.stride!, jumpSpeed:120,gravity:40,sidestep:false,independentAim:true,traversalLeap:false,repositionDistance:5000,intentDuration:2.5 },
+    director: {combatDistance:1800,commitment:2.5,retreatMin:4000,retreatMax:7000,retreatDuration:8,reengageDuration:6,attackSpacing:.6,pressureThreshold:100,facing:.65},
+    movement: { runOnly:true, walk: runSpeed, run: runSpeed, chargeSpeed: runSpeed*(.65/.42)*1.15, acceleration: runSpeed/3, deceleration: runSpeed/2.4, turnRate: .5, turnAcceleration: .65, stepHeight:24,stride:height*model.clips.run!.stride!,runStride:height*model.clips.run!.stride!, jumpSpeed:120,gravity:40,sidestep:false,independentAim:true,traversalLeap:false,repositionDistance:5000,intentDuration:2.5 },
     senses: { range: 160000, fov: Math.PI * 2, pursueOccluded: true }, arena: { minWidth: 2500, maxSlope: .15 },
     regions: [{ id: 'chest-core', joint: 'gem', radius: 48, radii: { x: 48, y: 72, z: 32 }, multiplier: 1.25, stagger: 100 }, ...regions],
     abilities: standardAbilities.filter(a => ['fireball-barrage', 'hand-strike', 'charging-rampage'].includes(a.id)).map(a => {

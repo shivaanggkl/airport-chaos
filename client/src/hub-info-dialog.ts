@@ -99,7 +99,8 @@ export class HubInfoDialog {
     this.heading.textContent = 'PLAYING AS GUEST';
     this.lead.textContent = '';
     this.description.textContent = 'Playing as Guest — progress is saved on this device. Sign in to protect it.';
-    this.showAction(trigger, 'PROTECT PROGRESS', protect);
+    this.showAction(trigger, 'SIGN IN TO SAVE PROGRESS', protect);
+    this.actionClose.textContent = 'CONTINUE AS GUEST';
   }
 
   openPurchaseSignIn(trigger: HTMLElement, signIn: () => void): void {
@@ -110,10 +111,10 @@ export class HubInfoDialog {
   }
 
   openTrainingReplay(trigger: HTMLElement, replay: () => void): void {
-    this.heading.textContent = 'Train again?';
+    this.heading.textContent = 'Replay Training?';
     this.lead.textContent = '';
-    this.description.textContent = 'You already completed training.';
-    this.showAction(trigger, 'TRAIN AGAIN', replay);
+    this.description.textContent = 'You already completed training. Do you want to play it again?';
+    this.showAction(trigger, 'REPLAY', replay);
     this.actionClose.textContent = 'CANCEL';
   }
 

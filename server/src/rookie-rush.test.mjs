@@ -18,7 +18,7 @@ test('Rookie Rush is an independent ten-gate Dallas route; Free Fly keeps four D
     mission.gates[0].z - mission.airborneSpawn.z) <= 3_000);
 });
 
-test('every Rookie Rush gate accepts forward movement only through its visible opening', () => {
+test('every Rookie Rush gate accepts movement from either side through its visible opening', () => {
   const mission = journeyDallas01;
   for (let index = 0; index < mission.gates.length; index += 1) {
     const gate = mission.gates[index];
@@ -29,7 +29,7 @@ test('every Rookie Rush gate accepts forward movement only through its visible o
     const before = { x: gate.x - nx * 100, y: gate.altitude, z: gate.z - nz * 100 };
     const after = { x: gate.x + nx * 100, y: gate.altitude, z: gate.z + nz * 100 };
     assert.equal(journeyGateCrossing(before, after, index, 0, mission), 'VALID', `gate ${index + 1}`);
-    assert.equal(journeyGateCrossing(after, before, index, 0, mission), false, `reverse gate ${index + 1}`);
+    assert.equal(journeyGateCrossing(after, before, index, 0, mission), 'VALID', `reverse gate ${index + 1}`);
     assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius },
       { ...after, y: gate.altitude + gate.radius }, index, 0, mission), false, `near miss gate ${index + 1}`);
   }

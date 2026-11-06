@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { journeyDallas01, journeyDallas04, journeyGateCrossing, journeyGatePlane } from '../../shared/journey-mission.mjs';
 
-test('Mission 4 accepts opening and exact solid-ring contact, but rejects misses and reverse crossings', () => {
+test('Mission 4 accepts either face and exact solid-ring contact, but rejects misses', () => {
   for (let index = 0; index < journeyDallas04.gates.length; index += 1) {
     const gate = journeyDallas04.gates[index];
     const plane = journeyGatePlane(journeyDallas04, index);
@@ -20,7 +20,7 @@ test('Mission 4 accepts opening and exact solid-ring contact, but rejects misses
     assert.equal(journeyGateCrossing(borderFrom, borderTo, index, 0, journeyDallas04), 'VALID');
     const [missFrom, missTo] = crossingAt(gate.radius * 1.12 + 2.55);
     assert.equal(journeyGateCrossing(missFrom, missTo, index, 0, journeyDallas04), false);
-    assert.equal(journeyGateCrossing(insideTo, insideFrom, index, 0, journeyDallas04), false);
+    assert.equal(journeyGateCrossing(insideTo, insideFrom, index, 0, journeyDallas04), 'VALID');
     assert.equal(journeyGateCrossing(insideFrom, insideTo, (index + 1) % 10, 0, journeyDallas04), false);
   }
   const gate = journeyDallas01.gates[0];

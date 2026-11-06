@@ -181,7 +181,16 @@ export class GiantIncomingView {
     }
     updateFortressTarget(player:THREE.Vector3,heading:number):'left'|'right'|'core'{
         const phase=this.state?.fortress;
-        const side=phase?.leftHealth===0 && phase.rightHealth===0?'core':this.targetedFortressSide(player,heading);
+        let side:'left'|'right'|'core'='core',score=-Infinity;
+        const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
+        for(const [part,health,x,y,z] of [
+            ['left',phase?.leftHealth??0,-11,4.7,0],['right',phase?.rightHealth??0,11,4.7,0],
+            ['core',phase?.coreHealth??0,journeyDallas11.coreLocal.x,journeyDallas11.coreLocal.y,journeyDallas11.coreLocal.z]] as const){
+            if(health<=0)continue;
+            this.fortressTargetScratch.set(x,y,z);this.root.localToWorld(this.fortressTargetScratch);
+            const dot=this.fortressTargetScratch.sub(player).normalize().dot(forward);
+            if(dot>score){score=dot;side=part;}
+        }
         this.fortressTargetPosition.set(side==='left'?-11:side==='right'?11:journeyDallas11.coreLocal.x,
             side==='core'?journeyDallas11.coreLocal.y:4.7,side==='core'?journeyDallas11.coreLocal.z:0);
         this.root.localToWorld(this.fortressTargetPosition);
@@ -249,14 +258,14 @@ export class GiantIncomingView {
             const distance = camera.position.distanceTo(this.position), lod = distance < 650 ? 0 : distance < 2200 ? 1 : 2;
             this.levels.forEach((l, i) => l.visible = i === lod);
             if(this.fortress && s.fortress){
-                const exposed=s.fortress.phase === 'CORE' || s.fortress.phase == null && s.fortress.leftHealth===0 && s.fortress.rightHealth===0;
+                const exposed=s.fortress.coreHealth>0;
                 this.hatchOpen=THREE.MathUtils.damp(this.hatchOpen,exposed?1:0,3,delta);
                 const bay=this.fortressBays[lod]!;
                 bay.door.rotation.x=this.hatchOpen*2.05;
                 bay.interior.visible=bay.machine.visible=this.hatchOpen>.1;
                 bay.arms.forEach(arm=>arm.visible=this.hatchOpen>.55);
-                this.fortressMarkers[lod]![0]!.visible=s.fortress.phase!=='ESCORTS' && s.fortress.leftHealth>0;
-                this.fortressMarkers[lod]![1]!.visible=s.fortress.phase!=='ESCORTS' && s.fortress.rightHealth>0;
+                this.fortressMarkers[lod]![0]!.visible=s.fortress.leftHealth>0;
+                this.fortressMarkers[lod]![1]!.visible=s.fortress.rightHealth>0;
                 this.sideGuns[lod]![0]!.yaw.visible=s.fortress.leftHealth>0;
                 this.sideGuns[lod]![1]!.yaw.visible=s.fortress.rightHealth>0;
             }

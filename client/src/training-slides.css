@@ -1,5 +1,6 @@
 #game-root.training-screenplay-active .mission-status-layer{z-index:81}
 #game-root.training-screenplay-active #touch-controls{pointer-events:none}
+body[data-training-slide-step="cameraZoom"] #game-root.training-screenplay-active :is(#touch-controls,#touch-controls *,#right-flight-stack,#right-flight-stack *,#unified-flight-hud,#unified-flight-hud *,#flight-hud,#flight-hud *,#mission-status-layer,#mission-status-layer *){pointer-events:none!important}
 #game-root.training-screenplay-active .touch-stick i{transition:translate 900ms ease}
 #game-root.training-screenplay-active > :not(canvas):not(#unified-flight-hud):not(#flight-hud):not(#mission-status-layer):not(#right-flight-stack):not(#touch-controls):not(#world-map-overlay):not(#training-pause-overlay):not(.training-screenplay-skip){display:none!important}
 #game-root.training-screenplay-active #unified-flight-hud,
@@ -40,7 +41,7 @@ body:has(#game-root.training-screenplay-active) #tutorial-help{display:none!impo
 .training-screenplay header small{font-size:10px}
 .training-screenplay [data-scene-count]{color:var(--ui-gold);font:900 11px var(--font-display);white-space:nowrap}
 .training-screenplay h2{margin:0;color:var(--ui-text);font:700 15px/1.35 var(--font-body)}
-.training-screenplay h2 strong{color:var(--ui-gold);font:900 18px/1.1 var(--font-display);letter-spacing:.05em}
+.training-screenplay h2 strong,.training-screenplay [data-scene-instructions] strong{color:var(--ui-gold);font-weight:900}
 .training-screenplay p{margin:0;color:var(--ui-text);font:700 15px/1.25 var(--font-body)}
 .training-screenplay [data-scene-status]{color:#70e1ff;font:900 11px/1.15 var(--font-display);letter-spacing:.08em}
 .training-screenplay [data-scene-status].is-complete{animation:training-step-complete 650ms ease-out both}
@@ -62,6 +63,11 @@ body:has(#game-root.training-screenplay-active) #tutorial-help{display:none!impo
 .training-screenplay-hand[data-motion="down"]{animation-name:training-hand-down}
 .training-screenplay-hand[data-motion="left"]{animation-name:training-hand-left}
 .training-screenplay-hand[data-motion="right"]{animation-name:training-hand-right}
+.training-screenplay-hand[data-control="stick"][data-motion="left"]{animation-name:training-stick-left}
+.training-screenplay-hand[data-control="stick"][data-motion="right"]{animation-name:training-stick-right}
+.training-screenplay-hand[data-control="stick"][data-motion="up"]{animation-name:training-stick-up}
+.training-screenplay-hand[data-control="stick"][data-motion="down"]{animation-name:training-stick-down}
+.training-screenplay-hand[data-control="view"][data-motion="right"]{animation-name:training-view-right}
 .training-screenplay-hand[data-motion="pinch"]{animation:none;transform:translate(-50%,-50%);gap:8px}
 .training-screenplay-hand[data-motion="pinch"]:not([hidden]){display:flex}
 .training-screenplay-hand[data-motion="pinch"] span{font-size:40px}
@@ -72,8 +78,13 @@ body:has(#game-root.training-screenplay-active) #tutorial-help{display:none!impo
 @keyframes training-hand-down{0%,8%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(-15%,calc(-20% + 42px)) scale(.94)}}
 @keyframes training-hand-left{0%,8%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(calc(-15% - 42px),-20%) scale(.94)}}
 @keyframes training-hand-right{0%,8%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(calc(-15% + 42px),-20%) scale(.94)}}
-@keyframes training-pinch-left{0%,100%{transform:translate(-12px,8px)}25%,70%{transform:translate(8px,-3px)}}
-@keyframes training-pinch-right{0%,100%{transform:translate(12px,-8px)}25%,70%{transform:translate(-8px,3px)}}
+@keyframes training-stick-left{0%,8%,100%{transform:translate(-50%,-10%) scale(1)}22%,78%{transform:translate(calc(-50% - var(--training-stick-travel)),-10%) scale(.94)}}
+@keyframes training-stick-right{0%,8%,100%{transform:translate(-50%,-10%) scale(1)}22%,78%{transform:translate(calc(-50% + var(--training-stick-travel)),-10%) scale(.94)}}
+@keyframes training-stick-up{0%,8%,100%{transform:translate(-50%,-10%) scale(1)}22%,78%{transform:translate(-50%,calc(-10% - var(--training-stick-travel))) scale(.94)}}
+@keyframes training-stick-down{0%,8%,100%{transform:translate(-50%,-10%) scale(1)}22%,78%{transform:translate(-50%,calc(-10% + var(--training-stick-travel))) scale(.94)}}
+@keyframes training-view-right{0%,8%,100%{transform:translate(-50%,-10%) scale(1)}22%,78%{transform:translate(calc(-50% + var(--training-view-travel)),-10%) scale(.94)}}
+@keyframes training-pinch-left{0%,100%{transform:translate(-12px,8px)}25%,70%{transform:translate(calc(-12px - var(--training-pinch-travel)),8px)}}
+@keyframes training-pinch-right{0%,100%{transform:translate(12px,-8px)}25%,70%{transform:translate(calc(12px + var(--training-pinch-travel)),-8px)}}
 @keyframes training-hand-hold{0%,100%{transform:translate(-15%,-20%) scale(1)}22%,78%{transform:translate(-15%,-20%) scale(.92)}}
 @keyframes training-hand-tap{0%,100%{transform:translate(-15%,-20%) scale(1)}16%,35%{transform:translate(-15%,-20%) scale(.78)}}
 body[data-training-slide-control="throttle"] [data-touch-control="throttle"],body[data-training-slide-control="stick"] [data-touch-control="stick"],body[data-training-slide-control="landing"] [data-touch-control="throttle"],body[data-training-slide-control="landing"] [data-touch-control="stick"],body[data-training-slide-control="fire"] [data-touch-control="fire"],body[data-training-slide-control="aim"] #acquisition-circle{filter:drop-shadow(0 0 16px rgb(255 205 50 / 96%));outline:3px solid #ffd447;outline-offset:5px}

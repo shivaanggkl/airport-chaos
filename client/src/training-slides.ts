@@ -14,26 +14,37 @@ type Options = {
   onClose: () => void;
   onSkip: () => Promise<boolean>;
   onFinished: () => void;
+  getPlaneScreenPosition: () => { x: number; y: number } | undefined;
 };
 
-const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail: string; after?: string; instruction?:string; steps?:readonly string[]; control: string; motion: string }> = {
-  throttle: { title: 'BUILD SPEED', detail: 'Slide the speed lever up to ', control: 'throttle', motion: 'up' },
-  takeoff: { title: 'TAKE OFF', detail: 'Push the joystick up to ', control: 'stick', motion: 'up' },
-  turnLeft: { title: 'TURN LEFT', detail: 'Push the joystick to ', control: 'stick', motion: 'left' },
-  turnRight: { title: 'TURN RIGHT', detail: 'Push the joystick to ', control: 'stick', motion: 'right' },
-  climb: { title: 'CLIMB', detail: 'Push the joystick up to ', control: 'stick', motion: 'up' },
-  descend: { title: 'BRING THE PLANE DOWN', detail: '', instruction:'Pull the joystick down to bring the plane down.', control: 'stick', motion: 'down' },
-  cameraLook: { title: 'LOOK AROUND', detail: '', instruction:'Drag your finger on an empty screen to look around.', control: 'view', motion: 'right' },
-  cameraZoom: { title: 'ZOOM', detail: '', instruction:'Use two fingers on an empty screen to zoom in or zoom out.', control: 'view', motion: 'pinch' },
-  approach: { title: 'CHECK YOUR ROUTE', detail: '', instruction:'Find the radar in the top right corner, tap on the radar, see the map, then close the map.', control: 'radar', motion: 'tap' },
-  fire: { title: 'DESTROY THE TARGET', detail: '', instruction:'Tap on the fire button until the target is destroyed.', control: 'fire', motion: 'tap' },
-  landing: { title: 'LAND SAFELY', detail: '', steps:[
-    'Use the joystick to line up with the runway.',
-    'Move the speed lever to SLOW.',
-    'Gently pull the joystick down toward the runway.',
-    'Just above the runway, move the lever to IDLE to stop.',
+const scenes: Record<(typeof trainingSlideIds)[number], { instruction: string; steps?: readonly string[]; control: string; motion: string }> = {
+  throttle: { instruction: 'Move the SPEED LEVER up to BUILD SPEED.', control: 'throttle', motion: 'up' },
+  takeoff: { instruction: 'Drag the JOYSTICK up to TAKE OFF.', control: 'stick', motion: 'up' },
+  turnLeft: { instruction: 'Drag the JOYSTICK left to TURN LEFT.', control: 'stick', motion: 'left' },
+  turnRight: { instruction: 'Drag the JOYSTICK right to TURN RIGHT.', control: 'stick', motion: 'right' },
+  climb: { instruction: 'Drag the JOYSTICK up to FLY UP.', control: 'stick', motion: 'up' },
+  descend: { instruction: 'Drag the JOYSTICK down to FLY DOWN.', control: 'stick', motion: 'down' },
+  cameraLook: { instruction: 'Drag ONE FINGER on an empty part of the screen to LOOK AROUND.', control: 'view', motion: 'right' },
+  cameraZoom: { instruction: 'Use TWO FINGERS on an empty screen to ZOOM IN or ZOOM OUT.', control: 'view', motion: 'pinch' },
+  approach: { instruction: 'Find the RADAR in the top right corner, tap on the RADAR to open MAP. Then close MAP.', control: 'radar', motion: 'tap' },
+  fire: { instruction: 'Tap on the FIRE BUTTON until the target is DESTROYED.', control: 'fire', motion: 'tap' },
+  landing: { instruction: 'LAND SAFELY', steps:[
+    'Move the SPEED LEVER to SLOW.',
+    'Use JOYSTICK to LINE UP with RUNWAY.',
+    'Drag the JOYSTICK down towards the RUNWAY.',
+    'Just above the RUNWAY, move the SPEED LEVER to IDLE to STOP.',
   ], control: 'landing', motion: 'down' },
 };
+
+const highlightedControls = /(SPEED LEVER|FIRE BUTTON|ONE FINGER|TWO FINGERS|JOYSTICK|RADAR|MAP)/g;
+function renderInstruction(element: HTMLElement, instruction: string): void {
+  element.replaceChildren(...instruction.split(highlightedControls).map((part, index) => {
+    if (index % 2 === 0) return document.createTextNode(part);
+    const emphasis = document.createElement('strong');
+    emphasis.textContent = part;
+    return emphasis;
+  }));
+}
 
 function needsHeldControl(step: TutorialLessonStep): boolean {
   return step === 'throttle' || step === 'takeoff' || step === 'turnLeft' ||
@@ -45,9 +56,7 @@ export class TrainingSlides {
   private readonly root = document.createElement('section');
   private readonly hand = document.createElement('div');
   private readonly skip = document.createElement('button');
-  private readonly title: HTMLElement;
   private readonly detail: HTMLElement;
-  private readonly tail: HTMLElement;
   private readonly instructions:HTMLOListElement;
   private guidance = '';
   private readonly count: HTMLElement;
@@ -67,17 +76,19 @@ export class TrainingSlides {
   private saving = false;
   private suspended = false;
   private saveRetries = 0;
-  private readonly layoutLanding=()=>this.positionLandingPanel();
+  private readonly layoutTraining=()=>{
+    this.positionLandingPanel();
+    const step=this.active?trainingSlideIds[this.index]:undefined;
+    if(step&&!this.suspended&&!this.playerActionStarted)this.positionHand(scenes[step].control,scenes[step].motion);
+  };
 
   constructor(private readonly options: Options) {
     this.root.className = 'guided-tutorial-panel training-screenplay';
     this.root.hidden = true;
     this.root.setAttribute('role', 'status');
     this.root.setAttribute('aria-live', 'polite');
-    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2><span data-scene-detail></span><strong data-scene-title></strong><span data-scene-tail></span></h2><ol data-scene-instructions hidden></ol><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
-    this.title = this.root.querySelector('[data-scene-title]')!;
+    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2 data-scene-detail></h2><ol data-scene-instructions hidden></ol><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
     this.detail = this.root.querySelector('[data-scene-detail]')!;
-    this.tail = this.root.querySelector('[data-scene-tail]')!;
     this.instructions=this.root.querySelector('[data-scene-instructions]')!;
     this.count = this.root.querySelector('[data-scene-count]')!;
     this.progress = this.root.querySelector('[data-scene-progress]')!;
@@ -164,9 +175,7 @@ export class TrainingSlides {
   setGuidance(detail: string): void {
     if (!this.active || this.currentStep()==='landing' || this.completing || this.guidance === detail) return;
     this.guidance = detail;
-    this.detail.textContent = '';
-    this.title.textContent = detail;
-    this.tail.textContent = '';
+    this.detail.textContent = detail;
   }
 
   recordAction(step: TutorialLessonStep): void {
@@ -219,7 +228,7 @@ export class TrainingSlides {
     this.skip.hidden = false;
     this.options.gameRoot.classList.add('training-screenplay-active');
     this.options.onOpen();
-    window.addEventListener('resize',this.layoutLanding);
+    window.addEventListener('resize',this.layoutTraining);
     this.showStage();
   }
 
@@ -233,9 +242,10 @@ export class TrainingSlides {
     this.skip.hidden = true;
     this.root.hidden = true;
     this.options.gameRoot.classList.remove('training-screenplay-active');
-    window.removeEventListener('resize',this.layoutLanding);
+    window.removeEventListener('resize',this.layoutTraining);
     this.options.gameRoot.style.removeProperty('--training-landing-width');
     document.body.dataset.trainingSlideControl = '';
+    document.body.dataset.trainingSlideStep = '';
     this.options.onStageEnd(trainingSlideIds[this.index]!);
     this.options.onClose();
   }
@@ -256,11 +266,9 @@ export class TrainingSlides {
     this.completing = false;
     this.saving = false;
     this.saveRetries = 0;
-    this.title.textContent = scene.instruction ? '' : scene.title;
-    this.detail.textContent = scene.instruction ?? scene.detail;
-    this.tail.textContent = scene.instruction||scene.steps ? '' : scene.after ?? '.';
+    renderInstruction(this.detail, scene.instruction);
     this.instructions.hidden=!scene.steps;
-    this.instructions.replaceChildren(...(scene.steps??[]).map(text=>{const item=document.createElement('li');item.textContent=text;return item;}));
+    this.instructions.replaceChildren(...(scene.steps??[]).map(text=>{const item=document.createElement('li');renderInstruction(item,text);return item;}));
     this.guidance = '';
     this.count.textContent = String(this.index + 1) + ' / ' + String(trainingSlideIds.length);
     this.status.textContent = '';
@@ -272,6 +280,7 @@ export class TrainingSlides {
       return dot;
     }));
     document.body.dataset.trainingSlideControl = scene.control;
+    document.body.dataset.trainingSlideStep = step;
     this.positionHand(scene.control, scene.motion);
     this.options.onStage(step);
     this.positionLandingPanel();
@@ -281,7 +290,7 @@ export class TrainingSlides {
   private makeReady(step: TutorialLessonStep): void {
     if (!this.active || this.suspended || this.currentStep() !== step) return;
     this.ready = true;
-    this.status.textContent = needsHeldControl(step) ? 'YOUR TURN · HOLD UNTIL FULL' : 'YOUR TURN';
+    this.status.textContent = needsHeldControl(step) ? 'HOLD UNTIL FULL' : '';
     this.timeProgress.hidden = false;
     this.options.onReady(step);
   }
@@ -308,6 +317,21 @@ export class TrainingSlides {
     this.hand.hidden = false;
     this.hand.style.left = String(rect.left + rect.width * (control==='task'?.94:.5)) + 'px';
     this.hand.style.top = String(rect.top + rect.height * .5) + 'px';
+    this.hand.dataset.control = control;
+    if (control === 'stick') {
+      this.hand.style.setProperty('--training-stick-travel', `${(motion === 'up' || motion === 'down' ? rect.height : rect.width) * .48}px`);
+    }
+    if (control === 'view' && motion === 'right') {
+      const plane = this.options.getPlaneScreenPosition();
+      if (plane) {
+        this.hand.style.left = `${plane.x}px`;
+        this.hand.style.top = `${plane.y}px`;
+      }
+      this.hand.style.setProperty('--training-view-travel', `${Math.min(rect.width * .25, 240)}px`);
+    }
+    if (control === 'view' && motion === 'pinch') {
+      this.hand.style.setProperty('--training-pinch-travel', `${Math.min(rect.width * .1, 100)}px`);
+    }
     this.hand.dataset.motion = motion;
   }
 

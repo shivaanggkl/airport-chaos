@@ -18,28 +18,28 @@ test('timed gate missions start at GO, keep that deadline at gate one, and rejec
   setup.close();
   try {
     const store = new JourneyAttemptStore(path, true);
-    for (const mission of [journeyDallas13, journeyDallas20]) {
+    for (const mission of [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06]) {
       const attempt = store.launch('pilot', 'trainer', 1_000, mission.id);
       store.approach('pilot', attempt.attemptId, 1_000);
       assert.equal(store.get('pilot', attempt.attemptId)?.deadlineAt, null);
-      const started = store.startTimedGateClock('pilot', attempt.attemptId, 4_000);
-      assert.equal(started?.status, 'APPROACH');
+      const started = store.startRookieRush('pilot', attempt.attemptId, 4_000);
+      assert.equal(started?.status, 'RACING');
       assert.equal(started?.startedAt, 4_000);
       assert.equal(started?.deadlineAt, 4_000 + mission.timeLimitMs);
-      assert.equal(store.startTimedGateClock('pilot', attempt.attemptId, 4_001), undefined);
+      assert.equal(store.startRookieRush('pilot', attempt.attemptId, 4_001), undefined);
       const firstGate = store.acceptGate('pilot', attempt.attemptId, 0, 5_000);
       assert.equal(firstGate?.deadlineAt, started?.deadlineAt);
       assert.equal(firstGate?.startedAt, 4_000);
 
       const late = store.launch('pilot', 'trainer', 10_000, mission.id);
       store.approach('pilot', late.attemptId, 10_000);
-      store.startTimedGateClock('pilot', late.attemptId, 13_000);
+      store.startRookieRush('pilot', late.attemptId, 13_000);
       assert.equal(store.acceptGate('pilot', late.attemptId, 0, 13_000 + mission.timeLimitMs), undefined);
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Final Intercept enforces both escort and turret orders, one timer, and one first-clear reward', () => {
+test('Armored giant with escorts permits engine-first damage, keeps one timer and one first-clear reward', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-final-intercept-'));
   const path = join(directory, 'profiles.sqlite');
   const setup = new DatabaseSync(path);
@@ -57,24 +57,18 @@ test('Final Intercept enforces both escort and turret orders, one timer, and one
       assert.equal(active.deadlineAt, 362_000);
       assert.equal(store.startGiantIncoming('pilot', ready.attemptId, 2_100), undefined);
       assert.equal(store.hitTransport('pilot', ready.attemptId, 2_100, 999), undefined);
-      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, first, 2_100, 250), undefined);
-      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_100, 1750), undefined);
-      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, true, 2_100), undefined);
-      store.assignRearGuardEscort('pilot', ready.attemptId, 'nightowl', 1);
-      store.assignRearGuardEscort('pilot', ready.attemptId, 'firehawk', 2);
-      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, false, 2_200), undefined);
-      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, true, 2_200)?.finalPhase, 'TURRETS');
-      assert.equal(store.advanceFinalIntercept('pilot', ready.attemptId, true, 2_300), undefined);
-      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_300, 1750), undefined);
+      store.assignRearGuardEscort('pilot',ready.attemptId,'nightowl',1);
+      store.assignRearGuardEscort('pilot',ready.attemptId,'firehawk',2);
+      assert.equal(store.hitFortressComponent('pilot',ready.attemptId,'core',2_300,1750)?.status,'RACING');
       assert.equal(store.hitFortressComponent('pilot', ready.attemptId, first, 2_400, 100)?.[first === 'left' ? 'fortressLeftHealth' : 'fortressRightHealth'], 150);
-      assert.equal(new JourneyAttemptStore(path, true).get('pilot', ready.attemptId)?.finalPhase, 'TURRETS');
+      assert.equal(new JourneyAttemptStore(path,true).get('pilot',ready.attemptId)?.monsterHealth,0);
       store.hitFortressComponent('pilot', ready.attemptId, first, 2_500, 150);
       assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_600, 1750), undefined);
       store.hitFortressComponent('pilot', ready.attemptId, first === 'left' ? 'right' : 'left', 2_700, 250);
       assert.equal(store.get('pilot', ready.attemptId)?.finalPhase, 'CORE');
       assert.equal(store.hitFortressComponent('pilot', ready.attemptId, first, 2_800, 25), undefined);
-      assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 2_900, 250)?.monsterHealth, 1_500);
-      const done = store.hitFortressComponent('pilot', ready.attemptId, 'core', 3_000, 1_500)!;
+      assert.equal(store.recordRearGuardKill('pilot',ready.attemptId,'nightowl',2_900)?.status,'RACING');
+      const done=store.recordRearGuardKill('pilot',ready.attemptId,'firehawk',3_000)!;
       assert.equal(done.status, 'COMPLETED');
       assert.equal(done.firstClearCredits, first === 'left' ? 1_500 : 0);
       assert.equal(store.hitFortressComponent('pilot', ready.attemptId, 'core', 3_100, 25), undefined);
@@ -95,7 +89,7 @@ test('Final Intercept enforces both escort and turret orders, one timer, and one
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Armored Fortress persists either turret order, gates core damage, and pays only once', () => {
+test('Armored giant persists independent wing and engine damage and pays only once', () => {
   const directory = mkdtempSync(join(tmpdir(), 'airport-fortress-'));
   const path = join(directory, 'profiles.sqlite');
   const setup = new DatabaseSync(path);
@@ -113,18 +107,18 @@ test('Armored Fortress persists either turret order, gates core damage, and pays
       assert.equal(active.deadlineAt, 2_000 + 330_000);
       assert.equal(store.acceptGate('pilot', active.attemptId, 0, 2_100), undefined);
       assert.equal(store.hitTransport('pilot', active.attemptId, 2_100, 500), undefined);
-      assert.equal(store.hitFortressComponent('pilot', active.attemptId, 'core', 2_100, 500), undefined);
+      assert.equal(store.hitFortressComponent('pilot', active.attemptId, 'core', 2_100, 500)?.monsterHealth,1000);
       assert.equal(store.hitFortressComponent('pilot', active.attemptId, first, 2_200, 100)?.fortressLeftHealth,
         first === 'left' ? 150 : 250);
       const reopened = new JourneyAttemptStore(path, true);
       assert.equal(reopened.get('pilot', active.attemptId)?.[first === 'left' ? 'fortressLeftHealth' : 'fortressRightHealth'], 150);
       reopened.hitFortressComponent('pilot', active.attemptId, first, 2_300, 150);
-      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_350, 500), undefined);
+      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_350, 500)?.monsterHealth,500);
       const second = first === 'left' ? 'right' : 'left';
       reopened.hitFortressComponent('pilot', active.attemptId, second, 2_400, 250);
       assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, first, 2_500, 25), undefined);
-      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_600, 500)?.monsterHealth, 1_000);
-      const done = reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_700, 1_000)!;
+      assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_600, 250)?.monsterHealth, 250);
+      const done = reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_700, 250)!;
       assert.equal(done.status, 'COMPLETED');
       assert.equal(done.firstClearCredits, first === 'left' ? 1_250 : 0);
       assert.equal(reopened.hitFortressComponent('pilot', active.attemptId, 'core', 2_800, 100), undefined);
@@ -248,7 +242,7 @@ test('Downtown Slalom requires Mission 3 and rewards ten ordered race gates once
 });
 
 test('Giant Incoming owns its deadline, damage, first-clear ledger and historical unlocks', () => {
-  assert.equal(journeyDallas07.name,'GIANT INCOMING');assert.ok(journeyDallas07.timeLimitMs>150000);assert.equal(journeyDallas07.startAirportId,'dfw');assert.equal(journeyDallas07.firstClearCredits,850);assert.equal(journeyDallas07.gates.length,0);
+  assert.equal(journeyDallas07.name,'GIANT PLANE');assert.ok(journeyDallas07.timeLimitMs>150000);assert.equal(journeyDallas07.startAirportId,'dfw');assert.equal(journeyDallas07.firstClearCredits,850);assert.equal(journeyDallas07.gates.length,0);
   const directory=mkdtempSync(join(tmpdir(),'giant-journey-')),path=join(directory,'profiles.sqlite');
   const db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0),('other',0,0)");db.close();
   try{const store=new JourneyAttemptStore(path);assert.throws(()=>store.launch('pilot','trainer',1000,journeyDallas07.id),/locked/);
@@ -299,12 +293,12 @@ test('Giant Incoming applies the damage captured when each shot was fired', () =
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Rookie Rush crossing requires ordered forward travel through the actual opening', () => {
+test('Rookie Rush crossing accepts either direction through the actual opening', () => {
   const gate = journeyDallas01.gates[0]!;
   const before = { x: gate.x - 100, y: gate.altitude, z: gate.z };
   const after = { x: gate.x + 100, y: gate.altitude, z: gate.z };
   assert.equal(crossesJourneyGate(before, after, 0, 0), true);
-  assert.equal(crossesJourneyGate(after, before, 0, 0), false);
+  assert.equal(crossesJourneyGate(after, before, 0, 0), true);
   assert.equal(crossesJourneyGate({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, 0, 0), false);
 });
 
@@ -520,7 +514,7 @@ test('historical Hunter Showdown clears retain unlocks but never pay Lake Racer 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Golden Ascent is a ten-gate rising forward course with valid swept openings', () => {
+test('Golden Ascent is a ten-gate rising course with valid swept openings', () => {
   assert.equal(journeyDallas03.timeLimitMs, 160_000);
   assert.equal(journeyDallas03.firstClearCredits, 450);
   assert.equal(journeyDallas03.gates.length, 10);
@@ -546,7 +540,7 @@ test('Golden Ascent is a ten-gate rising forward course with valid swept opening
     const from = { x: gate.x - nx * 100, y: 180 + gate.altitude, z: gate.z - nz * 100 };
     const to = { x: gate.x + nx * 100, y: 180 + gate.altitude, z: gate.z + nz * 100 };
     assert.equal(journeyGateCrossing(from, to, index, 180, journeyDallas03), 'VALID');
-    assert.equal(journeyGateCrossing(to, from, index, 180, journeyDallas03), false);
+    assert.equal(journeyGateCrossing(to, from, index, 180, journeyDallas03), 'VALID');
     const miss = { x: from.x - nz * gate.radius * 2, y: from.y, z: from.z + nx * gate.radius * 2 };
     const missTo = { x: to.x - nz * gate.radius * 2, y: to.y, z: to.z + nx * gate.radius * 2 };
     assert.equal(journeyGateCrossing(miss, missTo, index, 180, journeyDallas03), false);
@@ -659,11 +653,11 @@ test('historical White Rock Skimmer completion keeps rewards and unlocks without
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Needle Rush has ten progressively smaller golden openings and forward crossings', () => {
+test('Needle Rush has ten progressively smaller golden openings and bidirectional crossings', () => {
   assert.equal(journeyDallas05.name, 'NEEDLE RUSH');
   assert.equal(journeyDallas05.timeLimitMs, 160_000);
   assert.ok(journeyDallas05.airborneSpawn);
-  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 245, 230, 220, 210, 205, 320]);
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 240, 230, 220, 215, 320]);
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas05.gates[index]!;
     const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
@@ -674,7 +668,7 @@ test('Needle Rush has ten progressively smaller golden openings and forward cros
     const before = { x: gate.x - nx * 50, y: gate.altitude, z: gate.z - nz * 50 };
     const after = { x: gate.x + nx * 50, y: gate.altitude, z: gate.z + nz * 50 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas05), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas05), false);
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas05), 'VALID');
     assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius * .93 }, { ...after, y: gate.altitude + gate.radius * .93 }, index, 0, journeyDallas05), false);
     const offset = gate.radius * .93;
     assert.equal(journeyGateCrossing(
@@ -715,7 +709,9 @@ test('Needle Rush requires Mission 4, a running timer and all ten gates; reward 
     assert.equal(attempt.deadlineAt, null);
     const preparing = store.approach('needle-pilot', attempt.attemptId);
     assert.deepEqual(authorizedJourneyAirborneSpawn(preparing, journeyDallas05, () => 120), {
-      position: { x: -15_000, y: 820, z: -13_000 }, heading: -3 * Math.PI / 4, speed: 650,
+      position: { x: journeyDallas05.airborneSpawn.x, y: 120 + journeyDallas05.airborneSpawn.altitude,
+        z: journeyDallas05.airborneSpawn.z },
+      heading: journeyDallas05.airborneSpawn.heading, speed: journeyDallas05.airborneSpawn.speed,
     });
     assert.equal(authorizedJourneyAirborneSpawn(attempt, journeyDallas05, () => 120), undefined);
     store.startRookieRush('needle-pilot', attempt.attemptId, 171_000);
@@ -800,7 +796,7 @@ test('historical four-gate Mission 5 clears retain progress and Credits without 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Golden Championship has ten forward-only gates and a safe course entry', () => {
+test('Golden Championship has ten gates and a safe course entry', () => {
   assert.equal(journeyDallas06.name, 'GOLDEN CHAMPIONSHIP');
   assert.equal(journeyDallas06.gates.length, 10);
   assert.equal(journeyDallas06.timeLimitMs, 160_000);
@@ -816,7 +812,7 @@ test('Golden Championship has ten forward-only gates and a safe course entry', (
     const before = { x: gate.x - nx * 80, y: gate.altitude, z: gate.z - nz * 80 };
     const after = { x: gate.x + nx * 80, y: gate.altitude, z: gate.z + nz * 80 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas06), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas06), false);
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas06), 'VALID');
     assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, index, 0, journeyDallas06), false);
   }
 });
@@ -919,7 +915,7 @@ test('historical championship clears preserve rewards while new race records sta
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Downtown Slalom gates accept sequential forward crossings through the solid ring', () => {
+test('Downtown Slalom gates accept sequential crossings through either face of the solid ring', () => {
   assert.equal(journeyDallas04.gates.length, 10);
   assert.equal(journeyDallas04.timeLimitMs, 160_000);
   assert.equal(journeyDallas04.firstClearCredits, 500);
@@ -932,7 +928,7 @@ test('Downtown Slalom gates accept sequential forward crossings through the soli
     const before = { x: gate.x - nx * 90, y: gate.altitude, z: gate.z - nz * 90 };
     const after = { x: gate.x + nx * 90, y: gate.altitude, z: gate.z + nz * 90 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas04), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas04), false);
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas04), 'VALID');
     const tangentX = -nz * (gate.radius * 1.12 + 2.6), tangentZ = nx * (gate.radius * 1.12 + 2.6);
     assert.equal(journeyGateCrossing({ ...before, x: before.x + tangentX, z: before.z + tangentZ },
       { ...after, x: after.x + tangentX, z: after.z + tangentZ }, index, 0, journeyDallas04), false);

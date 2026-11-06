@@ -1,3 +1,4 @@
+import { observeMissionCopyFit } from './fit-mission-copy';
 import { openControlLayoutEditor } from './control-layout-editor';
 import { rewardedAdPrivacy } from './rewarded-ads';
 import { identityText, visualLanguage, playerFacingText } from './visual-language';
@@ -667,6 +668,16 @@ export class PilotMenu {
     const hubRewards = this.options.appShell === true && this.activeSection === 'REWARDS';
     const hubSettings = this.isHubSettingsOpen();
     const flightMenu = this.options.flightMode !== undefined;
+    card?.querySelector('.pilot-flight-pause-limit')?.remove();
+    if(this.options.flightMode==='single'&&data.flightMission?.pauseRemaining){
+      const pauseLimit=textElement('p','Return within ','pilot-flight-pause-limit');
+      const countdown=document.createElement('span');
+      countdown.textContent=data.flightMission.pauseRemaining;
+      countdown.dataset.journeyPauseCountdown='';
+      pauseLimit.append(countdown,document.createTextNode(' OR Restart Mission'));
+      card?.append(pauseLimit);
+    }
+
     this.element.classList.toggle('is-rewards-overlay', hubRewards);
     this.element.classList.toggle('is-hub-profile', this.options.appShell === true && this.activeSection === 'PROFILE');
     this.element.classList.toggle('is-hub-settings', hubSettings);
@@ -730,15 +741,8 @@ export class PilotMenu {
         }
         details.append(segments);
       }
-      if (mission?.pauseRemaining) {
-        const pauseLimit = textElement('p', 'RETURN WITHIN ', 'pilot-flight-pause-limit');
-        const countdown = document.createElement('span');
-        countdown.textContent = mission.pauseRemaining;
-        countdown.dataset.journeyPauseCountdown = '';
-        pauseLimit.append(countdown);
-        details.append(pauseLimit);
-      }
       layout.append(details);
+      observeMissionCopyFit(details,'h2','.pilot-flight-mission-objective');
       content.append(layout, this.flightActions(data));
     }
 
