@@ -157,6 +157,7 @@ export class JourneyAttemptStore {
       WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas16.id);
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
       WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas17.id);
+    this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<2 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas21.id);
     // Preserve historical clears, but never resume territory progress as a boss battle.
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
       WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas18.id);
@@ -376,8 +377,7 @@ export class JourneyAttemptStore {
       const attemptId = randomUUID();
       this.database.prepare("INSERT INTO journey_attempts(attempt_id,pilot_id,mission_id,city_id,aircraft_type,target_id,secondary_target_id,status,created_at,double_phase,legendary_phase,lake_gate_index,ascent_gate_index,slalom_gate_index,needle_gate_index,golden_championship_gate_index) VALUES (?,?,?,?,?,?,?,'READY',?,?,?,?,?,?,?,?)")
         .run(attemptId, pilotId, missionId, journeyDallas01.cityId, aircraftType,
-          missionId === journeyDallas21.id ? journeyDallas21.alphaTerritoryId : null,
-          missionId === journeyDallas21.id ? journeyDallas21.bravoTerritoryId : null, now,
+          null, null, now,
           missionId === journeyDallas23.id ? 'TAKEOFF' : null,
           missionId === journeyDallas24.id ? 'GATES' : null,
           missionId === journeyDallas02.id ? 0 : -1,
@@ -385,21 +385,21 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run((missionId===journeyDallas19.id||missionId===journeyDallas25.id||missionId===journeyDallas20.id)?2:1,attemptId);
+      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run((missionId===journeyDallas19.id||missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id)?2:1,attemptId);
       if (missionId === journeyDallas11.id || missionId === journeyDallas12.id) {
         const mission = missionId === journeyDallas12.id ? journeyDallas12 : journeyDallas11;
         this.database.prepare('UPDATE journey_attempts SET monster_health = ?, fortress_left_health = ?, fortress_right_health = ?, final_phase = ? WHERE attempt_id = ?')
           .run(mission.coreHealth, mission.turretHealth, mission.turretHealth, missionId === journeyDallas12.id ? 'ESCORTS' : null, attemptId);
       }
-      if (missionId === journeyDallas20.id||(missionId===journeyDallas19.id||missionId===journeyDallas25.id) || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
+      if (missionId === journeyDallas21.id||missionId === journeyDallas20.id||(missionId===journeyDallas19.id||missionId===journeyDallas25.id) || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
+        .run(missionId===journeyDallas21.id?900:missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }
 
   approach(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    this.database.prepare("UPDATE journey_attempts SET status = 'APPROACH', prepare_until = CASE WHEN mission_id IN (?,?) THEN ? WHEN mission_id = ? THEN ? WHEN mission_id = ? THEN ? ELSE NULL END WHERE pilot_id = ? AND attempt_id = ? AND status = 'READY'")
-      .run(journeyDallas19.id,journeyDallas25.id, now + journeyDallas19.prepareMs,journeyDallas20.id,now+journeyDallas20.prepareMs,
+    this.database.prepare("UPDATE journey_attempts SET status = 'APPROACH', prepare_until = CASE WHEN mission_id IN (?,?) THEN ? WHEN mission_id IN (?,?) THEN ? WHEN mission_id = ? THEN ? ELSE NULL END WHERE pilot_id = ? AND attempt_id = ? AND status = 'READY'")
+      .run(journeyDallas19.id,journeyDallas25.id, now + journeyDallas19.prepareMs,journeyDallas20.id,journeyDallas21.id,now+journeyDallas20.prepareMs,
         journeyDallas22.id, now + journeyDallas22.prepareMs, pilotId, attemptId);
     const current = this.get(pilotId, attemptId);
     return current?.status === 'APPROACH' ? current : undefined;
@@ -427,7 +427,7 @@ export class JourneyAttemptStore {
   /** Start the combat clock after preparation and the authorized countdown handoff. */
   startMonsterArrival(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    const mission=current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
+    const mission=current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas21.id?journeyDallas21:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     if (current?.missionId !== mission.id || current.status !== 'APPROACH' ||
       current.prepareUntil === null || now < current.prepareUntil) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?,
@@ -506,7 +506,7 @@ export class JourneyAttemptStore {
   /** Only the server projectile simulation invokes this after a swept body hit. */
   hitMonster(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
     const current=this.get(pilotId,attemptId);
-    return this.hitEncounter(pilotId, attemptId,current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19, now, damage);
+    return this.hitEncounter(pilotId, attemptId,current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas21.id?journeyDallas21:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19, now, damage);
   }
 
   private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number, damage?: number): JourneyAttempt | undefined {
@@ -941,72 +941,8 @@ export class JourneyAttemptStore {
     });
   }
 
-  /** Mission 21 uses the existing territory rectangles without writing shared ownership. */
-  updateTwoFronts(pilotId: string, attemptId: string, territoryId: string, valid: boolean,
-    monotonicNow: number, now = Date.now()): JourneyAttempt | undefined {
-    return this.wallet.transaction(wallet => {
-      const current = this.get(pilotId, attemptId);
-      if (current?.missionId !== journeyDallas21.id ||
-        current.targetId !== journeyDallas21.alphaTerritoryId ||
-        current.secondaryTargetId !== journeyDallas21.bravoTerritoryId ||
-        current.status !== 'APPROACH' && current.status !== 'RACING') return undefined;
-      const alpha = current.status === 'APPROACH';
-      const assigned = alpha ? current.targetId : current.secondaryTargetId;
-      const eligible = valid && territoryId === assigned;
-      if (!alpha && (current.deadlineAt === null || current.startedAt === null || now >= current.deadlineAt)) {
-        this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', failure_reason = 'TIME_UP',
-          finished_at = ?, hold_updated_at = NULL WHERE pilot_id = ? AND attempt_id = ? AND status = 'RACING'`)
-          .run(now, pilotId, attemptId);
-        return this.get(pilotId, attemptId);
-      }
-      if (!eligible) {
-        if (current.holdUpdatedAt !== null) this.database.prepare(`UPDATE journey_attempts SET hold_updated_at = NULL
-          WHERE pilot_id = ? AND attempt_id = ? AND status IN ('APPROACH','RACING')`).run(pilotId, attemptId);
-        return this.get(pilotId, attemptId);
-      }
-      const elapsed = current.holdUpdatedAt !== null && monotonicNow > current.holdUpdatedAt &&
-        monotonicNow - current.holdUpdatedAt <= 600 ? monotonicNow - current.holdUpdatedAt : 0;
-      const progress = Math.min(journeyDallas21.captureMs, (alpha ? current.captureMs : current.holdMs) + elapsed);
-      if (alpha) {
-        this.database.prepare(`UPDATE journey_attempts SET capture_ms = ?, hold_updated_at = ?,
-          status = CASE WHEN ? >= ? THEN 'RACING' ELSE status END,
-          started_at = CASE WHEN ? >= ? THEN ? ELSE started_at END,
-          deadline_at = CASE WHEN ? >= ? THEN ? ELSE deadline_at END
-          WHERE pilot_id = ? AND attempt_id = ? AND status = 'APPROACH'`)
-          .run(progress, progress === journeyDallas21.captureMs ? null : monotonicNow,
-            progress, journeyDallas21.captureMs, progress, journeyDallas21.captureMs, now,
-            progress, journeyDallas21.captureMs, now + journeyDallas21.transferMs,
-            pilotId, attemptId);
-        return this.get(pilotId, attemptId);
-      }
-      if (progress < journeyDallas21.captureMs) {
-        this.database.prepare(`UPDATE journey_attempts SET hold_ms = ?, hold_updated_at = ?
-          WHERE pilot_id = ? AND attempt_id = ? AND status = 'RACING'`).run(progress, monotonicNow, pilotId, attemptId);
-        return this.get(pilotId, attemptId);
-      }
-      const finishTimeMs = now - current.startedAt!;
-      const first = this.database.prepare(`INSERT OR IGNORE INTO journey_completions
-        (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
-        .run(pilotId, journeyDallas21.id, attemptId, now, finishTimeMs).changes === 1;
-      if (!first) this.database.prepare(`UPDATE journey_completions SET clear_count = clear_count + 1,
-        best_time_ms = MIN(best_time_ms, ?) WHERE pilot_id = ? AND mission_id = ?`)
-        .run(finishTimeMs, pilotId, journeyDallas21.id);
-      let credited = 0;
-      if (first) {
-        const before = wallet.balances(pilotId)?.credits ?? 0;
-        const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: journeyDallas21.firstClearCredits,
-          reason: 'MISSION_REWARD', idempotencyKey: `journey:${journeyDallas21.id}`,
-          referenceId: journeyDallas21.id, createdAt: now });
-        if (!reward.ok) throw new Error('Journey Two Fronts reward failed');
-        credited = Math.max(0, (reward.balance ?? before) - before);
-      }
-      this.database.prepare(`UPDATE journey_attempts SET status = 'COMPLETED', hold_ms = ?, hold_updated_at = NULL,
-        finished_at = ?, finish_time_ms = ?, first_clear_credits = ?
-        WHERE pilot_id = ? AND attempt_id = ? AND status = 'RACING'`)
-        .run(progress, now, finishTimeMs, credited, pilotId, attemptId);
-      return this.get(pilotId, attemptId);
-    });
-  }
+  /** Retired M21 objective: old capture events cannot advance the boss mission. */
+  updateTwoFronts(_pilotId:string,_attemptId:string,_territoryId:string,_valid:boolean,_monotonicNow:number,_now=Date.now()): JourneyAttempt | undefined {return undefined;}
 
   fail(pilotId: string, attemptId: string, reason: 'TIME_UP' | 'CRASHED' | 'MONSTER_KILLED' | 'INTERRUPTED' | 'INVALID' | 'PURSUIT_INTERRUPTED' | 'ENEMY_ESCAPED' | 'ENEMY_INTERRUPTED' | 'ACE_INTERRUPTED' | 'CROSSFIRE_INTERRUPTED' | 'DEFENSE_INTERRUPTED' | 'DOUBLE_INTERRUPTED' | 'PAUSE_EXPIRED', now = Date.now()): JourneyAttempt | undefined {
     this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', failure_reason = ?, finished_at = ?, paused_at = NULL

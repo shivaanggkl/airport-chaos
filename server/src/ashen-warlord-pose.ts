@@ -7,7 +7,7 @@ import type { Environment, AuthoredPoseContext } from './titan/engine.js';
 const asset = readTitanAnimationAsset(readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb', import.meta.url)));
 const H = model.height, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 /** One sampler/transition state per encounter. All bone motion comes from supplied animation tracks. */
-export function createAshenPose(initialHealth = 2500, stationary = false, striking = false): Environment['articulate'] {
+export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false): Environment['articulate'] {
     const sampler = new TitanAnimationSampler(asset);
     const coreMatrix = new Float64Array(16);
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, gaitPhase = 0, turnTime = 0, lastRoot: {
@@ -22,6 +22,13 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
             const dt=clamp(c.time-lastTime,0,.1);lastTime=c.time;
             let key='idle',time=c.time;
             const motion=c.anchoredMotion,a=c.ability;
+            if(hunting){
+                const distance=lastRoot?Math.hypot(root.x-lastRoot.x,root.z-lastRoot.z)/H:0;
+                lastRoot={x:root.x,z:root.z};
+                const forward=c.velocity.x*Math.sin(yaw)+c.velocity.z*Math.cos(yaw);
+                gaitPhase=(gaitPhase+(forward<0?-1:1)*distance/model.clips.walk!.stride!+1)%1;
+                if(Math.hypot(c.velocity.x,c.velocity.z)>.5){key='walk';time=titanGaitTime(model.clips.walk!,gaitPhase);}
+            }
             if(motion?.kind==='jump'){
                 key=motion.elapsed<timing.jumpSeconds?'jump':'landing';
                 time=key==='jump'?motion.elapsed:motion.elapsed-timing.jumpSeconds;
@@ -29,11 +36,11 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
             else if(a&&a.stage!=='COOLDOWN'){
                 key=a.id==='hand-strike'?'punch':a.elapsed<timing.castSeconds?'charge':'shoot';
                 time=key==='shoot'?a.elapsed-timing.castSeconds:a.elapsed;
-            }else if(Math.abs(c.yawVelocity)>.015){
+            }else if(key==='idle'&&Math.abs(c.yawVelocity)>.015){
                 key='turn';turnTime-=dt*c.yawVelocity/(3.1997298216058336/model.clips.turn!.duration);time=turnTime;
             }
             const clip=model.clips[key]!;
-            return {clip:clip.name,time:['idle','turn'].includes(key)?(time%clip.duration+clip.duration)%clip.duration:clamp(time,0,clip.duration),blend:1,offsetY:0};
+            return {clip:clip.name,time:['idle','walk','turn'].includes(key)?(time%clip.duration+clip.duration)%clip.duration:clamp(time,0,clip.duration),blend:1,offsetY:0};
         }
         if(stationary){
             const key=c.ability?.id==='hand-strike'&&c.ability.stage!=='COOLDOWN'?'punch':c.roarElapsed!==undefined?'roar':'idle';

@@ -293,9 +293,11 @@ export const journeyDallas20 = Object.freeze({
 });
 
 export const journeyDallas21 = Object.freeze({
-  id: 'journey-dallas-21', cityId: 'dallas', name: 'TWO FRONTS',
+  id: 'journey-dallas-21', cityId: 'dallas', name: 'MONSTER HUNT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 2_850,
-  startAirportId: 'love', alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
+  startAirportId: 'love', prepareMs:0,timeLimitMs:240000,bossHealth:900,monster:journeyDallas20.monster,airborneSpawn:journeyDallas20.airborneSpawn,
+  // Compatibility metadata for historical territory records only.
+  alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
   captureMs: 6_000, transferMs: 120_000,
 });
 

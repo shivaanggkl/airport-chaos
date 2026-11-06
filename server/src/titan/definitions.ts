@@ -65,6 +65,7 @@ export type Species = {
         mirror?: boolean;
     }>>;
     stationary?: {roarDuration:number;roarInterval:number};
+    hunting?: {roarInterval:number;roarSeconds:number;combatDistance:number;roamRadius:number};
     anchored?: {jumpInterval:number;jumpBend:number;jumpSeconds:number;landSeconds:number;jumpHeight:number;roarInterval:number;roarSeconds:number};
     director?: { combatDistance?: number; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
     animations: readonly string[];
@@ -134,6 +135,7 @@ export class SpeciesRegistry {
             throw Error('Invalid presentation references');
         if (!s.id || this.#entries.has(s.id) || !s.model || !difficulties[s.level] || positive.some(n => !finite(n) || n <= 0) || s.movement.run < s.movement.walk || !finite(s.senses.fov) || s.senses.fov <= 0 || s.senses.fov > Math.PI * 2 || s.regions.length === 0 || s.abilities.length > 32)
             throw Error('Invalid species');
+        if(s.hunting&&Object.values(s.hunting).some(n=>typeof n==='number'&&(!Number.isFinite(n)||n<=0)))throw Error('Invalid hunting profile');
         if(s.anchored&&([s.movement.walk,s.movement.run,s.movement.chargeSpeed].some(n=>n!==0)||Object.values(s.anchored).some(n=>typeof n==='number'&&(!Number.isFinite(n)||n<=0))))throw Error('Invalid anchored profile');
         if(s.stationary&&(!Number.isFinite(s.stationary.roarDuration)||s.stationary.roarDuration<=0||!Number.isFinite(s.stationary.roarInterval)||s.stationary.roarInterval<s.stationary.roarDuration||[s.movement.walk,s.movement.run,s.movement.turnRate,s.movement.turnAcceleration].some(n=>n!==0)))throw Error('Invalid stationary profile');
         if(s.movement.runOnly!==undefined&&typeof s.movement.runOnly!=='boolean')throw Error('Invalid run-only locomotion');

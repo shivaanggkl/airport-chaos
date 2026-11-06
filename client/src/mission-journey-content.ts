@@ -30,7 +30,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-25': 'Destroy The MONSTER Before Time Runs Out.',
   'journey-dallas-19': 'Destroy the giant monster before time runs out.',
   'journey-dallas-20': 'DEFEAT THE MONSTER',
-  'journey-dallas-21': 'Capture the first area, then the second within two minutes.',
+  'journey-dallas-21': 'DEFEAT THE MONSTER',
   'journey-dallas-22': 'Fly through three gates, then land perfectly at DFW.',
   'journey-dallas-23': 'Defeat two Hunters, repairing your plane between fights.',
 };

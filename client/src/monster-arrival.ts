@@ -185,8 +185,8 @@ export class MonsterArrivalView {
   onRoar?:()=>void;onFootfall?:()=>void;onWarning?:()=>void;onProjectile?:()=>void;onHit?:()=>void;onDestruction?:()=>void;
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
-    source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding,private readonly stationary=false,private readonly striking=false) {
-    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.particles=new MonsterParticles(this.crimsonCore?384:96);this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source,this.stationary,this.striking):new MonsterArrivalModel(source,binding);this.environmentDamage=!this.stationary&&!this.striking&&(!binding||!binding.url.includes('armored-apex'));this.ready=this.creature.ready;
+    source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding,private readonly stationary=false,private readonly striking=false,private readonly hunting=false) {
+    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.particles=new MonsterParticles(this.crimsonCore?384:96);this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source,this.stationary,this.striking,this.hunting):new MonsterArrivalModel(source,binding);this.environmentDamage=!this.stationary&&!this.striking&&(!binding||!binding.url.includes('armored-apex'));this.ready=this.creature.ready;
     this.scene=scene;this.camera=camera;this.targetGroundY=targetGroundY;this.pixelHeight=pixelHeight;
     this.creature.groundAt=groundAt;
     if(this.crimsonCore){this.beamMaterial.color.set(0xff2340);this.waveMaterial.color.set(0xff3b35);this.warningMaterial.color.set(0xff1735);this.warningMaterial.opacity=.4;}
@@ -326,7 +326,7 @@ export class MonsterArrivalView {
     delta=Math.min(.05,Math.max(0,delta));this.elapsed+=delta;
     const c=this.creature;
     if(this.state && !this.ending) {
-      if(this.stationary||this.striking)c.root.position.copy(this.target);else c.root.position.lerp(this.target,1-Math.exp(-delta*12));
+      if(this.stationary||this.striking&&!this.hunting)c.root.position.copy(this.target);else c.root.position.lerp(this.target,1-Math.exp(-delta*12));
       if(this.state.titan&&this.renderedTitan){
         const from=this.renderedTitan,to=this.state.titan,w=1-Math.exp(-delta*12),angle=(a:number,b:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*w;
         for(const key of ['feet','limbs']as const)for(const [name,p]of Object.entries(to[key])){const q=from[key][name];if(q){q.x+=(p.x-q.x)*w;q.y+=(p.y-q.y)*w;q.z+=(p.z-q.z)*w;}}

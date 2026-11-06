@@ -144,7 +144,8 @@ export const journeyDallas20: Readonly<{
     normalX: number; normalY: number; normalZ: number }[];
 }>;
 export const journeyDallas21: Readonly<{
-  id: 'journey-dallas-21'; cityId: 'dallas'; name: 'TWO FRONTS'; chapter: 'LEGENDARY SKIES';
+  id: 'journey-dallas-21'; cityId: 'dallas'; name: 'MONSTER HUNT'; chapter: 'LEGENDARY SKIES';
+  prepareMs:0;timeLimitMs:240000;bossHealth:900;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
   firstClearCredits: 2850; startAirportId: 'love'; alphaTerritoryId: 'addison';
   bravoTerritoryId: 'dallas-executive'; captureMs: 6000; transferMs: 120000;
 }>;
