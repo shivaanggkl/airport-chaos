@@ -275,45 +275,48 @@ export const journeyDallas18 = Object.freeze({
 });
 
 export const journeyDallas19 = Object.freeze({
-  id: 'journey-dallas-19', cityId: 'dallas', name: 'MONSTER ARRIVAL',
-  chapter: 'CITY DEFENDERS', firstClearCredits: 2_550, startAirportId:'dfw', runwayStart:true,
-  prepareMs: 0, timeLimitMs: 240_000, bossHealth: 2_500,
-  monster: Object.freeze({ x: -5_500, z: -2_400, height: 960 }),
+  id: 'journey-dallas-19', cityId: 'dallas', name: 'FINAL MONSTER BATTLE',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 4_000, startAirportId:'dfw', runwayStart:true,
+  prepareMs: 0, timeLimitMs: 300_000, bossHealth: 1_500,
+  monster: Object.freeze({ x: -5_500, z: -2_400, height: 1920 }),
   airborneSpawn: Object.freeze({ x: -7_500, z: -3_555, altitude: 850, heading: -2.094, speed: 110 }),
 });
 
-// M20 retains its historical identity and reward, now a Titan boss encounter.
+// Visible M19 keeps its approved beginner settings independently of the finale.
+export const journeyDallas25 = Object.freeze({...journeyDallas19,id:'journey-dallas-25',
+ name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,timeLimitMs:240000,bossHealth:500,
+ monster:Object.freeze({...journeyDallas19.monster,height:960}),
+});
+
 export const journeyDallas20 = Object.freeze({
-  id:'journey-dallas-20',cityId:'dallas',name:'ARMORED APEX',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
-  prepareMs:0,timeLimitMs:240000,bossHealth:3000,monster:journeyDallas19.monster,airborneSpawn:journeyDallas19.airborneSpawn,
+  id:'journey-dallas-20',cityId:'dallas',name:'MONSTER STRIKES',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
+  prepareMs:0,timeLimitMs:240000,bossHealth:700,monster:Object.freeze({...journeyDallas19.monster,height:1920}),airborneSpawn:journeyDallas19.airborneSpawn,
   // Empty compatibility field: no gate can complete this boss mission.
   gates:Object.freeze([]),startAirportId:'love',
 });
 
 export const journeyDallas21 = Object.freeze({
-  id: 'journey-dallas-21', cityId: 'dallas', name: 'TWO FRONTS',
+  id: 'journey-dallas-21', cityId: 'dallas', name: 'MONSTER HUNT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 2_850,
-  startAirportId: 'love', alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
+  startAirportId: 'love', prepareMs:0,timeLimitMs:240000,bossHealth:900,monster:journeyDallas20.monster,airborneSpawn:journeyDallas20.airborneSpawn,
+  // Compatibility metadata for historical territory records only.
+  alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
   captureMs: 6_000, transferMs: 120_000,
 });
 
-// North-to-south on DFW's existing runway axis. Gate 3 leaves a long, clear
-// stabilization leg before the north threshold and the server's touchdown zone.
 export const journeyDallas22 = Object.freeze({
-  id: 'journey-dallas-22', cityId: 'dallas', name: 'PERFECT APPROACH',
-  chapter: 'LEGENDARY SKIES', firstClearCredits: 3_000,
-  prepareMs: 3_000, finishAirportId: 'dfw', approachRestartZ: -23_400,
-  airborneSpawn: Object.freeze({ x: -22_800, z: -23_800, altitude: 525, heading: Math.PI, speed: 120 }),
-  gates: Object.freeze([
-    { x: -22_800, z: -22_500, altitude: 460, radius: 180, normalX: 0, normalY: -0.04494, normalZ: 0.99899 },
-    { x: -22_800, z: -21_000, altitude: 370, radius: 125, normalX: 0, normalY: -0.06750, normalZ: 0.99772 },
-    { x: -22_800, z: -19_000, altitude: 240, radius: 80, normalX: 0, normalY: -0.07375, normalZ: 0.99727 },
-  ]),
+  id:'journey-dallas-22',cityId:'dallas',name:'MONSTER SHOWDOWN',chapter:'LEGENDARY SKIES',firstClearCredits:3000,
+  startAirportId:'dfw',runwayStart:true,prepareMs:0,timeLimitMs:240000,bossHealth:1100,
+  monster:journeyDallas20.monster,airborneSpawn:journeyDallas19.airborneSpawn,
+  // Compatibility fields never advance the retired landing objective.
+  finishAirportId:'dfw',approachRestartZ:-23400,gates:Object.freeze([]),
 });
 
 export const journeyDallas23 = Object.freeze({
-  id: 'journey-dallas-23', cityId: 'dallas', name: 'DOUBLE TROUBLE',
+  id: 'journey-dallas-23', cityId: 'dallas', name: 'MONSTER PURSUIT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 3_150, startAirportId: 'love',
+  prepareMs:0,timeLimitMs:240000,bossHealth:1000,monster:journeyDallas20.monster,airborneSpawn:journeyDallas20.airborneSpawn,
+  // Compatibility metadata only; no aircraft or repair-heart objectives remain.
   hunterHealth: 200, heartId: 'mission-23-repair-heart', heartRadius: 115,
   hunterTwoDelayMs: 2_500,
 });
@@ -385,5 +388,5 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 }
 
 // Journey slots can change without renaming persisted mission identities or reward receipts.
-export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,19,20,21,22,23,24].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
+export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,25,20,21,22,23,19].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
 export function journeyMissionSlot(missionId) { return journeyMissionOrder.indexOf(missionId) + 1; }

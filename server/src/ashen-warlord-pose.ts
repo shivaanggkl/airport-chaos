@@ -1,3 +1,4 @@
+import {strikingWarlord as timing} from '../../shared/striking-warlord.mjs';
 import { readFileSync } from 'node:fs';
 import { ashenWarlordModel as model } from '../../shared/ashen-warlord-model.mjs';
 import { readTitanAnimationAsset, titanGaitTime, TitanAnimationSampler, transformTitanPoint, type AuthoredAnimation } from '../../shared/titan-animation.mjs';
@@ -6,7 +7,7 @@ import type { Environment, AuthoredPoseContext } from './titan/engine.js';
 const asset = readTitanAnimationAsset(readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb', import.meta.url)));
 const H = model.height, clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 /** One sampler/transition state per encounter. All bone motion comes from supplied animation tracks. */
-export function createAshenPose(initialHealth = 2500): Environment['articulate'] {
+export function createAshenPose(initialHealth = 2500, stationary = false, striking = false, hunting = false): Environment['articulate'] {
     const sampler = new TitanAnimationSampler(asset);
     const coreMatrix = new Float64Array(16);
     let old: AuthoredAnimation | undefined, transition: AuthoredAnimation | undefined, transitionAt = 0, lastTime = 0, gaitPhase = 0, turnTime = 0, lastRoot: {
@@ -17,6 +18,36 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
         x: number;
         z: number;
     }, yaw: number): AuthoredAnimation => {
+        if(striking){
+            const dt=clamp(c.time-lastTime,0,.1);lastTime=c.time;
+            let key='idle',time=c.time;
+            const motion=c.anchoredMotion,a=c.ability;
+            if(hunting){
+                const distance=lastRoot?Math.hypot(root.x-lastRoot.x,root.z-lastRoot.z)/H:0;
+                lastRoot={x:root.x,z:root.z};
+                const forward=c.velocity.x*Math.sin(yaw)+c.velocity.z*Math.cos(yaw);
+                const gait=c.running?'run':'walk',clip=model.clips[gait]!;
+                gaitPhase=(gaitPhase+(forward<0?-1:1)*distance/clip.stride!+1)%1;
+                if(Math.hypot(c.velocity.x,c.velocity.z)>.5){key=gait;time=titanGaitTime(clip,gaitPhase);}
+            }
+            if(motion?.kind==='jump'){
+                key=motion.elapsed<timing.jumpSeconds?'jump':'landing';
+                time=key==='jump'?motion.elapsed:motion.elapsed-timing.jumpSeconds;
+            }else if(motion?.kind==='roar'){key='roar';time=motion.elapsed;}
+            else if(a&&a.stage!=='COOLDOWN'){
+                key=a.id==='hand-strike'?'punch':a.elapsed<timing.castSeconds?'charge':'shoot';
+                time=key==='shoot'?a.elapsed-timing.castSeconds:a.elapsed;
+            }else if(key==='idle'&&Math.abs(c.yawVelocity)>.015){
+                key='turn';turnTime-=dt*c.yawVelocity/(3.1997298216058336/model.clips.turn!.duration);time=turnTime;
+            }
+            const clip=model.clips[key]!;
+            return {clip:clip.name,time:['idle','walk','run','turn'].includes(key)?(time%clip.duration+clip.duration)%clip.duration:clamp(time,0,clip.duration),blend:1,offsetY:0};
+        }
+        if(stationary){
+            const key=c.ability?.id==='hand-strike'&&c.ability.stage!=='COOLDOWN'?'punch':c.roarElapsed!==undefined?'roar':'idle';
+            const clip=model.clips[key]!;
+            return {clip:clip.name,time:key==='punch'?Math.min(clip.duration,c.ability!.elapsed):key==='roar'?Math.min(clip.duration,c.roarElapsed!):c.time%clip.duration,blend:1,offsetY:0};
+        }
         const dt = clamp(c.time - lastTime, 0, .1), distance = lastRoot ? Math.hypot(root.x - lastRoot.x, root.z - lastRoot.z) / H : 0;
         lastRoot = { x: root.x, z: root.z };
         lastTime = c.time;
@@ -68,7 +99,7 @@ export function createAshenPose(initialHealth = 2500): Environment['articulate']
         if (transition && context.time - transitionAt < .18) {
             next.previousClip = transition.clip;
             const duration = asset.clips[transition.clip]!.duration;
-            next.previousTime = (transition.time + context.time - transitionAt) % duration;
+            next.previousTime = (stationary||striking)&&transition.clip!==model.clips.idle!.name?Math.min(duration,transition.time+context.time-transitionAt):(transition.time + context.time - transitionAt) % duration;
             next.blend = clamp((context.time - transitionAt) / .18, 0, 1);
         }
         else

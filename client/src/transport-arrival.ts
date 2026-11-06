@@ -25,17 +25,17 @@ export class TransportArrivalSequence {
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
     this.alert.innerHTML=missionName === 'GIANT PLANE & TWO ESCORTS'
-      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & TWO ESCORTS</strong><p>Shoot down the giant plane and both escorts before time runs out.</p>'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & TWO ESCORTS</strong><p>Shoot down the GIANT PLANE and both escorts before time runs out.</p>'
       : missionName === 'GIANT PLANE & THREE ESCORTS'
-      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & THREE ESCORTS</strong><p>Shoot down the giant plane and all three escorts before time runs out.</p>'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & THREE ESCORTS</strong><p>Shoot down the GIANT PLANE and all three escorts before time runs out.</p>'
       : missionName === 'GIANT PLANE & FOUR ESCORTS'
-      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & FOUR ESCORTS</strong><p>Shoot down the giant plane and all four escorts before time runs out.</p>'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & FOUR ESCORTS</strong><p>Shoot down the GIANT PLANE and all four escorts before time runs out.</p>'
       : escorts.length
       ? missionName === 'ARMORED GIANT PLANE & TWO ESCORTS'
-        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy both escort planes and the giant plane’s two wings and engine in any order.</p>'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy both escort planes and the GIANT PLANE’s two wings and engine in any order.</p>'
         : `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'GIANT PLANE & FOUR ESCORTS' : missionName === 'GIANT PLANE & THREE ESCORTS' ? 'GIANT PLANE & THREE ESCORTS' : 'GIANT PLANE & TWO ESCORTS'}</strong><p>Destroy the ${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
       : missionName === 'ARMORED GIANT PLANE'
-        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy the giant plane’s two wings and engine in any order.</p>'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy the GIANT PLANE’s two wings and engine in any order.</p>'
         : '<strong>GIANT PLANE</strong><p>SHOOT IT DOWN</p>';
     document.body.append(this.alert);
     if (escorts.length) this.scene.add(...escorts);

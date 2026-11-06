@@ -24,7 +24,7 @@ export type Threat = {
     velocity: Vec;
     radius: number;
 };
-export type AuthoredPoseContext={resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
+export type AuthoredPoseContext={running?:boolean;anchoredMotion?:{kind:"jump"|"roar";elapsed:number};roarElapsed?:number;resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
 export type Environment = {
     authoredPose?:boolean;
     /** Trusted host policy: scenery cannot confine city-roaming encounters. Combat occlusion remains separate. */
@@ -142,6 +142,21 @@ export class TitanEncounter {
     #yaw = 0;
     #yawVelocity = 0;
     #speed = 0;
+    #runApproachUntil=0;
+    #pursuitRunUntil=0;
+    #pursuitRunAt=2;
+    #huntRestUntil=1;
+    #huntRepositionUntil=0;
+    #huntRepositionGoal?:Vec;
+    #huntLastVelocity?:Vec;
+    #huntRepositionAt=0;
+    #huntFocus?:Vec;
+    #anchorJumpAt=18;
+    #anchorJumpStarted=-Infinity;
+    #anchorRestUntil=1;
+    #anchorTarget?:Target;
+    #roarAt=20;
+    #roarStarted=-Infinity;
     #time = 0;
     #health: number;
     #damageImpact: Vec | null = null;
@@ -230,6 +245,8 @@ export class TitanEncounter {
         this.id = id;
         this.species = species;
         this.#env = environment;
+        if(species.hunting){this.#roarAt=species.hunting.roarInterval;this.#huntRestUntil=species.hunting.restSeconds??1;}
+        if(species.anchored){this.#anchorJumpAt=species.anchored.jumpInterval;this.#roarAt=species.anchored.roarInterval;}
         this.#initial = { ...position };
         this.#position = { ...position };
         this.#goal = { ...position };
@@ -369,7 +386,101 @@ export class TitanEncounter {
     }
     #plan(t: Target | undefined, threats: readonly Threat[]) {
         const profile = difficulties[this.species.level];
-        this.#nextDecision = this.#time + .2;
+        this.#nextDecision = this.#time + (this.species.hunting?.decisionInterval??.2);
+        if(this.species.hunting){
+            const p=this.species.hunting;
+            if(this.#active)return;
+            if(this.#time<this.#huntRestUntil||this.#time<this.#roarStarted+p.roarSeconds){this.#goal={...this.#position};this.#stopForAction=true;return;}
+            if(this.#time>=this.#roarAt){
+                this.#goal={...this.#position};this.#stopForAction=true;
+                if(Math.hypot(this.#velocity.x,this.#velocity.z)<.5&&Math.abs(this.#yawVelocity)<.015){
+                    this.#roarStarted=this.#time;this.#roarAt=this.#time+p.roarInterval;
+                    this.#huntRestUntil=this.#time+p.roarSeconds+1;
+                    this.#emit('animation','roar',this.#position,{ability:'visual-roar'});
+                }return;
+            }
+            if(!t){this.#goal={...this.#position};this.#stopForAction=true;return;}
+            this.#huntFocus=t.position;
+            const previous=this.#huntLastVelocity,speed=Math.hypot(t.velocity.x,t.velocity.z),oldSpeed=previous?Math.hypot(previous.x,previous.z):0;
+            const changed=previous&&speed>30&&oldSpeed>30&&(previous.x*t.velocity.x+previous.z*t.velocity.z)/(speed*oldSpeed)<.8;
+            if(p.flankDistance){
+                this.#huntLastVelocity??={x:0,y:0,z:0};
+                this.#huntLastVelocity.x=t.velocity.x;this.#huntLastVelocity.y=t.velocity.y;this.#huntLastVelocity.z=t.velocity.z;
+            }
+            const facing=Math.abs(wrap(Math.atan2(t.position.x-this.#position.x,t.position.z-this.#position.z)-this.#yaw));
+            let approaching=false;
+            if(p.approachBeforeShot&&p.runDistance&&Math.hypot(t.position.x-this.#position.x,t.position.z-this.#position.z)>p.combatDistance+this.species.radius){
+                approaching=this.#time<this.#pursuitRunUntil;
+                if(!approaching&&this.#time>=this.#pursuitRunAt&&distance(this.#position,t.position)>=p.runDistance){
+                    if(!this.#runApproachUntil)this.#runApproachUntil=this.#time+2.5;
+                    if(this.#time<this.#runApproachUntil)approaching=true;
+                    else{this.#runApproachUntil=0;this.#pursuitRunAt=this.#time+(p.runCooldown??8);}
+                }
+            }
+            const ability=this.species.abilities.find(a=>this.#eligible(a,t)&&(a.mechanism==='sweep'||!approaching&&facing<.15));
+            if(ability&&this.#time>=difficulties[this.species.level].reaction){
+                if(this.#start(ability,t)||this.#stopForAction)return;
+            }
+            this.#stopForAction=false;this.#idleCompleted=false;this.#tactic='hunt';
+            // Keep a firing lane rather than pursue a faster airplane across the city.
+            const dx=t.position.x-this.#position.x,dz=t.position.z-this.#position.z,d=Math.hypot(dx,dz)||1;
+            const range=Math.min(Math.max(0,d-p.combatDistance),p.roamRadius);
+            let x=this.#position.x+dx/d*range,z=this.#position.z+dz/d*range;
+            if(p.flankDistance&&p.repositionSeconds){
+                if((changed||this.#misses>0)&&this.#time>=this.#huntRepositionAt){
+                    const side=this.#serial%2===0?1:-1;
+                    this.#huntRepositionGoal={x:x-dz/d*p.flankDistance*side,y:this.#position.y,z:z+dx/d*p.flankDistance*side};
+                    this.#huntRepositionUntil=this.#time+p.repositionSeconds;
+                    this.#huntRepositionAt=this.#time+p.repositionSeconds+2;
+                }
+                if(this.#huntRepositionGoal&&this.#time<this.#huntRepositionUntil){x=this.#huntRepositionGoal.x;z=this.#huntRepositionGoal.z;this.#tactic='reposition';}
+            }
+            const span=Math.hypot(x-this.#initial.x,z-this.#initial.z);
+            if(span>p.roamRadius){x=this.#initial.x+(x-this.#initial.x)*p.roamRadius/span;z=this.#initial.z+(z-this.#initial.z)*p.roamRadius/span;}
+            this.#goal=this.#boundedGoal({x,y:this.#position.y,z});
+            if(p.runSeconds&&p.runCooldown&&p.runDistance&&d>=p.runDistance&&this.#time>=this.#pursuitRunAt&&
+                Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk*.6&&facing<.4){
+                this.#runApproachUntil=0;
+                this.#pursuitRunUntil=this.#time+p.runSeconds;
+                this.#pursuitRunAt=this.#pursuitRunUntil+p.runCooldown;
+            }
+            return;
+        }
+        if(this.species.anchored){
+            const p=this.species.anchored;
+            this.#tactic='observe';
+            this.#anchorTarget=t;
+            if(this.#active||this.#time<this.#anchorJumpStarted+p.jumpSeconds+p.landSeconds||this.#time<this.#roarStarted+p.roarSeconds||this.#time<this.#anchorRestUntil)return;
+            if(this.#time>=this.#anchorJumpAt){
+                this.#anchorJumpStarted=this.#time;this.#anchorJumpAt=this.#time+p.jumpInterval;
+                this.#anchorRestUntil=this.#time+p.jumpSeconds+p.landSeconds+1;
+                this.#emit('animation','jump',this.#position,{ability:'vertical-jump'});return;
+            }
+            if(this.#time>=this.#roarAt){
+                this.#roarStarted=this.#time;this.#roarAt=this.#time+p.roarInterval;
+                this.#anchorRestUntil=this.#time+p.roarSeconds+1;
+                this.#emit('animation','roar',this.#position,{ability:'visual-roar'});return;
+            }
+            if(!t||Math.abs(this.#yawVelocity)>.08)return;
+            const punch=this.species.abilities.find(a=>a.mechanism==='sweep'&&this.#eligible(a,t));
+            if(punch){this.#start(punch,t);return;}
+            if(Math.abs(wrap(Math.atan2(t.position.x-this.#position.x,t.position.z-this.#position.z)-this.#yaw))>.12)return;
+            const ability=this.species.abilities.find(a=>this.#eligible(a,t));
+            if(ability)this.#start(ability,t);
+            return;
+        }
+        if(this.species.stationary){
+            this.#tactic='observe';
+            if(this.#active||this.#time<this.#roarStarted+this.species.stationary.roarDuration)return;
+            if(this.#time>=this.#roarAt){
+                this.#roarStarted=this.#time;this.#roarAt=this.#time+this.species.stationary.roarInterval;
+                this.#emit('animation','roar',this.#position,{ability:'stationary-roar'});return;
+            }
+            const punch=this.species.abilities[0];
+            if(t&&punch&&this.#eligible(punch,t))this.#start(punch,t);
+            return;
+        }
+
         if(this.#stopForAction)return;
         if (!t) {
             this.#tactic = this.#memory.length ? 'hunt' : 'recover';
@@ -651,14 +762,43 @@ export class TitanEncounter {
             return false;
         this.#idleCompleted=false;
         this.#active = { definition: a, start: this.#time, serial: ++this.#serial, targetId: t.id, aim: { ...(landing ?? t.position) }, direction: unit(this.#anchor(a.requires[0]), t.position), released: 0, hit: new Set(), lastStage: 'SELECT', combo: depth, previousLimbs: new Map(), landed: false, debris: debris ?? undefined };
-        this.#cooldowns.set(a.id, this.#time + a.warning + a.windup + a.active + a.recovery + a.cooldown);
+        this.#cooldowns.set(a.id, this.#time + a.warning + a.windup + a.active + a.recovery + a.cooldown+(this.species.hunting?.restVariation??0)*(this.#serial*7%11)/10);
         this.#emit('animation', a.event, this.#position, { ability: a.id, stage: 'SELECT', progress: 0 });
         this.#lastAbility = a.id;
         return true;
     }
     #move(dt: number) {
+        if(this.species.anchored){
+            const p=this.species.anchored,elapsed=this.#time-this.#anchorJumpStarted;
+            const jumping=elapsed<p.jumpSeconds+p.landSeconds,roaring=this.#time<this.#roarStarted+p.roarSeconds;
+            const ground=this.#env.ground(this.#position.x,this.#position.z);
+            const flight=p.jumpSeconds-p.jumpBend,air=clamp(elapsed-p.jumpBend,0,flight);
+            const lift=jumping&&elapsed<p.jumpSeconds?4*p.jumpHeight*air*(flight-air)/(flight*flight):0;
+            const previous=this.#position.y;
+            this.#position.y=ground+lift;this.#velocity={x:0,y:(this.#position.y-previous)/dt,z:0};
+            this.#airborne=lift>0;
+            if(elapsed>=p.jumpSeconds&&elapsed-dt<p.jumpSeconds)this.#emit('animation','land',this.#position,{ability:'vertical-jump'});
+            const stage=this.#active?titanTimeline(this.#active.definition,this.#time-this.#active.start).stage:'';
+            const preparing=this.#active?.definition.mechanism==='projectile'&&stage==='WARNING';
+            const target=this.#anchorTarget;
+            const error=target?wrap(Math.atan2(target.position.x-this.#position.x,target.position.z-this.#position.z)-this.#yaw):0;
+            const close=target&&this.species.abilities.some(a=>a.mechanism==='sweep'&&this.#eligible(a,target,true));
+            const desired=!close&&!jumping&&!roaring&&(!this.#active||preparing)?clamp(error,-this.species.movement.turnRate,this.species.movement.turnRate):0;
+            const prior=this.#yawVelocity;
+            this.#yawVelocity=move(prior,desired,this.species.movement.turnAcceleration*dt);
+            // Lock the facing during actual contact/release and recovery.
+            if(this.#active&&!preparing)this.#yawVelocity=0;
+            this.#yaw+=this.#yawVelocity*dt;
+            return;
+        }
+        if(this.species.stationary){this.#velocity.x=0;this.#velocity.y=0;this.#velocity.z=0;return;}
         const m = this.species.movement, a = this.#active, stage = a ? titanTimeline(a.definition, this.#time - a.start).stage : '';
         let goal = this.#goal, speed = this.#leapGoal || this.#tactic === 'recover' ? 0 : this.#tactic === 'hunt' ? m.walk : m.run;
+        if(this.species.hunting?.runSeconds){
+            // Brake early enough to blend fully back to Walk before the configured burst deadline.
+            const remaining=Math.max(0,this.#pursuitRunUntil-this.#time-.2);
+            speed=Math.min(m.run,m.walk+m.deceleration*remaining);
+        }
         if(this.species.director&&a?.definition.moving)speed=Math.hypot(this.#goal.x-this.#position.x,this.#goal.z-this.#position.z)>4000?m.run:m.walk;
         if (a && !a.definition.moving && stage !== 'COOLDOWN')
             speed = 0;
@@ -705,6 +845,8 @@ export class TitanEncounter {
         if (this.#airborne && this.species.director && a?.definition.mechanism==='leap') wantedYaw=Math.hypot(a.aim.x-this.#position.x,a.aim.z-this.#position.z)>1?Math.atan2(a.aim.x-this.#position.x,a.aim.z-this.#position.z):this.#yaw;
         if (sidestep)
             wantedYaw = this.#yaw;
+        if(this.species.hunting&&this.#huntFocus&&!this.#active&&Math.hypot(this.#velocity.x,this.#velocity.z)<.5&&(!this.species.hunting.flankDistance||d<=this.species.radius+1))wantedYaw=Math.atan2(this.#huntFocus.x-this.#position.x,this.#huntFocus.z-this.#position.z);
+        if(this.species.hunting&&this.#active)wantedYaw=this.#yaw;
         const error = wrap(wantedYaw - this.#yaw), rate = (this.#stopForAction||this.#idleCompleted||this.#leapGoal || a?.definition.mechanism === 'leap' && (stage === 'WARNING' || stage === 'WINDUP')) ? 0 : Math.sign(error) * Math.min(m.turnRate, Math.sqrt(2 * m.turnAcceleration * Math.abs(error)));
         this.#yawVelocity = move(this.#yawVelocity, rate, m.turnAcceleration * dt);
         const step = this.#yawVelocity * dt, previousYaw = this.#yaw;
@@ -746,6 +888,7 @@ export class TitanEncounter {
         if (sidestep)
             speed = 0;
         this.#lateralSpeed = move(this.#lateralSpeed, this.#leapGoal ? 0 : escaping ? (this.#escapeDirection.x * Math.cos(this.#yaw) - this.#escapeDirection.z * Math.sin(this.#yaw)) * m.walk * .6 : sidestep ? m.walk * this.#avoidSign : 0, m.acceleration * dt);
+        if(this.species.hunting&&Math.abs(error)>.25)speed=0;
         speed *= Math.max(0, Math.cos(error));
         if (reverse)
             speed = -m.walk * .5;
@@ -873,7 +1016,7 @@ export class TitanEncounter {
                     this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
             }
         }
-        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
+        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{running:this.species.hunting?.runSeconds!==undefined&&Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk+.5,anchoredMotion:this.species.hunting&&this.#time<this.#roarStarted+this.species.hunting.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:this.species.anchored?(this.#time<this.#anchorJumpStarted+this.species.anchored.jumpSeconds+this.species.anchored.landSeconds?{kind:"jump",elapsed:this.#time-this.#anchorJumpStarted}:this.#time<this.#roarStarted+this.species.anchored.roarSeconds?{kind:"roar",elapsed:this.#time-this.#roarStarted}:undefined):undefined,roarElapsed:this.species.stationary&&this.#time<this.#roarStarted+this.species.stationary.roarDuration?this.#time-this.#roarStarted:undefined,resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
         this.#updatingPose=false;
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
@@ -889,6 +1032,7 @@ export class TitanEncounter {
     }
     #shotVelocity(t: Target): Vec {
         const recent = this.#memory.slice(-5), q = difficulties[this.species.level].prediction;
+        if(this.species.hunting)return {x:t.velocity.x*q,y:t.velocity.y*q,z:t.velocity.z*q};
         if (!recent.length)
             return { ...t.velocity };
         const average = recent.reduce((v, s) => ({ x: v.x + s.velocity.x / recent.length, y: v.y + s.velocity.y / recent.length, z: v.z + s.velocity.z / recent.length }), { x: 0, y: 0, z: 0 });
@@ -910,6 +1054,8 @@ export class TitanEncounter {
             this.#comboUntil = this.#time + .8;
             if(!this.species.director||def.mechanism!=='projectile'||!this.#directorShots.has(a.serial))this.#misses = a.hit.size ? 0 : Math.min(8, this.#misses + 1);
             this.#active = null;
+            if(this.species.hunting){const p=this.species.hunting;this.#huntRestUntil=this.#time+(p.restSeconds??1)+(p.restVariation??0)*(this.#serial*7%11)/10;}
+            if(this.species.anchored)this.#anchorRestUntil=this.#time+1;
             if(this.species.director){this.#directorAttackAt=this.#time+this.species.director.attackSpacing;this.#directorUntil=0;}
             if(this.species.movement.idleBetweenActions){this.#stopForAction=true;this.#idleUntil=0;}
             return;
@@ -920,8 +1066,10 @@ export class TitanEncounter {
             this.#headPitch = clamp(Math.atan2(a.direction.y, Math.hypot(a.direction.x, a.direction.z)), -.6, .6);
             this.#updatePose(0);
         }
-        if (t.stage !== 'ACTIVE')
+        if (t.stage !== 'ACTIVE'){
+            if((this.species.stationary||this.species.anchored||this.species.hunting)&&def.mechanism==='sweep')for(const name of def.requires)a.previousLimbs.set(name,{...this.#limbs[name]});
             return;
+        }
         let origin = this.#anchor(def.requires[0]);
         if (def.mechanism === 'beam' && !a.released) {
             a.released = 1;
@@ -1168,7 +1316,7 @@ export class TitanEncounter {
         this.#health -= amount;
         if(this.species.director){this.#pressure*=Math.exp(-(this.#time-this.#pressureAt)/3);this.#pressure+=amount;this.#pressureAt=this.#time;}
         this.#stagger += amount;
-        this.#emit('animation', this.#health <= 0 ? 'defeat' : 'hit', this.#position, { amount });
+        if((!this.species.stationary&&!this.species.anchored&&!this.species.hunting)||this.#health<=0)this.#emit('animation', this.#health <= 0 ? 'defeat' : 'hit', this.#position, { amount });
         if (this.#stagger >= selected.stagger && this.#active?.definition.interruptible&&(!this.species.director||this.#time-this.#lastStaggerAt>2)) {
             this.#cooldowns.set(this.#active.definition.id, this.#time + this.#active.definition.recovery + this.#active.definition.cooldown);
             this.#active = null;
@@ -1212,6 +1360,8 @@ export class TitanEncounter {
         this.#visibleSince = 0;
         this.#lastSeen = 0;
         this.#active = null;
+        if(this.species.hunting){this.#runApproachUntil=0;this.#pursuitRunUntil=0;this.#pursuitRunAt=this.#time+2;this.#huntRepositionUntil=0;this.#huntRepositionGoal=undefined;this.#huntLastVelocity=undefined;this.#huntRepositionAt=0;this.#huntFocus=undefined;this.#huntRestUntil=this.#time+(this.species.hunting.restSeconds??1);this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.hunting.roarInterval;}
+        if(this.species.anchored){this.#anchorJumpStarted=-Infinity;this.#anchorJumpAt=this.#time+this.species.anchored.jumpInterval;this.#anchorRestUntil=this.#time+1;this.#anchorTarget=undefined;this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.anchored.roarInterval;}
         this.#stopForAction=false;this.#idleUntil=0;this.#idleCompleted=false;this.#lastTravelAt=-Infinity;
         this.#cooldowns.clear();
         this.#shots = [];

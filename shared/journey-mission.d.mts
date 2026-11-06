@@ -132,31 +132,34 @@ export const journeyDallas18: Readonly<{
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;
 export const journeyDallas19: Readonly<{
-  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'MONSTER ARRIVAL'; chapter: 'CITY DEFENDERS';
-  firstClearCredits: 2550; startAirportId:'dfw'; runwayStart:true; prepareMs: 0; timeLimitMs: 240000; bossHealth: 2500;
+  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'FINAL MONSTER BATTLE'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 4000; startAirportId:'dfw'; runwayStart:true; prepareMs: 0; timeLimitMs: 300000; bossHealth: 1500;
   monster: Readonly<{ x: number; z: number; height: number }>;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;
 export const journeyDallas20: Readonly<{
-  id: 'journey-dallas-20'; cityId: 'dallas'; name: 'ARMORED APEX'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 2700; startAirportId: 'love'; timeLimitMs: 240000;prepareMs:0;bossHealth:3000;monster:typeof journeyDallas19.monster;airborneSpawn:typeof journeyDallas19.airborneSpawn;
+  id: 'journey-dallas-20'; cityId: 'dallas'; name: 'MONSTER STRIKES'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 2700; startAirportId: 'love'; timeLimitMs: 240000;prepareMs:0;bossHealth:700;monster:Readonly<{x:number;z:number;height:1920}>;airborneSpawn:typeof journeyDallas19.airborneSpawn;
   gates: readonly { x: number; z: number; altitude: number; radius: number;
     normalX: number; normalY: number; normalZ: number }[];
 }>;
 export const journeyDallas21: Readonly<{
-  id: 'journey-dallas-21'; cityId: 'dallas'; name: 'TWO FRONTS'; chapter: 'LEGENDARY SKIES';
+  id: 'journey-dallas-21'; cityId: 'dallas'; name: 'MONSTER HUNT'; chapter: 'LEGENDARY SKIES';
+  prepareMs:0;timeLimitMs:240000;bossHealth:900;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
   firstClearCredits: 2850; startAirportId: 'love'; alphaTerritoryId: 'addison';
   bravoTerritoryId: 'dallas-executive'; captureMs: 6000; transferMs: 120000;
 }>;
 export const journeyDallas22: Readonly<{
-  id: 'journey-dallas-22'; cityId: 'dallas'; name: 'PERFECT APPROACH'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 3000; prepareMs: 3000; finishAirportId: 'dfw'; approachRestartZ: number;
+  id: 'journey-dallas-22'; cityId: 'dallas'; name: 'MONSTER SHOWDOWN'; chapter: 'LEGENDARY SKIES';
+  startAirportId:'dfw';runwayStart:true;timeLimitMs:240000;bossHealth:1100;monster:typeof journeyDallas20.monster;
+  firstClearCredits: 3000; prepareMs: 0; finishAirportId: 'dfw'; approachRestartZ: number;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number;
     normalX: number; normalY: number; normalZ: number }[];
 }>;
 export const journeyDallas23: Readonly<{
-  id: 'journey-dallas-23'; cityId: 'dallas'; name: 'DOUBLE TROUBLE'; chapter: 'LEGENDARY SKIES';
+  id: 'journey-dallas-23'; cityId: 'dallas'; name: 'MONSTER PURSUIT'; chapter: 'LEGENDARY SKIES';
+  prepareMs:0;timeLimitMs:240000;bossHealth:1000;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
   firstClearCredits: 3150; startAirportId: 'love'; hunterHealth: 200;
   heartId: 'mission-23-repair-heart'; heartRadius: 115; hunterTwoDelayMs: 2500;
 }>;
@@ -174,3 +177,5 @@ export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateInd
 
 export declare const journeyMissionOrder: readonly string[];
 export declare function journeyMissionSlot(missionId:string):number;
+
+export const journeyDallas25: Readonly<Omit<typeof journeyDallas19,'id'|'name'|'chapter'|'firstClearCredits'|'timeLimitMs'|'bossHealth'|'monster'> & {id:'journey-dallas-25';name:'MONSTER ARRIVAL';chapter:'CITY DEFENDERS';firstClearCredits:2550;timeLimitMs:240000;bossHealth:500;monster:Readonly<{x:number;z:number;height:960}>}>;
