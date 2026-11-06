@@ -36,9 +36,9 @@ function elevationAt(x, z) {
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const angle = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
-test('the six Golden Gates routes keep their identity and progress through distinct central Dallas scenery', () => {
+test('the six Golden Gates routes grow in difficulty across Dallas districts', () => {
   const courses = new Set();
-  const turnLimits = [55, 70, 60, 90, 75, 60];
+  const turnLimits = [55, 60, 60, 75, 80, 80];
   for (const [missionIndex, mission] of missions.entries()) {
     assert.equal(mission.id, `journey-dallas-0${missionIndex + 1}`);
     assert.equal(mission.gates.length, 10);
@@ -48,8 +48,8 @@ test('the six Golden Gates routes keep their identity and progress through disti
     const length = legs.reduce((sum, leg) => sum + leg, 0);
     assert.ok(length / fastSpeed >= 60 && length / fastSpeed <= 85, `${mission.name}: Bluejay route length`);
     assert.ok(legs.every(leg => leg >= 2_500 && leg <= 7_500), `${mission.name}: readable gate spacing`);
-    assert.ok(points.every(point => point.x >= -16_000 && point.x <= 9_000 && point.z >= -14_000 && point.z <= 12_000),
-      `${mission.name}: inside the detailed city envelope`);
+    assert.ok(points.every(point => Math.abs(point.x) + (point.radius ?? 0) < 25_000 &&
+      Math.abs(point.z) + (point.radius ?? 0) < 25_000), `${mission.name}: inside the Dallas terrain`);
     for (let index = 1; index < points.length - 1; index++) {
       const before = points[index - 1], at = points[index], after = points[index + 1];
       const first = Math.atan2(at.z - before.z, at.x - before.x);
@@ -71,15 +71,21 @@ test('the six Golden Gates routes keep their identity and progress through disti
   assert.ok(journeyDallas01.gates.every(gate => gate.radius >= 300));
   assert.ok(distance(journeyDallas01.gates.at(-1), trinity) < 1_500);
   assert.ok(journeyDallas02.gates.some(gate => distance(gate, lake) < 3_000));
+  assert.ok(journeyDallas02.gates.some(gate => gate.x > 11_000), 'Lake Racer reaches East Dallas');
   assert.ok(journeyDallas03.gates[5].altitude < 1_200);
   assert.ok(journeyDallas03.gates.slice(1, 6).every((gate, index) => gate.altitude > journeyDallas03.gates[index].altitude));
   assert.ok(journeyDallas03.gates.slice(6).every((gate, index) => gate.altitude < journeyDallas03.gates[index + 5].altitude));
+  assert.ok(journeyDallas03.gates.some(gate => gate.z < -20_000), 'Golden Ascent reaches North Dallas');
   assert.ok(journeyDallas04.gates[1].x > journeyDallas04.gates[2].x && journeyDallas04.gates[3].x > journeyDallas04.gates[4].x);
   assert.ok(journeyDallas05.gates.some(gate => distance(gate, trinity) < 2_000));
+  assert.ok(journeyDallas05.gates.some(gate => gate.x < -18_000), 'Needle Rush reaches West Dallas');
   assert.ok(journeyDallas05.gates[8].radius < journeyDallas04.gates[8].radius);
   assert.ok(journeyDallas06.gates.some(gate => distance(gate, lake) < 3_000));
   assert.ok(journeyDallas06.gates.some(gate => distance(gate, trinity) < 500));
   assert.ok(journeyDallas06.gates.at(-1).radius >= 340);
+  assert.ok(journeyDallas06.gates.some(gate => gate.z >= 11_000), 'Golden Championship reaches South Dallas');
+  assert.ok(Math.min(...journeyDallas06.gates.map(gate => gate.radius)) <
+    Math.min(...journeyDallas05.gates.map(gate => gate.radius)), 'the final race has the narrowest gate');
 });
 
 test('normal Bluejay bank steering reaches every gate in order from the authored spawn', () => {
@@ -106,8 +112,8 @@ test('normal Bluejay bank steering reaches every gate in order from the authored
       if (signed(from) < 0 && signed(to) >= 0) {
         assert.equal(journeyGateCrossing(from, to, gateIndex, elevationAt(gate.x, gate.z), mission), 'VALID',
           `${mission.name}: Bluejay missed gate ${gateIndex + 1}`);
-        assert.equal(journeyGateCrossing(to, from, gateIndex, elevationAt(gate.x, gate.z), mission), false,
-          `${mission.name}: reverse crossing accepted`);
+        assert.equal(journeyGateCrossing(to, from, gateIndex, elevationAt(gate.x, gate.z), mission), 'VALID',
+          `${mission.name}: reverse crossing missed`);
         gateIndex++;
       }
       elapsed += dt;
@@ -139,7 +145,9 @@ test('the authoritative mission store advances all ten correctly crossed gates o
         const center = { x: gate.x, y: elevationAt(gate.x, gate.z) + gate.altitude, z: gate.z };
         const before = { x: center.x - plane.normalX * 60, y: center.y, z: center.z - plane.normalZ * 60 };
         const after = { x: center.x + plane.normalX * 60, y: center.y, z: center.z + plane.normalZ * 60 };
-        assert.equal(journeyGateCrossing(before, after, gateIndex, elevationAt(gate.x, gate.z), mission), 'VALID',
+        const entry = gateIndex % 2 === 0 ? before : after;
+        const exit = gateIndex % 2 === 0 ? after : before;
+        assert.equal(journeyGateCrossing(entry, exit, gateIndex, elevationAt(gate.x, gate.z), mission), 'VALID',
           `${mission.name}: gate ${gateIndex + 1} crosses the displayed opening`);
         assert.equal(store.acceptGate(pilotId, attempt.attemptId, gateIndex + 1, 3_000 + gateIndex * 7_000), undefined,
           `${mission.name}: a future gate cannot clear early`);
@@ -186,7 +194,7 @@ test('all six centerline corridors and full gate openings clear mapped buildings
   const near = new URL('../../client/public/data/dallas/near/', import.meta.url);
   for (const file of readdirSync(near)) {
     const cell = /^(-?\d+)_(-?\d+)\.json$/.exec(file);
-    if (!cell || Number(cell[1]) < -10 || Number(cell[1]) > 6 || Number(cell[2]) < -9 || Number(cell[2]) > 7) continue;
+    if (!cell) continue;
     for (const building of JSON.parse(readFileSync(new URL(file, near), 'utf8')).b) {
       if (building.length < 10) continue;
       const xs = building.slice(4).filter((_, index) => index % 2 === 0);

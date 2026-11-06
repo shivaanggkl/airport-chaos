@@ -299,12 +299,12 @@ test('Giant Incoming applies the damage captured when each shot was fired', () =
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Rookie Rush crossing requires ordered forward travel through the actual opening', () => {
+test('Rookie Rush crossing accepts either direction through the actual opening', () => {
   const gate = journeyDallas01.gates[0]!;
   const before = { x: gate.x - 100, y: gate.altitude, z: gate.z };
   const after = { x: gate.x + 100, y: gate.altitude, z: gate.z };
   assert.equal(crossesJourneyGate(before, after, 0, 0), true);
-  assert.equal(crossesJourneyGate(after, before, 0, 0), false);
+  assert.equal(crossesJourneyGate(after, before, 0, 0), true);
   assert.equal(crossesJourneyGate({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, 0, 0), false);
 });
 
@@ -520,7 +520,7 @@ test('historical Hunter Showdown clears retain unlocks but never pay Lake Racer 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Golden Ascent is a ten-gate rising forward course with valid swept openings', () => {
+test('Golden Ascent is a ten-gate rising course with valid swept openings', () => {
   assert.equal(journeyDallas03.timeLimitMs, 160_000);
   assert.equal(journeyDallas03.firstClearCredits, 450);
   assert.equal(journeyDallas03.gates.length, 10);
@@ -546,7 +546,7 @@ test('Golden Ascent is a ten-gate rising forward course with valid swept opening
     const from = { x: gate.x - nx * 100, y: 180 + gate.altitude, z: gate.z - nz * 100 };
     const to = { x: gate.x + nx * 100, y: 180 + gate.altitude, z: gate.z + nz * 100 };
     assert.equal(journeyGateCrossing(from, to, index, 180, journeyDallas03), 'VALID');
-    assert.equal(journeyGateCrossing(to, from, index, 180, journeyDallas03), false);
+    assert.equal(journeyGateCrossing(to, from, index, 180, journeyDallas03), 'VALID');
     const miss = { x: from.x - nz * gate.radius * 2, y: from.y, z: from.z + nx * gate.radius * 2 };
     const missTo = { x: to.x - nz * gate.radius * 2, y: to.y, z: to.z + nx * gate.radius * 2 };
     assert.equal(journeyGateCrossing(miss, missTo, index, 180, journeyDallas03), false);
@@ -659,11 +659,11 @@ test('historical White Rock Skimmer completion keeps rewards and unlocks without
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Needle Rush has ten progressively smaller golden openings and forward crossings', () => {
+test('Needle Rush has ten progressively smaller golden openings and bidirectional crossings', () => {
   assert.equal(journeyDallas05.name, 'NEEDLE RUSH');
   assert.equal(journeyDallas05.timeLimitMs, 160_000);
   assert.ok(journeyDallas05.airborneSpawn);
-  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 245, 230, 220, 210, 205, 320]);
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 240, 230, 220, 215, 320]);
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas05.gates[index]!;
     const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
@@ -674,7 +674,7 @@ test('Needle Rush has ten progressively smaller golden openings and forward cros
     const before = { x: gate.x - nx * 50, y: gate.altitude, z: gate.z - nz * 50 };
     const after = { x: gate.x + nx * 50, y: gate.altitude, z: gate.z + nz * 50 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas05), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas05), false);
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas05), 'VALID');
     assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius * .93 }, { ...after, y: gate.altitude + gate.radius * .93 }, index, 0, journeyDallas05), false);
     const offset = gate.radius * .93;
     assert.equal(journeyGateCrossing(
@@ -715,7 +715,9 @@ test('Needle Rush requires Mission 4, a running timer and all ten gates; reward 
     assert.equal(attempt.deadlineAt, null);
     const preparing = store.approach('needle-pilot', attempt.attemptId);
     assert.deepEqual(authorizedJourneyAirborneSpawn(preparing, journeyDallas05, () => 120), {
-      position: { x: -15_000, y: 820, z: -13_000 }, heading: -3 * Math.PI / 4, speed: 650,
+      position: { x: journeyDallas05.airborneSpawn.x, y: 120 + journeyDallas05.airborneSpawn.altitude,
+        z: journeyDallas05.airborneSpawn.z },
+      heading: journeyDallas05.airborneSpawn.heading, speed: journeyDallas05.airborneSpawn.speed,
     });
     assert.equal(authorizedJourneyAirborneSpawn(attempt, journeyDallas05, () => 120), undefined);
     store.startRookieRush('needle-pilot', attempt.attemptId, 171_000);
@@ -800,7 +802,7 @@ test('historical four-gate Mission 5 clears retain progress and Credits without 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Golden Championship has ten forward-only gates and a safe course entry', () => {
+test('Golden Championship has ten gates and a safe course entry', () => {
   assert.equal(journeyDallas06.name, 'GOLDEN CHAMPIONSHIP');
   assert.equal(journeyDallas06.gates.length, 10);
   assert.equal(journeyDallas06.timeLimitMs, 160_000);
@@ -816,7 +818,7 @@ test('Golden Championship has ten forward-only gates and a safe course entry', (
     const before = { x: gate.x - nx * 80, y: gate.altitude, z: gate.z - nz * 80 };
     const after = { x: gate.x + nx * 80, y: gate.altitude, z: gate.z + nz * 80 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas06), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas06), false);
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas06), 'VALID');
     assert.equal(journeyGateCrossing({ ...before, y: gate.altitude + gate.radius }, { ...after, y: gate.altitude + gate.radius }, index, 0, journeyDallas06), false);
   }
 });
@@ -919,7 +921,7 @@ test('historical championship clears preserve rewards while new race records sta
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Downtown Slalom gates accept sequential forward crossings through the solid ring', () => {
+test('Downtown Slalom gates accept sequential crossings through either face of the solid ring', () => {
   assert.equal(journeyDallas04.gates.length, 10);
   assert.equal(journeyDallas04.timeLimitMs, 160_000);
   assert.equal(journeyDallas04.firstClearCredits, 500);
@@ -932,7 +934,7 @@ test('Downtown Slalom gates accept sequential forward crossings through the soli
     const before = { x: gate.x - nx * 90, y: gate.altitude, z: gate.z - nz * 90 };
     const after = { x: gate.x + nx * 90, y: gate.altitude, z: gate.z + nz * 90 };
     assert.equal(journeyGateCrossing(before, after, index, 0, journeyDallas04), 'VALID');
-    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas04), false);
+    assert.equal(journeyGateCrossing(after, before, index, 0, journeyDallas04), 'VALID');
     const tangentX = -nz * (gate.radius * 1.12 + 2.6), tangentZ = nx * (gate.radius * 1.12 + 2.6);
     assert.equal(journeyGateCrossing({ ...before, x: before.x + tangentX, z: before.z + tangentZ },
       { ...after, x: after.x + tangentX, z: after.z + tangentZ }, index, 0, journeyDallas04), false);

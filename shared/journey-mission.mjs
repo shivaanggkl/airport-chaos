@@ -32,38 +32,38 @@ export const journeyDallas01 = Object.freeze({
 export const journeyDallas02 = Object.freeze({
   id: 'journey-dallas-02', cityId: 'dallas', name: 'LAKE RACER',
   chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 150_000,
-  airborneSpawn: Object.freeze({ x: -6_000, z: -14_000, altitude: 690, heading: -2.60, speed: 650 }),
-  // A flowing clockwise lake loop with broad turns through East Dallas.
+  airborneSpawn: Object.freeze({ x: -6_000, z: -14_000, altitude: 770, heading: -2.11, speed: 650 }),
+  // Broad S-bends carry new racers east around White Rock Lake.
   gates: Object.freeze([
-    { x: -3_500, z: -12_500, altitude: 690, radius: 315 },
-    { x: 1_500, z: -13_500, altitude: 690, radius: 305 },
-    { x: 6_000, z: -11_000, altitude: 700, radius: 300 },
-    { x: 9_000, z: -7_000, altitude: 715, radius: 295 },
-    { x: 8_500, z: -2_000, altitude: 730, radius: 285 },
-    { x: 4_500, z: 500, altitude: 740, radius: 280 },
-    { x: 500, z: -2_000, altitude: 750, radius: 275 },
-    { x: -2_500, z: -5_800, altitude: 740, radius: 275 },
-    { x: -1_500, z: -10_000, altitude: 720, radius: 280 },
-    { x: -4_500, z: -12_500, altitude: 700, radius: 330 },
+    { x: -3_500, z: -12_500, altitude: 770, radius: 320 },
+    { x: 500, z: -13_500, altitude: 780, radius: 315 },
+    { x: 5_300, z: -11_200, altitude: 795, radius: 310 },
+    { x: 9_500, z: -9_000, altitude: 810, radius: 305 },
+    { x: 11_500, z: -5_000, altitude: 825, radius: 300 },
+    { x: 10_000, z: -1_000, altitude: 840, radius: 295 },
+    { x: 6_500, z: 2_000, altitude: 850, radius: 290 },
+    { x: 2_500, z: 1_000, altitude: 845, radius: 285 },
+    { x: -500, z: -2_500, altitude: 825, radius: 285 },
+    { x: -3_500, z: -6_000, altitude: 800, radius: 330 },
   ]),
 });
 
 export const journeyDallas03 = Object.freeze({
   id: 'journey-dallas-03', cityId: 'dallas', name: 'GOLDEN ASCENT',
   chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 450,
-  airborneSpawn: Object.freeze({ x: -10_000, z: -14_000, altitude: 650, heading: -2.82, speed: 650 }),
-  // Climb toward the skyline in manageable steps, then descend around it.
+  airborneSpawn: Object.freeze({ x: -11_000, z: -20_000, altitude: 650, heading: -1.25, speed: 650 }),
+  // Climb around Addison and North Dallas, then descend on the return arc.
   gates: Object.freeze([
-    { x: -9_000, z: -11_000, altitude: 680, radius: 315 },
-    { x: -8_500, z: -7_000, altitude: 750, radius: 305 },
-    { x: -7_500, z: -3_000, altitude: 830, radius: 295 },
-    { x: -6_200, z: 1_000, altitude: 910, radius: 285 },
-    { x: -4_300, z: 4_500, altitude: 990, radius: 280 },
-    { x: -900, z: 7_000, altitude: 1_060, radius: 275 },
-    { x: 3_000, z: 6_000, altitude: 1_020, radius: 270 },
-    { x: 5_000, z: 2_600, altitude: 950, radius: 265 },
-    { x: 3_500, z: -1_500, altitude: 860, radius: 265 },
-    { x: 0, z: -4_500, altitude: 780, radius: 335 },
+    { x: -8_000, z: -21_000, altitude: 680, radius: 310 },
+    { x: -4_000, z: -21_000, altitude: 740, radius: 300 },
+    { x: 0, z: -20_000, altitude: 810, radius: 290 },
+    { x: 4_000, z: -17_500, altitude: 880, radius: 285 },
+    { x: 5_500, z: -13_000, altitude: 950, radius: 280 },
+    { x: 3_500, z: -9_000, altitude: 1_030, radius: 275 },
+    { x: 0, z: -6_500, altitude: 990, radius: 270 },
+    { x: -4_500, z: -8_000, altitude: 920, radius: 265 },
+    { x: -8_500, z: -11_500, altitude: 830, radius: 260 },
+    { x: -10_000, z: -16_000, altitude: 750, radius: 330 },
   ]),
 });
 
@@ -71,56 +71,56 @@ export const journeyDallas04 = Object.freeze({
   id: 'journey-dallas-04', cityId: 'dallas', name: 'DOWNTOWN SLALOM',
   chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 160_000,
   airborneSpawn: Object.freeze({ x: -8_500, z: -12_000, altitude: 850, heading: -2.36, speed: 650 }),
-  // Alternating west-side skyline approaches, then an east-side return.
+  // A measured left-right slalom crosses Downtown and the Trinity corridor.
   gates: Object.freeze([
-    { x: -6_500, z: -10_000, altitude: 850, radius: 325 },
-    { x: -2_800, z: -7_000, altitude: 860, radius: 315 },
-    { x: -5_200, z: -3_500, altitude: 900, radius: 305 },
-    { x: -2_400, z: 0, altitude: 940, radius: 295 },
-    { x: -4_600, z: 3_500, altitude: 960, radius: 285 },
-    { x: -900, z: 7_000, altitude: 940, radius: 280 },
-    { x: 3_000, z: 8_000, altitude: 900, radius: 275 },
-    { x: 4_800, z: 4_500, altitude: 880, radius: 270 },
-    { x: 2_500, z: 500, altitude: 860, radius: 270 },
-    { x: 5_000, z: -3_500, altitude: 850, radius: 340 },
+    { x: -6_000, z: -10_000, altitude: 850, radius: 325 },
+    { x: -3_000, z: -7_300, altitude: 865, radius: 310 },
+    { x: -4_500, z: -3_300, altitude: 900, radius: 300 },
+    { x: -2_300, z: 700, altitude: 935, radius: 290 },
+    { x: -4_200, z: 4_300, altitude: 960, radius: 280 },
+    { x: -1_700, z: 7_800, altitude: 945, radius: 275 },
+    { x: 2_300, z: 9_200, altitude: 910, radius: 270 },
+    { x: 5_000, z: 5_700, altitude: 880, radius: 265 },
+    { x: 3_200, z: 1_600, altitude: 860, radius: 260 },
+    { x: 5_000, z: -3_000, altitude: 850, radius: 340 },
   ]),
 });
 
 export const journeyDallas05 = Object.freeze({
   id: 'journey-dallas-05', cityId: 'dallas', name: 'NEEDLE RUSH',
   chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 600,
-  airborneSpawn: Object.freeze({ x: -15_000, z: -13_000, altitude: 700, heading: -3 * Math.PI / 4, speed: 650 }),
-  // Follow the Trinity side of Downtown, then arc west through built-up districts.
+  airborneSpawn: Object.freeze({ x: -22_000, z: -14_000, altitude: 700, heading: -1.80, speed: 650 }),
+  // Race from DFW through Las Colinas to tight Trinity-side gates.
   gates: Object.freeze([
-    { x: -12_000, z: -10_000, altitude: 730, radius: 300 },
-    { x: -8_500, z: -7_000, altitude: 750, radius: 290 },
-    { x: -5_500, z: -3_200, altitude: 780, radius: 275 },
-    { x: -4_200, z: 800, altitude: 810, radius: 260 },
-    { x: -3_500, z: 4_500, altitude: 840, radius: 245 },
-    { x: -6_000, z: 8_500, altitude: 870, radius: 230 },
-    { x: -9_800, z: 10_000, altitude: 900, radius: 220 },
-    { x: -13_000, z: 7_500, altitude: 880, radius: 210 },
-    { x: -12_500, z: 3_500, altitude: 840, radius: 205 },
-    { x: -9_000, z: 500, altitude: 800, radius: 320 },
+    { x: -18_500, z: -13_200, altitude: 730, radius: 300 },
+    { x: -15_000, z: -15_000, altitude: 755, radius: 290 },
+    { x: -11_500, z: -13_000, altitude: 780, radius: 275 },
+    { x: -9_000, z: -9_000, altitude: 810, radius: 260 },
+    { x: -12_000, z: -5_500, altitude: 840, radius: 250 },
+    { x: -14_500, z: -1_500, altitude: 870, radius: 240 },
+    { x: -11_000, z: 2_500, altitude: 900, radius: 230 },
+    { x: -7_000, z: 4_000, altitude: 880, radius: 220 },
+    { x: -4_300, z: 2_300, altitude: 840, radius: 215 },
+    { x: -5_000, z: -2_000, altitude: 800, radius: 320 },
   ]),
 });
 
 export const journeyDallas06 = Object.freeze({
   id: 'journey-dallas-06', cityId: 'dallas', name: 'GOLDEN CHAMPIONSHIP',
   chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 750,
-  airborneSpawn: Object.freeze({ x: -14_000, z: -14_000, altitude: 760, heading: -1.98, speed: 650 }),
-  // Love Field, White Rock, skyline and Trinity form one central circuit.
+  airborneSpawn: Object.freeze({ x: 7_000, z: -14_000, altitude: 760, heading: 3.00, speed: 650 }),
+  // White Rock, Trinity and Dallas Executive link east to south Dallas.
   gates: Object.freeze([
-    { x: -10_500, z: -12_500, altitude: 770, radius: 310 },
-    { x: -6_500, z: -11_500, altitude: 800, radius: 300 },
-    { x: -2_000, z: -10_200, altitude: 820, radius: 290 },
-    { x: 2_500, z: -8_500, altitude: 860, radius: 280 },
-    { x: 6_500, z: -6_000, altitude: 900, radius: 270 },
-    { x: 7_500, z: -1_500, altitude: 950, radius: 260 },
-    { x: 5_200, z: 3_200, altitude: 980, radius: 245 },
-    { x: -1_000, z: 5_000, altitude: 920, radius: 230 },
-    { x: -4_100, z: 2_300, altitude: 850, radius: 230 },
-    { x: -7_400, z: 500, altitude: 800, radius: 340 },
+    { x: 6_500, z: -10_500, altitude: 780, radius: 300 },
+    { x: 10_000, z: -7_500, altitude: 820, radius: 290 },
+    { x: 12_000, z: -3_000, altitude: 860, radius: 280 },
+    { x: 8_500, z: 1_000, altitude: 900, radius: 265 },
+    { x: 3_500, z: 4_000, altitude: 850, radius: 255 },
+    { x: -1_000, z: 3_500, altitude: 920, radius: 245 },
+    { x: -4_100, z: 2_300, altitude: 980, radius: 235 },
+    { x: -8_500, z: 4_000, altitude: 900, radius: 225 },
+    { x: -10_000, z: 8_500, altitude: 820, radius: 205 },
+    { x: -6_700, z: 11_000, altitude: 780, radius: 340 },
   ]),
 });
 
@@ -344,7 +344,7 @@ export function journeyGatePlane(mission, gateIndex) {
   return { normalX: directionX / length, normalZ: directionZ / length };
 }
 
-// Cross the face of the next ring within its accepted collision region.
+// Cross either face of the next Golden Gates ring within its accepted collision region.
 // The caller supplies the authoritative terrain elevation at the gate.
 export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
   if(mission.id===journeyDallas20.id)return false;
@@ -367,8 +367,8 @@ export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission 
   const { normalX, normalZ } = plane;
   const before = (from.x - gate.x) * normalX + (from.z - gate.z) * normalZ;
   const after = (to.x - gate.x) * normalX + (to.z - gate.z) * normalZ;
-  const forward = before < 0 && after >= 0;
-  if (!forward) return false;
+  const crossed = (before < 0 && after >= 0) || (before > 0 && after <= 0);
+  if (!crossed) return false;
   const fraction = -before / (after - before);
   const x = from.x + (to.x - from.x) * fraction - gate.x;
   const y = from.y + (to.y - from.y) * fraction - terrainHeight - gate.altitude;
@@ -382,9 +382,6 @@ export function journeyGateCrossing(from, to, gateIndex, terrainHeight, mission 
 }
 export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
   return journeyGateCrossing(from, to, gateIndex, terrainHeight) === 'VALID';
-}
-export function crossesJourneyGateWrongWay(from, to, gateIndex, terrainHeight, mission = journeyDallas01) {
-  return journeyGateCrossing(to, from, gateIndex, terrainHeight, mission) === 'VALID';
 }
 
 // Journey slots can change without renaming persisted mission identities or reward receipts.

@@ -22,7 +22,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-11': 'Destroy both turrets, then the exposed core.',
   'journey-dallas-12': 'Destroy both guards, both turrets, then the exposed core.',
   'journey-dallas-13': 'Find and shoot down Nightowl.',
-  'journey-dallas-14': 'Fight back. Shoot down the attacking Bluejay.',
+  'journey-dallas-14': 'Find and shoot down Bluejay.',
   'journey-dallas-15': 'Chase and shoot down Mammoth before it escapes.',
   'journey-dallas-16': 'Shoot down both enemy planes.',
   'journey-dallas-17': 'Shoot down the armored Mammoth.',

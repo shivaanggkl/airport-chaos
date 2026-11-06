@@ -19,7 +19,7 @@ function elevationAt(x, z) {
     tz * ((1 - tx) * sample(x0, z0 + 1) + tx * sample(x0 + 1, z0 + 1));
 }
 
-test('Golden Championship stays in central Dallas and fits a normal Bluejay run', () => {
+test('Golden Championship spans East and South Dallas and fits a normal Bluejay run', () => {
   const course = [journeyDallas06.airborneSpawn, ...journeyDallas06.gates];
   assert.ok(journeyDallas06.gates.some(gate => Math.hypot(gate.x + 4_100, gate.z - 2_300) < 1_000),
     'the race passes the actual Trinity River corridor');
@@ -87,7 +87,7 @@ test('Golden Championship uses the existing golden ring aperture and releases mi
   const final = scene.children[9];
   assert.equal(first.children[0].material.color.getHex(), 0xf7c948);
   assert.equal(first.children[1].geometry.parameters.radius, .86);
-  assert.equal(first.scale.x, 310);
+  assert.equal(first.scale.x, journeyDallas06.gates[0].radius);
   assert.equal(final.scale.x, 340);
   rings.setProgress(7, true);
   assert.equal(scene.children.filter(group => group.visible).length, 3, 'previous gate flashes briefly after a confirmed crossing');

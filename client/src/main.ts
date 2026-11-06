@@ -1373,8 +1373,6 @@ const journeyHudEnemy = skyChallengeElement.querySelector<HTMLElement>('.journey
 const missionObjectiveGuidance = journeyMode ? new ObjectiveGuidance(flightGameRoot) : undefined;
 let missionObjective: MissionObjective | null = null;
 let journeyGateClearedUntil = 0;
-let wrongWayGateIndex = -1;
-let wrongWayGateUntil = 0;
 let elevatorDepartureTurnSide: PrecisionTurnSide = null;
 let elevatorDepartureAttemptId: string | null = null;
 const journeyResultElement = document.createElement('div');
@@ -3050,10 +3048,8 @@ function updateJourneyHud(): void {
     const gateCount = mission.gates.length;
     const distanceMeters = target ? distance * WORLD_METERS_PER_UNIT : 0;
     const cleared = gateIndex > 0 && performance.now() < journeyGateClearedUntil;
-    const wrongWay = gateIndex === wrongWayGateIndex && performance.now() < wrongWayGateUntil;
     const gateAbove = ascentMission && target && target.y - airplane.position.y > mission.gates[gateIndex].radius * .65;
-    if (journeyHudObjective) journeyHudObjective.textContent = wrongWay ? 'Turn around to enter the gate'
-      : cleared ? `Gate ${gateIndex} cleared`
+    if (journeyHudObjective) journeyHudObjective.textContent = cleared ? `Gate ${gateIndex} cleared`
       : gateAbove ? `Climb to gate ${gateIndex + 1}` : `Fly through all ${gateCount} gates`;
     if (journeyHudProgress) journeyHudProgress.textContent = `GATE ${Math.min(gateIndex + 1, gateCount)} / ${gateCount}`;
     if (journeyHudTarget && !downtownMission) journeyHudTarget.textContent = `GATE ${gateIndex + 1} · ${formatObjectiveDistance(distanceMeters)}`;
@@ -4982,7 +4978,6 @@ type ServerMessage =
   | { type: 'monsterFinal'; attemptId: string; kind: 'defeat' | 'timeout'; at: number }
   | { type: 'journeyGateTooHigh'; gateIndex: number }
   | { type: 'journeyGateTooSlow'; attemptId: string; gateIndex: number }
-  | { type: 'journeyGateWrongWay'; attemptId: string; gateIndex: number }
   | { type: 'journeyUnavailable'; reason: string }
   | { type: 'firehawkPromotionReady'; missionId: string }
   | { type: 'firehawkPromotionOffer'; missionId: string; trialEligible: boolean; displayPrice: string }
@@ -11333,14 +11328,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     showProgressMessage(message.reason);
     return;
   }
-  if (message.type === 'journeyGateWrongWay') {
-    if (!journeyAttempt || message.attemptId !== journeyAttempt.attemptId || message.gateIndex !== journeyAttempt.gateIndex) return;
-    wrongWayGateIndex = message.gateIndex;
-    wrongWayGateUntil = performance.now() + 3_200;
-    showProgressMessage(`GATE ${message.gateIndex + 1}: FLY THROUGH FROM THE OTHER SIDE`);
-    updateJourneyHud();
-    return;
-  }
   if (message.type === 'monsterState') {
     if ((journeyAttempt?.missionId === journeyDallas19.id||journeyAttempt?.missionId===journeyDallas20.id) && journeyAttempt.attemptId === message.attemptId) {
       monsterView?.setState(message);
@@ -11593,10 +11580,6 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
     if ((message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id || message.attempt.missionId === journeyDallas20.id || message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas24.id) &&
       previousAttempt?.attemptId === message.attempt.attemptId &&
       message.attempt.gateIndex > previousGate && message.attempt.gateIndex < (message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas20.id ? 6 : 4)) journeyGateClearedUntil = performance.now() + 1_400;
-    if (previousAttempt?.attemptId !== message.attempt.attemptId || message.attempt.gateIndex !== previousGate) {
-      wrongWayGateUntil = 0;
-    }
-
     if (message.attempt.gateIndex > previousGate && !((message.attempt.missionId === journeyDallas11.id) && message.attempt.status === 'COMPLETED')) {
       playCheckpointSound();
       showProgressMessage(`GATE ${message.attempt.gateIndex}/${message.attempt.missionId === journeyDallas01.id || message.attempt.missionId === journeyDallas02.id || message.attempt.missionId === journeyDallas03.id || message.attempt.missionId === journeyDallas04.id || message.attempt.missionId === journeyDallas05.id || message.attempt.missionId === journeyDallas06.id ? 10 : message.attempt.missionId === journeyDallas22.id || message.attempt.missionId === journeyDallas24.id ? 3 : message.attempt.missionId === journeyDallas20.id ? 6 : 4} CLEARED`);

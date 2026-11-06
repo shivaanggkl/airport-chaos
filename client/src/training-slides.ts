@@ -281,7 +281,7 @@ export class TrainingSlides {
   private makeReady(step: TutorialLessonStep): void {
     if (!this.active || this.suspended || this.currentStep() !== step) return;
     this.ready = true;
-    this.status.textContent = needsHeldControl(step) ? 'YOUR TURN · HOLD UNTIL FULL' : 'YOUR TURN';
+    this.status.textContent = needsHeldControl(step) ? 'HOLD UNTIL FULL' : '';
     this.timeProgress.hidden = false;
     this.options.onReady(step);
   }

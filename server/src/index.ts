@@ -35,7 +35,7 @@ import { missionForCity, missionsForCity, type CityMission } from '../../shared/
 import { advanceMission, initializeMissionAttempt, type MissionSignal } from './mission-engine.js';
 import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mjs';
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
-import { journeyGateCrossing, crossesJourneyGateWrongWay, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
 import {loadMonsterDistrictBuildings,segmentBlockedByBuildings} from './monster-arrival.js';
 import {createApexEncounter} from './m20-apex.js';
@@ -1057,7 +1057,6 @@ const playerJourneyAttempts = new Map<string, string>();
 const pausedJourneyPlayers = new Map<string, { attemptId: string; accountId?: string; sessionTokenHash: string }>();
 const pausedTrainingPlayers = new Map<string, { pausedAt: number; sessionTokenHash: string }>();
 const pausedJourneyAttempts = new Set<string>();
-const wrongWayGateWarningAt = new Map<string, { attemptId: string; gateIndex: number; at: number }>();
 // Populated only from authenticated Journey attempts, never client intent.
 const missionFocusedPlayers = new Set<string>();
 const monsterFocusedPlayers = new Set<string>();
@@ -2390,7 +2389,6 @@ const httpServer = createServer(async (request, response) => {
           cleanupHumanPlayer(playerId);
           continue;
         }
-        wrongWayGateWarningAt.delete(playerId);
         playerJourneyRunwayPrep.delete(playerId);
         playerJourneyLoveTakeoff.delete(playerId);
         playerJourneyAddisonTakeoff.delete(playerId);
@@ -2414,7 +2412,6 @@ const httpServer = createServer(async (request, response) => {
           cleanupHumanPlayer(playerId);
           continue;
         }
-        wrongWayGateWarningAt.delete(playerId);
         playerJourneyRunwayPrep.delete(playerId);
         playerJourneyLoveTakeoff.delete(playerId);
         playerJourneyAddisonTakeoff.delete(playerId);
@@ -3544,7 +3541,6 @@ function failPlayerJourney(playerId: string, reason: 'TIME_UP' | 'CRASHED' | 'MO
   if((failed?.missionId===journeyDallas07.id || failed?.missionId===journeyDallas08.id || failed?.missionId===journeyDallas09.id || failed?.missionId===journeyDallas10.id || failed?.missionId===journeyDallas11.id || failed?.missionId===journeyDallas12.id) && reason==='TIME_UP')sendToPlayer(playerId,{type:'transportFinal',attemptId:failed.attemptId,kind:'timeout',at:now});
   if ((failed?.missionId === journeyDallas19.id||failed?.missionId===journeyDallas20.id) && reason === 'TIME_UP')
     sendToPlayer(playerId, { type: 'monsterFinal', attemptId: failed.attemptId, kind: 'timeout', at: now });
-  wrongWayGateWarningAt.delete(playerId);
   playerJourneyRunwayPrep.delete(playerId);
   playerJourneyLoveTakeoff.delete(playerId);
   playerJourneyAddisonTakeoff.delete(playerId);
@@ -7922,7 +7918,6 @@ function cleanupHumanPlayer(playerId: string, socket?: WebSocket): void {
   transformRejectLogAt.delete(playerId);
   failPlayerJourney(playerId, 'INTERRUPTED');
   playerJourneyAttempts.delete(playerId);
-  wrongWayGateWarningAt.delete(playerId);
   missionFocusedPlayers.delete(playerId);
   monsterFocusedPlayers.delete(playerId);
   missionFocusHunterTargets.delete(playerId);
@@ -9245,16 +9240,6 @@ server.on('connection', (socket, request) => {
             dallasTerrain.elevationAt(gate.x, gate.z), mission) : false;
           if (crossing === 'TOO_HIGH') {
             sendToPlayer(playerId, { type: 'journeyGateTooHigh', gateIndex: active.gateIndex });
-          } else if (crossing === false && gate &&
-            (active.missionId === journeyDallas01.id || active.missionId === journeyDallas02.id || active.missionId === journeyDallas03.id ||
-              active.missionId === journeyDallas04.id || active.missionId === journeyDallas05.id || active.missionId === journeyDallas06.id) &&
-            crossesJourneyGateWrongWay(previousAcceptedPosition, message.position, active.gateIndex,
-              dallasTerrain.elevationAt(gate.x, gate.z), mission)) {
-            const warned = wrongWayGateWarningAt.get(playerId);
-            if (!warned || warned.attemptId !== journeyAttemptId || warned.gateIndex !== active.gateIndex || stateNow - warned.at >= 2_500) {
-              wrongWayGateWarningAt.set(playerId, { attemptId: journeyAttemptId, gateIndex: active.gateIndex, at: stateNow });
-              sendToPlayer(playerId, { type: 'journeyGateWrongWay', attemptId: journeyAttemptId, gateIndex: active.gateIndex });
-            }
           } else if (crossing === 'VALID') {
             const advanced = active.missionId === journeyDallas24.id
               ? journeyStore.acceptLegendaryGate(player.pilotId, journeyAttemptId, active.gateIndex, stateNow)
@@ -9266,7 +9251,6 @@ server.on('connection', (socket, request) => {
               if (advanced.missionId === journeyDallas24.id && advanced.legendaryPhase === 'ACE')
                 ensureJourneyLegendary(playerId, player, advanced, stateNow);
               if (advanced.status === 'COMPLETED') {
-                wrongWayGateWarningAt.delete(playerId);
                 sendProfile(playerId, profileStore.getOrCreate(player.pilotId, player.displayName), undefined, undefined, mission.name);
               }
             }
