@@ -2,7 +2,7 @@ import {createPursuitWarlordEncounter} from './pursuit-warlord.js';
 import {createShowdownWarlordEncounter} from './showdown-warlord.js';
 import {createHuntingWarlordEncounter} from './hunting-warlord.js';
 import {createStationaryWarlordEncounter} from './stationary-warlord.js';
-import {createAshenWarlordEncounter} from './ashen-warlord.js';
+import {createFinalWarlordEncounter} from './final-warlord.js';
 import { finalShowdownFireReady, recordFinalShowdownShot, type FinalShowdownBurst } from './final-showdown.js';
 import {pursuitProgress,type PursuitProgress} from './hot-pursuit.js';
 import { planOpponentTactics, recordOpponentShot, recordOpponentHit, recordOpponentDamage, shiftOpponentTactics } from './opponent-tactics.js';
@@ -3192,7 +3192,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     monsterFocusedPlayers.add(playerId);
   else monsterFocusedPlayers.delete(playerId);
   if (((attempt.missionId===journeyDallas19.id||attempt.missionId===journeyDallas25.id||attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas23.id)||attempt.missionId===journeyDallas20.id) && attempt.status === 'RACING' && attempt.startedAt !== null) {
-    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas23.id?createPursuitWarlordEncounter:attempt.missionId===journeyDallas22.id?createShowdownWarlordEncounter:attempt.missionId===journeyDallas21.id?createHuntingWarlordEncounter:attempt.missionId===journeyDallas25.id?createStationaryWarlordEncounter:attempt.missionId===journeyDallas20.id?createStrikingWarlordEncounter:createAshenWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas23.id?1000:attempt.missionId===journeyDallas22.id?1100:attempt.missionId===journeyDallas21.id?900:attempt.missionId===journeyDallas25.id?500:attempt.missionId===journeyDallas20.id?700:2500));
+    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas23.id?createPursuitWarlordEncounter:attempt.missionId===journeyDallas22.id?createShowdownWarlordEncounter:attempt.missionId===journeyDallas21.id?createHuntingWarlordEncounter:attempt.missionId===journeyDallas25.id?createStationaryWarlordEncounter:attempt.missionId===journeyDallas20.id?createStrikingWarlordEncounter:createFinalWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas23.id?1000:attempt.missionId===journeyDallas22.id?1100:attempt.missionId===journeyDallas21.id?900:attempt.missionId===journeyDallas25.id?500:attempt.missionId===journeyDallas20.id?700:1500));
     encounter.playerId = playerId;
     encounter.pilotId=players.get(playerId)?.pilotId??encounter.pilotId;
     monsterEncounters.set(attempt.attemptId, encounter);
@@ -5841,7 +5841,7 @@ function applyMonsterHit(ownerId: string, cityId: CityId, start: Vector3, end: V
   if (hit.status === 'COMPLETED') {
     sendToPlayer(ownerId, { type: 'monsterFinal', attemptId, kind: 'defeat', at: now });
     removeJourneyHunter(hit);
-    sendProfile(ownerId, profileStore.getOrCreate(owner.pilotId, owner.displayName), undefined, undefined, journeyDallas19.name);
+    sendProfile(ownerId, profileStore.getOrCreate(owner.pilotId, owner.displayName), undefined, undefined, attempt.missionId===journeyDallas19.id?journeyDallas19.name:journeyDallas25.name);
   }
   return true;
 }

@@ -142,6 +142,7 @@ export class TitanEncounter {
     #yaw = 0;
     #yawVelocity = 0;
     #speed = 0;
+    #runApproachUntil=0;
     #pursuitRunUntil=0;
     #pursuitRunAt=2;
     #huntRestUntil=1;
@@ -407,7 +408,16 @@ export class TitanEncounter {
                 this.#huntLastVelocity.x=t.velocity.x;this.#huntLastVelocity.y=t.velocity.y;this.#huntLastVelocity.z=t.velocity.z;
             }
             const facing=Math.abs(wrap(Math.atan2(t.position.x-this.#position.x,t.position.z-this.#position.z)-this.#yaw));
-            const ability=this.species.abilities.find(a=>this.#eligible(a,t)&&(a.mechanism==='sweep'||facing<.15));
+            let approaching=false;
+            if(p.approachBeforeShot&&p.runDistance&&Math.hypot(t.position.x-this.#position.x,t.position.z-this.#position.z)>p.combatDistance+this.species.radius){
+                approaching=this.#time<this.#pursuitRunUntil;
+                if(!approaching&&this.#time>=this.#pursuitRunAt&&distance(this.#position,t.position)>=p.runDistance){
+                    if(!this.#runApproachUntil)this.#runApproachUntil=this.#time+2.5;
+                    if(this.#time<this.#runApproachUntil)approaching=true;
+                    else{this.#runApproachUntil=0;this.#pursuitRunAt=this.#time+(p.runCooldown??8);}
+                }
+            }
+            const ability=this.species.abilities.find(a=>this.#eligible(a,t)&&(a.mechanism==='sweep'||!approaching&&facing<.15));
             if(ability&&this.#time>=difficulties[this.species.level].reaction){
                 if(this.#start(ability,t)||this.#stopForAction)return;
             }
@@ -430,6 +440,7 @@ export class TitanEncounter {
             this.#goal=this.#boundedGoal({x,y:this.#position.y,z});
             if(p.runSeconds&&p.runCooldown&&p.runDistance&&d>=p.runDistance&&this.#time>=this.#pursuitRunAt&&
                 Math.hypot(this.#velocity.x,this.#velocity.z)>this.species.movement.walk*.6&&facing<.4){
+                this.#runApproachUntil=0;
                 this.#pursuitRunUntil=this.#time+p.runSeconds;
                 this.#pursuitRunAt=this.#pursuitRunUntil+p.runCooldown;
             }
@@ -784,7 +795,7 @@ export class TitanEncounter {
         const m = this.species.movement, a = this.#active, stage = a ? titanTimeline(a.definition, this.#time - a.start).stage : '';
         let goal = this.#goal, speed = this.#leapGoal || this.#tactic === 'recover' ? 0 : this.#tactic === 'hunt' ? m.walk : m.run;
         if(this.species.hunting?.runSeconds){
-            // Brake early enough to blend fully back to Walk before the three-second deadline.
+            // Brake early enough to blend fully back to Walk before the configured burst deadline.
             const remaining=Math.max(0,this.#pursuitRunUntil-this.#time-.2);
             speed=Math.min(m.run,m.walk+m.deceleration*remaining);
         }
@@ -1349,7 +1360,7 @@ export class TitanEncounter {
         this.#visibleSince = 0;
         this.#lastSeen = 0;
         this.#active = null;
-        if(this.species.hunting){this.#pursuitRunUntil=0;this.#pursuitRunAt=this.#time+2;this.#huntRepositionUntil=0;this.#huntRepositionGoal=undefined;this.#huntLastVelocity=undefined;this.#huntRepositionAt=0;this.#huntFocus=undefined;this.#huntRestUntil=this.#time+(this.species.hunting.restSeconds??1);this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.hunting.roarInterval;}
+        if(this.species.hunting){this.#runApproachUntil=0;this.#pursuitRunUntil=0;this.#pursuitRunAt=this.#time+2;this.#huntRepositionUntil=0;this.#huntRepositionGoal=undefined;this.#huntLastVelocity=undefined;this.#huntRepositionAt=0;this.#huntFocus=undefined;this.#huntRestUntil=this.#time+(this.species.hunting.restSeconds??1);this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.hunting.roarInterval;}
         if(this.species.anchored){this.#anchorJumpStarted=-Infinity;this.#anchorJumpAt=this.#time+this.species.anchored.jumpInterval;this.#anchorRestUntil=this.#time+1;this.#anchorTarget=undefined;this.#roarStarted=-Infinity;this.#roarAt=this.#time+this.species.anchored.roarInterval;}
         this.#stopForAction=false;this.#idleUntil=0;this.#idleCompleted=false;this.#lastTravelAt=-Infinity;
         this.#cooldowns.clear();

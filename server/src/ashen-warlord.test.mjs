@@ -1,3 +1,4 @@
+import {createFinalWarlordEncounter} from './final-warlord.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,8 +47,8 @@ test('authoritative source geometry, 65-bone finger rig, texture and all 13 supp
     assert.deepEqual(ashenWarlordSpecies.abilities.map(a=>a.id).sort(),['charging-rampage','fireball-barrage','hand-strike']);
     assert.equal(ashenWarlordSpecies.movement.traversalLeap,false);
     assert.equal(ashenWarlordSpecies.health, 2500);
-    assert.equal(journeyDallas19.timeLimitMs, 240000);
-    assert.equal(journeyDallas19.firstClearCredits, 2550);
+    assert.equal(journeyDallas19.timeLimitMs, 300000);
+    assert.equal(journeyDallas19.firstClearCredits, 4000);
 });
 test('authoritative skeletal sampler matches real glTF animation mixer for every supplied clip and cross-fade', async () => {
     const g = await source, root = clone(g.scene), mixer = new THREE.AnimationMixer(root), actions = new Map(g.animations.map(c => [c.name, mixer.clipAction(c)])), sampler = new TitanAnimationSampler(asset);
@@ -178,9 +179,9 @@ test('Supplied-rig M19 victory, timeout, replay and progression mirror engine he
             const a = store.launch('pilot', 'trainer', now, 'journey-dallas-19');
             store.approach('pilot', a.attemptId, now + 100);
             store.startMonsterArrival('pilot', a.attemptId, now + 200);
-            const e = createAshenWarlordEncounter(a.attemptId, 'p', now + 200, () => 135, []);
+            const e = createFinalWarlordEncounter(a.attemptId, 'p', now + 200, () => 135, []);
             let result;
-            for (let i = 1; i <= 100; i++) {
+            for (let i = 1; i <= 60; i++) {
                 const p = e.frame.limbs.body, direction = { x: Math.sin(e.frame.yaw), y: 0, z: Math.cos(e.frame.yaw) }, amount = e.engine.damage({ encounterId: e.attemptId, source: 'p', sequence: i, delta: 0, from: { x: p.x + direction.x * 1000, y: p.y, z: p.z + direction.z * 1000 }, to: p, radius: 1, amount: 25 });
                 assert.equal(amount, 25);
                 result = store.hitMonster('pilot', a.attemptId, now + 500 + i * 250, amount);
@@ -190,12 +191,12 @@ test('Supplied-rig M19 victory, timeout, replay and progression mirror engine he
             assert.equal(store.hitMonster('pilot', a.attemptId, now + 27000, 25), undefined);
             return result;
         };
-        assert.equal(win(1000).firstClearCredits, 2550);
+        assert.equal(win(1000).firstClearCredits, 4000);
         assert.equal(win(40000).firstClearCredits, 0);
         const a = store.launch('pilot', 'trainer', 80000, 'journey-dallas-19');
         store.approach('pilot', a.attemptId, 80100);
         const start = store.startMonsterArrival('pilot', a.attemptId, 80200);
-        assert.equal(start.deadlineAt, 320200);
+        assert.equal(start.deadlineAt, 380200);
         assert.equal(store.hitMonster('pilot', a.attemptId, start.deadlineAt, 25), undefined);
         assert.equal(store.fail('pilot', a.attemptId, 'TIME_UP', start.deadlineAt).status, 'FAILED');
     }
@@ -395,11 +396,11 @@ test('M19 timeout ending uses the supplied shooting animation, not punching', as
     character.dispose();
 });
 
-test('only a server-confirmed M19 time limit failure gets the extended ending camera',()=>{
+test('visible M24 uses the authored ending callback without the retired city-destruction delay',()=>{
     const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
-    assert.match(main,/missionId===journeyDallas19.id\|\|journeyAttempt\?\.missionId===journeyDallas25.id\)&&journeyAttempt.status==='FAILED'&&journeyAttempt.failureReason==='TIME_UP'&&!crashed\)monsterView\?\.updateTimeoutCamera/);
-    assert.match(main,/message.attempt.failureReason === 'TIME_UP' && monsterView && !crashed/);
-    assert.match(main,/failedAttempt.missionId===journeyDallas19.id\|\|failedAttempt.missionId===journeyDallas25.id\)\?MonsterArrivalView.timeoutCinematicMs:2_100/);
+    assert.match(main,/missionId===journeyDallas23.id\|\|message.attempt.missionId===journeyDallas19.id\)&&monsterView&&!crashed/);
+    assert.match(main,/monsterView.onEndingComplete=\(\)=>/);
+    assert.doesNotMatch(main,/failedAttempt.missionId===journeyDallas19.id/);
 });
 
 test('boss bullet impact is first body contact, never the projectile step endpoint, and clears on misses/reset',()=>{

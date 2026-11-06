@@ -160,7 +160,7 @@ export class JourneyAttemptStore {
     // Preserve historical clears, but never resume territory progress as a boss battle.
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
       WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas18.id);
-    this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<2 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas19.id);
+    this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<3 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas19.id);
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED' WHERE mission_id=? AND definition_revision<2 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas20.id);
     if (!columns.some(column => column.name === 'target_id')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN target_id TEXT');
     if (!columns.some(column => column.name === 'secondary_target_id')) this.database.exec('ALTER TABLE journey_attempts ADD COLUMN secondary_target_id TEXT');
@@ -384,7 +384,7 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run((missionId===journeyDallas19.id||missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id)?2:1,attemptId);
+      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?3:(missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id)?2:1,attemptId);
       if (missionId === journeyDallas11.id || missionId === journeyDallas12.id) {
         const mission = missionId === journeyDallas12.id ? journeyDallas12 : journeyDallas11;
         this.database.prepare('UPDATE journey_attempts SET monster_health = ?, fortress_left_health = ?, fortress_right_health = ?, final_phase = ? WHERE attempt_id = ?')

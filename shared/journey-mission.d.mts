@@ -132,8 +132,8 @@ export const journeyDallas18: Readonly<{
   enemySpawn: Readonly<{x:number;z:number}>; enemyDamage: 20; shotIntervalMs: 750; burstShots: 2; burstPauseMs: 2000;
 }>;
 export const journeyDallas19: Readonly<{
-  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'MONSTER ARRIVAL'; chapter: 'CITY DEFENDERS';
-  firstClearCredits: 2550; startAirportId:'dfw'; runwayStart:true; prepareMs: 0; timeLimitMs: 240000; bossHealth: 2500;
+  id: 'journey-dallas-19'; cityId: 'dallas'; name: 'FINAL MONSTER BATTLE'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 4000; startAirportId:'dfw'; runwayStart:true; prepareMs: 0; timeLimitMs: 300000; bossHealth: 1500;
   monster: Readonly<{ x: number; z: number; height: number }>;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;
@@ -178,4 +178,4 @@ export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateInd
 export declare const journeyMissionOrder: readonly string[];
 export declare function journeyMissionSlot(missionId:string):number;
 
-export const journeyDallas25: Readonly<Omit<typeof journeyDallas19,'id'|'bossHealth'> & {id:'journey-dallas-25';bossHealth:500}>;
+export const journeyDallas25: Readonly<Omit<typeof journeyDallas19,'id'|'name'|'chapter'|'firstClearCredits'|'timeLimitMs'|'bossHealth'|'monster'> & {id:'journey-dallas-25';name:'MONSTER ARRIVAL';chapter:'CITY DEFENDERS';firstClearCredits:2550;timeLimitMs:240000;bossHealth:500;monster:Readonly<{x:number;z:number;height:960}>}>;

@@ -28,7 +28,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-17': 'Find And Shoot Down ARMORED MAMMOTH Plane Before Time Runs Out.',
   'journey-dallas-18': 'Find And Shoot Down Legendary FIREHAWK Plane Before Time Runs Out.',
   'journey-dallas-25': 'Destroy The MONSTER Before Time Runs Out.',
-  'journey-dallas-19': 'Destroy the giant monster before time runs out.',
+  'journey-dallas-19': 'DEFEAT THE MONSTER',
   'journey-dallas-20': 'DEFEAT THE MONSTER',
   'journey-dallas-21': 'DEFEAT THE MONSTER',
   'journey-dallas-22': 'DEFEAT THE MONSTER',

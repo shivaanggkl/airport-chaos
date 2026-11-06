@@ -52,6 +52,6 @@ test('slot 24 keeps the original monster and slot 19 has its isolated beginner m
  const store=new JourneyAttemptStore(path,true);
  assert.equal(store.canAccessMission('qa','journey-dallas-24'),false);
  assert.throws(()=>store.launch('qa','trainer',1000,'journey-dallas-24'),/locked/);
- assert.equal(store.launch('qa','trainer',1000,'journey-dallas-19').monsterHealth,2500);
+ assert.equal(store.launch('qa','trainer',1000,'journey-dallas-19').monsterHealth,1500);
  rmSync(dir,{recursive:true,force:true});
 });

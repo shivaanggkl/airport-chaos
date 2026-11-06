@@ -275,15 +275,18 @@ export const journeyDallas18 = Object.freeze({
 });
 
 export const journeyDallas19 = Object.freeze({
-  id: 'journey-dallas-19', cityId: 'dallas', name: 'MONSTER ARRIVAL',
-  chapter: 'CITY DEFENDERS', firstClearCredits: 2_550, startAirportId:'dfw', runwayStart:true,
-  prepareMs: 0, timeLimitMs: 240_000, bossHealth: 2_500,
-  monster: Object.freeze({ x: -5_500, z: -2_400, height: 960 }),
+  id: 'journey-dallas-19', cityId: 'dallas', name: 'FINAL MONSTER BATTLE',
+  chapter: 'LEGENDARY SKIES', firstClearCredits: 4_000, startAirportId:'dfw', runwayStart:true,
+  prepareMs: 0, timeLimitMs: 300_000, bossHealth: 1_500,
+  monster: Object.freeze({ x: -5_500, z: -2_400, height: 1920 }),
   airborneSpawn: Object.freeze({ x: -7_500, z: -3_555, altitude: 850, heading: -2.094, speed: 110 }),
 });
 
-// M20 retains its historical identity and reward, now a Titan boss encounter.
-export const journeyDallas25 = Object.freeze({...journeyDallas19,id:'journey-dallas-25',bossHealth:500});
+// Visible M19 keeps its approved beginner settings independently of the finale.
+export const journeyDallas25 = Object.freeze({...journeyDallas19,id:'journey-dallas-25',
+ name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,timeLimitMs:240000,bossHealth:500,
+ monster:Object.freeze({...journeyDallas19.monster,height:960}),
+});
 
 export const journeyDallas20 = Object.freeze({
   id:'journey-dallas-20',cityId:'dallas',name:'MONSTER STRIKES',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
