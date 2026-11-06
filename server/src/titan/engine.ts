@@ -24,7 +24,7 @@ export type Threat = {
     velocity: Vec;
     radius: number;
 };
-export type AuthoredPoseContext={resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
+export type AuthoredPoseContext={roarElapsed?:number;resting?:boolean;time:number;health:number;headYaw?:number;headPitch?:number;gait:number;velocity:Vec;yawVelocity:number;airborne:boolean;ability:null|{id:string;stage:string;progress:number;elapsed:number;active:number;warning:number;windup:number;recovery:number}};
 export type Environment = {
     authoredPose?:boolean;
     /** Trusted host policy: scenery cannot confine city-roaming encounters. Combat occlusion remains separate. */
@@ -142,6 +142,8 @@ export class TitanEncounter {
     #yaw = 0;
     #yawVelocity = 0;
     #speed = 0;
+    #roarAt=20;
+    #roarStarted=-Infinity;
     #time = 0;
     #health: number;
     #damageImpact: Vec | null = null;
@@ -370,6 +372,18 @@ export class TitanEncounter {
     #plan(t: Target | undefined, threats: readonly Threat[]) {
         const profile = difficulties[this.species.level];
         this.#nextDecision = this.#time + .2;
+        if(this.species.stationary){
+            this.#tactic='observe';
+            if(this.#active||this.#time<this.#roarStarted+this.species.stationary.roarDuration)return;
+            if(this.#time>=this.#roarAt){
+                this.#roarStarted=this.#time;this.#roarAt=this.#time+this.species.stationary.roarInterval;
+                this.#emit('animation','roar',this.#position,{ability:'stationary-roar'});return;
+            }
+            const punch=this.species.abilities[0];
+            if(t&&punch&&this.#eligible(punch,t))this.#start(punch,t);
+            return;
+        }
+
         if(this.#stopForAction)return;
         if (!t) {
             this.#tactic = this.#memory.length ? 'hunt' : 'recover';
@@ -657,6 +671,7 @@ export class TitanEncounter {
         return true;
     }
     #move(dt: number) {
+        if(this.species.stationary){this.#velocity.x=0;this.#velocity.y=0;this.#velocity.z=0;return;}
         const m = this.species.movement, a = this.#active, stage = a ? titanTimeline(a.definition, this.#time - a.start).stage : '';
         let goal = this.#goal, speed = this.#leapGoal || this.#tactic === 'recover' ? 0 : this.#tactic === 'hunt' ? m.walk : m.run;
         if(this.species.director&&a?.definition.moving)speed=Math.hypot(this.#goal.x-this.#position.x,this.#goal.z-this.#position.z)>4000?m.run:m.walk;
@@ -873,7 +888,7 @@ export class TitanEncounter {
                     this.#limbs[name] = titanAnchor(this.#position, this.#yaw, { ...rest.position, z: rest.position.z + (side === 'left' ? swing : -swing) });
             }
         }
-        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
+        this.#authoredAnimation=this.#env.articulate?.(this.#limbs,this.#feet,{...this.#position,y:this.#position.y-this.#crouch()},this.#yaw,this.#volumeAxes,{roarElapsed:this.species.stationary&&this.#time<this.#roarStarted+this.species.stationary.roarDuration?this.#time-this.#roarStarted:undefined,resting:this.#stopForAction||this.#idleCompleted,time:this.#time,health:this.#health,headYaw:this.#headYaw,headPitch:this.#headPitch,gait:this.#gait,velocity:this.#velocity,yawVelocity:this.#yawVelocity,airborne:this.#airborne,ability:a&&timeline?{id:a.definition.id,stage:timeline.stage,progress:timeline.progress,elapsed:this.#time-a.start,active:a.definition.active,warning:a.definition.warning,windup:a.definition.windup,recovery:a.definition.recovery}:null})??undefined;
         this.#updatingPose=false;
         if (dt > 0)
             for (const [name, p] of Object.entries(this.#limbs)) {
@@ -920,8 +935,10 @@ export class TitanEncounter {
             this.#headPitch = clamp(Math.atan2(a.direction.y, Math.hypot(a.direction.x, a.direction.z)), -.6, .6);
             this.#updatePose(0);
         }
-        if (t.stage !== 'ACTIVE')
+        if (t.stage !== 'ACTIVE'){
+            if(this.species.stationary&&def.mechanism==='sweep')for(const name of def.requires)a.previousLimbs.set(name,{...this.#limbs[name]});
             return;
+        }
         let origin = this.#anchor(def.requires[0]);
         if (def.mechanism === 'beam' && !a.released) {
             a.released = 1;
@@ -1168,7 +1185,7 @@ export class TitanEncounter {
         this.#health -= amount;
         if(this.species.director){this.#pressure*=Math.exp(-(this.#time-this.#pressureAt)/3);this.#pressure+=amount;this.#pressureAt=this.#time;}
         this.#stagger += amount;
-        this.#emit('animation', this.#health <= 0 ? 'defeat' : 'hit', this.#position, { amount });
+        if(!this.species.stationary||this.#health<=0)this.#emit('animation', this.#health <= 0 ? 'defeat' : 'hit', this.#position, { amount });
         if (this.#stagger >= selected.stagger && this.#active?.definition.interruptible&&(!this.species.director||this.#time-this.#lastStaggerAt>2)) {
             this.#cooldowns.set(this.#active.definition.id, this.#time + this.#active.definition.recovery + this.#active.definition.cooldown);
             this.#active = null;

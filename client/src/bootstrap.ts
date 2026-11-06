@@ -174,12 +174,12 @@ async function refreshJourneyProgress(): Promise<{ completed: boolean; firstAtte
     missionJourney.setStageTenProgress(progress.mission16?.eligible === true, progress.mission16?.completed === true);
     missionJourney.setStageElevenProgress(progress.mission17?.eligible === true, progress.mission17?.completed === true);
     missionJourney.setStageTwelveProgress(progress.mission18?.eligible === true, progress.mission18?.completed === true);
-    missionJourney.setStageNineteenProgress(progress.mission19?.eligible === true, progress.mission19?.completed === true);
+    missionJourney.setStageNineteenProgress((progress as {mission25?:{eligible?:boolean}}).mission25?.eligible===true,(progress as {mission25?:{completed?:boolean}}).mission25?.completed===true);
     missionJourney.setStageTwentyProgress(progress.mission20?.eligible === true, progress.mission20?.completed === true);
     missionJourney.setStageTwentyOneProgress(progress.mission21?.eligible === true, progress.mission21?.completed === true);
     missionJourney.setStageTwentyTwoProgress(progress.mission22?.eligible === true, progress.mission22?.completed === true);
     missionJourney.setStageTwentyThreeProgress(progress.mission23?.eligible === true, progress.mission23?.completed === true);
-    missionJourney.setStageTwentyFourProgress(progress.mission24?.eligible === true, progress.mission24?.completed === true);
+    missionJourney.setStageTwentyFourProgress(progress.mission19?.eligible === true, progress.mission19?.completed === true);
     return { completed: progress.completed === true, firstAttemptId: progress.firstAttemptId,
       mission02: { completed: progress.mission02?.completed === true, firstAttemptId: progress.mission02?.firstAttemptId },
       mission03: { completed: progress.mission03?.completed === true, firstAttemptId: progress.mission03?.firstAttemptId },

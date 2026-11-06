@@ -283,6 +283,8 @@ export const journeyDallas19 = Object.freeze({
 });
 
 // M20 retains its historical identity and reward, now a Titan boss encounter.
+export const journeyDallas25 = Object.freeze({...journeyDallas19,id:'journey-dallas-25',bossHealth:500});
+
 export const journeyDallas20 = Object.freeze({
   id:'journey-dallas-20',cityId:'dallas',name:'ARMORED APEX',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
   prepareMs:0,timeLimitMs:240000,bossHealth:3000,monster:journeyDallas19.monster,airborneSpawn:journeyDallas19.airborneSpawn,
@@ -385,5 +387,5 @@ export function crossesJourneyGate(from, to, gateIndex, terrainHeight) {
 }
 
 // Journey slots can change without renaming persisted mission identities or reward receipts.
-export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,19,20,21,22,23,24].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
+export const journeyMissionOrder = Object.freeze([1,2,3,4,5,6,13,14,15,16,17,18,7,8,9,10,11,12,25,20,21,22,23,19].map(number => `journey-dallas-${String(number).padStart(2,'0')}`));
 export function journeyMissionSlot(missionId) { return journeyMissionOrder.indexOf(missionId) + 1; }

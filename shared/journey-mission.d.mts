@@ -174,3 +174,5 @@ export function crossesJourneyGate(from: JourneyPoint, to: JourneyPoint, gateInd
 
 export declare const journeyMissionOrder: readonly string[];
 export declare function journeyMissionSlot(missionId:string):number;
+
+export const journeyDallas25: Readonly<Omit<typeof journeyDallas19,'id'|'bossHealth'> & {id:'journey-dallas-25';bossHealth:500}>;

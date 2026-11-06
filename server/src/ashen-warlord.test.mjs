@@ -397,9 +397,9 @@ test('M19 timeout ending uses the supplied shooting animation, not punching', as
 
 test('only a server-confirmed M19 time limit failure gets the extended ending camera',()=>{
     const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
-    assert.match(main,/missionId===journeyDallas19.id&&journeyAttempt.status==='FAILED'&&journeyAttempt.failureReason==='TIME_UP'&&!crashed\)monsterView\?\.updateTimeoutCamera/);
+    assert.match(main,/missionId===journeyDallas19.id\|\|journeyAttempt\?\.missionId===journeyDallas25.id\)&&journeyAttempt.status==='FAILED'&&journeyAttempt.failureReason==='TIME_UP'&&!crashed\)monsterView\?\.updateTimeoutCamera/);
     assert.match(main,/message.attempt.failureReason === 'TIME_UP' && monsterView && !crashed/);
-    assert.match(main,/failedAttempt.missionId===journeyDallas19.id\?MonsterArrivalView.timeoutCinematicMs:2_100/);
+    assert.match(main,/failedAttempt.missionId===journeyDallas19.id\|\|failedAttempt.missionId===journeyDallas25.id\)\?MonsterArrivalView.timeoutCinematicMs:2_100/);
 });
 
 test('boss bullet impact is first body contact, never the projectile step endpoint, and clears on misses/reset',()=>{

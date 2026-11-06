@@ -1,9 +1,9 @@
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 
 const missions = [journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06,
   journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18,
   journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12,
-  journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24] as const;
+  journeyDallas25, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas19] as const;
 
 // Copy follows the active win conditions in shared/journey-mission.mjs and the
 // authoritative Journey attempt handlers. Mission titles, rewards, and clocks
@@ -27,12 +27,12 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-16': 'Find And Shoot Down Both Enemy Planes Before Time Runs Out.',
   'journey-dallas-17': 'Find And Shoot Down ARMORED MAMMOTH Plane Before Time Runs Out.',
   'journey-dallas-18': 'Find And Shoot Down Legendary FIREHAWK Plane Before Time Runs Out.',
+  'journey-dallas-25': 'Destroy The MONSTER Before Time Runs Out.',
   'journey-dallas-19': 'Destroy the giant monster before time runs out.',
   'journey-dallas-20': 'Defeat the armored giant before time runs out.',
   'journey-dallas-21': 'Capture the first area, then the second within two minutes.',
   'journey-dallas-22': 'Fly through three gates, then land perfectly at DFW.',
   'journey-dallas-23': 'Defeat two Hunters, repairing your plane between fights.',
-  'journey-dallas-24': 'Fly through three gates, defeat the Ace, and land perfectly.',
 };
 
 const formatTimeLimit = (milliseconds: number | undefined): string => milliseconds === undefined

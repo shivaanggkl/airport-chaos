@@ -1,7 +1,7 @@
 import { journeyMissionOrder, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
+import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24, journeyPauseLimitMs } from '../../shared/journey-mission.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { landingGradeForScore, type LandingGrade } from '../../shared/landing-scoring.mjs';
 import { isPerfectLandingGrade } from '../../shared/gameplay-cinematic-rules.mjs';
@@ -150,6 +150,7 @@ export class JourneyAttemptStore {
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
       WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas15.id);
     for(const column of ['rear_guard_third_id','rear_guard_fourth_id'])if(!columns.some(c=>c.name===column))this.database.exec(`ALTER TABLE journey_attempts ADD COLUMN ${column} TEXT`);
+    this.database.prepare("UPDATE journey_attempts SET status='ABANDONED',failure_reason='MISSION_UPDATED' WHERE mission_id=? AND status IN ('READY','APPROACH','RACING')").run(journeyDallas24.id);
     if(!columns.some(c=>c.name==='rear_guard_kills'))this.database.exec('ALTER TABLE journey_attempts ADD COLUMN rear_guard_kills INTEGER NOT NULL DEFAULT 0');
     if(!columns.some(c=>c.name==='crossfire_kills'))this.database.exec('ALTER TABLE journey_attempts ADD COLUMN crossfire_kills INTEGER NOT NULL DEFAULT 0');
     this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
@@ -287,7 +288,7 @@ export class JourneyAttemptStore {
       : missionId === journeyDallas05.id ? this.needleRushBestTime(pilotId)
       : missionId === journeyDallas06.id ? this.goldenChampionshipBestTime(pilotId)
       : missionId === journeyDallas07.id ? this.giantIncomingBestTime(pilotId)
-      : missionId === journeyDallas19.id ? this.monsterArrivalBestTime(pilotId) : row.best_time_ms;
+      : missionId===journeyDallas19.id ? this.monsterArrivalBestTime(pilotId) : row.best_time_ms;
     return { completed: true, firstAttemptId: row.first_attempt_id, ...(bestTimeMs === undefined ? {} : { bestTimeMs }) };
   }
 
@@ -298,9 +299,10 @@ export class JourneyAttemptStore {
   }
 
   canAccessMission(pilotId: string, missionId: string): boolean {
-    const slot = journeyMissionSlot(missionId);
-    return slot > 0 && (this.qaMissionAccess(pilotId) || slot === 1 || this.progress(pilotId, missionId).completed ||
-      this.progress(pilotId, journeyMissionOrder[slot - 2]!).completed);
+    if(missionId===journeyDallas24.id)return false; // Slot 19 is reserved; retire its former challenge.
+    const playable=journeyMissionOrder.filter(id=>id!==journeyDallas24.id);
+    const slot=playable.indexOf(missionId);
+    return slot>=0&&(this.qaMissionAccess(pilotId)||slot===0||this.progress(pilotId,missionId).completed||this.progress(pilotId,playable[slot-1]!).completed);
   }
 
   chapterOneComplete(pilotId: string): boolean {
@@ -366,7 +368,7 @@ export class JourneyAttemptStore {
   }
 
   launch(pilotId: string, aircraftType: string, now = Date.now(), missionId: string = journeyDallas01.id): JourneyAttempt {
-    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && missionId !== journeyDallas19.id && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
+    if (missionId !== journeyDallas01.id && missionId !== journeyDallas02.id && missionId !== journeyDallas03.id && missionId !== journeyDallas04.id && missionId !== journeyDallas05.id && missionId !== journeyDallas06.id && missionId !== journeyDallas07.id && missionId !== journeyDallas08.id && missionId !== journeyDallas09.id && missionId !== journeyDallas10.id && missionId !== journeyDallas11.id && missionId !== journeyDallas12.id && missionId !== journeyDallas13.id && missionId !== journeyDallas14.id && missionId !== journeyDallas15.id && missionId !== journeyDallas16.id && missionId !== journeyDallas17.id && missionId !== journeyDallas18.id && (missionId!==journeyDallas19.id&&missionId!==journeyDallas25.id) && missionId !== journeyDallas20.id && missionId !== journeyDallas21.id && missionId !== journeyDallas22.id && missionId !== journeyDallas23.id && missionId !== journeyDallas24.id) throw new Error('Unknown Journey mission');
     if (!this.canAccessMission(pilotId, missionId)) throw new Error('Journey mission is locked');
     return this.wallet.transaction(() => {
       this.database.prepare("UPDATE journey_attempts SET status = 'ABANDONED', finished_at = ?, failure_reason = 'REPLACED' WHERE pilot_id = ? AND status IN ('READY','APPROACH','RACING')")
@@ -383,21 +385,21 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
-      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || missionId===journeyDallas19.id||missionId===journeyDallas20.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?2:1,attemptId);
+      if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run((missionId===journeyDallas19.id||missionId===journeyDallas25.id)?2:1,attemptId);
       if (missionId === journeyDallas11.id || missionId === journeyDallas12.id) {
         const mission = missionId === journeyDallas12.id ? journeyDallas12 : journeyDallas11;
         this.database.prepare('UPDATE journey_attempts SET monster_health = ?, fortress_left_health = ?, fortress_right_health = ?, final_phase = ? WHERE attempt_id = ?')
           .run(mission.coreHealth, mission.turretHealth, mission.turretHealth, missionId === journeyDallas12.id ? 'ESCORTS' : null, attemptId);
       }
-      if (missionId === journeyDallas20.id||missionId === journeyDallas19.id || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
-        .run(missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId === journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
+      if (missionId === journeyDallas20.id||(missionId===journeyDallas19.id||missionId===journeyDallas25.id) || missionId === journeyDallas07.id || missionId === journeyDallas08.id || missionId === journeyDallas09.id || missionId === journeyDallas10.id) this.database.prepare('UPDATE journey_attempts SET monster_health = ? WHERE attempt_id = ?')
+        .run(missionId===journeyDallas25.id?500:missionId === journeyDallas20.id?journeyDallas20.bossHealth:missionId===journeyDallas19.id ? journeyDallas19.bossHealth : missionId === journeyDallas10.id ? journeyDallas10.bossHealth : missionId === journeyDallas09.id ? journeyDallas09.bossHealth : missionId === journeyDallas08.id ? journeyDallas08.bossHealth : journeyDallas07.bossHealth, attemptId);
       return this.get(pilotId, attemptId)!;
     });
   }
 
   approach(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
-    this.database.prepare("UPDATE journey_attempts SET status = 'APPROACH', prepare_until = CASE WHEN mission_id = ? THEN ? WHEN mission_id = ? THEN ? WHEN mission_id = ? THEN ? ELSE NULL END WHERE pilot_id = ? AND attempt_id = ? AND status = 'READY'")
-      .run(journeyDallas19.id, now + journeyDallas19.prepareMs,journeyDallas20.id,now+journeyDallas20.prepareMs,
+    this.database.prepare("UPDATE journey_attempts SET status = 'APPROACH', prepare_until = CASE WHEN mission_id IN (?,?) THEN ? WHEN mission_id = ? THEN ? WHEN mission_id = ? THEN ? ELSE NULL END WHERE pilot_id = ? AND attempt_id = ? AND status = 'READY'")
+      .run(journeyDallas19.id,journeyDallas25.id, now + journeyDallas19.prepareMs,journeyDallas20.id,now+journeyDallas20.prepareMs,
         journeyDallas22.id, now + journeyDallas22.prepareMs, pilotId, attemptId);
     const current = this.get(pilotId, attemptId);
     return current?.status === 'APPROACH' ? current : undefined;
@@ -425,7 +427,7 @@ export class JourneyAttemptStore {
   /** Start the combat clock after preparation and the authorized countdown handoff. */
   startMonsterArrival(pilotId: string, attemptId: string, now = Date.now()): JourneyAttempt | undefined {
     const current = this.get(pilotId, attemptId);
-    const mission=current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
+    const mission=current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
     if (current?.missionId !== mission.id || current.status !== 'APPROACH' ||
       current.prepareUntil === null || now < current.prepareUntil) return undefined;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?,
@@ -504,7 +506,7 @@ export class JourneyAttemptStore {
   /** Only the server projectile simulation invokes this after a swept body hit. */
   hitMonster(pilotId: string, attemptId: string, now = Date.now(), damage?: number): JourneyAttempt | undefined {
     const current=this.get(pilotId,attemptId);
-    return this.hitEncounter(pilotId, attemptId,current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19, now, damage);
+    return this.hitEncounter(pilotId, attemptId,current?.missionId===journeyDallas25.id?journeyDallas25:current?.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19, now, damage);
   }
 
   private hitEncounter(pilotId: string, attemptId: string, mission: {id:string;firstClearCredits:number}, now:number, damage?: number): JourneyAttempt | undefined {
@@ -516,7 +518,7 @@ export class JourneyAttemptStore {
       if (current?.missionId !== mission.id || current.status !== 'RACING' || current.monsterHealth === null || (current.monsterHealth <= 0 && !completionCheck) ||
         current.startedAt === null || current.deadlineAt === null || now >= current.deadlineAt) return undefined;
       const hitDamage = damage ?? projectileDamageForAircraft(current.aircraftType);
-      if (!Number.isFinite(hitDamage) || (hitDamage <= 0 && !completionCheck) || (mission.id!==journeyDallas19.id&&mission.id!==journeyDallas20.id&&!Number.isInteger(hitDamage))) return undefined;
+      if (!Number.isFinite(hitDamage) || (hitDamage <= 0 && !completionCheck) || ((mission.id!==journeyDallas19.id&&mission.id!==journeyDallas25.id)&&mission.id!==journeyDallas20.id&&!Number.isInteger(hitDamage))) return undefined;
       const health = Math.max(0, current.monsterHealth - hitDamage);
       if (health > 0 || requiredEscorts>0&&current.rearGuardKills!==requiredEscorts || fortress&&(current.fortressLeftHealth!==0||current.fortressRightHealth!==0)) {
         this.database.prepare(`UPDATE journey_attempts SET monster_health = ? WHERE pilot_id = ? AND attempt_id = ?
