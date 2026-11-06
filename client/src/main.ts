@@ -11464,7 +11464,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
         beginFlightLaunchCinematic();
       } else if ((message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && message.attempt.status === 'APPROACH') {
         void prepareMissionCombatIntro(message.attempt.attemptId, message.attempt.missionId);
-      } else if((message.attempt.missionId===journeyDallas19.id||message.attempt.missionId===journeyDallas25.id)&&message.attempt.status==='APPROACH'){
+      } else if([journeyDallas25.id,journeyDallas20.id,journeyDallas21.id,journeyDallas22.id,journeyDallas23.id,journeyDallas19.id].includes(message.attempt.missionId as typeof journeyDallas19.id)&&message.attempt.status==='APPROACH'){
         void prepareMonsterMissionIntro(message.attempt.attemptId).catch(()=>showProgressMessage('Boss could not load. Exit and retry.'));
       } else if (runwayIntro) {
         beginFlightLaunchCinematic();

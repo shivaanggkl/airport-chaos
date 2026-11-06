@@ -126,11 +126,11 @@ test('M19 persists completion once, starts its four-minute clock at GO, times ou
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('stationary client permits exactly four authored clips and finishes the full defeat once before fading', async () => {
+test('stationary combat clips plus cinematic-only Shoot load and standalone defeat finishes before fading', async () => {
     const actor = new AshenWarlordModel(source, true);
     await actor.ready;
     const actions = actor.actions;
-    const allowed = ['idle', 'punch', 'roar', 'defeat'].map(key => model.clips[key].name);
+    const allowed = ['idle', 'punch', 'roar', 'defeat', 'shoot'].map(key => model.clips[key].name);
     assert([...actions.keys()].every(name => allowed.includes(name.replace(/#(?:upper|lower)$/, ''))));
     actor.setIntroTime(1);
     actor.update(.05, 1000, 0);
@@ -159,8 +159,11 @@ test('stationary client permits exactly four authored clips and finishes the ful
     view.finish('timeout');
     for (let i = 0; i < 100; i++)
         view.update(.05);
-    assert.equal(ended, 1);
-    assert.equal(scene.getObjectByName('m19-downtown-timeout-blast'), undefined);
+    assert.equal(ended, 0);
+    assert(scene.getObjectByName('m19-downtown-timeout-blast'));
+    for(let i=0;i<95;i++)view.update(.05);
+    assert.equal(ended,1);
+    assert.equal(view.timeoutBlackoutOpacity,1);
     view.dispose();
     assert.equal(scene.children.length, 0);
 });

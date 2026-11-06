@@ -8001,7 +8001,7 @@ server.on('connection', (socket, request) => {
     : journeyAttempt?.missionId === journeyDallas10.id ? journeyDallas10.startAirportId
     : journeyAttempt?.missionId === journeyDallas08.id ? journeyDallas08.startAirportId
     : journeyAttempt?.missionId === journeyDallas07.id ? journeyDallas07.startAirportId
-    : (journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id) ? journeyDallas19.startAirportId
+    : (journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas20.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id) ? journeyDallas19.startAirportId
     : undefined;
   // Golden Gates missions 1–6 use the normal DFW runway takeoff.
   const airborneSpawn = authorizedJourneyAirborneSpawn(journeyAttempt, journeyDallas19, dallasTerrain.elevationAt)

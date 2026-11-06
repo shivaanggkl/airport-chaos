@@ -122,7 +122,7 @@ test('M24 punch needs actual fist collision, respects cooldown, and missed punch
  }
  assert(warned);disposeM19(miss);
 });
-test('M24 requires 60 confirmed Bluejay hits, rejects replays and foreign hits, then completes full defeat before success',async()=>{
+test('M24 requires 60 confirmed Bluejay hits, rejects replays and foreign hits, then completes the shared blast and dissolve before success',async()=>{
  const e=encounter();
  const target=titanAnchor(e.frame.position,e.frame.yaw,{x:0,y:1500,z:4200});
  for(let i=1;i<=40;i++)stepM19(e,target,zero,20,100000+i*50);
@@ -134,11 +134,14 @@ test('M24 requires 60 confirmed Bluejay hits, rejects replays and foreign hits, 
  stepM19(e,body,zero,20,102050);assert.equal(e.frame.health,0);assert.equal(e.frame.ability,null);assert.equal(e.frame.projectiles.length,0);assert(!e.events.some(v=>v.kind==='damage'));disposeM19(e);
  const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true);await view.ready;
  let ended=0;view.onEndingComplete=()=>ended++;view.finish('defeat');view.finish('defeat');
- for(let i=0;i<169;i++)view.update(.05);
- assert.equal(ended,0);assert(view.creature.root.visible);assert(Math.abs(view.creature.actions.get(model.clips.defeat.name).time-8.45)<.01);
+ for(let i=0;i<130;i++)view.update(.05);
+ assert.equal(ended,0);assert(view.creature.root.visible);assert(scene.getObjectByName('m19-victory-rising-ash'));assert(scene.getObjectByName('m19-victory-smoke').visible);
  for(let i=0;i<20;i++)view.update(.05);assert.equal(ended,1);assert(!view.creature.root.visible);view.dispose();assert.equal(scene.children.length,0);
  const timeout=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model,false,true,true,true);await timeout.ready;
+ let released=0,impacts=0;timeout.onProjectile=()=>released++;timeout.onDestruction=()=>impacts++;
  timeout.onEndingComplete=()=>ended++;timeout.finish('timeout');for(let i=0;i<100;i++)timeout.update(.05);
+ assert.equal(released,1);assert.equal(impacts,1);assert.equal(ended,1,'failure waits for the city destruction');assert(timeout.timeoutCinematicActive);assert(scene.getObjectByName('m19-downtown-timeout-blast'));
+ for(let i=0;i<95;i++)timeout.update(.05);assert.equal(timeout.timeoutBlackoutOpacity,1);
  assert.equal(ended,2);timeout.dispose();assert.equal(scene.children.length,0);
 });
 

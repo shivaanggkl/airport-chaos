@@ -1,4 +1,3 @@
-import {strikingWarlord} from '../../shared/striking-warlord.mjs';
 import {MONSTER_VICTORY_SECONDS} from './monster-victory';
 import {MonsterCityBlast,M19_TIMEOUT,M19_CITY_BLAST_SCALE} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
@@ -154,19 +153,17 @@ export class MonsterArrivalView {
   private readonly endingCamera=new THREE.Vector3();
   private readonly endingDestination=new THREE.Vector3();
   static readonly timeoutCinematicMs=M19_TIMEOUT.durationMs;
-  get timeoutCinematicActive():boolean{if(this.stationary||this.striking)return this.ending!==null&&this.endingElapsed<(this.ending==='defeat'?(this.striking?strikingWarlord.defeatSeconds:MONSTER_VICTORY_SECONDS):4.5);return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
+  get timeoutCinematicActive():boolean{if(this.stationary||this.striking)return this.ending!==null&&this.endingElapsed<(this.ending==='defeat'?MONSTER_VICTORY_SECONDS:M19_TIMEOUT.durationMs/1000);return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
   get timeoutBlackoutOpacity():number{
     if(!this.crimsonCore||this.ending!=='timeout')return 0;
-    if(this.stationary||this.striking)return THREE.MathUtils.smoothstep(this.endingElapsed,3.2,4.2);
     return THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.impactAt+2,M19_TIMEOUT.impactAt+3);
   }
   get timeoutStreamingPosition():THREE.Vector3{return this.endingElapsed<M19_TIMEOUT.releaseAt?this.creature.root.position:this.endingDestination;}
   /** Camera-only aftermath of a server-confirmed M19 timeout. */
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
-    if((this.stationary||this.striking)&&this.ending){
+    if((this.stationary||this.striking)&&this.ending==='defeat'){
       const root=this.creature.root.position;
-      if(this.ending==='defeat')camera.position.set(root.x+ashenWarlordHeight*1.5,root.y+ashenWarlordHeight*.9,root.z+ashenWarlordHeight*2.1);
-      else camera.position.set(root.x+ashenWarlordHeight*1.2,root.y+ashenWarlordHeight*.7,root.z+ashenWarlordHeight*1.8);
+      camera.position.set(root.x+ashenWarlordHeight*1.5,root.y+ashenWarlordHeight*.9,root.z+ashenWarlordHeight*2.1);
       camera.lookAt(root.x,root.y+ashenWarlordHeight*.5,root.z);return;
     }
     if(!this.crimsonCore||this.ending!=='timeout')return;
@@ -313,12 +310,13 @@ export class MonsterArrivalView {
     if(this.state?.titan?.locomotion==='jump'||this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
       this.endingDrop={from:this.creature.root.position.y,ground:this.creature.groundAt?.(this.creature.root.position.x,this.creature.root.position.z)??this.target.y};
     }
-    if(this.stationary&&kind==='defeat'){(this.creature as AshenWarlordModel).beginVictory(this.scene);this.onDestruction?.();}
+    if((this.stationary||this.striking)&&kind==='defeat'){(this.creature as AshenWarlordModel).beginVictory(this.scene);this.onDestruction?.();}
     this.creature.finish(kind);
     if((this.stationary||this.striking)&&kind==='timeout')this.onRoar?.();
     for(const visual of this.pool){visual.id=null;visual.group.visible=false;visual.spawnPending=false;}
-    if(kind==='timeout'&&this.environmentDamage){
+    if(kind==='timeout'&&(this.crimsonCore||this.environmentDamage)){
       this.timeoutShot=this.pool[0];this.timeoutShot!.group.visible=!this.crimsonCore;
+      this.timeoutShot!.group.children.forEach((part,index)=>{part.visible=index<2;});
       if(this.crimsonCore){this.timeoutBlast=new MonsterCityBlast();this.scene.add(this.timeoutBlast.root);}
       this.endingOrigin.copy(this.creature.root.position).add(new THREE.Vector3(0,this.crimsonCore?ashenWarlordHeight*.6:journeyDallas19.monster.height*.82,0));
       const site=monsterDamageSites[0]!;this.endingDestination.set(site.x,this.targetGroundY+30,site.z);
@@ -384,8 +382,8 @@ export class MonsterArrivalView {
     this.mouthFire.scale.setScalar((this.striking?25+50*(this.renderedTitan?.ability?.progress??0):this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
     if(this.ending) {
       this.endingElapsed+=delta;
-      if((this.stationary||this.striking)&&this.endingElapsed>=(this.ending==='defeat'?(this.striking?strikingWarlord.defeatSeconds:MONSTER_VICTORY_SECONDS):4.5)&&this.onEndingComplete){const complete=this.onEndingComplete;this.onEndingComplete=undefined;complete();}
-      if(this.ending==='timeout'&&this.environmentDamage) {
+      if((this.stationary||this.striking)&&this.endingElapsed>=(this.ending==='defeat'?MONSTER_VICTORY_SECONDS:M19_TIMEOUT.durationMs/1000)&&this.onEndingComplete){const complete=this.onEndingComplete;this.onEndingComplete=undefined;complete();}
+      if(this.ending==='timeout'&&(this.crimsonCore||this.environmentDamage)) {
         const release=this.crimsonCore?M19_TIMEOUT.releaseAt:0,travel=this.crimsonCore?M19_TIMEOUT.impactAt-M19_TIMEOUT.releaseAt:1.15;
         if(this.timeoutShot&&this.endingElapsed>=release) {
           if(this.crimsonCore&&!this.timeoutShot.group.visible){
