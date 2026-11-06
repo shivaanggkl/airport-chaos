@@ -49,18 +49,18 @@
 .mission-journey-crown svg { display: block; width: 100%; height: 100%; }
 .mission-journey-node.is-locked .mission-journey-crown { color: #c4c9cc; }
 .mission-journey-node.is-current .mission-journey-crown { left: -5px; transform: translateX(-70%); }
-.mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(24px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) minmax(190px, 255px); align-items: center; gap: 18px; width: min(1120px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 16px 22px 16px clamp(22px, 4.5vw, 58px); border: 3px solid #f7c85b; border-radius: 22px; color: #f4faff; background: radial-gradient(circle at 72% 45%, rgb(11 117 211 / 27%), transparent 45%), linear-gradient(130deg, rgb(4 20 51 / 95%), rgb(5 42 96 / 94%) 65%, rgb(4 20 51 / 96%)); box-shadow: inset 0 1px rgb(255 244 191 / 70%), inset 0 0 24px rgb(28 168 238 / 20%), 0 0 12px rgb(255 192 66 / 55%), 0 7px 22px rgb(0 13 41 / 60%); }
+.mission-journey-detail { box-sizing: border-box; position: absolute; right: max(18px, var(--safe-area-right)); bottom: max(24px, var(--safe-area-bottom)); left: max(18px, var(--safe-area-left)); display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 330px) minmax(190px, 255px); align-items: center; gap: 18px; width: min(1120px, calc(100% - max(18px, var(--safe-area-left)) - max(18px, var(--safe-area-right)))); height: var(--journey-detail-height); margin-inline: auto; padding: 16px 22px 16px clamp(22px, 4.5vw, 58px); border: 3px solid var(--menu-card-accent); border-radius: var(--menu-panel-radius); color: var(--menu-card-ink); background: var(--menu-panel-surface); box-shadow: var(--menu-panel-shadow); }
 .mission-journey-detail-copy { display: grid; align-content: center; min-width: 0; gap: 5px; }
-.mission-journey-detail-copy > span { color: #ffd87c; font: 900 clamp(16px, 1.8vw, 23px)/1 var(--font-display); letter-spacing: .04em; }
-.mission-journey-detail-copy strong { display: block; color: #ffd05e; font: 900 clamp(23px, 2.7vw, 34px)/1.04 var(--font-display); text-shadow: 0 3px 2px #7c3d08, 0 5px 8px rgb(0 9 35 / 75%); overflow-wrap: anywhere; }
-.mission-journey-detail-copy p { display: -webkit-box; overflow: hidden; margin: 7px 0 0; color: #edf8ff; font: 600 clamp(16px, 1.7vw, 20px)/1.25 var(--font-body); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.mission-journey-detail-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; height: 82%; border-inline: 1px solid rgb(111 207 246 / 42%); }
+.mission-journey-detail-copy > span { color: var(--menu-panel-muted); font: 900 clamp(16px, 1.8vw, 23px)/1 var(--font-display); letter-spacing: .04em; }
+.mission-journey-detail-copy strong { display: block; color: var(--menu-card-ink); font: 900 clamp(23px, 2.7vw, 34px)/1.04 var(--font-display); text-shadow: none; overflow-wrap: anywhere; }
+.mission-journey-detail-copy p { display: -webkit-box; overflow: hidden; margin: 7px 0 0; color: var(--menu-card-ink); font: 600 clamp(16px, 1.7vw, 20px)/1.25 var(--font-body); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mission-journey-detail-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; height: 82%; border-inline: 1px solid var(--menu-panel-divider); }
 .mission-journey-reward, .mission-journey-time { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; gap: 4px; white-space: nowrap; }
-.mission-journey-reward { border-right: 1px solid rgb(111 207 246 / 35%); }
-.mission-journey-reward > span, .mission-journey-time > span { width: 100%; color: #9fc8e7; font: 900 clamp(12px, 1.2vw, 16px)/1 var(--font-display); letter-spacing: .03em; text-align: center; white-space: normal; }
-.mission-journey-reward strong, .mission-journey-time strong { color: #fff; font: 900 clamp(22px, 2.1vw, 28px)/1 var(--font-display); text-shadow: 0 2px 4px #001535; }
+.mission-journey-reward { border-right: 1px solid var(--menu-panel-divider); }
+.mission-journey-reward > span, .mission-journey-time > span { width: 100%; color: var(--menu-panel-muted); font: 900 clamp(12px, 1.2vw, 16px)/1 var(--font-display); letter-spacing: .03em; text-align: center; white-space: normal; }
+.mission-journey-reward strong, .mission-journey-time strong { color: var(--menu-card-ink); font: 900 clamp(22px, 2.1vw, 28px)/1 var(--font-display); text-shadow: none; }
 .mission-journey-reward img, .mission-journey-time svg { display: block; width: clamp(40px, 4vw, 54px); height: clamp(40px, 4vw, 54px); object-fit: contain; }
-.mission-journey-time svg { color: #58d5ff; filter: drop-shadow(0 0 4px rgb(53 190 255 / 70%)); }
+.mission-journey-time svg { color: #087ca2; filter: none; }
 .mission-journey-play { --context-action-size: clamp(17px, 1.85vw, 24px); width: 100%; min-height: clamp(60px, 13dvh, 82px); padding: 0 10px; white-space: nowrap; }
 @media (max-height: 480px) and (orientation: landscape) {
   .mission-journey { --journey-detail-height: clamp(120px, 34dvh, 146px); --journey-detail-gap: 7px; --chapter-heading-offset: 85px; }
@@ -73,7 +73,7 @@
   .mission-journey-node.is-locked .mission-journey-number { transform: translateY(-19%); }
   .mission-journey-lock { --lock-icon-size: clamp(9px, 1.1vw, 13px); }
   .mission-journey-node.is-current::after { top: calc(100% + 2px); padding: 2px 4px; }
-  .mission-journey-detail { bottom: max(8px, var(--safe-area-bottom)); grid-template-columns: minmax(0, 1fr) minmax(185px, 220px) minmax(118px, 160px); gap: 9px; padding: 9px 11px 9px 18px; border-radius: 13px; border-width: 2px; }
+  .mission-journey-detail { bottom: max(8px, var(--safe-area-bottom)); grid-template-columns: minmax(0, 1fr) minmax(185px, 220px) minmax(118px, 160px); gap: 9px; padding: 9px 11px 9px 18px; border-radius: var(--menu-panel-radius); border-width: 3px; }
   .mission-journey-detail-copy { gap: 2px; }
   .mission-journey-detail-copy > span { font-size: clamp(11px, 1.6vw, 15px); }
   .mission-journey-detail-copy strong { font-size: clamp(18px, 2.5vw, 25px); }

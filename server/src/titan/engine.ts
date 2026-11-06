@@ -78,6 +78,7 @@ type Active = {
     aim: Vec;
     direction: Vec;
     released: number;
+    lastReleaseAt?: number;
     hit: Set<string>;
     lastStage: string;
     combo: number;
@@ -569,9 +570,10 @@ export class TitanEncounter {
         const predicted = { x: t.position.x + t.velocity.x * 1.5, y: this.#position.y, z: t.position.z + t.velocity.z * 1.5 };
         const close = available.filter(a => a.mechanism === 'sweep');
         const ranged = available.filter(a => a.mechanism === 'projectile' || a.mechanism === 'beam');
-        const choices = available.map(a => ({ a, score: (a.mechanism === 'sweep' ? 2.1 : a.mechanism === 'projectile' ? (horizontal > 8000 && !this.#directorReentry ? .1 : 1.1) : a.mechanism === 'beam' ? 1.2 : a.mechanism === 'charge' ? .85 : a.mechanism === 'leap' ? .75 : pressured || closing > 100 && horizontal < 1500 ? 1.3 : -1) - (a.id === this.#lastAbility ? .35 + this.#misses * .15 : 0) + (this.#directorReentry && a.mechanism === 'projectile' ? .3 : 0) })).filter(v => v.score > .3).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
-        // Close a growing gap before selecting another long-range firing animation.
-        const shot = horizontal>4000&&closing < -50 ? undefined : choices[0]?.a;
+        const choices = available.map(a => ({ a, score: (a.mechanism === 'sweep' ? 2.1 : a.mechanism === 'projectile' ? (horizontal > 8000 && !this.#directorReentry ? .1 : 1.1) : a.mechanism === 'beam' ? 1.2 : a.mechanism === 'charge' ? .85 : a.mechanism === 'leap' ? .75 : pressured || closing > 100 && horizontal < 1500 ? 1.3 : -1) - (a.id === this.#lastAbility ? .35 + Math.min(.35, this.#misses * .15) : 0) + (this.#directorReentry && a.mechanism === 'projectile' ? .3 : 0) })).filter(v => v.score > .3).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
+        // Keep pursuing receding aircraft, but mobile weapons can fire during that pursuit.
+        const candidate=choices[0]?.a;
+        const shot = horizontal>4000&&closing < -50&&!candidate?.moving ? undefined : candidate;
         if (shot && this.#time >= this.#directorAttackAt && (close.length || ranged.length || horizontal < 2500 || shot.mechanism === 'leap')) {
             this.#tactic = 'attack';
             this.#goal = this.#boundedGoal(predicted);
@@ -933,14 +935,18 @@ export class TitanEncounter {
         if (def.mechanism === 'projectile') {
             const count = def.count ?? 1, due = Math.min(count, 1 + Math.floor(t.progress * count));
             while (a.released < due) {
-                const index = a.released++, debris = a.debris;
+                const index = a.released, debris = a.debris;
                 if (def.debris && !debris)
-                    continue;
+                    break;
                 const from = origin, speed = def.projectileSpeed!, point = visible?.id === a.targetId ? intercept(from, visible.position, this.#shotVelocity(visible), speed, def.maxRange / speed) : a.aim;
                 if (point && !(def.horizontalCone?Math.abs(wrap(Math.atan2(point.x-this.#position.x,point.z-this.#position.z)-this.#yaw))<=def.cone:this.#withinCone(from, point, def.cone)))
-                    continue;
+                    break;
                 if (!point || this.#shots.filter(v => v.live).length >= 32)
-                    continue;
+                    break;
+                // Retry a blocked shot only inside its active window; never compress
+                // several overdue rounds into an instantaneous burst after a turn.
+                if(this.species.director&&a.lastReleaseAt!==undefined&&this.#time-a.lastReleaseAt+1e-9<def.active/count)break;
+                a.released++;a.lastReleaseAt=this.#time;
                 const dir = unit(from, point), angle = (index - (count - 1) / 2) * (def.spread ?? 0), c = Math.cos(angle), s = Math.sin(angle);
                 const shot: Shot = { id: `${this.id}:shot:${a.serial}:${index}`, position: { ...from }, velocity: { x: (dir.x * c + dir.z * s) * speed, y: dir.y * speed, z: (dir.z * c - dir.x * s) * speed }, radius: debris?.radius ?? def.radius, damage: def.damage, life: def.maxRange / speed, ability: def.id, attack: a.serial, live: true };
                 if(this.species.director&&!this.#directorShots.has(a.serial))this.#directorShots.set(a.serial,false);

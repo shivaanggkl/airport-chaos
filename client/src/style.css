@@ -4348,22 +4348,22 @@ body:has(.app-shell-header:not([hidden])) .app-shell-header.is-hub .app-shell-ut
 
 .giant-incoming-focus .sky-challenge.journey-hud { background: var(--gameplay-info-card-fill); border-color: rgb(100 223 255 / 22%); border-left-color: rgb(246 196 69 / 35%); box-shadow: none; text-shadow: 0 1px 3px rgb(0 12 28 / 90%); }
 
-.hub-info-dialog { position: fixed; z-index: 1500; inset: 0; width: min(500px, calc(100% - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: auto; color: #f7fbff; background: transparent; border: 0; }
+.hub-info-dialog { position: fixed; z-index: 1500; inset: 0; width: min(500px, calc(100% - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow: auto; color: var(--menu-card-ink); background: transparent; border: 0; }
 .hub-info-dialog::backdrop { background: rgb(1 10 28 / 78%); }
-.hub-info-panel { padding: clamp(18px, 3vw, 30px); background: linear-gradient(155deg, #123e78, #071c44 75%); border: 2px solid #55e4ff; border-radius: 17px; box-shadow: 0 18px 45px rgb(0 5 20 / 60%), inset 0 1px #b6efff; }
+.hub-info-panel { padding: clamp(18px, 3vw, 30px); background: var(--menu-panel-surface); border: 3px solid var(--menu-card-accent); border-radius: var(--menu-panel-radius); box-shadow: var(--menu-panel-shadow); }
 .hub-info-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.hub-info-panel h2 { margin: 0; color: #ffd76c; font: 900 clamp(20px, 3vw, 27px)/1.1 var(--font-display); }
-.hub-info-close { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; color: white; background: rgb(78 177 223 / 18%); border: 1px solid #84eaff; border-radius: 50%; font: 32px/1 var(--font-body); cursor: pointer; }
+.hub-info-panel h2 { margin: 0; color: var(--menu-card-ink); font: 900 clamp(20px, 3vw, 27px)/1.1 var(--font-display); }
+.hub-info-close { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; color: var(--menu-card-ink); background: #edf6fa; border: 1px solid var(--menu-panel-divider); border-radius: 50%; font: 32px/1 var(--font-body); cursor: pointer; }
 .hub-info-panel > strong { display: block; margin-top: 14px; font: 800 19px/1.25 var(--font-display); }
 .hub-info-panel > strong:empty { display: none; }
 .hub-info-panel > p { font: 500 15px/1.5 var(--font-body); }
-.hub-info-balance { color: #87efff; font-weight: 800 !important; }
+.hub-info-balance { color: #087ca2; font-weight: 800 !important; }
 .hub-info-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .hub-info-actions > * { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 9px 16px; color: #051b38; background: #ffce58; border: 1px solid #ffe496; border-radius: 9px; font: 800 13px var(--font-display); text-decoration: none; cursor: pointer; }
-.hub-info-actions > :is(.hub-info-copy, .hub-info-action-close) { color: #e9faff; background: #164980; border-color: #5edcff; }
+.hub-info-actions > :is(.hub-info-copy, .hub-info-action-close) { color: var(--menu-card-ink); background: #edf6fa; border-color: var(--menu-panel-divider); }
 .hub-info-actions > [hidden] { display: none; }
-.hub-info-status { min-height: 18px; color: #cae7f6; font-size: 12px !important; }
-.hub-info-panel :focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.hub-info-status { min-height: 18px; color: var(--menu-panel-muted); font-size: 12px !important; }
+.hub-info-panel :focus-visible { outline: 3px solid #087ca2; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .home-hangar-mode { transition: none; }
   .home-hangar-mode:is(:hover, :focus-visible, :active) { transform: none; }
@@ -4685,6 +4685,11 @@ body:has(.app-shell-header.is-page:not([hidden])) :is(
   --menu-card-surface: linear-gradient(145deg, #ffffff 0%, #F4F7F6 55%, #e9eeed 100%);
   --menu-card-ink: #0B2345;
   --menu-card-accent: #ffd66a;
+  --menu-panel-surface: linear-gradient(135deg, #fff 5%, #f4fafb 55%, #e5f5f9);
+  --menu-panel-shadow: inset 0 0 0 2px #fff4d3, 0 13px 38px rgb(3 22 51 / 30%), 0 0 18px rgb(237 183 52 / 35%);
+  --menu-panel-radius: 15px;
+  --menu-panel-divider: #ccdbe3;
+  --menu-panel-muted: #536e86;
 }
 :is(.home-hangar, .city-selector, .mission-journey) { background: var(--menu-background); }
 body:has(#game-root[hidden]),
@@ -4886,9 +4891,9 @@ body:has(.brand-loading:not([hidden]):not(.is-leaving))::before { opacity: 0; }
   height: min(460px, calc(var(--profile-available-height) - var(--profile-title-height)));
   max-height: calc(var(--profile-available-height) - var(--profile-title-height));
   padding: clamp(8px, 1.1vw, 12px); overflow: visible;
-  color: #0b2345; border: 3px solid var(--menu-card-accent); border-radius: 15px;
-  background: linear-gradient(135deg, #fff 5%, #f4fafb 55%, #e5f5f9);
-  box-shadow: inset 0 0 0 2px #fff4d3, 0 13px 38px rgb(3 22 51 / 30%), 0 0 18px rgb(237 183 52 / 35%);
+  color: #0b2345; border: 3px solid var(--menu-card-accent); border-radius: var(--menu-panel-radius);
+  background: var(--menu-panel-surface);
+  box-shadow: var(--menu-panel-shadow);
   backdrop-filter: none; transform: translateY(calc(var(--profile-title-height) / 2));
 }
 html:not(.editable-keyboard-open) body:has(.app-shell-header.is-page:not([hidden])) .pilot-menu-overlay.is-hub-profile {

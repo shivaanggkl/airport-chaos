@@ -6245,11 +6245,6 @@ function updateTrainingScreenplay(delta:number):void{
     control=heldActions.has('throttleDown')||heldActions.has('throttleUp')||climb||descend||left||right;
     if(control){screenplayLandingLastInputAt=now;trainingSlides.beginAction(step);}
     screenplayFlightPaused=screenplayLandingLastInputAt===0||now-screenplayLandingLastInputAt>8_000;
-    const stage=tutorialLandingCoachStage({airport:centralAirport,position:airplane.position,heading,speed:currentSpeed,
-      verticalSpeed,altitude:altitudeAboveTerrain(),throttle,stallSpeed:currentAircraft.stallSpeed,takeoffSpeed:currentAircraft.takeoffSpeed,
-      safeLandingSpeed:currentAircraft.safeLandingSpeed,safeDescentRate:currentAircraft.safeDescentRate,
-      landingTilt:currentAircraft.landingTilt,roll,pitch,landingAssistActive});
-    trainingSlides.setGuidance(trainingCrashFeedback || tutorialLandingCoachInstruction(stage,tutorialInputMode(),mobileInput.getPitchInverted(),tutorialBindings).controlInstruction);
     if(control)trainingCrashFeedback='';
     trainingSlides.updateProgress(step,delta,control||onGround);
   }

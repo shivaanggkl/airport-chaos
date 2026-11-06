@@ -1,7 +1,6 @@
 import { trainingSlideIds } from '../../shared/training-slides.mjs';
 import type { TutorialLessonStep } from '../../shared/tutorial-flight-rules.mjs';
 import './training-slides.css';
-import {actionKeyLabel,desktopTurnKeyLabel,menuKeyLabel} from './flight-input';
 
 type Options = {
   host: HTMLElement;
@@ -17,30 +16,24 @@ type Options = {
   onFinished: () => void;
 };
 
-const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail: string; after?: string; control: string; motion: string }> = {
+const scenes: Record<(typeof trainingSlideIds)[number], { title: string; detail: string; after?: string; instruction?:string; steps?:readonly string[]; control: string; motion: string }> = {
   throttle: { title: 'BUILD SPEED', detail: 'Slide the speed lever up to ', control: 'throttle', motion: 'up' },
   takeoff: { title: 'TAKE OFF', detail: 'Push the joystick up to ', control: 'stick', motion: 'up' },
   turnLeft: { title: 'TURN LEFT', detail: 'Push the joystick to ', control: 'stick', motion: 'left' },
   turnRight: { title: 'TURN RIGHT', detail: 'Push the joystick to ', control: 'stick', motion: 'right' },
   climb: { title: 'CLIMB', detail: 'Push the joystick up to ', control: 'stick', motion: 'up' },
-  descend: { title: 'DESCEND', detail: 'Pull the joystick down to ', control: 'stick', motion: 'down' },
-  cameraLook: { title: 'LOOK AROUND', detail: 'Drag the view to ', control: 'view', motion: 'right' },
-  cameraZoom: { title: 'ZOOM', detail: 'Pinch the view to ', control: 'view', motion: 'pinch' },
-  approach: { title: 'CHECK YOUR ROUTE', detail: 'Tap the radar to ', after: ', then close the map.', control: 'radar', motion: 'tap' },
-  fire: { title: 'HIT THE TARGET', detail: 'Hold FIRE to ', after: ' six times.', control: 'fire', motion: 'tap' },
-  landing: { title: 'LAND SAFELY', detail: 'Line up, slow down and descend gently to ', control: 'landing', motion: 'down' },
+  descend: { title: 'BRING THE PLANE DOWN', detail: '', instruction:'Pull the joystick down to bring the plane down.', control: 'stick', motion: 'down' },
+  cameraLook: { title: 'LOOK AROUND', detail: '', instruction:'Drag your finger on an empty screen to look around.', control: 'view', motion: 'right' },
+  cameraZoom: { title: 'ZOOM', detail: '', instruction:'Use two fingers on an empty screen to zoom in or zoom out.', control: 'view', motion: 'pinch' },
+  approach: { title: 'CHECK YOUR ROUTE', detail: '', instruction:'Find the radar in the top right corner, tap on the radar, see the map, then close the map.', control: 'radar', motion: 'tap' },
+  fire: { title: 'DESTROY THE TARGET', detail: '', instruction:'Tap on the fire button until the target is destroyed.', control: 'fire', motion: 'tap' },
+  landing: { title: 'LAND SAFELY', detail: '', steps:[
+    'Use the joystick to line up with the runway.',
+    'Move the speed lever to SLOW.',
+    'Gently pull the joystick down toward the runway.',
+    'Just above the runway, move the lever to IDLE to stop.',
+  ], control: 'landing', motion: 'down' },
 };
-
-const introduction = [
-  {title:'WELCOME TO MILWAUKEE', detail:'Welcome, pilot! This is your safe place to learn to fly.',control:'',motion:''},
-  {title:'YOUR FIRST FLIGHT',detail:'You will take off, fly, shoot a practice aircraft and land safely. We will guide you one step at a time.',control:'',motion:''},
-  {title:'JOYSTICK · STEER',detail:'Move left or right to turn. Push up to climb. Pull down to descend. Release gently to steady the plane.',desktop:`${desktopTurnKeyLabel}: turn. ${actionKeyLabel('pitchUp')}: climb. ${actionKeyLabel('pitchDown')}: descend. Release gently to steady the plane.`,control:'stick',motion:'up'},
-  {title:'SPEED LEVER · THROTTLE',detail:'Slide up to go faster. Slide down to slow down. Build speed on the runway before lifting off.',desktop:`${actionKeyLabel('throttleUp')}: faster. ${actionKeyLabel('throttleDown')}: slower. Build speed on the runway before lifting off.`,control:'throttle',motion:'up'},
-  {title:'FIRE · PRACTICE SHOOTING',detail:'Point your plane at the practice aircraft. Keep it inside the aim circle, get close and hold FIRE.',desktop:`Point at the practice aircraft. Keep it inside the aim circle, get close and hold ${actionKeyLabel('fire')} to shoot.`,control:'fire',motion:'tap'},
-  {title:'RADAR · FIND YOUR WAY',detail:'Radar shows nearby airports and your target. Tap the map icon to see the map and plan your route.',desktop:`Radar shows nearby airports and your target. Press ${menuKeyLabel('map')} to open the map and plan your route.`,control:'radar',motion:'tap'},
-  {title:'LAND · SLOW AND GENTLE',detail:'Line up with the runway. Lower the speed lever, keep enough speed to fly and descend gently with the joystick. Level out just above the runway, touch down and slow to a stop.',desktop:`Line up with the runway. Use ${actionKeyLabel('throttleDown')} to slow down. Keep enough speed to fly and descend gently with ${actionKeyLabel('pitchDown')}. Level out just above the runway, touch down and slow to a stop.`,control:'landing',motion:'down'},
-  {title:'FOLLOW THE TASK BOX',detail:'Your next task appears in this box below the plane. Read it, do what it says and wait for the next task. Ready to try?',control:'task',motion:'tap'},
-] as const;
 
 function needsHeldControl(step: TutorialLessonStep): boolean {
   return step === 'throttle' || step === 'takeoff' || step === 'turnLeft' ||
@@ -55,6 +48,7 @@ export class TrainingSlides {
   private readonly title: HTMLElement;
   private readonly detail: HTMLElement;
   private readonly tail: HTMLElement;
+  private readonly instructions:HTMLOListElement;
   private guidance = '';
   private readonly count: HTMLElement;
   private readonly progress: HTMLElement;
@@ -62,11 +56,6 @@ export class TrainingSlides {
   private readonly timeFill: HTMLElement;
   private readonly status: HTMLElement;
   private index = 0;
-  private introIndex: number | null = null;
-  private introSeen = false;
-  private readonly introActions=document.createElement('div');
-  private readonly introBack=document.createElement('button');
-  private readonly introNext=document.createElement('button');
   private completionTimer: number | undefined;
   private active = false;
   private ready = false;
@@ -78,16 +67,18 @@ export class TrainingSlides {
   private saving = false;
   private suspended = false;
   private saveRetries = 0;
+  private readonly layoutLanding=()=>this.positionLandingPanel();
 
   constructor(private readonly options: Options) {
     this.root.className = 'guided-tutorial-panel training-screenplay';
     this.root.hidden = true;
     this.root.setAttribute('role', 'status');
     this.root.setAttribute('aria-live', 'polite');
-    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2><span data-scene-detail></span><strong data-scene-title></strong><span data-scene-tail></span></h2><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
+    this.root.innerHTML = '<header><small>FLIGHT INSTRUCTOR · MILWAUKEE</small><span data-scene-count></span></header><h2><span data-scene-detail></span><strong data-scene-title></strong><span data-scene-tail></span></h2><ol data-scene-instructions hidden></ol><div class="training-screenplay-progress" data-scene-progress></div><p data-scene-status></p><div class="training-screenplay-time" data-scene-time role="progressbar" aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i data-scene-time-fill></i></div>';
     this.title = this.root.querySelector('[data-scene-title]')!;
     this.detail = this.root.querySelector('[data-scene-detail]')!;
     this.tail = this.root.querySelector('[data-scene-tail]')!;
+    this.instructions=this.root.querySelector('[data-scene-instructions]')!;
     this.count = this.root.querySelector('[data-scene-count]')!;
     this.progress = this.root.querySelector('[data-scene-progress]')!;
     this.timeProgress = this.root.querySelector('[data-scene-time]')!;
@@ -102,7 +93,6 @@ export class TrainingSlides {
     this.skip.textContent = 'SKIP TRAINING';
     this.skip.hidden = true;
     this.skip.addEventListener('click', async () => {
-      if(this.introIndex!==null){this.finishIntroduction();return;}
       this.skip.disabled = true;
       const skipped = await this.options.onSkip();
       if (!skipped && this.active) {
@@ -110,12 +100,6 @@ export class TrainingSlides {
         this.skip.disabled = false;
       }
     });
-    this.introActions.className='training-intro-actions';this.introActions.hidden=true;
-    this.introBack.type='button';this.introBack.textContent='BACK';
-    this.introNext.type='button';this.introNext.textContent='NEXT';
-    this.introBack.addEventListener('click',()=>{if(this.introIndex!==null&&!this.suspended){this.introIndex=Math.max(0,this.introIndex-1);this.showIntroduction();}});
-    this.introNext.addEventListener('click',()=>{if(this.introIndex===null||this.suspended)return;if(this.introIndex===introduction.length-1)this.finishIntroduction();else{this.introIndex++;this.showIntroduction();}});
-    this.introActions.append(this.introBack,this.introNext);this.root.append(this.introActions);
     options.host.append(this.root);
     options.gameRoot.append(this.skip);
     document.body.append(this.hand);
@@ -128,7 +112,7 @@ export class TrainingSlides {
     void this.advance();
   }
   currentIndex(): number { return this.index; }
-  currentStep(): TutorialLessonStep | undefined { return this.active && this.introIndex===null ? trainingSlideIds[this.index] : undefined; }
+  currentStep(): TutorialLessonStep | undefined { return this.active ? trainingSlideIds[this.index] : undefined; }
   isPlayerTurn(step: TutorialLessonStep): boolean { return this.active && !this.suspended && this.ready && !this.saving && this.currentStep() === step; }
   acceptsInput(step: TutorialLessonStep): boolean { return this.active && !this.suspended && this.ready && !this.actionObserved && !this.saving && this.currentStep() === step; }
 
@@ -143,7 +127,6 @@ export class TrainingSlides {
     if (!Number.isInteger(index) || index < 0 || index >= trainingSlideIds.length) index = this.index;
     if (!this.active) { this.open(index); return; }
     this.suspended = false;
-    if(this.introIndex!==null){this.showIntroduction();return;}
     if (index !== this.index) {
       this.options.onStageEnd(trainingSlideIds[this.index]!);
       this.index = index;
@@ -179,7 +162,7 @@ export class TrainingSlides {
   }
 
   setGuidance(detail: string): void {
-    if (!this.active || this.introIndex!==null || this.completing || this.guidance === detail) return;
+    if (!this.active || this.currentStep()==='landing' || this.completing || this.guidance === detail) return;
     this.guidance = detail;
     this.detail.textContent = '';
     this.title.textContent = detail;
@@ -236,14 +219,13 @@ export class TrainingSlides {
     this.skip.hidden = false;
     this.options.gameRoot.classList.add('training-screenplay-active');
     this.options.onOpen();
-    if(this.index===0&&!this.introSeen){this.introIndex=0;this.showIntroduction();}else this.showStage();
+    window.addEventListener('resize',this.layoutLanding);
+    this.showStage();
   }
 
   close(): void {
     if (!this.active) return;
     this.active = false;
-    this.introIndex=null;this.introActions.hidden=true;
-    this.root.classList.remove('is-introduction');
     this.suspended = false;
     this.ready = false;
     window.clearTimeout(this.completionTimer);
@@ -251,35 +233,17 @@ export class TrainingSlides {
     this.skip.hidden = true;
     this.root.hidden = true;
     this.options.gameRoot.classList.remove('training-screenplay-active');
+    window.removeEventListener('resize',this.layoutLanding);
+    this.options.gameRoot.style.removeProperty('--training-landing-width');
     document.body.dataset.trainingSlideControl = '';
     this.options.onStageEnd(trainingSlideIds[this.index]!);
     this.options.onClose();
   }
 
-  private showIntroduction():void {
-    if(this.introIndex===null||!this.active||this.suspended)return;
-    const scene=introduction[this.introIndex]!;
-    this.ready=false;this.root.classList.add('is-introduction');this.introActions.hidden=false;
-    this.title.textContent=scene.title;this.detail.textContent='';
-    const touch=Boolean(document.querySelector('[data-touch-control="stick"]')?.getBoundingClientRect().width);
-    this.tail.textContent=!touch&&'desktop' in scene?scene.desktop:scene.detail;
-    this.count.textContent=`${this.introIndex+1} / ${introduction.length}`;
-    this.status.textContent='INTRODUCTION · WATCH FIRST';this.status.classList.remove('is-complete');
-    this.timeProgress.hidden=true;this.progress.replaceChildren();
-    this.skip.textContent='SKIP INTRO';this.introBack.disabled=this.introIndex===0;
-    this.introNext.textContent=this.introIndex===introduction.length-1?'START TRAINING':'NEXT';
-    document.body.dataset.trainingSlideControl=scene.control;
-    this.positionHand(scene.control,scene.motion);
-  }
-  private finishIntroduction():void {
-    this.introSeen=true;this.introIndex=null;this.introActions.hidden=true;
-    this.root.classList.remove('is-introduction');this.skip.textContent='SKIP TRAINING';this.showStage();
-  }
-
   private showStage(): void {
     if (!this.active) return;
-    this.introIndex=null;this.introActions.hidden=true;
-    this.root.classList.remove('is-introduction');this.skip.textContent='SKIP TRAINING';
+    this.root.hidden=false;this.skip.hidden=false;
+    this.skip.textContent='SKIP TRAINING';
     const step = trainingSlideIds[this.index]!;
     const scene = scenes[step];
     this.ready = false;
@@ -292,9 +256,11 @@ export class TrainingSlides {
     this.completing = false;
     this.saving = false;
     this.saveRetries = 0;
-    this.title.textContent = scene.title;
-    this.detail.textContent = scene.detail;
-    this.tail.textContent = scene.after ?? '.';
+    this.title.textContent = scene.instruction ? '' : scene.title;
+    this.detail.textContent = scene.instruction ?? scene.detail;
+    this.tail.textContent = scene.instruction||scene.steps ? '' : scene.after ?? '.';
+    this.instructions.hidden=!scene.steps;
+    this.instructions.replaceChildren(...(scene.steps??[]).map(text=>{const item=document.createElement('li');item.textContent=text;return item;}));
     this.guidance = '';
     this.count.textContent = String(this.index + 1) + ' / ' + String(trainingSlideIds.length);
     this.status.textContent = '';
@@ -308,6 +274,7 @@ export class TrainingSlides {
     document.body.dataset.trainingSlideControl = scene.control;
     this.positionHand(scene.control, scene.motion);
     this.options.onStage(step);
+    this.positionLandingPanel();
     this.makeReady(step);
   }
 
@@ -319,9 +286,19 @@ export class TrainingSlides {
     this.options.onReady(step);
   }
 
+  private positionLandingPanel():void {
+    if(!this.active||this.currentStep()!=='landing')return;
+    const lever=document.querySelector<HTMLElement>('[data-touch-control="throttle"]')?.getBoundingClientRect();
+    const layer=this.options.gameRoot.querySelector<HTMLElement>('#mission-status-layer');
+    if(!layer)return;
+    const inset=parseFloat(getComputedStyle(layer).right)||12;
+    const left=Math.max(innerWidth*.62,lever&&lever.width>0?lever.right+14:innerWidth*.72);
+    this.options.gameRoot.style.setProperty('--training-landing-width',`${Math.max(100,Math.min(300,innerWidth-inset-left))}px`);
+  }
+
   private positionHand(control: string, motion: string): void {
     if (this.suspended) { this.hand.hidden = true; return; }
-    if(!control){this.hand.hidden=true;return;}
+    if(!control||control==='landing'){this.hand.hidden=true;return;}
     const selector = control === 'task' ? '.training-screenplay' : control === 'view' ? '#game-root canvas'
       : control === 'radar' ? '#radar-panel'
       : control === 'landing' ? '[data-touch-control="throttle"]'

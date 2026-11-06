@@ -309,3 +309,37 @@ test('ballistic barrage produces real continuous hits on a straight moving playe
     }
     assert.equal(damage, 25);
 });
+
+function rangedDirector(count=1):Species {
+    const s=definition(false);s.id='ranged-director';
+    s.director={commitment:2.5,retreatMin:400,retreatMax:700,retreatDuration:2,reengageDuration:2,attackSpacing:.6,pressureThreshold:100,facing:.65};
+    s.movement.walk=s.movement.run=.01;
+    s.abilities=[{...standardAbilities.find(a=>a.id==='fireball-barrage')!,count,minRange:0,maxRange:8000,maxAltitude:10000,warning:.2,windup:.2,active:1,recovery:.2,cooldown:1,cone:.5,projectileSpeed:1000,moving:true,horizontalCone:true}];
+    return s;
+}
+test('director keeps its only valid ranged attack available after repeated missed volleys',()=>{
+    const env=world();env.obstruction=()=>.5; // Real projectile impacts; no damage is forged.
+    const e=engine(rangedDirector(),env),t=target('e',{x:0,y:800,z:1000});
+    let releases=0,last=0;
+    for(let i=0;i<1600;i++){const f=e.step(.05,[t]);for(const event of f.events)if(event.kind==='animation'&&event.type==='release'){releases++;last=f.time;}}
+    assert(releases>10,'misses must trigger repositioning, not permanently blacklist the sole ranged attack');
+    assert(last>70,'must still fire late in the encounter');e.dispose();
+});
+test('mobile ranged attacks can fire while pursuing a receding target between 4 and 8 km',()=>{
+    const s=rangedDirector(),env=world();env.bounds={minX:-15000,maxX:15000,minZ:-15000,maxZ:15000};s.senses.range=15000;
+    const e=engine(s,env);let releases=0;
+    for(let i=1;i<=120;i++){const t=target('e',{x:0,y:800,z:4500+i*5});t.velocity={x:0,y:0,z:100};const f=e.step(.05,[t]);releases+=f.events.filter(v=>v.kind==='animation'&&v.type==='release').length;}
+    assert(releases>0,'a valid moving weapon is not vetoed merely because the target is retreating');e.dispose();
+});
+test('a temporarily misaligned volley retries within its active window without compressed burst releases',()=>{
+    const e=engine(rangedDirector(3)),t=target('e',{x:0,y:800,z:700});let f=e.snapshot();
+    for(let i=0;i<100;i++){f=e.step(.025,[t]);if(f.ability?.stage==='WINDUP')break;}
+    assert.equal(f.ability?.stage,'WINDUP');
+    t.position={x:0,y:800,z:-700};
+    for(let i=0;i<12;i++){f=e.step(.025,[t]);assert(!f.events.some(v=>v.kind==='animation'&&v.type==='release'),'cannot shoot through the back');}
+    assert.equal(f.ability?.stage,'ACTIVE');
+    const releases:number[]=[];
+    for(let i=0;i<32;i++){t.position={x:Math.sin(f.yaw)*700,y:800,z:Math.cos(f.yaw)*700};f=e.step(.025,[t]);for(const event of f.events)if(event.kind==='animation'&&event.type==='release')releases.push(f.time);}
+    assert(releases.length>=2,'withheld shots must still be available when legitimate alignment returns');
+    for(let i=1;i<releases.length;i++)assert(releases[i]-releases[i-1]>=1/3-1e-8,'no same-frame or accelerated catch-up burst');e.dispose();
+});

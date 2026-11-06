@@ -318,18 +318,18 @@ test('navigation feet use actual skinned standing vertices rather than rigid sin
     assert(Number.isFinite(low));
 });
 
-test('a receding aircraft triggers running pursuit instead of repeated distant firing preparations',async()=>{
+test('a receding aircraft receives real fireballs while M19 maintains running pursuit',async()=>{
     const e=createAshenWarlordEncounter('receding','p',0,()=>135,[]),origin={...e.frame.position};
-    let running=0,distantShots=0;
-    for(let i=1;i<=160;i++){
+    let running=0;const distantShots=new Set();
+    for(let i=1;i<=480;i++){
         const target={x:origin.x+9000+i*.05*250,y:1800,z:origin.z};
         stepM19(e,target,{x:250,y:0,z:0},18,i*50);
         const f=e.frame,gap=Math.hypot(f.position.x-target.x,f.position.z-target.z);
         if(f.locomotion==='run')running++;
-        if(gap>4000&&f.ability?.id==='fireball-barrage')distantShots++;
+        if(gap>4000)for(const shot of f.projectiles)distantShots.add(shot.id);
     }
     assert(running>20,'must use authored running speed while closing a growing gap');
-    assert.equal(distantShots,0,'must not park in ranged preparations while the aircraft escapes');
+    assert(distantShots.size>0,'a mobile ranged attack must actually release fireballs while pursuing');
     assert(e.frame.position.x>origin.x+4000,'must move toward the receding aircraft');disposeM19(e);
 });
 
