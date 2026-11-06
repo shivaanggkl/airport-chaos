@@ -1,3 +1,4 @@
+import {strikingWarlord} from '../../shared/striking-warlord.mjs';
 import * as THREE from 'three';
 import {M19_TIMEOUT} from './monster-timeout';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -43,15 +44,15 @@ export class AshenWarlordModel {
     private footAt = [-10, -10];
     private temp = new THREE.Vector3();
     private core = new THREE.Vector3();
-    constructor(source?: Promise<GLTF>,private readonly stationary=false) { this.ready = (source ?? load()).then(g => { if (this.disposed)
+    constructor(source?: Promise<GLTF>,private readonly stationary=false,private readonly striking=false) { this.ready = (source ?? load()).then(g => { if (this.disposed)
         return; const object = cloneSkeleton(g.scene) as THREE.Group; object.name = 'ashen-warlord-supplied-mixamo'; object.scale.setScalar(model.height); this.instance = object; this.root.add(object); object.traverse(o => { if (o instanceof THREE.SkinnedMesh) {
         this.mesh = o;
         o.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, .55, 0), 1.8);
         const clone = (m: THREE.Material) => { const copy = (m as THREE.MeshStandardMaterial).clone(); this.materials.push(copy); return copy; };
         o.material = Array.isArray(o.material) ? o.material.map(clone) : clone(o.material);
     } }); this.mixer = new THREE.AnimationMixer(object); for (const clip of g.animations) {
-        if(!(this.stationary?['idle','punch','roar','defeat'].map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
-        if(this.stationary&&clip.name!==model.clips.idle!.name){const action=this.mixer.clipAction(clip);action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}
+        if(!((this.stationary||this.striking)?(this.striking?strikingWarlord.motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
+        if((this.stationary||this.striking)&&![model.clips.idle!.name,model.clips.turn!.name].includes(clip.name)){const action=this.mixer.clipAction(clip);action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}
         const action = this.mixer.clipAction(clip);
         action.play();
         action.enabled = false;
@@ -60,7 +61,7 @@ export class AshenWarlordModel {
         for(const [suffix,tracks]of [['#upper',clip.tracks.filter(t=>!lower(t))],['#lower',clip.tracks.filter(lower)]]as const){const variant=new THREE.AnimationClip(clip.name+suffix,clip.duration,[...tracks]);const a=this.mixer.clipAction(variant);a.play();a.enabled=false;this.actions.set(variant.name,a);}
     }
     for(const key of['neck','head']){const bone=object.getObjectByName(model.bones[key]!);if(bone)this.aimBones.push({node:model.boneNodes[key]!,bone,base:bone.quaternion.clone()});}
-    for (const c of (this.stationary?['idle','punch','roar','defeat']:motionKeys).map(key=>model.clips[key]!))
+    for (const c of (this.striking?strikingWarlord.motions:this.stationary?['idle','punch','roar','defeat']:motionKeys).map(key=>model.clips[key]!))
         if (!this.actions.has(c.name))
             throw Error('Missing supplied clip ' + c.name); this.apply({ clip: model.clips.idle!.name, time: 0, blend: 1, offsetY: 0 }); }); }
     setTitanPose(frame: TitanPresentation): void { this.frame = frame; }
@@ -91,7 +92,7 @@ export class AshenWarlordModel {
     } }
     hit(): void { this.flash = .2; }
     finish(kind: 'defeat' | 'timeout'): void { if (this.ending)
-        return; this.endingFrom=this.frame?.animation?{...this.frame.animation}:undefined; this.ending = kind; this.endingTime = 0; if(kind==='defeat'&&!this.stationary)this.root.visible=false; }
+        return; this.endingFrom=this.frame?.animation?{...this.frame.animation}:undefined; this.ending = kind; this.endingTime = 0; if(kind==='defeat'&&!this.stationary&&!this.striking)this.root.visible=false; }
     mouthPosition(out: THREE.Vector3): boolean { const p = this.frame?.limbs.mouth; if (p) {
         out.set(p.x, p.y, p.z);
         return true;
@@ -135,7 +136,7 @@ export class AshenWarlordModel {
         let a = this.frame?.animation;
         if (this.ending) {
             this.endingTime += dt;
-            if(this.stationary){
+            if(this.stationary||this.striking){
                 const key=this.ending==='defeat'?'defeat':'roar',clip=model.clips[key]!;
                 const t=Math.min(this.endingTime,clip.duration);
                 this.apply({clip:clip.name,time:t,previousClip:this.endingFrom?.clip??model.clips.idle!.name,previousTime:this.endingFrom?.time??this.clock%model.clips.idle!.duration,blend:Math.min(1,this.endingTime/.2),offsetY:0});
@@ -157,7 +158,7 @@ export class AshenWarlordModel {
             this.apply({clip:clip.name,time:firing?t:this.endingTime%clip.duration,previousClip:firing?model.clips.idle!.name:undefined,previousTime:this.endingTime%model.clips.idle!.duration,blend,offsetY:0});
         }
         }
-        else if(this.stationary&&this.introTime!==null&&!this.frame){
+        else if((this.stationary||this.striking)&&this.introTime!==null&&!this.frame){
             const t=this.introTime,clip=model.clips.roar!,local=t-.45;
             const roaring=local>=0&&local<clip.duration;
             this.apply(roaring?{clip:clip.name,time:local,previousClip:model.clips.idle!.name,previousTime:t%model.clips.idle!.duration,blend:Math.min(1,local/.2,(clip.duration-local)/.2),offsetY:0}:{clip:model.clips.idle!.name,time:t%model.clips.idle!.duration,blend:1,offsetY:0});

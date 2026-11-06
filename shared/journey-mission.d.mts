@@ -138,8 +138,8 @@ export const journeyDallas19: Readonly<{
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
 }>;
 export const journeyDallas20: Readonly<{
-  id: 'journey-dallas-20'; cityId: 'dallas'; name: 'ARMORED APEX'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 2700; startAirportId: 'love'; timeLimitMs: 240000;prepareMs:0;bossHealth:3000;monster:typeof journeyDallas19.monster;airborneSpawn:typeof journeyDallas19.airborneSpawn;
+  id: 'journey-dallas-20'; cityId: 'dallas'; name: 'MONSTER STRIKES'; chapter: 'LEGENDARY SKIES';
+  firstClearCredits: 2700; startAirportId: 'love'; timeLimitMs: 240000;prepareMs:0;bossHealth:700;monster:Readonly<{x:number;z:number;height:1920}>;airborneSpawn:typeof journeyDallas19.airborneSpawn;
   gates: readonly { x: number; z: number; altitude: number; radius: number;
     normalX: number; normalY: number; normalZ: number }[];
 }>;

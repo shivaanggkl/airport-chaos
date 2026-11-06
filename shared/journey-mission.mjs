@@ -286,8 +286,8 @@ export const journeyDallas19 = Object.freeze({
 export const journeyDallas25 = Object.freeze({...journeyDallas19,id:'journey-dallas-25',bossHealth:500});
 
 export const journeyDallas20 = Object.freeze({
-  id:'journey-dallas-20',cityId:'dallas',name:'ARMORED APEX',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
-  prepareMs:0,timeLimitMs:240000,bossHealth:3000,monster:journeyDallas19.monster,airborneSpawn:journeyDallas19.airborneSpawn,
+  id:'journey-dallas-20',cityId:'dallas',name:'MONSTER STRIKES',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
+  prepareMs:0,timeLimitMs:240000,bossHealth:700,monster:Object.freeze({...journeyDallas19.monster,height:1920}),airborneSpawn:journeyDallas19.airborneSpawn,
   // Empty compatibility field: no gate can complete this boss mission.
   gates:Object.freeze([]),startAirportId:'love',
 });

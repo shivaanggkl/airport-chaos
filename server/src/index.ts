@@ -39,7 +39,7 @@ import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
 import {loadMonsterDistrictBuildings,segmentBlockedByBuildings} from './monster-arrival.js';
-import {createApexEncounter} from './m20-apex.js';
+import {createStrikingWarlordEncounter} from './striking-warlord.js';
 import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
@@ -3191,7 +3191,7 @@ function sendJourneyState(playerId: string, attempt: JourneyAttempt): void {
     monsterFocusedPlayers.add(playerId);
   else monsterFocusedPlayers.delete(playerId);
   if (((attempt.missionId===journeyDallas19.id||attempt.missionId===journeyDallas25.id)||attempt.missionId===journeyDallas20.id) && attempt.status === 'RACING' && attempt.startedAt !== null) {
-    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas25.id?createStationaryWarlordEncounter:attempt.missionId===journeyDallas20.id?createApexEncounter:createAshenWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas25.id?500:attempt.missionId===journeyDallas20.id?3000:2500));
+    const encounter = monsterEncounters.get(attempt.attemptId) ?? (attempt.missionId===journeyDallas25.id?createStationaryWarlordEncounter:attempt.missionId===journeyDallas20.id?createStrikingWarlordEncounter:createAshenWarlordEncounter)(attempt.attemptId,playerId,attempt.startedAt,(x,z)=>dallasTerrain.elevationAt(x,z),monsterDistrictBuildings,attempt.monsterHealth??(attempt.missionId===journeyDallas25.id?500:attempt.missionId===journeyDallas20.id?700:2500));
     encounter.playerId = playerId;
     encounter.pilotId=players.get(playerId)?.pilotId??encounter.pilotId;
     monsterEncounters.set(attempt.attemptId, encounter);
