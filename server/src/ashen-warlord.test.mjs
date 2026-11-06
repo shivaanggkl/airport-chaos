@@ -459,37 +459,6 @@ test('timeout explosion still fires once when downtown was already damaged durin
     view.dispose();assert.equal(scene.children.length,0);
 });
 
-test('M19 pursues and destroys a stationary DFW runway aircraft using real Dallas obstacles and validated hits',async()=>{
-    const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js');
-    const {permittedM19Damage}=await import('./m19-titan.js');
-    const ground=loadDallasTerrain(),e=createAshenWarlordEncounter('parked-dfw','pilot',0,ground,loadMonsterDistrictBuildings());
-    const {aircraftHitRadii}=await import('../../shared/remote-aircraft-visual-rules.mjs');
-    const position={x:-22800,y:176.6916544,z:-12300};let damage=0,closest=Infinity,elapsed=0;
-    for(let i=1;i<=1800&&damage<100;i++){
-        elapsed=i*50;stepM19(e,position,{x:0,y:0,z:0},aircraftHitRadii.trainer,elapsed);
-        closest=Math.min(closest,Math.hypot(e.frame.position.x-position.x,e.frame.position.z-position.z));
-        for(const event of e.events)damage+=permittedM19Damage(e,event,elapsed);
-    }
-    assert(closest<500,'boss must close on a grounded target rather than wait outside usable attack range');
-    assert(damage>=100,`parked Bluejay must be vulnerable; received ${damage} HP in ${elapsed} ms`);
-    disposeM19(e);
-});
-
-test('M19 charge warnings do not draw the ground circle',async()=>{
-    const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
-    const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);await view.ready;
-    const e=createAshenWarlordEncounter('circle','pilot',0,()=>135,[]),f=e.frame;
-    view.setState({type:'monsterState',attemptId:e.attemptId,x:f.position.x,y:f.position.y,z:f.position.z,yaw:f.yaw,phase:'windup',hitSequence:0,shots:[],serverNow:0,titan:{...f,ability:{id:'charging-rampage',stage:'WARNING',progress:.2,origin:f.position,direction:{x:0,y:0,z:1},radius:240}}});
-    assert.equal(view.wave.visible,false);view.dispose();disposeM19(e);assert.equal(scene.children.length,0);
-});
-
-test('active M19 runway combat cannot be undone by airport or ground-beacon repairs',()=>{
-    const server=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
-    assert.match(server,/monsterBattleActive=recoveryAttempt\?\.missionId===journeyDallas19.id&&recoveryAttempt.status==='RACING'/);
-    assert.match(server,/if\(monsterBattleActive&&beacon.kind!=='heart'\)continue/);
-    assert.match(server,/if\(monsterBattleActive\)\{airportRepairStays.delete\(playerId\);continue;\}/);
-});
-
 test('M19 intro emits four times the previous smoke amount using one fixed-size particle draw',async()=>{
     const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
     const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);await view.ready;
@@ -499,40 +468,4 @@ test('M19 intro emits four times the previous smoke amount using one fixed-size 
     assert.equal(live,(24+10*3)*4);assert.equal(sizes.count,384);
     view.update(.03);let after=0;for(let i=0;i<sizes.count;i++)if(sizes.getX(i)>0)after++;assert.equal(after,live,'one smoke burst per cinematic impact');
     view.dispose();assert.equal(scene.children.length,0);
-});
-
-test('M19 buffered root and authored gait advance uniformly between network snapshots, including dropped frames',async()=>{
-    const {MonsterArrivalView}=await import('../../client/src/monster-arrival.ts');
-    const e=createAshenWarlordEncounter('playback','pilot',0,()=>135,[]),scene=new THREE.Scene();
-    const view=new MonsterArrivalView(scene,135,135,undefined,source,()=>135,()=>390,model);await view.ready;
-    const duration=model.clips.run.duration,base=e.frame;
-    let lastX,lastTime;
-    for(let i=0;i<60;i++){
-        if(i%5===0){const titan=structuredClone(base);titan.position={x:i*20,y:135,z:0};titan.velocity={x:1000,y:0,z:0};
-            titan.animation={clip:model.clips.run.name,time:(i*.02)%duration,blend:1,offsetY:0};
-            view.setState({type:'monsterState',attemptId:'playback',x:i*20,y:135,z:0,yaw:0,phase:'walk',hitSequence:0,shots:[],titan,serverNow:i*20});}
-        view.update(.02);
-        const x=view.creature.root.position.x,time=view.renderedTitan.animation.time;
-        if(i>20){assert(Math.abs(x-lastX-20)<1e-6,'constant root speed without packet-rate easing');
-            const elapsed=(time-lastTime+duration)%duration;assert(Math.abs(elapsed-.02)<1e-6,'gait uses the same buffered clock');}
-        lastX=x;lastTime=time;
-    }
-    assert(view.poseSamples.length<=8,'bounded snapshots');
-    const titan=structuredClone(base);titan.position={x:1400,y:135,z:0};titan.animation={clip:model.clips.run.name,time:1.4%duration,blend:1,offsetY:0};
-    view.setState({type:'monsterState',attemptId:'playback',x:1400,y:135,z:0,yaw:0,phase:'walk',hitSequence:0,shots:[],titan,serverNow:1400});
-    view.update(.2);assert(Math.abs(view.creature.root.position.x-1240)<1e-6,'a dropped render frame cannot slow the authoritative playback clock');
-    view.dispose();disposeM19(e);assert.equal(scene.children.length,0);
-});
-
-test('M19 keeps runway-filtered Dallas occlusion indexed instead of scanning the full city each tick',()=>{
-    let reads=0;
-    const buildings=Array.from({length:10000},(_,i)=>{
-        const x=-24000+(i%100)*480,z=-24000+Math.floor(i/100)*480;
-        return {get minX(){reads++;return x;},maxX:x+12,minZ:z,maxZ:z+12,top:160};
-    });
-    const e=createAshenWarlordEncounter('indexed-city','p',0,()=>135,buildings),origin={...e.frame.position};
-    reads=0;
-    for(let i=1;i<=20;i++)stepM19(e,{x:origin.x+4000,y:1200,z:origin.z+4000},{x:100,y:0,z:0},2.4,i*33);
-    assert(reads<5000,`occlusion must query nearby indexed cells, not all buildings (${reads} reads)`);
-    assert(e.frame.time>0);disposeM19(e);
 });

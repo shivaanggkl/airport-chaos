@@ -10162,7 +10162,7 @@ function animate(): void {
   else if(!portalInTransit)updateOsmCityChunks(streamingPosition);
   if(!portalInTransit)cityWorld.updateWorldVisuals?.(delta, airplane.position);
   journeyGates?.update(delta);
-  monsterView?.update(realDelta);
+  monsterView?.update(delta);
   transportView?.update(delta,camera);
   flightGameRoot.classList.toggle('transport-defeat-cinematic',!!(transportView?.defeatActive || transportView?.arrivalActive || monsterView?.timeoutCinematicActive));
   if(transportView?.defeatActive || transportView?.arrivalActive && !transportView.arrivalShowsPlayer){
