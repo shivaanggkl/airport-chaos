@@ -1,4 +1,5 @@
 import {strikingWarlord} from '../../shared/striking-warlord.mjs';
+import {MONSTER_VICTORY_SECONDS} from './monster-victory';
 import {MonsterCityBlast,M19_TIMEOUT,M19_CITY_BLAST_SCALE} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
@@ -153,7 +154,7 @@ export class MonsterArrivalView {
   private readonly endingCamera=new THREE.Vector3();
   private readonly endingDestination=new THREE.Vector3();
   static readonly timeoutCinematicMs=M19_TIMEOUT.durationMs;
-  get timeoutCinematicActive():boolean{if(this.stationary||this.striking)return this.ending!==null&&this.endingElapsed<(this.ending==='defeat'?(this.striking?strikingWarlord.defeatSeconds:9.3):4.5);return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
+  get timeoutCinematicActive():boolean{if(this.stationary||this.striking)return this.ending!==null&&this.endingElapsed<(this.ending==='defeat'?(this.striking?strikingWarlord.defeatSeconds:MONSTER_VICTORY_SECONDS):4.5);return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
   get timeoutBlackoutOpacity():number{
     if(!this.crimsonCore||this.ending!=='timeout')return 0;
     if(this.stationary||this.striking)return THREE.MathUtils.smoothstep(this.endingElapsed,3.2,4.2);
@@ -164,7 +165,8 @@ export class MonsterArrivalView {
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
     if((this.stationary||this.striking)&&this.ending){
       const root=this.creature.root.position;
-      camera.position.set(root.x+ashenWarlordHeight*1.2,root.y+ashenWarlordHeight*.7,root.z+ashenWarlordHeight*1.8);
+      if(this.ending==='defeat')camera.position.set(root.x+ashenWarlordHeight*1.5,root.y+ashenWarlordHeight*.9,root.z+ashenWarlordHeight*2.1);
+      else camera.position.set(root.x+ashenWarlordHeight*1.2,root.y+ashenWarlordHeight*.7,root.z+ashenWarlordHeight*1.8);
       camera.lookAt(root.x,root.y+ashenWarlordHeight*.5,root.z);return;
     }
     if(!this.crimsonCore||this.ending!=='timeout')return;
@@ -311,6 +313,7 @@ export class MonsterArrivalView {
     if(this.state?.titan?.locomotion==='jump'||this.state?.jumpProgress!==null && this.state?.jumpProgress!==undefined){
       this.endingDrop={from:this.creature.root.position.y,ground:this.creature.groundAt?.(this.creature.root.position.x,this.creature.root.position.z)??this.target.y};
     }
+    if(this.stationary&&kind==='defeat'){(this.creature as AshenWarlordModel).beginVictory(this.scene);this.onDestruction?.();}
     this.creature.finish(kind);
     if((this.stationary||this.striking)&&kind==='timeout')this.onRoar?.();
     for(const visual of this.pool){visual.id=null;visual.group.visible=false;visual.spawnPending=false;}
@@ -381,7 +384,7 @@ export class MonsterArrivalView {
     this.mouthFire.scale.setScalar((this.striking?25+50*(this.renderedTitan?.ability?.progress??0):this.state?.attackKind==='fan'?19:16)*(1+.025*Math.sin(this.elapsed*6)));
     if(this.ending) {
       this.endingElapsed+=delta;
-      if((this.stationary||this.striking)&&this.endingElapsed>=(this.ending==='defeat'?(this.striking?strikingWarlord.defeatSeconds:9.3):4.5)&&this.onEndingComplete){const complete=this.onEndingComplete;this.onEndingComplete=undefined;complete();}
+      if((this.stationary||this.striking)&&this.endingElapsed>=(this.ending==='defeat'?(this.striking?strikingWarlord.defeatSeconds:MONSTER_VICTORY_SECONDS):4.5)&&this.onEndingComplete){const complete=this.onEndingComplete;this.onEndingComplete=undefined;complete();}
       if(this.ending==='timeout'&&this.environmentDamage) {
         const release=this.crimsonCore?M19_TIMEOUT.releaseAt:0,travel=this.crimsonCore?M19_TIMEOUT.impactAt-M19_TIMEOUT.releaseAt:1.15;
         if(this.timeoutShot&&this.endingElapsed>=release) {

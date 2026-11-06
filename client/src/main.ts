@@ -1339,7 +1339,7 @@ const journeyMissionDefinitions = [
   journeyDallas25, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas19,
 ] as const;
 const journeyMissionHeadings = journeyMissionDefinitions.map((mission, index) =>
-  `M${index + 1}: ${mission.name.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`);
+  `M${index + 1}: ${index>=12&&index<18?mission.name:mission.name.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase())}`);
 const journeyHudObjective = skyChallengeElement.querySelector<HTMLElement>('[data-journey-objective]');
 const journeyHudProgress = skyChallengeElement.querySelector<HTMLElement>('[data-journey-progress]');
 const journeyHudTarget = skyChallengeElement.querySelector<HTMLElement>('[data-journey-target]');
@@ -2820,12 +2820,12 @@ function updateJourneyHud(): void {
   }
   if(elevatorMission){
     if(journeyHudObjective)journeyHudObjective.textContent=journeyAttempt.missionId===journeyDallas12.id
-      ? 'Shoot Down Both ESCORT Planes And Destroy the Giant Plane’s Two WINGS And ENGINE Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas11.id ? 'Destroy the Giant Plane’s Two WINGS And Its ENGINE Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas10.id ? 'Shoot Down the GIANT Plane And All Four ESCORT Planes Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas09.id ? 'Shoot Down the GIANT Plane And All Three ESCORT Planes Before Time Runs Out.'
-      : journeyAttempt.missionId===journeyDallas08.id ? 'Shoot Down the GIANT Plane And Both ESCORT Planes Before Time Runs Out.'
-      : 'Find And Shoot Down The GIANT Plane Before Time Runs Out.';
+      ? 'Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.'
+      : journeyAttempt.missionId===journeyDallas11.id ? 'Destroy the GIANT PLANE’s Two WINGS And Its ENGINE Before Time Runs Out.'
+      : journeyAttempt.missionId===journeyDallas10.id ? 'Shoot Down the GIANT PLANE And All Four ESCORT Planes Before Time Runs Out.'
+      : journeyAttempt.missionId===journeyDallas09.id ? 'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.'
+      : journeyAttempt.missionId===journeyDallas08.id ? 'Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.'
+      : 'Find And Shoot Down The GIANT PLANE Before Time Runs Out.';
     if(journeyHudProgress)journeyHudProgress.textContent=(journeyAttempt.missionId===journeyDallas08.id||journeyAttempt.missionId===journeyDallas09.id||journeyAttempt.missionId===journeyDallas10.id)?`GIANT PLANE: ${(journeyAttempt.monsterHealth??1)===0?'DESTROYED':'ACTIVE'} · ESCORTS LEFT: ${journeyAttempt.fighterEscortsAlive??(journeyAttempt.missionId===journeyDallas10.id?4:journeyAttempt.missionId===journeyDallas09.id?3:2)}/${journeyAttempt.missionId===journeyDallas10.id?4:journeyAttempt.missionId===journeyDallas09.id?3:2}`:'';
     if (journeyHudTarget) {
       journeyHudTarget.hidden = !escortMission && journeyAttempt.missionId !== journeyDallas11.id;

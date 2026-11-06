@@ -1,6 +1,7 @@
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {huntingWarlord} from '../../shared/hunting-warlord.mjs';
 import {strikingWarlord} from '../../shared/striking-warlord.mjs';
+import {MonsterVictory,MONSTER_VICTORY,MONSTER_VICTORY_SECONDS} from './monster-victory';
 import * as THREE from 'three';
 import {M19_TIMEOUT} from './monster-timeout';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -37,6 +38,7 @@ export class AshenWarlordModel {
     private ending: 'defeat' | 'timeout' | null = null;
     private endingTime = 0;
     private endingFrom?:AuthoredAnimation;
+    private victory?:MonsterVictory;
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
@@ -95,6 +97,10 @@ export class AshenWarlordModel {
     hit(): void { this.flash = .2; }
     finish(kind: 'defeat' | 'timeout'): void { if (this.ending)
         return; this.endingFrom=this.frame?.animation?{...this.frame.animation}:undefined; this.ending = kind; this.endingTime = 0; if(kind==='defeat'&&!this.stationary&&!this.striking)this.root.visible=false; }
+    beginVictory(scene:THREE.Scene):void{
+        if(!this.stationary||this.victory)return;
+        this.victory=new MonsterVictory(scene);for(const material of this.materials)this.victory.attach(material);
+    }
     mouthPosition(out: THREE.Vector3): boolean { const p = this.frame?.limbs.mouth; if (p) {
         out.set(p.x, p.y, p.z);
         return true;
@@ -140,7 +146,7 @@ export class AshenWarlordModel {
             this.endingTime += dt;
             if(this.stationary||this.striking){
                 const key=this.ending==='defeat'?'defeat':'roar',clip=model.clips[key]!;
-                const t=Math.min(this.endingTime,clip.duration);
+                const t=Math.min(this.endingTime,this.victory?MONSTER_VICTORY.blastSeconds:clip.duration);
                 this.apply({clip:clip.name,time:t,previousClip:this.endingFrom?.clip??model.clips.idle!.name,previousTime:this.endingFrom?.time??this.clock%model.clips.idle!.duration,blend:Math.min(1,this.endingTime/.2),offsetY:0});
                 if(this.mesh){
                     let low=Infinity;
@@ -148,9 +154,14 @@ export class AshenWarlordModel {
                     this.instance.position.y+=this.root.position.y-low;this.root.updateMatrixWorld(true);
                 }
                 if(this.ending==='defeat'){
-                    const opacity=1-Math.max(0,Math.min(1,(this.endingTime-clip.duration)/.7));
-                    for(const material of this.materials){material.transparent=opacity<1;material.opacity=opacity;}
-                    if(this.endingTime>=clip.duration+.7)this.root.visible=false;
+                    if(this.victory&&this.mesh){
+                        this.victory.update(this.endingTime,this.mesh,this.root);
+                        if(this.endingTime>=MONSTER_VICTORY_SECONDS)this.root.visible=false;
+                    }else{
+                        const opacity=1-Math.max(0,Math.min(1,(this.endingTime-clip.duration)/.7));
+                        for(const material of this.materials){material.transparent=opacity<1;material.opacity=opacity;}
+                        if(this.endingTime>=clip.duration+.7)this.root.visible=false;
+                    }
                 }
             }else{
             const firing=this.ending==='timeout'&&this.endingTime>=M19_TIMEOUT.shootAt&&this.endingTime<M19_TIMEOUT.shootAt+3.1;
@@ -197,7 +208,7 @@ export class AshenWarlordModel {
             }
     }
     dispose(): void { if (this.disposed)
-        return; this.disposed = true; this.mixer?.stopAllAction(); if (this.instance)
+        return; this.disposed = true; this.victory?.dispose(); this.victory=undefined; this.mixer?.stopAllAction(); if (this.instance)
         this.mixer?.uncacheRoot(this.instance); for (const m of this.materials)
         m.dispose(); this.root.clear(); this.frame = null; }
 }
