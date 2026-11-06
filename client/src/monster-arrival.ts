@@ -152,6 +152,10 @@ export class MonsterArrivalView {
   private readonly endingDestination=new THREE.Vector3();
   static readonly timeoutCinematicMs=M19_TIMEOUT.durationMs;
   get timeoutCinematicActive():boolean{return this.crimsonCore&&this.ending==='timeout'&&this.endingElapsed<M19_TIMEOUT.durationMs/1000;}
+  get timeoutBlackoutOpacity():number{
+    if(!this.crimsonCore||this.ending!=='timeout')return 0;
+    return THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.impactAt+2,M19_TIMEOUT.impactAt+3);
+  }
   get timeoutStreamingPosition():THREE.Vector3{return this.endingElapsed<M19_TIMEOUT.releaseAt?this.creature.root.position:this.endingDestination;}
   /** Camera-only aftermath of a server-confirmed M19 timeout. */
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
@@ -159,7 +163,7 @@ export class MonsterArrivalView {
     const root=this.creature.root,height=ashenWarlordHeight;
     const t=THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.releaseAt,M19_TIMEOUT.impactAt);
     this.endingLook.copy(this.endingOrigin).lerp(this.endingDestination,t);
-    this.endingLook.y+=THREE.MathUtils.smoothstep(this.endingElapsed-M19_TIMEOUT.impactAt,0,1.5)*210*M19_CITY_BLAST_SCALE;
+    this.endingLook.y+=THREE.MathUtils.smoothstep(this.endingElapsed-M19_TIMEOUT.impactAt,0,1.5)*105*M19_CITY_BLAST_SCALE;
     this.endingCamera.set(height*.8,height*.3,height*1.1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y).add(this.endingLook);
     const wide=THREE.MathUtils.smoothstep(this.endingElapsed,M19_TIMEOUT.releaseAt,M19_TIMEOUT.impactAt+.4);
     this.mouthWorld.set(this.endingDestination.x+6500,this.endingDestination.y+5500,this.endingDestination.z+9000);

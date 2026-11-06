@@ -12,7 +12,7 @@ import { JourneyAttemptStore } from './journey-attempts.js';
 import { createRearGuardFireState, finalInterceptEscortsCleared, rearGuardShooter, rearGuardShotResolved, rearGuardTakeoff } from './rear-guard-fire.js';
 
 test('Rear Guard uses the existing transport corridor and a true five-minute escape', () => {
-  assert.equal(journeyDallas08.name, 'REAR GUARD');
+  assert.equal(journeyDallas08.name, 'GIANT PLANE & TWO ESCORTS');
   assert.equal(journeyDallas08.startAirportId, journeyDallas07.startAirportId);
   assert.equal(journeyDallas08.timeLimitMs, 300_000);
   assert.equal(journeyDallas08.bossHealth, 2_000);
@@ -121,6 +121,11 @@ test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and firs
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'escort-2', 2)?.secondaryTargetId, 'escort-2');
     let result;
     for (let index = 0; index < 80; index += 1) result = store.hitTransport('pilot', first.attemptId, 3_000 + index * 100, 25);
+    assert.equal(result?.status, 'RACING','transport alone cannot complete M14');
+    assert.equal(store.recordRearGuardKill('pilot',first.attemptId,'unknown',11_000),undefined);
+    assert.equal(store.recordRearGuardKill('pilot',first.attemptId,'escort-1',11_000)?.status,'RACING');
+    assert.equal(store.recordRearGuardKill('pilot',first.attemptId,'escort-1',11_001),undefined);
+    result=new JourneyAttemptStore(path).recordRearGuardKill('pilot',first.attemptId,'escort-2',11_002);
     assert.equal(result?.status, 'COMPLETED');
     assert.equal(result?.monsterHealth, 0);
     assert.equal(result?.firstClearCredits, 950);
@@ -129,6 +134,10 @@ test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and firs
     const replay = store.launch('pilot', 'trainer', 20_000, journeyDallas08.id);
     store.approach('pilot', replay.attemptId);
     store.startGiantIncoming('pilot', replay.attemptId, 21_000);
+    store.assignRearGuardEscort('pilot',replay.attemptId,'replay-escort-1',1);
+    store.assignRearGuardEscort('pilot',replay.attemptId,'replay-escort-2',2);
+    store.recordRearGuardKill('pilot',replay.attemptId,'replay-escort-1',21_100);
+    store.recordRearGuardKill('pilot',replay.attemptId,'replay-escort-2',21_100);
     assert.equal(store.hitTransport('pilot', replay.attemptId, 321_000, 2_000), undefined);
     for (let index = 0; index < 80; index += 1) result = store.hitTransport('pilot', replay.attemptId, 22_000 + index * 100, 25);
     assert.equal(result?.status, 'COMPLETED');
@@ -136,6 +145,10 @@ test('Mission 8 unlock, two assigned escorts, transport defeat, timeout and firs
     const capped = store.launch('capped', 'trainer', 40_000, journeyDallas08.id);
     store.approach('capped', capped.attemptId);
     store.startGiantIncoming('capped', capped.attemptId, 41_000);
+    store.assignRearGuardEscort('capped',capped.attemptId,'capped-escort-1',1);
+    store.assignRearGuardEscort('capped',capped.attemptId,'capped-escort-2',2);
+    store.recordRearGuardKill('capped',capped.attemptId,'capped-escort-1',41_010);
+    store.recordRearGuardKill('capped',capped.attemptId,'capped-escort-2',41_010);
     assert.equal(store.hitTransport('capped', capped.attemptId, 41_100, 2_000)?.firstClearCredits, 50);
     const check = new DatabaseSync(path);
     assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get() as { credits: number }).credits, 950);

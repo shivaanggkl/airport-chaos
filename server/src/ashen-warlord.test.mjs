@@ -456,6 +456,9 @@ test('timeout explosion still fires once when downtown was already damaged durin
     view.damagedDowntown=true;let blasts=0;view.onDestruction=()=>blasts++;
     view.finish('timeout');for(let i=0;i<100;i++)view.update(.05);
     assert.equal(blasts,1);assert(scene.getObjectByName('m19-downtown-timeout-blast').visible);
+    assert.equal(view.timeoutBlackoutOpacity,0,'blast stays visible before the fade');
+    for(let i=0;i<24;i++)view.update(.05);assert(view.timeoutBlackoutOpacity>0&&view.timeoutBlackoutOpacity<1,'aftermath fades smoothly');
+    for(let i=0;i<12;i++)view.update(.05);assert.equal(view.timeoutBlackoutOpacity,1,'city is fully black before failure results');
     view.dispose();assert.equal(scene.children.length,0);
 });
 

@@ -125,13 +125,13 @@ export const journeyDallas06 = Object.freeze({
 });
 
 export const journeyDallas07 = Object.freeze({
-  id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT INCOMING',
+  id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT PLANE',
   chapter: 'SKY SIEGE', timeLimitMs: transportTuning.durationMs, firstClearCredits: 850,
   startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 export const journeyDallas08 = Object.freeze({
-  id: 'journey-dallas-08', cityId: 'dallas', name: 'REAR GUARD',
+  id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
   startAirportId: 'dfw', timeLimitMs: 300_000, bossHealth: transportTuning.health,
   escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
@@ -155,26 +155,26 @@ export const journeyDallas08 = Object.freeze({
 });
 
 export const journeyDallas09 = Object.freeze({
-  id: 'journey-dallas-09', cityId: 'dallas', name: 'REINFORCEMENTS',
+  id: 'journey-dallas-09', cityId: 'dallas', name: 'GIANT PLANE & THREE ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 1_050,
   startAirportId: 'dfw', timeLimitMs: 330_000, bossHealth: transportTuning.health,
-  escortCount: 4, initialEscortCount: 2, escortScale: remoteAircraftScale,
-  escortHealth: Object.freeze([75, 125, 175, 225]),
-  escortAircraft: Object.freeze(['trainer', 'cargo', 'privateJet', 'privateJet']),
-  escortLiveries: Object.freeze(['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'nightowl-royal-violet']),
+  escortCount: 3, initialEscortCount: 3, escortScale: remoteAircraftScale,
+  escortHealth: Object.freeze([75, 125, 175]),
+  escortAircraft: Object.freeze(['trainer', 'cargo', 'privateJet']),
+  escortLiveries: Object.freeze(['bluejay-aurora', 'mammoth-sand', 'nightowl-forest']),
   reinforcementThreshold: 0.5, reinforcementWarningMs: 3_000, reinforcementFireDelayMs: 3_000,
   escortFireDelayMs: 5_000, escortBurstIntervalMs: 4_000,
   initialEscortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
 });
 
 export const journeyDallas10 = Object.freeze({
-  id: 'journey-dallas-10', cityId: 'dallas', name: 'CROSSFIRE',
+  id: 'journey-dallas-10', cityId: 'dallas', name: 'GIANT PLANE & FOUR ESCORTS',
   chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_150,
   startAirportId: 'dfw', bossHealth: transportTuning.health,
-  escortCount: 2, escortScale: remoteAircraftScale,
-  escortHealth: Object.freeze([175, 225]),
-  escortAircraft: Object.freeze(['privateJet', 'cargo']),
-  escortLiveries: Object.freeze(['nightowl-forest', 'mammoth-sand']),
+  escortCount: 4, escortScale: remoteAircraftScale,
+  escortHealth: Object.freeze([175, 225, 175, 225]),
+  escortAircraft: Object.freeze(['privateJet', 'cargo', 'privateJet', 'cargo']),
+  escortLiveries: Object.freeze(['nightowl-forest', 'mammoth-sand', 'nightowl-royal-violet', 'mammoth-desert-sand']),
   escortFireDelayMs: 5_000, escortBurstIntervalMs: 6_000,
   escortShotSpacingMs: 250, escortShotDamage: 10,
   gunBurstIntervalMs: 3_000, gunWarningMs: 1_000,
@@ -182,7 +182,7 @@ export const journeyDallas10 = Object.freeze({
 });
 
 export const journeyDallas11 = Object.freeze({
-  id: 'journey-dallas-11', cityId: 'dallas', name: 'ARMORED FORTRESS',
+  id: 'journey-dallas-11', cityId: 'dallas', name: 'ARMORED GIANT PLANE',
   chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_250,
   startAirportId: 'dfw', turretHealth: 250, coreHealth: 1_500,
   hatch: Object.freeze({ z: 22.05, bottom: -0.45, width: 3.85, height: 3.35 }),
@@ -192,11 +192,11 @@ export const journeyDallas11 = Object.freeze({
 });
 
 export const journeyDallas12 = Object.freeze({
-  id: 'journey-dallas-12', cityId: 'dallas', name: 'FINAL INTERCEPT',
+  id: 'journey-dallas-12', cityId: 'dallas', name: 'ARMORED GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', timeLimitMs: 360_000, firstClearCredits: 1_500,
   startAirportId: 'dfw', turretHealth: journeyDallas11.turretHealth, coreHealth: 1_750,
   escortCount: 2, escortScale: journeyDallas10.escortScale,
-  escortHealth: journeyDallas10.escortHealth,
+  escortHealth: Object.freeze([175, 225]),
   escortAircraft: Object.freeze(['privateJet', 'fighter']),
   escortLiveries: Object.freeze(['nightowl-forest', 'firehawk-inferno']),
   escortFireDelayMs: journeyDallas10.escortFireDelayMs,

@@ -16,14 +16,14 @@ import { createRearGuardFireState, rearGuardShotResolved, rearGuardShooter, rear
 
 test('Crossfire uses the 5:30 Dallas transport course and exactly two specified escorts', () => {
   assert.equal(journeyDallas10.id, 'journey-dallas-10');
-  assert.equal(journeyDallas10.name, 'CROSSFIRE');
+  assert.equal(journeyDallas10.name, 'GIANT PLANE & FOUR ESCORTS');
   assert.equal(journeyDallas10.firstClearCredits, 1_150);
   assert.equal(journeyDallas10.bossHealth, 2_000);
   assert.equal(journeyDallas10.timeLimitMs, 330_000);
-  assert.equal(journeyDallas10.escortCount, 2);
-  assert.deepEqual(journeyDallas10.escortAircraft, ['privateJet', 'cargo']);
-  assert.deepEqual(journeyDallas10.escortHealth, [175, 225]);
-  assert.deepEqual(journeyDallas10.escortLiveries, ['nightowl-forest', 'mammoth-sand']);
+  assert.equal(journeyDallas10.escortCount, 4);
+  assert.deepEqual(journeyDallas10.escortAircraft, ['privateJet', 'cargo', 'privateJet', 'cargo']);
+  assert.deepEqual(journeyDallas10.escortHealth, [175, 225, 175, 225]);
+  assert.deepEqual(journeyDallas10.escortLiveries, ['nightowl-forest', 'mammoth-sand', 'nightowl-royal-violet', 'mammoth-desert-sand']);
   assert.deepEqual(journeyDallas12.escortAircraft, ['privateJet', 'fighter']);
   assert.deepEqual(journeyDallas12.escortLiveries, ['nightowl-forest', 'firehawk-inferno']);
   for (let index = 0; index < 2; index++)
@@ -139,7 +139,12 @@ test('Crossfire unlock, result, replay and exactly-once reward remain server-own
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'duplicate', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'firehawk', 2)?.secondaryTargetId, 'firehawk');
     assert.equal(store.hitTransport('pilot', first.attemptId, 3_000, 1_999)?.monsterHealth, 1);
-    const won = store.hitTransport('pilot', first.attemptId, 3_100, 1)!;
+    assert.equal(store.hitTransport('pilot',first.attemptId,3_100,1)?.status,'RACING');
+    store.assignRearGuardEscort('pilot',first.attemptId,'third',3);
+    store.assignRearGuardEscort('pilot',first.attemptId,'fourth',4);
+    for(const id of ['nightowl','firehawk','third'])assert.equal(store.recordRearGuardKill('pilot',first.attemptId,id,3_110)?.status,'RACING');
+    assert.equal(store.recordRearGuardKill('pilot',first.attemptId,'third',3_111),undefined);
+    const won=new JourneyAttemptStore(path).recordRearGuardKill('pilot',first.attemptId,'fourth',3_112)!;
     assert.equal(won.status, 'COMPLETED');
     assert.equal(won.firstClearCredits, 1_150);
     assert.equal(store.hitTransport('pilot', first.attemptId, 3_200, 25), undefined);
@@ -147,11 +152,19 @@ test('Crossfire unlock, result, replay and exactly-once reward remain server-own
     const replay = store.launch('pilot', 'trainer', 10_000, journeyDallas10.id);
     store.approach('pilot', replay.attemptId);
     store.startGiantIncoming('pilot', replay.attemptId, 11_000);
+    for(const ordinal of [1,2,3,4] as const){
+      store.assignRearGuardEscort('pilot',replay.attemptId,`escort-${ordinal}`,ordinal);
+      assert.equal(store.recordRearGuardKill('pilot',replay.attemptId,`escort-${ordinal}`,11010)?.status,'RACING');
+    }
     assert.equal(store.hitTransport('pilot', replay.attemptId, 341_000, 2_000), undefined);
     assert.equal(store.hitTransport('pilot', replay.attemptId, 11_100, 2_000)?.firstClearCredits, 0);
     const capped = store.launch('capped', 'trainer', 20_000, journeyDallas10.id);
     store.approach('capped', capped.attemptId);
     store.startGiantIncoming('capped', capped.attemptId, 21_000);
+    for(const ordinal of [1,2,3,4] as const){
+      store.assignRearGuardEscort('capped',capped.attemptId,`escort-${ordinal}`,ordinal);
+      assert.equal(store.recordRearGuardKill('capped',capped.attemptId,`escort-${ordinal}`,21010)?.status,'RACING');
+    }
     assert.equal(store.hitTransport('capped', capped.attemptId, 21_100, 2_000)?.firstClearCredits, 50);
     const check = new DatabaseSync(path);
     assert.equal((check.prepare("SELECT credits FROM player_profiles WHERE pilot_id = 'pilot'").get() as {credits:number}).credits, 1_150);

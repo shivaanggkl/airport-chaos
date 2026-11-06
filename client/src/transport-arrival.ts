@@ -24,15 +24,19 @@ export class TransportArrivalSequence {
     private readonly scene:THREE.Scene,private readonly escorts:readonly THREE.Group[]=[], missionName?: string){
     this.alert.className='transport-arrival-alert';
     this.alert.setAttribute('role','status');
-    this.alert.innerHTML=missionName === 'REAR GUARD'
-      ? '<span>⚠ DALLAS ALERT</span><strong>REAR GUARD</strong><p>Destroy the transport. Escorts optional.</p>'
+    this.alert.innerHTML=missionName === 'GIANT PLANE & TWO ESCORTS'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & TWO ESCORTS</strong><p>Shoot down the giant plane and both escorts before time runs out.</p>'
+      : missionName === 'GIANT PLANE & THREE ESCORTS'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & THREE ESCORTS</strong><p>Shoot down the giant plane and all three escorts before time runs out.</p>'
+      : missionName === 'GIANT PLANE & FOUR ESCORTS'
+      ? '<span>⚠ DALLAS ALERT</span><strong>GIANT PLANE & FOUR ESCORTS</strong><p>Shoot down the giant plane and all four escorts before time runs out.</p>'
       : escorts.length
-      ? missionName === 'FINAL INTERCEPT'
-        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Shoot both guard planes, both wing guns, then the orange target inside.</p>'
-        : `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'CROSSFIRE' ? 'CROSSFIRE' : missionName === 'REINFORCEMENTS' ? 'REINFORCEMENTS' : 'REAR GUARD'}</strong><p>Destroy the ${missionName === 'CROSSFIRE' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
-      : missionName === 'ARMORED FORTRESS'
-        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Shoot both wing guns. Then shoot the orange target inside.</p>'
-        : '<strong>GIANT INCOMING</strong><p>SHOOT IT DOWN</p>';
+      ? missionName === 'ARMORED GIANT PLANE & TWO ESCORTS'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy both escort planes and the giant plane’s two wings and engine in any order.</p>'
+        : `<span>⚠ DALLAS ALERT</span><strong>${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'GIANT PLANE & FOUR ESCORTS' : missionName === 'GIANT PLANE & THREE ESCORTS' ? 'GIANT PLANE & THREE ESCORTS' : 'GIANT PLANE & TWO ESCORTS'}</strong><p>Destroy the ${missionName === 'GIANT PLANE & FOUR ESCORTS' ? 'gunship' : 'transport'} to win. Escorts are optional.</p>`
+      : missionName === 'ARMORED GIANT PLANE'
+        ? '<span>⚠ DALLAS ALERT</span><strong>STOP THE GIANT PLANE</strong><p>Destroy the giant plane’s two wings and engine in any order.</p>'
+        : '<strong>GIANT PLANE</strong><p>SHOOT IT DOWN</p>';
     document.body.append(this.alert);
     if (escorts.length) this.scene.add(...escorts);
   }
@@ -48,9 +52,9 @@ export class TransportArrivalSequence {
     const sideX=Math.cos(pose.yaw),sideZ=-Math.sin(pose.yaw);
     const forwardX=-Math.sin(pose.yaw),forwardZ=-Math.cos(pose.yaw);
     this.escorts.forEach((escort,index)=>{
-      const side=index===0?-1:1;
-      const lateral=side*(transportFootprintRadius+180+Math.sin(this.elapsed*1.2+index*2)*12);
-      const ahead=200+Math.sin(this.elapsed*.9+index)*20;
+      const side=index%2===0?-1:1;
+      const lateral=side*(transportFootprintRadius+180+Math.floor(index/2)*220+Math.sin(this.elapsed*1.2+index*2)*12);
+      const ahead=200-Math.floor(index/2)*380+Math.sin(this.elapsed*.9+index)*20;
       escort.position.set(this.aircraft.position.x+sideX*lateral+forwardX*ahead,
         this.aircraft.position.y+50+Math.sin(this.elapsed*1.4+index)*10,
         this.aircraft.position.z+sideZ*lateral+forwardZ*ahead);

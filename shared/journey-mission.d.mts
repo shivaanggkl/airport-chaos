@@ -37,12 +37,12 @@ export const journeyDallas06: Readonly<{
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas07: Readonly<{
-  id: 'journey-dallas-07'; cityId: 'dallas'; name: 'GIANT INCOMING'; chapter: 'SKY SIEGE';
+  id: 'journey-dallas-07'; cityId: 'dallas'; name: 'GIANT PLANE'; chapter: 'SKY SIEGE';
   timeLimitMs: number; firstClearCredits: 850; startAirportId: 'dfw'; bossHealth: 2000;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas08: Readonly<{
-  id: 'journey-dallas-08'; cityId: 'dallas'; name: 'REAR GUARD'; chapter: 'SKY ADVENTURES';
+  id: 'journey-dallas-08'; cityId: 'dallas'; name: 'GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
   firstClearCredits: 950; startAirportId: 'dfw'; timeLimitMs: 300000; bossHealth: 2000;
   escortHealth: 1000; escortCount: 2; escortScale: 16; escortFireDelayMs: 5000;
   escortAircraft: readonly ['trainer', 'trainer'];
@@ -54,29 +54,29 @@ export const journeyDallas08: Readonly<{
   leaderRoute: readonly Readonly<{ x: number; z: number }>[];
 }>;
 export const journeyDallas09: Readonly<{
-  id: 'journey-dallas-09'; cityId: 'dallas'; name: 'REINFORCEMENTS'; chapter: 'SKY ADVENTURES';
+  id: 'journey-dallas-09'; cityId: 'dallas'; name: 'GIANT PLANE & THREE ESCORTS'; chapter: 'SKY ADVENTURES';
   firstClearCredits: 1050; startAirportId: 'dfw'; timeLimitMs: 330000; bossHealth: 2000;
-  escortCount: 4; initialEscortCount: 2; escortScale: 16;
-  escortHealth: readonly [75, 125, 175, 225];
-  escortAircraft: readonly ['trainer', 'cargo', 'privateJet', 'privateJet'];
-  escortLiveries: readonly ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest', 'nightowl-royal-violet'];
+  escortCount: 3; initialEscortCount: 3; escortScale: 16;
+  escortHealth: readonly [75, 125, 175];
+  escortAircraft: readonly ['trainer', 'cargo', 'privateJet'];
+  escortLiveries: readonly ['bluejay-aurora', 'mammoth-sand', 'nightowl-forest'];
   reinforcementThreshold: 0.5; reinforcementWarningMs: 3000; reinforcementFireDelayMs: 3000;
   escortFireDelayMs: 5000; escortBurstIntervalMs: 4000; initialEscortBurstIntervalMs: 6000;
   escortShotSpacingMs: 250; escortShotDamage: 10;
 }>;
 export const journeyDallas10: Readonly<{
-  id: 'journey-dallas-10'; cityId: 'dallas'; name: 'CROSSFIRE'; chapter: 'SKY ADVENTURES';
+  id: 'journey-dallas-10'; cityId: 'dallas'; name: 'GIANT PLANE & FOUR ESCORTS'; chapter: 'SKY ADVENTURES';
   timeLimitMs: 330000; firstClearCredits: 1150; startAirportId: 'dfw'; bossHealth: 2000;
-  escortCount: 2; escortScale: 16; escortHealth: readonly [175, 225];
-  escortAircraft: readonly ['privateJet', 'cargo'];
-  escortLiveries: readonly ['nightowl-forest', 'mammoth-sand'];
+  escortCount: 4; escortScale: 16; escortHealth: readonly [175, 225, 175, 225];
+  escortAircraft: readonly ['privateJet', 'cargo', 'privateJet', 'cargo'];
+  escortLiveries: readonly ['nightowl-forest', 'mammoth-sand', 'nightowl-royal-violet', 'mammoth-desert-sand'];
   escortFireDelayMs: 5000; escortBurstIntervalMs: 6000;
   escortShotSpacingMs: 250; escortShotDamage: 10;
   gunBurstIntervalMs: 3000; gunWarningMs: 1000;
   gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas11: Readonly<{
-  id: 'journey-dallas-11'; cityId: 'dallas'; name: 'ARMORED FORTRESS'; chapter: 'SKY ADVENTURES';
+  id: 'journey-dallas-11'; cityId: 'dallas'; name: 'ARMORED GIANT PLANE'; chapter: 'SKY ADVENTURES';
   timeLimitMs: 330000; firstClearCredits: 1250; startAirportId: 'dfw';
   turretHealth: 250; coreHealth: 1500;
   hatch: Readonly<{ z: 22.05; bottom: -0.45; width: 3.85; height: 3.35 }>;
@@ -85,7 +85,7 @@ export const journeyDallas11: Readonly<{
   gunShotSpacingMs: 250; gunShotDamage: 10;
 }>;
 export const journeyDallas12: Readonly<{
-  id: 'journey-dallas-12'; cityId: 'dallas'; name: 'FINAL INTERCEPT'; chapter: 'SKY ADVENTURES';
+  id: 'journey-dallas-12'; cityId: 'dallas'; name: 'ARMORED GIANT PLANE & TWO ESCORTS'; chapter: 'SKY ADVENTURES';
   timeLimitMs: 360000; firstClearCredits: 1500; startAirportId: 'dfw';
   turretHealth: 250; coreHealth: 1750;
   escortCount: 2; escortScale: number; escortHealth: readonly [175, 225];

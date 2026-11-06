@@ -44,32 +44,28 @@ for (const mission of [journeyDallas11, journeyDallas12]) {
       assert.equal(f.store.fail('pilot', a.attemptId, 'TIME_UP', active.deadlineAt!)?.status, 'FAILED');
     } finally { f.close(); }
   });
-  test(`${mission.name} gates the core, caps its wallet award and never pays a replay twice`, () => {
-    const f = fixture();
-    try {
-      for (const launchAt of [1000, 10000]) {
-        const a = f.store.launch('capped', 'trainer', launchAt, mission.id);
-        f.store.approach('capped', a.attemptId, launchAt + 100);
-        f.store.startGiantIncoming('capped', a.attemptId, launchAt + 200);
-        if (mission === journeyDallas12) {
-          assert.equal(f.store.hitFortressComponent('capped', a.attemptId, 'left', launchAt + 300, 250), undefined);
-          f.store.assignRearGuardEscort('capped', a.attemptId, 'escort-1', 1);
-          f.store.assignRearGuardEscort('capped', a.attemptId, 'escort-2', 2);
-          assert.equal(f.store.advanceFinalIntercept('capped', a.attemptId, false, launchAt + 300), undefined);
-          f.store.advanceFinalIntercept('capped', a.attemptId, true, launchAt + 300);
+  test(`${mission.name} accepts every target order and awards only after all required targets`,()=>{
+    const f=fixture();
+    const permutations=(items:string[]):string[][]=>items.length?items.flatMap((item,index)=>permutations(items.filter((_,i)=>i!==index)).map(rest=>[item,...rest])):[[]];
+    try{
+      const targets=mission===journeyDallas12?['left','right','core','escort-1','escort-2']:['left','right','core'];
+      let launchAt=1000;
+      for(const order of permutations(targets)){
+        const a=f.store.launch('capped','trainer',launchAt,mission.id);
+        f.store.approach('capped',a.attemptId,launchAt+100);
+        f.store.startGiantIncoming('capped',a.attemptId,launchAt+200);
+        if(mission===journeyDallas12){f.store.assignRearGuardEscort('capped',a.attemptId,'escort-1',1);f.store.assignRearGuardEscort('capped',a.attemptId,'escort-2',2);}
+        for(const [index,target] of order.entries()){
+          const result=target.startsWith('escort')?f.store.recordRearGuardKill('capped',a.attemptId,target,launchAt+300+index):f.store.hitFortressComponent('capped',a.attemptId,target as 'left'|'right'|'core',launchAt+300+index,target==='core'?mission.coreHealth:250);
+          assert.equal(result?.status,index===order.length-1?'COMPLETED':'RACING',order.join(','));
+          assert.equal(result?.firstClearCredits,index===order.length-1&&launchAt===1000?50:0);
         }
-        assert.equal(f.store.hitFortressComponent('capped', a.attemptId, 'core', launchAt + 400, mission.coreHealth), undefined);
-        f.store.hitFortressComponent('capped', a.attemptId, 'left', launchAt + 500, 250);
-        assert.equal(f.store.hitFortressComponent('capped', a.attemptId, 'core', launchAt + 600, mission.coreHealth), undefined);
-        f.store.hitFortressComponent('capped', a.attemptId, 'right', launchAt + 700, 250);
-        const done = f.store.hitFortressComponent('capped', a.attemptId, 'core', launchAt + 800, mission.coreHealth)!;
-        assert.equal(done.status, 'COMPLETED');
-        assert.equal(done.firstClearCredits, launchAt === 1000 ? 50 : 0);
-        assert.equal(f.store.hitFortressComponent('capped', a.attemptId, 'core', launchAt + 900, 9999), undefined);
+        assert.equal(f.store.hitFortressComponent('capped',a.attemptId,'core',launchAt+900,1),undefined);
+        launchAt+=10000;
       }
-      assert.equal((f.db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='capped'").get() as {credits: number}).credits, 1000000);
-      assert.equal((f.db.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE pilot_id='capped'").get() as {count: number}).count, 1);
-    } finally { f.close(); }
+      assert.equal((f.db.prepare("SELECT credits FROM player_profiles WHERE pilot_id='capped'").get() as {credits:number}).credits,1000000);
+      assert.equal((f.db.prepare("SELECT COUNT(*) AS count FROM wallet_transactions WHERE pilot_id='capped'").get() as {count:number}).count,1);
+    }finally{f.close();}
   });
   test(`${mission.name} still requires the preceding mission outside QA access`, () => {
     const f = fixture();

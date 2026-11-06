@@ -497,7 +497,7 @@ export class TitanEncounter {
                 // Mobile ranged attacks must not hold a stale movement destination
                 // while the aircraft flies away during the authored attack.
                 if(active.definition.moving && horizontal>4000){
-                    this.#goal=this.#boundedGoal({x:t.position.x+t.velocity.x*1.5,y:this.#position.y,z:t.position.z+t.velocity.z*1.5});
+                    this.#goal=this.#combatGoal(t);
                 }
                 return;
             }
@@ -567,7 +567,7 @@ export class TitanEncounter {
             if (this.#directorRoute[0])
                 this.#goal = this.#directorRoute[0];
         }
-        const predicted = { x: t.position.x + t.velocity.x * 1.5, y: this.#position.y, z: t.position.z + t.velocity.z * 1.5 };
+        const predicted = this.#combatGoal(t);
         const close = available.filter(a => a.mechanism === 'sweep');
         const ranged = available.filter(a => a.mechanism === 'projectile' || a.mechanism === 'beam');
         const choices = available.map(a => ({ a, score: (a.mechanism === 'sweep' ? 2.1 : a.mechanism === 'projectile' ? (horizontal > 8000 && !this.#directorReentry ? .1 : 1.1) : a.mechanism === 'beam' ? 1.2 : a.mechanism === 'charge' ? .85 : a.mechanism === 'leap' ? .75 : pressured || closing > 100 && horizontal < 1500 ? 1.3 : -1) - (a.id === this.#lastAbility ? .35 + Math.min(.35, this.#misses * .15) : 0) + (this.#directorReentry && a.mechanism === 'projectile' ? .3 : 0) })).filter(v => v.score > .3).sort((a, b) => b.score - a.score || a.a.id.localeCompare(b.a.id));
@@ -587,7 +587,7 @@ export class TitanEncounter {
             const reentry = this.#tactic === 'reengage', angle = Math.atan2(predicted.x - this.#position.x, predicted.z - this.#position.z);
             const flank = reentry ? Math.min(2500, horizontal * .35) * (this.#avoidSign) : 0;
             const standOff = Math.min(7000, Math.max(1500, Math.abs(t.position.y - this.#anchor('body').y) * 1.2));
-            const goal = this.#boundedGoal(horizontal < standOff && !close.length ? { x: predicted.x - Math.sin(angle) * standOff + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.cos(angle) * standOff - Math.sin(angle) * flank } : { x: predicted.x + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.sin(angle) * flank });
+            const goal = this.#boundedGoal(!d.combatDistance && horizontal < standOff && !close.length ? { x: predicted.x - Math.sin(angle) * standOff + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.cos(angle) * standOff - Math.sin(angle) * flank } : { x: predicted.x + Math.cos(angle) * flank, y: this.#position.y, z: predicted.z - Math.sin(angle) * flank });
             const route = this.#routeTo(goal);
             this.#directorRoute = route ?? [];
             this.#goal = route?.[0] ?? this.#boundedGoal(predicted);
@@ -606,6 +606,14 @@ export class TitanEncounter {
                 this.#leapPrepareUntil = this.#time + m.run / m.deceleration + 2;
             }
         }
+    }
+    #combatGoal(t: Target): Vec {
+        const spacing=this.species.director?.combatDistance??0;
+        const dx=t.position.x-this.#position.x,dz=t.position.z-this.#position.z;
+        const range=Math.hypot(dx,dz);
+        const lead=spacing?Math.min(1.5,400/Math.max(1,Math.hypot(t.velocity.x,t.velocity.z))):1.5;
+        return this.#boundedGoal({x:t.position.x+t.velocity.x*lead-(range>1?dx/range:Math.sin(this.#yaw))*spacing,
+            y:this.#position.y,z:t.position.z+t.velocity.z*lead-(range>1?dz/range:Math.cos(this.#yaw))*spacing});
     }
     #boundedGoal(goal: Vec): Vec { const b = this.#env.bounds, r = this.species.radius + 100; return { x: clamp(goal.x, b.minX + r, b.maxX - r), y: this.#position.y, z: clamp(goal.z, b.minZ + r, b.maxZ - r) }; }
     #routeTo(goal: Vec): Vec[] | null {
