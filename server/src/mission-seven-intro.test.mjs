@@ -64,3 +64,12 @@ test('M19 runway flight is not gated on the combat clock starting',()=>{
  const guard=source.slice(start,source.indexOf('// Keep high-speed travel',start));
  assert(start>=0);assert.doesNotMatch(guard,/journeyDallas19/);assert.match(guard,/journeyDallas20/);
 });
+
+test('M19 restart resets the shared intro welcome rather than reconnecting directly into gameplay',()=>{
+ const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const retry=source.slice(source.indexOf('async function retryJourneyMission()'),source.indexOf("window.addEventListener('airport-chaos-city-exit'"));
+ assert.match(retry,/const retryGateIntro = [^\n]*journeyAttempt.missionId === journeyDallas19.id/);
+ assert.match(retry,/if \(retryGateIntro\) \{\s*flightLaunchWelcomeHandled = false;\s*flightLaunchState = 'pending';\s*airborneIntroAwaiting = true;/);
+ assert.match(retry,/missionStartCountdownPending = true/);
+ assert.match(retry,/await replaceRealtimeSocket\('Journey retry'\)/);
+});

@@ -1,3 +1,4 @@
+import {indexBuildingsForOcclusion} from './monster-arrival.js';
 import {cityAirports} from '../../shared/city-airports.mjs';
 import { cityRegistry } from '../../shared/city-registry.mjs';
 import { createAshenPose } from './ashen-warlord-pose.js';
@@ -73,6 +74,6 @@ export function createAshenWarlordEncounter(id: string, playerId: string, starte
         const x=(b.minX+b.maxX)/2-airport.x,z=(b.minZ+b.maxZ)/2-airport.z;
         const halfX=(b.maxX-b.minX)/2,halfZ=(b.maxZ-b.minZ)/2,c=Math.cos(airport.heading),s=Math.sin(airport.heading);
         return Math.abs(c*x-s*z)<=airport.runwayWidth/2+Math.abs(c)*halfX+Math.abs(s)*halfZ&&Math.abs(s*x+c*z)<=airport.runwayLength/2+Math.abs(s)*halfX+Math.abs(c)*halfZ;
-    }));runwayCombatBuildingsCache.set(buildings,combatBuildings);}
+    }));indexBuildingsForOcclusion(combatBuildings);runwayCombatBuildingsCache.set(buildings,combatBuildings);}
     return createM19Encounter(id, playerId, started, ground, combatBuildings, health, ashenWarlordSpecies, { geometry, spawn: journeyDallas19.monster, environmentDamage: true, navigation:'city-bounds', articulate: createAshenPose(health), bounds: {minX:-cityHalfSize,maxX:cityHalfSize,minZ:-cityHalfSize,maxZ:cityHalfSize} });
 }

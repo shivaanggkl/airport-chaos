@@ -2914,7 +2914,7 @@ function updateJourneyHud(): void {
   }
   if (breakoutMission) {
     const boss=journeyAttempt.missionId===journeyDallas20.id?journeyDallas20:journeyDallas19;
-    monsterBossHud.querySelector('strong')!.textContent=boss.name;
+    monsterBossHud.querySelector('strong')!.textContent=journeyAttempt.missionId===journeyDallas19.id?'MONSTER':boss.name;
     if (journeyHudObjective) journeyHudObjective.textContent =journeyAttempt.missionId===journeyDallas20.id?'DEFEAT THE ARMORED GIANT':journeyAttempt.status==='APPROACH'?'TAKE OFF FROM DFW':'DESTROY THE MONSTER';
     if (journeyHudProgress) journeyHudProgress.textContent = '';
     if (journeyHudTarget) journeyHudTarget.hidden = true;
@@ -7792,9 +7792,11 @@ function spawnFlash(
   flash.elapsed = 0;
   flash.duration = duration;
   flash.mesh.position.copy(position);
-  flash.mesh.scale.setScalar(startScale);
+  const muzzle = effects === muzzleFlashes;
+  flash.mesh.scale.set(startScale, startScale, muzzle ? startScale * 2.5 : startScale);
+  flash.mesh.quaternion.identity();
   flash.coreMaterial.opacity = 1;
-  flash.glowMaterial.opacity = 0.44;
+  flash.glowMaterial.opacity = muzzle ? 0 : 0.44;
   flash.mesh.visible = true;
   scene.add(flash.mesh);
   effects.push(flash);
@@ -7804,14 +7806,17 @@ function updateFlashEffects(effects: FlashEffect[], pool: FlashEffect[], delta: 
   for (let index = effects.length - 1; index >= 0; index -= 1) {
     const flash = effects[index];
     flash.mesh.visible = true;
-    // The muzzle flash is attached light, not a world-space puff left behind
-    // for 110 ms (120 m at Fighter Boost speed).
-    if (effects === muzzleFlashes) getCurrentMuzzleTransform(flash.mesh.position, projectileDirection);
+    // A compact pulse follows the gun, without growing into a nose-sized bubble.
+    const muzzle = effects === muzzleFlashes;
+    if (muzzle) {
+      getCurrentMuzzleTransform(flash.mesh.position, projectileDirection);
+      flash.mesh.quaternion.setFromUnitVectors(projectileForward, projectileDirection);
+    }
     flash.elapsed += delta;
     const progress = flash.elapsed / flash.duration;
-    flash.mesh.scale.multiplyScalar(1 + delta * 13);
+    if (!muzzle) flash.mesh.scale.multiplyScalar(1 + delta * 13);
     flash.coreMaterial.opacity = Math.max(0, 1 - progress);
-    flash.glowMaterial.opacity = Math.max(0, 0.44 * (1 - progress));
+    flash.glowMaterial.opacity = muzzle ? 0 : Math.max(0, 0.44 * (1 - progress));
     if (flash.elapsed < flash.duration) continue;
     scene.remove(flash.mesh);
     flash.mesh.visible = false;
@@ -7838,7 +7843,7 @@ function getCurrentMuzzleTransform(origin: THREE.Vector3, direction: THREE.Vecto
 function spawnMuzzleFeedback(origin: THREE.Vector3, direction: THREE.Vector3, clientShotId: string, targetId?: string): void {
   projectileOrigin.copy(origin);
   projectileDirection.copy(direction);
-  spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.11, 0.45);
+  spawnFlash(muzzleFlashes, muzzleFlashPool, projectileOrigin, 0.045, 0.09);
   const predicted = projectilePool.pop() ?? createProjectileVisual();
   const target = targetId ? remotePlayers.get(targetId)?.plane : undefined;
   if (target?.visible) {
@@ -10157,7 +10162,7 @@ function animate(): void {
   else if(!portalInTransit)updateOsmCityChunks(streamingPosition);
   if(!portalInTransit)cityWorld.updateWorldVisuals?.(delta, airplane.position);
   journeyGates?.update(delta);
-  monsterView?.update(delta);
+  monsterView?.update(realDelta);
   transportView?.update(delta,camera);
   flightGameRoot.classList.toggle('transport-defeat-cinematic',!!(transportView?.defeatActive || transportView?.arrivalActive || monsterView?.timeoutCinematicActive));
   if(transportView?.defeatActive || transportView?.arrivalActive && !transportView.arrivalShowsPlayer){
@@ -11109,7 +11114,7 @@ async function exitFlightToHub(openFirehawkGarage = false, returnToJourney = fal
 
 async function retryJourneyMission(): Promise<void> {
   if (!journeyMode || !journeyAttempt || journeyAttempt.status === 'COMPLETED') return;
-  const retryGateIntro = journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id;
+  const retryGateIntro = journeyAttempt.missionId === journeyDallas01.id || journeyAttempt.missionId === journeyDallas02.id || journeyAttempt.missionId === journeyDallas03.id || journeyAttempt.missionId === journeyDallas04.id || journeyAttempt.missionId === journeyDallas05.id || journeyAttempt.missionId === journeyDallas06.id || journeyAttempt.missionId === journeyDallas19.id;
   const retryButton = journeyResultElement.querySelector<HTMLButtonElement>('[data-journey-primary]')!;
   if (retryButton.disabled) return;
   retryButton.disabled = true;

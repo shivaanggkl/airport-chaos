@@ -115,7 +115,7 @@ export class MonsterArrivalView {
   private readonly environmentDamage:boolean;
   readonly ready: Promise<void>;
   private readonly pool:Fireball[];
-  private readonly particles=new MonsterParticles();
+  private readonly particles:MonsterParticles;
   private readonly target=new THREE.Vector3();
   private readonly crimsonCore:boolean;
   private readonly mouthWorld=new THREE.Vector3();
@@ -125,6 +125,9 @@ export class MonsterArrivalView {
   private readonly camera?: THREE.Camera;
   private state:MonsterStateMessage|null=null;
   private renderedTitan?:NonNullable<MonsterStateMessage['titan']>;
+  private poseClock=0;
+  private poseOffset:number|undefined;
+  private readonly poseSamples:MonsterStateMessage[]=[];
   private elapsed=0;
   private readonly beamMaterial=new THREE.MeshBasicMaterial({color:0x66ddff,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending});
   private readonly beamGeometry=new THREE.CylinderGeometry(1,1,1,10);
@@ -173,7 +176,7 @@ export class MonsterArrivalView {
 
   constructor(scene:THREE.Scene,terrainY:number,targetGroundY:number,camera?:THREE.Camera,
     source?:Promise<GLTF>,groundAt?:(x:number,z:number)=>number,pixelHeight=()=>720,binding?:TitanModelBinding) {
-    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source):new MonsterArrivalModel(source,binding);this.environmentDamage=!binding||!binding.url.includes('armored-apex');this.ready=this.creature.ready;
+    this.crimsonCore=Boolean(binding?.url.includes('ashen-warlord'));this.particles=new MonsterParticles(this.crimsonCore?384:96);this.pool=Array.from({length:this.crimsonCore?32:8},()=>createFireball());this.creature=this.crimsonCore?new AshenWarlordModel(source):new MonsterArrivalModel(source,binding);this.environmentDamage=!binding||!binding.url.includes('armored-apex');this.ready=this.creature.ready;
     this.scene=scene;this.camera=camera;this.targetGroundY=targetGroundY;this.pixelHeight=pixelHeight;
     this.creature.groundAt=groundAt;
     if(this.crimsonCore){this.beamMaterial.color.set(0xff2340);this.waveMaterial.color.set(0xff3b35);this.warningMaterial.color.set(0xff1735);this.warningMaterial.opacity=.4;}
@@ -197,6 +200,12 @@ export class MonsterArrivalView {
     const oldPhase=this.state?.phase,firstTitan=!!state.titan&&!this.state?.titan;
     if(firstTitan){this.creature.root.position.set(state.x,state.y+(state.titan?.poseOffsetY??0),state.z);this.creature.root.rotation.y=state.yaw;}
     this.state=state;
+    if(this.crimsonCore&&state.titan){
+      this.poseOffset??=state.serverNow/1000-this.poseClock;
+      if(!this.poseSamples.length||state.serverNow>this.poseSamples[this.poseSamples.length-1]!.serverNow){
+        this.poseSamples.push(state);if(this.poseSamples.length>8)this.poseSamples.shift();
+      }
+    }
     if(state.titan){this.renderedTitan??=structuredClone(state.titan);this.creature.setTitanPose(this.renderedTitan);this.setTitanState(state);}this.target.set(state.x,state.y+(state.titan?.poseOffsetY??0),state.z);
     this.swipeAgeMs=state.handSwipe ? state.serverNow-state.handSwipe.startedAt : 0;
     this.creature.setJumpProgress(state.jumpProgress??null);
@@ -260,7 +269,7 @@ export class MonsterArrivalView {
       .applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.creature.root.rotation.y-hit.yaw).add(this.creature.root.position);
     const p=this.mouthWorld;
     this.particles.emit(p.x,p.y,p.z,false,8,28);
-    this.particles.emit(p.x,p.y,p.z,true,5,40,.12);
+    this.particles.emit(p.x,p.y,p.z,true,8,100,.18);
   }
   private introOrigin?: {position: THREE.Vector3; yaw: number};
   private introTime: number | null = null;
@@ -304,21 +313,42 @@ export class MonsterArrivalView {
     }
   }
   update(delta:number):void {
+    // Playback follows elapsed time even after a dropped frame; effect integration stays bounded.
+    this.poseClock+=Math.max(0,delta);
     delta=Math.min(.05,Math.max(0,delta));this.elapsed+=delta;
     const c=this.creature;
     if(this.state && !this.ending) {
-      c.root.position.lerp(this.target,1-Math.exp(-delta*12));
-      if(this.state.titan&&this.renderedTitan){
-        const from=this.renderedTitan,to=this.state.titan,w=1-Math.exp(-delta*12),angle=(a:number,b:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*w;
-        for(const key of ['feet','limbs']as const)for(const [name,p]of Object.entries(to[key])){const q=from[key][name];if(q){q.x+=(p.x-q.x)*w;q.y+=(p.y-q.y)*w;q.z+=(p.z-q.z)*w;}}
+      let previous:MonsterStateMessage|undefined,next=this.state,blend=1-Math.exp(-delta*12);
+      if(this.crimsonCore&&this.poseSamples.length){
+        // Buffer one network interval, then interpolate both root and gait on the same timeline.
+        const at=(this.poseOffset!+this.poseClock-.16)*1000;
+        while(this.poseSamples.length>2&&this.poseSamples[1]!.serverNow<=at)this.poseSamples.shift();
+        previous=this.poseSamples[0]!;next=this.poseSamples[1]??previous;
+        blend=next===previous?0:THREE.MathUtils.clamp((at-previous.serverNow)/(next.serverNow-previous.serverNow),0,1);
+        c.root.position.set(THREE.MathUtils.lerp(previous.x,next.x,blend),
+          THREE.MathUtils.lerp(previous.y+(previous.titan?.poseOffsetY??0),next.y+(next.titan?.poseOffsetY??0),blend),
+          THREE.MathUtils.lerp(previous.z,next.z,blend));
+      }else c.root.position.lerp(this.target,blend);
+      if(next.titan&&this.renderedTitan){
+        const from=this.renderedTitan,to=next.titan,start=previous?.titan??from,w=blend,angle=(a:number,b:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*w;
+        for(const key of ['feet','limbs']as const)for(const [name,p]of Object.entries(to[key])){const q=from[key][name],v=start[key][name];if(q&&v){q.x=v.x+(p.x-v.x)*w;q.y=v.y+(p.y-v.y)*w;q.z=v.z+(p.z-v.z)*w;}}
         from.position.x=c.root.position.x;from.position.y=c.root.position.y-(to.poseOffsetY??0);from.position.z=c.root.position.z;
-        from.yaw=angle(from.yaw,to.yaw);from.headYaw=angle(from.headYaw,to.headYaw);from.headPitch+=(to.headPitch-from.headPitch)*w;
-        if(to.animation){const a=from.animation,b=to.animation;if(a&&a.clip===b.clip&&a.previousClip===b.previousClip){a.time=mixAshenClipTime(a.clip,a.time,b.time,w);a.offsetY+=(b.offsetY-a.offsetY)*w;a.blend+=(b.blend-a.blend)*w;a.previousTime=mixAshenClipTime(b.previousClip??'',a.previousTime??0,b.previousTime??0,w);a.aim=b.aim;if(a.locomotion&&b.locomotion&&a.locomotion.clip===b.locomotion.clip)a.locomotion.time=mixAshenClipTime(b.locomotion.clip,a.locomotion.time,b.locomotion.time,w);else a.locomotion=b.locomotion?{...b.locomotion}:undefined;}else from.animation={...b};}
+        from.yaw=angle(start.yaw,to.yaw);from.headYaw=angle(start.headYaw,to.headYaw);from.headPitch=start.headPitch+(to.headPitch-start.headPitch)*w;
+        if(to.animation){const a=start.animation,b=to.animation;if(a&&a.clip===b.clip&&a.previousClip===b.previousClip){
+          const out=from.animation??={...b};out.clip=b.clip;out.previousClip=b.previousClip;
+          out.time=mixAshenClipTime(a.clip,a.time,b.time,w);out.offsetY=a.offsetY+(b.offsetY-a.offsetY)*w;out.blend=a.blend+(b.blend-a.blend)*w;
+          out.previousTime=mixAshenClipTime(b.previousClip??'',a.previousTime??0,b.previousTime??0,w);out.aim=b.aim;
+          if(a.locomotion&&b.locomotion&&a.locomotion.clip===b.locomotion.clip){
+            if(!out.locomotion||out.locomotion.clip!==b.locomotion.clip)out.locomotion={...b.locomotion};
+            out.locomotion.time=mixAshenClipTime(b.locomotion.clip,a.locomotion.time,b.locomotion.time,w);
+          }
+          else out.locomotion=b.locomotion?{...b.locomotion}:undefined;
+        }else {const selected=w<1&&a?a:b;from.animation={...selected,locomotion:selected.locomotion?{...selected.locomotion}:undefined};}}
         from.velocity=to.velocity;from.yawVelocity=to.yawVelocity;from.gait=to.gait;from.gaitRate=to.gaitRate;from.locomotion=to.locomotion;from.ability=to.ability;from.time=to.time;
         c.setTitanPose(from);
       }
-      const error=Math.atan2(Math.sin(this.state.yaw-c.root.rotation.y),Math.cos(this.state.yaw-c.root.rotation.y));
-      c.root.rotation.y+=error*(1-Math.exp(-delta*12));
+      const startYaw=previous?.yaw??c.root.rotation.y;
+      c.root.rotation.y=startYaw+Math.atan2(Math.sin(next.yaw-startYaw),Math.cos(next.yaw-startYaw))*blend;
     }
     if(this.endingDrop){
       const t=Math.min(1,(this.endingElapsed+delta)/.85);
@@ -338,9 +368,9 @@ export class MonsterArrivalView {
         this.introImpacts=impacts;
         // Use the animated fist for contact dust, and existing reversible city debris.
         if((c as AshenWarlordModel).handPosition('right',this.mouthWorld))
-          this.particles.emit(this.mouthWorld.x,this.mouthWorld.y,this.mouthWorld.z,true,24,170,2);
+          this.particles.emit(this.mouthWorld.x,this.mouthWorld.y,this.mouthWorld.z,true,96,170,2);
         for(const site of monsterDamageSites)
-          this.particles.emit(site.x,site.y+30,site.z,true,10,100,2);
+          this.particles.emit(site.x,site.y+30,site.z,true,40,100,2);
         this.introDamage=true;setDowntownMonsterDamage(true);this.onDestruction?.();
       }
     }
@@ -409,6 +439,6 @@ export class MonsterArrivalView {
     this.scene.remove(this.creature.root,this.mouthFire,this.particles.points,...this.pool.map(p=>p.group));
     this.particles.dispose();this.warningMaterial.dispose();
     for(const visual of this.pool){visual.material.dispose();const rock=visual.group.children[2] as THREE.Mesh;rock.geometry.dispose();(rock.material as THREE.Material).dispose();}
-    this.creature.dispose();this.state=null;
+    this.creature.dispose();this.state=null;this.renderedTitan=undefined;this.poseSamples.length=0;
   }
 }

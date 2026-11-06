@@ -153,3 +153,27 @@ test('a late ballistic spawn without a prediction keeps its historical server mu
   runInNewContext(`${code('addProjectile')};addProjectile(message);`,c);
   assert.deepEqual(projectile.mesh.position.toArray(),[15,30,45]);
 });
+
+test('muzzle feedback stays compact and aligned during sustained fire; impact flashes still expand', () => {
+  const muzzleFlashes: unknown[] = [];
+  const scene = new THREE.Scene();
+  const c = {
+    THREE, scene, muzzleFlashes, maxFlashEffects: 12,
+    muzzleFlashGeometry: new THREE.SphereGeometry(1,8,6), impactFlashGeometry: new THREE.SphereGeometry(1,9,7),
+    projectileForward: new THREE.Vector3(0,0,1), projectileDirection: new THREE.Vector3(),
+    getCurrentMuzzleTransform(origin: THREE.Vector3, direction: THREE.Vector3) { origin.set(4,5,6); direction.set(1,0,0); },
+  };
+  const context = { ...c, pool: [], origin: new THREE.Vector3() };
+  runInNewContext(`${code('createFlashEffect')}\n${code('spawnFlash')}\n${code('updateFlashEffects')}\nspawnFlash(muzzleFlashes,pool,origin,.045,.09); updateFlashEffects(muzzleFlashes,pool,.016);`, context);
+  const flash = muzzleFlashes[0] as {mesh:THREE.Group;glowMaterial:THREE.MeshBasicMaterial};
+  assert.deepEqual(flash.mesh.position.toArray(),[4,5,6]);
+  assert.equal(flash.mesh.scale.x,.09); assert.equal(flash.mesh.scale.y,.09);
+  assert(Math.abs(flash.mesh.scale.z-.225)<1e-9);
+  assert.equal(flash.glowMaterial.opacity,0);
+  assert(new THREE.Vector3(0,0,1).applyQuaternion(flash.mesh.quaternion).distanceTo(new THREE.Vector3(1,0,0))<1e-6);
+  runInNewContext(`${code('updateFlashEffects')}\nupdateFlashEffects(muzzleFlashes,pool,.03);`,context);
+  assert.equal(muzzleFlashes.length,0); assert.equal(scene.children.length,0);
+  runInNewContext(`${code('createFlashEffect')}\n${code('spawnFlash')}\n${code('updateFlashEffects')}\nconst impacts=[]; spawnFlash(impacts,pool,origin,.2,.5); updateFlashEffects(impacts,pool,.016);`,context);
+  assert(scene.children[0].scale.x>.5,'impact presentation remains unchanged');
+  c.muzzleFlashGeometry.dispose(); c.impactFlashGeometry.dispose();
+});
