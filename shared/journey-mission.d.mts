@@ -150,8 +150,9 @@ export const journeyDallas21: Readonly<{
   bravoTerritoryId: 'dallas-executive'; captureMs: 6000; transferMs: 120000;
 }>;
 export const journeyDallas22: Readonly<{
-  id: 'journey-dallas-22'; cityId: 'dallas'; name: 'PERFECT APPROACH'; chapter: 'LEGENDARY SKIES';
-  firstClearCredits: 3000; prepareMs: 3000; finishAirportId: 'dfw'; approachRestartZ: number;
+  id: 'journey-dallas-22'; cityId: 'dallas'; name: 'MONSTER SHOWDOWN'; chapter: 'LEGENDARY SKIES';
+  startAirportId:'dfw';runwayStart:true;timeLimitMs:240000;bossHealth:1100;monster:typeof journeyDallas20.monster;
+  firstClearCredits: 3000; prepareMs: 0; finishAirportId: 'dfw'; approachRestartZ: number;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number;
     normalX: number; normalY: number; normalZ: number }[];

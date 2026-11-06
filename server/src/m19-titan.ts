@@ -241,7 +241,8 @@ export function disposeM19(e: M19Encounter) {
     e.disposed = true;
 }
 export function permittedM19Damage(e: M19Encounter, event: Snapshot['events'][number], now: number): number {
-    if(e.engine.species.hunting&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===15||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===20&&now-e.contactAt>=4000))return 0;
+    if(e.engine.species.id==='showdown-warlord'&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===20||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===25&&now-e.contactAt>=3500))return 0;
+    if(e.engine.species.hunting&&e.engine.species.id!=='showdown-warlord'&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===15||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===20&&now-e.contactAt>=4000))return 0;
     if(e.engine.species.anchored&&!(event.type==='projectile'&&event.ability==='fireball-barrage'&&event.amount===10||event.type==='sweep'&&event.ability==='hand-strike'&&event.amount===15&&now-e.contactAt>=4000))return 0;
     if(e.engine.species.stationary&&(event.type!=='sweep'||event.ability!=='hand-strike'||event.amount!==15||now-e.contactAt<4000))return 0;
     if (e.disposed || event.encounterId !== e.attemptId || event.kind !== 'damage' || event.targetId !== e.pilotId || !event.id.startsWith(`${e.attemptId}:event:`))

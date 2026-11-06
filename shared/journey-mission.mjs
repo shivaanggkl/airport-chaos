@@ -301,18 +301,12 @@ export const journeyDallas21 = Object.freeze({
   captureMs: 6_000, transferMs: 120_000,
 });
 
-// North-to-south on DFW's existing runway axis. Gate 3 leaves a long, clear
-// stabilization leg before the north threshold and the server's touchdown zone.
 export const journeyDallas22 = Object.freeze({
-  id: 'journey-dallas-22', cityId: 'dallas', name: 'PERFECT APPROACH',
-  chapter: 'LEGENDARY SKIES', firstClearCredits: 3_000,
-  prepareMs: 3_000, finishAirportId: 'dfw', approachRestartZ: -23_400,
-  airborneSpawn: Object.freeze({ x: -22_800, z: -23_800, altitude: 525, heading: Math.PI, speed: 120 }),
-  gates: Object.freeze([
-    { x: -22_800, z: -22_500, altitude: 460, radius: 180, normalX: 0, normalY: -0.04494, normalZ: 0.99899 },
-    { x: -22_800, z: -21_000, altitude: 370, radius: 125, normalX: 0, normalY: -0.06750, normalZ: 0.99772 },
-    { x: -22_800, z: -19_000, altitude: 240, radius: 80, normalX: 0, normalY: -0.07375, normalZ: 0.99727 },
-  ]),
+  id:'journey-dallas-22',cityId:'dallas',name:'MONSTER SHOWDOWN',chapter:'LEGENDARY SKIES',firstClearCredits:3000,
+  startAirportId:'dfw',runwayStart:true,prepareMs:0,timeLimitMs:240000,bossHealth:1100,
+  monster:journeyDallas20.monster,airborneSpawn:journeyDallas19.airborneSpawn,
+  // Compatibility fields never advance the retired landing objective.
+  finishAirportId:'dfw',approachRestartZ:-23400,gates:Object.freeze([]),
 });
 
 export const journeyDallas23 = Object.freeze({
