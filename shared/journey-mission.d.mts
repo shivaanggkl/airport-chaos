@@ -158,7 +158,8 @@ export const journeyDallas22: Readonly<{
     normalX: number; normalY: number; normalZ: number }[];
 }>;
 export const journeyDallas23: Readonly<{
-  id: 'journey-dallas-23'; cityId: 'dallas'; name: 'DOUBLE TROUBLE'; chapter: 'LEGENDARY SKIES';
+  id: 'journey-dallas-23'; cityId: 'dallas'; name: 'MONSTER PURSUIT'; chapter: 'LEGENDARY SKIES';
+  prepareMs:0;timeLimitMs:240000;bossHealth:1000;monster:typeof journeyDallas20.monster;airborneSpawn:typeof journeyDallas20.airborneSpawn;
   firstClearCredits: 3150; startAirportId: 'love'; hunterHealth: 200;
   heartId: 'mission-23-repair-heart'; heartRadius: 115; hunterTwoDelayMs: 2500;
 }>;

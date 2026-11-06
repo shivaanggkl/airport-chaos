@@ -32,7 +32,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-20': 'DEFEAT THE MONSTER',
   'journey-dallas-21': 'DEFEAT THE MONSTER',
   'journey-dallas-22': 'DEFEAT THE MONSTER',
-  'journey-dallas-23': 'Defeat two Hunters, repairing your plane between fights.',
+  'journey-dallas-23': 'DEFEAT THE MONSTER',
 };
 
 const formatTimeLimit = (milliseconds: number | undefined): string => milliseconds === undefined

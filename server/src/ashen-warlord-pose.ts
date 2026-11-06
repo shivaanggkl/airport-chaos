@@ -26,8 +26,9 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
                 const distance=lastRoot?Math.hypot(root.x-lastRoot.x,root.z-lastRoot.z)/H:0;
                 lastRoot={x:root.x,z:root.z};
                 const forward=c.velocity.x*Math.sin(yaw)+c.velocity.z*Math.cos(yaw);
-                gaitPhase=(gaitPhase+(forward<0?-1:1)*distance/model.clips.walk!.stride!+1)%1;
-                if(Math.hypot(c.velocity.x,c.velocity.z)>.5){key='walk';time=titanGaitTime(model.clips.walk!,gaitPhase);}
+                const gait=c.running?'run':'walk',clip=model.clips[gait]!;
+                gaitPhase=(gaitPhase+(forward<0?-1:1)*distance/clip.stride!+1)%1;
+                if(Math.hypot(c.velocity.x,c.velocity.z)>.5){key=gait;time=titanGaitTime(clip,gaitPhase);}
             }
             if(motion?.kind==='jump'){
                 key=motion.elapsed<timing.jumpSeconds?'jump':'landing';
@@ -40,7 +41,7 @@ export function createAshenPose(initialHealth = 2500, stationary = false, striki
                 key='turn';turnTime-=dt*c.yawVelocity/(3.1997298216058336/model.clips.turn!.duration);time=turnTime;
             }
             const clip=model.clips[key]!;
-            return {clip:clip.name,time:['idle','walk','turn'].includes(key)?(time%clip.duration+clip.duration)%clip.duration:clamp(time,0,clip.duration),blend:1,offsetY:0};
+            return {clip:clip.name,time:['idle','walk','run','turn'].includes(key)?(time%clip.duration+clip.duration)%clip.duration:clamp(time,0,clip.duration),blend:1,offsetY:0};
         }
         if(stationary){
             const key=c.ability?.id==='hand-strike'&&c.ability.stage!=='COOLDOWN'?'punch':c.roarElapsed!==undefined?'roar':'idle';

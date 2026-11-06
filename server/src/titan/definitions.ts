@@ -65,7 +65,7 @@ export type Species = {
         mirror?: boolean;
     }>>;
     stationary?: {roarDuration:number;roarInterval:number};
-    hunting?: {roarInterval:number;roarSeconds:number;combatDistance:number;roamRadius:number;decisionInterval?:number;restSeconds?:number;restVariation?:number;flankDistance?:number;repositionSeconds?:number};
+    hunting?: {roarInterval:number;roarSeconds:number;combatDistance:number;roamRadius:number;decisionInterval?:number;restSeconds?:number;restVariation?:number;flankDistance?:number;repositionSeconds?:number;runSeconds?:number;runCooldown?:number;runDistance?:number};
     anchored?: {jumpInterval:number;jumpBend:number;jumpSeconds:number;landSeconds:number;jumpHeight:number;roarInterval:number;roarSeconds:number};
     director?: { combatDistance?: number; commitment: number; retreatMin: number; retreatMax: number; retreatDuration: number; reengageDuration: number; attackSpacing: number; pressureThreshold: number; facing: number };
     animations: readonly string[];

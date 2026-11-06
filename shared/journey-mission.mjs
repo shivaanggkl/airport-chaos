@@ -310,8 +310,10 @@ export const journeyDallas22 = Object.freeze({
 });
 
 export const journeyDallas23 = Object.freeze({
-  id: 'journey-dallas-23', cityId: 'dallas', name: 'DOUBLE TROUBLE',
+  id: 'journey-dallas-23', cityId: 'dallas', name: 'MONSTER PURSUIT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 3_150, startAirportId: 'love',
+  prepareMs:0,timeLimitMs:240000,bossHealth:1000,monster:journeyDallas20.monster,airborneSpawn:journeyDallas20.airborneSpawn,
+  // Compatibility metadata only; no aircraft or repair-heart objectives remain.
   hunterHealth: 200, heartId: 'mission-23-repair-heart', heartRadius: 115,
   hunterTwoDelayMs: 2_500,
 });
