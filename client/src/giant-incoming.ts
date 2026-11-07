@@ -65,9 +65,9 @@ export class GiantIncomingView {
     get arrivalActive():boolean{return !!this.arrival;}
     get arrivalShowsPlayer():boolean{return this.arrival?.showsPlayer??false;}
     skipArrival():void{this.arrival?.skip();}
-    beginArrival(escorts: readonly THREE.Group[] = [], missionName?: string):Promise<void>{
+    beginArrival(escorts: readonly THREE.Group[] = [], missionName?: string, missionId?: string, durationMs?: number):Promise<void>{
         this.levels.forEach((level,index)=>{level.visible=index===0;});
-        this.arrival=new TransportArrivalSequence(this.root,this.terrain,this.scene,escorts,missionName);
+        this.arrival=new TransportArrivalSequence(this.root,this.terrain,this.scene,escorts,missionName,missionId,durationMs);
         return new Promise(resolve=>{this.arrivalResolve=resolve;});
     }
     private resolveDefeat!: () => void;

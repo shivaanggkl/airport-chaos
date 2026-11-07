@@ -138,14 +138,14 @@ const baseJourneyDallas06 = Object.freeze({
 
 const baseJourneyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT PLANE',
-  chapter: 'SKY SIEGE', timeLimitMs: transportTuning.durationMs, firstClearCredits: 850,
+  chapter: 'SKY SIEGE', timeLimitMs: 360_000, firstClearCredits: 850,
   startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
 const baseJourneyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
-  startAirportId: 'dfw', timeLimitMs: 300_000, bossHealth: transportTuning.health,
+  startAirportId: 'dfw', timeLimitMs: 130_000, bossHealth: transportTuning.health,
   escortHealth: 1_000, escortCount: 2, escortScale: remoteAircraftScale, escortFireDelayMs: 5_000,
   escortAircraft: Object.freeze(['trainer', 'trainer']),
   escortLiveries: Object.freeze(['bluejay-skybolt', 'bluejay-aurora']),

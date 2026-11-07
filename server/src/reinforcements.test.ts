@@ -36,11 +36,11 @@ test('Mission 9 reinforcements enter the forward view and converge outside the t
     (left.z - transport.z) * (right.z - transport.z) < 0);
 });
 
-test('Mission 9 preserves its reward and uses a 5:30 transport route with three specified escorts', () => {
+test('Mission 9 preserves its reward and uses a 16:30 transport route with three specified escorts', () => {
   assert.equal(journeyDallas09.name, 'GIANT PLANE & THREE ESCORTS');
   assert.equal(journeyDallas09.firstClearCredits, 1_050);
   assert.equal(journeyDallas09.bossHealth, 2_000);
-  assert.equal(journeyDallas09.timeLimitMs, 330_000);
+  assert.equal(journeyDallas09.timeLimitMs, 990_000);
   assert.equal(journeyDallas09.escortCount, 3);
   assert.equal(journeyDallas09.initialEscortCount, 3);
   assert.deepEqual(journeyDallas09.escortHealth, [75, 125, 175]);
@@ -52,7 +52,7 @@ test('Mission 9 preserves its reward and uses a 5:30 transport route with three 
   }
   const end = transportPose(journeyDallas09.timeLimitMs, 900, journeyDallas09.timeLimitMs);
   assert.ok(Math.abs(end.x - transportCourse.end.x) < .001 && Math.abs(end.z - transportCourse.end.z) < .001);
-  assert.ok(transportRouteLength / 330 < aircraftFlightEnvelope.trainer.maxSpeed * .5);
+  assert.ok(transportRouteLength / 990 < aircraftFlightEnvelope.trainer.maxSpeed * .5);
 });
 
 test('one threshold crossing starts the wave; a terminal transport hit cancels it', () => {
@@ -127,7 +127,7 @@ test('Mission 9 unlock, first clear, replay, timeout and wallet remain server-ow
     assert.equal(store.approach('pilot', first.attemptId)?.status, 'APPROACH');
     assert.ok(missionFocusForAttempt(store.get('pilot', first.attemptId)));
     assert.equal(store.hitTransport('pilot', first.attemptId, 1_500, 25), undefined);
-    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 332_000);
+    assert.equal(store.startGiantIncoming('pilot', first.attemptId, 2_000)?.deadlineAt, 992_000);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'bluejay', 1)?.targetId, 'bluejay');
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'replacement', 1), undefined);
     assert.equal(store.assignRearGuardEscort('pilot', first.attemptId, 'mammoth', 2)?.secondaryTargetId, 'mammoth');
@@ -146,7 +146,7 @@ test('Mission 9 unlock, first clear, replay, timeout and wallet remain server-ow
       store.assignRearGuardEscort('pilot',replay.attemptId,`escort-${ordinal}`,ordinal);
       assert.equal(store.recordRearGuardKill('pilot',replay.attemptId,`escort-${ordinal}`,11010)?.status,'RACING');
     }
-    assert.equal(store.hitTransport('pilot', replay.attemptId, 341_000, 2_000), undefined);
+    assert.equal(store.hitTransport('pilot', replay.attemptId, 1_001_000, 2_000), undefined);
     assert.equal(store.hitTransport('pilot', replay.attemptId, 11_100, 2_000)?.firstClearCredits, 0);
     const capped = store.launch('capped', 'trainer', 20_000, journeyDallas09.id);
     store.approach('capped', capped.attemptId);

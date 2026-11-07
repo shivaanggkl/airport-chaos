@@ -16,13 +16,31 @@ const end = Object.freeze({ x: exitX + transportFootprintRadius,
     z: start.z + (exitX + transportFootprintRadius - start.x) * dz / dx });
 export const transportCourse = Object.freeze({ start, whiteRock: whiteRock.center, end, exitX });
 export const transportRouteLength = Math.hypot(end.x - start.x, end.z - start.z);
+// The compact encounter keeps the established safe corridor and eastern exit.
+// The existing eastern exit requires a longer route from a DFW-side entry.
+const compactStartX = -55_000;
+const compactStart = Object.freeze({x:compactStartX,z:start.z+(compactStartX-start.x)*dz/dx});
+const compactLength = Math.hypot(end.x-compactStart.x,end.z-compactStart.z);
+const legacyRoute = Object.freeze({...transportCourse,length:transportRouteLength});
+const compactRoute = Object.freeze({...transportCourse,start:compactStart,length:compactLength});
+export function transportRouteForMission(missionId) {
+    return (missionId === 'journey-dallas-07' || missionId === 'journey-dallas-08') ? compactRoute : legacyRoute;
+}
+
 const speed = .9 * .65 * throttleSpeedTarget(.5, aircraftFlightEnvelope.trainer);
 // Failure is tied to the complete airframe clearing Dallas, not the former fixed timer.
 export const transportTuning = Object.freeze({ scale, health: 2000,
     durationMs: Math.ceil(transportRouteLength / speed * 1000), speed,
     separation: 1200, warningMs: 1000, burstIntervalMs: 6000, shotSpacingMs: 250,
     shotDamage: 10, yawArc: 70 * Math.PI / 180, pitchArc: 45 * Math.PI / 180 });
-export function transportPose(elapsedMs, altitude = 900, durationMs = transportTuning.durationMs) {
+export function transportPose(elapsedMs, altitude = 900, durationMs = transportTuning.durationMs, missionId) {
+    const route = transportRouteForMission(missionId);
+    if(route === compactRoute){
+        const travelSpeed=route.length/(durationMs/1000);
+        const distance=Math.max(0,Math.min(route.length,elapsedMs/1000*travelSpeed));
+        return {x:route.start.x+dx/norm*distance,y:altitude,z:route.start.z+dz/norm*distance,
+            yaw:Math.atan2(-dx,-dz),roll:0,velocity:{x:dx/norm*travelSpeed,y:0,z:dz/norm*travelSpeed}};
+    }
     const travelSpeed = durationMs === transportTuning.durationMs ? speed : transportRouteLength / (durationMs / 1000);
     const distance = Math.max(0, Math.min(transportRouteLength, elapsedMs / 1000 * travelSpeed));
     return { x: start.x + dx / norm * distance, y: altitude, z: start.z + dz / norm * distance,

@@ -10,10 +10,10 @@ test('larger, slower transport crosses White Rock and fails only after its full 
     assert.equal(transportTuning.scale, 16);
     assert.ok(transportTuning.speed > 0);
     const start=transportPose(0), end=transportPose(transportTuning.durationMs);
-    assert.equal(start.x,-27850); assert.equal(start.z,-13600);
-    const whiteRockDistance=Math.hypot(5200-start.x,-8500-start.z);
+    assert.equal(start.x,-83550); assert.equal(start.z,-40800);
+    const whiteRockDistance=Math.hypot(15600-start.x,-25500-start.z);
     const passing=transportPose(whiteRockDistance/transportTuning.speed*1000);
-    assert.ok(Math.hypot(passing.x-5200,passing.z+8500)<1e-6);
+    assert.ok(Math.hypot(passing.x-15600,passing.z+25500)<1e-6);
     assert.ok(end.x-transportFootprintRadius >= transportCourse.exitX-1e-6);
     const before=transportPose(transportTuning.durationMs-1000);
     assert.ok(before.x-transportFootprintRadius < transportCourse.exitX);
@@ -29,7 +29,7 @@ test('larger, slower transport crosses White Rock and fails only after its full 
     const fortressExit=transportPose(journeyDallas11.timeLimitMs,900,journeyDallas11.timeLimitMs);
     assert.ok(fortressBefore.x-transportFootprintRadius<transportCourse.exitX);
     assert.ok(fortressExit.x-transportFootprintRadius>=transportCourse.exitX-1e-6);
-    assert.ok(Math.abs(Math.hypot(fortressExit.velocity.x,fortressExit.velocity.z)-transportRouteLength/330)<1e-9);
+    assert.ok(Math.abs(Math.hypot(fortressExit.velocity.x,fortressExit.velocity.z)-transportRouteLength/(journeyDallas11.timeLimitMs/1000))<1e-9);
     const spawn=transportSpawn(100),dfw=cityAirports.dallas.find(a=>a.id==='dfw')!;
     assert.equal(spawn.position.x,dfw.x);assert.equal(spawn.position.z,dfw.z);assert.equal(spawn.position.y,101.2);assert.equal(spawn.speed,0);
 });
@@ -71,7 +71,7 @@ test('Mission 7–10 player bullets keep traveling until they hit the moving tra
         assert.equal(transportProjectileDisposition(mission.id, 10, false), mission === journeyDallas07 ? 'continue' : 'escort');
     }
 });
-test('authoritative mapped building envelope sets cruise clearance', () => { assert.equal(transportAltitude([{ minX: 5100, maxX: 5300, minZ: -8600, maxZ: -8400, top: 1100 }], () => 100), 1100 + 250 + 4.41283 * transportTuning.scale); const mapped = loadTransportBuildings(); assert.ok(mapped.length > 10000); assert.ok(transportAltitude(mapped, () => 0) >= 900); });
+test('authoritative mapped building envelope sets cruise clearance', () => { assert.equal(transportAltitude([{ minX: 15300, maxX: 15900, minZ: -25800, maxZ: -25200, top: 1100 }], () => 100), 1100 + 250 + 4.41283 * transportTuning.scale); const mapped = loadTransportBuildings(); assert.ok(mapped.length > 10000); assert.ok(transportAltitude(mapped, () => 0) >= 900); });
 test('indexed occlusion matches the existing unindexed mapped-building rules', () => {
     const source = [{ minX: -20, maxX: 20, minZ: -20, maxZ: 20, top: 180 }, { minX: 100, maxX: 140, minZ: 50, maxZ: 90, top: 350 }];
     const indexed = source.map(b => ({ ...b }));
@@ -123,7 +123,7 @@ test('Fortress projectile sweep separates wing turrets, armor, and exposed rear 
   }
   assert.equal(segmentedHit,'core');
   assert.equal(transportFortressImpact({x:500,y:50,z:480},{x:500,y:50,z:-128},pose,pose,true),undefined);
-  assert.equal(journeyDallas11.timeLimitMs,330_000);
+  assert.equal(journeyDallas11.timeLimitMs,990_000);
 });
 
 test('Fortress side guns alternate two-shot turns, warn first, and skip a dead gun',()=>{

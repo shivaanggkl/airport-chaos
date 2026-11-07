@@ -1,3 +1,4 @@
+import { COMBAT_RANGE } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas12 } from '../../shared/journey-mission.mjs';
 
 type EscortMission = typeof journeyDallas08 | typeof journeyDallas09 | typeof journeyDallas10 | typeof journeyDallas12;
@@ -83,4 +84,12 @@ export function rearGuardShotResolved(state: RearGuardFireState, now: number): v
   state.shotsRemaining -= 1;
   state.nextShotAt = now + state.mission.escortShotSpacingMs;
   if (state.shotsRemaining <= 0) state.activeOrdinal = null;
+}
+
+/** M14's two defenders stay associated with their transport instead of chasing across Dallas. */
+export function rearGuardShouldRejoin(missionId: string | undefined, pilot: {x:number;z:number} | undefined,
+  escort: {x:number;z:number}, transport: {x:number;z:number}): boolean {
+  return missionId === journeyDallas08.id && pilot !== undefined &&
+    (Math.hypot(pilot.x-transport.x,pilot.z-transport.z)>COMBAT_RANGE*2 ||
+      Math.hypot(escort.x-transport.x,escort.z-transport.z)>COMBAT_RANGE*2);
 }

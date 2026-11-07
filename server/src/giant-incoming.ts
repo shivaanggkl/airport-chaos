@@ -211,6 +211,7 @@ export type TransportEncounter = {
     startedAt: number;
     altitude: number;
     durationMs: number;
+    missionId?: string;
     lastTickAt: number;
     lastCollisionPilotPosition?: Point;
     lastCollisionPilotRotation?: {x:number;y:number;z:number};
@@ -232,7 +233,7 @@ export type TransportEncounter = {
 export type CrossfireGun = { yaw: number; pitch: number; warningUntil: number };
 export type CrossfireGunCycle = { guns: [CrossfireGun, CrossfireGun, CrossfireGun]; activeGun: number | null;
     nextGun: number; nextBurstAt: number; shotsRemaining: number; nextShotAt: number };
-export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number, durationMs = transportTuning.durationMs, crossfire = false, fortress = false): TransportEncounter { return { attemptId, playerId, startedAt, altitude, durationMs, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [],
+export function createTransportEncounter(attemptId: string, playerId: string, startedAt: number, altitude: number, durationMs = transportTuning.durationMs, crossfire = false, fortress = false, missionId?: string): TransportEncounter { return { missionId, attemptId, playerId, startedAt, altitude, durationMs, lastTickAt: startedAt, lastBroadcastAt: 0, nextBurstAt: startedAt + 2000, warningUntil: 0, shotsRemaining: 0, nextShotAt: 0, sequence: 0, hitSequence: 0, gunYaw: 0, gunPitch: 0, shots: [],
     ...(crossfire || fortress ? { crossfire: { guns: Array.from({ length: 3 }, () => ({ yaw: 0, pitch: 0, warningUntil: 0 })) as CrossfireGunCycle['guns'],
       activeGun: null, nextGun: fortress ? 1 : 0, nextBurstAt: startedAt + 2_000, shotsRemaining: 0, nextShotAt: 0 } } : {}),
     ...(fortress ? { fortressTurrets: [journeyDallas11.turretHealth,journeyDallas11.turretHealth] as [number,number] } : {}) }; }
@@ -309,7 +310,7 @@ export function transportInterceptTime(offset: Point, velocity: Point, speed: nu
 export function stepTransportEncounter(e: TransportEncounter, target: Point, velocity: Point, buildings: readonly Building[], now: number) {
     const dt = Math.max(0, Math.min(.1, (now - e.lastTickAt) / 1000));
     e.lastTickAt = now;
-    const p = transportPose(now - e.startedAt, e.altitude, e.durationMs), m = transportMuzzle(p, e.gunYaw, e.gunPitch), aim = transportAim(p, target);
+    const p = transportPose(now - e.startedAt, e.altitude, e.durationMs, e.missionId), m = transportMuzzle(p, e.gunYaw, e.gunPitch), aim = transportAim(p, target);
     const move = (current: number, goal: number) => current + Math.max(-dt * .8, Math.min(dt * .8, goal - current));
     e.gunYaw = move(e.gunYaw, Math.max(-transportTuning.yawArc, Math.min(transportTuning.yawArc, aim.yaw)));
     e.gunPitch = move(e.gunPitch, Math.max(-transportTuning.pitchArc, Math.min(transportTuning.pitchArc, aim.pitch)));
