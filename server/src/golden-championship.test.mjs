@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
+import {DALLAS_WORLD_SCALE as S} from '../../shared/dallas-world-scale.mjs';
 import { journeyDallas06 } from '../../shared/journey-mission.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { generateDallasSkyline } from '../../shared/dallas-skyline.mjs';
@@ -11,27 +12,28 @@ import { JourneyGateSystem } from '../../client/src/journey-gates.js';
 const terrain = JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json', import.meta.url), 'utf8'));
 const bytes = Buffer.from(terrain.elevations, 'base64');
 function elevationAt(x, z) {
+  x /= S; z /= S;
   const gx = (x - terrain.bounds.minX) / (terrain.bounds.maxX - terrain.bounds.minX) * (terrain.width - 1);
   const gz = (z - terrain.bounds.minZ) / (terrain.bounds.maxZ - terrain.bounds.minZ) * (terrain.height - 1);
-  const x0 = Math.floor(gx), z0 = Math.floor(gz), tx = gx - x0, tz = gz - z0;
+  const x0 = Math.max(0,Math.min(terrain.width-2,Math.floor(gx))), z0 = Math.max(0,Math.min(terrain.height-2,Math.floor(gz))), tx = gx - x0, tz = gz - z0;
   const sample = (ix, iz) => terrain.baseElevation + bytes.readUInt16LE((iz * terrain.width + ix) * 2) * terrain.scale;
-  return (1 - tz) * ((1 - tx) * sample(x0, z0) + tx * sample(x0 + 1, z0)) +
-    tz * ((1 - tx) * sample(x0, z0 + 1) + tx * sample(x0 + 1, z0 + 1));
+  return ((1 - tz) * ((1 - tx) * sample(x0, z0) + tx * sample(x0 + 1, z0)) +
+    tz * ((1 - tx) * sample(x0, z0 + 1) + tx * sample(x0 + 1, z0 + 1))) * S;
 }
 
 test('Golden Championship spans East and South Dallas and fits a normal Bluejay run', () => {
   const course = [journeyDallas06.airborneSpawn, ...journeyDallas06.gates];
-  assert.ok(journeyDallas06.gates.some(gate => Math.hypot(gate.x + 4_100, gate.z - 2_300) < 1_000),
+  assert.ok(journeyDallas06.gates.some(gate => Math.hypot(gate.x + 4_100 * S, gate.z - 2_300 * S) < 1_000 * S),
     'the race passes the actual Trinity River corridor');
   let centerline = 0;
   for (let i = 1; i < course.length; i++) {
     const from = course[i - 1], to = course[i];
     const distance = Math.hypot(to.x - from.x, to.z - from.z);
     centerline += distance;
-    assert.ok(Math.abs(to.x) + to.radius < 25_000 && Math.abs(to.z) + to.radius < 25_000);
+    assert.ok(to.x-to.radius > terrain.bounds.minX*S && to.x+to.radius < terrain.bounds.maxX*S && to.z-to.radius > terrain.bounds.minZ*S && to.z+to.radius < terrain.bounds.maxZ*S);
   }
-  assert.ok(centerline > 45_000 && centerline < 55_000);
-  assert.ok(centerline / (aircraftFlightEnvelope.trainer.maxSpeed * .8) < 85);
+  assert.ok(centerline > 45_000 * S && centerline < 55_000 * S);
+  assert.ok(centerline / (aircraftFlightEnvelope.trainer.maxSpeed * .8) < 85 * S);
 });
 
 test('Golden Championship corridor clears Dallas terrain and mapped buildings', () => {
@@ -43,16 +45,16 @@ test('Golden Championship corridor clears Dallas terrain and mapped buildings', 
       if (building.length < 10) continue;
       let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
       for (let i = 4; i < building.length; i += 2) {
-        minX = Math.min(minX, building[i]); maxX = Math.max(maxX, building[i]);
-        minZ = Math.min(minZ, building[i + 1]); maxZ = Math.max(maxZ, building[i + 1]);
+        minX = Math.min(minX, building[i] * S); maxX = Math.max(maxX, building[i] * S);
+        minZ = Math.min(minZ, building[i + 1] * S); maxZ = Math.max(maxZ, building[i + 1] * S);
       }
       blocks.push({ x: (minX + maxX) / 2, z: (minZ + maxZ) / 2,
-        radius: Math.hypot(maxX - minX, maxZ - minZ) / 2, top: building[3] + building[0] });
+        radius: Math.hypot(maxX - minX, maxZ - minZ) / 2, top: (building[3] + building[0]) * S });
     }
   }
-  for (const building of generateDallasSkyline(cityAirports.dallas, [])) {
-    blocks.push({ x: building.x, z: building.z, radius: Math.hypot(building.width, building.depth) / 2,
-      top: elevationAt(building.x, building.z) + building.height + 24 });
+  for (const building of generateDallasSkyline(cityAirports.dallas.map(a=>({...a,x:a.x/S,z:a.z/S,runwayWidth:a.runwayWidth/S,runwayLength:a.runwayLength/S})), [])) {
+    blocks.push({ x: building.x*S, z: building.z*S, radius: Math.hypot(building.width, building.depth)*S / 2,
+      top: elevationAt(building.x*S, building.z*S) + (building.height + 24)*S });
   }
   let minimumGround = Infinity, minimumRoof = Infinity;
   const course = [journeyDallas06.airborneSpawn, ...journeyDallas06.gates];
@@ -73,8 +75,8 @@ test('Golden Championship corridor clears Dallas terrain and mapped buildings', 
       minimumRoof = Math.min(minimumRoof, fromY + (toY - fromY) * t - block.top - to.radius * .92);
     }
   }
-  assert.ok(minimumGround > 200, `terrain clearance ${minimumGround.toFixed(1)} m`);
-  assert.ok(minimumRoof > 200, `building clearance ${minimumRoof.toFixed(1)} m`);
+  assert.ok(minimumGround > 200*S, `terrain clearance ${minimumGround.toFixed(1)} m`);
+  assert.ok(minimumRoof > 200*S, `building clearance ${minimumRoof.toFixed(1)} m`);
   console.log(`Golden Championship clearance: terrain ${minimumGround.toFixed(1)} m; mapped buildings ${minimumRoof.toFixed(1)} m`);
 });
 
@@ -88,7 +90,7 @@ test('Golden Championship uses the existing golden ring aperture and releases mi
   assert.equal(first.children[0].material.color.getHex(), 0xf7c948);
   assert.equal(first.children[1].geometry.parameters.radius, .86);
   assert.equal(first.scale.x, journeyDallas06.gates[0].radius);
-  assert.equal(final.scale.x, 340);
+  assert.equal(final.scale.x, 340*S);
   rings.setProgress(7, true);
   assert.equal(scene.children.filter(group => group.visible).length, 3, 'previous gate flashes briefly after a confirmed crossing');
   rings.update(.6);

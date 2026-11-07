@@ -1,3 +1,7 @@
+// Legacy Ashen engine/rig coverage; displayed M19–M24 profiles have their own tests.
+// Historical journey-dallas-19 is displayed M24, not the beginner M19 encounter.
+import {DALLAS_WORLD_SCALE as S} from '../../shared/dallas-world-scale.mjs';
+import {cityRegistry} from '../../shared/city-registry.mjs';
 import {createFinalWarlordEncounter} from './final-warlord.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -47,7 +51,7 @@ test('authoritative source geometry, 65-bone finger rig, texture and all 13 supp
     assert.deepEqual(ashenWarlordSpecies.abilities.map(a=>a.id).sort(),['charging-rampage','fireball-barrage','hand-strike']);
     assert.equal(ashenWarlordSpecies.movement.traversalLeap,false);
     assert.equal(ashenWarlordSpecies.health, 2500);
-    assert.equal(journeyDallas19.timeLimitMs, 300000);
+    assert.equal(journeyDallas19.timeLimitMs, 300000*S);
     assert.equal(journeyDallas19.firstClearCredits, 4000);
 });
 test('authoritative skeletal sampler matches real glTF animation mixer for every supplied clip and cross-fade', async () => {
@@ -168,7 +172,7 @@ test('chest bonus and 100 ordinary Bluejay hits remain authoritative; replay and
     assert.equal(body.engine.snapshot().projectiles.length, 0);
     disposeM19(body);
 });
-test('Supplied-rig M19 victory, timeout, replay and progression mirror engine health into the transactional first-clear ledger exactly once', async () => {
+test('Visible M24 (internal mission 19) victory, timeout, replay and progression mirror engine health into the transactional first-clear ledger exactly once', async () => {
     const { DatabaseSync } = await import('node:sqlite'), { mkdtempSync, rmSync } = await import('node:fs'), { tmpdir } = await import('node:os'), { join } = await import('node:path'), { JourneyAttemptStore } = await import('./journey-attempts.js'), { titanAnchor } = await import('../../shared/titan-pose.mjs');
     const dir = mkdtempSync(join(tmpdir(), 'm19-combat-')), path = join(dir, 'profile.sqlite'), db = new DatabaseSync(path);
     db.exec("CREATE TABLE player_profiles (pilot_id TEXT PRIMARY KEY, credits INTEGER NOT NULL, sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES ('pilot',0,0)");
@@ -196,7 +200,7 @@ test('Supplied-rig M19 victory, timeout, replay and progression mirror engine he
         const a = store.launch('pilot', 'trainer', 80000, 'journey-dallas-19');
         store.approach('pilot', a.attemptId, 80100);
         const start = store.startMonsterArrival('pilot', a.attemptId, 80200);
-        assert.equal(start.deadlineAt, 380200);
+        assert.equal(start.deadlineAt, 80200+journeyDallas19.timeLimitMs);
         assert.equal(store.hitMonster('pilot', a.attemptId, start.deadlineAt, 25), undefined);
         assert.equal(store.fail('pilot', a.attemptId, 'TIME_UP', start.deadlineAt).status, 'FAILED');
     }
@@ -218,11 +222,12 @@ function loadDallasTerrain(){
     const data=JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json',import.meta.url),'utf8'));
     const bytes=Buffer.from(data.elevations,'base64'),samples=new Uint16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
     const ground=(wx,wz)=>{
+        wx/=S;wz/=S;
         const x=Math.max(0,Math.min(1,(wx-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX)))*(data.width-1);
         const z=Math.max(0,Math.min(1,(wz-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ)))*(data.height-1);
         const x0=Math.floor(x),z0=Math.floor(z),x1=Math.min(data.width-1,x0+1),z1=Math.min(data.height-1,z0+1);
         const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
-        return(at(x0,z0)*(1-x+x0)+at(x1,z0)*(x-x0))*(1-z+z0)+(at(x0,z1)*(1-x+x0)+at(x1,z1)*(x-x0))*(z-z0);
+        return((at(x0,z0)*(1-x+x0)+at(x1,z0)*(x-x0))*(1-z+z0)+(at(x0,z1)*(1-x+x0)+at(x1,z1)*(x-x0))*(z-z0))*S;
     };
     return ground;
 }
@@ -343,11 +348,11 @@ test('M19 victory removes the model without a defeat or roar animation',async()=
 
 test('M19 can pursue across Dallas in every direction with only the city edge restricting movement',async t=>{
     const {loadMonsterDistrictBuildings}=await import('./monster-arrival.js'),ground=loadDallasTerrain(),buildings=loadMonsterDistrictBuildings();
-    const half=25000,r=ashenWarlordSpecies.radius;
-    for(const [dx,dz]of [[18000,0],[-18000,0],[0,18000],[0,-18000]]){
+    const half=cityRegistry.dallas.worldSize/2,r=ashenWarlordSpecies.radius;
+    for(const [dx,dz]of [[18000*S,0],[-18000*S,0],[0,18000*S],[0,-18000*S]]){
         const e=createAshenWarlordEncounter(`city-roam-${dx}-${dz}`,'p',0,ground,buildings),origin={...e.frame.position},target={x:origin.x+dx,y:1800,z:origin.z+dz};
         let previous=e.frame;
-        for(let i=1;i<=900;i++){
+        for(let i=1;i<=900*S;i++){
             stepM19(e,target,{x:0,y:0,z:0},18,i*50);const f=e.frame;
             assert(Math.abs(f.position.x)<=half-r&&Math.abs(f.position.z)<=half-r);
             assert(Math.hypot(f.position.x-previous.position.x,f.position.z-previous.position.z)<=ashenWarlordSpecies.movement.chargeSpeed*.05+.01,'no teleports');
@@ -360,14 +365,15 @@ test('M19 can pursue across Dallas in every direction with only the city edge re
 });
 
 test('M19 city-only movement crosses scenery and steep terrain but never escapes Dallas',()=>{
-    const wall=[{minX:-25000,maxX:25000,minZ:-5000,maxZ:-4500,top:6000}];
-    const ground=(x,z)=>z< -7000?800:135;
+    const half=cityRegistry.dallas.worldSize/2;
+    const wall=[{minX:-half,maxX:half,minZ:-5000*S,maxZ:-4500*S,top:6000*S}];
+    const ground=(x,z)=>z< -7000*S?800*S:135*S;
     const e=createAshenWarlordEncounter('edge-only','p',0,ground,wall),origin={...e.frame.position};
-    for(let i=1;i<=1600;i++){
-        stepM19(e,{x:origin.x,y:5000,z:-40000},{x:0,y:0,z:0},18,i*50);
-        assert(e.frame.position.z>=-25000+ashenWarlordSpecies.radius);
+    for(let i=1;i<=1600*S;i++){
+        stepM19(e,{x:origin.x,y:5000*S,z:-40000*S},{x:0,y:0,z:0},18,i*50);
+        assert(e.frame.position.z>=-half+ashenWarlordSpecies.radius);
     }
-    assert(e.frame.position.z< -23000,'must cross internal scenery and terrain changes to the city edge');disposeM19(e);
+    assert(e.frame.position.z< -23000*S,'must cross internal scenery and terrain changes to the city edge');disposeM19(e);
 });
 
 test('M19 cinematic plays supplied punches and clears back to idle without authoritative combat', async () => {
