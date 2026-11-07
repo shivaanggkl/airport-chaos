@@ -41,7 +41,9 @@ test('one isolated pilot unlocks the 24 stages in order and keeps completion acr
     const reopened = new JourneyAttemptStore(path);
     assert.equal(missions.filter(mission => reopened.progress('qa-pilot', mission.id).completed).length, 24);
     assert.equal(reopened.progress('qa-pilot', missions[23].id).completed, true);
-    assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26000, 'journey-dallas-25'), /Unknown Journey mission/);
+    assert.equal(reopened.launch('qa-pilot', 'trainer', 26000, 'journey-dallas-25').missionId, 'journey-dallas-25');
+    assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26001, 'journey-dallas-26'), /Unknown Journey mission/);
+    assert.throws(() => reopened.launch('qa-pilot', 'trainer', 26002, 'journey-dallas-24'), /locked/);
     assert.equal(reopened.launch('qa-pilot', 'trainer', 27000, missions[23].id).missionId, missions[23].id);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

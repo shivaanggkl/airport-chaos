@@ -1,3 +1,4 @@
+import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 import {journeyDallas18} from '../../shared/journey-mission.mjs';
 import {journeyDallas17} from '../../shared/journey-mission.mjs';
 import { recordOpponentHit, recordOpponentDamage } from './opponent-tactics.js';
@@ -42,7 +43,7 @@ test('one server-owned Bluejay, duplicate prevention, horizontal aggression boun
   const active = { missionId: mission.id, attemptId: 'attempt', status: 'APPROACH', targetId: null };
   const players = new Map(); let created = 0, engaged = 0;
   const ctx = runtime(['ensureFirstContact'], { journeyDallas13, journeyDallas14: mission, ambushCanFire, players,
-    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeySurpriseAttack: true, ambush: { activatedAt: 0, warningAt: 0 }, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 150, position: { x: 10_001, y: 900, z: 0 } }); return 'enemy'; },
+    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeySurpriseAttack: true, ambush: { activatedAt: 0, warningAt: 0 }, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 150, position: { x: mission.aggressionDistance + 1, y: 900, z: 0 } }); return 'enemy'; },
     journeyStore: { assignFirstContact: (_pilot, _attempt, id) => { active.targetId = id; return active; } },
     removeBot: () => assert.fail('unexpected removal'), sendJourneyState: () => {}, failPlayerJourney: () => assert.fail('unexpected failure'),
     provokeJourneyHunter: () => { engaged++; players.get('enemy').bot.journeyProvoked = true; },
@@ -51,13 +52,13 @@ test('one server-owned Bluejay, duplicate prevention, horizontal aggression boun
   ctx.ensureFirstContact('owner', pilot, active, 1100);
   assert.equal(created, 1); assert.equal(engaged, 0);
   active.status = 'RACING'; ctx.ensureFirstContact('owner', pilot, active, 1200); assert.equal(engaged, 0);
-  players.get('enemy').position.x = 10_000;
+  players.get('enemy').position.x = mission.aggressionDistance;
   ctx.ensureFirstContact('owner', pilot, active, 1300); assert.equal(engaged, 1);
-  players.get('enemy').position.x = 15_000;
+  players.get('enemy').position.x = mission.aggressionDistance * 1.5;
   ctx.ensureFirstContact('owner', pilot, active, 1460); assert.equal(engaged, 1);
 });
 
-test('takeoff-only four-minute clock, target ownership, deadline, first clear and replay protection', () => {
+test('server-confirmed twelve-minute clock, target ownership, deadline, first clear and replay protection', () => {
   const f = fixture();
   try {
     const a = f.store.launch('pilot', 'trainer', 1000, mission.id);
@@ -70,12 +71,12 @@ test('takeoff-only four-minute clock, target ownership, deadline, first clear an
     assert.equal(f.store.acceptGate('pilot', a.attemptId, 0, 1300), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 1300), undefined);
     const started = f.store.startFirstContact('pilot', a.attemptId, 2000);
-    assert.equal(started.deadlineAt, 242_000);
+    assert.equal(started.deadlineAt, 2000 + mission.timeLimitMs);
     assert.equal(f.store.startFirstContact('pilot', a.attemptId, 3000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'wrong', 3000), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 242_000), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999).firstClearCredits, 1800);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', started.deadlineAt), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', started.deadlineAt - 1).firstClearCredits, 1800);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', started.deadlineAt - 1), undefined);
     const replay = f.store.launch('pilot', 'trainer', 300_000, mission.id);
     f.store.approach('pilot', replay.attemptId); f.store.assignFirstContact('pilot', replay.attemptId, 'new');
     f.store.startFirstContact('pilot', replay.attemptId, 301_000);
@@ -137,7 +138,7 @@ test('six accepted Bluejay combat hits destroy only the owned target and complet
   } finally { f.db.close(); rmSync(f.directory, { recursive: true, force: true }); }
 });
 
-test('actual Bluejay factory and flight integrator keep the airborne patrol inside its safe two-kilometre area', () => {
+test('actual Bluejay factory and flight integrator keep the airborne patrol inside its scaled patrol area with unchanged flight characteristics', () => {
   const players = new Map(), sent = [];
   const ctx = runtime(['createBot', 'botStateMessage', 'transportEscortHealth', 'transportEscortCosmetics', 'advanceBotFlight', 'moveTowardBot', 'isHunterCombatPhase', 'botMinimumTurnRadius', 'smoothHunter', 'hunterClearance'], {
     advanceHunterFlight, createOpponent,
@@ -153,7 +154,7 @@ test('actual Bluejay factory and flight integrator keep the airborne patrol insi
   const id = ctx.createBot('dallas', undefined, { attemptId: 'attempt', targetPlayerId: 'owner', target: {}, firstContact: true, surpriseAttack: true });
   const enemy = players.get(id), spawn = { ...enemy.position };
   assert.equal(enemy.aircraftType, 'trainer'); assert.equal(enemy.health, 150);
-  assert.equal(enemy.position.y, 920); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 460);
+  assert.equal(enemy.position.y, 120 + mission.enemyAltitude); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 460);
   assert.equal(sent[0].equippedCosmetics['livery:trainer'], mission.enemyLivery);
   let maxRadius = 0, minSpeed = Infinity;
   for (let tick = 0; tick < 600; tick++) {
@@ -165,9 +166,9 @@ test('actual Bluejay factory and flight integrator keep the airborne patrol insi
     ctx.advanceBotFlight(enemy, enemy.bot, waypoint, .2);
     maxRadius = Math.max(maxRadius, Math.hypot(enemy.position.x - spawn.x, enemy.position.z - spawn.z));
     minSpeed = Math.min(minSpeed, Math.hypot(enemy.velocity.x, enemy.velocity.z));
-    assert.ok(enemy.position.y >= 900);
+    assert.ok(enemy.position.y >= 120 + mission.enemyAltitude - 20);
   }
-  assert.ok(maxRadius <= 2_100, `patrol wandered ${maxRadius}m`);
+  assert.ok(maxRadius <= mission.patrolRadius + 600, `patrol wandered ${maxRadius}m`);
   assert.ok(minSpeed > 300, `patrol stopped: ${minSpeed}m/s`);
 });
 
@@ -180,10 +181,10 @@ test('M8 keeps its Journey identity, exact Love Field distance, livery, clock an
  assert.equal(mission.startAirportId, 'love');
  assert.equal(mission.enemyAircraft, 'trainer');
  assert.equal(mission.enemyLivery, 'bluejay-aurora');
- assert.ok(Math.abs(Math.hypot(mission.enemySpawn.x-love.x,mission.enemySpawn.z-love.z)-20_000)<1e-8);
+ assert.ok(Math.abs(Math.hypot(mission.enemySpawn.x-love.x,mission.enemySpawn.z-love.z)-20_000*DALLAS_WORLD_SCALE)<1e-8);
  assert.deepEqual(boundJourneyHunterPoint(mission.enemySpawn),mission.enemySpawn);
  assert.equal(mission.enemyHealth / projectileDamageForAircraft('trainer'),6);
- assert.equal(mission.timeLimitMs,240_000);
+ assert.equal(mission.timeLimitMs,240_000*DALLAS_WORLD_SCALE);
  assert.doesNotMatch(source,/updateJourneyEscape|ensureJourneyEscapeHunter|updateEscapeHold/);
 });
 

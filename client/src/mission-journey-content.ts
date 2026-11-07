@@ -43,6 +43,5 @@ export const missionJourneyDetails = missions.map(mission => ({
   title: mission.name,
   description: descriptions[mission.id],
   rewardCredits: mission.firstClearCredits,
-  timeLimit: formatTimeLimit(mission.id === journeyDallas21.id ? journeyDallas21.transferMs
-    : 'timeLimitMs' in mission ? mission.timeLimitMs : undefined),
+  timeLimit: formatTimeLimit('timeLimitMs' in mission ? mission.timeLimitMs : undefined),
 }));

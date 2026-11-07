@@ -631,7 +631,7 @@ export class JourneyAttemptStore {
     const current = this.get(pilotId, attemptId);
     if (!current || (current.missionId !== journeyDallas13.id && current.missionId !== journeyDallas14.id &&
       current.missionId !== journeyDallas17.id && current.missionId !== journeyDallas18.id)) return undefined;
-    const limit = current.missionId === journeyDallas18.id ? journeyDallas18.timeLimitMs : current.missionId === journeyDallas17.id ? journeyDallas17.timeLimitMs : journeyDallas13.timeLimitMs;
+    const limit = current.missionId === journeyDallas18.id ? journeyDallas18.timeLimitMs : current.missionId === journeyDallas17.id ? journeyDallas17.timeLimitMs : current.missionId === journeyDallas14.id ? journeyDallas14.timeLimitMs : journeyDallas13.timeLimitMs;
     const changed = this.database.prepare(`UPDATE journey_attempts SET status = 'RACING', started_at = ?, deadline_at = ?
       WHERE pilot_id = ? AND attempt_id = ? AND mission_id IN (?,?,?,?) AND status = 'APPROACH'
       AND target_id IS NOT NULL AND started_at IS NULL AND definition_revision = 1`)

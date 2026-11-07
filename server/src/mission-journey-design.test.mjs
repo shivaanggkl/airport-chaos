@@ -80,28 +80,38 @@ test('mission selection supports pointer, keyboard and compact landscape layout'
   assert.doesNotMatch(view, /mission-journey-pagination|data-chapter-next/);
 });
 
-test('all 24 mission details use live titles, rewards and clocks with distinct accurate copy', () => {
+test('all 24 mission details use live titles, rewards, objectives and clocks', () => {
   assert.equal(missionJourneyDetails.length, 24);
-  assert.equal(new Set(missionJourneyDetails.map(detail => detail.description)).size, 24);
+  assert.deepEqual(missionJourneyDetails.map(detail=>detail.id),journeyMissions.journeyMissionOrder);
   for (let index = 0; index < 24; index++) {
     const detail = missionJourneyDetails[index];
     const definition = journeyMissions[`journeyDallas${detail.id.slice(-2)}`];
     assert.equal(detail.id, missionJourneyStages[index].id);
     assert.equal(detail.title, definition.name);
     assert.equal(detail.rewardCredits, definition.firstClearCredits);
-    const limit = index === 20 ? definition.transferMs : definition.timeLimitMs;
+    const limit = definition.timeLimitMs;
     assert.equal(detail.timeLimit, limit === undefined ? 'NO LIMIT'
       : `${Math.floor(limit / 60_000)}:${String(Math.floor(limit / 1000) % 60).padStart(2, '0')}`);
     assert.ok(detail.title && detail.description && detail.rewardCredits > 0);
-    assert.ok(detail.description.split(/\s+/).length <= 13, `Mission ${index + 1} copy is too long`);
+    assert.equal(journeyMissions.journeyMissionSlot(detail.id),index+1);
     assert.match(detail.timeLimit, /^(?:\d+:\d{2}|NO LIMIT)$/);
   }
-  assert.match(missionJourneyDetails[13].description, /behind the transport for 15 seconds/);
-  assert.match(missionJourneyDetails[17].description, /guards, both turrets, then the exposed core/);
-  assert.match(missionJourneyDetails[9].description, /five gates while escaping two Hunters/);
-  assert.equal(missionJourneyDetails[9].timeLimit, 'NO LIMIT');
-  assert.equal(missionJourneyDetails[19].title, 'SKYLINE SWITCHBACK');
-  assert.equal(missionJourneyDetails[23].title, 'LEGENDARY CHAMPIONSHIP');
+  for(const detail of missionJourneyDetails.slice(0,6))assert.equal(detail.description,'Fly Through 10 Golden Gates Before Time Run Out.');
+  const hunters=['NIGHTOWL','BLUEJAY','MAMMOTH','Both Enemy','ARMORED MAMMOTH','Legendary FIREHAWK'];
+  for(const [index,target] of hunters.entries())assert.equal(missionJourneyDetails[index+6].description,`Find And Shoot Down ${target} Plane${index===3?'s':''} Before Time Runs Out.`);
+  const giantObjectives=[
+    'Find And Shoot Down The GIANT PLANE Before Time Runs Out.',
+    'Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.',
+    'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.',
+    'Shoot Down the GIANT PLANE And All Four ESCORT Planes Before Time Runs Out.',
+    'Destroy the GIANT PLANE’s Two WINGS And Its ENGINE Before Time Runs Out.',
+    'Shoot Down Both ESCORT Planes And Destroy the GIANT PLANE’s Two WINGS And ENGINE Before Time Runs Out.',
+  ];
+  assert.deepEqual(missionJourneyDetails.slice(12,18).map(d=>d.description),giantObjectives);
+  assert.equal(missionJourneyDetails[18].description,'Destroy The MONSTER Before Time Runs Out.');
+  assert(missionJourneyDetails.slice(19).every(d=>d.description==='DEFEAT THE MONSTER'));
+  assert.deepEqual(missionJourneyDetails.slice(18).map(d=>d.title),['MONSTER ARRIVAL','MONSTER STRIKES','MONSTER HUNT','MONSTER SHOWDOWN','MONSTER PURSUIT','FINAL MONSTER BATTLE']);
+  assert.equal(missionJourneyDetails[20].timeLimit,'12:00');
   assert.doesNotMatch(view, /mission-journey-detail-image|>OBJECTIVE</);
   assert.match(view, /context-action context-action--gold mission-journey-play/);
   assert.match(view, /\/media\/hub\/credits\.avif/);
