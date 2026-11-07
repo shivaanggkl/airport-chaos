@@ -4364,6 +4364,17 @@ let missionCombatIntroPath: CombatMissionIntroPath | undefined;
 let missionCombatIntroAircraft: THREE.Group | undefined;
 let flightLaunchSkipFov = CAMERA_CHASE_FOV;
 let flightLaunchEngineLift = 0;
+let m19IntroSceneryCut=0;
+let m19IntroSceneryWait:number|undefined;
+const m19IntroSceneryVelocity=new THREE.Vector3();
+function m19IntroSceneryReady(position:THREE.Vector3,now:number):boolean {
+  cityWorld.updateWorldStreaming?.(position,m19IntroSceneryVelocity);
+  const stats=cityWorld.getWorldStreamingStats?.();
+  if(!stats||stats.missingImmediateCells===0&&stats.loadedChunks>0){m19IntroSceneryWait=undefined;return true;}
+  m19IntroSceneryWait??=now;
+  if(now-m19IntroSceneryWait>8000){abortFlightLaunchCinematic();cancelMissionStartCountdown();showProgressMessage('Scenery could not load. Exit and retry.');}
+  return false;
+}
 
 function setFlightLaunchChrome(opacity: number): void {
   const revealing = opacity > 0;
@@ -4491,8 +4502,21 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
   const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id;
   if(arrivalIntro)view.prepareStationaryIntro(obstacleBounds);
   view.setIntroTime(0);
-  missionCombatIntroPath=new CombatMissionIntroPath(view.introRoot,airplane,19,arrivalIntro);
-  cityWorld.updateWorldStreaming?.(view.introRoot.position);
+  const path=new CombatMissionIntroPath(view.introRoot,airplane,19,arrivalIntro);
+  missionCombatIntroPath=path;
+  if(arrivalIntro&&cityWorld.updateWorldStreaming&&cityWorld.getWorldStreamingStats){
+    const deadline=performance.now()+8000,sceneryVelocity=new THREE.Vector3();
+    for(;;){
+      if(monsterView!==view||journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending'){
+        view.setIntroTime(null);return;
+      }
+      cityWorld.updateWorldStreaming(path.streamingPosition(0),sceneryVelocity);
+      const stats=cityWorld.getWorldStreamingStats();
+      if(stats&&stats.loadedChunks>0&&stats.missingImmediateCells===0)break;
+      if(performance.now()>deadline)throw Error('M19 skyline scenery could not be prepared');
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+    }
+  }else cityWorld.updateWorldStreaming?.(view.introRoot.position);
   audioManager.playTone(60,.9,'triangle',.12,30,0,'impacts');
   beginFlightLaunchCinematic();
 }
@@ -4517,6 +4541,7 @@ function beginFlightLaunchCinematic(): void {
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     flightGameRoot.classList.add('golden-gates-intro');
   }
+  m19IntroSceneryCut=0;m19IntroSceneryWait=undefined;
   flightLaunchStartedAt = performance.now();
   flightLaunchSkipStartedAt = undefined;
   flightLaunchEngineLift = 0;
@@ -4541,6 +4566,7 @@ function beginFlightLaunchCinematic(): void {
 }
 
 function clearFlightLaunchPresentation(): void {
+  m19IntroSceneryCut=0;m19IntroSceneryWait=undefined;
   monsterView?.setIntroTime(null);
   journeyGates?.setCoursePreview(false);
   missionOneIntroPath = undefined;
@@ -4601,6 +4627,7 @@ function requestFlightLaunchSkip(): void {
   const now = performance.now();
   if (!missionOneIntroPath && !missionTwoIntroPath && !missionThreeIntroPath && !missionFourIntroPath && !missionFiveIntroPath && !missionSixIntroPath && !missionCombatIntroPath && now - flightLaunchStartedAt < FLIGHT_LAUNCH_MIN_SKIP_MS) return;
   flightLaunchSkipStartedAt = now;
+  if(missionCombatIntroPath?.arrivalIntro)m19IntroSceneryWait=undefined;
   flightLaunchSkipPosition.copy(camera.position);
   flightLaunchSkipTarget.copy(flightLaunchCurrentTarget);
   flightLaunchSkipFov = camera.fov;
@@ -4618,20 +4645,33 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
   if (runwayGateIntroPath) {
     const sweepMs = missionCombatIntroPath ? missionCombatIntroPath.sweepMs : MISSION_ONE_INTRO_SWEEP_MS;
     const durationMs = missionCombatIntroPath ? missionCombatIntroPath.durationMs : MISSION_ONE_INTRO_DURATION_MS;
-    const elapsed = now - flightLaunchStartedAt;
+    let elapsed = now - flightLaunchStartedAt;
+    const skipped = flightLaunchSkipStartedAt !== undefined;
+    if(missionCombatIntroPath?.arrivalIntro&&!skipped){
+      const cut=elapsed>=14000&&m19IntroSceneryCut<14000?14000:elapsed>=4000&&m19IntroSceneryCut<4000?4000:0;
+      if(cut){
+        if(!m19IntroSceneryReady(missionCombatIntroPath.streamingPosition(cut),now)){
+          if(flightLaunchState!=='active')return true;
+          flightLaunchStartedAt=now-cut;elapsed=cut;
+        }else m19IntroSceneryCut=cut;
+      }
+    }
     if(missionCombatIntroPath?.missionNumber===19){
-      monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
+      if(!skipped||!missionCombatIntroPath.arrivalIntro)monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
       if(missionCombatIntroPath.arrivalIntro){
         const text=m19IntroText(elapsed/1000);
         if(flightLaunchTitle.textContent!==text){
           flightLaunchTitle.textContent=text;
-          if(elapsed>=6000&&text)audioManager.playTone(440,.4,'triangle',.07,220,0,'impacts');
+          if(elapsed>=M19_INTRO.monsterEnd*1000&&text)audioManager.playTone(440,.4,'triangle',.07,220,0,'impacts');
           if(flightLaunchSkipStartedAt===undefined)flightLaunchTitle.classList.toggle('is-visible',Boolean(text));
         }
       }
     }
-    const skipped = flightLaunchSkipStartedAt !== undefined;
-    const transition = skipped ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS : 0;
+    let transition = skipped ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS : 0;
+    if(skipped&&missionCombatIntroPath?.arrivalIntro&&transition>=.5&&!m19IntroSceneryReady(airplane.position,now)){
+      if(flightLaunchState!=='active')return true;
+      flightLaunchSkipStartedAt=now-FLIGHT_LAUNCH_SKIP_BLEND_MS*.5;transition=.5;
+    }
     const cutToChase = skipped ? transition >= .5 : elapsed >= (missionCombatIntroPath?.arrivalIntro?durationMs:sweepMs + 500);
     const wipe = skipped ? transition < .5 ? transition * 2 : (1 - transition) * 2
       : missionCombatIntroPath ? missionCombatIntroPath.wipe(elapsed)
@@ -4640,6 +4680,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
       : (durationMs - elapsed) / 500;
     flightGameRoot.style.setProperty('--golden-gates-wipe-opacity', String(THREE.MathUtils.clamp(wipe, 0, 1)));
     if (cutToChase) {
+      if(skipped&&missionCombatIntroPath?.arrivalIntro)monsterView?.setIntroTime(null);
       camera.position.copy(chasePosition);
       flightLaunchCurrentTarget.copy(chaseTarget);
     } else if (skipped) {
@@ -4651,6 +4692,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     camera.lookAt(flightLaunchCurrentTarget);
     const fov = cutToChase ? chaseFov : runwayGateIntroPath.fov(elapsed, chaseFov);
     if (Math.abs(camera.fov - fov) >= .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    if(missionCombatIntroPath?.arrivalIntro)flightLaunchEngineLift=elapsed>=14000?.14*(1-THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration)):0;
     setFlightLaunchChrome(missionCombatIntroPath?.arrivalIntro&&!skipped?THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration):cutToChase ? 1 : 0);
     if (cutToChase) {
       flightLaunchTitle.classList.remove('is-visible');
@@ -10030,8 +10072,8 @@ function animate(): void {
   updateFlashEffects(muzzleFlashes, muzzleFlashPool, delta);
   updateFlashEffects(impactFlashes, impactFlashPool, delta);
   updateDestructionEffects(delta);
-  const streamingPosition = missionCombatIntroPath && flightLaunchState === 'active'
-    ? missionCombatIntroPath.streamingPosition(performance.now() - flightLaunchStartedAt)
+  const streamingPosition = missionCombatIntroPath && (flightLaunchState === 'active'||flightLaunchState==='pending'&&missionCombatIntroPath.arrivalIntro)
+    ? missionCombatIntroPath.arrivalIntro&&flightLaunchSkipStartedAt!==undefined?airplane.position:missionCombatIntroPath.streamingPosition(flightLaunchState==='pending'?0:performance.now() - flightLaunchStartedAt)
     : monsterView?.timeoutCinematicActive ? monsterView.timeoutStreamingPosition
     : (transportView?.defeatActive || transportView?.arrivalActive) ? transportView.position : airplane.position;
   if (!portalInTransit && cityWorld.updateWorldStreaming) cityWorld.updateWorldStreaming(streamingPosition, velocity);

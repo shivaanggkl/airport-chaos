@@ -291,7 +291,7 @@ export class MonsterArrivalView {
   /** Presentation only: no encounter state, damage, or reward events. */
   setIntroTime(seconds: number | null): void {
     if(!this.crimsonCore || this.state&&seconds!==null)return;
-    if(this.stationary||this.striking){if(this.stationary&&seconds!==null&&seconds>=M19_INTRO.walkEnd&&(this.introTime??0)<M19_INTRO.walkEnd)this.onRoar?.();this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
+    if(this.stationary||this.striking){if(this.stationary&&seconds!==null&&seconds>=M19_INTRO.walkEnd&&(this.introTime??0)<M19_INTRO.walkEnd){this.onRoar?.();this.onDestruction?.();}this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
     if(seconds!==null&&!this.introOrigin){
       const root=this.creature.root,site=monsterDamageSites[0]!;
       this.introOrigin={position:root.position.clone(),yaw:root.rotation.y};

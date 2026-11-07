@@ -1,10 +1,13 @@
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 
-// One slow authored step, then the complete 3.625-second Roar, ending exactly at 6s.
-export const M19_INTRO = Object.freeze({walkEnd: 6-model.clips.roar!.duration, monsterEnd: 6, handoff: 10.5, duration: 12});
+export const M19_INTRO = Object.freeze({reveal:4,walkEnd:9,roarEnd:9+model.clips.roar!.duration,monsterEnd:14,objective:18,handoff:18.5,duration:20});
+export const M19_DOWNTOWN = Object.freeze({x:-2191,z:-1201});
 export function m19IntroText(seconds:number):string {
-  return seconds<M19_INTRO.walkEnd?'ASHEN WARLORD':seconds<M19_INTRO.monsterEnd
-    ?'CONTROL: MONSTER HEADING DOWNTOWN!':seconds<M19_INTRO.handoff?'PILOT, STOP IT BEFORE DALLAS FALLS!':'';
+  return seconds<M19_INTRO.reveal?'Control! Something massive is moving through the city!'
+    :seconds<M19_INTRO.walkEnd?"It's heading straight for downtown!"
+    :seconds<M19_INTRO.monsterEnd?'ASHEN WARLORD'
+    :seconds<M19_INTRO.objective?'Pilot! Stop that monster before it destroys downtown!'
+    :seconds<M19_INTRO.duration?'DEFEAT THE MONSTER':'';
 }
 /** Match displacement to the supplied gait's measured distance, including its nonuniform steps. */
 export function m19WalkDistance(clipTime:number):number {
