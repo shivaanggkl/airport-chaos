@@ -1,3 +1,4 @@
+import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
 import {M21_INTRO} from './m21-intro';
 import {M20_INTRO} from './m20-intro';
@@ -131,6 +132,8 @@ export class MonsterArrivalView {
   private strikingIntroEnabled=false;
   private huntingIntroEnabled=false;
   private showdownIntroEnabled=false;
+  private pursuitIntroEnabled=false;
+  introFootstepTime=-Infinity;
   private introPunchWarned=false;
   private introPunchImpact=false;
   private introCastingSound=false;
@@ -146,27 +149,28 @@ export class MonsterArrivalView {
     this.strikingIntroEnabled=true;this.introLanded=false;this.introRoared=false;this.introReleased=false;
     (this.creature as AshenWarlordModel).prepareStrikingIntro();
   }
-  prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false):void {
-    if(!this.hunting||this.pursuit||this.state)return;
-    (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown);
+  prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false):void {
+    if(!this.hunting||this.pursuit!==pursuit||this.state)return;
+    (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown,pursuit);
+    this.pursuitIntroEnabled=pursuit;this.introFootstepTime=-Infinity;
     this.showdownIntroEnabled=showdown;this.introPunchImpact=false;this.introCastingSound=false;
     this.strikingIntroEnabled=true;this.huntingIntroEnabled=true;this.introPunchWarned=false;this.introLanded=false;this.introRoared=false;this.introReleased=false;
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
+    this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     const shot=this.pool[0]!;shot.group.visible=false;shot.group.scale.setScalar(1);
     (shot.group.children[0] as THREE.Mesh).material=coreMaterial;this.particles.clear();
   }
   private updateStrikingIntro():void {
-    const timing=this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
+    const timing=this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
     const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
     if(this.huntingIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
-    if(this.showdownIntroEnabled&&t>=timing.punch+.55&&!this.introPunchImpact){this.introPunchImpact=true;this.onFootfall?.();}
+    if((this.showdownIntroEnabled||this.pursuitIntroEnabled)&&t>=timing.punch+.55&&!this.introPunchImpact){this.introPunchImpact=true;this.onFootfall?.();}
     if(t>=timing.roar&&!this.introRoared){this.introRoared=true;this.onRoar?.();}
-    if(this.showdownIntroEnabled&&t>=timing.cast&&!this.introCastingSound){this.introCastingSound=true;this.onCasting?.();}
+    if((this.showdownIntroEnabled||this.pursuitIntroEnabled)&&t>=timing.cast&&!this.introCastingSound){this.introCastingSound=true;this.onCasting?.();}
     const casting=t>=timing.cast&&t<timing.release;
     this.mouthFire.visible=(!this.huntingIntroEnabled&&t<2)||casting;
     if(!this.huntingIntroEnabled&&t<2){actor.corePosition(this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+35*THREE.MathUtils.smoothstep(t,0,2));}
@@ -174,7 +178,7 @@ export class MonsterArrivalView {
     if(this.castingHand){this.castingHand.visible=casting;actor.handPosition('left',this.mouthWorld);this.castingHand.position.copy(this.mouthWorld);this.castingHand.scale.setScalar(this.mouthFire.scale.x);}
     if(t>=timing.release&&t<timing.runway&&!this.introReleased){
       this.introReleased=true;actor.handPosition('right',this.introShotOrigin);shot.id=null;shot.spawnPending=false;shot.direction.set(0,1,0);
-      if(this.showdownIntroEnabled)shot.direction.set(Math.sin(actor.root.rotation.y+.12)*.55,.835,Math.cos(actor.root.rotation.y+.12)*.55).normalize();
+      if(this.showdownIntroEnabled||this.pursuitIntroEnabled)shot.direction.set(Math.sin(actor.root.rotation.y+.12)*.55,.835,Math.cos(actor.root.rotation.y+.12)*.55).normalize();
       shot.group.quaternion.setFromUnitVectors(forward,shot.direction);
       shot.group.children.forEach((part,index)=>{part.visible=index<2;});(shot.group.children[0] as THREE.Mesh).material=this.warningMaterial;this.onProjectile?.();
     }
@@ -257,7 +261,7 @@ export class MonsterArrivalView {
     const facing=this.crimsonCore?-1:1;
     this.creature.root.rotation.y=Math.atan2((journeyDallas19.monster.x-journeyDallas19.airborneSpawn.x)*facing,
       (journeyDallas19.monster.z-journeyDallas19.airborneSpawn.z)*facing);
-    this.creature.onFootContact=(p)=>{this.particles.emit(p.x,p.y,p.z,true,10,65,1.5);this.onFootfall?.();};
+    this.creature.onFootContact=(p)=>{if(this.pursuitIntroEnabled&&this.introTime!==null)this.introFootstepTime=this.introTime;this.particles.emit(p.x,p.y,p.z,true,10,65,1.5);this.onFootfall?.();};
     this.creature.onLanding=(p)=>{this.particles.emit(p.x,p.y,p.z,true,14,95,1.5);this.onFootfall?.();};
     this.beam.name='titan-authoritative-energy-beam';this.beam.visible=false;this.wave.visible=false;this.roar.visible=false;this.roar.visible=false;
     if(this.striking){this.castingHand=new THREE.Mesh(coreGeometry,this.warningMaterial);this.castingHand.name='m20-left-casting-hand';this.castingHand.visible=false;scene.add(this.castingHand);}

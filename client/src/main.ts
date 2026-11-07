@@ -1,3 +1,4 @@
+import {m23IntroText} from './m23-intro';
 import {m22IntroText} from './m22-intro';
 import {M21_INTRO,m21IntroText} from './m21-intro';
 import {M20_INTRO,m20IntroText} from './m20-intro';
@@ -4511,6 +4512,8 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
   const strikingIntro=journeyAttempt.missionId===journeyDallas20.id;
   const huntingIntro=journeyAttempt.missionId===journeyDallas21.id;
   const showdownIntro=journeyAttempt.missionId===journeyDallas22.id;
+  const pursuitIntro=journeyAttempt.missionId===journeyDallas23.id;
+  if(pursuitIntro)view.prepareHuntingIntro(obstacleBounds,false,true);
   if(huntingIntro)view.prepareHuntingIntro(obstacleBounds);
   if(showdownIntro)view.prepareHuntingIntro(obstacleBounds,true);
   if(strikingIntro)view.prepareStrikingIntro();
@@ -4525,9 +4528,9 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
     view.prepareStationaryIntro(obstacleBounds);
   }
   view.setIntroTime(0);
-  const path=new CombatMissionIntroPath(view.introRoot,airplane,19,arrivalIntro,strikingIntro,view.introFistPosition,view.introProjectilePosition,huntingIntro||showdownIntro,showdownIntro);
+  const path=new CombatMissionIntroPath(view.introRoot,airplane,19,arrivalIntro,strikingIntro,view.introFistPosition,view.introProjectilePosition,huntingIntro||showdownIntro||pursuitIntro,showdownIntro,pursuitIntro,()=>view.introFootstepTime);
   missionCombatIntroPath=path;
-  if((arrivalIntro||huntingIntro||showdownIntro)&&cityWorld.updateWorldStreaming&&cityWorld.getWorldStreamingStats){
+  if((arrivalIntro||huntingIntro||showdownIntro||pursuitIntro)&&cityWorld.updateWorldStreaming&&cityWorld.getWorldStreamingStats){
     const deadline=performance.now()+8000,sceneryVelocity=new THREE.Vector3();
     for(;;){
       if(monsterView!==view||journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending'){
@@ -4563,7 +4566,7 @@ function beginFlightLaunchCinematic(): void {
     flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro||missionCombatIntroPath?.strikingIntro||missionCombatIntroPath?.huntingIntro));
     if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     if(missionCombatIntroPath?.strikingIntro)flightLaunchTitle.textContent=m20IntroText(0);
-    if(missionCombatIntroPath?.huntingIntro)flightLaunchTitle.textContent=missionCombatIntroPath.showdownIntro?m22IntroText(0):m21IntroText(0);
+    if(missionCombatIntroPath?.huntingIntro)flightLaunchTitle.textContent=missionCombatIntroPath.pursuitIntro?m23IntroText(0):missionCombatIntroPath.showdownIntro?m22IntroText(0):m21IntroText(0);
     flightGameRoot.classList.add('golden-gates-intro');
   }
   m19StoryOffsetMs=missionImageStory?.durationMs??0;
@@ -4700,7 +4703,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     if(missionCombatIntroPath?.missionNumber===19){
       if(!skipped||!(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro))monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
       if(missionCombatIntroPath.arrivalIntro||missionCombatIntroPath.strikingIntro||missionCombatIntroPath.huntingIntro){
-        const text=missionCombatIntroPath.huntingIntro?(missionCombatIntroPath.showdownIntro?m22IntroText(elapsed/1000):m21IntroText(elapsed/1000)):missionCombatIntroPath.strikingIntro?m20IntroText(elapsed/1000):m19IntroText(elapsed/1000);
+        const text=missionCombatIntroPath.huntingIntro?(missionCombatIntroPath.pursuitIntro?m23IntroText(elapsed/1000):missionCombatIntroPath.showdownIntro?m22IntroText(elapsed/1000):m21IntroText(elapsed/1000)):missionCombatIntroPath.strikingIntro?m20IntroText(elapsed/1000):m19IntroText(elapsed/1000);
         if(flightLaunchTitle.textContent!==text){
           flightLaunchTitle.textContent=text;
           if(elapsed>=(missionCombatIntroPath.huntingIntro?M21_INTRO.runway:missionCombatIntroPath.strikingIntro?M20_INTRO.runway:M19_INTRO.monsterEnd)*1000&&text)audioManager.playTone(440,.4,'triangle',.07,220,0,'impacts');
@@ -11107,6 +11110,7 @@ async function retryJourneyMission(): Promise<void> {
     if(journeyAttempt.missionId===journeyDallas20.id)clearFlightLaunchPresentation();
     if(journeyAttempt.missionId===journeyDallas21.id)clearFlightLaunchPresentation();
     if(journeyAttempt.missionId===journeyDallas22.id)clearFlightLaunchPresentation();
+    if(journeyAttempt.missionId===journeyDallas23.id)clearFlightLaunchPresentation();
     monsterView?.dispose(); monsterView = undefined;
   transportView?.dispose();transportView=undefined;transportViewAttemptId='';
     missionIntroSkip.hidden = true;

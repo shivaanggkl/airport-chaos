@@ -1,3 +1,4 @@
+import {m23IntroMotion,m23Travel} from './m23-intro';
 import {m22IntroMotion} from './m22-intro';
 import {M21_INTRO,m21IntroMotion} from './m21-intro';
 import {m20IntroMotion} from './m20-intro';
@@ -47,23 +48,23 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
-    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
+    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean;pursuit:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
     prepareStrikingIntro():void {
         if(!this.striking||this.hunting||this.frame||this.strikingIntro)return;
         this.strikingIntro={position:this.root.position.clone(),yaw:this.root.rotation.y,transitionAt:0};
         this.introTime=0;this.applyStrikingIntro(0);
     }
-    prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false):void {
-        if(!this.hunting||this.pursuit||this.frame||this.strikingIntro)return;
+    prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false):void {
+        if(!this.hunting||this.pursuit!==pursuit||this.frame||this.strikingIntro)return;
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
-        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*2+Math.hypot(o.halfX,o.halfZ));
+        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*(pursuit?6:2)+Math.hypot(o.halfX,o.halfZ));
         for(const phase of [0,.5,.75]){
-            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown},transitionAt:0};
+            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:pursuit?m23Travel(7,clip.duration*phase):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown,pursuit},transitionAt:0};
             let clear=true;
             for(let step=0;step<=128&&clear;step++){this.applyStrikingIntro(16*step/128);if(this.introPoseObstructed(nearby))clear=false;}
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
         }
-        this.setIntroTime(null);throw Error(`${showdown?'M22':'M21'} cinematic approach is obstructed`);
+        this.setIntroTime(null);throw Error(`${pursuit?'M23':showdown?'M22':'M21'} cinematic approach is obstructed`);
     }
     private introPoseObstructed(obstacles:readonly ObstacleBounds[]):boolean {
         const center=this.temp;
@@ -78,12 +79,12 @@ export class AshenWarlordModel {
         return false;
     }
     private applyStrikingIntro(seconds:number):void {
-        const intro=this.strikingIntro!,motion=intro.walk?(intro.walk.showdown?m22IntroMotion(seconds,intro.walk.startTime):m21IntroMotion(seconds,intro.walk.startTime)):m20IntroMotion(seconds),clip=model.clips[motion.key]!;
+        const intro=this.strikingIntro!,motion=intro.walk?(intro.walk.pursuit?m23IntroMotion(seconds,intro.walk.startTime):intro.walk.showdown?m22IntroMotion(seconds,intro.walk.startTime):m21IntroMotion(seconds,intro.walk.startTime)):m20IntroMotion(seconds),clip=model.clips[motion.key]!;
         this.root.position.copy(intro.position);this.root.position.y+=motion.height;
         this.root.rotation.y=intro.yaw+motion.yawOffset;
         if(intro.walk){
             const walkMotion=motion as ReturnType<typeof m21IntroMotion>;
-            const remaining=intro.walk.distance-(m19WalkDistance(walkMotion.walkTime)-m19WalkDistance(intro.walk.startTime));
+            const remaining=intro.walk.distance-(intro.walk.pursuit?m23Travel(seconds,intro.walk.startTime):m19WalkDistance(walkMotion.walkTime)-m19WalkDistance(intro.walk.startTime));
             this.root.position.set(intro.position.x-Math.sin(intro.walk.yaw)*remaining,intro.position.y,intro.position.z-Math.cos(intro.walk.yaw)*remaining);
             this.root.position.y=this.groundAt?.(this.root.position.x,this.root.position.z)??intro.position.y;
             this.root.rotation.y=intro.walk.yaw+motion.yawOffset;
@@ -176,7 +177,7 @@ export class AshenWarlordModel {
         const lower=(track:THREE.KeyframeTrack)=>titanLocomotionNode(track.name)||/Hips\.(position|quaternion)$/.test(track.name);
         for(const [suffix,tracks]of [['#upper',clip.tracks.filter(t=>!lower(t))],['#lower',clip.tracks.filter(lower)]]as const){const variant=new THREE.AnimationClip(clip.name+suffix,clip.duration,[...tracks]);const a=this.mixer.clipAction(variant);a.play();a.enabled=false;this.actions.set(variant.name,a);}
     }
-    if(this.stationary||this.hunting&&!this.pursuit)for(const region of model.regions){const name=g.parser.json.nodes[region.node].name.replace(/:/g,'');const node=object.getObjectByName(name);if(!node)throw Error('Missing cinematic collision bone '+name);this.introRegions.push({node,offset:new THREE.Vector3().fromArray(region.offset),radii:new THREE.Vector3().fromArray(region.radii)});}
+    if(this.stationary||this.hunting)for(const region of model.regions){const name=g.parser.json.nodes[region.node].name.replace(/:/g,'');const node=object.getObjectByName(name);if(!node)throw Error('Missing cinematic collision bone '+name);this.introRegions.push({node,offset:new THREE.Vector3().fromArray(region.offset),radii:new THREE.Vector3().fromArray(region.radii)});}
     for(const key of['neck','head']){const bone=object.getObjectByName(model.bones[key]!);if(bone)this.aimBones.push({node:model.boneNodes[key]!,bone,base:bone.quaternion.clone()});}
     for (const c of (this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:this.stationary?['idle','punch','roar','defeat','walk']:motionKeys).map(key=>model.clips[key]!))
         if (!this.actions.has(c.name))
@@ -308,7 +309,7 @@ export class AshenWarlordModel {
         for (const m of this.materials) {
             m.emissiveIntensity = 1 + this.flash * .6;
         }
-        if(this.introTime!==null&&this.instance&&((this.arrivalIntro&&this.introTime>=M19_INTRO.reveal&&this.introTime<M19_INTRO.walkEnd)||(this.strikingIntro?.walk&&this.introTime>=M21_INTRO.walkStart&&this.introTime<4)))
+        if(this.introTime!==null&&this.instance&&((this.arrivalIntro&&this.introTime>=M19_INTRO.reveal&&this.introTime<M19_INTRO.walkEnd)||(this.strikingIntro?.walk&&this.introTime>=M21_INTRO.walkStart&&this.introTime<(this.strikingIntro.walk.pursuit?7:4))))
             for(const [i,key] of ['foot-left','foot-right'].entries()){
                 this.instance.getObjectByName(model.bones[key]!)!.getWorldPosition(this.temp);
                 const low=this.temp.y-(this.groundAt?.(this.temp.x,this.temp.z)??this.root.position.y)<model.height*.09;
