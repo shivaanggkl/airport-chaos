@@ -1,3 +1,5 @@
+import {M19_INTRO,m19WalkDistance} from './m19-intro';
+import type {ObstacleBounds} from './world';
 import {pursuitWarlord} from '../../shared/pursuit-warlord.mjs';
 import {huntingWarlord} from '../../shared/hunting-warlord.mjs';
 import {strikingWarlord} from '../../shared/striking-warlord.mjs';
@@ -42,7 +44,64 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
-    setIntroTime(seconds: number | null): void { this.introTime = seconds; }
+    private arrivalIntro?:{position:THREE.Vector3;yaw:number;startTime:number;distance:number};
+    private readonly introRegions:{node:THREE.Object3D;offset:THREE.Vector3;radii:THREE.Vector3}[]=[];
+    setIntroTime(seconds: number | null): void {
+        this.introTime=seconds;
+        if(seconds===null&&this.arrivalIntro){
+            const saved=this.arrivalIntro;
+            this.root.position.copy(saved.position);this.root.rotation.y=saved.yaw;
+            this.arrivalIntro=undefined;
+            this.apply({clip:model.clips.idle!.name,time:0,blend:1,offsetY:0});
+            this.groundIntroPose();
+        }
+    }
+    /** Verify the authored approach once, before showing it; no authoritative entity is moved. */
+    prepareArrivalIntro(obstacles:readonly ObstacleBounds[]):void {
+        if(!this.stationary||this.frame||this.arrivalIntro)return;
+        const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
+        const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*2+Math.hypot(o.halfX,o.halfZ));
+        const center=new THREE.Vector3();
+        // Prefer a slow full step; shorten to its final planted portion if scenery requires it.
+        for(const phase of [.5,.75,.875]){
+            this.arrivalIntro={position,yaw,startTime:clip.duration*phase,distance:m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase)};
+            let clear=true;
+            for(let step=0;step<=48&&clear;step++){
+                this.applyArrivalIntro(M19_INTRO.walkEnd*step/48);
+                for(const region of this.introRegions){
+                    center.copy(region.offset).applyMatrix4(region.node.matrixWorld);
+                    const e=region.node.matrixWorld.elements,r=region.radii;
+                    const x=Math.abs(e[0]!)*r.x+Math.abs(e[4]!)*r.y+Math.abs(e[8]!)*r.z+8;
+                    const y=Math.abs(e[1]!)*r.x+Math.abs(e[5]!)*r.y+Math.abs(e[9]!)*r.z+8;
+                    const z=Math.abs(e[2]!)*r.x+Math.abs(e[6]!)*r.y+Math.abs(e[10]!)*r.z+8;
+                    if(nearby.some(o=>center.x+x>o.x-o.halfX&&center.x-x<o.x+o.halfX&&center.z+z>o.z-o.halfZ&&center.z-z<o.z+o.halfZ&&center.y-y<(o.baseY??0)+o.height&&center.y+y>(o.baseY??0))){clear=false;break;}
+                }
+            }
+            if(clear){this.introTime=0;this.applyArrivalIntro(0);this.grounded=[false,false];return;}
+        }
+        this.setIntroTime(null);
+        throw Error('M19 cinematic approach is obstructed');
+    }
+    private groundIntroPose():void {
+        if(!this.mesh||!this.instance)return;
+        let lift=-Infinity;
+        for(const point of model.support){this.mesh.getVertexPosition(point.index!,this.temp);this.mesh.localToWorld(this.temp);lift=Math.max(lift,(this.groundAt?.(this.temp.x,this.temp.z)??this.root.position.y)-this.temp.y);}
+        this.instance.position.y+=lift;this.root.updateMatrixWorld(true);this.mesh.skeleton.update();
+    }
+    private applyArrivalIntro(seconds:number):void {
+        const intro=this.arrivalIntro!,walk=model.clips.walk!,roar=model.clips.roar!,idle=model.clips.idle!;
+        const progress=THREE.MathUtils.smoothstep(seconds,0,M19_INTRO.walkEnd);
+        const walkTime=THREE.MathUtils.lerp(intro.startTime,walk.duration,progress);
+        const remaining=intro.distance-(m19WalkDistance(walkTime)-m19WalkDistance(intro.startTime));
+        this.root.position.set(intro.position.x-Math.sin(intro.yaw)*remaining,intro.position.y,intro.position.z-Math.cos(intro.yaw)*remaining);
+        this.root.position.y=this.groundAt?.(this.root.position.x,this.root.position.z)??intro.position.y;
+        this.root.rotation.y=intro.yaw;
+        const local=seconds-M19_INTRO.walkEnd;
+        if(local<0)this.apply({clip:walk.name,time:walkTime,blend:1,offsetY:0});
+        else if(local<roar.duration)this.apply({clip:roar.name,time:local,previousClip:local<.2?walk.name:idle.name,previousTime:local<.2?walk.duration:seconds%idle.duration,blend:Math.min(1,local/.2,(roar.duration-local)/.2),offsetY:0});
+        else this.apply({clip:idle.name,time:seconds%idle.duration,blend:1,offsetY:0});
+        this.groundIntroPose();
+    }
     private flash = 0;
     private grounded = [true, true];
     private footAt = [-10, -10];
@@ -55,9 +114,9 @@ export class AshenWarlordModel {
         const clone = (m: THREE.Material) => { const copy = (m as THREE.MeshStandardMaterial).clone(); this.materials.push(copy); return copy; };
         o.material = Array.isArray(o.material) ? o.material.map(clone) : clone(o.material);
     } }); this.mixer = new THREE.AnimationMixer(object); for (const clip of g.animations) {
-        // The shoot clip is cinematic-only for M19; combat still uses its four approved motions.
-        if(clip.name!==model.clips.shoot!.name&&!((this.stationary||this.striking)?(this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
-        if((this.stationary||this.striking)&&![model.clips.idle!.name,model.clips.turn!.name,...(this.hunting?[model.clips.walk!.name]:[]),...(this.pursuit?[model.clips.run!.name]:[])].includes(clip.name)){const action=this.mixer.clipAction(clip);action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}
+        // Walk and Shoot are cinematic-only for M19; combat retains its four approved motions.
+        if(!(this.stationary&&clip.name===model.clips.walk!.name)&&clip.name!==model.clips.shoot!.name&&!((this.stationary||this.striking)?(this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:['idle','punch','roar','defeat']).map(key=>model.clips[key]!.name).includes(clip.name):motionNames.has(clip.name)))continue;
+        if((this.stationary||this.striking)&&![model.clips.idle!.name,model.clips.turn!.name,...(this.stationary?[model.clips.walk!.name]:[]),...(this.hunting?[model.clips.walk!.name]:[]),...(this.pursuit?[model.clips.run!.name]:[])].includes(clip.name)){const action=this.mixer.clipAction(clip);action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}
         const action = this.mixer.clipAction(clip);
         action.play();
         action.enabled = false;
@@ -65,8 +124,9 @@ export class AshenWarlordModel {
         const lower=(track:THREE.KeyframeTrack)=>titanLocomotionNode(track.name)||/Hips\.(position|quaternion)$/.test(track.name);
         for(const [suffix,tracks]of [['#upper',clip.tracks.filter(t=>!lower(t))],['#lower',clip.tracks.filter(lower)]]as const){const variant=new THREE.AnimationClip(clip.name+suffix,clip.duration,[...tracks]);const a=this.mixer.clipAction(variant);a.play();a.enabled=false;this.actions.set(variant.name,a);}
     }
+    if(this.stationary)for(const region of model.regions){const name=g.parser.json.nodes[region.node].name.replace(/:/g,'');const node=object.getObjectByName(name);if(!node)throw Error('Missing cinematic collision bone '+name);this.introRegions.push({node,offset:new THREE.Vector3().fromArray(region.offset),radii:new THREE.Vector3().fromArray(region.radii)});}
     for(const key of['neck','head']){const bone=object.getObjectByName(model.bones[key]!);if(bone)this.aimBones.push({node:model.boneNodes[key]!,bone,base:bone.quaternion.clone()});}
-    for (const c of (this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:this.stationary?['idle','punch','roar','defeat']:motionKeys).map(key=>model.clips[key]!))
+    for (const c of (this.striking?(this.pursuit?pursuitWarlord:this.hunting?huntingWarlord:strikingWarlord).motions:this.stationary?['idle','punch','roar','defeat','walk']:motionKeys).map(key=>model.clips[key]!))
         if (!this.actions.has(c.name))
             throw Error('Missing supplied clip ' + c.name); this.apply({ clip: model.clips.idle!.name, time: 0, blend: 1, offsetY: 0 }); }); }
     setTitanPose(frame: TitanPresentation): void { this.frame = frame; }
@@ -172,6 +232,7 @@ export class AshenWarlordModel {
             this.apply({clip:clip.name,time:firing?t:this.endingTime%clip.duration,previousClip:firing?model.clips.idle!.name:undefined,previousTime:this.endingTime%model.clips.idle!.duration,blend,offsetY:0});
         }
         }
+        else if(this.arrivalIntro&&this.introTime!==null&&!this.frame)this.applyArrivalIntro(this.introTime);
         else if((this.stationary||this.striking)&&this.introTime!==null&&!this.frame){
             const t=this.introTime,clip=model.clips.roar!,local=t-.45;
             const roaring=local>=0&&local<clip.duration;
@@ -194,6 +255,13 @@ export class AshenWarlordModel {
         for (const m of this.materials) {
             m.emissiveIntensity = 1 + this.flash * .6;
         }
+        if(this.arrivalIntro&&this.introTime!==null&&this.introTime<M19_INTRO.walkEnd&&this.instance)
+            for(const [i,key] of ['foot-left','foot-right'].entries()){
+                this.instance.getObjectByName(model.bones[key]!)!.getWorldPosition(this.temp);
+                const low=this.temp.y-(this.groundAt?.(this.temp.x,this.temp.z)??this.root.position.y)<model.height*.09;
+                if(low&&!this.grounded[i]&&this.clock-this.footAt[i]!>.3){this.footAt[i]=this.clock;this.onFootContact?.(this.temp);}
+                this.grounded[i]=low;
+            }
         if (this.frame && Math.hypot(this.frame.velocity.x, this.frame.velocity.z) > 1)
             for (const [i, key] of ['foot-left', 'foot-right'].entries()) {
                 const p = this.frame.feet[key];
@@ -209,7 +277,7 @@ export class AshenWarlordModel {
             }
     }
     dispose(): void { if (this.disposed)
-        return; this.disposed = true; this.victory?.dispose(); this.victory=undefined; this.mixer?.stopAllAction(); if (this.instance)
+        return; this.setIntroTime(null);this.introRegions.length=0; this.disposed = true; this.victory?.dispose(); this.victory=undefined; this.mixer?.stopAllAction(); if (this.instance)
         this.mixer?.uncacheRoot(this.instance); for (const m of this.materials)
         m.dispose(); this.root.clear(); this.frame = null; }
 }

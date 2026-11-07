@@ -283,6 +283,7 @@ body.launch-cinematic-active #tutorial-help {
 .flight-launch-title.is-golden-gates span { font-size: clamp(11px, 1.4vw, 17px); }
 .flight-launch-title.is-golden-gates small { color: #d6e8f3; font-size: 10px; letter-spacing: .14em; }
 .flight-launch-title.is-runway-gates { white-space: normal; }
+.flight-launch-title.is-monster-arrival { width: max-content; max-width: calc(100vw - 40px); box-sizing: border-box; color: #ffe49a; font-size: clamp(18px, 2.3vw, 28px); line-height: 1.15; }
 .flight-launch-title.is-runway-gates span { color: #ffe49a; font-size: clamp(17px, 2.3vw, 26px); line-height: 1.15; }
 .mission-start-countdown {
   position: fixed;

@@ -1,3 +1,4 @@
+import {M19_INTRO,m19IntroText} from './m19-intro';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import { CombatMissionIntroPath } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
@@ -4487,8 +4488,10 @@ async function prepareMonsterMissionIntro(attemptId:string):Promise<void>{
   const view=monsterView;if(!view)return;
   await Promise.all([view.ready,airplane.userData.assetReady]);
   if(monsterView!==view||journeyAttempt?.attemptId!==attemptId||journeyAttempt.status!=='APPROACH'||flightLaunchState!=='pending')return;
+  const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id;
+  if(arrivalIntro)view.prepareStationaryIntro(obstacleBounds);
   view.setIntroTime(0);
-  missionCombatIntroPath=new CombatMissionIntroPath(view.introRoot,airplane,19);
+  missionCombatIntroPath=new CombatMissionIntroPath(view.introRoot,airplane,19,arrivalIntro);
   cityWorld.updateWorldStreaming?.(view.introRoot.position);
   audioManager.playTone(60,.9,'triangle',.12,30,0,'impacts');
   beginFlightLaunchCinematic();
@@ -4510,6 +4513,8 @@ function beginFlightLaunchCinematic(): void {
           : missionCombatIntroPath.missionNumber === 12 ? '<span>FINAL SHOWDOWN · LEGENDARY FIREHAWK</span>'
           : '<span>FIRST CONTACT · SHOOT DOWN NIGHTOWL</span>'
       : '<span>Fly through 10 Golden Gates before Time runs out.</span>';
+    flightLaunchTitle.classList.toggle('is-monster-arrival',Boolean(missionCombatIntroPath?.arrivalIntro));
+    if(missionCombatIntroPath?.arrivalIntro)flightLaunchTitle.textContent=m19IntroText(0);
     flightGameRoot.classList.add('golden-gates-intro');
   }
   flightLaunchStartedAt = performance.now();
@@ -4551,7 +4556,7 @@ function clearFlightLaunchPresentation(): void {
   cameraOrbitBlend = 0;
   cameraOrbitRecenterAt = null;
   cameraRelativeOffsetInitialized = false;
-  flightLaunchTitle.classList.remove('is-visible');
+  flightLaunchTitle.classList.remove('is-visible','is-monster-arrival');
   missionIntroSkip.hidden = true;
   flightGameRoot.classList.remove('golden-gates-intro');
   flightGameRoot.style.removeProperty('--golden-gates-wipe-opacity');
@@ -4585,6 +4590,7 @@ function abortFlightLaunchCinematic(): void {
 function cancelPendingFlightLaunch(): void {
   if (flightLaunchState !== 'pending') return;
   flightLaunchState = 'disabled';
+  if(missionCombatIntroPath?.arrivalIntro){monsterView?.setIntroTime(null);missionCombatIntroPath=undefined;flightLaunchTitle.classList.remove('is-visible','is-monster-arrival');}
   clearMissionCombatIntroAircraft();
   flightGameRoot.classList.remove('launch-cinematic-pending');
   document.body.classList.remove('launch-cinematic-pending');
@@ -4613,10 +4619,20 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     const sweepMs = missionCombatIntroPath ? missionCombatIntroPath.sweepMs : MISSION_ONE_INTRO_SWEEP_MS;
     const durationMs = missionCombatIntroPath ? missionCombatIntroPath.durationMs : MISSION_ONE_INTRO_DURATION_MS;
     const elapsed = now - flightLaunchStartedAt;
-    if(missionCombatIntroPath?.missionNumber===19)monsterView?.setIntroTime(elapsed<6000?elapsed/1000:null);
+    if(missionCombatIntroPath?.missionNumber===19){
+      monsterView?.setIntroTime(missionCombatIntroPath.arrivalIntro?elapsed/1000:elapsed<6000?elapsed/1000:null);
+      if(missionCombatIntroPath.arrivalIntro){
+        const text=m19IntroText(elapsed/1000);
+        if(flightLaunchTitle.textContent!==text){
+          flightLaunchTitle.textContent=text;
+          if(elapsed>=6000&&text)audioManager.playTone(440,.4,'triangle',.07,220,0,'impacts');
+          if(flightLaunchSkipStartedAt===undefined)flightLaunchTitle.classList.toggle('is-visible',Boolean(text));
+        }
+      }
+    }
     const skipped = flightLaunchSkipStartedAt !== undefined;
     const transition = skipped ? (now - flightLaunchSkipStartedAt!) / FLIGHT_LAUNCH_SKIP_BLEND_MS : 0;
-    const cutToChase = skipped ? transition >= .5 : elapsed >= sweepMs + 500;
+    const cutToChase = skipped ? transition >= .5 : elapsed >= (missionCombatIntroPath?.arrivalIntro?durationMs:sweepMs + 500);
     const wipe = skipped ? transition < .5 ? transition * 2 : (1 - transition) * 2
       : missionCombatIntroPath ? missionCombatIntroPath.wipe(elapsed)
       : elapsed < sweepMs ? 0
@@ -4635,7 +4651,7 @@ function applyFlightLaunchCamera(chasePosition: THREE.Vector3, chaseTarget: THRE
     camera.lookAt(flightLaunchCurrentTarget);
     const fov = cutToChase ? chaseFov : runwayGateIntroPath.fov(elapsed, chaseFov);
     if (Math.abs(camera.fov - fov) >= .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
-    setFlightLaunchChrome(cutToChase ? 1 : 0);
+    setFlightLaunchChrome(missionCombatIntroPath?.arrivalIntro&&!skipped?THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration):cutToChase ? 1 : 0);
     if (cutToChase) {
       flightLaunchTitle.classList.remove('is-visible');
       missionIntroSkip.hidden = true;
@@ -11466,7 +11482,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       } else if ((message.attempt.missionId === journeyDallas13.id || message.attempt.missionId === journeyDallas14.id || message.attempt.missionId === journeyDallas15.id || message.attempt.missionId === journeyDallas16.id || message.attempt.missionId === journeyDallas17.id || message.attempt.missionId === journeyDallas18.id) && message.attempt.status === 'APPROACH') {
         void prepareMissionCombatIntro(message.attempt.attemptId, message.attempt.missionId);
       } else if([journeyDallas25.id,journeyDallas20.id,journeyDallas21.id,journeyDallas22.id,journeyDallas23.id,journeyDallas19.id].includes(message.attempt.missionId as typeof journeyDallas19.id)&&message.attempt.status==='APPROACH'){
-        void prepareMonsterMissionIntro(message.attempt.attemptId).catch(()=>showProgressMessage('Boss could not load. Exit and retry.'));
+        void prepareMonsterMissionIntro(message.attempt.attemptId).catch(()=>{if(journeyAttempt?.attemptId!==message.attempt.attemptId)return;if(message.attempt.missionId===journeyDallas25.id){monsterView?.setIntroTime(null);cancelPendingFlightLaunch();}showProgressMessage('Boss could not load. Exit and retry.');});
       } else if (runwayIntro) {
         beginFlightLaunchCinematic();
       } else {

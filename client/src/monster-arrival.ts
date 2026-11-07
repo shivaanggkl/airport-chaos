@@ -1,3 +1,5 @@
+import {M19_INTRO} from './m19-intro';
+import type {ObstacleBounds} from './world';
 import {MONSTER_VICTORY_SECONDS} from './monster-victory';
 import {MonsterCityBlast,M19_TIMEOUT,M19_CITY_BLAST_SCALE} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
@@ -283,10 +285,13 @@ export class MonsterArrivalView {
   private introTime: number | null = null;
   private introImpacts = 0;
   private introDamage = false;
+  prepareStationaryIntro(obstacles:readonly ObstacleBounds[]):void {
+    if(this.stationary)(this.creature as AshenWarlordModel).prepareArrivalIntro(obstacles);
+  }
   /** Presentation only: no encounter state, damage, or reward events. */
   setIntroTime(seconds: number | null): void {
-    if(!this.crimsonCore || this.state)return;
-    if(this.stationary||this.striking){this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
+    if(!this.crimsonCore || this.state&&seconds!==null)return;
+    if(this.stationary||this.striking){if(this.stationary&&seconds!==null&&seconds>=M19_INTRO.walkEnd&&(this.introTime??0)<M19_INTRO.walkEnd)this.onRoar?.();this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
     if(seconds!==null&&!this.introOrigin){
       const root=this.creature.root,site=monsterDamageSites[0]!;
       this.introOrigin={position:root.position.clone(),yaw:root.rotation.y};
