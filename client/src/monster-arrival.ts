@@ -1,3 +1,4 @@
+import {M21_INTRO} from './m21-intro';
 import {M20_INTRO} from './m20-intro';
 import {M19_INTRO} from './m19-intro';
 import type {ObstacleBounds} from './world';
@@ -127,6 +128,8 @@ export class MonsterArrivalView {
   private readonly mouthFire=new THREE.Mesh(coreGeometry,this.warningMaterial);
   private castingHand?:THREE.Mesh;
   private strikingIntroEnabled=false;
+  private huntingIntroEnabled=false;
+  private introPunchWarned=false;
   private introLanded=false;
   private introRoared=false;
   private introReleased=false;
@@ -139,27 +142,34 @@ export class MonsterArrivalView {
     this.strikingIntroEnabled=true;this.introLanded=false;this.introRoared=false;this.introReleased=false;
     (this.creature as AshenWarlordModel).prepareStrikingIntro();
   }
+  prepareHuntingIntro(obstacles:readonly ObstacleBounds[]):void {
+    if(!this.hunting||this.pursuit||this.state)return;
+    (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles);
+    this.strikingIntroEnabled=true;this.huntingIntroEnabled=true;this.introPunchWarned=false;this.introLanded=false;this.introRoared=false;this.introReleased=false;
+  }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    this.strikingIntroEnabled=false;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
+    this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     const shot=this.pool[0]!;shot.group.visible=false;shot.group.scale.setScalar(1);
     (shot.group.children[0] as THREE.Mesh).material=coreMaterial;this.particles.clear();
   }
   private updateStrikingIntro():void {
+    const timing=this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
     const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!;
     actor.handPosition('left',this.introFistWorld);
-    if(t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
-    if(t>=M20_INTRO.roar&&!this.introRoared){this.introRoared=true;this.onRoar?.();}
-    const casting=t>=M20_INTRO.cast&&t<M20_INTRO.release;
-    this.mouthFire.visible=t<2||casting;
-    if(t<2){actor.corePosition(this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+35*THREE.MathUtils.smoothstep(t,0,2));}
-    else if(casting){actor.handPosition('right',this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+55*THREE.MathUtils.smoothstep(t,M20_INTRO.cast,M20_INTRO.shoot));}
+    if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
+    if(this.huntingIntroEnabled&&t>=timing.punch&&!this.introPunchWarned){this.introPunchWarned=true;this.onWarning?.();}
+    if(t>=timing.roar&&!this.introRoared){this.introRoared=true;this.onRoar?.();}
+    const casting=t>=timing.cast&&t<timing.release;
+    this.mouthFire.visible=(!this.huntingIntroEnabled&&t<2)||casting;
+    if(!this.huntingIntroEnabled&&t<2){actor.corePosition(this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+35*THREE.MathUtils.smoothstep(t,0,2));}
+    else if(casting){actor.handPosition('right',this.mouthWorld);this.mouthFire.position.copy(this.mouthWorld);this.mouthFire.scale.setScalar(25+55*THREE.MathUtils.smoothstep(t,timing.cast,timing.shoot));}
     if(this.castingHand){this.castingHand.visible=casting;actor.handPosition('left',this.mouthWorld);this.castingHand.position.copy(this.mouthWorld);this.castingHand.scale.setScalar(this.mouthFire.scale.x);}
-    if(t>=M20_INTRO.release&&t<M20_INTRO.runway&&!this.introReleased){
+    if(t>=timing.release&&t<timing.runway&&!this.introReleased){
       this.introReleased=true;actor.handPosition('right',this.introShotOrigin);shot.id=null;shot.spawnPending=false;shot.direction.set(0,1,0);shot.group.quaternion.setFromUnitVectors(forward,shot.direction);
       shot.group.children.forEach((part,index)=>{part.visible=index<2;});(shot.group.children[0] as THREE.Mesh).material=this.warningMaterial;this.onProjectile?.();
     }
-    const age=t-M20_INTRO.release;
+    const age=t-timing.release;
     shot.group.visible=this.introReleased&&age>=0&&age<1.2;
     if(shot.group.visible){shot.group.position.copy(this.introShotOrigin).addScaledVector(shot.direction,age*ashenWarlordHeight*.9);shot.group.scale.setScalar(1-THREE.MathUtils.smoothstep(age,1,1.2));}
   }
