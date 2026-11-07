@@ -11771,7 +11771,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       airplane.rotation.set(0, heading, 0, 'YXZ');
       currentSpeed = message.airborneSpawn.speed; verticalSpeed = 0;
       velocity.set(-Math.sin(heading) * currentSpeed, 0, -Math.cos(heading) * currentSpeed);
-      throttle = ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)||journeyAttempt?.missionId===journeyDallas20.id) ? .32 : journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id ? .5 : .55;
+      throttle = journeyAttempt?.missionId===journeyDallas01.id ? .75 : ((journeyAttempt?.missionId===journeyDallas19.id||journeyAttempt?.missionId===journeyDallas25.id||journeyAttempt?.missionId===journeyDallas21.id||journeyAttempt?.missionId===journeyDallas22.id||journeyAttempt?.missionId===journeyDallas23.id)||journeyAttempt?.missionId===journeyDallas20.id) ? .32 : journeyAttempt?.missionId===journeyDallas07.id || journeyAttempt?.missionId===journeyDallas08.id || journeyAttempt?.missionId===journeyDallas09.id || journeyAttempt?.missionId===journeyDallas10.id || journeyAttempt?.missionId===journeyDallas11.id ? .5 : .55;
       mobileInput.setThrottleState(throttle);
       setFlightState('FLYING');
       updateCamera(1);
