@@ -3273,6 +3273,17 @@ function removeJourneyHunter(attempt: JourneyAttempt): void {
   if (attempt.targetId && (attempt.missionId===journeyDallas19.id||attempt.missionId===journeyDallas25.id||attempt.missionId===journeyDallas21.id||attempt.missionId===journeyDallas22.id||attempt.missionId===journeyDallas23.id)) { breakoutDefeatedHunters.delete(attempt.targetId); breakoutHunterMotion.delete(attempt.targetId); }
 
 }
+/** Hostility starts only after accepted runway takeoff and safe airborne departure. */
+function skyHunterDepartureReady(playerId: string, pilot: PlayerState, missionId: string): boolean {
+  if (missionId !== journeyDallas13.id && missionId !== journeyDallas14.id) return true;
+  const mission = missionId === journeyDallas13.id ? journeyDallas13 : journeyDallas14;
+  const tookOff = missionId === journeyDallas13.id ? playerJourneyDfwTakeoff.has(playerId) : playerJourneyLoveTakeoff.has(playerId);
+  const airport = cityAirports.dallas.find(candidate => candidate.id === mission.startAirportId)!;
+  return tookOff && !playerJourneyRunwayPrep.has(playerId) &&
+    pilot.position.y - botTerrainHeight('dallas', pilot.position.x, pilot.position.z) >= 120 &&
+    Math.hypot(pilot.position.x - airport.x, pilot.position.z - airport.z) >= 1200;
+}
+
 function ensureFirstContact(playerId: string, pilot: PlayerState, active: JourneyAttempt, now: number): void {
   if ((active.missionId !== journeyDallas13.id && active.missionId !== journeyDallas14.id && active.missionId !== journeyDallas17.id && active.missionId !== journeyDallas18.id) || pilot.lifeState !== 'alive' ||
     (active.status !== 'APPROACH' && active.status !== 'RACING')) return;
@@ -6804,11 +6815,12 @@ function provokeJourneyHunter(pilotId: string, pilot: PlayerState, targetId: str
   const attempt = journeyStore.get(pilot.pilotId, bot.journeyAttemptId);
   if ((attempt?.missionId !== journeyDallas13.id && attempt?.missionId !== journeyDallas14.id && attempt?.missionId !== journeyDallas17.id && attempt?.missionId !== journeyDallas18.id && attempt?.missionId !== journeyDallas15.id && attempt?.missionId !== journeyDallas16.id && (attempt?.missionId!==journeyDallas19.id&&attempt?.missionId!==journeyDallas25.id&&attempt?.missionId!==journeyDallas21.id&&attempt?.missionId!==journeyDallas22.id&&attempt?.missionId!==journeyDallas23.id) && attempt?.missionId !== journeyDallas23.id && attempt?.missionId !== journeyDallas24.id) || attempt.status !== 'RACING' ||
     attempt.targetId !== targetId && attempt.secondaryTargetId !== targetId) return;
+  if (!skyHunterDepartureReady(pilotId, pilot, attempt.missionId)) return;
   if (attempt.missionId === journeyDallas24.id && attempt.legendaryPhase !== 'ACE') return;
   if (attempt.missionId === journeyDallas23.id && (bot.journeyDoubleOrdinal === 1
     ? attempt.doublePhase !== 'FIRST_FIGHT' || attempt.targetId !== targetId
     : attempt.doublePhase !== 'FINAL_FIGHT' || attempt.secondaryTargetId !== targetId)) return;
-  if ((attempt.missionId === journeyDallas13.id || attempt.missionId === journeyDallas14.id || attempt.missionId === journeyDallas17.id || attempt.missionId === journeyDallas18.id) && Math.hypot(pilot.position.x - hunter.position.x, pilot.position.z - hunter.position.z) > journeyDallas13.aggressionDistance) return;
+  if ((attempt.missionId === journeyDallas13.id || attempt.missionId === journeyDallas14.id || attempt.missionId === journeyDallas17.id || attempt.missionId === journeyDallas18.id) && Math.hypot(pilot.position.x - hunter.position.x, pilot.position.z - hunter.position.z) > (attempt.missionId === journeyDallas13.id ? journeyDallas13 : attempt.missionId === journeyDallas14.id ? journeyDallas14 : attempt.missionId === journeyDallas17.id ? journeyDallas17 : journeyDallas18).aggressionDistance) return;
   if(attempt.missionId===journeyDallas16.id&&(!playerJourneyDfwTakeoff.has(pilotId)||Math.hypot(pilot.position.x-hunter.position.x,pilot.position.z-hunter.position.z)>journeyDallas16.aggressionDistance))return;
   if (attempt.missionId === journeyDallas15.id &&
     (!playerJourneyAddisonTakeoff.has(pilotId) || playerJourneyRunwayPrep.has(pilotId))) return;

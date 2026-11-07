@@ -103,14 +103,14 @@ export const journeyDallas13: Readonly<{
   id: 'journey-dallas-13'; cityId: 'dallas'; name: 'FIRST CONTACT'; chapter: 'SKY HUNTERS';
   timeLimitMs: 240000; firstClearCredits: 1650; startAirportId: 'dfw';
   enemyAircraft: 'privateJet'; enemyLivery: 'nightowl-sunset-red'; enemyHealth: 150;
-  enemyAltitude: 800; aggressionDistance: 10000; patrolRadius: 1500; cruiseSpeed: 400;
+  enemyAltitude: 2400; aggressionDistance: 10500; patrolRadius: 4500; cruiseSpeed: 400;
   enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas14: Readonly<{
   id: 'journey-dallas-14'; cityId: 'dallas'; name: 'SURPRISE ATTACK'; chapter: 'SKY HUNTERS';
   timeLimitMs: 240000; firstClearCredits: 1800; startAirportId: 'love';
   enemyAircraft: 'trainer'; enemyLivery: 'bluejay-aurora'; enemyHealth: 150;
-  enemyAltitude: 800; aggressionDistance: 10000; patrolRadius: 1500; cruiseSpeed: 460;
+  enemyAltitude: 2400; aggressionDistance: 30000; patrolRadius: 4500; cruiseSpeed: 460;
   warningMs: 3000; rearApproachMs: 18000; enemySpawn: Readonly<{ x: number; z: number }>;
 }>;
 export const journeyDallas15: Readonly<{

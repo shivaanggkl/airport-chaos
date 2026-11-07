@@ -221,31 +221,28 @@ const baseJourneyDallas12 = Object.freeze({
   gunShotDamage: baseJourneyDallas11.gunShotDamage,
 });
 
-// Northbound open-air corridor from Love Field. The wider rings and slight
-// lateral bends reward sustained speed rather than precision steering.
-// Keep the historical mission ID: this is displayed Journey slot 7.
+// Keep the historical identity: this combat mission is displayed Journey slot 7.
 const firstContactDfw = { x: -22_800, z: -13_600 };
-const firstContactBearing = Math.hypot(firstContactDfw.x, firstContactDfw.z);
 const baseJourneyDallas13 = Object.freeze({
   id: 'journey-dallas-13', cityId: 'dallas', name: 'FIRST CONTACT',
-  chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_650,
+  chapter: 'SKY HUNTERS', timeLimitMs: 80_000, firstClearCredits: 1_650,
   startAirportId: 'dfw', enemyAircraft: 'privateJet', enemyLivery: 'nightowl-sunset-red',
-  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
+  enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 3_500,
   patrolRadius: 1_500, cruiseSpeed: 400,
   enemySpawn: Object.freeze({
-    x: firstContactDfw.x - firstContactDfw.x / firstContactBearing * 20_000,
-    z: firstContactDfw.z - firstContactDfw.z / firstContactBearing * 20_000,
+    x: firstContactDfw.x + 300,
+    z: firstContactDfw.z - 6_500,
   }),
 });
 
 const baseJourneyDallas14 = Object.freeze({
   id: 'journey-dallas-14', cityId: 'dallas', name: 'SURPRISE ATTACK',
-  chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_800,
+  chapter: 'SKY HUNTERS', timeLimitMs: 80_000, firstClearCredits: 1_800,
   startAirportId: 'love', enemyAircraft: 'trainer', enemyLivery: 'bluejay-aurora',
   enemyHealth: 150, enemyAltitude: 800, aggressionDistance: 10_000,
   patrolRadius: 1_500, cruiseSpeed: 460, warningMs: 3_000, rearApproachMs: 18_000,
-  // Northbound from Love Field with a 4 km lateral offset; exactly 20 km horizontal.
-  enemySpawn: Object.freeze({ x: -5_140 - 4_000, z: -7_780 - Math.sqrt(20_000 ** 2 - 4_000 ** 2) }),
+  // Trailing Love Field’s northbound departure, 16 km from the airport center.
+  enemySpawn: Object.freeze({ x: -5_140 - 600, z: -7_780 + Math.sqrt((16_000 / 3) ** 2 - 600 ** 2) }),
 });
 
 const baseJourneyDallas15 = Object.freeze({
