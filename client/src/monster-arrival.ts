@@ -162,9 +162,10 @@ export class MonsterArrivalView {
   /** Camera-only aftermath of a server-confirmed M19 timeout. */
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
     if((this.stationary||this.striking)&&this.ending==='defeat'){
-      const root=this.creature.root.position;
-      camera.position.set(root.x+ashenWarlordHeight*1.5,root.y+ashenWarlordHeight*.9,root.z+ashenWarlordHeight*2.1);
-      camera.lookAt(root.x,root.y+ashenWarlordHeight*.5,root.z);return;
+      const root=this.creature.root;
+      // The supplied model faces local +Z; keep the close shot in front at any combat yaw.
+      camera.position.set(0,ashenWarlordHeight*.7,ashenWarlordHeight*1.47).applyQuaternion(root.quaternion).add(root.position);
+      camera.lookAt(root.position.x,root.position.y+ashenWarlordHeight*.5,root.position.z);return;
     }
     if(!this.crimsonCore||this.ending!=='timeout')return;
     const root=this.creature.root,height=ashenWarlordHeight;

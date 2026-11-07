@@ -1801,6 +1801,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-result-actions [data-journey-exit] { color: #f6fbff; border-color: #35d6ff; background: linear-gradient(#1e4d7a,#163458); }
 .journey-result-actions button[hidden] { display: none; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-heading] { display: none; }
+.journey-result.is-terminal.is-failure .journey-result-card [data-journey-result-heading] { display: block; margin: 0 0 6px; color: #315f7a; font-size: clamp(13px, 1.6vw, 18px); line-height: 1.1; }
 .journey-result.is-terminal .journey-result-card h2 { margin: 0; color: #0b2345; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: .015em; }
 .journey-result.is-terminal .journey-result-card > strong { margin: 2px 0 10px; color: #315f7a; font-size: clamp(16px, 2vw, 23px); line-height: 1.1; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-detail] { margin: 0 0 9px; padding: 12px; border: 1px solid #d7e2e9; border-radius: 11px; color: #31536e; background: linear-gradient(#f8fbfd, #e9f2f8); font-size: clamp(11px, 1.2vw, 14px); }
