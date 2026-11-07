@@ -32,6 +32,7 @@ import { PlayerProfileStore, normalizePilotName, type LegacyProfileImport, type 
 import type { XpAwardResult } from './pilot-xp-ledger.js';
 import { PilotProfileSummaryStore } from './pilot-profile-summary.js';
 import { cityCapabilities, routeDefinition, nearestCityAirport } from '../../shared/city-registry.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { cityDiscoveries } from '../../shared/city-discoveries.mjs';
 import { aircraftPresentationMuzzleSockets } from '../../shared/aircraft-presentation-scale.mjs';
 import { primaryTerritoryAt, territoriesForCity, territoryContains, territoryMembershipTransition, type CityTerritory } from '../../shared/city-territories.mjs';
@@ -310,10 +311,11 @@ const dallasTerrain = (() => {
   const sample = (x: number, z: number) => data.baseElevation + samples[z * data.width + x] * data.scale;
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const elevationAt = (worldX: number, worldZ: number) => {
-    const x = Math.max(0, Math.min(1, (worldX - data.bounds.minX) / (data.bounds.maxX - data.bounds.minX))) * (data.width - 1);
-    const z = Math.max(0, Math.min(1, (worldZ - data.bounds.minZ) / (data.bounds.maxZ - data.bounds.minZ))) * (data.height - 1);
+    const sourceX = worldX / DALLAS_WORLD_SCALE, sourceZ = worldZ / DALLAS_WORLD_SCALE;
+    const x = Math.max(0, Math.min(1, (sourceX - data.bounds.minX) / (data.bounds.maxX - data.bounds.minX))) * (data.width - 1);
+    const z = Math.max(0, Math.min(1, (sourceZ - data.bounds.minZ) / (data.bounds.maxZ - data.bounds.minZ))) * (data.height - 1);
     const x0 = Math.floor(x), z0 = Math.floor(z), x1 = Math.min(data.width - 1, x0 + 1), z1 = Math.min(data.height - 1, z0 + 1);
-    return lerp(lerp(sample(x0, z0), sample(x1, z0), x - x0), lerp(sample(x0, z1), sample(x1, z1), x - x0), z - z0);
+    return lerp(lerp(sample(x0, z0), sample(x1, z0), x - x0), lerp(sample(x0, z1), sample(x1, z1), x - x0), z - z0) * DALLAS_WORLD_SCALE;
   };
   const airportElevations = new Map<string, number>([
     ...cityAirports.dallas.map(airport => [airport.id, elevationAt(airport.x, airport.z)] as [string, number]),
@@ -938,7 +940,7 @@ const eventTickMs = 250;
 const eventBroadcastMs = 500;
 const eventAvailableMinMs = 240_000;
 const eventAvailableMaxMs = 480_000;
-const eventActiveMs = 90_000;
+const eventActiveMs = 90_000 * DALLAS_WORLD_SCALE;
 const eventTerminalMs = 5_000;
 const eventCooldownMinMs = 24_000;
 const eventCooldownMaxMs = 48_000;
@@ -2945,7 +2947,7 @@ type CityEventTemplate = {
 // Geographic event anchors are city-owned.  Milwaukee deliberately has no
 // Chaos Director template yet, so a Dallas route or drop can never leak into
 // a different world coordinate system.
-const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = [
+const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = ([
   {
     type: 'stormLanding', name: `STORM LANDING · ${place.love}`, rewardScore: 260, rewardCredits: 180,
     objective: { x: -5_140, y: 240, z: -7_780 }, targetAirportId: 'love', durationMs:180_000, rarity: 'normal', weight: 32,
@@ -3045,7 +3047,11 @@ const dallasEventTemplates: ReadonlyArray<CityEventTemplate> = [
     route: [{ x: -7_400, y: 640, z: 3_000 }, { x: -2_600, y: 680, z: 950 }, { x: 2_000, y: 590, z: -1_600 }],
     routeSpeed: 42, rarity: 'rare', weight: 5,
   },
-];
+] satisfies CityEventTemplate[]).map(template => ({ ...template,
+  objective: { x: template.objective.x * DALLAS_WORLD_SCALE, y: template.objective.y * DALLAS_WORLD_SCALE, z: template.objective.z * DALLAS_WORLD_SCALE },
+  route: template.route?.map(point => ({ x: point.x * DALLAS_WORLD_SCALE, y: point.y * DALLAS_WORLD_SCALE, z: point.z * DALLAS_WORLD_SCALE })),
+  durationMs: template.durationMs === undefined ? undefined : template.durationMs * DALLAS_WORLD_SCALE,
+}));
 
 const eventTemplatesByCity: Partial<Record<CityId, ReadonlyArray<CityEventTemplate>>> = {
   dallas: dallasEventTemplates,
@@ -6347,7 +6353,7 @@ function createBot(cityId: CityId, defenseSpawn?: { territory: CityTerritory; at
   if (journeySpawn?.ace) bot.route = [
     { x: -5_140, y: spawnY, z: -12_000 }, { x: -6_240, y: spawnY, z: -13_300 },
     { x: -5_140, y: spawnY, z: -14_600 }, { x: -4_040, y: spawnY, z: -13_300 },
-  ].map(point => safeBotWaypoint(cityId, { x: spawnX, y: spawnY, z: spawnZ }, point, journeyAceClearance));
+  ].map(point => safeBotWaypoint(cityId, { x: spawnX, y: spawnY, z: spawnZ }, { ...point, x: point.x * DALLAS_WORLD_SCALE, z: point.z * DALLAS_WORLD_SCALE }, journeyAceClearance));
   if(pursuitSpawn)bot.route=[{x:spawnX+1500,y:spawnY,z:spawnZ},{x:spawnX,y:spawnY,z:spawnZ+1500},
     {x:spawnX-1500,y:spawnY,z:spawnZ},{x:spawnX,y:spawnY,z:spawnZ-1500}];
   if (journeySpawn?.legendary) bot.route = [

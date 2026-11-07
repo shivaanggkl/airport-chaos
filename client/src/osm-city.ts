@@ -86,8 +86,12 @@ type BuildingMassing = {
 const streamedChunkGroups: StreamedChunkGroups[] = [];
 // Existing mapped west-Downtown footprints, kept separate only so Mission 19
 // can reversibly replace them during its timeout presentation at every LOD.
-import {monsterDamageSites} from '../../shared/m19-environment.mjs';
-export {monsterDamageSites};
+import {monsterDamageSites as scaledMonsterDamageSites} from '../../shared/m19-environment.mjs';
+import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
+export const monsterDamageSites = scaledMonsterDamageSites.map(site => ({ ...site,
+  x: site.x / DALLAS_WORLD_SCALE, z: site.z / DALLAS_WORLD_SCALE,
+  y: site.y / DALLAS_WORLD_SCALE, width: site.width / DALLAS_WORLD_SCALE,
+  depth: site.depth / DALLAS_WORLD_SCALE }));
 const monsterTargetMeshes = new Set<THREE.Mesh>();
 let monsterDamageActive = false;
 export function setMappedMonsterDamage(active: boolean): void {

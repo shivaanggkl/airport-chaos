@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { cityMissionCatalog, missionForCity } from '../../shared/city-missions.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { territoriesForCity } from '../../shared/city-territories.mjs';
 import { pilotXpRewards } from '../../shared/pilot-progression.mjs';
 import { advanceMission, initializeMissionAttempt } from './mission-engine.js';
@@ -24,7 +25,7 @@ test('Dallas catalog remains complete and city-scoped starter missions exist in 
     [3000, 4000], [5000, 6500], [6000, 7500], [10000, 12500], [15000, 20000], [2000, 2500],
   ]);
   assert.deepEqual(cityMissionCatalog.milwaukee.map((mission) => mission.id), ['first-flight', 'straight-run']);
-  assert.equal(missionForCity('dallas', 'straight-run')?.requirements.meters, 24_000);
+  assert.equal(missionForCity('dallas', 'straight-run')?.requirements.meters, 24_000 * DALLAS_WORLD_SCALE);
   assert.equal(missionForCity('milwaukee', 'straight-run')?.requirements.meters, 24_000);
   assert.equal(missionForCity('dallas', 'stunt-training')?.retired, true);
   assert.equal(missionForCity('dallas', 'speed-course'), undefined);
@@ -213,10 +214,10 @@ test('Dallas Grand Tour is ordered and resets only its continuous flight steps',
   state = advanceMission(mission, state, { type: 'landing', at: 14_500, airportId: 'love', quality: 800, controlledTerritories: new Set() }).attempt;
   assert.equal(state.distanceMeters, 0);
   state = advanceMission(mission, state, flight(15_000, 0, 0, 200, 3_500)).attempt;
-  state = advanceMission(mission, state, flight(16_000, 0, 0, 305, 500)).attempt;
-  assert.equal(state.distanceMeters, 0, 'climbing above 1,000 ft resets low-flight distance');
-  state = advanceMission(mission, state, flight(17_000, 0, 0, 200, 3_000)).attempt;
-  state = advanceMission(mission, state, flight(18_000, 0, 0, 200, 3_000)).attempt;
+  state = advanceMission(mission, state, flight(16_000, 0, 0, steps[9].maximumAltitudeMeters! + 1, 500)).attempt;
+  assert.equal(state.distanceMeters, 0, 'climbing above the Dallas low-flight ceiling resets distance');
+  state = advanceMission(mission, state, flight(17_000, 0, 0, 200, steps[9].meters! / 2)).attempt;
+  state = advanceMission(mission, state, flight(18_000, 0, 0, 200, steps[9].meters! / 2)).attempt;
   assert.equal(state.progress, 10);
   const downtown = steps[10];
   state = advanceMission(mission, state, flight(20_000, downtown.x!, downtown.z!, 120)).attempt;

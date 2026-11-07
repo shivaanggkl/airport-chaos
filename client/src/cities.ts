@@ -1,4 +1,5 @@
 import type { CityTimeOfDay } from './city-visuals';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 
 export type CityId = 'milwaukee' | 'dallas';
 export type CityStatus = 'available' | 'coming-soon';
@@ -61,10 +62,10 @@ export const cities: readonly CityDefinition[] = [
     displayName: 'Dallas',
     status: 'available',
     spawn: { airportId: 'dfw' },
-    spawnBrandPlacement: { forwardDistance: 3000, clearanceAgl: 50, width: 420, height: 144, campaignId: 'airport-chaos' },
-    bounds: { minX: -25_000, maxX: 25_000, minZ: -25_000, maxZ: 25_000 },
+    spawnBrandPlacement: { forwardDistance: 3000 * DALLAS_WORLD_SCALE, clearanceAgl: 50 * DALLAS_WORLD_SCALE, width: 420 * DALLAS_WORLD_SCALE, height: 144 * DALLAS_WORLD_SCALE, campaignId: 'airport-chaos' },
+    bounds: { minX: -25_000 * DALLAS_WORLD_SCALE, maxX: 25_000 * DALLAS_WORLD_SCALE, minZ: -25_000 * DALLAS_WORLD_SCALE, maxZ: 25_000 * DALLAS_WORLD_SCALE },
     timePresets: ['day', 'dusk', 'evening'],
-    loadWorld: () => import('./dallas-world'),
+    loadWorld: async () => (await import('./dallas-scaled-world')).scaledDallasWorld,
   },
 ];
 

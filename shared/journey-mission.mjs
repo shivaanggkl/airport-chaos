@@ -2,10 +2,11 @@ import { transportTuning } from './giant-incoming.mjs';
 import { remoteAircraftScale } from './remote-aircraft-visual-rules.mjs';
 import { addisonClimbGates } from './city-challenges.mjs';
 import { cityAirports } from './city-airports.mjs';
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 
 export const journeyPauseLimitMs = 120_000;
 
-export const journeyDallas01 = Object.freeze({
+const baseJourneyDallas01 = Object.freeze({
   id: 'journey-dallas-01',
   cityId: 'dallas',
   name: 'ROOKIE RUSH',
@@ -29,7 +30,7 @@ export const journeyDallas01 = Object.freeze({
   ]),
 });
 
-export const journeyDallas02 = Object.freeze({
+const baseJourneyDallas02 = Object.freeze({
   id: 'journey-dallas-02', cityId: 'dallas', name: 'LAKE RACER',
   chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 150_000,
   airborneSpawn: Object.freeze({ x: -6_000, z: -14_000, altitude: 770, heading: -2.11, speed: 650 }),
@@ -48,7 +49,7 @@ export const journeyDallas02 = Object.freeze({
   ]),
 });
 
-export const journeyDallas03 = Object.freeze({
+const baseJourneyDallas03 = Object.freeze({
   id: 'journey-dallas-03', cityId: 'dallas', name: 'GOLDEN ASCENT',
   chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 450,
   airborneSpawn: Object.freeze({ x: -11_000, z: -20_000, altitude: 650, heading: -1.25, speed: 650 }),
@@ -67,7 +68,7 @@ export const journeyDallas03 = Object.freeze({
   ]),
 });
 
-export const journeyDallas04 = Object.freeze({
+const baseJourneyDallas04 = Object.freeze({
   id: 'journey-dallas-04', cityId: 'dallas', name: 'DOWNTOWN SLALOM',
   chapter: 'GOLDEN GATES', firstClearCredits: 500, timeLimitMs: 160_000,
   airborneSpawn: Object.freeze({ x: -8_500, z: -12_000, altitude: 850, heading: -2.36, speed: 650 }),
@@ -86,7 +87,7 @@ export const journeyDallas04 = Object.freeze({
   ]),
 });
 
-export const journeyDallas05 = Object.freeze({
+const baseJourneyDallas05 = Object.freeze({
   id: 'journey-dallas-05', cityId: 'dallas', name: 'NEEDLE RUSH',
   chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 600,
   airborneSpawn: Object.freeze({ x: -22_000, z: -14_000, altitude: 700, heading: -1.80, speed: 650 }),
@@ -105,7 +106,7 @@ export const journeyDallas05 = Object.freeze({
   ]),
 });
 
-export const journeyDallas06 = Object.freeze({
+const baseJourneyDallas06 = Object.freeze({
   id: 'journey-dallas-06', cityId: 'dallas', name: 'GOLDEN CHAMPIONSHIP',
   chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 750,
   airborneSpawn: Object.freeze({ x: 7_000, z: -14_000, altitude: 760, heading: 3.00, speed: 650 }),
@@ -124,13 +125,13 @@ export const journeyDallas06 = Object.freeze({
   ]),
 });
 
-export const journeyDallas07 = Object.freeze({
+const baseJourneyDallas07 = Object.freeze({
   id: 'journey-dallas-07', cityId: 'dallas', name: 'GIANT PLANE',
   chapter: 'SKY SIEGE', timeLimitMs: transportTuning.durationMs, firstClearCredits: 850,
   startAirportId: 'dfw', gates: Object.freeze([]), bossHealth: transportTuning.health,
 });
 
-export const journeyDallas08 = Object.freeze({
+const baseJourneyDallas08 = Object.freeze({
   id: 'journey-dallas-08', cityId: 'dallas', name: 'GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 950,
   startAirportId: 'dfw', timeLimitMs: 300_000, bossHealth: transportTuning.health,
@@ -154,7 +155,7 @@ export const journeyDallas08 = Object.freeze({
   ]),
 });
 
-export const journeyDallas09 = Object.freeze({
+const baseJourneyDallas09 = Object.freeze({
   id: 'journey-dallas-09', cityId: 'dallas', name: 'GIANT PLANE & THREE ESCORTS',
   chapter: 'SKY ADVENTURES', firstClearCredits: 1_050,
   startAirportId: 'dfw', timeLimitMs: 330_000, bossHealth: transportTuning.health,
@@ -167,7 +168,7 @@ export const journeyDallas09 = Object.freeze({
   initialEscortBurstIntervalMs: 6_000, escortShotSpacingMs: 250, escortShotDamage: 10,
 });
 
-export const journeyDallas10 = Object.freeze({
+const baseJourneyDallas10 = Object.freeze({
   id: 'journey-dallas-10', cityId: 'dallas', name: 'GIANT PLANE & FOUR ESCORTS',
   chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_150,
   startAirportId: 'dfw', bossHealth: transportTuning.health,
@@ -181,7 +182,7 @@ export const journeyDallas10 = Object.freeze({
   gunShotSpacingMs: 250, gunShotDamage: 10,
 });
 
-export const journeyDallas11 = Object.freeze({
+const baseJourneyDallas11 = Object.freeze({
   id: 'journey-dallas-11', cityId: 'dallas', name: 'ARMORED GIANT PLANE',
   chapter: 'SKY ADVENTURES', timeLimitMs: 330_000, firstClearCredits: 1_250,
   startAirportId: 'dfw', turretHealth: 250, coreHealth: 1_500,
@@ -191,22 +192,22 @@ export const journeyDallas11 = Object.freeze({
   gunShotSpacingMs: 250, gunShotDamage: 10,
 });
 
-export const journeyDallas12 = Object.freeze({
+const baseJourneyDallas12 = Object.freeze({
   id: 'journey-dallas-12', cityId: 'dallas', name: 'ARMORED GIANT PLANE & TWO ESCORTS',
   chapter: 'SKY ADVENTURES', timeLimitMs: 360_000, firstClearCredits: 1_500,
-  startAirportId: 'dfw', turretHealth: journeyDallas11.turretHealth, coreHealth: 1_750,
-  escortCount: 2, escortScale: journeyDallas10.escortScale,
+  startAirportId: 'dfw', turretHealth: baseJourneyDallas11.turretHealth, coreHealth: 1_750,
+  escortCount: 2, escortScale: baseJourneyDallas10.escortScale,
   escortHealth: Object.freeze([175, 225]),
   escortAircraft: Object.freeze(['privateJet', 'fighter']),
   escortLiveries: Object.freeze(['nightowl-forest', 'firehawk-inferno']),
-  escortFireDelayMs: journeyDallas10.escortFireDelayMs,
-  escortBurstIntervalMs: journeyDallas10.escortBurstIntervalMs,
-  escortShotSpacingMs: journeyDallas10.escortShotSpacingMs,
-  escortShotDamage: journeyDallas10.escortShotDamage,
-  gunBurstIntervalMs: journeyDallas11.gunBurstIntervalMs,
-  gunWarningMs: journeyDallas11.gunWarningMs,
-  gunShotSpacingMs: journeyDallas11.gunShotSpacingMs,
-  gunShotDamage: journeyDallas11.gunShotDamage,
+  escortFireDelayMs: baseJourneyDallas10.escortFireDelayMs,
+  escortBurstIntervalMs: baseJourneyDallas10.escortBurstIntervalMs,
+  escortShotSpacingMs: baseJourneyDallas10.escortShotSpacingMs,
+  escortShotDamage: baseJourneyDallas10.escortShotDamage,
+  gunBurstIntervalMs: baseJourneyDallas11.gunBurstIntervalMs,
+  gunWarningMs: baseJourneyDallas11.gunWarningMs,
+  gunShotSpacingMs: baseJourneyDallas11.gunShotSpacingMs,
+  gunShotDamage: baseJourneyDallas11.gunShotDamage,
 });
 
 // Northbound open-air corridor from Love Field. The wider rings and slight
@@ -214,7 +215,7 @@ export const journeyDallas12 = Object.freeze({
 // Keep the historical mission ID: this is displayed Journey slot 7.
 const firstContactDfw = { x: -22_800, z: -13_600 };
 const firstContactBearing = Math.hypot(firstContactDfw.x, firstContactDfw.z);
-export const journeyDallas13 = Object.freeze({
+const baseJourneyDallas13 = Object.freeze({
   id: 'journey-dallas-13', cityId: 'dallas', name: 'FIRST CONTACT',
   chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_650,
   startAirportId: 'dfw', enemyAircraft: 'privateJet', enemyLivery: 'nightowl-sunset-red',
@@ -226,7 +227,7 @@ export const journeyDallas13 = Object.freeze({
   }),
 });
 
-export const journeyDallas14 = Object.freeze({
+const baseJourneyDallas14 = Object.freeze({
   id: 'journey-dallas-14', cityId: 'dallas', name: 'SURPRISE ATTACK',
   chapter: 'SKY HUNTERS', timeLimitMs: 240_000, firstClearCredits: 1_800,
   startAirportId: 'love', enemyAircraft: 'trainer', enemyLivery: 'bluejay-aurora',
@@ -236,7 +237,7 @@ export const journeyDallas14 = Object.freeze({
   enemySpawn: Object.freeze({ x: -5_140 - 4_000, z: -7_780 - Math.sqrt(20_000 ** 2 - 4_000 ** 2) }),
 });
 
-export const journeyDallas15 = Object.freeze({
+const baseJourneyDallas15 = Object.freeze({
   id: 'journey-dallas-15', cityId: 'dallas', name: 'HOT PURSUIT',
   chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 300_000,
   startAirportId: 'addison', bossName: 'ESCAPING MAMMOTH', bossHealth: 200,
@@ -247,7 +248,7 @@ export const journeyDallas15 = Object.freeze({
 });
 
 // Two independently flying opponents share permission to initiate shots.
-export const journeyDallas16 = Object.freeze({
+const baseJourneyDallas16 = Object.freeze({
   id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
   firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:300_000,enemyHealth:100,aggressionDistance:10_000,
   enemies:Object.freeze([
@@ -258,7 +259,7 @@ export const journeyDallas16 = Object.freeze({
 });
 
 // A heavy, aggressive opponent uses the same single-enemy combat lifecycle.
-export const journeyDallas17 = Object.freeze({
+const baseJourneyDallas17 = Object.freeze({
   id: 'journey-dallas-17', cityId: 'dallas', name: 'IRON HUNTER', chapter: 'SKY HUNTERS', firstClearCredits: 2_250,
   startAirportId: 'executive', timeLimitMs: 360_000, enemyAircraft: 'cargo', enemyLivery: 'mammoth-desert-sand', enemyHealth: 250,
   enemyAltitude: 800, aggressionDistance: 10_000, patrolRadius: 2_000, cruiseSpeed: 400,
@@ -266,7 +267,7 @@ export const journeyDallas17 = Object.freeze({
 });
 
 // Chapter 2 finale; weapon pacing and damage are private to this encounter.
-export const journeyDallas18 = Object.freeze({
+const baseJourneyDallas18 = Object.freeze({
   id: 'journey-dallas-18', cityId: 'dallas', name: 'FINAL SHOWDOWN', chapter: 'SKY HUNTERS', firstClearCredits: 2_400,
   startAirportId: 'dfw', timeLimitMs: 420_000, enemyAircraft: 'fighter', enemyLivery: 'firehawk-inferno', enemyHealth: 300,
   enemyAltitude: 900, aggressionDistance: 10_000, patrolRadius: 2_500, cruiseSpeed: 600,
@@ -274,7 +275,7 @@ export const journeyDallas18 = Object.freeze({
   enemyDamage: 20, shotIntervalMs: 750, burstShots: 2, burstPauseMs: 2_000,
 });
 
-export const journeyDallas19 = Object.freeze({
+const baseJourneyDallas19 = Object.freeze({
   id: 'journey-dallas-19', cityId: 'dallas', name: 'FINAL MONSTER BATTLE',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 4_000, startAirportId:'dfw', runwayStart:true,
   prepareMs: 0, timeLimitMs: 300_000, bossHealth: 1_500,
@@ -283,46 +284,46 @@ export const journeyDallas19 = Object.freeze({
 });
 
 // Visible M19 keeps its approved beginner settings independently of the finale.
-export const journeyDallas25 = Object.freeze({...journeyDallas19,id:'journey-dallas-25',
+const baseJourneyDallas25 = Object.freeze({...baseJourneyDallas19,id:'journey-dallas-25',
  name:'MONSTER ARRIVAL',chapter:'CITY DEFENDERS',firstClearCredits:2550,timeLimitMs:240000,bossHealth:500,
- monster:Object.freeze({...journeyDallas19.monster,height:960}),
+ monster:Object.freeze({...baseJourneyDallas19.monster,height:960}),
 });
 
-export const journeyDallas20 = Object.freeze({
+const baseJourneyDallas20 = Object.freeze({
   id:'journey-dallas-20',cityId:'dallas',name:'MONSTER STRIKES',chapter:'LEGENDARY SKIES',firstClearCredits:2700,
-  prepareMs:0,timeLimitMs:240000,bossHealth:700,monster:Object.freeze({...journeyDallas19.monster,height:1920}),airborneSpawn:journeyDallas19.airborneSpawn,
+  prepareMs:0,timeLimitMs:240000,bossHealth:700,monster:Object.freeze({...baseJourneyDallas19.monster,height:1920}),airborneSpawn:baseJourneyDallas19.airborneSpawn,
   // Empty compatibility field: no gate can complete this boss mission.
   gates:Object.freeze([]),startAirportId:'dfw',runwayStart:true,
 });
 
-export const journeyDallas21 = Object.freeze({
+const baseJourneyDallas21 = Object.freeze({
   id: 'journey-dallas-21', cityId: 'dallas', name: 'MONSTER HUNT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 2_850,
-  startAirportId: 'love', prepareMs:0,timeLimitMs:240000,bossHealth:900,monster:journeyDallas20.monster,airborneSpawn:journeyDallas20.airborneSpawn,
+  startAirportId: 'love', prepareMs:0,timeLimitMs:240000,bossHealth:900,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
   // Compatibility metadata for historical territory records only.
   alphaTerritoryId: 'addison', bravoTerritoryId: 'dallas-executive',
   captureMs: 6_000, transferMs: 120_000,
 });
 
-export const journeyDallas22 = Object.freeze({
+const baseJourneyDallas22 = Object.freeze({
   id:'journey-dallas-22',cityId:'dallas',name:'MONSTER SHOWDOWN',chapter:'LEGENDARY SKIES',firstClearCredits:3000,
   startAirportId:'dfw',runwayStart:true,prepareMs:0,timeLimitMs:240000,bossHealth:1100,
-  monster:journeyDallas20.monster,airborneSpawn:journeyDallas19.airborneSpawn,
+  monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas19.airborneSpawn,
   // Compatibility fields never advance the retired landing objective.
   finishAirportId:'dfw',approachRestartZ:-23400,gates:Object.freeze([]),
 });
 
-export const journeyDallas23 = Object.freeze({
+const baseJourneyDallas23 = Object.freeze({
   id: 'journey-dallas-23', cityId: 'dallas', name: 'MONSTER PURSUIT',
   chapter: 'LEGENDARY SKIES', firstClearCredits: 3_150, startAirportId: 'love',
-  prepareMs:0,timeLimitMs:240000,bossHealth:1000,monster:journeyDallas20.monster,airborneSpawn:journeyDallas20.airborneSpawn,
+  prepareMs:0,timeLimitMs:240000,bossHealth:1000,monster:baseJourneyDallas20.monster,airborneSpawn:baseJourneyDallas20.airborneSpawn,
   // Compatibility metadata only; no aircraft or repair-heart objectives remain.
   hunterHealth: 200, heartId: 'mission-23-repair-heart', heartRadius: 115,
   hunterTwoDelayMs: 2_500,
 });
 
 // One forward route from Love Field into the open west side of downtown.
-export const journeyDallas24 = Object.freeze({
+const baseJourneyDallas24 = Object.freeze({
   id: 'journey-dallas-24', cityId: 'dallas', name: 'LEGENDARY CHAMPIONSHIP',
   chapter: 'LEGENDARY SKIES', startAirportId: 'love', finishAirportId: 'dfw',
   firstClearCredits: 4_000, bossHealth: 300,
@@ -332,6 +333,46 @@ export const journeyDallas24 = Object.freeze({
     { x: -9_500, z: -13_100, altitude: 620, radius: 82, normalX: -.825, normalY: .017, normalZ: -.565 },
   ]),
 });
+
+// Mission coordinates are authored against the unscaled Dallas source map.
+// Keep aircraft speed, handling, and model-local geometry unchanged.
+const scaleDallasJourney = mission => Object.freeze({
+  ...mission,
+  ...(mission.timeLimitMs === undefined || mission.id === 'journey-dallas-07' ? {} : { timeLimitMs: mission.timeLimitMs * DALLAS_WORLD_SCALE }),
+  ...(mission.airborneSpawn ? { airborneSpawn: Object.freeze({ ...scaleDallasPoint(mission.airborneSpawn), altitude: mission.airborneSpawn.altitude * DALLAS_WORLD_SCALE }) } : {}),
+  ...(mission.gates ? { gates: Object.freeze(mission.gates.map(gate => Object.freeze({ ...scaleDallasPoint(gate), altitude: gate.altitude * DALLAS_WORLD_SCALE, radius: gate.radius * DALLAS_WORLD_SCALE }))) } : {}),
+  ...(mission.leaderRoute ? { leaderRoute: Object.freeze(mission.leaderRoute.map(scaleDallasPoint)) } : {}),
+  ...(mission.escapeRoute ? { escapeRoute: Object.freeze(mission.escapeRoute.map(scaleDallasPoint)) } : {}),
+  ...(mission.enemySpawn ? { enemySpawn: Object.freeze(scaleDallasPoint(mission.enemySpawn)) } : {}),
+  ...(mission.enemies ? { enemies: Object.freeze(mission.enemies.map(enemy => Object.freeze({ ...scaleDallasPoint(enemy), altitude: enemy.altitude * DALLAS_WORLD_SCALE }))) } : {}),
+  ...(mission.monster ? { monster: Object.freeze(scaleDallasPoint(mission.monster)) } : {}),
+  ...Object.fromEntries(['enemyAltitude', 'aggressionDistance', 'patrolRadius', 'threatDistance', 'arrivalRadius', 'approachRestartZ'].filter(key => mission[key] !== undefined).map(key => [key, mission[key] * DALLAS_WORLD_SCALE])),
+});
+export const journeyDallas01 = scaleDallasJourney(baseJourneyDallas01);
+export const journeyDallas02 = scaleDallasJourney(baseJourneyDallas02);
+export const journeyDallas03 = scaleDallasJourney(baseJourneyDallas03);
+export const journeyDallas04 = scaleDallasJourney(baseJourneyDallas04);
+export const journeyDallas05 = scaleDallasJourney(baseJourneyDallas05);
+export const journeyDallas06 = scaleDallasJourney(baseJourneyDallas06);
+export const journeyDallas07 = scaleDallasJourney(baseJourneyDallas07);
+export const journeyDallas08 = scaleDallasJourney(baseJourneyDallas08);
+export const journeyDallas09 = scaleDallasJourney(baseJourneyDallas09);
+export const journeyDallas10 = scaleDallasJourney(baseJourneyDallas10);
+export const journeyDallas11 = scaleDallasJourney(baseJourneyDallas11);
+export const journeyDallas12 = scaleDallasJourney(baseJourneyDallas12);
+export const journeyDallas13 = scaleDallasJourney(baseJourneyDallas13);
+export const journeyDallas14 = scaleDallasJourney(baseJourneyDallas14);
+export const journeyDallas15 = scaleDallasJourney(baseJourneyDallas15);
+export const journeyDallas16 = scaleDallasJourney(baseJourneyDallas16);
+export const journeyDallas17 = scaleDallasJourney(baseJourneyDallas17);
+export const journeyDallas18 = scaleDallasJourney(baseJourneyDallas18);
+export const journeyDallas19 = scaleDallasJourney(baseJourneyDallas19);
+export const journeyDallas20 = scaleDallasJourney(baseJourneyDallas20);
+export const journeyDallas21 = scaleDallasJourney(baseJourneyDallas21);
+export const journeyDallas22 = scaleDallasJourney(baseJourneyDallas22);
+export const journeyDallas23 = scaleDallasJourney(baseJourneyDallas23);
+export const journeyDallas24 = scaleDallasJourney(baseJourneyDallas24);
+export const journeyDallas25 = scaleDallasJourney(baseJourneyDallas25);
 
 // The plane used by authoritative gate crossings.
 export function journeyGatePlane(mission, gateIndex) {

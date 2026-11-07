@@ -1,24 +1,15 @@
 import * as THREE from 'three';
 import type { CityVisualQuality } from './city-visuals';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 
 type RiverSegment = { polygon?: readonly (readonly [number, number])[]; surfaceY: number };
 type ScenicObject = { group: THREE.Group; distance: number };
 
 // Visual scenery only: no collision, rewards, networking, or new render loop.
-// The existing low balloons stay in place; the added grid spans roughly
-// 5k–45k ft across Dallas without introducing moving or networked entities.
+// A few local balloons add life near the ground without filling the skyline.
 const balloonSites: ReadonlyArray<readonly [number, number, number]> = [
-  [-18_000, -4_000, 730], [-15_000, 12_000, 1_650], [-11_000, -16_000, 1_120],
-  [-9_000, 7_000, 2_650], [-3_000, -16_000, 1_850], [-1_000, 19_000, 950],
-  [3_000, -12_500, 820], [3_500, 9_000, 1_700], [8_500, 18_000, 2_950],
-  [11_000, -5_000, 2_450], [14_000, 5_000, 1_200], [18_000, -15_000, 2_900],
-  [19_000, 15_000, 1_600], [-20_000, 17_000, 2_500],
-  ...[1_650, 7_700, 13_716].flatMap((altitude, band) =>
-    [-19_000, -6_000, 7_000, 20_000].flatMap((x) =>
-      [-19_000, -6_000, 7_000, 20_000].map((z) =>
-        [x + 2_200, z - 2_000, altitude + (band === 0 ? 150 : 0)] as const),
-    ),
-  ),
+  [-18_000, -4_000, 730], [-11_000, -16_000, 1_120], [-1_000, 19_000, 950],
+  [3_000, -12_500, 820], [14_000, 5_000, 1_200],
 ];
 
 export class DallasScenery {
@@ -51,8 +42,8 @@ export class DallasScenery {
     balloonSites.forEach(([x, z, altitude], index) => {
       const group = new THREE.Group();
       group.name = `dallas-balloon-${index + 1}`;
-      group.position.set(x, heightAt(x, z) + altitude, z);
-      group.scale.setScalar(altitude >= 7_000 ? 6.4 : 4);
+      group.position.set(x, heightAt(x, z) + altitude / DALLAS_WORLD_SCALE, z);
+      group.scale.setScalar(0.36 / DALLAS_WORLD_SCALE);
       const envelope = new THREE.Mesh(this.balloonGeometry, this.envelopeMaterials[index % this.envelopeMaterials.length]);
       envelope.scale.set(29, 34, 29);
       group.add(envelope);
@@ -75,7 +66,8 @@ export class DallasScenery {
       for (const [boatIndex, t] of [0.3, 0.72].entries()) {
         const group = new THREE.Group();
         group.name = `dallas-trinity-boat-${index}-${boatIndex}`;
-        group.position.set(THREE.MathUtils.lerp(startX, endX, t), segment.surfaceY + 1.4, THREE.MathUtils.lerp(startZ, endZ, t));
+        group.position.set(THREE.MathUtils.lerp(startX, endX, t), segment.surfaceY + 1.4 / DALLAS_WORLD_SCALE, THREE.MathUtils.lerp(startZ, endZ, t));
+        group.scale.setScalar(1 / DALLAS_WORLD_SCALE);
         group.rotation.y = Math.atan2(endX - startX, endZ - startZ) + (boatIndex ? Math.PI : 0);
         const hull = new THREE.Mesh(this.boxGeometry, boatIndex ? this.boatAccentMaterial : this.hullMaterial);
         hull.scale.set(9, 4, 25);
@@ -99,8 +91,8 @@ export class DallasScenery {
       objects.sort((a, b) => a.distance - b.distance);
       objects.forEach((object, index) => { object.group.visible = index < limit && object.distance < range; });
     };
-    updateVisible(this.balloons, 12_000, this.quality === 'high' ? 8 : 5);
-    updateVisible(this.boats, 6_500, this.quality === 'high' ? 10 : 6);
+    updateVisible(this.balloons, 4_500 / DALLAS_WORLD_SCALE, this.quality === 'high' ? 5 : 3);
+    updateVisible(this.boats, 6_500 / DALLAS_WORLD_SCALE, this.quality === 'high' ? 10 : 6);
   }
 
   dispose(): void {

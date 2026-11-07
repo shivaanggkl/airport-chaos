@@ -1,5 +1,6 @@
 // Compact runway validation data for authoritative server touchdown checks.
 // Rendering/world generation remains owned by each city world module.
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 export const aircraftGroundOffset = 1.2;
 export const cityAirports = {
   dallas: [
@@ -7,7 +8,7 @@ export const cityAirports = {
     { id: 'love', x: -5_140, z: -7_780, heading: 0, runwayWidth: 46, runwayLength: 2700 },
     { id: 'addison', x: -3_700, z: -21_100, heading: 0, runwayWidth: 38, runwayLength: 2200 },
     { id: 'executive', x: -6_700, z: 10_600, heading: 0, runwayWidth: 38, runwayLength: 1800 },
-  ],
+  ].map(airport => ({ ...scaleDallasPoint(airport), runwayWidth: airport.runwayWidth * DALLAS_WORLD_SCALE, runwayLength: airport.runwayLength * DALLAS_WORLD_SCALE })),
   milwaukee: [
     { id: 'central', x: 0, z: 0, heading: 0, runwayWidth: 45, runwayLength: 2800 },
     { id: 'coast', x: 5100, z: 3550, heading: 0, runwayWidth: 36, runwayLength: 1800 },

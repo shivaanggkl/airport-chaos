@@ -1,6 +1,7 @@
 // City-local geography belongs in data, while capture behavior stays generic
 // in the server. Coordinates use the same meter-based Dallas activity anchors.
 import { dallasDisplayNames } from './dallas-display-names.mjs';
+import { DALLAS_WORLD_SCALE, scaleDallasPoint, scaleDallasBounds } from './dallas-world-scale.mjs';
 export const TERRITORY_AREA_SCALE = 2;
 export const TERRITORY_LINEAR_SCALE = Math.sqrt(TERRITORY_AREA_SCALE);
 export const TERRITORY_WALL_HEIGHT_METERS = 914.4; // 3,000 ft × 0.3048 m/ft
@@ -69,7 +70,8 @@ export function primaryTerritoryAt(definitions, position) {
 export const cityTerritories = Object.fromEntries(Object.entries(baseCityTerritories).map(([cityId, territories]) => [cityId,
   territories.map((territory) => ({
     ...territory,
-    boundaryHeight: Math.max(territory.boundaryHeight ?? 0, TERRITORY_WALL_HEIGHT_METERS),
+    ...(cityId === 'dallas' ? { center: scaleDallasPoint(territory.center), bounds: scaleDallasBounds(territory.bounds) } : {}),
+    boundaryHeight: Math.max(territory.boundaryHeight ?? 0, TERRITORY_WALL_HEIGHT_METERS) * (cityId === 'dallas' ? DALLAS_WORLD_SCALE : 1),
   })),
 ]));
 

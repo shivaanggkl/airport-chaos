@@ -8,6 +8,8 @@ import { ballisticIntercept, ballisticShotSpeed } from '../../shared/protocol.mj
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { airAssaultManifest, airAssaultTiers, airAssaultRules, airAssaultAirports, airAssaultQueuePosition, airAssaultHearts } from '../../shared/air-assault.mjs';
+import { cityAirports } from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 const now = Date.UTC(2026, 10, 1, 12);
 function rig() {
   const pilot: AssaultPilot = { position: { x: -22800, y: 600, z: -13600 }, velocity: { x: 0, y: 0, z: -200 }, rotation: { x: 0, y: 0, z: 0 }, health: 200, maxHealth: 200, airborne: true, fresh: true };
@@ -37,7 +39,7 @@ test('30-enemy manifest has exact tiers, airport quotas, sequence and nonoverlap
   }
   assert.deepEqual(Object.values(airAssaultTiers).map(t => [t.health, t.ai.reactionMs, t.ai.trackingMs, t.ai.shotIntervalMs, t.ai.aimError]), [[100, 450, 750, 600, .0065], [150, 250, 400, 400, .003], [200, 45, 100, 165, .000625]]);
 });
-test('Intro/countdown freeze combat and timer; skip has one-second gate; only DFW takeoff starts eight minutes', () => {
+test('Intro/countdown freeze combat and timer; skip has one-second gate; only DFW takeoff starts the encounter clock', () => {
   const { encounter: e, pilot, tick } = rig();
   e.ready(now);
   e.skip(now + 999);
@@ -51,7 +53,7 @@ test('Intro/countdown freeze combat and timer; skip has one-second gate; only DF
   e.takeoff(now + 4100, 'love');
   assert.equal(e.startedAt, null);
   e.takeoff(now + 4200, 'dfw');
-  assert.equal(e.deadlineAt, now + 4200 + 480000);
+  assert.equal(e.deadlineAt, now + 4200 + airAssaultRules.durationMs);
   e.ready(now + 6000);
   e.skip(now + 6000);
   assert.equal(e.phase, 'active');
@@ -292,9 +294,9 @@ test('In-flight enemy bullets retain a firing slot across leases and attacks are
   assert.ok(fired.length>0);assert.ok(warned.length>0);assert.equal(new Set(fired).size,2);
 });
 test('All three airports reach a slow airborne Bluejay without spending the battle in transit',()=>{
-  const r=rig();r.pilot.velocity={x:0,y:0,z:-180};r.start();const arrivals=new Map<string,number>();
-  for(let time=now+4150;time<now+60000;time+=50){r.tick(time);for(const e of r.encounter.active())if(e.phase==='combat'&&Math.hypot(e.position.x-r.pilot.position.x,e.position.z-r.pilot.position.z)<4500&&!arrivals.has(e.airportId))arrivals.set(e.airportId,time-now);}
-  assert.equal(arrivals.size,3);assert.ok(Math.max(...arrivals.values())<55000);
+  const r=rig();r.pilot.position={x:cityAirports.dallas[0].x,y:600*DALLAS_WORLD_SCALE,z:cityAirports.dallas[0].z};r.pilot.velocity={x:0,y:0,z:-180};r.start();const arrivals=new Map<string,number>();
+  for(let time=now+4150;time<now+60000*DALLAS_WORLD_SCALE;time+=50){r.tick(time);for(const e of r.encounter.active())if(e.phase==='combat'&&Math.hypot(e.position.x-r.pilot.position.x,e.position.z-r.pilot.position.z)<4500&&!arrivals.has(e.airportId))arrivals.set(e.airportId,time-now);}
+  assert.equal(arrivals.size,3);assert.ok(Math.max(...arrivals.values())<55000*DALLAS_WORLD_SCALE);
 });
 
 test('Observed-bank prediction hits a sustained turn with one straight shot, but a changed bank evades it',()=>{
@@ -312,12 +314,12 @@ test('Observed-bank prediction hits a sustained turn with one straight shot, but
 
 test('Legendary runway travel overlaps while only one attacks; the fifth arrives before the deadline', () => {
   const r = rig(); r.start();
-  r.pilot.position = { x: -15000, y: 650, z: -10500 };
+  r.pilot.position = { x: airAssaultHearts[0].x, y: airAssaultHearts[0].y, z: airAssaultHearts[0].z };
   r.pilot.velocity = { x: 0, y: 0, z: 0 };
   const launches = new Map<string, number>(), arrivals = new Map<string, number>();
   const legendIds = new Set(r.encounter.enemies.filter(e => e.tier === 'legendary').map(e => e.id));
   let firstAttacker: string | undefined, relieved = false;
-  for (let elapsed = 50; elapsed <= 320000; elapsed += 50) {
+  for (let elapsed = 50; elapsed <= 320000 * DALLAS_WORLD_SCALE; elapsed += 50) {
     const time = now + 4100 + elapsed; r.tick(time);
     const active = r.encounter.active();
     assert.ok(active.length <= 4);
@@ -336,7 +338,7 @@ test('Legendary runway travel overlaps while only one attacks; the fifth arrives
         r.encounter.defeated(e.id, time);
     }
     const legendShots = r.shots.filter(shot => legendIds.has(shot.id));
-    if (!relieved && elapsed >= 265000) {
+    if (!relieved && elapsed >= 265000 * DALLAS_WORLD_SCALE) {
       assert.equal(r.encounter.destroyed, 25);
       assert.equal(active.filter(e => e.tier === 'legendary').length, 4, 'free slots prefetch real Legendary departures');
       const shooters = new Set(legendShots.map(shot => shot.id));
@@ -347,13 +349,13 @@ test('Legendary runway travel overlaps while only one attacks; the fifth arrives
     }
   }
   assert.equal(launches.size, 30);
-  assert.equal(arrivals.size, 30, 'every aircraft physically reaches firing range before eight minutes');
+  assert.equal(arrivals.size, 30, 'every aircraft physically reaches firing range before the scaled deadline');
   const fifth = r.encounter.enemies[29]!;
-  assert.ok(launches.get(fifth.id)! < 267000, 'fifth departure no longer waits until 7:45');
-  assert.ok(arrivals.get(fifth.id)! < 320000);
-  const successors = new Set(r.shots.filter(s => s.at > now+4100+265000 && legendIds.has(s.id)).map(s => s.id));
+  assert.ok(launches.get(fifth.id)! < 267000 * DALLAS_WORLD_SCALE, 'fifth departure reaches the enlarged arena before the deadline');
+  assert.ok(arrivals.get(fifth.id)! < 320000 * DALLAS_WORLD_SCALE);
+  const successors = new Set(r.shots.filter(s => s.at > now+4100+265000 * DALLAS_WORLD_SCALE && legendIds.has(s.id)).map(s => s.id));
   assert.equal(successors.size, 1); assert.ok(!successors.has(firstAttacker!));
-  for (const e of r.encounter.active()) r.encounter.defeated(e.id, now+4100+320001);
+  for (const e of r.encounter.active()) r.encounter.defeated(e.id, now+4100+320000 * DALLAS_WORLD_SCALE+1);
   assert.equal(r.encounter.destroyed, 30); assert.equal(r.encounter.result, 'full');
 });
 

@@ -3,6 +3,7 @@
 import { dallasDisplayNames as name } from './dallas-display-names.mjs';
 import { cityRegistry } from './city-registry.mjs';
 import { territoriesForCity } from './city-territories.mjs';
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 
 const dallasTerritories = territoriesForCity('dallas');
 const dallasTerritoryStep = (id, label) => {
@@ -11,20 +12,20 @@ const dallasTerritoryStep = (id, label) => {
   return Object.freeze({ id, kind: 'area', label, x: territory.center.x, z: territory.center.z, bounds: territory.bounds });
 };
 const dallasHalfWorld = cityRegistry.dallas.worldSize / 2;
-const dallasEdge = dallasHalfWorld - 2_000;
+const dallasEdge = dallasHalfWorld - 2_000 * DALLAS_WORLD_SCALE;
 const dallasGrandTourSteps = Object.freeze([
   dallasTerritoryStep('downtown', 'DOWNTOWN DALLAS'),
   dallasTerritoryStep('love-field', `${name.love} AREA`),
   dallasTerritoryStep('las-colinas', name.lasColinas),
   dallasTerritoryStep('dallas-executive', `${name.executive} AREA`),
-  Object.freeze({ id: 'northwest-edge', kind: 'checkpoint', label: 'NORTHWEST EDGE', x: -dallasEdge, z: -dallasEdge, radius: 1_800 }),
-  Object.freeze({ id: 'northeast-edge', kind: 'checkpoint', label: 'NORTHEAST EDGE', x: dallasEdge, z: -dallasEdge, radius: 1_800 }),
-  Object.freeze({ id: 'southeast-edge', kind: 'checkpoint', label: 'SOUTHEAST EDGE', x: dallasEdge, z: dallasEdge, radius: 1_800 }),
-  Object.freeze({ id: 'southwest-edge', kind: 'checkpoint', label: 'SOUTHWEST EDGE', x: -dallasEdge, z: dallasEdge, radius: 1_800 }),
+  Object.freeze({ id: 'northwest-edge', kind: 'checkpoint', label: 'NORTHWEST EDGE', x: -dallasEdge, z: -dallasEdge, radius: 1_800 * DALLAS_WORLD_SCALE }),
+  Object.freeze({ id: 'northeast-edge', kind: 'checkpoint', label: 'NORTHEAST EDGE', x: dallasEdge, z: -dallasEdge, radius: 1_800 * DALLAS_WORLD_SCALE }),
+  Object.freeze({ id: 'southeast-edge', kind: 'checkpoint', label: 'SOUTHEAST EDGE', x: dallasEdge, z: dallasEdge, radius: 1_800 * DALLAS_WORLD_SCALE }),
+  Object.freeze({ id: 'southwest-edge', kind: 'checkpoint', label: 'SOUTHWEST EDGE', x: -dallasEdge, z: dallasEdge, radius: 1_800 * DALLAS_WORLD_SCALE }),
   Object.freeze({ id: 'high-altitude', kind: 'altitude', label: 'HIGH ALTITUDE', minimumAltitudeMeters: 18_288 }),
-  Object.freeze({ id: 'low-flight', kind: 'lowDistance', label: 'LOW FLIGHT', maximumAltitudeMeters: 304.8, meters: 6_000 }),
-  Object.freeze({ id: 'downtown-low-pass', kind: 'areaHold', label: 'DOWNTOWN LOW PASS', x: -600, z: -450,
-    bounds: dallasTerritories.find((item) => item.id === 'downtown').bounds, maximumAltitudeMeters: 152.4, durationSeconds: 6 }),
+  Object.freeze({ id: 'low-flight', kind: 'lowDistance', label: 'LOW FLIGHT', maximumAltitudeMeters: 304.8 * DALLAS_WORLD_SCALE, meters: 6_000 * DALLAS_WORLD_SCALE }),
+  Object.freeze({ id: 'downtown-low-pass', kind: 'areaHold', label: 'DOWNTOWN LOW PASS', ...scaleDallasPoint({ x: -600, z: -450 }),
+    bounds: dallasTerritories.find((item) => item.id === 'downtown').bounds, maximumAltitudeMeters: 152.4 * DALLAS_WORLD_SCALE, durationSeconds: 6 }),
 ]);
 
 const mission = (number, id, type, displayName, description, difficulty, credits, score, requirements, cooldownMinutes, retired = false) => Object.freeze({
@@ -43,7 +44,7 @@ export const cityMissionCatalog = Object.freeze({
   dallas: Object.freeze([
     mission(1, 'first-flight', 'airborneHold', 'FIRST FLIGHT — DALLAS', 'Stay alive, connected, and airborne in Dallas for 60 seconds.', 'EASY', 15, 25, { durationSeconds: 60 }, 10),
     mission(2, 'first-landing', 'destinationLanding', 'FIRST LANDING', `Land safely at ${name.love}.`, 'EASY', 40, 50, { airportId: 'love' }, 10),
-    mission(3, 'straight-run', 'straightDistance', 'STRAIGHT RUN — DALLAS', 'Fly 24 km without landing and stay roughly on the same heading.', 'EASY', 60, 75, { meters: 24_000, maxHeadingErrorRadians: 0.17 }, 10),
+    mission(3, 'straight-run', 'straightDistance', 'STRAIGHT RUN — DALLAS', `Fly ${24 * DALLAS_WORLD_SCALE} km without landing and stay roughly on the same heading.`, 'EASY', 60, 75, { meters: 24_000 * DALLAS_WORLD_SCALE, maxHeadingErrorRadians: 0.17 }, 10),
     mission(4, 'stunt-training', 'stuntPair', 'STUNT TRAINING', 'Do one Barrel Roll and one Quick Dodge in the same flight.', 'EASY', 75, 100, { maneuvers: ['barrelRoll', 'quickDodge'] }, 10, true),
     mission(5, 'airport-tour', 'airportLandings', 'AIRPORT TOUR', 'Land at all four Dallas airports, in any order.', 'MEDIUM', 350, 400, { airportIds: ['dfw', 'love', 'addison', 'executive'] }, 15),
     mission(7, 'first-hunter', 'assignedHunter', 'FIRST HUNTER', 'Destroy your marked AI Hunter.', 'MEDIUM', 250, 350, { personality: 'hunter' }, 15),

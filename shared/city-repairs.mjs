@@ -1,4 +1,5 @@
 // Gameplay-only city anchors: rendering is client-owned, validation is server-owned.
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 export const cityRepairBeacons = Object.freeze({
   dallas: [
     { id: 'dfw-service', x: -21_350, z: -12_100, radius: 105, maxAltitude: 180 },
@@ -15,7 +16,9 @@ export const cityRepairBeacons = Object.freeze({
     { id: 'outer-northeast-heart', kind: 'heart', x: 18_000, z: -20_000, radius: 115, altitudeAgl: 381 },
     { id: 'outer-southeast-heart', kind: 'heart', x: 18_000, z: 18_000, radius: 115, altitudeAgl: 381 },
     { id: 'outer-southwest-heart', kind: 'heart', x: -21_000, z: 18_000, radius: 115, altitudeAgl: 381 },
-  ],
+  ].map(beacon => ({ ...scaleDallasPoint(beacon), radius: beacon.radius * DALLAS_WORLD_SCALE,
+    ...(beacon.maxAltitude !== undefined ? { maxAltitude: beacon.maxAltitude * DALLAS_WORLD_SCALE } : {}),
+    ...(beacon.altitudeAgl !== undefined ? { altitudeAgl: beacon.altitudeAgl * DALLAS_WORLD_SCALE } : {}) })),
   milwaukee: [
     { id: 'central-service', x: 640, z: 420, radius: 95, maxAltitude: 170 },
     { id: 'coast-service', x: 4_600, z: 3_120, radius: 90, maxAltitude: 170 },

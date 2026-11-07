@@ -7,6 +7,7 @@ import { PlayerWallet } from './player-wallet.js';
 import { airAssaultRules as rules, airAssaultTiers as tiers, airAssaultManifest, airAssaultAirports, airAssaultQueuePosition, airAssaultInside, airAssaultHearts, type AssaultTier, type AssaultVector as V, type AssaultEnemy, type AssaultSnapshot } from '../../shared/air-assault.mjs';
 import { ballisticIntercept, ballisticShotSpeed, COMBAT_RANGE, BASE_PROJECTILE_SPEED } from '../../shared/protocol.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 export class AirAssaultRewards {
   private db: DatabaseSync;
   private wallet: PlayerWallet;
@@ -356,9 +357,9 @@ export class AirAssaultEncounter {
         e.waypoint=plan.waypoint;e.combatTurnSign=plan.turnSign;targetSpeed=plan.cruise;
         e.dodgeAt=e.opponent.dodgeAt;e.dodgeUntil=e.opponent.dodgeUntil;
       }
-      e.waypoint.x=clamp(e.waypoint.x,-31400,4400);
-      e.waypoint.z=clamp(e.waypoint.z,-27400,16400);
-      e.waypoint.y=Math.min(8500,e.waypoint.y);
+      e.waypoint.x=clamp(e.waypoint.x,-31400 * DALLAS_WORLD_SCALE,4400 * DALLAS_WORLD_SCALE);
+      e.waypoint.z=clamp(e.waypoint.z,-27400 * DALLAS_WORLD_SCALE,16400 * DALLAS_WORLD_SCALE);
+      e.waypoint.y=Math.min(8500 * DALLAS_WORLD_SCALE,e.waypoint.y);
       e.expertControl=e.opponent.profile.tactics.expert;
       advanceHunterFlight({aircraftType:e.opponent.definition.aircraft,position:e.position,rotation:e.rotation,velocity:e.velocity},
         e,e.waypoint,targetSpeed,dt,(x,z)=>this.hooks.elevation(x,z)+170);

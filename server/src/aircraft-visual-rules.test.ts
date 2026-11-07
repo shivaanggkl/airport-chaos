@@ -12,6 +12,7 @@ import {
 } from '../../shared/aircraft-visual-rules.mjs';
 import { remoteAircraftScale } from '../../shared/remote-aircraft-visual-rules.mjs';
 import { aircraftPresentationScale } from '../../shared/aircraft-presentation-scale.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 
 const runwayRootClearance = 1.2;
 
@@ -49,16 +50,19 @@ test('per-aircraft wheel contacts remain at or above runway height through groun
   }
 });
 
-test('every aircraft clears both cities runway paint at gameplay presentation scale', () => {
+test('every aircraft clears original and scaled Dallas runway paint at gameplay presentation scale', () => {
   assert.ok(runwayVisualSurfaceOffset > 0.2495);
-  for (const [type, config] of Object.entries(aircraftVisualConfig)) {
-    const scale = aircraftPresentationScale[type as keyof typeof aircraftPresentationScale];
-    for (const pitch of [-0.08, 0, 0.07, 0.2]) {
-      const rootClearance = runwayRootClearance - runwayVisualSurfaceOffset;
-      const offset = groundContactVisualOffset(config.groundContacts, pitchQuaternion(pitch), rootClearance / scale) * scale;
-      const lowest = Math.min(...config.groundContacts.map((contact) =>
-        runwayRootClearance + scale * rotatedWorldY(contact, pitch, offset / scale)));
-      assert.ok(lowest >= runwayVisualSurfaceOffset - 1e-9, `${type} clips runway at pitch ${pitch}`);
+  for (const worldScale of [1, DALLAS_WORLD_SCALE]) {
+    const paintedSurface = runwayVisualSurfaceOffset * worldScale;
+    for (const [type, config] of Object.entries(aircraftVisualConfig)) {
+      const scale = aircraftPresentationScale[type as keyof typeof aircraftPresentationScale];
+      for (const pitch of [-0.08, 0, 0.07, 0.2]) {
+        const rootClearance = runwayRootClearance - paintedSurface;
+        const offset = groundContactVisualOffset(config.groundContacts, pitchQuaternion(pitch), rootClearance / scale) * scale;
+        const lowest = Math.min(...config.groundContacts.map((contact) =>
+          runwayRootClearance + scale * rotatedWorldY(contact, pitch, offset / scale)));
+        assert.ok(lowest >= paintedSurface - 1e-9, `${type} clips runway at scale ${worldScale} and pitch ${pitch}`);
+      }
     }
   }
 });
