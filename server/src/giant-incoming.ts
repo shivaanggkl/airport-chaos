@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
@@ -17,7 +18,7 @@ export function loadTransportBuildings(): Building[] {
         if (!name.endsWith('.json'))
             continue;
         const [cellX, cellZ] = name.replace('.json', '').split('_').map(Number);
-        if ((cellX! + 1) * 2000 < minX || cellX! * 2000 > maxX || (cellZ! + 1) * 2000 < minZ || cellZ! * 2000 > maxZ)
+        if ((cellX! + 1) * 2000 * DALLAS_WORLD_SCALE < minX || cellX! * 2000 * DALLAS_WORLD_SCALE > maxX || (cellZ! + 1) * 2000 * DALLAS_WORLD_SCALE < minZ || cellZ! * 2000 * DALLAS_WORLD_SCALE > maxZ)
             continue;
         const chunk = JSON.parse(readFileSync(new URL(name, dir), 'utf8')) as {
             b: number[][];
@@ -25,11 +26,11 @@ export function loadTransportBuildings(): Building[] {
         for (const b of chunk.b) {
             const xs = [], zs = [];
             for (let i = 4; i + 1 < b.length; i += 2) {
-                xs.push(b[i]!);
-                zs.push(b[i + 1]!);
+                    xs.push(b[i]! * DALLAS_WORLD_SCALE);
+                    zs.push(b[i + 1]! * DALLAS_WORLD_SCALE);
             }
             if (xs.length >= 3) {
-                const item = { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), top: b[0]! + b[3]! };
+                const item = { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), top: (b[0]! + b[3]!) * DALLAS_WORLD_SCALE };
                 if (item.maxX >= minX && item.minX <= maxX && item.maxZ >= minZ && item.minZ <= maxZ)
                     result.push(item);
             }

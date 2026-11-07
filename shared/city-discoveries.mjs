@@ -1,4 +1,5 @@
 /* Shared client/server discovery locations. Keep gameplay validation and display on one manifest. */
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 export const cityDiscoveries = Object.freeze({
   "milwaukee": [
     {
@@ -345,5 +346,6 @@ export const cityDiscoveries = Object.freeze({
       "mapVisible": false,
       "timePreset": "dusk"
     }
-  ]
+  ].map(discovery => ({ ...scaleDallasPoint(discovery), radius: discovery.radius * DALLAS_WORLD_SCALE,
+    minAltitude: discovery.minAltitude * DALLAS_WORLD_SCALE, maxAltitude: discovery.maxAltitude * DALLAS_WORLD_SCALE }))
 });

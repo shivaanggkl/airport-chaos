@@ -5,6 +5,7 @@ import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import { CombatMissionIntroPath } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
 import { journeyMissionSlot } from '../../shared/journey-mission.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { IntercityVisuals, disposeCityScene, prepareCityGpu, cityPreparationStep } from './intercity-visuals';
 import { portalForCity, portalModeAllowed, sweptPortalCrossing, portalRules, type PortalGate, type PortalPose } from '../../shared/intercity-portals.mjs';
 import { AirAssaultUi } from './air-assault';
@@ -292,8 +293,8 @@ const worldVisualQuality = new URLSearchParams(window.location.search).get('visu
 cityWorld.configureWorldVisuals?.({ quality: worldVisualQuality, timeOfDay: worldTimeOfDay });
 let SKY_COLOR: number = visualConfig.background;
 const CAMERA_NEAR = 2;
-let CAMERA_BASE_FAR = WORLD_SIZE > 20_000 ? 30_000 : 22_000;
-let CAMERA_HIGH_FAR = WORLD_SIZE > 20_000 ? 44_000 : 32_000;
+let CAMERA_BASE_FAR = isDallas ? 42_000 * DALLAS_WORLD_SCALE : WORLD_SIZE > 20_000 ? 30_000 : 22_000;
+let CAMERA_HIGH_FAR = isDallas ? 50_000 * DALLAS_WORLD_SCALE : WORLD_SIZE > 20_000 ? 44_000 : 32_000;
 const CAMERA_CHASE_FOV = 58;
 const CAMERA_TARGET_WIDTH_FRACTION = 0.305;
 const SKY_DOME_RADIUS = 18_000;
@@ -307,7 +308,7 @@ function groundPlaneY(x: number, z: number): number {
 
 function aircraftVisualGroundY(position: THREE.Vector3): number {
   return getTerrainHeight(position.x, position.z) +
-    (getAirportAtPosition(position) ? runwayVisualSurfaceOffset : 0);
+    (getAirportAtPosition(position) ? runwayVisualSurfaceOffset * (isDallas ? DALLAS_WORLD_SCALE : 1) : 0);
 }
 
 function altitudeAboveTerrain(): number {
@@ -6737,11 +6738,11 @@ function missionProgress(definition: CityMission, attempt: NetworkMissionAttempt
       return { text: `${prefix} · HIGH ALTITUDE: ${currentFeet.toLocaleString()} / ${targetFeet.toLocaleString()} FT`, value: attempt.progress, target: steps.length };
     }
     if (step.kind === 'lowDistance') {
-      return { text: `${prefix} · LOW FLIGHT: ${((attempt.distanceMeters ?? 0) / 1000).toFixed(1)} / ${((step.meters ?? 0) / 1000).toFixed(1)} KM · STAY BELOW 1,000 FT`, value: attempt.progress, target: steps.length };
+      return { text: `${prefix} · LOW FLIGHT: ${((attempt.distanceMeters ?? 0) / 1000).toFixed(1)} / ${((step.meters ?? 0) / 1000).toFixed(1)} KM · STAY BELOW ${Math.round((step.maximumAltitudeMeters ?? 0) / 0.3048).toLocaleString()} FT`, value: attempt.progress, target: steps.length };
     }
     if (step.kind === 'areaHold') {
       const heldSeconds = attempt.holdStartedAt ? Math.min(step.durationSeconds ?? 0, Math.max(0, (Date.now() - attempt.holdStartedAt) / 1000)) : 0;
-      return { text: `${prefix} · DOWNTOWN LOW PASS: ${heldSeconds.toFixed(1)} / ${(step.durationSeconds ?? 0).toFixed(1)}S · BELOW 500 FT`, value: attempt.progress, target: steps.length };
+      return { text: `${prefix} · DOWNTOWN LOW PASS: ${heldSeconds.toFixed(1)} / ${(step.durationSeconds ?? 0).toFixed(1)}S · BELOW ${Math.round((step.maximumAltitudeMeters ?? 0) / 0.3048).toLocaleString()} FT`, value: attempt.progress, target: steps.length };
     }
     const target = missionLocationTarget(definition, attempt);
     const distance = target ? Math.hypot(airplane.position.x - target.x, airplane.position.z - target.z) : 0;
@@ -9604,10 +9605,16 @@ function updateCamera(delta: number): void {
   const altitudeFactor = THREE.MathUtils.clamp(altitudeAboveTerrain() / 6000, 0, 1);
   const targetFar = THREE.MathUtils.lerp(CAMERA_BASE_FAR, CAMERA_HIGH_FAR, altitudeFactor);
   if ((!portalInTransit || portalTransition?.revealingAt !== undefined) && scene.fog instanceof THREE.Fog) {
-    const targetFogNear = WORLD_SIZE > 20_000
+    const targetFogNear = isDallas
+      ? THREE.MathUtils.lerp((worldTimeOfDay === 'evening' ? 6_000 : 10_000) * DALLAS_WORLD_SCALE,
+          (worldTimeOfDay === 'evening' ? 10_000 : 14_000) * DALLAS_WORLD_SCALE, altitudeFactor)
+      : WORLD_SIZE > 20_000
       ? THREE.MathUtils.lerp(worldTimeOfDay === 'evening' ? 3500 : 7000, worldTimeOfDay === 'evening' ? 7500 : 11_000, altitudeFactor)
       : THREE.MathUtils.lerp(4500, 9000, altitudeFactor);
-    const targetFogFar = WORLD_SIZE > 20_000
+    const targetFogFar = isDallas
+      ? THREE.MathUtils.lerp((worldTimeOfDay === 'evening' ? 32_000 : 38_000) * DALLAS_WORLD_SCALE,
+          (worldTimeOfDay === 'evening' ? 40_000 : 45_000) * DALLAS_WORLD_SCALE, altitudeFactor)
+      : WORLD_SIZE > 20_000
       ? THREE.MathUtils.lerp(worldTimeOfDay === 'evening' ? 19_000 : 28_000, worldTimeOfDay === 'evening' ? 32_000 : 38_000, altitudeFactor)
       : THREE.MathUtils.lerp(15_000, 30_000, altitudeFactor);
     if (Math.abs(scene.fog.near - targetFogNear) >= 10) scene.fog.near = targetFogNear;
@@ -9789,8 +9796,8 @@ async function performCityWorldReplacement(destination: CityId,signal:AbortSigna
     isDallas = cityId === 'dallas';
     ({ airports, centralAirport, createWorld, getTerrainHeight, regionBounds, WORLD_METERS_PER_UNIT, WORLD_SIZE } = module);
     document.querySelector<HTMLElement>('#practice-mode-label')!.hidden = soloExploreMode || !cityCapabilities(cityId)!.practiceMode;
-    CAMERA_BASE_FAR = WORLD_SIZE > 20000 ? 30000 : 22000;
-    CAMERA_HIGH_FAR = WORLD_SIZE > 20000 ? 44000 : 32000;
+    CAMERA_BASE_FAR = isDallas ? 42_000 * DALLAS_WORLD_SCALE : WORLD_SIZE > 20000 ? 30000 : 22000;
+    CAMERA_HIGH_FAR = isDallas ? 50_000 * DALLAS_WORLD_SCALE : WORLD_SIZE > 20000 ? 44000 : 32000;
     ({ spawnAirport, adPlacements } = resolveActiveCityAds());
     baseCityRules = cityCapabilities(cityId)!;
     cityRules = soloExploreMode ? { ...baseCityRules, practiceMode: false, progressionEnabled: false, competitiveEnabled: false, territoriesEnabled: false, tutorialEnabled: false } : baseCityRules;

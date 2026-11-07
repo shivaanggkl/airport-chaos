@@ -73,6 +73,7 @@ export type AdPlacement = {
   // against authored wall coordinates and must never grow ground posts.
   supportBaseY?: number;
   streamedMount?: boolean;
+  visibilityScale?: number;
   freestanding?: boolean;
   targetAircraftType?: 'trainer' | 'privateJet' | 'cargo' | 'fighter';
   blimpOrbit?: { radiusX: number; radiusZ: number; periodSeconds: number; phase?: number };
@@ -268,15 +269,13 @@ function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near
     context.fillStyle = creative.background ?? '#061b29';
     context.font = `900 ${Math.round(unit * (level === 'far' ? 0.55 : 0.43))}px Arial, sans-serif`;
     context.fillText(creative.mark ?? creative.headline[0] ?? 'A', canvas.width * 0.5, unit * 0.44);
-    if (level !== 'far') {
-      context.fillStyle = creative.foreground ?? '#fff8eb';
-      context.font = `800 ${Math.round(unit * 0.105)}px Arial, sans-serif`;
-      context.fillText(creative.headline, canvas.width * 0.5, unit * 0.76, canvas.width * 0.82);
-      if (level === 'near' && creative.subline) {
-        context.fillStyle = accent;
-        context.font = `700 ${Math.round(unit * 0.044)}px Arial, sans-serif`;
-        context.fillText(creative.subline, canvas.width * 0.5, unit * 0.87, canvas.width * 0.72);
-      }
+    context.fillStyle = creative.foreground ?? '#fff8eb';
+    context.font = `800 ${Math.round(unit * (level === 'far' ? 0.14 : 0.105))}px Arial, sans-serif`;
+    context.fillText(creative.headline, canvas.width * 0.5, unit * 0.76, canvas.width * 0.82);
+    if (level === 'near' && creative.subline) {
+      context.fillStyle = accent;
+      context.font = `700 ${Math.round(unit * 0.044)}px Arial, sans-serif`;
+      context.fillText(creative.subline, canvas.width * 0.5, unit * 0.87, canvas.width * 0.72);
     }
   } else if (portrait) {
     context.fillStyle = accent;
@@ -284,15 +283,13 @@ function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near
     context.fillStyle = creative.background ?? '#061b29';
     context.font = `900 ${Math.round(unit * 0.33)}px Arial, sans-serif`;
     context.fillText(creative.mark ?? creative.headline[0] ?? 'A', canvas.width * 0.5, unit * 0.25);
-    if (level !== 'far') {
-      context.fillStyle = creative.foreground ?? '#fff8eb';
-      context.font = `800 ${Math.round(unit * 0.105)}px Arial, sans-serif`;
-      context.fillText(creative.headline, canvas.width * 0.5, unit * 0.64, canvas.width * 0.91);
-      if (creative.subline) {
-        context.fillStyle = accent;
-        context.font = `700 ${Math.round(unit * 0.047)}px Arial, sans-serif`;
-        context.fillText(creative.subline, canvas.width * 0.5, unit * 0.78, canvas.width * 0.88);
-      }
+    context.fillStyle = creative.foreground ?? '#fff8eb';
+    context.font = `800 ${Math.round(unit * (level === 'far' ? 0.14 : 0.105))}px Arial, sans-serif`;
+    context.fillText(creative.headline, canvas.width * 0.5, unit * 0.64, canvas.width * 0.91);
+    if (level !== 'far' && creative.subline) {
+      context.fillStyle = accent;
+      context.font = `700 ${Math.round(unit * 0.047)}px Arial, sans-serif`;
+      context.fillText(creative.subline, canvas.width * 0.5, unit * 0.78, canvas.width * 0.88);
     }
     context.fillStyle = accent;
     context.fillRect(canvas.width * 0.08, unit * 0.9, canvas.width * 0.84, unit * 0.012);
@@ -302,20 +299,18 @@ function materialFor(creative: AdCreative, level: 'near' | 'mid' | 'far' = 'near
     context.fillStyle = creative.background ?? '#061b29';
     context.font = `900 ${Math.round(unit * 0.56)}px Arial, sans-serif`;
     context.fillText(creative.mark ?? creative.headline[0] ?? 'A', unit * 0.475, unit * 0.51, unit * 0.75);
-    if (level !== 'far') {
-      const textCenter = (unit * 0.95 + canvas.width) * 0.5;
-      context.fillStyle = creative.foreground ?? '#fff8eb';
-      context.font = `800 ${Math.round(unit * (level === 'near' ? 0.265 : 0.245))}px Arial, sans-serif`;
-      context.fillText(creative.headline, textCenter, unit * 0.4, canvas.width - unit * 1.2);
-      if (creative.subline) {
-        context.fillStyle = accent;
-        context.font = `700 ${Math.round(unit * 0.12)}px Arial, sans-serif`;
-        context.fillText(creative.subline, textCenter, unit * 0.68, canvas.width - unit * 1.3);
-      }
-      if (level === 'near') {
-        context.fillStyle = accent;
-        context.fillRect(unit * 1.2, unit * 0.79, canvas.width - unit * 1.45, unit * 0.012);
-      }
+    const textCenter = (unit * 0.95 + canvas.width) * 0.5;
+    context.fillStyle = creative.foreground ?? '#fff8eb';
+    context.font = `800 ${Math.round(unit * (level === 'far' ? 0.3 : level === 'near' ? 0.265 : 0.245))}px Arial, sans-serif`;
+    context.fillText(creative.headline, textCenter, unit * (level === 'far' ? 0.51 : 0.4), canvas.width - unit * 1.2);
+    if (level !== 'far' && creative.subline) {
+      context.fillStyle = accent;
+      context.font = `700 ${Math.round(unit * 0.12)}px Arial, sans-serif`;
+      context.fillText(creative.subline, textCenter, unit * 0.68, canvas.width - unit * 1.3);
+    }
+    if (level === 'near') {
+      context.fillStyle = accent;
+      context.fillRect(unit * 1.2, unit * 0.79, canvas.width - unit * 1.45, unit * 0.012);
     }
   }
 
@@ -405,14 +400,14 @@ export function createRingSponsor(sponsor: RingSponsorship, radius: number): THR
   return group;
 }
 
-function maxVisibleDistance(type: AdPlacementType): number {
-  if (type === 'SKYBOARD') return 10_000;
-  if (type === 'SKY_GATE') return 7_000;
-  if (type === 'SPONSOR_BLIMP') return 11_000;
-  if (type === 'PREMIUM_BUILDING_WRAP') return 5_400;
-  if (type === 'GROUND_SPONSOR' || type === 'AIRPORT_GROUND_SPONSOR') return 5_400;
-  if (type === 'AIRPORT_SPONSOR') return 4_300;
-  return 4_800;
+export function maxVisibleDistance(type: AdPlacementType, scale = 1): number {
+  if (type === 'SKYBOARD') return 10_000 * scale;
+  if (type === 'SKY_GATE') return 7_000 * scale;
+  if (type === 'SPONSOR_BLIMP') return 11_000 * scale;
+  if (type === 'PREMIUM_BUILDING_WRAP') return 5_400 * scale;
+  if (type === 'GROUND_SPONSOR' || type === 'AIRPORT_GROUND_SPONSOR') return 5_400 * scale;
+  if (type === 'AIRPORT_SPONSOR') return 4_300 * scale;
+  return 4_800 * scale;
 }
 
 function isGroundPlacement(type: AdPlacementType): boolean {
@@ -439,6 +434,7 @@ function skyCreativeSize(placement: AdPlacement): { width: number; height: numbe
 
 function addSkyCreative(placement: AdPlacement, width: number, height: number, sideOffset = 0): THREE.LOD {
   const lod = new THREE.LOD();
+  const visibilityScale = placement.visibilityScale ?? 1;
   const thresholds = placement.type === 'SKY_GATE' ? [0, 1_200, 3_600]
     : placement.type === 'SPONSOR_BLIMP' ? [0, 2_000, 5_000] : [0, 1_800, 4_800];
   for (const [index, level] of (['near', 'mid', 'far'] as const).entries()) {
@@ -452,7 +448,7 @@ function addSkyCreative(placement: AdPlacement, width: number, height: number, s
       if (side === -1) face.rotation.y = Math.PI;
       faces.add(face);
     }
-    lod.addLevel(faces, thresholds[index]);
+    lod.addLevel(faces, thresholds[index] * visibilityScale);
   }
   return lod;
 }
@@ -491,7 +487,7 @@ function addBlimpCreative(
       if (side === -1) face.rotation.y = Math.PI;
       faces.add(face);
     }
-    lod.addLevel(faces, [0, 2_000, 5_000][index]);
+    lod.addLevel(faces, [0, 2_000, 5_000][index] * (placement.visibilityScale ?? 1));
   }
   return { lod, geometry };
 }
@@ -610,10 +606,11 @@ function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: 
   }
   else {
     const lod = new THREE.LOD();
+    const visibilityScale = placement.visibilityScale ?? 1;
     for (const [level, distance] of [
       ['near', 0],
-      ['mid', Math.max(450, placement.size.x * 12)],
-      ['far', Math.max(1_300, placement.size.x * 30)],
+      ['mid', Math.max(450 * visibilityScale, placement.size.x * 12)],
+      ['far', Math.max(1_300 * visibilityScale, placement.size.x * 30)],
     ] as const) {
       const panel = new THREE.Mesh(ownedGeometry ?? panelGeometry, materialFor(placement.creative, level, placement.size.x / placement.size.y));
       if (!ground) panel.scale.set(placement.size.x, placement.size.y, 1);
@@ -650,7 +647,7 @@ function buildPlacement(placement: AdPlacement, groundHeightAt?: (x: number, z: 
     normal: new THREE.Vector3(0, 0, 1),
     ownedGeometry,
     metrics: { impressions: 0, totalVisibleSeconds: 0, continuousVisibleSeconds: 0, lastImpressionAt: -Infinity },
-    maxDistance: maxVisibleDistance(placement.type),
+    maxDistance: maxVisibleDistance(placement.type, placement.visibilityScale),
     creativeWidth: creativeSize.width,
     creativeHeight: creativeSize.height,
     projectedPixels: 0,
@@ -905,7 +902,7 @@ export class AdPlacementManager {
       rendered.projectedPixels = Math.max(projectedHeight, projectedWidth);
       let combatOccluded = false;
       if (combatActive && canCombatSuppressPlacement(rendered.placement.type) &&
-        distance < (isSkyPlacement(rendered.placement.type) ? rendered.maxDistance : 2_500)) {
+        distance < (isSkyPlacement(rendered.placement.type) ? rendered.maxDistance : 2_500 * (rendered.placement.visibilityScale ?? 1))) {
         projectedPoint.copy(placementPoint).project(camera);
         const screenX = (projectedPoint.x * 0.5 + 0.5) * window.innerWidth;
         const screenY = (-projectedPoint.y * 0.5 + 0.5) * window.innerHeight;

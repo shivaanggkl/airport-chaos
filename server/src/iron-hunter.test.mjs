@@ -19,6 +19,7 @@ import ts from 'typescript';
 import vm from 'node:vm';
 import { journeyDallas17 as mission, journeyDallas14, journeyDallas13, journeyDallas15, journeyDallas16, journeyDallas23, journeyMissionSlot } from '../../shared/journey-mission.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { aircraftFlightEnvelope } from '../../shared/aircraft-flight-envelope.mjs';
 import { projectileDamageForAircraft } from '../../shared/protocol.mjs';
 import { JourneyAttemptStore } from './journey-attempts.js';
@@ -47,7 +48,7 @@ test('one server-owned Mammoth, duplicate prevention, horizontal aggression boun
   const active = { missionId: mission.id, attemptId: 'attempt', status: 'APPROACH', targetId: null };
   const players = new Map(); let created = 0, engaged = 0;
   const ctx = runtime(['ensureFirstContact'], { journeyDallas13, journeyDallas17: mission, ambushCanFire, players,
-    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeyIronHunter: true, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 250, position: { x: 10_001, y: 900, z: 0 } }); return 'enemy'; },
+    createBot: (_city, _defense, spawn) => { created++; assert.equal(spawn.firstContact, true); players.set('enemy', { bot: { journeyFirstContact: true, journeyIronHunter: true, journeyAttemptId: 'attempt', journeyTargetPlayerId: 'owner' }, lifeState: 'alive', health: 250, position: { x: mission.aggressionDistance + 1, y: 900, z: 0 } }); return 'enemy'; },
     journeyStore: { assignFirstContact: (_pilot, _attempt, id) => { active.targetId = id; return active; } },
     removeBot: () => assert.fail('unexpected removal'), sendJourneyState: () => {}, failPlayerJourney: () => assert.fail('unexpected failure'),
     provokeJourneyHunter: () => { engaged++; players.get('enemy').bot.journeyProvoked = true; },
@@ -56,9 +57,9 @@ test('one server-owned Mammoth, duplicate prevention, horizontal aggression boun
   ctx.ensureFirstContact('owner', pilot, active, 1100);
   assert.equal(created, 1); assert.equal(engaged, 0);
   active.status = 'RACING'; ctx.ensureFirstContact('owner', pilot, active, 1200); assert.equal(engaged, 0);
-  players.get('enemy').position.x = 10_000;
+  players.get('enemy').position.x = mission.aggressionDistance;
   ctx.ensureFirstContact('owner', pilot, active, 1300); assert.equal(engaged, 1);
-  players.get('enemy').position.x = 15_000;
+  players.get('enemy').position.x = mission.aggressionDistance + 5_000;
   ctx.ensureFirstContact('owner', pilot, active, 1460); assert.equal(engaged, 1);
 });
 
@@ -75,10 +76,10 @@ test('takeoff-only six-minute clock, target ownership, deadline, first clear and
     assert.equal(f.store.acceptGate('pilot', a.attemptId, 0, 1300), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 1300), undefined);
     const started = f.store.startFirstContact('pilot', a.attemptId, 2000);
-    assert.equal(started.deadlineAt, 362_000);
+    assert.equal(started.deadlineAt, 2_000 + mission.timeLimitMs);
     assert.equal(f.store.startFirstContact('pilot', a.attemptId, 3000), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'wrong', 3000), undefined);
-    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 362_000), undefined);
+    assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', started.deadlineAt), undefined);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999).firstClearCredits, 2250);
     assert.equal(f.store.completeHunter('pilot', a.attemptId, 'enemy', 241_999), undefined);
     const replay = f.store.launch('pilot', 'trainer', 300_000, mission.id);
@@ -158,7 +159,7 @@ test('actual Mammoth factory and flight integrator keep the airborne patrol insi
   const id = ctx.createBot('dallas', undefined, { attemptId: 'attempt', targetPlayerId: 'owner', target: {}, firstContact: true, ironHunter: true });
   const enemy = players.get(id), spawn = { ...enemy.position };
   assert.equal(enemy.bot.opponent.profile,enemyAiLevels.VERY_HARD); assert.equal(enemy.bot.opponent.definition.personality,'aggressive'); assert.equal(enemy.aircraftType, 'cargo'); assert.equal(enemy.health, 250);
-  assert.equal(enemy.position.y, 920); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 400);
+  assert.equal(enemy.position.y, 120 + mission.enemyAltitude); assert.equal(Math.hypot(enemy.velocity.x, enemy.velocity.z), 400);
   assert.equal(sent[0].equippedCosmetics['livery:cargo'], mission.enemyLivery);
   let maxRadius = 0, minSpeed = Infinity;
   for (let tick = 0; tick < 600; tick++) {
@@ -170,9 +171,9 @@ test('actual Mammoth factory and flight integrator keep the airborne patrol insi
     ctx.advanceBotFlight(enemy, enemy.bot, waypoint, .2);
     maxRadius = Math.max(maxRadius, Math.hypot(enemy.position.x - spawn.x, enemy.position.z - spawn.z));
     minSpeed = Math.min(minSpeed, Math.hypot(enemy.velocity.x, enemy.velocity.z));
-    assert.ok(enemy.position.y >= 900);
+    assert.ok(enemy.position.y >= 120 + mission.enemyAltitude - 20);
   }
-  assert.ok(maxRadius <= 2_600, `patrol wandered ${maxRadius}m`);
+  assert.ok(maxRadius <= 2_600 * DALLAS_WORLD_SCALE, `patrol wandered ${maxRadius}m`);
   assert.ok(minSpeed > 300, `patrol stopped: ${minSpeed}m/s`);
 });
 
@@ -183,11 +184,11 @@ test('M11 keeps identity, Executive runway, safe spawn, canonical VERY HARD and 
   assert.equal(journeyMissionSlot(mission.id),11);
   assert.equal(mission.name,'IRON HUNTER');assert.equal(mission.startAirportId,'executive');
   const distance=Math.hypot(mission.enemySpawn.x-executive.x,mission.enemySpawn.z-executive.z);
-  assert.ok(distance>=12000&&distance<=15000);assert.equal(mission.enemyAltitude,800);
+  assert.ok(distance>=12000*DALLAS_WORLD_SCALE&&distance<=15000*DALLAS_WORLD_SCALE);assert.equal(mission.enemyAltitude,800*DALLAS_WORLD_SCALE);
   const enemy=createOpponent({aircraft:mission.enemyAircraft,livery:mission.enemyLivery,level:'VERY_HARD',personality:'aggressive',behavior:'patrol',cityId:'dallas',position:{...mission.enemySpawn,y:1000},rotation:{x:0,y:0,z:0},speed:mission.cruiseSpeed,health:mission.enemyHealth});
   assert.equal(enemy.profile,enemyAiLevels.VERY_HARD);assert.equal(mission.enemyHealth,250);
   assert.equal(projectileDamageForAircraft('trainer')*10,mission.enemyHealth);
-  assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,360000);
+  assert.equal(mission.firstClearCredits,2250);assert.equal(mission.timeLimitMs,360000*DALLAS_WORLD_SCALE);
   for(const obsolete of ['heart','heartId','startHealthFraction','finishAirportId','requiredLandingScore'])assert.equal(obsolete in mission,false);
   assert.doesNotMatch(source,/collectCriticalHeart|recordCriticalLanding/);
 });

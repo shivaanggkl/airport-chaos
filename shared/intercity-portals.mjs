@@ -1,5 +1,6 @@
+import { scaleDallasPoint } from './dallas-world-scale.mjs';
 export const portalRules = Object.freeze({ radius: 170, altitude: 215, towerHeight: 450, tunnelMinMs: 7000, timeoutMs: 45000, crossingGraceMs: 2500, arrivalClearance: 1550 });
-const gates = Object.freeze({ dallas: { cityId: 'dallas', destination: 'milwaukee', routeId: 'dallas-milwaukee', x: 10000, z: -20000, heading: 0 }, milwaukee: { cityId: 'milwaukee', destination: 'dallas', routeId: 'milwaukee-dallas', x: 0, z: 4300, heading: Math.PI } });
+const gates = Object.freeze({ dallas: { ...scaleDallasPoint({ x: 10000, z: -20000 }), cityId: 'dallas', destination: 'milwaukee', routeId: 'dallas-milwaukee', heading: 0 }, milwaukee: { cityId: 'milwaukee', destination: 'dallas', routeId: 'milwaukee-dallas', x: 0, z: 4300, heading: Math.PI } });
 export function portalForCity(cityId, terrain) { const g = gates[cityId]; if (!g)
     return; let ground = terrain(g.x, g.z); for (let d = -1500; d <= 1500; d += 150)
     for (const side of [-180, 0, 180])

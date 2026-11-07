@@ -12,6 +12,7 @@ export type WorldMapLandmark = {
 export type WorldMapLayer = {
   bounds: WorldMapBounds;
   staticUrl?: string;
+  sourceScale?: number;
   landmarks?: readonly WorldMapLandmark[];
 };
 
@@ -217,7 +218,13 @@ export class WorldMap {
   private defaultScale(): number {
     const width = this.layer.bounds.maxX - this.layer.bounds.minX;
     const height = this.layer.bounds.maxZ - this.layer.bounds.minZ;
-    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min((this.canvas.clientWidth || 960) / width, (this.canvas.clientHeight || 640) / height) * 0.92));
+    return Math.min(MAX_SCALE, Math.max(this.minimumScale(), Math.min((this.canvas.clientWidth || 960) / width, (this.canvas.clientHeight || 640) / height) * 0.92));
+  }
+
+  private minimumScale(): number {
+    const width = this.layer.bounds.maxX - this.layer.bounds.minX;
+    const height = this.layer.bounds.maxZ - this.layer.bounds.minZ;
+    return Math.min(MIN_SCALE, Math.min((this.canvas.clientWidth || 960) / width, (this.canvas.clientHeight || 640) / height) * 0.92);
   }
 
   private async loadStaticLayer(url: string): Promise<void> {
@@ -275,7 +282,7 @@ export class WorldMap {
       event.preventDefault();
       const pointer = this.eventToCanvas(event);
       const before = this.screenToWorld(pointer.x, pointer.y);
-      this.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.scale * Math.exp(-event.deltaY * 0.0015)));
+      this.scale = Math.min(MAX_SCALE, Math.max(this.minimumScale(), this.scale * Math.exp(-event.deltaY * 0.0015)));
       const after = this.screenToWorld(pointer.x, pointer.y);
       this.centerX += before.x - after.x;
       this.centerZ += before.z - after.z;
@@ -392,9 +399,10 @@ export class WorldMap {
     this.geographyCanvas.height = Math.round(maxDimension * worldHeight / Math.max(worldWidth, worldHeight));
     const context = this.geographyContext;
     context.clearRect(0, 0, this.geographyCanvas.width, this.geographyCanvas.height);
+    const sourceScale = this.layer.sourceScale ?? 1;
     const toCache = (x: number, z: number) => ({
-      x: (x - this.layer.bounds.minX) / worldWidth * this.geographyCanvas.width,
-      y: (z - this.layer.bounds.minZ) / worldHeight * this.geographyCanvas.height,
+      x: (x * sourceScale - this.layer.bounds.minX) / worldWidth * this.geographyCanvas.width,
+      y: (z * sourceScale - this.layer.bounds.minZ) / worldHeight * this.geographyCanvas.height,
     });
     for (const polygon of this.staticData.land ?? []) {
       context.fillStyle = polygon[0] === 1 ? '#17372e' : '#203c32';
@@ -422,7 +430,8 @@ export class WorldMap {
       const roadClass = roads[index];
       let path = this.roadPaths.get(roadClass);
       if (!path) { path = new Path2D(); this.roadPaths.set(roadClass, path); }
-      path.moveTo(roads[index + 1], roads[index + 2]); path.lineTo(roads[index + 3], roads[index + 4]);
+      path.moveTo(roads[index + 1] * sourceScale, roads[index + 2] * sourceScale);
+      path.lineTo(roads[index + 3] * sourceScale, roads[index + 4] * sourceScale);
     }
   }
 
