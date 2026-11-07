@@ -3,10 +3,10 @@ import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 export const M19_INTRO = Object.freeze({reveal:4,walkEnd:9,roarEnd:9+model.clips.roar!.duration,monsterEnd:14,objective:18,handoff:18.5,duration:20});
 export const M19_DOWNTOWN = Object.freeze({x:-2191,z:-1201});
 export function m19IntroText(seconds:number):string {
-  return seconds<M19_INTRO.reveal?'Control! Something massive is moving through the city!'
-    :seconds<M19_INTRO.walkEnd?"It's heading straight for downtown!"
-    :seconds<M19_INTRO.monsterEnd?'ASHEN WARLORD'
-    :seconds<M19_INTRO.objective?'Pilot! Stop that monster before it destroys downtown!'
+  return seconds<M19_INTRO.reveal?''
+    :seconds<M19_INTRO.walkEnd?'MONSTER DR. BOSS'
+    :seconds<M19_INTRO.monsterEnd?'DR. BOSS'
+    :seconds<M19_INTRO.objective?"CONTROL: Pilot! Monster Dr. Boss is heading downtown! Stop him before it's too late!"
     :seconds<M19_INTRO.duration?'DEFEAT THE MONSTER':'';
 }
 /** Match displacement to the supplied gait's measured distance, including its nonuniform steps. */

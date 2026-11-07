@@ -74,9 +74,9 @@ test('M19 skip, cancellation, retry and blocked routes restore the exact gamepla
 
 test('M19 screenplay presents all four story scenes and smoothly hands off at 20s; M20–M24 retain their camera',()=>{
   assert.equal(M19_INTRO.roarEnd-M19_INTRO.walkEnd,model.clips.roar.duration);
-  assert.equal(m19IntroText(0),'Control! Something massive is moving through the city!');
-  assert.equal(m19IntroText(4),"It's heading straight for downtown!");assert.equal(m19IntroText(9),'ASHEN WARLORD');
-  assert.equal(m19IntroText(14),'Pilot! Stop that monster before it destroys downtown!');
+  assert.equal(m19IntroText(0),'');
+  assert.equal(m19IntroText(4),'MONSTER DR. BOSS');assert.equal(m19IntroText(9),'DR. BOSS');
+  assert.equal(m19IntroText(14),"CONTROL: Pilot! Monster Dr. Boss is heading downtown! Stop him before it's too late!");
   assert.equal(m19IntroText(18),'DEFEAT THE MONSTER');assert.equal(m19IntroText(20),'');
   const monster=new THREE.Group(),player=new THREE.Group();monster.add(new THREE.Mesh(new THREE.BoxGeometry(500,1920,500)));player.add(new THREE.Mesh(new THREE.BoxGeometry(20,6,25)));
   const path=new CombatMissionIntroPath(monster,player,19,true),position=new THREE.Vector3(),target=new THREE.Vector3(),chase=new THREE.Vector3(0,100,200),look=new THREE.Vector3(0,20,0);
@@ -91,8 +91,8 @@ test('M19 screenplay presents all four story scenes and smoothly hands off at 20
   assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000);assert.equal(journeyDallas25.firstClearCredits,2550);assert.equal(journeyDallas25.startAirportId,'dfw');assert.equal(journeyDallas19.bossHealth,1500);
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   assert(main.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));
-  assert(main.includes('if(arrivalIntro)view.prepareStationaryIntro(obstacleBounds)'));
-  assert(main.includes('stats.missingImmediateCells===0'));assert(main.includes('flightLaunchStartedAt=now-cut;elapsed=cut'));
+  assert(main.includes('view.prepareStationaryIntro(obstacleBounds)'));
+  assert(main.includes('stats.missingImmediateCells===0'));assert(main.includes('flightLaunchStartedAt=now-m19StoryOffsetMs-cut;elapsed=cut'));
   const countdown=main.slice(main.indexOf('function completeFlightLaunchCinematic'),main.indexOf('function abortFlightLaunchCinematic'));
   assert(countdown.includes('clearFlightLaunchPresentation()'));assert(countdown.includes('beginMissionStartCountdown()'));
   monster.children[0].geometry.dispose();monster.children[0].material.dispose();player.children[0].geometry.dispose();player.children[0].material.dispose();
