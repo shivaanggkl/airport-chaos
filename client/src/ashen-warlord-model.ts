@@ -1,3 +1,4 @@
+import {m22IntroMotion} from './m22-intro';
 import {M21_INTRO,m21IntroMotion} from './m21-intro';
 import {m20IntroMotion} from './m20-intro';
 import {M19_INTRO,m19WalkDistance} from './m19-intro';
@@ -46,23 +47,23 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
-    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
+    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
     prepareStrikingIntro():void {
         if(!this.striking||this.hunting||this.frame||this.strikingIntro)return;
         this.strikingIntro={position:this.root.position.clone(),yaw:this.root.rotation.y,transitionAt:0};
         this.introTime=0;this.applyStrikingIntro(0);
     }
-    prepareHuntingIntro(obstacles:readonly ObstacleBounds[]):void {
+    prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false):void {
         if(!this.hunting||this.pursuit||this.frame||this.strikingIntro)return;
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
         const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*2+Math.hypot(o.halfX,o.halfZ));
         for(const phase of [0,.5,.75]){
-            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2},transitionAt:0};
+            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown},transitionAt:0};
             let clear=true;
             for(let step=0;step<=128&&clear;step++){this.applyStrikingIntro(16*step/128);if(this.introPoseObstructed(nearby))clear=false;}
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
         }
-        this.setIntroTime(null);throw Error('M21 cinematic approach is obstructed');
+        this.setIntroTime(null);throw Error(`${showdown?'M22':'M21'} cinematic approach is obstructed`);
     }
     private introPoseObstructed(obstacles:readonly ObstacleBounds[]):boolean {
         const center=this.temp;
@@ -77,7 +78,7 @@ export class AshenWarlordModel {
         return false;
     }
     private applyStrikingIntro(seconds:number):void {
-        const intro=this.strikingIntro!,motion=intro.walk?m21IntroMotion(seconds,intro.walk.startTime):m20IntroMotion(seconds),clip=model.clips[motion.key]!;
+        const intro=this.strikingIntro!,motion=intro.walk?(intro.walk.showdown?m22IntroMotion(seconds,intro.walk.startTime):m21IntroMotion(seconds,intro.walk.startTime)):m20IntroMotion(seconds),clip=model.clips[motion.key]!;
         this.root.position.copy(intro.position);this.root.position.y+=motion.height;
         this.root.rotation.y=intro.yaw+motion.yawOffset;
         if(intro.walk){
@@ -88,7 +89,7 @@ export class AshenWarlordModel {
             this.root.rotation.y=intro.walk.yaw+motion.yawOffset;
         }
         const pose:AuthoredAnimation={clip:clip.name,time:motion.time,blend:1,offsetY:0};
-        if(intro.walk){const look=(motion as ReturnType<typeof m21IntroMotion>).lookUp;pose.aim=[{node:model.boneNodes.neck!,yaw:0,pitch:-.12*look},{node:model.boneNodes.head!,yaw:0,pitch:-.22*look}];}
+        if(intro.walk){const look=(motion as ReturnType<typeof m21IntroMotion>).lookUp,yaw='lookYaw' in motion&&typeof motion.lookYaw==='number'?motion.lookYaw:0;pose.aim=[{node:model.boneNodes.neck!,yaw:yaw*.4,pitch:-.12*look},{node:model.boneNodes.head!,yaw:yaw*.6,pitch:-.22*look}];}
         if(intro.last&&intro.last.clip!==pose.clip){intro.previous={...intro.last};intro.transitionAt=seconds;}
         const transition=seconds-intro.transitionAt;
         if(intro.previous&&transition<.18){pose.previousClip=intro.previous.clip;pose.previousTime=Math.min(this.actions.get(intro.previous.clip)!.getClip().duration,intro.previous.time+transition);pose.blend=transition/.18;}
