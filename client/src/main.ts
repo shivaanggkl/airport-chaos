@@ -1,3 +1,4 @@
+import { segmentHitsWorldObstacle } from '../../shared/world-obstacle-collision.mjs';
 import {M24_INTRO,m24IntroText} from './m24-intro';
 import {m23IntroText} from './m23-intro';
 import {m22IntroText} from './m22-intro';
@@ -4309,6 +4310,7 @@ const forward = new THREE.Vector3();
 const velocity = new THREE.Vector3();
 const liftDirection = new THREE.Vector3();
 const sideSlip = new THREE.Vector3();
+const obstacleSweepStart = new THREE.Vector3();
 const targetCameraPosition = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 const cameraOrbitOffset = new THREE.Vector3();
@@ -8997,22 +8999,34 @@ function pointInWorldPolygon(x: number, z: number, polygon: ReadonlyArray<readon
   return inside;
 }
 
-function hitsWorldObstacle(): boolean {
+function hitsWorldObstacle(sweepStart?: THREE.Vector3): boolean {
   if(portalInTransit)return false;
   const planeBottom = airplane.position.y - 0.8;
   const cellKey = collisionCellKey(
     Math.floor(airplane.position.x / COLLISION_CELL_SIZE),
     Math.floor(airplane.position.z / COLLISION_CELL_SIZE),
   );
-  for (const obstacle of obstacleGrid.get(cellKey) ?? noNearbyObstacles) {
-    if (
-      planeBottom <= (obstacle.baseY ?? 0) + obstacle.height &&
-      Math.abs(airplane.position.x - obstacle.x) <= obstacle.halfX + COLLISION_PADDING &&
-      Math.abs(airplane.position.z - obstacle.z) <= obstacle.halfZ + COLLISION_PADDING &&
-      (!obstacle.polygon || pointInWorldPolygon(airplane.position.x, airplane.position.z, obstacle.polygon))
-    ) {
-      return true;
+  if (sweepStart && cityId === 'dallas') {
+    const end = airplane.position;
+    for (let x = Math.floor(Math.min(sweepStart.x,end.x) / COLLISION_CELL_SIZE); x <= Math.floor(Math.max(sweepStart.x,end.x) / COLLISION_CELL_SIZE); x++) {
+      for (let z = Math.floor(Math.min(sweepStart.z,end.z) / COLLISION_CELL_SIZE); z <= Math.floor(Math.max(sweepStart.z,end.z) / COLLISION_CELL_SIZE); z++) {
+        for (const obstacle of obstacleGrid.get(collisionCellKey(x,z)) ?? noNearbyObstacles) {
+          if (segmentHitsWorldObstacle(sweepStart,end,obstacle,COLLISION_PADDING)) return true;
+        }
+      }
     }
+  } else {
+    for (const obstacle of obstacleGrid.get(cellKey) ?? noNearbyObstacles) {
+      if (
+        planeBottom <= (obstacle.baseY ?? 0) + obstacle.height &&
+        Math.abs(airplane.position.x - obstacle.x) <= obstacle.halfX + COLLISION_PADDING &&
+        Math.abs(airplane.position.z - obstacle.z) <= obstacle.halfZ + COLLISION_PADDING &&
+        (!obstacle.polygon || pointInWorldPolygon(airplane.position.x, airplane.position.z, obstacle.polygon))
+      ) {
+        return true;
+      }
+    }
+
   }
 
   for (const mountain of mountainGrid.get(cellKey) ?? noNearbyMountains) {
@@ -9349,13 +9363,14 @@ function updateFlight(delta: number): void {
     ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.15) + speedBonus
     : normalSpeedLimit;
   if (velocity.lengthSq() > maxAirSpeed * maxAirSpeed) velocity.setLength(maxAirSpeed);
+  obstacleSweepStart.copy(airplane.position);
   airplane.position.addScaledVector(velocity, delta);
   currentSpeed = velocity.length();
   verticalSpeed = velocity.y;
   if(!portalInTransit)updateAirborneProgress(delta);
   if(portalInTransit)return;
 
-  if (hitsWorldObstacle()) {
+  if (hitsWorldObstacle(obstacleSweepStart)) {
     beginCrashPresentation('obstacle');
     endRun('CRASHED');
     return;
