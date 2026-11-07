@@ -3,12 +3,13 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as THREE from 'three';
 import {aircraftFlightEnvelope} from '../../shared/aircraft-flight-envelope.mjs';
 import {segmentHitsWorldObstacle} from '../../shared/world-obstacle-collision.mjs';
 const wall={x:590,z:100,halfX:6,halfZ:40,height:100,baseY:0,polygon:[]};
 const point=(x,y=50,z=100)=>({x,y,z});
 
-test('all four aircraft detect thin Dallas obstacles at normal/Boost caps and 15–60 FPS',()=>{
+test('geometry sweep helper detects thin boxes at normal/Boost caps and 15–60 FPS',()=>{
  for(const e of Object.values(aircraftFlightEnvelope))for(const boost of [1,e.boostMaxSpeed])for(const fps of [15,20,30,60]){
   const travel=e.maxSpeed*boost*Math.min(1/fps,.05);
   assert.equal(segmentHitsWorldObstacle(point(wall.x-travel/2),point(wall.x+travel/2),wall),true);
@@ -26,16 +27,18 @@ test('sweep uses the polygon opening and the height at contact, without bounding
  assert.equal(segmentHitsWorldObstacle(point(500),point(550),wall),false);
 });
 
-test('actual flight collision path sweeps every crossed grid cell and retains portal/Milwaukee behavior',()=>{
+test('Dallas aircraft pass through buildings while water, mountains and Milwaukee collisions remain active',()=>{
  const source=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
  const ast=ts.createSourceFile('main.ts',source,ts.ScriptTarget.Latest,true);
  const names=['pointInWorldPolygon','collisionCellKey','hitsWorldObstacle'];
  const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');
- const context=vm.createContext({cityId:'dallas',portalInTransit:false,airplane:{position:point(640)},obstacleGrid:new Map([[0,[wall]]]),mountainGrid:new Map(),noNearbyObstacles:[],noNearbyMountains:[],waterBounds:[],COLLISION_CELL_SIZE:600,COLLISION_PADDING:3.5,segmentHitsWorldObstacle});
+ const context=vm.createContext({THREE,cityId:'dallas',portalInTransit:false,airplane:{position:point(590)},obstacleGrid:new Map([[0,[{...wall,polygon:undefined}]]]),mountainGrid:new Map(),noNearbyObstacles:[],noNearbyMountains:[],waterBounds:[],COLLISION_CELL_SIZE:600,COLLISION_PADDING:3.5});
  vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
- assert.equal(context.hitsWorldObstacle(point(550)),true,'wall is in the previous cell and neither endpoint touches it');
- context.portalInTransit=true;assert.equal(context.hitsWorldObstacle(point(550)),false);
- context.portalInTransit=false;context.cityId='milwaukee';assert.equal(context.hitsWorldObstacle(point(550)),false);
- assert.match(source,/obstacleSweepStart.copy\(airplane.position\);\s*airplane.position.addScaledVector\(velocity, delta\)/);
- assert.match(source,/if \(hitsWorldObstacle\(obstacleSweepStart\)\)/);
+ assert.equal(context.hitsWorldObstacle(),false,'even a position inside a building does not crash a Dallas aircraft');
+ context.cityId='milwaukee';assert.equal(context.hitsWorldObstacle(),true);
+ context.cityId='dallas';context.waterBounds.push({minX:580,maxX:600,minZ:90,maxZ:110,surfaceY:60});
+ assert.equal(context.hitsWorldObstacle(),true,'water contact remains lethal');
+ context.waterBounds.length=0;context.mountainGrid.set(0,[{x:590,z:100,radius:50,height:100,baseY:0}]);
+ assert.equal(context.hitsWorldObstacle(),true,'mountain contact remains lethal');
+ context.portalInTransit=true;assert.equal(context.hitsWorldObstacle(),false);
 });

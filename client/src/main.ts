@@ -1,4 +1,3 @@
-import { segmentHitsWorldObstacle } from '../../shared/world-obstacle-collision.mjs';
 import {M24_INTRO,m24IntroText} from './m24-intro';
 import {m23IntroText} from './m23-intro';
 import {m22IntroText} from './m22-intro';
@@ -4310,7 +4309,6 @@ const forward = new THREE.Vector3();
 const velocity = new THREE.Vector3();
 const liftDirection = new THREE.Vector3();
 const sideSlip = new THREE.Vector3();
-const obstacleSweepStart = new THREE.Vector3();
 const targetCameraPosition = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 const cameraOrbitOffset = new THREE.Vector3();
@@ -8999,23 +8997,16 @@ function pointInWorldPolygon(x: number, z: number, polygon: ReadonlyArray<readon
   return inside;
 }
 
-function hitsWorldObstacle(sweepStart?: THREE.Vector3): boolean {
+function hitsWorldObstacle(): boolean {
   if(portalInTransit)return false;
   const planeBottom = airplane.position.y - 0.8;
   const cellKey = collisionCellKey(
     Math.floor(airplane.position.x / COLLISION_CELL_SIZE),
     Math.floor(airplane.position.z / COLLISION_CELL_SIZE),
   );
-  if (sweepStart && cityId === 'dallas') {
-    const end = airplane.position;
-    for (let x = Math.floor(Math.min(sweepStart.x,end.x) / COLLISION_CELL_SIZE); x <= Math.floor(Math.max(sweepStart.x,end.x) / COLLISION_CELL_SIZE); x++) {
-      for (let z = Math.floor(Math.min(sweepStart.z,end.z) / COLLISION_CELL_SIZE); z <= Math.floor(Math.max(sweepStart.z,end.z) / COLLISION_CELL_SIZE); z++) {
-        for (const obstacle of obstacleGrid.get(collisionCellKey(x,z)) ?? noNearbyObstacles) {
-          if (segmentHitsWorldObstacle(sweepStart,end,obstacle,COLLISION_PADDING)) return true;
-        }
-      }
-    }
-  } else {
+  // Dallas buildings are intentionally pass-through for aircraft. Projectile
+  // occlusion is independent; terrain/runway contact is evaluated in updateFlight.
+  if (cityId !== 'dallas') {
     for (const obstacle of obstacleGrid.get(cellKey) ?? noNearbyObstacles) {
       if (
         planeBottom <= (obstacle.baseY ?? 0) + obstacle.height &&
@@ -9232,9 +9223,10 @@ function updateFlight(delta: number): void {
       onGround = false;
       takeoffThrustBlend = 0;
       contextualHints.trigger('worldMap');
-      velocity.y = 0.8 + (currentSpeed - currentAircraft.takeoffSpeed) * 0.05 * currentAircraft.lift;
-      verticalSpeed = velocity.y;
-      airplane.position.y = groundPlaneY(airplane.position.x, airplane.position.z) + 0.02;
+      // Release the wheels without an artificial upward impulse. The next
+      // airborne step uses the same attitude and momentum, then lift raises it.
+      velocity.y = 0;
+      verticalSpeed = 0;
       setFlightState('TAKEOFF');
     }
 
@@ -9306,9 +9298,10 @@ function updateFlight(delta: number): void {
   const boostThrust = boostActive
     ? currentAircraft.acceleration * ((currentAircraft.boostThrust ?? 1.35) - 1)
     : 0;
-  // Runway acceleration is much lower than airborne acceleration. Ease that
-  // handoff after liftoff so forward motion does not lurch on the first air frame.
-  takeoffThrustBlend = Math.min(1, takeoffThrustBlend + delta / 1.25);
+  // Keep runway thrust at wheel release, then build airborne power gradually.
+  // Heavy aircraft spool up more slowly; an already-airborne spawn stays at 1.
+  const takeoffPowerSeconds = Math.max(8, 10 * Math.sqrt(currentAircraft.inertia));
+  takeoffThrustBlend = Math.min(1, takeoffThrustBlend + delta / takeoffPowerSeconds);
   const engineThrust = THREE.MathUtils.lerp(
     throttle * currentAircraft.groundAcceleration,
     throttle * currentAircraft.acceleration / currentAircraft.inertia,
@@ -9363,14 +9356,13 @@ function updateFlight(delta: number): void {
     ? currentAircraft.maxSpeed * (currentAircraft.boostMaxSpeed ?? 1.15) + speedBonus
     : normalSpeedLimit;
   if (velocity.lengthSq() > maxAirSpeed * maxAirSpeed) velocity.setLength(maxAirSpeed);
-  obstacleSweepStart.copy(airplane.position);
   airplane.position.addScaledVector(velocity, delta);
   currentSpeed = velocity.length();
   verticalSpeed = velocity.y;
   if(!portalInTransit)updateAirborneProgress(delta);
   if(portalInTransit)return;
 
-  if (hitsWorldObstacle(obstacleSweepStart)) {
+  if (hitsWorldObstacle()) {
     beginCrashPresentation('obstacle');
     endRun('CRASHED');
     return;
@@ -11756,8 +11748,9 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       // would fail a fresh Journey attempt before its intro starts.
       applyServerProfile(message.profile, undefined, message.selectionRevision, undefined, undefined, false, true);
     }
-    if (airAssaultMode && !message.resumeFlight) {
-      // A new server encounter starts from the runway, even after a server restart.
+    if ((airAssaultMode || portalEligible) && !message.resumeFlight) {
+      // A fresh authoritative runway spawn cannot retain an airborne velocity
+      // from the previous connection. Real recovered flights are restored below.
       restartGame(false);
       localLifeState = networkLifeState(message.lifeState);
       applyLocalHull(message.health, message.maxHealth, message.activeAircraftType);

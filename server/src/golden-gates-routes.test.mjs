@@ -48,7 +48,7 @@ test('the six Golden Gates routes grow in difficulty across Dallas districts', (
     const points = [mission.airborneSpawn, ...mission.gates];
     const legs = points.slice(1).map((point, index) => distance(point, points[index]));
     const length = legs.reduce((sum, leg) => sum + leg, 0);
-    assert.ok(missionIndex===0 ? length>=65000&&length<=70000 : length / fastSpeed >= 60 * S && length / fastSpeed <= 85 * S, `${mission.name}: Bluejay route length`);
+    assert.ok(missionIndex===0 ? length>=65000&&length<=70000 : length / fastSpeed >= 30 * S && length / fastSpeed <= 42.5 * S, `${mission.name}: Bluejay route length`);
     assert.ok(missionIndex===0 ? legs[0]>=3000&&legs[0]<=4000&&legs.slice(1).every(l=>l>=5000&&l<=9000) : legs.every(leg => leg >= 2_500 * S && leg <= 7_500 * S), `${mission.name}: readable gate spacing`);
     assert.ok(points.every(point => point.x - (point.radius ?? 0) > terrain.bounds.minX * S && point.x + (point.radius ?? 0) < terrain.bounds.maxX * S &&
       point.z - (point.radius ?? 0) > terrain.bounds.minZ * S && point.z + (point.radius ?? 0) < terrain.bounds.maxZ * S), `${mission.name}: inside the Dallas terrain`);
@@ -125,7 +125,7 @@ test('normal Bluejay bank steering reaches every gate in order from the authored
       elapsed += dt;
     }
     assert.equal(gateIndex, 10, `${mission.name}: all gates reached`);
-    assert.ok(mission.id===journeyDallas01.id ? elapsed>=60&&elapsed<=160 : elapsed >= 60 * S && elapsed <= 90 * S, `${mission.name}: ${elapsed.toFixed(1)}s Bluejay run`);
+    assert.ok(mission.id===journeyDallas01.id ? elapsed>=30&&elapsed<=160 : elapsed >= 30 * S && elapsed <= 45 * S, `${mission.name}: ${elapsed.toFixed(1)}s Bluejay run`);
   }
 });
 

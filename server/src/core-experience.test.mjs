@@ -19,7 +19,7 @@ test('every aircraft has a fast finite envelope, with independent safe ground ha
 });
 test('aircraft normal and Boost caps match the tuned HUD speeds in mph',()=>{
   const mphPerMeterPerSecond=KNOTS_PER_METER_PER_SECOND*1.150779448;
-  const expected={trainer:[1800,2304],cargo:[2100,2625],privateJet:[2700,3510],fighter:[3000,4050]};
+  const expected={trainer:[3600,4608],cargo:[4200,5250],privateJet:[5400,7020],fighter:[6000,8100]};
   for(const [type,[normalMph,boostMph]] of Object.entries(expected)){
     const envelope=aircraftFlightEnvelope[type];
     assert.equal(Math.round(envelope.maxSpeed*mphPerMeterPerSecond),normalMph,type);

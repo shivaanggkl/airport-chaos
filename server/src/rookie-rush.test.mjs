@@ -42,6 +42,6 @@ test('the shorter gate sequence keeps frequent gates and room for Bluejay', () =
     Math.hypot(point.x - points[index].x, point.z - points[index].z));
   const centerline = legs.reduce((distance, leg) => distance + leg, 0);
   const bluejayFast = aircraftFlightEnvelope.trainer.maxSpeed * .8;
-  assert.ok(centerline / bluejayFast >= 60 && centerline / bluejayFast <= 120);
+  assert.ok(centerline / bluejayFast >= 30 && centerline / bluejayFast <= 60);
   assert.ok(legs.slice(1).every((leg) => leg <= 9_000));
 });
