@@ -803,7 +803,7 @@ test('historical four-gate Mission 5 clears retain progress and Credits without 
 test('Golden Championship has ten gates and a safe course entry', () => {
   assert.equal(journeyDallas06.name, 'GOLDEN CHAMPIONSHIP');
   assert.equal(journeyDallas06.gates.length, 10);
-  assert.equal(journeyDallas06.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas06.timeLimitMs, 240_000);
   assert.equal(journeyDallas06.firstClearCredits, 750);
   assert.ok(journeyDallas06.airborneSpawn.altitude > 700 * DALLAS_WORLD_SCALE);
   for (let index = 0; index < journeyDallas06.gates.length; index += 1) {

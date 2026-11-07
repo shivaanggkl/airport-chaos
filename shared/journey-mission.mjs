@@ -117,20 +117,22 @@ const baseJourneyDallas05 = Object.freeze({
 
 const baseJourneyDallas06 = Object.freeze({
   id: 'journey-dallas-06', cityId: 'dallas', name: 'GOLDEN CHAMPIONSHIP',
-  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 750,
-  airborneSpawn: Object.freeze({ x: 7_000, z: -14_000, altitude: 760, heading: 3.00, speed: 650 }),
-  // White Rock, Trinity and Dallas Executive link east to south Dallas.
+  objective: 'Fly through 10 Golden Gates before time runs out.',
+  courseRevision: 1,
+  chapter: 'GOLDEN GATES', timeLimitMs: 80_000, firstClearCredits: 750, // 4:00 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: 5900, z: -8720, altitude: 780, heading: Math.atan2(900, -720), speed: 650 }),
+  // White Rock to Trinity and Executive: broad curves, alternating turns, then a precise finish.
   gates: Object.freeze([
-    { x: 6_500, z: -10_500, altitude: 780, radius: 300 },
-    { x: 10_000, z: -7_500, altitude: 820, radius: 290 },
-    { x: 12_000, z: -3_000, altitude: 860, radius: 280 },
-    { x: 8_500, z: 1_000, altitude: 900, radius: 265 },
-    { x: 3_500, z: 4_000, altitude: 850, radius: 255 },
-    { x: -1_000, z: 3_500, altitude: 920, radius: 245 },
-    { x: -4_100, z: 2_300, altitude: 980, radius: 235 },
-    { x: -8_500, z: 4_000, altitude: 900, radius: 225 },
-    { x: -10_000, z: 8_500, altitude: 820, radius: 205 },
-    { x: -6_700, z: 11_000, altitude: 780, radius: 340 },
+    { x: 5000, z: -8000, altitude: 780, radius: 300 },
+    { x: 2500, z: -6000, altitude: 820, radius: 290 },
+    { x: -700, z: -6000, altitude: 860, radius: 280 },
+    { x: -3000, z: -3800, altitude: 900, radius: 265 },
+    { x: -5800, z: -3000, altitude: 850, radius: 255 },
+    { x: -6400, z: -450, altitude: 920, radius: 245 },
+    { x: -4100, z: 2300, altitude: 980, radius: 235 },
+    { x: -4100, z: 5500, altitude: 900, radius: 225 },
+    { x: -5300, z: 8500, altitude: 820, radius: 215 },
+    { x: -6700, z: 11400, altitude: 780, radius: 205 },
   ]),
 });
 

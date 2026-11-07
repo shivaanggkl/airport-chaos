@@ -37,7 +37,8 @@ export const journeyDallas05: Readonly<{
 }>;
 export const journeyDallas06: Readonly<{
   id: 'journey-dallas-06'; cityId: 'dallas'; name: 'GOLDEN CHAMPIONSHIP'; chapter: 'GOLDEN GATES';
-  timeLimitMs: 160000; firstClearCredits: 750;
+  objective: 'Fly through 10 Golden Gates before time runs out.'; courseRevision: 1;
+  timeLimitMs: 240000; firstClearCredits: 750;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;

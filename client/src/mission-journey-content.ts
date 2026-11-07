@@ -14,7 +14,7 @@ const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = 
   'journey-dallas-03': journeyDallas03.objective,
   'journey-dallas-04': journeyDallas04.objective,
   'journey-dallas-05': journeyDallas05.objective,
-  'journey-dallas-06': 'Fly Through 10 Golden Gates Before Time Run Out.',
+  'journey-dallas-06': journeyDallas06.objective,
   'journey-dallas-07': 'Find And Shoot Down The GIANT PLANE Before Time Runs Out.',
   'journey-dallas-08': 'Shoot Down the GIANT PLANE And Both ESCORT Planes Before Time Runs Out.',
   'journey-dallas-09': 'Shoot Down the GIANT PLANE And All Three ESCORT Planes Before Time Runs Out.',
