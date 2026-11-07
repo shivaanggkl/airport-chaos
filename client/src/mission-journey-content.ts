@@ -9,7 +9,7 @@ const missions = [journeyDallas01, journeyDallas02, journeyDallas03, journeyDall
 // authoritative Journey attempt handlers. Mission titles, rewards, and clocks
 // always come from the live definitions above.
 const descriptions: Readonly<Record<(typeof missions)[number]['id'], string>> = {
-  'journey-dallas-01': 'Fly Through 10 Golden Gates Before Time Run Out.',
+  'journey-dallas-01': journeyDallas01.objective,
   'journey-dallas-02': 'Fly Through 10 Golden Gates Before Time Run Out.',
   'journey-dallas-03': 'Fly Through 10 Golden Gates Before Time Run Out.',
   'journey-dallas-04': 'Fly Through 10 Golden Gates Before Time Run Out.',

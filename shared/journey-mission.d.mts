@@ -2,6 +2,7 @@ export type JourneyPoint = Readonly<{ x: number; y: number; z: number }>;
 export const journeyPauseLimitMs: 120000;
 export const journeyDallas01: Readonly<{
   id: 'journey-dallas-01'; cityId: 'dallas'; name: 'ROOKIE RUSH'; chapter: 'GOLDEN GATES';
+  objective: 'Fly through 10 Golden Gates before time runs out.';
   timeLimitMs: 180000; firstClearCredits: 250;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
