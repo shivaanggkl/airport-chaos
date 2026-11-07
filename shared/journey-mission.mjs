@@ -247,21 +247,25 @@ const baseJourneyDallas14 = Object.freeze({
 
 const baseJourneyDallas15 = Object.freeze({
   id: 'journey-dallas-15', cityId: 'dallas', name: 'HOT PURSUIT',
-  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 300_000,
+  chapter: 'SKY HUNTERS', firstClearCredits: 1_950, timeLimitMs: 90_000,
   startAirportId: 'addison', bossName: 'ESCAPING MAMMOTH', bossHealth: 200,
   enemyAircraft: 'cargo', enemyLivery: 'mammoth-sand', enemyAltitude: 800,
-  enemySpawn: Object.freeze({x:-16_500,z:-13_200}), cruiseSpeed: 420, threatDistance: 10_000, arrivalRadius: 650,
-  // Keep the final leg inside the established Hunter airspace turning margin.
-  escapeRoute: Object.freeze([Object.freeze({x:-21_500,z:8_000}),Object.freeze({x:-3_000,z:8_000})]),
+  enemySpawn: Object.freeze({x:-23_000 / DALLAS_WORLD_SCALE,z:-74_000 / DALLAS_WORLD_SCALE}), cruiseSpeed: 420, threatDistance: 10_000, arrivalRadius: 650,
+  // A continuous North Dallas escape corridor, kept inside the scaled world and Hunter turning margin.
+  escapeRoute: Object.freeze([
+    Object.freeze({x:-45_000 / DALLAS_WORLD_SCALE,z:-68_000 / DALLAS_WORLD_SCALE}),
+    Object.freeze({x:-58_000 / DALLAS_WORLD_SCALE,z:-50_000 / DALLAS_WORLD_SCALE}),
+    Object.freeze({x:-59_000 / DALLAS_WORLD_SCALE,z:-40_000 / DALLAS_WORLD_SCALE}),
+  ]),
 });
 
 // Two independently flying opponents share permission to initiate shots.
 const baseJourneyDallas16 = Object.freeze({
   id:'journey-dallas-16',cityId:'dallas',name:'DOUBLE THREAT',chapter:'SKY HUNTERS',
-  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:300_000,enemyHealth:100,aggressionDistance:10_000,
+  firstClearCredits:2_100,startAirportId:'dfw',timeLimitMs:100_000,enemyHealth:100,aggressionDistance:8_000 / DALLAS_WORLD_SCALE,
   enemies:Object.freeze([
-    Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-13_000,z:-18_000,altitude:750}),
-    Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-13_000,z:-8_000,altitude:900}),
+    Object.freeze({aircraft:'privateJet',livery:'nightowl-sunset-red',x:-65_000 / DALLAS_WORLD_SCALE,z:-53_500 / DALLAS_WORLD_SCALE,altitude:750}),
+    Object.freeze({aircraft:'trainer',livery:'bluejay-skybolt',x:-57_000 / DALLAS_WORLD_SCALE,z:-51_000 / DALLAS_WORLD_SCALE,altitude:900}),
   ]),
   gates:Object.freeze([]),
 });

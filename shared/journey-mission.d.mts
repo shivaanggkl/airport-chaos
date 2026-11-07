@@ -116,13 +116,13 @@ export const journeyDallas14: Readonly<{
 export const journeyDallas15: Readonly<{
   id: 'journey-dallas-15'; cityId: 'dallas'; name: 'HOT PURSUIT'; chapter: 'SKY HUNTERS';
   firstClearCredits: 1950; startAirportId: 'addison'; bossName: 'ESCAPING MAMMOTH'; bossHealth: 200;
-  timeLimitMs:300000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:800;
-  enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:10000; arrivalRadius:650;
+  timeLimitMs:270000; enemyAircraft:'cargo'; enemyLivery:'mammoth-sand'; enemyAltitude:2400;
+  enemySpawn:Readonly<{x:number;z:number}>; cruiseSpeed:420; threatDistance:30000; arrivalRadius:1950;
   escapeRoute:readonly Readonly<{x:number;z:number}>[];
 }>;
 export const journeyDallas16: Readonly<{
   id:'journey-dallas-16';cityId:'dallas';name:'DOUBLE THREAT';chapter:'SKY HUNTERS';
-  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs:300000;enemyHealth:100;aggressionDistance:10000;
+  firstClearCredits:2100;startAirportId:'dfw';timeLimitMs:300000;enemyHealth:100;aggressionDistance:8000;
   enemies:readonly Readonly<{aircraft:'privateJet'|'trainer';livery:string;x:number;z:number;altitude:number}>[];
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;

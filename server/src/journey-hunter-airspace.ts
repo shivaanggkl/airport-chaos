@@ -23,13 +23,22 @@ export function boundJourneyHunterPoint<T extends HorizontalPoint>(point: T, ins
   };
 }
 
-export function journeyHunterSteeringTarget(position: HorizontalPoint, forward: HorizontalPoint, waypoint: HorizontalPoint): HorizontalPoint {
+export function journeyHunterSteeringTarget(position: HorizontalPoint, forward: HorizontalPoint, waypoint: HorizontalPoint, worldHalfExtent?: number): HorizontalPoint {
   const target = boundJourneyHunterPoint(waypoint);
   const dx = position.x - journeyHunterArena.center.x;
   const dz = position.z - journeyHunterArena.center.z;
   const turnAt = journeyHunterArena.radius - turnInset;
   if (Math.abs(dx) >= turnAt && dx * forward.x > 0) target.x = journeyHunterArena.center.x;
   if (Math.abs(dz) >= turnAt && dz * forward.z > 0) target.z = journeyHunterArena.center.z;
+  if (worldHalfExtent !== undefined) {
+    // M10's compact encounter must also respect the city's actual world, not
+    // only the older DFW-centered Hunter envelope. Turn early, without snapping.
+    const limit = worldHalfExtent - turnInset * 2;
+    target.x = Math.max(-limit, Math.min(limit, target.x));
+    target.z = Math.max(-limit, Math.min(limit, target.z));
+    if (Math.abs(position.x) >= limit && position.x * forward.x > 0) target.x = 0;
+    if (Math.abs(position.z) >= limit && position.z * forward.z > 0) target.z = 0;
+  }
   return target;
 }
 

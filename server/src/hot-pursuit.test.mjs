@@ -24,12 +24,12 @@ const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
 function runtime(names,context){const ast=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);const code=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');const ctx=vm.createContext({journeyDallas18,journeyDallas17,...context});vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,ctx);return ctx;}
 function fixture(){const dir=mkdtempSync(join(tmpdir(),'hot-pursuit-')),path=join(dir,'p.sqlite'),db=new DatabaseSync(path);db.exec("CREATE TABLE player_profiles(pilot_id TEXT PRIMARY KEY,credits INTEGER NOT NULL,sky_tokens INTEGER NOT NULL);INSERT INTO player_profiles VALUES('pilot',0,0)");const store=new JourneyAttemptStore(path);db.prepare('INSERT INTO journey_completions(pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES(?,?,?,?,0)').run('pilot',journeyDallas14.id,'old-m8',1);return{dir,db,store,path};}
 
-test('M9 identity, eight hits, Addison distance and 40km route remain inside authored mission airspace',()=>{
+test('M9 identity, eight hits, Addison distance and 55km route remain inside authored mission airspace',()=>{
  assert.equal(journeyMissionSlot(mission.id),9);assert.equal(mission.name,'HOT PURSUIT');assert.equal(mission.bossHealth/projectileDamageForAircraft('trainer'),8);
  const addison=cityAirports.dallas.find(a=>a.id==='addison');assert.equal(mission.startAirportId,addison.id);
- const distance=Math.hypot(addison.x-mission.enemySpawn.x,addison.z-mission.enemySpawn.z);assert.ok(distance>14000&&distance<16000);
+ const distance=Math.hypot(addison.x-mission.enemySpawn.x,addison.z-mission.enemySpawn.z);assert.ok(distance>=15000&&distance<=22000);
  let from=mission.enemySpawn,length=0;for(const to of mission.escapeRoute){length+=Math.hypot(to.x-from.x,to.z-from.z);for(let t=0;t<=1;t+=.01)assert.ok(insideJourneyHunterArena({x:from.x+(to.x-from.x)*t,z:from.z+(to.z-from.z)*t}));from=to;}
- assert.ok(length>39000&&length<42000);assert.ok(aircraftFlightEnvelope.trainer.maxSpeed>mission.cruiseSpeed*1.8);
+ assert.ok(length>=45000&&length<=65000);assert.ok(aircraftFlightEnvelope.trainer.maxSpeed>mission.cruiseSpeed*1.8);
 });
 
 test('real heavy-aircraft integration completes the escape, with bounded defensive maneuvers and no orbit trap',t=>{
@@ -53,7 +53,7 @@ test('real heavy-aircraft integration completes the escape, with bounded defensi
 });
 
 test('takeoff clock, timeout, old-attempt invalidation and preserved completion receipts',()=>{
- const f=fixture();try{const a=f.store.launch('pilot','trainer',1000,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignHunter('pilot',a.attemptId,'enemy');assert.equal(f.store.get('pilot',a.attemptId).startedAt,null);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',2000),undefined);assert.equal(f.store.startPursuit('outsider',a.attemptId,2000),undefined);assert.equal(f.store.startPursuit('pilot',a.attemptId,2000).deadlineAt,302000);assert.equal(f.store.startPursuit('pilot',a.attemptId,3000),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',302000),undefined);f.store.fail('pilot',a.attemptId,'TIME_UP',302000);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',301000),undefined);
+ const f=fixture();try{const a=f.store.launch('pilot','trainer',1000,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignHunter('pilot',a.attemptId,'enemy');assert.equal(f.store.get('pilot',a.attemptId).startedAt,null);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',2000),undefined);assert.equal(f.store.startPursuit('outsider',a.attemptId,2000),undefined);assert.equal(f.store.startPursuit('pilot',a.attemptId,2000).deadlineAt,272000);assert.equal(f.store.startPursuit('pilot',a.attemptId,3000),undefined);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',272000),undefined);f.store.fail('pilot',a.attemptId,'TIME_UP',272000);assert.equal(f.store.completeHunter('pilot',a.attemptId,'enemy',301000),undefined);
  const old=f.store.launch('pilot','trainer',400000,mission.id);f.db.prepare('UPDATE journey_attempts SET definition_revision=0 WHERE attempt_id=?').run(old.attemptId);new JourneyAttemptStore(f.path);assert.equal(f.store.get('pilot',old.attemptId).failureReason,'MISSION_UPDATED');assert.equal(f.store.progress('pilot',journeyDallas14.id).completed,true);
  }finally{f.db.close();rmSync(f.dir,{recursive:true,force:true});}
 });
@@ -82,7 +82,7 @@ test('server-observed destination fails once, cleans up its owned target, and ne
  const a=f.store.launch('pilot','trainer',1000,mission.id);f.store.approach('pilot',a.attemptId);f.store.assignHunter('pilot',a.attemptId,'enemy');
  const finish={...mission.escapeRoute.at(-1),y:1000};const enemy={position:finish,health:200,lifeState:'alive',bot:{journeyAttemptId:a.attemptId,journeyTargetPlayerId:'owner',journeyPursuit:{index:mission.escapeRoute.length-1,previous:finish,remaining:0,escaped:false}}};
  const pilot={pilotId:'pilot',lifeState:'alive'},players=new Map([['owner',pilot],['enemy',enemy]]);let failures=0;
- const ctx=runtime(['ensureJourneyAce'],{journeyDallas15:mission,players,pursuitProgress,sendJourneyState:()=>{},failPlayerJourney:(_id,reason,now)=>{failures++;f.store.fail('pilot',a.attemptId,reason,now);players.delete('enemy');}});
+ const ctx=runtime(['ensureJourneyAce'],{journeyDallas15:mission,players,pursuitProgress,provokeJourneyHunter(){},sendJourneyState:()=>{},failPlayerJourney:(_id,reason,now)=>{failures++;f.store.fail('pilot',a.attemptId,reason,now);players.delete('enemy');}});
  ctx.ensureJourneyAce('owner',pilot,f.store.get('pilot',a.attemptId),1500);assert.equal(failures,0);assert.equal(enemy.bot.journeyPursuit.escaped,false);
  f.store.startPursuit('pilot',a.attemptId,2000);ctx.ensureJourneyAce('owner',pilot,f.store.get('pilot',a.attemptId),3000);ctx.ensureJourneyAce('owner',pilot,f.store.get('pilot',a.attemptId),3100);
  assert.equal(failures,1);assert.equal(players.has('enemy'),false);assert.equal(players.has('owner'),true);assert.equal(f.store.get('pilot',a.attemptId).failureReason,'ENEMY_ESCAPED');assert.equal(f.store.progress('pilot',mission.id).completed,false);
