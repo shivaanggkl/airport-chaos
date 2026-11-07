@@ -137,6 +137,9 @@ export class JourneyAttemptStore {
     const columns = this.database.prepare('PRAGMA table_info(journey_attempts)').all() as { name: string }[];
     if (!columns.some(column => column.name === 'definition_revision'))
       this.database.exec('ALTER TABLE journey_attempts ADD COLUMN definition_revision INTEGER NOT NULL DEFAULT 0');
+    // Completed M1 records remain intact; an in-flight legacy course cannot resume on new geometry.
+    this.database.prepare(`UPDATE journey_attempts SET status='FAILED',finished_at=?,failure_reason='MISSION_UPDATED'
+      WHERE mission_id=? AND definition_revision=0 AND status IN ('READY','APPROACH','RACING')`).run(Date.now(),journeyDallas01.id);
     // Retain historical clears/receipts, but never resume a speed-race as combat.
     this.database.prepare(`UPDATE journey_attempts SET status = 'FAILED', finished_at = ?, failure_reason = 'MISSION_UPDATED'
       WHERE mission_id = ? AND definition_revision = 0 AND status IN ('READY','APPROACH','RACING')`)
@@ -310,10 +313,10 @@ export class JourneyAttemptStore {
       .every(mission => this.progress(pilotId, mission.id).completed);
   }
 
-  /** Keep four-gate historical records while comparing only ten-gate race times. */
+  /** Preserve historical records while comparing only the current Rookie Rush course. */
   rookieRushBestTime(pilotId: string): number | undefined {
     const row = this.database.prepare(`SELECT MIN(finish_time_ms) AS best FROM journey_attempts
-      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND rookie_gate_index = 10`)
+      WHERE pilot_id = ? AND mission_id = ? AND status = 'COMPLETED' AND rookie_gate_index = 10 AND definition_revision = 1`)
       .get(pilotId, journeyDallas01.id) as { best: number | null };
     return row.best ?? undefined;
   }
@@ -384,6 +387,7 @@ export class JourneyAttemptStore {
           missionId === journeyDallas04.id ? 0 : -1,
           missionId === journeyDallas05.id ? 0 : -1,
           missionId === journeyDallas06.id ? 0 : -1);
+      if (missionId === journeyDallas01.id) this.database.prepare('UPDATE journey_attempts SET definition_revision=1 WHERE attempt_id=?').run(attemptId);
       if (missionId === journeyDallas13.id || missionId === journeyDallas14.id || missionId === journeyDallas15.id || missionId === journeyDallas16.id || missionId === journeyDallas17.id || missionId === journeyDallas18.id || (missionId===journeyDallas19.id||missionId===journeyDallas25.id)||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id) this.database.prepare('UPDATE journey_attempts SET definition_revision = ? WHERE attempt_id = ?').run(missionId===journeyDallas19.id?3:(missionId===journeyDallas25.id||missionId===journeyDallas20.id||missionId===journeyDallas21.id||missionId===journeyDallas22.id||missionId===journeyDallas23.id)?2:1,attemptId);
       if (missionId === journeyDallas11.id || missionId === journeyDallas12.id) {
         const mission = missionId === journeyDallas12.id ? journeyDallas12 : journeyDallas11;
@@ -580,7 +584,9 @@ export class JourneyAttemptStore {
           (pilot_id,mission_id,first_attempt_id,completed_at,best_time_ms) VALUES (?,?,?,?,?)`)
           .run(pilotId, current.missionId, attemptId, now, finishTimeMs).changes === 1;
         if (!first) this.database.prepare(`UPDATE journey_completions SET clear_count = clear_count + 1,
-          best_time_ms = MIN(best_time_ms, ?) WHERE pilot_id = ? AND mission_id = ?`).run(finishTimeMs, pilotId, current.missionId);
+          best_time_ms = CASE WHEN mission_id = ? AND COALESCE((SELECT definition_revision FROM journey_attempts
+            WHERE attempt_id = journey_completions.first_attempt_id),0) = 0 THEN best_time_ms ELSE MIN(best_time_ms, ?) END
+          WHERE pilot_id = ? AND mission_id = ?`).run(journeyDallas01.id, finishTimeMs, pilotId, current.missionId);
         if (first) {
           const before = wallet.balances(pilotId)?.credits ?? 0;
           const reward = wallet.credit({ pilotId, currency: 'CREDITS', amount: mission.firstClearCredits,
