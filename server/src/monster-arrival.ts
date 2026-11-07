@@ -1,8 +1,7 @@
-import {authoredDallasBuildings,replacedDallasFootprint} from './dallas-building-occlusion.js';
+import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
 // Fitted geometry compatibility helpers. Live M19 decisions run only in titan/engine via m19-titan.
-import { readFileSync, existsSync } from 'node:fs';
 import { monsterArena } from '../../shared/m19-environment.mjs';
-import { DALLAS_WORLD_SCALE, scaleDallasPoint } from '../../shared/dallas-world-scale.mjs';
+import { scaleDallasPoint } from '../../shared/dallas-world-scale.mjs';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
 import { monsterJumpMotion, monsterJumpLift } from '../../shared/monster-motion.mjs';
@@ -292,32 +291,14 @@ export function monsterJumpClear(e:MonsterEncounter,end:Point3,groundAt:(x:numbe
   return true;
 }
 
-/** Uses the version-3 Near source: coarse LODs must never define combat occlusion. */
-export function loadMonsterDistrictBuildings(): Building[] {
-  const result: Building[] = [];
-  // Cover every permitted firing origin, including long-range western and
-  // northern approaches; the old 16-cell cache stopped short of that envelope.
+/** Include every permitted firing origin around the existing monster arena. */
+export function monsterBuildingCoverage() {
   const reach=monsterAttackRange+journeyDallas19.monster.height*Math.hypot(monsterGeometry.mouth.x,monsterGeometry.mouth.z)+300;
-  const coverageMinX=monsterArena.minX-reach,coverageMaxX=monsterArena.maxX+reach;
-  const coverageMinZ=monsterArena.minZ-reach,coverageMaxZ=monsterArena.maxZ+reach;
-  const cellSize = 2000 * DALLAS_WORLD_SCALE;
-  const minCellX=Math.floor(coverageMinX/cellSize),maxCellX=Math.floor(coverageMaxX/cellSize);
-  const minCellZ=Math.floor(coverageMinZ/cellSize),maxCellZ=Math.floor(coverageMaxZ/cellSize);
-  for (let x = minCellX; x <= maxCellX; x++) for (let z = minCellZ; z <= maxCellZ; z++) {
-    const url=new URL(`../../client/public/data/dallas/near/${x}_${z}.json`, import.meta.url);
-    if(!existsSync(url))continue;
-    const chunk = JSON.parse(readFileSync(url, 'utf8')) as { b: number[][] };
-    for (const building of chunk.b) {
-      const xs: number[] = [], zs: number[] = [];
-      for (let i = 4; i + 1 < building.length; i += 2) { xs.push(building[i]! * DALLAS_WORLD_SCALE); zs.push(building[i + 1]! * DALLAS_WORLD_SCALE); }
-      if (xs.length < 3) continue;
-      const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
-      if (replacedDallasFootprint(minX,maxX,minZ,maxZ)) continue;
-      if (maxX < coverageMinX || minX > coverageMaxX || maxZ < coverageMinZ || minZ > coverageMaxZ) continue;
-      result.push({ minX, maxX, minZ, maxZ, top: (building[3]! + building[0]!) * DALLAS_WORLD_SCALE });
-    }
-  }
-  for (const b of authoredDallasBuildings()) if (b.maxX >= coverageMinX && b.minX <= coverageMaxX && b.maxZ >= coverageMinZ && b.minZ <= coverageMaxZ) result.push(b);
+  return {minX:monsterArena.minX-reach,maxX:monsterArena.maxX+reach,minZ:monsterArena.minZ-reach,maxZ:monsterArena.maxZ+reach};
+}
+
+export function loadMonsterDistrictBuildings(): Building[] {
+  const result=loadDallasCombatBuildings([monsterBuildingCoverage()]);
   indexBuildingsForOcclusion(result);
   return result;
 }

@@ -1,6 +1,5 @@
-import {authoredDallasBuildings,replacedDallasFootprint} from './dallas-building-occlusion.js';
-import { readFileSync, readdirSync } from 'node:fs';
-import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
+import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
+import { readFileSync } from 'node:fs';
 import { transportPose, transportTuning, transportFootprintRadius, type TransportPoint as Point, type TransportPose } from '../../shared/giant-incoming.mjs';
 import { COMBAT_RANGE, ballisticShotSpeed } from '../../shared/protocol.mjs';
 import { journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12 } from '../../shared/journey-mission.mjs';
@@ -12,33 +11,12 @@ type Building = {
     maxZ: number;
     top: number;
 };
+export function transportBuildingCoverage() {
+    const first=transportPose(0),last=transportPose(transportTuning.durationMs),reach=COMBAT_RANGE+transportFootprintRadius;
+    return {minX:first.x-reach,maxX:last.x+reach,minZ:Math.min(first.z,last.z)-reach,maxZ:Math.max(first.z,last.z)+reach};
+}
 export function loadTransportBuildings(): Building[] {
-    const dir = new URL('../../client/public/data/dallas/near/', import.meta.url), result: Building[] = [];
-    const first = transportPose(0), last = transportPose(transportTuning.durationMs), reach = COMBAT_RANGE + transportFootprintRadius, minX = first.x - reach, maxX = last.x + reach, minZ = Math.min(first.z,last.z) - reach, maxZ = Math.max(first.z,last.z) + reach;
-    for (const name of readdirSync(dir)) {
-        if (!name.endsWith('.json'))
-            continue;
-        const [cellX, cellZ] = name.replace('.json', '').split('_').map(Number);
-        if ((cellX! + 1) * 2000 * DALLAS_WORLD_SCALE < minX || cellX! * 2000 * DALLAS_WORLD_SCALE > maxX || (cellZ! + 1) * 2000 * DALLAS_WORLD_SCALE < minZ || cellZ! * 2000 * DALLAS_WORLD_SCALE > maxZ)
-            continue;
-        const chunk = JSON.parse(readFileSync(new URL(name, dir), 'utf8')) as {
-            b: number[][];
-        };
-        for (const b of chunk.b) {
-            const xs = [], zs = [];
-            for (let i = 4; i + 1 < b.length; i += 2) {
-                    xs.push(b[i]! * DALLAS_WORLD_SCALE);
-                    zs.push(b[i + 1]! * DALLAS_WORLD_SCALE);
-            }
-            if (xs.length >= 3) {
-                const item = { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), top: (b[0]! + b[3]!) * DALLAS_WORLD_SCALE };
-                if (replacedDallasFootprint(item.minX,item.maxX,item.minZ,item.maxZ)) continue;
-                if (item.maxX >= minX && item.minX <= maxX && item.maxZ >= minZ && item.minZ <= maxZ)
-                    result.push(item);
-            }
-        }
-    }
-    for (const b of authoredDallasBuildings()) if (b.maxX >= minX && b.minX <= maxX && b.maxZ >= minZ && b.minZ <= maxZ) result.push(b);
+    const result=loadDallasCombatBuildings([transportBuildingCoverage()]);
     indexBuildingsForOcclusion(result);
     return result;
 }

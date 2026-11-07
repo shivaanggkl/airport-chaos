@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import {dallasLandmarks,landmarkBounds} from '../../shared/dallas-landmarks.mjs';
 import {generateDallasSkyline} from '../../shared/dallas-skyline.mjs';
 import {DALLAS_WORLD_SCALE as S} from '../../shared/dallas-world-scale.mjs';
-import {authoredDallasBuildings,replacedDallasFootprint} from './dallas-building-occlusion.js';
+import {authoredDallasBuildings,replacedDallasFootprint,loadDallasCombatBuildings} from './dallas-building-occlusion.js';
 import {dallasElevationAt} from './dallas-elevation.js';
 import {loadTransportBuildings} from './giant-incoming.js';
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
@@ -16,7 +16,7 @@ import {monsterArena} from '../../shared/m19-environment.mjs';
 import {journeyDallas19} from '../../shared/journey-mission.mjs';
 import {monsterGeometry} from '../../shared/monster-arrival-geometry.mjs';
 import {COMBAT_RANGE} from '../../shared/protocol.mjs';
-import {loadMonsterDistrictBuildings,segmentBlockedByBuildings,monsterAttackRange} from './monster-arrival.js';
+import {loadMonsterDistrictBuildings,segmentBlockedByBuildings,indexBuildingsForOcclusion,monsterAttackRange} from './monster-arrival.js';
 import {airports,getTerrainHeight} from '../../client/src/dallas-world.js';
 
 function renderedLandmarks(source){
@@ -66,4 +66,18 @@ test('both authoritative building indexes replace invisible downtown footprints 
  }
  assert.equal(replacedDallasFootprint(-50,50,-50,50),true);
  assert.equal(replacedDallasFootprint(-50000,-49900,-50000,-49900),false);
+});
+
+
+test('overlapping mission coverage shares one set of surfaces without losing collision results',()=>{
+ const a={minX:-42000,maxX:-39000,minZ:-29000,maxZ:-27000},b={minX:-41000,maxX:-38000,minZ:-29000,maxZ:-27000};
+ const left=loadDallasCombatBuildings([a]),right=loadDallasCombatBuildings([b]),union=loadDallasCombatBuildings([a,b]);
+ const key=x=>JSON.stringify(x),separate=[...left,...right];
+ assert(left.length>0&&right.length>0);assert(union.length<left.length+right.length);
+ assert.deepEqual(new Set(union.map(key)),new Set([...left,...right].map(key)));
+ indexBuildingsForOcclusion(union);
+ for(const row of [...left,...right].filter((_,i)=>i%29===0)){
+  const x=(row.minX+row.maxX)/2,z=(row.minZ+row.maxZ)/2,start={x:x-50,y:row.top-1,z},end={x:x+50,y:row.top-1,z};
+  assert.equal(segmentBlockedByBuildings(start,end,union),segmentBlockedByBuildings(start,end,separate));
+ }
 });

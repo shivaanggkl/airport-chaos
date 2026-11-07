@@ -1,3 +1,4 @@
+import {loadDallasCombatBuildings} from './dallas-building-occlusion.js';
 import {dallasElevationAt} from './dallas-elevation.js';
 import {createPursuitWarlordEncounter} from './pursuit-warlord.js';
 import {createShowdownWarlordEncounter} from './showdown-warlord.js';
@@ -21,7 +22,7 @@ import { CombatSpatialIndex } from './combat-spatial-index.js';
 import { CombatProjectileBudget } from './combat-projectile-budget.js';
 import {transportPose,transportTuning,transportFootprintRadius} from '../../shared/giant-incoming.mjs';
 import { aircraftHitRadii, remoteAircraftCollisionRadius, remoteAircraftContactRadius, remoteAircraftScale, remoteAircraftVisualScale } from '../../shared/remote-aircraft-visual-rules.mjs';
-import {createTransportEncounter,loadTransportBuildings,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
+import {createTransportEncounter,transportBuildingCoverage,transportAltitude,transportImpact,transportAircraftImpact,transportHullImpact,transportFortressImpact,transportFortressTarget,transportProjectileDisposition,stepTransportEncounter,type TransportEncounter} from './giant-incoming.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -43,7 +44,7 @@ import { challengeForCity, dfwSpeedGates } from '../../shared/city-challenges.mj
 import { publicStoreCatalog } from '../../shared/store-catalog.mjs';
 import { journeyGateCrossing, journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas08, journeyDallas09, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas14, journeyDallas15, journeyDallas16, journeyDallas17, journeyDallas18, journeyDallas25, journeyDallas19, journeyDallas20, journeyDallas21, journeyDallas22, journeyDallas23, journeyDallas24 } from '../../shared/journey-mission.mjs';
 import { reinforcementApproachPoint } from './reinforcement-approach.js';
-import {loadMonsterDistrictBuildings,segmentBlockedByBuildings} from './monster-arrival.js';
+import {monsterBuildingCoverage,indexBuildingsForOcclusion,segmentBlockedByBuildings} from './monster-arrival.js';
 import {createStrikingWarlordEncounter} from './striking-warlord.js';
 import {stepM19,disposeM19,permittedM19Damage,type M19Encounter} from './m19-titan.js';
 import { monsterHandSwipe } from '../../shared/monster-hand-swipe.mjs';
@@ -311,9 +312,11 @@ const dallasTerrain = (() => {
   return { elevationAt, airportElevations };
 })();
 const dallasAirportElevations = dallasTerrain.airportElevations;
-const monsterDistrictBuildings = loadMonsterDistrictBuildings();
+const monsterDistrictBuildings = loadDallasCombatBuildings([monsterBuildingCoverage(),transportBuildingCoverage()]);
+indexBuildingsForOcclusion(monsterDistrictBuildings);
 const monsterEncounters = new Map<string, M19Encounter>();
-const transportBuildings = loadTransportBuildings();
+// The union preserves both coverage regions without a second city-sized copy.
+const transportBuildings = monsterDistrictBuildings;
 const transportFlightAltitude = transportAltitude(transportBuildings,dallasTerrain.elevationAt);
 const transportEncounters = new Map<string,TransportEncounter>();
 const transportReady = new Set<string>();
