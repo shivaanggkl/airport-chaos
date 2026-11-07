@@ -1,3 +1,5 @@
+import vm from 'node:vm';
+import * as journeyMissions from '../../shared/journey-mission.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,statSync} from 'node:fs';
@@ -70,4 +72,23 @@ test('story is M19-only, shares the existing launch clock, keeps skip/countdown 
  assert(cleanup.includes('missionImageStory?.dispose();missionImageStory=undefined;m19StoryOffsetMs=0'));assert(cleanup.includes('beginMissionStartCountdown()'));assert(main.includes('flightLaunchSkipStartedAt = now'));assert(main.includes("matchMedia('(prefers-reduced-motion: reduce)')"));
  const css=readFileSync(new URL('../../client/src/style.css',import.meta.url),'utf8');
  assert(css.includes('aspect-ratio: 16 / 9'));assert(css.includes('object-fit: contain'));assert(css.includes('scale(.975)'));assert(css.includes('scale(1)'));assert(css.includes('transition: opacity 250ms'));assert(css.includes('.image-story-caption'));assert(css.includes('color: #fff'));assert(css.includes('prefers-reduced-motion: reduce'));
+});
+
+test('restarting visible M19 launches its own internal mission and resets the complete intro; M24 stays separate',()=>{
+ const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
+ const retry=main.slice(main.indexOf('async function retryJourneyMission'),main.indexOf("window.addEventListener('airport-chaos-city-exit'"));
+ const start=retry.indexOf('apiUrl(')+7,end=retry.indexOf('), {',start),urlExpression=retry.slice(start,end);
+ for(const mission of [journeyMissions.journeyDallas25,journeyMissions.journeyDallas19,journeyMissions.journeyDallas20,journeyMissions.journeyDallas21,journeyMissions.journeyDallas22,journeyMissions.journeyDallas23]){
+   const id=mission.id;
+   const actual=vm.runInNewContext(urlExpression,{...journeyMissions,journeyAttempt:{missionId:id}});
+   assert.equal(actual,`/api/journey/dallas/mission-${id.slice(-2)}/launch`,`${id} retries a different mission`);
+ }
+ assert.equal(journeyMissions.journeyMissionSlot(journeyMissions.journeyDallas25.id),19);
+ assert.equal(journeyMissions.journeyMissionSlot(journeyMissions.journeyDallas19.id),24);
+ assert(retry.includes('if(journeyAttempt.missionId===journeyDallas25.id)clearFlightLaunchPresentation()'));
+ assert(retry.indexOf('clearFlightLaunchPresentation()')<retry.indexOf('monsterView?.dispose()'));
+ assert(retry.includes('flightLaunchWelcomeHandled = false'));assert(retry.includes("flightLaunchState = 'pending'"));
+ assert(retry.includes('missionStartCountdownPending = true'));
+ const prepare=main.slice(main.indexOf('async function prepareMonsterMissionIntro'),main.indexOf('function beginFlightLaunchCinematic'));
+ assert(prepare.includes('new ImageStorySequence(flightGameRoot,M19_ORIGIN_STORY)'));
 });

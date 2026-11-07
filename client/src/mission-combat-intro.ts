@@ -1,3 +1,4 @@
+import {M24_INTRO} from './m24-intro';
 import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
 import {M21_INTRO} from './m21-intro';
@@ -20,7 +21,7 @@ export class CombatMissionIntroPath {
   private readonly opponentOrigin: THREE.Vector3;
   private readonly downtown=new THREE.Vector3(M19_DOWNTOWN.x,0,M19_DOWNTOWN.z);
   private readonly departureDirection = new THREE.Vector3();
-  constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 19 = 7,readonly arrivalIntro=false,readonly strikingIntro=false,private readonly introFist?:THREE.Vector3,private readonly introShot?:THREE.Vector3,readonly huntingIntro=false,readonly showdownIntro=false,readonly pursuitIntro=false,private readonly introFootstep?:()=>number) {
+  constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 19 = 7,readonly arrivalIntro=false,readonly strikingIntro=false,private readonly introFist?:THREE.Vector3,private readonly introShot?:THREE.Vector3,readonly huntingIntro=false,readonly showdownIntro=false,readonly pursuitIntro=false,private readonly introFootstep?:()=>number,readonly finalIntro=false) {
     this.opponentOrigin = opponent.position.clone();
     this.strikingCameraYaw=opponent.rotation.y+(strikingIntro?1.5*3.1997298216058336/3.875:0);
     this.departureDirection.set(0, 0, -1).applyAxisAngle(THREE.Object3D.DEFAULT_UP, opponent.rotation.y);
@@ -31,9 +32,10 @@ export class CombatMissionIntroPath {
     new THREE.Box3().setFromObject(player).getSize(size);
     this.playerRadius = Math.max(14, size.x * 1.5, size.z * 1.3);
   }
-  get sweepMs():number{if(this.huntingIntro)return M21_INTRO.handoff*1000;if(this.strikingIntro)return M20_INTRO.handoff*1000;if(this.arrivalIntro)return M19_INTRO.handoff*1000;return this.missionNumber===19?11000:MISSION_COMBAT_INTRO_SWEEP_MS;}
-  get durationMs():number{if(this.huntingIntro)return M21_INTRO.duration*1000;if(this.strikingIntro)return M20_INTRO.duration*1000;if(this.arrivalIntro)return M19_INTRO.duration*1000;return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
+  get sweepMs():number{if(this.finalIntro)return M24_INTRO.handoff*1000;if(this.huntingIntro)return M21_INTRO.handoff*1000;if(this.strikingIntro)return M20_INTRO.handoff*1000;if(this.arrivalIntro)return M19_INTRO.handoff*1000;return this.missionNumber===19?11000:MISSION_COMBAT_INTRO_SWEEP_MS;}
+  get durationMs():number{if(this.finalIntro)return M24_INTRO.duration*1000;if(this.huntingIntro)return M21_INTRO.duration*1000;if(this.strikingIntro)return M20_INTRO.duration*1000;if(this.arrivalIntro)return M19_INTRO.duration*1000;return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
   wipe(elapsed: number): number {
+    if(this.finalIntro){for(const cut of [24000,28000])if(Math.abs(elapsed-cut)<200)return 1-Math.abs(elapsed-cut)/200;return 0;}
     if(this.huntingIntro){if((this.showdownIntro||this.pursuitIntro)&&Math.abs(elapsed-20000)<150)return 1-Math.abs(elapsed-20000)/150;return Math.max(0,1-Math.abs(elapsed-24000)/250);}
     if(this.strikingIntro)return Math.max(0,1-Math.abs(elapsed-23000)/250);
     if(this.arrivalIntro){for(const cut of [4000,14000])if(Math.abs(elapsed-cut)<250)return 1-Math.abs(elapsed-cut)/250;return 0;}
@@ -68,31 +70,37 @@ export class CombatMissionIntroPath {
   }
   private sampleHunting(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
     const t=elapsed/1000,h=this.opponentHeight,root=this.opponent;
-    if(t>=24){
-      const orbit=THREE.MathUtils.smoothstep(t,24.25,M21_INTRO.handoff),angle=THREE.MathUtils.lerp(1.4,.2,orbit);
+    const timing=this.finalIntro?M24_INTRO:this.pursuitIntro?M23_INTRO:this.showdownIntro?M22_INTRO:M21_INTRO;
+    if(t>=timing.runway){
+      const orbit=THREE.MathUtils.smoothstep(t,timing.runway+.25,timing.handoff),angle=THREE.MathUtils.lerp(1.4,.2,orbit);
       this.offset.set(Math.sin(angle)*this.playerRadius,this.playerRadius*.1,Math.cos(angle)*this.playerRadius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.player.rotation.y);
       this.shotPosition.copy(this.player.position).add(this.offset);this.shotTarget.copy(this.player.position).addScaledVector(THREE.Object3D.DEFAULT_UP,1);
-      const blend=THREE.MathUtils.smoothstep(t,M21_INTRO.handoff,M21_INTRO.duration);
+      const blend=THREE.MathUtils.smoothstep(t,timing.handoff,timing.duration);
       position.lerpVectors(this.shotPosition,chasePosition,blend);target.lerpVectors(this.shotTarget,chaseTarget,blend);return;
     }
-    const timing=this.pursuitIntro?M23_INTRO:this.showdownIntro?M22_INTRO:M21_INTRO;
+    if(this.finalIntro&&t>=24){
+      const radius=THREE.MathUtils.lerp(1.8,2.2,THREE.MathUtils.smoothstep(t,24,28));
+      this.offset.copy(root.position).sub(this.downtown);this.offset.y=0;this.offset.normalize().multiplyScalar(h*radius);this.offset.y=h*.7;
+      position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*.65;return;
+    }
     const search=THREE.MathUtils.smoothstep(t,4,7.5),roar=THREE.MathUtils.smoothstep(t,timing.roar-.3,timing.roar+1)*(1-THREE.MathUtils.smoothstep(t,timing.roar+3.8,timing.roar+4.4)),cast=THREE.MathUtils.smoothstep(t,timing.cast,this.showdownIntro||this.pursuitIntro?timing.shoot:21.4);
     let radius=THREE.MathUtils.lerp(1.65,1.2,search);radius=THREE.MathUtils.lerp(radius,.95,roar);radius=THREE.MathUtils.lerp(radius,1.05,cast);
     const punch=(this.showdownIntro||this.pursuitIntro)&&t>=8&&t<12;
     if(this.showdownIntro||this.pursuitIntro){radius=punch?1.25:t>=20?.85:t>=12?THREE.MathUtils.lerp(.95,1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release)):radius;}
-    if(this.pursuitIntro&&t>=12&&t<20)radius=THREE.MathUtils.lerp(THREE.MathUtils.lerp(1.25,.95,cast),1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release));
+    if(this.pursuitIntro&&t>=timing.cast&&t<(this.finalIntro?24:20))radius=THREE.MathUtils.lerp(THREE.MathUtils.lerp(1.25,.95,cast),1.4,THREE.MathUtils.smoothstep(t,timing.release-.3,timing.release));
+    if(this.finalIntro&&t>=12&&t<16)radius=.85;
     const angle=punch?.65:THREE.MathUtils.lerp(.8,.1,search);
     this.offset.set(Math.sin(angle)*h*radius,h*(punch?.32:THREE.MathUtils.lerp(.4,.78,Math.max(search,roar))),Math.cos(angle)*h*radius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
     position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*THREE.MathUtils.lerp(.52,.82,Math.max(search,roar));
     if(this.pursuitIntro&&t<8){
-      const run=THREE.MathUtils.smoothstep(t,3.7,4.4)*(1-THREE.MathUtils.smoothstep(t,7,8)),angle=THREE.MathUtils.lerp(.75,1.35,run);
-      this.offset.set(Math.sin(angle)*h*1.8,h*.45,Math.cos(angle)*h*1.8).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
+      const run=THREE.MathUtils.smoothstep(t,3.7,4.4)*(1-THREE.MathUtils.smoothstep(t,7,8)),angle=THREE.MathUtils.lerp(.75,this.finalIntro?.1:1.35,run);
+      this.offset.set(Math.sin(angle)*h*1.8,h*(this.finalIntro?.32:.45),Math.cos(angle)*h*1.8).applyAxisAngle(THREE.Object3D.DEFAULT_UP,root.rotation.y);
       position.copy(root.position).add(this.offset);target.copy(root.position);target.y+=h*.52;
       const age=t-(this.introFootstep?.()??-Infinity);if(age>=0&&age<.2){const shake=Math.sin(age*70)*Math.exp(-age*18)*h*.0015*run;position.y+=shake;}
     }
     if(t>=timing.punch&&t<timing.punch+4&&this.introFist)target.lerp(this.introFist,.35*Math.sin(Math.PI*(t-timing.punch)/4));
     if(t>=timing.roar&&t<timing.roar+3.625){const weight=Math.sin(Math.PI*(t-timing.roar)/3.625);position.x+=Math.sin(t*31)*h*.0018*weight;position.y+=Math.sin(t*37)*h*.001*weight;}
-    if(t>=timing.release&&(!(this.showdownIntro||this.pursuitIntro)||t<20)&&this.introShot){const weight=THREE.MathUtils.smoothstep(t,timing.release,timing.release+.4);target.lerp(this.introShot,weight);this.shotPosition.copy(this.introShot).add(this.offset);position.lerp(this.shotPosition,weight*.7);}
+    if(t>=timing.release&&(!(this.showdownIntro||this.pursuitIntro)||t<(this.finalIntro?24:20))&&this.introShot){const weight=THREE.MathUtils.smoothstep(t,timing.release,timing.release+.4);target.lerp(this.introShot,weight);this.shotPosition.copy(this.introShot).add(this.offset);position.lerp(this.shotPosition,weight*.7);}
   }
   private sampleStriking(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
     const t=elapsed/1000,h=this.opponentHeight,root=this.opponent;
@@ -142,12 +150,14 @@ export class CombatMissionIntroPath {
     }
   }
   fov(elapsed: number, chaseFov: number): number {
+    if(this.finalIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M24_INTRO.handoff,M24_INTRO.duration));
     if(this.huntingIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M21_INTRO.handoff,M21_INTRO.duration));
     if(this.strikingIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M20_INTRO.handoff,M20_INTRO.duration));
     if(this.arrivalIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration));
     return THREE.MathUtils.lerp(48, chaseFov, THREE.MathUtils.smoothstep(elapsed, this.sweepMs-1500, this.sweepMs));
   }
   streamingPosition(elapsed: number): THREE.Vector3 {
+    if(this.finalIntro)return elapsed<28000?this.opponent.position:this.player.position;
     if(this.huntingIntro)return elapsed<24000?this.opponent.position:this.player.position;
     if(this.strikingIntro)return elapsed<23000?this.opponent.position:this.player.position;
     if(this.arrivalIntro)return elapsed<M19_INTRO.reveal*1000?this.downtown:elapsed<M19_INTRO.monsterEnd*1000?this.opponent.position:this.player.position;

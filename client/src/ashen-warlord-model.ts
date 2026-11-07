@@ -1,3 +1,4 @@
+import {m24IntroMotion} from './m24-intro';
 import {m23IntroMotion,m23Travel} from './m23-intro';
 import {m22IntroMotion} from './m22-intro';
 import {M21_INTRO,m21IntroMotion} from './m21-intro';
@@ -48,23 +49,23 @@ export class AshenWarlordModel {
     private fallback = 'idle';
     private clock = 0;
     private introTime: number | null = null;
-    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean;pursuit:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
+    private strikingIntro?:{position:THREE.Vector3;yaw:number;walk?:{startTime:number;distance:number;yaw:number;showdown:boolean;pursuit:boolean;final:boolean};last?:AuthoredAnimation;previous?:AuthoredAnimation;transitionAt:number};
     prepareStrikingIntro():void {
         if(!this.striking||this.hunting||this.frame||this.strikingIntro)return;
         this.strikingIntro={position:this.root.position.clone(),yaw:this.root.rotation.y,transitionAt:0};
         this.introTime=0;this.applyStrikingIntro(0);
     }
-    prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false):void {
+    prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false,final=false):void {
         if(!this.hunting||this.pursuit!==pursuit||this.frame||this.strikingIntro)return;
         const position=this.root.position.clone(),yaw=this.root.rotation.y,clip=model.clips.walk!;
         const nearby=obstacles.filter(o=>Math.hypot(o.x-position.x,o.z-position.z)<model.height*(pursuit?6:2)+Math.hypot(o.halfX,o.halfZ));
         for(const phase of [0,.5,.75]){
-            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:pursuit?m23Travel(7,clip.duration*phase):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown,pursuit},transitionAt:0};
+            this.strikingIntro={position,yaw,walk:{startTime:clip.duration*phase,distance:pursuit?m23Travel(7,clip.duration*phase):m19WalkDistance(clip.duration)-m19WalkDistance(clip.duration*phase),yaw:Math.PI/2,showdown,pursuit,final},transitionAt:0};
             let clear=true;
-            for(let step=0;step<=128&&clear;step++){this.applyStrikingIntro(16*step/128);if(this.introPoseObstructed(nearby))clear=false;}
+            for(let step=0;step<=(final?192:128)&&clear;step++){this.applyStrikingIntro(step/8);if(this.introPoseObstructed(nearby))clear=false;}
             if(clear){this.strikingIntro.last=undefined;this.strikingIntro.previous=undefined;this.strikingIntro.transitionAt=0;this.introTime=0;this.applyStrikingIntro(0);this.grounded=[false,false];return;}
         }
-        this.setIntroTime(null);throw Error(`${pursuit?'M23':showdown?'M22':'M21'} cinematic approach is obstructed`);
+        this.setIntroTime(null);throw Error(`${final?'M24':pursuit?'M23':showdown?'M22':'M21'} cinematic approach is obstructed`);
     }
     private introPoseObstructed(obstacles:readonly ObstacleBounds[]):boolean {
         const center=this.temp;
@@ -79,7 +80,7 @@ export class AshenWarlordModel {
         return false;
     }
     private applyStrikingIntro(seconds:number):void {
-        const intro=this.strikingIntro!,motion=intro.walk?(intro.walk.pursuit?m23IntroMotion(seconds,intro.walk.startTime):intro.walk.showdown?m22IntroMotion(seconds,intro.walk.startTime):m21IntroMotion(seconds,intro.walk.startTime)):m20IntroMotion(seconds),clip=model.clips[motion.key]!;
+        const intro=this.strikingIntro!,motion=intro.walk?(intro.walk.final?m24IntroMotion(seconds,intro.walk.startTime):intro.walk.pursuit?m23IntroMotion(seconds,intro.walk.startTime):intro.walk.showdown?m22IntroMotion(seconds,intro.walk.startTime):m21IntroMotion(seconds,intro.walk.startTime)):m20IntroMotion(seconds),clip=model.clips[motion.key]!;
         this.root.position.copy(intro.position);this.root.position.y+=motion.height;
         this.root.rotation.y=intro.yaw+motion.yawOffset;
         if(intro.walk){

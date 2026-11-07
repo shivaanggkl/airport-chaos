@@ -1,3 +1,4 @@
+import {M24_INTRO} from './m24-intro';
 import {M23_INTRO} from './m23-intro';
 import {M22_INTRO} from './m22-intro';
 import {M21_INTRO} from './m21-intro';
@@ -133,6 +134,7 @@ export class MonsterArrivalView {
   private huntingIntroEnabled=false;
   private showdownIntroEnabled=false;
   private pursuitIntroEnabled=false;
+  private finalIntroEnabled=false;
   introFootstepTime=-Infinity;
   private introPunchWarned=false;
   private introPunchImpact=false;
@@ -149,21 +151,22 @@ export class MonsterArrivalView {
     this.strikingIntroEnabled=true;this.introLanded=false;this.introRoared=false;this.introReleased=false;
     (this.creature as AshenWarlordModel).prepareStrikingIntro();
   }
-  prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false):void {
+  prepareHuntingIntro(obstacles:readonly ObstacleBounds[],showdown=false,pursuit=false,final=false):void {
     if(!this.hunting||this.pursuit!==pursuit||this.state)return;
-    (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown,pursuit);
+    (this.creature as AshenWarlordModel).prepareHuntingIntro(obstacles,showdown,pursuit,final);
+    this.finalIntroEnabled=final;
     this.pursuitIntroEnabled=pursuit;this.introFootstepTime=-Infinity;
     this.showdownIntroEnabled=showdown;this.introPunchImpact=false;this.introCastingSound=false;
     this.strikingIntroEnabled=true;this.huntingIntroEnabled=true;this.introPunchWarned=false;this.introLanded=false;this.introRoared=false;this.introReleased=false;
   }
   private clearStrikingIntro():void {
     if(!this.strikingIntroEnabled)return;
-    this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
+    this.strikingIntroEnabled=false;this.huntingIntroEnabled=false;this.showdownIntroEnabled=false;this.pursuitIntroEnabled=false;this.finalIntroEnabled=false;this.introFootstepTime=-Infinity;this.mouthFire.visible=false;if(this.castingHand)this.castingHand.visible=false;
     const shot=this.pool[0]!;shot.group.visible=false;shot.group.scale.setScalar(1);
     (shot.group.children[0] as THREE.Mesh).material=coreMaterial;this.particles.clear();
   }
   private updateStrikingIntro():void {
-    const timing=this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
+    const timing=this.finalIntroEnabled?M24_INTRO:this.pursuitIntroEnabled?M23_INTRO:this.showdownIntroEnabled?M22_INTRO:this.huntingIntroEnabled?M21_INTRO:M20_INTRO;
     const t=this.introTime!,actor=this.creature as AshenWarlordModel,shot=this.pool[0]!;
     actor.handPosition('left',this.introFistWorld);
     if(!this.huntingIntroEnabled&&t>=M20_INTRO.land&&!this.introLanded){this.introLanded=true;this.particles.emit(actor.root.position.x,actor.root.position.y,actor.root.position.z,true,14,95,1.5);this.onFootfall?.();}
@@ -227,8 +230,8 @@ export class MonsterArrivalView {
     if((this.stationary||this.striking)&&this.ending==='defeat'){
       const root=this.creature.root;
       // The supplied model faces local +Z; keep the close shot in front at any combat yaw.
-      camera.position.set(0,ashenWarlordHeight*.7,ashenWarlordHeight*1.47).applyQuaternion(root.quaternion).add(root.position);
-      camera.lookAt(root.position.x,root.position.y+ashenWarlordHeight*.5,root.position.z);return;
+      camera.position.set(0,ashenWarlordHeight*.62,ashenWarlordHeight*.85).applyQuaternion(root.quaternion).add(root.position);
+      camera.lookAt(root.position.x,root.position.y+ashenWarlordHeight*.55,root.position.z);return;
     }
     if(!this.crimsonCore||this.ending!=='timeout')return;
     const root=this.creature.root,height=ashenWarlordHeight;
