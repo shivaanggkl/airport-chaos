@@ -126,11 +126,11 @@ test('M19 persists completion once, starts its four-minute clock at GO, times ou
         rmSync(dir, { recursive: true, force: true });
     }
 });
-test('stationary combat clips plus cinematic-only Shoot load and standalone defeat finishes before fading', async () => {
+test('stationary combat clips plus cinematic-only Walk/Shoot load and standalone defeat finishes before fading', async () => {
     const actor = new AshenWarlordModel(source, true);
     await actor.ready;
     const actions = actor.actions;
-    const allowed = ['idle', 'punch', 'roar', 'defeat', 'shoot'].map(key => model.clips[key].name);
+    const allowed = ['idle', 'punch', 'roar', 'defeat', 'shoot', 'walk'].map(key => model.clips[key].name);
     assert([...actions.keys()].every(name => allowed.includes(name.replace(/#(?:upper|lower)$/, ''))));
     actor.setIntroTime(1);
     actor.update(.05, 1000, 0);
@@ -175,6 +175,14 @@ test('M19 victory plays a three-height blast, dissolves into rising ash, then co
     let ended = 0;
     view.onEndingComplete = () => ended++;
     view.finish('defeat');
+    const camera = new THREE.PerspectiveCamera();
+    for(const yaw of [0,Math.PI/2,Math.PI,-Math.PI/2]){
+        view.creature.root.rotation.y=yaw;
+        view.updateTimeoutCamera(camera);
+        const offset=camera.position.clone().sub(view.creature.root.position);offset.y=0;
+        const facing=new THREE.Vector3(0,0,1).applyQuaternion(view.creature.root.quaternion);
+        assert(offset.normalize().dot(facing)>.999, 'victory camera stays in front of the face for every heading');
+    }
     const blast = scene.getObjectByName('m19-victory-blast');
     const ash = scene.getObjectByName('m19-victory-rising-ash');
     assert(blast && ash);

@@ -10,6 +10,9 @@ import { PlayerProfileStore } from './player-profiles.js';
 import { PilotSessionStore } from './session-auth.js';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
 import type { AssaultSnapshot } from '../../shared/air-assault.mjs';
+import { airAssaultRules } from '../../shared/air-assault.mjs';
+import { cityAirports } from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 type Packet = Record<string, any>;
 async function port() { return new Promise<number>(resolve => { const server = createServer(); server.listen(0, '127.0.0.1', () => { const n = (server.address() as {
@@ -59,11 +62,12 @@ test('Real authenticated server isolates encounters, validates takeoff, freezes 
     assert.ok(!free.players.some((e: Packet) => e.playerId === welcome.playerId));
     const data = JSON.parse(readFileSync('client/src/data/dallas-elevation.json', 'utf8'));
     const bytes = Buffer.from(data.elevations, 'base64'), samples = new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
-    const x = (-22800 - data.bounds.minX) / (data.bounds.maxX - data.bounds.minX) * (data.width - 1), z = (-13600 - data.bounds.minZ) / (data.bounds.maxZ - data.bounds.minZ) * (data.height - 1), x0 = Math.floor(x), z0 = Math.floor(z);
+    const airport = cityAirports.dallas[0];
+    const x = (airport.x / DALLAS_WORLD_SCALE - data.bounds.minX) / (data.bounds.maxX - data.bounds.minX) * (data.width - 1), z = (airport.z / DALLAS_WORLD_SCALE - data.bounds.minZ) / (data.bounds.maxZ - data.bounds.minZ) * (data.height - 1), x0 = Math.floor(x), z0 = Math.floor(z);
     const at = (a: number, b: number) => data.baseElevation + samples[b * data.width + a]! * data.scale;
     const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-    const runwayY = mix(mix(at(x0, z0), at(x0 + 1, z0), x - x0), mix(at(x0, z0 + 1), at(x0 + 1, z0 + 1), x - x0), z - z0);
-    const position = { x: -22800, y: runwayY, z: -13600 + 4100 * .32 };
+    const runwayY = mix(mix(at(x0, z0), at(x0 + 1, z0), x - x0), mix(at(x0, z0 + 1), at(x0 + 1, z0 + 1), x - x0), z - z0) * DALLAS_WORLD_SCALE;
+    const position = { x: airport.x, y: runwayY, z: airport.z + airport.runwayLength * .32 };
     let sequence = 0;
     const state = () => a.send({ type: 'state', position: { ...position }, rotation: { x: 0, y: 0, z: 0 }, stateSequence: ++sequence, aircraftType: 'trainer' });
     state();
@@ -88,7 +92,7 @@ test('Real authenticated server isolates encounters, validates takeoff, freezes 
       await sleep(100);
     }
     const active = await a.wait('airAssault', m => m.phase === 'active');
-    assert.equal(active.deadlineAt - active.startedAt, 480000);
+    assert.equal(active.deadlineAt - active.startedAt, airAssaultRules.durationMs);
     assert.equal(active.destroyed, 0);
     await a.wait('airAssault', m => m.enemies.some((e: Packet) => e.phase === 'takeoff'));
     const encounterId = active.id;
@@ -109,10 +113,10 @@ test('Real authenticated server isolates encounters, validates takeoff, freezes 
     // A real, accepted ground pose can lose before takeoff; no timer or reward is invented.
     const ground = new Client(p, identity.cookie, 'air-assault'); clients.push(ground);
     await ground.wait('welcome');
-    ground.send({type:'state',position:{x:-22800,y:runwayY,z:-13600+4100*.32},rotation:{x:0,y:0,z:0},stateSequence:1,aircraftType:'trainer'});
+    ground.send({type:'state',position:{x:airport.x,y:runwayY,z:airport.z+airport.runwayLength*.32},rotation:{x:0,y:0,z:0},stateSequence:1,aircraftType:'trainer'});
     ground.send({type:'airAssaultReady'});await sleep(1100);ground.send({type:'airAssaultSkip'});
     await ground.wait('airAssault',m=>m.phase==='takeoff');
-    ground.send({type:'state',position:{x:-22800,y:runwayY,z:-13600+4100*.32},rotation:{x:0,y:0,z:0},stateSequence:2,aircraftType:'trainer'});
+    ground.send({type:'state',position:{x:airport.x,y:runwayY,z:airport.z+airport.runwayLength*.32},rotation:{x:0,y:0,z:0},stateSequence:2,aircraftType:'trainer'});
     ground.send({type:'airAssaultCrash'});
     const crashed=await ground.wait('airAssault',m=>m.phase==='finished');
     assert.equal(crashed.result,'destroyed');assert.equal(crashed.startedAt,null);assert.equal(crashed.reward,0);

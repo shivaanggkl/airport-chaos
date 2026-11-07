@@ -1,3 +1,4 @@
+import {M19_INTRO,M19_DOWNTOWN} from './m19-intro';
 import * as THREE from 'three';
 
 export const MISSION_COMBAT_INTRO_SWEEP_MS = 8_000;
@@ -12,8 +13,9 @@ export class CombatMissionIntroPath {
   private readonly opponentHeight:number;
   private readonly playerRadius: number;
   private readonly opponentOrigin: THREE.Vector3;
+  private readonly downtown=new THREE.Vector3(M19_DOWNTOWN.x,0,M19_DOWNTOWN.z);
   private readonly departureDirection = new THREE.Vector3();
-  constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 19 = 7) {
+  constructor(readonly opponent: THREE.Group, private readonly player: THREE.Group, readonly missionNumber: 7 | 8 | 9 | 10 | 11 | 12 | 19 = 7,readonly arrivalIntro=false) {
     this.opponentOrigin = opponent.position.clone();
     this.departureDirection.set(0, 0, -1).applyAxisAngle(THREE.Object3D.DEFAULT_UP, opponent.rotation.y);
     const size = new THREE.Vector3();
@@ -23,9 +25,10 @@ export class CombatMissionIntroPath {
     new THREE.Box3().setFromObject(player).getSize(size);
     this.playerRadius = Math.max(14, size.x * 1.5, size.z * 1.3);
   }
-  get sweepMs():number{return this.missionNumber===19?11000:MISSION_COMBAT_INTRO_SWEEP_MS;}
-  get durationMs():number{return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
+  get sweepMs():number{if(this.arrivalIntro)return M19_INTRO.handoff*1000;return this.missionNumber===19?11000:MISSION_COMBAT_INTRO_SWEEP_MS;}
+  get durationMs():number{if(this.arrivalIntro)return M19_INTRO.duration*1000;return this.missionNumber===19?12000:MISSION_COMBAT_INTRO_DURATION_MS;}
   wipe(elapsed: number): number {
+    if(this.arrivalIntro){for(const cut of [4000,14000])if(Math.abs(elapsed-cut)<250)return 1-Math.abs(elapsed-cut)/250;return 0;}
     if(this.missionNumber===19){if(elapsed<5500)return 0;if(elapsed<6000)return(elapsed-5500)/500;if(elapsed<6500)return 1-(elapsed-6000)/500;return elapsed<11000?0:elapsed<11500?(elapsed-11000)/500:(12000-elapsed)/500;}
     if (elapsed < 3_500) return 0;
     if (elapsed < 4_000) return (elapsed - 3_500) / 500;
@@ -34,6 +37,7 @@ export class CombatMissionIntroPath {
   }
   sample(elapsed: number, position: THREE.Vector3, target: THREE.Vector3,
     chasePosition: THREE.Vector3, chaseTarget: THREE.Vector3): void {
+    if(this.arrivalIntro){this.sampleArrival(elapsed,position,target,chasePosition,chaseTarget);return;}
     // M7 shows runway preparation; Later combat missions show a short, level airborne pass.
     // Only the temporary visual group moves, never a live opponent or the player.
     if (this.missionNumber !== 7 && this.missionNumber !== 19)
@@ -52,10 +56,40 @@ export class CombatMissionIntroPath {
     position.lerpVectors(this.shotPosition, chasePosition, handoff);
     target.lerpVectors(this.shotTarget, chaseTarget, handoff);
   }
+  private sampleArrival(elapsed:number,position:THREE.Vector3,target:THREE.Vector3,chasePosition:THREE.Vector3,chaseTarget:THREE.Vector3):void {
+    const seconds=elapsed/1000,height=this.opponentHeight;
+    if(seconds<M19_INTRO.reveal){
+      const t=THREE.MathUtils.smoothstep(seconds,0,M19_INTRO.reveal);
+      // Aerial view faces away from the approaching monster, preserving the reveal.
+      position.set(this.downtown.x+THREE.MathUtils.lerp(3900,3300,t),this.player.position.y+1700,this.downtown.z+THREE.MathUtils.lerp(4000,3600,t));
+      target.set(this.downtown.x,this.player.position.y+200,this.downtown.z);
+      const shake=THREE.MathUtils.smoothstep(seconds,.8,4);
+      position.x+=Math.sin(seconds*23)*3*shake;position.y+=Math.sin(seconds*29)*2*shake;
+    }else if(seconds<M19_INTRO.monsterEnd){
+      const close=THREE.MathUtils.smoothstep(seconds,M19_INTRO.walkEnd,M19_INTRO.walkEnd+2.5);
+      const angle=THREE.MathUtils.lerp(.3,.04,THREE.MathUtils.smoothstep(seconds,4,14));
+      const radius=height*THREE.MathUtils.lerp(1.55,.95,close);
+      this.offset.set(Math.sin(angle)*radius,height*THREE.MathUtils.lerp(.2,.73,close),Math.cos(angle)*radius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.opponent.rotation.y);
+      position.copy(this.opponent.position).add(this.offset);
+      target.copy(this.opponent.position);target.y+=height*THREE.MathUtils.lerp(.55,.8,close);
+      const roar=seconds-M19_INTRO.walkEnd,weight=Math.sin(Math.PI*THREE.MathUtils.clamp(roar/(M19_INTRO.roarEnd-M19_INTRO.walkEnd),0,1));
+      position.x+=Math.sin(roar*31)*height*.0018*weight;position.y+=Math.sin(roar*37)*height*.001*weight;
+    }else{
+      const orbit=THREE.MathUtils.smoothstep(seconds,14.25,M19_INTRO.handoff);
+      const angle=THREE.MathUtils.lerp(1.4,.2,orbit);
+      this.offset.set(Math.sin(angle)*this.playerRadius,this.playerRadius*.1,Math.cos(angle)*this.playerRadius).applyAxisAngle(THREE.Object3D.DEFAULT_UP,this.player.rotation.y);
+      this.shotPosition.copy(this.player.position).add(this.offset);
+      this.shotTarget.copy(this.player.position).addScaledVector(THREE.Object3D.DEFAULT_UP,1);
+      const handoff=THREE.MathUtils.smoothstep(seconds,M19_INTRO.handoff,M19_INTRO.duration);
+      position.lerpVectors(this.shotPosition,chasePosition,handoff);target.lerpVectors(this.shotTarget,chaseTarget,handoff);
+    }
+  }
   fov(elapsed: number, chaseFov: number): number {
+    if(this.arrivalIntro)return THREE.MathUtils.lerp(48,chaseFov,THREE.MathUtils.smoothstep(elapsed/1000,M19_INTRO.handoff,M19_INTRO.duration));
     return THREE.MathUtils.lerp(48, chaseFov, THREE.MathUtils.smoothstep(elapsed, this.sweepMs-1500, this.sweepMs));
   }
   streamingPosition(elapsed: number): THREE.Vector3 {
+    if(this.arrivalIntro)return elapsed<M19_INTRO.reveal*1000?this.downtown:elapsed<M19_INTRO.monsterEnd*1000?this.opponent.position:this.player.position;
     return elapsed < (this.missionNumber===19?6000:4000) ? this.opponent.position : this.player.position;
   }
 }

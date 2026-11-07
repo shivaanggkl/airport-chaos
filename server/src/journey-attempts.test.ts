@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { journeyDallas01, journeyDallas02, journeyDallas03, journeyDallas04, journeyDallas05, journeyDallas06, journeyDallas07, journeyDallas10, journeyDallas11, journeyDallas12, journeyDallas13, journeyDallas18, journeyDallas20, journeyGateCrossing, crossesJourneyGate } from '../../shared/journey-mission.mjs';
 import { addisonClimbGates } from '../../shared/city-challenges.mjs';
 import { cityAirports } from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { JourneyAttemptStore, JOURNEY_PAUSE_LIMIT_MS } from './journey-attempts.js';
 import { authorizedJourneyAirborneSpawn } from './journey-airborne-spawn.js';
 
@@ -54,7 +55,7 @@ test('Armored giant with escorts permits engine-first damage, keeps one timer an
       assert.equal(ready.fortressLeftHealth, 250);
       store.approach('pilot', ready.attemptId, 1_100);
       const active = store.startGiantIncoming('pilot', ready.attemptId, 2_000)!;
-      assert.equal(active.deadlineAt, 362_000);
+      assert.equal(active.deadlineAt, 2_000 + journeyDallas12.timeLimitMs);
       assert.equal(store.startGiantIncoming('pilot', ready.attemptId, 2_100), undefined);
       assert.equal(store.hitTransport('pilot', ready.attemptId, 2_100, 999), undefined);
       store.assignRearGuardEscort('pilot',ready.attemptId,'nightowl',1);
@@ -76,8 +77,9 @@ test('Armored giant with escorts permits engine-first damage, keeps one timer an
     const expired = store.launch('pilot', 'trainer', 400_000, journeyDallas12.id);
     store.approach('pilot', expired.attemptId, 400_100);
     store.startGiantIncoming('pilot', expired.attemptId, 401_000);
-    assert.equal(store.advanceFinalIntercept('pilot', expired.attemptId, true, 761_000), undefined);
-    assert.equal(store.fail('pilot', expired.attemptId, 'TIME_UP', 761_000)?.status, 'FAILED');
+    const expiredAt = 401_000 + journeyDallas12.timeLimitMs;
+    assert.equal(store.advanceFinalIntercept('pilot', expired.attemptId, true, expiredAt), undefined);
+    assert.equal(store.fail('pilot', expired.attemptId, 'TIME_UP', expiredAt)?.status, 'FAILED');
     const retry = store.launch('pilot', 'trainer', 800_000, journeyDallas12.id);
     assert.equal(retry.finalPhase, 'ESCORTS');
     assert.equal(retry.fortressLeftHealth, 250);
@@ -104,7 +106,7 @@ test('Armored giant persists independent wing and engine damage and pays only on
       assert.equal(launched.fortressRightHealth, 250);
       store.approach('pilot', launched.attemptId, 1_100);
       const active = store.startGiantIncoming('pilot', launched.attemptId, 2_000)!;
-      assert.equal(active.deadlineAt, 2_000 + 330_000);
+      assert.equal(active.deadlineAt, 2_000 + journeyDallas11.timeLimitMs);
       assert.equal(store.acceptGate('pilot', active.attemptId, 0, 2_100), undefined);
       assert.equal(store.hitTransport('pilot', active.attemptId, 2_100, 500), undefined);
       assert.equal(store.hitFortressComponent('pilot', active.attemptId, 'core', 2_100, 500)?.monsterHealth,1000);
@@ -216,7 +218,7 @@ test('Downtown Slalom requires Mission 3 and rewards ten ordered race gates once
     store.approach('slalom-pilot', first.attemptId, 1_100);
     assert.equal(store.acceptGate('slalom-pilot', first.attemptId, 0, 1_200), undefined);
     assert.equal(store.startRookieRush('other-pilot', first.attemptId, 1_300), undefined);
-    assert.equal(store.startRookieRush('slalom-pilot', first.attemptId, 1_300)?.deadlineAt, 161_300);
+    assert.equal(store.startRookieRush('slalom-pilot', first.attemptId, 1_300)?.deadlineAt, 1_300 + journeyDallas04.timeLimitMs);
     assert.equal(store.acceptGate('slalom-pilot', first.attemptId, 1, 2_000), undefined);
     assert.equal(store.acceptGate('other-pilot', first.attemptId, 0, 2_000), undefined);
     assert.equal(store.acceptGate('slalom-pilot', first.attemptId, 0, 2_000)?.gateIndex, 1);
@@ -316,9 +318,9 @@ test('Journey begins at Gate 1, pays first clear once, and keeps replay eligibil
     assert.equal(store.get('pilot-one', first.attemptId)?.deadlineAt, null);
     assert.equal(store.acceptGate('pilot-one', first.attemptId, 1, 2_000), undefined);
     assert.equal(store.acceptGate('pilot-one', first.attemptId, 0, 2_000), undefined);
-    assert.equal(store.startRookieRush('pilot-one', first.attemptId, 2_000)?.deadlineAt, 152_000);
+    assert.equal(store.startRookieRush('pilot-one', first.attemptId, 2_000)?.deadlineAt, 2_000 + journeyDallas01.timeLimitMs);
     assert.equal(store.startRookieRush('pilot-one', first.attemptId, 2_001), undefined);
-    assert.equal(store.acceptGate('pilot-one', first.attemptId, 0, 3_000)?.deadlineAt, 152_000);
+    assert.equal(store.acceptGate('pilot-one', first.attemptId, 0, 3_000)?.deadlineAt, 2_000 + journeyDallas01.timeLimitMs);
     assert.equal(store.acceptGate('pilot-one', first.attemptId, 0, 2_500), undefined);
     for (let gate = 1; gate < journeyDallas01.gates.length - 1; gate += 1)
       assert.equal(store.acceptGate('pilot-one', first.attemptId, gate, 3_000 + gate * 12_000)?.gateIndex, gate + 1);
@@ -359,11 +361,12 @@ test('timeout and retry never complete or credit a failed attempt', () => {
     store.acceptGate('pilot-two', first.attemptId, 0, 2_000);
     for (let gate = 1; gate < 9; gate += 1)
       assert.equal(store.acceptGate('pilot-two', first.attemptId, gate, 2_000 + gate * 10_000)?.gateIndex, gate + 1);
-    assert.equal(store.acceptGate('pilot-two', first.attemptId, 9, 152_000), undefined);
-    assert.equal(store.acceptGate('pilot-two', first.attemptId, 1, 152_000), undefined);
-    assert.equal(store.fail('pilot-two', first.attemptId, 'TIME_UP', 152_000)?.status, 'FAILED');
+    const expiredAt = 2_000 + journeyDallas01.timeLimitMs;
+    assert.equal(store.acceptGate('pilot-two', first.attemptId, 9, expiredAt), undefined);
+    assert.equal(store.acceptGate('pilot-two', first.attemptId, 1, expiredAt), undefined);
+    assert.equal(store.fail('pilot-two', first.attemptId, 'TIME_UP', expiredAt)?.status, 'FAILED');
     assert.equal(store.progress('pilot-two').completed, false);
-    const retry = store.launch('pilot-two', 'trainer', 153_000);
+    const retry = store.launch('pilot-two', 'trainer', expiredAt + 1_000);
     assert.equal(retry.gateIndex, 0);
     assert.equal(retry.deadlineAt, null);
     assert.equal(store.get('pilot-two', first.attemptId)?.status, 'FAILED');
@@ -430,7 +433,7 @@ test('Lake Racer is a distinct ten-gate race with protected historical rewards',
     store.approach('lake-pilot', race.attemptId);
     assert.equal(store.acceptGate('lake-pilot', race.attemptId, 0, 20_100), undefined);
     const started = store.startRookieRush('lake-pilot', race.attemptId, 20_200);
-    assert.equal(started?.deadlineAt, 170_200);
+    assert.equal(started?.deadlineAt, 20_200 + journeyDallas02.timeLimitMs);
     assert.equal(store.startRookieRush('lake-pilot', race.attemptId, 21_000), undefined);
     assert.equal(store.acceptGate('other-pilot', race.attemptId, 0, 21_000), undefined);
     assert.equal(store.acceptGate('lake-pilot', race.attemptId, 1, 21_000), undefined);
@@ -451,9 +454,10 @@ test('Lake Racer is a distinct ten-gate race with protected historical rewards',
     const expired = store.launch('lake-pilot', 'trainer', 60_000, journeyDallas02.id);
     store.approach('lake-pilot', expired.attemptId);
     store.startRookieRush('lake-pilot', expired.attemptId, 60_100);
-    assert.equal(store.acceptGate('lake-pilot', expired.attemptId, 0, 210_100), undefined);
-    assert.equal(store.fail('lake-pilot', expired.attemptId, 'TIME_UP', 210_100)?.status, 'FAILED');
-    assert.equal(store.acceptGate('lake-pilot', expired.attemptId, 0, 210_101), undefined);
+    const expiredAt = 60_100 + journeyDallas02.timeLimitMs;
+    assert.equal(store.acceptGate('lake-pilot', expired.attemptId, 0, expiredAt), undefined);
+    assert.equal(store.fail('lake-pilot', expired.attemptId, 'TIME_UP', expiredAt)?.status, 'FAILED');
+    assert.equal(store.acceptGate('lake-pilot', expired.attemptId, 0, expiredAt + 1), undefined);
     const retry = store.launch('lake-pilot', 'trainer', 211_000, journeyDallas02.id);
     assert.equal(retry.lakeGateIndex, 0);
     assert.equal(retry.deadlineAt, null);
@@ -515,22 +519,22 @@ test('historical Hunter Showdown clears retain unlocks but never pay Lake Racer 
 });
 
 test('Golden Ascent is a ten-gate rising course with valid swept openings', () => {
-  assert.equal(journeyDallas03.timeLimitMs, 160_000);
+  assert.equal(journeyDallas03.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
   assert.equal(journeyDallas03.firstClearCredits, 450);
   assert.equal(journeyDallas03.gates.length, 10);
-  assert.ok(journeyDallas03.gates[5]!.altitude > journeyDallas03.airborneSpawn.altitude + 350);
+  assert.ok(journeyDallas03.gates[5]!.altitude > journeyDallas03.airborneSpawn.altitude + 350 * DALLAS_WORLD_SCALE);
   assert.ok(journeyDallas03.gates.at(-1)!.altitude < journeyDallas03.gates[5]!.altitude);
-  assert.ok(Math.max(...journeyDallas03.gates.map(gate => gate.altitude)) < 1_200);
+  assert.ok(Math.max(...journeyDallas03.gates.map(gate => gate.altitude)) < 1_200 * DALLAS_WORLD_SCALE);
   const route = [journeyDallas03.airborneSpawn, ...journeyDallas03.gates];
   let distance = 0;
   for (let index = 1; index < route.length; index += 1) {
     const previous = route[index - 1]!, next = route[index]!;
     const leg = Math.hypot(next.x - previous.x, next.z - previous.z);
-    assert.ok(leg <= 13_000, `gate ${index} remains within readable spacing`);
-    assert.ok(Math.abs(next.x) <= 23_000 && Math.abs(next.z) <= 23_000, `gate ${index} stays inside playable Dallas`);
+    assert.ok(leg <= 13_000 * DALLAS_WORLD_SCALE, `gate ${index} remains within readable spacing`);
+    assert.ok(Math.abs(next.x) <= 23_000 * DALLAS_WORLD_SCALE && Math.abs(next.z) <= 23_000 * DALLAS_WORLD_SCALE, `gate ${index} stays inside playable Dallas`);
     distance += leg;
   }
-  assert.ok(distance >= 40_000 && distance <= 50_000);
+  assert.ok(distance >= 40_000 * DALLAS_WORLD_SCALE && distance <= 50_000 * DALLAS_WORLD_SCALE);
   for (let index = 0; index < journeyDallas03.gates.length; index += 1) {
     const gate = journeyDallas03.gates[index]!;
     const before = journeyDallas03.gates[Math.max(0, index - 1)]!;
@@ -572,16 +576,16 @@ test('Golden Ascent unlocks after Lake Racer, starts its timer with control, and
     const expired = store.launch(pilot, 'trainer', 20_000, journeyDallas03.id);
     store.approach(pilot, expired.attemptId);
     assert.equal(store.acceptGate(pilot, expired.attemptId, 0, 20_100), undefined);
-    assert.equal(store.startRookieRush(pilot, expired.attemptId, 21_000)?.deadlineAt, 181_000);
+    assert.equal(store.startRookieRush(pilot, expired.attemptId, 21_000)?.deadlineAt, 21_000 + journeyDallas03.timeLimitMs);
     assert.equal(store.startRookieRush(pilot, expired.attemptId, 22_000), undefined);
-    assert.equal(store.acceptGate(pilot, expired.attemptId, 0, 181_000), undefined);
-    assert.equal(store.fail(pilot, expired.attemptId, 'TIME_UP', 181_000)?.status, 'FAILED');
+    assert.equal(store.acceptGate(pilot, expired.attemptId, 0, 21_000 + journeyDallas03.timeLimitMs), undefined);
+    assert.equal(store.fail(pilot, expired.attemptId, 'TIME_UP', 21_000 + journeyDallas03.timeLimitMs)?.status, 'FAILED');
 
     const race = store.launch(pilot, 'trainer', 200_000, journeyDallas03.id);
     assert.equal(race.ascentGateIndex, 0);
     store.approach(pilot, race.attemptId);
     assert.equal(store.acceptGate(pilot, race.attemptId, 1, 200_100), undefined);
-    assert.equal(store.startRookieRush(pilot, race.attemptId, 201_000)?.deadlineAt, 361_000);
+    assert.equal(store.startRookieRush(pilot, race.attemptId, 201_000)?.deadlineAt, 201_000 + journeyDallas03.timeLimitMs);
     assert.equal(store.acceptGate('other-pilot', race.attemptId, 0, 202_000), undefined);
     assert.equal(store.acceptGate(pilot, race.attemptId, 1, 201_200), undefined);
     for (let gate = 0; gate < 10; gate += 1) {
@@ -655,9 +659,9 @@ test('historical White Rock Skimmer completion keeps rewards and unlocks without
 
 test('Needle Rush has ten progressively smaller golden openings and bidirectional crossings', () => {
   assert.equal(journeyDallas05.name, 'NEEDLE RUSH');
-  assert.equal(journeyDallas05.timeLimitMs, 160_000);
+  assert.equal(journeyDallas05.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
   assert.ok(journeyDallas05.airborneSpawn);
-  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 240, 230, 220, 215, 320]);
+  assert.deepEqual(journeyDallas05.gates.map(gate => gate.radius), [300, 290, 275, 260, 250, 240, 230, 220, 215, 320].map(radius => radius * DALLAS_WORLD_SCALE));
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas05.gates[index]!;
     const previous = journeyDallas05.gates[Math.max(0, index - 1)]!;
@@ -699,10 +703,10 @@ test('Needle Rush requires Mission 4, a running timer and all ten gates; reward 
     assert.equal(store.acceptGate('needle-pilot', expired.attemptId, 1, 3_000), undefined);
     assert.equal(store.acceptGate('needle-pilot', expired.attemptId, 0, 3_000), undefined);
     assert.equal(store.startRookieRush('other-pilot', expired.attemptId, 3_000), undefined);
-    assert.equal(store.startRookieRush('needle-pilot', expired.attemptId, 3_000)?.deadlineAt, 163_000);
+    assert.equal(store.startRookieRush('needle-pilot', expired.attemptId, 3_000)?.deadlineAt, 3_000 + journeyDallas05.timeLimitMs);
     assert.equal(store.acceptGate('needle-pilot', expired.attemptId, 9, 4_000), undefined);
-    assert.equal(store.acceptGate('needle-pilot', expired.attemptId, 0, 163_000), undefined);
-    assert.equal(store.fail('needle-pilot', expired.attemptId, 'TIME_UP', 163_000)?.status, 'FAILED');
+    assert.equal(store.acceptGate('needle-pilot', expired.attemptId, 0, 3_000 + journeyDallas05.timeLimitMs), undefined);
+    assert.equal(store.fail('needle-pilot', expired.attemptId, 'TIME_UP', 3_000 + journeyDallas05.timeLimitMs)?.status, 'FAILED');
     const attempt = store.launch('needle-pilot', 'trainer', 170_000, journeyDallas05.id);
     assert.equal(attempt.gateIndex, 0);
     assert.equal(attempt.needleGateIndex, 0);
@@ -799,9 +803,9 @@ test('historical four-gate Mission 5 clears retain progress and Credits without 
 test('Golden Championship has ten gates and a safe course entry', () => {
   assert.equal(journeyDallas06.name, 'GOLDEN CHAMPIONSHIP');
   assert.equal(journeyDallas06.gates.length, 10);
-  assert.equal(journeyDallas06.timeLimitMs, 160_000);
+  assert.equal(journeyDallas06.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
   assert.equal(journeyDallas06.firstClearCredits, 750);
-  assert.ok(journeyDallas06.airborneSpawn.altitude > 700);
+  assert.ok(journeyDallas06.airborneSpawn.altitude > 700 * DALLAS_WORLD_SCALE);
   for (let index = 0; index < journeyDallas06.gates.length; index += 1) {
     const gate = journeyDallas06.gates[index]!;
     const previous = index === 0 ? journeyDallas06.airborneSpawn : journeyDallas06.gates[index - 1]!;
@@ -833,9 +837,9 @@ test('Golden Championship requires Mission 5, starts its timer with control, and
     const expired = store.launch('champion', 'trainer', 600, journeyDallas06.id);
     store.approach('champion', expired.attemptId);
     assert.equal(store.acceptGate('champion', expired.attemptId, 0, 700), undefined);
-    assert.equal(store.startRookieRush('champion', expired.attemptId, 700)?.deadlineAt, 160_700);
-    assert.equal(store.acceptGate('champion', expired.attemptId, 0, 160_700), undefined);
-    assert.equal(store.fail('champion', expired.attemptId, 'TIME_UP', 160_700)?.status, 'FAILED');
+    assert.equal(store.startRookieRush('champion', expired.attemptId, 700)?.deadlineAt, 700 + journeyDallas06.timeLimitMs);
+    assert.equal(store.acceptGate('champion', expired.attemptId, 0, 700 + journeyDallas06.timeLimitMs), undefined);
+    assert.equal(store.fail('champion', expired.attemptId, 'TIME_UP', 700 + journeyDallas06.timeLimitMs)?.status, 'FAILED');
     const first = store.launch('champion', 'trainer', 1_000, journeyDallas06.id);
     assert.equal(first.phase, 'PREPARING');
     assert.equal(first.gateIndex, 0);
@@ -843,7 +847,7 @@ test('Golden Championship requires Mission 5, starts its timer with control, and
     assert.equal(store.approach('champion', first.attemptId)?.status, 'APPROACH');
     assert.equal(store.acceptGate('other', first.attemptId, 0, 2_000), undefined);
     assert.equal(store.acceptGate('champion', first.attemptId, 0, 2_000), undefined);
-    assert.equal(store.startRookieRush('champion', first.attemptId, 2_000)?.deadlineAt, 162_000);
+    assert.equal(store.startRookieRush('champion', first.attemptId, 2_000)?.deadlineAt, 2_000 + journeyDallas06.timeLimitMs);
     assert.equal(store.startRookieRush('champion', first.attemptId, 2_001), undefined);
     assert.equal(store.acceptGate('champion', first.attemptId, 1, 2_100), undefined);
     assert.equal(store.acceptGate('champion', first.attemptId, 0, 3_000)?.gateIndex, 1);
@@ -917,7 +921,7 @@ test('historical championship clears preserve rewards while new race records sta
 
 test('Downtown Slalom gates accept sequential crossings through either face of the solid ring', () => {
   assert.equal(journeyDallas04.gates.length, 10);
-  assert.equal(journeyDallas04.timeLimitMs, 160_000);
+  assert.equal(journeyDallas04.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
   assert.equal(journeyDallas04.firstClearCredits, 500);
   for (let index = 0; index < 10; index += 1) {
     const gate = journeyDallas04.gates[index]!;
@@ -988,8 +992,8 @@ test('Downtown Slalom timeout, crash, exit, and full retry invalidate old gate p
     const first = store.launch('pilot', 'trainer', 1_000, journeyDallas04.id);
     store.approach('pilot', first.attemptId, 1_100);
     store.startRookieRush('pilot', first.attemptId, 1_200);
-    assert.equal(store.acceptGate('pilot', first.attemptId, 0, 161_200), undefined);
-    assert.equal(store.fail('pilot', first.attemptId, 'TIME_UP', 161_200)?.status, 'FAILED');
+    assert.equal(store.acceptGate('pilot', first.attemptId, 0, 1_200 + journeyDallas04.timeLimitMs), undefined);
+    assert.equal(store.fail('pilot', first.attemptId, 'TIME_UP', 1_200 + journeyDallas04.timeLimitMs)?.status, 'FAILED');
     const second = store.launch('pilot', 'trainer', 162_000, journeyDallas04.id);
     store.approach('pilot', second.attemptId, 162_100);
     store.startRookieRush('pilot', second.attemptId, 162_200);

@@ -1,3 +1,4 @@
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from './dallas-world-scale.mjs';
 export const weatherZoneTypes = Object.freeze(['clear', 'windy', 'storm', 'fog', 'dusk_signal', 'turbulence']);
 
 export const cityWeatherZones = Object.freeze({
@@ -8,7 +9,9 @@ export const cityWeatherZones = Object.freeze({
     Object.freeze({ id: 'love-fog', cityId: 'dallas', type: 'fog', name: 'METRO CENTRAL FOG', center: Object.freeze({ x: -5_140, z: -7_780 }), radius: 1_350, altitudeMax: 850, intensity: 0.46, airportId: 'love', visualProfile: 'approach-fog', gameplayProfile: 'visibility-only' }),
     Object.freeze({ id: 'trinity-turbulence', cityId: 'dallas', type: 'turbulence', name: 'TRINITY TURBULENCE', center: Object.freeze({ x: -2_400, z: 1_100 }), radius: 720, intensity: 0.18, visualProfile: 'wind-streaks', gameplayProfile: 'light-turbulence' }),
     Object.freeze({ id: 'midnight-signal', cityId: 'dallas', type: 'dusk_signal', name: 'MIDNIGHT SIGNAL', center: Object.freeze({ x: 4_900, z: -15_800 }), radius: 900, altitudeMin: 120, altitudeMax: 2_400, intensity: 0.3, visualProfile: 'signal-glow', gameplayProfile: 'none' }),
-  ]),
+  ].map(zone => Object.freeze({ ...zone, center: Object.freeze(scaleDallasPoint(zone.center)), radius: zone.radius * DALLAS_WORLD_SCALE,
+    ...(zone.altitudeMin === undefined ? {} : { altitudeMin: zone.altitudeMin * DALLAS_WORLD_SCALE }),
+    ...(zone.altitudeMax === undefined ? {} : { altitudeMax: zone.altitudeMax * DALLAS_WORLD_SCALE }) }))),
   milwaukee: Object.freeze([
     Object.freeze({ id:'coast-fog',cityId:'milwaukee',type:'fog',name:'LAKE COAST FOG',center:Object.freeze({x:5100,z:3550}),radius:1100,altitudeMax:850,intensity:.4,airportId:'coast',visualProfile:'approach-fog',gameplayProfile:'visibility-only' }),
     Object.freeze({ id:'mountain-wind',cityId:'milwaukee',type:'windy',name:'MOUNTAIN RIDGE WIND',center:Object.freeze({x:-2300,z:-5000}),radius:1250,intensity:.25,airportId:'mountain',visualProfile:'wind-streaks',gameplayProfile:'light-drift' }),

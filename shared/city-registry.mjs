@@ -1,8 +1,9 @@
 import { cityAirports } from './city-airports.mjs';
 import { cityWeatherZones } from './weather-zones.mjs';
+import { DALLAS_WORLD_SCALE } from './dallas-world-scale.mjs';
 
 export const cityRegistry = Object.freeze({
-  dallas: Object.freeze({ cityId:'dallas', legacyIds:['dallas'], name:'Dallas', displayName:'Dallas', regionName:'North Texas', worldOrigin:{x:0,z:0}, worldSize:50_000,
+  dallas: Object.freeze({ cityId:'dallas', legacyIds:['dallas'], name:'Dallas', displayName:'Dallas', regionName:'North Texas', worldOrigin:{x:0,z:0}, worldSize:50_000 * DALLAS_WORLD_SCALE,
     airports:cityAirports.dallas, regions:['Metroplex','Central District','Canal District','North Metro','South Metro'], discoveryIds:['dfw','love','addison','executive'], weatherZones:cityWeatherZones.dallas,
     capabilities:Object.freeze({tutorialEnabled:false,practiceMode:false,progressionEnabled:true,territoriesEnabled:true,competitiveEnabled:true}),
     briefing:Object.freeze({title:'DALLAS OPERATIONS',summary:'Complete contracts, capture territories, fight rivals, explore regions, and land safely.'}),

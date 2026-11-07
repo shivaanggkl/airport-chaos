@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { addOsmCityData, disposeOsmGroups, type CompactChunk, type CompactCityData } from './osm-city';
 
 type Lod = 'near' | 'mid' | 'far';
@@ -64,16 +65,16 @@ export type DallasChunkVisualDebug = {
   cameraLayers: number;
   material: { opacity: number; transparent: boolean; depthTest: boolean; depthWrite: boolean } | undefined;
 };
-const ranges: Record<Lod, number> = { near: 5_000, mid: 15_000, far: 35_000 };
+const ranges: Record<Lod, number> = { near: 5_000 / DALLAS_WORLD_SCALE, mid: 15_000 / DALLAS_WORLD_SCALE, far: 35_000 / DALLAS_WORLD_SCALE };
 const order: Lod[] = ['near', 'mid', 'far'];
-const enterRanges: Record<Lod, number> = { near: 4_600, mid: 14_200, far: 35_000 };
-const exitRanges: Record<Lod, number> = { near: 5_900, mid: 16_200, far: 36_250 };
-const desiredMargin = 1_250;
-const farRetentionMargin = 2_000;
+const enterRanges: Record<Lod, number> = { near: 4_600 / DALLAS_WORLD_SCALE, mid: 14_200 / DALLAS_WORLD_SCALE, far: 35_000 / DALLAS_WORLD_SCALE };
+const exitRanges: Record<Lod, number> = { near: 5_900 / DALLAS_WORLD_SCALE, mid: 16_200 / DALLAS_WORLD_SCALE, far: 36_250 / DALLAS_WORLD_SCALE };
+const desiredMargin = 1_250 / DALLAS_WORLD_SCALE;
+const farRetentionMargin = 2_000 / DALLAS_WORLD_SCALE;
 const preloadSeconds = 6;
 // Redspear + Boost reaches 1,389m/s. The 8km cap still provides roughly
 // 5.8 seconds of lead without widening the streamed/cache-protected area.
-const maxPreloadDistance = 8_000;
+const maxPreloadDistance = 8_000 / DALLAS_WORLD_SCALE;
 // A cell may only advance one stage at a time (FAR → MID → NEAR), but a
 // completed coarse cell close to the aircraft must advance before we spend
 // the initial load budget on coarse cells at the edge of the 35 km window.

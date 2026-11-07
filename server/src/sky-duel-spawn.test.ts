@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cityAirports, aircraftGroundOffset } from '../../shared/city-airports.mjs';
 import { skyDuelArenaCenter, skyDuelRunwaySpawn } from './sky-duel-spawn.js';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 
 test('Sky Duel pilots start on the DFW and Love Field runway centerlines inside the arena', () => {
   const airports = ['dfw', 'love'].map(id => cityAirports.dallas.find(airport => airport.id === id)!);
@@ -16,8 +17,8 @@ test('Sky Duel pilots start on the DFW and Love Field runway centerlines inside 
     assert.ok(along > 0 && along < airport.runwayLength / 2, `${airport.id} start fits the runway`);
     assert.equal(start.position.y, elevations[slot]! + aircraftGroundOffset);
     assert.equal(start.heading, airport.heading);
-    assert.ok(Math.hypot(start.position.x - skyDuelArenaCenter.x, start.position.z - skyDuelArenaCenter.z) < 12_000);
+    assert.ok(Math.hypot(start.position.x - skyDuelArenaCenter.x, start.position.z - skyDuelArenaCenter.z) < 12_000 * DALLAS_WORLD_SCALE);
   }
   assert.ok(Math.hypot(starts[0]!.position.x - starts[1]!.position.x,
-    starts[0]!.position.z - starts[1]!.position.z) > 10_000);
+    starts[0]!.position.z - starts[1]!.position.z) > 10_000 * DALLAS_WORLD_SCALE);
 });

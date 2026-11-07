@@ -1,6 +1,6 @@
 /** Local-only protocol load test. Never connects to staging or production. */
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
@@ -10,16 +10,35 @@ import WebSocket from 'ws';
 import { PlayerProfileStore } from '../server/src/player-profiles.js';
 import { PilotSessionStore } from '../server/src/session-auth.js';
 import { PROTOCOL_VERSION } from '../shared/protocol.mjs';
+import { cityAirports } from '../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../shared/dallas-world-scale.mjs';
 
 const arg = (name: string, fallback: string) => process.argv.find(v => v.startsWith(`--${name}=`))?.split('=').slice(1).join('=') ?? fallback;
 const counts = arg('counts', '10,25,50,100').split(',').map(Number);
 const seconds = Number(arg('seconds', '30'));
+const city = arg('city', 'milwaukee');
 const scenario = arg('scenario', 'parallel');
 const cadence = arg('cadence', 'synchronized');
+if (!['milwaukee', 'dallas'].includes(city)) throw Error('Unknown city');
 if (!['synchronized','staggered'].includes(cadence)) throw Error('Unknown cadence');
 if (!['parallel','pairs'].includes(scenario)) throw Error('Unknown scenario');
 const output = arg('output', '/tmp/airport-combat-load.json');
 const serverRoot = arg('server-root', resolve(import.meta.dirname,'..'));
+const dallasSpawn = (() => {
+ if(city !== 'dallas') return undefined;
+ const airport=cityAirports.dallas[0]!;
+ const data=JSON.parse(readFileSync(resolve(serverRoot,'client/src/data/dallas-elevation.json'),'utf8')) as {
+  bounds:{minX:number;maxX:number;minZ:number;maxZ:number};width:number;height:number;baseElevation:number;scale:number;elevations:string;
+ };
+ const bytes=Buffer.from(data.elevations,'base64');
+ const samples=new Uint16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
+ const x=(airport.x/DALLAS_WORLD_SCALE-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX)*(data.width-1);
+ const z=(airport.z/DALLAS_WORLD_SCALE-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ)*(data.height-1);
+ const x0=Math.floor(x),z0=Math.floor(z),u=x-x0,v=z-z0;
+ const sample=(sx:number,sz:number)=>data.baseElevation+samples[sz*data.width+sx]!*data.scale;
+ const y=((1-v)*((1-u)*sample(x0,z0)+u*sample(x0+1,z0))+v*((1-u)*sample(x0,z0+1)+u*sample(x0+1,z0+1)))*DALLAS_WORLD_SCALE;
+ return {airport,y};
+})();
 const driverLag = monitorEventLoopDelay({resolution:10});driverLag.enable();
 if (counts.some(n => !Number.isInteger(n) || n < 2 || n > 100) || !Number.isFinite(seconds) || seconds < 10 || seconds > 300) throw Error('Use 2–100 clients and 10–300 seconds.');
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -51,7 +70,7 @@ try {
   try {
    await wait(()=>log.includes('listening'),'server did not start');
    for (let i=0;i<count;i++) {
-    const c={socket:new WebSocket(`ws://127.0.0.1:${port}/?city=milwaukee&launchMode=free-fly&protocol=${PROTOCOL_VERSION}`,{origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${identities[i]!.cookie}`}}),id:'',pose:null as any,goal:null as any,sent:0,accepted:0,rejected:0,lastFire:0,sequence:0,alive:false,yaw:scenario==='pairs'&&i%2?Math.PI:0,nextState:0,tick:0};clients.push(c);
+    const c={socket:new WebSocket(`ws://127.0.0.1:${port}/?city=${city}&launchMode=free-fly&protocol=${PROTOCOL_VERSION}`,{origin:`http://127.0.0.1:${port}`,headers:{Cookie:`airport_chaos_session=${identities[i]!.cookie}`}}),id:'',pose:null as any,goal:null as any,sent:0,accepted:0,rejected:0,lastFire:0,sequence:0,alive:false,yaw:scenario==='pairs'&&i%2?Math.PI:0,nextState:0,tick:0};clients.push(c);
     c.socket.on('message',raw=>{
      const buffer=Buffer.isBuffer(raw)?raw:Buffer.from(String(raw));
      const type=buffer.subarray(0,100).toString().match(/"type":"([^"]+)"/)?.[1]??'unknown';
@@ -59,7 +78,12 @@ try {
      // The load driver measures transport, not 100 copies of a renderer. Avoid parsing unused snapshots.
      if(!['welcome','projectileSpawn','projectileRemove','shotRejected','damage','playerState','respawn'].includes(type))return;
      const m=JSON.parse(buffer.toString());
-     if(m.type==='welcome'){c.id=m.playerId;c.pose={...m.spawnPosition};c.goal={x:m.spawnPosition.x+(scenario==='pairs'?Math.floor(i/2)*140:i*70),y:m.spawnPosition.y+1000,z:m.spawnPosition.z-(scenario==='pairs'&&i%2?1000:0)};}
+     if(m.type==='welcome'){
+      c.id=m.playerId;
+      const airport=dallasSpawn?.airport;
+      c.pose=airport?{x:airport.x+Math.sin(airport.heading)*(Math.min(airport.runwayLength*.32,airport.runwayLength*.5-120)+(m.spawnPosition.z-45)),y:dallasSpawn!.y,z:airport.z+Math.cos(airport.heading)*(Math.min(airport.runwayLength*.32,airport.runwayLength*.5-120)+(m.spawnPosition.z-45))}:{...m.spawnPosition};
+      c.goal={x:c.pose.x+(scenario==='pairs'?Math.floor(i/2)*140:i*70),y:c.pose.y+1000,z:c.pose.z-(scenario==='pairs'&&i%2?1000:0)};
+     }
      if(m.type==='playerState'&&m.playerId===c.id)c.alive=m.lifeState==='alive';
      if(m.type==='respawn'&&m.playerId===c.id){c.pose={...m.spawnPosition};c.alive=false;}
      if(m.type==='damage'&&m.playerId===c.id&&m.health===0){c.alive=false;if(scenario==='pairs')setTimeout(()=>{if(c.socket.readyState===WebSocket.OPEN)c.socket.send(JSON.stringify({type:'respawn'}))},1000);}
@@ -96,7 +120,7 @@ try {
    await ipc('reset');driverLag.reset();measuring=true;const start=performance.now();await sleep(seconds*1000);measuring=false;
    const metrics=await ipc('snapshot');const wall=performance.now()-start;await sleep(750);
    const fireBlockedReasons:Record<string,number>={};for(const m of log.matchAll(/FIRE_BLOCKED (\w+)/g))fireBlockedReasons[m[1]!]=(fireBlockedReasons[m[1]!]??0)+1;
-   const row={fireBlockedReasons,aliveAtEnd:clients.filter(c=>c.alive).length,openAtEnd:clients.filter(c=>c.socket.readyState===WebSocket.OPEN).length,driverEventLoopP95Ms:driverLag.percentile(95)/1e6,bytesByType,unacknowledged:spawns.size,count,seconds:wall/1000,scenario,cadence,clientKind:'validated synthetic protocol clients; not human pilots or physical devices',sent:clients.reduce((n,c)=>n+c.sent,0),accepted:clients.reduce((n,c)=>n+c.accepted,0),rejected:clients.reduce((n,c)=>n+c.rejected,0),acceptedPerPilot:clients.map(c=>c.accepted),damage,destructions,maxActive,aggregateMbps:bytes*8/wall/1000,receivedMessages:received,ackP50Ms:quantile(rtt,.5),ackP95Ms:quantile(rtt,.95),transformRejects:(log.match(/TRANSFORM_REJECT/g)||[]).length,...metrics};
+   const row={city,fireBlockedReasons,aliveAtEnd:clients.filter(c=>c.alive).length,openAtEnd:clients.filter(c=>c.socket.readyState===WebSocket.OPEN).length,driverEventLoopP95Ms:driverLag.percentile(95)/1e6,bytesByType,unacknowledged:spawns.size,count,seconds:wall/1000,scenario,cadence,clientKind:'validated synthetic protocol clients; not human pilots or physical devices',sent:clients.reduce((n,c)=>n+c.sent,0),accepted:clients.reduce((n,c)=>n+c.accepted,0),rejected:clients.reduce((n,c)=>n+c.rejected,0),acceptedPerPilot:clients.map(c=>c.accepted),damage,destructions,maxActive,aggregateMbps:bytes*8/wall/1000,receivedMessages:received,ackP50Ms:quantile(rtt,.5),ackP95Ms:quantile(rtt,.95),transformRejects:(log.match(/TRANSFORM_REJECT/g)||[]).length,...metrics};
    results.push(row);writeFileSync(output,JSON.stringify({node:process.version,platform:process.platform,results},null,2));console.log(JSON.stringify(row));
   } finally {if(timer)clearInterval(timer);for(const c of clients)c.socket.terminate();child.kill('SIGTERM');await sleep(300);for(const s of ['','-wal','-shm'])rmSync(db+s,{force:true});}
  }

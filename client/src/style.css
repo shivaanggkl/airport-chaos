@@ -246,7 +246,7 @@ body.launch-cinematic-pending:has(#game-root.journey-flight) #tutorial-help {
 /* The world canvas stays live while the normal-flight launch camera hands off.
    Every gameplay layer shares one fade and remains non-interactive until the
    exact chase-camera pose is restored. */
-#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
+#game-root.launch-cinematic-active > :not(canvas):not(.flight-launch-title):not(.mission-intro-skip):not(.image-story-sequence):not(#hit-marker):not(#damage-flash):not(.transport-crash-flash) {
   opacity: var(--launch-hud-opacity, 0) !important;
   pointer-events: none !important;
   transition: opacity var(--launch-hud-fade-duration, 500ms) ease;
@@ -283,6 +283,7 @@ body.launch-cinematic-active #tutorial-help {
 .flight-launch-title.is-golden-gates span { font-size: clamp(11px, 1.4vw, 17px); }
 .flight-launch-title.is-golden-gates small { color: #d6e8f3; font-size: 10px; letter-spacing: .14em; }
 .flight-launch-title.is-runway-gates { white-space: normal; }
+.flight-launch-title.is-monster-arrival { width: max-content; max-width: calc(100vw - 40px); box-sizing: border-box; color: #ffe49a; font-size: clamp(18px, 2.3vw, 28px); line-height: 1.15; }
 .flight-launch-title.is-runway-gates span { color: #ffe49a; font-size: clamp(17px, 2.3vw, 26px); line-height: 1.15; }
 .mission-start-countdown {
   position: fixed;
@@ -1801,6 +1802,7 @@ body:has(#world-map-overlay:not(.hidden)) .mission-objective-guidance { display:
 .journey-result-actions [data-journey-exit] { color: #f6fbff; border-color: #35d6ff; background: linear-gradient(#1e4d7a,#163458); }
 .journey-result-actions button[hidden] { display: none; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-heading] { display: none; }
+.journey-result.is-terminal.is-failure .journey-result-card [data-journey-result-heading] { display: block; margin: 0 0 6px; color: #315f7a; font-size: clamp(13px, 1.6vw, 18px); line-height: 1.1; }
 .journey-result.is-terminal .journey-result-card h2 { margin: 0; color: #0b2345; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: .015em; }
 .journey-result.is-terminal .journey-result-card > strong { margin: 2px 0 10px; color: #315f7a; font-size: clamp(16px, 2vw, 23px); line-height: 1.1; }
 .journey-result.is-terminal .journey-result-card [data-journey-result-detail] { margin: 0 0 9px; padding: 12px; border: 1px solid #d7e2e9; border-radius: 11px; color: #31536e; background: linear-gradient(#f8fbfd, #e9f2f8); font-size: clamp(11px, 1.2vw, 14px); }
@@ -7128,3 +7130,17 @@ html.custom-control-layout #game-root #radar-panel {
 .pilot-flight-mission-layout { display: flex; flex-direction: column; }
 .pilot-flight-mission-details { flex: 1; min-height: 0; }
 .pilot-flight-mission-objective { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+
+/* Full compositions stay inside a 16:9 frame; the slow zoom never crops the artwork. */
+.image-story-sequence { position: fixed; z-index: 22; inset: 0; display: grid; place-items: center; background: #000; opacity: 1; pointer-events: none; transition: opacity 250ms ease; }
+.image-story-sequence[hidden] { display: none; }
+.image-story-sequence.is-leaving { opacity: 0; }
+.image-story-frame { position: relative; width: min(100vw, 177.777778dvh); aspect-ratio: 16 / 9; overflow: hidden; }
+.image-story-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transform: scale(.975); transition: opacity 250ms ease; }
+.image-story-image.is-current { opacity: 1; }
+.image-story-image.is-active { animation: image-story-zoom var(--story-scene-duration) linear both; }
+.image-story-caption { box-sizing: border-box; position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; margin: 0; padding: clamp(34px, 8vh, 80px) max(24px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)); color: #fff; background: linear-gradient(transparent, rgb(0 0 0 / 82%)); text-align: center; font: 700 clamp(17px, 2.1vw, 30px)/1.35 var(--font-body); text-wrap: pretty; text-shadow: 0 2px 4px #000; }
+@keyframes image-story-zoom { from { transform: scale(.975); } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .image-story-image.is-active { animation: none; transform: none; } .image-story-image, .image-story-sequence { transition: none; } }
+
+.launch-cinematic-active:has(.image-story-sequence:not([hidden])) .mission-intro-skip { top: max(12px, env(safe-area-inset-top)); bottom: auto; }

@@ -1,3 +1,5 @@
+import {M19_INTRO} from './m19-intro';
+import type {ObstacleBounds} from './world';
 import {MONSTER_VICTORY_SECONDS} from './monster-victory';
 import {MonsterCityBlast,M19_TIMEOUT,M19_CITY_BLAST_SCALE} from './monster-timeout';
 import{AshenWarlordModel,mixAshenClipTime}from'./ashen-warlord-model';
@@ -162,9 +164,10 @@ export class MonsterArrivalView {
   /** Camera-only aftermath of a server-confirmed M19 timeout. */
   updateTimeoutCamera(camera:THREE.PerspectiveCamera):void {
     if((this.stationary||this.striking)&&this.ending==='defeat'){
-      const root=this.creature.root.position;
-      camera.position.set(root.x+ashenWarlordHeight*1.5,root.y+ashenWarlordHeight*.9,root.z+ashenWarlordHeight*2.1);
-      camera.lookAt(root.x,root.y+ashenWarlordHeight*.5,root.z);return;
+      const root=this.creature.root;
+      // The supplied model faces local +Z; keep the close shot in front at any combat yaw.
+      camera.position.set(0,ashenWarlordHeight*.7,ashenWarlordHeight*1.47).applyQuaternion(root.quaternion).add(root.position);
+      camera.lookAt(root.position.x,root.position.y+ashenWarlordHeight*.5,root.position.z);return;
     }
     if(!this.crimsonCore||this.ending!=='timeout')return;
     const root=this.creature.root,height=ashenWarlordHeight;
@@ -282,10 +285,13 @@ export class MonsterArrivalView {
   private introTime: number | null = null;
   private introImpacts = 0;
   private introDamage = false;
+  prepareStationaryIntro(obstacles:readonly ObstacleBounds[]):void {
+    if(this.stationary)(this.creature as AshenWarlordModel).prepareArrivalIntro(obstacles);
+  }
   /** Presentation only: no encounter state, damage, or reward events. */
   setIntroTime(seconds: number | null): void {
-    if(!this.crimsonCore || this.state)return;
-    if(this.stationary||this.striking){this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
+    if(!this.crimsonCore || this.state&&seconds!==null)return;
+    if(this.stationary||this.striking){if(this.stationary&&seconds!==null&&seconds>=M19_INTRO.walkEnd&&(this.introTime??0)<M19_INTRO.walkEnd){this.onRoar?.();this.onDestruction?.();}this.introTime=seconds;(this.creature as AshenWarlordModel).setIntroTime(seconds);return;}
     if(seconds!==null&&!this.introOrigin){
       const root=this.creature.root,site=monsterDamageSites[0]!;
       this.introOrigin={position:root.position.clone(),yaw:root.rotation.y};

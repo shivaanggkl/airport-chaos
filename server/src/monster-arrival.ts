@@ -1,6 +1,7 @@
 // Fitted geometry compatibility helpers. Live M19 decisions run only in titan/engine via m19-titan.
 import { readFileSync, existsSync } from 'node:fs';
 import { monsterArena } from '../../shared/m19-environment.mjs';
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from '../../shared/dallas-world-scale.mjs';
 import { journeyDallas19 } from '../../shared/journey-mission.mjs';
 import { monsterGeometry } from '../../shared/monster-arrival-geometry.mjs';
 import { monsterJumpMotion, monsterJumpLift } from '../../shared/monster-motion.mjs';
@@ -39,7 +40,7 @@ export const monsterAttackRange = COMBAT_RANGE + journeyDallas19.monster.height 
 // corridor. Its endpoints allow full turns; there is no city-wide map mutation.
 export const monsterRoamRoute = Object.freeze([
   {x:-8400,z:-2400}, {x:-7300,z:-2400}, {x:-6200,z:-2400}, {x:-5500,z:-2400},
-]);
+].map(scaleDallasPoint));
 const wrap = (angle: number): number => Math.atan2(Math.sin(angle), Math.cos(angle));
 
 export function createMonsterEncounter(attemptId: string, playerId: string, startedAt: number): MonsterEncounter {
@@ -298,19 +299,20 @@ export function loadMonsterDistrictBuildings(): Building[] {
   const reach=monsterAttackRange+journeyDallas19.monster.height*Math.hypot(monsterGeometry.mouth.x,monsterGeometry.mouth.z)+300;
   const coverageMinX=monsterArena.minX-reach,coverageMaxX=monsterArena.maxX+reach;
   const coverageMinZ=monsterArena.minZ-reach,coverageMaxZ=monsterArena.maxZ+reach;
-  const minCellX=Math.floor(coverageMinX/2000),maxCellX=Math.floor(coverageMaxX/2000);
-  const minCellZ=Math.floor(coverageMinZ/2000),maxCellZ=Math.floor(coverageMaxZ/2000);
+  const cellSize = 2000 * DALLAS_WORLD_SCALE;
+  const minCellX=Math.floor(coverageMinX/cellSize),maxCellX=Math.floor(coverageMaxX/cellSize);
+  const minCellZ=Math.floor(coverageMinZ/cellSize),maxCellZ=Math.floor(coverageMaxZ/cellSize);
   for (let x = minCellX; x <= maxCellX; x++) for (let z = minCellZ; z <= maxCellZ; z++) {
     const url=new URL(`../../client/public/data/dallas/near/${x}_${z}.json`, import.meta.url);
     if(!existsSync(url))continue;
     const chunk = JSON.parse(readFileSync(url, 'utf8')) as { b: number[][] };
     for (const building of chunk.b) {
       const xs: number[] = [], zs: number[] = [];
-      for (let i = 4; i + 1 < building.length; i += 2) { xs.push(building[i]!); zs.push(building[i + 1]!); }
+      for (let i = 4; i + 1 < building.length; i += 2) { xs.push(building[i]! * DALLAS_WORLD_SCALE); zs.push(building[i + 1]! * DALLAS_WORLD_SCALE); }
       if (xs.length < 3) continue;
       const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
       if (maxX < coverageMinX || minX > coverageMaxX || maxZ < coverageMinZ || minZ > coverageMaxZ) continue;
-      result.push({ minX, maxX, minZ, maxZ, top: building[3]! + building[0]! });
+      result.push({ minX, maxX, minZ, maxZ, top: (building[3]! + building[0]!) * DALLAS_WORLD_SCALE });
     }
   }
   indexBuildingsForOcclusion(result);

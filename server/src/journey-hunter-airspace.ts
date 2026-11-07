@@ -1,12 +1,13 @@
 import { cityAirports } from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 
 type HorizontalPoint = { x: number; z: number };
 
-const turnInset = 3_000;
+const turnInset = 3_000 * DALLAS_WORLD_SCALE;
 const hardInset = 20;
 // Preserve the established Dallas Hunter envelope for later combat missions;
 // it no longer belongs to Mission 2's race definition.
-export const journeyHunterArena = { center: { x: cityAirports.dallas[0].x, z: cityAirports.dallas[0].z }, radius: 25_000 };
+export const journeyHunterArena = { center: { x: cityAirports.dallas[0].x, z: cityAirports.dallas[0].z }, radius: 25_000 * DALLAS_WORLD_SCALE };
 
 export function insideJourneyHunterArena(point: HorizontalPoint): boolean {
   return Math.abs(point.x - journeyHunterArena.center.x) <= journeyHunterArena.radius &&

@@ -8,6 +8,8 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import WebSocket from 'ws';
 import { PROTOCOL_VERSION } from '../../shared/protocol.mjs';
+import { cityAirports } from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import { PlayerProfileStore } from './player-profiles.js';
 import { PilotSessionStore } from './session-auth.js';
 
@@ -97,7 +99,7 @@ function positionForCombat(shooter: PilotClient, target: PilotClient, shooterSpa
   target.setCombatPose({ x: center.x, y: altitude, z: center.z }, 0);
 }
 
-test('real two-player combat, reconnect, surrender, payouts, and isolated AI fallback', { timeout: 200_000 }, async () => {
+test('real two-player combat, reconnect, surrender, payouts, and isolated AI fallback', { timeout: 600_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'airport-chaos-duel-live-'));
   const path = join(dir, 'profiles.sqlite');
   const profiles = new PlayerProfileStore(path);
@@ -174,7 +176,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const [spawnA, spawnB] = await Promise.all([a.waitFor('skyDuelSpawn'), b.waitFor('skyDuelSpawn')]);
     assert.equal(spawnA.speed, 0);
     assert.equal(spawnB.speed, 0);
-    assert.equal(Math.abs(Number((spawnA.position as { x: number }).x) - Number((spawnB.position as { x: number }).x)), 17_660,
+    assert.equal(Math.abs(Number((spawnA.position as { x: number }).x) - Number((spawnB.position as { x: number }).x)),
+      Math.abs(cityAirports.dallas[0].x - cityAirports.dallas[1].x),
       'human pilots start at DFW and Love Field');
     await new Promise(resolveWait => setTimeout(resolveWait, 1_200));
     assert.equal(a.messages.some(message => message.type === 'skyDuelFound'), false,
@@ -251,7 +254,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const keepState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const fire = setInterval(() => a?.send('fire'), 350);
     try {
-      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 2, 40_000);
+      await a.waitFor('skyDuelState', message => Number(firstIsA ? message.scoreA : message.scoreB) >= 2, 40_000 * DALLAS_WORLD_SCALE);
     } finally { clearInterval(fire); clearInterval(keepState); }
     a.send('skyDuelSurrender');
     const [resultA, resultB] = await Promise.all([a.waitFor('skyDuelResult'), b.waitFor('skyDuelResult')]);
@@ -303,7 +306,7 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     const combatState = setInterval(() => { a?.stepCombatPose(); b?.stepCombatPose(); }, 100);
     const combatFire = setInterval(() => a?.send('fire'), 350);
     try {
-      const score = await a.waitFor('skyDuelState', message => Number(thirdIsA ? message.scoreA : message.scoreB) >= 3, 85_000);
+      const score = await a.waitFor('skyDuelState', message => Number(thirdIsA ? message.scoreA : message.scoreB) >= 3, 160_000 * DALLAS_WORLD_SCALE);
       assert.equal(thirdIsA ? score.scoreB : score.scoreA, 0);
       assert.equal(a.messages.some(message => message.type === 'skyDuelResult' && message.matchId === secondFound.matchId), false,
         'three points do not end the match before the timer');
@@ -343,7 +346,8 @@ test('real two-player combat, reconnect, surrender, payouts, and isolated AI fal
     assert.ok(Number.isFinite(aiStart.altitudeMeters), 'AI starting altitude is available to the HUD');
     const aiStartPosition = aiStart.position as { x: number; y: number; z: number };
     const aiSpawn = a.messages.filter(message => message.type === 'skyDuelSpawn').at(-1)!;
-    assert.equal(Math.abs(aiStartPosition.x - Number((aiSpawn.position as { x: number }).x)), 17_660,
+    assert.equal(Math.abs(aiStartPosition.x - Number((aiSpawn.position as { x: number }).x)),
+      Math.abs(cityAirports.dallas[0].x - cityAirports.dallas[1].x),
       'AI starts on the Love Field runway');
     assert.equal(b.messages.some(message => message.type === 'playerState' && message.playerId === aiId), false,
       'practice AI is private to its pilot');

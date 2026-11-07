@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { DALLAS_WORLD_SCALE, scaleDallasPoint } from '../../shared/dallas-world-scale.mjs';
 import {
   TERRITORY_AREA_SCALE,
   TERRITORY_LINEAR_SCALE,
@@ -34,22 +35,22 @@ const originalCenters: Record<string, { x: number; z: number }> = {
   'dallas-executive': { x: -6_700, z: 10_600 },
 };
 
-test('every authoritative Dallas rectangle has exactly double its original horizontal area', () => {
+test('every authoritative Dallas rectangle preserves its 2x area within the 3x city', () => {
   assert.equal(TERRITORY_AREA_SCALE, 2);
   assert.ok(Math.abs(TERRITORY_LINEAR_SCALE - Math.sqrt(2)) < Number.EPSILON);
   const territories = territoriesForCity('dallas');
   assert.deepEqual(territories.map(({ id }) => id).sort(), Object.keys(originalAreas).sort());
   for (const territory of territories) {
     const ratio = territoryBoundsArea(territory.bounds) / originalAreas[territory.id]!;
-    assert.ok(Math.abs(ratio - 2) < 1e-12, `${territory.id} area ratio was ${ratio}`);
-    assert.equal(territory.boundaryHeight, 914.4);
+    assert.ok(Math.abs(ratio - 2 * DALLAS_WORLD_SCALE ** 2) < 1e-12, `${territory.id} area ratio was ${ratio}`);
+    assert.equal(territory.boundaryHeight, 914.4 * DALLAS_WORLD_SCALE);
   }
   assert.equal(TERRITORY_WALL_HEIGHT_METERS, 914.4);
 });
 
-test('corrected 2x rectangles preserve logical anchors and have no overlapping capture area', () => {
+test('scaled Dallas rectangles preserve logical anchors and have no overlapping capture area', () => {
   const territories = territoriesForCity('dallas');
-  for (const territory of territories) assert.deepEqual(territory.center, originalCenters[territory.id]);
+  for (const territory of territories) assert.deepEqual(territory.center, scaleDallasPoint(originalCenters[territory.id]!));
   const overlaps: string[] = [];
   for (let leftIndex = 0; leftIndex < territories.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < territories.length; rightIndex += 1) {

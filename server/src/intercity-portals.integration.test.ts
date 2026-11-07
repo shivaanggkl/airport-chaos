@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {cityAirports} from '../../shared/city-airports.mjs';
+import { DALLAS_WORLD_SCALE } from '../../shared/dallas-world-scale.mjs';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -32,7 +33,7 @@ class Client {
 }
 const elevation = JSON.parse(readFileSync('client/src/data/dallas-elevation.json', 'utf8'));
 const bytes = Buffer.from(elevation.elevations, 'base64'), samples = new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
-function dallasHeight(x: number, z: number) { const d = elevation, xx = Math.max(0, Math.min(d.width - 1, (x - d.bounds.minX) / (d.bounds.maxX - d.bounds.minX) * (d.width - 1))), zz = Math.max(0, Math.min(d.height - 1, (z - d.bounds.minZ) / (d.bounds.maxZ - d.bounds.minZ) * (d.height - 1))), x0 = Math.floor(xx), z0 = Math.floor(zz), at = (a: number, b: number) => d.baseElevation + samples[b * d.width + a] * d.scale, mix = (a: number, b: number, t: number) => a + (b - a) * t; return mix(mix(at(x0, z0), at(Math.min(x0 + 1, d.width - 1), z0), xx - x0), mix(at(x0, Math.min(z0 + 1, d.height - 1)), at(Math.min(x0 + 1, d.width - 1), Math.min(z0 + 1, d.height - 1)), xx - x0), zz - z0); }
+function dallasHeight(x: number, z: number) { const d = elevation, xx = Math.max(0, Math.min(d.width - 1, (x / DALLAS_WORLD_SCALE - d.bounds.minX) / (d.bounds.maxX - d.bounds.minX) * (d.width - 1))), zz = Math.max(0, Math.min(d.height - 1, (z / DALLAS_WORLD_SCALE - d.bounds.minZ) / (d.bounds.maxZ - d.bounds.minZ) * (d.height - 1))), x0 = Math.floor(xx), z0 = Math.floor(zz), at = (a: number, b: number) => d.baseElevation + samples[b * d.width + a] * d.scale, mix = (a: number, b: number, t: number) => a + (b - a) * t; return mix(mix(at(x0, z0), at(Math.min(x0 + 1, d.width - 1), z0), xx - x0), mix(at(x0, Math.min(z0 + 1, d.height - 1)), at(Math.min(x0 + 1, d.width - 1), Math.min(z0 + 1, d.height - 1)), xx - x0), zz - z0) * DALLAS_WORLD_SCALE; }
 test('authenticated solo and public portal handoffs, rejection, reward and reconnect', { timeout: 70000 }, async () => {
     const directory = mkdtempSync(join(tmpdir(), 'portal-integration-')), path = join(directory, 'profiles.sqlite');
     const profiles = new PlayerProfileStore(path), sessions = new PilotSessionStore(path), transitions = new PortalTransitionStore(path);
