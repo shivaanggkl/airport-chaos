@@ -11,21 +11,22 @@ import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
 import {journeyDallas25,journeyDallas19} from '../../shared/journey-mission.mjs';
 import {loadMonsterDistrictBuildings} from './monster-arrival.js';
 import {stationaryWarlordSpecies} from './stationary-warlord.js';
+import {DALLAS_WORLD_SCALE} from '../../shared/dallas-world-scale.mjs';
 const bytes=readFileSync(new URL('../../client/public/assets/models/monsters/ashen-warlord.glb',import.meta.url));
 const loader=new GLTFLoader();loader.register(()=>({name:'HEADLESS_TEXTURES',loadTexture:async()=>new THREE.Texture()}));
 const source=loader.parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
 const data=JSON.parse(readFileSync(new URL('../../client/src/data/dallas-elevation.json',import.meta.url),'utf8'));
 const raw=Buffer.from(data.elevations,'base64'),samples=new Uint16Array(raw.buffer,raw.byteOffset,raw.byteLength/2);
 const ground=(wx,wz)=>{
-  const x=THREE.MathUtils.clamp((wx-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX),0,1)*(data.width-1),z=THREE.MathUtils.clamp((wz-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ),0,1)*(data.height-1);
+  const x=THREE.MathUtils.clamp((wx/DALLAS_WORLD_SCALE-data.bounds.minX)/(data.bounds.maxX-data.bounds.minX),0,1)*(data.width-1),z=THREE.MathUtils.clamp((wz/DALLAS_WORLD_SCALE-data.bounds.minZ)/(data.bounds.maxZ-data.bounds.minZ),0,1)*(data.height-1);
   const x0=Math.floor(x),z0=Math.floor(z),x1=Math.min(data.width-1,x0+1),z1=Math.min(data.height-1,z0+1);
   const at=(a,b)=>data.baseElevation+samples[b*data.width+a]*data.scale;
-  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(at(x0,z0),at(x1,z0),x-x0),THREE.MathUtils.lerp(at(x0,z1),at(x1,z1),x-x0),z-z0);
+  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(at(x0,z0),at(x1,z0),x-x0),THREE.MathUtils.lerp(at(x0,z1),at(x1,z1),x-x0),z-z0)*DALLAS_WORLD_SCALE;
 };
-const buildings=loadMonsterDistrictBuildings().filter(b=>b.maxX>-8500&&b.minX<-2500&&b.maxZ>-5000&&b.minZ<500).map(b=>({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top}));
+const buildings=loadMonsterDistrictBuildings().filter(b=>b.maxX>-8500*DALLAS_WORLD_SCALE&&b.minX<-2500*DALLAS_WORLD_SCALE&&b.maxZ>-5000*DALLAS_WORLD_SCALE&&b.minZ<500*DALLAS_WORLD_SCALE).map(b=>({x:(b.minX+b.maxX)/2,z:(b.minZ+b.maxZ)/2,halfX:(b.maxX-b.minX)/2,halfZ:(b.maxZ-b.minZ)/2,height:b.top}));
 
 test('M19 authored approach is clear in real Dallas geometry, grounded, distance-matched and ends exactly at the combat transform',async()=>{
-  const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,ground(-5500,-2400),ground(-2191,-1201),undefined,source,ground,()=>390,model,true);
+  const scene=new THREE.Scene(),view=new MonsterArrivalView(scene,ground(journeyDallas19.monster.x,journeyDallas19.monster.z),ground(M19_DOWNTOWN.x,M19_DOWNTOWN.z),undefined,source,ground,()=>390,model,true);
   await view.ready;
   const actor=view.creature,position=actor.root.position.clone(),yaw=actor.root.rotation.y;
   let steps=0,roars=0;view.onFootfall=()=>steps++;view.onRoar=()=>roars++;
@@ -88,7 +89,7 @@ test('M19 screenplay presents all four story scenes and smoothly hands off at 20
   path.sample(4500,cameraPosition,cameraTarget,chase,look);const low=cameraPosition.y;
   path.sample(11500,cameraPosition,cameraTarget,chase,look);assert(cameraPosition.y>low+500,'boss reveal rises from body to face');
   const other=new CombatMissionIntroPath(monster,player,19);assert.equal(other.sweepMs,11000);assert.equal(other.wipe(5750),.5);
-  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000);assert.equal(journeyDallas25.firstClearCredits,2550);assert.equal(journeyDallas25.startAirportId,'dfw');assert.equal(journeyDallas19.bossHealth,1500);
+  assert.equal(journeyDallas25.bossHealth,500);assert.equal(journeyDallas25.timeLimitMs,240000*DALLAS_WORLD_SCALE);assert.equal(journeyDallas25.firstClearCredits,2550);assert.equal(journeyDallas25.startAirportId,'dfw');assert.equal(journeyDallas19.bossHealth,1500);
   const main=readFileSync(new URL('../../client/src/main.ts',import.meta.url),'utf8');
   assert(main.includes('const arrivalIntro=journeyAttempt.missionId===journeyDallas25.id'));
   assert(main.includes('view.prepareStationaryIntro(obstacleBounds)'));

@@ -1,7 +1,8 @@
 import {ashenWarlordModel as model} from '../../shared/ashen-warlord-model.mjs';
+import {scaleDallasPoint} from '../../shared/dallas-world-scale.mjs';
 
 export const M19_INTRO = Object.freeze({reveal:4,walkEnd:9,roarEnd:9+model.clips.roar!.duration,monsterEnd:14,objective:18,handoff:18.5,duration:20});
-export const M19_DOWNTOWN = Object.freeze({x:-2191,z:-1201});
+export const M19_DOWNTOWN = Object.freeze(scaleDallasPoint({x:-2191,z:-1201}));
 export function m19IntroText(seconds:number):string {
   return seconds<M19_INTRO.reveal?''
     :seconds<M19_INTRO.walkEnd?'MONSTER DR. BOSS'

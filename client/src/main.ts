@@ -1,6 +1,6 @@
 import {ImageStorySequence,IMAGE_STORY_FADE_MS} from './image-story';
 import {M19_ORIGIN_STORY} from './m19-origin-story';
-import {M19_INTRO,m19IntroText} from './m19-intro';
+import {M19_INTRO,M19_DOWNTOWN,m19IntroText} from './m19-intro';
 import {ashenWarlordModel} from '../../shared/ashen-warlord-model.mjs';
 import { CombatMissionIntroPath } from './mission-combat-intro';
 import { HunterMotionBuffer } from '../../shared/hunter-motion.mjs';
@@ -11420,7 +11420,7 @@ async function handleServerMessage(event:MessageEvent):Promise<void> {
       if (!monsterView) {
         monsterView = new MonsterArrivalView(scene,
           getTerrainHeight(journeyDallas19.monster.x, journeyDallas19.monster.z),
-          getTerrainHeight(-2191, -1201), camera, undefined, getTerrainHeight, () => renderer.domElement.height,ashenWarlordModel,message.attempt.missionId===journeyDallas25.id,(message.attempt.missionId===journeyDallas20.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id));
+          getTerrainHeight(M19_DOWNTOWN.x, M19_DOWNTOWN.z), camera, undefined, getTerrainHeight, () => renderer.domElement.height,ashenWarlordModel,message.attempt.missionId===journeyDallas25.id,(message.attempt.missionId===journeyDallas20.id||message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas21.id||message.attempt.missionId===journeyDallas22.id||message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id),(message.attempt.missionId===journeyDallas23.id||message.attempt.missionId===journeyDallas19.id));
         {titanAssetsReady=false;const id=message.attempt.attemptId;void monsterView.ready.then(()=>{if(journeyAttempt?.attemptId===id){titanAssetsReady=true;beginMissionStartCountdown();}}).catch(()=>showProgressMessage('Character could not load. Exit and retry.'));}
         monsterView.onRoar=()=>audioManager.playTitanRoar();
         monsterView.onFootfall = () => audioManager.playTone(68, 0.3, 'triangle', 0.13, 28, 0, 'impacts');
