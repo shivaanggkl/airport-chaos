@@ -1,3 +1,4 @@
+import {authoredDallasBuildings,replacedDallasFootprint} from './dallas-building-occlusion.js';
 // Fitted geometry compatibility helpers. Live M19 decisions run only in titan/engine via m19-titan.
 import { readFileSync, existsSync } from 'node:fs';
 import { monsterArena } from '../../shared/m19-environment.mjs';
@@ -311,10 +312,12 @@ export function loadMonsterDistrictBuildings(): Building[] {
       for (let i = 4; i + 1 < building.length; i += 2) { xs.push(building[i]! * DALLAS_WORLD_SCALE); zs.push(building[i + 1]! * DALLAS_WORLD_SCALE); }
       if (xs.length < 3) continue;
       const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+      if (replacedDallasFootprint(minX,maxX,minZ,maxZ)) continue;
       if (maxX < coverageMinX || minX > coverageMaxX || maxZ < coverageMinZ || minZ > coverageMaxZ) continue;
       result.push({ minX, maxX, minZ, maxZ, top: (building[3]! + building[0]!) * DALLAS_WORLD_SCALE });
     }
   }
+  for (const b of authoredDallasBuildings()) if (b.maxX >= coverageMinX && b.minX <= coverageMaxX && b.maxZ >= coverageMinZ && b.minZ <= coverageMaxZ) result.push(b);
   indexBuildingsForOcclusion(result);
   return result;
 }
