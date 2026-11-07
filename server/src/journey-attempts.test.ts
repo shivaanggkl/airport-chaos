@@ -519,11 +519,11 @@ test('historical Hunter Showdown clears retain unlocks but never pay Lake Racer 
 });
 
 test('Golden Ascent is a ten-gate rising course with valid swept openings', () => {
-  assert.equal(journeyDallas03.timeLimitMs, 160_000 * DALLAS_WORLD_SCALE);
+  assert.equal(journeyDallas03.timeLimitMs, 210_000);
   assert.equal(journeyDallas03.firstClearCredits, 450);
   assert.equal(journeyDallas03.gates.length, 10);
-  assert.ok(journeyDallas03.gates[5]!.altitude > journeyDallas03.airborneSpawn.altitude + 350 * DALLAS_WORLD_SCALE);
-  assert.ok(journeyDallas03.gates.at(-1)!.altitude < journeyDallas03.gates[5]!.altitude);
+  assert.ok(journeyDallas03.gates[4]!.altitude > journeyDallas03.airborneSpawn.altitude + 350 * DALLAS_WORLD_SCALE);
+  assert.ok(journeyDallas03.gates.at(-1)!.altitude < journeyDallas03.gates[4]!.altitude);
   assert.ok(Math.max(...journeyDallas03.gates.map(gate => gate.altitude)) < 1_200 * DALLAS_WORLD_SCALE);
   const route = [journeyDallas03.airborneSpawn, ...journeyDallas03.gates];
   let distance = 0;
@@ -534,7 +534,7 @@ test('Golden Ascent is a ten-gate rising course with valid swept openings', () =
     assert.ok(Math.abs(next.x) <= 23_000 * DALLAS_WORLD_SCALE && Math.abs(next.z) <= 23_000 * DALLAS_WORLD_SCALE, `gate ${index} stays inside playable Dallas`);
     distance += leg;
   }
-  assert.ok(distance >= 40_000 * DALLAS_WORLD_SCALE && distance <= 50_000 * DALLAS_WORLD_SCALE);
+  assert.ok(distance >= 75_000 && distance <= 80_000);
   for (let index = 0; index < journeyDallas03.gates.length; index += 1) {
     const gate = journeyDallas03.gates[index]!;
     const before = journeyDallas03.gates[Math.max(0, index - 1)]!;
@@ -548,8 +548,8 @@ test('Golden Ascent is a ten-gate rising course with valid swept openings', () =
     const miss = { x: from.x - nz * gate.radius * 2, y: from.y, z: from.z + nx * gate.radius * 2 };
     const missTo = { x: to.x - nz * gate.radius * 2, y: to.y, z: to.z + nx * gate.radius * 2 };
     assert.equal(journeyGateCrossing(miss, missTo, index, 180, journeyDallas03), false);
-    if (index > 0 && index <= 5) assert.ok(gate.altitude > journeyDallas03.gates[index - 1]!.altitude);
-    if (index > 5) assert.ok(gate.altitude < journeyDallas03.gates[index - 1]!.altitude);
+    if (index > 0 && index <= 4) assert.ok(gate.altitude > journeyDallas03.gates[index - 1]!.altitude);
+    if (index >= 5) assert.ok(gate.altitude < journeyDallas03.gates[index - 1]!.altitude);
   }
 });
 

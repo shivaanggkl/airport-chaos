@@ -9,13 +9,15 @@ export const journeyDallas01: Readonly<{
 }>;
 export const journeyDallas02: Readonly<{
   id: 'journey-dallas-02'; cityId: 'dallas'; name: 'LAKE RACER'; chapter: 'GOLDEN GATES';
-  firstClearCredits: 350; timeLimitMs: 150000;
+  objective: 'Fly through 10 Golden Gates before time runs out.'; courseRevision: 1;
+  firstClearCredits: 350; timeLimitMs: 195000;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;
 export const journeyDallas03: Readonly<{
   id: 'journey-dallas-03'; cityId: 'dallas'; name: 'GOLDEN ASCENT'; chapter: 'GOLDEN GATES';
-  timeLimitMs: 160000; firstClearCredits: 450;
+  objective: 'Fly through 10 Golden Gates while climbing and descending before time runs out.'; courseRevision: 1;
+  timeLimitMs: 210000; firstClearCredits: 450;
   airborneSpawn: Readonly<{ x: number; z: number; altitude: number; heading: number; speed: number }>;
   gates: readonly { x: number; z: number; altitude: number; radius: number }[];
 }>;

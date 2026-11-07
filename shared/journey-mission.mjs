@@ -33,39 +33,43 @@ const baseJourneyDallas01 = Object.freeze({
 
 const baseJourneyDallas02 = Object.freeze({
   id: 'journey-dallas-02', cityId: 'dallas', name: 'LAKE RACER',
-  chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 150_000,
-  airborneSpawn: Object.freeze({ x: -6_000, z: -14_000, altitude: 770, heading: -2.11, speed: 650 }),
-  // Broad S-bends carry new racers east around White Rock Lake.
+  objective: 'Fly through 10 Golden Gates before time runs out.',
+  courseRevision: 1,
+  chapter: 'GOLDEN GATES', firstClearCredits: 350, timeLimitMs: 65_000, // 3:15 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: 462.3333333333333, z: -15_441, altitude: 770, heading: -Math.PI / 2, speed: 650 }),
+  // Two broad opposing bends pass along White Rock Lake's western approach.
   gates: Object.freeze([
-    { x: -3_500, z: -12_500, altitude: 770, radius: 320 },
-    { x: 500, z: -13_500, altitude: 780, radius: 315 },
-    { x: 5_300, z: -11_200, altitude: 795, radius: 310 },
-    { x: 9_500, z: -9_000, altitude: 810, radius: 305 },
-    { x: 11_500, z: -5_000, altitude: 825, radius: 300 },
-    { x: 10_000, z: -1_000, altitude: 840, radius: 295 },
-    { x: 6_500, z: 2_000, altitude: 850, radius: 290 },
-    { x: 2_500, z: 1_000, altitude: 845, radius: 285 },
-    { x: -500, z: -2_500, altitude: 825, radius: 285 },
-    { x: -3_500, z: -6_000, altitude: 800, radius: 330 },
+    { x: 1629, z: -15441, altitude: 770, radius: 320 },
+    { x: 4162, z: -15441, altitude: 780, radius: 315 },
+    { x: 6238, z: -13988, altitude: 795, radius: 310 },
+    { x: 7104, z: -11607, altitude: 810, radius: 305 },
+    { x: 6238, z: -9227, altitude: 825, radius: 300 },
+    { x: 4162, z: -7773, altitude: 840, radius: 295 },
+    { x: 3296, z: -5393, altitude: 850, radius: 290 },
+    { x: 4162, z: -3012, altitude: 845, radius: 285 },
+    { x: 6238, z: -1559, altitude: 825, radius: 285 },
+    { x: 8771, z: -1559, altitude: 800, radius: 330 },
   ]),
 });
 
 const baseJourneyDallas03 = Object.freeze({
   id: 'journey-dallas-03', cityId: 'dallas', name: 'GOLDEN ASCENT',
-  chapter: 'GOLDEN GATES', timeLimitMs: 160_000, firstClearCredits: 450,
-  airborneSpawn: Object.freeze({ x: -11_000, z: -20_000, altitude: 650, heading: -1.25, speed: 650 }),
-  // Climb around Addison and North Dallas, then descend on the return arc.
+  objective: 'Fly through 10 Golden Gates while climbing and descending before time runs out.',
+  courseRevision: 1,
+  chapter: 'GOLDEN GATES', timeLimitMs: 70_000, firstClearCredits: 450, // 3:30 after Dallas scaling.
+  airborneSpawn: Object.freeze({ x: -5366.666666666667, z: -20_000, altitude: 700, heading: -Math.PI / 2, speed: 650 }),
+  // Broad North Dallas arc: gates 1–5 climb, then gates 6–10 descend.
   gates: Object.freeze([
-    { x: -8_000, z: -21_000, altitude: 680, radius: 310 },
-    { x: -4_000, z: -21_000, altitude: 740, radius: 300 },
-    { x: 0, z: -20_000, altitude: 810, radius: 290 },
-    { x: 4_000, z: -17_500, altitude: 880, radius: 285 },
-    { x: 5_500, z: -13_000, altitude: 950, radius: 280 },
-    { x: 3_500, z: -9_000, altitude: 1_030, radius: 275 },
-    { x: 0, z: -6_500, altitude: 990, radius: 270 },
-    { x: -4_500, z: -8_000, altitude: 920, radius: 265 },
-    { x: -8_500, z: -11_500, altitude: 830, radius: 260 },
-    { x: -10_000, z: -16_000, altitude: 750, radius: 330 },
+    { x: -4200, z: -20000, altitude: 700, radius: 310 },
+    { x: -1467, z: -20000, altitude: 800, radius: 300 },
+    { x: 1225, z: -19525, altitude: 900, radius: 290 },
+    { x: 3702, z: -18370, altitude: 1000, radius: 285 },
+    { x: 5459, z: -16276, altitude: 1100, radius: 280 },
+    { x: 5934, z: -13585, altitude: 1020, radius: 275 },
+    { x: 4999, z: -11016, altitude: 940, radius: 270 },
+    { x: 2905, z: -9259, altitude: 860, radius: 265 },
+    { x: 213, z: -8784, altitude: 780, radius: 260 },
+    { x: -2355, z: -9719, altitude: 700, radius: 330 },
   ]),
 });
 
